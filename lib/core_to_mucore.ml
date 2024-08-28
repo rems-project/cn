@@ -1676,6 +1676,8 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let fin_d_st = CAE.{ inner = Pmap.find fin_marker markers_env; markers_env } in
   let env = C.init_env tagDefs (fetch_enum fin_d_st) (fetch_typedef fin_d_st) in
   let@ env = C.add_datatype_infos env ail_prog.cn_datatypes in
+  (* This registers only user defined functions. Builtin functions that can
+     be expressed as index terms are registered in compile.ml in init_env *)
   let@ env = C.register_cn_functions env ail_prog.cn_functions in
   let@ lfuns = ListM.mapM (C.translate_cn_function env) ail_prog.cn_functions in
   let env = C.register_cn_predicates env ail_prog.cn_predicates in
@@ -1729,6 +1731,9 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   in
   let stdlib_syms = Sym.Set.of_list (List.map fst (Pmap.bindings_list file.mi_stdlib)) in
   let datatypes = List.map (translate_datatype env) ail_prog.cn_datatypes in
+  let builtin_lfuns =
+    List.map (fun (_, sym, def) -> (sym, def)) Builtins.builtin_fun_defs
+  in
   let file =
     Mu.
       { main = file.mi_main;
@@ -1739,7 +1744,9 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
         stdlib_syms;
         mk_functions;
         resource_predicates = preds;
-        logical_predicates = lfuns;
+        (* Add user defined functions here along with certain builtins that can be
+         easily expressed with index terms *)
+        logical_predicates = builtin_lfuns @ lfuns;
         datatypes;
         lemmata;
         call_funinfo

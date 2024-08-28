@@ -39,10 +39,18 @@ type env =
 
 let init_env tagDefs fetch_enum_expr fetch_typedef =
   let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg_bt } in
+  let builtins =
+    List.fold_left
+      (fun acc (_, sym, (def : Definition.Function.t)) ->
+         let fsig = { args = def.args; return_bty = def.return_bt } in
+         Sym.Map.add sym fsig acc)
+      Sym.Map.empty
+      Builtins.builtin_fun_defs
+  in
   { computationals = Sym.Map.empty;
     logicals = Sym.Map.(empty |> add Alloc.History.sym Alloc.History.sbt);
     predicates = Sym.Map.(empty |> add Alloc.Predicate.sym alloc_sig);
-    functions = Sym.Map.empty;
+    functions = builtins;
     datatypes = Sym.Map.empty;
     datatype_constrs = Sym.Map.empty;
     tagDefs;

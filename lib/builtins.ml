@@ -1,17 +1,17 @@
 module SBT = BaseTypes.Surface
 open Or_TypeError
-open IndexTerms
+module BT = BaseTypes
+module IT = IndexTerms
+
+type builtin_fn_def = string * Sym.t * Definition.Function.t
+
+let loc = Cerb_location.other "<builtin>"
 
 let fail_number_args loc ~has ~expect =
   fail { loc; msg = WellTyped (Number_arguments { type_ = `Other; has; expect }) }
 
 
 (* builtin function symbols *)
-let mk_arg0 mk args loc =
-  match args with
-  | [] -> return (mk loc)
-  | _ :: _ as xs -> fail_number_args loc ~has:(List.length xs) ~expect:0
-
 
 let mk_arg1 mk args loc =
   match args with
@@ -35,10 +35,28 @@ let mk_arg3_err mk args loc =
 
 let mk_arg3 mk = mk_arg3_err (fun tup loc -> return (mk tup loc))
 
-let mk_arg5 mk args loc =
-  match args with
-  | [ a; b; c; d; e ] -> return (mk (a, b, c, d, e) loc)
-  | xs -> fail_number_args loc ~has:(List.length xs) ~expect:5
+let var_binop op ty ~left:(sym1, bt1) ~right:(sym2, bt2) =
+  IT.binop op (IT.sym_ (sym1, bt1, loc), IT.sym_ (sym2, bt2, loc)) loc ty
+
+
+let definition name args body =
+  ( name,
+    Sym.fresh_named name,
+    Definition.Function.
+      { loc; emit_coq = false; args; body = Def body; return_bt = IT.get_bt body } )
+
+
+let mk_builtin_arg0 name = definition name []
+
+let mk_builtin_arg1 name bt mk : builtin_fn_def =
+  let arg = (Sym.fresh_named "arg", bt) in
+  mk arg |> definition name [ arg ]
+
+
+let mk_builtin_arg2 name (bt1, bt2) mk : builtin_fn_def =
+  let left = (Sym.fresh_named "arg1", bt1) in
+  let right = (Sym.fresh_named "arg2", bt2) in
+  mk ~left ~right |> definition name [ left; right ]
 
 
 let min_bits_def (sign, n) =
@@ -48,9 +66,7 @@ let min_bits_def (sign, n) =
     | Signed -> (Z.(neg @@ shift_left one (Int.sub n 1)), "i")
   in
   let name = "MIN" ^ letter ^ Int.to_string n in
-  ( name,
-    Sym.fresh_named name,
-    mk_arg0 (fun loc -> Surface.inj @@ num_lit_ num (BT.Bits (sign, n)) loc) )
+  IT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
 
 
 let max_bits_def (sign, n) =
@@ -60,113 +76,7 @@ let max_bits_def (sign, n) =
     | Signed -> (Z.(shift_left one (Int.sub n 1) - one), "i")
   in
   let name = "MAX" ^ letter ^ Int.to_string n in
-  ( name,
-    Sym.fresh_named name,
-    mk_arg0 (fun loc -> Surface.inj @@ num_lit_ num (BT.Bits (sign, n)) loc) )
-
-
-let mul_uf_def = ("mul_uf", Sym.fresh_named "mul_uf", mk_arg2 mul_no_smt_)
-
-let div_uf_def = ("div_uf", Sym.fresh_named "div_uf", mk_arg2 div_no_smt_)
-
-let power_uf_def = ("power_uf", Sym.fresh_named "power_uf", mk_arg2 exp_no_smt_)
-
-let rem_uf_def = ("rem_uf", Sym.fresh_named "rem_uf", mk_arg2 rem_no_smt_)
-
-let mod_uf_def = ("mod_uf", Sym.fresh_named "mod_uf", mk_arg2 mod_no_smt_)
-
-let xor_uf_def = ("xor_uf", Sym.fresh_named "xor_uf", mk_arg2 (arith_binop BW_Xor))
-
-let bw_and_uf_def =
-  ("bw_and_uf", Sym.fresh_named "bw_and_uf", mk_arg2 (arith_binop BW_And))
-
-
-let bw_or_uf_def = ("bw_or_uf", Sym.fresh_named "bw_or_uf", mk_arg2 (arith_binop BW_Or))
-
-let bw_clz_uf_def =
-  ("bw_clz_uf", Sym.fresh_named "bw_clz_uf", mk_arg1 (arith_unop BW_CLZ_NoSMT))
-
-
-let bw_ctz_uf_def =
-  ("bw_ctz_uf", Sym.fresh_named "bw_ctz_uf", mk_arg1 (arith_unop BW_CTZ_NoSMT))
-
-
-let bw_ffs_uf_def =
-  ("bw_ffs_uf", Sym.fresh_named "bw_ffs_uf", mk_arg1 (arith_unop BW_FFS_NoSMT))
-
-
-let bw_fls_uf_def =
-  ("bw_fls_uf", Sym.fresh_named "bw_fls_uf", mk_arg1 (arith_unop BW_FLS_NoSMT))
-
-
-let shift_left_def =
-  ("shift_left", Sym.fresh_named "shift_left", mk_arg2 (arith_binop ShiftLeft))
-
-
-let shift_right_def =
-  ("shift_right", Sym.fresh_named "shift_right", mk_arg2 (arith_binop ShiftRight))
-
-
-let power_def = ("power", Sym.fresh_named "power", mk_arg2 exp_)
-
-let rem_def = ("rem", Sym.fresh_named "rem", mk_arg2 rem_)
-
-let mod_def = ("mod", Sym.fresh_named "mod", mk_arg2 mod_)
-
-let not_def = ("not", Sym.fresh_named "not", mk_arg1 not_)
-
-let nth_list_def = ("nth_list", Sym.fresh_named "nth_list", mk_arg3 nthList_)
-
-let array_to_list_def =
-  ( "array_to_list",
-    Sym.fresh_named "array_to_list",
-    mk_arg3_err (fun (arr, i, len) loc ->
-      match SBT.is_map_bt (get_bt arr) with
-      | None ->
-        let reason = "map/array operation" in
-        let expected = "map/array" in
-        fail
-          { loc;
-            msg =
-              WellTyped
-                (Illtyped_it { it = pp arr; has = SBT.pp (get_bt arr); expected; reason })
-          }
-      | Some (_, bt) -> return (array_to_list_ (arr, i, len) bt loc)) )
-
-
-let is_null_def =
-  ( "is_null",
-    Sym.fresh_named "is_null",
-    mk_arg1 (fun p loc -> Surface.inj (eq_ (Surface.proj p, null_ loc) loc)) )
-
-
-let has_alloc_id_def =
-  ( "has_alloc_id",
-    Sym.fresh_named "has_alloc_id",
-    mk_arg1 (fun p loc -> Surface.inj @@ hasAllocId_ (Surface.proj p) loc) )
-
-
-let ptr_eq_def =
-  ( "ptr_eq",
-    Sym.fresh_named "ptr_eq",
-    mk_arg2 (fun (p1, p2) loc ->
-      Surface.inj @@ eq_ (Surface.proj p1, Surface.proj p2) loc) )
-
-
-let prov_eq_def =
-  ( "prov_eq",
-    Sym.fresh_named "prov_eq",
-    mk_arg2 (fun (p1, p2) loc ->
-      Surface.inj
-      @@ eq_ (allocId_ (Surface.proj p1) loc, allocId_ (Surface.proj p2) loc) loc) )
-
-
-let addr_eq_def =
-  ( "addr_eq",
-    Sym.fresh_named "addr_eq",
-    mk_arg2 (fun (p1, p2) loc ->
-      Surface.inj @@ eq_ (addr_ (Surface.proj p1) loc, addr_ (Surface.proj p2) loc) loc)
-  )
+  IT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
 
 
 let max_min_bits =
@@ -182,34 +92,142 @@ let max_min_bits =
     signs
 
 
+let not_def =
+  mk_builtin_arg1 "not" BT.Bool (fun (sym, bt) -> IT.not_ (IT.sym_ (sym, bt, loc)) loc)
+
+
+let is_null_def : builtin_fn_def =
+  mk_builtin_arg1 "is_null" (BT.Loc ()) (fun (sym, bt) ->
+    (IT.eq__ (IT.sym_ (sym, bt, loc)) (IT.null_ loc)) loc)
+
+
+(* Cannot translate this to a logical function until the TODO in `cn_to_ail_expr_aux_internal` in `cn_internal_to_ail.ml` is resolved*)
+let has_alloc_id_def =
+  ( "has_alloc_id",
+    Sym.fresh_named "has_alloc_id",
+    mk_arg1 (fun p loc' -> IT.Surface.inj @@ IT.hasAllocId_ (IT.Surface.proj p) loc') )
+
+
+let ptr_eq_def : builtin_fn_def =
+  var_binop EQ BT.Bool |> mk_builtin_arg2 "ptr_eq" (BT.Loc (), BT.Loc ())
+
+
+let prov_eq_def : builtin_fn_def =
+  let left = (Sym.fresh_named "arg1", BT.Loc ()) in
+  let right = (Sym.fresh_named "arg2", BT.Loc ()) in
+  let left_cast = IT.allocId_ (IT.sym_ (fst left, BT.Loc (), loc)) loc in
+  let right_cast = IT.allocId_ (IT.sym_ (fst right, BT.Loc (), loc)) loc in
+  let body = IT.binop EQ (left_cast, right_cast) loc BT.Bool in
+  definition "prov_eq" [ left; right ] body
+
+
+let addr_eq_def : builtin_fn_def =
+  let left = (Sym.fresh_named "arg1", BT.Loc ()) in
+  let right = (Sym.fresh_named "arg2", BT.Loc ()) in
+  let left_cast = IT.addr_ (IT.sym_ (fst left, BT.Loc (), loc)) loc in
+  let right_cast = IT.addr_ (IT.sym_ (fst right, BT.Loc (), loc)) loc in
+  let body = IT.binop EQ (left_cast, right_cast) loc BT.Bool in
+  definition "addr_eq" [ left; right ] body
+
+
+(* The remaining functions in this file, from here until array_to_list_def cannot yet be translated to
+   LogicalFunction.definition types because they implicitly require basetype polymorphism.
+   For example, the `mod` function allows inputs of any sign and size, but such a function cannot be defined
+   yet with an index term *)
+let mul_uf_def = ("mul_uf", Sym.fresh_named "mul_uf", mk_arg2 IT.mul_no_smt_)
+
+let div_uf_def = ("div_uf", Sym.fresh_named "div_uf", mk_arg2 IT.div_no_smt_)
+
+let power_uf_def = ("power_uf", Sym.fresh_named "power_uf", mk_arg2 IT.exp_no_smt_)
+
+let rem_uf_def = ("rem_uf", Sym.fresh_named "rem_uf", mk_arg2 IT.rem_no_smt_)
+
+let mod_uf_def = ("mod_uf", Sym.fresh_named "mod_uf", mk_arg2 IT.mod_no_smt_)
+
+let xor_uf_def = ("xor_uf", Sym.fresh_named "xor_uf", mk_arg2 (IT.arith_binop BW_Xor))
+
+let bw_and_uf_def =
+  ("bw_and_uf", Sym.fresh_named "bw_and_uf", mk_arg2 (IT.arith_binop BW_And))
+
+
+let bw_or_uf_def = ("bw_or_uf", Sym.fresh_named "bw_or_uf", mk_arg2 (IT.arith_binop BW_Or))
+
+let bw_clz_uf_def =
+  ("bw_clz_uf", Sym.fresh_named "bw_clz_uf", mk_arg1 (IT.arith_unop BW_CLZ_NoSMT))
+
+
+let bw_ctz_uf_def =
+  ("bw_ctz_uf", Sym.fresh_named "bw_ctz_uf", mk_arg1 (IT.arith_unop BW_CTZ_NoSMT))
+
+
+let bw_ffs_uf_def =
+  ("bw_ffs_uf", Sym.fresh_named "bw_ffs_uf", mk_arg1 (IT.arith_unop BW_FFS_NoSMT))
+
+
+let bw_fls_uf_def =
+  ("bw_fls_uf", Sym.fresh_named "bw_fls_uf", mk_arg1 (IT.arith_unop BW_FLS_NoSMT))
+
+
+let shift_left_def =
+  ("shift_left", Sym.fresh_named "shift_left", mk_arg2 (IT.arith_binop ShiftLeft))
+
+
+let shift_right_def =
+  ("shift_right", Sym.fresh_named "shift_right", mk_arg2 (IT.arith_binop ShiftRight))
+
+
+let power_def = ("power", Sym.fresh_named "power", mk_arg2 IT.exp_)
+
+let rem_def = ("rem", Sym.fresh_named "rem", mk_arg2 IT.rem_)
+
+let mod_def = ("mod", Sym.fresh_named "mod", mk_arg2 IT.mod_)
+
+let nth_list_def = ("nth_list", Sym.fresh_named "nth_list", mk_arg3 IT.nthList_)
+
+let array_to_list_def =
+  ( "array_to_list",
+    Sym.fresh_named "array_to_list",
+    mk_arg3_err (fun (arr, i, len) loc ->
+      match SBT.is_map_bt (IT.get_bt arr) with
+      | None ->
+        let reason = "map/array operation" in
+        let expected = "map/array" in
+        fail
+          { loc;
+            msg =
+              WellTyped
+                (Illtyped_it
+                   { it = IT.pp arr; has = SBT.pp (IT.get_bt arr); expected; reason })
+          }
+      | Some (_, bt) -> return (IT.array_to_list_ (arr, i, len) bt loc)) )
+
+
 let builtin_funs =
-  max_min_bits
-  @ [ mul_uf_def;
-      div_uf_def;
-      power_uf_def;
-      rem_uf_def;
-      mod_uf_def;
-      xor_uf_def;
-      bw_and_uf_def;
-      bw_or_uf_def;
-      bw_clz_uf_def;
-      bw_ctz_uf_def;
-      bw_ffs_uf_def;
-      bw_fls_uf_def;
-      shift_left_def;
-      shift_right_def;
-      power_def;
-      rem_def;
-      mod_def;
-      not_def;
-      nth_list_def;
-      array_to_list_def;
-      is_null_def;
-      has_alloc_id_def;
-      prov_eq_def;
-      ptr_eq_def;
-      addr_eq_def
-    ]
+  [ mul_uf_def;
+    div_uf_def;
+    power_uf_def;
+    rem_uf_def;
+    mod_uf_def;
+    xor_uf_def;
+    bw_and_uf_def;
+    bw_or_uf_def;
+    bw_clz_uf_def;
+    bw_ctz_uf_def;
+    bw_ffs_uf_def;
+    bw_fls_uf_def;
+    shift_left_def;
+    shift_right_def;
+    power_def;
+    rem_def;
+    mod_def;
+    nth_list_def;
+    array_to_list_def;
+    has_alloc_id_def
+  ]
+
+
+let builtin_fun_defs =
+  max_min_bits @ [ not_def; is_null_def; ptr_eq_def; prov_eq_def; addr_eq_def ]
 
 
 let apply_builtin_funs fsym args loc =
@@ -220,4 +238,8 @@ let apply_builtin_funs fsym args loc =
     return (Some t)
 
 
-let cn_builtin_fun_names = List.map (fun (str, sym, _) -> (str, sym)) builtin_funs
+(* This list of names is later passed to the frontend in bin/main.ml so that these are available in the elaboration,
+   so it should include all builtin function names *)
+let cn_builtin_fun_names =
+  List.map (fun (str, sym, _) -> (str, sym)) builtin_funs
+  @ List.map (fun (str, sym, _) -> (str, sym)) builtin_fun_defs

@@ -1,0 +1,7 @@
+return code: 1
+tests/cn/ptr_eq_arg_checking.error.c:2:23: error: Type error
+/*@ requires ptr_eq(x,y);
+                      ^
+Expression 'y' has type 'u32'.
+I expected it to have type 'pointer' because of other location (<builtin>) 
+
