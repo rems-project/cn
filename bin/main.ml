@@ -483,7 +483,7 @@ let generate_executable_specs
       Cerb_colour.without_colour
         (fun () ->
            (try
-              Executable_spec.main
+              Fulminate.Executable_spec.main
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
@@ -570,8 +570,8 @@ let run_seq_tests
              let dir, mk = output_dir in
              mk dir
            in
-           Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
-           Executable_spec.main
+           Fulminate.Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
+           Fulminate.Executable_spec.main
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
@@ -724,9 +724,8 @@ let run_tests
              let dir, mk = output_dir in
              mk dir
            in
-           Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
            (try
-              Executable_spec.main
+              Fulminate.Executable_spec.main
                 ~without_ownership_checking
                 ~without_loop_invariants:true
                 ~with_loop_leak_checks:false

@@ -3,8 +3,9 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module CtA = Cn_internal_to_ail
-module Utils = Executable_spec_utils
+module CtA = Fulminate.Cn_internal_to_ail
+module Utils = Fulminate.Executable_spec_utils
+module FExtract = Fulminate.Executable_spec_extract
 module Config = TestGenConfig
 
 let debug_log_file : out_channel option ref = ref None
@@ -33,12 +34,12 @@ let debug_stage (stage : string) (str : string) : unit =
 
 let compile_constant_tests
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : Executable_spec_extract.instrumentation list)
+      (insts : FExtract.instrumentation list)
   : Test.t list * Pp.document
   =
   let test_names, docs =
     List.map_split
-      (fun (inst : Executable_spec_extract.instrumentation) ->
+      (fun (inst : FExtract.instrumentation) ->
          ( Test.
              { kind = Constant;
                suite =
@@ -78,7 +79,7 @@ let compile_constant_tests
 let compile_generators
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Executable_spec_extract.instrumentation list)
+      (insts : FExtract.instrumentation list)
   : Pp.document
   =
   let ctx = GenCompile.compile prog5.resource_predicates insts in
@@ -112,7 +113,7 @@ let convert_from ((x, ct) : Sym.t * C.ctype) =
 let compile_random_test_case
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      ((test, inst) : Test.t * Executable_spec_extract.instrumentation)
+      ((test, inst) : Test.t * FExtract.instrumentation)
   : Pp.document
   =
   let open Pp in
@@ -225,12 +226,12 @@ let compile_random_test_case
 let compile_generator_tests
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Executable_spec_extract.instrumentation list)
+      (insts : FExtract.instrumentation list)
   : Test.t list * Pp.document
   =
   let tests =
     List.map
-      (fun (inst : Executable_spec_extract.instrumentation) ->
+      (fun (inst : FExtract.instrumentation) ->
          Test.
            { kind = Generator;
              suite =

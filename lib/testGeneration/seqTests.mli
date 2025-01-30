@@ -5,5 +5,5 @@ val generate
   :  output_dir:string ->
   filename:string ->
   CF.GenTypes.genTypeCategory A.sigma ->
-  Executable_spec_extract.instrumentation list ->
+  Fulminate.Executable_spec_extract.instrumentation list ->
   int

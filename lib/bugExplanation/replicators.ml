@@ -5,8 +5,8 @@ module BT = BaseTypes
 module IT = IndexTerms
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module CtA = Cn_internal_to_ail
-module Utils = Executable_spec_utils
+module CtA = Fulminate.Cn_internal_to_ail
+module Utils = Fulminate.Executable_spec_utils
 
 let mk_expr = Utils.mk_expr
 
@@ -816,7 +816,7 @@ let compile_spec
 let synthesize
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Executable_spec_extract.instrumentation list)
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
   (* Per type *)
@@ -831,13 +831,14 @@ let synthesize
     let module SctypesSet = Set.Make (Sctypes) in
     let arg_types =
       insts
-      |> List.filter (fun (inst : Executable_spec_extract.instrumentation) ->
+      |> List.filter (fun (inst : Fulminate.Executable_spec_extract.instrumentation) ->
         Option.is_some inst.internal)
-      |> List.filter_map (fun (inst : Executable_spec_extract.instrumentation) ->
-        match List.assoc Sym.equal inst.fn sigma.declarations with
-        | _, _, Decl_function (_, _, cts, _, _, _) ->
-          Some (List.map (fun (_, ct, _) -> ct) cts)
-        | _ -> None)
+      |> List.filter_map
+           (fun (inst : Fulminate.Executable_spec_extract.instrumentation) ->
+              match List.assoc Sym.equal inst.fn sigma.declarations with
+              | _, _, Decl_function (_, _, cts, _, _, _) ->
+                Some (List.map (fun (_, ct, _) -> ct) cts)
+              | _ -> None)
       |> List.flatten
     in
     let types_of_interest =
@@ -888,7 +889,7 @@ let synthesize
   (* Per specification *)
   let spec_replicators =
     insts
-    |> List.filter_map (fun (inst : Executable_spec_extract.instrumentation) ->
+    |> List.filter_map (fun (inst : Fulminate.Executable_spec_extract.instrumentation) ->
       Option.map (fun lat -> compile_spec sigma prog5 inst.fn lat) inst.internal)
   in
   type_replicators @ pred_replicators @ spec_replicators
