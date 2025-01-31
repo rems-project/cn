@@ -2915,6 +2915,8 @@ let cn_to_ail_function_internal
   (* If the function is user defined, grab its location from the cn_function associated with it.
      Otherwise, the location is builtin *)
   let loc =
+    (* RB: This was changed as part of the rebase for commit "Fix some error messages".
+       Is it fine as is, or do you want it to print and exit like with predicates? *)
     match List.nth_opt matched_cn_functions 0 with
     | Some fn -> fn.cn_func_magic_loc
     | None -> Builtins.loc
@@ -3059,12 +3061,22 @@ let cn_to_ail_predicate_internal
          Sym.equal cn_pred.cn_pred_name pred_sym)
       cn_preds
   in
-  let loc =
+  let matched_cn_pred =
     match matched_cn_preds with
     | [] ->
-      failwith (__FUNCTION__ ^ ": No predicate found with name " ^ Sym.pp_string pred_sym)
-    | p :: _ -> p.cn_pred_magic_loc
+      Cerb_colour.with_colour
+        (fun () ->
+           print_endline
+             Pp.(
+               plain
+                 (Pp.item
+                    "Function not found"
+                    (Sym.pp pred_sym ^^^ !^"at" ^^^ Locations.pp rp_def.loc))))
+        ();
+      exit 2
+    | p :: _ -> p
   in
+  let loc = matched_cn_pred.cn_pred_magic_loc in
   (((loc, decl), def), ail_record_opt)
 
 
