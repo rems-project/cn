@@ -281,8 +281,6 @@ let main
       ownership_function_decls;
       conversion_function_decls;
       record_fun_decls;
-      (* record_equality_fun_prot_strs; *)
-      (* record_equality_fun_prot_strs'; *)
       c_function_decls;
       "\n";
       predicate_decls
