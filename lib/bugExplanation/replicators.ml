@@ -5,7 +5,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module CtA = Fulminate.Cn_internal_to_ail
+module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Executable_spec_utils
 
 let mk_expr = Utils.mk_expr
@@ -430,7 +430,11 @@ let compile_it
       (prog5 : unit Mucore.file)
       (it : IT.t)
   =
-  CtA.cn_to_ail_expr sigma.cn_datatypes (extract_global_variables prog5.globs) None it
+  CtA.cn_to_ail_expr_toplevel
+    sigma.cn_datatypes
+    (extract_global_variables prog5.globs)
+    None
+    it
 
 
 let owned_sct_call
