@@ -124,7 +124,7 @@ let replicate_call (sct : Sctypes.t) e_arg =
   | _ ->
     let bt = Memory.bt_of_sct sct in
     let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
-    let e_arg = CtA.wrap_with_convert_to ~sct e_arg bt in
+    let e_arg = CtA.wrap_with_convert ~convert_from:false ~sct e_arg bt in
     A.AilEcall (mk_expr (AilEident fsym), [ mk_expr e_arg ])
 
 
@@ -135,14 +135,21 @@ let replicate_member ptr_sym (sct : Sctypes.t) ((member, sct') : Id.t * Sctypes.
           (AilEcast
              ( C.no_qualifiers,
                Sctypes.to_ctype (Sctypes.pointer_ct sct),
-               mk_expr (CtA.wrap_with_convert_from (AilEident ptr_sym) (BT.Loc ())) )),
+               mk_expr
+                 (CtA.wrap_with_convert
+                    ~convert_from:true
+                    (AilEident ptr_sym)
+                    (BT.Loc ())) )),
         member )
   in
   let e_arg =
     match sct' with
-    | Pointer _ -> CtA.wrap_with_convert_to e_arg (BT.Loc ())
+    | Pointer _ -> CtA.wrap_with_convert ~convert_from:false e_arg (BT.Loc ())
     | Integer _ ->
-      CtA.wrap_with_convert_to (AilEunary (Address, mk_expr e_arg)) (BT.Loc ())
+      CtA.wrap_with_convert
+        ~convert_from:false
+        (AilEunary (Address, mk_expr e_arg))
+        (BT.Loc ())
     | _ -> e_arg
   in
   replicate_call sct' e_arg
@@ -189,14 +196,16 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
                           (mk_expr
                              (replicate_call
                                 sct'
-                                (CtA.wrap_with_convert_to
+                                (CtA.wrap_with_convert
+                                   ~convert_from:false
                                    (AilEcast
                                       ( C.no_qualifiers,
                                         Sctypes.to_ctype (Pointer sct'),
                                         mk_expr
                                           (AilEbinary
                                              ( mk_expr
-                                                 (CtA.wrap_with_convert_from
+                                                 (CtA.wrap_with_convert
+                                                    ~convert_from:true
                                                     (AilEident ptr_sym)
                                                     (BT.Loc ())),
                                                Arithmetic Add,
@@ -240,7 +249,8 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
                                    ( C.no_qualifiers,
                                      bt_to_ctype (BT.Loc ()),
                                      mk_expr
-                                       (CtA.wrap_with_convert_from
+                                       (CtA.wrap_with_convert
+                                          ~convert_from:true
                                           (AilEident ptr_sym)
                                           (BT.Loc ())) ))
                             ] ))) )
@@ -380,7 +390,8 @@ let compile_sct (sct : Sctypes.t)
                 mk_stmt
                   (AilSreturn
                      (mk_expr
-                        (CtA.wrap_with_convert_to
+                        (CtA.wrap_with_convert
+                           ~convert_from:false
                            ~sct
                            (AilEunary
                               ( Indirection,
@@ -393,7 +404,8 @@ let compile_sct (sct : Sctypes.t)
                                              | Array (sct', _) -> Pointer sct'
                                              | _ -> sct)),
                                        mk_expr
-                                         (CtA.wrap_with_convert_from
+                                         (CtA.wrap_with_convert
+                                            ~convert_from:true
                                             (AilEident ptr_sym)
                                             (BT.Loc ())) )) ))
                            bt)))
@@ -691,7 +703,8 @@ let compile_spec
            [ ( y,
                Some
                  (mk_expr
-                    (CtA.wrap_with_convert_to
+                    (CtA.wrap_with_convert
+                       ~convert_from:false
                        (A.AilEident x)
                        (fst (List.assoc Sym.equal x args)))) )
            ])
@@ -734,7 +747,8 @@ let compile_spec
                        (AilEcall
                           ( mk_expr (AilEident fsym),
                             [ mk_expr
-                                (CtA.wrap_with_convert_to
+                                (CtA.wrap_with_convert
+                                   ~convert_from:false
                                    (match bt with
                                     | Loc () -> AilEident arg
                                     | _ -> AilEunary (Address, mk_expr (AilEident arg)))
