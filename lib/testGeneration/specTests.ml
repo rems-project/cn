@@ -100,8 +100,7 @@ let compile_generators
 let convert_from ((x, ct) : Sym.t * C.ctype) =
   CF.Pp_ail.pp_expression
     (Utils.mk_expr
-       (CtA.wrap_with_convert
-          ~convert_from:true
+       (CtA.wrap_with_convert_from
           A.(
             AilEmemberofptr
               ( Utils.mk_expr (AilEident (Sym.fresh_named "res")),

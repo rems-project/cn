@@ -58,20 +58,17 @@ let compile_sct (sct : Sctypes.t)
                          ( mk_expr (AilEident (Sym.fresh_named "cn_analyze_shape_owned")),
                            List.map
                              mk_expr
-                             [ CtA.wrap_with_convert
-                                 ~convert_from:true
+                             [ CtA.wrap_with_convert_from
                                  (AilEident parent_sym)
                                  (BT.Loc ());
-                               CtA.wrap_with_convert
-                                 ~convert_from:true
+                               CtA.wrap_with_convert_from
                                  (AilEident sz_sym)
                                  Memory.size_bt
                              ] ))));
               mk_stmt
                 (AilSreturn
                    (mk_expr
-                      (CtA.wrap_with_convert
-                         ~convert_from:false
+                      (CtA.wrap_with_convert_to
                          ~sct
                          (AilEunary
                             ( Indirection,
@@ -80,8 +77,7 @@ let compile_sct (sct : Sctypes.t)
                                    ( C.no_qualifiers,
                                      Sctypes.to_ctype (Sctypes.pointer_ct sct),
                                      mk_expr
-                                       (CtA.wrap_with_convert
-                                          ~convert_from:true
+                                       (CtA.wrap_with_convert_from
                                           (AilEident ptr_sym)
                                           (BT.Loc ())) )) ))
                          bt)))
@@ -384,8 +380,7 @@ let compile_spec
            [ ( y,
                Some
                  (mk_expr
-                    (CtA.wrap_with_convert
-                       ~convert_from:false
+                    (CtA.wrap_with_convert_to
                        (A.AilEident x)
                        (fst (List.assoc Sym.equal x args)))) )
            ])
