@@ -40,7 +40,7 @@ val generate_c_records
 
 val generate_c_datatypes
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
-  (Cerb_location.t * string) list * string * string list
+  (Cerb_location.t * string) list
 
 val generate_c_struct_strs
   :  (A.ail_identifier
@@ -50,19 +50,15 @@ val generate_c_struct_strs
 
 val generate_cn_versions_of_structs : Cn_to_ail.A.sigma_tag_definition list -> string
 
-val generate_struct_injs
-  :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
-  (Cerb_location.t * string list) list
-
 val generate_c_functions_internal
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   (Sym.t * Definition.Function.t) list ->
-  string * string * (Cerb_location.t * string list) list
+  string * string * Cerb_location.t list
 
 val generate_c_predicates_internal
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   (Sym.t * Definition.Predicate.t) list ->
-  string * (Cerb_location.t * string list) list
+  string * string * Cerb_location.t list
 
 val generate_ownership_functions : bool -> Cn_to_ail.C.ctype list ref -> string * string
 
