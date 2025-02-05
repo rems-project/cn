@@ -38,19 +38,30 @@ val generate_c_records
        list ->
   string * string
 
+(*
+   val generate_str_from_ail_struct
+  :  Sym.t
+     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Cn_to_ail.C.tag_definition) ->
+  string
+
+val generate_str_from_ail_structs
+  :  (Sym.t
+     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Cn_to_ail.C.tag_definition))
+       list ->
+  string
+*)
+
 val generate_c_datatypes
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   (Cerb_location.t * string) list * string * string list
 
-val print_c_structs
-  :  (Sym.t
-     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Cn_to_ail.C.tag_definition))
+val generate_c_struct_strs
+  :  (A.ail_identifier
+     * (Cerb_location.t * CF.Annot.attributes * Cn_to_ail.C.tag_definition))
        list ->
-  string * string
+  string
 
-val generate_cn_versions_of_structs
-  :  Cn_to_ail.A.sigma_tag_definition list ->
-  string * string
+val generate_cn_versions_of_structs : Cn_to_ail.A.sigma_tag_definition list -> string
 
 val generate_struct_injs
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->

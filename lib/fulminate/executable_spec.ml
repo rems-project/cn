@@ -251,10 +251,8 @@ let main
       Cn_to_ail.ownership_ctypes
       sigm
   in
-  let c_struct_defs, _c_struct_decls = print_c_structs sigm.tag_definitions in
-  let cn_converted_struct_defs, _cn_converted_struct_decls =
-    generate_cn_versions_of_structs sigm.tag_definitions
-  in
+  let c_struct_defs = generate_c_struct_strs sigm.tag_definitions in
+  let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
   let record_fun_defs, record_fun_decls =
     Executable_spec_records.generate_c_record_funs sigm
   in

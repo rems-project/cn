@@ -351,7 +351,7 @@ let generate_struct_injs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
         generate_str_from_ail_structs (Cn_to_ail.cn_to_ail_struct def)
       in
       let xs = Cn_to_ail.generate_struct_conversion_to_function def in
-      let ys = Cn_to_ail.generate_struct_equality_function sigm.cn_datatypes def in
+      let ys = Cn_to_ail.generate_struct_equality_function def in
       let prototypes_str =
         match (xs, ys) with
         | ( ((sym1, (loc1, attrs1, conversion_decl)), _) :: _,
@@ -547,9 +547,7 @@ let generate_conversion_and_equality_functions
     @ List.map Cn_to_ail.generate_struct_conversion_from_function sigm.tag_definitions
   in
   let struct_equality_funs =
-    List.map
-      (Cn_to_ail.generate_struct_equality_function sigm.cn_datatypes)
-      sigm.tag_definitions
+    List.map Cn_to_ail.generate_struct_equality_function sigm.tag_definitions
   in
   let datatype_equality_funs =
     List.map Cn_to_ail.generate_datatype_equality_function sigm.cn_datatypes
@@ -558,9 +556,7 @@ let generate_conversion_and_equality_functions
     List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions
   in
   let struct_default_funs =
-    List.map
-      (Cn_to_ail.generate_struct_default_function sigm.cn_datatypes)
-      sigm.tag_definitions
+    List.map Cn_to_ail.generate_struct_default_function sigm.tag_definitions
   in
   let datatype_map_get_funs =
     List.map Cn_to_ail.generate_datatype_map_get sigm.cn_datatypes
