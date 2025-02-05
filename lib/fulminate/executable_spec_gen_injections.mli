@@ -38,19 +38,6 @@ val generate_c_records
        list ->
   string * string
 
-(*
-   val generate_str_from_ail_struct
-  :  Sym.t
-     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Cn_to_ail.C.tag_definition) ->
-  string
-
-val generate_str_from_ail_structs
-  :  (Sym.t
-     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Cn_to_ail.C.tag_definition))
-       list ->
-  string
-*)
-
 val generate_c_datatypes
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   (Cerb_location.t * string) list * string * string list
@@ -70,18 +57,14 @@ val generate_struct_injs
 val generate_c_functions_internal
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   (Sym.t * Definition.Function.t) list ->
-  string * string * (Cerb_location.t * string list) list * (string * string)
+  string * string * (Cerb_location.t * string list) list
 
 val generate_c_predicates_internal
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   (Sym.t * Definition.Predicate.t) list ->
-  string * (Cerb_location.t * string list) list * (string * string)
+  string * (Cerb_location.t * string list) list
 
-val generate_ownership_functions
-  :  bool ->
-  Cn_to_ail.C.ctype list ref ->
-  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
-  string * string
+val generate_ownership_functions : bool -> Cn_to_ail.C.ctype list ref -> string * string
 
 val generate_conversion_and_equality_functions
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->

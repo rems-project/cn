@@ -359,22 +359,37 @@ let generate_struct_injs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   List.concat (List.map generate_struct_inj sigm.tag_definitions)
 
 
-let bt_is_record_or_tuple = function BT.Record _ | BT.Tuple _ -> true | _ -> false
-
 let fns_and_preds_with_record_rt (funs, preds) =
+  let is_record_or_tuple = function BT.Record _ | BT.Tuple _ -> true | _ -> false in
   let funs' =
     List.filter
-      (fun (_, (def : Definition.Function.t)) -> bt_is_record_or_tuple def.return_bt)
+      (fun (_, (def : Definition.Function.t)) -> is_record_or_tuple def.return_bt)
       funs
   in
   let preds' =
     List.filter
-      (fun (_, (def : Definition.Predicate.t)) -> bt_is_record_or_tuple def.oarg_bt)
+      (fun (_, (def : Definition.Predicate.t)) -> is_record_or_tuple def.oarg_bt)
       preds
   in
   let fun_syms = List.map (fun (fn_sym, _) -> fn_sym) funs' in
   let pred_syms = List.map (fun (pred_sym, _) -> pred_sym) preds' in
   (fun_syms, pred_syms)
+
+
+let generate_fun_def_and_decl_docs funs =
+  let decls, defs = List.split funs in
+  let defs_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
+    { A.empty_sigma with declarations = decls; function_definitions = defs }
+  in
+  let decls_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
+    { A.empty_sigma with declarations = decls; function_definitions = [] }
+  in
+  let pp_program_with_exec_spec prog =
+    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, prog)
+  in
+  let defs_doc = pp_program_with_exec_spec defs_prog in
+  let decls_doc = pp_program_with_exec_spec decls_prog in
+  (defs_doc, decls_doc)
 
 
 let generate_c_functions_internal
@@ -386,9 +401,11 @@ let generate_c_functions_internal
       (fun cn_f -> Cn_to_ail.cn_to_ail_function cn_f sigm.cn_datatypes sigm.cn_functions)
       logical_predicates
   in
-  let ail_funs, ail_records_opt = List.split ail_funs_and_records in
+  let ail_funs, _ = List.split ail_funs_and_records in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in
+  let defs = List.filter_map Fun.id defs in
+  let decl_str_comment = "\n/* CN FUNCTIONS */\n\n" in
   let decl_docs =
     List.map
       (fun (sym, (_, _, decl)) ->
@@ -397,32 +414,16 @@ let generate_c_functions_internal
   in
   let decl_strs = List.map doc_to_pretty_string decl_docs in
   let decl_str = String.concat "\n" decl_strs in
-  let decl_str = "\n/* CN FUNCTIONS */\n\n" ^ decl_str in
-  let defs = List.filter_map (fun x -> x) defs in
   let modified_prog_1 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { sigm with declarations = decls; function_definitions = defs }
+    { A.empty_sigma with declarations = decls; function_definitions = defs }
   in
   let doc_1 =
     CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog_1)
   in
-  let inline_decl_docs =
-    List.map
-      (fun (sym, (_, _, decl)) ->
-         CF.Pp_ail.pp_function_prototype ~executable_spec:true sym decl)
-      decls
-  in
-  let inline_decl_strs =
-    List.map (fun doc -> [ doc_to_pretty_string doc ]) inline_decl_docs
-  in
+  let inline_decl_strs = List.map (fun doc -> [ doc_to_pretty_string doc ]) decl_docs in
   let locs_and_decls' = List.combine locs inline_decl_strs in
-  let ail_records =
-    List.map
-      (fun r -> match r with Some record -> [ record ] | None -> [])
-      ail_records_opt
-  in
-  let record_triple_str = generate_c_records (List.concat ail_records) in
   let funs_defs_str = doc_to_pretty_string doc_1 in
-  (funs_defs_str, decl_str, locs_and_decls', record_triple_str)
+  (funs_defs_str, decl_str_comment ^ decl_str, locs_and_decls')
 
 
 let rec remove_duplicates eq_fun = function
@@ -439,7 +440,7 @@ let generate_c_predicates_internal
       (resource_predicates : (Sym.t * Definition.Predicate.t) list)
   =
   (* TODO: Remove passing of resource_predicates argument twice - could use counter? *)
-  let ail_funs, ail_records_opt =
+  let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
       resource_predicates
       sigm.cn_datatypes
@@ -450,7 +451,7 @@ let generate_c_predicates_internal
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in
   let modified_prog1 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { sigm with declarations = decls; function_definitions = defs }
+    { A.empty_sigma with declarations = decls; function_definitions = defs }
   in
   let doc1 =
     CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog1)
@@ -465,20 +466,10 @@ let generate_c_predicates_internal
            ] ))
       (List.combine locs decls)
   in
-  let ail_records =
-    List.map
-      (fun r -> match r with Some record -> [ record ] | None -> [])
-      ail_records_opt
-  in
-  let record_triple_str = generate_c_records (List.concat ail_records) in
-  ("\n/* CN PREDICATES */\n\n" ^ pred_defs_str, pred_locs_and_decls, record_triple_str)
+  ("\n/* CN PREDICATES */\n\n" ^ pred_defs_str, pred_locs_and_decls)
 
 
-let generate_ownership_functions
-      without_ownership_checking
-      ownership_ctypes
-      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
-  =
+let generate_ownership_functions without_ownership_checking ownership_ctypes =
   let rec remove_duplicates ret_list = function
     | [] -> []
     | x :: xs ->
@@ -497,21 +488,9 @@ let generate_ownership_functions
            ctype)
       ctypes
   in
-  let decls, defs = List.split ail_funs in
-  let modified_prog1 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { sigm with declarations = decls; function_definitions = defs }
-  in
-  let doc1 =
-    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog1)
-  in
-  let modified_prog2 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { sigm with declarations = decls; function_definitions = [] }
-  in
-  let doc2 =
-    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog2)
-  in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ail_funs in
   let comment = "\n/* OWNERSHIP FUNCTIONS */\n\n" in
-  (comment ^ doc_to_pretty_string doc1, doc_to_pretty_string doc2)
+  (comment ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
 
 let generate_conversion_and_equality_functions
@@ -554,21 +533,9 @@ let generate_conversion_and_equality_functions
            datatype_default_funs
          ])
   in
-  let decls, defs = List.split ail_funs in
-  let modified_prog1 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { sigm with declarations = decls; function_definitions = defs }
-  in
-  let doc1 =
-    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog1)
-  in
-  let modified_prog2 : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { sigm with declarations = decls; function_definitions = [] }
-  in
-  let doc2 =
-    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog2)
-  in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ail_funs in
   let comment = "\n/* GENERATED STRUCT FUNCTIONS */\n\n" in
-  (comment ^ doc_to_pretty_string doc1, comment ^ doc_to_pretty_string doc2)
+  (comment ^ doc_to_pretty_string defs_doc, comment ^ doc_to_pretty_string decls_doc)
 
 
 let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
