@@ -446,8 +446,8 @@ let generate
   save ~perm:0o777 output_dir "run_tests.sh" script_doc;
   let fun_to_decl (inst : Fulminate.Executable_spec_extract.instrumentation) =
     CF.Pp_ail.pp_function_prototype
-      ~executable_spec:true
       inst.fn
+      ~executable_spec:true
       (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
        decl)
   in

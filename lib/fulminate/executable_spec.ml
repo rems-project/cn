@@ -192,7 +192,7 @@ let memory_accesses_injections ail_prog =
 
 let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
-open Executable_spec_internal
+open Executable_spec_gen_injections
 
 let main
       ?(without_ownership_checking = false)
@@ -206,7 +206,6 @@ let main
       output_decorated
       output_decorated_dir
       prog5
-      statement_locs
   =
   let output_filename =
     match output_decorated with
@@ -217,9 +216,7 @@ let main
   let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
   let cn_oc = Stdlib.open_out (Filename.concat prefix "cn.c") in
   let cn_header_oc = Stdlib.open_out (Filename.concat prefix "cn.h") in
-  let instrumentation, symbol_table =
-    Executable_spec_extract.collect_instrumentation prog5
-  in
+  let instrumentation, _ = Executable_spec_extract.collect_instrumentation prog5 in
   Executable_spec_records.populate_record_map instrumentation prog5;
   let executable_spec =
     generate_c_specs
@@ -227,8 +224,6 @@ let main
       without_loop_invariants
       with_loop_leak_checks
       instrumentation
-      symbol_table
-      statement_locs
       sigm
       prog5
   in
@@ -337,7 +332,9 @@ let main
   let accesses_stmt_injs =
     if without_ownership_checking then [] else memory_accesses_injections ail_prog
   in
-  let struct_injs_with_filenames = Executable_spec_internal.generate_struct_injs sigm in
+  let struct_injs_with_filenames =
+    Executable_spec_gen_injections.generate_struct_injs sigm
+  in
   let struct_injs_with_filenames =
     List.map (fun (loc, _) -> (loc, [ "" ])) struct_injs_with_filenames
   in
