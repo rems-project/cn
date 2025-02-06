@@ -53,3 +53,5 @@ val find_ctype_from_bindings : (Sym.t * ('a * 'b * 'c * 'd)) list -> Sym.t -> 'd
 val get_start_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
 
 val get_end_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
+
+val concat_map_newline : Pp.document list -> Pp.document

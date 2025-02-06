@@ -200,3 +200,6 @@ let get_end_loc ?(offset = 0) = function
   | Loc_point pos -> Cerb_location.point (Cerb_position.change_cnum pos offset)
   | Loc_unknown | Loc_other _ ->
     failwith "get_end_loc: Location should be Loc_region, Loc_regions or Loc_point"
+
+
+let concat_map_newline docs = PPrint.(concat_map (fun doc -> doc ^^ hardline) docs)

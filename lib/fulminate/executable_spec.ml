@@ -58,14 +58,7 @@ let rec inject_injs_to_multiple_files ail_prog in_stmt_injs block_return_injs cn
   | (fn', oc') :: xs ->
     Stdlib.output_string oc' (cn_header ^ "\n");
     let in_stmt_injs_for_fn' = filter_injs_by_filename in_stmt_injs fn' in
-    let squashed_return_injs_for_fn' = filter_injs_by_filename block_return_injs fn' in
-    let return_injs_for_fn' =
-      List.map
-        (fun (loc, (e_opt, strs)) -> (loc, e_opt, strs))
-        squashed_return_injs_for_fn'
-    in
-    (* let injs_for_fn' = List.map (fun (loc, (_, strs)) -> (loc, strs)) injs_with_syms
-       in *)
+    let return_injs_for_fn' = filter_injs_by_filename block_return_injs fn' in
     (match
        Source_injection.(
          output_injections
@@ -189,7 +182,7 @@ let memory_accesses_injections ail_prog =
 
 let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
-open Executable_spec_gen_injections
+open Executable_spec_internal
 
 let main
       ?(without_ownership_checking = false)
@@ -226,10 +219,10 @@ let main
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, c_function_locs =
-    generate_c_functions_internal sigm prog5.logical_predicates
+    generate_c_functions sigm prog5.logical_predicates
   in
   let c_predicate_defs, c_predicate_decls, c_predicate_locs =
-    generate_c_predicates_internal sigm prog5.resource_predicates
+    generate_c_predicates sigm prog5.resource_predicates
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions sigm
@@ -241,7 +234,7 @@ let main
     Executable_spec_utils.generate_include_header cn_utils_header_pair
   in
   let ownership_function_defs, ownership_function_decls =
-    generate_ownership_functions without_ownership_checking Cn_to_ail.ownership_ctypes
+    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
   in
   let c_struct_defs = generate_c_struct_strs sigm.tag_definitions in
   let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
@@ -249,7 +242,7 @@ let main
     Executable_spec_records.generate_c_record_funs sigm
   in
   let datatype_strs = String.concat "\n" (List.map snd c_datatype_defs) in
-  let record_defs, _record_decls = Executable_spec_records.generate_all_record_strs () in
+  let record_defs = Executable_spec_records.generate_all_record_strs () in
   let cn_header_decls_list =
     [ cn_utils_header;
       "\n";
@@ -314,27 +307,16 @@ let main
   let source_file_in_stmt_injs = filter_injs_by_filename in_stmt_injs filename in
   (* Return injections *)
   let block_return_injs = executable_spec.returns in
-  let squashed_block_return_injs =
-    List.map (fun (l, e_opt, strs) -> (l, (e_opt, strs))) block_return_injs
-  in
-  let source_file_return_injs_squashed =
-    filter_injs_by_filename squashed_block_return_injs filename
-  in
-  let source_file_return_injs =
-    List.map (fun (l, (e_opt, strs)) -> (l, e_opt, strs)) source_file_return_injs_squashed
-  in
+  let source_file_return_injs = filter_injs_by_filename block_return_injs filename in
   let included_filenames =
     List.map (fun (loc, _) -> Cerb_location.get_filename loc) in_stmt_injs
-  in
-  let included_filenames' =
-    included_filenames
-    @ List.map (fun (loc, _) -> Cerb_location.get_filename loc) squashed_block_return_injs
+    @ List.map (fun (loc, _) -> Cerb_location.get_filename loc) block_return_injs
   in
   let remaining_fns_and_ocs =
     if use_preproc then
       []
     else
-      open_auxilliary_files filename prefix included_filenames' []
+      open_auxilliary_files filename prefix included_filenames []
   in
   let pre_post_pairs =
     if with_test_gen then
@@ -372,7 +354,7 @@ let main
   inject_injs_to_multiple_files
     ail_prog
     in_stmt_injs
-    squashed_block_return_injs
+    block_return_injs
     cn_header
     remaining_fns_and_ocs;
   close_out oc;

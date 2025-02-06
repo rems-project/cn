@@ -10,7 +10,7 @@ type 'a cn_injection =
         The locations of the symbols are found by consulting [program]. *)
     in_stmt : (Cerb_location.t * string list) list;
       (** Additional statement injections to insert at the given locations. *)
-    returns : (Cerb_location.t * 'a AilSyntax.expression option * string list) list;
+    returns : (Cerb_location.t * ('a AilSyntax.expression option * string list)) list;
       (** Injections to add when a function returns. *)
     inject_in_preproc : bool
       (** Should we inject using pre-processed locations (true) or not (false). *)

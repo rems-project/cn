@@ -11,8 +11,7 @@ type executable_spec =
     in_stmt : (Cerb_location.t * string list) list;
     returns :
       (Cerb_location.t
-      * Cerb_frontend.GenTypes.genTypeCategory A.expression option
-      * string list)
+      * (Cerb_frontend.GenTypes.genTypeCategory A.expression option * string list))
         list
   }
 
@@ -37,7 +36,7 @@ val generate_c_records
   :  (Sym.t
      * (Cerb_location.t * Cerb_frontend.Annot.attributes * Cn_to_ail.C.tag_definition))
        list ->
-  string * string
+  string
 
 val generate_c_datatypes
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
@@ -61,7 +60,7 @@ val generate_c_predicates
   (Sym.t * Definition.Predicate.t) list ->
   string * string * Cerb_location.t list
 
-val generate_ownership_functions : bool -> Cn_to_ail.C.ctype list ref -> string * string
+val generate_ownership_functions : bool -> Cn_to_ail.C.ctype list -> string * string
 
 val generate_conversion_and_equality_functions
   :  Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
