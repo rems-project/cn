@@ -10,15 +10,7 @@ type ownership_mode =
 
 let ownership_mode_to_enum_str = function Pre -> "GET" | Post -> "PUT" | Loop -> "LOOP"
 
-let cn_ghost_state_sym = Sym.fresh_pretty "cn_ownership_global_ghost_state"
-
-let cn_ghost_state_struct_type =
-  mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh_pretty "ownership_ghost_state") ] C.Void
-
-
 let get_cn_stack_depth_sym = Sym.fresh_pretty "get_cn_stack_depth"
-
-let cn_stack_depth_ctype = C.mk_ctype_integer (Signed Long)
 
 let cn_stack_depth_incr_sym = Sym.fresh_pretty "ghost_stack_depth_incr"
 
@@ -37,10 +29,11 @@ let c_add_ownership_fn_sym = Sym.fresh_pretty "c_add_to_ghost_state"
 let c_remove_ownership_fn_sym = Sym.fresh_pretty "c_remove_from_ghost_state"
 
 (* TODO: Use these to reduce verbosity of output. Mirrors C+CN input slightly less since
-   we replace declarations with a call to one of these macros *)
-let c_declare_and_map_local_sym = Sym.fresh_pretty "c_declare_and_map_local"
+   we replace declarations with a call to one of these macros
+   let c_declare_and_map_local_sym = Sym.fresh_pretty "c_declare_and_map_local"
 
-let c_declare_init_and_map_local_sym = Sym.fresh_pretty "c_declare_init_and_map_local"
+   let c_declare_init_and_map_local_sym = Sym.fresh_pretty "c_declare_init_and_map_local"
+*)
 
 let get_ownership_global_init_stats () =
   let cn_ghost_state_init_fcall =
@@ -323,7 +316,6 @@ let rec get_return_expr_opt = function
   | None :: xs -> get_return_expr_opt xs
 
 
-(* TODO replace with Base.List: https://github.com/rems-project/cerberus/pull/347 *)
 let rec remove_duplicates ds = function
   | [] -> []
   | l :: ls ->
