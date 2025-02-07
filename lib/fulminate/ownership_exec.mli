@@ -7,6 +7,23 @@ type ownership_mode =
   | Post
   | Loop
 
+type ail_bindings_and_statements =
+  A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+
+type return_kind =
+  | ReturnVoid
+  | ReturnExpr of CF.GenTypes.genTypeCategory A.expression
+
+type injection_kind =
+  | ReturnInj of return_kind
+  | NonReturnInj
+
+type ownership_injection =
+  { loc : Cerb_location.t;
+    bs_and_ss : ail_bindings_and_statements;
+    injection_kind : injection_kind
+  }
+
 val ownership_mode_to_enum_str : ownership_mode -> string
 
 val cn_stack_depth_incr_sym : Sym.t
@@ -40,13 +57,4 @@ val get_c_fn_local_ownership_checking_injs
    * CF.GenTypes.genTypeCategory A.statement_ list)
   * ('b list * CF.GenTypes.genTypeCategory A.statement_ list))
     option
-  * (Cerb_location.t
-    * CF.GenTypes.genTypeCategory A.expression option option
-    * (C.union_tag
-      * ((Cerb_location.t * A.storageDuration * bool)
-        * 'c option
-        * C.qualifiers
-        * C.ctype))
-        list
-    * CF.GenTypes.genTypeCategory A.statement_ list)
-      list
+  * ownership_injection list
