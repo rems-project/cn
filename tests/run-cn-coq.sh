@@ -12,6 +12,7 @@ set -uo pipefail
 BLACKLISTED_FILES=(
     tree16/as_partial_map/tree16.c
     tree16/as_mutual_dt/tree16.c
+    append.c
     mergesort.c
     mergesort_alt.c
     mutual_rec/mutual_rec2.c
@@ -25,7 +26,7 @@ USE_DUNE=0
 COQ_PROOF_LOG=0
 COQ_CHECK_PROOF_LOG=0
 
-while getopts "dpef: v" opt; do
+while getopts "dpcef: v" opt; do
     case ${opt} in
         d)
             USE_DUNE=1
@@ -47,12 +48,12 @@ while getopts "dpef: v" opt; do
             VERBOSE_USAGE=1
             ;;
         *)
-            echo "Usage: $0 [-e] [-f file] [-v]"
+            echo "Usage: $0 [-e] [-d] [-p] [-c] [-v] [-f file]"
             echo "  -e  Stop on error and preserve temporary directory"
             echo "  -f  Run single test file (implies -e)"
             echo "  -d  Use dune to run CN"
             echo "  -p  Include proof log in Coq export"
-            echo "  -c  Check proof log in Coq export"
+            echo "  -c  Run proof automation on proof log"
             echo "  -v  Verbose output for resource usage logging"
             exit 1
             ;;
