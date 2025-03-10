@@ -155,9 +155,81 @@ Inductive unfold_step : Context.t -> Context.t -> Prop :=
 (** Inductive predicate which defines correctess of log inference step *)
 Inductive log_entry_valid : log_entry -> Prop :=
 | unfold_resources_step:
-    forall loc c c',
-    unfold_step c c' ->
-    log_entry_valid (ResourceInferenceStep c (UnfoldResources loc) c')
+  forall loc c c',
+  unfold_step c c' ->
+  log_entry_valid (ResourceInferenceStep c (UnfoldResources loc) c')
+
+ (* struct case: struct resource is removed from input context *)
+| struct_resource_inference_step:
+  forall isym iinit ipointer iargs
+    oname opointer oargs
+    err out lines oloc
+    icomputational ilogical iresources iconstraints iglobal
+    ocomputational ological oresources oconstraints oglobal,
+
+  (* The following parts of context are not changed *)
+  icomputational = ocomputational ->
+  iglobal = oglobal ->
+  ilogical = ological ->
+  iconstraints = oconstraints ->
+
+  let in_res := ctx_resources_set iresources in
+  let out_res := ctx_resources_set oresources in
+
+  let iname := Request.Owned (SCtypes.Struct isym) iinit in
+  
+  iname = oname ->
+  ipointer = opointer ->
+  iargs = oargs ->
+
+  (* Find the struct resource and its fields *)
+  (exists (field_res: ResSet.t),
+    (* The struct unfolds to field resources *)
+    resource_unfold iglobal 
+      (Request.P {| Predicate.name := iname;
+                   Predicate.pointer := ipointer;
+                   Predicate.iargs := iargs |}, out)
+       field_res /\
+      (* Output context is input context minus all field resources *)
+      ResSet.Equal out_res (ResSet.diff in_res field_res)
+  ) ->
+
+  log_entry_valid
+    (ResourceInferenceStep
+    (* input context *)
+      {|
+        Context.computational := icomputational;
+        Context.logical := ilogical;
+        Context.resources := iresources;
+        Context.constraints := iconstraints;
+        Context.global := iglobal
+      |}
+
+      (* request type *)
+      (PredicateRequest
+        err (* unused *)
+        (* input predicate *)
+        {| Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
+          Predicate.pointer := ipointer;
+          Predicate.iargs := iargs |}
+        oloc (* unused *)
+        ((
+          (* output predicate *)
+          {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
+          out
+          ), lines (* unused *)
+        )
+     )
+
+     (* output context *)
+     {|
+        Context.computational := ocomputational;
+        Context.logical := ological;
+        Context.resources := oresources;
+        Context.constraints := oconstraints;
+        Context.global := oglobal
+     |}
+   )
 
 (* simple case: non-recursive request, no packing *)
 | simple_resource_inference_step:
@@ -176,9 +248,14 @@ Inductive log_entry_valid : log_entry -> Prop :=
   let in_res := ctx_resources_set iresources in
   let out_res := ctx_resources_set oresources in
 
+
+  iname = oname ->
+  ipointer = opointer ->
+  iargs = oargs ->
+
   (* alt. definition sketch:
   let res_diff := Resource.ResSet.diff in_res out_res in
-  Resource.ResSet.cardinal res_diff = 1 /\
+  Resource.ResSet.cardinal res_diff = 1 /
   ...
    *)
 
@@ -188,11 +265,6 @@ Inductive log_entry_valid : log_entry -> Prop :=
       Request.subsumed iname upred.(Request.Predicate.name)
   ) 
   
-  (* TODO:
-  /\ iname=oname  
-  /\ ipointer=opointer
-  /\ iargs=oargs
-  *)
   ->
 
     log_entry_valid
@@ -229,77 +301,7 @@ Inductive log_entry_valid : log_entry -> Prop :=
          |}
       )
 
- (* struct case: struct resource is removed from input context *)
-| struct_resource_inference_step:
-  forall isym iinit ipointer iargs
-    oname opointer oargs
-    err out lines oloc
-    icomputational ilogical iresources iconstraints iglobal
-    ocomputational ological oresources oconstraints oglobal,
-
-  (* The following parts of context are not changed *)
-  icomputational = ocomputational ->
-  iglobal = oglobal ->
-  ilogical = ological ->
-  iconstraints = oconstraints ->
-
-  let in_res := ctx_resources_set iresources in
-  let out_res := ctx_resources_set oresources in
-
-  (* Find the struct resource and its fields *)
-  (exists (field_res: ResSet.t),
-      (* The struct unfolds to field resources *)
-      resource_unfold iglobal 
-        (Request.P {| Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
-                      Predicate.pointer := ipointer;
-                      Predicate.iargs := iargs |}, out)
-        field_res /\
-      (* Output context is input context minus all field resources *)
-      ResSet.Equal out_res (ResSet.diff in_res field_res)
-  ) ->
-
-  (* TODO:
-  /\ iname=oname  
-  /\ ipointer=opointer
-  /\ iargs=oargs
-  *)
-
-  log_entry_valid
-    (ResourceInferenceStep
-      (* input context *)
-      {|
-        Context.computational := icomputational;
-        Context.logical := ilogical;
-        Context.resources := iresources;
-        Context.constraints := iconstraints;
-        Context.global := iglobal
-      |}
-
-      (* request type *)
-      (PredicateRequest
-        err (* unused *)
-        (* input predicate *)
-        {| Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
-           Predicate.pointer := ipointer;
-           Predicate.iargs := iargs |}
-        oloc (* unused *)
-        ((
-                (* output predicate *)
-                {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
-                  out
-              ), lines (* unused *)
-         )
-      )
-
-      (* output context *)
-      {|
-        Context.computational := ocomputational;
-        Context.logical := ological;
-        Context.resources := oresources;
-        Context.constraints := oconstraints;
-        Context.global := oglobal
-      |}
-    ).
+.
 
 
 

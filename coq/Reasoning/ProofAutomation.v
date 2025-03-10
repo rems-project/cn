@@ -46,7 +46,7 @@ Qed.
      Control.throw (Tactic_failure (Some (Message.of_string "Term is not an application (and thus not a P)")))
  end.
   
- Ltac2 res_set_remove_step () :=
+ Ltac2 res_set_remove_one_step () :=
    match! goal with
    | [ |- exists upred,
        ResSet.Equal (ResSet.add (P upred, ?out) (set_from_list ?out_res)) (set_from_list ?in_res) /\ subsumed _ (Predicate.name upred) ] =>
@@ -76,26 +76,36 @@ Qed.
          Control.focus 1 1 (fun () => Std.constructor false; Std.reflexivity ())
      | [] =>
          Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))
-         (* 
-         Message.print (Message.of_string "Warning: No resource change between the input and output");
-         Control.shelve ()
-         *)
      | _ =>
-         (* Control.throw (Tactic_failure (Some (Message.of_string "More than one resource change between the input and output"))); *)
-         let n := List.length diff in
-         let msg := Message.concat (Message.of_string "Warning: multiple resources changed: ") (Message.of_int n) in
-         Message.print msg;
-         (if verbose then
-            verbose_print_constr "Combined output" out ;
-            (* Print changed resources: *)
-            let print_resource res :=
-              Message.print (Message.of_constr res)
-            in
-            List.iter print_resource diff
-          else ());
-         Control.shelve ()
+         Control.throw (Tactic_failure (Some (Message.of_string "More than one resource change between the input and output")))
      end
  end.
+
+ Ltac2 res_set_remove_many_step () :=
+ match! goal with
+ | [ |- exists field_res,
+        resource_unfold ?iglobal ?res field_res /\
+        ResSet.Equal (set_from_list ?out_res) (ResSet.diff (set_from_list ?in_res) field_res) ] =>
+
+   (* break down goal into components *)
+   let resname   := Fresh.in_goal @res in
+   let inresname := Fresh.in_goal @in_res in
+   let outresname:= Fresh.in_goal @out_res in
+   let clause := { on_hyps := None; on_concl := AllOccurrences } in
+   Std.remember false (Some inresname) (fun _ => in_res) None clause;
+   Std.remember false (Some outresname) (fun _ => out_res) None clause;
+   Std.remember false (Some resname) (fun _ => res) None clause;
+   (* now try to compute field_res from in_res and out_res *)
+   let list_of_constr l := destruct_list (constr:(Resource.t)) l in
+   let in_res_list  := list_of_constr  in_res in
+   let out_res_list := list_of_constr out_res in
+   let diff := const_list_subtract in_res_list out_res_list in
+   if List.is_empty diff then
+    Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))
+   else
+    verbose_print "TODO: Compute field_res from in_res and out_res";
+    Control.shelve ()
+end.
 
 Ltac2 prove_unfold_step () :=
   match! goal with
@@ -112,12 +122,47 @@ Ltac2 prove_unfold_step () :=
   end.
 
  Ltac2 prove_log_entry_valid () :=
-   match! goal with
-   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _ _) _) ] =>
+  match! goal with
+  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
+      {| 
+        Predicate.name := Request.Owned (SCtypes.Struct ?isym) ?iinit;
+        Predicate.pointer := ?ipointer; Predicate.iargs := ?iargs 
+      |}
+      _ _) _) ] =>
        (* PredicateRequest case *)
-       verbose_print "Checking PredicateRequest";
+       verbose_print "Checking PredicateRequest for Struct";
+       verbose_print_constr "    Predicate symbol name: " isym;
+       Std.constructor_n false 2 NoBindings; (* apply struct_resource_inference_step *)
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => 
+        let clause := { on_hyps := None; on_concl := AllOccurrences } in
+          Std.unfold [(const_to_const_reference constr:(@ctx_resources_set), AllOccurrences)] clause;
+          Std.cbn 
+          { rStrength := Std.Norm;
+            rBeta := true;
+            rMatch := true;
+            rFix := true;
+            rCofix := true;
+            rZeta := true;
+            rDelta := true;
+            rConst := [const_to_const_reference  constr:(@set_from_list)]
+          } clause ;
+          res_set_remove_many_step ()
+       )
+  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _ _) _) ] =>
+       (* PredicateRequest case *)
+       verbose_print "Checking PredicateRequest for non-struct";
        verbose_print_constr "    Predicate: " p;
        Std.constructor false;
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
+       Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -135,9 +180,9 @@ Ltac2 prove_unfold_step () :=
              rDelta := true;
              rConst := [const_to_const_reference  constr:(@set_from_list)]
            } clause ;
-         res_set_remove_step ()
+         res_set_remove_one_step ()
        )
-   | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _) _) ] =>
+  | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _) _) ] =>
       (* UnfoldResources case *)
       verbose_print "Checking UnfoldResources";
       Std.constructor false;
