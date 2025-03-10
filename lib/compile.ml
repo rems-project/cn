@@ -631,6 +631,25 @@ module EffectfulTranslation = struct
         }
 
 
+  let check_predicate_ct_annotation loc cname ~pred:ty ~expr:(ptr_expr, ty') =
+    match (ty, ty') with
+    | _, Sctypes.(Void | Integer IntegerTypes.Char) -> ()
+    | _ ->
+      if not (Sctypes.equal ty ty') then
+        Pp.warn
+          loc
+          (!^"annotation on predicate"
+           ^^^ !^cname
+           ^^^ !^"suggests"
+           ^^^ IT.pp ptr_expr
+           ^^^ !^"has type"
+           ^^^ Sctypes.pp (Sctypes.Pointer ty)
+           ^^^ !^"but it has type"
+           ^^^ Sctypes.pp (Sctypes.Pointer ty')
+           ^^ dot
+           ^/^ !^"PS. In this context, you can omit the annotation.")
+
+
   let translate_cn_expr =
     let open IndexTerms in
     let module BT = BaseTypes in
@@ -1060,33 +1079,40 @@ module EffectfulTranslation = struct
     in
     let@ pname, oargs_ty =
       let infer_scty cname oty =
-        match oty with
-        | Some ty -> return (Sctypes.of_ctype_unsafe res_loc ty)
-        | None ->
-          (match IT.get_bt ptr_expr with
-           | BT.Loc (Some ty) -> return ty
-           | Loc None ->
-             fail
-               { loc;
-                 msg =
-                   Generic
-                     (!^"Cannot tell C-type of pointer. Please use "
-                      ^^^ !^cname
-                      ^^^ !^" with an annotation: \'"
-                      ^^^ !^cname
-                      ^^^ !^"<CTYPE>'.")
-                   [@alert "-deprecated"]
-               }
-           | has ->
-             let expected = "pointer" in
-             let reason = cname ^ "<_> predicate" in
-             fail
-               { loc;
-                 msg =
-                   WellTyped
-                     (Illtyped_it
-                        { it = Terms.pp ptr_expr; has = SBT.pp has; expected; reason })
-               })
+        match (oty, IT.get_bt ptr_expr) with
+        | Some ty, BT.Loc (Some ty') ->
+          let ty = Sctypes.of_ctype_unsafe res_loc ty in
+          check_predicate_ct_annotation loc cname ~pred:ty ~expr:(ptr_expr, ty');
+          return ty
+        | Some ty, BT.Loc None ->
+          let ty = Sctypes.of_ctype_unsafe res_loc ty in
+          Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
+          return ty
+        | None, BT.Loc (Some ty) ->
+          Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
+          return ty
+        | None, Loc None ->
+          fail
+            { loc;
+              msg =
+                Generic
+                  (!^"Cannot tell C-type of pointer. Please use "
+                   ^^^ !^cname
+                   ^^^ !^" with an annotation: \'"
+                   ^^^ !^cname
+                   ^^^ !^"<CTYPE>'.")
+                [@alert "-deprecated"]
+            }
+        | _, has ->
+          let expected = "pointer" in
+          let reason = cname ^ "<_> predicate" in
+          fail
+            { loc;
+              msg =
+                WellTyped
+                  (Illtyped_it
+                     { it = Terms.pp ptr_expr; has = SBT.pp has; expected; reason })
+            }
       in
       match res with
       | CN_owned oty ->
