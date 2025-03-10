@@ -31,7 +31,11 @@ let setup ~output_dir =
 
 let attempt cmd success failure =
   separate_map space string [ "if"; cmd; ";"; "then" ]
-  ^^ nest 4 (hardline ^^ string ("echo \"" ^ success ^ "\""))
+  ^^ nest
+       4
+       (hardline
+        ^^ if Config.is_print_steps () then string ("echo \"" ^ success ^ "\"") else colon
+       )
   ^^ hardline
   ^^ string "else"
   ^^ nest
@@ -100,8 +104,10 @@ let compile ~filename_base =
 let link ~filename_base =
   string "# Link"
   ^^ hardline
-  ^^ string "echo"
-  ^^ twice hardline
+  ^^ (if Config.is_print_steps () then
+        string "echo" ^^ twice hardline
+      else
+        empty)
   ^^ attempt
        (String.concat
           " "
@@ -131,6 +137,10 @@ let run () =
       space
       string
       ([ "./tests.out" ]
+       @ (if Config.is_print_seed () then
+            [ "--print-seed" ]
+          else
+            [])
        @ (Config.has_input_timeout ()
           |> Option.map (fun input_timeout ->
             [ "--input-timeout"; string_of_int input_timeout ])
@@ -206,8 +216,10 @@ let run () =
   in
   string "# Run"
   ^^ hardline
-  ^^ string "echo"
-  ^^ twice hardline
+  ^^ (if Config.is_print_steps () then
+        string "echo" ^^ twice hardline
+      else
+        empty)
   ^^ cmd
   ^^ hardline
   ^^ string "test_exit_code=$? # Save tests exit code for later"

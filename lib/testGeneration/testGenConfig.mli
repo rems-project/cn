@@ -22,6 +22,7 @@ type sizing_strategy =
 
 type t =
   { (* Compile time *)
+    print_steps : bool;
     num_samples : int;
     max_backtracks : int;
     max_unfolds : int option;
@@ -30,6 +31,7 @@ type t =
     build_tool : build_tool;
     sanitizers : string option * string option;
     (* Run time *)
+    print_seed : bool;
     input_timeout : int option;
     null_in_every : int option;
     seed : string option;
@@ -66,6 +68,10 @@ module Options : sig
 end
 
 val initialize : t -> unit
+
+val is_print_steps : unit -> bool
+
+val is_print_seed : unit -> bool
 
 val get_num_samples : unit -> int
 

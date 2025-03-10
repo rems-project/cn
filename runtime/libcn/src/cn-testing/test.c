@@ -205,6 +205,7 @@ int cn_test_main(int argc, char* argv[]) {
   int trap = 0;
   enum cn_gen_sizing_strategy sizing_strategy = CN_GEN_SIZE_QUICKCHECK;
   int replicas = 1;
+  int print_seed = 0;
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
 
@@ -297,6 +298,8 @@ int cn_test_main(int argc, char* argv[]) {
       i++;
     } else if (strcmp("--no-replicas", arg) == 0) {
       replicas = 0;
+    } else if (strcmp("--print-seed", arg) == 0) {
+      print_seed = 1;
     }
   }
 
@@ -304,7 +307,9 @@ int cn_test_main(int argc, char* argv[]) {
     printf("Running until timeout of %d seconds\n", timeout);
   }
 
-  printf("Using seed: %016" PRIx64 "\n", seed);
+  if (print_seed) {
+    printf("Using seed: %016" PRIx64 "\n", seed);
+  }
   cn_gen_srand(seed);
   cn_gen_rand();  // Junk to get something to make a checkpoint from
 

@@ -22,6 +22,7 @@ type sizing_strategy =
 
 type t =
   { (* Compile time *)
+    print_steps : bool;
     num_samples : int;
     max_backtracks : int;
     max_unfolds : int option;
@@ -30,6 +31,7 @@ type t =
     build_tool : build_tool;
     sanitizers : string option * string option;
     (* Run time *)
+    print_seed : bool;
     input_timeout : int option;
     null_in_every : int option;
     seed : string option;
@@ -52,13 +54,15 @@ type t =
   }
 
 let default =
-  { num_samples = 100;
+  { print_steps = false;
+    num_samples = 100;
     max_backtracks = 25;
     max_unfolds = None;
     max_array_length = 50;
     with_static_hack = false;
     build_tool = Bash;
     sanitizers = (None, None);
+    print_seed = false;
     input_timeout = None;
     null_in_every = None;
     seed = None;
@@ -129,6 +133,10 @@ end
 let instance = ref default
 
 let initialize (cfg : t) = instance := cfg
+
+let is_print_steps () = !instance.print_steps
+
+let is_print_seed () = !instance.print_seed
 
 let get_num_samples () = !instance.num_samples
 

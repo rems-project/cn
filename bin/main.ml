@@ -622,7 +622,8 @@ let run_tests
         without_ownership_checking
       (* without_loop_invariants *)
       (* Test Generation *)
-        output_dir
+        print_steps
+      output_dir
       only
       skip
       dont_run
@@ -633,6 +634,7 @@ let run_tests
       with_static_hack
       build_tool
       sanitizers
+      print_seed
       input_timeout
       null_in_every
       seed
@@ -681,13 +683,15 @@ let run_tests
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs ~paused:_ ->
       let config : TestGeneration.config =
-        { num_samples;
+        { print_steps;
+          num_samples;
           max_backtracks;
           max_unfolds;
           max_array_length;
           with_static_hack;
           build_tool;
           sanitizers;
+          print_seed;
           input_timeout;
           null_in_every;
           seed;
@@ -1129,6 +1133,13 @@ let verify_cmd =
 
 
 module Testing_flags = struct
+  let print_steps =
+    let doc =
+      "Print successful stages, such as directory creation, compilation and linking."
+    in
+    Arg.(value & flag & info [ "print-steps" ] ~doc)
+
+
   let output_test_dir =
     let doc = "Place generated tests in the provided directory" in
     Arg.(value & opt string "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
@@ -1212,6 +1223,11 @@ module Testing_flags = struct
       value
       & opt (some string) (snd TestGeneration.default_cfg.sanitizers)
       & info [ "no-sanitize" ] ~doc)
+
+
+  let print_seed =
+    let doc = "Print seed used by PRNG." in
+    Arg.(value & flag & info [ "print-seed" ] ~doc)
 
 
   let input_timeout =
@@ -1426,6 +1442,7 @@ let testing_cmd =
     $ Common_flags.no_inherit_loc
     $ Common_flags.magic_comment_char_dollar
     $ Executable_spec_flags.without_ownership_checking
+    $ Testing_flags.print_steps
     $ Testing_flags.output_test_dir
     $ Testing_flags.only
     $ Testing_flags.skip
@@ -1437,6 +1454,7 @@ let testing_cmd =
     $ Testing_flags.with_static_hack
     $ Testing_flags.build_tool
     $ Term.product Testing_flags.sanitize Testing_flags.no_sanitize
+    $ Testing_flags.print_seed
     $ Testing_flags.input_timeout
     $ Testing_flags.null_in_every
     $ Testing_flags.seed
