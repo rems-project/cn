@@ -625,8 +625,10 @@ void* cn_calloc(size_t num, size_t size) {
 
 void cn_free_sized(void* malloced_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: freeing ownership] " FMT_PTR ", size: %lu\n", (uintptr_t) malloced_ptr, size);
-  c_ownership_check("Free", (uintptr_t)malloced_ptr, (int)size, cn_stack_depth);
-  c_remove_from_ghost_state((uintptr_t)malloced_ptr, size);
+  if (malloced_ptr != NULL) {
+    c_ownership_check("Free", (uintptr_t)malloced_ptr, (int)size, cn_stack_depth);
+    c_remove_from_ghost_state((uintptr_t)malloced_ptr, size);
+  }
 }
 
 void cn_print_nr_owned_predicates(void) {
