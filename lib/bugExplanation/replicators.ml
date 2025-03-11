@@ -542,7 +542,12 @@ let compile_lat
     | Resource ((x, (req, bt)), (loc, _), lat') ->
       let b1, s1, e = compile_req sigma prog5 req loc in
       let b2 = [ Utils.create_binding x (bt_to_ctype bt) ] in
-      let s2 = A.[ AilSdeclaration [ (x, Some e) ] ] in
+      let s2 =
+        if BT.equal bt BT.Unit then
+          A.[ AilSexpr e ]
+        else
+          A.[ AilSdeclaration [ (x, Some e) ] ]
+      in
       let b3, s3 = aux lat' in
       (b1 @ b2 @ b3, s1 @ s2 @ s3)
     | Constraint (_, _, lat') -> aux lat'
