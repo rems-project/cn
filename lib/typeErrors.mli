@@ -132,6 +132,10 @@ type message =
       }
   | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
+  | Number_spec_args of
+      { spec : int;
+        decl : int
+      }
 
 type t =
   { loc : Locations.t;

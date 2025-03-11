@@ -193,6 +193,10 @@ type message =
       }
   | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
+  | Number_spec_args of
+      { spec : int;
+        decl : int
+      }
 
 type t =
   { loc : Locations.t;
@@ -547,6 +551,16 @@ let pp_message = function
       !^"Cannot (yet) convert value of" ^^^ Sctypes.pp ct ^^^ !^"to/from bytes"
     in
     { short; descr = None; state = None }
+  | Number_spec_args { spec; decl } ->
+    let short = !^"spec has the wrong number of arguments" in
+    let descr =
+      !^"spec has"
+      ^^^ !^(string_of_int spec)
+      ^^ comma
+      ^^^ !^"but declaration has"
+      ^^^ !^(string_of_int decl)
+    in
+    { short; descr = Some descr; state = None }
 
 
 (** Convert a possibly-relative filepath into an absolute one. *)

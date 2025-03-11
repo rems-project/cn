@@ -1238,7 +1238,7 @@ module Spec = struct
       requires : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       ensures : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       functions : (Cerb_location.t * Id.t) list;
-      if_spec : (int * (Id.t * Id.t Cn.cn_base_type) list) option
+      if_spec : (int * Cerb_location.t * (Id.t * Id.t Cn.cn_base_type) list) option
     }
 
   let default : _ parsed =
@@ -1327,7 +1327,7 @@ module Spec = struct
     (* Single decl spec *)
     | [ (decl_marker, parsed_decl_spec) ], [] ->
       combine
-        ~if_spec:(decl_marker, parsed_decl_spec.cn_decl_args)
+        ~if_spec:(decl_marker, parsed_decl_spec.cn_decl_loc, parsed_decl_spec.cn_decl_args)
         [ parsed_decl_spec.cn_func_spec ]
     (* Multiple decl spec: not supported due to variable re-binding complexity *)
     | (_, spec) :: (_, spec') :: _, [] ->
@@ -1359,7 +1359,7 @@ module Spec = struct
   let setup_env_desugaring_state loc defn_marker markers_env if_spec env args arg_cts =
     match if_spec with
     | None -> return (env, CAE.{ inner = Pmap.find defn_marker markers_env; markers_env })
-    | Some (decl_marker, spec_args) ->
+    | Some (decl_marker, _spec_loc, spec_args) ->
       let decl_d_st = CAE.{ inner = Pmap.find decl_marker markers_env; markers_env } in
       let@ spec_args, decl_d_st = desugar_and_add_args decl_d_st spec_args in
       return (add_spec_arg_renames loc args arg_cts spec_args env, decl_d_st)
@@ -1494,11 +1494,19 @@ let normalise_fun_map_decl
             check_against_core_bt loc ret_bt (Memory.bt_of_sct (convert_ct loc ret_ct))
           in
           let@ parsed = Spec.there_can_only_be_one loc fname parsed_decl_spec [] in
-          let ail_marker, spec_args = Option.get parsed.if_spec in
+          let ail_marker, spec_loc, spec_args = Option.get parsed.if_spec in
           let d_st = CAE.{ inner = Pmap.find ail_marker markers_env; markers_env } in
           let@ spec_args, d_st = Spec.desugar_and_add_args d_st spec_args in
           let@ { trusted = _; accesses; requires; ensures; functions }, ret_s, _ =
             Spec.desugar global_types d_st parsed
+          in
+          let@ () =
+            let spec = List.length spec_args in
+            let decl = List.length arg_cts in
+            if spec != decl then
+              fail { loc = spec_loc; msg = Number_spec_args { spec; decl } }
+            else
+              return ()
           in
           let@ args_and_rt =
             make_fun_with_spec_args
