@@ -651,7 +651,7 @@ module Request = struct
           pointer = IndexTerms.simp simp_ctxt qp.pointer;
           q = qp.q;
           q_loc = qp.q_loc;
-          step = IndexTerms.simp simp_ctxt qp.step;
+          step = qp.step;
           permission = and_ permission (IT.get_loc qp.permission);
           iargs = List.map (IndexTerms.simp simp_ctxt) qp.iargs
         }

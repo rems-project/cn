@@ -29,7 +29,7 @@ Module QPredicate.
     pointer : IndexTerms.t;
     q : Symbol.t * BaseTypes.t;
     q_loc : Locations.t;
-    step : IndexTerms.t;
+    step : SCtypes.ctype;
     permission : IndexTerms.t;
     iargs : list IndexTerms.t
   }.

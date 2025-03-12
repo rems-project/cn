@@ -37,7 +37,7 @@ module QPredicate : sig
       pointer : IndexTerms.t;
       q : Sym.t * BaseTypes.t;
       q_loc : Locations.t;
-      step : IndexTerms.t;
+      step : Sctypes.ctype;
       permission : IndexTerms.t;
       iargs : IndexTerms.t list
     }
@@ -82,8 +82,6 @@ val free_vars_bts : t -> IndexTerms.BT.t Sym.Map.t
 val free_vars : t -> Sym.Set.t
 
 val alpha_equivalent : t -> t -> bool
-
-val steps_constant : t -> bool
 
 val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 

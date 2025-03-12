@@ -2700,7 +2700,13 @@ let cn_to_ail_resource_internal
        Sym.fresh_pretty (Option.get (get_conversion_to_fn_str BT.Integer))
        in *)
     let b2, s2, _e2 = cn_to_ail_expr_internal dts globals q.permission PassBack in
-    let b3, s3, _e3 = cn_to_ail_expr_internal dts globals q.step PassBack in
+    let b3, s3, _e3 =
+      cn_to_ail_expr_internal
+        dts
+        globals
+        (IT.sizeOf_ q.step Cerb_location.unknown)
+        PassBack
+    in
     (* let conversion_fcall = A.(AilEcall (mk_expr (AilEident convert_to_cn_integer_sym), [e_start])) in *)
     let start_binding = create_binding i_sym cn_integer_ptr_ctype in
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
@@ -2713,11 +2719,8 @@ let cn_to_ail_resource_internal
     let return_ctype, _return_bt = calculate_return_type q.name in
     (* Translation of q.pointer *)
     let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
-    let step_binop =
-      IT.IT (IT.(Binop (Mul, i_it, q.step)), i_bt, Cerb_location.unknown)
-    in
     let value_it =
-      IT.IT (IT.(Binop (Add, q.pointer, step_binop)), BT.(Loc ()), Cerb_location.unknown)
+      IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
     let b4, s4, e4 = cn_to_ail_expr_internal dts globals value_it PassBack in
     let ptr_add_sym = Sym.fresh () in
@@ -3830,7 +3833,13 @@ let cn_to_ail_assume_resource_internal
        Sym.fresh_pretty (Option.get (get_conversion_to_fn_str BT.Integer))
        in *)
     let b2, s2, _e2 = cn_to_ail_expr_internal dts globals q.permission PassBack in
-    let b3, s3, _e3 = cn_to_ail_expr_internal dts globals q.step PassBack in
+    let b3, s3, _e3 =
+      cn_to_ail_expr_internal
+        dts
+        globals
+        (IT.sizeOf_ q.step Cerb_location.unknown)
+        PassBack
+    in
     (* let conversion_fcall = A.(AilEcall (mk_expr (AilEident convert_to_cn_integer_sym), [e_start])) in *)
     let start_binding = create_binding i_sym cn_integer_ptr_ctype in
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
@@ -3843,11 +3852,8 @@ let cn_to_ail_assume_resource_internal
     let return_ctype, _return_bt = calculate_return_type q.name in
     (* Translation of q.pointer *)
     let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
-    let step_binop =
-      IT.IT (IT.(Binop (Mul, i_it, q.step)), i_bt, Cerb_location.unknown)
-    in
     let value_it =
-      IT.IT (IT.(Binop (Add, q.pointer, step_binop)), BT.(Loc ()), Cerb_location.unknown)
+      IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
     let b4, s4, e4 = cn_to_ail_expr_internal dts globals value_it PassBack in
     let ptr_add_sym = Sym.fresh () in

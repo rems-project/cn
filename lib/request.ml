@@ -76,7 +76,7 @@ module QPredicate = struct
       pointer : IT.t; (* I *)
       q : Sym.t * BaseTypes.t;
       q_loc : Locations.t; [@equal fun _ _ -> true] [@compare fun _ _ -> 0]
-      step : IT.t;
+      step : Sctypes.ctype;
       permission : IT.t; (* I, function of q *)
       iargs : IT.t list (* I, function of q *)
     }
@@ -84,15 +84,8 @@ module QPredicate = struct
 
   let pp_aux (p : t) oargs =
     let open Pp in
-    (* ISD: this is `p + i * step` but that's "wrong" in a couple of ways:
-       - we are not using the correct precedences for `p` and `step`
-       - in C pointer arithmetic takes account of the types, but here
-         we seem to be doing it at the byte level.  Would `step` ever
-         differ from the size of elements that `p` points to?
-       - perhaps print as `&p[i]` or `&p[j + i]`
-    *)
     let pointer =
-      IT.pp p.pointer ^^^ plus ^^^ Sym.pp (fst p.q) ^^^ star ^^^ IT.pp p.step
+      IT.pp p.pointer ^^^ plus ^^^ Sym.pp (fst p.q) ^^^ at ^^^ Sctypes.pp p.step
     in
     let args = pointer :: List.map IT.pp p.iargs in
     !^"each"
@@ -126,7 +119,7 @@ module QPredicate = struct
       pointer = IT.subst substitution qp.pointer;
       q = qp.q;
       q_loc = qp.q_loc;
-      step = IT.subst substitution qp.step;
+      step = qp.step;
       permission = IT.subst substitution qp.permission;
       iargs = List.map (IT.subst substitution) qp.iargs
     }
@@ -137,7 +130,7 @@ module QPredicate = struct
     Dnode
       ( pp_ctor "qpred",
         Dleaf (Pp.parens (Pp.typ (Sym.pp (fst qpred.q)) (BaseTypes.pp (snd qpred.q))))
-        :: IT.dtree qpred.step
+        :: Dleaf (Sctypes.pp qpred.step)
         :: IT.dtree qpred.permission
         :: dtree_of_name qpred.name
         :: IT.dtree qpred.pointer
@@ -186,7 +179,7 @@ let free_vars_bts = function
       (fun _ bt1 bt2 ->
          assert (BaseTypes.equal bt1 bt2);
          Some bt1)
-      (IT.free_vars_bts_list [ p.pointer; p.step ])
+      (IT.free_vars_bts_list [ p.pointer ])
       (Sym.Map.remove (fst p.q) (IT.free_vars_bts_list (p.permission :: p.iargs)))
 
 
@@ -194,7 +187,7 @@ let free_vars = function
   | P p -> IT.free_vars_list (p.pointer :: p.iargs)
   | Q p ->
     Sym.Set.union
-      (Sym.Set.union (IT.free_vars p.pointer) (IT.free_vars p.step))
+      (IT.free_vars p.pointer)
       (Sym.Set.remove (fst p.q) (IT.free_vars_list (p.permission :: p.iargs)))
 
 
@@ -206,8 +199,6 @@ let alpha_equivalent r1 r2 =
     equal (Q x) (Q y2)
   | _ -> false
 
-
-let steps_constant = function Q qp -> Option.is_some (IT.is_const qp.step) | _ -> true
 
 let dtree = function P pred -> Predicate.dtree pred | Q qpred -> QPredicate.dtree qpred
 

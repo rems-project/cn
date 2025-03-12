@@ -244,9 +244,7 @@ let state (ctxt : C.t) log model_with_q extras =
       | Some (Q ret) ->
         let binder = IT.(Pat (PSym (fst ret.q), snd ret.q, Loc.other __LOC__), None) in
         ITSet.union
-          (ITSet.bigunion_map
-             (subterms_without_bound_variables [])
-             [ ret.pointer; ret.step ])
+          (ITSet.bigunion_map (subterms_without_bound_variables []) [ ret.pointer ])
           (ITSet.bigunion_map
              (subterms_without_bound_variables [ binder ])
              (ret.permission :: ret.iargs))

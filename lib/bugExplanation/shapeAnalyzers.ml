@@ -198,16 +198,7 @@ let compile_req
       let map_sym = Sym.fresh () in
       let b_val, s_val, e_val =
         aux
-          (P
-             { name;
-               pointer =
-                 IT.arrayShift_
-                   ~base:pointer
-                   ~index:(IT.mul_ (q_it, step) (IT.get_loc step))
-                   Sctypes.char_ct
-                   loc;
-               iargs
-             })
+          (P { name; pointer = IT.arrayShift_ ~base:pointer ~index:q_it step loc; iargs })
       in
       let s2 =
         A.

@@ -1251,7 +1251,7 @@ and pp_request_qpredicate qpred =
       ("QPredicate.pointer", pp_index_term qpred.pointer);
       ("QPredicate.q", pp_pair pp_symbol (pp_basetype pp_unit) qpred.q);
       ("QPredicate.q_loc", pp_location qpred.q_loc);
-      ("QPredicate.step", pp_index_term qpred.step);
+      ("QPredicate.step", pp_sctype qpred.step);
       ("QPredicate.permission", pp_index_term qpred.permission);
       ("QPredicate.iargs", pp_list pp_index_term qpred.iargs)
     ]

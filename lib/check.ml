@@ -1348,7 +1348,7 @@ let bytes_qpred sym size pointer init : Req.QPredicate.t =
   let bt' = WellTyped.default_quantifier_bt in
   { q = (sym, bt');
     q_loc = here;
-    step = IT.num_lit_ Z.one bt' here;
+    step = Sctypes.uchar_ct;
     permission = IT.(lt_ (sym_ (sym, bt', here), size) here);
     name = Owned (Sctypes.uchar_ct, init);
     pointer;

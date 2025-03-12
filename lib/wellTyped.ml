@@ -1111,25 +1111,10 @@ module WReq = struct
       (*normalisation does not change bit types. If this assertion fails, we have to
         adjust the later code to use qbt.*)
       warn_when_not_quantifier_bt "each" loc qbt (Sym.pp (fst p.q));
-      let@ step = WIT.check loc (snd p.q) p.step in
-      let@ step =
-        match step with
-        | IT (Const (Bits (_bits_bt, z)), _, _) ->
-          if Z.lt Z.zero z then
-            return step
-          else
-            fail
-              { loc;
-                msg =
-                  Generic (!^"Iteration step" ^^^ IT.pp p.step ^^^ !^"must be positive")
-                  [@alert "-deprecated"]
-              }
-        | IT (SizeOf _, _, _) -> return step
-        | IT (Cast (_, IT (SizeOf _, _, _)), _, _) -> return step
-        | _ ->
-          let hint = "Only constant iteration steps are allowed." in
-          fail { loc; msg = NIA { it = p.step; hint } }
-      in
+      (* The location is not quite right here (should point to the
+         array_shift<>() itself rather than the pointer) but it's good enough
+         for now. *)
+      let@ () = err_if_ct_void (IT.get_loc p.pointer) `Array_shift p.step in
       let@ permission, iargs =
         pure
           (let@ () = add_l (fst p.q) (snd p.q) (loc, lazy (Pp.string "forall-var")) in
@@ -1153,7 +1138,14 @@ module WReq = struct
       in
       return
         (Req.Q
-           { name = p.name; pointer; q = p.q; q_loc = p.q_loc; step; permission; iargs })
+           { name = p.name;
+             pointer;
+             q = p.q;
+             q_loc = p.q_loc;
+             step = p.step;
+             permission;
+             iargs
+           })
 end
 
 module WRS = struct

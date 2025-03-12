@@ -1142,8 +1142,7 @@ module EffectfulTranslation = struct
     let msg_s = "Iterated predicate pointer must be array_shift<ctype>(ptr, q_var):" in
     match IT.get_term ptr_expr with
     | ArrayShift { base = p; ct; index = x } when Terms.equal_annot SBT.equal x qs ->
-      let here = Locations.other __LOC__ in
-      return (p, IT.cast_ (SBT.proj bt) (IT.sizeOf_ ct here) here)
+      return (p, ct)
     | _ -> fail { loc; msg = Generic (!^msg_s ^^^ IT.pp ptr_expr) [@alert "-deprecated"] }
 
 

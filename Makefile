@@ -53,7 +53,7 @@ cn-coq:
 	$(Q)dune build -p cn-coq
 
 .PHONY: cn-coq-install
-cn-coq-install: install_lib cn-coq
+cn-coq-install: cn-coq
 	@echo "[DUNE] install cn-coq"
 	$(Q)dune install cn-coq
 

@@ -251,33 +251,19 @@ module General = struct
     let@ provable = provable loc in
     let@ simp_ctxt = simp_ctxt () in
     let needed = requested.permission in
-    let step = Simplify.IndexTerms.simp simp_ctxt requested.step in
-    let@ () =
-      if Option.is_some (IT.is_const step) then
-        return ()
-      else (
-        let doc =
-          Pp.(
-            !^"cannot simplify iter-step to constant:"
-            ^^^ IT.pp requested.step
-            ^^ colon
-            ^^^ IT.pp step)
-        in
-        fail (fun _ -> { loc; msg = TypeErrors.Generic doc [@alert "-deprecated"] }))
-    in
+    let step = requested.step in
     let@ (needed, oarg), rw_time =
       map_and_fold_resources
         loc
         (fun re (needed, oarg) ->
            let continue = (Unchanged, (needed, oarg)) in
-           assert (Req.steps_constant (fst re));
            if IT.is_false needed then
              continue
            else (
              match re with
              | Q p', O p'_oarg
                when Req.subsumed requested.name p'.name
-                    && IT.equal step p'.step
+                    && Sctypes.equal step p'.step
                     && BaseTypes.equal (snd requested.q) (snd p'.q) ->
                let p' = Req.QPredicate.alpha_rename_ (fst requested.q) p' in
                let here = Locations.other __LOC__ in
@@ -341,14 +327,7 @@ module General = struct
              | `True ->
                let@ o_re_index =
                  let pointer =
-                   IT.(
-                     pointer_offset_
-                       ( requested.pointer,
-                         mul_
-                           ( cast_ Memory.uintptr_bt requested.step here,
-                             cast_ Memory.uintptr_bt index here )
-                           here ))
-                     here
+                   IT.(arrayShift_ ~base:requested.pointer ~index requested.step here)
                  in
                  predicate_request
                    loc

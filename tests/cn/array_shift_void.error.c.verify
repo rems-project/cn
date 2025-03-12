@@ -1,3 +1,4 @@
 return code: 1
-other location (File "lib/compile.ml", line 1145, characters 33-40)  error: C-type must not be void in a sizeof<_>
-
+tests/cn/array_shift_void.error.c:10:64: error: C-type must not be void in a array_shift<_>
+  take B = each(u64 i; i < size) {W<unsigned char>(array_shift(return, i))};
+                                                               ^
