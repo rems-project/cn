@@ -658,6 +658,42 @@ module EffectfulTranslation = struct
            ^/^ !^"PS. In this context, you can omit the annotation.")
 
 
+  let infer_scty ~pred_loc:loc ptr_expr cname oty =
+    match (oty, IT.get_bt ptr_expr) with
+    | Some ty, BT.Loc (Some ty') ->
+      let ty = Sctypes.of_ctype_unsafe loc ty in
+      check_predicate_ct_annotation loc cname ~pred:ty ~expr:(ptr_expr, ty');
+      return ty
+    | Some ty, BT.Loc None ->
+      let ty = Sctypes.of_ctype_unsafe loc ty in
+      Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
+      return ty
+    | None, BT.Loc (Some ty) ->
+      Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
+      return ty
+    | None, Loc None ->
+      fail
+        { loc;
+          msg =
+            Generic
+              (!^"Cannot tell C-type of pointer. Please use "
+               ^^^ !^cname
+               ^^^ !^" with an annotation: \'"
+               ^^^ !^cname
+               ^^^ !^"<CTYPE>'.")
+            [@alert "-deprecated"]
+        }
+    | _, has ->
+      let expected = "pointer" in
+      let reason = cname ^ "<_> predicate" in
+      fail
+        { loc;
+          msg =
+            WellTyped
+              (Illtyped_it { it = Terms.pp ptr_expr; has = SBT.pp has; expected; reason })
+        }
+
+
   let translate_cn_expr =
     let open IndexTerms in
     let module BT = BaseTypes in
@@ -1078,59 +1114,23 @@ module EffectfulTranslation = struct
     trans None
 
 
-  let translate_cn_res_info res_loc loc env res args =
+  let translate_cn_res_info ~pred_loc env res args =
     let open Req in
     let@ ptr_expr, iargs =
       match args with
-      | [] -> fail { loc; msg = First_iarg_missing }
+      | [] -> fail { loc = pred_loc; msg = First_iarg_missing }
       | x :: xs -> return (x, xs)
     in
     let@ pname, oargs_ty =
-      let infer_scty cname oty =
-        match (oty, IT.get_bt ptr_expr) with
-        | Some ty, BT.Loc (Some ty') ->
-          let ty = Sctypes.of_ctype_unsafe res_loc ty in
-          check_predicate_ct_annotation loc cname ~pred:ty ~expr:(ptr_expr, ty');
-          return ty
-        | Some ty, BT.Loc None ->
-          let ty = Sctypes.of_ctype_unsafe res_loc ty in
-          Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
-          return ty
-        | None, BT.Loc (Some ty) ->
-          Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
-          return ty
-        | None, Loc None ->
-          fail
-            { loc;
-              msg =
-                Generic
-                  (!^"Cannot tell C-type of pointer. Please use "
-                   ^^^ !^cname
-                   ^^^ !^" with an annotation: \'"
-                   ^^^ !^cname
-                   ^^^ !^"<CTYPE>'.")
-                [@alert "-deprecated"]
-            }
-        | _, has ->
-          let expected = "pointer" in
-          let reason = cname ^ "<_> predicate" in
-          fail
-            { loc;
-              msg =
-                WellTyped
-                  (Illtyped_it
-                     { it = Terms.pp ptr_expr; has = SBT.pp has; expected; reason })
-            }
-      in
       match res with
       | CN_owned oty ->
-        let@ scty = infer_scty "RW" oty in
+        let@ scty = infer_scty ~pred_loc ptr_expr "RW" oty in
         (* we don't take Resource.owned_oargs here because we want to maintain the C-type
            information *)
         let oargs_ty = Memory.sbt_of_sct scty in
         return (Req.Owned (scty, Init), oargs_ty)
       | CN_block oty ->
-        let@ scty = infer_scty "W" oty in
+        let@ scty = infer_scty ~pred_loc ptr_expr "W" oty in
         let oargs_ty = Memory.sbt_of_sct scty in
         return (Req.Owned (scty, Uninit), oargs_ty)
       | CN_named pred ->
@@ -1138,7 +1138,7 @@ module EffectfulTranslation = struct
           match lookup_predicate pred env with
           | None ->
             fail
-              { loc;
+              { loc = pred_loc;
                 msg = Global (Unknown_resource_predicate { id = pred; logical = false })
               }
           | Some pred_sig -> return pred_sig
@@ -1177,7 +1177,7 @@ module EffectfulTranslation = struct
   let translate_cn_let_resource__pred env res_loc sym (pred_loc, res, args) =
     let@ args = ListM.mapM (translate_cn_expr Sym.Set.empty env) args in
     let@ pname, ptr_expr, iargs, oargs_ty =
-      translate_cn_res_info res_loc pred_loc env res args
+      translate_cn_res_info ~pred_loc env res args
     in
     let pt =
       ( Req.P
@@ -1203,7 +1203,7 @@ module EffectfulTranslation = struct
     let@ guard_expr = translate_cn_expr (Sym.Set.singleton q) env_with_q guard in
     let@ args = ListM.mapM (translate_cn_expr (Sym.Set.singleton q) env_with_q) args in
     let@ pname, ptr_expr, iargs, oargs_ty =
-      translate_cn_res_info res_loc pred_loc env_with_q res args
+      translate_cn_res_info ~pred_loc env_with_q res args
     in
     let here = Locations.other __LOC__ in
     let@ ptr_base, step = split_pointer_linear_step pred_loc (q, bt', here) ptr_expr in
@@ -1667,7 +1667,7 @@ let translate_cn_statement
      | CN_pack_unpack (pack_unpack, pred, args) ->
        let@ args = ListM.mapM (ET.translate_cn_expr Sym.Set.empty env) args in
        let@ name, pointer, iargs, _oargs_ty =
-         ET.translate_cn_res_info loc loc env pred args
+         ET.translate_cn_res_info ~pred_loc:loc env pred args
        in
        let stmt =
          Pack_unpack
@@ -1681,7 +1681,7 @@ let translate_cn_statement
      | CN_to_from_bytes (to_from, pred, args) ->
        let@ args = ListM.mapM (ET.translate_cn_expr Sym.Set.empty env) args in
        let@ name, pointer, iargs, _oargs_ty =
-         ET.translate_cn_res_info loc loc env pred args
+         ET.translate_cn_res_info ~pred_loc:loc env pred args
        in
        return
          (Statement
