@@ -639,58 +639,62 @@ module EffectfulTranslation = struct
         }
 
 
-  let check_predicate_ct_annotation loc cname ~pred:ty ~expr:(ptr_expr, ty') =
-    match (ty, ty') with
-    | _, Sctypes.(Void | Integer IntegerTypes.Char) -> ()
+  let warn_if_ct_mismatch loc context ~annot ~inferred ~ptr =
+    match (inferred, annot) with
+    | Sctypes.Void, _ (* this case will error later in the checks *)
+    | _, Sctypes.(Integer IntegerTypes.Char)
+    | _, Sctypes.(Integer (Signed Ichar))
+    | _, Sctypes.(Integer (Unsigned Ichar)) ->
+      ()
     | _ ->
-      if not (Sctypes.equal ty ty') then
+      let pred_name =
+        match context with `RW -> "RW" | `W -> "W" | `Array_shift -> "array_shift"
+      in
+      if not (Sctypes.equal annot inferred) then
         Pp.warn
           loc
-          (!^"annotation on predicate"
-           ^^^ !^cname
+          (!^"annotation on"
+           ^^^ !^pred_name
            ^^^ !^"suggests"
-           ^^^ IT.pp ptr_expr
+           ^^^ IT.pp ptr
            ^^^ !^"has type"
-           ^^^ Sctypes.pp (Sctypes.Pointer ty)
+           ^^^ Sctypes.pp (Sctypes.Pointer annot)
            ^^^ !^"but it has type"
-           ^^^ Sctypes.pp (Sctypes.Pointer ty')
-           ^^ dot
-           ^/^ !^"PS. In this context, you can omit the annotation.")
+           ^^^ Sctypes.pp (Sctypes.Pointer inferred)
+           ^^ dot)
 
 
-  let infer_scty ~pred_loc:loc ptr_expr cname oty =
-    match (oty, IT.get_bt ptr_expr) with
-    | Some ty, BT.Loc (Some ty') ->
-      let ty = Sctypes.of_ctype_unsafe loc ty in
-      check_predicate_ct_annotation loc cname ~pred:ty ~expr:(ptr_expr, ty');
-      return ty
-    | Some ty, BT.Loc None ->
-      let ty = Sctypes.of_ctype_unsafe loc ty in
-      Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
-      return ty
-    | None, BT.Loc (Some ty) ->
-      Pp.debug 2 (lazy (!^"ty:" ^^^ Sctypes.pp ty));
-      return ty
+  let infer_scty ~pred_loc:loc ~ptr (context : [ `RW | `W | `Array_shift ]) oty =
+    let context_str =
+      match context with `RW -> "RW" | `W -> "W" | `Array_shift -> "array_shift"
+    in
+    match (oty, IT.get_bt ptr) with
+    | Some annot, BT.Loc (Some inferred) ->
+      let annot = Sctypes.of_ctype_unsafe loc annot in
+      warn_if_ct_mismatch loc context ~annot ~inferred ~ptr;
+      return annot
+    | Some annot, BT.Loc None ->
+      let annot = Sctypes.of_ctype_unsafe loc annot in
+      return annot
+    | None, BT.Loc (Some inferred) -> return inferred
     | None, Loc None ->
       fail
         { loc;
           msg =
             Generic
               (!^"Cannot tell C-type of pointer. Please use "
-               ^^^ !^cname
-               ^^^ !^" with an annotation: \'"
-               ^^^ !^cname
+               ^^^ !^context_str
                ^^^ !^"<CTYPE>'.")
             [@alert "-deprecated"]
         }
     | _, has ->
       let expected = "pointer" in
-      let reason = cname ^ "<_> predicate" in
+      let reason = context_str ^ "<_>" in
       fail
         { loc;
           msg =
             WellTyped
-              (Illtyped_it { it = Terms.pp ptr_expr; has = SBT.pp has; expected; reason })
+              (Illtyped_it { it = Terms.pp ptr; has = SBT.pp has; expected; reason })
         }
 
 
@@ -839,24 +843,7 @@ module EffectfulTranslation = struct
         return (IT (OffsetOf (tag, member), Memory.sint_sbt, loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
-        let@ ct =
-          match (ty_annot, IT.get_bt base) with
-          | Some ty, _ ->
-            (* this does not check whether the annotation and pointer type agree and just
-               defers to what the user wrote, because pointer arithmetic can happen at any
-               size/type *)
-            return (Sctypes.of_ctype_unsafe loc ty)
-          | None, Loc (Some bt) -> return bt
-          | _ ->
-            fail
-              { loc;
-                msg =
-                  Generic
-                    !^"type of array not specified (e.g. array_shift<int>) or known from \
-                       pointer"
-                  [@alert "-deprecated"]
-              }
-        in
+        let@ ct = infer_scty ~pred_loc:loc ~ptr:base `Array_shift ty_annot in
         (match IT.get_bt base with
          | Loc _ ->
            let@ index = self index in
@@ -1124,13 +1111,13 @@ module EffectfulTranslation = struct
     let@ pname, oargs_ty =
       match res with
       | CN_owned oty ->
-        let@ scty = infer_scty ~pred_loc ptr_expr "RW" oty in
+        let@ scty = infer_scty ~pred_loc ~ptr:ptr_expr `RW oty in
         (* we don't take Resource.owned_oargs here because we want to maintain the C-type
            information *)
         let oargs_ty = Memory.sbt_of_sct scty in
         return (Req.Owned (scty, Init), oargs_ty)
       | CN_block oty ->
-        let@ scty = infer_scty ~pred_loc ptr_expr "W" oty in
+        let@ scty = infer_scty ~pred_loc ~ptr:ptr_expr `W oty in
         let oargs_ty = Memory.sbt_of_sct scty in
         return (Req.Owned (scty, Uninit), oargs_ty)
       | CN_named pred ->

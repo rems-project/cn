@@ -1,0 +1,28 @@
+return code: 125
+tests/cn/array_shift_mismatch.error.c:8:19: warning: annotation on array_shift suggests p has type void* but it has type signed int*.
+    ptr_eq(return,array_shift<void>(p, 1u64));
+                  ^~~~~~~~~~~~~~~~~~~~~~~~~~ 
+internal error: size_of_ctype applied to void
+cn: internal error, uncaught exception:
+    Failure("internal error: size_of_ctype applied to void")
+    Raised at Stdlib.failwith in file "stdlib.ml", line 29, characters 17-33
+    Called from Cn__Solver.translate_term in file "lib/solver.ml", line 947, characters 32-57
+    Called from Cn__Solver.translate_term in file "lib/solver.ml", line 753, characters 13-32
+    Called from Cn__Solver.add_assumption in file "lib/solver.ml", line 1105, characters 46-68
+    Called from Cn__Typing.add_c_internal in file "lib/typing.ml", line 409, characters 11-51
+    Called from Cn__Typing.bind.(fun) in file "lib/typing.ml", line 49, characters 17-20
+    Called from Cn__Typing.bind.(fun) in file "lib/typing.ml", line 49, characters 17-20
+    Called from Cn__Typing.pure.(fun) in file "lib/typing.ml", line 76, characters 22-25
+    Called from Cn__Typing.pure.(fun) in file "lib/typing.ml", line 76, characters 22-25
+    Called from Cn__Typing.pure.(fun) in file "lib/typing.ml", line 76, characters 22-25
+    Called from Cn__Typing.pure.(fun) in file "lib/typing.ml", line 76, characters 22-25
+    Called from Cn__Typing.pure.(fun) in file "lib/typing.ml", line 76, characters 22-25
+    Called from Cn__Typing.bind.(fun) in file "lib/typing.ml", line 49, characters 17-20
+    Called from Cn__Typing.bind.(fun) in file "lib/typing.ml", line 49, characters 17-20
+    Called from Cn__Typing.bind.(fun) in file "lib/typing.ml", line 49, characters 17-20
+    Called from Cn__Typing.run_from_pause in file "lib/typing.ml", line 68, characters 50-55
+    Called from Dune__exe__Main.with_well_formedness_check in file "bin/main.ml", line 187, characters 15-69
+    Called from Dune__exe__Main.with_well_formedness_check in file "bin/main.ml", lines 176-204, characters 6-15
+    Re-raised at Dune__exe__Main.with_well_formedness_check in file "bin/main.ml", line 212, characters 4-69
+    Called from Cmdliner_term.app.(fun) in file "cmdliner_term.ml", line 24, characters 19-24
+    Called from Cmdliner_eval.run_parser in file "cmdliner_eval.ml", line 35, characters 37-44

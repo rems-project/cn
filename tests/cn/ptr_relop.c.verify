@@ -1,4 +1,10 @@
 return code: 0
+tests/cn/ptr_relop.c:4:14: warning: annotation on RW suggests &p[-2'i64] has type signed int[11]* but it has type char*.
+    take P = RW<int[11]>(array_shift<char>(p, -2i64));
+             ^~~~~~~~~~~ 
+tests/cn/ptr_relop.c:7:15: warning: annotation on RW suggests &p[-2'i64] has type signed int[11]* but it has type char*.
+    take P2 = RW<int[11]>(array_shift<char>(p, -2i64));
+              ^~~~~~~~~~~ 
 [1/5]: live_owned_footprint -- pass
 [2/5]: live_owned_both -- pass
 [3/5]: live_owned_one -- pass

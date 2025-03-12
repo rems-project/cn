@@ -1,1 +1,4 @@
 return code: 0
+tests/cn/alloc_token.c:15:14: warning: annotation on W suggests base has type signed int* but it has type char*.
+    take i = W<int>(base);
+             ^~~~~~ 
