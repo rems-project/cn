@@ -14,7 +14,7 @@ let pp_Z z =
   if Z.lt z Z.zero then !^("(" ^ s ^ ")%Z") else !^(s ^ "%Z")
 
 
-let pp_Q q = !^("(" ^ Q.to_string q ^ ")%Q")
+let pp_Q q = !^("(" ^ "Q2Qc" ^ "(" ^ Q.to_string q ^ ")%Q)")
 
 (* Prints int as a Coq `nat` *)
 let pp_nat n = !^(string_of_int n)

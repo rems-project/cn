@@ -1,7 +1,7 @@
 Require Import ZArith.
 Require Import String.
 Require Import List.
-Require Import QArith.
+Require Import QArith.Qcanon.
 Require Import Cerberus.Symbol.
 Require Import BaseTypes.
 Require Import Cerberus.Location.
@@ -13,7 +13,7 @@ Require Import Cerberus.IntegerType.
 Inductive const : Type :=
   | Z : Z -> const
   | Bits : (BaseTypes.sign * nat) * Z -> const
-  | Q : Q -> const  (* Note: Q needs to be defined or imported *)
+  | Q : Qc -> const
   | MemByte : Z * Z -> const  (* alloc_id * value *)
   | Pointer : Z * Z -> const  (* alloc_id * addr *)
   | Alloc_id : Z -> const
