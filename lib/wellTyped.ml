@@ -36,6 +36,7 @@ type message =
   | Empty_pattern
   | Redundant_pattern of Pp.document
   | Unknown_variable of Sym.t
+  | Size_of_void
 
 type error =
   { loc : Locations.t;
@@ -849,6 +850,11 @@ module WIT = struct
         let@ ptr = check loc (Loc ()) ptr in
         return (IT (HasAllocId ptr, BT.Bool, loc))
       | SizeOf ct ->
+        let@ () =
+          match ct with
+          | Sctypes.Void -> fail { loc; msg = Size_of_void }
+          | _ -> return ()
+        in
         let@ () = WCT.is_ct loc ct in
         let sz = Memory.size_of_ctype ct in
         let rs = Option.get (BT.is_bits_bt Memory.size_bt) in

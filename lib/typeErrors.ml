@@ -315,6 +315,9 @@ let pp_welltyped = function
   | Missing_member m ->
     let short = !^"Missing member" ^^^ Id.pp m in
     { short; descr = None; state = None }
+  | Size_of_void ->
+    let short = !^"Cannot take the sizeof of a void expression" in
+    { short; descr = None; state = None }
 
 
 let pp_message = function

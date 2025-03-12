@@ -26,6 +26,7 @@ type message =
   | Empty_pattern
   | Redundant_pattern of Pp.document
   | Unknown_variable of Sym.t
+  | Size_of_void
 
 type error =
   { loc : Locations.t;
