@@ -14,7 +14,11 @@ module type S = sig
 
   val check_ct : Locations.t -> Sctypes.ctype -> unit t
 
-  val owned_ct_ok : Locations.t -> Sctypes.ctype * Request.init -> unit t
+  val err_if_ct_void
+    :  Locations.t ->
+    [ `Sizeof | `Array_shift | `RW | `W ] ->
+    Sctypes.ctype ->
+    unit t
 
   val infer_term : 'bt IndexTerms.annot -> IndexTerms.t t
 

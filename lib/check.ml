@@ -1927,7 +1927,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          | To_from_bytes ((To | From), { name = PName _; _ }) ->
            fail (fun _ -> { loc; msg = Byte_conv_needs_owned })
          | To_from_bytes (To, { name = Owned (ct, init); pointer; _ }) ->
-           let@ () = WellTyped.owned_ct_ok loc (ct, init) in
+           let ctxt = match init with Init -> `RW | Uninit -> `W in
+           let@ () = WellTyped.err_if_ct_void loc ctxt ct in
            let@ pointer = WellTyped.infer_term pointer in
            let@ (_, O value), _ =
              RI.Special.predicate_request
@@ -1947,7 +1948,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
               let@ constr = bytes_constraints ~value ~byte_arr ct in
               add_c loc (LC.T constr))
          | To_from_bytes (From, { name = Owned (ct, init); pointer; _ }) ->
-           let@ () = WellTyped.owned_ct_ok loc (ct, init) in
+           let ctxt = match init with Init -> `RW | Uninit -> `W in
+           let@ () = WellTyped.err_if_ct_void loc ctxt ct in
            let@ pointer = WellTyped.infer_term pointer in
            let q_sym = Sym.fresh_named "from_bytes" in
            let@ (_, O byte_arr), _ =

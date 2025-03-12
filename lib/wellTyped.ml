@@ -36,7 +36,7 @@ type message =
   | Empty_pattern
   | Redundant_pattern of Pp.document
   | Unknown_variable of Sym.t
-  | Size_of_void
+  | Void_ctype of [ `Array_shift | `Sizeof | `RW | `W ]
 
 type error =
   { loc : Locations.t;
@@ -230,6 +230,10 @@ let correct_members_sorted_annotated loc spec have =
       have
   in
   return have_annotated
+
+
+let err_if_ct_void loc context ct =
+  match ct with Sctypes.Void -> fail { loc; msg = Void_ctype context } | _ -> return ()
 
 
 module WBT = struct
@@ -837,6 +841,7 @@ module WIT = struct
         (* looking at solver mapping *)
         return (IT (MemberShift (t, tag, member), BT.Loc (), loc))
       | ArrayShift { base; ct; index } ->
+        let@ () = err_if_ct_void loc `Array_shift ct in
         let@ () = WCT.is_ct loc ct in
         let@ base = check loc (Loc ()) base in
         let@ index = infer index in
@@ -850,11 +855,7 @@ module WIT = struct
         let@ ptr = check loc (Loc ()) ptr in
         return (IT (HasAllocId ptr, BT.Bool, loc))
       | SizeOf ct ->
-        let@ () =
-          match ct with
-          | Sctypes.Void -> fail { loc; msg = Size_of_void }
-          | _ -> return ()
-        in
+        let@ () = err_if_ct_void loc `Sizeof ct in
         let@ () = WCT.is_ct loc ct in
         let sz = Memory.size_of_ctype ct in
         let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
@@ -1069,25 +1070,6 @@ let warn_when_not_quantifier_bt
        ^^ dot)
 
 
-let owned_ct_ok loc (ct, init) =
-  let@ () = WCT.is_ct loc ct in
-  let pp_resource ct =
-    match init with
-    | Request.Init -> !^"Owned" ^^ Pp.angles !^ct
-    | Request.Uninit -> !^"Block" ^^ Pp.angles !^ct
-  in
-  match ct with
-  | Void ->
-    let msg =
-      pp_resource "void"
-      ^^^ !^"is not a valid resource,"
-      ^^^ !^"please specify another C-type"
-      ^^^ Pp.parens (!^"using" ^^^ pp_resource "YOURTYPE")
-    in
-    fail { loc; msg = Generic msg [@alert "-deprecated"] }
-  | _ -> return ()
-
-
 module WReq = struct
   module Req = Request
   open IndexTerms
@@ -1097,7 +1079,9 @@ module WReq = struct
     let@ spec_iargs =
       match Req.get_name r with
       | Owned (ct, init) ->
-        let@ () = owned_ct_ok loc (ct, init) in
+        let tag = match init with Req.Init -> `RW | Uninit -> `W in
+        let@ () = err_if_ct_void loc tag ct in
+        let@ () = WCT.is_ct loc ct in
         return []
       | PName name ->
         let@ def = get_resource_predicate_def loc name in
@@ -2642,7 +2626,7 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
   let check_ct = lift2 check_ct
 
-  let owned_ct_ok = lift2 owned_ct_ok
+  let err_if_ct_void = lift3 err_if_ct_void
 
   let ensure_same_argument_number loc type_ n ~expect =
     let ( let@ ) = M.bind in

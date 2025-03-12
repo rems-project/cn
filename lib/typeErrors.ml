@@ -315,8 +315,15 @@ let pp_welltyped = function
   | Missing_member m ->
     let short = !^"Missing member" ^^^ Id.pp m in
     { short; descr = None; state = None }
-  | Size_of_void ->
-    let short = !^"Cannot take the sizeof of a void expression" in
+  | Void_ctype ctxt ->
+    let ctxt =
+      match ctxt with
+      | `RW -> "RW"
+      | `W -> "W"
+      | `Array_shift -> "array_shift"
+      | `Sizeof -> "sizeof"
+    in
+    let short = !^"C-type must not be void in a" ^^^ !^ctxt ^^ angles underscore in
     { short; descr = None; state = None }
 
 
