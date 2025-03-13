@@ -262,7 +262,9 @@ Inductive log_entry_valid : log_entry -> Prop :=
   (* [out_res] is a subset of [in_res] with exactly one element [used] removed. *)
   (exists (upred: Request.Predicate.t),
       ResSet.Equal (Resource.ResSet.add (P upred, out) out_res) in_res /\
-      Request.subsumed iname upred.(Request.Predicate.name)
+      Request.subsumed iname upred.(Request.Predicate.name) /\
+      upred.(Request.Predicate.pointer) = ipointer /\
+      upred.(Request.Predicate.iargs) = iargs
   ) 
   
   ->

@@ -49,7 +49,7 @@ Qed.
  Ltac2 res_set_remove_one_step () :=
    match! goal with
    | [ |- exists upred,
-       ResSet.Equal (ResSet.add (P upred, ?out) (set_from_list ?out_res)) (set_from_list ?in_res) /\ subsumed _ (Predicate.name upred) ] =>
+       ResSet.Equal (ResSet.add (P upred, ?out) (set_from_list ?out_res)) (set_from_list ?in_res) /\ subsumed _ (Predicate.name upred) /\ _ /\ _ ] =>
      (* break down goal into components *)
      let outname   := Fresh.in_goal @out in
      let inresname := Fresh.in_goal @in_res in
@@ -72,8 +72,17 @@ Qed.
          Std.split false NoBindings;
          (* ResSet subset proof *)
          Control.focus 1 1 (fun () => ltac1:(subst;cbn;ResSetDecide.fsetdec));
-         (* Second subgoal - subsumed *)
-         Control.focus 1 1 (fun () => Std.constructor false; Std.reflexivity ())
+         (* subsumed/\pointereq/\iargseq *)
+         Control.focus 1 1 (fun () => 
+          Std.split false NoBindings;         
+          (* subsumed *)
+          Control.focus 1 1 (fun () =>  Std.constructor false; Std.reflexivity ());
+          (* pointereq/\iargseq *)
+          (Control.focus 1 1 (fun () =>
+           Std.split false NoBindings;         
+           Control.focus 1 1 (Std.reflexivity);
+           Control.focus 1 1 (Std.reflexivity)
+         )))
      | [] =>
          Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))
      | _ =>
@@ -122,7 +131,7 @@ Ltac2 prove_unfold_step () :=
   end.
 
  Ltac2 prove_log_entry_valid () :=
-  match! goal with
+   match! goal with
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
       {| 
         Predicate.name := Request.Owned (SCtypes.Struct ?isym) ?iinit;
@@ -188,7 +197,7 @@ Ltac2 prove_unfold_step () :=
       Std.constructor false;
       prove_unfold_step ()
    end.
- 
+
  Ltac2 prove_log_entry_list_valid () :=
    match! goal with
    | [ |- List.Forall log_entry_valid ?l ] =>
