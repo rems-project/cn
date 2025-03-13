@@ -882,7 +882,7 @@ module EffectfulTranslation = struct
           return (IT (it_, Loc (Some member_ty), loc))
         in
         (match (opt_tag, IT.get_bt e) with
-         | Some tag, Loc (Some (Struct tag')) ->
+         | Some (Ctype (_, Struct tag)), Loc (Some (Struct tag')) ->
            if Sym.equal tag tag' then
              with_tag tag
            else (
@@ -895,7 +895,8 @@ module EffectfulTranslation = struct
                      (Illtyped_it
                         { it = Terms.pp e; has = SBT.pp (Struct tag'); expected; reason })
                })
-         | Some tag, Loc None | None, Loc (Some (Struct tag)) -> with_tag tag
+         | Some (Ctype (_, Struct tag)), Loc None | None, Loc (Some (Struct tag)) ->
+           with_tag tag
          | None, Loc None -> cannot_tell_pointee_ctype loc e
          | _, has ->
            let expected = "struct pointer" in

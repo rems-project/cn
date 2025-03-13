@@ -28,7 +28,7 @@ struct s {
 void member_shift(struct s *p)
 /*@
 requires
-    has_alloc_id(member_shift<s>(p, x));
+    has_alloc_id(member_shift<struct s>(p, x));
 ensures
     has_alloc_id(p);
 @*/

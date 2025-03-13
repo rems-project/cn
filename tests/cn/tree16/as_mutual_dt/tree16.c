@@ -38,7 +38,7 @@ predicate {datatype tree t, i32 v, map <i32, datatype tree> children}
   else {
     take P = RW<struct node>(p);
     let V = P.v;
-    let nodes_ptr = member_shift<node>(p,nodes);
+    let nodes_ptr = member_shift<struct node>(p,nodes);
     take Ns = each (i32 i; (0i32 <= i) && (i < NUM_NODES))
       {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
     let ts = array_to_tree_list (Ns, NUM_NODES);

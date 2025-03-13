@@ -1548,7 +1548,7 @@ let rec pp_cn_expr ppfa ppfty = function
                  "CNExpr_membershift"
                  [ pp_triple
                      (pp_cn_expr ppfa ppfty)
-                     (pp_option ppfa)
+                     (pp_option ppfty)
                      pp_identifier
                      (e, oa, id)
                  ]

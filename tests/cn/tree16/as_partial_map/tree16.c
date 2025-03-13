@@ -51,7 +51,7 @@ predicate {map<datatype tree_arc, datatype tree_node_option> t,
   else {
     take P = RW<struct node>(p);
     let V = P.v;
-    let nodes_ptr = member_shift<node>(p,nodes);
+    let nodes_ptr = member_shift<struct node>(p,nodes);
     take Ns = each (i32 i; (0i32 <= i) && (i < (num_nodes ())))
       {Indirect_Tree(array_shift<tree>(nodes_ptr, i))};
     let t = construct (V, Ns);
