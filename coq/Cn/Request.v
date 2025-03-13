@@ -1,12 +1,15 @@
 Require Import List.
 Require Import String.
 
+Require Import Coq.Structures.DecidableType.
+Require Import Coq.Structures.DecidableTypeEx.
+
 Require Import BaseTypes.
 Require Import IndexTerms.
 Require Import Cerberus.Symbol.
 Require Import Locations.
 Require Import SCtypes.
-
+Require Import Sym.
 Inductive init : Type :=
   | Init
   | Uninit.
@@ -48,3 +51,76 @@ Inductive subsumed : name -> name -> Prop :=
   | Subsumed_owned : forall ct ct',
     ct = ct' -> subsumed (Owned ct Uninit) (Owned ct' Init).
 
+Module Init_as_MiniDecidableType <: MiniDecidableType.
+  Definition t := init.
+  Definition eq := @eq t.
+  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
+  Proof.
+    unfold eq.
+    decide equality. 
+  Qed.
+End Init_as_MiniDecidableType.
+
+Module Name_as_MiniDecidableType <: MiniDecidableType.
+  Definition t := name.
+  Definition eq := @eq t.
+  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
+  Proof.
+    unfold eq.
+    intros [o1 | p1] [o2 | p2].
+    all: decide equality.
+    all: try apply SCtypes_as_MiniDecidableType.eq_dec.
+    all: try apply Init_as_MiniDecidableType.eq_dec.
+    all: try apply Sym_t_as_MiniDecidableType.eq_dec.
+  Qed.
+End Name_as_MiniDecidableType.
+
+Module Predicate_as_MiniDecidableType <: MiniDecidableType.
+  Definition t := Predicate.t.
+  Definition eq := @eq t.
+  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
+  Proof.
+    unfold eq.
+    intros [n1 p1 i1] [n2 p2 i2].
+    decide equality.
+    - apply List.list_eq_dec.
+      apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply Name_as_MiniDecidableType.eq_dec.
+  Qed. 
+End Predicate_as_MiniDecidableType.
+
+Module QPredicate_as_MiniDecidableType <: MiniDecidableType.
+  Definition t := QPredicate.t.
+  Definition eq := @eq t.
+  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
+  Proof.
+    unfold eq.
+    intros x y.
+    destruct x, y.
+    decide equality.
+    - apply List.list_eq_dec.
+      apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply Locations_t_as_MiniDecidableType.eq_dec.
+    - apply BaseTypes.prod_eq_dec.
+      + apply Sym_t_as_MiniDecidableType.eq_dec.
+      + apply BasetTypes_t_as_MiniDecidableType.eq_dec.
+    - apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply Name_as_MiniDecidableType.eq_dec.
+  Qed.
+End QPredicate_as_MiniDecidableType.
+
+Module Request_as_MiniDecidableType <: MiniDecidableType.
+  Definition t := t.
+  Definition eq := @eq t.
+  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
+  Proof.
+    unfold eq.
+    intros [p1 | q1] [p2 | q2].
+    all: decide equality.
+    all: try apply Predicate_as_MiniDecidableType.eq_dec.
+    all: try apply QPredicate_as_MiniDecidableType.eq_dec.
+  Qed.
+End Request_as_MiniDecidableType.

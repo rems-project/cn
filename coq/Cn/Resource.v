@@ -14,22 +14,31 @@ Definition qpredicate : Type := Request.QPredicate.t * output.
 
 Definition t : Type := Request.t * output.
 
+Module Output_as_MiniDecidableType <: MiniDecidableType.
+  Definition t := output.
+  Definition eq := @eq t.
+  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
+  Proof.
+    unfold eq.
+    intros [o1] [o2].
+    decide equality.
+    apply IndexTerm_as_MiniDecidableType.eq_dec.
+  Qed.
+End Output_as_MiniDecidableType.
+
 Module Resource_as_MiniDecidableType <: MiniDecidableType.
   Definition t := t.
   Definition eq := @eq t.
   Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
   Proof.
-    unfold eq.
-    decide equality.
-    -
-      subst.
-      decide equality.
-      apply IndexTerm_as_MiniDecidableType.eq_dec.
-    -
-      admit.
-  Admitted.
+    intros r1 r2.
+    apply BaseTypes.prod_eq_dec.
+    - apply Request_as_MiniDecidableType.eq_dec.
+    - apply Output_as_MiniDecidableType.eq_dec.
+  Qed.
 End Resource_as_MiniDecidableType.
 
+Module Output_as_DecidableType := Make_UDT Output_as_MiniDecidableType.
 Module Resource_as_DecidableType := Make_UDT Resource_as_MiniDecidableType.
 Module ResSet := FSetWeakList.Make Resource_as_DecidableType.
 Module ResSetDecide := FSetDecide.WDecide(ResSet).

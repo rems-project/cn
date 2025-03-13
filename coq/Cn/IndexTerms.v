@@ -14,21 +14,8 @@ Definition t := annot BaseTypes.t.
 Definition bindings (bt: Type) := list (pattern bt * option (annot bt)).
 Definition t_bindings := bindings BaseTypes.t. 
 
-Module IndexTerm_as_MiniDecidableType <: MiniDecidableType.
-  Definition t := t.
-  Definition eq := @eq t.
-  Lemma eq_dec : forall (x y : t), { eq x y } + { ~ eq x y }.
-  Proof.
-    unfold eq.
-    decide equality; subst.
-    -
-      repeat decide equality.
-    -
-      apply BasetTypes_t_as_MiniDecidableType.eq_dec.
-    -
-      admit.
-  Admitted.
-End IndexTerm_as_MiniDecidableType. 
+Module IndexTerm_as_MiniDecidableType <: MiniDecidableType :=
+  Annot_as_MiniDecidableType BasetTypes_t_as_MiniDecidableType.
 
 Module IndexTerm_as_DecidableType := Make_UDT IndexTerm_as_MiniDecidableType.
 
