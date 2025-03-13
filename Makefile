@@ -29,7 +29,6 @@ full-build:
 cn:
 	@echo "[DUNE] $@"
 	$(Q)dune build -p cn
-	@echo -e "\nDONE"
 
 .PHONY: clean
 clean:
