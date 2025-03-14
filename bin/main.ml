@@ -97,15 +97,30 @@ let handle_frontend_error = function
   | CF.Exception.Result result -> result
 
 
-let err_if_not_c_h_file filename =
-  let ext = String.equal (Filename.extension filename) in
-  if not (ext ".c" || ext ".h") then
-    CF.Pp_errors.fatal ("file \"" ^ filename ^ "\" has wrong file extension")
+let there_can_only_be_one =
+  let err_if_not_c_h_file filename =
+    let ext = String.equal (Filename.extension filename) in
+    if not (ext ".c" || ext ".h") then
+      CF.Pp_errors.fatal
+        ("file \"" ^ filename ^ "\" has wrong file extension (must be .c or .h)")
+  in
+  function
+  | [] -> assert false
+  | [ filename ] ->
+    err_if_not_c_h_file filename;
+    filename
+  | filename :: _ :: _ ->
+    prerr_endline
+    @@ Cerb_colour.(ansi_format ~err:true [ Bold; Yellow ] "warning: ")
+    ^ "only checking "
+    ^ filename;
+    err_if_not_c_h_file filename;
+    filename
 
 
 let with_well_formedness_check
-      ~(* CLI arguments *)
-       filename
+      (* CLI arguments *)
+      ~filename
       ~macros
       ~incl_dirs
       ~incl_files
@@ -129,7 +144,6 @@ let with_well_formedness_check
          paused:_ Typing.pause ->
          unit Or_TypeError.t)
   =
-  err_if_not_c_h_file filename;
   let cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
@@ -248,6 +262,7 @@ let well_formed
       no_inherit_loc
       magic_comment_char_dollar
   =
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check
     ~filename
     ~macros
@@ -333,6 +348,7 @@ let verify
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -438,11 +454,12 @@ let generate_executable_specs
   WellTyped.use_ity := not no_use_ity;
   Sym.executable_spec_enabled := true;
   (* XXX temporary: should we inject in the pre-processed file or original one *)
+  let filename = there_can_only_be_one filename in
   let use_preproc = false in
-  let fi, save =
+  let exec_spec_file, save =
     if use_preproc then (
-      let fi = pick_cpp_file_name output_dir filename in
-      (fi, Some fi))
+      let pp_file = pick_cpp_file_name output_dir filename in
+      (pp_file, Some pp_file))
     else
       (filename, None)
   in
@@ -472,7 +489,7 @@ let generate_executable_specs
                 ~with_loop_leak_checks
                 ~with_test_gen
                 ~copy_source_dir
-                fi
+                exec_spec_file
                 ~use_preproc
                 ail_prog
                 output_decorated
@@ -517,6 +534,7 @@ let run_seq_tests
     Pp.error e.loc report.short (Option.to_list report.descr);
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -547,11 +565,6 @@ let run_seq_tests
            then (
              print_endline "No testable functions, trivially passing";
              exit 0);
-           if not (Sys.file_exists output_dir) then (
-             print_endline ("Directory \"" ^ output_dir ^ "\" does not exist.");
-             Sys.mkdir output_dir 0o777;
-             print_endline
-               ("Created directory \"" ^ output_dir ^ "\" with full permissions."));
            let _, sigma = ail_prog in
            Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
            Executable_spec.main
@@ -642,6 +655,7 @@ let run_tests
     Pp.error e.loc report.short (Option.to_list report.descr);
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -698,10 +712,6 @@ let run_tests
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
-      if not (Sys.file_exists output_dir) then (
-        print_endline ("Directory \"" ^ output_dir ^ "\" does not exist.");
-        Sys.mkdir output_dir 0o777;
-        print_endline ("Created directory \"" ^ output_dir ^ "\" with full permissions."));
       Cerb_colour.without_colour
         (fun () ->
            Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
@@ -743,7 +753,7 @@ open Cmdliner
 module Common_flags = struct
   let file =
     let doc = "Source C file" in
-    Arg.(required & pos ~rev:true 0 (some file) None & info [] ~docv:"FILE" ~doc)
+    Arg.(value & pos_all non_dir_file [ "." ] & info [] ~docv:"FILE" ~doc)
 
 
   (* copied from cerberus' executable (backend/driver/main.ml) *)
@@ -943,7 +953,7 @@ module Verify_flags = struct
 
   let output_dir =
     let doc = "directory in which to output state files" in
-    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some dir) None & info [ "output-dir" ] ~docv:"FILE" ~doc)
 
 
   let disable_resource_derived_constraints =
@@ -957,8 +967,7 @@ module Executable_spec_flags = struct
       "output a version of the translation unit decorated with C runtime\n\
       \  translations of the CN annotations to the provided directory"
     in
-    Arg.(
-      value & opt (some string) None & info [ "output-decorated-dir" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some dir) None & info [ "output-decorated-dir" ] ~docv:"FILE" ~doc)
 
 
   let output_decorated =
@@ -1119,7 +1128,7 @@ module Testing_flags = struct
 
   let output_test_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(value & opt string "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(value & opt dir "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let only =
@@ -1365,7 +1374,7 @@ end
 module Seq_testing_flags = struct
   let output_test_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(value & opt string "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(value & opt dir "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let with_static_hack =
@@ -1490,7 +1499,7 @@ let seq_test_cmd =
     \    The tests use randomized inputs or previous calls.\n\
     \    A [.c] file containing the test harnesses will be placed in [output-dir]."
   in
-  let info = Cmd.info "seq_test" ~doc in
+  let info = Cmd.info "seq-test" ~doc in
   Cmd.v info test_t
 
 
