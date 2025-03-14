@@ -3,9 +3,17 @@ Require Import Coq.ZArith.ZArith.
 Require Import Coq.FSets.FSetInterface.
 
 From Cerberus Require Import IntegerType Ctype.
-From Cn Require Import Prooflog Request Resource Context Sym IndexTerms BaseTypes SCtypes.
+From Cn Require Import Prooflog Request Resource Context Sym IndexTerms BaseTypes SCtypes Global LogicalConstraints.
 
 Import ListNotations.
+
+
+(* This is a placeholder for the actual definition of `provable`.
+   The actual definition should be using a proof witness from
+   the SMT solver, which will be checked via SMTCoq plugin.
+*)
+Inductive provable (g:Global.t): LCSet.t -> LogicalConstraints.t -> Prop :=
+| solvable_SMT: forall lc it, provable g lc it.
 
 (* Helper functoin to get a set of resources from the contex *)
 
@@ -305,11 +313,20 @@ Inductive log_entry_valid : log_entry -> Prop :=
 
   (* [out_res] is a subset of [in_res] with exactly one element [used] removed. *)
   (exists (upred: Request.Predicate.t),
-      ResSet.Equal (Resource.ResSet.add (P upred, out) out_res) in_res /\
-      Request.subsumed iname upred.(Request.Predicate.name) /\
-      upred.(Request.Predicate.pointer) = ipointer /\
-      upred.(Request.Predicate.iargs) = iargs
-  ) 
+    ResSet.Equal (Resource.ResSet.add (P upred, out) out_res) in_res /\
+    (* name matches *)
+    Request.subsumed iname upred.(Request.Predicate.name) /\
+    (* pointer matches *)
+    (exists alloc_id_eq loc, 
+      IndexTerms.eq_ loc upred.(Request.Predicate.pointer) ipointer alloc_id_eq /\
+      provable iglobal iconstraints (LogicalConstraints.T alloc_id_eq))
+    /\ 
+    (* arguments match *)
+    (exists addr_iargs_match,
+      IndexTerms.eq_and_list_rel Location.Loc_unknown upred.(Request.Predicate.iargs) iargs addr_iargs_match /\
+      provable iglobal iconstraints (LogicalConstraints.T addr_iargs_match)
+    )
+  )
   
   ->
 
