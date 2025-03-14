@@ -1,5 +1,4 @@
 open Cn
-open Builtins
 module CF = Cerb_frontend
 module CB = Cerb_backend
 open CB.Pipeline
@@ -52,6 +51,7 @@ let frontend
       ~magic_comment_char_dollar
       ~save_cpp
   =
+  let module Cn_builtins = Builtins in
   let open CF in
   Cerb_global.set_cerb_conf
     ~backend_name:"Cn"
@@ -76,7 +76,7 @@ let frontend
   let conf = Setup.conf macros incl_dirs incl_files astprints save_cpp in
   let cn_init_scope : Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
-      functions = List.map (fun (str, sym) -> (str, sym, None)) cn_builtin_fun_names;
+      functions = List.map (fun (str, sym) -> (str, sym, None)) Cn_builtins.fun_names;
       idents = [ Alloc.History.(str, sym, None) ]
     }
   in
