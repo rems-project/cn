@@ -88,7 +88,8 @@ Qed.
      | _ =>
          Control.throw (Tactic_failure (Some (Message.of_string "More than one resource change between the input and output")))
      end
- end.
+   | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_one_step: match failed")))
+   end.
 
  Ltac2 res_set_remove_many_step () :=
  match! goal with
@@ -114,6 +115,7 @@ Qed.
    else
     verbose_print "TODO: Compute field_res from in_res and out_res";
     Control.shelve ()
+ | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_many_step: match failed")))
 end.
 
 Ltac2 prove_unfold_step () :=
@@ -127,11 +129,11 @@ Ltac2 prove_unfold_step () :=
 
       Message.print (Message.of_string "TODO: Shelving unfold step pre-condition.");
       Control.shelve ()
-
+  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_unfold_step: match failed")))
   end.
 
  Ltac2 prove_log_entry_valid () :=
-   match! goal with
+  match! goal with
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
       {| 
         Predicate.name := Request.Owned (SCtypes.Struct ?isym) ?iinit;
@@ -196,7 +198,8 @@ Ltac2 prove_unfold_step () :=
       verbose_print "Checking UnfoldResources";
       Std.constructor false;
       prove_unfold_step ()
-   end.
+  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_log_entry_valid: match failed")))
+  end.
 
  Ltac2 prove_log_entry_list_valid () :=
    match! goal with
