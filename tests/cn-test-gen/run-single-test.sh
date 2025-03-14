@@ -13,6 +13,7 @@ else
   DIR=failing-$(basename $TEST .fail.c)
 fi
 rm -rf $DIR
+mkdir -p "$DIR"
 
 # For UBSan
 export UBSAN_OPTIONS=halt_on_error=1
