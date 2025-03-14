@@ -1,6 +1,5 @@
 [![CN Proof](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml)
 [![CN Spec Testing](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml)
-[![CN Benchmarks](https://github.com/rems-project/cn/actions/workflows/ci-cn-bench.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-bench.yml)
 [![CN-Coq](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml)
 
 
