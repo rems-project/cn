@@ -80,8 +80,8 @@ Qed.
           (* pointereq/\iargseq *)
           (Control.focus 1 1 (fun () =>
            Std.split false NoBindings;         
-           Control.focus 1 1 (Control.shelve);  (* TODO: add pointer equality proof (via provable) *)
-           Control.focus 1 1 (Control.shelve)  (* TODO: add argument equality proof (via provable) *)
+           Control.focus 1 1 (Control.shelve);  (* TODO: prove alloc_id equality (via provable) *)
+           Control.focus 1 1 (Control.shelve)  (* TODO: prove pointer address and arguments equality (via provable) *)
          )))
      | [] =>
          Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))

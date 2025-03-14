@@ -40,6 +40,27 @@ Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
     bt_of_sct_rel (SCtypes.Struct tag) (BaseTypes.Struct _ tag)
 (* TODO function types *).
 
+(* Defines when a term represents a cast of another term to a specific type *)
+Inductive cast_ (loc: Locations.t) : BaseTypes.t -> IndexTerms.t -> IndexTerms.t -> Prop :=
+| cast_same: forall bt t' bt' l',
+    bt = bt' ->
+    cast_ loc bt (Terms.IT _ t' bt' l') (Terms.IT _ t' bt' l')
+| cast_diff: forall bt t' bt' l',
+    bt <> bt' ->
+    cast_ loc bt (Terms.IT _ t' bt' l') (Terms.IT _ (Terms.Cast _ bt (Terms.IT _ t' bt' l')) bt loc).
+
+Inductive allocId_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
+| allocId_intro: forall t' bt' l' result,
+    cast_ loc (BaseTypes.Alloc_id _) (Terms.IT _ t' bt' l') result ->
+    allocId_ loc (Terms.IT _ t' bt' l') result.
+
+(* Defines when a term represents the address of another term *)
+Inductive addr_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
+| addr_intro: forall pt t' bt' l' result,
+    bt_of_sct_rel (SCtypes.Integer (IntegerType.Signed Intptr_t)) pt ->
+    cast_ loc pt (Terms.IT _ t' bt' l') result ->
+    addr_ loc (Terms.IT _ t' bt' l') result.
+
 (* Helper predicate to relate struct piece to resource *)
 Inductive struct_piece_to_resource 
   (piece: Memory.struct_piece) 
@@ -316,17 +337,29 @@ Inductive log_entry_valid : log_entry -> Prop :=
     ResSet.Equal (Resource.ResSet.add (P upred, out) out_res) in_res /\
     (* name matches *)
     Request.subsumed iname upred.(Request.Predicate.name) /\
-    (* pointer matches *)
-    (exists alloc_id_eq loc, 
-      IndexTerms.eq_ loc upred.(Request.Predicate.pointer) ipointer alloc_id_eq /\
-      provable iglobal iconstraints (LogicalConstraints.T alloc_id_eq))
-    /\ 
-    (* arguments match *)
-    (exists addr_iargs_match,
+    (* alloc_id matches *)
+    (exists alloc_id_eq loc alloc alloc',
+      allocId_ loc ipointer alloc /\
+      allocId_ loc upred.(Request.Predicate.pointer) alloc' /\
+      IndexTerms.eq_ loc alloc alloc' alloc_id_eq /\
+      provable iglobal iconstraints (LogicalConstraints.T alloc_id_eq)) /\
+    (* pointer and arguments match *)
+    (exists pointer_eq loc, 
+      IndexTerms.eq_ loc upred.(Request.Predicate.pointer) ipointer pointer_eq /\
+      provable iglobal iconstraints (LogicalConstraints.T pointer_eq) /\
+     (* arguments match *)
+     (exists addr_iargs_match addr addr',
+      addr_ loc ipointer addr /\
+      addr_ loc upred.(Request.Predicate.pointer) addr' /\
+      IndexTerms.eq_ loc addr addr' pointer_eq /\
       IndexTerms.eq_and_list_rel Location.Loc_unknown upred.(Request.Predicate.iargs) iargs addr_iargs_match /\
-      provable iglobal iconstraints (LogicalConstraints.T addr_iargs_match)
+      provable iglobal iconstraints 
+        (* we add pointer address equality to the constraint as it might be needed for proving the argument equality *)
+        (LogicalConstraints.T (IndexTerms.and2_ Location.Loc_unknown pointer_eq addr_iargs_match))
+      )
     )
   )
+
   
   ->
 
