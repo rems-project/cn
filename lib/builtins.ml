@@ -238,8 +238,9 @@ let apply_builtin_funs fsym args loc =
     return (Some t)
 
 
-(* This list of names is later passed to the frontend in bin/main.ml so that these are available in the elaboration,
-   so it should include all builtin function names *)
-let cn_builtin_fun_names =
+(* This list of names is later passed to the frontend in bin/main.ml so that
+ * these are available in the elaboration, so it should include all builtin
+ * function names *)
+let fun_names =
   List.map (fun (str, sym, _) -> (str, sym)) builtin_funs
   @ List.map (fun (str, sym, _) -> (str, sym)) builtin_fun_defs

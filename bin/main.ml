@@ -1,33 +1,16 @@
-open Cn
-open Builtins
 module CF = Cerb_frontend
 module CB = Cerb_backend
 open CB.Pipeline
+open Cn
 open Setup
-module A = CF.AilSyntax
 
-let return = CF.Exception.except_return
-
-let ( let@ ) = CF.Exception.except_bind
-
-type core_file = (unit, unit) CF.Core.generic_file
-
-type file =
-  | CORE of core_file
-  | MUCORE of unit Mucore.file
-
-let print_file filename file =
-  match file with
-  | CORE file -> Pp.print_file (filename ^ ".core") (CF.Pp_core.All.pp_file file)
-  | MUCORE file -> Pp.print_file (filename ^ ".mucore") (Pp_mucore.pp_file file)
-
-
-module Log : sig
-  val print_log_file : string * file -> unit
-end = struct
-  let print_count = ref 0
-
-  let print_log_file (filename, file) =
+let print_log_file =
+  let print_count = ref 0 in
+  let print_file filename = function
+    | `CORE file -> Pp.print_file (filename ^ ".core") (CF.Pp_core.All.pp_file file)
+    | `MUCORE file -> Pp.print_file (filename ^ ".mucore") (Pp_mucore.pp_file file)
+  in
+  fun (filename, file) ->
     if !Cerb_debug.debug_level > 0 then (
       Cerb_colour.do_colour := false;
       let count = !print_count in
@@ -39,20 +22,17 @@ end = struct
       print_file file_path file;
       print_count := 1 + !print_count;
       Cerb_colour.do_colour := true)
-end
 
-open Log
 
 let frontend
       ~macros
       ~incl_dirs
       ~incl_files
-      astprints
+      ~astprints
       ~filename
       ~magic_comment_char_dollar
       ~save_cpp
   =
-  let open CF in
   Cerb_global.set_cerb_conf
     ~backend_name:"Cn"
     ~exec:false
@@ -63,20 +43,22 @@ let frontend
     ~permissive:false
     ~agnostic:false
     ~ignore_bitfields:false;
-  Ocaml_implementation.set Ocaml_implementation.HafniumImpl.impl;
-  Switches.set
+  CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
+  CF.Switches.set
     ([ "inner_arg_temps"; "at_magic_comments" ]
      (* TODO (DCM, VIP) figure out how to support liveness checks for read-only
         resources and then switch on "strict_pointer_arith" to elaborate array
         shift to the effectful version. "strict_pointer_relationals" is also
         assumed, but this does not affect elaboration. *)
      @ if magic_comment_char_dollar then [ "magic_comment_char_dollar" ] else []);
+  let return = CF.Exception.except_return in
+  let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
   let conf = Setup.conf macros incl_dirs incl_files astprints save_cpp in
-  let cn_init_scope : Cn_desugaring.init_scope =
+  let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
-      functions = List.map (fun (str, sym) -> (str, sym, None)) cn_builtin_fun_names;
+      functions = List.map (fun (str, sym) -> (str, sym, None)) Builtins.fun_names;
       idents = [ Alloc.History.(str, sym, None) ]
     }
   in
@@ -85,20 +67,20 @@ let frontend
   in
   let@ () =
     if conf.typecheck_core then
-      let@ _ = Core_typing.typecheck_program prog0 in
+      let@ _ = CF.Core_typing.typecheck_program prog0 in
       return ()
     else
       return ()
   in
   let cabs_tunit = Option.get cabs_tunit_opt in
   let markers_env, ail_prog = Option.get ail_prog_opt in
-  Tags.set_tagDefs prog0.Core.tagDefs;
-  let prog1 = Remove_unspecs.rewrite_file prog0 in
-  let prog2 = Milicore.core_to_micore__file Locations.update prog1 in
-  let prog3 = Milicore_label_inline.rewrite_file prog2 in
+  CF.Tags.set_tagDefs prog0.CF.Core.tagDefs;
+  let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
+  let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
+  let prog3 = CF.Milicore_label_inline.rewrite_file prog2 in
   let statement_locs = CStatements.search (snd ail_prog) in
-  print_log_file ("original", CORE prog0);
-  print_log_file ("without_unspec", CORE prog1);
+  print_log_file ("original", `CORE prog0);
+  print_log_file ("without_unspec", `CORE prog1);
   return (cabs_tunit, prog3, (markers_env, ail_prog), statement_locs)
 
 
@@ -115,20 +97,30 @@ let handle_frontend_error = function
   | CF.Exception.Result result -> result
 
 
-let opt_comma_split = function None -> [] | Some str -> String.split_on_char ',' str
-
-let check_input_file filename =
-  if not (Sys.file_exists filename) then
-    CF.Pp_errors.fatal ("file \"" ^ filename ^ "\" does not exist")
-  else (
+let there_can_only_be_one =
+  let err_if_not_c_h_file filename =
     let ext = String.equal (Filename.extension filename) in
     if not (ext ".c" || ext ".h") then
-      CF.Pp_errors.fatal ("file \"" ^ filename ^ "\" has wrong file extension"))
+      CF.Pp_errors.fatal
+        ("file \"" ^ filename ^ "\" has wrong file extension (must be .c or .h)")
+  in
+  function
+  | [] -> assert false
+  | [ filename ] ->
+    err_if_not_c_h_file filename;
+    filename
+  | filename :: _ :: _ ->
+    prerr_endline
+    @@ Cerb_colour.(ansi_format ~err:true [ Bold; Yellow ] "warning: ")
+    ^ "only checking "
+    ^ filename;
+    err_if_not_c_h_file filename;
+    filename
 
 
 let with_well_formedness_check
-      ~(* CLI arguments *)
-       filename
+      (* CLI arguments *)
+      ~filename
       ~macros
       ~incl_dirs
       ~incl_files
@@ -147,19 +139,18 @@ let with_well_formedness_check
       ~(f :
          cabs_tunit:CF.Cabs.translation_unit ->
          prog5:unit Mucore.file ->
-         ail_prog:CF.GenTypes.genTypeCategory A.ail_program ->
+         ail_prog:CF.GenTypes.genTypeCategory CF.AilSyntax.ail_program ->
          statement_locs:Cerb_location.t CStatements.LocMap.t ->
          paused:_ Typing.pause ->
          unit Or_TypeError.t)
   =
-  check_input_file filename;
   let cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
          ~macros
          ~incl_dirs
          ~incl_files
-         astprints
+         ~astprints
          ~filename
          ~magic_comment_char_dollar
          ~save_cpp)
@@ -179,7 +170,7 @@ let with_well_formedness_check
           (markers_env, snd ail_prog)
           prog
       in
-      print_log_file ("mucore", MUCORE prog5);
+      print_log_file ("mucore", `MUCORE prog5);
       let paused =
         Typing.run_to_pause Context.empty (Check.check_decls_lemmata_fun_specs prog5)
       in
@@ -271,6 +262,7 @@ let well_formed
       no_inherit_loc
       magic_comment_char_dollar
   =
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check
     ~filename
     ~macros
@@ -348,7 +340,7 @@ let verify
   Solver.solver_type := solver_type;
   Solver.solver_flags := solver_flags;
   Solver.try_hard := try_hard;
-  Check.skip_and_only := (opt_comma_split skip, opt_comma_split only);
+  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -356,6 +348,7 @@ let verify
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -454,18 +447,19 @@ let generate_executable_specs
   Pp.print_level := print_level;
   CF.Pp_symbol.pp_cn_sym_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
-  Check.skip_and_only := (opt_comma_split skip, opt_comma_split only);
+  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   WellTyped.use_ity := not no_use_ity;
   Sym.executable_spec_enabled := true;
   (* XXX temporary: should we inject in the pre-processed file or original one *)
+  let filename = there_can_only_be_one filename in
   let use_preproc = false in
-  let fi, save =
+  let exec_spec_file, save =
     if use_preproc then (
-      let fi = pick_cpp_file_name output_dir filename in
-      (fi, Some fi))
+      let pp_file = pick_cpp_file_name output_dir filename in
+      (pp_file, Some pp_file))
     else
       (filename, None)
   in
@@ -495,7 +489,7 @@ let generate_executable_specs
                 ~with_loop_leak_checks
                 ~with_test_gen
                 ~copy_source_dir
-                fi
+                exec_spec_file
                 ~use_preproc
                 ail_prog
                 output_decorated
@@ -540,6 +534,7 @@ let run_seq_tests
     Pp.error e.loc report.short (Option.to_list report.descr);
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -570,12 +565,11 @@ let run_seq_tests
            then (
              print_endline "No testable functions, trivially passing";
              exit 0);
-           if not (Sys.file_exists output_dir) then (
-             print_endline ("Directory \"" ^ output_dir ^ "\" does not exist.");
-             Sys.mkdir output_dir 0o777;
-             print_endline
-               ("Created directory \"" ^ output_dir ^ "\" with full permissions."));
            let _, sigma = ail_prog in
+           let output_dir =
+             let dir, mk = output_dir in
+             mk dir
+           in
            Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
            Executable_spec.main
              ~without_ownership_checking
@@ -658,13 +652,14 @@ let run_tests
   (* flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.print_level := print_level;
-  Check.skip_and_only := (opt_comma_split skip, opt_comma_split only);
+  Check.skip_and_only := (skip, only);
   Sym.executable_spec_enabled := true;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
+  let filename = there_can_only_be_one filename in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -721,12 +716,12 @@ let run_tests
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
-      if not (Sys.file_exists output_dir) then (
-        print_endline ("Directory \"" ^ output_dir ^ "\" does not exist.");
-        Sys.mkdir output_dir 0o777;
-        print_endline ("Created directory \"" ^ output_dir ^ "\" with full permissions."));
       Cerb_colour.without_colour
         (fun () ->
+           let output_dir =
+             let dir, mk = output_dir in
+             mk dir
+           in
            Cn_internal_to_ail.augment_record_map (BaseTypes.Record []);
            (try
               Executable_spec.main
@@ -762,11 +757,26 @@ let run_tests
 
 open Cmdliner
 
+let dir_and_mk_if_not_exist =
+  let parse dir =
+    let mkdir (`May_not_exist dir) =
+      if not (Sys.file_exists dir) then (
+        print_endline ("Directory \"" ^ dir ^ "\" does not exist.");
+        Sys.mkdir dir 0o777;
+        print_endline ("Created directory \"" ^ dir ^ "\" with full permissions."));
+      dir
+    in
+    Result.Ok (`May_not_exist dir, mkdir)
+  in
+  let print _ (`May_not_exist x, _) = print_string x in
+  Arg.conv' ~docv:"DIR" (parse, print)
+
+
 (* some of these stolen from backend/driver *)
 module Common_flags = struct
   let file =
     let doc = "Source C file" in
-    Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"FILE" ~doc)
+    Arg.(non_empty & pos_all non_dir_file [] & info [] ~docv:"FILE" ~doc)
 
 
   (* copied from cerberus' executable (backend/driver/main.ml) *)
@@ -922,7 +932,7 @@ module Verify_flags = struct
 
   let solver_path =
     let doc = "Path to SMT solver executable" in
-    Arg.(value & opt (some string) None & info [ "solver-path" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some file) None & info [ "solver-path" ] ~docv:"FILE" ~doc)
 
 
   let solver_type =
@@ -940,12 +950,12 @@ module Verify_flags = struct
 
   let only =
     let doc = "only type-check this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "only" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
     let doc = "skip type-checking of this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "skip" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 
   (* TODO remove this when VIP impl complete *)
@@ -966,7 +976,7 @@ module Verify_flags = struct
 
   let output_dir =
     let doc = "directory in which to output state files" in
-    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some dir) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let disable_resource_derived_constraints =
@@ -980,8 +990,7 @@ module Executable_spec_flags = struct
       "output a version of the translation unit decorated with C runtime\n\
       \  translations of the CN annotations to the provided directory"
     in
-    Arg.(
-      value & opt (some string) None & info [ "output-decorated-dir" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some dir) None & info [ "output-decorated-dir" ] ~docv:"DIR" ~doc)
 
 
   let output_decorated =
@@ -1142,17 +1151,20 @@ module Testing_flags = struct
 
   let output_test_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(value & opt string "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt dir_and_mk_if_not_exist (`May_not_exist ".", fun (`May_not_exist x) -> x)
+      & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "only" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "skip" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 
   let dont_run =
@@ -1388,7 +1400,10 @@ end
 module Seq_testing_flags = struct
   let output_test_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(value & opt string "." & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt dir_and_mk_if_not_exist (`May_not_exist ".", fun (`May_not_exist x) -> x)
+      & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let with_static_hack =
@@ -1513,7 +1528,7 @@ let seq_test_cmd =
     \    The tests use randomized inputs or previous calls.\n\
     \    A [.c] file containing the test harnesses will be placed in [output-dir]."
   in
-  let info = Cmd.info "seq_test" ~doc in
+  let info = Cmd.info "seq-test" ~doc in
   Cmd.v info test_t
 
 

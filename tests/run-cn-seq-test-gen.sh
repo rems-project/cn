@@ -44,7 +44,7 @@ for CONFIG in "${CONFIGS[@]}"; do
 
     # Run passing tests
     if [[ $TEST == *.pass.c ]]; then
-      $CN seq_test "$TEST" --output-dir="test" $CONFIG
+      $CN seq-test "$TEST" --output-dir="test" $CONFIG
       RET=$?
       if [[ "$RET" != 0 ]]; then
         echo
@@ -61,7 +61,7 @@ for CONFIG in "${CONFIGS[@]}"; do
 
     # Run failing tests
     if [[ $TEST == *.fail.c ]]; then
-      $CN seq_test "$TEST" --output-dir="test" $CONFIG
+      $CN seq-test "$TEST" --output-dir="test" $CONFIG
       RET=$?
       if [[ "$RET" = 0 ]]; then
         echo
