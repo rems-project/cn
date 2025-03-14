@@ -28,7 +28,7 @@ let frontend
       ~macros
       ~incl_dirs
       ~incl_files
-      astprints
+      ~astprints
       ~filename
       ~magic_comment_char_dollar
       ~save_cpp
@@ -97,13 +97,10 @@ let handle_frontend_error = function
   | CF.Exception.Result result -> result
 
 
-let check_input_file filename =
-  if not (Sys.file_exists filename) then
-    CF.Pp_errors.fatal ("file \"" ^ filename ^ "\" does not exist")
-  else (
-    let ext = String.equal (Filename.extension filename) in
-    if not (ext ".c" || ext ".h") then
-      CF.Pp_errors.fatal ("file \"" ^ filename ^ "\" has wrong file extension"))
+let err_if_not_c_h_file filename =
+  let ext = String.equal (Filename.extension filename) in
+  if not (ext ".c" || ext ".h") then
+    CF.Pp_errors.fatal ("file \"" ^ filename ^ "\" has wrong file extension")
 
 
 let with_well_formedness_check
@@ -132,14 +129,14 @@ let with_well_formedness_check
          paused:_ Typing.pause ->
          unit Or_TypeError.t)
   =
-  check_input_file filename;
+  err_if_not_c_h_file filename;
   let cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
          ~macros
          ~incl_dirs
          ~incl_files
-         astprints
+         ~astprints
          ~filename
          ~magic_comment_char_dollar
          ~save_cpp)
@@ -746,7 +743,7 @@ open Cmdliner
 module Common_flags = struct
   let file =
     let doc = "Source C file" in
-    Arg.(required & pos ~rev:true 0 (some string) None & info [] ~docv:"FILE" ~doc)
+    Arg.(required & pos ~rev:true 0 (some file) None & info [] ~docv:"FILE" ~doc)
 
 
   (* copied from cerberus' executable (backend/driver/main.ml) *)
