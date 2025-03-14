@@ -4,28 +4,13 @@ open CB.Pipeline
 open Cn
 open Setup
 
-let return = CF.Exception.except_return
-
-let ( let@ ) = CF.Exception.except_bind
-
-type core_file = (unit, unit) CF.Core.generic_file
-
-type file =
-  | CORE of core_file
-  | MUCORE of unit Mucore.file
-
-let print_file filename file =
-  match file with
-  | CORE file -> Pp.print_file (filename ^ ".core") (CF.Pp_core.All.pp_file file)
-  | MUCORE file -> Pp.print_file (filename ^ ".mucore") (Pp_mucore.pp_file file)
-
-
-module Log : sig
-  val print_log_file : string * file -> unit
-end = struct
-  let print_count = ref 0
-
-  let print_log_file (filename, file) =
+let print_log_file =
+  let print_count = ref 0 in
+  let print_file filename = function
+    | `CORE file -> Pp.print_file (filename ^ ".core") (CF.Pp_core.All.pp_file file)
+    | `MUCORE file -> Pp.print_file (filename ^ ".mucore") (Pp_mucore.pp_file file)
+  in
+  fun (filename, file) ->
     if !Cerb_debug.debug_level > 0 then (
       Cerb_colour.do_colour := false;
       let count = !print_count in
@@ -37,9 +22,7 @@ end = struct
       print_file file_path file;
       print_count := 1 + !print_count;
       Cerb_colour.do_colour := true)
-end
 
-open Log
 
 let frontend
       ~macros
@@ -68,6 +51,8 @@ let frontend
         shift to the effectful version. "strict_pointer_relationals" is also
         assumed, but this does not affect elaboration. *)
      @ if magic_comment_char_dollar then [ "magic_comment_char_dollar" ] else []);
+  let return = CF.Exception.except_return in
+  let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
   let conf = Setup.conf macros incl_dirs incl_files astprints save_cpp in
@@ -94,8 +79,8 @@ let frontend
   let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
   let prog3 = CF.Milicore_label_inline.rewrite_file prog2 in
   let statement_locs = CStatements.search (snd ail_prog) in
-  print_log_file ("original", CORE prog0);
-  print_log_file ("without_unspec", CORE prog1);
+  print_log_file ("original", `CORE prog0);
+  print_log_file ("without_unspec", `CORE prog1);
   return (cabs_tunit, prog3, (markers_env, ail_prog), statement_locs)
 
 
@@ -111,8 +96,6 @@ let handle_frontend_error = function
     exit 2
   | CF.Exception.Result result -> result
 
-
-let opt_comma_split = function None -> [] | Some str -> String.split_on_char ',' str
 
 let check_input_file filename =
   if not (Sys.file_exists filename) then
@@ -176,7 +159,7 @@ let with_well_formedness_check
           (markers_env, snd ail_prog)
           prog
       in
-      print_log_file ("mucore", MUCORE prog5);
+      print_log_file ("mucore", `MUCORE prog5);
       let paused =
         Typing.run_to_pause Context.empty (Check.check_decls_lemmata_fun_specs prog5)
       in
@@ -345,7 +328,7 @@ let verify
   Solver.solver_type := solver_type;
   Solver.solver_flags := solver_flags;
   Solver.try_hard := try_hard;
-  Check.skip_and_only := (opt_comma_split skip, opt_comma_split only);
+  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -451,7 +434,7 @@ let generate_executable_specs
   Pp.print_level := print_level;
   CF.Pp_symbol.pp_cn_sym_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
-  Check.skip_and_only := (opt_comma_split skip, opt_comma_split only);
+  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -655,7 +638,7 @@ let run_tests
   (* flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.print_level := print_level;
-  Check.skip_and_only := (opt_comma_split skip, opt_comma_split only);
+  Check.skip_and_only := (skip, only);
   Sym.executable_spec_enabled := true;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
@@ -937,12 +920,12 @@ module Verify_flags = struct
 
   let only =
     let doc = "only type-check this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "only" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
     let doc = "skip type-checking of this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "skip" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 
   (* TODO remove this when VIP impl complete *)
@@ -1144,12 +1127,12 @@ module Testing_flags = struct
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "only" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
-    Arg.(value & opt (some string) None & info [ "skip" ] ~doc)
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 
   let dont_run =
