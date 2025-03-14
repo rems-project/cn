@@ -159,6 +159,50 @@ Inductive log_entry_valid : log_entry -> Prop :=
   unfold_step c c' ->
   log_entry_valid (ResourceInferenceStep c (UnfoldResources loc) c')
 
+| array_resource_inference_step:
+  forall ity isize iinit ipointer iargs
+    oname opointer oargs
+    err out lines oloc
+    icomputational ilogical iresources iconstraints iglobal
+    ocomputational ological oresources oconstraints oglobal,
+
+  log_entry_valid
+    (ResourceInferenceStep
+    (* input context *)
+      {|
+        Context.computational := icomputational;
+        Context.logical := ilogical;
+        Context.resources := iresources;
+        Context.constraints := iconstraints;
+        Context.global := iglobal
+      |}
+
+      (* request type *)
+      (PredicateRequest
+        err (* unused *)
+        (* input predicate *)
+        {| Predicate.name := Request.Owned (SCtypes.Array (SCtypes.Integer ity, isize)) iinit;
+          Predicate.pointer := ipointer;
+          Predicate.iargs := iargs |}
+        oloc (* unused *)
+        ((
+          (* output predicate *)
+          {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
+          out
+          ), lines (* unused *)
+        )
+     )
+
+     (* output context *)
+     {|
+        Context.computational := ocomputational;
+        Context.logical := ological;
+        Context.resources := oresources;
+        Context.constraints := oconstraints;
+        Context.global := oglobal
+     |}
+   )
+  
  (* struct case: struct resource is removed from input context *)
 | struct_resource_inference_step:
   forall isym iinit ipointer iargs
