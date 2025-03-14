@@ -1,3 +1,10 @@
+[![CN Proof](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml)
+[![CN Spec Testing](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml)
+[![CN Benchmarks](https://github.com/rems-project/cn/actions/workflows/ci-cn-bench.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-bench.yml)
+[![CN-Coq](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml)
+
+
+
 # CN
 
 CN is a tool for verifying that C code is free of undefined behaviour and meets
@@ -90,3 +97,15 @@ for logistics and our [onboarding
 guide](https://github.com/rems-project/cn/blob/main/doc/ONBOARDING.md)
 for learning the code base.
 
+
+## Funding
+
+This software has received funding from the European Research Council
+(ERC) under the European Union's Horizon 2020 research and innovation
+programme from grant agreement no. 101002277 "TypeFoundry", and no. 789108,
+ERC-AdG-2017 "ELVER"; from the UK Research and Innovation (UKRI) under the
+UK government’s Horizon Europe funding guarantee for ERC-AdG-2022,
+EP/Y035976/1 "SAFER"; from an EPSRC Doctoral Training studentship;
+from Google; from the Defense Advanced Research Projects Agencies (DARPA) 
+under Contract No. FA8750-24-C-B044; and from a Royal Society University 
+Research Fellowship URF\R1\241195 (Pulte).
