@@ -13,7 +13,6 @@ else
   DIR=failing-$(basename $TEST .fail.c)
 fi
 rm -rf $DIR
-mkdir -p "$DIR"
 
 # For UBSan
 export UBSAN_OPTIONS=halt_on_error=1
@@ -44,6 +43,7 @@ for CONFIG in "${CONFIGS[@]}"; do
 
   if [[ $TEST == *.pass.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
+    mkdir -p "${DIR}"
     OUTPUT="${OUTPUT}$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)"
     RET=$?
     if [[ "$RET" != 0 ]]; then
@@ -55,6 +55,7 @@ for CONFIG in "${CONFIGS[@]}"; do
     fi
   elif [[ $TEST == *.fail.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
+    mkdir -p "${DIR}"
     OUTPUT="${OUTPUT}$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)"
     RET=$?
     if [[ "$RET" = 0 ]]; then
