@@ -1,9 +1,8 @@
-open Cn
 module CF = Cerb_frontend
 module CB = Cerb_backend
 open CB.Pipeline
+open Cn
 open Setup
-module A = CF.AilSyntax
 
 let return = CF.Exception.except_return
 
@@ -51,8 +50,6 @@ let frontend
       ~magic_comment_char_dollar
       ~save_cpp
   =
-  let module Cn_builtins = Builtins in
-  let open CF in
   Cerb_global.set_cerb_conf
     ~backend_name:"Cn"
     ~exec:false
@@ -63,8 +60,8 @@ let frontend
     ~permissive:false
     ~agnostic:false
     ~ignore_bitfields:false;
-  Ocaml_implementation.set Ocaml_implementation.HafniumImpl.impl;
-  Switches.set
+  CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
+  CF.Switches.set
     ([ "inner_arg_temps"; "at_magic_comments" ]
      (* TODO (DCM, VIP) figure out how to support liveness checks for read-only
         resources and then switch on "strict_pointer_arith" to elaborate array
@@ -74,9 +71,9 @@ let frontend
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
   let conf = Setup.conf macros incl_dirs incl_files astprints save_cpp in
-  let cn_init_scope : Cn_desugaring.init_scope =
+  let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
-      functions = List.map (fun (str, sym) -> (str, sym, None)) Cn_builtins.fun_names;
+      functions = List.map (fun (str, sym) -> (str, sym, None)) Builtins.fun_names;
       idents = [ Alloc.History.(str, sym, None) ]
     }
   in
@@ -85,17 +82,17 @@ let frontend
   in
   let@ () =
     if conf.typecheck_core then
-      let@ _ = Core_typing.typecheck_program prog0 in
+      let@ _ = CF.Core_typing.typecheck_program prog0 in
       return ()
     else
       return ()
   in
   let cabs_tunit = Option.get cabs_tunit_opt in
   let markers_env, ail_prog = Option.get ail_prog_opt in
-  Tags.set_tagDefs prog0.Core.tagDefs;
-  let prog1 = Remove_unspecs.rewrite_file prog0 in
-  let prog2 = Milicore.core_to_micore__file Locations.update prog1 in
-  let prog3 = Milicore_label_inline.rewrite_file prog2 in
+  CF.Tags.set_tagDefs prog0.CF.Core.tagDefs;
+  let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
+  let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
+  let prog3 = CF.Milicore_label_inline.rewrite_file prog2 in
   let statement_locs = CStatements.search (snd ail_prog) in
   print_log_file ("original", CORE prog0);
   print_log_file ("without_unspec", CORE prog1);
@@ -147,7 +144,7 @@ let with_well_formedness_check
       ~(f :
          cabs_tunit:CF.Cabs.translation_unit ->
          prog5:unit Mucore.file ->
-         ail_prog:CF.GenTypes.genTypeCategory A.ail_program ->
+         ail_prog:CF.GenTypes.genTypeCategory CF.AilSyntax.ail_program ->
          statement_locs:Cerb_location.t CStatements.LocMap.t ->
          paused:_ Typing.pause ->
          unit Or_TypeError.t)
