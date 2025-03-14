@@ -11,7 +11,7 @@ on:
       - '**docker.yml'
 
 env:
-  CERBERUS_IMAGE_ID: ghcr.io/rems-project/cerberus/cn
+  CN_IMAGE_ID: ghcr.io/rems-project/cn
 
 # Cancelling an in-progress job when a new push is performed causes the CI to
 # show up as failed: https://github.com/orgs/community/discussions/8336
@@ -51,7 +51,7 @@ jobs:
         context: .
         platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{env.CERBERUS_IMAGE_ID}}:release
+        tags: ${{env.CN_IMAGE_ID}}:release
         file: Dockerfile.ubuntu
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -83,14 +83,16 @@ jobs:
         context: .
         platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name != 'pull_request' }}
-        tags: ${{env.CERBERUS_IMAGE_ID}}:release-redhat
+        tags: ${{env.CN_IMAGE_ID}}:release-redhat
         file: Dockerfile.redhat
         attests: type=sbom
         provenance: mode=max
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
+# Other CI is testing anyway - if need be, can run tests in Dockerfile itself
   test-docker-images:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' }}
     needs: [docker-release-redhat, docker-release-ubuntu]
     strategy:
       matrix:
@@ -100,5 +102,5 @@ jobs:
 
     - name: Run CN CI tests
       run: |
-        docker pull ${{env.CERBERUS_IMAGE_ID}}:${{ matrix.tag }}
-        docker run -v $PWD:/work -w /work ${{env.CERBERUS_IMAGE_ID}}:${{ matrix.tag }} bash tests/run-cn.sh
+        docker pull ${{env.CN_IMAGE_ID}}:${{ matrix.tag }}
+        docker run -v $PWD:/work -w /work ${{env.CN_IMAGE_ID}}:${{ matrix.tag }} bash tests/run-cn.sh
