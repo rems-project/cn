@@ -19,7 +19,7 @@ Record t := mk_context {
   computational : SymMap.t (basetype_or_value * l_info);
   logical : SymMap.t (basetype_or_value * l_info);
   resources : ((list (Resource.t * Z)) * Z)%type;
-  constraints : LogicalConstraints.LCSet.t;
+  constraints : LCSet.t;
   global : Global.t
 }.
 
