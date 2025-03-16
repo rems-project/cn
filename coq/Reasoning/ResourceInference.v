@@ -114,8 +114,13 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
     )
 
 | resource_unfold_struct:
-  forall out_res ipointer iargs iout iinit isym sdecl loc,
+  forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
 
+  let iname := Request.Owned (SCtypes.Struct isym) iinit in
+  let iname' := Request.Owned (SCtypes.Struct isym) iinit' in
+
+  subsumed iname iname' ->
+  
   (* lookup struct declaration in global environment *)
   SymMap.MapsTo isym sdecl globals.(Global.struct_decls) ->
 
@@ -123,14 +128,14 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
   (forall r,
      ResSet.In r out_res <->
        exists piece, List.In piece sdecl /\
-                struct_piece_to_resource piece iinit ipointer iargs isym loc iout r)
+                struct_piece_to_resource piece iinit' ipointer iargs isym loc iout r)
 
   ->
 
     resource_unfold globals
       (Request.P
          {|
-           Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
+           Predicate.name := iname;
            Predicate.pointer := ipointer;
            Predicate.iargs := iargs
          |},
