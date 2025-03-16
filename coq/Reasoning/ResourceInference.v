@@ -90,28 +90,7 @@ Inductive struct_piece_to_resource
          field_out).
 
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
-(* non-struct "Owned" resources unfold to themselves *)
-| resource_unfold_nonstruct:
-  forall ipointer iargs iout iinit ity,
-  not (SCtypes.is_struct ity) ->
-
-  resource_unfold globals
-    (Request.P
-       {|
-         Predicate.name := Request.Owned ity iinit;
-         Predicate.pointer := ipointer;
-         Predicate.iargs := iargs
-       |},
-       iout)
-    (ResSet.singleton
-       (Request.P
-          {|
-            Predicate.name := Request.Owned ity iinit;
-            Predicate.pointer := ipointer;
-            Predicate.iargs := iargs
-          |},
-          iout)
-    )
+(* Removed resource_unfold_nonstruct constructor *)
 
 | resource_unfold_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
@@ -142,6 +121,24 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
          iout)
       out_res.
 
+Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
+| resource_unfold_full_step:
+    forall input output r unfolded_r,
+    (* Find a resource that can be unfolded *)
+    ResSet.In r input ->
+    resource_unfold globals r unfolded_r ->
+    (* Continue unfolding with the resource replaced by its unfolded components *)
+    resource_unfold_full globals (ResSet.union (ResSet.remove r input) unfolded_r) output ->
+    (* This is the result of unfolding the input *)
+    resource_unfold_full globals input output
+| resource_unfold_full_fixpoint:
+    forall input,
+    (* A fixpoint is reached when no resource can be unfolded further *)
+    ~ ResSet.Exists
+        (fun r => exists unfolded_r, resource_unfold globals r unfolded_r)
+        input ->
+    resource_unfold_full globals input input.
+
 (** Inductive predicate which defines correctness of resource unfolding step *)
 Inductive unfold_step : Context.t -> Context.t -> Prop :=
 | simple_unfold_step:
@@ -159,33 +156,26 @@ Inductive unfold_step : Context.t -> Context.t -> Prop :=
   let out_res := ctx_resources_set oresources in
 
   (* The `out_res` is union of `resource_unfold` of all resources in `in_res` *)
-  (forall r', ResSet.In r' out_res <->
-           exists r, ResSet.In r in_res /\ exists s,
-               resource_unfold iglobal r s /\ ResSet.In r' s
-  )
+  resource_unfold_full iglobal in_res out_res ->
 
-  ->
+  unfold_step
+    (* input context *)
+    {|
+      Context.computational := icomputational;
+      Context.logical := ilogical;
+      Context.resources := iresources;
+      Context.constraints := iconstraints;
+      Context.global := iglobal
+    |}
 
-    unfold_step
-      (* input context *)
-      {|
-        Context.computational := icomputational;
-        Context.logical := ilogical;
-        Context.resources := iresources;
-        Context.constraints := iconstraints;
-        Context.global := iglobal
-      |}
-
-      (* output context *)
-      {|
-        Context.computational := ocomputational;
-        Context.logical := ological;
-        Context.resources := oresources;
-        Context.constraints := oconstraints;
-        Context.global := oglobal
-      |}.
-
-
+    (* output context *)
+    {|
+      Context.computational := ocomputational;
+      Context.logical := ological;
+      Context.resources := oresources;
+      Context.constraints := oconstraints;
+      Context.global := oglobal
+    |}.
 
 (* Helper definition, used in [log_entry_valid] *)
 Local Definition ptr_alloc_id_eq (g: Global.t) (c: LCSet.t) (p p': IndexTerms.t) :=
