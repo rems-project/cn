@@ -12,8 +12,8 @@ Ltac2 verbose_msg msg :=
   else
     ().
 
-Ltac2 verbose_print (msg : string) :=
-  verbose_msg (Message.of_string msg).
+Ltac2 verbose_print (s : string) :=
+  verbose_msg (Message.of_string s).
 
 Ltac2 verbose_print_constr (msg:string) (c : constr) :=
   verbose_msg (Message.concat (Message.of_string msg) (Message.of_constr c)).
@@ -132,15 +132,17 @@ Ltac2 prove_unfold_step () :=
   | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_unfold_step: match failed")))
   end.
 
- Ltac2 prove_log_entry_valid () :=
-  match! goal with
+ Ltac2 prove_log_entry_valid n :=
+ let smsg s := Message.concat (Message.concat (Message.of_string "Step #") (Message.of_int n)) (Message.concat (Message.of_string ": ") (Message.of_string s)) in
+ let msg m := Message.concat (Message.concat (Message.of_string "Step #") (Message.of_int n)) (Message.concat (Message.of_string ": ") m) in
+ match! goal with
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
       {| 
         Predicate.name := Request.Owned (SCtypes.Array ?p) ?iinit;
         Predicate.pointer := ?ipointer; Predicate.iargs := ?iargs 
       |}
       _ _) _) ] =>
-        Message.print (Message.of_string "Arrays are not supported yet");
+        Message.print (msg (Message.of_string "Arrays are not supported yet"));
         Std.constructor_n false 2 NoBindings (* apply array_resource_inference_step *)
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
       {| 
@@ -149,7 +151,7 @@ Ltac2 prove_unfold_step () :=
       |}
       _ _) _) ] =>
        (* PredicateRequest case *)
-       verbose_print "Checking PredicateRequest for Struct";
+       verbose_msg (smsg "Checking PredicateRequest for Struct");
        verbose_print_constr "    Predicate symbol name: " isym;
        Std.constructor_n false 3 NoBindings; (* apply struct_resource_inference_step *)
        Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -176,7 +178,7 @@ Ltac2 prove_unfold_step () :=
        )
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _ _) _) ] =>
        (* PredicateRequest case *)
-       verbose_print "Checking PredicateRequest for non-struct";
+       verbose_msg (smsg "Checking PredicateRequest for non-struct");
        verbose_print_constr "    Predicate: " p;
        Std.constructor false;
        Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -203,16 +205,17 @@ Ltac2 prove_unfold_step () :=
        )
   | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _) _) ] =>
       (* UnfoldResources case *)
-      verbose_print "Checking UnfoldResources";
+      verbose_msg (smsg "Checking UnfoldResources");
       Std.constructor false;
       prove_unfold_step ()
-  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_log_entry_valid: match failed")))
+  | [ |- _ ] => 
+      Control.throw (Tactic_failure (Some (msg (Message.of_string "prove_log_entry_valid: match failed"))))
   end.
 
  Ltac2 prove_log_entry_list_valid () :=
    match! goal with
    | [ |- List.Forall log_entry_valid ?l ] =>
-       let rec aux l :=
+       let rec aux n l :=
          let nil_constr := constr:(@nil log_entry) in
          let cons_constr := constr:(@cons log_entry) in
          match Constr.Unsafe.kind l with
@@ -228,14 +231,14 @@ Ltac2 prove_unfold_step () :=
                let head := Array.get args 1 in
                let tail := Array.get args 2 in
                Std.constructor false;
-               Control.focus 1 1 (fun () => prove_log_entry_valid ());
-               Control.focus 1 1 (fun () => aux tail)
+               Control.focus 1 1 (fun () => prove_log_entry_valid n);
+               Control.focus 1 1 (fun () => aux (Int.add n 1) tail)
              else
                Control.throw (Tactic_failure (Some (Message.of_string "Not a list")))
          | _ =>
              Control.throw (Tactic_failure (Some (Message.of_string "Not a list")))
          end
-       in aux l
+       in aux 0 l
    end.
  
  
