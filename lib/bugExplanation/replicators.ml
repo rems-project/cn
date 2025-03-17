@@ -116,9 +116,7 @@ let replicate_call (sct : Sctypes.t) e_arg =
     A.AilEcall
       ( mk_expr
           (AilEident (Sym.fresh_named ("cn_replicate_owned_" ^ name_of_bt bt ^ "_aux"))),
-        [ mk_expr
-            (CtA.wrap_with_convert_to (A.AilEunary (Address, mk_expr e_arg)) (BT.Loc ()))
-        ] )
+        [ mk_expr e_arg ] )
   | Array (_, None) | Pointer _ ->
     A.AilEcall
       ( mk_expr (AilEident (Sym.fresh_named "cn_replicate_owned_cn_pointer_aux")),
@@ -141,7 +139,11 @@ let replicate_member ptr_sym (sct : Sctypes.t) ((member, sct') : Id.t * Sctypes.
         member )
   in
   let e_arg =
-    match sct' with Pointer _ -> CtA.wrap_with_convert_to e_arg (BT.Loc ()) | _ -> e_arg
+    match sct' with
+    | Pointer _ -> CtA.wrap_with_convert_to e_arg (BT.Loc ())
+    | Integer _ ->
+      CtA.wrap_with_convert_to (AilEunary (Address, mk_expr e_arg)) (BT.Loc ())
+    | _ -> e_arg
   in
   replicate_call sct' e_arg
 
@@ -187,15 +189,24 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
                           (mk_expr
                              (replicate_call
                                 sct'
-                                (AilEident
-                                   (Sym.fresh_named
-                                      ("((("
-                                       ^ Pp.plain (Sctypes.pp sct')
-                                       ^ "*)convert_from_cn_pointer("
-                                       ^ Sym.pp_string ptr_sym
-                                       ^ "))["
-                                       ^ string_of_int i
-                                       ^ "])"))))) )
+                                (CtA.wrap_with_convert_to
+                                   (AilEcast
+                                      ( C.no_qualifiers,
+                                        Sctypes.to_ctype (Pointer sct'),
+                                        mk_expr
+                                          (AilEbinary
+                                             ( mk_expr
+                                                 (CtA.wrap_with_convert_from
+                                                    (AilEident ptr_sym)
+                                                    (BT.Loc ())),
+                                               Arithmetic Add,
+                                               mk_expr
+                                                 (AilEconst
+                                                    (ConstantInteger
+                                                       (IConstant
+                                                          (Z.of_int i, Decimal, None))))
+                                             )) ))
+                                   (BT.Loc ())))) )
                     ]
                 ] ))
           |> List.split
