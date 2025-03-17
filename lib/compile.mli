@@ -17,14 +17,31 @@ type env =
     datatype_constrs : BaseTypes.constr_info Sym.Map.t;
     tagDefs : (Sym.t, Mucore.tag_definition) Pmap.map;
     fetch_enum_expr :
-      Locations.t -> Sym.t -> unit Cerb_frontend.AilSyntax.expression Or_TypeError.t;
-    fetch_typedef : Locations.t -> Sym.t -> Cerb_frontend.Ctype.ctype Or_TypeError.t
+      Locations.t ->
+      Sym.t ->
+      ( unit Cerb_frontend.AilSyntax.expression,
+          Locations.t * Cerb_frontend.Errors.cause )
+        Cerb_frontend.Exception.exceptM;
+    fetch_typedef :
+      Locations.t ->
+      Sym.t ->
+      ( Cerb_frontend.Ctype.ctype,
+          Locations.t * Cerb_frontend.Errors.cause )
+        Cerb_frontend.Exception.exceptM
   }
 
 val init_env
   :  (Sym.t, Mucore.tag_definition) Pmap.map ->
-  (Locations.t -> Sym.t -> unit Cerb_frontend.AilSyntax.expression Or_TypeError.t) ->
-  (Locations.t -> Sym.t -> Cerb_frontend.Ctype.ctype Or_TypeError.t) ->
+  (Locations.t ->
+  Sym.t ->
+  ( unit Cerb_frontend.AilSyntax.expression,
+      Locations.t * Cerb_frontend.Errors.cause )
+    Cerb_frontend.Exception.exceptM) ->
+  (Locations.t ->
+  Sym.t ->
+  ( Cerb_frontend.Ctype.ctype,
+      Locations.t * Cerb_frontend.Errors.cause )
+    Cerb_frontend.Exception.exceptM) ->
   env
 
 val symtable : BaseTypes.Surface.t Hashtbl.Make(Sym).t

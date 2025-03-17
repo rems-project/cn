@@ -28,6 +28,17 @@ let get_loc = CF.Annot.get_loc
 
 let get_loc_ = CF.Annot.get_loc_
 
+let fetch_enum d_st loc sym =
+  CF.Exception.(
+    except_bind (CAE.resolve_enum_constant sym d_st) (fun (expr_, _) ->
+      except_return (CF.AilSyntax.AnnotatedExpression ((), [], loc, expr_))))
+
+
+let fetch_typedef d_st _loc sym =
+  CF.Exception.(
+    except_bind (CAE.resolve_typedef sym d_st) (fun ((_, _, cty), _) -> except_return cty))
+
+
 open CF.Core
 open Pp
 
@@ -1118,16 +1129,6 @@ let desugar_conds d_st conds =
       conds
   in
   return (List.rev conds, d_st)
-
-
-let fetch_enum d_st loc sym =
-  let@ expr_ = do_ail_desugar_rdonly d_st (CAE.resolve_enum_constant sym) in
-  return (CF.AilSyntax.AnnotatedExpression ((), [], loc, expr_))
-
-
-let fetch_typedef d_st _loc sym =
-  let@ _, _, cty = do_ail_desugar_rdonly d_st (CAE.resolve_typedef sym) in
-  return cty
 
 
 let dtree_of_conds = List.map CF.Cn_ocaml.PpAil.dtree_of_cn_condition

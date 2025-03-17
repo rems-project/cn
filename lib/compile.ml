@@ -33,8 +33,14 @@ type env =
     datatypes : BaseTypes.dt_info Sym.Map.t;
     datatype_constrs : BaseTypes.constr_info Sym.Map.t;
     tagDefs : (Cerb_frontend.Symbol.sym, Mu.tag_definition) Pmap.map;
-    fetch_enum_expr : Locations.t -> Sym.t -> unit CF.AilSyntax.expression Or_TypeError.t;
-    fetch_typedef : Locations.t -> Sym.t -> CF.Ctype.ctype Or_TypeError.t
+    fetch_enum_expr :
+      Locations.t ->
+      Sym.t ->
+      (unit CF.AilSyntax.expression, Locations.t * CF.Errors.cause) CF.Exception.exceptM;
+    fetch_typedef :
+      Locations.t ->
+      Sym.t ->
+      (CF.Ctype.ctype, Locations.t * CF.Errors.cause) CF.Exception.exceptM
   }
 
 let init_env tagDefs fetch_enum_expr fetch_typedef =
@@ -247,8 +253,8 @@ let rec translate_cn_base_type env (bTy : CF.Symbol.sym cn_base_type) =
     (* FIXME handle errors here properly *)
     let here = Locations.other __LOC__ in
     (match env.fetch_typedef here sym with
-     | Result.Ok r -> Memory.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
-     | Result.Error e -> failwith (Pp.plain TypeErrors.((pp_message e.msg).short)))
+     | CF.Exception.Result r -> Memory.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
+     | CF.Exception.Exception (loc, msg) -> failwith (CF.Pp_errors.short_message msg))
 
 
 let register_cn_predicates env (defs : cn_predicate list) =
@@ -318,8 +324,10 @@ let convert_enum_expr =
 
 
 let do_decode_enum env loc sym =
-  let@ expr = env.fetch_enum_expr loc sym in
-  convert_enum_expr expr
+  (* FIXME handle errors here properly *)
+  match env.fetch_enum_expr loc sym with
+  | CF.Exception.Result expr -> convert_enum_expr expr
+  | CF.Exception.Exception (loc, msg) -> failwith (CF.Pp_errors.short_message msg)
 
 
 let add_function _loc sym func_sig env =
