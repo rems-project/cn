@@ -130,17 +130,9 @@ let rec compile_term
         ],
       A.(mk_expr (AilEident var)) )
   | Alloc { bytes = it; sized } ->
-    let alloc_sym =
-      Sym.fresh_named (if sized then "CN_GEN_ALLOC_SIZED" else "CN_GEN_ALLOC")
-    in
+    let alloc_sym = Sym.fresh_named "CN_GEN_ALLOC" in
     let b, s, e = compile_it sigma name it in
-    let es =
-      if sized then
-        [ e; mk_expr (AilEident (Sym.fresh_named "cn_gen_rec_size")) ]
-      else
-        [ e ]
-    in
-    (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), es)))
+    (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     let sym = GenUtils.get_mangled_name (fsym :: List.map fst iargs) in
     let es = iargs |> List.map snd |> List.map (fun x -> A.(AilEident x)) in
@@ -448,7 +440,6 @@ let rec compile_term
     compile_term sigma ctx name rest
   | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
     let e_tmp = mk_expr (AilEident marker_var) in
-    let e_size = mk_expr (AilEident (Sym.fresh_named "cn_gen_rec_size")) in
     let syms_l = syms |> Sym.Set.to_seq |> List.of_seq in
     let b =
       syms_l |> List.map (fun x -> Utils.create_binding x (C.mk_ctype_integer Size_t))
@@ -472,12 +463,12 @@ let rec compile_term
             (mk_expr
                (AilEcall
                   ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_SPLIT_BEGIN")),
-                    [ e_tmp; e_size ] @ e_syms @ [ mk_expr (AilEconst ConstantNull) ] )));
+                    [ e_tmp ] @ e_syms @ [ mk_expr (AilEconst ConstantNull) ] )));
           AilSexpr
             (mk_expr
                (AilEcall
                   ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_SPLIT_END")),
-                    [ e_tmp; e_size; mk_expr (AilEident last_var) ]
+                    [ e_tmp; mk_expr (AilEident last_var) ]
                     @ List.map wrap_to_string (List.of_seq (Sym.Set.to_seq path_vars))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
@@ -517,12 +508,12 @@ let compile_gen_def
     A.(
       AilSexpr
         (mk_expr
-           (if gr.sized then
-              AilEcall
-                ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_INIT_SIZED")),
-                  [ mk_expr (AilEident (Sym.fresh_named "cn_gen_rec_size")) ] )
-            else
-              AilEcall (mk_expr (AilEident (Sym.fresh_named "CN_GEN_INIT")), []))))
+           (AilEcall
+              ( mk_expr
+                  (AilEident
+                     (Sym.fresh_named
+                        (if gr.sized then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
+                [] ))))
   in
   let b2, s2, e2 = compile_term sigma ctx name gr.body in
   let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =

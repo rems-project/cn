@@ -6,9 +6,11 @@
 
 #include <cn-testing/backtrack.h>
 
-#define CN_GEN_INIT() CN_GEN_INIT_SIZED(cn_gen_get_max_size())
+#define CN_GEN_INIT()                                                                    \
+  size_t cn_gen_rec_size = cn_gen_get_size();                                            \
+  CN_GEN_INIT_SIZED();
 
-#define CN_GEN_INIT_SIZED(size)                                                          \
+#define CN_GEN_INIT_SIZED()                                                              \
   if (0) {                                                                               \
   cn_label_bennet_backtrack:                                                             \
     cn_gen_decrement_depth();                                                            \
@@ -21,31 +23,21 @@
     goto cn_label_bennet_backtrack;                                                      \
   }                                                                                      \
   cn_gen_increment_depth();                                                              \
-  if (size <= 0 || cn_gen_depth() == cn_gen_max_depth()) {                               \
-    if (cn_gen_get_depth_failures_allowed() != UINT16_MAX) {                             \
-      static int backtracks;                                                             \
-      backtracks++;                                                                      \
-      if (backtracks >= cn_gen_get_depth_failures_allowed()) {                           \
-        cn_gen_backtrack_assert_failure();                                               \
-        goto cn_label_bennet_backtrack;                                                  \
-      }                                                                                  \
-    }                                                                                    \
+  if (cn_gen_rec_size <= 0 || cn_gen_depth() == cn_gen_max_depth()) {                    \
     cn_gen_backtrack_depth_exceeded();                                                   \
     goto cn_label_bennet_backtrack;                                                      \
   }
 
 #define CN_GEN_UNIFORM(ty) cn_gen_uniform_##ty(cn_gen_get_size())
 
-#define CN_GEN_ALLOC(sz) CN_GEN_ALLOC_SIZED(sz, cn_gen_get_size())
-
-#define CN_GEN_ALLOC_SIZED(sz, gen_size)                                                 \
+#define CN_GEN_ALLOC(sz)                                                                 \
   ({                                                                                     \
     cn_pointer* ptr;                                                                     \
     uint8_t null_in_every = get_null_in_every();                                         \
     if (is_sized_null()) {                                                               \
-      set_null_in_every(gen_size);                                                       \
+      set_null_in_every(cn_gen_rec_size);                                                \
     }                                                                                    \
-    if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_ALLOC && gen_size <= 2) {            \
+    if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_ALLOC && cn_gen_rec_size <= 2) {     \
       ptr = convert_to_cn_pointer(NULL);                                                 \
     } else {                                                                             \
       ptr = cn_gen_alloc(sz);                                                            \
@@ -227,7 +219,7 @@
     }                                                                                    \
     urn_free(tmp##_urn);
 
-#define CN_GEN_SPLIT_BEGIN(tmp, size, ...)                                               \
+#define CN_GEN_SPLIT_BEGIN(tmp, ...)                                                     \
   int tmp##_backtracks = cn_gen_get_size_split_backtracks_allowed();                     \
   cn_bump_frame_id tmp##_checkpoint = cn_bump_get_frame_id();                            \
   void* tmp##_alloc_checkpoint = cn_gen_alloc_save();                                    \
@@ -239,14 +231,14 @@
       count += 1;                                                                        \
     }
 
-#define CN_GEN_SPLIT_END(tmp, size, last_var, ...)                                       \
-  if (count >= size) {                                                                   \
+#define CN_GEN_SPLIT_END(tmp, last_var, ...)                                             \
+  if (count >= cn_gen_rec_size) {                                                        \
     cn_gen_backtrack_depth_exceeded();                                                   \
     char* toAdd[] = {__VA_ARGS__};                                                       \
     cn_gen_backtrack_relevant_add_many(toAdd);                                           \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
-  cn_gen_split(size - count - 1, vars, count);                                           \
+  cn_gen_split(cn_gen_rec_size - count - 1, vars, count);                                \
   for (int i = 0; i < count; i++) {                                                      \
     *(vars[i]) = *(vars[i]) + 1;                                                         \
   }                                                                                      \

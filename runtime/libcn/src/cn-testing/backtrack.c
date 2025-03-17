@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include <cn-testing/backtrack.h>
+#include <cn-testing/size.h>
 
 static enum cn_gen_backtrack_request type = CN_GEN_BACKTRACK_NONE;
 
@@ -16,9 +17,12 @@ struct name_list {
 static struct name_list* to_retry = NULL;
 static size_t more_alloc_needed = 0;
 
+static uint16_t depth_failures = 0;
+
 void cn_gen_backtrack_reset(void) {
   type = CN_GEN_BACKTRACK_NONE;
   more_alloc_needed = 0;
+  depth_failures = 0;
 
   while (to_retry != NULL) {
     void* tmp = to_retry->next;
@@ -32,7 +36,16 @@ void cn_gen_backtrack_assert_failure(void) {
 }
 
 void cn_gen_backtrack_depth_exceeded() {
-  type = CN_GEN_BACKTRACK_DEPTH;
+  depth_failures++;
+  if (depth_failures > cn_gen_get_depth_failures_allowed()) {
+    cn_gen_backtrack_assert_failure();
+  } else {
+    type = CN_GEN_BACKTRACK_DEPTH;
+  }
+}
+
+uint16_t cn_gen_backtrack_depth_failures() {
+  return depth_failures;
 }
 
 void cn_gen_backtrack_relevant_add(char* varname) {
