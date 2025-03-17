@@ -1,11 +1,24 @@
-open Cerb_frontend.Annot
-open Or_TypeError
-
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-open Pp
+module A = Cerb_frontend.Annot
 module Cn = Cerb_frontend.Cn
+
+type msg = Cerb_frontend.Errors.cparser_cause
+
+type err =
+  { loc : Locations.t;
+    msg : msg
+  }
+
+module Monad = struct
+  type 'a t = ('a, err) Result.t
+
+  let bind = Result.bind
+
+  let fail = Result.error
+
+  let return = Result.ok
+end
+
+open Effectful.Make (Monad)
 
 (* NOTE: There are four types of CN parsing constructs, each with
    a different entry point from which a parser can be started:
@@ -41,6 +54,7 @@ let fiddle_at_hack string =
 let debug_tokens loc string =
   let toks, pos = C_parser_driver.diagnostic_get_tokens ~inside_cn:true loc string in
   let pp_int_pair (x, y) = Pp.(parens (int x ^^ comma ^^^ int y)) in
+  let open Pp.Infix in
   Pp.item "failed to parse tokens" (Pp.braces (Pp.list Pp.string toks))
   ^/^ Pp.item "(line, col)" (Pp.braces (Pp.list pp_int_pair pos))
 
@@ -52,23 +66,23 @@ let parse parser_start (loc, string) =
   | Exn.Result spec -> return spec
   | Exn.Exception (loc, Cerb_frontend.Errors.CPARSER err) ->
     Pp.debug 6 (lazy (debug_tokens loc string));
-    fail { loc; msg = Parser err }
+    Monad.(fail { loc; msg = err })
   | Exn.Exception _ -> assert false
 
 
 let cn_statements annots =
-  annots |> get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_statements)
+  annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_statements)
 
 
-let function_spec (Attrs attributes) =
-  [ Aattrs (Attrs (List.rev attributes)) ]
-  |> get_cerb_magic_attr
+let function_spec (A.Attrs attributes) =
+  [ A.Aattrs (Attrs (List.rev attributes)) ]
+  |> A.get_cerb_magic_attr
   |> ListM.mapM (parse C_parser.fundef_spec)
 
 
 let loop_spec attrs =
-  [ Aattrs attrs ]
-  |> get_cerb_magic_attr
+  [ A.Aattrs attrs ]
+  |> A.get_cerb_magic_attr
   |> ListM.concat_mapM (fun (loc, arg) ->
     let@ (Cn.CN_inv (_loc, conds)) = parse C_parser.loop_spec (loc, arg) in
     return conds)

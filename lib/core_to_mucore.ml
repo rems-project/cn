@@ -647,6 +647,11 @@ let n_memop ~inherit_loc loc memop pexprs =
     assert_error loc err
 
 
+let liftParse parseResult =
+  Result.fold parseResult ~ok:return ~error:(fun Parse.{ loc; msg } ->
+    fail { loc; msg = Parser msg })
+
+
 let unsupported loc doc = fail { loc; msg = Unsupported (!^"unsupported" ^^^ doc) }
 
 let rec n_expr
@@ -792,7 +797,7 @@ let rec n_expr
       match (pat, e1) with
       | ( Pattern ([], CaseBase (None, BTy_unit)),
           Expr ([], Epure (Pexpr ([], (), PEval Vunit))) ) ->
-        let@ parsed_stmts = Parse.cn_statements annots in
+        let@ parsed_stmts = liftParse (Parse.cn_statements annots) in
         (match parsed_stmts with
          | _ :: _ ->
            let marker_id = Option.get (CF.Annot.get_marker annots) in
@@ -1172,7 +1177,7 @@ let normalise_label
        let@ desugared_inv, cn_desugaring_state, loop_info =
          match Pmap.lookup loop_id loop_attributes with
          | Some { marker_id; attributes = attrs; loc_condition; loc_loop } ->
-           let@ inv = Parse.loop_spec attrs in
+           let@ inv = liftParse (Parse.loop_spec attrs) in
            let contains_user_spec = List.non_empty inv in
            let d_st =
              CAE.
@@ -1418,7 +1423,7 @@ let normalise_fun_map_decl
      | CF.Milicore.Mi_Fun (_bt, _args, _pe) -> assert false
      | Mi_Proc (loc, _mrk, _ret_bt, args, body, labels) ->
        debug 2 (lazy (item "normalising procedure" (Sym.pp fname)));
-       let@ parsed_defn_specs = Parse.function_spec attrs in
+       let@ parsed_defn_specs = liftParse (Parse.function_spec attrs) in
        let parsed_decl_spec =
          Option.fold (Sym.Map.find_opt fname fun_specs) ~none:[] ~some:Fun.id
        in
