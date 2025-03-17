@@ -338,12 +338,18 @@ let state (ctxt : C.t) log model_with_q extras =
            let ptr_def = (IT.sym_ (def.pointer, IT.get_bt ptr_val, here), ptr_val) in
            Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
          | Some _, None ->
-           Some (Error (!^"Could not locate definition of variable" ^^^ IT.pp it), rt, it)
+           Some
+             ( CP.Result.error (!^"Could not locate definition of variable" ^^^ IT.pp it),
+               rt,
+               it )
          | None, _ ->
-           Some (Error (!^"Could not locate definition of predicate" ^^^ Sym.pp s), rt, it))
+           Some
+             ( CP.Result.error (!^"Could not locate definition of predicate" ^^^ Sym.pp s),
+               rt,
+               it ))
     in
     let checked = List.filter_map check (C.get_rs ctxt) in
-    let nos, _ = List.partition (fun (r, _, _) -> ResultWithData.is_no r) checked in
+    let nos, _ = List.partition (fun (r, _, _) -> CP.Result.is_no r) checked in
     (* let yeses, unknown = List.partition (fun (r, _, _) -> is_yes r) rest in *)
     (* Issue #900 *)
     let pp_checked_res (p, req, cand) =
