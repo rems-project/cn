@@ -749,8 +749,9 @@ let run_tests
                 prog5
             with
             | e -> handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
-           if not dont_run then
-             Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list []))
+           if not dont_run then (
+             Cerb_debug.maybe_close_csv_timing_file ();
+             Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])))
         ();
       Or_TypeError.return ())
 
