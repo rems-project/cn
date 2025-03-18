@@ -109,8 +109,9 @@
   cn_label_##var##_gen :;
 
 #define CN_GEN_LET_BODY(ty, var, gen)                                                    \
+  cn_gen_rand_checkpoint var##_rand_checkpoint_before = cn_gen_rand_save();              \
   ty* var = gen;                                                                         \
-  cn_gen_rand_checkpoint var##_rand_checkpoint = cn_gen_rand_save();
+  cn_gen_rand_checkpoint var##_rand_checkpoint_after = cn_gen_rand_save();
 
 #define CN_GEN_LET_END(backtracks, var, last_var, ...)                                   \
   if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_NONE) {                                \
@@ -127,12 +128,13 @@
           cn_gen_backtrack_type() == CN_GEN_BACKTRACK_DEPTH) {                           \
         var##_backtracks--;                                                              \
         cn_gen_backtrack_reset();                                                        \
+        cn_gen_rand_replace(var##_rand_checkpoint_before);                               \
       } else if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {                    \
         if (toAdd[0] != NULL) {                                                          \
           goto cn_label_##last_var##_backtrack;                                          \
         }                                                                                \
         if (cn_gen_backtrack_alloc_get() > 0) {                                          \
-          cn_gen_rand_restore(var##_rand_checkpoint);                                    \
+          cn_gen_rand_restore(var##_rand_checkpoint_after);                              \
         }                                                                                \
       }                                                                                  \
       goto cn_label_##var##_gen;                                                         \
