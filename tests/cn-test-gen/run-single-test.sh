@@ -29,17 +29,22 @@ function separator() {
   OUTPUT="${OUTPUT}\n\n"
 }
 
-CONFIGS=("--sized-null --sizing-strategy=uniform" "--coverage --sizing-strategy=quartile" "--with-static-hack --coverage --sizing-strategy=quickcheck" "--random-size-splits --no-replicas" "--random-size-splits --allowed-size-split-backtracks=10")
+BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix --input-timeout=1000 --progress-level=function --sanitize=undefined"
+if [[ $(basename $TEST) == "mkm.pass.c" ]]; then
+  BASE_CONFIG="$BASE_CONFIG --max-array-length=1024"
+fi
+
+ALT_CONFIGS=("--sized-null --sizing-strategy=uniform" "--coverage --sizing-strategy=quartile" "--with-static-hack --coverage --sizing-strategy=quickcheck" "--random-size-splits --no-replicas" "--random-size-splits --allowed-size-split-backtracks=10")
 
 OUTPUT=""
 
 # For each configuration
-for CONFIG in "${CONFIGS[@]}"; do
+for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
   separator
-  OUTPUT="${OUTPUT}Running CI with CLI config \"$CONFIG\"\n"
+  OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\"\n"
   separator
 
-  FULL_CONFIG="$CONFIG --input-timeout=1000 --progress-level=function --sanitize=undefined"
+  FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG"
 
   if [[ $TEST == *.pass.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
@@ -48,7 +53,7 @@ for CONFIG in "${CONFIGS[@]}"; do
     if [[ "$RET" != 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests failed unexpectedly\n"
       NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED $CONFIG"
+      FAILED="$FAILED ($ALT_CONFIG)"
     else
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed successfully\n"
     fi
@@ -59,7 +64,7 @@ for CONFIG in "${CONFIGS[@]}"; do
     if [[ "$RET" = 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
       NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED $CONFIG"
+      FAILED="$FAILED ($ALT_CONFIG)"
     else
       OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
     fi
