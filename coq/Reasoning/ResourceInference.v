@@ -42,12 +42,11 @@ Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
 
 (* Defines when a term represents a cast of another term to a specific type *)
 Inductive cast_ (loc: Locations.t) : BaseTypes.t -> IndexTerms.t -> IndexTerms.t -> Prop :=
-| cast_same: forall bt t' bt' l',
-  bt = bt' ->
-  cast_ loc bt (Terms.IT _ t' bt' l') (Terms.IT _ t' bt' l')
+| cast_same: forall bt t' l',
+  cast_ loc bt (Terms.IT _ t' bt l') (Terms.IT _ t' bt l')
 | cast_diff: forall bt t' bt' l',
   bt <> bt' ->
-  cast_ loc bt (Terms.IT _ t' bt' l') (Terms.IT _ (Terms.Cast _ bt (Terms.IT _ t' bt' l')) bt loc).
+  cast_ loc bt (Terms.IT _ t' bt l') (Terms.IT _ (Terms.Cast _ bt (Terms.IT _ t' bt' l')) bt loc).
 
 Inductive allocId_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
 | allocId_intro: forall t' bt' l' result,
