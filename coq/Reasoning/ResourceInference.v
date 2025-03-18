@@ -64,17 +64,14 @@ Inductive addr_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
 (* Helper predicate to relate struct piece to resource *)
 Inductive struct_piece_to_resource
   (piece: Memory.struct_piece)
-  (iinit: init)
-  (ipointer: IndexTerms.t)
-  (iargs: list IndexTerms.t)
+  (iinit: init) (ipointer: IndexTerms.t) (iargs: list IndexTerms.t) (* lhs predicate*)
   (tag: Sym.t)
   (loc: Location.t)
   : output -> Resource.t -> Prop :=
-| struct_piece_to_resource_intro:
+| struct_piece_to_resource_struct:
   forall pid pty field_bt fields field_it struct_loc,
   Memory.piece_member_or_padding piece = Some (pid, pty) ->
   let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
-  let field_out := Resource.O field_it in
   (* The field's type maps to its base type *)
   bt_of_sct_rel pty field_bt ->
   (* field_out is the IT corresponding to pid in iout's field list *)
@@ -87,7 +84,29 @@ Inductive struct_piece_to_resource
       (Request.P {| Predicate.name := Request.Owned pty iinit;
                    Predicate.pointer := field_pointer;
                    Predicate.iargs := iargs |},
-         field_out).
+       (Resource.O field_it))
+
+| struct_piece_to_resource_opaque:
+  forall pid pty field_bt struct_loc struct_term,
+  Memory.piece_member_or_padding piece = Some (pid, pty) ->
+  let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
+  (* The field's type maps to its base type *)
+  bt_of_sct_rel pty field_bt ->
+
+  let struct_type := (BaseTypes.Struct _ tag) in
+
+    struct_piece_to_resource piece iinit ipointer iargs tag loc
+      (Resource.O (Terms.IT _ struct_term struct_type struct_loc))
+      (Request.P {| Predicate.name := Request.Owned pty iinit;
+                    Predicate.pointer := field_pointer;
+                    Predicate.iargs := iargs |},
+       (Resource.O
+         (Terms.IT _ 
+           (Terms.StructMember _
+             (Terms.IT _ struct_term struct_type struct_loc)
+             pid)
+           field_bt
+           loc))).
 
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 (* Removed resource_unfold_nonstruct constructor *)
