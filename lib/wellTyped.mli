@@ -1,7 +1,7 @@
 val use_ity : bool ref
 
 type message =
-  | Global of Global.error
+  | Global of Global.message
   | Mismatch of
       { has : Pp.document;
         expect : Pp.document

@@ -10,7 +10,7 @@ let squotes, warn, dot, string, debug, item, colon, comma =
 
 
 type message =
-  | Global of Global.error
+  | Global of Global.message
   | Mismatch of
       { has : Pp.document;
         expect : Pp.document
@@ -2582,9 +2582,9 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
   let datatype_recursion = lift1 datatype_recursion
 
-  let logical_function_order = (* lift1 *) logical_function_order
+  let logical_function_order = logical_function_order
 
-  let resource_predicate_order = (* lift1 *) resource_predicate_order
+  let resource_predicate_order = resource_predicate_order
 
   let lemma x y z = lift3 lemma x y z
 

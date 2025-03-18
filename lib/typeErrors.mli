@@ -31,10 +31,10 @@ module RequestChain : sig
 end
 
 type message =
-  | Global of Global.error
-  | WellTyped of WellTyped.message
-  | Compile of Compile.message
   | Builtins of Builtins.message
+  | Compile of Compile.message
+  | Global of Global.message
+  | WellTyped of WellTyped.message
   | Missing_resource of
       { requests : RequestChain.t;
         situation : Error_common.situation;

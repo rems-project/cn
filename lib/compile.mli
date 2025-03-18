@@ -55,7 +55,7 @@ val add_logical : Sym.t -> BaseTypes.Surface.t -> env -> env
 val translate_cn_base_type
   :  env ->
   Sym.t Cerb_frontend.Cn.cn_base_type ->
-  Sctypes.ctype option BaseTypes.t_gen
+  BaseTypes.Surface.t
 
 val register_cn_predicates
   :  env ->
@@ -63,17 +63,17 @@ val register_cn_predicates
   env
 
 type message =
+  | Builtins of Builtins.message
+  | Global of Global.message
+  | WellTyped of WellTyped.message
   | Cannot_convert_enum_const of Z.t
   | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
   | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
-  | Global of Global.error
-  | WellTyped of WellTyped.message
   | Illtyped_binary_it of
       { left : IndexTerms.Surface.t;
         right : IndexTerms.Surface.t;
         binop : Cerb_frontend.Cn.cn_binop
       }
-  | Builtins of Builtins.message
   | First_iarg_missing
   | First_iarg_not_pointer of
       { pname : Request.name;
@@ -115,9 +115,7 @@ module EffectfulTranslation : sig
     Locations.t * Sym.t * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_resource ->
     ((Request.t * BaseTypes.Surface.t)
     * (LogicalConstraints.t * (Locations.t * string option)) list
-    * (BaseTypes.Surface.loc_t BaseTypes.t_gen IndexTerms.annot
-      * BaseTypes.Surface.t IndexTerms.annot)
-        list)
+    * (IndexTerms.Surface.t * IndexTerms.Surface.t) list)
       E.t
 
   val translate_cn_assrt

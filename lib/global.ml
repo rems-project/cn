@@ -48,7 +48,7 @@ let sym_map_from_bindings xs =
   List.fold_left (fun m (nm, x) -> Sym.Map.add nm x m) Sym.Map.empty xs
 
 
-type error =
+type message =
   | Unknown_function of Sym.t
   | Unknown_struct of Sym.t
   | Unknown_datatype of Sym.t
@@ -75,7 +75,7 @@ module type ErrorReader = sig
 
   val get_global : unit -> global_t_alias_do_not_use t
 
-  val fail : Locations.t -> error -> 'a t
+  val fail : Locations.t -> message -> 'a t
 end
 
 module type Lifted = sig
