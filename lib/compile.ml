@@ -297,16 +297,6 @@ let register_cn_functions env defs =
   ListM.fold_leftM aux env defs
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 let add_datatype_info env (dt : _ Cn.cn_datatype) =
   Pp.debug 2 (lazy (Pp.item "translating datatype declaration" (Sym.pp dt.cn_dt_name)));
   (* SMT format constraints seem to require variables to be unique to the
@@ -348,12 +338,22 @@ let add_datatype_info env (dt : _ Cn.cn_datatype) =
 
 let add_datatype_infos env dts = ListM.fold_leftM add_datatype_info env dts
 
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
+
+
 module E = struct
   type evaluation_scope = string
 
   type 'a t =
     | Done of 'a
-    | Error of TypeErrors.t
+    | Error of err
     | ScopeExists of Locations.t * evaluation_scope * (bool -> 'a t)
     | Value_of_c_variable of
         Locations.t * Sym.t * evaluation_scope option * (IT.Surface.t option -> 'a t)
@@ -538,17 +538,6 @@ module EffectfulTranslation = struct
       let@ ty = lookup_member loc (tag, defs_) member in
       let member_bt = Memory.sbt_of_sct ty in
       return (IT.IT (StructMember (t, member), member_bt, loc))
-    (* | Datatype tag -> *)
-    (*    let@ dt_info = lookup_datatype loc tag env in *)
-    (*    let@ bt = match List.assoc_opt Id.equal member dt_info.all_params with *)
-    (*      | None ->  *)
-    (*          let msg = !^"Unknown member" ^^^ Pp.squotes (Id.pp member) *)
-    (*                    ^^^ !^"of datatype" ^^^ Pp.squotes (Sym.pp tag) *)
-    (*          in *)
-    (*          fail {loc; msg = Generic msg} *)
-    (*      | Some bt -> return (SurfaceBaseTypes.of_basetype bt) *)
-    (*    in *)
-    (*    return (IT.IT ((IT.DatatypeMember (t, member)), bt)) *)
     | has ->
       let expected = "struct" in
       let reason = "struct member access" in
@@ -881,7 +870,12 @@ module EffectfulTranslation = struct
         return (IT (Cast (SBT.proj bt, expr), bt, loc))
       | CNExpr_call (fsym, exprs) ->
         let@ args = ListM.mapM self exprs in
-        let@ b = liftResult (Builtins.apply_builtin_funs fsym args loc) in
+        let@ b =
+          liftResult
+            (Result.map_error
+               (fun Builtins.{ loc; msg } -> ({ loc; msg = Builtins msg } : err))
+               (Builtins.apply_builtin_funs fsym args loc))
+        in
         (match b with
          | Some t -> return t
          | None ->
@@ -1064,7 +1058,7 @@ module EffectfulTranslation = struct
          | Some v -> return v)
       | CNExpr_value_of_c_atom (sym, C_kind_enum) ->
         assert (not (Sym.Set.mem sym locally_bound));
-        liftResult (liftCompile (do_decode_enum env loc sym))
+        liftResult (do_decode_enum env loc sym)
     in
     trans None
 
@@ -1208,7 +1202,7 @@ module ET = EffectfulTranslation
 module Pure = struct
   let handle what = function
     | E.Done x -> Or_TypeError.return x
-    | E.Error e -> Or_TypeError.fail e
+    | E.Error { loc; msg } -> Or_TypeError.fail { loc; msg = Compile msg }
     | E.Value_of_c_variable (loc, _, _, _) ->
       let msg = !^what ^^^ !^"are not allowed to refer to (the state of) C variables." in
       fail { loc; msg = Generic msg [@alert "-deprecated"] }
@@ -1352,7 +1346,7 @@ module LocalState = struct
     in
     let rec aux = function
       | E.Done x -> Or_TypeError.return x
-      | E.Error e -> Or_TypeError.fail e
+      | E.Error { loc; msg } -> Or_TypeError.fail { loc; msg = Compile msg }
       | E.Value_of_c_variable (loc, sym, scope, k) ->
         let variable_state = (state_for_scope scope).c_variable_state in
         let o_v =
@@ -1569,7 +1563,7 @@ module UsingLoads = struct
   let handle allocations old_states : Cnprog.t E.t -> Cnprog.t Or_TypeError.t =
     let rec aux = function
       | E.Done x -> return x
-      | E.Error e -> fail e
+      | E.Error { loc; msg } -> Or_TypeError.fail { loc; msg = Compile msg }
       | E.Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with
          | Some scope ->

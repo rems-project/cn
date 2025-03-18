@@ -1694,7 +1694,7 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let fin_marker, markers_env = fin_markers_env in
   let fin_d_st = CAE.{ inner = Pmap.find fin_marker markers_env; markers_env } in
   let env = C.init_env tagDefs (fetch_enum fin_d_st) (fetch_typedef fin_d_st) in
-  let@ env = C.add_datatype_infos env ail_prog.cn_datatypes in
+  let@ env = liftCompile (C.add_datatype_infos env ail_prog.cn_datatypes) in
   (* This registers only user defined functions. Builtin functions that can
      be expressed as index terms are registered in compile.ml in init_env *)
   let@ env = liftCompile (C.register_cn_functions env ail_prog.cn_functions) in

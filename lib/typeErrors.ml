@@ -94,6 +94,7 @@ type message =
   | Global of Global.error
   | WellTyped of WellTyped.message
   | Compile of Error_common.compile_message
+  | Builtins of Builtins.message
   (* some from Kayvan's compilePredicates module *)
   | First_iarg_missing
   | First_iarg_not_pointer of
@@ -209,6 +210,26 @@ type report =
     descr : document option;
     state : Report.report option
   }
+
+let pp_illtyped_binary_it ~left ~right binop =
+  let short =
+    !^"Ill-typed application of binary operation"
+    ^^^ squotes (CF.Cn_ocaml.PpAil.pp_cn_binop binop)
+    ^^^ dot
+  in
+  let descr =
+    Some
+      (squotes (IT.pp left)
+       ^^^ !^"has type"
+       ^^^ squotes (BaseTypes.Surface.pp (IT.get_bt left))
+       ^^ comma
+       ^^^ squotes (IT.pp right)
+       ^^^ !^"has type"
+       ^^^ squotes (BaseTypes.Surface.pp (IT.get_bt right))
+       ^^ dot)
+  in
+  { short; descr; state = None }
+
 
 let pp_global = function
   | Global.Unknown_function sym ->
@@ -328,10 +349,26 @@ let pp_welltyped = function
     { short; descr = None; state = None }
 
 
+let pp_builtins : Builtins.message -> _ = function
+  | Number_arguments { has; expect } ->
+    pp_welltyped (Number_arguments { type_ = `Other; has; expect })
+  | Array_to_list arr ->
+    let short =
+      !^"array_to_list first arguments"
+      ^^^ squotes (IT.pp arr)
+      ^^^ !^"expects type map/array, but has type"
+      ^^^ BaseTypes.Surface.pp (IT.get_bt arr)
+    in
+    { short; descr = None; state = None }
+
+
 let pp_compile : Error_common.compile_message -> _ = function
   | ((Generic err) [@alert "-deprecated"]) ->
     let short = err in
     { short; descr = None; state = None }
+  | Global msg -> pp_global msg
+  | WellTyped msg -> pp_welltyped msg
+  | Builtins msg -> pp_builtins msg
   | Cannot_convert_enum_const z ->
     let short =
       !^"(incomplete) cannot convert enum const"
@@ -348,12 +385,18 @@ let pp_compile : Error_common.compile_message -> _ = function
     let head, pos = Locations.head_pos_of_location loc in
     let short = !^(CF.Pp_errors.short_message err) ^^^ parens !^head in
     { short; descr = None; state = None }
+  | Illtyped_binary_it { left; right; binop } -> pp_illtyped_binary_it ~left ~right binop
+  | First_iarg_missing ->
+    let short = !^"Missing pointer input argument" in
+    let descr = !^"a predicate definition must have at least one input argument" in
+    { short; descr = Some descr; state = None }
 
 
 let pp_message = function
   | Global msg -> pp_global msg
   | WellTyped msg -> pp_welltyped msg
   | Compile msg -> pp_compile msg
+  | Builtins msg -> pp_builtins msg
   | First_iarg_missing ->
     let short = !^"Missing pointer input argument" in
     let descr = !^"a predicate definition must have at least one input argument" in
@@ -545,24 +588,7 @@ let pp_message = function
   | Empty_provenance ->
     let short = !^"Empty provenance" in
     { short; descr = None; state = None }
-  | Illtyped_binary_it { left; right; binop } ->
-    let short =
-      !^"Ill-typed application of binary operation"
-      ^^^ squotes (CF.Cn_ocaml.PpAil.pp_cn_binop binop)
-      ^^^ dot
-    in
-    let descr =
-      Some
-        (squotes (IT.pp left)
-         ^^^ !^"has type"
-         ^^^ squotes (BaseTypes.Surface.pp (IT.get_bt left))
-         ^^ comma
-         ^^^ squotes (IT.pp right)
-         ^^^ !^"has type"
-         ^^^ squotes (BaseTypes.Surface.pp (IT.get_bt right))
-         ^^ dot)
-    in
-    { short; descr; state = None }
+  | Illtyped_binary_it { left; right; binop } -> pp_illtyped_binary_it ~left ~right binop
   | Inconsistent_assumptions (kind, ctxt_log) ->
     let short = !^kind ^^ !^" makes inconsistent assumptions" in
     let state = Some (Explain.trace ctxt_log (Solver.empty_model, []) Explain.no_ex) in

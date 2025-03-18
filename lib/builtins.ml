@@ -1,5 +1,4 @@
 module SBT = BaseTypes.Surface
-open Or_TypeError
 module BT = BaseTypes
 module IT = IndexTerms
 
@@ -7,8 +6,24 @@ type builtin_fn_def = string * Sym.t * Definition.Function.t
 
 let loc = Cerb_location.other "<builtin>"
 
+type message =
+  | Number_arguments of
+      { has : int;
+        expect : int
+      }
+  | Array_to_list of IndexTerms.Surface.t
+
+type err =
+  { loc : Locations.t;
+    msg : message
+  }
+
+let return = Result.ok
+
+let fail = Result.error
+
 let fail_number_args loc ~has ~expect =
-  fail { loc; msg = WellTyped (Number_arguments { type_ = `Other; has; expect }) }
+  fail { loc; msg = Number_arguments { has; expect } }
 
 
 (* builtin function symbols *)
@@ -189,16 +204,7 @@ let array_to_list_def =
     Sym.fresh_named "array_to_list",
     mk_arg3_err (fun (arr, i, len) loc ->
       match SBT.is_map_bt (IT.get_bt arr) with
-      | None ->
-        let reason = "map/array operation" in
-        let expected = "map/array" in
-        fail
-          { loc;
-            msg =
-              WellTyped
-                (Illtyped_it
-                   { it = IT.pp arr; has = SBT.pp (IT.get_bt arr); expected; reason })
-          }
+      | None -> fail { loc; msg = Array_to_list arr }
       | Some (_, bt) -> return (IT.array_to_list_ (arr, i, len) bt loc)) )
 
 
@@ -233,9 +239,7 @@ let builtin_fun_defs =
 let apply_builtin_funs fsym args loc =
   match List.find_opt (fun (_, fsym', _) -> Sym.equal fsym fsym') builtin_funs with
   | None -> return None
-  | Some (_, _, mk) ->
-    let@ t = mk args loc in
-    return (Some t)
+  | Some (_, _, mk) -> Result.bind (mk args loc) (fun t -> return (Some t))
 
 
 (* This list of names is later passed to the frontend in bin/main.ml so that

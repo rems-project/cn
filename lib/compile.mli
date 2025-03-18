@@ -76,28 +76,10 @@ val register_cn_functions
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_function list ->
   env Or_Error.t
 
-val add_datatype_infos
-  :  env ->
-  Sym.t Cerb_frontend.Cn.cn_datatype list ->
-  env Or_TypeError.t
+val add_datatype_infos : env -> Sym.t Cerb_frontend.Cn.cn_datatype list -> env Or_Error.t
 
 module E : sig
-  type evaluation_scope = string
-
-  type 'a t =
-    | Done of 'a
-    | Error of TypeErrors.t
-    | ScopeExists of Locations.t * evaluation_scope * (bool -> 'a t)
-    | Value_of_c_variable of
-        Locations.t
-        * Sym.t
-        * evaluation_scope option
-        * (IndexTerms.Surface.t option -> 'a t)
-    | Deref of
-        Locations.t
-        * IndexTerms.Surface.t
-        * evaluation_scope option
-        * (IndexTerms.Surface.t option -> 'a t)
+  type 'a t
 end
 
 val start_evaluation_scope : string
