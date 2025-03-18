@@ -221,9 +221,24 @@ let register_cn_predicates env defs =
   List.fold_left aux env defs
 
 
-open Effectful.Make (Or_TypeError)
+type err =
+  { loc : Locations.t;
+    msg : Error_common.compile_message
+  }
 
-open Or_TypeError
+module Monad = struct
+  type 'a t = ('a, err) Result.t
+
+  let bind = Result.bind
+
+  let return = Result.ok
+
+  let fail = Result.error
+end
+
+open Effectful.Make (Monad)
+
+open Monad
 
 (* TODO: handle more kinds of constant expression *)
 let convert_enum_expr =
@@ -271,6 +286,16 @@ let convert_enum_expr =
     match e with AnnotatedExpression (_, _, loc, expr) -> conv_expr_ e loc expr
   in
   conv_expr
+
+
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Monad.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
 
 
 let do_decode_enum env loc sym =
@@ -1055,7 +1080,7 @@ module EffectfulTranslation = struct
          | Some v -> return v)
       | CNExpr_value_of_c_atom (sym, C_kind_enum) ->
         assert (not (Sym.Set.mem sym locally_bound));
-        liftResult (do_decode_enum env loc sym)
+        liftResult (liftCompile (do_decode_enum env loc sym))
     in
     trans None
 

@@ -22,3 +22,6 @@ type call_situation =
 type situation =
   | Access of access
   | Call of call_situation
+
+type compile_message =
+  | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]

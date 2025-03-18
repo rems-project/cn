@@ -33,6 +33,7 @@ end
 type message =
   | Global of Global.error
   | WellTyped of WellTyped.message
+  | Compile of Error_common.compile_message
   | First_iarg_missing
   | First_iarg_not_pointer of
       { pname : Request.name;

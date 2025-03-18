@@ -93,6 +93,7 @@ end
 type message =
   | Global of Global.error
   | WellTyped of WellTyped.message
+  | Compile of Error_common.compile_message
   (* some from Kayvan's compilePredicates module *)
   | First_iarg_missing
   | First_iarg_not_pointer of
@@ -327,9 +328,16 @@ let pp_welltyped = function
     { short; descr = None; state = None }
 
 
+let pp_compile : Error_common.compile_message -> _ = function
+  | ((Generic err) [@alert "-deprecated"]) ->
+    let short = err in
+    { short; descr = None; state = None }
+
+
 let pp_message = function
   | Global msg -> pp_global msg
   | WellTyped msg -> pp_welltyped msg
+  | Compile msg -> pp_compile msg
   | First_iarg_missing ->
     let short = !^"Missing pointer input argument" in
     let descr = !^"a predicate definition must have at least one input argument" in
