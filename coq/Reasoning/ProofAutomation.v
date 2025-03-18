@@ -46,7 +46,7 @@ Qed.
      Control.throw (Tactic_failure (Some (Message.of_string "Term is not an application (and thus not a P)")))
  end.
   
- Ltac2 res_set_remove_one_step () :=
+ Ltac2 prove_simple_resource_inference_step () :=
    match! goal with
    | [ |- exists upred,
        ResSet.Equal (ResSet.add (P upred, ?out) (set_from_list ?out_res)) (set_from_list ?in_res) /\ subsumed _ (Predicate.name upred) /\ _ /\ _ ] =>
@@ -88,37 +88,36 @@ Qed.
      | _ =>
          Control.throw (Tactic_failure (Some (Message.of_string "More than one resource change between the input and output")))
      end
-   | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_one_step: match failed")))
+   | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_simple_resource_inference_step: match failed")))
    end.
 
- Ltac2 res_set_remove_many_steps () :=
+(* [struct_resource_inference_step constructor] proof *)
+ Ltac2 prove_struct_resource_inference_step () :=
  match! goal with
  | [ |- exists field_res,
         resource_unfold ?iglobal ?res field_res /\
         ResSet.Equal (set_from_list ?out_res) (ResSet.diff (set_from_list ?in_res) field_res) ] =>
 
-   (* break down goal into components *)
-   let resname   := Fresh.in_goal @res in
-   let inresname := Fresh.in_goal @in_res in
-   let outresname:= Fresh.in_goal @out_res in
-   let clause := { on_hyps := None; on_concl := AllOccurrences } in
-   Std.remember false (Some inresname) (fun () => in_res) None clause;
-   Std.remember false (Some outresname) (fun () => out_res) None clause;
-   Std.remember false (Some resname) (fun () => res) None clause;
    (* now try to compute field_res from in_res and out_res *)
    let list_of_constr l := destruct_list (constr:(Resource.t)) l in
    let in_res_list  := list_of_constr  in_res in
    let out_res_list := list_of_constr out_res in
-   let diff := const_list_subtract in_res_list out_res_list in
-   if List.is_empty diff then
+   let field_res := const_list_subtract in_res_list out_res_list in
+   if List.is_empty field_res then
     Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))
    else
-     let cdiff := recons_list (constr:(Resource.t)) diff in
-     let diff_set := constr:(set_from_list $cdiff) in
-     exists $diff_set;
+     let cfield_res := recons_list (constr:(Resource.t)) field_res in
+     let field_res_set := constr:(set_from_list $cfield_res) in
+     exists $field_res_set;
+     Std.split false NoBindings;
+     Control.focus 1 1 (fun () =>
+      let s_decls := constr:($iglobal.(Global.struct_decls)) in
+      Control.shelve ()
+     );  (* unfold predicte *)
+     Control.focus 1 1 (Control.shelve);  (* TODO: prove pointer address and arguments equality (via provable) *)
      verbose_print "TODO: verify the rest of of `struct_resource_inference_step` premises";
      Control.shelve ()
- | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_many_steps: match failed")))
+ | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_struct_resource_inference_step: match failed")))
 end.
 
 Ltac2 prove_unfold_step () :=
@@ -177,13 +176,13 @@ Ltac2 prove_unfold_step () :=
             rDelta := true;
             rConst := [const_to_const_reference  constr:(@set_from_list)]
           } clause ;
-          res_set_remove_many_steps ()
+          prove_struct_resource_inference_step ()
        )
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _ _) _) ] =>
        (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for non-struct");
        verbose_print_constr "    Predicate: " p;
-       Std.constructor false;
+       Std.constructor false; (* apply simple_resource_inference_step*)
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -204,7 +203,7 @@ Ltac2 prove_unfold_step () :=
              rDelta := true;
              rConst := [const_to_const_reference  constr:(@set_from_list)]
            } clause ;
-         res_set_remove_one_step ()
+           prove_simple_resource_inference_step ()
        )
   | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _) _) ] =>
       (* UnfoldResources case *)

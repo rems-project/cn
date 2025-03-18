@@ -108,8 +108,6 @@ Inductive struct_piece_to_resource
            loc))).
 
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
-(* Removed resource_unfold_nonstruct constructor *)
-
 | resource_unfold_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
 
