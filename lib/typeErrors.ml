@@ -363,10 +363,10 @@ let pp_compile : Compile.message -> _ = function
   | Global msg -> pp_global msg
   | WellTyped msg -> pp_welltyped msg
   | Builtins msg -> pp_builtins msg
-  | Cannot_convert_enum_const z ->
+  | Cannot_convert_enum_const c ->
     let short =
       !^"(incomplete) cannot convert enum const"
-      ^^^ squotes (Pp.z z)
+      ^^^ squotes (CF.Pp_ail.pp_constant c)
       ^^^ !^"into i32, u64, i64, u128, i128"
     in
     { short; descr = None; state = None }
@@ -395,6 +395,26 @@ let pp_compile : Compile.message -> _ = function
       ^^^ squotes BaseTypes.(pp found_bty)
     in
     { short; descr = Some descr; state = None }
+  | Datatype_repeated_member id ->
+    let short =
+      !^"Re-using member name"
+      ^^^ Id.pp id
+      ^^^ !^"within datatype definition (SMT limitation)."
+    in
+    { short; descr = None; state = None }
+  | No_pointee_ctype it ->
+    let short =
+      !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IndexTerms.pp it) ^^ Pp.dot
+    in
+    { short; descr = None; state = None }
+  | Each_quantifier_not_numeric (sym, sbt) ->
+    let short =
+      !^"quantified variable"
+      ^^^ squotes (Sym.pp sym)
+      ^^^ !^"must be integer or bitvector"
+      ^^^ parens (!^"has type" ^^^ BaseTypes.Surface.pp sbt)
+    in
+    { short; descr = None; state = None }
 
 
 let pp_message = function

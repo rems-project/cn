@@ -222,7 +222,7 @@ type message =
   | Builtins of Builtins.message
   | Global of Global.message
   | WellTyped of WellTyped.message
-  | Cannot_convert_enum_const of Z.t
+  | Cannot_convert_enum_const of Cerb_frontend.AilSyntax.constant
   | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
   | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
   | Illtyped_binary_it of
@@ -235,6 +235,9 @@ type message =
       { pname : Request.name;
         found_bty : BaseTypes.t
       }
+  | Datatype_repeated_member of Id.t
+  | No_pointee_ctype of IndexTerms.Surface.t
+  | Each_quantifier_not_numeric of Sym.t * BaseTypes.Surface.t
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
 
 type err =
@@ -260,23 +263,14 @@ open Or_Error
 let convert_enum_expr =
   let open CF.AilSyntax in
   let conv_const loc = function
-    | ConstantInteger (IConstant (z, _, _)) ->
+    | ConstantInteger (IConstant (z, _, _)) as c ->
       let@ bt =
         match BT.pick_integer_encoding_type z with
         | Some bt -> return bt
-        | None -> fail { loc; msg = Cannot_convert_enum_const z }
+        | None -> fail { loc; msg = Cannot_convert_enum_const c }
       in
       return (IT.Surface.inj (IT.num_lit_ z bt loc))
-    | c ->
-      fail
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 "enum conversion: unhandled constant"
-                 (CF.Pp_ail_ast.pp_constant c))
-            [@alert "-deprecated"]
-        }
+    | c -> fail { loc; msg = Cannot_convert_enum_const c }
   in
   let rec conv_expr_ e1 loc = function
     | AilEconst const -> conv_const loc const
@@ -325,16 +319,7 @@ let add_datatype_info env (dt : _ Cn.cn_datatype) =
            (Id.get_string nm)
            (nm, SBT.proj (translate_cn_base_type env ty))
            m)
-    | Some _ ->
-      fail
-        { loc = Id.get_loc nm;
-          msg =
-            Generic
-              (!^"Re-using member name"
-               ^^^ Id.pp nm
-               ^^^ !^"within datatype definition (SMT limitation).")
-            [@alert "-deprecated"]
-        }
+    | Some _ -> fail { loc = Id.get_loc nm; msg = Datatype_repeated_member nm }
   in
   let@ all_params =
     ListM.fold_leftM add_param StringMap.empty (List.concat_map snd dt.cn_dt_cases)
@@ -432,11 +417,6 @@ module EffectfulTranslation = struct
     | None -> fail { loc; msg = Global (Unknown_datatype_constr sym) }
 
 
-  let cannot_tell_pointee_ctype loc e =
-    let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IT.pp e) ^^ Pp.dot in
-    fail { loc; msg = Generic msg [@alert "-deprecated"] }
-
-
   (* TODO: type checks and disambiguation at this stage seems ill-advised,
      ideally would be integrated into wellTyped.ml *)
   let mk_translate_binop loc bop (e1, e2) =
@@ -452,7 +432,7 @@ module EffectfulTranslation = struct
              (arrayShift_ ~base:(Surface.proj e1) ct ~index:(Surface.proj e2) loc)
          in
          return (IT (it_, Loc oct, loc))
-       | None -> cannot_tell_pointee_ctype loc e1)
+       | None -> fail { loc; msg = No_pointee_ctype e1 })
     | CN_sub, (Integer | Real | Bits _) ->
       return (IT (Binop (Sub, e1, e2), get_bt e1, loc))
     | CN_sub, Loc oct ->
@@ -468,7 +448,7 @@ module EffectfulTranslation = struct
                 loc)
          in
          return (IT (it_, Loc oct, loc))
-       | None -> cannot_tell_pointee_ctype loc e1)
+       | None -> fail { loc; msg = No_pointee_ctype e1 })
     | CN_mul, _ -> return (IT (Binop (Mul, e1, e2), get_bt e1, loc))
     | CN_div, _ -> return (IT (Binop (Div, e1, e2), get_bt e1, loc))
     | CN_mod, _ -> return (IT (Binop (Rem, e1, e2), get_bt e1, loc))
@@ -585,20 +565,14 @@ module EffectfulTranslation = struct
       return (env', locally_bound', IT.Pat (PConstructor (cons, args), bt, loc))
 
 
-  let check_quantified_base_type env loc bt =
+  let check_quantified_base_type env loc sym bt =
     let bt = translate_cn_base_type env bt in
     if SBT.equal bt BT.Integer then
       return bt
     else if Option.is_some (SBT.is_bits_bt bt) then
       return bt
     else
-      fail
-        { loc;
-          msg =
-            (let open Pp in
-             (Generic (!^"quantified v must be integer or bitvector:" ^^^ SBT.pp bt)
-             [@alert "-deprecated"]))
-        }
+      fail { loc; msg = Each_quantifier_not_numeric (sym, bt) }
 
 
   let warn_if_ct_mismatch loc context ~annot ~inferred ~ptr =
@@ -859,7 +833,7 @@ module EffectfulTranslation = struct
                })
          | Some (Ctype (_, Struct tag)), Loc None | None, Loc (Some (Struct tag)) ->
            with_tag tag
-         | None, Loc None -> cannot_tell_pointee_ctype loc e
+         | None, Loc None -> fail { loc; msg = No_pointee_ctype e }
          | _, has ->
            let expected = "struct pointer" in
            let reason = "struct member offset" in
@@ -913,7 +887,7 @@ module EffectfulTranslation = struct
             (add_logical sym BT.Integer env)
             e
         in
-        let@ bt = check_quantified_base_type env loc bt in
+        let@ bt = check_quantified_base_type env loc sym bt in
         return
           (IT
              ( EachI ((Z.to_int (fst r), (sym, SBT.proj bt), Z.to_int (snd r)), expr),
@@ -1152,7 +1126,8 @@ module EffectfulTranslation = struct
 
 
   let translate_cn_let_resource__each env res_loc (q, bt, guard, pred_loc, res, args) =
-    let@ bt' = check_quantified_base_type env pred_loc bt in
+    (* FIXME pred_loc is the wrong location, but the frontend is not tracking the correct one *)
+    let@ bt' = check_quantified_base_type env pred_loc q bt in
     let env_with_q = add_logical q bt' env in
     let@ guard_expr = translate_cn_expr (Sym.Set.singleton q) env_with_q guard in
     let@ args = ListM.mapM (translate_cn_expr (Sym.Set.singleton q) env_with_q) args in

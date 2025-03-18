@@ -66,7 +66,7 @@ type message =
   | Builtins of Builtins.message
   | Global of Global.message
   | WellTyped of WellTyped.message
-  | Cannot_convert_enum_const of Z.t
+  | Cannot_convert_enum_const of Cerb_frontend.AilSyntax.constant
   | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
   | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
   | Illtyped_binary_it of
@@ -79,6 +79,9 @@ type message =
       { pname : Request.name;
         found_bty : BaseTypes.t
       }
+  | Datatype_repeated_member of Id.t
+  | No_pointee_ctype of IndexTerms.Surface.t
+  | Each_quantifier_not_numeric of Sym.t * BaseTypes.Surface.t
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
 
 type err =
