@@ -162,7 +162,7 @@ end
 val translate_cn_predicate
   :  env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate ->
-  (Sym.t * Definition.Predicate.t) Or_TypeError.t
+  (Sym.t * Definition.Predicate.t) Or_Error.t
 
 val make_rt
   :  Locations.t ->

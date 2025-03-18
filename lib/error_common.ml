@@ -36,4 +36,8 @@ type compile_message =
       }
   | Builtins of Builtins.message
   | First_iarg_missing
+  | First_iarg_not_pointer of
+      { pname : Request.name;
+        found_bty : BaseTypes.t
+      }
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]

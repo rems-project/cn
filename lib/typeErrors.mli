@@ -35,11 +35,6 @@ type message =
   | WellTyped of WellTyped.message
   | Compile of Error_common.compile_message
   | Builtins of Builtins.message
-  | First_iarg_missing
-  | First_iarg_not_pointer of
-      { pname : Request.name;
-        found_bty : BaseTypes.t
-      }
   | Missing_resource of
       { requests : RequestChain.t;
         situation : Error_common.situation;

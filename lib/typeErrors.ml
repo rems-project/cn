@@ -96,11 +96,6 @@ type message =
   | Compile of Error_common.compile_message
   | Builtins of Builtins.message
   (* some from Kayvan's compilePredicates module *)
-  | First_iarg_missing
-  | First_iarg_not_pointer of
-      { pname : Request.name;
-        found_bty : BaseTypes.t
-      }
   | Missing_resource of
       { requests : RequestChain.t;
         situation : situation;
@@ -390,17 +385,6 @@ let pp_compile : Error_common.compile_message -> _ = function
     let short = !^"Missing pointer input argument" in
     let descr = !^"a predicate definition must have at least one input argument" in
     { short; descr = Some descr; state = None }
-
-
-let pp_message = function
-  | Global msg -> pp_global msg
-  | WellTyped msg -> pp_welltyped msg
-  | Compile msg -> pp_compile msg
-  | Builtins msg -> pp_builtins msg
-  | First_iarg_missing ->
-    let short = !^"Missing pointer input argument" in
-    let descr = !^"a predicate definition must have at least one input argument" in
-    { short; descr = Some descr; state = None }
   | First_iarg_not_pointer { pname; found_bty } ->
     let short = !^"Non-pointer first input argument" in
     let descr =
@@ -412,6 +396,13 @@ let pp_message = function
       ^^^ squotes BaseTypes.(pp found_bty)
     in
     { short; descr = Some descr; state = None }
+
+
+let pp_message = function
+  | Global msg -> pp_global msg
+  | WellTyped msg -> pp_welltyped msg
+  | Compile msg -> pp_compile msg
+  | Builtins msg -> pp_builtins msg
   | Missing_resource { requests; situation; ctxt; model } ->
     let short = !^"Missing resource" ^^^ for_situation situation in
     let descr = RequestChain.pp requests in

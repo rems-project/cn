@@ -1353,16 +1353,6 @@ module LocalState = struct
     aux
 end
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 let translate_cn_clause env clause =
   let open LocalState in
   let rec translate_cn_clause_aux env st acc clause =
@@ -1370,7 +1360,7 @@ let translate_cn_clause env clause =
     match clause with
     | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
-        liftCompile (handle st (ET.translate_cn_let_resource env (res_loc, sym, the_res)))
+        handle st (ET.translate_cn_let_resource env (res_loc, sym, the_res))
       in
       let acc' z =
         acc
@@ -1382,15 +1372,15 @@ let translate_cn_clause env clause =
       let st' = add_pointee_values pointee_vals st in
       translate_cn_clause_aux env' st' acc' cl
     | CN_letExpr (loc, sym, e_, cl) ->
-      let@ e = liftCompile (handle st (ET.translate_cn_expr Sym.Set.empty env e_)) in
+      let@ e = handle st (ET.translate_cn_expr Sym.Set.empty env e_) in
       let acc' z = acc (LAT.mDefine (sym, IT.Surface.proj e, (loc, None)) z) in
       translate_cn_clause_aux (add_logical sym (IT.get_bt e) env) st acc' cl
     | CN_assert (loc, assrt, cl) ->
-      let@ lc = liftCompile (handle st (ET.translate_cn_assrt env (loc, assrt))) in
+      let@ lc = handle st (ET.translate_cn_assrt env (loc, assrt)) in
       let acc' z = acc (LAT.mConstraint (lc, (loc, None)) z) in
       translate_cn_clause_aux env st acc' cl
     | CN_return (_loc, e_) ->
-      let@ e = liftCompile (handle st (ET.translate_cn_expr Sym.Set.empty env e_)) in
+      let@ e = handle st (ET.translate_cn_expr Sym.Set.empty env e_) in
       let e = IT.Surface.proj e in
       acc (LAT.I e)
   in
@@ -1405,8 +1395,7 @@ let translate_cn_clauses env clauses =
       return (Def.Clause.{ loc; guard = IT.bool_ true here; packing_ft = cl } :: acc)
     | CN_if (loc, e_, cl_, clauses') ->
       let@ e =
-        liftCompile
-          (Pure.handle "Predicate guards" (ET.translate_cn_expr Sym.Set.empty env e_))
+        Pure.handle "Predicate guards" (ET.translate_cn_expr Sym.Set.empty env e_)
       in
       let@ cl = translate_cn_clause env cl_ in
       self ({ loc; guard = IT.Surface.proj e; packing_ft = cl } :: acc) clauses'
@@ -1450,6 +1439,16 @@ let translate_cn_predicate env (def : _ Cn.cn_predicate) =
         msg = First_iarg_not_pointer { pname = PName def.cn_pred_name; found_bty }
       }
   | [] -> fail { loc = def.cn_pred_loc; msg = First_iarg_missing }
+
+
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
 
 
 let rec make_lrt_generic env st =
