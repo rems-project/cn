@@ -1719,7 +1719,9 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
       (fun x -> liftCompile (C.translate_cn_predicate env x))
       ail_prog.cn_predicates
   in
-  let@ lemmata = ListM.mapM (C.translate_cn_lemma env) ail_prog.cn_lemmata in
+  let@ lemmata =
+    ListM.mapM (fun x -> liftCompile @@ C.translate_cn_lemma env x) ail_prog.cn_lemmata
+  in
   let global_types =
     List.map
       (fun (s, global) ->

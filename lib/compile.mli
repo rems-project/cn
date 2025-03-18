@@ -176,7 +176,7 @@ val make_rt
 val translate_cn_lemma
   :  env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_lemma ->
-  (Sym.t * (Cerb_location.t * LogicalReturnTypes.t ArgumentTypes.t)) Or_TypeError.t
+  (Sym.t * (Cerb_location.t * LogicalReturnTypes.t ArgumentTypes.t)) Or_Error.t
 
 val translate_cn_statement
   :  (Sym.t -> Cerb_frontend.Ctype.ctype) ->

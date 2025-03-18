@@ -1510,16 +1510,6 @@ let make_rt loc (env : env) st (s, ct) (accesses, ensures) =
   return (RT.mComputational ((s, bt), (loc, None)) lrt)
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 (* copied and adjusted from translate_cn_function *)
 let translate_cn_lemma env (def : _ Cn.cn_lemma) =
   Pp.debug 2 (lazy (Pp.item "translating lemma defn" (Sym.pp def.cn_lemma_name)));
@@ -1532,13 +1522,22 @@ let translate_cn_lemma env (def : _ Cn.cn_lemma) =
       return (ArgumentTypes.Computational ((sym, SBT.proj bTy), info, at))
     | [] ->
       let@ lat =
-        liftCompile
-          (make_lat env LocalState.init_st (def.cn_lemma_requires, def.cn_lemma_ensures))
+        make_lat env LocalState.init_st (def.cn_lemma_requires, def.cn_lemma_ensures)
       in
       return (ArgumentTypes.L lat)
   in
   let@ at = aux env def.cn_lemma_args in
   return (def.cn_lemma_name, (def.cn_lemma_loc, at))
+
+
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
 
 
 module UsingLoads = struct
