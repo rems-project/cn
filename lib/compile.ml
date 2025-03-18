@@ -218,9 +218,28 @@ let register_cn_predicates env defs =
   List.fold_left aux env defs
 
 
+type message =
+  | Cannot_convert_enum_const of Z.t
+  | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
+  | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
+  | Global of Global.error
+  | WellTyped of WellTyped.message
+  | Illtyped_binary_it of
+      { left : IndexTerms.Surface.t;
+        right : IndexTerms.Surface.t;
+        binop : Cerb_frontend.Cn.cn_binop
+      }
+  | Builtins of Builtins.message
+  | First_iarg_missing
+  | First_iarg_not_pointer of
+      { pname : Request.name;
+        found_bty : BaseTypes.t
+      }
+  | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
+
 type err =
   { loc : Locations.t;
-    msg : Error_common.compile_message
+    msg : message
   }
 
 module Or_Error = struct
@@ -1541,8 +1560,7 @@ module UsingLoads = struct
       let expected = "pointer" in
       let reason = "dereferencing" in
       let msg =
-        Error_common.WellTyped
-          (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
+        WellTyped (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
       in
       fail { loc; msg }
 
@@ -1589,16 +1607,6 @@ module UsingLoads = struct
     in
     aux
 end
-
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
 
 let translate_cn_statement
       (allocations : Sym.t -> CF.Ctype.ctype)

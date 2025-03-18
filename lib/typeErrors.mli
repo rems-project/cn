@@ -33,7 +33,7 @@ end
 type message =
   | Global of Global.error
   | WellTyped of WellTyped.message
-  | Compile of Error_common.compile_message
+  | Compile of Compile.message
   | Builtins of Builtins.message
   | Missing_resource of
       { requests : RequestChain.t;

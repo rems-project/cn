@@ -62,9 +62,28 @@ val register_cn_predicates
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate list ->
   env
 
+type message =
+  | Cannot_convert_enum_const of Z.t
+  | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
+  | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
+  | Global of Global.error
+  | WellTyped of WellTyped.message
+  | Illtyped_binary_it of
+      { left : IndexTerms.Surface.t;
+        right : IndexTerms.Surface.t;
+        binop : Cerb_frontend.Cn.cn_binop
+      }
+  | Builtins of Builtins.message
+  | First_iarg_missing
+  | First_iarg_not_pointer of
+      { pname : Request.name;
+        found_bty : BaseTypes.t
+      }
+  | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
+
 type err =
   { loc : Locations.t;
-    msg : Error_common.compile_message
+    msg : message
   }
 
 module Or_Error : sig

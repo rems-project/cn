@@ -93,7 +93,7 @@ end
 type message =
   | Global of Global.error
   | WellTyped of WellTyped.message
-  | Compile of Error_common.compile_message
+  | Compile of Compile.message
   | Builtins of Builtins.message
   (* some from Kayvan's compilePredicates module *)
   | Missing_resource of
@@ -357,7 +357,7 @@ let pp_builtins : Builtins.message -> _ = function
     { short; descr = None; state = None }
 
 
-let pp_compile : Error_common.compile_message -> _ = function
+let pp_compile : Compile.message -> _ = function
   | ((Generic err) [@alert "-deprecated"]) ->
     let short = err in
     { short; descr = None; state = None }
