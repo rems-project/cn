@@ -171,7 +171,7 @@ val make_rt
   Sym.t * Cerb_frontend.Ctype.ctype ->
   (Locations.t * (Sym.t * Cerb_frontend.Ctype.ctype)) list
   * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list ->
-  ReturnTypes.t Or_TypeError.t
+  ReturnTypes.t Or_Error.t
 
 val translate_cn_lemma
   :  env ->

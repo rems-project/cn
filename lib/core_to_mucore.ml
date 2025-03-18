@@ -1479,12 +1479,13 @@ let normalise_fun_map_decl
                   body
               in
               let@ returned =
-                C.make_rt
-                  loc
-                  env
-                  (C.LocalState.add_c_variable_states arg_states st)
-                  (ret_s, ret_ct)
-                  (accesses, ensures)
+                liftCompile
+                @@ C.make_rt
+                     loc
+                     env
+                     (C.LocalState.add_c_variable_states arg_states st)
+                     (ret_s, ret_ct)
+                     (accesses, ensures)
               in
               let@ labels =
                 PmapM.mapM
@@ -1532,7 +1533,7 @@ let normalise_fun_map_decl
             make_fun_with_spec_args
               (fun env st ->
                  let@ returned =
-                   C.make_rt loc env st (ret_s, ret_ct) (accesses, ensures)
+                   liftCompile @@ C.make_rt loc env st (ret_s, ret_ct) (accesses, ensures)
                  in
                  return returned)
               loc

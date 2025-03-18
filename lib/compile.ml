@@ -1441,22 +1441,12 @@ let translate_cn_predicate env (def : _ Cn.cn_predicate) =
   | [] -> fail { loc = def.cn_pred_loc; msg = First_iarg_missing }
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 let rec make_lrt_generic env st =
   let open LocalState in
   function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
-      liftCompile (handle st (ET.translate_cn_let_resource env (loc, name, resource)))
+      handle st (ET.translate_cn_let_resource env (loc, name, resource))
     in
     let env = add_logical name oa_bt env in
     let st = add_pointee_values pointee_values st in
@@ -1468,13 +1458,13 @@ let rec make_lrt_generic env st =
         env,
         st )
   | CN_cletExpr (loc, name, expr) :: ensures ->
-    let@ expr = liftCompile (handle st (ET.translate_cn_expr Sym.Set.empty env expr)) in
+    let@ expr = handle st (ET.translate_cn_expr Sym.Set.empty env expr) in
     let@ lrt, env, st =
       make_lrt_generic (add_logical name (IT.get_bt expr) env) st ensures
     in
     return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
-    let@ lc = liftCompile (handle st (ET.translate_cn_assrt env (loc, constr))) in
+    let@ lc = handle st (ET.translate_cn_assrt env (loc, constr)) in
     let@ lrt, env, st = make_lrt_generic env st ensures in
     return (LRT.mConstraint (lc, (loc, None)) lrt, env, st)
   | [] -> return (LRT.I, env, st)
@@ -1495,9 +1485,7 @@ let make_lat env st (requires, ensures) =
 let rec make_lrt_with_accesses env st (accesses, ensures) =
   match accesses with
   | (loc, (addr_s, ct)) :: accesses ->
-    let@ name, ((pt_ret, oa_bt), lcs), value =
-      liftCompile (ownership (loc, (addr_s, ct)) env)
-    in
+    let@ name, ((pt_ret, oa_bt), lcs), value = ownership (loc, (addr_s, ct)) env in
     let env = add_logical name oa_bt env in
     let st = LocalState.add_c_variable_state addr_s (CVS_Pointer_pointing_to value) st in
     let@ lrt = make_lrt_with_accesses env st (accesses, ensures) in
@@ -1522,6 +1510,16 @@ let make_rt loc (env : env) st (s, ct) (accesses, ensures) =
   return (RT.mComputational ((s, bt), (loc, None)) lrt)
 
 
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
+
+
 (* copied and adjusted from translate_cn_function *)
 let translate_cn_lemma env (def : _ Cn.cn_lemma) =
   Pp.debug 2 (lazy (Pp.item "translating lemma defn" (Sym.pp def.cn_lemma_name)));
@@ -1534,7 +1532,8 @@ let translate_cn_lemma env (def : _ Cn.cn_lemma) =
       return (ArgumentTypes.Computational ((sym, SBT.proj bTy), info, at))
     | [] ->
       let@ lat =
-        make_lat env LocalState.init_st (def.cn_lemma_requires, def.cn_lemma_ensures)
+        liftCompile
+          (make_lat env LocalState.init_st (def.cn_lemma_requires, def.cn_lemma_ensures))
       in
       return (ArgumentTypes.L lat)
   in
