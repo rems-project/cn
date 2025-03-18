@@ -91,7 +91,7 @@ Qed.
    | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_one_step: match failed")))
    end.
 
- Ltac2 res_set_remove_many_step () :=
+ Ltac2 res_set_remove_many_steps () :=
  match! goal with
  | [ |- exists field_res,
         resource_unfold ?iglobal ?res field_res /\
@@ -102,9 +102,9 @@ Qed.
    let inresname := Fresh.in_goal @in_res in
    let outresname:= Fresh.in_goal @out_res in
    let clause := { on_hyps := None; on_concl := AllOccurrences } in
-   Std.remember false (Some inresname) (fun _ => in_res) None clause;
-   Std.remember false (Some outresname) (fun _ => out_res) None clause;
-   Std.remember false (Some resname) (fun _ => res) None clause;
+   Std.remember false (Some inresname) (fun () => in_res) None clause;
+   Std.remember false (Some outresname) (fun () => out_res) None clause;
+   Std.remember false (Some resname) (fun () => res) None clause;
    (* now try to compute field_res from in_res and out_res *)
    let list_of_constr l := destruct_list (constr:(Resource.t)) l in
    let in_res_list  := list_of_constr  in_res in
@@ -113,9 +113,18 @@ Qed.
    if List.is_empty diff then
     Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))
    else
-    verbose_print "TODO: Compute field_res from in_res and out_res";
-    Control.shelve ()
- | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_many_step: match failed")))
+     match Ident.of_string "diff" with
+     | Some diffident =>
+      let diffname := Fresh.in_goal diffident in
+      Std.remember false (Some diffname) (fun () => 
+        recons_list (constr:(Resource.t)) diff
+      ) None clause;
+      verbose_print "TODO: verify the rest of of `struct_resource_inference_step` premises";
+      Control.shelve ()
+   | None =>
+    Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_many_steps: identifier generation failed")))
+   end
+ | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "res_set_remove_many_steps: match failed")))
 end.
 
 Ltac2 prove_unfold_step () :=
@@ -174,7 +183,7 @@ Ltac2 prove_unfold_step () :=
             rDelta := true;
             rConst := [const_to_const_reference  constr:(@set_from_list)]
           } clause ;
-          res_set_remove_many_step ()
+          res_set_remove_many_steps ()
        )
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _ _) _) ] =>
        (* PredicateRequest case *)
