@@ -24,4 +24,6 @@ type situation =
   | Call of call_situation
 
 type compile_message =
+  | Cannot_convert_enum_const of Z.t
+  | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]

@@ -332,6 +332,18 @@ let pp_compile : Error_common.compile_message -> _ = function
   | ((Generic err) [@alert "-deprecated"]) ->
     let short = err in
     { short; descr = None; state = None }
+  | Cannot_convert_enum_const z ->
+    let short =
+      !^"(incomplete) cannot convert enum const"
+      ^^^ squotes (Pp.z z)
+      ^^^ !^"into i32, u64, i64, u128, i128"
+    in
+    { short; descr = None; state = None }
+  | Cannot_convert_enum_expr e ->
+    let short =
+      !^"(incomplete) cannot convert enum const" ^^^ squotes (CF.Pp_ail.pp_expression e)
+    in
+    { short; descr = None; state = None }
 
 
 let pp_message = function

@@ -248,13 +248,7 @@ let convert_enum_expr =
       let@ bt =
         match BT.pick_integer_encoding_type z with
         | Some bt -> return bt
-        | None ->
-          fail
-            { loc;
-              msg =
-                Generic (Pp.item "no standard encoding type for constant" (Pp.z z))
-                [@alert "-deprecated"]
-            }
+        | None -> fail { loc; msg = Cannot_convert_enum_const z }
       in
       return (IT.Surface.inj (IT.num_lit_ z bt loc))
     | c ->
@@ -271,17 +265,7 @@ let convert_enum_expr =
   let rec conv_expr_ e1 loc = function
     | AilEconst const -> conv_const loc const
     | AilEannot (_cty, expr) -> conv_expr expr
-    | _ ->
-      fail
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 "enum conversion: unhandled expression kind"
-                 (CF.Pp_ast.doc_tree_toplevel
-                    (CF.Pp_ail_ast.dtree_of_expression (fun _ -> !^"()") e1)))
-            [@alert "-deprecated"]
-        }
+    | _ -> fail { loc; msg = Cannot_convert_enum_expr e1 }
   and conv_expr e =
     match e with AnnotatedExpression (_, _, loc, expr) -> conv_expr_ e loc expr
   in
