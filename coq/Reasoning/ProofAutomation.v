@@ -113,12 +113,15 @@ Qed.
    if List.is_empty diff then
     Control.throw (Tactic_failure (Some (Message.of_string "No resource change between the input and output")))
    else
-     match Ident.of_string "diff" with
+     match Ident.of_string "rdiff" with
      | Some diffident =>
       let diffname := Fresh.in_goal diffident in
       Std.remember false (Some diffname) (fun () => 
         recons_list (constr:(Resource.t)) diff
       ) None clause;
+      let diff_set := constr:(set_from_list &rdiff) in
+      verbose_print_constr "    diff_set: " diff_set;
+      exists $diff_set;
       verbose_print "TODO: verify the rest of of `struct_resource_inference_step` premises";
       Control.shelve ()
    | None =>
