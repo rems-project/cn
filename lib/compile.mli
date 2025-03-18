@@ -121,7 +121,7 @@ val ownership
   * ((Request.t * BaseTypes.Surface.t)
     * (LogicalConstraints.t * (Locations.t * string option)) list)
   * BaseTypes.Surface.t IndexTerms.annot)
-    Or_TypeError.t
+    Or_Error.t
 
 val allocation_token
   :  Locations.t ->

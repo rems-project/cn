@@ -17,9 +17,9 @@ tests/cn/tree16/as_partial_map/tree16.c:137:19: warning: 'each' prefers a 'u64',
 tests/cn/tree16/as_partial_map/tree16.c:146:18: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
             take Xs2 = each (i32 j; (0i32 <= j) && (j < path_len))
                  ^
-other location (File "lib/compile.ml", line 1597, characters 38-45)  warning: 'focus' prefers a 'u64', but 'read_&i2' has type 'i32'.
+other location (File "lib/compile.ml", line 1598, characters 38-45)  warning: 'focus' prefers a 'u64', but 'read_&i2' has type 'i32'.
 
-other location (File "lib/compile.ml", line 1597, characters 38-45)  warning: 'focus' prefers a 'u64', but 'read_&idx0' has type 'i32'.
+other location (File "lib/compile.ml", line 1598, characters 38-45)  warning: 'focus' prefers a 'u64', but 'read_&idx0' has type 'i32'.
 
 [1/2]: cn_get_num_nodes -- pass
 [2/2]: lookup_rec -- pass

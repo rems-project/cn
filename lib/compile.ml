@@ -1257,16 +1257,6 @@ let translate_cn_function env (def : _ Cn.cn_function) =
   return (def.cn_func_name, def2)
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 let ownership (loc, (addr_s, ct)) env =
   let name =
     match Sym.description addr_s with
@@ -1277,8 +1267,7 @@ let ownership (loc, (addr_s, ct)) env =
     Cn.CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ])
   in
   let@ (pt_ret, oa_bt), lcs, _ =
-    liftCompile
-      (Pure.handle "'Accesses'" (ET.translate_cn_let_resource env (loc, name, resource)))
+    Pure.handle "'Accesses'" (ET.translate_cn_let_resource env (loc, name, resource))
   in
   let value = IT.sym_ (name, oa_bt, loc) in
   return (name, ((pt_ret, oa_bt), lcs), value)
@@ -1292,6 +1281,16 @@ let allocation_token loc addr_s =
   in
   let alloc_ret = Request.make_alloc (IT.sym_ (addr_s, BT.Loc (), loc)) in
   ((name, (Request.P alloc_ret, Alloc.History.value_bt)), (loc, None))
+
+
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
 
 
 module LocalState = struct
@@ -1500,7 +1499,9 @@ let make_lat env st (requires, ensures) =
 let rec make_lrt_with_accesses env st (accesses, ensures) =
   match accesses with
   | (loc, (addr_s, ct)) :: accesses ->
-    let@ name, ((pt_ret, oa_bt), lcs), value = ownership (loc, (addr_s, ct)) env in
+    let@ name, ((pt_ret, oa_bt), lcs), value =
+      liftCompile (ownership (loc, (addr_s, ct)) env)
+    in
     let env = add_logical name oa_bt env in
     let st = LocalState.add_c_variable_state addr_s (CVS_Pointer_pointing_to value) st in
     let@ lrt = make_lrt_with_accesses env st (accesses, ensures) in

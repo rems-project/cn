@@ -936,10 +936,16 @@ let make_largs f_i =
   aux
 
 
+let liftCompile x =
+  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
+
+
 let rec make_largs_with_accesses f_i env st (accesses, conditions) =
   match accesses with
   | (loc, (addr_s, ct)) :: accesses ->
-    let@ name, ((pt_ret, oa_bt), lcs), value = C.ownership (loc, (addr_s, ct)) env in
+    let@ name, ((pt_ret, oa_bt), lcs), value =
+      liftCompile (C.ownership (loc, (addr_s, ct)) env)
+    in
     let env = C.add_logical name oa_bt env in
     let st =
       C.LocalState.add_c_variable_state addr_s (CVS_Pointer_pointing_to value) st
@@ -975,7 +981,9 @@ let make_label_args f_i loc env st args (accesses, inv) =
       (*   let here = Locations.other __LOC__ in *)
       (*   (LC.T (IT.good_ (Pointer sct, IT.sym_ (s, BT.Loc, here)) here), info) *)
       (* in *)
-      let@ oa_name, ((pt_ret, oa_bt), lcs), value = C.ownership (loc, (s, ct)) env in
+      let@ oa_name, ((pt_ret, oa_bt), lcs), value =
+        liftCompile (C.ownership (loc, (s, ct)) env)
+      in
       let env = C.add_logical oa_name oa_bt env in
       let st = C.LocalState.add_c_variable_state s (CVS_Pointer_pointing_to value) st in
       let owned_res = ((oa_name, (pt_ret, SBT.proj oa_bt)), (loc, None)) in
@@ -1681,10 +1689,6 @@ let translate_datatype env Cn.{ cn_dt_loc; cn_dt_name; cn_dt_cases; cn_dt_magic_
   let translate_arg (id, bt) = (id, SBT.proj (Compile.translate_cn_base_type env bt)) in
   let cases = List.map (fun (c, args) -> (c, List.map translate_arg args)) cn_dt_cases in
   (cn_dt_name, Mu.{ loc = cn_dt_loc; cases })
-
-
-let liftCompile x =
-  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
 
 
 let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_prog) file =
