@@ -112,7 +112,7 @@ module ET = EffectfulTranslation
 val translate_cn_function
   :  env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_function ->
-  (Sym.t * Definition.Function.t) Or_TypeError.t
+  (Sym.t * Definition.Function.t) Or_Error.t
 
 val ownership
   :  Locations.t * (Sym.t * Cerb_frontend.Ctype.ctype) ->

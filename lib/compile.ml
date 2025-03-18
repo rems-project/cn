@@ -338,16 +338,6 @@ let add_datatype_info env (dt : _ Cn.cn_datatype) =
 
 let add_datatype_infos env dts = ListM.fold_leftM add_datatype_info env dts
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 module E = struct
   type evaluation_scope = string
 
@@ -1201,8 +1191,8 @@ module ET = EffectfulTranslation
 
 module Pure = struct
   let handle what = function
-    | E.Done x -> Or_TypeError.return x
-    | E.Error { loc; msg } -> Or_TypeError.fail { loc; msg = Compile msg }
+    | E.Done x -> return x
+    | E.Error { loc; msg } -> fail { loc; msg }
     | E.Value_of_c_variable (loc, _, _, _) ->
       let msg = !^what ^^^ !^"are not allowed to refer to (the state of) C variables." in
       fail { loc; msg = Generic msg [@alert "-deprecated"] }
@@ -1267,6 +1257,16 @@ let translate_cn_function env (def : _ Cn.cn_function) =
   return (def.cn_func_name, def2)
 
 
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
+
+
 let ownership (loc, (addr_s, ct)) env =
   let name =
     match Sym.description addr_s with
@@ -1277,7 +1277,8 @@ let ownership (loc, (addr_s, ct)) env =
     Cn.CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ])
   in
   let@ (pt_ret, oa_bt), lcs, _ =
-    Pure.handle "'Accesses'" (ET.translate_cn_let_resource env (loc, name, resource))
+    liftCompile
+      (Pure.handle "'Accesses'" (ET.translate_cn_let_resource env (loc, name, resource)))
   in
   let value = IT.sym_ (name, oa_bt, loc) in
   return (name, ((pt_ret, oa_bt), lcs), value)
@@ -1408,7 +1409,8 @@ let translate_cn_clauses env clauses =
       return (Def.Clause.{ loc; guard = IT.bool_ true here; packing_ft = cl } :: acc)
     | CN_if (loc, e_, cl_, clauses') ->
       let@ e =
-        Pure.handle "Predicate guards" (ET.translate_cn_expr Sym.Set.empty env e_)
+        liftCompile
+          (Pure.handle "Predicate guards" (ET.translate_cn_expr Sym.Set.empty env e_))
       in
       let@ cl = translate_cn_clause env cl_ in
       self ({ loc; guard = IT.Surface.proj e; packing_ft = cl } :: acc) clauses'

@@ -1698,7 +1698,11 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   (* This registers only user defined functions. Builtin functions that can
      be expressed as index terms are registered in compile.ml in init_env *)
   let@ env = liftCompile (C.register_cn_functions env ail_prog.cn_functions) in
-  let@ lfuns = ListM.mapM (C.translate_cn_function env) ail_prog.cn_functions in
+  let@ lfuns =
+    ListM.mapM
+      (fun x -> liftCompile (C.translate_cn_function env x))
+      ail_prog.cn_functions
+  in
   let env = C.register_cn_predicates env ail_prog.cn_predicates in
   let@ preds = ListM.mapM (C.translate_cn_predicate env) ail_prog.cn_predicates in
   let@ lemmata = ListM.mapM (C.translate_cn_lemma env) ail_prog.cn_lemmata in
