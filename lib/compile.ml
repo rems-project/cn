@@ -1595,7 +1595,7 @@ module UsingLoads = struct
       | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old_states))
     and load loc action_pp pointer k =
       let@ pointee_ct = pointee_ct loc pointer in
-      let value_loc = Locations.other __LOC__ in
+      let value_loc = loc in
       let value_s = Sym.fresh_make_uniq (action_pp ^ "_" ^ Pp.plain (IT.pp pointer)) in
       let value_bt = Memory.sbt_of_sct pointee_ct in
       let value = IT.sym_ (value_s, value_bt, value_loc) in
