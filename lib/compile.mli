@@ -126,8 +126,6 @@ module EffectfulTranslation : sig
     LogicalConstraints.t E.t
 end
 
-module ET = EffectfulTranslation
-
 val translate_cn_function
   :  env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_function ->

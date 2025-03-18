@@ -744,7 +744,7 @@ let report_json
   in
   let json =
     `Assoc
-      [ ("loc", Loc.json_loc loc);
+      [ ("loc", Locations.json_loc loc);
         ("short", `String (plain report.short));
         ("descr", descr);
         ("state", state_error_file);

@@ -1,9 +1,4 @@
 (** Common error types shared by TypeErrors and other modules *)
-
-module Loc = Locations
-
-type label_kind = Where.label
-
 type access =
   | Load
   | Store
@@ -16,7 +11,7 @@ type access =
 type call_situation =
   | FunctionCall of Sym.t
   | LemmaApplication of Sym.t
-  | LabelCall of label_kind
+  | LabelCall of Where.label
   | Subtyping
 
 type situation =
