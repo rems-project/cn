@@ -156,7 +156,7 @@ module LocalState : sig
     states ->
     states
 
-  val handle : states -> 'a E.t -> 'a Or_TypeError.t
+  val handle : states -> 'a E.t -> 'a Or_Error.t
 end
 
 val translate_cn_predicate

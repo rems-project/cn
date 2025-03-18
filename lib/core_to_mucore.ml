@@ -905,12 +905,18 @@ let rec arguments_of_at f_i = function
 
 
 (* copying and adjusting variously compile.ml logic *)
+let liftCompile x =
+  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
+
 
 let make_largs f_i =
   let rec aux env st = function
     | Cn.CN_cletResource (loc, name, resource) :: conditions ->
       let@ (pt_ret, oa_bt), lcs, pointee_values =
-        C.LocalState.handle st (C.ET.translate_cn_let_resource env (loc, name, resource))
+        liftCompile
+          (C.LocalState.handle
+             st
+             (C.ET.translate_cn_let_resource env (loc, name, resource)))
       in
       let env = C.add_logical name oa_bt env in
       let st = C.LocalState.add_pointee_values pointee_values st in
@@ -921,12 +927,15 @@ let make_largs f_i =
            (Mu.mConstraints lcs lat))
     | Cn.CN_cletExpr (loc, name, expr) :: conditions ->
       let@ expr =
-        C.LocalState.handle st (C.ET.translate_cn_expr Sym.Set.empty env expr)
+        liftCompile
+          (C.LocalState.handle st (C.ET.translate_cn_expr Sym.Set.empty env expr))
       in
       let@ lat = aux (C.add_logical name (IT.get_bt expr) env) st conditions in
       return (Mu.mDefine ((name, IT.Surface.proj expr), (loc, None)) lat)
     | Cn.CN_cconstr (loc, constr) :: conditions ->
-      let@ lc = C.LocalState.handle st (C.ET.translate_cn_assrt env (loc, constr)) in
+      let@ lc =
+        liftCompile (C.LocalState.handle st (C.ET.translate_cn_assrt env (loc, constr)))
+      in
       let@ lat = aux env st conditions in
       return (Mu.mConstraint (lc, (loc, None)) lat)
     | [] ->
@@ -934,10 +943,6 @@ let make_largs f_i =
       return (Mu.I i)
   in
   aux
-
-
-let liftCompile x =
-  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
 
 
 let rec make_largs_with_accesses f_i env st (accesses, conditions) =

@@ -174,10 +174,7 @@ let rec free_in_expr (Cn.CNExpr (_loc, expr_)) =
   | CNExpr_default _bt -> Sym.Set.empty
 
 
-and free_in_exprs = function
-  | [] -> Sym.Set.empty
-  | e :: es -> Sym.Set.union (free_in_expr e) (free_in_exprs es)
-
+and free_in_exprs es = big_union (List.map free_in_expr es)
 
 let rec translate_cn_base_type env (bTy : _ Cn.cn_base_type) =
   let self bTy = translate_cn_base_type env bTy in
@@ -1283,16 +1280,6 @@ let allocation_token loc addr_s =
   ((name, (Request.P alloc_ret, Alloc.History.value_bt)), (loc, None))
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 module LocalState = struct
   (* the expression that encodes the current value of this c variable *)
   type c_variable_state =
@@ -1339,14 +1326,14 @@ module LocalState = struct
     List.fold_left (fun st (p, v) -> add_pointee_value p v st) st pvs
 
 
-  let handle { state; old_states } : 'a E.t -> 'a Or_TypeError.t =
+  let handle { state; old_states } : 'a E.t -> 'a Or_Error.t =
     let state_for_scope = function
       | None -> state
       | Some s -> StringMap.find s old_states
     in
-    let rec aux = function
-      | E.Done x -> Or_TypeError.return x
-      | E.Error { loc; msg } -> Or_TypeError.fail { loc; msg = Compile msg }
+    let rec aux : _ E.t -> _ Or_Error.t = function
+      | E.Done x -> return x
+      | E.Error { loc; msg } -> fail { loc; msg }
       | E.Value_of_c_variable (loc, sym, scope, k) ->
         let variable_state = (state_for_scope scope).c_variable_state in
         let o_v =
@@ -1366,6 +1353,16 @@ module LocalState = struct
     aux
 end
 
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
+
+
 let translate_cn_clause env clause =
   let open LocalState in
   let rec translate_cn_clause_aux env st acc clause =
@@ -1373,7 +1370,7 @@ let translate_cn_clause env clause =
     match clause with
     | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
-        handle st (ET.translate_cn_let_resource env (res_loc, sym, the_res))
+        liftCompile (handle st (ET.translate_cn_let_resource env (res_loc, sym, the_res)))
       in
       let acc' z =
         acc
@@ -1385,15 +1382,15 @@ let translate_cn_clause env clause =
       let st' = add_pointee_values pointee_vals st in
       translate_cn_clause_aux env' st' acc' cl
     | CN_letExpr (loc, sym, e_, cl) ->
-      let@ e = handle st (ET.translate_cn_expr Sym.Set.empty env e_) in
+      let@ e = liftCompile (handle st (ET.translate_cn_expr Sym.Set.empty env e_)) in
       let acc' z = acc (LAT.mDefine (sym, IT.Surface.proj e, (loc, None)) z) in
       translate_cn_clause_aux (add_logical sym (IT.get_bt e) env) st acc' cl
     | CN_assert (loc, assrt, cl) ->
-      let@ lc = handle st (ET.translate_cn_assrt env (loc, assrt)) in
+      let@ lc = liftCompile (handle st (ET.translate_cn_assrt env (loc, assrt))) in
       let acc' z = acc (LAT.mConstraint (lc, (loc, None)) z) in
       translate_cn_clause_aux env st acc' cl
     | CN_return (_loc, e_) ->
-      let@ e = handle st (ET.translate_cn_expr Sym.Set.empty env e_) in
+      let@ e = liftCompile (handle st (ET.translate_cn_expr Sym.Set.empty env e_)) in
       let e = IT.Surface.proj e in
       acc (LAT.I e)
   in
@@ -1460,7 +1457,7 @@ let rec make_lrt_generic env st =
   function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
-      handle st (ET.translate_cn_let_resource env (loc, name, resource))
+      liftCompile (handle st (ET.translate_cn_let_resource env (loc, name, resource)))
     in
     let env = add_logical name oa_bt env in
     let st = add_pointee_values pointee_values st in
@@ -1472,13 +1469,13 @@ let rec make_lrt_generic env st =
         env,
         st )
   | CN_cletExpr (loc, name, expr) :: ensures ->
-    let@ expr = handle st (ET.translate_cn_expr Sym.Set.empty env expr) in
+    let@ expr = liftCompile (handle st (ET.translate_cn_expr Sym.Set.empty env expr)) in
     let@ lrt, env, st =
       make_lrt_generic (add_logical name (IT.get_bt expr) env) st ensures
     in
     return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
-    let@ lc = handle st (ET.translate_cn_assrt env (loc, constr)) in
+    let@ lc = liftCompile (handle st (ET.translate_cn_assrt env (loc, constr))) in
     let@ lrt, env, st = make_lrt_generic env st ensures in
     return (LRT.mConstraint (lc, (loc, None)) lrt, env, st)
   | [] -> return (LRT.I, env, st)
