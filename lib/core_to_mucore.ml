@@ -556,6 +556,10 @@ let show_n_memop =
     .show_method
 
 
+let liftCompile x =
+  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
+
+
 let n_memop ~inherit_loc loc memop pexprs =
   let n_pexpr = n_pexpr ~inherit_loc in
   let open CF.Mem_common in
@@ -843,7 +847,12 @@ let rec n_expr
                       failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
                   in
                   let@ stmt =
-                    Compile.translate_cn_statement get_c_obj old_states env desugared_stmt
+                    liftCompile
+                    @@ Compile.translate_cn_statement
+                         get_c_obj
+                         old_states
+                         env
+                         desugared_stmt
                   in
                   (* debug 6 (lazy (!^"CN statement after translation")); debug 6 (lazy
                     (pp_doc_tree (Cnprog.dtree stmt))); *)
@@ -905,9 +914,6 @@ let rec arguments_of_at f_i = function
 
 
 (* copying and adjusting variously compile.ml logic *)
-let liftCompile x =
-  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
-
 
 let make_largs f_i =
   let rec aux env st = function

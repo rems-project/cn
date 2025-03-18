@@ -183,4 +183,4 @@ val translate_cn_statement
   LocalState.state Map.Make(String).t ->
   env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement ->
-  Cnprog.t Or_TypeError.t
+  Cnprog.t Or_Error.t

@@ -1530,16 +1530,6 @@ let translate_cn_lemma env (def : _ Cn.cn_lemma) =
   return (def.cn_lemma_name, (def.cn_lemma_loc, at))
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Or_Error.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 module UsingLoads = struct
   let pointee_ct loc it =
     match IT.get_bt it with
@@ -1551,16 +1541,16 @@ module UsingLoads = struct
       let expected = "pointer" in
       let reason = "dereferencing" in
       let msg =
-        TypeErrors.WellTyped
+        Error_common.WellTyped
           (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
       in
       fail { loc; msg }
 
 
-  let handle allocations old_states : Cnprog.t E.t -> Cnprog.t Or_TypeError.t =
+  let handle allocations old_states : Cnprog.t E.t -> Cnprog.t Or_Error.t =
     let rec aux = function
       | E.Done x -> return x
-      | E.Error { loc; msg } -> Or_TypeError.fail { loc; msg = Compile msg }
+      | E.Error { loc; msg } -> fail { loc; msg }
       | E.Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with
          | Some scope ->
@@ -1599,6 +1589,16 @@ module UsingLoads = struct
     in
     aux
 end
+
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
+
 
 let translate_cn_statement
       (allocations : Sym.t -> CF.Ctype.ctype)
