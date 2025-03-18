@@ -344,6 +344,10 @@ let pp_compile : Error_common.compile_message -> _ = function
       !^"(incomplete) cannot convert enum const" ^^^ squotes (CF.Pp_ail.pp_expression e)
     in
     { short; descr = None; state = None }
+  | Cerb_frontend (loc, err) ->
+    let head, pos = Locations.head_pos_of_location loc in
+    let short = !^(CF.Pp_errors.short_message err) ^^^ parens !^head in
+    { short; descr = None; state = None }
 
 
 let pp_message = function

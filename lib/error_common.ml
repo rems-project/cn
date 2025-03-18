@@ -26,4 +26,5 @@ type situation =
 type compile_message =
   | Cannot_convert_enum_const of Z.t
   | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
+  | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]

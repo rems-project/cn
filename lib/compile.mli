@@ -62,10 +62,19 @@ val register_cn_predicates
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate list ->
   env
 
+type err =
+  { loc : Locations.t;
+    msg : Error_common.compile_message
+  }
+
+module Or_Error : sig
+  type 'a t = ('a, err) Result.t
+end
+
 val register_cn_functions
   :  env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_function list ->
-  env Or_TypeError.t
+  env Or_Error.t
 
 val add_datatype_infos
   :  env ->

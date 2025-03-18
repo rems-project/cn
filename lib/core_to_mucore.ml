@@ -659,8 +659,9 @@ let n_memop ~inherit_loc loc memop pexprs =
 
 
 let liftParse parseResult =
-  Result.fold parseResult ~ok:return ~error:(fun Parse.{ loc; msg } ->
-    fail { loc; msg = Parser msg })
+  Result.map_error
+    (fun Parse.{ loc; msg } -> TypeErrors.{ loc; msg = Parser msg })
+    parseResult
 
 
 let unsupported loc doc = fail { loc; msg = Unsupported (!^"unsupported" ^^^ doc) }
@@ -1682,6 +1683,10 @@ let translate_datatype env Cn.{ cn_dt_loc; cn_dt_name; cn_dt_cases; cn_dt_magic_
   (cn_dt_name, Mu.{ loc = cn_dt_loc; cases })
 
 
+let liftCompile x =
+  Result.map_error (fun Compile.{ loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
+
+
 let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_prog) file =
   let open CF.AilSyntax in
   let open CF.Milicore in
@@ -1692,7 +1697,7 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let@ env = C.add_datatype_infos env ail_prog.cn_datatypes in
   (* This registers only user defined functions. Builtin functions that can
      be expressed as index terms are registered in compile.ml in init_env *)
-  let@ env = C.register_cn_functions env ail_prog.cn_functions in
+  let@ env = liftCompile (C.register_cn_functions env ail_prog.cn_functions) in
   let@ lfuns = ListM.mapM (C.translate_cn_function env) ail_prog.cn_functions in
   let env = C.register_cn_predicates env ail_prog.cn_predicates in
   let@ preds = ListM.mapM (C.translate_cn_predicate env) ail_prog.cn_predicates in

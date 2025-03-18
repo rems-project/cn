@@ -226,7 +226,7 @@ type err =
     msg : Error_common.compile_message
   }
 
-module Monad = struct
+module Or_Error = struct
   type 'a t = ('a, err) Result.t
 
   let bind = Result.bind
@@ -236,9 +236,9 @@ module Monad = struct
   let fail = Result.error
 end
 
-open Effectful.Make (Monad)
+open Effectful.Make (Or_Error)
 
-open Monad
+open Or_Error
 
 (* TODO: handle more kinds of constant expression *)
 let convert_enum_expr =
@@ -272,16 +272,6 @@ let convert_enum_expr =
   conv_expr
 
 
-open Effectful.Make (Or_TypeError)
-
-open TypeErrors
-
-let liftCompile (x : _ Monad.t) =
-  match x with
-  | Result.Ok x -> return x
-  | Error { loc; msg } -> fail { loc; msg = Compile msg }
-
-
 let do_decode_enum env loc sym =
   (* FIXME handle errors here properly *)
   match env.fetch_enum_expr loc sym with
@@ -305,6 +295,16 @@ let register_cn_functions env defs =
     add_function def.cn_func_loc def.cn_func_name fsig env
   in
   ListM.fold_leftM aux env defs
+
+
+open Effectful.Make (Or_TypeError)
+
+open TypeErrors
+
+let liftCompile (x : _ Or_Error.t) =
+  match x with
+  | Result.Ok x -> return x
+  | Error { loc; msg } -> fail { loc; msg = Compile msg }
 
 
 let add_datatype_info env (dt : _ Cn.cn_datatype) =
