@@ -29,7 +29,7 @@ function separator() {
   OUTPUT="${OUTPUT}\n\n"
 }
 
-BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix --input-timeout=1000 --progress-level=function --sanitize=undefined"
+BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix --input-timeout=1000 --progress-level=function --sanitize=undefined --print-seed"
 if [[ $(basename $TEST) == "mkm.pass.c" ]]; then
   BASE_CONFIG="$BASE_CONFIG --max-array-length=1024"
 fi
