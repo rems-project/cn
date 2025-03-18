@@ -1,4 +1,5 @@
 module CF = Cerb_frontend
+module Cn = CF.Cn
 module SBT = BaseTypes.Surface
 module BT = BaseTypes
 module Def = Definition
@@ -9,11 +10,9 @@ module LC = LogicalConstraints
 module Req = Request
 module Mu = Mucore
 module RT = ReturnTypes
-open Pp
-open CF.Cn
-open TypeErrors
 module STermMap = Map.Make (IndexTerms.Surface)
 module StringMap = Map.Make (String)
+open Pp.Infix
 
 type function_sig =
   { args : (Sym.t * BaseTypes.t) list;
@@ -122,66 +121,17 @@ let get_datatype_maps env =
   (Sym.Map.bindings env.datatypes, Sym.Map.bindings env.datatype_constrs)
 
 
-type cn_predicate = (CF.Symbol.sym, CF.Ctype.ctype) CF.Cn.cn_predicate
+let big_union = List.fold_left Sym.Set.union Sym.Set.empty
 
-type cn_function = (CF.Symbol.sym, CF.Ctype.ctype) CF.Cn.cn_function
-
-type cn_lemma = (CF.Symbol.sym, CF.Ctype.ctype) CF.Cn.cn_lemma
-
-type cn_datatype = CF.Symbol.sym CF.Cn.cn_datatype
-
-(* let pp_cnexpr_kind expr_ = *)
-(*   let open Pp in *)
-(*   match expr_ with *)
-(*   | CNExpr_const CNConst_NULL -> !^ "NULL" *)
-(*   | CNExpr_const (CNConst_integer n) -> Pp.string (Z.to_string n) *)
-(*   | CNExpr_const (CNConst_bits ((sign,n),v)) -> *)
-(* Pp.string (Z.to_string v ^ (match sign with CN_unsigned -> "u" | CN_signed -> "i") ^
-   string_of_int n) *)
-(*   | CNExpr_const (CNConst_bool b) -> !^ (if b then "true" else "false") *)
-(*   | CNExpr_const CNConst_unit -> !^"void" *)
-(*   | CNExpr_var sym -> parens (typ (!^ "var") (Sym.pp sym)) *)
-(*   | CNExpr_deref e -> !^ "(deref ...)" *)
-(*   | CNExpr_value_of_c_atom (sym, kind) -> parens (typ *)
-(*         (CF.Cn_ocaml.PpAil.pp_cn_c_kind kind) (Sym.pp sym)) *)
-(*   | CNExpr_list es_ -> !^ "[...]" *)
-(*   | CNExpr_memberof (e, xs) -> !^ "_." ^^ Id.pp xs *)
-(*   | CNExpr_record members -> !^"{ ... }" *)
-(*   | CNExpr_memberupdates (e, _updates) -> !^ "{_ with ...}" *)
-(*   | CNExpr_arrayindexupdates (e, _updates) -> !^ "_ [ _ = _ ...]" *)
-(*   | CNExpr_binop (bop, x, y) -> !^ "(binop (_, _, _))" *)
-(*   | CNExpr_sizeof ct -> !^ "(sizeof _)" *)
-(*   | CNExpr_offsetof (tag, member) -> !^ "(offsetof (_, _))" *)
-(*   | CNExpr_array_shift (e1, ct, e2) -> !^"(array_shift<_>(_, _)" *)
-(*   | CNExpr_membershift (e1, opt_tag, member) -> !^ "&(_ -> _)" *)
-(*   | CNExpr_addr nm -> !^ "&_" *)
-(*   | CNExpr_cast (bt, expr) -> !^ "(cast (_, _))" *)
-(*   | CNExpr_call (sym, exprs) -> !^ "(" ^^ Sym.pp sym ^^^ !^ "(...))" *)
-(*   | CNExpr_cons (c_nm, exprs) -> !^ "(" ^^ Sym.pp c_nm ^^^ !^ "{...})" *)
-(*   | CNExpr_each (sym, bt, r, e) -> !^ "(each ...)" *)
-(*   | CNExpr_match (x, ms) -> !^ "match ... {...}" *)
-(*   | CNExpr_let (s, e, body) -> !^ "let ...; ..." *)
-(*   | CNExpr_ite (e1, e2, e3) -> !^ "(if ... then ...)" *)
-(*   | CNExpr_good (ty, e) -> !^ "(good (_, _))" *)
-(*   | CNExpr_unchanged e -> !^"(unchanged (_))" *)
-(*   | CNExpr_at_env (e, es) -> !^"{_}@_" *)
-(*   | CNExpr_not e -> !^"!_" *)
-(*   | CNExpr_default bt -> !^"default" *)
-
-let rec symset_bigunion = function
-  | [] -> Sym.Set.empty
-  | syms :: symses -> Sym.Set.union syms (symset_bigunion symses)
-
-
-let rec bound_by_pattern (CNPat (_loc, pat_)) =
+let rec bound_by_pattern (Cn.CNPat (_loc, pat_)) =
   match pat_ with
   | CNPat_sym s -> Sym.Set.singleton s
   | CNPat_wild -> Sym.Set.empty
   | CNPat_constructor (_, args) ->
-    symset_bigunion (List.map (fun (_, p) -> bound_by_pattern p) args)
+    big_union (List.map (fun (_, p) -> bound_by_pattern p) args)
 
 
-let rec free_in_expr (CNExpr (_loc, expr_)) =
+let rec free_in_expr (Cn.CNExpr (_loc, expr_)) =
   match expr_ with
   | CNExpr_const _ -> Sym.Set.empty
   | CNExpr_var v -> Sym.Set.singleton v
@@ -209,7 +159,7 @@ let rec free_in_expr (CNExpr (_loc, expr_)) =
         (fun (pat, body) -> Sym.Set.diff (free_in_expr body) (bound_by_pattern pat))
         ms
     in
-    Sym.Set.union (free_in_expr x) (symset_bigunion free_per_case)
+    Sym.Set.union (free_in_expr x) (big_union free_per_case)
   | CNExpr_let (s, e, body) ->
     Sym.Set.union (free_in_expr e) (Sym.Set.remove s (free_in_expr body))
   | CNExpr_ite (e1, e2, e3) -> free_in_exprs [ e1; e2; e3 ]
@@ -229,7 +179,7 @@ and free_in_exprs = function
   | e :: es -> Sym.Set.union (free_in_expr e) (free_in_exprs es)
 
 
-let rec translate_cn_base_type env (bTy : CF.Symbol.sym cn_base_type) =
+let rec translate_cn_base_type env (bTy : _ Cn.cn_base_type) =
   let self bTy = translate_cn_base_type env bTy in
   match bTy with
   | CN_unit -> BT.Unit
@@ -257,8 +207,8 @@ let rec translate_cn_base_type env (bTy : CF.Symbol.sym cn_base_type) =
      | CF.Exception.Exception (loc, msg) -> failwith (CF.Pp_errors.short_message msg))
 
 
-let register_cn_predicates env (defs : cn_predicate list) =
-  let aux env def =
+let register_cn_predicates env defs =
+  let aux env (def : _ Cn.cn_predicate) =
     let translate_args xs =
       List.map
         (fun (id_or_sym, bTy) -> (id_or_sym, SBT.proj (translate_cn_base_type env bTy)))
@@ -271,9 +221,9 @@ let register_cn_predicates env (defs : cn_predicate list) =
   List.fold_left aux env defs
 
 
-open Or_TypeError
-
 open Effectful.Make (Or_TypeError)
+
+open Or_TypeError
 
 (* TODO: handle more kinds of constant expression *)
 let convert_enum_expr =
@@ -334,8 +284,8 @@ let add_function _loc sym func_sig env =
   return { env with functions = Sym.Map.add sym func_sig env.functions }
 
 
-let register_cn_functions env (defs : cn_function list) =
-  let aux env def =
+let register_cn_functions env defs =
+  let aux env (def : _ Cn.cn_function) =
     let args =
       List.map
         (fun (sym, bTy) -> (sym, SBT.proj (translate_cn_base_type env bTy)))
@@ -348,7 +298,7 @@ let register_cn_functions env (defs : cn_function list) =
   ListM.fold_leftM aux env defs
 
 
-let add_datatype_info env (dt : cn_datatype) =
+let add_datatype_info env (dt : _ Cn.cn_datatype) =
   Pp.debug 2 (lazy (Pp.item "translating datatype declaration" (Sym.pp dt.cn_dt_name)));
   (* SMT format constraints seem to require variables to be unique to the
      datatype, not just the constructor. *)
@@ -437,7 +387,7 @@ module EffectfulTranslation = struct
   open E
 
   let pp_in_scope = function
-    | Some scope -> !^"in evaluation scope" ^^^ squotes !^scope
+    | Some scope -> !^"in evaluation scope" ^^^ Pp.squotes !^scope
     | None -> !^"in current scope"
 
 
@@ -468,7 +418,7 @@ module EffectfulTranslation = struct
 
 
   let cannot_tell_pointee_ctype loc e =
-    let msg = !^"Cannot tell pointee C-type of" ^^^ squotes (IT.pp e) ^^ dot in
+    let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IT.pp e) ^^ Pp.dot in
     fail { loc; msg = Generic msg [@alert "-deprecated"] }
 
 
@@ -477,7 +427,7 @@ module EffectfulTranslation = struct
   let mk_translate_binop loc bop (e1, e2) =
     let open IndexTerms in
     match (bop, get_bt e1) with
-    | CN_add, (BT.Integer | Real | Bits _) ->
+    | Cn.CN_add, (BT.Integer | Real | Bits _) ->
       return (IT (Binop (Add, e1, e2), get_bt e1, loc))
     | CN_add, Loc oct ->
       (match oct with
@@ -583,8 +533,8 @@ module EffectfulTranslation = struct
     (*    let@ dt_info = lookup_datatype loc tag env in *)
     (*    let@ bt = match List.assoc_opt Id.equal member dt_info.all_params with *)
     (*      | None ->  *)
-    (*          let msg = !^"Unknown member" ^^^ squotes (Id.pp member) *)
-    (*                    ^^^ !^"of datatype" ^^^ squotes (Sym.pp tag) *)
+    (*          let msg = !^"Unknown member" ^^^ Pp.squotes (Id.pp member) *)
+    (*                    ^^^ !^"of datatype" ^^^ Pp.squotes (Sym.pp tag) *)
     (*          in *)
     (*          fail {loc; msg = Generic msg} *)
     (*      | Some bt -> return (SurfaceBaseTypes.of_basetype bt) *)
@@ -602,7 +552,7 @@ module EffectfulTranslation = struct
         }
 
 
-  let rec translate_cn_pat env locally_bound (CNPat (loc, pat_), bt) =
+  let rec translate_cn_pat env locally_bound (Cn.CNPat (loc, pat_), bt) =
     match pat_ with
     | CNPat_wild -> return (env, locally_bound, IT.Pat (PWild, bt, loc))
     | CNPat_sym s ->
@@ -669,7 +619,7 @@ module EffectfulTranslation = struct
            ^^^ Sctypes.pp (Sctypes.Pointer annot)
            ^^^ !^"but it has type"
            ^^^ Sctypes.pp (Sctypes.Pointer inferred)
-           ^^ dot)
+           ^^ Pp.dot)
 
 
   let infer_scty ~pred_loc:loc ~ptr (context : [ `RW | `W | `Array_shift ]) oty =
@@ -713,7 +663,7 @@ module EffectfulTranslation = struct
               (evaluation_scope : string option)
               locally_bound
               env
-              (CNExpr (loc, expr_))
+              (Cn.CNExpr (loc, expr_))
       =
       let self = trans evaluation_scope locally_bound env in
       match expr_ with
@@ -1068,9 +1018,9 @@ module EffectfulTranslation = struct
          | None ->
            let msg =
              !^"Cannot dereference"
-             ^^^ squotes (Terms.pp expr)
+             ^^^ Pp.squotes (Terms.pp expr)
              ^^^ pp_in_scope evaluation_scope
-             ^^ dot
+             ^^ Pp.dot
              ^^^ !^"Is the necessary ownership missing?"
            in
            fail { loc; msg = Generic msg [@alert "-deprecated"] })
@@ -1096,7 +1046,7 @@ module EffectfulTranslation = struct
              !^"Cannot resolve the value of"
              ^^^ Sym.pp sym
              ^^^ pp_in_scope evaluation_scope
-             ^^ dot
+             ^^ Pp.dot
              ^^^ !^"Is the ownership for accessing"
              ^^^ Sym.pp sym
              ^^^ !^"missing?"
@@ -1119,7 +1069,7 @@ module EffectfulTranslation = struct
     in
     let@ pname, oargs_ty =
       match res with
-      | CN_owned oty ->
+      | Cn.CN_owned oty ->
         let@ scty = infer_scty ~pred_loc ~ptr:ptr_expr `RW oty in
         (* we don't take Resource.owned_oargs here because we want to maintain the C-type
            information *)
@@ -1221,7 +1171,7 @@ module EffectfulTranslation = struct
   let translate_cn_let_resource env (res_loc, sym, the_res) =
     let@ pt, pointee_values =
       match the_res with
-      | CN_pred (pred_loc, res, args) ->
+      | Cn.CN_pred (pred_loc, res, args) ->
         translate_cn_let_resource__pred env res_loc sym (pred_loc, res, args)
       | CN_each (q, bt, guard, pred_loc, res, args) ->
         translate_cn_let_resource__each env res_loc (q, bt, guard, pred_loc, res, args)
@@ -1231,7 +1181,7 @@ module EffectfulTranslation = struct
 
   let translate_cn_assrt env (loc, assrt) =
     match assrt with
-    | CN_assert_exp e_ ->
+    | Cn.CN_assert_exp e_ ->
       let@ e = translate_cn_expr Sym.Set.empty env e_ in
       return (LC.T (IT.Surface.proj e))
     | CN_assert_qexp (sym, bTy, e1_, e2_) ->
@@ -1269,7 +1219,7 @@ let translate_cn_func_body env body =
 
 let known_attrs = [ "rec"; "coq_unfold" ]
 
-let translate_cn_function env (def : cn_function) =
+let translate_cn_function env (def : _ Cn.cn_function) =
   Pp.debug 2 (lazy (Pp.item "translating function defn" (Sym.pp def.cn_func_name)));
   let args =
     List.map (fun (sym, bTy) -> (sym, translate_cn_base_type env bTy)) def.cn_func_args
@@ -1320,7 +1270,9 @@ let ownership (loc, (addr_s, ct)) env =
     | SD_ObjectAddress obj_name -> Sym.fresh_make_uniq ("O_" ^ obj_name)
     | _ -> assert false
   in
-  let resource = CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ]) in
+  let resource =
+    Cn.CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ])
+  in
   let@ (pt_ret, oa_bt), lcs, _ =
     Pure.handle "'Accesses'" (ET.translate_cn_let_resource env (loc, name, resource))
   in
@@ -1416,7 +1368,7 @@ let translate_cn_clause env clause =
   let rec translate_cn_clause_aux env st acc clause =
     let module LAT = LogicalArgumentTypes in
     match clause with
-    | CN_letResource (res_loc, sym, the_res, cl) ->
+    | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
         handle st (ET.translate_cn_let_resource env (res_loc, sym, the_res))
       in
@@ -1447,7 +1399,7 @@ let translate_cn_clause env clause =
 
 let translate_cn_clauses env clauses =
   let rec self acc = function
-    | CN_clause (loc, cl_) ->
+    | Cn.CN_clause (loc, cl_) ->
       let@ cl = translate_cn_clause env cl_ in
       let here = Locations.other __LOC__ in
       return (Def.Clause.{ loc; guard = IT.bool_ true here; packing_ft = cl } :: acc)
@@ -1469,7 +1421,7 @@ let translate_option_cn_clauses env = function
   | None -> return None
 
 
-let translate_cn_predicate env (def : cn_predicate) =
+let translate_cn_predicate env (def : _ Cn.cn_predicate) =
   Pp.debug 2 (lazy (Pp.item "translating predicate defn" (Sym.pp def.cn_pred_name)));
   let iargs, output_bt =
     match lookup_predicate def.cn_pred_name env with
@@ -1502,7 +1454,7 @@ let translate_cn_predicate env (def : cn_predicate) =
 let rec make_lrt_generic env st =
   let open LocalState in
   function
-  | CN_cletResource (loc, name, resource) :: ensures ->
+  | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
       handle st (ET.translate_cn_let_resource env (loc, name, resource))
     in
@@ -1569,7 +1521,7 @@ let make_rt loc (env : env) st (s, ct) (accesses, ensures) =
 
 
 (* copied and adjusted from translate_cn_function *)
-let translate_cn_lemma env (def : cn_lemma) =
+let translate_cn_lemma env (def : _ Cn.cn_lemma) =
   Pp.debug 2 (lazy (Pp.item "translating lemma defn" (Sym.pp def.cn_lemma_name)));
   let rec aux env = function
     | (sym, bTy) :: args' ->
@@ -1593,13 +1545,14 @@ module UsingLoads = struct
     match IT.get_bt it with
     | BT.Loc (Some ct) -> return ct
     | BT.Loc None ->
-      let msg = !^"Cannot tell pointee C-type of" ^^^ squotes (IT.pp it) ^^ dot in
+      let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IT.pp it) ^^ Pp.dot in
       fail { loc; msg = Generic msg [@alert "-deprecated"] }
     | has ->
       let expected = "pointer" in
       let reason = "dereferencing" in
       let msg =
-        WellTyped (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
+        TypeErrors.WellTyped
+          (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
       in
       fail { loc; msg }
 
@@ -1651,7 +1604,7 @@ let translate_cn_statement
       (allocations : Sym.t -> CF.Ctype.ctype)
       old_states
       env
-      (CN_statement (loc, stmt_))
+      (Cn.CN_statement (loc, stmt_))
   =
   let open Cnprog in
   UsingLoads.handle
@@ -1695,7 +1648,7 @@ let translate_cn_statement
        let expr = IT.Surface.proj expr in
        let to_instantiate =
          match to_instantiate with
-         | I_Everything -> I_Everything
+         | Cn.I_Everything -> Cn.I_Everything
          | I_Function f -> I_Function f
          | I_Good ct -> I_Good (Sctypes.of_ctype_unsafe loc ct)
        in
@@ -1708,7 +1661,7 @@ let translate_cn_statement
        let expr = IT.Surface.proj expr in
        let to_extract =
          match to_extract with
-         | E_Everything -> E_Everything
+         | Cn.E_Everything -> Cn.E_Everything
          | E_Pred (CN_owned oty) ->
            E_Pred (CN_owned (Option.map (Sctypes.of_ctype_unsafe loc) oty))
          | E_Pred (CN_block oty) ->
