@@ -652,6 +652,25 @@ let compile_spec
       List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
     | _ -> failwith ("unreachable @ " ^ __LOC__)
   in
+  let globals =
+    let global_syms =
+      let args = args |> List.map fst in
+      at
+      |> AT.get_lat
+      |> LAT.free_vars (fun _ -> Sym.Set.empty)
+      |> Sym.Set.to_seq
+      |> List.of_seq
+      |> List.filter (fun x ->
+        not
+          (List.mem (fun x y -> String.equal (Sym.pp_string x) (Sym.pp_string y)) x args))
+    in
+    List.map
+      (fun sym ->
+         match List.assoc Sym.equal sym prog5.globs with
+         | GlobalDecl sct -> (sym, sct)
+         | GlobalDef (sct, _) -> (sym, sct))
+      global_syms
+  in
   let new_args =
     List.map (fun (x, _) -> (x, Sym.fresh_named (Sym.pp_string x ^ "_cn"))) args
   in
@@ -689,7 +708,7 @@ let compile_spec
   let bs3, ss3 =
     let bs, ss =
       (args |> List.map_snd snd |> List.map (fun x -> (false, x)))
-      @ (extract_global_variables prog5.globs |> List.map (fun x -> (true, x)))
+      @ (globals |> List.map (fun (x, ct) -> (true, (x, Sctypes.to_ctype ct))))
       |> List.map (fun (global, (arg, ct)) ->
         let arg_str_sym = Sym.fresh_named (Sym.pp_string arg ^ "_str") in
         let arg_cast_str_sym = Sym.fresh_named (Sym.pp_string arg ^ "_cast_str") in
