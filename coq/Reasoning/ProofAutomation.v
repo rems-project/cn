@@ -1,4 +1,4 @@
-From Ltac2 Require Import Ltac1 Ltac2 Notations Std Constr Env Ident.
+From Ltac2 Require Import Ltac1 Ltac2 Notations Std Constr Env Ident FSet FMap.
  
 From Cn Require Import Prooflog Request Resource Context.
 Require Import Ltac2Utils ResourceInference.
@@ -111,7 +111,18 @@ Qed.
      exists $field_res_set;
      Std.split false NoBindings;
      Control.focus 1 1 (fun () =>
+      (* WIP:
       let s_decls := constr:($iglobal.(Global.struct_decls)) in
+      let empty_map:((int, constr) FMap.t) := FMap.empty (Tags.int_tag) in
+      let lc := destruct_list (constr:(Sym.t * Memory.struct_decls)) s_decls in
+      let lcc_pairs := List.map destruct_pair lc in 
+      *)
+      (* Now lc_pars have elements of constr:(Sym.t) * constr:Memory.struct_decls) type,
+         For stroring in FMap, we need to convert first element to int.
+       *)
+      (*
+      let global_map :=List.fold_left (fun m (k, v) => FMap.add k v m) empty_map lic_pairs in
+      *)
       Control.shelve ()
      );  (* unfold predicte *)
      Control.focus 1 1 (Control.shelve);  (* TODO: prove pointer address and arguments equality (via provable) *)
@@ -119,6 +130,7 @@ Qed.
      Control.shelve ()
  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_struct_resource_inference_step: match failed")))
 end.
+
 
 Ltac2 prove_unfold_step () :=
   match! goal with
@@ -174,7 +186,7 @@ Ltac2 prove_unfold_step () :=
             rCofix := true;
             rZeta := true;
             rDelta := true;
-            rConst := [const_to_const_reference  constr:(@set_from_list)]
+            rConst := [const_to_const_reference constr:(@set_from_list); const_to_const_reference constr:(@Sym.map_from_list)]
           } clause ;
           prove_struct_resource_inference_step ()
        )

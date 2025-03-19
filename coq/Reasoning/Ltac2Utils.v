@@ -105,29 +105,29 @@ end.
  @return A tuple (a, b) containing the first and second component of the pair.
  @raise An exception if parameter is not a fully applied pair
  *)
- Ltac2 destruct_pair (t : constr) :=
- match Constr.Unsafe.kind t with
- | Constr.Unsafe.App f args =>
-     let pair_constr := constr:(@pair) in
-     let pair_constr_name := get_constructor_name pair_constr in
-     let f_name := get_constructor_name f in
-     if Constr.equal f_name pair_constr_name then
-       if Int.equal (Array.length args) 4 then
-         let a := Array.get args 2 in
-         let b := Array.get args 3 in
-         (a, b)
-       else
-         Control.throw (Tactic_failure (Some (Message.of_string "Term is not a fully applied pair")))
-     else
-       Control.throw (Tactic_failure (Some (Message.of_string "Term is not a pair")))
- | _ =>
-     Control.throw (Tactic_failure (Some (Message.of_string "Term is not an application (and thus not a pair)")))
- end.
+Ltac2 destruct_pair (t : constr) :=
+  match Constr.Unsafe.kind t with
+  | Constr.Unsafe.App f args =>
+    let pair_constr := constr:(@pair) in
+    let pair_constr_name := get_constructor_name pair_constr in
+    let f_name := get_constructor_name f in
+    if Constr.equal f_name pair_constr_name then
+      if Int.equal (Array.length args) 4 then
+        let a := Array.get args 2 in
+        let b := Array.get args 3 in
+        (a, b)
+      else
+        Control.throw (Tactic_failure (Some (Message.of_string "Term is not a fully applied pair")))
+    else
+      Control.throw (Tactic_failure (Some (Message.of_string "Term is not a pair")))
+  | _ =>
+    Control.throw (Tactic_failure (Some (Message.of_string "Term is not an application (and thus not a pair)")))
+  end.
  
  (* Ident to constant reference *)
- Ltac2 const_to_const_reference  (x:constr) :=  
-  match Constr.Unsafe.kind x with
-  | Constr.Unsafe.Constant c _ => Std.ConstRef c
-  | _ => Control.throw (Tactic_failure (Some (Message.of_string "Term is not a constant")))
-  end.
+Ltac2 const_to_const_reference  (x:constr) :=  
+ match Constr.Unsafe.kind x with
+ | Constr.Unsafe.Constant c _ => Std.ConstRef c
+ | _ => Control.throw (Tactic_failure (Some (Message.of_string "Term is not a constant")))
+ end.
 
