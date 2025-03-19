@@ -137,7 +137,7 @@ val predicate
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate ->
   (Sym.t * Definition.Predicate.t) Or_Error.t
 
-val make_rt
+val return_type
   :  Locations.t ->
   env ->
   C_vars.env ->

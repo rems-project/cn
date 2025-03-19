@@ -47,7 +47,7 @@ module Compile = struct
 
   let add_datatypes x1 x2 = lift (add_datatypes x1 x2)
 
-  let make_rt x1 x2 x3 x4 x5 = lift (make_rt x1 x2 x3 x4 x5)
+  let return_type x1 x2 x3 x4 x5 = lift (return_type x1 x2 x3 x4 x5)
 
   let ownership x1 x2 = lift (ownership x1 x2)
 
@@ -1495,7 +1495,7 @@ let normalise_fun_map_decl
                   body
               in
               let@ returned =
-                Compile.make_rt
+                Compile.return_type
                   loc
                   env
                   (Compile.C_vars.add arg_states st)
@@ -1548,7 +1548,7 @@ let normalise_fun_map_decl
             make_fun_with_spec_args
               (fun env st ->
                  let@ returned =
-                   Compile.make_rt loc env st (ret_s, ret_ct) (accesses, ensures)
+                   Compile.return_type loc env st (ret_s, ret_ct) (accesses, ensures)
                  in
                  return returned)
               loc

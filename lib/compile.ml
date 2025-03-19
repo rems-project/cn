@@ -204,10 +204,11 @@ let rec base_type env (bTy : _ Cn.cn_base_type) =
 
 let add_predicates env defs =
   let aux env (def : _ Cn.cn_predicate) =
-    let translate_args xs =
-      List.map (fun (id_or_sym, bTy) -> (id_or_sym, SBT.proj (base_type env bTy))) xs
+    let iargs =
+      List.map
+        (fun (id_or_sym, bTy) -> (id_or_sym, SBT.proj (base_type env bTy)))
+        def.cn_pred_iargs
     in
-    let iargs = translate_args def.cn_pred_iargs in
     let output = SBT.proj (base_type env (snd def.cn_pred_output)) in
     add_predicate def.cn_pred_name { pred_iargs = iargs; pred_output = output } env
   in
@@ -451,7 +452,7 @@ module C_vars = struct
 
   (* TODO: type checks and disambiguation at this stage seems ill-advised,
      ideally would be integrated into wellTyped.ml *)
-  let mk_translate_binop loc bop (e1, e2) =
+  let mk_binop loc bop (e1, e2) =
     let open IndexTerms in
     match (bop, get_bt e1) with
     | Cn.CN_add, (BT.Integer | Real | Bits _) ->
@@ -541,7 +542,7 @@ module C_vars = struct
 
 
   (* just copy-pasting and adapting Kayvan's older version of this code *)
-  let translate_member_access loc env (t : IT.Surface.t) member =
+  let member_access loc env (t : IT.Surface.t) member =
     match IT.get_bt t with
     | BT.Record members ->
       let@ member_bt =
@@ -723,11 +724,11 @@ module C_vars = struct
         return (List.fold_right cons es nil)
       | CNExpr_memberof (e, xs) ->
         let@ e = self e in
-        translate_member_access loc env e xs
+        member_access loc env e xs
       | CNExpr_arrow (e, xs) ->
         (* Desugar a->b as ( *a).b *)
         let@ e = self (CNExpr (loc, CNExpr_deref e)) in
-        translate_member_access loc env e xs
+        member_access loc env e xs
       | CNExpr_record members ->
         let@ members = ListM.mapsndM self members in
         let bts = List.map_snd IT.get_bt members in
@@ -803,7 +804,7 @@ module C_vars = struct
       | CNExpr_binop (bop, e1_, e2_) ->
         let@ e1 = self e1_ in
         let@ e2 = self e2_ in
-        mk_translate_binop loc bop (e1, e2)
+        mk_binop loc bop (e1, e2)
       | CNExpr_sizeof ct ->
         let scty = Sctypes.of_ctype_unsafe loc ct in
         return (IT (SizeOf scty, Memory.size_sbt, loc))
@@ -980,7 +981,7 @@ module C_vars = struct
         let@ cur_e = self e in
         let@ old_e = self (CNExpr (loc, CNExpr_at_env (e, start))) in
         (* want to bypass the warning for (Loc, Loc) equality *)
-        (* mk_translate_binop loc CN_equal (cur_e, old_e) *)
+        (* mk_binop loc CN_equal (cur_e, old_e) *)
         return (IT (Binop (EQ, cur_e, old_e), BT.Bool, loc))
       | CNExpr_at_env (e, scope) ->
         let@ () =
@@ -1205,6 +1206,80 @@ module C_vars = struct
       return
         (LC.Forall
            ((sym, SBT.proj bt), IT.impl_ (IT.Surface.proj e1, IT.Surface.proj e2) loc))
+
+
+  let cn_statement env (loc, (stmt_ : _ Cn.cn_statement_)) =
+    let open Cnprog in
+    match stmt_ with
+    | CN_pack_unpack (pack_unpack, pred, args) ->
+      let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
+      let@ name, pointer, iargs, _oargs_ty = cn_res_info ~pred_loc:loc env pred args in
+      let stmt =
+        Pack_unpack
+          ( pack_unpack,
+            { name;
+              pointer = IT.Surface.proj pointer;
+              iargs = List.map IT.Surface.proj iargs
+            } )
+      in
+      return (Statement (loc, stmt))
+    | CN_to_from_bytes (to_from, pred, args) ->
+      let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
+      let@ name, pointer, iargs, _oargs_ty = cn_res_info ~pred_loc:loc env pred args in
+      return
+        (Statement
+           ( loc,
+             To_from_bytes
+               ( to_from,
+                 { name;
+                   pointer = IT.Surface.proj pointer;
+                   iargs = List.map IT.Surface.proj iargs
+                 } ) ))
+    | CN_have assrt ->
+      let@ assrt = cn_assrt env (loc, assrt) in
+      return (Statement (loc, Have assrt))
+    | CN_instantiate (to_instantiate, expr) ->
+      let@ expr = cn_expr Sym.Set.empty env expr in
+      let expr = IT.Surface.proj expr in
+      let to_instantiate =
+        match to_instantiate with
+        | Cn.I_Everything -> Cn.I_Everything
+        | I_Function f -> I_Function f
+        | I_Good ct -> I_Good (Sctypes.of_ctype_unsafe loc ct)
+      in
+      return (Statement (loc, Instantiate (to_instantiate, expr)))
+    | CN_split_case e ->
+      let@ e = cn_assrt env (loc, e) in
+      return (Statement (loc, Split_case e))
+    | CN_extract (attrs, to_extract, expr) ->
+      let@ expr = cn_expr Sym.Set.empty env expr in
+      let expr = IT.Surface.proj expr in
+      let to_extract =
+        match to_extract with
+        | Cn.E_Everything -> Cn.E_Everything
+        | E_Pred (CN_owned oty) ->
+          E_Pred (CN_owned (Option.map (Sctypes.of_ctype_unsafe loc) oty))
+        | E_Pred (CN_block oty) ->
+          E_Pred (CN_block (Option.map (Sctypes.of_ctype_unsafe loc) oty))
+        | E_Pred (CN_named pn) -> E_Pred (CN_named pn)
+      in
+      return (Statement (loc, Extract (attrs, to_extract, expr)))
+    | CN_unfold (s, args) ->
+      let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
+      let args = List.map IT.Surface.proj args in
+      return (Statement (loc, Unfold (s, args)))
+    | CN_assert_stmt e ->
+      let@ e = cn_assrt env (loc, e) in
+      return (Statement (loc, Assert e))
+    | CN_apply (s, args) ->
+      let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
+      let args = List.map IT.Surface.proj args in
+      return (Statement (loc, Apply (s, args)))
+    | CN_inline nms -> return (Statement (loc, Inline nms))
+    | CN_print expr ->
+      let@ expr = cn_expr Sym.Set.empty env expr in
+      let expr = IT.Surface.proj expr in
+      return (Statement (loc, Print expr))
 end
 
 module Handle = struct
@@ -1432,13 +1507,6 @@ let cn_clauses env clauses =
   return (List.rev xs)
 
 
-let translate_option_cn_clauses env = function
-  | Some clauses ->
-    let@ clauses = cn_clauses env clauses in
-    return (Some clauses)
-  | None -> return None
-
-
 let predicate env (def : _ Cn.cn_predicate) =
   Pp.debug 2 (lazy (Pp.item "translating predicate defn" (Sym.pp def.cn_pred_name)));
   let iargs, output_bt =
@@ -1449,7 +1517,13 @@ let predicate env (def : _ Cn.cn_predicate) =
   let env' =
     List.fold_left (fun acc (sym, bTy) -> add_logical sym (SBT.inj bTy) acc) env iargs
   in
-  let@ clauses = translate_option_cn_clauses env' def.cn_pred_clauses in
+  let@ clauses =
+    match def.cn_pred_clauses with
+    | Some clauses ->
+      let@ clauses = cn_clauses env' clauses in
+      return (Some clauses)
+    | None -> return None
+  in
   match iargs with
   | (iarg0, BaseTypes.Loc ()) :: iargs' ->
     return
@@ -1469,14 +1543,14 @@ let predicate env (def : _ Cn.cn_predicate) =
   | [] -> fail { loc = def.cn_pred_loc; msg = First_iarg_missing }
 
 
-let rec make_lrt_generic env st = function
+let rec logical_ret_generic env st = function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
       Handle.with_state st (C_vars.cn_let_resource env (loc, name, resource))
     in
     let env = add_logical name oa_bt env in
     let st = C_vars.add_pointee_values pointee_values st in
-    let@ lrt, env, st = make_lrt_generic env st ensures in
+    let@ lrt, env, st = logical_ret_generic env st ensures in
     return
       ( LRT.mResource
           ((name, (pt_ret, SBT.proj oa_bt)), (loc, None))
@@ -1486,49 +1560,47 @@ let rec make_lrt_generic env st = function
   | CN_cletExpr (loc, name, expr) :: ensures ->
     let@ expr = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env expr) in
     let@ lrt, env, st =
-      make_lrt_generic (add_logical name (IT.get_bt expr) env) st ensures
+      logical_ret_generic (add_logical name (IT.get_bt expr) env) st ensures
     in
     return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
     let@ lc = Handle.with_state st (C_vars.cn_assrt env (loc, constr)) in
-    let@ lrt, env, st = make_lrt_generic env st ensures in
+    let@ lrt, env, st = logical_ret_generic env st ensures in
     return (LRT.mConstraint (lc, (loc, None)) lrt, env, st)
   | [] -> return (LRT.I, env, st)
 
 
-let make_lrt env st conds =
-  let@ lrt, _env, _st = make_lrt_generic env st conds in
+let logical_ret env st conds =
+  let@ lrt, _env, _st = logical_ret_generic env st conds in
   return lrt
 
 
-let make_lat env st (requires, ensures) =
-  let@ args_lrt, env, st = make_lrt_generic env st requires in
+let logical_arg env st (requires, ensures) =
+  let@ args_lrt, env, st = logical_ret_generic env st requires in
   let st = C_vars.(push_scope st start) in
-  let@ ret_lrt, _env, _st = make_lrt_generic env st ensures in
+  let@ ret_lrt, _env, _st = logical_ret_generic env st ensures in
   return (LAT.of_lrt args_lrt (LAT.I ret_lrt))
 
 
-let rec make_lrt_with_accesses env st (accesses, ensures) =
+let rec logical_ret_accesses env st (accesses, ensures) =
   match accesses with
   | (loc, (addr_s, ct)) :: accesses ->
     let@ name, ((pt_ret, oa_bt), lcs), value = ownership (loc, (addr_s, ct)) env in
     let env = add_logical name oa_bt env in
     let st = C_vars.add [ (addr_s, Points_to value) ] st in
-    let@ lrt = make_lrt_with_accesses env st (accesses, ensures) in
+    let@ lrt = logical_ret_accesses env st (accesses, ensures) in
     return
       (LRT.mResource
          ((name, (pt_ret, SBT.proj oa_bt)), (loc, None))
          (LRT.mConstraints lcs lrt))
-  | [] -> make_lrt env st ensures
+  | [] -> logical_ret env st ensures
 
 
-let make_rt loc (env : env) st (s, ct) (accesses, ensures) =
+let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let ct = Sctypes.of_ctype_unsafe loc ct in
   let sbt = Memory.sbt_of_sct ct in
   let bt = SBT.proj sbt in
-  let@ lrt =
-    make_lrt_with_accesses (add_computational s sbt env) st (accesses, ensures)
-  in
+  let@ lrt = logical_ret_accesses (add_computational s sbt env) st (accesses, ensures) in
   (* let info = (loc, Some "return value good") in *)
   (* let here = Locations.other __LOC__ in *)
   (* let lrt = LRT.mConstraint (LC.T (IT.good_ (ct, IT.sym_ (s, bt, here)) here), info)
@@ -1547,7 +1619,9 @@ let lemma env (def : _ Cn.cn_lemma) =
       let info = (def.cn_lemma_loc, None) in
       return (ArgumentTypes.Computational ((sym, SBT.proj bTy), info, at))
     | [] ->
-      let@ lat = make_lat env C_vars.init (def.cn_lemma_requires, def.cn_lemma_ensures) in
+      let@ lat =
+        logical_arg env C_vars.init (def.cn_lemma_requires, def.cn_lemma_ensures)
+      in
       return (ArgumentTypes.L lat)
   in
   let@ at = aux env def.cn_lemma_args in
@@ -1561,81 +1635,4 @@ let statement
       (Cn.CN_statement (loc, stmt_))
   =
   let open Cnprog in
-  Handle.with_loads
-    allocations
-    old_states
-    (let open Effectful.Make (C_vars.Monad) in
-     match stmt_ with
-     | CN_pack_unpack (pack_unpack, pred, args) ->
-       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
-       let@ name, pointer, iargs, _oargs_ty =
-         C_vars.cn_res_info ~pred_loc:loc env pred args
-       in
-       let stmt =
-         Pack_unpack
-           ( pack_unpack,
-             { name;
-               pointer = IT.Surface.proj pointer;
-               iargs = List.map IT.Surface.proj iargs
-             } )
-       in
-       return (Statement (loc, stmt))
-     | CN_to_from_bytes (to_from, pred, args) ->
-       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
-       let@ name, pointer, iargs, _oargs_ty =
-         C_vars.cn_res_info ~pred_loc:loc env pred args
-       in
-       return
-         (Statement
-            ( loc,
-              To_from_bytes
-                ( to_from,
-                  { name;
-                    pointer = IT.Surface.proj pointer;
-                    iargs = List.map IT.Surface.proj iargs
-                  } ) ))
-     | CN_have assrt ->
-       let@ assrt = C_vars.cn_assrt env (loc, assrt) in
-       return (Statement (loc, Have assrt))
-     | CN_instantiate (to_instantiate, expr) ->
-       let@ expr = C_vars.cn_expr Sym.Set.empty env expr in
-       let expr = IT.Surface.proj expr in
-       let to_instantiate =
-         match to_instantiate with
-         | Cn.I_Everything -> Cn.I_Everything
-         | I_Function f -> I_Function f
-         | I_Good ct -> I_Good (Sctypes.of_ctype_unsafe loc ct)
-       in
-       return (Statement (loc, Instantiate (to_instantiate, expr)))
-     | CN_split_case e ->
-       let@ e = C_vars.cn_assrt env (loc, e) in
-       return (Statement (loc, Split_case e))
-     | CN_extract (attrs, to_extract, expr) ->
-       let@ expr = C_vars.cn_expr Sym.Set.empty env expr in
-       let expr = IT.Surface.proj expr in
-       let to_extract =
-         match to_extract with
-         | Cn.E_Everything -> Cn.E_Everything
-         | E_Pred (CN_owned oty) ->
-           E_Pred (CN_owned (Option.map (Sctypes.of_ctype_unsafe loc) oty))
-         | E_Pred (CN_block oty) ->
-           E_Pred (CN_block (Option.map (Sctypes.of_ctype_unsafe loc) oty))
-         | E_Pred (CN_named pn) -> E_Pred (CN_named pn)
-       in
-       return (Statement (loc, Extract (attrs, to_extract, expr)))
-     | CN_unfold (s, args) ->
-       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
-       let args = List.map IT.Surface.proj args in
-       return (Statement (loc, Unfold (s, args)))
-     | CN_assert_stmt e ->
-       let@ e = C_vars.cn_assrt env (loc, e) in
-       return (Statement (loc, Assert e))
-     | CN_apply (s, args) ->
-       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
-       let args = List.map IT.Surface.proj args in
-       return (Statement (loc, Apply (s, args)))
-     | CN_inline nms -> return (Statement (loc, Inline nms))
-     | CN_print expr ->
-       let@ expr = C_vars.cn_expr Sym.Set.empty env expr in
-       let expr = IT.Surface.proj expr in
-       return (Statement (loc, Print expr)))
+  Handle.with_loads allocations old_states (C_vars.cn_statement env (loc, stmt_))
