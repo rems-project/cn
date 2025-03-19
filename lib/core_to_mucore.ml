@@ -981,7 +981,9 @@ let rec make_largs_with_accesses f_i env st (accesses, conditions) =
     in
     let env = Compile.add_logical name oa_bt env in
     let st =
-      Compile.LocalState.add_c_variable_state addr_s (CVS_Pointer_pointing_to value) st
+      Compile.LocalState.add_c_variable_states
+        [ (addr_s, CVS_Pointer_pointing_to value) ]
+        st
     in
     let@ lat = make_largs_with_accesses f_i env st (accesses, conditions) in
     return
@@ -1019,7 +1021,7 @@ let make_label_args f_i loc env st args (accesses, inv) =
       in
       let env = Compile.add_logical oa_name oa_bt env in
       let st =
-        Compile.LocalState.add_c_variable_state s (CVS_Pointer_pointing_to value) st
+        Compile.LocalState.add_c_variable_states [ (s, CVS_Pointer_pointing_to value) ] st
       in
       let owned_res = ((oa_name, (pt_ret, SBT.proj oa_bt)), (loc, None)) in
       let resources' =
@@ -1059,7 +1061,7 @@ let make_function_args f_i loc env args (accesses, requires) =
       let@ () = check_against_core_bt loc cbt bt in
       let env = Compile.add_computational pure_arg sbt env in
       let arg_state = Compile.LocalState.CVS_Value (pure_arg, sbt) in
-      let st = Compile.LocalState.add_c_variable_state mut_arg arg_state st in
+      let st = Compile.LocalState.add_c_variable_states [ (mut_arg, arg_state) ] st in
       (* let good_lc = *)
       (*   let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in *)
       (*   let here = Locations.other __LOC__ in *)
@@ -1246,7 +1248,8 @@ let normalise_label
               n_expr
                 ~inherit_loc
                 loc
-                ((env, st.old_states), (markers_env, cn_desugaring_state))
+                ( (env, Compile.LocalState.get_old_states st),
+                  (markers_env, cn_desugaring_state) )
                 (global_types, visible_objects_env)
                 label_body)
            loc
@@ -1506,7 +1509,8 @@ let normalise_fun_map_decl
                 n_expr
                   ~inherit_loc
                   loc
-                  ((env, st.old_states), (markers_env, d_st.inner.cn_state))
+                  ( (env, Compile.LocalState.get_old_states st),
+                    (markers_env, d_st.inner.cn_state) )
                   (global_types, visible_objects_env)
                   body
               in
@@ -1636,7 +1640,7 @@ let normalise_globs ~inherit_loc env _sym g =
       n_expr
         ~inherit_loc
         loc
-        ( (env, Compile.LocalState.init_st.old_states),
+        ( (env, Compile.LocalState.(get_old_states init_st)),
           ( Pmap.empty Int.compare,
             CF.Cn_desugaring.(initial_cn_desugaring_state empty_init) ) )
         ([], Pmap.empty Int.compare)

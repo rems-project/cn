@@ -8,27 +8,7 @@ type predicate_sig =
     pred_output : BaseTypes.t
   }
 
-type env =
-  { computationals : (BaseTypes.Surface.t * Sym.t option) Sym.Map.t;
-    logicals : BaseTypes.Surface.t Sym.Map.t;
-    predicates : predicate_sig Sym.Map.t;
-    functions : function_sig Sym.Map.t;
-    datatypes : BaseTypes.dt_info Sym.Map.t;
-    datatype_constrs : BaseTypes.constr_info Sym.Map.t;
-    tagDefs : (Sym.t, Mucore.tag_definition) Pmap.map;
-    fetch_enum_expr :
-      Locations.t ->
-      Sym.t ->
-      ( unit Cerb_frontend.AilSyntax.expression,
-          Locations.t * Cerb_frontend.Errors.cause )
-        Cerb_frontend.Exception.exceptM;
-    fetch_typedef :
-      Locations.t ->
-      Sym.t ->
-      ( Cerb_frontend.Ctype.ctype,
-          Locations.t * Cerb_frontend.Errors.cause )
-        Cerb_frontend.Exception.exceptM
-  }
+type env
 
 val init_env
   :  (Sym.t, Mucore.tag_definition) Pmap.map ->
@@ -151,26 +131,20 @@ module LocalState : sig
     | CVS_Value of Sym.t * BaseTypes.Surface.t
     | CVS_Pointer_pointing_to of IndexTerms.Surface.t
 
-  type state =
-    { c_variable_state : c_variable_state Sym.Map.t;
-      pointee_values : IndexTerms.Surface.t Map.Make(IndexTerms.Surface).t
-    }
+  type state
 
-  type states =
-    { state : state;
-      old_states : state Map.Make(String).t
-    }
+  type states
 
   val init_st : states
 
-  val make_state_old : states -> string -> states
+  val get_old_states : states -> state Map.Make(String).t
 
-  val add_c_variable_state : Sym.t -> c_variable_state -> states -> states
+  val make_state_old : states -> string -> states
 
   val add_c_variable_states : (Sym.t * c_variable_state) list -> states -> states
 
   val add_pointee_values
-    :  (Map.Make(IndexTerms.Surface).key * IndexTerms.Surface.t) list ->
+    :  (IndexTerms.Surface.t * IndexTerms.Surface.t) list ->
     states ->
     states
 

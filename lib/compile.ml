@@ -1295,6 +1295,8 @@ module LocalState = struct
 
   let init_st = { state = empty_state; old_states = StringMap.empty }
 
+  let get_old_states { state = _; old_states } = old_states
+
   let make_state_old { state; old_states } old_name =
     { state = empty_state; old_states = StringMap.add old_name state old_states }
 
