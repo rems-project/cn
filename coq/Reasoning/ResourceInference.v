@@ -139,12 +139,13 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 
 Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
 | resource_unfold_full_step:
-    forall input output r unfolded_r,
+    forall input input' output r unfolded_r,
     (* Find a resource that can be unfolded *)
     ResSet.In r input ->
     resource_unfold globals r unfolded_r ->
     (* Continue unfolding with the resource replaced by its unfolded components *)
-    resource_unfold_full globals (ResSet.union (ResSet.remove r input) unfolded_r) output ->
+    ResSet.Equal input' (ResSet.union (ResSet.remove r input) unfolded_r) ->
+    resource_unfold_full globals input' output ->
     (* This is the result of unfolding the input *)
     resource_unfold_full globals input output
 | resource_unfold_full_fixpoint:
