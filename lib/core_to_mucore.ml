@@ -38,7 +38,7 @@ let fetch_typedef d_st _loc sym =
     except_bind (CAE.resolve_typedef sym d_st) (fun ((_, _, cty), _) -> except_return cty))
 
 
-module Compile = struct
+module Translate = struct
   include Compile
 
   let lift x =
@@ -871,7 +871,9 @@ let rec n_expr
                     | None ->
                       failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
                   in
-                  let@ stmt = Compile.statement get_c_obj old_states env desugared_stmt in
+                  let@ stmt =
+                    Translate.statement get_c_obj old_states env desugared_stmt
+                  in
                   (* debug 6 (lazy (!^"CN statement after translation")); debug 6 (lazy
                     (pp_doc_tree (Cnprog.dtree stmt))); *)
                   return (desugared_stmt, stmt))
@@ -937,21 +939,21 @@ let make_largs f_i =
   let rec aux env st = function
     | Cn.CN_cletResource (loc, name, resource) :: conditions ->
       let@ (pt_ret, oa_bt), lcs, pointee_values =
-        Compile.let_resource env st (loc, name, resource)
+        Translate.let_resource env st (loc, name, resource)
       in
-      let env = Compile.add_logical name oa_bt env in
-      let st = Compile.C_vars.add_pointee_values pointee_values st in
+      let env = Translate.add_logical name oa_bt env in
+      let st = Translate.C_vars.add_pointee_values pointee_values st in
       let@ lat = aux env st conditions in
       return
         (Mu.mResource
            ((name, (pt_ret, SBT.proj oa_bt)), (loc, None))
            (Mu.mConstraints lcs lat))
     | Cn.CN_cletExpr (loc, name, expr') :: conditions ->
-      let@ expr = Compile.expr Sym.Set.empty env st expr' in
-      let@ lat = aux (Compile.add_logical name (IT.get_bt expr) env) st conditions in
+      let@ expr = Translate.expr Sym.Set.empty env st expr' in
+      let@ lat = aux (Translate.add_logical name (IT.get_bt expr) env) st conditions in
       return (Mu.mDefine ((name, IT.Surface.proj expr), (loc, None)) lat)
     | Cn.CN_cconstr (loc, constr) :: conditions ->
-      let@ lc = Compile.assrt env st (loc, constr) in
+      let@ lc = Translate.assrt env st (loc, constr) in
       let@ lat = aux env st conditions in
       return (Mu.mConstraint (lc, (loc, None)) lat)
     | [] ->
@@ -965,10 +967,10 @@ let rec make_largs_with_accesses f_i env st (accesses, conditions) =
   match accesses with
   | (loc, (addr_s, ct)) :: accesses ->
     let@ name, ((pt_ret, oa_bt), lcs), value =
-      Compile.ownership (loc, (addr_s, ct)) env
+      Translate.ownership (loc, (addr_s, ct)) env
     in
-    let env = Compile.add_logical name oa_bt env in
-    let st = Compile.C_vars.add [ (addr_s, Points_to value) ] st in
+    let env = Translate.add_logical name oa_bt env in
+    let st = Translate.C_vars.add [ (addr_s, Points_to value) ] st in
     let@ lat = make_largs_with_accesses f_i env st (accesses, conditions) in
     return
       (Mu.mResource
@@ -994,23 +996,23 @@ let make_label_args f_i loc env st args (accesses, inv) =
       (* now interesting only: s, ct, rest *)
       let sct = convert_ct loc ct in
       let p_sbt = BT.Loc (Some sct) in
-      let env = Compile.add_computational s p_sbt env in
+      let env = Translate.add_computational s p_sbt env in
       (* let good_pointer_lc = *)
       (*   let info = (loc, Some (Sym.pp_string s ^ " good")) in *)
       (*   let here = Locations.other __LOC__ in *)
-      (*   (LCompile.T (IT.good_ (Pointer sct, IT.sym_ (s, BT.Loc, here)) here), info) *)
+      (*   (LTranslate.T (IT.good_ (Pointer sct, IT.sym_ (s, BT.Loc, here)) here), info) *)
       (* in *)
       let@ oa_name, ((pt_ret, oa_bt), lcs), value =
-        Compile.ownership (loc, (s, ct)) env
+        Translate.ownership (loc, (s, ct)) env
       in
-      let env = Compile.add_logical oa_name oa_bt env in
-      let st = Compile.C_vars.add [ (s, Points_to value) ] st in
+      let env = Translate.add_logical oa_name oa_bt env in
+      let st = Translate.C_vars.add [ (s, Points_to value) ] st in
       let owned_res = ((oa_name, (pt_ret, SBT.proj oa_bt)), (loc, None)) in
       let resources' =
         if !Sym.executable_spec_enabled then
           [ owned_res ]
         else (
-          let alloc_res = Compile.allocation_token loc s in
+          let alloc_res = Translate.allocation_token loc s in
           [ alloc_res; owned_res ])
       in
       let@ at =
@@ -1041,13 +1043,13 @@ let make_function_args f_i loc env args (accesses, requires) =
       let sbt = Memory.sbt_of_sct ct in
       let bt = SBT.proj sbt in
       let@ () = check_against_core_bt loc cbt bt in
-      let env = Compile.add_computational pure_arg sbt env in
-      let arg_state = Compile.C_vars.Value (pure_arg, sbt) in
-      let st = Compile.C_vars.add [ (mut_arg, arg_state) ] st in
+      let env = Translate.add_computational pure_arg sbt env in
+      let arg_state = Translate.C_vars.Value (pure_arg, sbt) in
+      let st = Translate.C_vars.add [ (mut_arg, arg_state) ] st in
       (* let good_lc = *)
       (*   let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in *)
       (*   let here = Locations.other __LOC__ in *)
-      (*   (LCompile.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
+      (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
       let@ at =
         aux (arg_states @ [ (mut_arg, arg_state) ]) (* good_lc :: *) good_lcs env st rest
@@ -1057,7 +1059,7 @@ let make_function_args f_i loc env args (accesses, requires) =
       let@ lat = make_largs_with_accesses (f_i arg_states) env st (accesses, requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] [] env Compile.C_vars.init args
+  aux [] [] env Translate.C_vars.init args
 
 
 let make_fun_with_spec_args f_i loc env args (accesses, requires) =
@@ -1066,7 +1068,7 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       let ct = convert_ct loc ct_ct in
       let sbt = Memory.sbt_of_sct ct in
       let bt = SBT.proj sbt in
-      let sbt2 = Compile.base_type env cn_bt in
+      let sbt2 = Translate.base_type env cn_bt in
       let@ () =
         if BT.equal bt (SBT.proj sbt2) then
           return ()
@@ -1083,11 +1085,11 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
                 [@alert "-deprecated"]
             }
       in
-      let env = Compile.add_computational pure_arg sbt env in
+      let env = Translate.add_computational pure_arg sbt env in
       (* let good_lc = *)
       (*   let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in *)
       (*   let here = Locations.other __LOC__ in *)
-      (*   (LCompile.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
+      (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
       let@ at = aux (* good_lc :: *) good_lcs env st rest in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
@@ -1095,7 +1097,7 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       let@ lat = make_largs_with_accesses f_i env st (accesses, requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] env Compile.C_vars.init args
+  aux [] env Translate.C_vars.init args
 
 
 let desugar_access d_st global_types (loc, id) =
@@ -1193,7 +1195,7 @@ let normalise_label
       (markers_env, precondition_cn_desugaring_state)
       (global_types, visible_objects_env)
       (accesses, (loop_attributes : CF.Annot.loop_attributes))
-      (env : Compile.env)
+      (env : Translate.env)
       st
       _label_name
       label
@@ -1230,7 +1232,7 @@ let normalise_label
               n_expr
                 ~inherit_loc
                 loc
-                ( (env, Compile.C_vars.get_old_scopes st),
+                ( (env, Translate.C_vars.get_old_scopes st),
                   (markers_env, cn_desugaring_state) )
                 (global_types, visible_objects_env)
                 label_body)
@@ -1382,7 +1384,7 @@ module Spec = struct
   let add_spec_arg_renames loc args arg_cts cn_spec_args env =
     List.fold_right
       (fun ((fun_sym, _), (ct, (spec_sym, _))) env ->
-         Compile.add_renamed_computational
+         Translate.add_renamed_computational
            spec_sym
            fun_sym
            (Memory.sbt_of_sct (convert_ct loc ct))
@@ -1484,21 +1486,21 @@ let normalise_fun_map_decl
        let@ args_and_body =
          make_function_args
            (fun arg_states env st ->
-              let st = Compile.C_vars.push_scope st Compile.C_vars.start in
+              let st = Translate.C_vars.push_scope st Translate.C_vars.start in
               let@ body =
                 n_expr
                   ~inherit_loc
                   loc
-                  ( (env, Compile.C_vars.get_old_scopes st),
+                  ( (env, Translate.C_vars.get_old_scopes st),
                     (markers_env, d_st.inner.cn_state) )
                   (global_types, visible_objects_env)
                   body
               in
               let@ returned =
-                Compile.return_type
+                Translate.return_type
                   loc
                   env
-                  (Compile.C_vars.add arg_states st)
+                  (Translate.C_vars.add arg_states st)
                   (ret_s, ret_ct)
                   (accesses, ensures)
               in
@@ -1548,7 +1550,7 @@ let normalise_fun_map_decl
             make_fun_with_spec_args
               (fun env st ->
                  let@ returned =
-                   Compile.return_type loc env st (ret_s, ret_ct) (accesses, ensures)
+                   Translate.return_type loc env st (ret_s, ret_ct) (accesses, ensures)
                  in
                  return returned)
               loc
@@ -1620,7 +1622,7 @@ let normalise_globs ~inherit_loc env _sym g =
       n_expr
         ~inherit_loc
         loc
-        ( (env, Compile.C_vars.(get_old_scopes init)),
+        ( (env, Translate.C_vars.(get_old_scopes init)),
           ( Pmap.empty Int.compare,
             CF.Cn_desugaring.(initial_cn_desugaring_state empty_init) ) )
         ([], Pmap.empty Int.compare)
@@ -1698,12 +1700,12 @@ let normalise_tag_definitions tagDefs =
 
 let register_glob env (sym, glob) =
   match glob with
-  | Mu.GlobalDef (ct, _e) -> Compile.add_computational sym (BT.Loc (Some ct)) env
-  | GlobalDecl ct -> Compile.add_computational sym (BT.Loc (Some ct)) env
+  | Mu.GlobalDef (ct, _e) -> Translate.add_computational sym (BT.Loc (Some ct)) env
+  | GlobalDecl ct -> Translate.add_computational sym (BT.Loc (Some ct)) env
 
 
 let translate_datatype env Cn.{ cn_dt_loc; cn_dt_name; cn_dt_cases; cn_dt_magic_loc = _ } =
-  let translate_arg (id, bt) = (id, SBT.proj (Compile.base_type env bt)) in
+  let translate_arg (id, bt) = (id, SBT.proj (Translate.base_type env bt)) in
   let cases = List.map (fun (c, args) -> (c, List.map translate_arg args)) cn_dt_cases in
   (cn_dt_name, Mu.{ loc = cn_dt_loc; cases })
 
@@ -1714,14 +1716,14 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let@ tagDefs = normalise_tag_definitions file.mi_tagDefs in
   let fin_marker, markers_env = fin_markers_env in
   let fin_d_st = CAE.{ inner = Pmap.find fin_marker markers_env; markers_env } in
-  let env = Compile.init tagDefs (fetch_enum fin_d_st) (fetch_typedef fin_d_st) in
-  let@ env = Compile.add_datatypes env ail_prog.cn_datatypes in
-  (* Builtin functions that can be expressed as index terms are added in Compile.init *)
-  let@ env = Compile.add_user_defined_functions env ail_prog.cn_functions in
-  let@ lfuns = ListM.mapM (Compile.function_ env) ail_prog.cn_functions in
-  let env = Compile.add_predicates env ail_prog.cn_predicates in
-  let@ preds = ListM.mapM (Compile.predicate env) ail_prog.cn_predicates in
-  let@ lemmata = ListM.mapM (Compile.lemma env) ail_prog.cn_lemmata in
+  let env = Translate.init tagDefs (fetch_enum fin_d_st) (fetch_typedef fin_d_st) in
+  let@ env = Translate.add_datatypes env ail_prog.cn_datatypes in
+  (* Builtin functions that can be expressed as index terms are added in Translate.init *)
+  let@ env = Translate.add_user_defined_functions env ail_prog.cn_functions in
+  let@ lfuns = ListM.mapM (Translate.function_ env) ail_prog.cn_functions in
+  let env = Translate.add_predicates env ail_prog.cn_predicates in
+  let@ preds = ListM.mapM (Translate.predicate env) ail_prog.cn_predicates in
+  let@ lemmata = ListM.mapM (Translate.lemma env) ail_prog.cn_lemmata in
   let global_types =
     List.map
       (fun (s, global) ->
