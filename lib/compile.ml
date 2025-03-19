@@ -327,23 +327,6 @@ let add_datatype_info env (dt : _ Cn.cn_datatype) =
 
 let add_datatypes env dts = ListM.fold_leftM add_datatype_info env dts
 
-type evaluation_scope = string
-
-type 'a with_state =
-  | Done of 'a
-  | Error of err
-  | ScopeExists of Locations.t * evaluation_scope * (bool -> 'a with_state)
-  | Value_of_c_variable of
-      Locations.t
-      * Sym.t
-      * evaluation_scope option
-      * (IT.Surface.t option -> 'a with_state)
-  | Deref of
-      Locations.t
-      * IT.Surface.t
-      * evaluation_scope option
-      * (IT.Surface.t option -> 'a with_state)
-
 module C_vars = struct
   (* the expression that encodes the current value of this c variable *)
   type state =
@@ -395,9 +378,17 @@ module C_vars = struct
     List.fold_left (fun st (p, v) -> add_pointee_value p v st) st pvs
 
 
-  let handle { current; old } : 'a with_state -> 'a Or_Error.t =
+  type 'a t =
+    | Done of 'a
+    | Error of err
+    | ScopeExists of Locations.t * name * (bool -> 'a t)
+    | Value_of_c_variable of
+        Locations.t * Sym.t * name option * (IT.Surface.t option -> 'a t)
+    | Deref of Locations.t * IT.Surface.t * name option * (IT.Surface.t option -> 'a t)
+
+  let handle { current; old } : 'a t -> 'a Or_Error.t =
     let state_for_scope = function None -> current | Some s -> StringMap.find s old in
-    let rec aux : _ with_state -> _ Or_Error.t = function
+    let rec aux : _ t -> _ Or_Error.t = function
       | Done x -> return x
       | Error { loc; msg } -> fail { loc; msg }
       | Value_of_c_variable (loc, sym, scope, k) ->
@@ -419,9 +410,9 @@ end
 
 module WithState = struct
   module E = struct
-    type 'a t = 'a with_state
+    type 'a t = 'a C_vars.t
 
-    let return x = Done x
+    let return x = C_vars.Done x
 
     let rec bind (m : 'a t) (f : 'a -> 'b t) : 'b t =
       match m with
@@ -433,17 +424,17 @@ module WithState = struct
       | Deref (loc, it, scope, k) -> Deref (loc, it, scope, fun it_o -> bind (k it_o) f)
 
 
-    let fail e = Error e
+    let fail e = C_vars.Error e
 
-    let scope_exists loc scope = ScopeExists (loc, scope, fun b -> Done b)
+    let scope_exists loc scope = C_vars.ScopeExists (loc, scope, fun b -> Done b)
 
-    let deref loc it scope = Deref (loc, it, scope, fun o_v_it -> Done o_v_it)
+    let deref loc it scope = C_vars.Deref (loc, it, scope, fun o_v_it -> Done o_v_it)
 
     let value_of_c_variable loc sym scope =
-      Value_of_c_variable (loc, sym, scope, fun o_v_it -> Done o_v_it)
+      C_vars.Value_of_c_variable (loc, sym, scope, fun o_v_it -> Done o_v_it)
 
 
-    let liftResult = function Result.Ok a -> Done a | Result.Error e -> Error e
+    let liftResult = function Result.Ok a -> C_vars.Done a | Result.Error e -> Error e
   end
 
   open Effectful.Make (E)
@@ -1242,7 +1233,7 @@ module ET = WithState
 
 module Pure = struct
   let handle what = function
-    | Done x -> return x
+    | C_vars.Done x -> return x
     | Error { loc; msg } -> fail { loc; msg }
     | Value_of_c_variable (loc, _, _, _) ->
       let msg = !^what ^^^ !^"are not allowed to refer to (the state of) C variables." in
@@ -1521,9 +1512,9 @@ module UsingLoads = struct
       fail { loc; msg }
 
 
-  let handle allocations old_states : Cnprog.t with_state -> Cnprog.t Or_Error.t =
+  let handle allocations old_states : Cnprog.t C_vars.t -> Cnprog.t Or_Error.t =
     let rec aux = function
-      | Done x -> return x
+      | C_vars.Done x -> return x
       | Error { loc; msg } -> fail { loc; msg }
       | Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with

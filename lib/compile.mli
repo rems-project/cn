@@ -62,8 +62,6 @@ val add_user_defined_functions
 
 val add_datatypes : env -> Sym.t Cerb_frontend.Cn.cn_datatype list -> env Or_Error.t
 
-type evaluation_scope
-
 module C_vars : sig
   type state =
     | Value of Sym.t * BaseTypes.Surface.t
