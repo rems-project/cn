@@ -408,19 +408,23 @@ module C_vars = struct
     aux
 
 
-  let return x = Done x
+  module Monad = struct
+    type nonrec 'a t = 'a t
 
-  let rec bind (m : 'a t) (f : 'a -> 'b t) : 'b t =
-    match m with
-    | Done x -> f x
-    | Error err -> Error err
-    | ScopeExists (loc, scope, k) -> ScopeExists (loc, scope, fun b -> bind (k b) f)
-    | Value_of_c_variable (loc, s, scope, k) ->
-      Value_of_c_variable (loc, s, scope, fun it_o -> bind (k it_o) f)
-    | Deref (loc, it, scope, k) -> Deref (loc, it, scope, fun it_o -> bind (k it_o) f)
+    let return x = Done x
+
+    let rec bind (m : 'a t) (f : 'a -> 'b t) : 'b t =
+      match m with
+      | Done x -> f x
+      | Error err -> Error err
+      | ScopeExists (loc, scope, k) -> ScopeExists (loc, scope, fun b -> bind (k b) f)
+      | Value_of_c_variable (loc, s, scope, k) ->
+        Value_of_c_variable (loc, s, scope, fun it_o -> bind (k it_o) f)
+      | Deref (loc, it, scope, k) -> Deref (loc, it, scope, fun it_o -> bind (k it_o) f)
 
 
-  let fail e = Error e
+    let fail e = Error e
+  end
 
   let scope_exists loc scope = ScopeExists (loc, scope, fun b -> Done b)
 
@@ -431,14 +435,10 @@ module C_vars = struct
 
 
   let liftResult = function Result.Ok a -> Done a | Result.Error e -> Error e
-end
 
-module WithState = struct
-  module E = C_vars
+  open Effectful.Make (Monad)
 
-  open Effectful.Make (E)
-
-  open E
+  open Monad
 
   let pp_in_scope = function
     | Some scope -> !^"in evaluation scope" ^^^ Pp.squotes !^scope
@@ -696,6 +696,7 @@ module WithState = struct
               locally_bound
               env
               (Cn.CNExpr (loc, expr_))
+      : IndexTerms.Surface.t Monad.t
       =
       let self = trans evaluation_scope locally_bound env in
       match expr_ with
@@ -999,7 +1000,7 @@ module WithState = struct
         return (IT (Const (Default (SBT.proj bt)), bt, loc))
       | CNExpr_unchanged e ->
         let@ cur_e = self e in
-        let@ old_e = self (CNExpr (loc, CNExpr_at_env (e, C_vars.start))) in
+        let@ old_e = self (CNExpr (loc, CNExpr_at_env (e, start))) in
         (* want to bypass the warning for (Loc, Loc) equality *)
         (* mk_translate_binop loc CN_equal (cur_e, old_e) *)
         return (IT (Binop (EQ, cur_e, old_e), BT.Bool, loc))
@@ -1228,8 +1229,6 @@ module WithState = struct
            ((sym, SBT.proj bt), IT.impl_ (IT.Surface.proj e1, IT.Surface.proj e2) loc))
 end
 
-module ET = WithState
-
 module Pure = struct
   let handle what = function
     | C_vars.Done x -> return x
@@ -1247,7 +1246,7 @@ end
 
 let cn_func_body env body =
   let handle = Pure.handle "Function definitions" in
-  let@ body = handle (ET.cn_expr Sym.Set.empty env body) in
+  let@ body = handle (C_vars.cn_expr Sym.Set.empty env body) in
   return (IT.Surface.proj body)
 
 
@@ -1306,7 +1305,7 @@ let ownership (loc, (addr_s, ct)) env =
     Cn.CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ])
   in
   let@ (pt_ret, oa_bt), lcs, _ =
-    Pure.handle "'Accesses'" (ET.cn_let_resource env (loc, name, resource))
+    Pure.handle "'Accesses'" (C_vars.cn_let_resource env (loc, name, resource))
   in
   let value = IT.sym_ (name, oa_bt, loc) in
   return (name, ((pt_ret, oa_bt), lcs), value)
@@ -1328,7 +1327,7 @@ let cn_clause env clause =
     match clause with
     | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
-        C_vars.handle st (ET.cn_let_resource env (res_loc, sym, the_res))
+        C_vars.handle st (C_vars.cn_let_resource env (res_loc, sym, the_res))
       in
       let acc' z =
         acc
@@ -1340,15 +1339,15 @@ let cn_clause env clause =
       let st' = C_vars.add_pointee_values pointee_vals st in
       cn_clause_aux env' st' acc' cl
     | CN_letExpr (loc, sym, e_, cl) ->
-      let@ e = C_vars.handle st (ET.cn_expr Sym.Set.empty env e_) in
+      let@ e = C_vars.handle st (C_vars.cn_expr Sym.Set.empty env e_) in
       let acc' z = acc (LAT.mDefine (sym, IT.Surface.proj e, (loc, None)) z) in
       cn_clause_aux (add_logical sym (IT.get_bt e) env) st acc' cl
     | CN_assert (loc, assrt, cl) ->
-      let@ lc = C_vars.handle st (ET.cn_assrt env (loc, assrt)) in
+      let@ lc = C_vars.handle st (C_vars.cn_assrt env (loc, assrt)) in
       let acc' z = acc (LAT.mConstraint (lc, (loc, None)) z) in
       cn_clause_aux env st acc' cl
     | CN_return (_loc, e_) ->
-      let@ e = C_vars.handle st (ET.cn_expr Sym.Set.empty env e_) in
+      let@ e = C_vars.handle st (C_vars.cn_expr Sym.Set.empty env e_) in
       let e = IT.Surface.proj e in
       acc (LAT.I e)
   in
@@ -1362,7 +1361,7 @@ let cn_clauses env clauses =
       let here = Locations.other __LOC__ in
       return (Def.Clause.{ loc; guard = IT.bool_ true here; packing_ft = cl } :: acc)
     | CN_if (loc, e_, cl_, clauses') ->
-      let@ e = Pure.handle "Predicate guards" (ET.cn_expr Sym.Set.empty env e_) in
+      let@ e = Pure.handle "Predicate guards" (C_vars.cn_expr Sym.Set.empty env e_) in
       let@ cl = cn_clause env cl_ in
       self ({ loc; guard = IT.Surface.proj e; packing_ft = cl } :: acc) clauses'
   in
@@ -1410,7 +1409,7 @@ let predicate env (def : _ Cn.cn_predicate) =
 let rec make_lrt_generic env st = function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
-      C_vars.handle st (ET.cn_let_resource env (loc, name, resource))
+      C_vars.handle st (C_vars.cn_let_resource env (loc, name, resource))
     in
     let env = add_logical name oa_bt env in
     let st = C_vars.add_pointee_values pointee_values st in
@@ -1422,13 +1421,13 @@ let rec make_lrt_generic env st = function
         env,
         st )
   | CN_cletExpr (loc, name, expr) :: ensures ->
-    let@ expr = C_vars.handle st (ET.cn_expr Sym.Set.empty env expr) in
+    let@ expr = C_vars.handle st (C_vars.cn_expr Sym.Set.empty env expr) in
     let@ lrt, env, st =
       make_lrt_generic (add_logical name (IT.get_bt expr) env) st ensures
     in
     return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
-    let@ lc = C_vars.handle st (ET.cn_assrt env (loc, constr)) in
+    let@ lc = C_vars.handle st (C_vars.cn_assrt env (loc, constr)) in
     let@ lrt, env, st = make_lrt_generic env st ensures in
     return (LRT.mConstraint (lc, (loc, None)) lrt, env, st)
   | [] -> return (LRT.I, env, st)
@@ -1549,11 +1548,11 @@ module UsingLoads = struct
     aux
 end
 
-let expr syms env st expr = C_vars.handle st (WithState.cn_expr syms env expr)
+let expr syms env st expr = C_vars.handle st (C_vars.cn_expr syms env expr)
 
-let let_resource env st res = C_vars.handle st (WithState.cn_let_resource env res)
+let let_resource env st res = C_vars.handle st (C_vars.cn_let_resource env res)
 
-let assrt env st assrt = C_vars.handle st (WithState.cn_assrt env assrt)
+let assrt env st assrt = C_vars.handle st (C_vars.cn_assrt env assrt)
 
 let statement
       (allocations : Sym.t -> CF.Ctype.ctype)
@@ -1565,12 +1564,12 @@ let statement
   UsingLoads.handle
     allocations
     old_states
-    (let open Effectful.Make (WithState.E) in
+    (let open Effectful.Make (C_vars.Monad) in
      match stmt_ with
      | CN_pack_unpack (pack_unpack, pred, args) ->
-       let@ args = ListM.mapM (ET.cn_expr Sym.Set.empty env) args in
+       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
        let@ name, pointer, iargs, _oargs_ty =
-         ET.cn_res_info ~pred_loc:loc env pred args
+         C_vars.cn_res_info ~pred_loc:loc env pred args
        in
        let stmt =
          Pack_unpack
@@ -1582,9 +1581,9 @@ let statement
        in
        return (Statement (loc, stmt))
      | CN_to_from_bytes (to_from, pred, args) ->
-       let@ args = ListM.mapM (ET.cn_expr Sym.Set.empty env) args in
+       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
        let@ name, pointer, iargs, _oargs_ty =
-         ET.cn_res_info ~pred_loc:loc env pred args
+         C_vars.cn_res_info ~pred_loc:loc env pred args
        in
        return
          (Statement
@@ -1596,10 +1595,10 @@ let statement
                     iargs = List.map IT.Surface.proj iargs
                   } ) ))
      | CN_have assrt ->
-       let@ assrt = ET.cn_assrt env (loc, assrt) in
+       let@ assrt = C_vars.cn_assrt env (loc, assrt) in
        return (Statement (loc, Have assrt))
      | CN_instantiate (to_instantiate, expr) ->
-       let@ expr = ET.cn_expr Sym.Set.empty env expr in
+       let@ expr = C_vars.cn_expr Sym.Set.empty env expr in
        let expr = IT.Surface.proj expr in
        let to_instantiate =
          match to_instantiate with
@@ -1609,10 +1608,10 @@ let statement
        in
        return (Statement (loc, Instantiate (to_instantiate, expr)))
      | CN_split_case e ->
-       let@ e = ET.cn_assrt env (loc, e) in
+       let@ e = C_vars.cn_assrt env (loc, e) in
        return (Statement (loc, Split_case e))
      | CN_extract (attrs, to_extract, expr) ->
-       let@ expr = ET.cn_expr Sym.Set.empty env expr in
+       let@ expr = C_vars.cn_expr Sym.Set.empty env expr in
        let expr = IT.Surface.proj expr in
        let to_extract =
          match to_extract with
@@ -1625,18 +1624,18 @@ let statement
        in
        return (Statement (loc, Extract (attrs, to_extract, expr)))
      | CN_unfold (s, args) ->
-       let@ args = ListM.mapM (ET.cn_expr Sym.Set.empty env) args in
+       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
        let args = List.map IT.Surface.proj args in
        return (Statement (loc, Unfold (s, args)))
      | CN_assert_stmt e ->
-       let@ e = ET.cn_assrt env (loc, e) in
+       let@ e = C_vars.cn_assrt env (loc, e) in
        return (Statement (loc, Assert e))
      | CN_apply (s, args) ->
-       let@ args = ListM.mapM (ET.cn_expr Sym.Set.empty env) args in
+       let@ args = ListM.mapM (C_vars.cn_expr Sym.Set.empty env) args in
        let args = List.map IT.Surface.proj args in
        return (Statement (loc, Apply (s, args)))
      | CN_inline nms -> return (Statement (loc, Inline nms))
      | CN_print expr ->
-       let@ expr = ET.cn_expr Sym.Set.empty env expr in
+       let@ expr = C_vars.cn_expr Sym.Set.empty env expr in
        let expr = IT.Surface.proj expr in
        return (Statement (loc, Print expr)))
