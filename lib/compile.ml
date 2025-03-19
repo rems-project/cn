@@ -406,36 +406,35 @@ module C_vars = struct
       | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old))
     in
     aux
+
+
+  let return x = Done x
+
+  let rec bind (m : 'a t) (f : 'a -> 'b t) : 'b t =
+    match m with
+    | Done x -> f x
+    | Error err -> Error err
+    | ScopeExists (loc, scope, k) -> ScopeExists (loc, scope, fun b -> bind (k b) f)
+    | Value_of_c_variable (loc, s, scope, k) ->
+      Value_of_c_variable (loc, s, scope, fun it_o -> bind (k it_o) f)
+    | Deref (loc, it, scope, k) -> Deref (loc, it, scope, fun it_o -> bind (k it_o) f)
+
+
+  let fail e = Error e
+
+  let scope_exists loc scope = ScopeExists (loc, scope, fun b -> Done b)
+
+  let deref loc it scope = Deref (loc, it, scope, fun o_v_it -> Done o_v_it)
+
+  let value_of_c_variable loc sym scope =
+    Value_of_c_variable (loc, sym, scope, fun o_v_it -> Done o_v_it)
+
+
+  let liftResult = function Result.Ok a -> Done a | Result.Error e -> Error e
 end
 
 module WithState = struct
-  module E = struct
-    type 'a t = 'a C_vars.t
-
-    let return x = C_vars.Done x
-
-    let rec bind (m : 'a t) (f : 'a -> 'b t) : 'b t =
-      match m with
-      | Done x -> f x
-      | Error err -> Error err
-      | ScopeExists (loc, scope, k) -> ScopeExists (loc, scope, fun b -> bind (k b) f)
-      | Value_of_c_variable (loc, s, scope, k) ->
-        Value_of_c_variable (loc, s, scope, fun it_o -> bind (k it_o) f)
-      | Deref (loc, it, scope, k) -> Deref (loc, it, scope, fun it_o -> bind (k it_o) f)
-
-
-    let fail e = C_vars.Error e
-
-    let scope_exists loc scope = C_vars.ScopeExists (loc, scope, fun b -> Done b)
-
-    let deref loc it scope = C_vars.Deref (loc, it, scope, fun o_v_it -> Done o_v_it)
-
-    let value_of_c_variable loc sym scope =
-      C_vars.Value_of_c_variable (loc, sym, scope, fun o_v_it -> Done o_v_it)
-
-
-    let liftResult = function Result.Ok a -> C_vars.Done a | Result.Error e -> Error e
-  end
+  module E = C_vars
 
   open Effectful.Make (E)
 
@@ -1324,13 +1323,12 @@ let allocation_token loc addr_s =
 
 
 let cn_clause env clause =
-  let open C_vars in
   let rec cn_clause_aux env st acc clause =
     let module LAT = LogicalArgumentTypes in
     match clause with
     | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
-        handle st (ET.cn_let_resource env (res_loc, sym, the_res))
+        C_vars.handle st (ET.cn_let_resource env (res_loc, sym, the_res))
       in
       let acc' z =
         acc
@@ -1339,22 +1337,22 @@ let cn_clause env clause =
              (LAT.mConstraints lcs z))
       in
       let env' = add_logical sym oa_bt env in
-      let st' = add_pointee_values pointee_vals st in
+      let st' = C_vars.add_pointee_values pointee_vals st in
       cn_clause_aux env' st' acc' cl
     | CN_letExpr (loc, sym, e_, cl) ->
-      let@ e = handle st (ET.cn_expr Sym.Set.empty env e_) in
+      let@ e = C_vars.handle st (ET.cn_expr Sym.Set.empty env e_) in
       let acc' z = acc (LAT.mDefine (sym, IT.Surface.proj e, (loc, None)) z) in
       cn_clause_aux (add_logical sym (IT.get_bt e) env) st acc' cl
     | CN_assert (loc, assrt, cl) ->
-      let@ lc = handle st (ET.cn_assrt env (loc, assrt)) in
+      let@ lc = C_vars.handle st (ET.cn_assrt env (loc, assrt)) in
       let acc' z = acc (LAT.mConstraint (lc, (loc, None)) z) in
       cn_clause_aux env st acc' cl
     | CN_return (_loc, e_) ->
-      let@ e = handle st (ET.cn_expr Sym.Set.empty env e_) in
+      let@ e = C_vars.handle st (ET.cn_expr Sym.Set.empty env e_) in
       let e = IT.Surface.proj e in
       acc (LAT.I e)
   in
-  cn_clause_aux env init (fun z -> return z) clause
+  cn_clause_aux env C_vars.init (fun z -> return z) clause
 
 
 let cn_clauses env clauses =
@@ -1409,15 +1407,13 @@ let predicate env (def : _ Cn.cn_predicate) =
   | [] -> fail { loc = def.cn_pred_loc; msg = First_iarg_missing }
 
 
-let rec make_lrt_generic env st =
-  let open C_vars in
-  function
+let rec make_lrt_generic env st = function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
-      handle st (ET.cn_let_resource env (loc, name, resource))
+      C_vars.handle st (ET.cn_let_resource env (loc, name, resource))
     in
     let env = add_logical name oa_bt env in
-    let st = add_pointee_values pointee_values st in
+    let st = C_vars.add_pointee_values pointee_values st in
     let@ lrt, env, st = make_lrt_generic env st ensures in
     return
       ( LRT.mResource
@@ -1426,13 +1422,13 @@ let rec make_lrt_generic env st =
         env,
         st )
   | CN_cletExpr (loc, name, expr) :: ensures ->
-    let@ expr = handle st (ET.cn_expr Sym.Set.empty env expr) in
+    let@ expr = C_vars.handle st (ET.cn_expr Sym.Set.empty env expr) in
     let@ lrt, env, st =
       make_lrt_generic (add_logical name (IT.get_bt expr) env) st ensures
     in
     return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
-    let@ lc = handle st (ET.cn_assrt env (loc, constr)) in
+    let@ lc = C_vars.handle st (ET.cn_assrt env (loc, constr)) in
     let@ lrt, env, st = make_lrt_generic env st ensures in
     return (LRT.mConstraint (lc, (loc, None)) lrt, env, st)
   | [] -> return (LRT.I, env, st)
