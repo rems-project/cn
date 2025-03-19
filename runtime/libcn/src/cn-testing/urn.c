@@ -1,7 +1,8 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
-#include <cn-testing/uniform.h>
+#include <cn-testing/rand.h>
 #include <cn-testing/urn.h>
 
 int is_leaf(struct cn_gen_int_tree* tree) {
@@ -25,8 +26,7 @@ uint64_t sample_tree_det(struct cn_gen_int_tree* tree, uint64_t index) {
 }
 
 uint64_t sample_urn(struct cn_gen_int_urn* urn) {
-  uint64_t index =
-      convert_from_cn_bits_u64(cn_gen_uniform_cn_bits_u64(urn->tree->weight));
+  uint64_t index = cn_gen_uniform_u64(urn->tree->weight);
   return sample_tree_det(urn->tree, index);
 }
 
@@ -189,8 +189,7 @@ uint64_t remove_urn_det(struct cn_gen_int_urn* urn, uint64_t index) {
 }
 
 uint64_t urn_remove(struct cn_gen_int_urn* urn) {
-  uint64_t index =
-      convert_from_cn_bits_u64(cn_gen_uniform_cn_bits_u64(urn->tree->weight));
+  uint64_t index = cn_gen_uniform_u64(urn->tree->weight);
   return remove_urn_det(urn, index);
 }
 

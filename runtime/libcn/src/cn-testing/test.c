@@ -148,7 +148,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       }
 
     case CN_GEN_SIZE_UNIFORM:;
-      size_t sz = cn_gen_uniform_cn_bits_u16(max_size + 1)->val + 1;
+      size_t sz = cn_gen_uniform_u16(max_size + 1) + 1;
       return sz;
 
     case CN_GEN_SIZE_QUICKCHECK:;

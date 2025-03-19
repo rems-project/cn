@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <cn-testing/rand.h>
+#include <cn-testing/size.h>
 
 // Mersenne twister from https://doi.org/10.1145/369534.369540
 
@@ -138,12 +139,10 @@ uint64_t cn_gen_uniform_u64(uint64_t s) {
 
 #define SIGNED_GEN(sm)                                                                   \
   int##sm##_t cn_gen_uniform_i##sm(uint##sm##_t s) {                                     \
-    uint##sm##_t x = cn_gen_uniform_u##sm(s);                                            \
     if (s == 0) {                                                                        \
-      return x;                                                                          \
+      return cn_gen_uniform_u##sm(0);                                                    \
     }                                                                                    \
-    uint##sm##_t offset = (s + 1) >> 2;                                                  \
-    return x - offset;                                                                   \
+    return cn_gen_uniform_u##sm(2 * s - 1) - (s - 1);                                    \
   }
 
 SIGNED_GEN(8);
@@ -151,13 +150,58 @@ SIGNED_GEN(16);
 SIGNED_GEN(32);
 SIGNED_GEN(64);
 
+#define SIZED_GEN(sm)                                                                    \
+  uint##sm##_t cn_gen_uniform_u##sm##_sized(uint##sm##_t s) {                            \
+    size_t sz = cn_gen_get_size();                                                       \
+    if (s > sz) {                                                                        \
+      s = sz;                                                                            \
+    }                                                                                    \
+    return cn_gen_uniform_u##sm(s);                                                      \
+  }                                                                                      \
+  int##sm##_t cn_gen_uniform_i##sm##_sized(int##sm##_t s) {                              \
+    size_t sz = cn_gen_get_size();                                                       \
+    if (s > sz) {                                                                        \
+      s = sz;                                                                            \
+    }                                                                                    \
+    return cn_gen_uniform_i##sm(s);                                                      \
+  }
+
+SIZED_GEN(8);
+SIZED_GEN(16);
+SIZED_GEN(32);
+SIZED_GEN(64);
+
 #define RANGE_GEN(sm)                                                                    \
   uint##sm##_t cn_gen_range_u##sm(uint##sm##_t min, uint##sm##_t max) {                  \
-    uint##sm##_t x = cn_gen_uniform_u##sm(max - min);                                    \
-    return x + min;                                                                      \
+    size_t sz = cn_gen_get_size();                                                       \
+    size_t width = max - min;                                                            \
+    if (width > sz) {                                                                    \
+      width = sz;                                                                        \
+    }                                                                                    \
+    return cn_gen_uniform_u##sm##_sized(width) + min;                                    \
   }                                                                                      \
   int##sm##_t cn_gen_range_i##sm(int##sm##_t min, int##sm##_t max) {                     \
-    return cn_gen_range_u##sm(min, max);                                                 \
+    int32_t sz = (int32_t)cn_gen_get_size();                                             \
+                                                                                         \
+    /* Shifts the range bounds to be centered around zero, */                            \
+    /* but ensure `max - min` <= `2 * sz` */                                             \
+    if (min <= -sz + 1) {                                                                \
+      if (max >= sz) {                                                                   \
+        min = -sz + 1;                                                                   \
+        max = sz;                                                                        \
+      } else {                                                                           \
+        int32_t excess = (sz - max);                                                     \
+        if (min < -sz + 1 - excess) {                                                    \
+          min = -sz + 1 - excess;                                                        \
+        }                                                                                \
+      }                                                                                  \
+    } else {                                                                             \
+      int32_t excess = min - (-sz + 1);                                                  \
+      if (max > sz + excess) {                                                           \
+        max = sz + excess;                                                               \
+      }                                                                                  \
+    }                                                                                    \
+    return cn_gen_uniform_u##sm##_sized(max - min) + min;                                \
   }
 
 RANGE_GEN(8);
@@ -167,16 +211,22 @@ RANGE_GEN(64);
 
 #define INEQ_GEN(sm)                                                                     \
   uint##sm##_t cn_gen_lt_u##sm(uint##sm##_t max) {                                       \
-    return cn_gen_range_u##sm(0, max);                                                   \
+    return cn_gen_uniform_u##sm##_sized(max);                                            \
   }                                                                                      \
   int##sm##_t cn_gen_lt_i##sm(int##sm##_t max) {                                         \
     return cn_gen_range_i##sm(INT##sm##_MIN, max);                                       \
   }                                                                                      \
   uint##sm##_t cn_gen_ge_u##sm(uint##sm##_t min) {                                       \
-    return cn_gen_range_u##sm(min, 0);                                                   \
+    if (min == 0) {                                                                      \
+      return cn_gen_uniform_u##sm##_sized(cn_gen_get_size());                            \
+    }                                                                                    \
+    return cn_gen_range_u##sm(min - 1, UINT##sm##_MAX) + 1;                              \
   }                                                                                      \
   int##sm##_t cn_gen_ge_i##sm(int##sm##_t min) {                                         \
-    return cn_gen_range_i##sm(min, INT##sm##_MIN);                                       \
+    if (min == INT##sm##_MIN) {                                                          \
+      return cn_gen_uniform_i##sm##_sized(cn_gen_get_size());                            \
+    }                                                                                    \
+    return cn_gen_range_i##sm(min - 1, INT##sm##_MAX) + 1;                               \
   }
 
 INEQ_GEN(8);

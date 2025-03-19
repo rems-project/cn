@@ -43,7 +43,18 @@ let lt_check (it_max : IT.t) gt loc =
 
 
 let range_check (it_min : IT.t) (it_max : IT.t) gt loc =
-  GT.assert_ (T (IT.gt_ (it_max, it_min) loc), lt_check it_max gt loc) loc
+  let it_min, cmp, it_max =
+    match (it_min, it_max) with
+    | IT (Binop (Sub, it_min', IT (Const (Bits (_, n)), _, _)), _, _), _
+    | IT (Binop (Sub, it_min', IT (Const (Z n), _, _)), _, _), _
+      when Z.equal n Z.one ->
+      (it_min', IT.le_, it_max)
+    | _, IT (Binop (Add, it_max', IT (Const (Bits (_, n)), _, _)), _, _)
+    | _, IT (Binop (Add, it_max', IT (Const (Z n), _, _)), _, _) ->
+      (it_min, IT.le_, it_max')
+    | _ -> (it_min, IT.lt_, it_max)
+  in
+  GT.assert_ (T (cmp (it_min, it_max) loc), lt_check it_max gt loc) loc
 
 
 let mult_range_check (it_mult : IT.t) (it_min : IT.t) (it_max : IT.t) gt loc =

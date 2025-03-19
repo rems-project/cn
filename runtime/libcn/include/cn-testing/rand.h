@@ -1,6 +1,7 @@
 #ifndef CN_GEN_RAND_H
 #define CN_GEN_RAND_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus

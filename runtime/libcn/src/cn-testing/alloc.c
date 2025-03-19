@@ -101,7 +101,7 @@ cn_pointer* cn_gen_alloc(cn_bits_u64* sz) {
     bytes = cn_gen_backtrack_alloc_get();
     cn_gen_backtrack_reset();
   } else if (bytes == 0) {
-    uint64_t rnd = convert_from_cn_bits_u8(cn_gen_uniform_cn_bits_u8(null_in_every));
+    uint64_t rnd = cn_gen_uniform_u8(null_in_every);
     if (rnd == 0) {
       bytes = 0;
     } else {
@@ -132,7 +132,7 @@ cn_pointer* cn_gen_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
 
   if (bytes == 0) {
     void* p;
-    uint64_t rnd = convert_from_cn_bits_u8(cn_gen_uniform_cn_bits_u8(null_in_every));
+    uint64_t rnd = cn_gen_uniform_u8(null_in_every);
     if (rnd == 0) {
       p = NULL;
     } else {
