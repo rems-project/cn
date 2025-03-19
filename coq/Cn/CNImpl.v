@@ -12,7 +12,8 @@ From Cerberus Require Import Implementation IntegerType Ctype Symbol.
 
 Local Open Scope nat_scope.
 
-Module CNImpl : Implementation.
+(* This is an instance of the Implementation module matching the implementation used in OCaml *)
+Module CNImpl <: Implementation.
 
   Definition is_signed_ity_impl ity :=
     match ity with
@@ -116,10 +117,10 @@ Module CNImpl : Implementation.
   Definition typeof_enum_impl (_:Symbol.sym)
              := Signed Int_.
 
-  Program Definition get :=
+  Definition get :=
     {|
       name            := "clang11_aarch64-unknown-freebsd13";
-      details         := "clang version 11.0.0\nTarget: Morello";
+      details         := "clang version 11.0.0";
       sizeof_pointer  := 8;
       alignof_pointer := 8;
       is_signed_ity   := is_signed_ity_impl;
