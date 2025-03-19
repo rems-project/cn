@@ -6,6 +6,15 @@
 
 #include <cn-testing/backtrack.h>
 
+#define CN_GEN_CHECK_TIMEOUT()                                                           \
+  if (cn_gen_get_input_timeout() != 0 &&                                                 \
+      cn_gen_get_milliseconds() - cn_gen_get_input_timer() >                             \
+          cn_gen_get_input_timeout()) {                                                  \
+    cn_gen_backtrack_reset();                                                            \
+    cn_gen_backtrack_assert_failure();                                                   \
+    goto cn_label_bennet_backtrack;                                                      \
+  }
+
 #define CN_GEN_INIT()                                                                    \
   size_t cn_gen_rec_size = cn_gen_get_size();                                            \
   CN_GEN_INIT_SIZED();
@@ -16,12 +25,7 @@
     cn_gen_decrement_depth();                                                            \
     return NULL;                                                                         \
   }                                                                                      \
-  if (cn_gen_get_input_timeout() != 0 &&                                                 \
-      cn_gen_get_milliseconds() - cn_gen_get_input_timer() >                             \
-          cn_gen_get_input_timeout()) {                                                  \
-    cn_gen_backtrack_assert_failure();                                                   \
-    goto cn_label_bennet_backtrack;                                                      \
-  }                                                                                      \
+  CN_GEN_CHECK_TIMEOUT();                                                                \
   cn_gen_increment_depth();                                                              \
   if (cn_gen_rec_size <= 0 || cn_gen_depth() == cn_gen_max_depth()) {                    \
     cn_gen_backtrack_depth_exceeded();                                                   \
@@ -115,7 +119,8 @@
 
 #define CN_GEN_LET_END(backtracks, var, last_var, ...)                                   \
   if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_NONE) {                                \
-    cn_label_##var##_backtrack : cn_bump_free_after(var##_checkpoint);                   \
+    cn_label_##var##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
+    cn_bump_free_after(var##_checkpoint);                                                \
     cn_gen_alloc_restore(var##_alloc_checkpoint);                                        \
     cn_gen_ownership_restore(var##_ownership_checkpoint);                                \
     if (cn_gen_backtrack_relevant_contains((char*)#var)) {                               \
@@ -155,7 +160,7 @@
   cn_map* map = map_create();                                                            \
   {                                                                                      \
     if (0) {                                                                             \
-      cn_label_##i##_backtrack :;                                                        \
+      cn_label_##i##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
       if (cn_gen_backtrack_relevant_contains((char*)#i)) {                               \
         char* toAdd[] = {__VA_ARGS__};                                                   \
         cn_gen_backtrack_relevant_add_many(toAdd);                                       \
@@ -193,7 +198,8 @@
   cn_label_##tmp##_gen :;                                                                \
   uint64_t tmp = urn_remove(tmp##_urn);                                                  \
   if (0) {                                                                               \
-    cn_label_##tmp##_backtrack : cn_bump_free_after(tmp##_checkpoint);                   \
+    cn_label_##tmp##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
+    cn_bump_free_after(tmp##_checkpoint);                                                \
     cn_gen_alloc_restore(tmp##_alloc_checkpoint);                                        \
     cn_gen_ownership_restore(tmp##_ownership_checkpoint);                                \
     if ((cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ASSERT ||                           \
@@ -246,7 +252,8 @@
   }                                                                                      \
   }                                                                                      \
   if (0) {                                                                               \
-    cn_label_##tmp##_backtrack : cn_bump_free_after(tmp##_checkpoint);                   \
+    cn_label_##tmp##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
+    cn_bump_free_after(tmp##_checkpoint);                                                \
     cn_gen_alloc_restore(tmp##_alloc_checkpoint);                                        \
     cn_gen_ownership_restore(tmp##_ownership_checkpoint);                                \
     if (cn_gen_backtrack_relevant_contains(#tmp)) {                                      \
