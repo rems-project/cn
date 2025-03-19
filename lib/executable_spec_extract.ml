@@ -135,7 +135,7 @@ let from_fn (fn, decl) =
 
 let from_file (file : _ Mucore.file) =
   let instrs = List.map from_fn (Pmap.bindings_list file.funs) in
-  (instrs, Compile.symtable)
+  (instrs, Compile.exec_spec_hack_syms)
 
 
 let collect_instrumentation = from_file

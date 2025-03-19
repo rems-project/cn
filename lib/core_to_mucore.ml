@@ -45,21 +45,27 @@ module Compile = struct
     Result.map_error (fun { loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
 
 
-  let add_datatype_infos x1 x2 = lift (add_datatype_infos x1 x2)
+  let add_datatypes x1 x2 = lift (add_datatypes x1 x2)
 
   let make_rt x1 x2 x3 x4 x5 = lift (make_rt x1 x2 x3 x4 x5)
 
   let ownership x1 x2 = lift (ownership x1 x2)
 
-  let register_cn_functions x1 x2 = lift (register_cn_functions x1 x2)
+  let add_user_defined_functions x1 x2 = lift (add_user_defined_functions x1 x2)
 
-  let translate_cn_function x1 x2 = lift (translate_cn_function x1 x2)
+  let expr x1 x2 x3 x4 = lift (expr x1 x2 x3 x4)
 
-  let translate_cn_lemma x1 x2 = lift (translate_cn_lemma x1 x2)
+  let let_resource x1 x2 x3 = lift (let_resource x1 x2 x3)
 
-  let translate_cn_predicate x1 x2 = lift (translate_cn_predicate x1 x2)
+  let assrt x1 x2 x3 = lift (assrt x1 x2 x3)
 
-  let translate_cn_statement x1 x2 x3 x4 = lift (translate_cn_statement x1 x2 x3 x4)
+  let function_ x1 x2 = lift (function_ x1 x2)
+
+  let lemma x1 x2 = lift (lemma x1 x2)
+
+  let predicate x1 x2 = lift (predicate x1 x2)
+
+  let statement x1 x2 x3 x4 = lift (statement x1 x2 x3 x4)
 end
 
 open CF.Core
@@ -865,9 +871,7 @@ let rec n_expr
                     | None ->
                       failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
                   in
-                  let@ stmt =
-                    Compile.translate_cn_statement get_c_obj old_states env desugared_stmt
-                  in
+                  let@ stmt = Compile.statement get_c_obj old_states env desugared_stmt in
                   (* debug 6 (lazy (!^"CN statement after translation")); debug 6 (lazy
                     (pp_doc_tree (Cnprog.dtree stmt))); *)
                   return (desugared_stmt, stmt))
@@ -933,11 +937,7 @@ let make_largs f_i =
   let rec aux env st = function
     | Cn.CN_cletResource (loc, name, resource) :: conditions ->
       let@ (pt_ret, oa_bt), lcs, pointee_values =
-        Compile.(
-          lift
-          @@ LocalState.handle
-               st
-               (EffectfulTranslation.translate_cn_let_resource env (loc, name, resource)))
+        Compile.let_resource env st (loc, name, resource)
       in
       let env = Compile.add_logical name oa_bt env in
       let st = Compile.LocalState.add_pointee_values pointee_values st in
@@ -946,24 +946,12 @@ let make_largs f_i =
         (Mu.mResource
            ((name, (pt_ret, SBT.proj oa_bt)), (loc, None))
            (Mu.mConstraints lcs lat))
-    | Cn.CN_cletExpr (loc, name, expr) :: conditions ->
-      let@ expr =
-        Compile.(
-          lift
-          @@ LocalState.handle
-               st
-               (EffectfulTranslation.translate_cn_expr Sym.Set.empty env expr))
-      in
+    | Cn.CN_cletExpr (loc, name, expr') :: conditions ->
+      let@ expr = Compile.expr Sym.Set.empty env st expr' in
       let@ lat = aux (Compile.add_logical name (IT.get_bt expr) env) st conditions in
       return (Mu.mDefine ((name, IT.Surface.proj expr), (loc, None)) lat)
     | Cn.CN_cconstr (loc, constr) :: conditions ->
-      let@ lc =
-        Compile.(
-          lift
-          @@ LocalState.handle
-               st
-               (EffectfulTranslation.translate_cn_assrt env (loc, constr)))
-      in
+      let@ lc = Compile.assrt env st (loc, constr) in
       let@ lat = aux env st conditions in
       return (Mu.mConstraint (lc, (loc, None)) lat)
     | [] ->
@@ -1084,7 +1072,7 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       let ct = convert_ct loc ct_ct in
       let sbt = Memory.sbt_of_sct ct in
       let bt = SBT.proj sbt in
-      let sbt2 = Compile.translate_cn_base_type env cn_bt in
+      let sbt2 = Compile.base_type env cn_bt in
       let@ () =
         if BT.equal bt (SBT.proj sbt2) then
           return ()
@@ -1723,7 +1711,7 @@ let register_glob env (sym, glob) =
 
 
 let translate_datatype env Cn.{ cn_dt_loc; cn_dt_name; cn_dt_cases; cn_dt_magic_loc = _ } =
-  let translate_arg (id, bt) = (id, SBT.proj (Compile.translate_cn_base_type env bt)) in
+  let translate_arg (id, bt) = (id, SBT.proj (Compile.base_type env bt)) in
   let cases = List.map (fun (c, args) -> (c, List.map translate_arg args)) cn_dt_cases in
   (cn_dt_name, Mu.{ loc = cn_dt_loc; cases })
 
@@ -1734,15 +1722,14 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let@ tagDefs = normalise_tag_definitions file.mi_tagDefs in
   let fin_marker, markers_env = fin_markers_env in
   let fin_d_st = CAE.{ inner = Pmap.find fin_marker markers_env; markers_env } in
-  let env = Compile.init_env tagDefs (fetch_enum fin_d_st) (fetch_typedef fin_d_st) in
-  let@ env = Compile.add_datatype_infos env ail_prog.cn_datatypes in
-  (* This registers only user defined functions. Builtin functions that can
-     be expressed as index terms are registered in compile.ml in init_env *)
-  let@ env = Compile.register_cn_functions env ail_prog.cn_functions in
-  let@ lfuns = ListM.mapM (Compile.translate_cn_function env) ail_prog.cn_functions in
-  let env = Compile.register_cn_predicates env ail_prog.cn_predicates in
-  let@ preds = ListM.mapM (Compile.translate_cn_predicate env) ail_prog.cn_predicates in
-  let@ lemmata = ListM.mapM (Compile.translate_cn_lemma env) ail_prog.cn_lemmata in
+  let env = Compile.init tagDefs (fetch_enum fin_d_st) (fetch_typedef fin_d_st) in
+  let@ env = Compile.add_datatypes env ail_prog.cn_datatypes in
+  (* Builtin functions that can be expressed as index terms are added in Compile.init *)
+  let@ env = Compile.add_user_defined_functions env ail_prog.cn_functions in
+  let@ lfuns = ListM.mapM (Compile.function_ env) ail_prog.cn_functions in
+  let env = Compile.add_predicates env ail_prog.cn_predicates in
+  let@ preds = ListM.mapM (Compile.predicate env) ail_prog.cn_predicates in
+  let@ lemmata = ListM.mapM (Compile.lemma env) ail_prog.cn_lemmata in
   let global_types =
     List.map
       (fun (s, global) ->
