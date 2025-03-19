@@ -131,3 +131,22 @@ Ltac2 const_to_const_reference  (x:constr) :=
  | _ => Control.throw (Tactic_failure (Some (Message.of_string "Term is not a constant")))
  end.
 
+(* given list of `constr`s and decidable equlity pose equality proof for each pair *)
+Ltac2 rec pairwise_decidability (eq_dec : constr) (lst : constr list) : unit :=
+  let rec pairwise_decidability_aux (x : constr) (lst : constr list) : unit :=
+    match lst with
+    | [] => ()
+    | y :: ys =>
+      let h := Fresh.in_goal @H in
+      Std.remember false (Some h) (fun _ => constr:($eq_dec $x $y)) None { on_hyps := None; on_concl := AllOccurrences };
+      ltac1:(h |- destruct h as [h | h]; try inversion h) (Ltac1.of_ident h);
+      pairwise_decidability_aux x ys
+    end 
+  in
+  match lst with
+  | [] => ()
+  | x :: xs =>
+    pairwise_decidability_aux x xs;
+    pairwise_decidability eq_dec xs
+  end.
+

@@ -91,6 +91,7 @@ Qed.
    | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_simple_resource_inference_step: match failed")))
    end.
 
+
 (* [struct_resource_inference_step constructor] proof *)
  Ltac2 prove_struct_resource_inference_step () :=
  match! goal with
@@ -124,10 +125,11 @@ Qed.
       let global_map :=List.fold_left (fun m (k, v) => FMap.add k v m) empty_map lic_pairs in
       *)
       Control.shelve ()
-     );  (* unfold predicte *)
-     Control.focus 1 1 (Control.shelve);  (* TODO: prove pointer address and arguments equality (via provable) *)
-     verbose_print "TODO: verify the rest of of `struct_resource_inference_step` premises";
-     Control.shelve ()
+     );  (* unfold predicate *)
+     Control.focus 1 1 (fun () =>
+      pairwise_decidability (constr:(Resource_as_MiniDecidableType.eq_dec)) in_res_list ;
+      ltac1:(cbn;ResSetDecide.fsetdec)
+     )
  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_struct_resource_inference_step: match failed")))
 end.
 
