@@ -21,6 +21,10 @@ Definition ctx_resources_set (l:((list (Resource.t * Z)) * Z)) : ResSet.t
   :=
   Resource.set_from_list (List.map fst (fst l)).
 
+Inductive term_is_struct: Terms.term BaseTypes.t -> Prop :=
+| term_is_struct_intro: forall tag fields,
+  term_is_struct (Terms.Struct _ tag fields).
+
 (* Relation between Sctypes.t and BaseTypes.t *)
 Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
 | bt_of_sct_void : bt_of_sct_rel SCtypes.Void (BaseTypes.Unit unit)
@@ -91,8 +95,10 @@ Inductive struct_piece_to_resource
   let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
   (* The field's type maps to its base type *)
   bt_of_sct_rel pty field_bt ->
-
   let struct_type := (BaseTypes.Struct _ tag) in
+  ~ term_is_struct struct_term
+
+  ->
 
     struct_piece_to_resource piece iinit ipointer iargs tag loc
       (Resource.O (Terms.IT _ struct_term struct_type struct_loc))
