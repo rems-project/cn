@@ -774,6 +774,15 @@ module PartialEvaluation = struct
         else
           eval_aux (divisible_ (addr, align) here)
       | Apply (fsym, its) ->
+        let@ its =
+          List.fold_right
+            (fun it acc ->
+               let@ acc in
+               let@ it = eval_aux it in
+               Ok (it :: acc))
+            its
+            (Ok [])
+        in
         (match List.assoc_opt Sym.equal fsym prog5.logical_predicates with
          | Some { args; body = Def it_body; _ } | Some { args; body = Rec_Def it_body; _ }
            ->
@@ -893,29 +902,29 @@ module PartialEvaluation = struct
         | StructMember _ | RecordMember _ | MemberShift _ | ArrayShift _ | CopyAllocId _
         | HasAllocId _ | SizeOf _ | OffsetOf _ | Nil _ | Head _ | Tail _ | NthList _
         | ArrayToList _ | Representable _ | Good _ | Aligned _ | MapGet _ | MapDef _
-        | Match _ ->
+        | Apply _ | Match _ ->
           eval_term_generic eval_aux prog5 it
         (* Strict *)
         | Tuple its ->
           let@ its =
-            List.fold_left
-              (fun acc it ->
-                 let@ it = eval_aux it in
+            List.fold_right
+              (fun it acc ->
                  let@ acc in
+                 let@ it = eval_aux it in
                  Ok (it :: acc))
-              (Ok [])
               its
+              (Ok [])
           in
           return @@ tuple_ its here
         | Struct (tag, xits) ->
           let@ xits =
-            List.fold_left
-              (fun acc (x, it) ->
-                 let@ it = eval_aux it in
+            List.fold_right
+              (fun (x, it) acc ->
                  let@ acc in
+                 let@ it = eval_aux it in
                  Ok ((x, it) :: acc))
-              (Ok [])
               xits
+              (Ok [])
           in
           return @@ struct_ (tag, xits) here
         | StructUpdate ((it_struct, member), it_value) ->
@@ -926,13 +935,13 @@ module PartialEvaluation = struct
             (IT.IT (StructUpdate ((it_struct, member), it_value), bt, here))
         | Record xits ->
           let@ xits =
-            List.fold_left
-              (fun acc (x, it) ->
-                 let@ it = eval_aux it in
+            List.fold_right
+              (fun (x, it) acc ->
                  let@ acc in
+                 let@ it = eval_aux it in
                  Ok ((x, it) :: acc))
-              (Ok [])
               xits
+              (Ok [])
           in
           return @@ record_ xits here
         | RecordUpdate ((it_record, member), it_value) ->
@@ -943,30 +952,19 @@ module PartialEvaluation = struct
             (IT.IT (RecordUpdate ((it_record, member), it_value), bt, here))
         | Constructor (constr, xits) ->
           let@ xits =
-            List.fold_left
-              (fun acc (x, it) ->
-                 let@ it = eval_aux it in
+            List.fold_right
+              (fun (x, it) acc ->
                  let@ acc in
+                 let@ it = eval_aux it in
                  Ok ((x, it) :: acc))
-              (Ok [])
               xits
+              (Ok [])
           in
           return @@ IT (Constructor (constr, xits), bt, here)
         | Cons (it_head, it_tail) ->
           let@ it_head = eval_aux it_head in
           let@ it_tail = eval_aux it_tail in
           return @@ cons_ (it_head, it_tail) here
-        | Apply (fsym, its) ->
-          let@ its =
-            List.fold_left
-              (fun acc it ->
-                 let@ it = eval_aux it in
-                 let@ acc in
-                 Ok (it :: acc))
-              (Ok [])
-              its
-          in
-          eval_term_generic eval_aux prog5 (apply_ fsym its bt here)
         | Let ((x, it_v), it_rest) ->
           let@ it_v = eval_aux it_v in
           eval_term_generic eval_aux prog5 (let_ ((x, it_v), it_rest) here)
@@ -1078,7 +1076,7 @@ module PartialEvaluation = struct
         | Let (backtracks, (x, gt_inner), gt_rest) ->
           GT.let_ (backtracks, (x, aux gt_inner), aux gt_rest) loc
         | Return it -> GT.return_ (partial_eval_it it) loc
-        | Assert (lc, gt') -> GT.assert_ (partial_eval_lc lc, gt') loc
+        | Assert (lc, gt') -> GT.assert_ (partial_eval_lc lc, aux gt') loc
         | ITE (it_if, gt_then, gt_else) ->
           GT.ite_ (partial_eval_it it_if, aux gt_then, aux gt_else) loc
         | Map ((i, i_bt, it_perm), gt_inner) ->
