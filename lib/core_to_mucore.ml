@@ -940,7 +940,7 @@ let make_largs f_i =
         Compile.let_resource env st (loc, name, resource)
       in
       let env = Compile.add_logical name oa_bt env in
-      let st = Compile.LocalState.add_pointee_values pointee_values st in
+      let st = Compile.C_vars.add_pointee_values pointee_values st in
       let@ lat = aux env st conditions in
       return
         (Mu.mResource
@@ -968,11 +968,7 @@ let rec make_largs_with_accesses f_i env st (accesses, conditions) =
       Compile.ownership (loc, (addr_s, ct)) env
     in
     let env = Compile.add_logical name oa_bt env in
-    let st =
-      Compile.LocalState.add_c_variable_states
-        [ (addr_s, CVS_Pointer_pointing_to value) ]
-        st
-    in
+    let st = Compile.C_vars.add [ (addr_s, Points_to value) ] st in
     let@ lat = make_largs_with_accesses f_i env st (accesses, conditions) in
     return
       (Mu.mResource
@@ -1008,9 +1004,7 @@ let make_label_args f_i loc env st args (accesses, inv) =
         Compile.ownership (loc, (s, ct)) env
       in
       let env = Compile.add_logical oa_name oa_bt env in
-      let st =
-        Compile.LocalState.add_c_variable_states [ (s, CVS_Pointer_pointing_to value) ] st
-      in
+      let st = Compile.C_vars.add [ (s, Points_to value) ] st in
       let owned_res = ((oa_name, (pt_ret, SBT.proj oa_bt)), (loc, None)) in
       let resources' =
         if !Sym.executable_spec_enabled then
@@ -1048,8 +1042,8 @@ let make_function_args f_i loc env args (accesses, requires) =
       let bt = SBT.proj sbt in
       let@ () = check_against_core_bt loc cbt bt in
       let env = Compile.add_computational pure_arg sbt env in
-      let arg_state = Compile.LocalState.CVS_Value (pure_arg, sbt) in
-      let st = Compile.LocalState.add_c_variable_states [ (mut_arg, arg_state) ] st in
+      let arg_state = Compile.C_vars.Value (pure_arg, sbt) in
+      let st = Compile.C_vars.add [ (mut_arg, arg_state) ] st in
       (* let good_lc = *)
       (*   let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in *)
       (*   let here = Locations.other __LOC__ in *)
@@ -1063,7 +1057,7 @@ let make_function_args f_i loc env args (accesses, requires) =
       let@ lat = make_largs_with_accesses (f_i arg_states) env st (accesses, requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] [] env Compile.LocalState.init_st args
+  aux [] [] env Compile.C_vars.init args
 
 
 let make_fun_with_spec_args f_i loc env args (accesses, requires) =
@@ -1101,7 +1095,7 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       let@ lat = make_largs_with_accesses f_i env st (accesses, requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] env Compile.LocalState.init_st args
+  aux [] env Compile.C_vars.init args
 
 
 let desugar_access d_st global_types (loc, id) =
@@ -1236,7 +1230,7 @@ let normalise_label
               n_expr
                 ~inherit_loc
                 loc
-                ( (env, Compile.LocalState.get_old_states st),
+                ( (env, Compile.C_vars.get_old_scopes st),
                   (markers_env, cn_desugaring_state) )
                 (global_types, visible_objects_env)
                 label_body)
@@ -1490,14 +1484,12 @@ let normalise_fun_map_decl
        let@ args_and_body =
          make_function_args
            (fun arg_states env st ->
-              let st =
-                Compile.LocalState.make_state_old st Compile.start_evaluation_scope
-              in
+              let st = Compile.C_vars.push_scope st Compile.C_vars.start in
               let@ body =
                 n_expr
                   ~inherit_loc
                   loc
-                  ( (env, Compile.LocalState.get_old_states st),
+                  ( (env, Compile.C_vars.get_old_scopes st),
                     (markers_env, d_st.inner.cn_state) )
                   (global_types, visible_objects_env)
                   body
@@ -1506,7 +1498,7 @@ let normalise_fun_map_decl
                 Compile.make_rt
                   loc
                   env
-                  (Compile.LocalState.add_c_variable_states arg_states st)
+                  (Compile.C_vars.add arg_states st)
                   (ret_s, ret_ct)
                   (accesses, ensures)
               in
@@ -1628,7 +1620,7 @@ let normalise_globs ~inherit_loc env _sym g =
       n_expr
         ~inherit_loc
         loc
-        ( (env, Compile.LocalState.(get_old_states init_st)),
+        ( (env, Compile.C_vars.(get_old_scopes init)),
           ( Pmap.empty Int.compare,
             CF.Cn_desugaring.(initial_cn_desugaring_state empty_init) ) )
         ([], Pmap.empty Int.compare)

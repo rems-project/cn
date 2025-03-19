@@ -64,41 +64,45 @@ val add_datatypes : env -> Sym.t Cerb_frontend.Cn.cn_datatype list -> env Or_Err
 
 type evaluation_scope
 
-val start_evaluation_scope : string
+module C_vars : sig
+  type state =
+    | Value of Sym.t * BaseTypes.Surface.t
+    | Points_to of IndexTerms.Surface.t
 
-module LocalState : sig
-  type c_variable_state =
-    | CVS_Value of Sym.t * BaseTypes.Surface.t
-    | CVS_Pointer_pointing_to of IndexTerms.Surface.t
+  type name
 
-  type state
+  type named_scopes
 
-  type states
+  type env
 
-  val init_st : states
+  val init : env
 
-  val get_old_states : states -> state Map.Make(String).t
+  val start : name
 
-  val make_state_old : states -> string -> states
+  val get_old_scopes : env -> named_scopes
 
-  val add_c_variable_states : (Sym.t * c_variable_state) list -> states -> states
+  (** This is only called with [start] so I'm not really sure about then
+     intention of the API here. *)
+  val push_scope : env -> name -> env
+
+  val add : (Sym.t * state) list -> env -> env
 
   val add_pointee_values
     :  (IndexTerms.Surface.t * IndexTerms.Surface.t) list ->
-    states ->
-    states
+    env ->
+    env
 end
 
 val expr
   :  Sym.Set.t ->
   env ->
-  LocalState.states ->
+  C_vars.env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_expr ->
   IndexTerms.Surface.t Or_Error.t
 
 val let_resource
   :  env ->
-  LocalState.states ->
+  C_vars.env ->
   Locations.t * Sym.t * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_resource ->
   ((Request.t * BaseTypes.Surface.t)
   * (LogicalConstraints.t * (Locations.t * string option)) list
@@ -107,7 +111,7 @@ val let_resource
 
 val assrt
   :  env ->
-  LocalState.states ->
+  C_vars.env ->
   Locations.t * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_assertion ->
   LogicalConstraints.t Or_Error.t
 
@@ -138,7 +142,7 @@ val predicate
 val make_rt
   :  Locations.t ->
   env ->
-  LocalState.states ->
+  C_vars.env ->
   Sym.t * Cerb_frontend.Ctype.ctype ->
   (Locations.t * (Sym.t * Cerb_frontend.Ctype.ctype)) list
   * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list ->
@@ -151,7 +155,7 @@ val lemma
 
 val statement
   :  (Sym.t -> Cerb_frontend.Ctype.ctype) ->
-  LocalState.state Map.Make(String).t ->
+  C_vars.named_scopes ->
   env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement ->
   Cnprog.t Or_Error.t

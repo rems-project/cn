@@ -344,7 +344,78 @@ type 'a with_state =
       * evaluation_scope option
       * (IT.Surface.t option -> 'a with_state)
 
-let start_evaluation_scope = "start"
+module C_vars = struct
+  (* the expression that encodes the current value of this c variable *)
+  type state =
+    | Value of Sym.t * SBT.t (* currently the variable is a pure value, this one *)
+    | Points_to of IT.Surface.t
+  (* currently the variable is a pointer to memory holding this value *)
+
+  type scope =
+    { var_state : state Sym.Map.t;
+      pointee_values : IT.Surface.t STermMap.t
+    }
+
+  let empty_state = { var_state = Sym.Map.empty; pointee_values = STermMap.empty }
+
+  type name = string
+
+  let start = "start"
+
+  type named_scopes = scope StringMap.t
+
+  type env =
+    { current : scope;
+      old : named_scopes
+    }
+
+  let init = { current = empty_state; old = StringMap.empty }
+
+  let get_old_scopes { current = _; old } = old
+
+  let push_scope { current; old } old_name =
+    { current = empty_state; old = StringMap.add old_name current old }
+
+
+  let add c_sym cvs { current; old } =
+    { current = { current with var_state = Sym.Map.add c_sym cvs current.var_state };
+      old
+    }
+
+
+  let add_pointee_value p v { current; old } =
+    { current = { current with pointee_values = STermMap.add p v current.pointee_values };
+      old
+    }
+
+
+  let add cvss st = List.fold_left (fun st (sym, cvs) -> add sym cvs st) st cvss
+
+  let add_pointee_values pvs st =
+    List.fold_left (fun st (p, v) -> add_pointee_value p v st) st pvs
+
+
+  let handle { current; old } : 'a with_state -> 'a Or_Error.t =
+    let state_for_scope = function None -> current | Some s -> StringMap.find s old in
+    let rec aux : _ with_state -> _ Or_Error.t = function
+      | Done x -> return x
+      | Error { loc; msg } -> fail { loc; msg }
+      | Value_of_c_variable (loc, sym, scope, k) ->
+        let variable_state = (state_for_scope scope).var_state in
+        let o_v =
+          Option.map
+            (function Value (sym', sbt) -> IT.sym_ (sym', sbt, loc) | Points_to x -> x)
+            (Sym.Map.find_opt sym variable_state)
+        in
+        aux (k o_v)
+      | Deref (_loc, it, scope, k) ->
+        let pointee_values = (state_for_scope scope).pointee_values in
+        let o_v = STermMap.find_opt it pointee_values in
+        aux (k o_v)
+      | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old))
+    in
+    aux
+end
 
 module WithState = struct
   module E = struct
@@ -938,7 +1009,7 @@ module WithState = struct
         return (IT (Const (Default (SBT.proj bt)), bt, loc))
       | CNExpr_unchanged e ->
         let@ cur_e = self e in
-        let@ old_e = self (CNExpr (loc, CNExpr_at_env (e, start_evaluation_scope))) in
+        let@ old_e = self (CNExpr (loc, CNExpr_at_env (e, C_vars.start))) in
         (* want to bypass the warning for (Loc, Loc) equality *)
         (* mk_translate_binop loc CN_equal (cur_e, old_e) *)
         return (IT (Binop (EQ, cur_e, old_e), BT.Bool, loc))
@@ -1007,9 +1078,9 @@ module WithState = struct
         (*      let state = StringMap.find scope env.old_states in *)
         (*      let o_v =  *)
         (*        Option.map (function *)
-        (*            | CVS_Value x -> x *)
-        (*            | CVS_Pointer_pointing_to x -> x *)
-        (*          ) (Sym.Map.find_opt sym state.c_variable_state) *)
+        (*            | Value x -> x *)
+        (*            | Points_to x -> x *)
+        (*          ) (Sym.Map.find_opt sym state.var_state) *)
         (*      in *)
         (*      return o_v *)
         (*   | None -> *)
@@ -1261,83 +1332,8 @@ let allocation_token loc addr_s =
   ((name, (Request.P alloc_ret, Alloc.History.value_bt)), (loc, None))
 
 
-module LocalState = struct
-  (* the expression that encodes the current value of this c variable *)
-  type c_variable_state =
-    | CVS_Value of Sym.t * SBT.t (* currently the variable is a pure value, this one *)
-    | CVS_Pointer_pointing_to of IT.Surface.t
-  (* currently the variable is a pointer to memory holding this value *)
-
-  type state =
-    { c_variable_state : c_variable_state Sym.Map.t;
-      pointee_values : IT.Surface.t STermMap.t
-    }
-
-  let empty_state = { c_variable_state = Sym.Map.empty; pointee_values = STermMap.empty }
-
-  type states =
-    { state : state;
-      old_states : state StringMap.t
-    }
-
-  let init_st = { state = empty_state; old_states = StringMap.empty }
-
-  let get_old_states { state = _; old_states } = old_states
-
-  let make_state_old { state; old_states } old_name =
-    { state = empty_state; old_states = StringMap.add old_name state old_states }
-
-
-  let add_c_variable_state c_sym cvs { state; old_states } =
-    { state =
-        { state with c_variable_state = Sym.Map.add c_sym cvs state.c_variable_state };
-      old_states
-    }
-
-
-  let add_pointee_value p v { state; old_states } =
-    { state = { state with pointee_values = STermMap.add p v state.pointee_values };
-      old_states
-    }
-
-
-  let add_c_variable_states cvss st =
-    List.fold_left (fun st (sym, cvs) -> add_c_variable_state sym cvs st) st cvss
-
-
-  let add_pointee_values pvs st =
-    List.fold_left (fun st (p, v) -> add_pointee_value p v st) st pvs
-
-
-  let handle { state; old_states } : 'a with_state -> 'a Or_Error.t =
-    let state_for_scope = function
-      | None -> state
-      | Some s -> StringMap.find s old_states
-    in
-    let rec aux : _ with_state -> _ Or_Error.t = function
-      | Done x -> return x
-      | Error { loc; msg } -> fail { loc; msg }
-      | Value_of_c_variable (loc, sym, scope, k) ->
-        let variable_state = (state_for_scope scope).c_variable_state in
-        let o_v =
-          Option.map
-            (function
-              | CVS_Value (sym', sbt) -> IT.sym_ (sym', sbt, loc)
-              | CVS_Pointer_pointing_to x -> x)
-            (Sym.Map.find_opt sym variable_state)
-        in
-        aux (k o_v)
-      | Deref (_loc, it, scope, k) ->
-        let pointee_values = (state_for_scope scope).pointee_values in
-        let o_v = STermMap.find_opt it pointee_values in
-        aux (k o_v)
-      | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old_states))
-    in
-    aux
-end
-
 let cn_clause env clause =
-  let open LocalState in
+  let open C_vars in
   let rec cn_clause_aux env st acc clause =
     let module LAT = LogicalArgumentTypes in
     match clause with
@@ -1367,7 +1363,7 @@ let cn_clause env clause =
       let e = IT.Surface.proj e in
       acc (LAT.I e)
   in
-  cn_clause_aux env init_st (fun z -> return z) clause
+  cn_clause_aux env init (fun z -> return z) clause
 
 
 let cn_clauses env clauses =
@@ -1423,7 +1419,7 @@ let predicate env (def : _ Cn.cn_predicate) =
 
 
 let rec make_lrt_generic env st =
-  let open LocalState in
+  let open C_vars in
   function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
@@ -1458,7 +1454,7 @@ let make_lrt env st conds =
 
 let make_lat env st (requires, ensures) =
   let@ args_lrt, env, st = make_lrt_generic env st requires in
-  let st = LocalState.make_state_old st start_evaluation_scope in
+  let st = C_vars.(push_scope st start) in
   let@ ret_lrt, _env, _st = make_lrt_generic env st ensures in
   return (LAT.of_lrt args_lrt (LAT.I ret_lrt))
 
@@ -1468,7 +1464,7 @@ let rec make_lrt_with_accesses env st (accesses, ensures) =
   | (loc, (addr_s, ct)) :: accesses ->
     let@ name, ((pt_ret, oa_bt), lcs), value = ownership (loc, (addr_s, ct)) env in
     let env = add_logical name oa_bt env in
-    let st = LocalState.add_c_variable_state addr_s (CVS_Pointer_pointing_to value) st in
+    let st = C_vars.add [ (addr_s, Points_to value) ] st in
     let@ lrt = make_lrt_with_accesses env st (accesses, ensures) in
     return
       (LRT.mResource
@@ -1502,9 +1498,7 @@ let lemma env (def : _ Cn.cn_lemma) =
       let info = (def.cn_lemma_loc, None) in
       return (ArgumentTypes.Computational ((sym, SBT.proj bTy), info, at))
     | [] ->
-      let@ lat =
-        make_lat env LocalState.init_st (def.cn_lemma_requires, def.cn_lemma_ensures)
-      in
+      let@ lat = make_lat env C_vars.init (def.cn_lemma_requires, def.cn_lemma_ensures) in
       return (ArgumentTypes.L lat)
   in
   let@ at = aux env def.cn_lemma_args in
@@ -1534,14 +1528,12 @@ module UsingLoads = struct
       | Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with
          | Some scope ->
-           let variable_state =
-             LocalState.((StringMap.find scope old_states).c_variable_state)
-           in
+           let variable_state = C_vars.((StringMap.find scope old_states).var_state) in
            let o_v =
              Option.map
                (function
-                 | LocalState.CVS_Value (sym', sbt) -> IT.sym_ (sym', sbt, loc)
-                 | LocalState.CVS_Pointer_pointing_to x -> x)
+                 | C_vars.Value (sym', sbt) -> IT.sym_ (sym', sbt, loc)
+                 | C_vars.Points_to x -> x)
                (Sym.Map.find_opt sym variable_state)
            in
            aux (k o_v)
@@ -1570,11 +1562,11 @@ module UsingLoads = struct
     aux
 end
 
-let expr syms env st expr = LocalState.handle st (WithState.cn_expr syms env expr)
+let expr syms env st expr = C_vars.handle st (WithState.cn_expr syms env expr)
 
-let let_resource env st res = LocalState.handle st (WithState.cn_let_resource env res)
+let let_resource env st res = C_vars.handle st (WithState.cn_let_resource env res)
 
-let assrt env st assrt = LocalState.handle st (WithState.cn_assrt env assrt)
+let assrt env st assrt = C_vars.handle st (WithState.cn_assrt env assrt)
 
 let statement
       (allocations : Sym.t -> CF.Ctype.ctype)
