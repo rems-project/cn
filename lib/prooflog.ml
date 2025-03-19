@@ -4,13 +4,23 @@ let proof_log_enabled = ref false
 (* Function to set the proof log enabled flag *)
 let set_enabled flag = proof_log_enabled := flag
 
+type unpack_result =
+  | UnpackLRT of LogicalReturnTypes.t
+  | UnpackRES of Resource.t list
+
+type unfold_changed = (int * Resource.t * unpack_result) list
+
+type extract_changed = Resource.t list
+
+type unfold_step = unfold_changed * extract_changed
+
 type resource_inference_type =
   | PredicateRequest of
       Error_common.situation
       * Request.Predicate.t
       * (Locations.t * string) option
       * (Resource.predicate * int list)
-  | UnfoldResources of Cerb_location.t
+  | UnfoldResources of Cerb_location.t * unfold_step list
 
 (** Info about what happened *)
 type log_entry =

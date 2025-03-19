@@ -2186,6 +2186,19 @@ let pp_context (c : Context.t) =
     ]
 
 
+let pp_unpack_result (r : Prooflog.unpack_result) =
+  match r with
+  | Prooflog.UnpackLRT lrt -> pp_constructor "UnpackLRT" [ pp_logical_return_type lrt ]
+  | Prooflog.UnpackRES res -> pp_constructor "UnpackRES" [ pp_list pp_resource res ]
+
+
+let pp_unfold_step (s : Prooflog.unfold_step) =
+  pp_pair
+    (pp_list (pp_triple pp_int pp_resource pp_unpack_result))
+    (pp_list pp_resource)
+    s
+
+
 let pp_resource_inference_type = function
   | Prooflog.PredicateRequest (s, p, o, ri) ->
     pp_constructor
@@ -2195,7 +2208,8 @@ let pp_resource_inference_type = function
         pp_option (pp_pair pp_location pp_string) o;
         pp_pair pp_resource_predicate (pp_list pp_int) ri
       ]
-  | Prooflog.UnfoldResources loc -> pp_constructor "UnfoldResources" [ pp_location loc ]
+  | Prooflog.UnfoldResources (loc, steps) ->
+    pp_constructor "UnfoldResources" [ pp_location loc; pp_list pp_unfold_step steps ]
 
 
 (* Add this definition before its use in `pp_unit_file_with_resource_inference` *)

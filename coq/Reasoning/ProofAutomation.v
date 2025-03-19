@@ -219,7 +219,7 @@ Ltac2 prove_unfold_step () :=
            } clause ;
            prove_simple_resource_inference_step ()
        )
-  | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _) _) ] =>
+  | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _ _) _) ] =>
       (* UnfoldResources case *)
       verbose_msg (smsg "Checking UnfoldResources");
       Std.constructor false;

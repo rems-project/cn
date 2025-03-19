@@ -227,9 +227,9 @@ Local Definition ptr_addr_and_args_eq (g: Global.t) (c: LCSet.t) (p p': IndexTer
 (** Inductive predicate which defines correctess of log inference step *)
 Inductive log_entry_valid : log_entry -> Prop :=
 | unfold_resources_step:
-  forall loc c c',
+  forall loc c c' steps,
   unfold_step c c' ->
-  log_entry_valid (ResourceInferenceStep c (UnfoldResources loc) c')
+  log_entry_valid (ResourceInferenceStep c (UnfoldResources loc steps) c')
 
 | array_resource_inference_step:
   forall ity isize iinit ipointer iargs

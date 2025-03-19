@@ -650,6 +650,7 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
 (* the main inference loop *)
 let do_unfold_resources loc =
   let rec aux changed =
+    let open Prooflog in
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
     let@ _provable_f = provable_internal (Locations.other __LOC__) in
@@ -666,9 +667,7 @@ let do_unfold_resources loc =
         List.fold_right
           (fun (re, i) (keep, unpack, extract) ->
              match Pack.unpack loc s.global provable_f2 re with
-             | Some unpackable ->
-               let pname = Req.get_name (fst re) in
-               (keep, (i, pname, unpackable) :: unpack, extract)
+             | Some unpackable -> (keep, (i, re, unpackable) :: unpack, extract)
              | None ->
                let re_reduced, extracted =
                  Pack.extractable_multiple provable_m movable_indices re
@@ -687,7 +686,8 @@ let do_unfold_resources loc =
       in
       let@ () = set_typing_context { s with resources = (keep, orig_ix) } in
       let do_unpack = function
-        | _i, pname, `LRT lrt ->
+        | _i, re, `LRT lrt ->
+          let pname = Req.get_name (fst re) in
           let@ _, members =
             make_return_record
               loc
@@ -697,22 +697,38 @@ let do_unfold_resources loc =
               (LogicalReturnTypes.binders lrt)
           in
           bind_logical_return_internal loc members lrt
-        | _i, pname, `RES res ->
+        | _i, re, `RES res ->
+          let pname = Req.get_name (fst re) in
           let is_owned = match pname with Owned _ -> true | _ -> false in
           iterM (add_r_internal ~derive_constraints:(not is_owned) loc) res
       in
       let@ () = iterM do_unpack unpack in
       let@ () = iterM (add_r_internal loc) extract in
-      (match (unpack, extract) with [], [] -> return changed | _ -> aux true)
+      (match (unpack, extract) with
+       | [], [] -> return changed
+       | _ ->
+         let converted_unpack =
+           List.map
+             (fun (i, re, unpackable) ->
+                match unpackable with
+                | `LRT lrt -> (i, re, UnpackLRT lrt)
+                | `RES res -> (i, re, UnpackRES res))
+             unpack
+         in
+         aux ((converted_unpack, extract) :: changed))
   in
   let@ c = get_typing_context () in
-  let@ changed = aux false in
+  let@ changed = aux [] in
   let@ () = modify (fun s -> { s with unfold_resources_required = false }) in
-  if changed then
+  match changed with
+  | [] -> return ()
+  | _ ->
     let@ c' = get_typing_context () in
-    return (Prooflog.record_resource_inference_step c c' (UnfoldResources loc))
-  else
-    return ()
+    return
+      (Prooflog.record_resource_inference_step
+         c
+         c'
+         (UnfoldResources (loc, List.rev changed)))
 
 
 let sync_unfold_resources loc =

@@ -1,10 +1,20 @@
+type unpack_result =
+  | UnpackLRT of LogicalReturnTypes.t
+  | UnpackRES of Resource.t list
+
+type unfold_changed = (int * Resource.t * unpack_result) list
+
+type extract_changed = Resource.t list
+
+type unfold_step = unfold_changed * extract_changed
+
 type resource_inference_type =
   | PredicateRequest of
       Error_common.situation
       * Request.Predicate.t
-      * (Cerb_location.t * string) option
+      * (Locations.t * string) option
       * (Resource.predicate * int list)
-  | UnfoldResources of Cerb_location.t
+  | UnfoldResources of Cerb_location.t * unfold_step list
 
 type log_entry =
   | ResourceInferenceStep of (Context.t * resource_inference_type * Context.t)
