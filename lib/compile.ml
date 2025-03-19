@@ -386,28 +386,6 @@ module C_vars = struct
         Locations.t * Sym.t * name option * (IT.Surface.t option -> 'a t)
     | Deref of Locations.t * IT.Surface.t * name option * (IT.Surface.t option -> 'a t)
 
-  let handle { current; old } : 'a t -> 'a Or_Error.t =
-    let state_for_scope = function None -> current | Some s -> StringMap.find s old in
-    let rec aux : _ t -> _ Or_Error.t = function
-      | Done x -> return x
-      | Error { loc; msg } -> fail { loc; msg }
-      | Value_of_c_variable (loc, sym, scope, k) ->
-        let variable_state = (state_for_scope scope).var_state in
-        let o_v =
-          Option.map
-            (function Value (sym', sbt) -> IT.sym_ (sym', sbt, loc) | Points_to x -> x)
-            (Sym.Map.find_opt sym variable_state)
-        in
-        aux (k o_v)
-      | Deref (_loc, it, scope, k) ->
-        let pointee_values = (state_for_scope scope).pointee_values in
-        let o_v = STermMap.find_opt it pointee_values in
-        aux (k o_v)
-      | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old))
-    in
-    aux
-
-
   module Monad = struct
     type nonrec 'a t = 'a t
 
@@ -1229,8 +1207,31 @@ module C_vars = struct
            ((sym, SBT.proj bt), IT.impl_ (IT.Surface.proj e1, IT.Surface.proj e2) loc))
 end
 
-module Pure = struct
-  let handle what = function
+module Handle = struct
+  let with_state C_vars.{ current; old } : 'a C_vars.t -> 'a Or_Error.t =
+    let state_for_scope = function None -> current | Some s -> StringMap.find s old in
+    let rec aux : _ C_vars.t -> _ Or_Error.t = function
+      | Done x -> return x
+      | Error { loc; msg } -> fail { loc; msg }
+      | Value_of_c_variable (loc, sym, scope, k) ->
+        let variable_state = (state_for_scope scope).var_state in
+        let o_v =
+          Option.map
+            (function
+              | C_vars.Value (sym', sbt) -> IT.sym_ (sym', sbt, loc) | Points_to x -> x)
+            (Sym.Map.find_opt sym variable_state)
+        in
+        aux (k o_v)
+      | Deref (_loc, it, scope, k) ->
+        let pointee_values = (state_for_scope scope).pointee_values in
+        let o_v = STermMap.find_opt it pointee_values in
+        aux (k o_v)
+      | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old))
+    in
+    aux
+
+
+  let pure what = function
     | C_vars.Done x -> return x
     | Error { loc; msg } -> fail { loc; msg }
     | Value_of_c_variable (loc, _, _, _) ->
@@ -1242,10 +1243,72 @@ module Pure = struct
     | ScopeExists (loc, _, _) ->
       let msg = !^what ^^^ !^"are not allowed to use evaluation scopes." in
       fail { loc; msg = Generic msg [@alert "-deprecated"] }
+
+
+  let pointee_ct loc it =
+    match IT.get_bt it with
+    | BT.Loc (Some ct) -> return ct
+    | BT.Loc None ->
+      let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IT.pp it) ^^ Pp.dot in
+      fail { loc; msg = Generic msg [@alert "-deprecated"] }
+    | has ->
+      let expected = "pointer" in
+      let reason = "dereferencing" in
+      let msg =
+        WellTyped (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
+      in
+      fail { loc; msg }
+
+
+  let with_loads allocations old_states : Cnprog.t C_vars.t -> Cnprog.t Or_Error.t =
+    let rec aux = function
+      | C_vars.Done x -> return x
+      | Error { loc; msg } -> fail { loc; msg }
+      | Value_of_c_variable (loc, sym, scope, k) ->
+        (match scope with
+         | Some scope ->
+           let variable_state = C_vars.((StringMap.find scope old_states).var_state) in
+           let o_v =
+             Option.map
+               (function
+                 | C_vars.Value (sym', sbt) -> IT.sym_ (sym', sbt, loc)
+                 | C_vars.Points_to x -> x)
+               (Sym.Map.find_opt sym variable_state)
+           in
+           aux (k o_v)
+         | None ->
+           let ct = Sctypes.of_ctype_unsafe loc (allocations sym) in
+           let pointer = IT.sym_ (sym, BT.Loc (Some ct), loc) in
+           load loc "read" pointer k)
+      | Deref (loc, pointer, scope, k) ->
+        (match scope with
+         | Some scope ->
+           let pointee_values = (StringMap.find scope old_states).pointee_values in
+           let o_v = STermMap.find_opt pointer pointee_values in
+           aux (k o_v)
+         | None -> load loc "deref" pointer k)
+      | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old_states))
+    and load loc action_pp pointer k =
+      let@ pointee_ct = pointee_ct loc pointer in
+      let value_loc = loc in
+      let value_s = Sym.fresh_make_uniq (action_pp ^ "_" ^ Pp.plain (IT.pp pointer)) in
+      let value_bt = Memory.sbt_of_sct pointee_ct in
+      let value = IT.sym_ (value_s, value_bt, value_loc) in
+      let@ prog = aux (k (Some value)) in
+      let load = Cnprog.{ ct = pointee_ct; pointer = IT.Surface.proj pointer } in
+      return (Cnprog.Let (loc, (value_s, load), prog))
+    in
+    aux
 end
 
+let expr syms env st expr = Handle.with_state st (C_vars.cn_expr syms env expr)
+
+let let_resource env st res = Handle.with_state st (C_vars.cn_let_resource env res)
+
+let assrt env st assrt = Handle.with_state st (C_vars.cn_assrt env assrt)
+
 let cn_func_body env body =
-  let handle = Pure.handle "Function definitions" in
+  let handle = Handle.pure "Function definitions" in
   let@ body = handle (C_vars.cn_expr Sym.Set.empty env body) in
   return (IT.Surface.proj body)
 
@@ -1305,7 +1368,7 @@ let ownership (loc, (addr_s, ct)) env =
     Cn.CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ])
   in
   let@ (pt_ret, oa_bt), lcs, _ =
-    Pure.handle "'Accesses'" (C_vars.cn_let_resource env (loc, name, resource))
+    Handle.pure "'Accesses'" (C_vars.cn_let_resource env (loc, name, resource))
   in
   let value = IT.sym_ (name, oa_bt, loc) in
   return (name, ((pt_ret, oa_bt), lcs), value)
@@ -1327,7 +1390,7 @@ let cn_clause env clause =
     match clause with
     | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
-        C_vars.handle st (C_vars.cn_let_resource env (res_loc, sym, the_res))
+        Handle.with_state st (C_vars.cn_let_resource env (res_loc, sym, the_res))
       in
       let acc' z =
         acc
@@ -1339,15 +1402,15 @@ let cn_clause env clause =
       let st' = C_vars.add_pointee_values pointee_vals st in
       cn_clause_aux env' st' acc' cl
     | CN_letExpr (loc, sym, e_, cl) ->
-      let@ e = C_vars.handle st (C_vars.cn_expr Sym.Set.empty env e_) in
+      let@ e = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env e_) in
       let acc' z = acc (LAT.mDefine (sym, IT.Surface.proj e, (loc, None)) z) in
       cn_clause_aux (add_logical sym (IT.get_bt e) env) st acc' cl
     | CN_assert (loc, assrt, cl) ->
-      let@ lc = C_vars.handle st (C_vars.cn_assrt env (loc, assrt)) in
+      let@ lc = Handle.with_state st (C_vars.cn_assrt env (loc, assrt)) in
       let acc' z = acc (LAT.mConstraint (lc, (loc, None)) z) in
       cn_clause_aux env st acc' cl
     | CN_return (_loc, e_) ->
-      let@ e = C_vars.handle st (C_vars.cn_expr Sym.Set.empty env e_) in
+      let@ e = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env e_) in
       let e = IT.Surface.proj e in
       acc (LAT.I e)
   in
@@ -1361,7 +1424,7 @@ let cn_clauses env clauses =
       let here = Locations.other __LOC__ in
       return (Def.Clause.{ loc; guard = IT.bool_ true here; packing_ft = cl } :: acc)
     | CN_if (loc, e_, cl_, clauses') ->
-      let@ e = Pure.handle "Predicate guards" (C_vars.cn_expr Sym.Set.empty env e_) in
+      let@ e = Handle.pure "Predicate guards" (C_vars.cn_expr Sym.Set.empty env e_) in
       let@ cl = cn_clause env cl_ in
       self ({ loc; guard = IT.Surface.proj e; packing_ft = cl } :: acc) clauses'
   in
@@ -1409,7 +1472,7 @@ let predicate env (def : _ Cn.cn_predicate) =
 let rec make_lrt_generic env st = function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
-      C_vars.handle st (C_vars.cn_let_resource env (loc, name, resource))
+      Handle.with_state st (C_vars.cn_let_resource env (loc, name, resource))
     in
     let env = add_logical name oa_bt env in
     let st = C_vars.add_pointee_values pointee_values st in
@@ -1421,13 +1484,13 @@ let rec make_lrt_generic env st = function
         env,
         st )
   | CN_cletExpr (loc, name, expr) :: ensures ->
-    let@ expr = C_vars.handle st (C_vars.cn_expr Sym.Set.empty env expr) in
+    let@ expr = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env expr) in
     let@ lrt, env, st =
       make_lrt_generic (add_logical name (IT.get_bt expr) env) st ensures
     in
     return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
-    let@ lc = C_vars.handle st (C_vars.cn_assrt env (loc, constr)) in
+    let@ lc = Handle.with_state st (C_vars.cn_assrt env (loc, constr)) in
     let@ lrt, env, st = make_lrt_generic env st ensures in
     return (LRT.mConstraint (lc, (loc, None)) lrt, env, st)
   | [] -> return (LRT.I, env, st)
@@ -1491,69 +1554,6 @@ let lemma env (def : _ Cn.cn_lemma) =
   return (def.cn_lemma_name, (def.cn_lemma_loc, at))
 
 
-module UsingLoads = struct
-  let pointee_ct loc it =
-    match IT.get_bt it with
-    | BT.Loc (Some ct) -> return ct
-    | BT.Loc None ->
-      let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IT.pp it) ^^ Pp.dot in
-      fail { loc; msg = Generic msg [@alert "-deprecated"] }
-    | has ->
-      let expected = "pointer" in
-      let reason = "dereferencing" in
-      let msg =
-        WellTyped (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
-      in
-      fail { loc; msg }
-
-
-  let handle allocations old_states : Cnprog.t C_vars.t -> Cnprog.t Or_Error.t =
-    let rec aux = function
-      | C_vars.Done x -> return x
-      | Error { loc; msg } -> fail { loc; msg }
-      | Value_of_c_variable (loc, sym, scope, k) ->
-        (match scope with
-         | Some scope ->
-           let variable_state = C_vars.((StringMap.find scope old_states).var_state) in
-           let o_v =
-             Option.map
-               (function
-                 | C_vars.Value (sym', sbt) -> IT.sym_ (sym', sbt, loc)
-                 | C_vars.Points_to x -> x)
-               (Sym.Map.find_opt sym variable_state)
-           in
-           aux (k o_v)
-         | None ->
-           let ct = Sctypes.of_ctype_unsafe loc (allocations sym) in
-           let pointer = IT.sym_ (sym, BT.Loc (Some ct), loc) in
-           load loc "read" pointer k)
-      | Deref (loc, pointer, scope, k) ->
-        (match scope with
-         | Some scope ->
-           let pointee_values = (StringMap.find scope old_states).pointee_values in
-           let o_v = STermMap.find_opt pointer pointee_values in
-           aux (k o_v)
-         | None -> load loc "deref" pointer k)
-      | ScopeExists (_loc, scope, k) -> aux (k (StringMap.mem scope old_states))
-    and load loc action_pp pointer k =
-      let@ pointee_ct = pointee_ct loc pointer in
-      let value_loc = loc in
-      let value_s = Sym.fresh_make_uniq (action_pp ^ "_" ^ Pp.plain (IT.pp pointer)) in
-      let value_bt = Memory.sbt_of_sct pointee_ct in
-      let value = IT.sym_ (value_s, value_bt, value_loc) in
-      let@ prog = aux (k (Some value)) in
-      let load = Cnprog.{ ct = pointee_ct; pointer = IT.Surface.proj pointer } in
-      return (Cnprog.Let (loc, (value_s, load), prog))
-    in
-    aux
-end
-
-let expr syms env st expr = C_vars.handle st (C_vars.cn_expr syms env expr)
-
-let let_resource env st res = C_vars.handle st (C_vars.cn_let_resource env res)
-
-let assrt env st assrt = C_vars.handle st (C_vars.cn_assrt env assrt)
-
 let statement
       (allocations : Sym.t -> CF.Ctype.ctype)
       old_states
@@ -1561,7 +1561,7 @@ let statement
       (Cn.CN_statement (loc, stmt_))
   =
   let open Cnprog in
-  UsingLoads.handle
+  Handle.with_loads
     allocations
     old_states
     (let open Effectful.Make (C_vars.Monad) in
