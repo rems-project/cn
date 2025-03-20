@@ -200,7 +200,7 @@ int cn_test_main(int argc, char* argv[]) {
   uint64_t seed = cn_gen_rand();
   enum cn_logging_level logging_level = CN_LOGGING_ERROR;
   int timeout = 0;
-  int input_timeout = 5000;
+  int input_timeout = 1000;
   int exit_fast = 0;
   int trap = 0;
   enum cn_gen_sizing_strategy sizing_strategy = CN_GEN_SIZE_QUICKCHECK;

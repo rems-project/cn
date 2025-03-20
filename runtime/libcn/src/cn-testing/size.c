@@ -63,13 +63,13 @@ uint16_t cn_gen_get_size_split_backtracks_allowed() {
   return size_split_backtracks_allowed;
 }
 
-static uint8_t timeout = 0;
+static uint64_t timeout = 0;
 
-void cn_gen_set_input_timeout(uint8_t seconds) {
-  timeout = seconds;
+void cn_gen_set_input_timeout(uint64_t ms) {
+  timeout = ms;
 }
 
-uint8_t cn_gen_get_input_timeout(void) {
+uint64_t cn_gen_get_input_timeout(void) {
   return timeout;
 }
 
