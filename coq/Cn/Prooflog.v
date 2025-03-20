@@ -13,7 +13,7 @@ Inductive unpack_result : Type :=
   | UnpackLRT : LogicalReturnTypes.t -> unpack_result
   | UnpackRES : list Resource.t -> unpack_result.
 
-Definition unfold_changed := list (Z*Resource.t*unpack_result).
+Definition unfold_changed := list (Resource.t*unpack_result).
 Definition extract_changed := list Resource.t.
 Definition unfold_step := (unfold_changed*extract_changed)%type.
 

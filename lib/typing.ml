@@ -711,8 +711,8 @@ let do_unfold_resources loc =
            List.map
              (fun (i, re, unpackable) ->
                 match unpackable with
-                | `LRT lrt -> (i, re, UnpackLRT lrt)
-                | `RES res -> (i, re, UnpackRES res))
+                | `LRT lrt -> (re, UnpackLRT lrt)
+                | `RES res -> (re, UnpackRES res))
              unpack
          in
          aux ((converted_unpack, extract) :: changed))

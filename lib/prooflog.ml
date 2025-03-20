@@ -8,7 +8,7 @@ type unpack_result =
   | UnpackLRT of LogicalReturnTypes.t
   | UnpackRES of Resource.t list
 
-type unfold_changed = (int * Resource.t * unpack_result) list
+type unfold_changed = (Resource.t * unpack_result) list
 
 type extract_changed = Resource.t list
 
