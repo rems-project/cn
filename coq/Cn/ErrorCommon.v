@@ -1,8 +1,9 @@
 Require Import Coq.Strings.String.
 
+From Cerberus Require Import Annot.
 Require Import Sym.
 
-Definition label_kind := unit. (* TODO: placeholder *)
+Definition label_kind := Annot.label_annot.
 
 (* Corresponds to OCaml type access *)
 Inductive access : Type :=

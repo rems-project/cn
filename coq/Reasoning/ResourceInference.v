@@ -234,7 +234,7 @@ Inductive log_entry_valid : log_entry -> Prop :=
 | array_resource_inference_step:
   forall ity isize iinit ipointer iargs
     oname opointer oargs
-    err out lines oloc
+    err out lines
     icomputational ilogical iresources iconstraints iglobal
     ocomputational ological oresources oconstraints oglobal,
 
@@ -256,7 +256,6 @@ Inductive log_entry_valid : log_entry -> Prop :=
           {| Predicate.name := Request.Owned (SCtypes.Array (SCtypes.Integer ity, isize)) iinit;
             Predicate.pointer := ipointer;
             Predicate.iargs := iargs |}
-          oloc (* unused *)
           ((
               (* output predicate *)
               {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
@@ -279,7 +278,7 @@ Inductive log_entry_valid : log_entry -> Prop :=
 | struct_resource_inference_step:
   forall isym iinit ipointer iargs
     oname opointer oargs
-    err out lines oloc
+    err out lines
     icomputational ilogical iresources iconstraints iglobal
     ocomputational ological oresources oconstraints oglobal,
 
@@ -328,7 +327,6 @@ Inductive log_entry_valid : log_entry -> Prop :=
           {| Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
             Predicate.pointer := ipointer;
             Predicate.iargs := iargs |}
-          oloc (* unused *)
           ((
               (* output predicate *)
               {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
@@ -351,7 +349,7 @@ Inductive log_entry_valid : log_entry -> Prop :=
 | simple_resource_inference_step:
   forall iname  ipointer  iargs
     oname  opointer  oargs
-    err out lines oloc
+    err out lines
     icomputational ilogical iresources iconstraints iglobal
     ocomputational ological oresources oconstraints oglobal,
 
@@ -397,7 +395,6 @@ Inductive log_entry_valid : log_entry -> Prop :=
             err (* unused *)
             (* input predicate *)
             {| Predicate.name:=iname; Predicate.pointer:=ipointer; Predicate.iargs:=iargs |}
-            oloc (* unused *)
             ((
                 (* output predicate *)
                 {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},

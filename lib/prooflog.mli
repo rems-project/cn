@@ -10,10 +10,7 @@ type unfold_step = unfold_changed * extract_changed
 
 type resource_inference_type =
   | PredicateRequest of
-      Error_common.situation
-      * Request.Predicate.t
-      * (Locations.t * string) option
-      * (Resource.predicate * int list)
+      Error_common.situation * Request.Predicate.t * (Resource.predicate * int list)
   | UnfoldResources of Cerb_location.t * unfold_step list
 
 type log_entry =

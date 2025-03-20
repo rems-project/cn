@@ -157,7 +157,7 @@ Ltac2 prove_unfold_step () :=
         Predicate.name := Request.Owned (SCtypes.Array _) _;
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
-      _ _) _) ] =>
+      _) _) ] =>
         Message.print (msg (Message.of_string "Arrays are not supported yet"));
         Std.constructor_n false 2 NoBindings (* apply array_resource_inference_step *)
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
@@ -165,7 +165,7 @@ Ltac2 prove_unfold_step () :=
         Predicate.name := Request.Owned (SCtypes.Struct ?isym) _;
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
-      _ _) _) ] =>
+      _) _) ] =>
        (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for Struct");
        verbose_print_constr "    Predicate symbol name: " isym;
@@ -192,7 +192,7 @@ Ltac2 prove_unfold_step () :=
           } clause ;
           prove_struct_resource_inference_step ()
        )
-  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _ _) _) ] =>
+  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ ?p _) _) ] =>
        (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for non-struct");
        verbose_print_constr "    Predicate: " p;

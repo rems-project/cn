@@ -20,7 +20,6 @@ Definition unfold_step := (unfold_changed*extract_changed)%type.
 Inductive resource_inference_type : Type :=
   | PredicateRequest : ErrorCommon.situation ->
                        Request.Predicate.t ->
-                       option (Location.t * string) ->
                        (Resource.predicate * list Z) ->
                        resource_inference_type
   | UnfoldResources: Location.t -> list unfold_step -> resource_inference_type.

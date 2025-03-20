@@ -2197,12 +2197,11 @@ let pp_unfold_step (s : Prooflog.unfold_step) =
 
 
 let pp_resource_inference_type = function
-  | Prooflog.PredicateRequest (s, p, o, ri) ->
+  | Prooflog.PredicateRequest (s, p, ri) ->
     pp_constructor
       "PredicateRequest"
       [ pp_situation s;
         pp_predicate p;
-        pp_option (pp_pair pp_location pp_string) o;
         pp_pair pp_resource_predicate (pp_list pp_int) ri
       ]
   | Prooflog.UnfoldResources (loc, steps) ->

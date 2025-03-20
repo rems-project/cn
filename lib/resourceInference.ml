@@ -158,6 +158,7 @@ module General = struct
   let rec predicate_request loc (uiinfo : uiinfo) (requested : Req.Predicate.t)
     : (Resource.predicate * int list) option m
     =
+    let@ c = get_typing_context () in
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
     let start_timing = Pp.time_log_start __LOC__ "" in
     let@ oarg_bt = WellTyped.oarg_bt_of_pred loc requested.name in
@@ -243,7 +244,15 @@ module General = struct
            return None)
     in
     Pp.time_log_end start_timing;
-    return res
+    match res with
+    | Some r ->
+      let@ c' = get_typing_context () in
+      Prooflog.record_resource_inference_step
+        c
+        c'
+        (PredicateRequest (fst uiinfo, requested, r));
+      return (Some r)
+    | None -> return None
 
 
   and qpredicate_request_aux loc uiinfo (requested : Req.QPredicate.t) =
@@ -448,7 +457,6 @@ module Special = struct
 
 
   let predicate_request loc situation (request, oinfo) =
-    let@ c = get_typing_context () in
     let requests =
       [ TypeErrors.RequestChain.
           { resource = P request;
@@ -459,15 +467,7 @@ module Special = struct
     in
     let uiinfo = (situation, requests) in
     let@ result = General.predicate_request loc uiinfo request in
-    match result with
-    | Some r ->
-      let@ c' = get_typing_context () in
-      Prooflog.record_resource_inference_step
-        c
-        c'
-        (PredicateRequest (situation, request, oinfo, r));
-      return r
-    | None -> fail_missing_resource loc uiinfo
+    match result with Some r -> return r | None -> fail_missing_resource loc uiinfo
 
 
   let has_predicate loc situation (request, oinfo) =
