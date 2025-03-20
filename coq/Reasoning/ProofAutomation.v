@@ -66,7 +66,7 @@ Qed.
      match diff with
      | [res] =>
          (* single resource [res] matched, extract request as [req] *)
-         let (req,out') := destruct_pair res in
+         let (req,_) := destruct_pair res in
          let p := predicate_of_request req in
          exists $p;
          Std.split false NoBindings;
@@ -96,7 +96,7 @@ Qed.
  Ltac2 prove_struct_resource_inference_step () :=
  match! goal with
  | [ |- exists field_res,
-        resource_unfold ?iglobal ?res field_res /\
+        resource_unfold _ _ field_res /\
         ResSet.Equal (set_from_list ?out_res) (ResSet.diff (set_from_list ?in_res) field_res) ] =>
 
    (* now try to compute field_res from in_res and out_res *)
@@ -136,7 +136,7 @@ end.
 
 Ltac2 prove_unfold_step () :=
   match! goal with
-  | [ |- unfold_step ?c ?c' ] =>
+  | [ |- unfold_step _ _ ] =>
       Std.constructor false;
       Control.focus 1 1 (fun () => Std.reflexivity ());
       Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -154,16 +154,16 @@ Ltac2 prove_unfold_step () :=
  match! goal with
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
       {| 
-        Predicate.name := Request.Owned (SCtypes.Array ?p) ?iinit;
-        Predicate.pointer := ?ipointer; Predicate.iargs := ?iargs 
+        Predicate.name := Request.Owned (SCtypes.Array _) _;
+        Predicate.pointer := _; Predicate.iargs := _ 
       |}
       _ _) _) ] =>
         Message.print (msg (Message.of_string "Arrays are not supported yet"));
         Std.constructor_n false 2 NoBindings (* apply array_resource_inference_step *)
   | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
       {| 
-        Predicate.name := Request.Owned (SCtypes.Struct ?isym) ?iinit;
-        Predicate.pointer := ?ipointer; Predicate.iargs := ?iargs 
+        Predicate.name := Request.Owned (SCtypes.Struct ?isym) _;
+        Predicate.pointer := _; Predicate.iargs := _ 
       |}
       _ _) _) ] =>
        (* PredicateRequest case *)
@@ -244,7 +244,7 @@ Ltac2 prove_unfold_step () :=
                Std.constructor false
              else if Constr.equal f_name cons_name then
                (* cons case *)
-               let head := Array.get args 1 in
+               (* let head := Array.get args 1 in *)
                let tail := Array.get args 2 in
                Std.constructor false;
                Control.focus 1 1 (fun () => prove_log_entry_valid n);

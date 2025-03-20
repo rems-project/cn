@@ -215,5 +215,5 @@ Inductive cn_error : Type :=
   | CNErr_duplicate_field : Symbol.identifier -> cn_error.
 
 (* Typing error *)
-Inductive cn_typing_error : Type :=
+Inductive cn_typing_error : Prop :=
   | CNErr_typing_TODO : cn_typing_error. 
