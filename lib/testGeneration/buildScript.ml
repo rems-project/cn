@@ -208,6 +208,10 @@ let run () =
             [ "--trap" ]
           else
             [])
+       @ (if Config.has_no_replays () then
+            [ "--no-replays" ]
+          else
+            [])
        @
        if Config.has_no_replicas () then
          [ "--no-replicas" ]

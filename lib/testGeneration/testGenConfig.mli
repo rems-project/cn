@@ -50,6 +50,7 @@ type t =
     coverage : bool;
     disable_passes : string list;
     trap : bool;
+    no_replays : bool;
     no_replicas : bool
   }
 
@@ -130,5 +131,7 @@ val is_coverage : unit -> bool
 val has_pass : string -> bool
 
 val is_trap : unit -> bool
+
+val has_no_replays : unit -> bool
 
 val has_no_replicas : unit -> bool

@@ -204,6 +204,7 @@ int cn_test_main(int argc, char* argv[]) {
   int exit_fast = 0;
   int trap = 0;
   enum cn_gen_sizing_strategy sizing_strategy = CN_GEN_SIZE_QUICKCHECK;
+  int replay = 1;
   int replicas = 1;
   int print_seed = 0;
   for (int i = 0; i < argc; i++) {
@@ -296,6 +297,8 @@ int cn_test_main(int argc, char* argv[]) {
       }
 
       i++;
+    } else if (strcmp("--no-replays", arg) == 0) {
+      replay = 0;
     } else if (strcmp("--no-replicas", arg) == 0) {
       replicas = 0;
     } else if (strcmp("--print-seed", arg) == 0) {
@@ -349,19 +352,21 @@ int cn_test_main(int argc, char* argv[]) {
         case CN_TEST_FAIL:
           printf("FAILED\n");
 
-          set_cn_logging_level(logging_level);
-          cn_printf(CN_LOGGING_ERROR, "\n");
+          if (replay) {
+            set_cn_logging_level(logging_level);
+            cn_printf(CN_LOGGING_ERROR, "\n");
 
-          cn_test_reproduce(&repros[i]);
-          enum cn_test_result replay_result = test_case->func(
-              true, CN_TEST_GEN_PROGRESS_NONE, sizing_strategy, trap, replicas);
+            cn_test_reproduce(&repros[i]);
+            enum cn_test_result replay_result = test_case->func(
+                true, CN_TEST_GEN_PROGRESS_NONE, sizing_strategy, trap, replicas);
 
-          if (replay_result != CN_TEST_FAIL) {
-            fprintf(stderr, "Replay of failure did not fail.\n");
-            abort();
+            if (replay_result != CN_TEST_FAIL) {
+              fprintf(stderr, "Replay of failure did not fail.\n");
+              abort();
+            }
+
+            set_cn_logging_level(CN_LOGGING_NONE);
           }
-
-          set_cn_logging_level(CN_LOGGING_NONE);
 
           break;
         case CN_TEST_GEN_FAIL:

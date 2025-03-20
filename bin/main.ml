@@ -647,6 +647,7 @@ let run_tests
       coverage
       disable_passes
       trap
+      no_replays
       no_replicas
   =
   (* flags *)
@@ -705,6 +706,7 @@ let run_tests
           coverage;
           disable_passes;
           trap;
+          no_replays;
           no_replicas
         }
       in
@@ -1393,6 +1395,11 @@ module Testing_flags = struct
     Arg.(value & flag & info [ "trap" ] ~doc)
 
 
+  let no_replays =
+    let doc = "Disable replaying errors for error messages" in
+    Arg.(value & flag & info [ "no-replays" ] ~doc)
+
+
   let no_replicas =
     let doc = "Disable synthesizing C code to replicate bugs" in
     Arg.(value & flag & info [ "no-replicas" ] ~doc)
@@ -1489,6 +1496,7 @@ let testing_cmd =
     $ Testing_flags.coverage
     $ Testing_flags.disable_passes
     $ Testing_flags.trap
+    $ Testing_flags.no_replays
     $ Testing_flags.no_replicas
   in
   let doc =
