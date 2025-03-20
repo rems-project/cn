@@ -709,7 +709,7 @@ let do_unfold_resources loc =
        | _ ->
          let converted_unpack =
            List.map
-             (fun (i, re, unpackable) ->
+             (fun (_, re, unpackable) ->
                 match unpackable with
                 | `LRT lrt -> (re, UnpackLRT lrt)
                 | `RES res -> (re, UnpackRES res))
