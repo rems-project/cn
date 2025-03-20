@@ -15,7 +15,7 @@ homepage: "https://rems-project.github.io/cn-tutorial"
 bug-reports: "https://github.com/rems-project/cn/issues"
 depends: [
   "cn"
-  "coq" {>= "8.18.0"}
+  "coq" {>= "8.19.1"}
   "coq-ext-lib"
   "coq-struct-tact"
 ]
