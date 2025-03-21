@@ -23,10 +23,7 @@ let name_of_bt (bt : BT.t) : string =
   let ct' =
     match bt_to_ctype bt with Ctype (_, Pointer (_, ct')) -> ct' | _ -> failwith __LOC__
   in
-  let default =
-    CF.Pp_utils.to_plain_string
-      (CF.Pp_ail.pp_ctype ~executable_spec:true C.no_qualifiers ct')
-  in
+  let default = CF.Pp_utils.to_plain_string (CF.Pp_ail.pp_ctype C.no_qualifiers ct') in
   Utils.get_typedef_string ct |> Option.value ~default
 
 

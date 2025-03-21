@@ -25,7 +25,7 @@ let name_of_bt (bt : BT.t) : string =
   in
   let default =
     CF.Pp_utils.to_plain_string
-      (CF.Pp_ail.pp_ctype ~executable_spec:true C.no_qualifiers ct')
+      CF.Pp_ail.(with_executable_spec (pp_ctype C.no_qualifiers) ct')
   in
   Utils.get_typedef_string ct |> Option.value ~default
 

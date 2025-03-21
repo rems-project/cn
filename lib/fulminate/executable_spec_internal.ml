@@ -34,7 +34,7 @@ let generate_ail_stat_strs
   let ail_stats_ = List.filter (fun s -> not (is_assert_true s)) ail_stats_ in
   let doc =
     List.map
-      (fun s -> CF.Pp_ail.pp_statement ~executable_spec:true ~bs (mk_stmt s))
+      (fun s -> CF.Pp_ail.(with_executable_spec (pp_statement ~bs) (mk_stmt s)))
       ail_stats_
   in
   let doc =
@@ -249,7 +249,7 @@ let generate_c_specs
 
 
 let generate_doc_from_ail_struct ail_struct =
-  CF.Pp_ail.pp_tag_definition ~executable_spec:true ail_struct ^^ PPrint.hardline
+  CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
 
 
 let generate_struct_decl_str (tag, (_, _, def)) =
@@ -312,7 +312,7 @@ let generate_fun_def_and_decl_docs funs =
     { A.empty_sigma with declarations = decls; function_definitions = [] }
   in
   let pp_program_with_exec_spec prog =
-    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, prog)
+    CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
   in
   let defs_doc = pp_program_with_exec_spec defs_prog in
   let decls_doc = pp_program_with_exec_spec decls_prog in
