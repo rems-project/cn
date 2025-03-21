@@ -54,6 +54,7 @@ let compile_constant_tests
            let open Pp in
            (if not (Config.with_static_hack ()) then
               CF.Pp_ail.pp_function_prototype
+                ~executable_spec:true
                 inst.fn
                 (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
                  decl)
@@ -149,6 +150,7 @@ let compile_random_test_case
   in
   (if not (Config.with_static_hack ()) then
      CF.Pp_ail.pp_function_prototype
+       ~executable_spec:true
        inst.fn
        (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
         decl)
@@ -179,6 +181,7 @@ let compile_random_test_case
                       (fun (sym, sct) ->
                          let ty =
                            CF.Pp_ail.pp_ctype
+                             ~executable_spec:true
                              ~is_human:false
                              C.no_qualifiers
                              (Sctypes.to_ctype sct)

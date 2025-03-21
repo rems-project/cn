@@ -24,7 +24,10 @@ let name_of_bt (pred_sym : Sym.t) (bt : BT.t) : string =
     | Ctype (_, Pointer (_, ct')) -> ct'
     | _ -> failwith ""
   in
-  let default = CF.Pp_utils.to_plain_string (CF.Pp_ail.pp_ctype C.no_qualifiers ct') in
+  let default =
+    CF.Pp_utils.to_plain_string
+      (CF.Pp_ail.pp_ctype ~executable_spec:true C.no_qualifiers ct')
+  in
   Utils.get_typedef_string ct |> Option.value ~default
 
 
@@ -218,6 +221,7 @@ let rec compile_term
                            (Sym.fresh_named
                               (CF.Pp_utils.to_plain_string
                                  (CF.Pp_ail.pp_ctype
+                                    ~executable_spec:true
                                     C.no_qualifiers
                                     (Sctypes.to_ctype sct)))));
                       mk_expr (CtA.wrap_with_convert_from e2_ (IT.get_bt value));
@@ -585,14 +589,18 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   ^^ twice hardline
   ^^ string "#include \"cn.h\""
   ^^ twice hardline
-  ^^ separate_map (twice hardline) CF.Pp_ail.pp_tag_definition tag_definitions
+  ^^ separate_map
+       (twice hardline)
+       (CF.Pp_ail.pp_tag_definition ~executable_spec:true)
+       tag_definitions
   ^^ twice hardline
   ^^ separate_map
        (twice hardline)
-       (fun (tag, (_, _, decl)) -> CF.Pp_ail.pp_function_prototype tag decl)
+       (fun (tag, (_, _, decl)) ->
+          CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
        declarations
   ^^ twice hardline
-  ^^ CF.Pp_ail.pp_program ~show_include:true (None, sigma)
+  ^^ CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, sigma)
   ^^ hardline
   ^^ string "#endif // CN_GEN_H"
   ^^ hardline
