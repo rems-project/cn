@@ -219,7 +219,7 @@ let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
   in
   let ret = mk_ctype ~annots typ in
   (* Make everything a pointer. TODO: Change *)
-  match typ with C.Void -> ret | _ -> mk_ctype C.(Pointer (empty_qualifiers, ret))
+  match typ with C.Void -> ret | _ -> mk_ctype C.(Pointer (C.no_qualifiers, ret))
 
 
 let bt_to_ail_ctype ?(pred_sym = None) t =
@@ -626,8 +626,8 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
     mk_expr
       A.(
         AilEcast
-          ( empty_qualifiers,
-            mk_ctype C.(Pointer (empty_qualifiers, ctype)),
+          ( C.no_qualifiers,
+            mk_ctype C.(Pointer (C.no_qualifiers, ctype)),
             mk_expr (AilEmemberofptr (mk_expr (AilEident param1_sym), Id.make here "ptr"))
           ))
   in
@@ -639,7 +639,7 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
       let uintptr_t_type = C.uintptr_t in
       let generic_c_ptr_binding = create_binding generic_c_ptr_sym uintptr_t_type in
       let uintptr_t_cast_expr =
-        mk_expr A.(AilEcast (empty_qualifiers, uintptr_t_type, cast_expr))
+        mk_expr A.(AilEcast (C.no_qualifiers, uintptr_t_type, cast_expr))
       in
       let generic_c_ptr_assign_stat_ =
         A.(AilSdeclaration [ (generic_c_ptr_sym, Some uintptr_t_cast_expr) ])
@@ -652,7 +652,7 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
     (param2_sym, mk_ctype C.(Basic (Integer (Enum (Sym.fresh_pretty "OWNERSHIP")))))
   in
   let param_syms, param_types = List.split [ param1; param2 ] in
-  let param_types = List.map (fun t -> (empty_qualifiers, t, false)) param_types in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   let ownership_fcall_maybe =
     if without_ownership_checking then
       []
@@ -662,7 +662,7 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
         A.
           [ AilEident param2_sym;
             AilEident generic_c_ptr_sym;
-            AilEsizeof (empty_qualifiers, ctype)
+            AilEsizeof (C.no_qualifiers, ctype)
           ]
       in
       [ A.(
@@ -691,7 +691,7 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
         empty_attributes,
         A.(
           Decl_function
-            (false, (empty_qualifiers, ret_type), param_types, false, false, false)) ) )
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
   let def =
@@ -722,7 +722,7 @@ let mk_alloc_expr (ct_ : C.ctype_) : CF.GenTypes.genTypeCategory A.expression =
            mk_expr
              (AilEcall
                 ( mk_expr (AilEident alloc_sym),
-                  [ mk_expr (AilEsizeof (empty_qualifiers, mk_ctype ct_)) ] )) )))
+                  [ mk_expr (AilEsizeof (C.no_qualifiers, mk_ctype ct_)) ] )) )))
 
 
 let is_sym_obj_address sym =
@@ -801,7 +801,7 @@ let rec cn_to_ail_expr_aux
     let ail_expr_ = A.(AilEcall (mk_expr (AilEident (Sym.fresh_pretty str)), [ e ])) in
     dest d (b, s, mk_expr ail_expr_)
   | SizeOf sct ->
-    let ail_expr_ = A.(AilEsizeof (empty_qualifiers, Sctypes.to_ctype sct)) in
+    let ail_expr_ = A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype sct)) in
     let ail_call_ = wrap_with_convert_to ~sct ail_expr_ basetype in
     dest d ([], [], mk_expr ail_call_)
   | OffsetOf _ -> failwith (__LOC__ ^ ": TODO OffsetOf")
@@ -881,7 +881,7 @@ let rec cn_to_ail_expr_aux
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
       (b, s, assign_stat)
     in
-    let ctype_ = C.(Pointer (empty_qualifiers, mk_ctype (Struct cn_struct_tag))) in
+    let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct cn_struct_tag))) in
     let res_binding = create_binding res_sym (mk_ctype ctype_) in
     let fn_call = mk_alloc_expr (Struct cn_struct_tag) in
     let alloc_stat = A.(AilSdeclaration [ (res_sym, Some fn_call) ]) in
@@ -926,7 +926,7 @@ let rec cn_to_ail_expr_aux
        let res_binding =
          create_binding
            res_sym
-           C.(mk_ctype_pointer empty_qualifiers (mk_ctype (Struct cn_struct_tag)))
+           C.(mk_ctype_pointer C.no_qualifiers (mk_ctype (Struct cn_struct_tag)))
        in
        let alloc_call = mk_alloc_expr (Struct cn_struct_tag) in
        let res_decl = A.(AilSdeclaration [ (res_sym, Some alloc_call) ]) in
@@ -959,7 +959,7 @@ let rec cn_to_ail_expr_aux
     in
     let transformed_ms = List.map (fun (id, it) -> (id, IT.get_bt it)) ms in
     let sym_name = lookup_records_map transformed_ms in
-    let ctype_ = C.(Pointer (empty_qualifiers, mk_ctype (Struct sym_name))) in
+    let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct sym_name))) in
     let res_binding = create_binding res_sym (mk_ctype ctype_) in
     let fn_call = mk_alloc_expr (Struct sym_name) in
     let alloc_stat = A.(AilSdeclaration [ (res_sym, Some fn_call) ]) in
@@ -991,7 +991,7 @@ let rec cn_to_ail_expr_aux
     let parent_dt, _members = find_dt_from_constructor sym dts in
     let res_sym = Sym.fresh () in
     let res_ident = A.(AilEident res_sym) in
-    let ctype_ = C.(Pointer (empty_qualifiers, mk_ctype (Struct parent_dt.cn_dt_name))) in
+    let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct parent_dt.cn_dt_name))) in
     let res_binding = create_binding res_sym (mk_ctype ctype_) in
     let fn_call =
       A.(
@@ -1003,7 +1003,7 @@ let rec cn_to_ail_expr_aux
                  ( mk_expr (AilEident alloc_sym),
                    [ mk_expr
                        (AilEsizeof
-                          (empty_qualifiers, mk_ctype C.(Struct parent_dt.cn_dt_name)))
+                          (C.no_qualifiers, mk_ctype C.(Struct parent_dt.cn_dt_name)))
                    ] )) ))
     in
     let ail_decl = A.(AilSdeclaration [ (res_sym, Some (mk_expr fn_call)) ]) in
@@ -1032,7 +1032,7 @@ let rec cn_to_ail_expr_aux
               (AilEcall
                  ( mk_expr (AilEident alloc_sym),
                    [ mk_expr
-                       (AilEsizeof (empty_qualifiers, mk_ctype C.(Struct lc_constr_sym)))
+                       (AilEsizeof (C.no_qualifiers, mk_ctype C.(Struct lc_constr_sym)))
                    ] )) ))
     in
     let constr_allocation_stat =
@@ -1071,7 +1071,7 @@ let rec cn_to_ail_expr_aux
   | ArrayShift { base; ct; index } ->
     let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals base PassBack in
     let b2, s2, e2 = cn_to_ail_expr_aux const_prop pred_name dts globals index PassBack in
-    let sizeof_expr = mk_expr A.(AilEsizeof (empty_qualifiers, Sctypes.to_ctype ct)) in
+    let sizeof_expr = mk_expr A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype ct)) in
     let ail_expr_ =
       A.(
         AilEcall
@@ -1153,7 +1153,7 @@ let rec cn_to_ail_expr_aux
     in
     let _, val_bt = BT.map_bt (IT.get_bt m) in
     let ctype = bt_to_ail_ctype val_bt in
-    let cast_expr_ = A.(AilEcast (empty_qualifiers, ctype, mk_expr map_get_fcall)) in
+    let cast_expr_ = A.(AilEcast (C.no_qualifiers, ctype, mk_expr map_get_fcall)) in
     dest d (b1 @ b2, s1 @ s2, mk_expr cast_expr_)
   | MapDef ((_sym, _bt), _t) -> failwith (__LOC__ ^ ": TODO MapDef")
   | Apply (sym, ts) ->
@@ -1267,7 +1267,7 @@ let rec cn_to_ail_expr_aux
                  let constr_binding =
                    create_binding
                      count_sym
-                     (mk_ctype C.(Pointer (empty_qualifiers, mk_ctype C.(Struct lc_sym))))
+                     (mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype C.(Struct lc_sym))))
                  in
                  let constructor_var_assign =
                    mk_stmt
@@ -1370,7 +1370,7 @@ let rec cn_to_ail_expr_aux
           | Some cast_type_str, Some original_type_str ->
             let fn_name = "cast_" ^ original_type_str ^ "_to_" ^ cast_type_str in
             A.(AilEcall (mk_expr (AilEident (Sym.fresh_pretty fn_name)), [ e ]))
-          | _, _ -> A.(AilEcast (empty_qualifiers, bt_to_ail_ctype bt, e))
+          | _, _ -> A.(AilEcast (C.no_qualifiers, bt_to_ail_ctype bt, e))
         in
         (ail_expr_, b, s)
     in
@@ -1409,7 +1409,7 @@ let cn_to_ail_expr_with_pred_name
   cn_to_ail_expr_aux None pred_name_opt dts globals cn_expr d
 
 
-let create_member (ctype, id) = (id, (empty_attributes, None, empty_qualifiers, ctype))
+let create_member (ctype, id) = (id, (empty_attributes, None, C.no_qualifiers, ctype))
 
 let generate_tag_definition dt_members =
   let ail_dt_members = List.map (fun (id, bt) -> (bt_to_ail_ctype bt, id)) dt_members in
@@ -1438,16 +1438,14 @@ let cn_to_ail_records map_bindings =
 let generate_map_get sym =
   let ctype_str = "struct_" ^ Sym.pp_string sym in
   let fn_str = "cn_map_get_" ^ ctype_str in
-  let void_ptr_type = C.(mk_ctype_pointer empty_qualifiers (mk_ctype Void)) in
+  let void_ptr_type = C.(mk_ctype_pointer C.no_qualifiers (mk_ctype Void)) in
   let param1_sym = Sym.fresh_pretty "m" in
   let param2_sym = Sym.fresh_pretty "key" in
   let param_syms = [ param1_sym; param2_sym ] in
   let param_types =
     List.map bt_to_ail_ctype [ BT.Map (Integer, Struct sym); BT.Integer ]
   in
-  let param_types =
-    List.map (fun ctype -> (empty_qualifiers, ctype, false)) param_types
-  in
+  let param_types = List.map (fun ctype -> (C.no_qualifiers, ctype, false)) param_types in
   let fn_sym = Sym.fresh_pretty fn_str in
   let ret_sym = Sym.fresh_pretty "ret" in
   let ret_binding = create_binding ret_sym void_ptr_type in
@@ -1477,7 +1475,7 @@ let generate_map_get sym =
   let default_fcall =
     A.(AilEcall (mk_expr (AilEident (Sym.fresh_pretty ("default_" ^ ctype_str))), []))
   in
-  let cast_expr = A.(AilEcast (empty_qualifiers, void_ptr_type, mk_expr default_fcall)) in
+  let cast_expr = A.(AilEcast (C.no_qualifiers, void_ptr_type, mk_expr default_fcall)) in
   let if_stmt =
     A.(
       AilSif
@@ -1493,7 +1491,7 @@ let generate_map_get sym =
         empty_attributes,
         A.(
           Decl_function
-            (false, (empty_qualifiers, ret_type), param_types, false, false, false)) ) )
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
   let def =
@@ -1527,13 +1525,13 @@ let cn_to_ail_datatype ?(first = false) (cn_datatype : _ cn_datatype)
   let attrs = CF.Annot.Attrs [ attr ] in
   let enum_members =
     List.map
-      (fun sym -> (sym, (empty_attributes, None, empty_qualifiers, mk_ctype C.Void)))
+      (fun sym -> (sym, (empty_attributes, None, C.no_qualifiers, mk_ctype C.Void)))
       enum_member_syms
   in
   let enum_tag_definition = C.(UnionDef enum_members) in
   let enum = (enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition)) in
   let cntype_sym = Sym.fresh_pretty "cntype" in
-  let cntype_pointer = C.(Pointer (empty_qualifiers, mk_ctype (Struct cntype_sym))) in
+  let cntype_pointer = C.(Pointer (C.no_qualifiers, mk_ctype (Struct cntype_sym))) in
   let extra_members tag_type =
     [ create_member (mk_ctype tag_type, Id.make here "tag");
       create_member (mk_ctype cntype_pointer, Id.make here "cntype")
@@ -1567,7 +1565,7 @@ let cn_to_ail_datatype ?(first = false) (cn_datatype : _ cn_datatype)
       (fun sym ->
          let lc_sym = Sym.fresh_pretty (String.lowercase_ascii (Sym.pp_string sym)) in
          create_member
-           ( mk_ctype C.(Pointer (empty_qualifiers, mk_ctype (Struct lc_sym))),
+           ( mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct lc_sym))),
              create_id_from_sym ~lowercase:true sym ))
       constructor_syms
   in
@@ -1606,8 +1604,8 @@ let generate_datatype_equality_function (cn_datatype : _ cn_datatype)
   let id_tag = Id.make here "tag" in
   let param_syms = [ param1_sym; param2_sym ] in
   let param_type =
-    ( empty_qualifiers,
-      mk_ctype (C.Pointer (empty_qualifiers, mk_ctype (Struct dt_sym))),
+    ( C.no_qualifiers,
+      mk_ctype (C.Pointer (C.no_qualifiers, mk_ctype (Struct dt_sym))),
       false )
   in
   let tag_check_cond =
@@ -1661,7 +1659,7 @@ let generate_datatype_equality_function (cn_datatype : _ cn_datatype)
         in
         let constr_id = create_id_from_sym ~lowercase:true constructor in
         let constr_struct_type =
-          mk_ctype C.(Pointer (empty_qualifiers, mk_ctype (Struct lc_constr_sym)))
+          mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct lc_constr_sym)))
         in
         let bindings =
           List.map (fun sym -> create_binding sym constr_struct_type) constr_syms
@@ -1708,7 +1706,7 @@ let generate_datatype_equality_function (cn_datatype : _ cn_datatype)
         A.(
           Decl_function
             ( false,
-              (empty_qualifiers, ret_type),
+              (C.no_qualifiers, ret_type),
               [ param_type; param_type ],
               false,
               false,
@@ -1736,7 +1734,7 @@ let generate_datatype_default_function (cn_datatype : _ cn_datatype) =
   let fn_str = "default_struct_" ^ Sym.pp_string cn_sym in
   let cn_struct_ctype = C.(Struct cn_sym) in
   let cn_struct_ptr_ctype =
-    mk_ctype C.(Pointer (empty_qualifiers, mk_ctype cn_struct_ctype))
+    mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype cn_struct_ctype))
   in
   let fn_sym = Sym.fresh_pretty fn_str in
   let alloc_fcall = mk_alloc_expr cn_struct_ctype in
@@ -1840,8 +1838,8 @@ let generate_datatype_default_function (cn_datatype : _ cn_datatype) =
     ( fn_sym,
       ( Cerb_location.unknown,
         empty_attributes,
-        A.(Decl_function (false, (empty_qualifiers, ret_type), [], false, false, false))
-      ) )
+        A.(Decl_function (false, (C.no_qualifiers, ret_type), [], false, false, false)) )
+    )
   in
   (* Generating function definition *)
   let def =
@@ -1874,11 +1872,11 @@ let generate_struct_equality_function
   | C.StructDef (members, _) ->
     let cn_sym = if is_record then sym else generate_sym_with_suffix ~suffix:"_cn" sym in
     let cn_struct_ctype = mk_ctype C.(Struct cn_sym) in
-    let cn_struct_ptr_ctype = mk_ctype C.(Pointer (empty_qualifiers, cn_struct_ctype)) in
+    let cn_struct_ptr_ctype = mk_ctype C.(Pointer (C.no_qualifiers, cn_struct_ctype)) in
     let fn_sym = Sym.fresh_pretty ("struct_" ^ Sym.pp_string cn_sym ^ "_equality") in
     let param_syms = [ Sym.fresh_pretty "x"; Sym.fresh_pretty "y" ] in
     let param_type =
-      (empty_qualifiers, mk_ctype (C.Pointer (empty_qualifiers, mk_ctype Void)), false)
+      (C.no_qualifiers, mk_ctype (C.Pointer (C.no_qualifiers, mk_ctype Void)), false)
     in
     let cast_param_syms =
       List.map (fun sym -> generate_sym_with_suffix ~suffix:"_cast" sym) param_syms
@@ -1895,7 +1893,7 @@ let generate_struct_equality_function
                    Some
                      (mk_expr
                         (AilEcast
-                           (empty_qualifiers, cn_struct_ptr_ctype, mk_expr (AilEident sym))))
+                           (C.no_qualifiers, cn_struct_ptr_ctype, mk_expr (AilEident sym))))
                  )
                ]))
         (List.combine cast_param_syms param_syms)
@@ -1938,7 +1936,7 @@ let generate_struct_equality_function
           A.(
             Decl_function
               ( false,
-                (empty_qualifiers, ret_type),
+                (C.no_qualifiers, ret_type),
                 [ param_type; param_type ],
                 false,
                 false,
@@ -1972,7 +1970,7 @@ let generate_struct_default_function
     let fn_str = "default_struct_" ^ Sym.pp_string cn_sym in
     let cn_struct_ctype = C.(Struct cn_sym) in
     let cn_struct_ptr_ctype =
-      mk_ctype C.(Pointer (empty_qualifiers, mk_ctype cn_struct_ctype))
+      mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype cn_struct_ctype))
     in
     let fn_sym = Sym.fresh_pretty fn_str in
     let alloc_fcall = mk_alloc_expr cn_struct_ctype in
@@ -2009,7 +2007,7 @@ let generate_struct_default_function
       ( fn_sym,
         ( Cerb_location.unknown,
           empty_attributes,
-          A.(Decl_function (false, (empty_qualifiers, ret_type), [], false, false, false))
+          A.(Decl_function (false, (C.no_qualifiers, ret_type), [], false, false, false))
         ) )
     in
     (* Generating function definition *)
@@ -2052,13 +2050,13 @@ let generate_struct_conversion_to_function
       Sym.fresh_pretty (Option.get (get_conversion_to_fn_str (BT.Struct sym)))
     in
     let param_sym = sym in
-    let param_type = (empty_qualifiers, mk_ctype C.(Struct sym), false) in
+    let param_type = (C.no_qualifiers, mk_ctype C.(Struct sym), false) in
     (* Function body *)
     let res_sym = Sym.fresh_pretty "res" in
     let res_binding =
       create_binding
         res_sym
-        (mk_ctype (C.Pointer (empty_qualifiers, mk_ctype cn_struct_ctype)))
+        (mk_ctype (C.Pointer (C.no_qualifiers, mk_ctype cn_struct_ctype)))
     in
     let alloc_fcall = mk_alloc_expr cn_struct_ctype in
     let res_assign = A.(AilSdeclaration [ (res_sym, Some alloc_fcall) ]) in
@@ -2083,7 +2081,7 @@ let generate_struct_conversion_to_function
           empty_attributes,
           A.(
             Decl_function
-              (false, (empty_qualifiers, ret_type), [ param_type ], false, false, false))
+              (false, (C.no_qualifiers, ret_type), [ param_type ], false, false, false))
         ) )
     in
     (* Generating function definition *)
@@ -2117,7 +2115,7 @@ let generate_struct_conversion_from_function
     in
     let param_sym = sym in
     let param_type =
-      ( empty_qualifiers,
+      ( C.no_qualifiers,
         C.(mk_ctype_pointer no_qualifiers (mk_ctype (Struct cn_sym))),
         false )
     in
@@ -2166,12 +2164,8 @@ let generate_struct_conversion_from_function
           empty_attributes,
           A.(
             Decl_function
-              ( false,
-                (empty_qualifiers, struct_ctype),
-                [ param_type ],
-                false,
-                false,
-                false )) ) )
+              (false, (C.no_qualifiers, struct_ctype), [ param_type ], false, false, false))
+        ) )
     in
     (* Generating function definition *)
     let def =
@@ -2197,11 +2191,11 @@ let generate_record_equality_function (sym, (members : BT.member_types))
   =
   let cn_sym = sym in
   let cn_struct_ctype = mk_ctype C.(Struct cn_sym) in
-  let cn_struct_ptr_ctype = mk_ctype C.(Pointer (empty_qualifiers, cn_struct_ctype)) in
+  let cn_struct_ptr_ctype = mk_ctype C.(Pointer (C.no_qualifiers, cn_struct_ctype)) in
   let fn_sym = Sym.fresh_pretty ("struct_" ^ Sym.pp_string cn_sym ^ "_equality") in
   let param_syms = [ Sym.fresh_pretty "x"; Sym.fresh_pretty "y" ] in
   let param_type =
-    (empty_qualifiers, mk_ctype (C.Pointer (empty_qualifiers, mk_ctype Void)), false)
+    (C.no_qualifiers, mk_ctype (C.Pointer (C.no_qualifiers, mk_ctype Void)), false)
   in
   let cast_param_syms =
     List.map (fun sym -> generate_sym_with_suffix ~suffix:"_cast" sym) param_syms
@@ -2218,7 +2212,7 @@ let generate_record_equality_function (sym, (members : BT.member_types))
                  Some
                    (mk_expr
                       (AilEcast
-                         (empty_qualifiers, cn_struct_ptr_ctype, mk_expr (AilEident sym))))
+                         (C.no_qualifiers, cn_struct_ptr_ctype, mk_expr (AilEident sym))))
                )
              ]))
       (List.combine cast_param_syms param_syms)
@@ -2254,7 +2248,7 @@ let generate_record_equality_function (sym, (members : BT.member_types))
         A.(
           Decl_function
             ( false,
-              (empty_qualifiers, ret_type),
+              (C.no_qualifiers, ret_type),
               [ param_type; param_type ],
               false,
               false,
@@ -2282,7 +2276,7 @@ let generate_record_default_function _dts (sym, (members : BT.member_types))
   let fn_str = "default_struct_" ^ Sym.pp_string cn_sym in
   let cn_struct_ctype = C.(Struct cn_sym) in
   let cn_struct_ptr_ctype =
-    mk_ctype C.(Pointer (empty_qualifiers, mk_ctype cn_struct_ctype))
+    mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype cn_struct_ctype))
   in
   let fn_sym = Sym.fresh_pretty fn_str in
   let alloc_fcall = mk_alloc_expr cn_struct_ctype in
@@ -2314,8 +2308,8 @@ let generate_record_default_function _dts (sym, (members : BT.member_types))
     ( fn_sym,
       ( Cerb_location.unknown,
         empty_attributes,
-        A.(Decl_function (false, (empty_qualifiers, ret_type), [], false, false, false))
-      ) )
+        A.(Decl_function (false, (C.no_qualifiers, ret_type), [], false, false, false)) )
+    )
   in
   (* Generating function definition *)
   let def =
@@ -2469,7 +2463,7 @@ let cn_to_ail_resource
         match cn_bt with
         | CN_record _members ->
           let pred_record_name = generate_sym_with_suffix ~suffix:"_record" pred_sym' in
-          mk_ctype C.(Pointer (empty_qualifiers, mk_ctype (Struct pred_record_name)))
+          mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct pred_record_name)))
         | _ -> cn_to_ail_base_type ~pred_sym:(Some pred_sym') cn_bt
       in
       (ctype, pred_def'.oarg_bt)
@@ -2631,7 +2625,7 @@ let cn_to_ail_resource
           mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh_pretty "cn_map") ] C.Void
         in
         let sym_binding =
-          create_binding sym (mk_ctype C.(Pointer (empty_qualifiers, cn_map_type)))
+          create_binding sym (mk_ctype C.(Pointer (C.no_qualifiers, cn_map_type)))
         in
         let create_call =
           A.(AilEcall (mk_expr (AilEident (Sym.fresh_pretty "map_create")), []))
@@ -2799,7 +2793,7 @@ let cn_to_ail_function
   let ail_record_opt = generate_record_opt fn_sym lf_def.return_bt in
   let params = List.map (fun (sym, bt) -> (sym, bt_to_ail_ctype bt)) lf_def.args in
   let param_syms, param_types = List.split params in
-  let param_types = List.map (fun t -> (empty_qualifiers, t, false)) param_types in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   let matched_cn_functions =
     List.filter
       (fun (cn_fun : (A.ail_identifier, C.ctype) CF.Cn.cn_function) ->
@@ -2838,7 +2832,7 @@ let cn_to_ail_function
         empty_attributes,
         A.(
           Decl_function
-            (false, (empty_qualifiers, ret_type), param_types, false, false, false)) ) )
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
   let def =
@@ -2938,7 +2932,7 @@ let cn_to_ail_predicate
       ]
   in
   let param_syms, param_types = List.split params in
-  let param_types = List.map (fun t -> (empty_qualifiers, t, false)) param_types in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   (* Generating function declaration *)
   let decl =
     ( pred_sym,
@@ -2946,7 +2940,7 @@ let cn_to_ail_predicate
         empty_attributes,
         A.(
           Decl_function
-            (false, (empty_qualifiers, ret_type), param_types, false, false, false)) ) )
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
   let def =
@@ -3061,7 +3055,7 @@ let rec cn_to_ail_cnprog_aux dts globals = function
       Sym.fresh_pretty
         (Pp.plain
            CF.Pp_ail.(
-             with_executable_spec (pp_ctype empty_qualifiers) (Sctypes.to_ctype ct)))
+             with_executable_spec (pp_ctype C.no_qualifiers) (Sctypes.to_ctype ct)))
     in
     let cn_ptr_deref_fcall =
       A.(
@@ -3449,8 +3443,8 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
     mk_expr
       A.(
         AilEcast
-          ( empty_qualifiers,
-            mk_ctype C.(Pointer (empty_qualifiers, ctype)),
+          ( C.no_qualifiers,
+            mk_ctype C.(Pointer (C.no_qualifiers, ctype)),
             mk_expr (AilEmemberofptr (mk_expr (AilEident param1_sym), Id.make here "ptr"))
           ))
   in
@@ -3458,7 +3452,7 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
   let param1 = (param1_sym, bt_to_ail_ctype BT.(Loc ())) in
   let param2 = (param2_sym, C.pointer_to_char) in
   let param_syms, param_types = List.split [ param1; param2 ] in
-  let param_types = List.map (fun t -> (empty_qualifiers, t, false)) param_types in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   let ownership_fcall_maybe =
     if without_ownership_checking then
       []
@@ -3467,7 +3461,7 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
       let ownership_fn_args =
         A.
           [ AilEmemberofptr (mk_expr (AilEident param1_sym), Id.make here "ptr");
-            AilEsizeof (empty_qualifiers, ctype);
+            AilEsizeof (C.no_qualifiers, ctype);
             AilEident param2_sym
           ]
       in
@@ -3498,7 +3492,7 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
         empty_attributes,
         A.(
           Decl_function
-            (false, (empty_qualifiers, ret_type), param_types, false, false, false)) ) )
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
   let def =
@@ -3560,7 +3554,7 @@ let cn_to_ail_assume_resource
         match cn_bt with
         | CN_record _members ->
           let pred_record_name = generate_sym_with_suffix ~suffix:"_record" pred_sym' in
-          mk_ctype C.(Pointer (empty_qualifiers, mk_ctype (Struct pred_record_name)))
+          mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct pred_record_name)))
         | _ -> cn_to_ail_base_type ~pred_sym:(Some pred_sym') cn_bt
       in
       (ctype, pred_def'.oarg_bt)
@@ -3739,7 +3733,7 @@ let cn_to_ail_assume_resource
           mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh_pretty "cn_map") ] C.Void
         in
         let sym_binding =
-          create_binding sym (mk_ctype C.(Pointer (empty_qualifiers, cn_map_type)))
+          create_binding sym (mk_ctype C.(Pointer (C.no_qualifiers, cn_map_type)))
         in
         let create_call =
           A.(AilEcall (mk_expr (AilEident (Sym.fresh_pretty "map_create")), []))
@@ -3859,7 +3853,7 @@ let cn_to_ail_assume_predicate
       ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
   in
   let param_syms, param_types = List.split params in
-  let param_types = List.map (fun t -> (empty_qualifiers, t, false)) param_types in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   let fsym = Sym.fresh_named ("assume_" ^ Sym.pp_string pred_sym) in
   (* Generating function declaration *)
   let decl =
@@ -3868,7 +3862,7 @@ let cn_to_ail_assume_predicate
         empty_attributes,
         A.(
           Decl_function
-            (false, (empty_qualifiers, ret_type), param_types, false, false, false)) ) )
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
   in
   (* Generating function definition *)
   let def =
@@ -3957,7 +3951,7 @@ let cn_to_ail_assume_pre dts sym args globals preds lat
         Attrs [],
         Decl_function
           ( false,
-            (empty_qualifiers, C.void),
+            (C.no_qualifiers, C.void),
             List.map (fun (_, (_, ct)) -> (C.no_qualifiers, ct, false)) args,
             false,
             false,

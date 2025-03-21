@@ -62,16 +62,16 @@ let compile_assumes
        @ ESpecInternal.generate_c_assume_pres_internal insts sigma prog5)
   in
   let open Pp in
-  separate_map
-    (twice hardline)
-    (fun (tag, (_, _, decl)) ->
-       CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
-    declarations
+  CF.Pp_ail.(
+    with_executable_spec
+      (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
+         pp_function_prototype tag decl))
+      declarations)
   ^^ twice hardline
-  ^^ CF.Pp_ail.pp_program
-       ~executable_spec:true
-       ~show_include:true
-       (None, { A.empty_sigma with declarations; function_definitions })
+  ^^ CF.Pp_ail.(
+       with_executable_spec
+         (pp_program ~show_include:true)
+         (None, { A.empty_sigma with declarations; function_definitions }))
   ^^ hardline
 
 
@@ -85,16 +85,16 @@ let compile_shape_analyzers
     BugExplanation.synthesize_shape_analyzers sigma prog5 insts |> List.split
   in
   let open Pp in
-  separate_map
-    (twice hardline)
-    (fun (tag, (_, _, decl)) ->
-       CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
-    declarations
+  CF.Pp_ail.(
+    with_executable_spec
+      (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
+         pp_function_prototype tag decl))
+      declarations)
   ^^ twice hardline
-  ^^ CF.Pp_ail.pp_program
-       ~executable_spec:true
-       ~show_include:true
-       (None, { A.empty_sigma with declarations; function_definitions })
+  ^^ CF.Pp_ail.(
+       with_executable_spec
+         (pp_program ~show_include:true)
+         (None, { A.empty_sigma with declarations; function_definitions }))
   ^^ hardline
 
 
@@ -108,16 +108,16 @@ let compile_replicators
     BugExplanation.synthesize_replicators sigma prog5 insts |> List.split
   in
   let open Pp in
-  separate_map
-    (twice hardline)
-    (fun (tag, (_, _, decl)) ->
-       CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
-    declarations
+  CF.Pp_ail.(
+    with_executable_spec
+      (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
+         pp_function_prototype tag decl))
+      declarations)
   ^^ twice hardline
-  ^^ CF.Pp_ail.pp_program
-       ~executable_spec:true
-       ~show_include:true
-       (None, { A.empty_sigma with declarations; function_definitions })
+  ^^ CF.Pp_ail.(
+       with_executable_spec
+         (pp_program ~show_include:true)
+         (None, { A.empty_sigma with declarations; function_definitions }))
   ^^ hardline
 
 

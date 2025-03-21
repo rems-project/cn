@@ -78,9 +78,9 @@ let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
   let local_ident = mk_expr A.(AilEident local_sym) in
   let arg1 =
     A.(
-      AilEcast (empty_qualifiers, C.uintptr_t, mk_expr (AilEunary (Address, local_ident))))
+      AilEcast (C.no_qualifiers, C.uintptr_t, mk_expr (AilEunary (Address, local_ident))))
   in
-  let arg2 = A.(AilEsizeof (empty_qualifiers, local_ctype)) in
+  let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
   let arg3 = A.(AilEcall (mk_expr (AilEident get_cn_stack_depth_sym), [])) in
   mk_expr
     (AilEcall
@@ -94,7 +94,7 @@ let generate_c_local_cn_addr_var sym =
   let annots = [ CF.Annot.Atypedef (Sym.fresh_pretty "cn_pointer") ] in
   (* Ctype_ doesn't matter to pretty-printer when typedef annotations are present *)
   let inner_ctype = mk_ctype ~annots C.Void in
-  let cn_ptr_ctype = mk_ctype C.(Pointer (empty_qualifiers, inner_ctype)) in
+  let cn_ptr_ctype = mk_ctype C.(Pointer (C.no_qualifiers, inner_ctype)) in
   let binding = create_binding cn_addr_sym cn_ptr_ctype in
   let addr_of_sym = mk_expr A.(AilEunary (Address, mk_expr (AilEident sym))) in
   let fcall_sym = Sym.fresh_pretty "convert_to_cn_pointer" in
@@ -156,9 +156,9 @@ let generate_c_local_ownership_exit (local_sym, local_ctype) =
   let local_ident = mk_expr A.(AilEident local_sym) in
   let arg1 =
     A.(
-      AilEcast (empty_qualifiers, C.uintptr_t, mk_expr (AilEunary (Address, local_ident))))
+      AilEcast (C.no_qualifiers, C.uintptr_t, mk_expr (AilEunary (Address, local_ident))))
   in
-  let arg2 = A.(AilEsizeof (empty_qualifiers, local_ctype)) in
+  let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
   A.(
     AilSexpr
       (mk_expr

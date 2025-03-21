@@ -3,8 +3,6 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module Cn = CF.Cn
 
-val empty_qualifiers : C.qualifiers
-
 val empty_attributes : CF.Annot.attributes
 
 val mk_ctype : ?annots:Cerb_frontend.Annot.annot list -> C.ctype_ -> C.ctype

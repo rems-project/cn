@@ -135,7 +135,7 @@ let gen_arg (ctx : (Sym.t * C.ctype) list) ((name, ty) : Sym.t * C.ctype) : Pp.d
 
 
 let stmt_to_doc (stmt : CF.GenTypes.genTypeCategory A.statement_) : Pp.document =
-  CF.Pp_ail.pp_statement ~executable_spec:true ~bs:[] (Utils.mk_stmt stmt)
+  CF.Pp_ail.(with_executable_spec (pp_statement ~bs:[]) (Utils.mk_stmt stmt))
 
 
 let create_test_file
@@ -445,11 +445,14 @@ let generate
   let src_code, _ = out_to_list ("cat " ^ filename) in
   save ~perm:0o777 output_dir "run_tests.sh" script_doc;
   let fun_to_decl (inst : Fulminate.Executable_spec_extract.instrumentation) =
-    CF.Pp_ail.pp_function_prototype
-      inst.fn
-      ~executable_spec:true
-      (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
-       decl)
+    CF.Pp_ail.(
+      with_executable_spec
+        (fun () ->
+           pp_function_prototype
+             inst.fn
+             (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
+              decl))
+        ())
   in
   let open Pp in
   let fun_decls = separate_map hardline fun_to_decl insts in

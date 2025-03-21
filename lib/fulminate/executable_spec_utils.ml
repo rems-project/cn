@@ -3,10 +3,6 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module Cn = CF.Cn
 
-let empty_qualifiers : C.qualifiers =
-  { const = false; restrict = false; volatile = false }
-
-
 let const_qualifiers : C.qualifiers = { const = true; restrict = false; volatile = false }
 
 let empty_attributes = CF.Annot.Attrs []
@@ -25,7 +21,7 @@ let get_typedef_string C.(Ctype (_, ctype_)) =
 
 let mk_expr ?(loc = Cerb_location.unknown) expr_ =
   A.AnnotatedExpression
-    (CF.GenTypes.GenLValueType (empty_qualifiers, mk_ctype C.Void, false), [], loc, expr_)
+    (CF.GenTypes.GenLValueType (C.no_qualifiers, mk_ctype C.Void, false), [], loc, expr_)
 
 
 let get_expr_strs = function
@@ -104,7 +100,7 @@ let is_pointer ctype = match rm_ctype ctype with C.(Pointer _) -> true | _ -> fa
 
 let rec _transform_ctype_for_ptr (C.(Ctype (annots, ctype)) as original_ctype) =
   let mk_pointer_from_ctype ctype' =
-    C.(Ctype (annots, Pointer (empty_qualifiers, ctype')))
+    C.(Ctype (annots, Pointer (C.no_qualifiers, ctype')))
   in
   match ctype with
   | Array (ctype', _) | Pointer (_, ctype') ->
@@ -119,9 +115,9 @@ let rec str_of_ctype ctype =
     (match num_elements_opt with
      | Some num_elements ->
        str_of_ctype ctype ^ " " ^ string_of_int (Z.to_int num_elements)
-     | None -> str_of_ctype (mk_ctype C.(Pointer (empty_qualifiers, ctype))))
+     | None -> str_of_ctype (mk_ctype C.(Pointer (C.no_qualifiers, ctype))))
   | _ ->
-    let doc = CF.Pp_ail.(with_executable_spec (pp_ctype empty_qualifiers) ctype) in
+    let doc = CF.Pp_ail.(with_executable_spec (pp_ctype C.no_qualifiers) ctype) in
     CF.Pp_utils.to_plain_pretty_string doc
 
 
@@ -152,7 +148,7 @@ let rec execCtypeEqual (C.Ctype (_, ty1)) (C.Ctype (_, ty2)) =
 let str_of_it_ = function Terms.Sym sym -> Sym.pp_string sym | _ -> ""
 
 let create_binding sym ctype =
-  A.(sym, ((Cerb_location.unknown, Automatic, false), None, empty_qualifiers, ctype))
+  A.(sym, ((Cerb_location.unknown, Automatic, false), None, C.no_qualifiers, ctype))
 
 
 let find_ctype_from_bindings bindings sym =
@@ -162,7 +158,7 @@ let find_ctype_from_bindings bindings sym =
 
 (* Decl_object of (storageDuration * bool) * maybe alignment * qualifiers * ctype*)
 let create_decl_object ctype =
-  A.(Decl_object ((Automatic, false), None, empty_qualifiers, ctype))
+  A.(Decl_object ((Automatic, false), None, C.no_qualifiers, ctype))
 
 
 (* declarations: list (ail_identifier * (Loc.t * Annot.attributes * declaration)) *)
