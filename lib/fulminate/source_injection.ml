@@ -211,7 +211,6 @@ let inject st inj =
               let cn_ret_sym = Sym.fresh_pretty "__cn_ret" in
               let ret_type_doc =
                 Pp_ail.pp_ctype_declaration
-                  ~executable_spec:true
                   (Pp_ail.pp_id_obj cn_ret_sym)
                   Ctype.no_qualifiers
                   ret_ty

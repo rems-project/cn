@@ -64,12 +64,10 @@ let compile_assumes
   let open Pp in
   separate_map
     (twice hardline)
-    (fun (tag, (_, _, decl)) ->
-       CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
+    (fun (tag, (_, _, decl)) -> CF.Pp_ail.pp_function_prototype tag decl)
     declarations
   ^^ twice hardline
   ^^ CF.Pp_ail.pp_program
-       ~executable_spec:true
        ~show_include:true
        (None, { A.empty_sigma with declarations; function_definitions })
   ^^ hardline
@@ -87,12 +85,10 @@ let compile_shape_analyzers
   let open Pp in
   separate_map
     (twice hardline)
-    (fun (tag, (_, _, decl)) ->
-       CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
+    (fun (tag, (_, _, decl)) -> CF.Pp_ail.pp_function_prototype tag decl)
     declarations
   ^^ twice hardline
   ^^ CF.Pp_ail.pp_program
-       ~executable_spec:true
        ~show_include:true
        (None, { A.empty_sigma with declarations; function_definitions })
   ^^ hardline
@@ -110,12 +106,10 @@ let compile_replicators
   let open Pp in
   separate_map
     (twice hardline)
-    (fun (tag, (_, _, decl)) ->
-       CF.Pp_ail.pp_function_prototype ~executable_spec:true tag decl)
+    (fun (tag, (_, _, decl)) -> CF.Pp_ail.pp_function_prototype tag decl)
     declarations
   ^^ twice hardline
   ^^ CF.Pp_ail.pp_program
-       ~executable_spec:true
        ~show_include:true
        (None, { A.empty_sigma with declarations; function_definitions })
   ^^ hardline

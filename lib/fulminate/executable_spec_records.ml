@@ -213,14 +213,11 @@ let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigm
       function_definitions = eq_defs @ default_defs @ mapget_defs
     }
   in
-  let fun_doc =
-    CF.Pp_ail.pp_program ~executable_spec:true ~show_include:true (None, modified_prog1)
-  in
+  let fun_doc = CF.Pp_ail.pp_program ~show_include:true (None, modified_prog1) in
   let fun_strs = CF.Pp_utils.to_plain_pretty_string fun_doc in
   let decl_docs =
     List.map
-      (fun (sym, (_, _, decl)) ->
-         CF.Pp_ail.pp_function_prototype ~executable_spec:true sym decl)
+      (fun (sym, (_, _, decl)) -> CF.Pp_ail.pp_function_prototype sym decl)
       (eq_decls @ default_decls @ mapget_decls)
   in
   let fun_prot_strs =
