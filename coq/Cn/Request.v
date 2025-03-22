@@ -102,7 +102,7 @@ Module QPredicate_as_MiniDecidableType <: MiniDecidableType.
     - apply List.list_eq_dec.
       apply IndexTerm_as_MiniDecidableType.eq_dec.
     - apply IndexTerm_as_MiniDecidableType.eq_dec.
-    - apply IndexTerm_as_MiniDecidableType.eq_dec.
+    - apply SCtypes_as_MiniDecidableType.eq_dec.
     - apply Locations_t_as_MiniDecidableType.eq_dec.
     - apply BaseTypes.prod_eq_dec.
       + apply Sym_t_as_MiniDecidableType.eq_dec.

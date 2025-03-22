@@ -19,11 +19,6 @@ module Map = Map.Make (Ord)
 
 let description = S.symbol_description
 
-let pp_string_no_nums sym =
-  let print_nums = false in
-  Cerb_frontend.Pp_symbol.to_string_pretty_cn ~print_nums sym
-
-
 let pp_string sym =
   if !executable_spec_enabled then
     Cerb_frontend.Pp_symbol.to_string_pretty sym
