@@ -14,14 +14,15 @@ type extract_changed = Resource.t list
 
 type unfold_step = unfold_changed * extract_changed
 
-type resource_inference_type =
-  | PredicateRequest of
-      Error_common.situation * Request.Predicate.t * (Resource.predicate * int list)
-  | UnfoldResources of Cerb_location.t * unfold_step list
-
-(** Info about what happened *)
 type log_entry =
-  | ResourceInferenceStep of (Context.t * resource_inference_type * Context.t)
+  | PredicateRequest of
+      Context.t
+      * Error_common.situation
+      * Request.Predicate.t
+      * Resource.predicate
+      * log_entry list
+      * Context.t
+  | UnfoldResources of Context.t * Cerb_location.t * unfold_step list * Context.t
 
 type log = log_entry list (* most recent first *)
 
@@ -37,10 +38,4 @@ let add_log_entry entry =
 
 let get_proof_log () = !proof_log
 
-let record_resource_inference_step
-      (c : Context.t)
-      (c' : Context.t)
-      (ri : resource_inference_type)
-  : unit
-  =
-  add_log_entry (ResourceInferenceStep (c, ri, c'))
+let record_resource_inference_step entry = add_log_entry entry

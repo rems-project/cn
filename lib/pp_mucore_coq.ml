@@ -2196,25 +2196,25 @@ let pp_unfold_step (s : Prooflog.unfold_step) =
   pp_pair (pp_list (pp_pair pp_resource pp_unpack_result)) (pp_list pp_resource) s
 
 
-let pp_resource_inference_type = function
-  | Prooflog.PredicateRequest (s, p, ri) ->
+let rec pp_log_entry = function
+  | Prooflog.PredicateRequest (c, s, p, r, h,c') ->
     pp_constructor
       "PredicateRequest"
-      [ pp_situation s;
+      [ pp_context c;
+        pp_situation s;
         pp_predicate p;
-        pp_pair pp_resource_predicate (pp_list pp_int) ri
+        pp_resource_predicate r;
+        pp_list pp_log_entry h;
+        pp_context c'
       ]
-  | Prooflog.UnfoldResources (loc, steps) ->
-    pp_constructor "UnfoldResources" [ pp_location loc; pp_list pp_unfold_step steps ]
-
-
-(* Add this definition before its use in `pp_unit_file_with_resource_inference` *)
-let pp_resource_inference_step = function
-  | Prooflog.ResourceInferenceStep (c1, ri, c2) ->
+  | Prooflog.UnfoldResources (c, loc, steps, c') ->
     pp_constructor
-      "ResourceInferenceStep"
-      [ pp_context c1; pp_resource_inference_type ri; pp_context c2 ]
-
+      "UnfoldResources"
+      [ pp_context c;
+        pp_location loc;
+        pp_list pp_unfold_step steps;
+        pp_context c'
+      ]
 
 let coq_steps_var_name = "ResourceInferenceSteps"
 
@@ -2248,7 +2248,7 @@ let pp_proof_log (steps : Prooflog.log) (generate_proof : bool) =
   ^^ coq_def
        (coq_steps_var_name ^ ":Prooflog.log")
        P.empty
-       (pp_list pp_resource_inference_step (List.rev steps))
+       (pp_list pp_log_entry (List.rev steps))
   ^^ P.hardline
   ^^
   if generate_proof then

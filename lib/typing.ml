@@ -726,9 +726,7 @@ let do_unfold_resources loc =
     let@ c' = get_typing_context () in
     return
       (Prooflog.record_resource_inference_step
-         c
-         c'
-         (UnfoldResources (loc, List.rev changed)))
+         (Prooflog.UnfoldResources (c, loc, List.rev changed, c')))
 
 
 let sync_unfold_resources loc =

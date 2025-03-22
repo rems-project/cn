@@ -229,58 +229,55 @@ Inductive log_entry_valid : log_entry -> Prop :=
 | unfold_resources_step:
   forall loc c c' steps,
   unfold_step c c' ->
-  log_entry_valid (ResourceInferenceStep c (UnfoldResources loc steps) c')
+  log_entry_valid (UnfoldResources c loc steps c')
 
 | array_resource_inference_step:
   forall ity isize iinit ipointer iargs
     oname opointer oargs
-    err out lines
+    err out
     icomputational ilogical iresources iconstraints iglobal
-    ocomputational ological oresources oconstraints oglobal,
+    ocomputational ological oresources oconstraints oglobal
+    steps,
 
   log_entry_valid
-    (ResourceInferenceStep
-       (* input context *)
-       {|
-         Context.computational := icomputational;
-         Context.logical := ilogical;
-         Context.resources := iresources;
-         Context.constraints := iconstraints;
-         Context.global := iglobal
-       |}
-
-       (* request type *)
-       (PredicateRequest
-          err (* unused *)
-          (* input predicate *)
-          {| Predicate.name := Request.Owned (SCtypes.Array (SCtypes.Integer ity, isize)) iinit;
-            Predicate.pointer := ipointer;
-            Predicate.iargs := iargs |}
-          ((
-              (* output predicate *)
-              {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
-                out
-            ), lines (* unused *)
-          )
-       )
-
-       (* output context *)
-       {|
-         Context.computational := ocomputational;
-         Context.logical := ological;
-         Context.resources := oresources;
-         Context.constraints := oconstraints;
-         Context.global := oglobal
-       |}
+    (PredicateRequest
+      (* input context *)
+      {|
+        Context.computational := icomputational;
+        Context.logical := ilogical;
+        Context.resources := iresources;
+        Context.constraints := iconstraints;
+        Context.global := iglobal
+      |}
+      (* sutuation (unused) *)
+      err 
+      (* input predicate *)
+      {| Predicate.name := Request.Owned (SCtypes.Array (SCtypes.Integer ity, isize)) iinit;
+        Predicate.pointer := ipointer;
+        Predicate.iargs := iargs 
+      |}
+      (* output predicate *)
+      ({| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |}, out)
+      (* steps *)
+      steps
+      (* output context *)
+      {|
+        Context.computational := ocomputational;
+        Context.logical := ological;
+        Context.resources := oresources;
+        Context.constraints := oconstraints;
+        Context.global := oglobal
+      |}
     )
 
 (* struct case: struct resource is removed from input context *)
 | struct_resource_inference_step:
   forall isym iinit ipointer iargs
     oname opointer oargs
-    err out lines
+    err out
     icomputational ilogical iresources iconstraints iglobal
-    ocomputational ological oresources oconstraints oglobal,
+    ocomputational ological oresources oconstraints oglobal
+    steps,
 
   (* The following parts of context are not changed *)
   icomputational = ocomputational ->
@@ -308,50 +305,46 @@ Inductive log_entry_valid : log_entry -> Prop :=
       (* Output context is input context minus all field resources *)
       ResSet.Equal out_res (ResSet.diff in_res field_res)
   ) ->
-
+ 
   log_entry_valid
-    (ResourceInferenceStep
-       (* input context *)
-       {|
-         Context.computational := icomputational;
-         Context.logical := ilogical;
-         Context.resources := iresources;
-         Context.constraints := iconstraints;
-         Context.global := iglobal
-       |}
-
-       (* request type *)
-       (PredicateRequest
-          err (* unused *)
-          (* input predicate *)
-          {| Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
-            Predicate.pointer := ipointer;
-            Predicate.iargs := iargs |}
-          ((
-              (* output predicate *)
-              {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
-                out
-            ), lines (* unused *)
-          )
-       )
-
-       (* output context *)
-       {|
-         Context.computational := ocomputational;
-         Context.logical := ological;
-         Context.resources := oresources;
-         Context.constraints := oconstraints;
-         Context.global := oglobal
-       |}
-    )
+    (PredicateRequest
+      (* input context *)
+      {|
+        Context.computational := icomputational;
+        Context.logical := ilogical;
+        Context.resources := iresources;
+        Context.constraints := iconstraints;
+        Context.global := iglobal
+      |}  
+      (* sutuation (unused) *)
+      err 
+      (* input predicate *)
+      {| Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
+        Predicate.pointer := ipointer;
+        Predicate.iargs := iargs 
+      |}
+      (* output predicate *)
+      ({| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |}, out)
+      (* steps *)
+      steps
+      (* output context *)
+      {|
+        Context.computational := ocomputational;
+        Context.logical := ological;
+        Context.resources := oresources;
+        Context.constraints := oconstraints;
+        Context.global := oglobal
+      |}
+  )
 
 (* simple case: non-recursive request, no packing *)
 | simple_resource_inference_step:
   forall iname  ipointer  iargs
     oname  opointer  oargs
-    err out lines
+    err out
     icomputational ilogical iresources iconstraints iglobal
-    ocomputational ological oresources oconstraints oglobal,
+    ocomputational ological oresources oconstraints oglobal
+    steps,
 
   (* The following parts of context are not changed *)
   icomputational = ocomputational ->
@@ -380,41 +373,32 @@ Inductive log_entry_valid : log_entry -> Prop :=
   ->
 
     log_entry_valid
-      (ResourceInferenceStep
-         (* input context *)
-         {|
-           Context.computational := icomputational;
-           Context.logical := ilogical;
-           Context.resources := iresources;
-           Context.constraints := iconstraints;
-           Context.global := iglobal
-         |}
-
-         (* request type *)
-         (PredicateRequest
-            err (* unused *)
-            (* input predicate *)
-            {| Predicate.name:=iname; Predicate.pointer:=ipointer; Predicate.iargs:=iargs |}
-            ((
-                (* output predicate *)
-                {| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |},
-                  out
-              ), lines (* unused *)
-         ))
-
-         (* output context *)
-         {|
-           Context.computational := ocomputational;
-           Context.logical := ological;
-           Context.resources := oresources;
-           Context.constraints := oconstraints;
-           Context.global := oglobal
-         |}
-      )
-
-.
-
-
+      (PredicateRequest
+        (* input context *)
+        {|
+          Context.computational := icomputational;
+          Context.logical := ilogical;
+          Context.resources := iresources;
+          Context.constraints := iconstraints;
+          Context.global := iglobal
+        |}
+        (* sutuation (unused) *)
+        err 
+        (* input predicate *)
+        {| Predicate.name:=iname; Predicate.pointer:=ipointer; Predicate.iargs:=iargs |}
+        (* output predicate *)
+        ({| Predicate.name:=oname; Predicate.pointer:=opointer; Predicate.iargs:=oargs |}, out)
+        (* steps *)
+        steps
+        (* output context *)
+        {|
+          Context.computational := ocomputational;
+          Context.logical := ological;
+          Context.resources := oresources;
+          Context.constraints := oconstraints;
+          Context.global := oglobal
+        |}
+      ).
 
 (** Proof log is valid if all entries are valid *)
 Definition prooflog_valid (l:Prooflog.log) := List.Forall log_entry_valid l.

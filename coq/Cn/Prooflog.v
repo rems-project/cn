@@ -17,15 +17,19 @@ Definition unfold_changed := list (Resource.t*unpack_result).
 Definition extract_changed := list Resource.t.
 Definition unfold_step := (unfold_changed*extract_changed)%type.
 
-Inductive resource_inference_type : Type :=
-  | PredicateRequest : ErrorCommon.situation ->
-                       Request.Predicate.t ->
-                       (Resource.predicate * list Z) ->
-                       resource_inference_type
-  | UnfoldResources: Location.t -> list unfold_step -> resource_inference_type.
-
 Inductive log_entry : Type :=
-  | ResourceInferenceStep : Context.t -> resource_inference_type -> Context.t -> log_entry.
+  | PredicateRequest : Context.t ->
+                       ErrorCommon.situation ->
+                       Request.Predicate.t ->
+                       Resource.predicate ->
+                       list log_entry ->
+                       Context.t ->
+                       log_entry
+  | UnfoldResources: Context.t ->
+                     Location.t ->
+                     list unfold_step ->
+                     Context.t ->
+                     log_entry.
 
 Definition log : Type := list log_entry.
 

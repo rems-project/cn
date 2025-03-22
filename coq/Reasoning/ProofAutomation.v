@@ -152,20 +152,20 @@ Ltac2 prove_unfold_step () :=
  let smsg s := Message.concat (Message.concat (Message.of_string "Step #") (Message.of_int n)) (Message.concat (Message.of_string ": ") (Message.of_string s)) in
  let msg m := Message.concat (Message.concat (Message.of_string "Step #") (Message.of_int n)) (Message.concat (Message.of_string ": ") m) in
  match! goal with
-  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest _ 
+  | [ |- log_entry_valid (PredicateRequest _ _ 
       {| 
         Predicate.name := Request.Owned (SCtypes.Array _) _;
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
-      _) _) ] =>
+      _ _ _) ] =>
         Message.print (msg (Message.of_string "Arrays are not supported yet"));
         Std.constructor_n false 2 NoBindings (* apply array_resource_inference_step *)
-  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest ?s
+  | [ |- log_entry_valid (PredicateRequest _ ?s
       {| 
         Predicate.name := Request.Owned (SCtypes.Struct ?isym) _;
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
-      _) _) ] =>
+      _ _ _) ] =>
        (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for Struct");
        verbose_print_constr "    Situation: " s;
@@ -193,9 +193,9 @@ Ltac2 prove_unfold_step () :=
           } clause ;
           prove_struct_resource_inference_step ()
        )
-  | [ |- log_entry_valid (ResourceInferenceStep _ (PredicateRequest ?s ?p _) _) ] =>
+  | [ |- log_entry_valid (PredicateRequest _ ?s ?p _ _ _)] =>
        (* PredicateRequest case *)
-       verbose_msg (smsg "Checking PredicateRequest for non-struct");
+       verbose_msg (smsg "Checking PredicateRequest for non-Struct");
        verbose_print_constr "    Situation: " s;
        verbose_print_constr "    Predicate: " p;
        Std.constructor false; (* apply simple_resource_inference_step*)
@@ -221,7 +221,7 @@ Ltac2 prove_unfold_step () :=
            } clause ;
            prove_simple_resource_inference_step ()
        )
-  | [ |- log_entry_valid (ResourceInferenceStep _ (UnfoldResources _ _) _) ] =>
+  | [ |- log_entry_valid (UnfoldResources _ _ _ _) ] =>
       (* UnfoldResources case *)
       verbose_msg (smsg "Checking UnfoldResources");
       Std.constructor false;

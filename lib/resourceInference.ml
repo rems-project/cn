@@ -248,9 +248,7 @@ module General = struct
     | Some r ->
       let@ c' = get_typing_context () in
       Prooflog.record_resource_inference_step
-        c
-        c'
-        (PredicateRequest (fst uiinfo, requested, r));
+        (Prooflog.PredicateRequest (c, fst uiinfo, requested, (fst r), [], c'));
       return (Some r)
     | None -> return None
 
