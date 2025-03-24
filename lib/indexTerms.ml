@@ -1213,7 +1213,7 @@ let rec map_term_post (f : t -> t) (it : t) : t =
 
 
 module Bounds = struct
-  let get_lower_bound_opt ((x, bt) : Sym.sym * BT.t) (it : t) : t option =
+  let get_lower_bound_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option =
     let rec aux (it : t) : t option =
       match it with
       | IT (Binop (EQ, IT (Sym x', _, _), tm2), _, _)
@@ -1242,7 +1242,7 @@ module Bounds = struct
     aux it
 
 
-  let get_lower_bound ((x, bt) : Sym.sym * BT.t) (it : t) : t =
+  let get_lower_bound ((x, bt) : Sym.t * BT.t) (it : t) : t =
     let min =
       match bt with
       | Bits (sign, sz) -> fst (BT.bits_range (sign, sz))
@@ -1265,7 +1265,7 @@ module Bounds = struct
     |> Option.value ~default:(num_lit_ min bt Cerb_location.unknown)
 
 
-  let get_upper_bound_opt ((x, bt) : Sym.sym * BT.t) (it : t) : t option =
+  let get_upper_bound_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option =
     let rec aux (it : t) : t option =
       match it with
       | IT (Binop (EQ, IT (Sym x', _, _), tm2), _, _)
@@ -1294,7 +1294,7 @@ module Bounds = struct
     aux it
 
 
-  let get_upper_bound ((x, bt) : Sym.sym * BT.t) (it : t) : t =
+  let get_upper_bound ((x, bt) : Sym.t * BT.t) (it : t) : t =
     let max =
       match bt with
       | Bits (sign, sz) -> snd (BT.bits_range (sign, sz))
@@ -1317,6 +1317,6 @@ module Bounds = struct
     |> Option.value ~default:(num_lit_ max bt Cerb_location.unknown)
 
 
-  let get_bounds ((x, bt) : Sym.sym * BT.t) (it : t) : t * t =
+  let get_bounds ((x, bt) : Sym.t * BT.t) (it : t) : t * t =
     (get_lower_bound (x, bt) it, get_upper_bound (x, bt) it)
 end

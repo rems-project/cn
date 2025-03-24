@@ -109,7 +109,7 @@ let convert_from ((x, ct) : Sym.t * C.ctype) =
           A.(
             AilEmemberofptr
               ( Utils.mk_expr (AilEident (Sym.fresh_named "res")),
-                Sym.Identifier
+                CF.Symbol.Identifier
                   ( Locations.other __LOC__,
                     Sym.pp_string (GenUtils.get_mangled_name [ x ]) ) ))
           (Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))))

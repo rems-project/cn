@@ -834,7 +834,7 @@ module PartialEvaluation = struct
           return @@ IT (Match (it', pits), bt, here)
         else (
           let rec get_match (it_match : IT.t) (p : BT.t pattern)
-            : (Sym.sym * IT.t) list option
+            : (Sym.t * IT.t) list option
             =
             let (Pat (p_, _, _)) = p in
             match p_ with
