@@ -2197,7 +2197,7 @@ let pp_unfold_step (s : Prooflog.unfold_step) =
 
 
 let rec pp_log_entry = function
-  | Prooflog.PredicateRequest (c, s, p, r, h,c') ->
+  | Prooflog.PredicateRequest (c, s, p, r, h, c') ->
     pp_constructor
       "PredicateRequest"
       [ pp_context c;
@@ -2210,11 +2210,8 @@ let rec pp_log_entry = function
   | Prooflog.UnfoldResources (c, loc, steps, c') ->
     pp_constructor
       "UnfoldResources"
-      [ pp_context c;
-        pp_location loc;
-        pp_list pp_unfold_step steps;
-        pp_context c'
-      ]
+      [ pp_context c; pp_location loc; pp_list pp_unfold_step steps; pp_context c' ]
+
 
 let coq_steps_var_name = "ResourceInferenceSteps"
 
