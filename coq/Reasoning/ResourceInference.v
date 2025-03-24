@@ -297,10 +297,11 @@ Inductive log_entry_valid : log_entry -> Prop :=
   (* Find the struct resource and its fields *)
   (exists (field_res: ResSet.t),
       (* The struct unfolds to field resources *)
-      resource_unfold iglobal
-        (Request.P {| Predicate.name := iname;
-                     Predicate.pointer := ipointer;
-                     Predicate.iargs := iargs |}, out)
+      resource_unfold_full iglobal
+        (ResSet.singleton
+          (Request.P {| Predicate.name := iname;
+                       Predicate.pointer := ipointer;
+                       Predicate.iargs := iargs |}, out))
         field_res /\
       (* Output context is input context minus all field resources *)
       ResSet.Equal out_res (ResSet.diff in_res field_res)

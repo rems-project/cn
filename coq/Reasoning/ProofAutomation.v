@@ -96,7 +96,7 @@ Qed.
  Ltac2 prove_struct_resource_inference_step () :=
  match! goal with
  | [ |- exists field_res,
-        resource_unfold _ _ field_res /\
+        resource_unfold_full _ _ field_res /\
         ResSet.Equal (set_from_list ?out_res) (ResSet.diff (set_from_list ?in_res) field_res) ] =>
 
    (* now try to compute field_res from in_res and out_res *)
@@ -173,7 +173,7 @@ Ltac2 prove_unfold_step () :=
        verbose_print_constr "    Situation: " s;
        verbose_print_constr "    Predicate symbol name: " isym;
        let lhints := destruct_list (constr:(log_entry)) hints in
-       verbose_msg (Message.concat (Message.of_string "    Humber of hits: ") (Message.of_int (List.length lhints)));
+       verbose_msg (Message.concat (Message.of_string "    Number of hits: ") (Message.of_int (List.length lhints)));
        Std.constructor_n false 3 NoBindings; (* apply struct_resource_inference_step *)
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
