@@ -329,7 +329,7 @@ let verify
   Cerb_debug.debug_level := debug_level;
   Pp.loc_pp := loc_pp;
   Pp.print_level := print_level;
-  CF.Pp_symbol.pp_cn_sym_nums := print_sym_nums;
+  Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
   (match solver_logging with
    | Some d ->
@@ -445,7 +445,7 @@ let generate_executable_specs
   Cerb_debug.debug_level := debug_level;
   Pp.loc_pp := loc_pp;
   Pp.print_level := print_level;
-  CF.Pp_symbol.pp_cn_sym_nums := print_sym_nums;
+  Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
   Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;

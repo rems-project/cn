@@ -545,7 +545,6 @@ let model_with_internal loc prop =
 
 let make_return_record loc (record_name : string) record_members =
   let record_s = Sym.fresh_make_uniq record_name in
-  (* let record_s = Sym.fresh_make_uniq (TypeErrors.call_prefix call_situation) in *)
   let record_bt = BT.Record record_members in
   let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in
   let record_it = IT.sym_ (record_s, record_bt, loc) in
@@ -692,7 +691,9 @@ let do_unfold_resources loc =
           let@ _, members =
             make_return_record
               loc
-              ("unpack_" ^ Pp.plain (Req.pp_name pname))
+              (* This string ends up as a solver variable (via Typing.make_return_record)
+                 hence no "{<num>}" prefix should ever be printed. *)
+              ("unpack_" ^ Pp.plain (Req.pp_name ~no_nums:true pname))
               (LogicalReturnTypes.binders lrt)
           in
           bind_logical_return_internal loc members lrt

@@ -2,6 +2,8 @@ module CF = Cerb_frontend
 module S = CF.Symbol
 include S
 
+let print_nums = ref false
+
 let executable_spec_enabled = ref false
 
 module Ord = struct
@@ -28,9 +30,12 @@ let dest = function CF.Symbol.Symbol (digest, nat, oname) -> (digest, nat, oname
 let pp_string sym =
   if !executable_spec_enabled then
     CF.Pp_symbol.to_string_pretty sym
-  else
-    CF.Pp_symbol.to_string_pretty_cn sym
+  else (
+    let print_nums = !print_nums in
+    CF.Pp_symbol.to_string_pretty_cn ~print_nums sym)
 
+
+let pp_string_no_nums sym = CF.Pp_symbol.to_string_pretty_cn ~print_nums:false sym
 
 let pp sym = Pp.string (pp_string sym)
 

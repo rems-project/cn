@@ -25,21 +25,21 @@ open Pp
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
-  let var_name x = Sym.pp_string x ^ "_" ^ string_of_int (Sym.num x)
+  let var_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let named_expr_name = "_cn_named"
 
-  let uninterpreted_name x = Sym.pp_string x ^ "_" ^ string_of_int (Sym.num x)
+  let uninterpreted_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
-  let struct_name x = Sym.pp_string x ^ "_" ^ string_of_int (Sym.num x)
+  let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
-  let struct_con_name x = Sym.pp_string x ^ "_" ^ string_of_int (Sym.num x)
+  let struct_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let struct_field_name x = Id.get_string x ^ "_struct_fld"
 
-  let datatype_name x = Sym.pp_string x ^ "_" ^ string_of_int (Sym.num x)
+  let datatype_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
-  let datatype_con_name x = Sym.pp_string x ^ "_" ^ string_of_int (Sym.num x)
+  let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let datatype_field_name x = Id.get_string x ^ "_data_fld"
 end

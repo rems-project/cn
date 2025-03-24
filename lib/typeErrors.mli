@@ -3,8 +3,6 @@
 (** TODO Cleanly factor out all pretty printing from all error gathering.
     Pp.document, string to actual types (including polymorphic variants if need be) *)
 
-val call_prefix : Error_common.call_situation -> string
-
 (** TODO move *)
 val call_situation : Error_common.call_situation -> Pp.document
 

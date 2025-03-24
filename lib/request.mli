@@ -9,7 +9,7 @@ type name =
   | PName of Sym.t
 [@@deriving eq]
 
-val pp_name : name -> Pp.document
+val pp_name : ?no_nums:bool -> name -> Pp.document
 
 val dtree_of_name : name -> Cerb_frontend.Pp_ast.doc_tree
 

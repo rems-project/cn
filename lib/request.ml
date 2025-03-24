@@ -15,10 +15,10 @@ type name =
   | PName of Sym.t
 [@@deriving eq, ord]
 
-let pp_name = function
+let pp_name ?(no_nums = false) = function
   | Owned (ct, Init) -> !^"RW" ^^ Pp.angles (Sctypes.pp ct)
   | Owned (ct, Uninit) -> !^"W" ^^ Pp.angles (Sctypes.pp ct)
-  | PName pn -> Sym.pp pn
+  | PName pn -> if no_nums then Pp.string (Sym.pp_string_no_nums pn) else Sym.pp pn
 
 
 let dtree_of_name =

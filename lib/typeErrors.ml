@@ -6,13 +6,6 @@ module Req = Request
 open Pp
 open Error_common
 
-let call_prefix = function
-  | FunctionCall fsym -> "call_" ^ Sym.pp_string fsym
-  | LemmaApplication l -> "apply_" ^ Sym.pp_string l
-  | LabelCall la -> Where.label_prefix la
-  | Subtyping -> "return"
-
-
 let call_situation = function
   | FunctionCall fsym -> !^"checking call of function" ^^^ Sym.pp fsym
   | LemmaApplication l -> !^"applying lemma" ^^^ Sym.pp l

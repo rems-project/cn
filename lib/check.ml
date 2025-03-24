@@ -1356,6 +1356,15 @@ let bytes_qpred sym size pointer init : Req.QPredicate.t =
   }
 
 
+let call_prefix = function
+  (* This string ends up as a solver variable (via Typing.make_return_record)
+   * hence no "{<num>}" prefix should ever be printed. *)
+  | FunctionCall fsym -> "call_" ^ Sym.pp_string_no_nums fsym
+  | LemmaApplication l -> "apply_" ^ Sym.pp_string_no_nums l
+  | LabelCall la -> Where.label_prefix la
+  | Subtyping -> "return"
+
+
 let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
   let (Expr (loc, annots, expect, e_)) = e in
   let@ () = add_trace_information labels annots in
@@ -1807,10 +1816,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          Spine.calltype_ft loc ~fsym pes ft (fun (Computational ((_, bt), _, _) as rt) ->
            let@ () = WellTyped.ensure_base_type loc ~expect bt in
            let@ _, members =
-             make_return_record
-               loc
-               (TypeErrors.call_prefix (FunctionCall fsym))
-               (RT.binders rt)
+             make_return_record loc (call_prefix (FunctionCall fsym)) (RT.binders rt)
            in
            let@ lvt = bind_return loc members rt in
            k lvt))
@@ -2057,7 +2063,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
              let@ _, members =
                make_return_record
                  loc
-                 (TypeErrors.call_prefix (LemmaApplication lemma))
+                 (call_prefix (LemmaApplication lemma))
                  (LRT.binders lrt)
              in
              let@ () = bind_logical_return loc members lrt in
