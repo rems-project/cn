@@ -417,10 +417,16 @@ module General = struct
     =
     match request with
     | P request ->
+      let@ c = get_typing_context () in
       let@ result = predicate_request loc uiinfo request in
+      let@ c' = get_typing_context () in
       return
         (Option.map
-           (fun ((p, o), changed_or_deleted, l) -> ((Req.P p, o), changed_or_deleted, l))
+           (fun ((p, o), changed_or_deleted, l) ->
+              let log_entry =
+                Prooflog.PredicateRequest (c, fst uiinfo, request, (p, o), l, c')
+              in
+              ((Req.P p, o), changed_or_deleted, [ log_entry ]))
            result)
     | Q request ->
       let@ result = qpredicate_request loc uiinfo request in
