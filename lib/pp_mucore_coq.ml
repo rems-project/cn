@@ -1969,7 +1969,7 @@ let pp_file pp_type pp_type_name file =
           match decl with
           | ProcDecl (loc, ft) ->
             coq_def
-              (Pp_symbol.to_string_pretty_cn sym)
+              (Sym.pp_string_no_nums sym)
               P.empty
               (pp_constructor
                  "ProcDecl"
@@ -1979,7 +1979,7 @@ let pp_file pp_type pp_type_name file =
                  ])
           | Proc { loc; args_and_body; trusted; desugared_spec } ->
             coq_def
-              (Pp_symbol.to_string_pretty_cn sym)
+              (Sym.pp_string_no_nums sym)
               P.empty
               (pp_constructor
                  "Proc"

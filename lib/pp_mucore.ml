@@ -23,7 +23,7 @@ module type CONFIG = sig
   val show_locations : bool
 end
 
-let pp_symbol a = !^(Pp_symbol.to_string_pretty_cn a)
+let pp_symbol sym = !^(Pp_symbol.to_string sym)
 (* NOTE: Used to distinguish struct/unions globally *)
 
 module Pp_typ = struct
@@ -45,8 +45,8 @@ let rec pp_core_object_type = function
   | OTy_array bty ->
     (* TODO: THIS IS NOT BEING PARSED CORRECTLY *)
     !^"array" ^^ P.parens (pp_core_object_type bty)
-  | OTy_struct ident -> !^"struct" ^^^ !^(Pp_symbol.to_string ident)
-  | OTy_union ident -> !^"union" ^^^ !^(Pp_symbol.to_string ident)
+  | OTy_struct ident -> !^"struct" ^^^ pp_symbol ident
+  | OTy_union ident -> !^"union" ^^^ pp_symbol ident
 
 
 let rec pp_core_base_type = function
@@ -238,7 +238,7 @@ module Make (Config : CONFIG) = struct
     | Vtuple cvals -> P.parens (comma_list pp_value cvals)
     | Vobject oval -> pp_object_value oval
     | Vctype ct -> P.squotes (pp_ctype ct)
-    | Vfunction_addr sym -> P.parens (P.ampersand ^^^ Sym.pp sym)
+    | Vfunction_addr sym -> P.parens (P.ampersand ^^^ pp_symbol sym)
 
 
   let pp_ctor = function
@@ -652,10 +652,10 @@ module Make (Config : CONFIG) = struct
 
   let rec pp_arguments_l ppf = function
     | Define ((s, it), _info, l) ->
-      Pp.parens (!^"let" ^^^ Sym.pp s ^^^ Pp.equals ^^^ IndexTerms.pp it)
+      Pp.parens (!^"let" ^^^ pp_symbol s ^^^ Pp.equals ^^^ IndexTerms.pp it)
       ^^^ pp_arguments_l ppf l
     | Resource ((s, (re, _bt)), _info, l) ->
-      Pp.parens (!^"let" ^^^ Sym.pp s ^^^ Pp.equals ^^^ Request.pp re)
+      Pp.parens (!^"let" ^^^ pp_symbol s ^^^ Pp.equals ^^^ Request.pp re)
       ^^^ pp_arguments_l ppf l
     | Constraint (lc, _info, l) ->
       Pp.parens (LogicalConstraints.pp lc) ^^^ pp_arguments_l ppf l
@@ -664,7 +664,7 @@ module Make (Config : CONFIG) = struct
 
   let rec pp_arguments ppf = function
     | Computational ((s, bt), _info, a) ->
-      Pp.parens (Pp.typ (Sym.pp s) (pp_bt bt)) ^^^ pp_arguments ppf a
+      Pp.parens (Pp.typ (pp_symbol s) (pp_bt bt)) ^^^ pp_arguments ppf a
     | L l -> pp_arguments_l ppf l
 
 
