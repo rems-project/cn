@@ -152,6 +152,7 @@ Ltac2 prove_unfold_step () :=
  let smsg s := Message.concat (Message.concat (Message.of_string "Step #") (Message.of_int n)) (Message.concat (Message.of_string ": ") (Message.of_string s)) in
  let msg m := Message.concat (Message.concat (Message.of_string "Step #") (Message.of_int n)) (Message.concat (Message.of_string ": ") m) in
  match! goal with
+    (* PredicateRequest for array *)
   | [ |- log_entry_valid (PredicateRequest _ _ 
       {| 
         Predicate.name := Request.Owned (SCtypes.Array _) _;
@@ -160,16 +161,19 @@ Ltac2 prove_unfold_step () :=
       _ _ _) ] =>
         Message.print (msg (Message.of_string "Arrays are not supported yet"));
         Std.constructor_n false 2 NoBindings (* apply array_resource_inference_step *)
+    (* PredicateRequest for struct *)
   | [ |- log_entry_valid (PredicateRequest _ ?s
       {| 
         Predicate.name := Request.Owned (SCtypes.Struct ?isym) _;
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
-      _ _ _) ] =>
+      _ ?hints _) ] =>
        (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for Struct");
        verbose_print_constr "    Situation: " s;
        verbose_print_constr "    Predicate symbol name: " isym;
+       let lhints := destruct_list (constr:(log_entry)) hints in
+       verbose_msg (Message.concat (Message.of_string "    Humber of hits: ") (Message.of_int (List.length lhints)));
        Std.constructor_n false 3 NoBindings; (* apply struct_resource_inference_step *)
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -193,6 +197,7 @@ Ltac2 prove_unfold_step () :=
           } clause ;
           prove_struct_resource_inference_step ()
        )
+    (* PredicateRequest for non-Struct *)
   | [ |- log_entry_valid (PredicateRequest _ ?s ?p _ _ _)] =>
        (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for non-Struct");
