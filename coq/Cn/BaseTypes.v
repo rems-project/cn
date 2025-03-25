@@ -187,7 +187,6 @@ Module BasetTypes_t_as_MiniDecidableType <: MiniDecidableType.
       + left; reflexivity.
       + right. intros H. inversion H. congruence.
     -
-      (* TODO: this is not provavle with current induction principle! *)
       clear x.
       revert l0.
       induction X;intros.
