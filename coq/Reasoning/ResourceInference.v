@@ -510,12 +510,19 @@ Proof.
   - econstructor; eassumption.
 Qed.
 
-Definition resource_unfold_full_explicit_fun
+Fixpoint resource_unfold_full_explicit_fun
   (globals:Global.t)
   (unfold_changed : list (Resource.t * unpack_result))
-  (input output: list Resource.t): bool.
-  admit.
-Admitted.
+  (input output: list Resource.t): bool :=
+  match unfold_changed with
+  | ((r, UnpackRES unfolded_r_list) :: unfold_changed) =>
+    let input' := List.app (List.remove Resource_as_DecidableType.eq_dec r input) unfolded_r_list in
+    List.existsb (fun r' => bool_of_sum (Resource_as_DecidableType.eq_dec r r')) input &&
+    resource_unfold_fun globals r output &&
+    resource_unfold_full_explicit_fun globals unfold_changed input' output
+  | [] => bool_of_sum (List.list_eq_dec Resource_as_DecidableType.eq_dec input output)
+  | _ => false
+  end.
 
 Lemma resource_unfold_full_explicit_fun_eq:
   forall globals input output unfold_changed,
