@@ -526,8 +526,8 @@ Fixpoint resource_unfold_full_explicit_fun
 
 Lemma resource_unfold_full_explicit_fun_eq:
   forall globals input output unfold_changed,
-  resource_unfold_full_explicit globals unfold_changed (Resource.set_from_list input) (Resource.set_from_list output) ->
-  resource_unfold_full_explicit_fun globals unfold_changed input output = true.
+  resource_unfold_full_explicit_fun globals unfold_changed input output = true ->
+  resource_unfold_full_explicit globals unfold_changed (Resource.set_from_list input) (Resource.set_from_list output).
 Proof.
   admit.
 Admitted.
