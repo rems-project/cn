@@ -525,9 +525,9 @@ Fixpoint unfold_all_explicit_fun
   | ((r, UnpackRES unfolded_r_list) :: unfold_changed) =>
     let input' := List.app (List.remove Resource_as_DecidableType.eq_dec r input) unfolded_r_list in
     List.existsb (fun r' => bool_of_sum (Resource_as_DecidableType.eq_dec r r')) input &&
-    unfold_one_fun globals r output &&
+    unfold_one_fun globals r unfolded_r_list &&
     unfold_all_explicit_fun globals unfold_changed input' output
-  | [] => bool_of_sum (List.list_eq_dec Resource_as_DecidableType.eq_dec input output)
+  | [] => ResSet.equal (Resource.set_from_list input) (Resource.set_from_list output)
   | _ => false
   end.
 
