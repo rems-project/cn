@@ -338,17 +338,37 @@ Definition subsumed_fun (p1 p2 : Request.name) : bool :=
   orb
     (bool_of_sum (Name_as_MiniDecidableType.eq_dec p1 p2))
     (match p1, p2 with
-    | Request.Owned ct Uninit, Request.Owned ct' Init
-        => bool_of_sum (SCtypes_as_MiniDecidableType.eq_dec ct ct')
-    | _, _ => false
-    end).
+     | Request.Owned ct Uninit, Request.Owned ct' Init
+         => bool_of_sum (SCtypes_as_MiniDecidableType.eq_dec ct ct')
+     | _, _ => false
+     end).
 
 Lemma subsumed_fun_eq:
   forall p1 p2,
   subsumed p1 p2 <-> subsumed_fun p1 p2 = true.
 Proof.
-  
-Admitted. 
+  intros p1 p2.
+  split.
+  - intros H.
+    unfold subsumed_fun.
+    apply orb_true_intro.
+    inversion H; subst.
+    + left.
+      apply eq_dec_refl_l.
+    + right.
+      apply eq_dec_refl_l.
+  - intros H.
+    unfold subsumed_fun in H.
+    apply orb_prop in H; destruct H as [H | H].
+    + apply Subsumed_equal.
+      eapply eq_dec_refl_r, H.
+    + destruct p1; try discriminate.
+      destruct i; try discriminate.
+      destruct p2; try discriminate.
+      destruct i; try discriminate.
+      apply Subsumed_owned.
+      eapply eq_dec_refl_r, H.
+Qed.
 
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 | resource_unfold_struct:
