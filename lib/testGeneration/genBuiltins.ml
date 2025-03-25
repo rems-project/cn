@@ -10,7 +10,7 @@ let gen_syms_bits (name : string) : (BT.t * Sym.t) list =
     | Some (sgn, bits) ->
       let bt = BT.Bits (sgn, bits) in
       ( bt,
-        Sym.fresh_named
+        Sym.fresh
           (String.concat
              "_"
              [ "cn_gen";
@@ -61,7 +61,7 @@ let mult_range_check (it_mult : IT.t) (it_min : IT.t) (it_max : IT.t) gt loc =
   mult_check it_mult (range_check it_min it_max gt loc) loc
 
 
-let min_sym = Sym.fresh_named "min"
+let min_sym = Sym.fresh "min"
 
 let ge_gen_sym_db = gen_syms_bits "ge"
 
@@ -70,7 +70,7 @@ let ge_gen (it_min : IT.t) (bt : BT.t) loc : GT.t =
   GT.call_ (fsym, [ (min_sym, it_min) ]) bt loc
 
 
-let max_sym = Sym.fresh_named "max"
+let max_sym = Sym.fresh "max"
 
 let lt_gen_sym_db = gen_syms_bits "lt"
 
@@ -90,7 +90,7 @@ let range_gen (it_min : IT.t) (it_max : IT.t) (bt : BT.t) loc : GT.t =
     loc
 
 
-let mult_sym = Sym.fresh_named "mult"
+let mult_sym = Sym.fresh "mult"
 
 let mult_gen_sym_db = gen_syms_bits "mult"
 
@@ -144,11 +144,11 @@ let mult_range_gen (it_mult : IT.t) (it_min : IT.t) (it_max : IT.t) (bt : BT.t) 
     loc
 
 
-let align_sym = Sym.fresh_named "align"
+let align_sym = Sym.fresh "align"
 
-let size_sym = Sym.fresh_named "size"
+let size_sym = Sym.fresh "size"
 
-let aligned_alloc_gen_sym = Sym.fresh_named "cn_gen_aligned_alloc"
+let aligned_alloc_gen_sym = Sym.fresh "cn_gen_aligned_alloc"
 
 let aligned_alloc_gen (it_align : IT.t) (it_size : IT.t) loc : GT.t =
   let it_align =

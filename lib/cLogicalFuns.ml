@@ -34,7 +34,7 @@ let val_to_it loc (Mu.V ((bt : BT.t), v)) =
   | _ -> None
 
 
-let local_sym_ptr = Sym.fresh_named "local_ptr"
+let local_sym_ptr = Sym.fresh "local_ptr"
 
 type state =
   { loc_map : IT.t option IntMap.t;

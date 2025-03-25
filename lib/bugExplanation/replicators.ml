@@ -31,18 +31,16 @@ let name_of_bt (bt : BT.t) : string =
 
 
 let owned_sct_sym (ct : C.ctype) : Sym.t =
-  Sym.fresh_named ("cn_replicate_owned_" ^ string_of_ctype ct)
+  Sym.fresh ("cn_replicate_owned_" ^ string_of_ctype ct)
 
 
 let owned_sct_aux_sym (ct : C.ctype) : Sym.t =
-  Sym.fresh_named ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux")
+  Sym.fresh ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux")
 
 
-let pred_sym (psym : Sym.t) : Sym.t =
-  Sym.fresh_named ("cn_replicate_" ^ Sym.pp_string psym)
+let pred_sym (psym : Sym.t) : Sym.t = Sym.fresh ("cn_replicate_" ^ Sym.pp_string psym)
 
-
-let append_line_sym = Sym.fresh_named "cn_replica_lines_append"
+let append_line_sym = Sym.fresh "cn_replica_lines_append"
 
 let _append_line_call line =
   A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident append_line_sym), [ line ])))
@@ -67,7 +65,7 @@ let rec buf_length (fmt : string list) (args : string list) : string list =
 
 let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
   let b_buf = Utils.create_binding buf_sym C.pointer_to_char in
-  let e_args = List.map (fun x -> mk_expr (AilEident (Sym.fresh_named x))) args in
+  let e_args = List.map (fun x -> mk_expr (AilEident (Sym.fresh x))) args in
   let s =
     A.(
       [ AilSdeclaration
@@ -75,17 +73,17 @@ let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
               Some
                 (mk_expr
                    (AilEcall
-                      ( mk_expr (AilEident (Sym.fresh_named "malloc")),
+                      ( mk_expr (AilEident (Sym.fresh "malloc")),
                         [ mk_expr
                             (AilEident
-                               (Sym.fresh_named
+                               (Sym.fresh
                                   (String.concat " + " (buf_length fmt args) ^ " + 1")))
                         ] ))) )
           ];
         AilSexpr
           (mk_expr
              (AilEcall
-                ( mk_expr (AilEident (Sym.fresh_named "sprintf")),
+                ( mk_expr (AilEident (Sym.fresh "sprintf")),
                   [ mk_expr (AilEident buf_sym);
                     mk_expr (AilEstr (None, [ (Locations.other __LOC__, fmt) ]))
                   ]
@@ -94,8 +92,7 @@ let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
       @ List.map
           (fun e_arg ->
              AilSexpr
-               (mk_expr
-                  (AilEcall (mk_expr (AilEident (Sym.fresh_named "free")), [ e_arg ]))))
+               (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "free")), [ e_arg ]))))
           e_args)
   in
   ([ b_buf ], s)
@@ -104,7 +101,7 @@ let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
 let replicate_call (sct : Sctypes.t) e_arg =
   match sct with
   | Sctypes.Array (sct', Some n) ->
-    let fsym = Sym.fresh_named "cn_replicate_owned_array_aux" in
+    let fsym = Sym.fresh "cn_replicate_owned_array_aux" in
     A.AilEcall
       ( mk_expr (AilEident fsym),
         [ mk_expr (AilEident (owned_sct_aux_sym (Sctypes.to_ctype sct')));
@@ -114,12 +111,11 @@ let replicate_call (sct : Sctypes.t) e_arg =
   | Integer _ ->
     let bt = Memory.bt_of_sct sct in
     A.AilEcall
-      ( mk_expr
-          (AilEident (Sym.fresh_named ("cn_replicate_owned_" ^ name_of_bt bt ^ "_aux"))),
+      ( mk_expr (AilEident (Sym.fresh ("cn_replicate_owned_" ^ name_of_bt bt ^ "_aux"))),
         [ mk_expr e_arg ] )
   | Array (_, None) | Pointer _ ->
     A.AilEcall
-      ( mk_expr (AilEident (Sym.fresh_named "cn_replicate_owned_cn_pointer_aux")),
+      ( mk_expr (AilEident (Sym.fresh "cn_replicate_owned_cn_pointer_aux")),
         [ mk_expr e_arg ] )
   | _ ->
     let bt = Memory.bt_of_sct sct in
@@ -152,8 +148,8 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
   let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
-  let ptr_sym = Sym.fresh_named "ptr" in
-  let buf_sym = Sym.fresh_named "buf" in
+  let ptr_sym = Sym.fresh "ptr" in
+  let buf_sym = Sym.fresh "buf" in
   let b1, s1 =
     match sct with
     | Void -> failwith __LOC__
@@ -174,7 +170,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
         aux (m - 1) []
       in
       let mem_syms =
-        List.map (fun i -> Sym.fresh_named ("index_" ^ string_of_int i)) (range n)
+        List.map (fun i -> Sym.fresh ("index_" ^ string_of_int i)) (range n)
       in
       let b_mem, s_mem =
         let b, s =
@@ -233,8 +229,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
                     (mk_expr
                        (AilEcall
                           ( mk_expr
-                              (AilEident
-                                 (Sym.fresh_named "cn_replicate_owned_cn_pointer_aux")),
+                              (AilEident (Sym.fresh "cn_replicate_owned_cn_pointer_aux")),
                             [ mk_expr
                                 (AilEcast
                                    ( C.no_qualifiers,
@@ -255,8 +250,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
                     (mk_expr
                        (AilEcall
                           ( mk_expr
-                              (AilEident
-                                 (Sym.fresh_named "cn_replicate_owned_cn_pointer_aux")),
+                              (AilEident (Sym.fresh "cn_replicate_owned_cn_pointer_aux")),
                             [ mk_expr (AilEident ptr_sym) ] ))) )
               ]
           ] )
@@ -272,7 +266,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
            A.(
              members
              |> List.map (fun (member, sct') ->
-               let member_sym = Sym.fresh_named (Id.get_string member ^ "_mem_str") in
+               let member_sym = Sym.fresh (Id.get_string member ^ "_mem_str") in
                ( Utils.create_binding member_sym C.pointer_to_char,
                  AilSdeclaration
                    [ ( member_sym,
@@ -326,10 +320,10 @@ let compile_sct (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
   let fsym = owned_sct_sym (Sctypes.to_ctype sct) in
-  let ptr_sym = Sym.fresh_named "ptr" in
-  let addr_str_sym = Sym.fresh_named "addr_str" in
-  let cast_addr_str_sym = Sym.fresh_named "cast_addr_str" in
-  let value_str_sym = Sym.fresh_named "value_str" in
+  let ptr_sym = Sym.fresh "ptr" in
+  let addr_str_sym = Sym.fresh "addr_str" in
+  let cast_addr_str_sym = Sym.fresh "cast_addr_str" in
+  let value_str_sym = Sym.fresh "value_str" in
   let bt = Memory.bt_of_sct sct in
   let b_cast, s_cast =
     sprintf_to_buf
@@ -353,8 +347,7 @@ let compile_sct (sct : Sctypes.t)
                             (AilEcall
                                ( mk_expr
                                    (AilEident
-                                      (Sym.fresh_named
-                                         "cn_replicate_owned_cn_pointer_aux")),
+                                      (Sym.fresh "cn_replicate_owned_cn_pointer_aux")),
                                  [ mk_expr (AilEident ptr_sym) ] ))) )
                    ]);
               mk_stmt
@@ -373,7 +366,7 @@ let compile_sct (sct : Sctypes.t)
                   (AilSexpr
                      (mk_expr
                         (AilEcall
-                           ( mk_expr (AilEident (Sym.fresh_named "cn_replicate_owned")),
+                           ( mk_expr (AilEident (Sym.fresh "cn_replicate_owned")),
                              [ mk_expr (AilEident cast_addr_str_sym);
                                mk_expr (AilEident value_str_sym)
                              ] ))));
@@ -501,12 +494,12 @@ let compile_req
           [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_REPLICATE_EACH_BEGIN")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_REPLICATE_EACH_BEGIN")),
                       List.map
                         mk_expr
                         [ AilEident map_sym;
                           AilEident q_sym;
-                          AilEident (Sym.fresh_named (name_of_bt q_bt))
+                          AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
                       @ [ e_perm; e_max ] )))
           ]
@@ -514,12 +507,12 @@ let compile_req
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_REPLICATE_EACH_END")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_REPLICATE_EACH_END")),
                       List.map
                         mk_expr
                         [ AilEident map_sym;
                           AilEident q_sym;
-                          AilEident (Sym.fresh_named (name_of_bt q_bt))
+                          AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
                       @ [ e_val; e_min ] )))
           ]
@@ -675,9 +668,7 @@ let compile_spec
          | GlobalDef (sct, _) -> (sym, sct))
       global_syms
   in
-  let new_args =
-    List.map (fun (x, _) -> (x, Sym.fresh_named (Sym.pp_string x ^ "_cn"))) args
-  in
+  let new_args = List.map (fun (x, _) -> (x, Sym.fresh (Sym.pp_string x ^ "_cn"))) args in
   let bs1 =
     List.map
       (fun (x, y) ->
@@ -714,14 +705,12 @@ let compile_spec
       (args |> List.map_snd snd |> List.map (fun x -> (false, x)))
       @ (globals |> List.map (fun (x, ct) -> (true, (x, Sctypes.to_ctype ct))))
       |> List.map (fun (global, (arg, ct)) ->
-        let arg_str_sym = Sym.fresh_named (Sym.pp_string arg ^ "_str") in
-        let arg_cast_str_sym = Sym.fresh_named (Sym.pp_string arg ^ "_cast_str") in
+        let arg_str_sym = Sym.fresh (Sym.pp_string arg ^ "_str") in
+        let arg_cast_str_sym = Sym.fresh (Sym.pp_string arg ^ "_cast_str") in
         let bt =
           Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct)
         in
-        let fsym =
-          Sym.fresh_named ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux")
-        in
+        let fsym = Sym.fresh ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux") in
         let type_str =
           Pp.plain (Sctypes.pp (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))
         in
@@ -754,7 +743,7 @@ let compile_spec
             [ AilSexpr
                 (mk_expr
                    (AilEcall
-                      ( mk_expr (AilEident (Sym.fresh_named "cn_replicate_owned")),
+                      ( mk_expr (AilEident (Sym.fresh "cn_replicate_owned")),
                         [ mk_expr
                             (AilEstr
                                ( None,
@@ -775,7 +764,7 @@ let compile_spec
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "cn_replica_lines_append")),
+                  ( mk_expr (AilEident (Sym.fresh "cn_replica_lines_append")),
                     [ mk_expr
                         (AilEstr
                            ( None,

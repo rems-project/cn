@@ -15,6 +15,6 @@ let get_mangled_name (syms : Sym.t list) : Sym.t =
     | Some sym -> sym
     | None ->
       let doc = string "cn_gen_" ^^ separate_map underscore Sym.pp syms in
-      let res_sym = Sym.fresh_named (CF.Pp_utils.to_plain_string doc) in
+      let res_sym = Sym.fresh (CF.Pp_utils.to_plain_string doc) in
       names := (syms, res_sym) :: !names;
       res_sym)

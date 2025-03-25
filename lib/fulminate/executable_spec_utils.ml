@@ -41,7 +41,7 @@ let rm_stmt (A.AnnotatedStatement (_, _, stmt_)) = stmt_
 
 let empty_ail_str = "empty_ail"
 
-let empty_ail_expr = A.(AilEident (Sym.fresh_named empty_ail_str))
+let empty_ail_expr = A.(AilEident (Sym.fresh empty_ail_str))
 
 let empty_ail_stmt = A.(AilSexpr (mk_expr empty_ail_expr))
 
@@ -60,7 +60,7 @@ let generate_sym_with_suffix
   let str = Sym.pp_string constructor ^ suffix in
   let str = if uppercase then String.uppercase_ascii str else str in
   let str = if lowercase then String.lowercase_ascii str else str in
-  Sym.fresh_named str
+  Sym.fresh str
 
 
 let rec list_split_three = function

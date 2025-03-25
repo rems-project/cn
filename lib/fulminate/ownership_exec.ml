@@ -29,42 +29,40 @@ type ownership_injection =
 
 let ownership_mode_to_enum_str = function Pre -> "GET" | Post -> "PUT" | Loop -> "LOOP"
 
-let get_cn_stack_depth_sym = Sym.fresh_named "get_cn_stack_depth"
+let get_cn_stack_depth_sym = Sym.fresh "get_cn_stack_depth"
 
-let cn_stack_depth_incr_sym = Sym.fresh_named "ghost_stack_depth_incr"
+let cn_stack_depth_incr_sym = Sym.fresh "ghost_stack_depth_incr"
 
-let cn_stack_depth_decr_sym = Sym.fresh_named "ghost_stack_depth_decr"
+let cn_stack_depth_decr_sym = Sym.fresh "ghost_stack_depth_decr"
 
-let cn_postcondition_leak_check_sym = Sym.fresh_named "cn_postcondition_leak_check"
+let cn_postcondition_leak_check_sym = Sym.fresh "cn_postcondition_leak_check"
 
-let cn_loop_put_back_ownership_sym = Sym.fresh_named "cn_loop_put_back_ownership"
+let cn_loop_put_back_ownership_sym = Sym.fresh "cn_loop_put_back_ownership"
 
 let cn_loop_leak_check_and_put_back_ownership_sym =
-  Sym.fresh_named "cn_loop_leak_check_and_put_back_ownership"
+  Sym.fresh "cn_loop_leak_check_and_put_back_ownership"
 
 
-let c_add_ownership_fn_sym = Sym.fresh_named "c_add_to_ghost_state"
+let c_add_ownership_fn_sym = Sym.fresh "c_add_to_ghost_state"
 
-let c_remove_ownership_fn_sym = Sym.fresh_named "c_remove_from_ghost_state"
+let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
 
 (* TODO: Use these to reduce verbosity of output. Mirrors C+CN input slightly less since
    we replace declarations with a call to one of these macros
-   let c_declare_and_map_local_sym = Sym.fresh_named "c_declare_and_map_local"
+   let c_declare_and_map_local_sym = Sym.fresh "c_declare_and_map_local"
 
-   let c_declare_init_and_map_local_sym = Sym.fresh_named "c_declare_init_and_map_local"
+   let c_declare_init_and_map_local_sym = Sym.fresh "c_declare_init_and_map_local"
 *)
 
 let get_ownership_global_init_stats () =
   let cn_ghost_state_init_fcall =
     mk_expr
       A.(
-        AilEcall
-          (mk_expr (AilEident (Sym.fresh_named "initialise_ownership_ghost_state")), []))
+        AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ownership_ghost_state")), []))
   in
   let cn_ghost_stack_depth_init_fcall =
     mk_expr
-      A.(
-        AilEcall (mk_expr (AilEident (Sym.fresh_named "initialise_ghost_stack_depth")), []))
+      A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
   List.map
     (fun e -> A.(AilSexpr e))
@@ -90,13 +88,13 @@ let generate_c_local_cn_addr_var sym =
   (* Hardcoding parts of cn_to_ail_base_type to prevent circular dependency between
      this module and Cn_internal_to_ail, which includes Ownership_exec already. *)
   let cn_addr_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
-  let annots = [ CF.Annot.Atypedef (Sym.fresh_named "cn_pointer") ] in
+  let annots = [ CF.Annot.Atypedef (Sym.fresh "cn_pointer") ] in
   (* Ctype_ doesn't matter to pretty-printer when typedef annotations are present *)
   let inner_ctype = mk_ctype ~annots C.Void in
   let cn_ptr_ctype = mk_ctype C.(Pointer (C.no_qualifiers, inner_ctype)) in
   let binding = create_binding cn_addr_sym cn_ptr_ctype in
   let addr_of_sym = mk_expr A.(AilEunary (Address, mk_expr (AilEident sym))) in
-  let fcall_sym = Sym.fresh_named "convert_to_cn_pointer" in
+  let fcall_sym = Sym.fresh "convert_to_cn_pointer" in
   let conversion_fcall = A.(AilEcall (mk_expr (AilEident fcall_sym), [ addr_of_sym ])) in
   let decl = A.(AilSdeclaration [ (cn_addr_sym, Some (mk_expr conversion_fcall)) ]) in
   (binding, decl)

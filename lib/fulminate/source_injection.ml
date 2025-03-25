@@ -208,7 +208,7 @@ let inject st inj =
          ^ (if AilTypesAux.is_void ret_ty then
               ""
             else (
-              let cn_ret_sym = Sym.fresh_named "__cn_ret" in
+              let cn_ret_sym = Sym.fresh "__cn_ret" in
               let ret_type_doc =
                 Pp_ail.(
                   with_executable_spec

@@ -56,7 +56,7 @@ let var_binop op ty ~left:(sym1, bt1) ~right:(sym2, bt2) =
 
 let definition name args body =
   ( name,
-    Sym.fresh_named name,
+    Sym.fresh name,
     Definition.Function.
       { loc; emit_coq = false; args; body = Def body; return_bt = IT.get_bt body } )
 
@@ -64,13 +64,13 @@ let definition name args body =
 let mk_builtin_arg0 name = definition name []
 
 let mk_builtin_arg1 name bt mk : builtin_fn_def =
-  let arg = (Sym.fresh_named "arg", bt) in
+  let arg = (Sym.fresh "arg", bt) in
   mk arg |> definition name [ arg ]
 
 
 let mk_builtin_arg2 name (bt1, bt2) mk : builtin_fn_def =
-  let left = (Sym.fresh_named "arg1", bt1) in
-  let right = (Sym.fresh_named "arg2", bt2) in
+  let left = (Sym.fresh "arg1", bt1) in
+  let right = (Sym.fresh "arg2", bt2) in
   mk ~left ~right |> definition name [ left; right ]
 
 
@@ -119,7 +119,7 @@ let is_null_def : builtin_fn_def =
 (* Cannot translate this to a logical function until the TODO in `cn_to_ail_expr_aux_internal` in `cn_internal_to_ail.ml` is resolved*)
 let has_alloc_id_def =
   ( "has_alloc_id",
-    Sym.fresh_named "has_alloc_id",
+    Sym.fresh "has_alloc_id",
     mk_arg1 (fun p loc' -> IT.Surface.inj @@ IT.hasAllocId_ (IT.Surface.proj p) loc') )
 
 
@@ -128,8 +128,8 @@ let ptr_eq_def : builtin_fn_def =
 
 
 let prov_eq_def : builtin_fn_def =
-  let left = (Sym.fresh_named "arg1", BT.Loc ()) in
-  let right = (Sym.fresh_named "arg2", BT.Loc ()) in
+  let left = (Sym.fresh "arg1", BT.Loc ()) in
+  let right = (Sym.fresh "arg2", BT.Loc ()) in
   let left_cast = IT.allocId_ (IT.sym_ (fst left, BT.Loc (), loc)) loc in
   let right_cast = IT.allocId_ (IT.sym_ (fst right, BT.Loc (), loc)) loc in
   let body = IT.binop EQ (left_cast, right_cast) loc BT.Bool in
@@ -137,8 +137,8 @@ let prov_eq_def : builtin_fn_def =
 
 
 let addr_eq_def : builtin_fn_def =
-  let left = (Sym.fresh_named "arg1", BT.Loc ()) in
-  let right = (Sym.fresh_named "arg2", BT.Loc ()) in
+  let left = (Sym.fresh "arg1", BT.Loc ()) in
+  let right = (Sym.fresh "arg2", BT.Loc ()) in
   let left_cast = IT.addr_ (IT.sym_ (fst left, BT.Loc (), loc)) loc in
   let right_cast = IT.addr_ (IT.sym_ (fst right, BT.Loc (), loc)) loc in
   let body = IT.binop EQ (left_cast, right_cast) loc BT.Bool in
@@ -149,59 +149,57 @@ let addr_eq_def : builtin_fn_def =
    LogicalFunction.definition types because they implicitly require basetype polymorphism.
    For example, the `mod` function allows inputs of any sign and size, but such a function cannot be defined
    yet with an index term *)
-let mul_uf_def = ("mul_uf", Sym.fresh_named "mul_uf", mk_arg2 IT.mul_no_smt_)
+let mul_uf_def = ("mul_uf", Sym.fresh "mul_uf", mk_arg2 IT.mul_no_smt_)
 
-let div_uf_def = ("div_uf", Sym.fresh_named "div_uf", mk_arg2 IT.div_no_smt_)
+let div_uf_def = ("div_uf", Sym.fresh "div_uf", mk_arg2 IT.div_no_smt_)
 
-let power_uf_def = ("power_uf", Sym.fresh_named "power_uf", mk_arg2 IT.exp_no_smt_)
+let power_uf_def = ("power_uf", Sym.fresh "power_uf", mk_arg2 IT.exp_no_smt_)
 
-let rem_uf_def = ("rem_uf", Sym.fresh_named "rem_uf", mk_arg2 IT.rem_no_smt_)
+let rem_uf_def = ("rem_uf", Sym.fresh "rem_uf", mk_arg2 IT.rem_no_smt_)
 
-let mod_uf_def = ("mod_uf", Sym.fresh_named "mod_uf", mk_arg2 IT.mod_no_smt_)
+let mod_uf_def = ("mod_uf", Sym.fresh "mod_uf", mk_arg2 IT.mod_no_smt_)
 
-let xor_uf_def = ("xor_uf", Sym.fresh_named "xor_uf", mk_arg2 (IT.arith_binop BW_Xor))
+let xor_uf_def = ("xor_uf", Sym.fresh "xor_uf", mk_arg2 (IT.arith_binop BW_Xor))
 
-let bw_and_uf_def =
-  ("bw_and_uf", Sym.fresh_named "bw_and_uf", mk_arg2 (IT.arith_binop BW_And))
+let bw_and_uf_def = ("bw_and_uf", Sym.fresh "bw_and_uf", mk_arg2 (IT.arith_binop BW_And))
 
-
-let bw_or_uf_def = ("bw_or_uf", Sym.fresh_named "bw_or_uf", mk_arg2 (IT.arith_binop BW_Or))
+let bw_or_uf_def = ("bw_or_uf", Sym.fresh "bw_or_uf", mk_arg2 (IT.arith_binop BW_Or))
 
 let bw_clz_uf_def =
-  ("bw_clz_uf", Sym.fresh_named "bw_clz_uf", mk_arg1 (IT.arith_unop BW_CLZ_NoSMT))
+  ("bw_clz_uf", Sym.fresh "bw_clz_uf", mk_arg1 (IT.arith_unop BW_CLZ_NoSMT))
 
 
 let bw_ctz_uf_def =
-  ("bw_ctz_uf", Sym.fresh_named "bw_ctz_uf", mk_arg1 (IT.arith_unop BW_CTZ_NoSMT))
+  ("bw_ctz_uf", Sym.fresh "bw_ctz_uf", mk_arg1 (IT.arith_unop BW_CTZ_NoSMT))
 
 
 let bw_ffs_uf_def =
-  ("bw_ffs_uf", Sym.fresh_named "bw_ffs_uf", mk_arg1 (IT.arith_unop BW_FFS_NoSMT))
+  ("bw_ffs_uf", Sym.fresh "bw_ffs_uf", mk_arg1 (IT.arith_unop BW_FFS_NoSMT))
 
 
 let bw_fls_uf_def =
-  ("bw_fls_uf", Sym.fresh_named "bw_fls_uf", mk_arg1 (IT.arith_unop BW_FLS_NoSMT))
+  ("bw_fls_uf", Sym.fresh "bw_fls_uf", mk_arg1 (IT.arith_unop BW_FLS_NoSMT))
 
 
 let shift_left_def =
-  ("shift_left", Sym.fresh_named "shift_left", mk_arg2 (IT.arith_binop ShiftLeft))
+  ("shift_left", Sym.fresh "shift_left", mk_arg2 (IT.arith_binop ShiftLeft))
 
 
 let shift_right_def =
-  ("shift_right", Sym.fresh_named "shift_right", mk_arg2 (IT.arith_binop ShiftRight))
+  ("shift_right", Sym.fresh "shift_right", mk_arg2 (IT.arith_binop ShiftRight))
 
 
-let power_def = ("power", Sym.fresh_named "power", mk_arg2 IT.exp_)
+let power_def = ("power", Sym.fresh "power", mk_arg2 IT.exp_)
 
-let rem_def = ("rem", Sym.fresh_named "rem", mk_arg2 IT.rem_)
+let rem_def = ("rem", Sym.fresh "rem", mk_arg2 IT.rem_)
 
-let mod_def = ("mod", Sym.fresh_named "mod", mk_arg2 IT.mod_)
+let mod_def = ("mod", Sym.fresh "mod", mk_arg2 IT.mod_)
 
-let nth_list_def = ("nth_list", Sym.fresh_named "nth_list", mk_arg3 IT.nthList_)
+let nth_list_def = ("nth_list", Sym.fresh "nth_list", mk_arg3 IT.nthList_)
 
 let array_to_list_def =
   ( "array_to_list",
-    Sym.fresh_named "array_to_list",
+    Sym.fresh "array_to_list",
     mk_arg3_err (fun (arr, i, len) loc ->
       match SBT.is_map_bt (IT.get_bt arr) with
       | None -> fail { loc; msg = Array_to_list arr }

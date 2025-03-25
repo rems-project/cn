@@ -298,8 +298,8 @@ let add_list_mono_datatype (bt, nm) global =
   let open Global in
   let module Dt = BT.Datatype in
   let bt_name = Sym.pp_string (Option.get (BT.is_datatype_bt bt)) in
-  let nil = Sym.fresh_named ("Nil_of_" ^ bt_name) in
-  let cons = Sym.fresh_named ("Cons_of_" ^ bt_name) in
+  let nil = Sym.fresh ("Nil_of_" ^ bt_name) in
+  let cons = Sym.fresh ("Cons_of_" ^ bt_name) in
   let here = Locations.other __LOC__ in
   let hd = Id.make here ("hd_of_" ^ bt_name) in
   let tl = Id.make here ("tl_of_" ^ bt_name) in
@@ -333,7 +333,7 @@ let monomorphise_dt_lists global =
       []
   in
   let uniq_dt_types = Sym.Set.elements (Sym.Set.of_list all_dt_types) in
-  let new_sym sym = (sym, Sym.fresh_named ("list_of_" ^ Sym.pp_string sym)) in
+  let new_sym sym = (sym, Sym.fresh ("list_of_" ^ Sym.pp_string sym)) in
   let new_syms = List.map new_sym uniq_dt_types in
   let list_mono = List.map (fun (s1, s2) -> (BT.Datatype s1, s2)) new_syms in
   let global = List.fold_right add_list_mono_datatype list_mono global in
@@ -374,7 +374,7 @@ let alpha_rename_if_pp_same s body =
         (Pp.item
            "doing rename"
            (Pp.typ (Sym.pp s) (Pp.braces (Pp.list Pp.string other_nms)))));
-    let s2 = Sym.fresh_named (new_nm (Sym.pp_string s) other_nms 0) in
+    let s2 = Sym.fresh (new_nm (Sym.pp_string s) other_nms 0) in
     let body = IT.subst (IT.make_rename ~from:s ~to_:s2) body in
     (s2, body, IT.free_vars body))
   else
@@ -839,7 +839,7 @@ let ensure_struct_mem is_good global list_mono loc ct aux =
           (let@ ty = bt_to_coq global list_mono (loc, Pp.string op_nm) bt in
            let x = Pp.parens (Pp.typ (Pp.string "x") ty) in
            let here = Locations.other __LOC__ in
-           let x_it = IT.sym_ (Sym.fresh_named "x", bt, here) in
+           let x_it = IT.sym_ (Sym.fresh "x", bt, here) in
            let@ rhs =
              aux (it_adjust global (IT.good_value global.struct_decls ct x_it here))
            in
@@ -872,7 +872,7 @@ let mk_forall global list_mono loc sym bt doc =
 let add_dt_param_counted (it, (m_nm : Id.t)) =
   let@ st = get in
   let idx = List.length st.dt_params in
-  let sym = Sym.fresh_named (Id.get_string m_nm ^ "_" ^ Int.to_string idx) in
+  let sym = Sym.fresh (Id.get_string m_nm ^ "_" ^ Int.to_string idx) in
   let@ () = add_dt_param (it, m_nm, sym) in
   return sym
 

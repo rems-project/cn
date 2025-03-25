@@ -1942,7 +1942,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                (Access To_bytes)
                (bytes_pred ct pointer init, None)
            in
-           let q_sym = Sym.fresh_named "to_bytes" in
+           let q_sym = Sym.fresh "to_bytes" in
            let bt = WellTyped.default_quantifier_bt in
            let map_bt = BT.Map (bt, Memory.bt_of_sct Sctypes.uchar_ct) in
            let byte_sym, byte_arr = IT.fresh_named map_bt "byte_arr" here in
@@ -1957,7 +1957,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            let ctxt = match init with Init -> `RW | Uninit -> `W in
            let@ () = WellTyped.err_if_ct_void loc ctxt ct in
            let@ pointer = WellTyped.infer_term pointer in
-           let q_sym = Sym.fresh_named "from_bytes" in
+           let q_sym = Sym.fresh "from_bytes" in
            let@ (_, O byte_arr), _ =
              RI.Special.qpredicate_request
                loc
@@ -2651,8 +2651,8 @@ let memcpy_proxy_ft =
   let map_bt = BT.Map (q_bt, uchar_bt) in
   let destIn_sym, _ = IT.fresh_named map_bt "destIn" here in
   let srcIn_sym, srcIn = IT.fresh_named map_bt "srcIn" here in
-  let destRes str init = Req.Q (bytes_qpred (Sym.fresh_named str) n dest init) in
-  let srcRes str = Req.Q (bytes_qpred (Sym.fresh_named str) n src Init) in
+  let destRes str init = Req.Q (bytes_qpred (Sym.fresh str) n dest init) in
+  let srcRes str = Req.Q (bytes_qpred (Sym.fresh str) n src Init) in
   (* ensures *)
   let ret_sym, ret = IT.fresh_named (BT.Loc ()) "return" here in
   let destOut_sym, destOut = IT.fresh_named map_bt "destOut" here in

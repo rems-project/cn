@@ -44,7 +44,7 @@ let num = S.symbol_num
 
 let fresh_anon () = S.fresh ()
 
-let fresh_named = S.fresh_cn
+let fresh = S.fresh_cn
 
 let fresh_same s = S.fresh_description (S.symbol_description s)
 
@@ -72,9 +72,9 @@ let make_uniq =
     str ^ string_of_int next
 
 
-let fresh_make_uniq name = fresh_named (make_uniq name)
+let fresh_make_uniq name = fresh (make_uniq name)
 
-let fresh_make_uniq_kind ~prefix name = fresh_named (make_uniq prefix ^ "_" ^ name)
+let fresh_make_uniq_kind ~prefix name = fresh (make_uniq prefix ^ "_" ^ name)
 
 let json sym = `String (pp_string sym)
 

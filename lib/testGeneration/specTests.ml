@@ -72,8 +72,7 @@ let compile_constant_tests
                     (AilSexpr
                        (Utils.mk_expr
                           (AilEcall
-                             ( Utils.mk_expr
-                                 (AilEident (Sym.fresh_named "CN_UNIT_TEST_CASE")),
+                             ( Utils.mk_expr (AilEident (Sym.fresh "CN_UNIT_TEST_CASE")),
                                [ Utils.mk_expr (AilEident inst.fn) ] ))))) ))
       insts
   in
@@ -108,7 +107,7 @@ let convert_from ((x, ct) : Sym.t * C.ctype) =
        (CtA.wrap_with_convert_from
           A.(
             AilEmemberofptr
-              ( Utils.mk_expr (AilEident (Sym.fresh_named "res")),
+              ( Utils.mk_expr (AilEident (Sym.fresh "res")),
                 CF.Symbol.Identifier
                   ( Locations.other __LOC__,
                     Sym.pp_string (GenUtils.get_mangled_name [ x ]) ) ))

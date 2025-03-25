@@ -25,7 +25,7 @@ let ( let@ ) (g : 'a m) (f : 'a -> 'b m) : 'b m =
 
 let return (x : 'a) : 'a m = fun s -> (x, s)
 
-let cn_return = Sym.fresh_named "cn_return"
+let cn_return = Sym.fresh "cn_return"
 
 let compile_oargs (ret_bt : BT.t) (iargs : (Sym.t * BT.t) list) : (Sym.t * BT.t) list =
   match ret_bt with Unit -> [] | _ -> (cn_return, ret_bt) :: iargs

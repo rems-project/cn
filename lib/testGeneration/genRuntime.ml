@@ -10,7 +10,7 @@ module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
-let bennet = Sym.fresh_named "bennet"
+let bennet = Sym.fresh "bennet"
 
 type term =
   | Uniform of
@@ -307,7 +307,7 @@ let nice_names (inputs : Sym.Set.t) (gt : GT.t) : GT.t =
         match StringMap.find_opt name vars with
         | Some n ->
           let name' = name ^ "_" ^ string_of_int n in
-          let y = Sym.fresh_named name' in
+          let y = Sym.fresh name' in
           ( StringMap.add name (n + 1) vars,
             y,
             GT.subst
@@ -331,7 +331,7 @@ let nice_names (inputs : Sym.Set.t) (gt : GT.t) : GT.t =
         match StringMap.find_opt name vars with
         | Some n ->
           let name' = name ^ "_" ^ string_of_int n in
-          let j = Sym.fresh_named name' in
+          let j = Sym.fresh name' in
           let su = IT.make_subst [ (i_sym, IT.sym_ (j, i_bt, loc)) ] in
           (StringMap.add name (n + 1) vars, j, IT.subst su it_perm, GT.subst su gt_inner)
         | None -> (StringMap.add name 1 vars, i_sym, it_perm, gt_inner)
@@ -622,12 +622,7 @@ module Sizing = struct
         let gr, syms = size_recursive_calls marker_var syms count gr in
         if count > 1 then
           SplitSize
-            { marker_var;
-              syms;
-              last_var = Sym.fresh_named "bennet";
-              path_vars;
-              rest = gr
-            }
+            { marker_var; syms; last_var = Sym.fresh "bennet"; path_vars; rest = gr }
         else
           gr
     in

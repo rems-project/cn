@@ -28,20 +28,18 @@ let name_of_bt (bt : BT.t) : string =
 
 
 let owned_sct_sym (sct : Sctypes.t) : Sym.t =
-  Sym.fresh_named ("cn_analyze_shape_owned_" ^ string_of_ctype (Sctypes.to_ctype sct))
+  Sym.fresh ("cn_analyze_shape_owned_" ^ string_of_ctype (Sctypes.to_ctype sct))
 
 
-let pred_sym (psym : Sym.t) : Sym.t =
-  Sym.fresh_named ("cn_analyze_shape_" ^ Sym.pp_string psym)
-
+let pred_sym (psym : Sym.t) : Sym.t = Sym.fresh ("cn_analyze_shape_" ^ Sym.pp_string psym)
 
 let compile_sct (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
   let fsym = owned_sct_sym sct in
-  let ptr_sym = Sym.fresh_named "ptr" in
-  let parent_sym = Sym.fresh_named "parent_ptr" in
-  let sz_sym = Sym.fresh_named "sz" in
+  let ptr_sym = Sym.fresh "ptr" in
+  let parent_sym = Sym.fresh "parent_ptr" in
+  let sz_sym = Sym.fresh "sz" in
   let bt = Memory.bt_of_sct sct in
   let s =
     mk_stmt
@@ -52,7 +50,7 @@ let compile_sct (sct : Sctypes.t)
                 (AilSexpr
                    (mk_expr
                       (AilEcall
-                         ( mk_expr (AilEident (Sym.fresh_named "cn_analyze_shape_owned")),
+                         ( mk_expr (AilEident (Sym.fresh "cn_analyze_shape_owned")),
                            List.map
                              mk_expr
                              [ CtA.wrap_with_convert_from
@@ -206,12 +204,12 @@ let compile_req
           [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_ANALYZE_SHAPE_EACH_BEGIN")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_ANALYZE_SHAPE_EACH_BEGIN")),
                       List.map
                         mk_expr
                         [ AilEident map_sym;
                           AilEident q_sym;
-                          AilEident (Sym.fresh_named (name_of_bt q_bt))
+                          AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
                       @ [ e_perm; e_max ] )))
           ]
@@ -219,12 +217,12 @@ let compile_req
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_ANALYZE_SHAPE_EACH_END")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_ANALYZE_SHAPE_EACH_END")),
                       List.map
                         mk_expr
                         [ AilEident map_sym;
                           AilEident q_sym;
-                          AilEident (Sym.fresh_named (name_of_bt q_bt))
+                          AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
                       @ [ e_val; e_min ] )))
           ]
@@ -361,9 +359,7 @@ let compile_spec
       List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
     | _ -> failwith ("unreachable @ " ^ __LOC__)
   in
-  let new_args =
-    List.map (fun (x, _) -> (x, Sym.fresh_named (Sym.pp_string x ^ "_cn"))) args
-  in
+  let new_args = List.map (fun (x, _) -> (x, Sym.fresh (Sym.pp_string x ^ "_cn"))) args in
   let bs =
     List.map
       (fun (x, y) ->

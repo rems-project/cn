@@ -198,7 +198,7 @@ end
 let alloc =
   Predicate.
     { loc = Locations.other __LOC__;
-      pointer = Sym.fresh_named "ptr";
+      pointer = Sym.fresh "ptr";
       iargs = [];
       oarg_bt = Alloc.History.value_bt;
       clauses = None

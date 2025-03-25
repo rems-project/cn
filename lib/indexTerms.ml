@@ -271,7 +271,7 @@ let make_subst assoc =
   Subst.make free_vars_with_rename (List.map (fun (s, t) -> (s, `Term t)) assoc)
 
 
-let substitute_lets_flag = Sym.fresh_named "substitute_lets"
+let substitute_lets_flag = Sym.fresh "substitute_lets"
 
 let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)) =
   match it with
@@ -870,7 +870,7 @@ let fresh_anon bt loc =
 
 
 let fresh_named bt name loc =
-  let symbol = Sym.fresh_named name in
+  let symbol = Sym.fresh name in
   (symbol, sym_ (symbol, bt, loc))
 
 

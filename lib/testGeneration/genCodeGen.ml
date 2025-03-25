@@ -60,9 +60,8 @@ let rec compile_term
       A.(
         mk_expr
           (AilEcall
-             ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_UNIFORM")),
-               List.map mk_expr [ AilEident (Sym.fresh_named (name_of_bt name bt)) ] )))
-    )
+             ( mk_expr (AilEident (Sym.fresh "CN_GEN_UNIFORM")),
+               List.map mk_expr [ AilEident (Sym.fresh (name_of_bt name bt)) ] ))) )
   | Pick { bt; choice_var; choices; last_var } ->
     let var = Sym.fresh_anon () in
     let bs, ss =
@@ -75,8 +74,7 @@ let rec compile_term
                   [ AilSexpr
                       (mk_expr
                          (AilEcall
-                            ( mk_expr
-                                (AilEident (Sym.fresh_named "CN_GEN_PICK_CASE_BEGIN")),
+                            ( mk_expr (AilEident (Sym.fresh "CN_GEN_PICK_CASE_BEGIN")),
                               List.map
                                 mk_expr
                                 [ AilEconst
@@ -88,8 +86,7 @@ let rec compile_term
                   @ [ AilSexpr
                         (mk_expr
                            (AilEcall
-                              ( mk_expr
-                                  (AilEident (Sym.fresh_named "CN_GEN_PICK_CASE_END")),
+                              ( mk_expr (AilEident (Sym.fresh "CN_GEN_PICK_CASE_END")),
                                 [ mk_expr (AilEident var); e ] )))
                     ]) ))
            choices)
@@ -99,10 +96,10 @@ let rec compile_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_PICK_BEGIN")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_PICK_BEGIN")),
                     List.map
                       mk_expr
-                      [ AilEident (Sym.fresh_named (name_of_bt name bt));
+                      [ AilEident (Sym.fresh (name_of_bt name bt));
                         AilEident var;
                         AilEident choice_var;
                         AilEident last_var
@@ -125,12 +122,12 @@ let rec compile_term
       @ [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_PICK_END")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_PICK_END")),
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
   | Alloc { bytes = it; sized } ->
-    let alloc_sym = Sym.fresh_named "CN_GEN_ALLOC" in
+    let alloc_sym = Sym.fresh "CN_GEN_ALLOC" in
     let b, s, e = compile_it sigma name it in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
@@ -142,7 +139,7 @@ let rec compile_term
         | Some (n, _) when n <= 0 -> failwith "Invalid sized call"
         | Some (1, _) ->
           [ AilEbinary
-              ( mk_expr (AilEident (Sym.fresh_named "cn_gen_rec_size")),
+              ( mk_expr (AilEident (Sym.fresh "cn_gen_rec_size")),
                 Arithmetic Sub,
                 mk_expr (AilEconst (ConstantInteger (IConstant (Z.one, Decimal, None))))
               )
@@ -151,7 +148,7 @@ let rec compile_term
           [ AilEident sym_size ]
         | Some (n, _) ->
           [ AilEbinary
-              ( mk_expr (AilEident (Sym.fresh_named "cn_gen_rec_size")),
+              ( mk_expr (AilEident (Sym.fresh "cn_gen_rec_size")),
                 Arithmetic Div,
                 mk_expr
                   (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))) )
@@ -159,7 +156,7 @@ let rec compile_term
         | None
           when (not (GenBuiltins.is_builtin fsym))
                && (ctx |> List.assoc Sym.equal fsym |> List.hd |> snd).sized ->
-          [ AilEcall (mk_expr (AilEident (Sym.fresh_named "cn_gen_get_size")), []) ]
+          [ AilEcall (mk_expr (AilEident (Sym.fresh "cn_gen_get_size")), []) ]
         | None -> [])
     in
     let es = List.map mk_expr (es @ sized_call) in
@@ -177,8 +174,7 @@ let rec compile_term
     let to_vars = iargs |> List.map snd |> List.map wrap_to_string in
     let macro_call name vars =
       A.AilSexpr
-        (mk_expr
-           (AilEcall (mk_expr (AilEident (Sym.fresh_named name)), List.map mk_expr vars)))
+        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh name)), List.map mk_expr vars)))
     in
     ( [ b ],
       ([ A.AilSdeclaration
@@ -213,12 +209,12 @@ let rec compile_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_ASSIGN")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_ASSIGN")),
                     [ mk_expr (AilEident pointer);
                       e1;
                       mk_expr
                         (AilEident
-                           (Sym.fresh_named
+                           (Sym.fresh
                               (CF.Pp_utils.to_plain_string
                                  CF.Pp_ail.(
                                    with_executable_spec
@@ -257,7 +253,7 @@ let rec compile_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_LET_BEGIN")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_LET_BEGIN")),
                     List.map
                       mk_expr
                       [ AilEconst
@@ -273,11 +269,11 @@ let rec compile_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_LET_BODY")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_LET_BODY")),
                     List.map
                       mk_expr
                       [ AilEident
-                          (Sym.fresh_named
+                          (Sym.fresh
                              (name_of_bt
                                 (Option.value
                                    ~default:name
@@ -301,7 +297,7 @@ let rec compile_term
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_LET_END")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_GEN_LET_END")),
                       List.map
                         mk_expr
                         [ AilEconst
@@ -337,7 +333,7 @@ let rec compile_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_ASSERT")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_ASSERT")),
                     [ e1 ]
                     @ [ mk_expr (AilEident last_var) ]
                     @ List.map
@@ -390,7 +386,7 @@ let rec compile_term
     let e_args =
       [ mk_expr (AilEident sym_map);
         mk_expr (AilEident i);
-        mk_expr (AilEident (Sym.fresh_named (name_of_bt name i_bt)))
+        mk_expr (AilEident (Sym.fresh (name_of_bt name i_bt)))
       ]
     in
     let e_perm =
@@ -405,7 +401,7 @@ let rec compile_term
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_MAP_BEGIN")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_GEN_MAP_BEGIN")),
                       e_args
                       @ [ e_perm; e_max; mk_expr (AilEident last_var) ]
                       @ List.map
@@ -431,7 +427,7 @@ let rec compile_term
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_MAP_END")),
+                    ( mk_expr (AilEident (Sym.fresh "CN_GEN_MAP_END")),
                       e_args @ [ e_min; e_val ] )))
           ])
     in
@@ -462,12 +458,12 @@ let rec compile_term
       @ [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_SPLIT_BEGIN")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_SPLIT_BEGIN")),
                     [ e_tmp ] @ e_syms @ [ mk_expr (AilEconst ConstantNull) ] )));
           AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh_named "CN_GEN_SPLIT_END")),
+                  ( mk_expr (AilEident (Sym.fresh "CN_GEN_SPLIT_END")),
                     [ e_tmp; mk_expr (AilEident last_var) ]
                     @ List.map wrap_to_string (List.of_seq (Sym.Set.to_seq path_vars))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
@@ -511,8 +507,7 @@ let compile_gen_def
            (AilEcall
               ( mk_expr
                   (AilEident
-                     (Sym.fresh_named
-                        (if gr.sized then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
+                     (Sym.fresh (if gr.sized then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
                 [] ))))
   in
   let b2, s2, e2 = compile_term sigma ctx name gr.body in
@@ -524,7 +519,7 @@ let compile_gen_def
         (List.map fst gr.iargs
          @
          if gr.sized then
-           [ Sym.fresh_named "cn_gen_rec_size" ]
+           [ Sym.fresh "cn_gen_rec_size" ]
          else
            []),
         mk_stmt
@@ -538,8 +533,7 @@ let compile_gen_def
                       [ AilSexpr
                           (mk_expr
                              (AilEcall
-                                ( mk_expr
-                                    (AilEident (Sym.fresh_named "cn_gen_decrement_depth")),
+                                ( mk_expr (AilEident (Sym.fresh "cn_gen_decrement_depth")),
                                   [] )))
                       ]
                   @ A.

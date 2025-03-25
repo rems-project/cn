@@ -1,7 +1,7 @@
 module History = struct
   let str = "allocs"
 
-  let sym = Sym.fresh_named str
+  let sym = Sym.fresh str
 
   let here = Locations.other __LOC__
 
@@ -49,5 +49,5 @@ module Predicate = struct
 
   let loc = Locations.other __MODULE__
 
-  let sym = Sym.fresh_named str
+  let sym = Sym.fresh str
 end

@@ -231,7 +231,7 @@ let rec gen_sequence
               (ctx, None, empty, prev)
               (* attempted to use fresh_cn but did not work for some reason?*)
             | _ ->
-              let name = Sym.fresh_named ("x" ^ string_of_int prev) in
+              let name = Sym.fresh ("x" ^ string_of_int prev) in
               ( (name, ret_ty) :: ctx,
                 Some name,
                 separate
