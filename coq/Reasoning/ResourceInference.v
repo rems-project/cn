@@ -371,9 +371,8 @@ Proof.
       eapply eq_dec_refl_r, H.
 Qed.
 
-(* To be renamed into `unfold_one` *)
-Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
-| resource_unfold_struct:
+Inductive unfold_one (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
+| unfold_one_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
 
   let iname := Request.Owned (SCtypes.Struct isym) iinit in
@@ -392,7 +391,7 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 
   ->
 
-    resource_unfold globals
+    unfold_one globals
       (Request.P
          {|
            Predicate.name := iname;
@@ -427,11 +426,11 @@ Local Definition get_resource_pointer_loc (r : Resource.t) : option Location.t :
   | _ => None
   end.
 
-(* Computable version of resource_unfold predicate
+(* Computable version of unfold_one predicate
 
   NB: This function will be simplified when `loc` argument is removed from
  `struct_piece_to_resource` and `struct_piece_to_resource_fun` *) 
-Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool :=
+Definition unfold_one_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool :=
   match r with
   | (Request.P {|
       Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
@@ -456,61 +455,60 @@ Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: lis
   | _ => false
   end.
 
-(* Equivalence between resource_unfold and resource_unfold_fun *)
-Lemma resource_unfold_fun_eq:
+(* Equivalence between unfold_one and unfold_one_fun *)
+Lemma unfold_one_fun_eq:
   forall globals r out_res,
-  resource_unfold globals r (Resource.set_from_list out_res) <-> resource_unfold_fun globals r out_res = true.
+  unfold_one globals r (Resource.set_from_list out_res) <-> unfold_one_fun globals r out_res = true.
 Proof.
   admit.
 Admitted.
 
-(* To be renamed into `unfold_all` *)
-Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
-| resource_unfold_full_step:
+Inductive unfold_all (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
+| unfold_all_step:
     forall input input' output r unfolded_r,
     (* Find a resource that can be unfolded *)
     ResSet.In r input ->
-    resource_unfold globals r unfolded_r ->
+    unfold_one globals r unfolded_r ->
     (* Continue unfolding with the resource replaced by its unfolded components *)
     ResSet.Equal input' (ResSet.union (ResSet.remove r input) unfolded_r) ->
-    resource_unfold_full globals input' output ->
+    unfold_all globals input' output ->
     (* This is the result of unfolding the input *)
-    resource_unfold_full globals input output
-| resource_unfold_full_fixpoint:
+    unfold_all globals input output
+| unfold_all_fixpoint:
     forall input,
     (* A fixpoint is reached when no resource can be unfolded further *)
     ~ ResSet.Exists
-        (fun r => exists unfolded_r, resource_unfold globals r unfolded_r)
+        (fun r => exists unfolded_r, unfold_one globals r unfolded_r)
         input ->
-    resource_unfold_full globals input input.
+    unfold_all globals input input.
 
 (* A version of `unfold_all`, using hints *)
-Inductive resource_unfold_full_explicit (globals:Global.t):
+Inductive unfold_all_explicit (globals:Global.t):
   list (Resource.t * unpack_result) -> ResSet.t -> ResSet.t -> Prop :=
-| resource_unfold_full_explicit_step:
+| unfold_all_explicit_step:
     forall input input' output r unfolded_r_list unfold_changed,
     let unfolded_r_set := Resource.set_from_list unfolded_r_list in
     (* Find a resource that can be unfolded *)
     ResSet.In r input ->
-    resource_unfold globals r unfolded_r_set ->
+    unfold_one globals r unfolded_r_set ->
     (* Continue unfolding with the resource replaced by its unfolded components *)
     ResSet.Equal input' (ResSet.union (ResSet.remove r input) unfolded_r_set) ->
-    resource_unfold_full_explicit globals unfold_changed input' output ->
+    unfold_all_explicit globals unfold_changed input' output ->
     (* This is the result of unfolding the input *)
-    resource_unfold_full_explicit globals ((r, UnpackRES unfolded_r_list) :: unfold_changed) input output
-| resource_unfold_full_explicit_fixpoint:
+    unfold_all_explicit globals ((r, UnpackRES unfolded_r_list) :: unfold_changed) input output
+| unfold_all_explicit_fixpoint:
     forall input,
     (* A fixpoint is reached when no resource can be unfolded further *)
     ~ ResSet.Exists
-        (fun r => exists unfolded_r, resource_unfold globals r unfolded_r)
+        (fun r => exists unfolded_r, unfold_one globals r unfolded_r)
         input ->
-    resource_unfold_full_explicit globals [] input input.
+    unfold_all_explicit globals [] input input.
 
-(* Proof that resource_unfold_full_explicit is equivalent to resource_unfold_full *)    
-Lemma resource_unfold_full_explicit_eq:
+(* Proof that unfold_all_explicit is equivalent to unfold_all *)    
+Lemma unfold_all_explicit_eq:
   forall globals input output unfold_changed,
-  resource_unfold_full_explicit globals unfold_changed input output ->
-  resource_unfold_full globals input output.
+  unfold_all_explicit globals unfold_changed input output ->
+  unfold_all globals input output.
 Proof.
   intros globals input output unfold_changed H.
   induction H.
@@ -518,8 +516,8 @@ Proof.
   - econstructor; eassumption.
 Qed.
 
-(* Computable version of resource_unfold_full_explicit predicate *)
-Fixpoint resource_unfold_full_explicit_fun
+(* Computable version of unfold_all_explicit predicate *)
+Fixpoint unfold_all_explicit_fun
   (globals:Global.t)
   (unfold_changed : list (Resource.t * unpack_result))
   (input output: list Resource.t): bool :=
@@ -527,17 +525,17 @@ Fixpoint resource_unfold_full_explicit_fun
   | ((r, UnpackRES unfolded_r_list) :: unfold_changed) =>
     let input' := List.app (List.remove Resource_as_DecidableType.eq_dec r input) unfolded_r_list in
     List.existsb (fun r' => bool_of_sum (Resource_as_DecidableType.eq_dec r r')) input &&
-    resource_unfold_fun globals r output &&
-    resource_unfold_full_explicit_fun globals unfold_changed input' output
+    unfold_one_fun globals r output &&
+    unfold_all_explicit_fun globals unfold_changed input' output
   | [] => bool_of_sum (List.list_eq_dec Resource_as_DecidableType.eq_dec input output)
   | _ => false
   end.
 
-(* Equivalence between resource_unfold_full_explicit and resource_unfold_full_explicit_fun *)
-Lemma resource_unfold_full_explicit_fun_eq:
+(* Equivalence between unfold_all_explicit and unfold_all_explicit_fun *)
+Lemma unfold_all_explicit_fun_eq:
   forall globals input output unfold_changed,
-  resource_unfold_full_explicit_fun globals unfold_changed input output = true ->
-  resource_unfold_full_explicit globals unfold_changed (Resource.set_from_list input) (Resource.set_from_list output).
+  unfold_all_explicit_fun globals unfold_changed input output = true ->
+  unfold_all_explicit globals unfold_changed (Resource.set_from_list input) (Resource.set_from_list output).
 Proof.
   admit.
 Admitted.
@@ -558,8 +556,8 @@ Inductive unfold_step : Context.t -> Context.t -> Prop :=
   let in_res := ctx_resources_set iresources in
   let out_res := ctx_resources_set oresources in
 
-  (* The `out_res` is union of `resource_unfold` of all resources in `in_res` *)
-  resource_unfold_full iglobal in_res out_res ->
+  (* The `out_res` is union of `unfold_one` of all resources in `in_res` *)
+  unfold_all iglobal in_res out_res ->
 
   unfold_step
     (* input context *)
@@ -677,7 +675,7 @@ Inductive log_entry_valid : log_entry -> Prop :=
   (* Find the struct resource and its fields *)
   (exists (field_res: ResSet.t),
       (* The struct unfolds to field resources *)
-      resource_unfold_full iglobal
+      unfold_all iglobal
         (ResSet.singleton
           (Request.P {| Predicate.name := iname;
                        Predicate.pointer := ipointer;

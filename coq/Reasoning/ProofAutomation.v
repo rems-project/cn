@@ -96,7 +96,7 @@ Qed.
  Ltac2 prove_struct_resource_inference_step () :=
  match! goal with
  | [ |- exists field_res,
-        resource_unfold_full _ _ field_res /\
+        unfold_all _ _ field_res /\
         ResSet.Equal (set_from_list ?out_res) (ResSet.diff (set_from_list ?in_res) field_res) ] =>
 
    (* now try to compute field_res from in_res and out_res *)
