@@ -382,6 +382,38 @@ Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop 
         input ->
     resource_unfold_full globals input input.
 
+Inductive resource_unfold_full_explicit (globals:Global.t):
+  list (Resource.t * unpack_result) -> ResSet.t -> ResSet.t -> Prop :=
+| resource_unfold_full_explicit_step:
+    forall input input' output r unfolded_r_list unfold_changed,
+    let unfolded_r_set := Resource.set_from_list unfolded_r_list in
+    (* Find a resource that can be unfolded *)
+    ResSet.In r input ->
+    resource_unfold globals r unfolded_r_set ->
+    (* Continue unfolding with the resource replaced by its unfolded components *)
+    ResSet.Equal input' (ResSet.union (ResSet.remove r input) unfolded_r_set) ->
+    resource_unfold_full_explicit globals unfold_changed input' output ->
+    (* This is the result of unfolding the input *)
+    resource_unfold_full_explicit globals ((r, UnpackRES unfolded_r_list) :: unfold_changed) input output
+| resource_unfold_full_explicit_fixpoint:
+    forall input,
+    (* A fixpoint is reached when no resource can be unfolded further *)
+    ~ ResSet.Exists
+        (fun r => exists unfolded_r, resource_unfold globals r unfolded_r)
+        input ->
+    resource_unfold_full_explicit globals [] input input.
+
+Lemma resource_unfold_full_explicit_eq:
+  forall globals input output unfold_changed,
+  resource_unfold_full_explicit globals unfold_changed input output ->
+  resource_unfold_full globals input output.
+Proof.
+  intros globals input output unfold_changed H.
+  induction H.
+  - econstructor; eassumption.
+  - econstructor; eassumption.
+Qed.
+
 (** Inductive predicate which defines correctness of resource unfolding step *)
 Inductive unfold_step : Context.t -> Context.t -> Prop :=
 | simple_unfold_step:
