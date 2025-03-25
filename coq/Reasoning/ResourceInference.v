@@ -216,6 +216,54 @@ Inductive struct_piece_to_resource
            field_bt
            loc))).
 
+Definition struct_piece_to_resource_fun
+  (piece: Memory.struct_piece)
+  (iinit: init) (ipointer: IndexTerms.t) (iargs: list IndexTerms.t) (* lhs predicate*)
+  (tag: Sym.t)
+  (loc: Location.t)
+  (out : output) (res : Resource.t) : bool :=
+  match res with
+  | (req, Resource.O field_it) =>
+    match out with
+    | Resource.O (Terms.IT _ struct_term struct_type struct_loc) =>
+      match struct_term with
+      | Terms.Struct _ tag' fields =>
+        match Memory.piece_member_or_padding piece with
+        | Some (pid, pty) =>
+          let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
+          List.existsb (fun '(pid', field_it') =>
+                          bool_of_sum (Symbol_identifier_as_MiniDecidableType.eq_dec pid pid') &&
+                          bool_of_sum (IndexTerm_as_MiniDecidableType.eq_dec field_it field_it'))
+                        fields &&
+          bool_of_sum (BasetTypes_t_as_MiniDecidableType.eq_dec struct_type (BaseTypes.Struct _ tag)) &&
+          bool_of_sum (Sym_t_as_MiniDecidableType.eq_dec tag tag') &&
+          bool_of_sum (Request_as_MiniDecidableType.eq_dec req
+            (Request.P {| Predicate.name := Request.Owned pty iinit;
+                          Predicate.pointer := field_pointer;
+                          Predicate.iargs := iargs |}))
+        | _ => false
+        end
+      | _ =>
+        match Memory.piece_member_or_padding piece with
+        | Some (pid, pty) =>
+          let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
+          match field_it with
+          | Terms.IT _  output_term  field_bt loc' =>
+            bt_of_sct_fun pty field_bt &&
+            bool_of_sum (BasetTypes_t_as_MiniDecidableType.eq_dec struct_type (BaseTypes.Struct _ tag)) &&
+            bool_of_sum (Request_as_MiniDecidableType.eq_dec req
+              (Request.P {| Predicate.name := Request.Owned pty iinit;
+                            Predicate.pointer := field_pointer;
+                            Predicate.iargs := iargs |})) &&
+            bool_of_sum (IndexTerm_as_MiniDecidableType.eq_dec
+              (Terms.IT _  output_term  field_bt loc')
+              (Terms.IT _ (Terms.StructMember _ (Terms.IT _ struct_term struct_type struct_loc) pid) field_bt loc))
+          end
+        | _ => false
+        end
+      end
+    end
+  end.
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 | resource_unfold_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
