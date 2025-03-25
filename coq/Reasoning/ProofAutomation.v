@@ -133,8 +133,7 @@ Qed.
  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_struct_resource_inference_step: match failed")))
 end.
 
-
-Ltac2 prove_unfold_step () :=
+Ltac2 prove_unfold_step _hints :=
   match! goal with
   | [ |- unfold_step _ _ ] =>
       Std.constructor false;
@@ -173,7 +172,7 @@ Ltac2 prove_unfold_step () :=
        verbose_print_constr "    Situation: " s;
        verbose_print_constr "    Predicate symbol name: " isym;
        let lhints := destruct_list (constr:(log_entry)) hints in
-       verbose_msg (Message.concat (Message.of_string "    Number of hits: ") (Message.of_int (List.length lhints)));
+       verbose_msg (Message.concat (Message.of_string "    Number of hints: ") (Message.of_int (List.length lhints)));
        Std.constructor_n false 3 NoBindings; (* apply struct_resource_inference_step *)
        Control.focus 1 1 (fun () => Std.reflexivity ());
        Control.focus 1 1 (fun () => Std.reflexivity ());
@@ -226,11 +225,13 @@ Ltac2 prove_unfold_step () :=
            } clause ;
            prove_simple_resource_inference_step ()
        )
-  | [ |- log_entry_valid (UnfoldResources _ _ _ _) ] =>
+  | [ |- log_entry_valid (UnfoldResources _ _ ?hints _) ] =>
       (* UnfoldResources case *)
       verbose_msg (smsg "Checking UnfoldResources");
+      let lhints := destruct_list (constr:(log_entry)) hints in
+      verbose_msg (Message.concat (Message.of_string "    Number of hints: ") (Message.of_int (List.length lhints)));
       Std.constructor false;
-      prove_unfold_step ()
+      prove_unfold_step hints
   | [ |- _ ] => 
       Control.throw (Tactic_failure (Some (msg (Message.of_string "prove_log_entry_valid: match failed"))))
   end.
