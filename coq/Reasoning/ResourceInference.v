@@ -380,6 +380,17 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
          iout)
       out_res.
 
+Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool.
+  admit.
+Admitted.
+
+Lemma resource_unfold_fun_eq:
+  forall globals r out_res,
+  resource_unfold globals r (Resource.set_from_list out_res) <-> resource_unfold_fun globals r out_res = true.
+Proof.
+  admit.
+Admitted.
+
 Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
 | resource_unfold_full_step:
     forall input input' output r unfolded_r,
@@ -430,6 +441,21 @@ Proof.
   - econstructor; eassumption.
   - econstructor; eassumption.
 Qed.
+
+Definition resource_unfold_full_explicit_fun
+  (globals:Global.t)
+  (unfold_changed : list (Resource.t * unpack_result))
+  (input output: list Resource.t): bool.
+  admit.
+Admitted.
+
+Lemma resource_unfold_full_explicit_fun_eq:
+  forall globals input output unfold_changed,
+  resource_unfold_full_explicit globals unfold_changed (Resource.set_from_list input) (Resource.set_from_list output) ->
+  resource_unfold_full_explicit_fun globals unfold_changed input output = true.
+Proof.
+  admit.
+Admitted.
 
 (** Inductive predicate which defines correctness of resource unfolding step *)
 Inductive unfold_step : Context.t -> Context.t -> Prop :=
