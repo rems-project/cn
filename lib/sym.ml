@@ -42,7 +42,7 @@ let pp_debug sym = Pp.string (S.show_raw_less sym)
 
 let num = S.symbol_num
 
-let fresh () = S.fresh ()
+let fresh_anon () = S.fresh ()
 
 let fresh_named = S.fresh_cn
 

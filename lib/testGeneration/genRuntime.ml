@@ -356,7 +356,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
             (string "Value from " ^^ Locations.pp loc ^^ string " is still `arbitrary`"))
     | Uniform sz -> Uniform { bt; sz }
     | Pick wgts ->
-      let choice_var = Sym.fresh () in
+      let choice_var = Sym.fresh_anon () in
       Pick
         { bt;
           choice_var;
@@ -395,7 +395,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
              match it_ with
              | Sym z -> ((y, z) :: yzs, f)
              | _ ->
-               let z = Sym.fresh () in
+               let z = Sym.fresh_anon () in
                ( (y, z) :: yzs,
                  fun w gr ->
                    Let
@@ -558,7 +558,7 @@ module Sizing = struct
     let rec aux (gr : term) : term * Sym.Set.t =
       match gr with
       | Call ({ fsym; path_vars; _ } as gr) when Sym.Set.mem fsym syms ->
-        let sym = Sym.fresh () in
+        let sym = Sym.fresh_anon () in
         let gr' =
           if size > 1 && TestGenConfig.is_random_size_splits () then
             Call
@@ -618,7 +618,7 @@ module Sizing = struct
           }
       | _ ->
         let count = count_recursive_calls syms gr in
-        let marker_var = Sym.fresh () in
+        let marker_var = Sym.fresh_anon () in
         let gr, syms = size_recursive_calls marker_var syms count gr in
         if count > 1 then
           SplitSize

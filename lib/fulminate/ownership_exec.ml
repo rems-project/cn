@@ -119,7 +119,7 @@ let generate_c_local_ownership_entry_bs_and_ss (sym, ctype) =
 let rec gen_loop_ownership_entry_decls bindings = function
   | [] -> ([], [])
   | (sym, expr_opt) :: xs ->
-    let dummy_sym = Sym.fresh () in
+    let dummy_sym = Sym.fresh_anon () in
     let ctype = find_ctype_from_bindings bindings sym in
     let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
     let zero_const =

@@ -864,11 +864,8 @@ let make_array_ ~index_bt ~item_bt items (* assumed all of item_bt *) loc =
 
 let apply_ name args rbt loc = IT (Apply (name, args), rbt, loc)
 
-(* let let_ sym e body = *)
-(*   subst (make_subst [(sym, e)]) body *)
-
-let fresh bt loc =
-  let symbol = Sym.fresh () in
+let fresh_anon bt loc =
+  let symbol = Sym.fresh_anon () in
   (symbol, sym_ (symbol, bt, loc))
 
 
@@ -1005,7 +1002,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
             (Locations.other __LOC__)
             (Pp.item "unexpected type of array arg" (pp_with_typ about))
       in
-      let i_s, i = fresh ix_bt loc in
+      let i_s, i = fresh_named ix_bt "i" loc in
       eachI_ (0, (i_s, ix_bt), n - 1) (aux item_ct (map_get_ about i loc)) loc
     | Pointer pointee_ct -> value_check_pointer mode ~pointee_ct about loc
     | Struct tag ->

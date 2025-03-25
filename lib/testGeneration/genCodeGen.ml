@@ -64,7 +64,7 @@ let rec compile_term
                List.map mk_expr [ AilEident (Sym.fresh_named (name_of_bt name bt)) ] )))
     )
   | Pick { bt; choice_var; choices; last_var } ->
-    let var = Sym.fresh () in
+    let var = Sym.fresh_anon () in
     let bs, ss =
       List.split
         (List.mapi
@@ -163,7 +163,7 @@ let rec compile_term
         | None -> [])
     in
     let es = List.map mk_expr (es @ sized_call) in
-    let x = Sym.fresh () in
+    let x = Sym.fresh_anon () in
     let b = Utils.create_binding x (bt_to_ctype fsym oarg_bt) in
     let wrap_to_string (sym : Sym.t) =
       A.(
@@ -204,7 +204,7 @@ let rec compile_term
            ]),
       mk_expr (AilEident x) )
   | Asgn { pointer; addr; sct; value; last_var; rest } ->
-    let tmp_sym = Sym.fresh () in
+    let tmp_sym = Sym.fresh_anon () in
     let b1, s1, e1 = compile_it sigma name addr in
     let b2, s2, AnnotatedExpression (_, _, _, e2_) = compile_it sigma name value in
     let b3 = [ Utils.create_binding tmp_sym C.(mk_ctype_pointer no_qualifiers void) ] in
@@ -225,7 +225,7 @@ let rec compile_term
                                      (pp_ctype C.no_qualifiers)
                                      (Sctypes.to_ctype sct)))));
                       mk_expr (CtA.wrap_with_convert_from e2_ (IT.get_bt value));
-                      mk_expr (AilEident (Sym.fresh ()));
+                      mk_expr (AilEident (Sym.fresh_anon ()));
                       mk_expr
                         (AilEcast
                            ( C.no_qualifiers,
@@ -361,7 +361,7 @@ let rec compile_term
     let b_if, s_if, e_if = compile_it sigma name cond in
     let b_then, s_then, e_then = compile_term sigma ctx name t in
     let b_else, s_else, e_else = compile_term sigma ctx name f in
-    let res_sym = Sym.fresh () in
+    let res_sym = Sym.fresh_anon () in
     let res_expr = mk_expr (AilEident res_sym) in
     let res_binding = Utils.create_binding res_sym (bt_to_ctype name bt) in
     let res_stmt_ e = A.(AilSexpr (mk_expr (AilEassign (res_expr, e)))) in
@@ -379,7 +379,7 @@ let rec compile_term
            ]),
       res_expr )
   | Map { i; bt; min; max; perm; inner; last_var } ->
-    let sym_map = Sym.fresh () in
+    let sym_map = Sym.fresh_anon () in
     let b_map = Utils.create_binding sym_map (bt_to_ctype name bt) in
     let i_bt, _ = BT.map_bt bt in
     let b_i = Utils.create_binding i (bt_to_ctype name i_bt) in

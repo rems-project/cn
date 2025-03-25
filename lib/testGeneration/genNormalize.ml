@@ -128,7 +128,7 @@ module MemberIndirection = struct
           xits |> List.partition (fun (_, it) -> Option.is_none (IT.is_sym it))
         in
         let indirect_map =
-          List.map_snd (fun _ -> Sym.fresh ()) members_to_indirect
+          List.map_snd (fun _ -> Sym.fresh_anon ()) members_to_indirect
           @ List.map
               (fun (y, it) -> (y, fst (Option.get (IT.is_sym it))))
               members_to_leave
@@ -167,7 +167,7 @@ end
 let rec arbitrary_of_sctype (sct : Sctypes.t) loc : GT.t =
   match sct with
   | Sctypes.Array (ct', Some len) ->
-    let sym = Sym.fresh () in
+    let sym = Sym.fresh_anon () in
     let bt = BT.Bits (Unsigned, 64) in
     GT.map_
       ( ( sym,
@@ -207,7 +207,7 @@ let destruct_struct_arbitrary (prog5 : unit Mucore.file) (gt : GT.t) : GT.t =
           pieces
           |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
             member_or_padding)
-          |> List.map (fun (member, ct) -> (Sym.fresh (), (member, ct)))
+          |> List.map (fun (member, ct) -> (Sym.fresh_anon (), (member, ct)))
         | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found")
       in
       (* Assemble final struct *)
@@ -238,7 +238,7 @@ let destruct_struct_arbitrary (prog5 : unit Mucore.file) (gt : GT.t) : GT.t =
           pieces
           |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
             member_or_padding)
-          |> List.map (fun (member, ct) -> (Sym.fresh (), (member, ct)))
+          |> List.map (fun (member, ct) -> (Sym.fresh_anon (), (member, ct)))
         | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found")
       in
       (* Assemble final struct *)

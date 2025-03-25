@@ -491,7 +491,7 @@ let compile_req
         let b2, s2, e_max = compile_it sigma prog5 it_max in
         (b1 @ b2, s1 @ s2, e_min, e_max)
       in
-      let map_sym = Sym.fresh () in
+      let map_sym = Sym.fresh_anon () in
       let b_val, s_val, e_val =
         aux
           (P { name; pointer = IT.arrayShift_ ~base:pointer ~index:q_it step loc; iargs })

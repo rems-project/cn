@@ -182,7 +182,7 @@ let rec compile_it_lat
       let@ gt' = compile_it_lat filename recursive preds name generated oargs lat' in
       let k_bt, v_bt = BT.map_bt bt in
       let gt_body =
-        let sym_val = Sym.fresh () in
+        let sym_val = Sym.fresh_anon () in
         let it_q = IT.sym_ (q_sym, k_bt, q_loc) in
         let it_p = IT.arrayShift_ ~base:pointer ~index:it_q step loc in
         let gt_asgn =
@@ -231,7 +231,7 @@ let rec compile_it_lat
             (compile_oargs v_bt []
              |> List.map_fst (fun x -> Id.make here (Sym.pp_string x)))
         in
-        let y = Sym.fresh () in
+        let y = Sym.fresh_anon () in
         if BT.equal (BT.Record []) ret_bt then
           GT.let_
             ( 0,

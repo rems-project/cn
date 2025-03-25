@@ -1662,10 +1662,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                 (match syms with
                  | Symbol (_, _, SD_ObjectAddress str) :: _ ->
                    IT.fresh_named BT.(Loc ()) ("&" ^ str) loc
-                 | _ -> IT.fresh BT.(Loc ()) loc)
+                 | _ -> IT.fresh_anon BT.(Loc ()) loc)
               | PrefFunArg (_loc, _, n) ->
                 IT.fresh_named (BT.Loc ()) ("&ARG" ^ string_of_int n) loc
-              | _ -> IT.fresh (BT.Loc ()) loc
+              | _ -> IT.fresh_anon (BT.Loc ()) loc
             in
             let@ () = add_a ret_s (IT.get_bt ret) (loc, lazy (Pp.string "allocation")) in
             (* let@ () = add_c loc (LC.T (representable_ (Pointer act.ct, ret) loc)) in *)

@@ -153,7 +153,7 @@ let str_of_bt_bitvector_type sign size =
 
 
 let augment_record_map ?cn_sym bt =
-  let sym_prefix = match cn_sym with Some sym' -> sym' | None -> Sym.fresh () in
+  let sym_prefix = match cn_sym with Some sym' -> sym' | None -> Sym.fresh_anon () in
   match bt with
   | BT.Record members ->
     (* Augment records map if entry does not exist already *)
@@ -446,7 +446,7 @@ let gen_bool_while_loop sym bt start_expr while_cond ?(if_cond_opt = None) (bs, 
 
      where (bs, ss, e) = cn_to_ail called on t with PassBack
   *)
-  let b = Sym.fresh () in
+  let b = Sym.fresh_anon () in
   let b_ident = A.(AilEident b) in
   let b_binding = create_binding b (bt_to_ail_ctype BT.Bool) in
   let b_decl = A.(AilSdeclaration [ (b, Some cn_bool_true_expr) ]) in
@@ -806,7 +806,7 @@ let rec cn_to_ail_expr_aux
     dest d ([], [], mk_expr ail_call_)
   | OffsetOf _ -> failwith (__LOC__ ^ ": TODO OffsetOf")
   | ITE (t1, t2, t3) ->
-    let result_sym = Sym.fresh () in
+    let result_sym = Sym.fresh_anon () in
     let result_ident = A.(AilEident result_sym) in
     let result_binding = create_binding result_sym (bt_to_ail_ctype (IT.get_bt t2)) in
     let result_decl = A.(AilSdeclaration [ (result_sym, None) ]) in
@@ -872,7 +872,7 @@ let rec cn_to_ail_expr_aux
   | Tuple _ts -> failwith (__LOC__ ^ ": TODO Tuple")
   | NthTuple (_i, _t) -> failwith (__LOC__ ^ ": TODO NthTuple")
   | Struct (tag, ms) ->
-    let res_sym = Sym.fresh () in
+    let res_sym = Sym.fresh_anon () in
     let res_ident = A.(AilEident res_sym) in
     let cn_struct_tag = generate_sym_with_suffix ~suffix:"_cn" tag in
     let generate_ail_stat (id, it) =
@@ -920,7 +920,7 @@ let rec cn_to_ail_expr_aux
        let b2, s2, e2 =
          cn_to_ail_expr_aux const_prop pred_name dts globals new_val PassBack
        in
-       let res_sym = Sym.fresh () in
+       let res_sym = Sym.fresh_anon () in
        let res_ident = mk_expr A.(AilEident res_sym) in
        let cn_struct_tag = generate_sym_with_suffix ~suffix:"_cn" struct_tag in
        let res_binding =
@@ -949,7 +949,7 @@ let rec cn_to_ail_expr_aux
   | Record ms ->
     (* Could either be (1) standalone record or (2) part of datatype. Case (2) may not exist soon *)
     (* Might need to pass records around like datatypes *)
-    let res_sym = Sym.fresh () in
+    let res_sym = Sym.fresh_anon () in
     let res_ident = A.(AilEident res_sym) in
     let generate_ail_stat (id, it) =
       let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals it PassBack in
@@ -989,7 +989,7 @@ let rec cn_to_ail_expr_aux
           find_dt_from_constructor constr_sym dts'
     in
     let parent_dt, _members = find_dt_from_constructor sym dts in
-    let res_sym = Sym.fresh () in
+    let res_sym = Sym.fresh_anon () in
     let res_ident = A.(AilEident res_sym) in
     let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct parent_dt.cn_dt_name))) in
     let res_binding = create_binding res_sym (mk_ctype ctype_) in
@@ -1107,7 +1107,7 @@ let rec cn_to_ail_expr_aux
       cn_to_ail_expr_aux const_prop pred_name dts globals key_term PassBack
     in
     let b3, s3, e3 = cn_to_ail_expr_aux const_prop pred_name dts globals value PassBack in
-    let new_map_sym = Sym.fresh () in
+    let new_map_sym = Sym.fresh_anon () in
     let new_map_binding = create_binding new_map_sym (bt_to_ail_ctype (IT.get_bt m)) in
     let map_deep_copy_fcall =
       A.(AilEcall (mk_expr (AilEident (Sym.fresh_named "cn_map_deep_copy")), [ e1 ]))
@@ -1339,7 +1339,7 @@ let rec cn_to_ail_expr_aux
       fun vars cases d ->
       match d with
       | PassBack ->
-        let result_sym = Sym.fresh () in
+        let result_sym = Sym.fresh_anon () in
         let result_ident = A.(AilEident result_sym) in
         let result_binding = create_binding result_sym (bt_to_ail_ctype basetype) in
         let result_decl = A.(AilSdeclaration [ (result_sym, None) ]) in
@@ -1646,8 +1646,8 @@ let generate_datatype_equality_function (cn_datatype : _ cn_datatype)
         attr_args = []
       }
     in
-    let x_constr_sym = Sym.fresh () in
-    let y_constr_sym = Sym.fresh () in
+    let x_constr_sym = Sym.fresh_anon () in
+    let y_constr_sym = Sym.fresh_anon () in
     let constr_syms = [ x_constr_sym; y_constr_sym ] in
     let bs, ss =
       match members with
@@ -1973,7 +1973,7 @@ let generate_struct_default_function
     in
     let fn_sym = Sym.fresh_named fn_str in
     let alloc_fcall = mk_alloc_expr cn_struct_ctype in
-    let ret_sym = Sym.fresh () in
+    let ret_sym = Sym.fresh_anon () in
     let ret_binding = create_binding ret_sym cn_struct_ptr_ctype in
     let ret_decl = A.(AilSdeclaration [ (ret_sym, Some alloc_fcall) ]) in
     let ret_ident = A.(AilEident ret_sym) in
@@ -2279,7 +2279,7 @@ let generate_record_default_function _dts (sym, (members : BT.member_types))
   in
   let fn_sym = Sym.fresh_named fn_str in
   let alloc_fcall = mk_alloc_expr cn_struct_ctype in
-  let ret_sym = Sym.fresh () in
+  let ret_sym = Sym.fresh_anon () in
   let ret_binding = create_binding ret_sym cn_struct_ptr_ctype in
   let ret_decl = A.(AilSdeclaration [ (ret_sym, Some alloc_fcall) ]) in
   let ret_ident = A.(AilEident ret_sym) in
@@ -2547,7 +2547,7 @@ let cn_to_ail_resource
       IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
     let b4, s4, e4 = cn_to_ail_expr dts globals value_it PassBack in
-    let ptr_add_sym = Sym.fresh () in
+    let ptr_add_sym = Sym.fresh_anon () in
     let cn_pointer_return_type = bt_to_ail_ctype BT.(Loc ()) in
     let ptr_add_binding = create_binding ptr_add_sym cn_pointer_return_type in
     let ptr_add_stat = A.(AilSdeclaration [ (ptr_add_sym, Some e4) ]) in
@@ -2752,7 +2752,7 @@ let rec generate_record_opt pred_sym = function
     let record_sym = generate_sym_with_suffix ~suffix:"_record" pred_sym in
     Some (generate_struct_definition ~lc:false (record_sym, members))
   | BT.Tuple ts ->
-    let members = List.map (fun t -> (create_id_from_sym (Sym.fresh ()), t)) ts in
+    let members = List.map (fun t -> (create_id_from_sym (Sym.fresh_anon ()), t)) ts in
     generate_record_opt pred_sym (BT.Record members)
   | _ -> None
 
@@ -3644,7 +3644,7 @@ let cn_to_ail_assume_resource
       IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
     let b4, s4, e4 = cn_to_ail_expr dts globals value_it PassBack in
-    let ptr_add_sym = Sym.fresh () in
+    let ptr_add_sym = Sym.fresh_anon () in
     let cn_pointer_return_type = bt_to_ail_ctype BT.(Loc ()) in
     let ptr_add_binding = create_binding ptr_add_sym cn_pointer_return_type in
     let ptr_add_stat = A.(AilSdeclaration [ (ptr_add_sym, Some e4) ]) in

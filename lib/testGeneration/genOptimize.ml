@@ -185,14 +185,14 @@ module Fusion = struct
                 | GT (Return (IT (Sym x, x_bt, _)), _, _) -> ((x, x_bt), [], gt_last)
                 | GT (Return it, ret_bt, loc_ret) ->
                   let here = Locations.other __LOC__ in
-                  let y = Sym.fresh () in
+                  let y = Sym.fresh_anon () in
                   ( (y, ret_bt),
                     [ GS.Let (0, (y, GT.return_ it loc_ret)) ],
                     GT.return_ (IT.sym_ (y, ret_bt, here)) loc_ret )
                 | gt' ->
                   let ret_bt = GT.bt gt' in
                   let here = Locations.other __LOC__ in
-                  let y = Sym.fresh () in
+                  let y = Sym.fresh_anon () in
                   ( (y, ret_bt),
                     [ GS.Let (0, (y, gt')) ],
                     GT.return_ (IT.sym_ (y, ret_bt, here)) (GT.loc gt') )
@@ -318,7 +318,7 @@ module Fusion = struct
               |> Sym.Map.to_seq
               |> List.of_seq
               |> List.map (fun (y, y_bt) ->
-                (Sym.fresh (), IT.sym_ (y, y_bt, Locations.other __LOC__)))
+                (Sym.fresh_anon (), IT.sym_ (y, y_bt, Locations.other __LOC__)))
             in
             let subst =
               (x, IT.sym_ (ret_sym, bt_call, Locations.other __LOC__))
@@ -1102,7 +1102,7 @@ module PushPull = struct
              ((it_addr, sct), it_val, GT.let_ (x_backtracks, (x, gt3), gt2) loc_let)
              loc_asgn
          | GT (Let (y_backtracks', (y, gt3), gt4), _, loc_let') ->
-           let z = Sym.fresh () in
+           let z = Sym.fresh_anon () in
            let gt4 =
              GT.subst
                (IT.make_subst [ (y, IT.sym_ (z, GT.bt gt3, Locations.other __LOC__)) ])
