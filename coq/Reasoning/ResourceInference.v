@@ -380,9 +380,57 @@ Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
          iout)
       out_res.
 
-Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool.
-  admit.
-Admitted.
+
+(* quick and dirty implementation. TODO: move to utils module somewhere *)      
+Fixpoint list_map2 {A B C} (f: A -> B -> C) (m : list A) (n : list B) : option (list C) :=
+  match m, n with
+  | [], [] => Some []
+  | _::_, [] => None
+  | [], _::_ => None
+  | x::l, x'::l' => 
+        match list_map2 f l l' with
+        | Some l'' => Some ((f x x')::l'')
+        | None => None
+        end
+  end.
+
+ (* This is a temporary workaround until `loc` argument is removed from
+ `struct_piece_to_resource` and `struct_piece_to_resource_fun` *) 
+Local Definition get_resource_pointer_loc (r : Resource.t) : option Location.t :=
+  match r with
+  | ((Request.P {| Predicate.name := Request.Owned pty iinit;
+                   Predicate.pointer := Terms.IT _ _ _ loc ;
+                   Predicate.iargs := _ |}), _) => 
+                   Some loc
+  | _ => None
+  end.
+
+(* This function will be simplified when `loc` argument is removed from
+ `struct_piece_to_resource` and `struct_piece_to_resource_fun` *) 
+Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool :=
+  match r with
+  | (Request.P {|
+      Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
+      Predicate.pointer := ipointer;
+      Predicate.iargs := iargs
+      |} , iout) =>
+        match SymMap.find isym globals.(Global.struct_decls) with
+        | Some sdecl =>
+          let tmp := list_map2 (fun piece r =>
+            match get_resource_pointer_loc r with
+            | Some loc =>
+              struct_piece_to_resource_fun piece iinit ipointer iargs isym loc iout r
+            | None => false
+            end
+          ) sdecl out_res in 
+          match tmp with
+          | None => false
+          | Some tmp' => List.fold_left andb tmp' true
+          end
+        | None => false
+        end
+  | _ => false
+  end.
 
 Lemma resource_unfold_fun_eq:
   forall globals r out_res,
