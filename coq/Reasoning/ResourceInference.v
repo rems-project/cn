@@ -15,8 +15,7 @@ Import ListNotations.
 Inductive provable (g:Global.t): LCSet.t -> LogicalConstraints.t -> Prop :=
 | solvable_SMT: forall lc it, provable g lc it.
 
-(* Helper functoin to get a set of resources from the contex *)
-
+(* Helper function to get a set of resources from the contex *)
 Definition ctx_resources_set (l:((list (Resource.t * Z)) * Z)) : ResSet.t
   :=
   Resource.set_from_list (List.map fst (fst l)).
@@ -163,6 +162,7 @@ Inductive cast_ (loc: Locations.t) : BaseTypes.t -> IndexTerms.t -> IndexTerms.t
   bt <> bt' ->
   cast_ loc bt (Terms.IT _ t' bt l') (Terms.IT _ (Terms.Cast _ bt (Terms.IT _ t' bt' l')) bt loc).
 
+(* Defines when a term represents the allocation id of another term *)
 Inductive allocId_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
 | allocId_intro: forall t' bt' l' result,
   cast_ loc (BaseTypes.Alloc_id _) (Terms.IT _ t' bt' l') result ->
@@ -333,7 +333,7 @@ Proof.
       all: assumption.
 Qed.
 
-
+(* computable version of subsumed predicate*)
 Definition subsumed_fun (p1 p2 : Request.name) : bool :=
   orb
     (bool_of_sum (Name_as_MiniDecidableType.eq_dec p1 p2))
@@ -343,6 +343,7 @@ Definition subsumed_fun (p1 p2 : Request.name) : bool :=
      | _, _ => false
      end).
 
+(* Equivalence between subsumed and subsumed_fun *)     
 Lemma subsumed_fun_eq:
   forall p1 p2,
   subsumed p1 p2 <-> subsumed_fun p1 p2 = true.
@@ -370,6 +371,7 @@ Proof.
       eapply eq_dec_refl_r, H.
 Qed.
 
+(* To be renamed into `unfold_one` *)
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 | resource_unfold_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
@@ -425,7 +427,9 @@ Local Definition get_resource_pointer_loc (r : Resource.t) : option Location.t :
   | _ => None
   end.
 
-(* This function will be simplified when `loc` argument is removed from
+(* Computable version of resource_unfold predicate
+
+  NB: This function will be simplified when `loc` argument is removed from
  `struct_piece_to_resource` and `struct_piece_to_resource_fun` *) 
 Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool :=
   match r with
@@ -452,6 +456,7 @@ Definition resource_unfold_fun (globals:Global.t) (r : Resource.t) (out_res: lis
   | _ => false
   end.
 
+(* Equivalence between resource_unfold and resource_unfold_fun *)
 Lemma resource_unfold_fun_eq:
   forall globals r out_res,
   resource_unfold globals r (Resource.set_from_list out_res) <-> resource_unfold_fun globals r out_res = true.
@@ -459,6 +464,7 @@ Proof.
   admit.
 Admitted.
 
+(* To be renamed into `unfold_all` *)
 Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
 | resource_unfold_full_step:
     forall input input' output r unfolded_r,
@@ -478,6 +484,7 @@ Inductive resource_unfold_full (globals:Global.t): ResSet.t -> ResSet.t -> Prop 
         input ->
     resource_unfold_full globals input input.
 
+(* A version of `unfold_all`, using hints *)
 Inductive resource_unfold_full_explicit (globals:Global.t):
   list (Resource.t * unpack_result) -> ResSet.t -> ResSet.t -> Prop :=
 | resource_unfold_full_explicit_step:
@@ -499,6 +506,7 @@ Inductive resource_unfold_full_explicit (globals:Global.t):
         input ->
     resource_unfold_full_explicit globals [] input input.
 
+(* Proof that resource_unfold_full_explicit is equivalent to resource_unfold_full *)    
 Lemma resource_unfold_full_explicit_eq:
   forall globals input output unfold_changed,
   resource_unfold_full_explicit globals unfold_changed input output ->
@@ -510,6 +518,7 @@ Proof.
   - econstructor; eassumption.
 Qed.
 
+(* Computable version of resource_unfold_full_explicit predicate *)
 Fixpoint resource_unfold_full_explicit_fun
   (globals:Global.t)
   (unfold_changed : list (Resource.t * unpack_result))
@@ -524,6 +533,7 @@ Fixpoint resource_unfold_full_explicit_fun
   | _ => false
   end.
 
+(* Equivalence between resource_unfold_full_explicit and resource_unfold_full_explicit_fun *)
 Lemma resource_unfold_full_explicit_fun_eq:
   forall globals input output unfold_changed,
   resource_unfold_full_explicit_fun globals unfold_changed input output = true ->

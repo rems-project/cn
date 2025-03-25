@@ -92,7 +92,7 @@ Qed.
    end.
 
 
-(* [struct_resource_inference_step constructor] proof *)
+(* [struct_resource_inference_step] constructor pre-condition proof *)
  Ltac2 prove_struct_resource_inference_step () :=
  match! goal with
  | [ |- exists field_res,
@@ -112,18 +112,7 @@ Qed.
      exists $field_res_set;
      Std.split false NoBindings;
      Control.focus 1 1 (fun () =>
-      (* WIP:
-      let s_decls := constr:($iglobal.(Global.struct_decls)) in
-      let empty_map:((int, constr) FMap.t) := FMap.empty (Tags.int_tag) in
-      let lc := destruct_list (constr:(Sym.t * Memory.struct_decls)) s_decls in
-      let lcc_pairs := List.map destruct_pair lc in 
-      *)
-      (* Now lc_pars have elements of constr:(Sym.t) * constr:Memory.struct_decls) type,
-         For stroring in FMap, we need to convert first element to int.
-       *)
-      (*
-      let global_map :=List.fold_left (fun m (k, v) => FMap.add k v m) empty_map lic_pairs in
-      *)
+      (* Proof using computational reflection: *)
       Control.shelve ()
      );  (* unfold predicate *)
      Control.focus 1 1 (fun () =>
@@ -143,6 +132,7 @@ Ltac2 prove_unfold_step _hints :=
       Control.focus 1 1 (fun () => Std.reflexivity ());
 
       Message.print (Message.of_string "TODO: Shelving unfold step pre-condition.");
+      (* Proof using computational reflection: *)
       Control.shelve ()
   | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_unfold_step: match failed")))
   end.
@@ -167,7 +157,6 @@ Ltac2 prove_unfold_step _hints :=
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
       _ ?hints _) ] =>
-       (* PredicateRequest case *)
        verbose_msg (smsg "Checking PredicateRequest for Struct");
        verbose_print_constr "    Situation: " s;
        verbose_print_constr "    Predicate symbol name: " isym;
@@ -225,8 +214,8 @@ Ltac2 prove_unfold_step _hints :=
            } clause ;
            prove_simple_resource_inference_step ()
        )
+    (* UnfoldResources step *)
   | [ |- log_entry_valid (UnfoldResources _ _ ?hints _) ] =>
-      (* UnfoldResources case *)
       verbose_msg (smsg "Checking UnfoldResources");
       let lhints := destruct_list (constr:(log_entry)) hints in
       verbose_msg (Message.concat (Message.of_string "    Number of hints: ") (Message.of_int (List.length lhints)));
@@ -236,6 +225,7 @@ Ltac2 prove_unfold_step _hints :=
       Control.throw (Tactic_failure (Some (msg (Message.of_string "prove_log_entry_valid: match failed"))))
   end.
 
+ (* Attempts to prove that all log entries in the list are valid *)
  Ltac2 prove_log_entry_list_valid () :=
    match! goal with
    | [ |- List.Forall log_entry_valid ?l ] =>
@@ -251,8 +241,6 @@ Ltac2 prove_unfold_step _hints :=
                (* nil case *)
                Std.constructor false
              else if Constr.equal f_name cons_name then
-               (* cons case *)
-               (* let head := Array.get args 1 in *)
                let tail := Array.get args 2 in
                Std.constructor false;
                Control.focus 1 1 (fun () => prove_log_entry_valid n);
