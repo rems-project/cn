@@ -175,11 +175,9 @@ Inductive struct_piece_to_resource
   (loc: Location.t)
   : output -> Resource.t -> Prop :=
 | struct_piece_to_resource_struct:
-  forall pid pty field_bt fields field_it struct_loc,
+  forall pid pty fields field_it struct_loc,
   Memory.piece_member_or_padding piece = Some (pid, pty) ->
   let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
-  (* The field's type maps to its base type *)
-  bt_of_sct_rel pty field_bt ->
   (* field_out is the IT corresponding to pid in iout's field list *)
   List.In (pid, field_it) fields
 
