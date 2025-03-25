@@ -25,6 +25,14 @@ Inductive term_is_struct: Terms.term BaseTypes.t -> Prop :=
 | term_is_struct_intro: forall tag fields,
   term_is_struct (Terms.Struct _ tag fields).
 
+Lemma term_is_struct_dec: forall t, (term_is_struct t) + (~ term_is_struct t).
+Proof.
+  intros t.
+  destruct t.
+  all: try (left; constructor).
+  all: try (right; intros H; inversion H).
+Qed.
+
 (* Relation between Sctypes.t and BaseTypes.t *)
 Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
 | bt_of_sct_void : bt_of_sct_rel SCtypes.Void (BaseTypes.Unit unit)
@@ -262,6 +270,69 @@ Definition struct_piece_to_resource_fun
       end
     end
   end.
+
+Lemma struct_piece_to_resource_fun_eq:
+  forall piece iinit ipointer iargs tag loc out res,
+  struct_piece_to_resource piece iinit ipointer iargs tag loc out res <->
+  struct_piece_to_resource_fun piece iinit ipointer iargs tag loc out res = true.
+Proof.
+  intros piece iinit ipointer iargs tag loc out res.
+  split.
+  - intros H.
+    unfold struct_piece_to_resource_fun.
+    destruct res as [req [field_it]].
+    destruct out as [[]].
+    inversion H; subst.
+    + rewrite H2.
+      epose proof (existsb_exists _ _) as He.
+      destruct He as [_ He].
+      rewrite He; revgoals.
+      { exists (pid, field_it).
+        split; auto.
+        apply andb_true_intro; split; apply eq_dec_refl_l. }
+      repeat (apply andb_true_intro; split); auto.
+      all: apply eq_dec_refl_l.
+    + rewrite H4.
+      apply bt_of_sct_rel_fun_eq in H6.
+      rewrite H6.
+      unfold struct_type.
+      rewrite 3 eq_dec_refl_l.
+      destruct t; auto.
+      exfalso.
+      apply H7.
+      constructor.
+  - intros H.
+    unfold struct_piece_to_resource_fun in H.
+    destruct res as [req [field_it]].
+    destruct out as [[]].
+    destruct (term_is_struct_dec t) as [Ht | Ht].
+    + inversion Ht; subst; clear Ht.
+      destruct Memory.piece_member_or_padding as [[pid pty]|] eqn:E; try discriminate.
+      apply andb_prop in H; destruct H as [H1 H2].
+      apply andb_prop in H1; destruct H1 as [H1 H3].
+      apply andb_prop in H1; destruct H1 as [H1 H4].
+      epose proof (existsb_exists _ _) as He.
+      destruct He as [He _].
+      apply He in H1; clear He.
+      destruct H1 as [[pid' field_it'] [H0 H1]].
+      apply andb_prop in H1; destruct H1 as [H1 H5].
+      apply eq_dec_refl_r in H1, H2, H3, H4, H5; subst.
+      apply struct_piece_to_resource_struct.
+      * apply E.
+      * apply H0.
+    + destruct t; try (exfalso; apply Ht; constructor).
+      all: destruct Memory.piece_member_or_padding as [[]|] eqn:E; try discriminate.
+      all: destruct field_it; try discriminate.
+      all: apply andb_prop in H; destruct H as [H1 H2].
+      all: apply andb_prop in H1; destruct H1 as [H1 H3].
+      all: apply andb_prop in H1; destruct H1 as [H1 H4].
+      all: apply eq_dec_refl_r in H2, H3, H4; subst.
+      all: inversion H2; subst; clear H2.
+      all: apply bt_of_sct_rel_fun_eq in H1.
+      all: apply struct_piece_to_resource_opaque.
+      all: assumption.
+Qed.
+
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 | resource_unfold_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
