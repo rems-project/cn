@@ -114,7 +114,7 @@ Proof.
     + constructor; auto.
   - (* TSet *)
     apply HTSet; apply IH.
-Qed.
+Defined.
 
 
 Definition member_types_gen (A:Type) := list (Id.t * t_gen A).
@@ -136,7 +136,7 @@ Definition t := t_gen unit.
 Fact sign_eq_dec (s1 s2 : sign) : {s1 = s2} + {s1 <> s2}.
 Proof.
   decide equality.
-Qed.
+Defined.
 
 (* TODO Check if needed *)
 Lemma prod_eq_dec {A B : Type}
@@ -145,7 +145,7 @@ Lemma prod_eq_dec {A B : Type}
       forall (p1 p2 : A * B), {p1 = p2} + {p1 <> p2}.
 Proof.
   decide equality.
-Qed.
+Defined.
 
 Lemma option_eq_dec {A : Type}
       (eqA : forall x y : A, {x = y} + {x <> y}) :
@@ -307,7 +307,7 @@ Module BasetTypes_t_as_MiniDecidableType <: MiniDecidableType.
         intros C.
         inversion C.
         congruence.
-  Qed.
+  Defined.
   
 End BasetTypes_t_as_MiniDecidableType.
 

@@ -30,7 +30,7 @@ Module LogicalConstraint_as_MiniDecidableType <: MiniDecidableType.
         apply BasetTypes_t_as_MiniDecidableType.eq_dec.
       +
         apply Sym_t_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End LogicalConstraint_as_MiniDecidableType.
 
 Module LogicalConstraints_as_DecidableType := Make_UDT LogicalConstraint_as_MiniDecidableType.

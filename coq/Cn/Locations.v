@@ -15,7 +15,7 @@ Module Locations_t_as_MiniDecidableType <: MiniDecidableType.
     intros x y.
     unfold eq.
     repeat decide equality.
-  Qed.
+  Defined.
 End Locations_t_as_MiniDecidableType.
 
 (* Define the info type *)

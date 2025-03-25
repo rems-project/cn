@@ -50,7 +50,7 @@ Proof.
       induction l as [| [c' b'] l IHl].
       * constructor.
       * constructor; auto.
-Qed.
+Defined.
 
 Definition t := ctype.
 
@@ -81,7 +81,7 @@ Module IntegerBaseType_as_MiniDecidableType <: MiniDecidableType.
     all: try (left; reflexivity).
     all: decide equality.
     all: apply Nat_as_DT.eq_dec.
-  Qed.
+  Defined.
 End IntegerBaseType_as_MiniDecidableType.
 
 Module IntegerType_as_MiniDecidableType <: MiniDecidableType.
@@ -97,7 +97,7 @@ Module IntegerType_as_MiniDecidableType <: MiniDecidableType.
     all: decide equality.
     all: try apply IntegerBaseType_as_MiniDecidableType.eq_dec.
     all: try apply Sym_t_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End IntegerType_as_MiniDecidableType.
 
 Module qualifiers_as_MiniDecidableType <: MiniDecidableType.
@@ -109,7 +109,7 @@ Module qualifiers_as_MiniDecidableType <: MiniDecidableType.
     intros x y.
     destruct x, y.
     do 2 decide equality.
-  Qed.
+  Defined.
 End qualifiers_as_MiniDecidableType.
 
 Module SCtypes_as_MiniDecidableType <: MiniDecidableType.
@@ -166,5 +166,5 @@ Module SCtypes_as_MiniDecidableType <: MiniDecidableType.
         destruct (IHl l') as [E | NE]; try (right; congruence).
         inversion E; subst.
         left; reflexivity.
-  Qed.
+  Defined.
 End SCtypes_as_MiniDecidableType.

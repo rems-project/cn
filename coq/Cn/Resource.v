@@ -23,7 +23,7 @@ Module Output_as_MiniDecidableType <: MiniDecidableType.
     intros [o1] [o2].
     decide equality.
     apply IndexTerm_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End Output_as_MiniDecidableType.
 
 Module Resource_as_MiniDecidableType <: MiniDecidableType.
@@ -35,7 +35,7 @@ Module Resource_as_MiniDecidableType <: MiniDecidableType.
     apply BaseTypes.prod_eq_dec.
     - apply Request_as_MiniDecidableType.eq_dec.
     - apply Output_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End Resource_as_MiniDecidableType.
 
 Module Output_as_DecidableType := Make_UDT Output_as_MiniDecidableType.

@@ -58,7 +58,7 @@ Module Init_as_MiniDecidableType <: MiniDecidableType.
   Proof.
     unfold eq.
     decide equality. 
-  Qed.
+  Defined.
 End Init_as_MiniDecidableType.
 
 Module Name_as_MiniDecidableType <: MiniDecidableType.
@@ -72,7 +72,7 @@ Module Name_as_MiniDecidableType <: MiniDecidableType.
     all: try apply SCtypes_as_MiniDecidableType.eq_dec.
     all: try apply Init_as_MiniDecidableType.eq_dec.
     all: try apply Sym_t_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End Name_as_MiniDecidableType.
 
 Module Predicate_as_MiniDecidableType <: MiniDecidableType.
@@ -87,7 +87,7 @@ Module Predicate_as_MiniDecidableType <: MiniDecidableType.
       apply IndexTerm_as_MiniDecidableType.eq_dec.
     - apply IndexTerm_as_MiniDecidableType.eq_dec.
     - apply Name_as_MiniDecidableType.eq_dec.
-  Qed. 
+  Defined. 
 End Predicate_as_MiniDecidableType.
 
 Module QPredicate_as_MiniDecidableType <: MiniDecidableType.
@@ -109,7 +109,7 @@ Module QPredicate_as_MiniDecidableType <: MiniDecidableType.
       + apply BasetTypes_t_as_MiniDecidableType.eq_dec.
     - apply IndexTerm_as_MiniDecidableType.eq_dec.
     - apply Name_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End QPredicate_as_MiniDecidableType.
 
 Module Request_as_MiniDecidableType <: MiniDecidableType.
@@ -122,5 +122,5 @@ Module Request_as_MiniDecidableType <: MiniDecidableType.
     all: decide equality.
     all: try apply Predicate_as_MiniDecidableType.eq_dec.
     all: try apply QPredicate_as_MiniDecidableType.eq_dec.
-  Qed.
+  Defined.
 End Request_as_MiniDecidableType.

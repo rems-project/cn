@@ -350,7 +350,7 @@ Proof.
   - clear - HCast HIT IH.
     destruct a.
     apply HCast; apply HIT, IH.
-Qed.
+Defined.
 
 Module Const_as_MiniDecidableType <: MiniDecidableType.
   Definition t := const.
@@ -387,7 +387,7 @@ Module Const_as_MiniDecidableType <: MiniDecidableType.
       inversion E; subst; left; reflexivity.
     - destruct (BasetTypes_t_as_MiniDecidableType.eq_dec t0 t1) as [E | NE]; try (right; congruence).
       inversion E; subst; left; reflexivity.
-  Qed.
+  Defined.
 End Const_as_MiniDecidableType.
 
 Module Unop_as_MiniDecidableType <: MiniDecidableType.
@@ -397,7 +397,7 @@ Module Unop_as_MiniDecidableType <: MiniDecidableType.
   Proof.
     unfold eq.
     decide equality.
-  Qed.
+  Defined.
 End Unop_as_MiniDecidableType.
 
 Module Binop_as_MiniDecidableType <: MiniDecidableType.
@@ -407,7 +407,7 @@ Module Binop_as_MiniDecidableType <: MiniDecidableType.
   Proof.
     unfold eq.
     decide equality.
-  Qed.
+  Defined.
 End Binop_as_MiniDecidableType.
 
 Module Pattern__as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType) <: MiniDecidableType.
@@ -448,7 +448,7 @@ Module Pattern__as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableTyp
       destruct (Ty_as_MiniDecidableType.eq_dec tt t) as [E | ?]; try (right; congruence); subst.
       destruct (IHp p0); try (right; congruence); subst.
       left; reflexivity.
-  Qed.
+  Defined.
 
   Definition t := pattern_ ty.
   Definition eq := @eq t.
@@ -467,7 +467,7 @@ Module Pattern_as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType
     destruct (Ty_as_MiniDecidableType.eq_dec tt1 tt2); try (right; congruence); subst.
     destruct (Locations_t_as_MiniDecidableType.eq_dec lc1 lc2) as [E | NE]; try (right; congruence).
     inversion E; subst; left; reflexivity.
-  Qed.
+  Defined.
 End Pattern_as_MiniDecidableType.
 
 Module Term_as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType) <: MiniDecidableType.
@@ -783,7 +783,7 @@ Module Term_as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType) <
       inversion E; subst; clear E.
       destruct (IHt t0); try (right; congruence); subst.
       left; reflexivity.
-  Qed.
+  Defined.
 
   Definition t := term ty.
   Definition eq := @eq t.
@@ -802,5 +802,5 @@ Module Annot_as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType) 
     destruct (Ty_as_MiniDecidableType.eq_dec tt1 tt2); try (right; congruence); subst.
     destruct (Locations_t_as_MiniDecidableType.eq_dec lc1 lc2) as [E | NE]; try (right; congruence).
     inversion E; subst; left; reflexivity.
-  Qed.
+  Defined.
 End Annot_as_MiniDecidableType.

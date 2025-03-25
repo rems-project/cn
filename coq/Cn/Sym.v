@@ -434,7 +434,7 @@ Module Symbol_identifier_as_MiniDecidableType <: MiniDecidableType.
   Proof.
     unfold eq.
     repeat decide equality.
-  Qed.
+  Defined.
 End Symbol_identifier_as_MiniDecidableType.
 
 Module Sym_t_as_MiniDecidableType <: MiniDecidableType.
@@ -444,7 +444,7 @@ Module Sym_t_as_MiniDecidableType <: MiniDecidableType.
   Proof.
     unfold eq.
     repeat decide equality.
-  Qed.
+  Defined.
 End Sym_t_as_MiniDecidableType.
 
 Module SymMap := FMapAVL.Make(Symbol_sym_as_OT).
