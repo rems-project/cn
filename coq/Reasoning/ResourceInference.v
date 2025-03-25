@@ -86,6 +86,66 @@ Fixpoint bt_of_sct_fun (sct : SCtypes.t) (bt : BaseTypes.t): bool :=
   | _ => false
   end.
 
+Lemma eq_dec_refl_l {A : Type} (x : A) (eq_dec : forall x y : A, {x = y} + {x <> y}) :
+  bool_of_sum (eq_dec x x) = true.
+Proof.
+  destruct (eq_dec x x) as [H | H]; auto.
+Qed.
+
+Lemma eq_dec_refl_r {A : Type} (x y : A) (eq_dec : forall x y : A, {x = y} + {x <> y}) :
+  bool_of_sum (eq_dec x y) = true -> x = y.
+Proof.
+  destruct (eq_dec x y) as [H | H]; auto.
+  intros ?; discriminate.
+Qed.
+
+Lemma bt_of_sct_rel_fun_eq: forall sct bt,
+  bt_of_sct_rel sct bt <-> bt_of_sct_fun sct bt = true.
+Proof.
+  intros sct bt.
+  split; intros H.
+  - induction H; try reflexivity.
+    + unfold bt_of_sct_fun.
+      apply eq_dec_refl_l.
+    + simpl.
+      rewrite IHbt_of_sct_rel.
+      reflexivity.
+    + simpl.
+      apply eq_dec_refl_l.
+  - revert bt H.
+    apply SCtypes.ctype_ind_set with (P := fun sct => forall bt : BaseTypes.t, bt_of_sct_fun sct bt = true -> bt_of_sct_rel sct bt).
+    + intros bt H.
+      destruct bt; try discriminate.
+      constructor.
+    + intros i bt H.
+      destruct bt; try discriminate.
+      unfold bt_of_sct_fun in H.
+      destruct BasetTypes_t_as_MiniDecidableType.eq_dec as [E | ?]; try discriminate.
+      rewrite E.
+      constructor.
+    + intros [sct' o] IH bt H.
+      destruct o; try discriminate.
+      destruct bt; try discriminate.
+      simpl in IH, H.
+      destruct (bt_of_sct_fun sct' bt2) eqn:H'; try discriminate.
+      destruct BasetTypes_t_as_MiniDecidableType.eq_dec as [E | ?]; try discriminate.
+      clear H.
+      rewrite E.
+      constructor.
+      apply IH, H'.
+    + intros sct' IH bt H.
+      destruct bt; try discriminate.
+      destruct u.
+      constructor.
+    + intros s bt H.
+      destruct bt; try discriminate.
+      simpl in H.
+      destruct Sym_t_as_MiniDecidableType.eq_dec as [E | ?]; try discriminate.
+      rewrite E.
+      constructor.
+    + intros ? ? ? ? H.
+      inversion H.
+Qed.
 
 (* Defines when a term represents a cast of another term to a specific type *)
 Inductive cast_ (loc: Locations.t) : BaseTypes.t -> IndexTerms.t -> IndexTerms.t -> Prop :=
