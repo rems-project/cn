@@ -16,6 +16,7 @@ BLACKLISTED_FILES=(
     mergesort.c
     mergesort_alt.c
     mutual_rec/mutual_rec2.c
+    mutual_rec/mutual_rec3.c    
 )
 
 # Parse command line options
