@@ -122,7 +122,7 @@ Qed.
  | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_struct_resource_inference_step: match failed")))
 end.
 
-Ltac2 prove_unfold_step _hints :=
+Ltac2 prove_unfold_step (hints:constr) :=
   match! goal with
   | [ |- unfold_step _ _ ] =>
       Std.constructor false;
@@ -131,9 +131,12 @@ Ltac2 prove_unfold_step _hints :=
       Control.focus 1 1 (fun () => Std.reflexivity ());
       Control.focus 1 1 (fun () => Std.reflexivity ());
 
-      Message.print (Message.of_string "TODO: Shelving unfold step pre-condition.");
       (* Proof using computational reflection: *)
-      Control.shelve ()
+      ltac1:(hints |- apply unfold_all_explicit_eq with (unfold_changed := (unfold_step_flatten hints))) 
+        (Ltac1.of_constr hints);
+      ltac1:(apply unfold_all_explicit_fun_eq);
+      ltac1:(vm_compute);
+      ltac1:(reflexivity)
   | [ |- _ ] => Control.throw (Tactic_failure (Some (Message.of_string "prove_unfold_step: match failed")))
   end.
 

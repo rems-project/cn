@@ -540,6 +540,9 @@ Proof.
   admit.
 Admitted.
 
+Definition unfold_step_flatten (l : list unfold_step): unfold_changed :=
+  List.concat (List.map fst l).
+
 (** Inductive predicate which defines correctness of resource unfolding step *)
 Inductive unfold_step : Context.t -> Context.t -> Prop :=
 | simple_unfold_step:
