@@ -44,6 +44,49 @@ Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
   bt_of_sct_rel (SCtypes.Struct tag) (BaseTypes.Struct _ tag)
 (* TODO function types *).
 
+Definition bool_of_sum {A : Type} {x y : A} (dec : sumbool (x = y) (x <> y)) : bool :=
+  match dec with
+  | left _ => true
+  | right _ => false
+  end.
+
+Fixpoint bt_of_sct_fun (sct : SCtypes.t) (bt : BaseTypes.t): bool :=
+  match sct with
+  | SCtypes.Void =>
+    match bt with
+    | BaseTypes.Unit _ => true
+    | _ => false
+    end
+  | SCtypes.Integer ity =>
+      bool_of_sum
+        (BasetTypes_t_as_MiniDecidableType.eq_dec bt
+          (BaseTypes.Bits _ (if Memory.is_signed_integer_type ity then BaseTypes.Signed else BaseTypes.Unsigned)
+                            (Memory.sizeof_ity ity * 8)))
+  | SCtypes.Array (sct, None) =>
+    match bt with
+    | BaseTypes.Map _ bt1 bt2 =>
+      bt_of_sct_fun sct bt2 &&
+      bool_of_sum
+        (BasetTypes_t_as_MiniDecidableType.eq_dec bt1
+          (BaseTypes.Bits _ BaseTypes.Unsigned (Memory.sizeof_ity (IntegerType.Signed Intptr_t) * 8)))
+    | _ => false
+    end
+  | SCtypes.Pointer sct =>
+    match bt with
+    | BaseTypes.Loc _ tt => true
+    | _ => false
+    end
+  | SCtypes.Struct tag1 =>
+    match bt with
+    | BaseTypes.Struct _ tag2 => 
+      if Sym_t_as_MiniDecidableType.eq_dec tag1 tag2
+      then true else false
+    | _ => false
+    end
+  | _ => false
+  end.
+
+
 (* Defines when a term represents a cast of another term to a specific type *)
 Inductive cast_ (loc: Locations.t) : BaseTypes.t -> IndexTerms.t -> IndexTerms.t -> Prop :=
 | cast_same: forall bt t' l',
