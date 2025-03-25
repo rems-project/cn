@@ -333,6 +333,23 @@ Proof.
       all: assumption.
 Qed.
 
+
+Definition subsumed_fun (p1 p2 : Request.name) : bool :=
+  orb
+    (bool_of_sum (Name_as_MiniDecidableType.eq_dec p1 p2))
+    (match p1, p2 with
+    | Request.Owned ct Uninit, Request.Owned ct' Init
+        => bool_of_sum (SCtypes_as_MiniDecidableType.eq_dec ct ct')
+    | _, _ => false
+    end).
+
+Lemma subsumed_fun_eq:
+  forall p1 p2,
+  subsumed p1 p2 <-> subsumed_fun p1 p2 = true.
+Proof.
+  
+Admitted. 
+
 Inductive resource_unfold (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 | resource_unfold_struct:
   forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
