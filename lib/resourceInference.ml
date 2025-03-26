@@ -325,20 +325,17 @@ module General = struct
              match provable (LC.T needed_at_index) with
              | `False -> continue
              | `True ->
-              let@ c = get_typing_context () in
-              let pointer = IT.(arrayShift_ ~base:requested.pointer ~index requested.step here) in
-              let sub_req : Req.Predicate.t =
-                { name = requested.name;
-                  pointer;
-                  iargs = List.map (IT.subst su) requested.iargs
-                }
-              in               
-            let@ o_re_index =
-                predicate_request
-                   loc
-                   uiinfo
-                   sub_req
-              in
+               let@ c = get_typing_context () in
+               let pointer =
+                 IT.(arrayShift_ ~base:requested.pointer ~index requested.step here)
+               in
+               let sub_req : Req.Predicate.t =
+                 { name = requested.name;
+                   pointer;
+                   iargs = List.map (IT.subst su) requested.iargs
+                 }
+               in
+               let@ o_re_index = predicate_request loc uiinfo sub_req in
                (match o_re_index with
                 | None -> continue
                 | Some (((_p', O p'_oarg) as rr), _, l') ->
