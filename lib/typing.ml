@@ -704,6 +704,7 @@ let do_unfold_resources loc =
       in
       let@ () = iterM do_unpack unpack in
       let@ () = iterM (add_r_internal loc) extract in
+      let@ simp_ctxt = simp_ctxt () in
       (match (unpack, extract) with
        | [], [] -> return changed
        | _ ->
@@ -712,7 +713,12 @@ let do_unfold_resources loc =
              (fun (_, re, unpackable) ->
                 match unpackable with
                 | `LRT lrt -> (re, UnpackLRT lrt)
-                | `RES res -> (re, UnpackRES res))
+                | `RES res ->
+                  let res_simp = List.map (fun (r, Res.O oargs) ->
+                    let r = Simplify.Request.simp simp_ctxt r in
+                    let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
+                    (r, Res.O oargs)) res in
+                  (re, UnpackRES res_simp))
              unpack
          in
          aux ((converted_unpack, extract) :: changed))
