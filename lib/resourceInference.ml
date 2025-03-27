@@ -345,10 +345,13 @@ module General = struct
                     IT.(and_ [ needed; ne__ (sym_ (sym, bt', here)) index here ] here)
                   in
                   let@ c' = get_typing_context () in
-                  let log_entry =
-                    Prooflog.PredicateRequest (c, fst uiinfo, sub_req, rr, l', c')
+                  let hints =
+                    if Prooflog.is_enabled () then
+                      Prooflog.PredicateRequest (c, fst uiinfo, sub_req, rr, l', c') :: l
+                    else
+                      []
                   in
-                  return (needed', oarg, log_entry :: l)))
+                  return (needed', oarg, hints)))
            else
              continue)
         movable_indices
@@ -420,10 +423,13 @@ module General = struct
       return
         (Option.map
            (fun ((p, o), changed_or_deleted, l) ->
-              let log_entry =
-                Prooflog.PredicateRequest (c, fst uiinfo, request, (p, o), l, c')
+              let hints =
+                if Prooflog.is_enabled () then
+                  [ Prooflog.PredicateRequest (c, fst uiinfo, request, (p, o), l, c') ]
+                else
+                  []
               in
-              ((Req.P p, o), changed_or_deleted, [ log_entry ]))
+              ((Req.P p, o), changed_or_deleted, hints))
            result)
     | Q request ->
       let@ result = qpredicate_request loc uiinfo request in
@@ -452,7 +458,10 @@ module General = struct
     (* We started with top-level call of ftyp_args_request_step, so we need to
        record the resource inference steps for the inner calls. They not nested
        under anything, so we need to record them separately. *)
-    List.iter Prooflog.record_resource_inference_step _l;
+    if Prooflog.is_enabled () then
+      List.iter Prooflog.record_resource_inference_step _l
+    else
+      ();
     return rt
 end
 
@@ -481,8 +490,11 @@ module Special = struct
     match result with
     | Some (r, rw_time, log) ->
       let@ c' = get_typing_context () in
-      Prooflog.record_resource_inference_step
-        (Prooflog.PredicateRequest (c, fst uiinfo, request, r, log, c'));
+      if Prooflog.is_enabled () then
+        Prooflog.record_resource_inference_step
+          (Prooflog.PredicateRequest (c, fst uiinfo, request, r, log, c'))
+      else
+        ();
       return (r, rw_time)
     | None -> fail_missing_resource loc uiinfo
 
@@ -566,7 +578,10 @@ module Special = struct
       (* We started with top-level call of qpredicate_request, so we need to
          record the resource inference steps for the inner calls. They not
          nested under anything, so we need to record them separately. *)
-      List.iter Prooflog.record_resource_inference_step log;
+      if Prooflog.is_enabled () then
+        List.iter Prooflog.record_resource_inference_step log
+      else
+        ();
       return (r, rw_time)
     | None -> fail_missing_resource loc uiinfo
 end

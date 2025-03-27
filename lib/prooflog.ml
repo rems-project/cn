@@ -4,6 +4,9 @@ let proof_log_enabled = ref false
 (* Function to set the proof log enabled flag *)
 let set_enabled flag = proof_log_enabled := flag
 
+(* Function to check if proof logging is enabled *)
+let is_enabled () = !proof_log_enabled
+
 type unpack_result =
   | UnpackLRT of LogicalReturnTypes.t
   | UnpackRES of Resource.t list

@@ -708,24 +708,30 @@ let do_unfold_resources loc =
       (match (unpack, extract) with
        | [], [] -> return changed
        | _ ->
-         let converted_unpack =
-           List.map
-             (fun (_, re, unpackable) ->
-                match unpackable with
-                | `LRT lrt -> (re, UnpackLRT lrt)
-                | `RES res ->
-                  let res_simp =
-                    List.map
-                      (fun (r, Res.O oargs) ->
-                         let r = Simplify.Request.simp simp_ctxt r in
-                         let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
-                         (r, Res.O oargs))
-                      res
-                  in
-                  (re, UnpackRES res_simp))
-             unpack
+         let changed' =
+           if Prooflog.is_enabled () then (
+             let converted_unpack =
+               List.map
+                 (fun (_, re, unpackable) ->
+                    match unpackable with
+                    | `LRT lrt -> (re, UnpackLRT lrt)
+                    | `RES res ->
+                      let res_simp =
+                        List.map
+                          (fun (r, Res.O oargs) ->
+                             let r = Simplify.Request.simp simp_ctxt r in
+                             let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
+                             (r, Res.O oargs))
+                          res
+                      in
+                      (re, UnpackRES res_simp))
+                 unpack
+             in
+             (converted_unpack, extract) :: changed)
+           else
+             []
          in
-         aux ((converted_unpack, extract) :: changed))
+         aux changed')
   in
   let@ c = get_typing_context () in
   let@ changed = aux [] in

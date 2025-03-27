@@ -22,6 +22,8 @@ type log = log_entry list
 
 val set_enabled : bool -> unit
 
+val is_enabled : unit -> bool
+
 val add_log_entry : log_entry -> unit
 
 val get_proof_log : unit -> log_entry list
