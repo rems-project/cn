@@ -519,6 +519,7 @@ let run_seq_tests
       (* without_loop_invariants *)
       (* Test Generation *)
         output_dir
+      print_steps
       with_static_hack
       num_samples
       backtrack_attempts
@@ -582,16 +583,16 @@ let run_seq_tests
              None
              (Some output_dir)
              prog5;
-           let config : TestGeneration.seq_config =
-             { with_static_hack;
+           let config : SeqTests.seq_config =
+             { print_steps;
+               with_static_hack;
                num_samples;
                max_backtracks = backtrack_attempts;
                num_resets
              }
            in
-           TestGeneration.set_seq_config config;
-           if TestGeneration.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0
-           then
+           SeqTests.set_seq_config config;
+           if SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0 then
              exit 123)
         ();
       Or_TypeError.return ())
@@ -1411,6 +1412,13 @@ module Seq_testing_flags = struct
       & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
+  let print_steps =
+    let doc =
+      "Print successful stages, such as directory creation, compilation and linking."
+    in
+    Arg.(value & flag & info [ "print-steps" ] ~doc)
+
+
   let with_static_hack =
     let doc =
       "(HACK) Use an `#include` instead of linking to build testing. Necessary until \
@@ -1422,9 +1430,7 @@ module Seq_testing_flags = struct
   let gen_num_samples =
     let doc = "Set the number of samples to test" in
     Arg.(
-      value
-      & opt int TestGeneration.default_seq_cfg.num_samples
-      & info [ "num-samples" ] ~doc)
+      value & opt int SeqTests.default_seq_cfg.num_samples & info [ "num-samples" ] ~doc)
 
 
   let gen_backtrack_attempts =
@@ -1434,16 +1440,13 @@ module Seq_testing_flags = struct
     in
     Arg.(
       value
-      & opt int TestGeneration.default_seq_cfg.max_backtracks
+      & opt int SeqTests.default_seq_cfg.max_backtracks
       & info [ "max-backtrack-attempts" ] ~doc)
 
 
   let num_resets =
     let doc = "Number of context resets for sequence testing" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_seq_cfg.num_resets
-      & info [ "max-resets" ] ~doc)
+    Arg.(value & opt int SeqTests.default_seq_cfg.num_resets & info [ "max-resets" ] ~doc)
 end
 
 let testing_cmd =
@@ -1524,6 +1527,7 @@ let seq_test_cmd =
     $ Common_flags.magic_comment_char_dollar
     $ Executable_spec_flags.without_ownership_checking
     $ Seq_testing_flags.output_test_dir
+    $ Seq_testing_flags.print_steps
     $ Seq_testing_flags.with_static_hack
     $ Seq_testing_flags.gen_num_samples
     $ Seq_testing_flags.gen_backtrack_attempts

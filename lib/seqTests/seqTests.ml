@@ -1,9 +1,12 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
+module AT = ArgumentTypes
+module LAT = LogicalArgumentTypes
 module Utils = Fulminate.Executable_spec_utils
 module Config = SeqTestGenConfig
 module SymSet = Set.Make (Sym)
+module FExtract = Fulminate.Executable_spec_extract
 
 type test_stats =
   { successes : int;
@@ -511,4 +514,180 @@ let generate
   let tests_doc = create_test_file seq filename_base fun_decls in
   print_endline output_msg;
   save output_dir test_file tests_doc;
+  exit_code
+
+
+type seq_config = SeqTestGenConfig.t
+
+let default_seq_cfg : seq_config = SeqTestGenConfig.default
+
+let set_seq_config = SeqTestGenConfig.initialize
+
+(** Workaround for https://github.com/rems-project/cerberus/issues/784 *)
+let needs_static_hack
+      ~(with_warning : bool)
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (inst : FExtract.instrumentation)
+  =
+  let (TUnit decls) = cabs_tunit in
+  let is_static_func () =
+    List.exists
+      (fun decl ->
+         match decl with
+         | CF.Cabs.EDecl_func
+             (FunDef
+                ( loc,
+                  _,
+                  { storage_classes; _ },
+                  Declarator
+                    (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
+                  _ ))
+           when String.equal (Sym.pp_string inst.fn) fn'
+                && List.exists
+                     (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
+                     storage_classes ->
+           if with_warning then
+             Cerb_colour.with_colour
+               (fun () ->
+                  Pp.(
+                    warn
+                      loc
+                      (string "Static function"
+                       ^^^ squotes (Sym.pp inst.fn)
+                       ^^^ string "could not be tested."
+                       ^/^ string "Try again with '--with-static-hack'")))
+               ();
+           true
+         | _ -> false)
+      decls
+  in
+  let _, _, _, args, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
+  let depends_on_static_glob () =
+    let global_syms =
+      inst.internal
+      |> Option.get
+      |> AT.get_lat
+      |> LAT.free_vars (fun _ -> Sym.Set.empty)
+      |> Sym.Set.to_seq
+      |> List.of_seq
+      |> List.filter (fun x ->
+        not
+          (List.mem (fun x y -> String.equal (Sym.pp_string x) (Sym.pp_string y)) x args))
+    in
+    let static_globs =
+      List.filter_map
+        (fun sym ->
+           match List.assoc Sym.equal sym sigma.declarations with
+           | loc, _, Decl_object ((Static, _), _, _, _) -> Some (sym, loc)
+           | _ -> None)
+        global_syms
+    in
+    if List.is_empty static_globs then
+      false
+    else (
+      if with_warning then
+        Cerb_colour.with_colour
+          (fun () ->
+             List.iter
+               (fun (sym, loc) ->
+                  Pp.(
+                    warn
+                      loc
+                      (string "Function"
+                       ^^^ squotes (Sym.pp inst.fn)
+                       ^^^ string "relies on static global"
+                       ^^^ squotes (Sym.pp sym)
+                       ^^ comma
+                       ^^^ string "so could not be tested."
+                       ^^^ string "Try again with '--with-static-hack'.")))
+               static_globs)
+          ();
+      true)
+  in
+  is_static_func () || depends_on_static_glob ()
+
+
+(** Workaround for https://github.com/rems-project/cerberus/issues/765 *)
+let needs_enum_hack
+      ~(with_warning : bool)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (inst : FExtract.instrumentation)
+  =
+  match List.assoc Sym.equal inst.fn sigma.declarations with
+  | loc, _, Decl_function (_, (_, ret_ct), cts, _, _, _) ->
+    if
+      List.exists
+        (fun (_, ct, _) ->
+           match ct with C.Ctype (_, Basic (Integer (Enum _))) -> true | _ -> false)
+        cts
+    then (
+      if with_warning then
+        Cerb_colour.with_colour
+          (fun () ->
+             Pp.(
+               warn
+                 loc
+                 (string "Function"
+                  ^^^ squotes (Sym.pp inst.fn)
+                  ^^^ string "has enum arguments and so could not be tested."
+                  ^/^ string "Try again with '--with-static-hack'")))
+          ();
+      true)
+    else if match ret_ct with C.Ctype (_, Basic (Integer (Enum _))) -> true | _ -> false
+    then (
+      if with_warning then
+        Cerb_colour.with_colour
+          (fun () ->
+             Pp.(
+               warn
+                 loc
+                 (string "Function"
+                  ^^^ squotes (Sym.pp inst.fn)
+                  ^^^ string "has an enum return type and so could not be tested."
+                  ^/^ string "Try again with '--with-static-hack'")))
+          ();
+      true)
+    else
+      false
+  | _ -> false
+
+
+let functions_under_test
+      ~(with_warning : bool)
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (prog5 : unit Mucore.file)
+  : FExtract.instrumentation list
+  =
+  let insts = prog5 |> FExtract.collect_instrumentation |> fst in
+  let selected_fsyms =
+    Check.select_functions
+      (Sym.Set.of_list
+         (List.map (fun (inst : FExtract.instrumentation) -> inst.fn) insts))
+  in
+  insts
+  |> List.filter (fun (inst : FExtract.instrumentation) ->
+    Option.is_some inst.internal
+    && Sym.Set.mem inst.fn selected_fsyms
+    && (Config.with_static_hack ()
+        || not
+             (needs_static_hack ~with_warning cabs_tunit sigma inst
+              || needs_enum_hack ~with_warning sigma inst)))
+
+
+let run_seq
+      ~output_dir
+      ~filename
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (sigma : Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  : int
+  =
+  Cerb_debug.begin_csv_timing ();
+  let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 in
+  if Option.is_some prog5.main then
+    failwith "Cannot test a file with a `main` function";
+  let exit_code = generate ~output_dir ~filename sigma insts in
+  Cerb_debug.end_csv_timing "sequence test generation";
   exit_code

@@ -1,5 +1,6 @@
 type t =
   { (* Compile time *)
+    print_steps : bool;
     with_static_hack : bool;
     num_samples : int;
     max_backtracks : int;
@@ -7,12 +8,19 @@ type t =
   }
 
 let default =
-  { with_static_hack = false; num_samples = 100; max_backtracks = 25; num_resets = 0 }
+  { print_steps = false;
+    with_static_hack = false;
+    num_samples = 100;
+    max_backtracks = 25;
+    num_resets = 0
+  }
 
 
 let instance = ref default
 
 let initialize (cfg : t) = instance := cfg
+
+let is_print_steps () = !instance.print_steps
 
 let get_num_samples () = !instance.num_samples
 
