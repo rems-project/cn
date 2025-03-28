@@ -180,10 +180,9 @@ Inductive struct_piece_to_resource
   (piece: Memory.struct_piece)
   (iinit: init) (ipointer: IndexTerms.t) (iargs: list IndexTerms.t) (* lhs predicate*)
   (tag: Sym.t)
-  (loc: Location.t)
   : output -> Resource.t -> Prop :=
 | struct_piece_to_resource_struct:
-  forall pid pty fields field_it struct_loc,
+  forall pid pty fields field_it loc struct_loc,
   Memory.piece_member_or_padding piece = Some (pid, pty) ->
   let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
   (* field_out is the IT corresponding to pid in iout's field list *)
@@ -191,7 +190,7 @@ Inductive struct_piece_to_resource
 
   ->
 
-    struct_piece_to_resource piece iinit ipointer iargs tag loc
+    struct_piece_to_resource piece iinit ipointer iargs tag
       (Resource.O (Terms.IT _ (Terms.Struct _ tag fields) (BaseTypes.Struct _ tag) struct_loc))
       (Request.P {| Predicate.name := Request.Owned pty iinit;
                    Predicate.pointer := field_pointer;
@@ -199,7 +198,7 @@ Inductive struct_piece_to_resource
        (Resource.O field_it))
 
 | struct_piece_to_resource_opaque:
-  forall pid pty field_bt struct_loc struct_term,
+  forall pid pty field_bt loc struct_loc struct_term,
   Memory.piece_member_or_padding piece = Some (pid, pty) ->
   let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
   (* The field's type maps to its base type *)
@@ -209,7 +208,7 @@ Inductive struct_piece_to_resource
 
   ->
 
-    struct_piece_to_resource piece iinit ipointer iargs tag loc
+    struct_piece_to_resource piece iinit ipointer iargs tag
       (Resource.O (Terms.IT _ struct_term struct_type struct_loc))
       (Request.P {| Predicate.name := Request.Owned pty iinit;
                     Predicate.pointer := field_pointer;
@@ -222,68 +221,70 @@ Inductive struct_piece_to_resource
            field_bt
            loc))).
 
+Local Definition get_resource_pointer_loc (r : Request.Predicate.t) : Location.t :=
+  match r with
+  {| Predicate.name := _;
+     Predicate.pointer := Terms.IT _ _ _ loc ;
+     Predicate.iargs := _
+  |} => loc
+  end.
+
 Definition struct_piece_to_resource_fun
   (piece: Memory.struct_piece)
   (iinit: init) (ipointer: IndexTerms.t) (iargs: list IndexTerms.t) (* lhs predicate*)
   (tag: Sym.t)
-  (loc: Location.t)
   (out : output) (res : Resource.t) : bool :=
   match res with
-  | (req, Resource.O field_it) =>
+  | (Request.P req, Resource.O field_it) =>
     match out with
     | Resource.O (Terms.IT _ struct_term struct_type struct_loc) =>
-      match struct_term with
-      | Terms.Struct _ tag' fields =>
-        match Memory.piece_member_or_padding piece with
-        | Some (pid, pty) =>
-          let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
+      match Memory.piece_member_or_padding piece with
+      | Some (pid, pty) =>
+        let loc := get_resource_pointer_loc req in
+        let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
+        bool_of_sum (BasetTypes_t_as_MiniDecidableType.eq_dec struct_type (BaseTypes.Struct _ tag)) &&
+        bool_of_sum (Predicate_as_MiniDecidableType.eq_dec req
+          {| Predicate.name := Request.Owned pty iinit;
+             Predicate.pointer := field_pointer;
+             Predicate.iargs := iargs |}) &&
+        match struct_term with
+        | Terms.Struct _ tag' fields =>
           List.existsb (fun '(pid', field_it') =>
                           bool_of_sum (Symbol_identifier_as_MiniDecidableType.eq_dec pid pid') &&
                           bool_of_sum (IndexTerm_as_MiniDecidableType.eq_dec field_it field_it'))
                         fields &&
-          bool_of_sum (BasetTypes_t_as_MiniDecidableType.eq_dec struct_type (BaseTypes.Struct _ tag)) &&
-          bool_of_sum (Sym_t_as_MiniDecidableType.eq_dec tag tag') &&
-          bool_of_sum (Request_as_MiniDecidableType.eq_dec req
-            (Request.P {| Predicate.name := Request.Owned pty iinit;
-                          Predicate.pointer := field_pointer;
-                          Predicate.iargs := iargs |}))
-        | _ => false
-        end
-      | _ =>
-        match Memory.piece_member_or_padding piece with
-        | Some (pid, pty) =>
-          let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) loc in
+          bool_of_sum (Sym_t_as_MiniDecidableType.eq_dec tag tag')
+        | _ =>
           match field_it with
-          | Terms.IT _  output_term  field_bt loc' =>
+          | Terms.IT _  output_term field_bt loc' =>
             bt_of_sct_fun pty field_bt &&
-            bool_of_sum (BasetTypes_t_as_MiniDecidableType.eq_dec struct_type (BaseTypes.Struct _ tag)) &&
-            bool_of_sum (Request_as_MiniDecidableType.eq_dec req
-              (Request.P {| Predicate.name := Request.Owned pty iinit;
-                            Predicate.pointer := field_pointer;
-                            Predicate.iargs := iargs |})) &&
             bool_of_sum (IndexTerm_as_MiniDecidableType.eq_dec
-              (Terms.IT _  output_term  field_bt loc')
+              (Terms.IT _ output_term field_bt loc')
               (Terms.IT _ (Terms.StructMember _ (Terms.IT _ struct_term struct_type struct_loc) pid) field_bt loc))
           end
-        | _ => false
         end
+      | _ => false
       end
     end
+  | _ => false
   end.
 
 Lemma struct_piece_to_resource_fun_eq:
-  forall piece iinit ipointer iargs tag loc out res,
-  struct_piece_to_resource piece iinit ipointer iargs tag loc out res <->
-  struct_piece_to_resource_fun piece iinit ipointer iargs tag loc out res = true.
+  forall piece iinit ipointer iargs tag out res,
+  struct_piece_to_resource piece iinit ipointer iargs tag out res <->
+  struct_piece_to_resource_fun piece iinit ipointer iargs tag out res = true.
 Proof.
-  intros piece iinit ipointer iargs tag loc out res.
+  intros piece iinit ipointer iargs tag out res.
   split.
   - intros H.
     unfold struct_piece_to_resource_fun.
     destruct res as [req [field_it]].
+    destruct req as [P | Q]; [| inversion H].
+    destruct P as [name pointer args].
     destruct out as [[]].
     inversion H; subst.
-    + rewrite H2.
+    + unfold field_pointer.
+      rewrite H2.
       epose proof (existsb_exists _ _) as He.
       destruct He as [_ He].
       rewrite He; revgoals.
@@ -292,43 +293,47 @@ Proof.
         apply andb_true_intro; split; apply eq_dec_refl_l. }
       repeat (apply andb_true_intro; split); auto.
       all: apply eq_dec_refl_l.
-    + rewrite H4.
-      apply bt_of_sct_rel_fun_eq in H6.
-      rewrite H6.
+    + unfold field_pointer.
+      rewrite H4.
+      apply bt_of_sct_rel_fun_eq in H8.
+      rewrite H8.
       unfold struct_type.
       rewrite 3 eq_dec_refl_l.
       destruct t; auto.
       exfalso.
-      apply H7.
+      apply H9.
       constructor.
   - intros H.
     unfold struct_piece_to_resource_fun in H.
     destruct res as [req [field_it]].
+    destruct req as [P | Q]; try discriminate.
+    destruct P as [name pointer args].
+    destruct pointer.
     destruct out as [[]].
-    destruct (term_is_struct_dec t) as [Ht | Ht].
+    unfold get_resource_pointer_loc in H.
+    destruct Memory.piece_member_or_padding as [[pid pty]|] eqn:E; try discriminate.
+    apply andb_prop in H; destruct H as [H1 H2].
+    apply andb_prop in H1; destruct H1 as [H1 H3].
+    apply eq_dec_refl_r in H3.
+    inversion H3; subst; clear H3.
+    destruct (term_is_struct_dec t2) as [Ht | Ht].
     + inversion Ht; subst; clear Ht.
-      destruct Memory.piece_member_or_padding as [[pid pty]|] eqn:E; try discriminate.
-      apply andb_prop in H; destruct H as [H1 H2].
-      apply andb_prop in H1; destruct H1 as [H1 H3].
-      apply andb_prop in H1; destruct H1 as [H1 H4].
+      apply andb_prop in H2; destruct H2 as [H2 H4].
       epose proof (existsb_exists _ _) as He.
       destruct He as [He _].
-      apply He in H1; clear He.
-      destruct H1 as [[pid' field_it'] [H0 H1]].
-      apply andb_prop in H1; destruct H1 as [H1 H5].
-      apply eq_dec_refl_r in H1, H2, H3, H4, H5; subst.
+      apply He in H2; clear He.
+      destruct H2 as [[pid' field_it'] [H0 H2]].
+      apply andb_prop in H2; destruct H2 as [H2 H5].
+      apply eq_dec_refl_r in H1, H2, H4, H5; subst.
       apply struct_piece_to_resource_struct.
       * apply E.
       * apply H0.
-    + destruct t; try (exfalso; apply Ht; constructor).
-      all: destruct Memory.piece_member_or_padding as [[]|] eqn:E; try discriminate.
+    + destruct t2; try (exfalso; apply Ht; constructor).
       all: destruct field_it; try discriminate.
-      all: apply andb_prop in H; destruct H as [H1 H2].
-      all: apply andb_prop in H1; destruct H1 as [H1 H3].
-      all: apply andb_prop in H1; destruct H1 as [H1 H4].
-      all: apply eq_dec_refl_r in H2, H3, H4; subst.
-      all: inversion H2; subst; clear H2.
-      all: apply bt_of_sct_rel_fun_eq in H1.
+      all: apply andb_prop in H2; destruct H2 as [H2 H4].
+      all: apply eq_dec_refl_r in H1, H4; subst.
+      all: inversion H4; subst; clear H4.
+      all: apply bt_of_sct_rel_fun_eq in H2.
       all: apply struct_piece_to_resource_opaque.
       all: assumption.
 Qed.
@@ -373,7 +378,7 @@ Qed.
 
 Inductive unfold_one (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
 | unfold_one_struct:
-  forall out_res ipointer iargs iout iinit iinit' isym sdecl loc,
+  forall out_res ipointer iargs iout iinit iinit' isym sdecl,
 
   let iname := Request.Owned (SCtypes.Struct isym) iinit in
   let iname' := Request.Owned (SCtypes.Struct isym) iinit' in
@@ -387,7 +392,7 @@ Inductive unfold_one (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
   (forall r,
      ResSet.In r out_res <->
        exists piece, List.In piece sdecl /\
-                struct_piece_to_resource piece iinit' ipointer iargs isym loc iout r)
+                struct_piece_to_resource piece iinit' ipointer iargs isym iout r)
 
   ->
 
@@ -415,37 +420,19 @@ Fixpoint list_map2 {A B C} (f: A -> B -> C) (m : list A) (n : list B) : option (
         end
   end.
 
- (* This is a temporary workaround until `loc` argument is removed from
- `struct_piece_to_resource` and `struct_piece_to_resource_fun` *) 
-Local Definition get_resource_pointer_loc (r : Resource.t) : option Location.t :=
-  match r with
-  | ((Request.P {| Predicate.name := Request.Owned pty iinit;
-                   Predicate.pointer := Terms.IT _ _ _ loc ;
-                   Predicate.iargs := _ |}), _) => 
-                   Some loc
-  | _ => None
-  end.
-
-(* Computable version of unfold_one predicate
-
-  NB: This function will be simplified when `loc` argument is removed from
- `struct_piece_to_resource` and `struct_piece_to_resource_fun` *) 
+(* Computable version of unfold_one predicate *) 
 Definition unfold_one_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool :=
   match r with
   | (Request.P {|
-      Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
-      Predicate.pointer := ipointer;
-      Predicate.iargs := iargs
+        Predicate.name := Request.Owned (SCtypes.Struct isym) iinit;
+        Predicate.pointer := ipointer;
+        Predicate.iargs := iargs
       |} , iout) =>
         match SymMap.find isym globals.(Global.struct_decls) with
         | Some sdecl =>
           let tmp := list_map2 (fun piece r =>
-            match get_resource_pointer_loc r with
-            | Some loc =>
-              struct_piece_to_resource_fun piece iinit ipointer iargs isym loc iout r
-            | None => false
-            end
-          ) sdecl out_res in 
+            struct_piece_to_resource_fun piece iinit ipointer iargs isym iout r)
+            sdecl out_res in 
           match tmp with
           | None => false
           | Some tmp' => List.fold_left andb tmp' true
