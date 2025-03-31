@@ -51,7 +51,7 @@ Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
   bt_of_sct_rel (SCtypes.Struct tag) (BaseTypes.Struct _ tag)
 (* TODO function types *).
 
-Definition bool_of_sum {A : Type} {x y : A} (dec : sumbool (x = y) (x <> y)) : bool :=
+Definition bool_of_sum {P : Prop} (dec : sumbool P (~ P)) : bool :=
   match dec with
   | left _ => true
   | right _ => false
@@ -175,6 +175,45 @@ Inductive addr_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
   cast_ loc pt (Terms.IT _ t' bt' l') result ->
   addr_ loc (Terms.IT _ t' bt' l') result.
 
+Lemma NoDup_dec (A : Type)
+  (dec: forall (x y : A), {x = y} + {x <> y})
+  (l : list A): { NoDup l } + { ~ NoDup l }.
+Proof.
+  induction l as [|a l IH].
+  - left; now constructor.
+  - destruct (In_dec dec a l).
+    + right.
+      inversion_clear 1.
+      tauto.
+    + destruct IH.
+      * left.
+        now constructor.
+      * right.
+        inversion_clear 1.
+        tauto.
+Defined.
+
+Lemma NoDup_dec_true : forall A (dec : forall x y : A, {x = y} + {x <> y}) (l : list A),
+  NoDup l <-> bool_of_sum (NoDup_dec _ dec l) = true.
+Proof.
+  intros A dec l.
+  split; intros H.
+  - destruct NoDup_dec; auto.
+  - destruct NoDup_dec; auto.
+    inversion H.
+Qed.
+
+Lemma NoDup_dec_false : forall A (dec : forall x y : A, {x = y} + {x <> y}) (l : list A),
+  ~ NoDup l <-> bool_of_sum (NoDup_dec _ dec l) = false.
+Proof.
+  intros A dec l.
+  split; intros H.
+  - destruct NoDup_dec; auto.
+    exfalso; tauto.
+  - destruct NoDup_dec; auto.
+    inversion H.
+Qed.
+
 (* Helper predicate to relate struct piece to resource *)
 Inductive struct_piece_to_resource
   (piece: Memory.struct_piece)
@@ -185,6 +224,7 @@ Inductive struct_piece_to_resource
   forall pid pty fields field_it struct_loc,
   Memory.piece_member_or_padding piece = Some (pid, pty) ->
   let field_pointer := Terms.IT _ (Terms.MemberShift _ ipointer tag pid) (BaseTypes.Loc _ tt) struct_loc in
+  NoDup (List.map fst fields) ->
   (* field_out is the IT corresponding to pid in iout's field list *)
   List.In (pid, field_it) fields
 
@@ -240,6 +280,7 @@ Definition struct_piece_to_resource_fun
              Predicate.iargs := iargs |}) &&
         match struct_term with
         | Terms.Struct _ tag' fields =>
+          bool_of_sum (NoDup_dec _ Symbol_identifier_as_MiniDecidableType.eq_dec (List.map fst fields)) &&
           List.existsb (fun '(pid', field_it') =>
                           bool_of_sum (Symbol_identifier_as_MiniDecidableType.eq_dec pid pid') &&
                           bool_of_sum (IndexTerm_as_MiniDecidableType.eq_dec field_it field_it'))
@@ -275,7 +316,7 @@ Proof.
     destruct out as [[]].
     inversion H; subst.
     + unfold field_pointer.
-      rewrite H2.
+      rewrite H4.
       epose proof (existsb_exists _ _) as He.
       destruct He as [_ He].
       rewrite He; revgoals.
@@ -283,13 +324,16 @@ Proof.
         split; auto.
         apply andb_true_intro; split; apply eq_dec_refl_l. }
       repeat (apply andb_true_intro; split); auto.
-      all: apply eq_dec_refl_l.
+      all: try apply eq_dec_refl_l.
+      apply NoDup_dec_true, H8.
     + unfold field_pointer.
       rewrite H4.
       apply bt_of_sct_rel_fun_eq in H8.
       rewrite H8.
       unfold struct_type.
-      rewrite 3 eq_dec_refl_l.
+      rewrite eq_dec_refl_l with (eq_dec := BasetTypes_t_as_MiniDecidableType.eq_dec).
+      rewrite eq_dec_refl_l with (eq_dec := Predicate_as_MiniDecidableType.eq_dec).
+      rewrite eq_dec_refl_l with (eq_dec := IndexTerm_as_MiniDecidableType.eq_dec).
       destruct t; auto.
       exfalso.
       apply H9.
@@ -309,12 +353,14 @@ Proof.
     destruct (term_is_struct_dec t2) as [Ht | Ht].
     + inversion Ht; subst; clear Ht.
       apply andb_prop in H2; destruct H2 as [H2 H4].
+      apply andb_prop in H2; destruct H2 as [H2 H5].
+      apply NoDup_dec_true in H2.
       epose proof (existsb_exists _ _) as He.
       destruct He as [He _].
-      apply He in H2; clear He.
-      destruct H2 as [[pid' field_it'] [H0 H2]].
-      apply andb_prop in H2; destruct H2 as [H2 H5].
-      apply eq_dec_refl_r in H1, H2, H4, H5; subst.
+      apply He in H5; clear He.
+      destruct H5 as [[pid' field_it'] [H0 H5]].
+      apply andb_prop in H5; destruct H5 as [H5 H6].
+      apply eq_dec_refl_r in H1, H4, H5, H6; subst.
       apply struct_piece_to_resource_struct.
       all: assumption.
     + destruct t2; try (exfalso; apply Ht; constructor).
