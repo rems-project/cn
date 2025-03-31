@@ -546,8 +546,55 @@ Lemma unfold_one_fun_eq:
   unfold_one_fun globals r out_res = true ->
   unfold_one globals r (Resource.set_from_list out_res).
 Proof.
-  admit.
-Admitted.
+  intros globals r out_res H.
+  unfold unfold_one_fun in H.
+  destruct r as [req out].
+  destruct req as [P | Q]; try discriminate; subst.
+  destruct P as [name pointer args].
+  destruct name; try discriminate.
+  destruct t; try discriminate.
+  destruct SymMap.find eqn:Hf; try discriminate.
+  apply andb_prop in H; destruct H as [HlEQ H].
+  apply Nat.eqb_eq in HlEQ.
+  apply SymMap.find_2 in Hf.
+  assert (piece_def : Memory.struct_piece) by (repeat constructor).
+  assert (res_def : Resource.t) by (repeat constructor).
+  eapply unfold_one_struct with (iinit' := i).
+  { apply Subsumed_equal.
+    reflexivity. }
+  { apply Hf. }
+  intros r; split.
+  - intros Hr.
+    apply ResSet_In_List_In_eq in Hr.
+    eapply In_nth with (d := res_def) in Hr as [n [Hl_out_res Hnth]].
+    eapply forallb_forall in H; revgoals.
+    { apply nth_In with (n := n).
+      rewrite length_combine, HlEQ, Nat.min_id.
+      apply Hl_out_res. }
+    rewrite combine_nth with (x := piece_def) (y := res_def) in H by (apply HlEQ).
+    rewrite <- Hnth.
+    exists (nth n s0 piece_def); split.
+    + apply nth_In.
+      rewrite HlEQ.
+      apply Hl_out_res.
+    + apply struct_piece_to_resource_fun_eq, H.
+  - intros [piece [Hp H1]].
+    apply ResSet_In_List_In_eq.
+    eapply In_nth with (d := piece_def) in Hp as [n [Hl_s0 Hnth]].
+    eapply forallb_forall in H; revgoals.
+    { apply nth_In with (n := n).
+      rewrite length_combine, <- HlEQ, Nat.min_id.
+      apply Hl_s0. }
+    rewrite combine_nth with (x := piece_def) (y := res_def) in H by (apply HlEQ).
+    rewrite Hnth in H.
+    apply struct_piece_to_resource_fun_eq in H.
+    erewrite struct_piece_to_resource_functional with (res1 := r) (res2 := nth n out_res res_def).
+    + apply nth_In.
+      rewrite <- HlEQ.
+      apply Hl_s0.
+    + apply H1.
+    + apply H.
+Qed.
 
 Inductive unfold_all (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
 | unfold_all_step:
