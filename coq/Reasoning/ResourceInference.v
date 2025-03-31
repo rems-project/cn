@@ -543,7 +543,8 @@ Definition unfold_one_fun (globals:Global.t) (r : Resource.t) (out_res: list Res
 (* Equivalence between unfold_one and unfold_one_fun *)
 Lemma unfold_one_fun_eq:
   forall globals r out_res,
-  unfold_one globals r (Resource.set_from_list out_res) <-> unfold_one_fun globals r out_res = true.
+  unfold_one_fun globals r out_res = true ->
+  unfold_one globals r (Resource.set_from_list out_res).
 Proof.
   admit.
 Admitted.
