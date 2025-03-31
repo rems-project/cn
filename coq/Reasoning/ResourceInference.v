@@ -683,8 +683,65 @@ Lemma unfold_all_explicit_fun_eq:
   unfold_all_explicit_fun globals unfold_changed input output = true ->
   unfold_all_explicit globals unfold_changed (Resource.set_from_list input) (Resource.set_from_list output).
 Proof.
-  admit.
-Admitted.
+  intros globals input output unfold_changed.
+  revert input output.
+  induction unfold_changed; intros input output H.
+  - simpl in H.
+    apply andb_prop in H; destruct H as [H1 H2].
+    eapply unfold_all_explicit_fixpoint.
+    + intros H.
+      enough (true = false) by discriminate.
+      rewrite <- H1.
+      apply negb_false_iff.
+      destruct H as [r [Hr [unfolded_r H]]].
+      apply existsb_exists.
+      exists r; split.
+      * apply ResSet_In_List_In_eq, Hr.
+      * destruct r; try inversion H.
+        reflexivity.
+    + apply ResSetDecide.F.equal_iff, H2.
+  - destruct a as [r unpack_r].
+    destruct unpack_r as [? | unfolded_r]; try discriminate.
+    cbn in H.
+    apply andb_prop in H; destruct H as [H1 H2].
+    apply andb_prop in H1; destruct H1 as [H1 H3].
+    apply existsb_exists in H1.
+    destruct H1 as [r' [Hr' H1]].
+    apply eq_dec_refl_r in H1; subst.
+    eapply unfold_all_explicit_step
+    with (input' := Resource.set_from_list (remove ResSetDecide.F.eq_dec r' input ++ unfolded_r)).
+    + apply ResSet_In_List_In_eq, Hr'.
+    + apply unfold_one_fun_eq, H3.
+    + clear.
+      unfold ResSet.Equal.
+      intros r; split; intros H.
+      * apply ResSet_In_List_In_eq in H.
+        apply in_app_iff in H.
+        apply ResSetDecide.F.union_iff.
+        destruct H as [H | H].
+        -- left.
+           apply in_remove in H.
+           destruct H as [H1 H2].
+           apply ResSetDecide.F.remove_iff.
+           split.
+           ++ apply ResSet_In_List_In_eq, H1.
+           ++ apply not_eq_sym, H2.
+        -- right.
+           apply ResSet_In_List_In_eq, H.
+      * apply ResSet_In_List_In_eq.
+        apply in_app_iff.
+        apply ResSetDecide.F.union_iff in H.
+        destruct H as [H | H].
+        -- left.
+           apply ResSetDecide.F.remove_iff in H.
+           destruct H as [H1 H2].
+           apply in_in_remove.
+           ++ apply not_eq_sym, H2.
+           ++ apply ResSet_In_List_In_eq, H1.
+        -- right.
+           apply ResSet_In_List_In_eq, H.
+    + apply IHunfold_changed, H2.
+Qed.
 
 Definition unfold_step_flatten (l : list unfold_step): unfold_changed :=
   List.concat (List.map fst l).
