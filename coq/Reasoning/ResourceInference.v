@@ -651,6 +651,15 @@ Proof.
   - eapply unfold_all_fixpoint; eassumption.
 Qed.
 
+Definition resource_is_struct (r : Resource.t): bool :=
+  match r with
+  | (Request.P {| Predicate.name := Request.Owned (SCtypes.Struct _) _;
+                  Predicate.pointer := _;
+                  Predicate.iargs := _ |}, _) =>
+    true
+  | _ => false
+  end.
+
 (* Computable version of unfold_all_explicit predicate *)
 Fixpoint unfold_all_explicit_fun
   (globals:Global.t)
@@ -662,7 +671,9 @@ Fixpoint unfold_all_explicit_fun
     List.existsb (fun r' => bool_of_sum (Resource_as_DecidableType.eq_dec r r')) input &&
     unfold_one_fun globals r unfolded_r_list &&
     unfold_all_explicit_fun globals unfold_changed input' output
-  | [] => ResSet.equal (Resource.set_from_list input) (Resource.set_from_list output)
+  | [] =>
+    negb (List.existsb resource_is_struct input) && (* this should be updated later to support arrays *)
+    ResSet.equal (Resource.set_from_list input) (Resource.set_from_list output)
   | _ => false
   end.
 
