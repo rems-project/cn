@@ -44,13 +44,10 @@ Module ResSet := FSetWeakList.Make Resource_as_DecidableType.
 Module ResSetDecide := FSetDecide.WDecide(ResSet).
 
 Definition set_from_list (l : list t) : ResSet.t :=
-  List.fold_left (fun s c => ResSet.add c s) l ResSet.empty.
-
-Definition set_from_list_r (l : list t) : ResSet.t :=
   List.fold_right (fun c s => ResSet.add c s) ResSet.empty l.
 
-Lemma ResSet_In_List_In_eq_r: forall r rs,
-  ResSet.In r (Resource.set_from_list_r rs) <-> List.In r rs.
+Lemma ResSet_In_List_In_eq: forall r rs,
+  ResSet.In r (Resource.set_from_list rs) <-> List.In r rs.
 Proof.
   intros r rs.
   induction rs.
@@ -65,29 +62,4 @@ Proof.
     destruct H as [H | H].
     + left; apply H.
     + right; apply IHrs, H.
-Qed.
-
-Lemma set_from_list_r_eq: forall l,
-  ResSet.Equal (set_from_list l) (set_from_list_r l).
-Proof.
-  intros l.
-  unfold set_from_list, set_from_list_r.
-  rewrite <- fold_left_rev_right.
-  unfold ResSet.Equal.
-  intros a; split; intros H.
-  - apply ResSet_In_List_In_eq_r in H.
-    apply ResSet_In_List_In_eq_r, in_rev, H.
-  - apply ResSet_In_List_In_eq_r, in_rev in H.
-    apply ResSet_In_List_In_eq_r, H.
-Qed.
-
-Lemma ResSet_In_List_In_eq: forall r rs,
-  ResSet.In r (Resource.set_from_list rs) <-> List.In r rs.
-Proof.
-  intros r rs.
-  split; intros H.
-  - apply set_from_list_r_eq in H.
-    apply ResSet_In_List_In_eq_r, H.
-  - apply set_from_list_r_eq.
-    apply ResSet_In_List_In_eq_r, H.
 Qed.
