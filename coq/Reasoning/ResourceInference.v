@@ -608,12 +608,13 @@ Inductive unfold_all (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
     (* This is the result of unfolding the input *)
     unfold_all globals input output
 | unfold_all_fixpoint:
-    forall input,
+    forall input output,
     (* A fixpoint is reached when no resource can be unfolded further *)
     ~ ResSet.Exists
         (fun r => exists unfolded_r, unfold_one globals r unfolded_r)
         input ->
-    unfold_all globals input input.
+    ResSet.Equal input output ->
+    unfold_all globals input output.
 
 (* A version of `unfold_all`, using hints *)
 Inductive unfold_all_explicit (globals:Global.t):
@@ -630,12 +631,13 @@ Inductive unfold_all_explicit (globals:Global.t):
     (* This is the result of unfolding the input *)
     unfold_all_explicit globals ((r, UnpackRES unfolded_r_list) :: unfold_changed) input output
 | unfold_all_explicit_fixpoint:
-    forall input,
+    forall input output,
     (* A fixpoint is reached when no resource can be unfolded further *)
     ~ ResSet.Exists
         (fun r => exists unfolded_r, unfold_one globals r unfolded_r)
         input ->
-    unfold_all_explicit globals [] input input.
+    ResSet.Equal input output ->
+    unfold_all_explicit globals [] input output.
 
 (* Proof that unfold_all_explicit is equivalent to unfold_all *)    
 Lemma unfold_all_explicit_eq:
@@ -645,8 +647,8 @@ Lemma unfold_all_explicit_eq:
 Proof.
   intros globals input output unfold_changed H.
   induction H.
-  - econstructor; eassumption.
-  - econstructor; eassumption.
+  - eapply unfold_all_step; eassumption.
+  - eapply unfold_all_fixpoint; eassumption.
 Qed.
 
 (* Computable version of unfold_all_explicit predicate *)
