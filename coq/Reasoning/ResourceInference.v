@@ -154,6 +154,24 @@ Proof.
       inversion H.
 Qed.
 
+Lemma bt_of_sct_rel_functional : forall sct bt1 bt2,
+  bt_of_sct_rel sct bt1 ->
+  bt_of_sct_rel sct bt2 ->
+  bt1 = bt2.
+Proof.
+  intros sct bt1 bt2 H1 H2.
+  revert bt2 H2.
+  induction H1; intros bt2 H2.
+  all: inversion H2; subst; clear H2.
+  - reflexivity.
+  - reflexivity.
+  - rewrite IHbt_of_sct_rel with (bt2 := bt0).
+    + reflexivity.
+    + assumption.
+  - reflexivity.
+  - reflexivity.
+Qed.
+
 (* Defines when a term represents a cast of another term to a specific type *)
 Inductive cast_ (loc: Locations.t) : BaseTypes.t -> IndexTerms.t -> IndexTerms.t -> Prop :=
 | cast_same: forall bt t' l',
@@ -174,6 +192,39 @@ Inductive addr_ (loc: Locations.t) : IndexTerms.t -> IndexTerms.t -> Prop :=
   bt_of_sct_rel (SCtypes.Integer (IntegerType.Signed Intptr_t)) pt ->
   cast_ loc pt (Terms.IT _ t' bt' l') result ->
   addr_ loc (Terms.IT _ t' bt' l') result.
+
+Definition fields_list_functional (fields : list (Symbol.identifier * IndexTerms.t)) : Prop :=
+  forall id field1 field2,
+  List.In (id, field1) fields ->
+  List.In (id, field2) fields ->
+  field1 = field2.
+
+Lemma fields_list_nodup_is_functional : forall fields,
+  NoDup (List.map fst fields) ->
+  fields_list_functional fields.
+Proof.
+  intros fields H id field1 field2 Hfield1 Hfield2.
+  assert (id_def : Symbol.identifier) by (repeat constructor).
+  assert (term_def : IndexTerms.t) by (repeat constructor).
+  apply In_nth with (d := (id_def, term_def)) in Hfield1.
+  apply In_nth with (d := (id_def, term_def)) in Hfield2.
+  destruct Hfield1 as [n1 [Hn1 Hfield1]].
+  destruct Hfield2 as [n2 [Hn2 Hfield2]].
+  apply NoDup_nth with (i := n1) (j := n2) (d := id_def) in H.
+  - rewrite H in Hfield1.
+    rewrite Hfield1 in Hfield2.
+    inversion_clear Hfield2.
+    reflexivity.
+  - rewrite length_map.
+    apply Hn1.
+  - rewrite length_map.
+    apply Hn2.
+  - change id_def with (fst (id_def, term_def)).
+    rewrite 2 map_nth.
+    rewrite Hfield1, Hfield2.
+    cbn.
+    reflexivity.
+Qed.
 
 Lemma NoDup_dec (A : Type)
   (dec: forall (x y : A), {x = y} + {x <> y})
@@ -300,6 +351,35 @@ Definition struct_piece_to_resource_fun
     end
   | _ => false
   end.
+
+Lemma struct_piece_to_resource_functional:
+  forall piece iinit ipointer iargs tag out res1 res2,
+  struct_piece_to_resource piece iinit ipointer iargs tag out res1 ->
+  struct_piece_to_resource piece iinit ipointer iargs tag out res2 ->
+  res1 = res2.
+Proof.
+  intros piece iinit ipointer iargs tag out res1 res2 H1 H2.
+  inversion H1; inversion H2; subst; clear H1 H2.
+  - inversion H9; subst; clear H9.
+    rewrite H in H6; inversion H6; subst; clear H6.
+    unfold field_pointer, field_pointer0.
+    repeat (f_equal; auto).
+    apply fields_list_nodup_is_functional in H7.
+    eapply H7; eauto.
+  - inversion H9; subst; clear H9.
+    exfalso.
+    apply H8.
+    constructor.
+  - inversion H9; subst; clear H9.
+    exfalso.
+    apply H3.
+    constructor.
+  - inversion H9; subst; clear H9.
+    unfold field_pointer, field_pointer0.
+    rewrite H in H6; inversion H6; subst; clear H6.
+    repeat (f_equal; auto).
+    eapply bt_of_sct_rel_functional; eauto.
+Qed.
 
 Lemma struct_piece_to_resource_fun_eq:
   forall piece iinit ipointer iargs tag out res,
