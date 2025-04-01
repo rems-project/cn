@@ -295,12 +295,12 @@ let ask_solver g lcs =
   in
   let res =
     match solver_res with
-    | `True -> Result.no (Pp.( !^ ) "The solver proved this resource is inconsistent.")
+    | `True -> Result.no (Pp.string "The solver proved this resource is inconsistent.")
     | `Unknown ->
-      Result.unknown (Pp.( !^ ) "The solver timed out trying to validate this resource.")
+      Result.unknown (Pp.string "The solver timed out trying to validate this resource.")
     | `False ->
       Result.unknown
-        (Pp.( !^ )
+        (Pp.string
            "The solver validated this resource, but did not have some definitions and \
             may have been incorrect.")
   in
