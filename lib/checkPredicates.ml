@@ -27,6 +27,15 @@ module Result = struct
 
   let ( let@ ) = Result.bind
 
+  let pp pp_a pp_b r =
+    let open Pp in
+    match r with
+    | Ok x -> !^"Yes: " ^^^ pp_a x
+    | Error (No, x) -> !^"No: " ^^^ pp_b x
+    | Error (Unknown, x) -> !^"Unknown: " ^^^ pp_b x
+    | Error (Err, x) -> !^"Err: " ^^^ pp_b x
+
+
   let is_no r = Result.is_error r && equal_reason No (fst (Result.get_error r))
 
   (* Gives a single canonical result *)
@@ -286,11 +295,14 @@ let ask_solver g lcs =
   in
   let res =
     match solver_res with
-    | `True -> Result.no (Pp.( !^ ) "Solver returned No.")
-    | `Unknown -> Result.unknown (Pp.( !^ ) "Solver returned Unknown.")
+    | `True -> Result.no (Pp.( !^ ) "The solver proved this resource is inconsistent.")
+    | `Unknown ->
+      Result.unknown (Pp.( !^ ) "The solver timed out trying to validate this resource.")
     | `False ->
       Result.unknown
-        (Pp.( !^ ) "Solver returned No, but without some definitions available.")
+        (Pp.( !^ )
+           "The solver validated this resource, but did not have some definitions and \
+            may have been incorrect.")
   in
   res
 

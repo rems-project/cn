@@ -357,7 +357,8 @@ let state (ctxt : C.t) log model_with_q extras =
       let rslt = Req.pp req ^^^ !^"(" ^^^ IT.pp cand ^^^ !^")" in
       Rp.
         { original = rslt;
-          (* original = ^^^ !^"\n"^^^ LAT.pp_check_result p; *)
+          (* !^"Full predicate check output: "
+            ^^^ CP.Result.pp (Pp.list LC.pp) (fun x -> x) p; *)
           (* Issue #900 *)
           simplified = [ rslt ]
         }
