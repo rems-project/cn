@@ -397,7 +397,7 @@ module General = struct
       match ftyp with
       | LogicalArgumentTypes.I rt -> return (rt, rw_time, l)
       | _ ->
-        let@ ftyp, rw_time, _l =
+        let@ ftyp, rw_time, l' =
           parametric_ftyp_args_request_step
             resource_request
             IT.subst
@@ -407,7 +407,7 @@ module General = struct
             ftyp
             rw_time
         in
-        loop ftyp rw_time (l @ _l)
+        loop ftyp rw_time (l @ l')
     in
     loop ftyp [] []
 
@@ -445,7 +445,7 @@ module General = struct
      predicate_request?
   *)
   let ftyp_args_request_step rt_subst loc situation original_resources ftyp =
-    let@ rt, _rw_time, _l =
+    let@ rt, _rw_time, l =
       parametric_ftyp_args_request_step
         resource_request
         rt_subst
@@ -459,7 +459,7 @@ module General = struct
        record the resource inference steps for the inner calls. They not nested
        under anything, so we need to record them separately. *)
     if Prooflog.is_enabled () then
-      List.iter Prooflog.record_resource_inference_step _l
+      List.iter Prooflog.record_resource_inference_step l
     else
       ();
     return rt
