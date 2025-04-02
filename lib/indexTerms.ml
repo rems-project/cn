@@ -647,26 +647,6 @@ let arith_binop_check op (it, it') loc =
 
 let add_check_ = arith_binop_check Add
 
-let ( %+ ) t t' = add_ (t, t')
-
-let ( %- ) t t' = sub_ (t, t')
-
-let ( %* ) t t' = mul_ (t, t')
-
-let ( %/ ) t t' = div_ (t, t')
-
-let ( %== ) t t' = eq_ (t, t')
-
-let ( %!= ) t t' = ne_ (t, t')
-
-let ( %< ) t t' = lt_ (t, t')
-
-let ( %<= ) t t' = le_ (t, t')
-
-let ( %> ) t t' = gt_ (t, t')
-
-let ( %>= ) t t' = ge_ (t, t')
-
 (* tuple_op *)
 let tuple_ its loc = IT (Tuple its, BT.Tuple (List.map get_bt its), loc)
 

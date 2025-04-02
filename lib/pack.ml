@@ -33,7 +33,7 @@ let unfolded_array loc init (ict, olength) pointer =
       iargs = [];
       permission =
         IT.(
-          and_ [ (uintptr_int_ 0 loc %<= q) loc; (q %< uintptr_int_ length loc) loc ] loc)
+          and_ [ le_ (uintptr_int_ 0 loc, q) loc; lt_ (q, uintptr_int_ length loc) loc ] loc)
     }
 
 
