@@ -332,7 +332,6 @@ int cn_test_main(int argc, char* argv[]) {
       if (progress_level == CN_TEST_GEN_PROGRESS_ALL) {
         print_test_info(test_case->suite, test_case->name, 0, 0);
       }
-      repros[i].size = cn_gen_get_size();
       repros[i].checkpoint = cn_gen_rand_save();
       cn_gen_set_input_timeout(input_timeout);
       enum cn_test_result result =
@@ -340,6 +339,7 @@ int cn_test_main(int argc, char* argv[]) {
       if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
         results[i] = result;
       }
+      repros[i].size = cn_gen_get_size();
       if (progress_level == CN_TEST_GEN_PROGRESS_NONE) {
         continue;
       }
@@ -361,7 +361,9 @@ int cn_test_main(int argc, char* argv[]) {
                 true, CN_TEST_GEN_PROGRESS_NONE, sizing_strategy, trap, replicas);
 
             if (replay_result != CN_TEST_FAIL) {
-              fprintf(stderr, "Replay of failure did not fail.\n");
+              fprintf(stderr,
+                  "Replay of failure did not fail (result = %d).\n",
+                  replay_result);
               abort();
             }
 

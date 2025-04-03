@@ -101,7 +101,6 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
                                                                                          \
         return CN_TEST_FAIL;                                                             \
       case CN_FAILURE_ALLOC:                                                             \
-        cn_gen_rand_replace(checkpoint);                                                 \
         d++;                                                                             \
         recentDiscards++;                                                                \
         break;                                                                           \
@@ -120,6 +119,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       if (!replay) {                                                                     \
         cn_gen_set_size(cn_gen_compute_size(                                             \
             sizing_strategy, Samples, cn_gen_get_max_size(), 10, i, recentDiscards));    \
+        cn_gen_rand_replace(checkpoint);                                                 \
       }                                                                                  \
       CN_TEST_INIT();                                                                    \
       if (!replay) {                                                                     \
@@ -129,7 +129,6 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       }                                                                                  \
       struct cn_gen_##Name##_record* res = cn_gen_##Name();                              \
       if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_NONE) {                            \
-        cn_gen_rand_replace(checkpoint);                                                 \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
@@ -149,7 +148,9 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         cn_trap();                                                                       \
       }                                                                                  \
       Name(__VA_ARGS__);                                                                 \
-      cn_gen_rand_replace(checkpoint);                                                   \
+      if (replay) {                                                                      \
+        return CN_TEST_PASS;                                                             \
+      }                                                                                  \
       recentDiscards = 0;                                                                \
     }                                                                                    \
                                                                                          \
