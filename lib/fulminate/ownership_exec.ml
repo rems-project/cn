@@ -113,22 +113,55 @@ let generate_c_local_ownership_entry_bs_and_ss (sym, ctype) =
 
    int x = 0, _dummy = (c_map_local(&x), 0), y = 5, _dummy2 = (c_map_local(&y), 0); *)
 
+(* NEW SCHEME:
+
+   Case 1: initial value provided
+   =================================
+
+   int x = 0, y = 5;
+
+   ->
+
+   int x = (c_map_local(&x), 0), y = (c_map_local(&y), 5);
+
+   Case 2: no initial value (expr_opt = None)
+   ===========================================
+
+   int x;
+
+   ->
+
+   ?????????
+   NB: In this special case for inside a for-loop condition, it's unlikely that there will be no initial value provided. Leaving as a TODO for now.
+*)
+
 (* TODO: Include binding + declaration of <sym>_addr_cn via generate_c_local_cn_addr_var function *)
 let rec gen_loop_ownership_entry_decls bindings = function
   | [] -> ([], [])
   | (sym, expr_opt) :: xs ->
-    let dummy_sym = Sym.fresh_anon () in
-    let ctype = find_ctype_from_bindings bindings sym in
-    let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
-    let zero_const =
-      A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
-    in
-    let dummy_rhs = mk_expr A.(AilEbinary (entry_fcall, Comma, mk_expr zero_const)) in
-    let new_bindings =
-      List.map (fun sym -> create_binding sym ctype) [ sym; dummy_sym ]
-    in
-    let bindings', decls' = gen_loop_ownership_entry_decls bindings xs in
-    (new_bindings @ bindings', (sym, expr_opt) :: (dummy_sym, Some dummy_rhs) :: decls')
+    (* For now, requiring that every variable being declared has some initial value *)
+    (match expr_opt with
+     | Some expr ->
+       let dummy_sym = Sym.fresh_anon () in
+       let ctype = find_ctype_from_bindings bindings sym in
+       let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
+       let zero_const =
+         A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
+       in
+       let dummy_rhs = mk_expr A.(AilEbinary (entry_fcall, Comma, mk_expr zero_const)) in
+       let new_bindings =
+         List.map (fun sym -> create_binding sym ctype) [ sym; dummy_sym ]
+       in
+       let bindings', decls' = gen_loop_ownership_entry_decls bindings xs in
+       (new_bindings @ bindings', (sym, expr_opt) :: (dummy_sym, Some dummy_rhs) :: decls')
+     | None ->
+       let error_msg =
+         Printf.sprintf
+           "TODO: Uninitialised declared variables in loop conditions not supported yet. \
+            For a quick fix, provide some initial value for variable %s\n"
+           (Sym.pp_string sym)
+       in
+       failwith error_msg)
 
 
 let generate_c_local_ownership_entry_inj dest_is_loop loc decls bindings =
