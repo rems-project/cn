@@ -137,23 +137,15 @@ let generate_c_local_ownership_entry_bs_and_ss (sym, ctype) =
 
 (* TODO: Include binding + declaration of <sym>_addr_cn via generate_c_local_cn_addr_var function *)
 let rec gen_loop_ownership_entry_decls bindings = function
-  | [] -> ([], [])
+  | [] -> []
   | (sym, expr_opt) :: xs ->
     (* For now, requiring that every variable being declared has some initial value *)
     (match expr_opt with
      | Some expr ->
-       let dummy_sym = Sym.fresh_anon () in
        let ctype = find_ctype_from_bindings bindings sym in
        let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
-       let zero_const =
-         A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
-       in
-       let dummy_rhs = mk_expr A.(AilEbinary (entry_fcall, Comma, mk_expr zero_const)) in
-       let new_bindings =
-         List.map (fun sym -> create_binding sym ctype) [ sym; dummy_sym ]
-       in
-       let bindings', decls' = gen_loop_ownership_entry_decls bindings xs in
-       (new_bindings @ bindings', (sym, expr_opt) :: (dummy_sym, Some dummy_rhs) :: decls')
+       let new_rhs_expr = mk_expr A.(AilEbinary (entry_fcall, Comma, expr)) in
+       (sym, Some new_rhs_expr) :: gen_loop_ownership_entry_decls bindings xs
      | None ->
        let error_msg =
          Printf.sprintf
@@ -164,10 +156,10 @@ let rec gen_loop_ownership_entry_decls bindings = function
        failwith error_msg)
 
 
-let generate_c_local_ownership_entry_inj dest_is_loop loc decls bindings =
-  if dest_is_loop then (
-    let new_bindings, new_decls = gen_loop_ownership_entry_decls bindings decls in
-    [ (loc, new_bindings, [ A.AilSdeclaration new_decls ]) ])
+let generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings =
+  if is_forloop then (
+    let new_decls = gen_loop_ownership_entry_decls bindings decls in
+    [ (loc, bindings, [ A.AilSdeclaration new_decls ]) ])
   else (
     let ownership_bs_and_ss =
       List.map
@@ -307,21 +299,8 @@ let get_c_control_flow_block_unmaps stat =
 
 
 (* Ghost state tracking for block declarations *)
-let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; attrs; node = s_ } =
-  match s_ with
-  | A.(AilSdeclaration decls) ->
-    (* int x = 0; -> int x = 0, _dummy = (c_map_local(&x), 0); *)
-    generate_c_local_ownership_entry_inj false loc decls bindings
-  (* TODO: Update to work with new is_forloop record member *)
-  (* | AilSblock
-      ( bs,
-        [ A.AnnotatedStatement (decl_loc, _, A.AilSdeclaration decls);
-          A.AnnotatedStatement (_, _, A.AilSwhile (_, s, _))
-        ] ) ->
-    let inj = generate_c_local_ownership_entry_inj true decl_loc decls bs in
-    let injs' = get_c_block_entry_exit_injs_aux [] s in
-    inj @ injs' *)
-  | AilSblock (bs, ss) ->
+let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; node = s_; _ } =
+  let gen_standard_block_injs bs ss =
     let exit_injs =
       List.map
         (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
@@ -332,6 +311,23 @@ let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; attrs; nod
     let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
     let stat_injs = List.map (fun s -> get_c_block_entry_exit_injs_aux bs s) ss in
     List.concat stat_injs @ exit_injs'
+  in
+  match s_ with
+  | A.(AilSdeclaration decls) ->
+    generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings
+  | AilSblock
+      ( bs,
+        ([ A.{ loc = decl_loc; node = AilSdeclaration decls; _ };
+           A.{ node = A.AilSwhile (_, s, _); _ }
+         ] as ss) ) ->
+    if is_forloop then (
+      (* WIP: special case for for-loops *)
+      let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
+      let injs' = get_c_block_entry_exit_injs_aux [] s in
+      inj @ injs')
+    else
+      gen_standard_block_injs bs ss
+  | AilSblock (bs, ss) -> gen_standard_block_injs bs ss
   | AilSif (_, s1, s2) ->
     let injs = get_c_block_entry_exit_injs_aux bindings s1 in
     let injs' = get_c_block_entry_exit_injs_aux bindings s2 in
