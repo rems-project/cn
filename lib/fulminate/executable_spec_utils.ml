@@ -33,11 +33,18 @@ let mk_cn_expr cn_expr_ = Cn.CNExpr (Cerb_location.unknown, cn_expr_)
 
 let rm_cn_expr (Cn.CNExpr (_, cn_expr_)) = cn_expr_
 
-let mk_stmt stmt_ = A.AnnotatedStatement (Cerb_location.unknown, CF.Annot.Attrs [], stmt_)
+let mk_stmt stmt_ =
+  A.
+    { loc = Cerb_location.unknown;
+      is_forloop = false;
+      attrs = CF.Annot.Attrs [];
+      node = stmt_
+    }
+
 
 let rm_expr (A.AnnotatedExpression (_, _, _, expr_)) = expr_
 
-let rm_stmt (A.AnnotatedStatement (_, _, stmt_)) = stmt_
+let rm_stmt = function A.{ loc; is_forloop; attrs; node = stmt_ } -> stmt_
 
 let empty_ail_str = "empty_ail"
 

@@ -1306,9 +1306,12 @@ let rec cn_to_ail_expr_aux
                  let ail_case =
                    A.(AilScase (Nat_big_num.zero (* placeholder *), mk_stmt stat_block))
                  in
-                 A.(
-                   AnnotatedStatement
-                     (Cerb_location.unknown, CF.Annot.Attrs [ attribute ], ail_case))
+                 A.
+                   { loc = Cerb_location.unknown;
+                     is_forloop = false;
+                     attrs = CF.Annot.Attrs [ attribute ];
+                     node = ail_case
+                   }
                in
                let e1_transformed = transform_switch_expr e1 in
                let ail_case_stmts = List.map build_case dt.cn_dt_cases in
@@ -1681,7 +1684,12 @@ let generate_datatype_equality_function (cn_datatype : _ cn_datatype)
     let ail_case =
       A.(AilScase (Nat_big_num.zero, mk_stmt (AilSblock (bs, ss @ [ return_stat ]))))
     in
-    A.(AnnotatedStatement (Cerb_location.unknown, CF.Annot.Attrs [ attribute ], ail_case))
+    A.
+      { loc = Cerb_location.unknown;
+        is_forloop = false;
+        attrs = CF.Annot.Attrs [ attribute ];
+        node = ail_case
+      }
   in
   let switch_stmt =
     A.(
@@ -1784,9 +1792,12 @@ let generate_datatype_default_function (cn_datatype : _ cn_datatype) =
               (mk_expr (AilEmemberofptr (res_ident, Id.make here "tag")), enum_ident))))
   in
   let res_tag_assign_stat =
-    A.(
-      AnnotatedStatement
-        (Cerb_location.unknown, CF.Annot.Attrs [ attribute ], res_tag_assign))
+    A.
+      { loc = Cerb_location.unknown;
+        is_forloop = false;
+        attrs = CF.Annot.Attrs [ attribute ];
+        node = res_tag_assign
+      }
   in
   let lc_constr_sym = generate_sym_with_suffix ~suffix:"" ~lowercase:true constructor in
   let res_u = A.(AilEmemberofptr (res_ident, Id.make here "u")) in

@@ -210,7 +210,7 @@ let get_c_local_ownership_checking params =
 
 let rec collect_visibles bindings = function
   | [] -> []
-  | A.(AnnotatedStatement (_, _, AilSdeclaration decls)) :: ss ->
+  | A.{ loc; is_forloop; attrs; node = AilSdeclaration decls } :: ss ->
     let decl_syms_and_ctypes =
       List.map (fun (sym, _) -> (sym, find_ctype_from_bindings bindings sym)) decls
     in
@@ -233,7 +233,7 @@ let rec get_c_control_flow_block_unmaps_aux
           continue_vars
           return_vars
           bindings
-          A.(AnnotatedStatement (loc, _, s_))
+          A.{ loc; is_forloop; attrs; node = s_ }
   : ownership_injection list
   =
   match s_ with
@@ -307,19 +307,20 @@ let get_c_control_flow_block_unmaps stat =
 
 
 (* Ghost state tracking for block declarations *)
-let rec get_c_block_entry_exit_injs_aux bindings A.(AnnotatedStatement (loc, _, s_)) =
+let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; attrs; node = s_ } =
   match s_ with
   | A.(AilSdeclaration decls) ->
     (* int x = 0; -> int x = 0, _dummy = (c_map_local(&x), 0); *)
     generate_c_local_ownership_entry_inj false loc decls bindings
-  | AilSblock
+  (* TODO: Update to work with new is_forloop record member *)
+  (* | AilSblock
       ( bs,
         [ A.AnnotatedStatement (decl_loc, _, A.AilSdeclaration decls);
           A.AnnotatedStatement (_, _, A.AilSwhile (_, s, _))
         ] ) ->
     let inj = generate_c_local_ownership_entry_inj true decl_loc decls bs in
     let injs' = get_c_block_entry_exit_injs_aux [] s in
-    inj @ injs'
+    inj @ injs' *)
   | AilSblock (bs, ss) ->
     let exit_injs =
       List.map
@@ -370,7 +371,7 @@ let rec remove_duplicates ds = function
 
 
 let get_c_block_local_ownership_checking_injs
-      A.(AnnotatedStatement (_, _, fn_block) as statement)
+      A.({ loc; is_forloop; attrs; node = fn_block } as statement)
   =
   match fn_block with
   | A.(AilSblock _) ->
