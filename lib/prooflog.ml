@@ -42,3 +42,27 @@ let add_log_entry entry =
 let get_proof_log () = !proof_log
 
 let record_resource_inference_step entry = add_log_entry entry
+
+let rec simplify_proof_log_entry simp_ctxt log_entry =
+  match log_entry with
+  | PredicateRequest (ic, s, req, (p, Resource.O o), log, oc) ->
+    let p_simp = Simplify.Request.Predicate.simp simp_ctxt p in
+    let o_simp = Simplify.IndexTerms.simp ~inline_symbols:false simp_ctxt o in
+    let log_simp = simplify_proof_log simp_ctxt log in
+    PredicateRequest (ic, s, req, (p_simp, Resource.O o_simp), log_simp, oc)
+  | _ -> log_entry
+
+
+and simplify_proof_log simp_ctxt log = List.map (simplify_proof_log_entry simp_ctxt) log
+
+(* these versions of functions simplify only the inner proof log steps, which are used for hints *)
+let simplify_hints_proof_log_entry simp_ctxt log_entry =
+  match log_entry with
+  | PredicateRequest (ic, s, req, r, log, oc) ->
+    let log_simp = simplify_proof_log simp_ctxt log in
+    PredicateRequest (ic, s, req, r, log_simp, oc)
+  | _ -> log_entry
+
+
+let simplify_hints_proof_log simp_ctxt log =
+  List.map (simplify_hints_proof_log_entry simp_ctxt) log
