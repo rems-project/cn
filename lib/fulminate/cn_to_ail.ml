@@ -163,8 +163,12 @@ let augment_record_map ?cn_sym bt =
   | _ -> ()
 
 
+let lookup_records_map_opt bt =
+  match bt with BT.Record members -> RecordMap.find_opt members !records | _ -> None
+
+
 let lookup_records_map members =
-  match RecordMap.find_opt members !records with
+  match lookup_records_map_opt (BT.Record members) with
   | Some sym -> sym
   | None ->
     failwith
@@ -2775,13 +2779,21 @@ let cn_to_ail_logical_constraint
   cn_to_ail_logical_constraint_aux dts globals PassBack lc
 
 
-let rec generate_record_opt pred_sym = function
-  | BT.Record members ->
-    let record_sym = generate_sym_with_suffix ~suffix:"_record" pred_sym in
-    Some (generate_struct_definition ~lc:false (record_sym, members))
+let generate_record_tag pred_sym bt =
+  match bt with
+  | BT.Record _ -> Some (generate_sym_with_suffix ~suffix:"_record" pred_sym)
+  | BT.Tuple _ -> Some pred_sym
+  | _ -> None
+
+
+let rec generate_record_opt pred_sym bt =
+  let open Option in
+  let@ type_sym = generate_record_tag pred_sym bt in
+  match bt with
+  | BT.Record members -> Some (generate_struct_definition ~lc:false (type_sym, members))
   | BT.Tuple ts ->
     let members = List.map (fun t -> (create_id_from_sym (Sym.fresh_anon ()), t)) ts in
-    generate_record_opt pred_sym (BT.Record members)
+    generate_record_opt type_sym (BT.Record members)
   | _ -> None
 
 
