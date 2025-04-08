@@ -3282,7 +3282,7 @@ module Specialization = struct
         | ITE (it_if, gt_then, gt_else) ->
           let b, gt_then' = aux gt_then in
           let b', gt_else' = aux gt_else in
-          (b || b', GT.ite_ (it_if, gt_then', gt_else') loc)
+          (b && b', GT.ite_ (it_if, gt_then', gt_else') loc)
         | Map ((i, i_bt, it_perm), gt_inner) ->
           let b, gt_inner' = aux gt_inner in
           (b, GT.map_ ((i, i_bt, it_perm), gt_inner') loc)
