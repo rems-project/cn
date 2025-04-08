@@ -503,8 +503,41 @@ let cn_to_ail_const const basetype =
   let ail_const =
     match const with
     | IT.Z z -> wrap (A.AilEconst (ConstantInteger (IConstant (z, Decimal, None))))
-    | MemByte { alloc_id = _; value = i } | Bits (_, i) ->
+    | MemByte { alloc_id = _; value = i } ->
       wrap (A.AilEconst (ConstantInteger (IConstant (i, Decimal, None))))
+    | Bits ((sgn, sz), i) ->
+      let z_min, z_max = BT.bits_range (sgn, sz) in
+      let ity =
+        let ibt = CF.IntegerType.IntN_t sz in
+        match sgn with Signed -> C.Signed ibt | Unsigned -> C.Unsigned ibt
+      in
+      let suffix =
+        let size_of = Memory.size_of_integer_type in
+        match sgn with
+        | Unsigned ->
+          if sz <= size_of (Unsigned Int_) then
+            Some A.U
+          else if sz <= size_of (Unsigned Long) then
+            Some A.UL
+          else
+            Some A.ULL
+        | Signed ->
+          if sz <= size_of (Signed Int_) then
+            None
+          else if sz <= size_of (Signed Long) then
+            Some A.L
+          else
+            Some A.LL
+      in
+      let ail_const =
+        if Z.equal i z_max then
+          A.ConstantInteger (IConstantMax ity)
+        else if Z.equal i z_min && BT.equal_sign sgn BT.Signed then
+          A.ConstantInteger (IConstantMin ity)
+        else
+          ConstantInteger (IConstant (i, Decimal, suffix))
+      in
+      wrap (A.AilEconst ail_const)
     | Q q -> wrap (A.AilEconst (ConstantFloating (Q.to_string q, None)))
     | Pointer z ->
       let ail_const' =

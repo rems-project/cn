@@ -285,7 +285,12 @@ let main
   output_to_oc cn_oc cn_defs_list;
   (* Generate myfile-exec.c *)
   let incls =
-    [ ("assert.h", true); ("stdlib.h", true); ("stdbool.h", true); ("math.h", true) ]
+    [ ("assert.h", true);
+      ("stdlib.h", true);
+      ("stdbool.h", true);
+      ("math.h", true);
+      ("limits.h", true)
+    ]
   in
   let headers = List.map Executable_spec_utils.generate_include_header incls in
   let source_file_strs_list = [ cn_header; List.fold_left ( ^ ) "" headers; "\n" ] in
