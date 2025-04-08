@@ -152,7 +152,7 @@ Lemma option_eq_dec {A : Type}
       forall (o1 o2 : option A), {o1 = o2} + {o1 <> o2}.
 Proof.
   decide equality.
-Qed.
+Defined.
 
 Module BasetTypes_t_as_MiniDecidableType <: MiniDecidableType.
   Definition t := t.

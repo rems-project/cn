@@ -93,7 +93,7 @@ Qed.
 
 
 (* [struct_resource_inference_step] constructor pre-condition proof *)
- Ltac2 prove_struct_resource_inference_step () :=
+ Ltac2 prove_struct_resource_inference_step (log_entry:constr) :=
  match! goal with
  | [ |- exists field_res,
         unfold_all _ _ field_res /\
@@ -113,7 +113,12 @@ Qed.
      Std.split false NoBindings;
      Control.focus 1 1 (fun () =>
       (* Proof using computational reflection: *)
-      Control.shelve ()
+      ltac1:(apply unfold_all_singleton_eq);
+      ltac1:(log_entry |- apply unfold_all_explicit_eq with (unfold_changed := (get_hints_from_log_entry log_entry))) 
+        (Ltac1.of_constr log_entry);
+      ltac1:(apply unfold_all_explicit_fun_eq);
+      ltac1:(vm_compute);
+      ltac1:(reflexivity)
      );  (* unfold predicate *)
      Control.focus 1 1 (fun () =>
       pairwise_decidability (constr:(Resource_as_MiniDecidableType.eq_dec)) in_res_list ;
@@ -160,34 +165,38 @@ Ltac2 prove_unfold_step (hints:constr) :=
         Predicate.pointer := _; Predicate.iargs := _ 
       |}
       _ ?hints _) ] =>
-       verbose_msg (smsg "Checking PredicateRequest for Struct");
-       verbose_print_constr "    Situation: " s;
-       verbose_print_constr "    Predicate symbol name: " isym;
-       let lhints := destruct_list (constr:(log_entry)) hints in
-       verbose_msg (Message.concat (Message.of_string "    Number of hints: ") (Message.of_int (List.length lhints)));
-       Std.constructor_n false 3 NoBindings; (* apply struct_resource_inference_step *)
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => Std.reflexivity ());
-       Control.focus 1 1 (fun () => 
-        let clause := { on_hyps := None; on_concl := AllOccurrences } in
-          Std.unfold [(const_to_const_reference constr:(@ctx_resources_set), AllOccurrences)] clause;
-          Std.cbn 
-          { rStrength := Std.Norm;
-            rBeta := true;
-            rMatch := true;
-            rFix := true;
-            rCofix := true;
-            rZeta := true;
-            rDelta := true;
-            rConst := [const_to_const_reference constr:(@set_from_list); const_to_const_reference constr:(@Sym.map_from_list)]
-          } clause ;
-          prove_struct_resource_inference_step ()
-       )
+        match! goal with
+        | [ |- log_entry_valid ?log_entry ] =>
+          verbose_msg (smsg "Checking PredicateRequest for Struct");
+          verbose_print_constr "    Situation: " s;
+          verbose_print_constr "    Predicate symbol name: " isym;
+          let lhints := destruct_list (constr:(log_entry)) hints in
+          verbose_msg (Message.concat (Message.of_string "    Number of hints: ") (Message.of_int (List.length lhints)));
+          Std.constructor_n false 3 NoBindings; (* apply struct_resource_inference_step *)
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => Std.reflexivity ());
+          Control.focus 1 1 (fun () => 
+            let clause := { on_hyps := None; on_concl := AllOccurrences } in
+              Std.unfold [(const_to_const_reference constr:(@ctx_resources_set), AllOccurrences)] clause;
+              Std.cbn 
+              { rStrength := Std.Norm;
+                rBeta := true;
+                rMatch := true;
+                rFix := true;
+                rCofix := true;
+                rZeta := true;
+                rDelta := true;
+                rConst := [const_to_const_reference constr:(@set_from_list); const_to_const_reference constr:(@Sym.map_from_list)]
+              } clause ;
+              prove_struct_resource_inference_step log_entry
+          )
+        end
+        
     (* PredicateRequest for non-Struct *)
   | [ |- log_entry_valid (PredicateRequest _ ?s ?p _ _ _)] =>
        (* PredicateRequest case *)
