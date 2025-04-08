@@ -70,6 +70,12 @@ and its dependencies.
    opam init --yes --compiler=5.2.0
    ````
 
+   Make sure you follow the instructions provided at the end of the output of `opam init` to complete the initialisation. Typically, on Unix, this is:
+
+   ```
+   eval $(opam env)
+   ```
+
 4. Clone the CN repo:
    ```
    git clone https://github.com/rems-project/cn.git
