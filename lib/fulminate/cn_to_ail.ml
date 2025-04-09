@@ -111,8 +111,12 @@ let generate_cn_pop_msg_info =
 
 let cn_assert_sym = Sym.fresh "cn_assert"
 
-let generate_cn_assert ail_expr =
-  let assertion_expr_ = A.(AilEcall (mk_expr (AilEident cn_assert_sym), [ ail_expr ])) in
+let generate_cn_assert ail_expr spec_mode =
+  let spec_mode_sym = Sym.fresh (OE.spec_mode_to_enum_str spec_mode) in
+  let spec_mode_ident = mk_expr A.(AilEident spec_mode_sym) in
+  let assertion_expr_ =
+    A.(AilEcall (mk_expr (AilEident cn_assert_sym), [ ail_expr; spec_mode_ident ]))
+  in
   let assertion_stat = A.(AilSexpr (mk_expr assertion_expr_)) in
   [ assertion_stat ]
 
@@ -2511,7 +2515,7 @@ let cn_to_ail_resource
     let ct_str = String.concat "_" (String.split_on_char ' ' ct_str) in
     "owned_" ^ ct_str
   in
-  let enum_str = OE.ownership_mode_to_enum_str ownership_mode in
+  let enum_str = OE.spec_mode_to_enum_str ownership_mode in
   let enum_str = if not is_toplevel then "owned_enum" else enum_str in
   let enum_sym = Sym.fresh enum_str in
   function

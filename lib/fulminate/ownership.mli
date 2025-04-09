@@ -2,10 +2,11 @@ module CF = Cerb_frontend
 module A = Utils.A
 module C = Utils.C
 
-type ownership_mode =
+type spec_mode =
   | Pre
   | Post
   | Loop
+  | Statement
 
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
@@ -24,7 +25,7 @@ type ownership_injection =
     injection_kind : injection_kind
   }
 
-val ownership_mode_to_enum_str : ownership_mode -> string
+val spec_mode_to_enum_str : spec_mode -> string
 
 val cn_stack_depth_incr_sym : Sym.t
 
