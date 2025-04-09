@@ -36,9 +36,11 @@ let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.doc
 
 
 let rec pick
-  (distribution :
-    (int * (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))) list)
-  (i : int)
+          (distribution :
+            (int
+            * (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)))
+              list)
+          (i : int)
   : SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)
   =
   match distribution with
@@ -53,35 +55,36 @@ let rec ty_eq (ty1 : C.ctype) (ty2 : C.ctype) : bool =
 
 
 let callable
-  (ctx : context)
-  ((_, (_, args)) : SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
+      (ctx : context)
+      ((_, (_, args)) :
+        SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
   : bool
   =
   List.for_all
     (fun (_, (ty : C.ctype)) ->
-      (match ty with
-       | Ctype (_, ty) ->
-         (match ty with
-          | Basic (Integer Char)
-          | Basic (Integer Bool)
-          | Basic (Integer (Signed _))
-          | Basic (Integer (Unsigned _))
-          | Basic (Floating _)
-          | Void ->
-            true
-          | Pointer (_, ty) -> List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx
-          | _ -> false))
-      || List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx)
+       (match ty with
+        | Ctype (_, ty) ->
+          (match ty with
+           | Basic (Integer Char)
+           | Basic (Integer Bool)
+           | Basic (Integer (Signed _))
+           | Basic (Integer (Unsigned _))
+           | Basic (Floating _)
+           | Void ->
+             true
+           | Pointer (_, ty) -> List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx
+           | _ -> false))
+       || List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx)
     args
 
 
 let calc_score (ctx : context) (args : (SymSet.elt * C.ctype) list) : int =
   List.fold_left
     (fun acc (_, ty) ->
-      if List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx then
-        acc + 25
-      else
-        acc)
+       if List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx then
+         acc + 25
+       else
+         acc)
     1
     args
 
@@ -89,27 +92,27 @@ let calc_score (ctx : context) (args : (SymSet.elt * C.ctype) list) : int =
 let ctx_to_string (ctx : context) : string =
   List.fold_left
     (fun acc (name, ty, f, args) ->
-      match name with
-      | Some name ->
-        acc
-        ^ "("
-        ^ Sym.pp_string name
-        ^ ":"
-        ^ CF.String_core_ctype.string_of_ctype ty
-        ^ ":"
-        ^ Sym.pp_string f
-        ^ ":"
-        ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
-        ^ ")"
-        ^ "\n"
-      | None ->
-        acc
-        ^ "(void:"
-        ^ Sym.pp_string f
-        ^ ":"
-        ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
-        ^ ")"
-        ^ "\n")
+       match name with
+       | Some name ->
+         acc
+         ^ "("
+         ^ Sym.pp_string name
+         ^ ":"
+         ^ CF.String_core_ctype.string_of_ctype ty
+         ^ ":"
+         ^ Sym.pp_string f
+         ^ ":"
+         ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
+         ^ ")"
+         ^ "\n"
+       | None ->
+         acc
+         ^ "(void:"
+         ^ Sym.pp_string f
+         ^ ":"
+         ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
+         ^ ")"
+         ^ "\n")
     "\n"
     ctx
 
@@ -133,9 +136,9 @@ let gen_arg (ctx : context) ((name, ty) : SymSet.elt * C.ctype) : string =
     let prev_calls =
       List.filter
         (fun (name, ct, _, _) ->
-          Option.is_some name
-          && (ty_eq ty ct
-              || match ty with Ctype (_, Pointer (_, ty)) -> ty_eq ty ct | _ -> false))
+           Option.is_some name
+           && (ty_eq ty ct
+               || match ty with Ctype (_, Pointer (_, ty)) -> ty_eq ty ct | _ -> false))
         ctx
     in
     match List.length prev_calls with
@@ -165,9 +168,9 @@ let stmt_to_doc (stmt : CF.GenTypes.genTypeCategory A.statement_) : Pp.document 
 
 
 let create_test_file
-  (sequence : Pp.document)
-  (filename_base : string)
-  (fun_decls : Pp.document)
+      (sequence : Pp.document)
+      (filename_base : string)
+      (fun_decls : Pp.document)
   : Pp.document
   =
   let open Pp in
@@ -191,6 +194,83 @@ let create_test_file
            let init_ghost = Fulminate.Ownership_exec.get_ownership_global_init_stats () in
            separate_map hardline stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
+
+
+let create_intermediate_test_file
+      (sequence : Pp.document)
+      (tests_to_try : Pp.document list)
+      (filename_base : string)
+      (fun_decls : Pp.document)
+  : Pp.document
+  =
+  let open Pp in
+  let create_try (i : int) (test : document) =
+    string "int try"
+    ^^ int i
+    ^^ parens empty
+    ^^ break 1
+    ^^ braces
+         (nest
+            2
+            (hardline
+             ^^
+             let init_ghost =
+               Fulminate.Ownership_exec.get_ownership_global_init_stats ()
+             in
+             separate_map hardline stmt_to_doc init_ghost
+             ^^ hardline
+             ^^ sequence
+             ^^ hardline
+             ^^ test
+             ^^ hardline
+             ^^ string "return 0;")
+          ^^ hardline)
+  in
+  let create_case (i : int) (_ : document) =
+    string "case"
+    ^^ space
+    ^^ int i
+    ^^ colon
+    ^^ nest
+         2
+         (hardline
+          ^^ string "try"
+          ^^ int i
+          ^^ parens empty
+          ^^ semi
+          ^^ hardline
+          ^^ string "break"
+          ^^ semi)
+  in
+  (if Config.with_static_hack () then
+     string "#include "
+     ^^ dquotes (string (filename_base ^ "-exec.c"))
+     ^^ hardline
+     ^^ string "#include "
+     ^^ dquotes (string "cn.c")
+   else
+     string "#include " ^^ dquotes (string "cn.h") ^^ twice hardline ^^ fun_decls)
+  ^^ twice hardline
+  ^^ separate (twice hardline) (List.mapi create_try tests_to_try)
+  ^^ twice hardline
+  ^^ string "int main"
+  ^^ parens (string "int argc, char* argv[]")
+  ^^ break 1
+  ^^ braces
+       (nest
+          2
+          (hardline
+           ^^ (string "switch(atoi(argv[1]))"
+               ^^ break 1
+               ^^ braces
+                    (nest
+                       2
+                       (hardline
+                        ^^ separate hardline (List.mapi create_case tests_to_try)
+                        ^^ hardline)))
+           ^^ hardline
+           ^^ string "return 0;"
+           ^^ hardline))
 
 
 let rec get_violation_line test_output =
@@ -233,10 +313,10 @@ let out_to_list (command : string) =
 
 
 let test_to_doc
-  (name : SymSet.elt option)
-  (ret_ty : C.ctype)
-  (f : SymSet.elt)
-  (args : (C.ctype * string) list)
+      (name : SymSet.elt option)
+      (ret_ty : C.ctype)
+      (f : SymSet.elt)
+      (args : (C.ctype * string) list)
   : Pp.document
   =
   let open Pp in
@@ -255,7 +335,8 @@ let test_to_doc
     ^^ f_call
     ^^ stmt_to_doc
          (A.AilSexpr
-            (Fulminate.Ownership_exec.generate_c_local_ownership_entry_fcall (name, ret_ty)))
+            (Fulminate.Ownership_exec.generate_c_local_ownership_entry_fcall
+               (name, ret_ty)))
     ^^ hardline
   | None -> f_call
 
@@ -273,11 +354,11 @@ let ctx_to_tests =
 
 
 let shrink
-  (seq : context)
-  (output_dir : string)
-  (filename_base : string)
-  (src_code : string list)
-  (fun_decls : Pp.document)
+      (seq : context)
+      (output_dir : string)
+      (filename_base : string)
+      (src_code : string list)
+      (fun_decls : Pp.document)
   : int * Pp.document
   =
   let open Pp in
@@ -293,9 +374,9 @@ let shrink
         let succs =
           List.filter
             (fun (name, _, _, _) ->
-              match name with
-              | None -> false
-              | Some name -> List.mem String.equal (Sym.pp_string name) names)
+               match name with
+               | None -> false
+               | Some name -> List.mem String.equal (Sym.pp_string name) names)
             graph
         in
         List.fold_left (dfs seq) (node :: visited) succs)
@@ -305,24 +386,24 @@ let shrink
     let rev_dep_graph =
       List.map
         (fun (name, ret_ty, f, _) ->
-          ( name,
-            ret_ty,
-            f,
-            match name with
-            | None -> []
-            | Some name ->
-              List.filter_map
-                (fun (name, ret_ty, _, _) ->
-                  match name with
-                  | None -> None
-                  | Some name -> Some (ret_ty, Sym.pp_string name))
-                (List.filter
-                   (fun (_, _, _, args) ->
-                     List.mem
-                       (fun name (_, var) -> String.equal (Sym.pp_string name) var)
-                       name
-                       args)
-                   seq') ))
+           ( name,
+             ret_ty,
+             f,
+             match name with
+             | None -> []
+             | Some name ->
+               List.filter_map
+                 (fun (name, ret_ty, _, _) ->
+                    match name with
+                    | None -> None
+                    | Some name -> Some (ret_ty, Sym.pp_string name))
+                 (List.filter
+                    (fun (_, _, _, args) ->
+                       List.mem
+                         (fun name (_, var) -> String.equal (Sym.pp_string name) var)
+                         name
+                         args)
+                    seq') ))
         seq'
     in
     (* print_string ((ctx_to_string rev_dep_graph) ^ "\n"); *)
@@ -337,7 +418,7 @@ let shrink
             let removed =
               List.filter_map
                 (fun (name, _, _, _) ->
-                  match name with None -> None | Some name -> Some (Sym.pp_string name))
+                   match name with None -> None | Some name -> Some (Sym.pp_string name))
                 (dfs
                    rev_dep_graph
                    []
@@ -346,18 +427,18 @@ let shrink
             (* print_string ((Sym.pp_string name) ^ ":" ^ (List.fold_left (fun acc x -> acc ^ "," ^ x) "" removed) ^ "\n"); *)
             List.filter
               (fun ((name, _, _, args) : call) ->
-                List.for_all
-                  (fun (_, arg_name) -> not (List.mem String.equal arg_name removed))
-                  args
-                &&
-                match name with
-                | None -> true
-                | Some name ->
-                  not
-                    (List.mem
-                       (fun name var -> String.equal (Sym.pp_string name) var)
-                       name
-                       removed))
+                 List.for_all
+                   (fun (_, arg_name) -> not (List.mem String.equal arg_name removed))
+                   args
+                 &&
+                 match name with
+                 | None -> true
+                 | Some name ->
+                   not
+                     (List.mem
+                        (fun name var -> String.equal (Sym.pp_string name) var)
+                        name
+                        removed))
               prev
           | None -> prev
         in
@@ -406,7 +487,15 @@ let shrink
                  string_of_float
                  (List.sort_uniq
                     (fun f1 f2 -> Float.compare (abs_float f1) (abs_float f2))
-                    [ 0.0; 1.0; -1.0; gend_float /. -4.0; gend_float /. 4.0; gend_float /. -2.0; gend_float /. 2.0 ])
+                    [ 0.0;
+                      1.0;
+                      -1.0;
+                      gend_float /. -4.0;
+                      (* fix shrinking bug here (sort_uniq issues) *)
+                      gend_float /. 4.0;
+                      gend_float /. -2.0;
+                      gend_float /. 2.0
+                    ])
              | _ -> [])
         in
         let gend_val =
@@ -430,8 +519,9 @@ let shrink
         in
         match gend_val with
         | Some v ->
-          gen_lst_shrinks ty v @ [ v; arg_name ] (* generate arg for variable, then shrink *)
-        | None -> gen_lst_shrinks ty arg_name @ [arg_name]
+          gen_lst_shrinks ty v @ [ v; arg_name ]
+          (* generate arg for variable, then shrink *)
+        | None -> gen_lst_shrinks ty arg_name @ [ arg_name ]
         (* if arg is not a variable then just shrink *)
       in
       match next with
@@ -442,15 +532,15 @@ let shrink
          | [] -> shrink_2 (curr :: prev, t)
          | poss_args ->
            let rec shrink_args
-             (poss_args : string list list)
-             ((prev_args, next_args) : (C.ctype * string) list * (C.ctype * string) list)
+                     (poss_args : string list list)
+                     ((prev_args, next_args) :
+                       (C.ctype * string) list * (C.ctype * string) list)
              =
-             let rec try_shrinks
-               (arg_shrinks : string list)
-               =
+             let rec try_shrinks (arg_shrinks : string list) =
                let try_shrink
-                 (shrinks : string list)
-                 ((prev_args, next_args) : (C.ctype * string) list * (C.ctype * string) list)
+                     (shrinks : string list)
+                     ((prev_args, next_args) :
+                       (C.ctype * string) list * (C.ctype * string) list)
                  =
                  match (shrinks, next_args) with
                  | [], [] -> List.rev prev_args
@@ -461,7 +551,8 @@ let shrink
                  | _, _ -> failwith "impossible"
                in
                match arg_shrinks with
-               | [] -> failwith
+               | [] ->
+                 failwith
                    "there will always be at least one possible arg (the original one)"
                | orig_arg :: [] -> orig_arg
                | new_arg :: rest ->
@@ -505,21 +596,22 @@ let shrink
     let shrunken' = List.rev (shrink_2 ([], shrunken)) in
     let shrunken'' = shrink_1 ([], List.hd shrunken', List.tl shrunken') in
     (* print_string (ctx_to_string shrunken''); *)
-    (* print_string (Printf.sprintf "%d %d\n" (List.length seq') (List.length shrunken'')); *)
-    (max 0 (List.length seq' - List.length shrunken''), ctx_to_tests shrunken'')
+    print_string (Printf.sprintf "%d %d\n" (List.length seq') (List.length shrunken''));
+    (List.length shrunken'', ctx_to_tests shrunken'')
 
 
 let rec gen_sequence
-  (funcs : (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list)
-  (fuel : int)
-  (stats : test_stats)
-  (ctx : context)
-  (prev : int)
-  (seq_so_far : Pp.document)
-  (output_dir : string)
-  (filename_base : string)
-  (src_code : string list)
-  (fun_decls : Pp.document)
+          (funcs :
+            (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list)
+          (fuel : int)
+          (stats : test_stats)
+          (ctx : context)
+          (prev : int)
+          (seq_so_far : Pp.document)
+          (output_dir : string)
+          (filename_base : string)
+          (src_code : string list)
+          (fun_decls : Pp.document)
   : (Pp.document * test_stats, Pp.document * test_stats) Either.either
   =
   let max_retries = Config.get_max_backtracks () in
@@ -535,9 +627,10 @@ let rec gen_sequence
     let unmap_stmts =
       List.filter_map
         (fun (name, ret, _, _) ->
-          match name with
-          | Some name -> Some (Fulminate.Ownership_exec.generate_c_local_ownership_exit (name, ret))
-          | None -> None)
+           match name with
+           | Some name ->
+             Some (Fulminate.Ownership_exec.generate_c_local_ownership_exit (name, ret))
+           | None -> None)
         ctx
     in
     let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmts in
@@ -549,9 +642,9 @@ let rec gen_sequence
         (List.filter (callable ctx) funcs)
     in
     let rec gen_test
-      ((f, ((_, ret_ty), params)) :
-        SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
-      (retries_left : int)
+              ((f, ((_, ret_ty), params)) :
+                SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
+              (retries_left : int)
       : context * int * (string, string * document) Either.either
       =
       if retries_left = 0 then
@@ -618,8 +711,10 @@ let rec gen_sequence
               let unmap_stmts =
                 List.filter_map
                   (fun (name, ret, _, _) ->
-                    Option.bind name (fun name ->
-                      Some (Fulminate.Ownership_exec.generate_c_local_ownership_exit (name, ret))))
+                     Option.bind name (fun name ->
+                       Some
+                         (Fulminate.Ownership_exec.generate_c_local_ownership_exit
+                            (name, ret))))
                   ctx'
               in
               ( [],
@@ -654,7 +749,7 @@ let rec gen_sequence
               src_code
               fun_decls
           else (
-            let discarded, seq_so_far =
+            let num_left, seq_so_far =
               shrink ctx' output_dir filename_base src_code fun_decls
             in
             (* Either.Left
@@ -662,17 +757,20 @@ let rec gen_sequence
                 { stats with discarded; failures = stats.failures + 1 } )))) *)
             Either.Left
               ( seq_so_far ^^ string err ^^ hardline ^^ string "return 123;",
-                { stats with discarded; failures = stats.failures + 1 } ))))
+                { stats with
+                  discarded = stats.successes + 1 - num_left;
+                  failures = stats.failures + 1
+                } ))))
 
 
 let compile_sequence
-  (sigma : CF.GenTypes.genTypeCategory A.sigma)
-  (insts : FExtract.instrumentation list)
-  (num_samples : int)
-  (output_dir : string)
-  (filename_base : string)
-  (src_code : string list)
-  (fun_decls : Pp.document)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (insts : FExtract.instrumentation list)
+      (num_samples : int)
+      (output_dir : string)
+      (filename_base : string)
+      (src_code : string list)
+      (fun_decls : Pp.document)
   : (Pp.document * test_stats, Pp.document * test_stats) Either.either
   =
   let fuel = num_samples in
@@ -681,23 +779,25 @@ let compile_sequence
     |> List.map (fun (inst : FExtract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
-  let args_map : (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list =
+  let args_map
+    : (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
+    =
     List.map
       (fun (inst : FExtract.instrumentation) ->
-        ( inst.fn,
-          let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
-          match List.assoc Sym.equal inst.fn declarations with
-          | _, _, Decl_function (_, (qual, ret), cts, _, _, _) ->
-            ((qual, ret), List.combine xs (List.map (fun (_, ct, _) -> ct) cts))
-          | _ ->
-            failwith
-              (String.concat
-                 " "
-                 [ "Function declaration not found for";
-                   Sym.pp_string inst.fn;
-                   "@";
-                   __LOC__
-                 ]) ))
+         ( inst.fn,
+           let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
+           match List.assoc Sym.equal inst.fn declarations with
+           | _, _, Decl_function (_, (qual, ret), cts, _, _, _) ->
+             ((qual, ret), List.combine xs (List.map (fun (_, ct, _) -> ct) cts))
+           | _ ->
+             failwith
+               (String.concat
+                  " "
+                  [ "Function declaration not found for";
+                    Sym.pp_string inst.fn;
+                    "@";
+                    __LOC__
+                  ]) ))
       insts
   in
   gen_sequence
@@ -714,18 +814,28 @@ let compile_sequence
 
 
 let generate
-  ~(output_dir : string)
-  ~(filename : string)
-  (sigma : CF.GenTypes.genTypeCategory A.sigma)
-  (insts : FExtract.instrumentation list)
+      ~(output_dir : string)
+      ~(filename : string)
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (insts : FExtract.instrumentation list)
   : int
   =
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
   let test_file = filename_base ^ "_test.c" in
   let script_doc = BuildScript.generate ~output_dir ~filename_base in
+  let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
+  let intermediate_test_file =
+    create_intermediate_test_file
+      Pp.empty
+      [ Pp.empty; Pp.empty; Pp.empty; Pp.empty ]
+      filename_base
+      Pp.empty
+  in
   let src_code, _ = out_to_list ("cat " ^ filename) in
   save ~perm:0o777 output_dir "run_tests.sh" script_doc;
+  save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
+  save ~perm:0o777 output_dir "intermediate.c" intermediate_test_file;
   let fun_to_decl (inst : FExtract.instrumentation) =
     CF.Pp_ail.(
       with_executable_spec
@@ -762,7 +872,7 @@ let generate
            ============================================"
           stats.successes
           stats.discarded
-          ((float_of_int stats.discarded) /. (float_of_int (stats.successes + 1)) *. 100.0)  )
+          (float_of_int stats.discarded /. float_of_int (stats.successes + 1) *. 100.0) )
     | Right (seq, stats) ->
       let num_tests = List.fold_left (fun acc (_, num) -> acc + num) 0 stats.distrib in
       let distrib_to_str =
@@ -771,12 +881,12 @@ let generate
         else
           List.fold_left
             (fun acc (f, count) ->
-              acc
-              ^ Printf.sprintf
-                  "%s: %d calls (%.2f%% of calls)\n"
-                  f
-                  count
-                  (100.0 *. (float_of_int count /. float_of_int num_tests)))
+               acc
+               ^ Printf.sprintf
+                   "%s: %d calls (%.2f%% of calls)\n"
+                   f
+                   count
+                   (100.0 *. (float_of_int count /. float_of_int num_tests)))
             ""
             stats.distrib
       in
