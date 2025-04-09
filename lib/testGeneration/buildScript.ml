@@ -242,13 +242,18 @@ let coverage ~filename_base =
   ^^ twice hardline
   ^^ attempt
        (let realpath s = "$(realpath \"" ^ s ^ "\")" in
-        "lcov --directory . --remove coverage.info -o coverage_filtered.info "
-        ^ String.concat
-            " "
-            [ realpath "cn.c";
-              realpath (filename_base ^ "_test.c");
-              realpath (filename_base ^ "_gen.h")
-            ])
+        String.concat
+          " "
+          [ "lcov";
+            "--ignore-errors unused";
+            "--directory .";
+            "--remove coverage.info";
+            "-o coverage_filtered.info";
+            realpath "cn.c";
+            realpath "cn.h";
+            realpath (filename_base ^ "_test.c");
+            realpath (filename_base ^ "_gen.h")
+          ])
        "Exclude test harnesses from coverage via lcov."
        "Failed to exclude test harnesses from coverage."
   ^^ twice hardline
