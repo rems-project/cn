@@ -147,7 +147,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       if (trap) {                                                                        \
         cn_trap();                                                                       \
       }                                                                                  \
-      Name(__VA_ARGS__);                                                                 \
+      (void)Name(__VA_ARGS__);                                                           \
       if (replay) {                                                                      \
         return CN_TEST_PASS;                                                             \
       }                                                                                  \
