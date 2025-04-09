@@ -504,7 +504,7 @@ CN_GEN_PTR_CASTS_UNSIGNED(uint32_t, cn_bits_u32)
 CN_GEN_PTR_CASTS_UNSIGNED(uint64_t, cn_bits_u64)
 CN_GEN_PTR_CASTS_SIGNED(signed long, cn_integer)
 
-cn_pointer *convert_to_cn_pointer(void *ptr);
+cn_pointer *convert_to_cn_pointer(const void *ptr);
 void *convert_from_cn_pointer(cn_pointer *cn_ptr);
 cn_pointer *cn_pointer_add(cn_pointer *ptr, cn_integer *i);
 cn_pointer *cast_cn_pointer_to_cn_pointer(cn_pointer *p);

@@ -498,9 +498,9 @@ cn_bool* cn_map_equality(
       cn_map_subset(m2, m1, value_equality_fun));
 }
 
-cn_pointer* convert_to_cn_pointer(void* ptr) {
+cn_pointer* convert_to_cn_pointer(const void* ptr) {
   cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));
-  res->ptr = ptr;  // Carries around an address
+  res->ptr = (void*)ptr;  // Carries around an address
   return res;
 }
 
