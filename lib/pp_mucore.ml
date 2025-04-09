@@ -485,6 +485,17 @@ module Make (Config : CONFIG) = struct
             ^^^ pp_linux_memory_order mo)
 
 
+  let pp_str_label : Cerb_frontend__Annot.label_annot -> string = function
+    | LAloop i -> "while_" ^ string_of_int i
+    | LAloop_continue i -> "continue_" ^ string_of_int i
+    | LAloop_break i -> "break_" ^ string_of_int i
+    | LAreturn -> "return"
+    | LAswitch -> "switch"
+    | LAcase -> "case"
+    | LAdefault -> "default"
+    | LAactual_label -> "C-source"
+
+
   let pp_str_annot = function
     | Aloc _ -> []
     | Astd _str -> []
@@ -494,7 +505,7 @@ module Make (Config : CONFIG) = struct
     | Abmc annot -> (match annot with Abmc_id id -> [ !^(string_of_int id) ])
     | Atypedef sym -> [ pp_symbol sym ]
     | Aattrs _ -> [ !^"TODO(Aattrs)" ]
-    | Alabel _ -> [ !^"TODO(label)" ]
+    | Alabel label -> [ !^(pp_str_label label) ]
     | Acerb _ -> []
     | Avalue (Ainteger ity) -> [ !^"type" ^^^ Pp_core_ctype.pp_integer_ctype ity ]
     | Ainlined_label (_, s, _) -> [ !^"inlined" ^^^ pp_symbol s ]
