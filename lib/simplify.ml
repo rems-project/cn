@@ -198,20 +198,17 @@ module IndexTerms = struct
     | _ -> IT.num_lit_ z bt
 
 
-  let rec simp ?(inline_functions = false) ?(inline_symbols = true) simp_ctxt =
-    let aux it = simp ~inline_functions ~inline_symbols simp_ctxt it in
+  let rec simp ?(inline_functions = false) simp_ctxt =
+    let aux it = simp ~inline_functions simp_ctxt it in
     fun it ->
       let the_term = match simp_ctxt.simp_hook it with None -> it | Some it' -> it' in
       let (IT (the_term_, the_bt, the_loc)) = the_term in
       match the_term_ with
       | Sym _ when BT.equal the_bt BT.Unit -> unit_ the_loc
       | Sym sym ->
-        if not inline_symbols then
-          IT (Sym sym, the_bt, the_loc)
-        else (
-          match Sym.Map.find_opt sym simp_ctxt.values with
-          | Some (IT ((Const _ | Sym _), _, _) as v) -> v
-          | _ -> the_term)
+        (match Sym.Map.find_opt sym simp_ctxt.values with
+         | Some (IT ((Const _ | Sym _), _, _) as v) -> v
+         | _ -> the_term)
       | Const _ -> the_term
       | Binop (Add, a, b) ->
         let a = aux a in

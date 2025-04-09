@@ -399,7 +399,7 @@ module General = struct
       | _ ->
         let@ ftyp, rw_time, l' =
           parametric_ftyp_args_request_step
-            resource_request
+            (resource_request ~simplify_prooflog:true)
             IT.subst
             loc
             uiinfo
@@ -412,7 +412,7 @@ module General = struct
     loop ftyp [] []
 
 
-  and resource_request loc uiinfo (request : Req.t)
+  and resource_request ?(simplify_prooflog = false) loc uiinfo (request : Req.t)
     : (Resource.t * int list * Prooflog.log) option m
     =
     match request with
@@ -420,16 +420,27 @@ module General = struct
       let@ c = get_typing_context () in
       let@ result = predicate_request loc uiinfo request in
       let@ c' = get_typing_context () in
+      let@ simp_ctxt = simp_ctxt () in
       return
         (Option.map
-           (fun ((p, o), changed_or_deleted, l) ->
+           (fun ((p, Resource.O o), changed_or_deleted, l) ->
               let hints =
-                if Prooflog.is_enabled () then
-                  [ Prooflog.PredicateRequest (c, fst uiinfo, request, (p, o), l, c') ]
+                if Prooflog.is_enabled () then (
+                  let p, o =
+                    if not simplify_prooflog then
+                      (p, o)
+                    else (
+                      let p = Simplify.Request.Predicate.simp simp_ctxt p in
+                      let o = Simplify.IndexTerms.simp simp_ctxt o in
+                      (p, o))
+                  in
+                  [ Prooflog.PredicateRequest
+                      (c, fst uiinfo, request, (p, Resource.O o), l, c')
+                  ])
                 else
                   []
               in
-              ((Req.P p, o), changed_or_deleted, hints))
+              ((Req.P p, Resource.O o), changed_or_deleted, hints))
            result)
     | Q request ->
       let@ result = qpredicate_request loc uiinfo request in
@@ -447,7 +458,7 @@ module General = struct
   let ftyp_args_request_step rt_subst loc situation original_resources ftyp =
     let@ rt, _rw_time, l =
       parametric_ftyp_args_request_step
-        resource_request
+        (resource_request ~simplify_prooflog:false)
         rt_subst
         loc
         situation
@@ -458,10 +469,8 @@ module General = struct
     (* We started with top-level call of ftyp_args_request_step, so we need to
        record the resource inference steps for the inner calls. They not nested
        under anything, so we need to record them separately. *)
-    let@ simp_ctxt = simp_ctxt () in
-    if Prooflog.is_enabled () then (
-      let l_simp = Prooflog.simplify_hints_proof_log simp_ctxt l in
-      List.iter Prooflog.record_resource_inference_step l_simp)
+    if Prooflog.is_enabled () then
+      List.iter Prooflog.record_resource_inference_step l
     else
       ();
     return rt
@@ -492,11 +501,9 @@ module Special = struct
     match result with
     | Some (r, rw_time, log) ->
       let@ c' = get_typing_context () in
-      let@ simp_ctxt = simp_ctxt () in
-      if Prooflog.is_enabled () then (
-        let log_simp = Prooflog.simplify_proof_log simp_ctxt log in
+      if Prooflog.is_enabled () then
         Prooflog.record_resource_inference_step
-          (Prooflog.PredicateRequest (c, fst uiinfo, request, r, log_simp, c')))
+          (Prooflog.PredicateRequest (c, fst uiinfo, request, r, log, c'))
       else
         ();
       return (r, rw_time)

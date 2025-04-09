@@ -29,11 +29,3 @@ val add_log_entry : log_entry -> unit
 val get_proof_log : unit -> log_entry list
 
 val record_resource_inference_step : log_entry -> unit
-
-val simplify_proof_log_entry : Simplify.simp_ctxt -> log_entry -> log_entry
-
-val simplify_proof_log : Simplify.simp_ctxt -> log -> log
-
-val simplify_hints_proof_log_entry : Simplify.simp_ctxt -> log_entry -> log_entry
-
-val simplify_hints_proof_log : Simplify.simp_ctxt -> log -> log
