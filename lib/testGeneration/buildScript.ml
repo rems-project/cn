@@ -46,7 +46,7 @@ let attempt cmd success failure =
 
 
 let cc_flags () =
-  [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\"" ]
+  [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\""; "${CFLAGS}"; "${CPPFLAGS}" ]
   @ (let sanitize, no_sanitize = Config.has_sanitizers () in
      (match sanitize with Some sanitize -> [ "-fsanitize=" ^ sanitize ] | None -> [])
      @

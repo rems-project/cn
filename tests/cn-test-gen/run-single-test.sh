@@ -14,6 +14,9 @@ else
 fi
 rm -rf $DIR
 
+# For stricter CI
+export CPPFLAGS="${CPPFLAGS} -Werror"
+
 # For UBSan
 export UBSAN_OPTIONS=halt_on_error=1
 
