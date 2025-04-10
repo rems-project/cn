@@ -69,24 +69,24 @@ char *cn_replica_lines_to_json_literal() {
     for (int j = 0; j < strlen(lines[i]); j++) {
       char k = lines[i][j];
       if (k == '\"') {
-        strlcat(res, "\\\"", sz + 1);
+        strncat(res, "\\\"", 3);
       } else if (k == '\\') {
-        strlcat(res, "\\\\", sz + 1);
+        strncat(res, "\\\\", 3);
       } else if (k == '\b') {
-        strlcat(res, "\\b", sz + 1);
+        strncat(res, "\\b", 3);
       } else if (k == '\f') {
-        strlcat(res, "\\f", sz + 1);
+        strncat(res, "\\f", 3);
       } else if (k == '\r') {
-        strlcat(res, "\\r", sz + 1);
+        strncat(res, "\\r", 3);
       } else if (k == '\t') {
-        strlcat(res, "\\t", sz + 1);
+        strncat(res, "\\t", 3);
       } else if (!isprint(k)) {
         snprintf(&res[strlen(res)], 7, "\\u%4x", (int)k);
       } else {
         snprintf(&res[strlen(res)], 2, "%c", k);
       }
     }
-    strlcat(res, "\\n", sz + 1);
+    strncat(res, "\\n", 3);
   }
 
   return res;
