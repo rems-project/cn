@@ -352,8 +352,7 @@ int cn_test_main(int argc, char* argv[]) {
           .output_tyche = output_tyche,
           .tyche_output_stream = tyche_output_stream,
           .begin_time = begin_time};
-      enum cn_test_result result =
-          test_case->func(test_input);  //(false, progress_level, sizing_strategy, 0, 0);
+      enum cn_test_result result = test_case->func(test_input);
       if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
         results[i] = result;
       }
