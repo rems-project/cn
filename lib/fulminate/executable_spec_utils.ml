@@ -44,7 +44,7 @@ let mk_stmt stmt_ =
 
 let rm_expr (A.AnnotatedExpression (_, _, _, expr_)) = expr_
 
-let rm_stmt = function A.{ loc; is_forloop; attrs; node = stmt_ } -> stmt_
+let rm_stmt = function A.{ loc = _; is_forloop = _; attrs = _; node = stmt_ } -> stmt_
 
 let empty_ail_str = "empty_ail"
 

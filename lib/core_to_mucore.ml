@@ -939,7 +939,7 @@ let make_largs f_i =
   let rec aux env st = function
     | Cn.CN_cletResource (loc, name, resource) :: conditions ->
       let@ (pt_ret, oa_bt), lcs, pointee_values =
-        Translate.let_resource env st (loc, name, resource)
+        Translate.let_resource env st (name, resource)
       in
       let env = Translate.add_logical name oa_bt env in
       let st = Translate.C_vars.add_pointee_values pointee_values st in

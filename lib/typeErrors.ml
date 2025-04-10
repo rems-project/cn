@@ -369,7 +369,7 @@ let pp_compile : Compile.message -> _ = function
     in
     { short; descr = None; state = None }
   | Cerb_frontend (loc, err) ->
-    let head, pos = Locations.head_pos_of_location loc in
+    let head, _pos = Locations.head_pos_of_location loc in
     let short = !^(CF.Pp_errors.short_message err) ^^^ parens !^head in
     { short; descr = None; state = None }
   | Illtyped_binary_it { left; right; binop } -> pp_illtyped_binary_it ~left ~right binop

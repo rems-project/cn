@@ -202,7 +202,7 @@ let get_c_local_ownership_checking params =
 
 let rec collect_visibles bindings = function
   | [] -> []
-  | A.{ loc; is_forloop; attrs; node = AilSdeclaration decls } :: ss ->
+  | A.{ loc = _; is_forloop = _; attrs = _; node = AilSdeclaration decls } :: ss ->
     let decl_syms_and_ctypes =
       List.map (fun (sym, _) -> (sym, find_ctype_from_bindings bindings sym)) decls
     in
@@ -210,7 +210,6 @@ let rec collect_visibles bindings = function
   | _ :: ss -> collect_visibles bindings ss
 
 
-(* TODO replace with Base.List: https://github.com/rems-project/cerberus/pull/347 *)
 let rec take n = function
   | [] -> []
   | x :: xs ->
@@ -225,7 +224,7 @@ let rec get_c_control_flow_block_unmaps_aux
           continue_vars
           return_vars
           bindings
-          A.{ loc; is_forloop; attrs; node = s_ }
+          A.{ loc; is_forloop = _; attrs = _; node = s_ }
   : ownership_injection list
   =
   match s_ with
@@ -367,7 +366,7 @@ let rec remove_duplicates ds = function
 
 
 let get_c_block_local_ownership_checking_injs
-      A.({ loc; is_forloop; attrs; node = fn_block } as statement)
+      A.({ loc = _; is_forloop = _; attrs = _; node = fn_block } as statement)
   =
   match fn_block with
   | A.(AilSblock _) ->

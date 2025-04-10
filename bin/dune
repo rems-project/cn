@@ -3,8 +3,6 @@
  (modes exe)
  (public_name cn)
  (package cn)
- (flags
-  (:standard -w @60 -open Monomorphic.Int))
  (libraries cmdliner cn menhirLib monomorphic ocamlgraph result str unix))
 
 ; There is already a Version in Cerb_frontend, but if new commits only require

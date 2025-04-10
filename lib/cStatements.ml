@@ -88,7 +88,7 @@ let add_map_stmt (stmt : 'a statement) m =
   let rec f stmts m =
     match stmts with
     | [] -> m
-    | { loc = l; is_forloop; attrs; node = x } :: ss ->
+    | { loc = l; is_forloop = _; attrs = _; node = x } :: ss ->
       let m = map l m l in
       (match x with
        | AilSblock (_, ss2) -> f (ss2 @ ss) m

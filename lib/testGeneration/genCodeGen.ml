@@ -38,11 +38,11 @@ let compile_lc (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
   CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] lc
 
 
-let rec compile_term
-          (sigma : CF.GenTypes.genTypeCategory A.sigma)
-          (ctx : GR.context)
-          (name : Sym.t)
-          (tm : GR.term)
+let[@warning "-27"] rec compile_term
+                          (sigma : CF.GenTypes.genTypeCategory A.sigma)
+                          (ctx : GR.context)
+                          (name : Sym.t)
+                          (tm : GR.term)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
