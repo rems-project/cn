@@ -1,0 +1,26 @@
+# Build an image suitable for use as a VSCode dev container for CN development.
+FROM ubuntu:24.04
+
+# Install system packages
+RUN apt-get update
+RUN apt-get upgrade -y
+RUN apt-get install -y opam libgmp-dev libmpfr-dev
+
+ENV OPAMCONFIRMLEVEL=unsafe-yes
+RUN opam init --disable-sandboxing
+
+ADD . /opt/cerberus
+WORKDIR /opt/cerberus
+RUN opam install --deps-only ./cn.opam
+RUN opam install z3
+RUN opam install ocaml-lsp-server ocamlformat
+
+RUN eval `opam env`
+
+WORKDIR /opt
+
+COPY docker_entry_point.sh /opt/docker_entry_point.sh
+RUN chmod +x /opt/docker_entry_point.sh
+RUN echo "source /opt/docker_entry_point.sh" >> /root/.bashrc
+WORKDIR /data
+ENTRYPOINT ["/opt/docker_entry_point.sh"]

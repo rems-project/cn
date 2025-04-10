@@ -1,0 +1,22 @@
+{
+	"name": "CN Development",
+	"build": {
+		"dockerfile": "../Dockerfile.devcontainer"
+	},
+	"features": {
+	},
+
+	"postCreateCommand": "",
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-vscode.cpptools",
+				"ms-vscode.cpptools-themes",
+				"ms-vscode.cmake-tools",
+				"ocamllabs.ocaml-platform",
+				"ms-vscode.cpptools-extension-pack"
+			]
+		}
+	}
+}
