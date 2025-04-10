@@ -1,23 +1,22 @@
-struct List
-{
-  int value;
-  struct List* next;
+struct List {
+  unsigned int value;
+  struct List *next;
 };
 
 /*@
 datatype IntList {
   Nil {},
-  Cons { i32 head, IntList tail }
+  Cons { u32 head, IntList tail }
 }
 
-function (boolean) validCons(i32 head, IntList tail) {
+function (boolean) validCons(u32 head, IntList tail) {
   match tail {
     Nil {} => { true }
     Cons { head: next, tail: _ } => { head <= next }
   }
 }
 
-predicate IntList ListSegmentAux(pointer from, pointer to, i32 prev) {
+predicate IntList ListSegmentAux(pointer from, pointer to, u32 prev) {
   if (ptr_eq(from,to)) {
     return Nil {};
   } else {
@@ -39,7 +38,7 @@ predicate IntList ListSegment(pointer from, pointer to) {
 }
 @*/
 
-int sum(struct List* xs)
+unsigned int sum(struct List *xs)
 /*@
   requires
     take l1 = ListSegment(xs,NULL);
@@ -49,8 +48,8 @@ int sum(struct List* xs)
     true;
 @*/
 {
-  int result = 0;
-  while(xs) {
+  unsigned int result = 0;
+  while (xs) {
     result += xs->value;
     xs = xs->next;
   }
@@ -60,7 +59,7 @@ int sum(struct List* xs)
 void *cn_malloc(unsigned long size);
 
 /*@
-function [rec] (IntList) insertList(boolean dups, i32 x, IntList xs) {
+function [rec] (IntList) insertList(boolean dups, u32 x, IntList xs) {
   match xs {
     Nil {} => { Cons { head: x, tail: Nil {} } }
     Cons { head: head, tail: tail } => {
@@ -78,7 +77,7 @@ function [rec] (IntList) insertList(boolean dups, i32 x, IntList xs) {
 }
 @*/
 
-void insert(int x, struct List **xs)
+void insert(unsigned int x, struct List **xs)
 /*@
   requires
     take list_ptr = Owned<struct List*>(xs);
@@ -89,11 +88,11 @@ void insert(int x, struct List **xs)
     new_list == insertList(true,x,list);
 @*/
 {
-  struct List *node = (struct List*) cn_malloc(sizeof(struct List));
+  struct List *node = (struct List *)cn_malloc(sizeof(struct List));
   node->value = x;
 
-  struct List* prev = 0;
-  struct List* cur = *xs;
+  struct List *prev = 0;
+  struct List *cur = *xs;
   while (cur && cur->value < x) {
     prev = cur;
     cur = cur->next;
