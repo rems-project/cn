@@ -6,11 +6,11 @@
 
 #define BITS_GEN(sm)                                                                     \
   cn_bits_u##sm* cn_gen_uniform_cn_bits_u##sm(uint64_t sz) {                             \
-    return convert_to_cn_bits_u##sm(cn_gen_uniform_u##sm(sz));                           \
+    return convert_to_cn_bits_u##sm(cn_gen_uniform_u##sm##_sized(sz));                   \
   }                                                                                      \
                                                                                          \
   cn_bits_i##sm* cn_gen_uniform_cn_bits_i##sm(uint64_t sz) {                             \
-    return convert_to_cn_bits_i##sm(cn_gen_uniform_i##sm(sz));                           \
+    return convert_to_cn_bits_i##sm(cn_gen_uniform_i##sm##_sized(sz));                   \
   }
 
 BITS_GEN(8);

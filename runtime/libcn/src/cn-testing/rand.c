@@ -158,7 +158,7 @@ SIGNED_GEN(64);
     }                                                                                    \
     return cn_gen_uniform_u##sm(s);                                                      \
   }                                                                                      \
-  int##sm##_t cn_gen_uniform_i##sm##_sized(int##sm##_t s) {                              \
+  int##sm##_t cn_gen_uniform_i##sm##_sized(uint##sm##_t s) {                             \
     size_t sz = cn_gen_get_size();                                                       \
     if (s > sz) {                                                                        \
       s = sz;                                                                            \

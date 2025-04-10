@@ -32,7 +32,7 @@
     goto cn_label_bennet_backtrack;                                                      \
   }
 
-#define CN_GEN_UNIFORM(ty) cn_gen_uniform_##ty(cn_gen_get_size())
+#define CN_GEN_UNIFORM(ty) cn_gen_uniform_##ty(0)
 
 #define CN_GEN_ALLOC(sz)                                                                 \
   ({                                                                                     \
