@@ -132,7 +132,7 @@ let run () =
   ^^ hardline
 
 
-let coverage ~filename_base =
+let[@warning "-32" (* unused-value-declaration *)] coverage ~filename_base =
   string "# Coverage"
   ^^ hardline
   ^^ string "echo"

@@ -1,8 +1,6 @@
 module CF = Cerb_frontend
 module CB = Cerb_backend
-open CB.Pipeline
 open Cn
-open Setup
 
 let pick_cpp_file_name outdir filename =
   let cpp_name = Filename.remove_extension filename ^ "-preproc.c" in

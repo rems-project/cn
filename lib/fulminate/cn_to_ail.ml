@@ -1,6 +1,5 @@
 module CF = Cerb_frontend
 open CF.Cn
-open Compile
 open Executable_spec_utils
 module ESE = Executable_spec_extract
 module A = CF.AilSyntax

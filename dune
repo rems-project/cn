@@ -2,7 +2,7 @@
 
 (env
  (dev
-  (flags :standard -w +26+27+60 -open Monomorphic.Int))
+  (flags :standard -w +26+27+60 -open Monomorphic.Int -bin-annot))
  (release
   (flags :standard -w +26+27+60 -open Monomorphic.Int)))
 

@@ -15,7 +15,8 @@ module StringMap = Map.Make (String)
 open Pp.Infix
 
 type function_sig =
-  { args : (Sym.t * BaseTypes.t) list;
+  { args : (Sym.t * BaseTypes.t) list; [@warning "-69" (* unused-record-field *)]
+      (* FIXME either delete this field, or explain why we don't need it *)
     return_bty : BaseTypes.t
   }
 
@@ -113,10 +114,6 @@ let add_datatype sym info env =
 let add_datatype_constr sym info env =
   let datatype_constrs = Sym.Map.add sym info env.datatype_constrs in
   { env with datatype_constrs }
-
-
-let get_datatype_maps env =
-  (Sym.Map.bindings env.datatypes, Sym.Map.bindings env.datatype_constrs)
 
 
 let big_union = List.fold_left Sym.Set.union Sym.Set.empty
@@ -436,12 +433,6 @@ module C_vars = struct
     | Some ty -> return ty
     | None ->
       fail { loc; msg = Global (Unexpected_member (List.map fst member_types, member)) }
-
-
-  let lookup_datatype loc sym env =
-    match Sym.Map.find_opt sym env.datatypes with
-    | Some info -> return info
-    | None -> fail { loc; msg = Global (Unknown_datatype sym) }
 
 
   let lookup_constr loc sym env =
@@ -1634,5 +1625,4 @@ let statement
       env
       (Cn.CN_statement (loc, stmt_))
   =
-  let open Cnprog in
   Handle.with_loads allocations old_states (C_vars.cn_statement env (loc, stmt_))

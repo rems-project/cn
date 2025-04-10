@@ -10,6 +10,7 @@ else
 SEDI = sed -i ''
 endif
 
+PROFILE := dev
 # Trick to avoid printing the commands.
 # To enable the printing of commands, use [make Q= ...],
 Q = @
@@ -23,12 +24,12 @@ all: cn cn-coq
 .PHONY: full-build
 full-build:
 	@echo "[DUNE] full-build"
-	$(Q)dune build
+	$(Q)dune build --profile=$(PROFILE)
 
 .PHONY: cn
 cn:
 	@echo "[DUNE] $@"
-	$(Q)dune build -p cn
+	$(Q)dune build -p cn --profile=$(PROFILE)
 
 .PHONY: clean
 clean:
@@ -39,7 +40,7 @@ clean:
 .PHONY: install
 install: cn
 	@echo "[DUNE] install cn"
-	$(Q)dune install cn
+	$(Q)dune install cn --profile=$(PROFILE)
 
 .PHONY: uninstall
 uninstall:
@@ -49,21 +50,21 @@ uninstall:
 .PHONY: cn-coq
 cn-coq:
 	@echo "[DUNE] cn-coq"
-	$(Q)dune build -p cn-coq
+	$(Q)dune build -p cn-coq --profile=$(PROFILE)
 
 .PHONY: cn-coq-install
 cn-coq-install: cn-coq
 	@echo "[DUNE] install cn-coq"
-	$(Q)dune install cn-coq
+	$(Q)dune install cn-coq --profile=$(PROFILE)
 
 .PHONY: cn-with-coq
 cn-with-coq:
 	@echo "[DUNE] cn,cn-coq"
-	$(Q)dune build -p cn,cn-coq
+	$(Q)dune build -p cn,cn-coq --profile=$(PROFILE)
 
 # Development target to watch for changes in cn/lib and rebuild
 # e.g. to be used with vscode IDE
 .PHONY: cn-dev-watch
 cn-dev-watch:
 	@echo "[DUNE] cn-dev-watch"
-	$(Q)dune build --watch -p cn,cn-coq
+	$(Q)dune build --watch -p cn,cn-coq --profile=$(PROFILE)

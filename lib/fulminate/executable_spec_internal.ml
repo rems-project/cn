@@ -252,7 +252,9 @@ let generate_doc_from_ail_struct ail_struct =
   CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
 
 
-let generate_struct_decl_str (tag, (_, _, def)) =
+let[@warning "-32" (* unused-value-declaration *)] generate_struct_decl_str
+                                                     (tag, (_, _, def))
+  =
   match def with
   | C.StructDef _ -> Printf.sprintf "struct %s;\n" (Sym.pp_string tag)
   | UnionDef _ -> ""
@@ -263,7 +265,8 @@ let generate_c_records ail_structs =
   doc_to_pretty_string (PPrint.concat struct_docs)
 
 
-let generate_str_from_ail_struct ail_struct =
+let[@warning "-32" (* unused-value-declaration *)] generate_str_from_ail_struct ail_struct
+  =
   doc_to_pretty_string (generate_doc_from_ail_struct ail_struct)
 
 
@@ -337,7 +340,7 @@ let generate_c_functions
   (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
 
 
-let rec remove_duplicates eq_fun = function
+let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun = function
   | [] -> []
   | t :: ts ->
     if List.mem eq_fun t ts then
