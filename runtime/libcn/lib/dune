@@ -10,7 +10,7 @@
    (run mkdir -p cn-executable)
    (chdir
     cn-executable
-    (run cc -I ../../include/ -c -g %{src}))
+    (run cc -Werror -I ../../include/ -c -g %{src}))
    (run
     ar
     -rcs
@@ -32,7 +32,7 @@
    (run mkdir -p cn-testing)
    (chdir
     cn-testing
-    (run cc -I../../include/ -c -g %{src}))
+    (run cc -Werror -I../../include/ -c -g %{src}))
    (run
     ar
     -rcs
@@ -58,7 +58,7 @@
    (run mkdir -p cn-replicate)
    (chdir
     cn-replicate
-    (run cc -I../../include/ -c -g %{src}))
+    (run cc -Werror -I../../include/ -c -g %{src}))
    (run ar -rcs %{target} cn-replicate/lines.o cn-replicate/shape.o))))
 
 (install
