@@ -3,10 +3,10 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 module Config = SeqTestGenConfig
 module SymSet = Set.Make (Sym)
-module FExtract = Fulminate.Executable_spec_extract
+module FExtract = Fulminate.Extract
 
 type test_stats =
   { successes : int;
@@ -165,7 +165,7 @@ let create_test_file
           2
           (hardline
            ^^
-           let init_ghost = Fulminate.Ownership_exec.get_ownership_global_init_stats () in
+           let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
            separate_map hardline stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
 
@@ -207,9 +207,7 @@ let rec gen_sequence
   let open Pp in
   match fuel with
   | 0 ->
-    let unmap_stmts =
-      List.map Fulminate.Ownership_exec.generate_c_local_ownership_exit ctx
-    in
+    let unmap_stmts = List.map Fulminate.Ownership.generate_c_local_ownership_exit ctx in
     let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmts in
     Right (seq_so_far ^^ unmap_str ^^ hardline ^^ string "return 0;", stats)
   | n ->
@@ -257,7 +255,7 @@ let rec gen_sequence
             | Some name ->
               stmt_to_doc
                 (A.AilSexpr
-                   (Fulminate.Ownership_exec.generate_c_local_ownership_entry_fcall
+                   (Fulminate.Ownership.generate_c_local_ownership_entry_fcall
                       (name, ret_ty)))
               ^^ hardline
           in
@@ -349,7 +347,7 @@ let rec gen_sequence
               && n >= instr_per_test
             then (
               let unmap_stmts =
-                List.map Fulminate.Ownership_exec.generate_c_local_ownership_exit ctx'
+                List.map Fulminate.Ownership.generate_c_local_ownership_exit ctx'
               in
               ( [],
                 hardline
@@ -388,7 +386,7 @@ let rec gen_sequence
 
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
       (num_samples : int)
       (output_dir : string)
       (filename_base : string)
@@ -399,12 +397,12 @@ let compile_sequence
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
     insts
-    |> List.map (fun (inst : Fulminate.Executable_spec_extract.instrumentation) ->
+    |> List.map (fun (inst : Fulminate.Extract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
   let args_map : (Sym.t * ((C.qualifiers * C.ctype) * (Sym.t * C.ctype) list)) list =
     List.map
-      (fun (inst : Fulminate.Executable_spec_extract.instrumentation) ->
+      (fun (inst : Fulminate.Extract.instrumentation) ->
          ( inst.fn,
            let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
            match List.assoc Sym.equal inst.fn declarations with
@@ -438,7 +436,7 @@ let generate
       ~(output_dir : string)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : int
   =
   if List.is_empty insts then failwith "No testable functions";
@@ -447,7 +445,7 @@ let generate
   let script_doc = BuildScript.generate ~output_dir ~filename_base in
   let src_code, _ = out_to_list ("cat " ^ filename) in
   save ~perm:0o777 output_dir "run_tests.sh" script_doc;
-  let fun_to_decl (inst : Fulminate.Executable_spec_extract.instrumentation) =
+  let fun_to_decl (inst : Fulminate.Extract.instrumentation) =
     CF.Pp_ail.(
       with_executable_spec
         (fun () ->

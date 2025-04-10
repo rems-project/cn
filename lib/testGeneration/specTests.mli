@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
-module FExtract = Fulminate.Executable_spec_extract
+module FExtract = Fulminate.Extract
 
 val compile_constant_tests
   :  CF.GenTypes.genTypeCategory A.sigma ->

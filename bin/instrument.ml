@@ -87,7 +87,7 @@ let generate_executable_specs
       Cerb_colour.without_colour
         (fun () ->
            (try
-              Fulminate.Executable_spec.main
+              Fulminate.main
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks

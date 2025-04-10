@@ -1,7 +1,7 @@
 module CF = Cerb_frontend
 open CF.Cn
-open Executable_spec_utils
-module ESE = Executable_spec_extract
+open Utils
+module ESE = Extract
 module A = CF.AilSyntax
 module C = CF.Ctype
 module BT = BaseTypes
@@ -10,7 +10,7 @@ module T = Terms
 module LRT = LogicalReturnTypes
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
-module OE = Ownership_exec
+module OE = Ownership
 
 let true_const = A.AilEconst (ConstantPredefined PConstantTrue)
 

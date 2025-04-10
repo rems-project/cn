@@ -9,7 +9,7 @@ module GBT = GenBaseTypes
 module GT = GenTerms
 module GD = GenDefinitions
 module Config = TestGenConfig
-module FExtract = Fulminate.Executable_spec_extract
+module FExtract = Fulminate.Extract
 
 type s = GD.context
 

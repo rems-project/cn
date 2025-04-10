@@ -4,8 +4,8 @@ module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
-module Utils = Fulminate.Executable_spec_utils
-module FExtract = Fulminate.Executable_spec_extract
+module Utils = Fulminate.Utils
+module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 
 let debug_log_file : out_channel option ref = ref None

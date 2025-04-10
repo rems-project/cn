@@ -4,8 +4,8 @@ module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
-module ESpecInternal = Fulminate.Executable_spec_internal
-module FExtract = Fulminate.Executable_spec_extract
+module ESpecInternal = Fulminate.Internal
+module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 module Options = Config.Options
 
@@ -72,7 +72,7 @@ let compile_assumes
 let compile_shape_analyzers
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : Pp.document
   =
   let declarations, function_definitions =
@@ -95,7 +95,7 @@ let compile_shape_analyzers
 let compile_replicators
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : Pp.document
   =
   let declarations, function_definitions =

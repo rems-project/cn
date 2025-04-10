@@ -16,7 +16,7 @@ type executable_spec =
   }
 
 val generate_c_assume_pres_internal
-  :  Executable_spec_extract.instrumentation list ->
+  :  Extract.instrumentation list ->
   Cerb_frontend.GenTypes.genTypeCategory A.sigma ->
   unit Mucore.file ->
   (Cn_to_ail.A.sigma_declaration
@@ -27,7 +27,7 @@ val generate_c_specs
   :  bool ->
   bool ->
   bool ->
-  Executable_spec_extract.instrumentation list ->
+  Extract.instrumentation list ->
   Cerb_frontend.GenTypes.genTypeCategory Cn_to_ail.A.sigma ->
   unit Mucore.file ->
   executable_spec

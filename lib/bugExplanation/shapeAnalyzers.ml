@@ -6,7 +6,7 @@ module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module IT = IndexTerms
 module CtA = Fulminate.Cn_to_ail
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 
 let mk_expr = Utils.mk_expr
 
@@ -417,7 +417,7 @@ let compile_spec
 let synthesize
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
   (* Per type *)
@@ -444,7 +444,7 @@ let synthesize
   (* Per specification *)
   let spec_analyzers =
     insts
-    |> List.filter_map (fun (inst : Fulminate.Executable_spec_extract.instrumentation) ->
+    |> List.filter_map (fun (inst : Fulminate.Extract.instrumentation) ->
       Option.map (fun lat -> compile_spec sigma prog5 inst.fn lat) inst.internal)
   in
   type_analyzers @ pred_analyzers @ spec_analyzers

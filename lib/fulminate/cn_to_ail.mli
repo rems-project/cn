@@ -170,7 +170,7 @@ val cn_to_ail_pre_post
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * C.ctype) list ->
   C.ctype ->
-  Executable_spec_extract.fn_args_and_body option ->
+  Extract.fn_args_and_body option ->
   ail_executable_spec
 
 val cn_to_ail_assume_predicates

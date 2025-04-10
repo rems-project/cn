@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
 module CB = Cerb_backend
-open Executable_spec_utils
+open Utils
 module BT = BaseTypes
 module A = CF.AilSyntax
 module IT = IndexTerms
@@ -82,7 +82,7 @@ let add_records_to_map_from_cnprogs (_, cn_progs) =
   List.iter aux cn_progs
 
 
-let add_records_to_map_from_instrumentation (i : Executable_spec_extract.instrumentation) =
+let add_records_to_map_from_instrumentation (i : Extract.instrumentation) =
   let rec aux_lrt = function
     | LRT.Define ((_, it), _, t) ->
       add_records_to_map_from_it it;
@@ -171,7 +171,7 @@ let add_records_to_map_from_struct (tag_def : Mucore.tag_definition) =
 
 (* Populate record table *)
 let populate_record_map
-      (instrumentation : Executable_spec_extract.instrumentation list)
+      (instrumentation : Extract.instrumentation list)
       (prog5 : unit Mucore.file)
   =
   add_records_to_map_from_fns_and_preds prog5.logical_predicates prog5.resource_predicates;
@@ -186,7 +186,7 @@ let generate_all_record_strs () =
   let ail_records =
     Cn_to_ail.cn_to_ail_records (Cn_to_ail.RecordMap.bindings !Cn_to_ail.records)
   in
-  Executable_spec_internal.generate_c_records ail_records
+  Internal.generate_c_records ail_records
 
 
 let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =

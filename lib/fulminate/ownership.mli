@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
-module A = Executable_spec_utils.A
-module C = Executable_spec_utils.C
+module A = Utils.A
+module C = Utils.C
 
 type ownership_mode =
   | Pre
@@ -41,11 +41,11 @@ val get_ownership_global_init_stats
   Cerb_frontend.GenTypes.genTypeCategory A.statement_ list
 
 val generate_c_local_ownership_entry_fcall
-  :  A.ail_identifier * Executable_spec_utils.C.ctype ->
-  Cerb_frontend.GenTypes.genTypeCategory Executable_spec_utils.A.expression
+  :  A.ail_identifier * Utils.C.ctype ->
+  Cerb_frontend.GenTypes.genTypeCategory Utils.A.expression
 
 val generate_c_local_ownership_exit
-  :  A.ail_identifier * Executable_spec_utils.C.ctype ->
+  :  A.ail_identifier * Utils.C.ctype ->
   Cerb_frontend.GenTypes.genTypeCategory A.statement_
 
 val get_c_fn_local_ownership_checking_injs

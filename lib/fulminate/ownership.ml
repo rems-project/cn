@@ -1,5 +1,5 @@
 module CF = Cerb_frontend
-open Executable_spec_utils
+open Utils
 module A = CF.AilSyntax
 module C = CF.Ctype
 
@@ -86,7 +86,7 @@ let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
 
 let generate_c_local_cn_addr_var sym =
   (* Hardcoding parts of cn_to_ail_base_type to prevent circular dependency between
-     this module and Cn_internal_to_ail, which includes Ownership_exec already. *)
+     this module and Cn_internal_to_ail, which includes Ownership already. *)
   let cn_addr_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
   let annots = [ CF.Annot.Atypedef (Sym.fresh "cn_pointer") ] in
   (* Ctype_ doesn't matter to pretty-printer when typedef annotations are present *)
@@ -399,9 +399,7 @@ let get_c_block_local_ownership_checking_injs
       List.map
         (fun l ->
            let injs' = combine_injs_over_location l injs in
-           let bs_list, ss_list, inj_kind_list =
-             Executable_spec_utils.list_split_three injs'
-           in
+           let bs_list, ss_list, inj_kind_list = Utils.list_split_three injs' in
            let inj_kind = get_return_inj_kind inj_kind_list in
            { loc = l;
              bs_and_ss = (List.concat bs_list, List.concat ss_list);
@@ -411,7 +409,7 @@ let get_c_block_local_ownership_checking_injs
     in
     combined_injs
   | _ ->
-    Printf.printf "Ownership_exec: function body is not a block";
+    Printf.printf "Ownership: function body is not a block";
     []
 
 
