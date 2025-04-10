@@ -208,7 +208,7 @@ int cn_test_main(int argc, char* argv[]) {
   int replicas = 1;
   int print_seed = 0;
   bool output_tyche = false;
-  FILE *tyche_output_stream = NULL;
+  FILE* tyche_output_stream = NULL;
 
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
@@ -307,9 +307,9 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--print-seed", arg) == 0) {
       print_seed = 1;
     } else if (strcmp("--output-tyche", arg) == 0) {
-      char *next = argv[i + 1];
+      char* next = argv[i + 1];
       tyche_output_stream = fopen(next, "w");
-      if(tyche_output_stream != NULL) {
+      if (tyche_output_stream != NULL) {
         output_tyche = true;
       }
     }
@@ -344,17 +344,16 @@ int cn_test_main(int argc, char* argv[]) {
       }
       repros[i].checkpoint = cn_gen_rand_save();
       cn_gen_set_input_timeout(input_timeout);
-      struct cn_test_input test_input = { .replay = false,
-        .progress_level = progress_level,
-        .sizing_strategy = sizing_strategy,
-        .trap = 0,
-        .replicas = 0,
-        .output_tyche = output_tyche,
-        .tyche_output_stream = tyche_output_stream,
-        .begin_time = begin_time
-      };
+      struct cn_test_input test_input = {.replay = false,
+          .progress_level = progress_level,
+          .sizing_strategy = sizing_strategy,
+          .trap = 0,
+          .replicas = 0,
+          .output_tyche = output_tyche,
+          .tyche_output_stream = tyche_output_stream,
+          .begin_time = begin_time};
       enum cn_test_result result =
-          test_case->func(test_input); //(false, progress_level, sizing_strategy, 0, 0);
+          test_case->func(test_input);  //(false, progress_level, sizing_strategy, 0, 0);
       if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
         results[i] = result;
       }
@@ -376,18 +375,15 @@ int cn_test_main(int argc, char* argv[]) {
             cn_printf(CN_LOGGING_ERROR, "\n");
 
             cn_test_reproduce(&repros[i]);
-            struct cn_test_input test_input = { .replay = true,
-              .progress_level = CN_TEST_GEN_PROGRESS_NONE,
-              .sizing_strategy = sizing_strategy,
-              .trap = trap,
-              .replicas = replicas,
-              .output_tyche = output_tyche,
-              .tyche_output_stream = tyche_output_stream,
-              .begin_time = begin_time
-            };
-            enum cn_test_result replay_result = test_case->func(
-              test_input);
-                // true, CN_TEST_GEN_PROGRESS_NONE, sizing_strategy, trap, replicas);
+            struct cn_test_input test_input = {.replay = true,
+                .progress_level = CN_TEST_GEN_PROGRESS_NONE,
+                .sizing_strategy = sizing_strategy,
+                .trap = trap,
+                .replicas = replicas,
+                .output_tyche = output_tyche,
+                .tyche_output_stream = tyche_output_stream,
+                .begin_time = begin_time};
+            enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
               fprintf(stderr,
@@ -422,7 +418,7 @@ int cn_test_main(int argc, char* argv[]) {
   } while (timediff < timeout);
 
 outside_loop:;
-  if(tyche_output_stream != NULL) {
+  if (tyche_output_stream != NULL) {
     fclose(tyche_output_stream);
   }
 

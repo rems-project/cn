@@ -1,10 +1,11 @@
 #ifndef CN_TEST_H
 #define CN_TEST_H
 
+#include <sys/time.h>
+
 #include <setjmp.h>
 #include <stdbool.h>
 #include <time.h>
-#include <sys/time.h>
 
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
@@ -31,7 +32,7 @@ struct cn_test_input {
   bool trap;
   bool replicas;
   bool output_tyche;
-  FILE *tyche_output_stream;
+  FILE* tyche_output_stream;
   uint64_t begin_time;
 };
 
@@ -82,7 +83,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
     longjmp(buf_##Name, mode);                                                           \
   }                                                                                      \
                                                                                          \
-  enum cn_test_result cn_test_gen_##Name(struct cn_test_input test_input) {                                                                  \
+  enum cn_test_result cn_test_gen_##Name(struct cn_test_input test_input) {              \
     struct timeval start_time_##FuncName, end_time_##FuncName;                           \
     cn_gen_rand_checkpoint checkpoint = cn_gen_rand_save();                              \
     int i = 0, d = 0, recentDiscards = 0;                                                \
@@ -96,9 +97,17 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
                                                                                          \
-        if(test_input.replicas && test_input.output_tyche) {                             \
-          int64_t runtime = timediff_timeval(&start_time_##FuncName, &end_time_##FuncName); \
-          print_test_summary_tyche(test_input.tyche_output_stream, #Suite, #Name, "failed", test_input.begin_time, cn_replica_lines_to_json_literal(), 0, runtime);            \
+        if (test_input.replicas && test_input.output_tyche) {                            \
+          int64_t runtime =                                                              \
+              timediff_timeval(&start_time_##FuncName, &end_time_##FuncName);            \
+          struct tyche_line_info line_info = {.test_suite = #Suite,                      \
+              .test_name = #Name,                                                        \
+              .status = "failed",                                                        \
+              .suite_begin_time = test_input.begin_time,                                 \
+              .representation = cn_replica_lines_to_json_literal(),                      \
+              .init_time = 0,                                                            \
+              .runtime = runtime};                                                       \
+          print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
         }                                                                                \
         if (test_input.replicas) {                                                       \
           printf("********************** Failing input ***********************\n\n");    \
@@ -124,8 +133,12 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         return CN_TEST_GEN_FAIL;                                                         \
       }                                                                                  \
       if (!test_input.replay) {                                                          \
-        cn_gen_set_size(cn_gen_compute_size(                                             \
-            test_input.sizing_strategy, Samples, cn_gen_get_max_size(), 10, i, recentDiscards));    \
+        cn_gen_set_size(cn_gen_compute_size(test_input.sizing_strategy,                  \
+            Samples,                                                                     \
+            cn_gen_get_max_size(),                                                       \
+            10,                                                                          \
+            i,                                                                           \
+            recentDiscards));                                                            \
         cn_gen_rand_replace(checkpoint);                                                 \
       }                                                                                  \
       CN_TEST_INIT();                                                                    \
@@ -150,7 +163,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         cn_analyze_shape_##Name(__VA_ARGS__);                                            \
         cn_replicate_##Name(__VA_ARGS__);                                                \
       }                                                                                  \
-      \
+                                                                                         \
       if (test_input.trap) {                                                             \
         cn_trap();                                                                       \
       }                                                                                  \
@@ -160,15 +173,23 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         return CN_TEST_PASS;                                                             \
       }                                                                                  \
       recentDiscards = 0;                                                                \
-      if(!test_input.replay && test_input.output_tyche) {                                                                   \
-        gettimeofday(&end_time_##FuncName, NULL);                                     \
-        int64_t runtime = timediff_timeval(&start_time_##FuncName, &end_time_##FuncName); \
-        print_test_summary_tyche(test_input.tyche_output_stream, #Suite, #Name, "passed", test_input.begin_time, cn_replica_lines_to_json_literal(), 0, runtime);            \
-      }                                                                                 \
+      if (!test_input.replay && test_input.output_tyche) {                               \
+        gettimeofday(&end_time_##FuncName, NULL);                                        \
+        int64_t runtime =                                                                \
+            timediff_timeval(&start_time_##FuncName, &end_time_##FuncName);              \
+        struct tyche_line_info line_info = {.test_suite = #Suite,                        \
+            .test_name = #Name,                                                          \
+            .status = "passed",                                                          \
+            .suite_begin_time = test_input.begin_time,                                   \
+            .representation = cn_replica_lines_to_json_literal(),                        \
+            .init_time = 0,                                                              \
+            .runtime = runtime};                                                         \
+        print_test_summary_tyche(test_input.tyche_output_stream, &line_info);            \
+      }                                                                                  \
     }                                                                                    \
                                                                                          \
-    if (test_input.progress_level != CN_TEST_GEN_PROGRESS_NONE) {                                   \
-      if (test_input.progress_level == CN_TEST_GEN_PROGRESS_ALL) {                                  \
+    if (test_input.progress_level != CN_TEST_GEN_PROGRESS_NONE) {                        \
+      if (test_input.progress_level == CN_TEST_GEN_PROGRESS_ALL) {                       \
         printf("\r");                                                                    \
       }                                                                                  \
       print_test_info(#Suite, #Name, i, d);                                              \

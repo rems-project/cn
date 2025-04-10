@@ -89,7 +89,7 @@ uint64_t cn_gen_get_input_timer(void) {
   #include <Windows.h>
 
 /// Taken from https://stackoverflow.com/questions/10905892/equivalent-of-gettimeofday-for-windows
-int gettimeofday(struct timeval* tp, struct timezone* tzp) {
+int gettimeofday(struct timeval *tp, struct timezone *tzp) {
   // Note: some broken versions only have 8 trailing zero's, the correct epoch has 9 trailing zero's
   // This magic number is the number of 100 nanosecond intervals since January 1, 1601 (UTC)
   // until 00:00:00 January 1, 1970
@@ -125,5 +125,5 @@ uint64_t cn_gen_get_microseconds(void) {
 }
 
 int64_t timediff_timeval(struct timeval *early, struct timeval *late) {
-  return (late->tv_sec - early->tv_sec)*1000000 + (late->tv_usec - early->tv_usec);
+  return (late->tv_sec - early->tv_sec) * 1000000 + (late->tv_usec - early->tv_usec);
 }
