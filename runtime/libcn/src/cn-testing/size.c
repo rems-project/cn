@@ -116,3 +116,14 @@ uint64_t cn_gen_get_milliseconds(void) {
   gettimeofday(&tv, NULL);
   return (((uint64_t)tv.tv_sec) * 1000) + (tv.tv_usec / 1000);
 }
+
+uint64_t cn_gen_get_microseconds(void) {
+  struct timeval tv;
+
+  gettimeofday(&tv, NULL);
+  return (((uint64_t)tv.tv_sec) * 1000000) + tv.tv_usec;
+}
+
+int64_t timediff_timeval(struct timeval *early, struct timeval *late) {
+  return (late->tv_sec - early->tv_sec)*1000000 + (late->tv_usec - early->tv_usec);
+}

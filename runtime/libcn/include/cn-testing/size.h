@@ -26,3 +26,6 @@ void cn_gen_set_input_timer(uint64_t time);
 uint64_t cn_gen_get_input_timer(void);
 
 uint64_t cn_gen_get_milliseconds(void);
+uint64_t cn_gen_get_microseconds(void);
+
+int64_t timediff_timeval(struct timeval *early, struct timeval *late);
