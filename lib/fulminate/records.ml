@@ -1,8 +1,5 @@
-module CF = Cerb_frontend
-module CB = Cerb_backend
 open Utils
 module BT = BaseTypes
-module A = CF.AilSyntax
 module IT = IndexTerms
 module LRT = LogicalReturnTypes
 module LAT = LogicalArgumentTypes
