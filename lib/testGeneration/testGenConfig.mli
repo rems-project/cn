@@ -52,7 +52,7 @@ type t =
     trap : bool;
     no_replays : bool;
     no_replicas : bool;
-    output_tyche : string option;
+    output_tyche : string option
   }
 
 val default : t

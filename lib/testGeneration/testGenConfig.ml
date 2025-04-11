@@ -52,7 +52,7 @@ type t =
     trap : bool;
     no_replays : bool;
     no_replicas : bool;
-    output_tyche : string option;
+    output_tyche : string option
   }
 
 let default =
@@ -85,7 +85,7 @@ let default =
     trap = false;
     no_replays = false;
     no_replicas = false;
-    output_tyche = Option.None;
+    output_tyche = Option.None
   }
 
 
@@ -210,4 +210,4 @@ let has_no_replays () = !instance.no_replays
 
 let has_no_replicas () = !instance.no_replicas
 
-let get_output_tyche () = !instance.output_tyche 
+let get_output_tyche () = !instance.output_tyche

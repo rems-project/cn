@@ -426,11 +426,13 @@ module Flags = struct
     let doc = "Disable synthesizing C code to replicate bugs" in
     Arg.(value & flag & info [ "no-replicas" ] ~doc)
 
+
   let output_tyche =
     let doc = "Enable output in Tyche format" in
-    Arg.(value
-        & opt (some string) TestGeneration.default_cfg.output_tyche
-        & info [ "output-tyche" ] ~doc)
+    Arg.(
+      value
+      & opt (some string) TestGeneration.default_cfg.output_tyche
+      & info [ "output-tyche" ] ~doc)
 end
 
 let cmd =
