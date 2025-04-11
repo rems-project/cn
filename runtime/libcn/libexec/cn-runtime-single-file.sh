@@ -60,8 +60,8 @@ EXEC_DIR=$(mktemp -d -t 'cn-exec.XXXX')
 
 # Instrument code with CN
 if cn instrument "${INPUT_FN}" \
-    --output-decorated="${INPUT_BASENAME}-exec.c" \
-    --output-decorated-dir="${EXEC_DIR}" \
+    --output="${INPUT_BASENAME}-exec.c" \
+    --output-dir="${EXEC_DIR}" \
     ${NO_CHECK_OWNERSHIP}; then
   [ "${QUIET}" ] || echo "Generating C files from CN-annotated source."
 else

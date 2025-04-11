@@ -17,12 +17,7 @@ let generate_executable_specs
       print_level
       print_sym_nums
       no_timestamps
-      json
-      json_trace
-      output_dir
       diag
-      only
-      skip
       csv_times
       log_times
       astprints
@@ -32,31 +27,30 @@ let generate_executable_specs
       no_inherit_loc
       magic_comment_char_dollar
       (* Executable spec *)
-        output_decorated
-      output_decorated_dir
+        output
+      output_dir
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       with_test_gen
       copy_source_dir
   =
-  if json then (
-    if debug_level > 0 then
-      CF.Pp_errors.fatal "debug level must be 0 for json output";
-    if print_level > 0 then
-      CF.Pp_errors.fatal "print level must be 0 for json output");
   (*flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.loc_pp := loc_pp;
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
-  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   WellTyped.use_ity := not no_use_ity;
   Sym.executable_spec_enabled := true;
+  let handle_error (e : TypeErrors.t) =
+    let report = TypeErrors.pp_message e.msg in
+    Pp.error e.loc report.short (Option.to_list report.descr);
+    match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
+  in
   (* XXX temporary: should we inject in the pre-processed file or original one *)
   let filename = Common.there_can_only_be_one filename in
   let use_preproc = false in
@@ -82,7 +76,7 @@ let generate_executable_specs
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
     ~save_cpp:save
-    ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
+    ~handle_error
     ~f:(fun ~cabs_tunit:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
         (fun () ->
@@ -96,8 +90,8 @@ let generate_executable_specs
                 exec_spec_file
                 ~use_preproc
                 ail_prog
-                output_decorated
-                output_decorated_dir
+                output
+                output_dir
                 prog5
             with
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
@@ -108,20 +102,20 @@ let generate_executable_specs
 open Cmdliner
 
 module Flags = struct
-  let output_decorated_dir =
+  let output_dir =
     let doc =
       "output a version of the translation unit decorated with C runtime\n\
       \  translations of the CN annotations to the provided directory"
     in
-    Arg.(value & opt (some dir) None & info [ "output-decorated-dir" ] ~docv:"DIR" ~doc)
+    Arg.(value & opt (some dir) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
-  let output_decorated =
+  let output =
     let doc =
       "output a version of the translation unit decorated with C runtime\n\
       \  translations of the CN annotations."
     in
-    Arg.(value & opt (some string) None & info [ "output-decorated" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some string) None & info [ "output"; "o" ] ~docv:"FILE" ~doc)
 
 
   let without_ownership_checking =
@@ -148,9 +142,7 @@ module Flags = struct
 
 
   let copy_source_dir =
-    let doc =
-      "Copy non-CN annotated files into output_decorated_dir for CN runtime testing"
-    in
+    let doc = "Copy non-CN annotated files into output_dir for CN runtime testing" in
     Arg.(value & flag & info [ "copy-source-dir" ] ~doc)
 end
 
@@ -167,12 +159,7 @@ let cmd =
     $ Common.Flags.print_level
     $ Common.Flags.print_sym_nums
     $ Common.Flags.no_timestamps
-    $ Verify.Flags.json
-    $ Verify.Flags.json_trace
-    $ Verify.Flags.output_dir
     $ Verify.Flags.diag
-    $ Verify.Flags.only
-    $ Verify.Flags.skip
     $ Common.Flags.csv_times
     $ Common.Flags.log_times
     $ Common.Flags.astprints
@@ -181,8 +168,8 @@ let cmd =
     $ Verify.Flags.fail_fast
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
-    $ Flags.output_decorated
-    $ Flags.output_decorated_dir
+    $ Flags.output
+    $ Flags.output_dir
     $ Flags.without_ownership_checking
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
