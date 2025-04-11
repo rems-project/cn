@@ -1,5 +1,7 @@
 open PPrint
 open Utils
+module CF = Cerb_frontend
+module C = CF.Ctype
 module A = CF.AilSyntax
 module AT = ArgumentTypes
 module OE = Ownership
