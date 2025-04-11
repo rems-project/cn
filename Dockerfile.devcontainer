@@ -4,7 +4,8 @@ FROM ubuntu:24.04
 # Install system packages
 RUN apt-get update
 RUN apt-get upgrade -y
-RUN apt-get install -y opam libgmp-dev libmpfr-dev
+RUN apt-get install -y opam libgmp-dev libmpfr-dev clang-format-19
+RUN ln -s /usr/bin/clang-format-19 /usr/bin/clang-format
 
 ENV OPAMCONFIRMLEVEL=unsafe-yes
 RUN opam init --disable-sandboxing

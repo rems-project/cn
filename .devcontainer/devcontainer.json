@@ -3,11 +3,8 @@
 	"build": {
 		"dockerfile": "../Dockerfile.devcontainer"
 	},
-	"features": {
-	},
-
+	"features": {},
 	"postCreateCommand": "",
-
 	"customizations": {
 		"vscode": {
 			"extensions": [
@@ -15,7 +12,8 @@
 				"ms-vscode.cpptools-themes",
 				"ms-vscode.cmake-tools",
 				"ocamllabs.ocaml-platform",
-				"ms-vscode.cpptools-extension-pack"
+				"ms-vscode.cpptools-extension-pack",
+				"xaver.clang-format"
 			]
 		}
 	}
