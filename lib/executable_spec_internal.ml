@@ -338,7 +338,8 @@ let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
 let print_c_structs c_structs =
   let struct_defs_str = generate_str_from_ail_structs c_structs in
   let struct_decls_str = List.map generate_struct_decl_str c_structs in
-  ("\n/* ORIGINAL C STRUCTS */\n\n" ^ struct_defs_str, String.concat "" struct_decls_str)
+  ("\n/* ORIGINAL C STRUCTS */\n\n" ^ struct_defs_str,
+   "\n/* ORIGINAL C STRUCT DECLS */\n\n" ^ String.concat "" struct_decls_str)
 
 
 let generate_cn_versions_of_structs c_structs =

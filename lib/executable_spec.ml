@@ -194,6 +194,188 @@ let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Executable_spec_internal
 
+(* Find the location after which we should inject declaratoins *)
+let find_header_end (prog: unit Mucore.file) =
+  let check (CF.Symbol.Identifier (loc,s)) _ found =
+    match found with
+    | None when String.equal s "cn_end_of_header" -> Some loc
+    | _ -> found
+in match Pmap.fold check prog.extern None with
+| Some v ->
+    (* TODO: this would be a lot easier if we exposed a bit more about
+       locatoins in Cerberus, we just want the next line after the locaiton *)
+    begin match Cerb_location.to_cartesian_raw v with
+    | Some ((row,_),_) ->
+      
+      let next_line_lex: Lexing.position = {
+        pos_fname = (match Cerb_location.get_filename v with
+                    | Some f -> f | None -> "");
+        pos_lnum = row + 2; (* +1 bacuse one base, +1 to go to next line *)
+        pos_bol = 1;
+        pos_cnum = 1
+      } in
+      let next_line = Cerb_position.from_lexing next_line_lex in
+      Cerb_location.point next_line
+    | None -> failwith "`cn_end_of_header` has no cartesian representation."
+    end
+| None -> failwith "Failed to find `cn_end_of_header`"
+
+let new_main
+      ?(without_ownership_checking = false)
+      ?(without_loop_invariants = false)
+      ?(with_loop_leak_checks = false)
+      ?(with_test_gen = false)
+      filename
+      ((_, sigm) as ail_prog)
+      output_decorated
+      output_decorated_dir
+      prog5
+      statement_locs
+  =
+  
+  
+  let instrumentation, symbol_table =
+    Executable_spec_extract.collect_instrumentation prog5
+  in
+  Executable_spec_records.populate_record_map instrumentation prog5;
+  let executable_spec =
+    generate_c_specs
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      instrumentation
+      symbol_table
+      statement_locs
+      sigm
+      prog5
+  in
+  let c_datatype_defs, _c_datatype_decls, c_datatype_equality_fun_decls =
+    generate_c_datatypes sigm
+  in
+  let c_function_defs, c_function_decls, locs_and_c_extern_function_decls, _c_records =
+    generate_c_functions_internal sigm prog5.logical_predicates
+  in
+  let c_predicate_defs, locs_and_c_predicate_decls, _c_records' =
+    generate_c_predicates_internal sigm prog5.resource_predicates
+  in
+  let conversion_function_defs, conversion_function_decls =
+    generate_conversion_and_equality_functions sigm
+  in
+  let ownership_function_defs, ownership_function_decls =
+    generate_ownership_functions
+      without_ownership_checking
+      Cn_internal_to_ail.ownership_ctypes
+      sigm
+  in
+  let _c_struct_defs, c_struct_decls = print_c_structs sigm.tag_definitions in
+  let cn_converted_struct_defs, _cn_converted_struct_decls =
+    generate_cn_versions_of_structs sigm.tag_definitions
+  in
+  let record_fun_defs, record_fun_decls =
+    Executable_spec_records.generate_c_record_funs sigm
+  in
+  let record_defs, _record_decls = Executable_spec_records.generate_all_record_strs () in
+
+
+  (* Forward declarations and CN types *)
+  let cn_header_decls_list =
+    List.concat
+    [
+      [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
+        record_defs;
+        c_struct_decls;
+        cn_converted_struct_defs
+      ];
+      if List.is_empty c_datatype_defs then [] else ["/* CN DATATYPES */"];
+      List.map snd c_datatype_defs;
+      [
+        "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
+        ownership_function_decls;
+        conversion_function_decls;
+        record_fun_decls;
+        (* record_equality_fun_prot_strs; *)
+        (* record_equality_fun_prot_strs'; *)
+        c_function_decls;
+        "\n";
+      ];
+      List.concat (List.map snd locs_and_c_predicate_decls)
+    ]
+  in
+
+  (* Definitions for CN helper functions *)
+  (* TODO: Topological sort *)
+  let cn_defs_list =
+    [ 
+      (* record_equality_fun_strs; *)
+      (* record_equality_fun_strs'; *)
+      record_fun_defs;
+      conversion_function_defs;
+      ownership_function_defs;
+      c_function_defs;
+      "\n";
+      c_predicate_defs
+    ]
+  in
+  
+  let in_stmt_injs =
+    (*(find_header_end prog5, cn_header_decls_list) ::*)
+    executable_spec.in_stmt
+    @ if without_ownership_checking then [] else memory_accesses_injections ail_prog
+  in
+
+  let pre_post_pairs =
+    if with_test_gen then
+      if not (has_main sigm) then
+        executable_spec.pre_post
+      else
+        failwith
+          "Input file cannot have predefined main function when passing to CN test-gen \
+           tooling"
+    else if without_ownership_checking then
+      executable_spec.pre_post
+    else (
+      (* XXX: ONLY IF THERE IS A MAIN *)
+      (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
+      let global_ownership_init_pair = generate_ownership_global_assignments sigm prog5 in
+      global_ownership_init_pair @ executable_spec.pre_post)
+  in
+
+  (* Save things *)
+  let output_filename =
+    match output_decorated with
+    | None -> Filename.(remove_extension (basename filename)) ^ "-exec.c"
+    | Some output_filename' -> output_filename'
+  in
+  let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
+  let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
+  output_to_oc oc
+    [ "#define CN_INSTRUMENTATION_MODE\n";
+      "#include <cn-executable/rts.h>\n"
+    ];
+  output_to_oc oc cn_header_decls_list;
+
+  (match
+     Source_injection.(
+       output_injections
+         oc
+         { filename;
+           program = ail_prog;
+           pre_post = pre_post_pairs;
+           in_stmt = in_stmt_injs;
+           returns = executable_spec.returns;
+           inject_in_preproc = true
+         })
+   with
+   | Ok () -> ()
+   | Error str ->
+     (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
+     prerr_endline str);
+ 
+  output_to_oc oc cn_defs_list;
+  close_out oc
+
+
+
 let main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
@@ -208,6 +390,8 @@ let main
       prog5
       statement_locs
   =
+  
+
   let output_filename =
     match output_decorated with
     | None -> Filename.(remove_extension (basename filename)) ^ "-exec.c"
@@ -409,14 +593,16 @@ let main
    | Error str ->
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
-  if copy_source_dir then
-    copy_source_dir_files_into_output_dir filename remaining_fns_and_ocs prefix;
-  inject_injs_to_multiple_files
-    ail_prog
-    in_stmt_injs
-    squashed_block_return_injs
-    cn_header
-    remaining_fns_and_ocs;
+  if not use_preproc then begin
+    if copy_source_dir then
+      copy_source_dir_files_into_output_dir filename remaining_fns_and_ocs prefix;
+    inject_injs_to_multiple_files
+      ail_prog
+      in_stmt_injs
+      squashed_block_return_injs
+      cn_header
+      remaining_fns_and_ocs;
+  end;
   close_out oc;
   close_out cn_oc;
   close_out cn_header_oc

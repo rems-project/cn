@@ -11,6 +11,10 @@
 (install
  (files
   ;
+  (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
+  (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
+  (cn-executable/rts.h as runtime/include/cn-executable/rts.h)
+  (cn-executable/prims.h as runtime/include/cn-executable/prims.h)
   (cn-executable/alloc.h as runtime/include/cn-executable/alloc.h)
   (cn-executable/hash_table.h as runtime/include/cn-executable/hash_table.h)
   (cn-executable/utils.h as runtime/include/cn-executable/utils.h)

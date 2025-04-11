@@ -405,9 +405,16 @@ let handle_error_with_user_guidance ~(label : string) (e : exn) : unit =
   exit 1
 
 
+
+(* TODO: use a TEMP file for this *)
 let pick_cpp_file_name outdir filename =
   let cpp_name = Filename.remove_extension filename ^ "-preproc.c" in
   match outdir with None -> cpp_name | Some d -> Filename.concat d cpp_name
+
+(* TODO: how do we figure out where CN was installed? *)
+let get_cn_install_dir () =
+  let home = Sys.getenv "HOME"
+in home ^ "/.opam/default/lib/cn"
 
 
 let generate_executable_specs
@@ -461,7 +468,8 @@ let generate_executable_specs
   WellTyped.use_ity := not no_use_ity;
   Sym.executable_spec_enabled := true;
   (* XXX temporary: should we inject in the pre-processed file or original one *)
-  let use_preproc = false in
+  let use_preproc = true in
+  
   let fi, save =
     if use_preproc then (
       let fi = pick_cpp_file_name output_dir filename in
@@ -469,6 +477,7 @@ let generate_executable_specs
     else
       (filename, None)
   in
+  let cn_rts = get_cn_install_dir () ^ "/runtime/include/cn-executable/rts.h" in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -489,14 +498,12 @@ let generate_executable_specs
       Cerb_colour.without_colour
         (fun () ->
            (try
-              Executable_spec.main
+              Executable_spec.new_main
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
                 ~with_test_gen
-                ~copy_source_dir
                 fi
-                ~use_preproc
                 ail_prog
                 output_decorated
                 output_decorated_dir

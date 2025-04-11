@@ -70,6 +70,8 @@ void ht_destroy(hash_table* table) {
 
 // Return 64-bit FNV-1a hash for key (NUL-terminated). See description:
 // https://en.wikipedia.org/wiki/Fowler–Noll–Vo_hash_function
+// XXX: This seems a bit wrong: the wikipedia article says to process the
+// key one byte at a time.
 static uint64_t hash_key(int64_t* key) {
   uint64_t hash = FNV_OFFSET;
   hash ^= *key;
