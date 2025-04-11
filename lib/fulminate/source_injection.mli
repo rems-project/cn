@@ -5,7 +5,7 @@ type 'a cn_injection =
     program : 'a AilSyntax.ail_program;
       (** The processed form of the program in [filename].
         This is used to find the locations of the symbols in [pre_post]. *)
-    pre_post : (Symbol.sym * (string list * string list)) list;
+    pre_post : (Sym.t * (string list * string list)) list;
       (** Pre- and post-condition checks to inject for the given symbols.
         The locations of the symbols are found by consulting [program]. *)
     in_stmt : (Cerb_location.t * string list) list;
