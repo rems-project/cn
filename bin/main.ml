@@ -404,18 +404,10 @@ let handle_error_with_user_guidance ~(label : string) (e : exn) : unit =
   Printf.eprintf "Check that there isn't already one for this error.\n";
   exit 1
 
-
-
 (* TODO: use a TEMP file for this *)
 let pick_cpp_file_name outdir filename =
   let cpp_name = Filename.remove_extension filename ^ "-preproc.c" in
   match outdir with None -> cpp_name | Some d -> Filename.concat d cpp_name
-
-(* TODO: how do we figure out where CN was installed? *)
-let get_cn_install_dir () =
-  let home = Sys.getenv "HOME"
-in home ^ "/.opam/default/lib/cn"
-
 
 let generate_executable_specs
       filename
@@ -477,7 +469,6 @@ let generate_executable_specs
     else
       (filename, None)
   in
-  let cn_rts = get_cn_install_dir () ^ "/runtime/include/cn-executable/rts.h" in
   with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros

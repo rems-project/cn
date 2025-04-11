@@ -194,32 +194,6 @@ let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Executable_spec_internal
 
-(* Find the location after which we should inject declaratoins *)
-let find_header_end (prog: unit Mucore.file) =
-  let check (CF.Symbol.Identifier (loc,s)) _ found =
-    match found with
-    | None when String.equal s "cn_end_of_header" -> Some loc
-    | _ -> found
-in match Pmap.fold check prog.extern None with
-| Some v ->
-    (* TODO: this would be a lot easier if we exposed a bit more about
-       locatoins in Cerberus, we just want the next line after the locaiton *)
-    begin match Cerb_location.to_cartesian_raw v with
-    | Some ((row,_),_) ->
-      
-      let next_line_lex: Lexing.position = {
-        pos_fname = (match Cerb_location.get_filename v with
-                    | Some f -> f | None -> "");
-        pos_lnum = row + 2; (* +1 bacuse one base, +1 to go to next line *)
-        pos_bol = 1;
-        pos_cnum = 1
-      } in
-      let next_line = Cerb_position.from_lexing next_line_lex in
-      Cerb_location.point next_line
-    | None -> failwith "`cn_end_of_header` has no cartesian representation."
-    end
-| None -> failwith "Failed to find `cn_end_of_header`"
-
 let new_main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
