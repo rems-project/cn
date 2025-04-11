@@ -2,7 +2,7 @@
 
 ## Installation
 
-You need Opam >= 2.0.0 OCaml >= 4.12.0 Coq >= 8.19.2.
+You need Opam >= 2.0.0 OCaml >= 4.12.0 Coq >= 8.20.1.
 (>= 4.12.0). The developers are currently using OCaml 5.2.0 and Coq 8.20.1
 
 It is recommended to create a new switch for CN-Coq:
