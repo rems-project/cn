@@ -1,4 +1,4 @@
-open Utils
+module CF = Cerb_frontend
 module BT = BaseTypes
 module IT = IndexTerms
 module LRT = LogicalReturnTypes
