@@ -14,8 +14,8 @@ module STermMap = Map.Make (IndexTerms.Surface)
 module StringMap = Map.Make (String)
 open Pp.Infix
 
-type function_sig =
-  { args : (Sym.t * BaseTypes.t) list; [@warning "-69" (* unused-record-field *)]
+type[@warning "-69" (* unused-record-field *)] function_sig =
+  { args : (Sym.t * BaseTypes.t) list;
       (* FIXME either delete this field, or explain why we don't need it *)
     return_bty : BaseTypes.t
   }

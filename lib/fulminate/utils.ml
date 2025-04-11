@@ -89,10 +89,8 @@ let rec list_split_three = function
 
 type[@warning "-34" (* unused-type-declaration *)] cn_dependencies = CF.Symbol.sym list
 
-type[@warning "-34" (* unused-type-declaration *)] cn_dependency_graph =
-  { cn_functions_with_dependencies : (CF.Symbol.sym, C.ctype) Cn.cn_function list
-        [@warning "-69" (* unused-record-field *)]
-  }
+type[@warning "-34-69" (* unused-type-declaration, unused-record-field *)] cn_dependency_graph =
+  { cn_functions_with_dependencies : (CF.Symbol.sym, C.ctype) Cn.cn_function list }
 
 let[@warning "-32" (* unused-value-declaration *)] compute_cn_dependencies ail_prog =
   ail_prog
