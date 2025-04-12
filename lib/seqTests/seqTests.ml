@@ -150,12 +150,15 @@ let create_test_file
   let open Pp in
   (if Config.with_static_hack () then
      string "#include "
-     ^^ dquotes (string (filename_base ^ "-exec.c"))
+     ^^ dquotes (string (filename_base ^ ".exec.c"))
      ^^ hardline
      ^^ string "#include "
      ^^ dquotes (string "cn.c")
    else
-     string "#include " ^^ dquotes (string "cn.h") ^^ twice hardline ^^ fun_decls)
+     string "#include "
+     ^^ dquotes (string (filename_base ^ ".cn.h"))
+     ^^ twice hardline
+     ^^ fun_decls)
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
@@ -262,7 +265,7 @@ let rec gen_sequence
           let _ =
             save
               output_dir
-              (filename_base ^ "_test.c")
+              (filename_base ^ ".test.c")
               (create_test_file (seq_so_far ^^ curr_test) filename_base fun_decls)
           in
           let output, status = out_to_list (output_dir ^ "/run_tests.sh") in
@@ -441,7 +444,7 @@ let generate
   =
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
-  let test_file = filename_base ^ "_test.c" in
+  let test_file = filename_base ^ ".test.c" in
   let script_doc = BuildScript.generate ~output_dir ~filename_base in
   let src_code, _ = out_to_list ("cat " ^ filename) in
   save ~perm:0o777 output_dir "run_tests.sh" script_doc;

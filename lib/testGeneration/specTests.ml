@@ -81,6 +81,7 @@ let compile_constant_tests
 
 
 let compile_generators
+      (filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (insts : FExtract.instrumentation list)
@@ -98,7 +99,7 @@ let compile_generators
   debug_stage "Optimize" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
   let ctx = ctx |> GenRuntime.elaborate in
   debug_stage "Elaborated" (ctx |> GenRuntime.pp |> Pp.plain ~width:80);
-  ctx |> GenCodeGen.compile sigma
+  ctx |> GenCodeGen.compile filename sigma
 
 
 let convert_from ((x, ct) : Sym.t * C.ctype) =

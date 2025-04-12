@@ -56,12 +56,12 @@ let compile ~filename_base =
           ([ "cc";
              "-c";
              "-o";
-             "\"./" ^ filename_base ^ "_test.o\"";
-             "\"./" ^ filename_base ^ "_test.c\""
+             "\"./" ^ filename_base ^ ".test.o\"";
+             "\"./" ^ filename_base ^ ".test.c\""
            ]
            @ cc_flags ()))
-       ("Compiled '" ^ filename_base ^ "_test.c'.")
-       ("Failed to compile '" ^ filename_base ^ "_test.c' in ${TEST_DIR}.")
+       ("Compiled '" ^ filename_base ^ ".test.c'.")
+       ("Failed to compile '" ^ filename_base ^ ".test.c' in ${TEST_DIR}.")
   ^^ (if Config.with_static_hack () then
         empty
       else
@@ -72,19 +72,25 @@ let compile ~filename_base =
                 ([ "cc";
                    "-c";
                    "-o";
-                   "\"./" ^ filename_base ^ "-exec.o\"";
-                   "\"./" ^ filename_base ^ "-exec.c\""
+                   "\"./" ^ filename_base ^ ".exec.o\"";
+                   "\"./" ^ filename_base ^ ".exec.c\""
                  ]
                  @ cc_flags ()))
-             ("Compiled '" ^ filename_base ^ "-exec.c'.")
-             ("Failed to compile '" ^ filename_base ^ "-exec.c' in ${TEST_DIR}.")
+             ("Compiled '" ^ filename_base ^ ".exec.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}.")
         ^^ twice hardline
         ^^ attempt
              (String.concat
                 " "
-                ([ "cc"; "-c"; "-o"; "\"./cn.o\""; "\"./cn.c\"" ] @ cc_flags ()))
-             "Compiled 'cn.c'."
-             "Failed to compile 'cn.c' in ${TEST_DIR}.")
+                ([ "cc";
+                   "-c";
+                   "-o";
+                   "\"./" ^ filename_base ^ ".cn.o\"";
+                   "\"./" ^ filename_base ^ ".cn.c\""
+                 ]
+                 @ cc_flags ()))
+             ("Compiled '" ^ filename_base ^ ".cn.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".cn.c' in ${TEST_DIR}."))
   ^^ hardline
 
 
@@ -102,12 +108,12 @@ let link ~filename_base =
              "-o";
              "\"./tests.out\"";
              (filename_base
-              ^ "_test.o"
+              ^ ".test.o"
               ^
               if Config.with_static_hack () then
                 ""
               else
-                " " ^ filename_base ^ "-exec.o cn.o");
+                " " ^ filename_base ^ ".exec.o " ^ filename_base ^ ".cn.o");
              "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\""
@@ -138,7 +144,7 @@ let[@warning "-32" (* unused-value-declaration *)] coverage ~filename_base =
   ^^ string "echo"
   ^^ hardline
   ^^ attempt
-       ("gcov \"" ^ filename_base ^ "_test.c\"")
+       ("gcov \"" ^ filename_base ^ ".test.c\"")
        "Recorded coverage via gcov."
        "Failed to record coverage."
   ^^ twice hardline

@@ -229,10 +229,12 @@ let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 open Internal
 
 let get_instrumented_filename filename =
-  Filename.(remove_extension (basename filename)) ^ "-exec.c"
+  Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
-let get_cn_helper_filename _filename = "cn.c"
+let get_cn_helper_filename filename =
+  Filename.(remove_extension (basename filename)) ^ ".cn.c"
+
 
 let main
       ?(without_ownership_checking = false)
@@ -256,7 +258,10 @@ let main
   let cn_oc =
     Stdlib.open_out (Filename.concat prefix (get_cn_helper_filename filename))
   in
-  let cn_header_oc = Stdlib.open_out (Filename.concat prefix "cn.h") in
+  let cn_header_filename =
+    Filename.remove_extension (get_cn_helper_filename filename) ^ ".h"
+  in
+  let cn_header_oc = Stdlib.open_out (Filename.concat prefix cn_header_filename) in
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation prog5
   in
@@ -284,7 +289,7 @@ let main
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions sigm
   in
-  let cn_header_pair = ("cn.h", false) in
+  let cn_header_pair = (cn_header_filename, false) in
   let cn_header = Utils.generate_include_header cn_header_pair in
   let cn_utils_header_pair = ("cn-executable/utils.h", true) in
   let cn_utils_header = Utils.generate_include_header cn_utils_header_pair in
@@ -318,7 +323,7 @@ let main
     Utils.ifndef_wrap "CN_HEADER" (String.concat "\n" cn_header_decls_list)
   in
   output_to_oc cn_header_oc [ cn_header_oc_str ];
-  (* Genereate CN.c *)
+  (* Genereate myfile.cn.c *)
 
   (* TODO: Topological sort *)
   let cn_defs_list =
@@ -334,7 +339,7 @@ let main
     ]
   in
   output_to_oc cn_oc cn_defs_list;
-  (* Generate myfile-exec.c *)
+  (* Generate myfile.exec.c *)
   let incls =
     [ ("assert.h", true);
       ("stdlib.h", true);
