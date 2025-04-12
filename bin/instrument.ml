@@ -7,6 +7,76 @@ let pick_cpp_file_name outdir filename =
   match outdir with None -> cpp_name | Some d -> Filename.concat d cpp_name
 
 
+let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
+  let instrumented_filename =
+    Option.value ~default:(Fulminate.get_instrumented_filename filename) output
+  in
+  let cn_helper_filename = Fulminate.get_cn_helper_filename filename in
+  let output_dir = Option.value ~default:"." output_dir in
+  let in_folder ?ext fn =
+    Filename.concat
+      output_dir
+      (match ext with Some ext' -> Filename.remove_extension fn ^ ext' | None -> fn)
+  in
+  let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
+  let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
+  let includes = "-I" ^ runtime_prefix ^ "/include/" in
+  if not (Sys.file_exists runtime_prefix) then (
+    print_endline
+      ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
+    exit 1);
+  if
+    Sys.command
+      ("cc -c "
+       ^ includes
+       ^ " -o "
+       ^ in_folder ~ext:".o" cn_helper_filename
+       ^ " "
+       ^ in_folder cn_helper_filename)
+    == 0
+  then (
+    if print_steps then
+      print_endline ("Compiled '" ^ cn_helper_filename ^ "'"))
+  else (
+    print_endline ("Failed to compile '" ^ cn_helper_filename ^ "'");
+    exit 1);
+  if
+    Sys.command
+      ("cc -c "
+       ^ includes
+       ^ " -o "
+       ^ in_folder ~ext:".o" instrumented_filename
+       ^ " "
+       ^ in_folder instrumented_filename)
+    == 0
+  then (
+    if print_steps then
+      print_endline ("Compiled '" ^ instrumented_filename ^ "'"))
+  else (
+    print_endline ("Failed to compile '" ^ instrumented_filename ^ "'");
+    exit 1);
+  if
+    Sys.command
+      ("cc "
+       ^ includes
+       ^ " -o "
+       ^ in_folder ~ext:".out" instrumented_filename
+       ^ " "
+       ^ in_folder ~ext:".o" instrumented_filename
+       ^ " "
+       ^ in_folder ~ext:".o" cn_helper_filename
+       ^ " "
+       ^ Filename.concat runtime_prefix "libcn_exec.a")
+    == 0
+  then (
+    if print_steps then
+      print_endline "Linked C .o files.")
+  else (
+    print_endline ("Failed to compile '" ^ instrumented_filename ^ "'");
+    exit 1);
+  Unix.execv (in_folder ~ext:".out" instrumented_filename) (Array.of_list [])
+
+
 let generate_executable_specs
       filename
       macros
@@ -34,6 +104,8 @@ let generate_executable_specs
       with_loop_leak_checks
       with_test_gen
       copy_source_dir
+      run
+      print_steps
   =
   (*flags *)
   Cerb_debug.debug_level := debug_level;
@@ -95,8 +167,16 @@ let generate_executable_specs
                 prog5
             with
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
-           Or_TypeError.return ())
-        ())
+           ())
+        ();
+      Or_TypeError.return
+        (if run then (
+           if with_test_gen then (
+             print_endline
+               "Tried running instrumented file (`--run`) with `main` function. (Due to \
+                use of `--with-test-gen`)";
+             exit 1);
+           run_instrumented_file ~filename ~output ~output_dir ~print_steps)))
 
 
 open Cmdliner
@@ -144,6 +224,18 @@ module Flags = struct
   let copy_source_dir =
     let doc = "Copy non-CN annotated files into output_dir for CN runtime testing" in
     Arg.(value & flag & info [ "copy-source-dir" ] ~doc)
+
+
+  let run =
+    let doc = "Run the instrumented program" in
+    Arg.(value & flag & info [ "run" ] ~doc)
+
+
+  let print_steps =
+    let doc =
+      "Print successful stages, such as instrumentation, compilation and linking."
+    in
+    Arg.(value & flag & info [ "print-steps" ] ~doc)
 end
 
 let cmd =
@@ -175,6 +267,8 @@ let cmd =
     $ Flags.with_loop_leak_checks
     $ Flags.with_test_gen
     $ Flags.copy_source_dir
+    $ Flags.run
+    $ Flags.print_steps
   in
   let doc =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \

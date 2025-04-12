@@ -60,36 +60,13 @@ EXEC_DIR=$(mktemp -d -t 'cn-exec.XXXX')
 
 # Instrument code with CN
 if cn instrument "${INPUT_FN}" \
+    --run --print-steps \
     --output="${INPUT_BASENAME}-exec.c" \
     --output-dir="${EXEC_DIR}" \
     ${NO_CHECK_OWNERSHIP}; then
-  [ "${QUIET}" ] || echo "Generating C files from CN-annotated source."
+  [ "${QUIET}" ] || echo "Success!"
 else
-  echo_and_err "Failed to generate C files from CN-annotated source."
-fi
-
-# Compile
-cd "${EXEC_DIR}"
-if cc -g -c ${UBSAN} "-I${RUNTIME_PREFIX}"/include/ ./"${INPUT_BASENAME}-exec.c" cn.c; then
-    [ "${QUIET}" ] || echo "Compiled C files."
-else
-    echo_and_err "Failed to compile C files in ${EXEC_DIR}."
-fi
-
-# Link
-if cc ${UBSAN} "-I${RUNTIME_PREFIX}/include" -o "${INPUT_BASENAME}-exec-output.bin" ./*.o "${RUNTIME_PREFIX}/libcn_exec.a"; then
-    [ "${QUIET}" ] || echo "Linked C .o files." 
-else
-    echo_and_err "Failed to link .o files in ${EXEC_DIR}."
-fi
-
-
-# RUN
-OUT_FD=$([ "${QUIET}" ] && echo "/dev/null" || echo "1")
-if "./${INPUT_BASENAME}-exec-output.bin" >& "${OUT_FD}"; then
-    [ "${QUIET}" ] || echo "Success!"
-else
-    echo_and_err "Test $1 failed in ${EXEC_DIR}."
+  echo_and_err "Test $1 failed in ${EXEC_DIR}."
 fi
 
 echo "${EXEC_DIR}"

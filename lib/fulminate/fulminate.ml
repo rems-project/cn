@@ -190,6 +190,12 @@ let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
 
+let get_instrumented_filename filename =
+  Filename.(remove_extension (basename filename)) ^ "-exec.c"
+
+
+let get_cn_helper_filename _filename = "cn.c"
+
 let main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
@@ -204,13 +210,13 @@ let main
       prog5
   =
   let output_filename =
-    match output_decorated with
-    | None -> Filename.(remove_extension (basename filename)) ^ "-exec.c"
-    | Some output_filename' -> output_filename'
+    Option.value ~default:(get_instrumented_filename filename) output_decorated
   in
   let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
   let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
-  let cn_oc = Stdlib.open_out (Filename.concat prefix "cn.c") in
+  let cn_oc =
+    Stdlib.open_out (Filename.concat prefix (get_cn_helper_filename filename))
+  in
   let cn_header_oc = Stdlib.open_out (Filename.concat prefix "cn.h") in
   let instrumentation, _ = Extract.collect_instrumentation prog5 in
   Records.populate_record_map instrumentation prog5;
