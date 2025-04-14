@@ -3,8 +3,6 @@ open Utils
 module A = CF.AilSyntax
 module C = CF.Ctype
 
-
-
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
 
@@ -23,8 +21,6 @@ type ownership_injection =
     bs_and_ss : ail_bindings_and_statements;
     injection_kind : injection_kind
   }
-
-
 
 let get_cn_stack_depth_sym = Sym.fresh "get_cn_stack_depth"
 

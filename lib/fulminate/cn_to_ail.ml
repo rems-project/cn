@@ -28,6 +28,7 @@ let spec_mode_to_enum_str = function
   | Loop -> "LOOP"
   | Statement -> "STATEMENT"
 
+
 let rec cn_base_type_to_bt = function
   | CN_unit -> BT.Unit
   | CN_bool -> BT.Bool
@@ -827,8 +828,12 @@ let rec cn_to_ail_expr_aux
     in
     dest d spec_mode ([], [], mk_expr ail_expr_)
   | Binop (bop, t1, t2) ->
-    let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t1 PassBack in
-    let b2, s2, e2 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t2 PassBack in
+    let b1, s1, e1 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t1 PassBack
+    in
+    let b2, s2, e2 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t2 PassBack
+    in
     let annot = cn_to_ail_binop (IT.get_bt t1) (IT.get_bt t2) bop in
     let str =
       match annot with
@@ -845,7 +850,9 @@ let rec cn_to_ail_expr_aux
     in
     dest d spec_mode (b1 @ b2, s1 @ s2, mk_expr ail_expr_)
   | Unop (unop, t) ->
-    let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack in
+    let b, s, e =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack
+    in
     let annot = cn_to_ail_unop (IT.get_bt t) unop in
     let str =
       match annot with
@@ -868,15 +875,31 @@ let rec cn_to_ail_expr_aux
     let result_ident = A.(AilEident result_sym) in
     let result_binding = create_binding result_sym (bt_to_ail_ctype (IT.get_bt t2)) in
     let result_decl = A.(AilSdeclaration [ (result_sym, None) ]) in
-    let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t1 PassBack in
+    let b1, s1, e1 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t1 PassBack
+    in
     let wrapped_cond =
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "convert_from_cn_bool")), [ e1 ]))
     in
     let b2, s2 =
-      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t2 (AssignVar result_sym)
+      cn_to_ail_expr_aux
+        const_prop
+        pred_name
+        dts
+        globals
+        spec_mode
+        t2
+        (AssignVar result_sym)
     in
     let b3, s3 =
-      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t3 (AssignVar result_sym)
+      cn_to_ail_expr_aux
+        const_prop
+        pred_name
+        dts
+        globals
+        spec_mode
+        t3
+        (AssignVar result_sym)
     in
     let ite_stat =
       A.(
@@ -885,7 +908,10 @@ let rec cn_to_ail_expr_aux
             mk_stmt (AilSblock (b2, List.map mk_stmt s2)),
             mk_stmt (AilSblock (b3, List.map mk_stmt s3)) ))
     in
-    dest d spec_mode (result_binding :: b1, (result_decl :: s1) @ [ ite_stat ], mk_expr result_ident)
+    dest
+      d
+      spec_mode
+      (result_binding :: b1, (result_decl :: s1) @ [ ite_stat ], mk_expr result_ident)
   | EachI ((r_start, (sym, bt'), r_end), t) ->
     (*
        Input:
@@ -913,7 +939,14 @@ let rec cn_to_ail_expr_aux
     let end_const_it = mk_int_const r_end in
     let incr_var = IT.(IT (Sym sym, bt', Cerb_location.unknown)) in
     let _, _, start_int_const =
-      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode start_const_it PassBack
+      cn_to_ail_expr_aux
+        const_prop
+        pred_name
+        dts
+        globals
+        spec_mode
+        start_const_it
+        PassBack
     in
     let while_cond_it =
       IT.(IT (Binop (LT, incr_var, end_const_it), bt', Cerb_location.unknown))
@@ -921,7 +954,9 @@ let rec cn_to_ail_expr_aux
     let _, _, while_cond =
       cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode while_cond_it PassBack
     in
-    let translated_t = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack in
+    let translated_t =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack
+    in
     let bs, ss, e =
       gen_bool_while_loop sym bt' (rm_expr start_int_const) while_cond translated_t
     in
@@ -934,7 +969,9 @@ let rec cn_to_ail_expr_aux
     let res_ident = A.(AilEident res_sym) in
     let cn_struct_tag = generate_sym_with_suffix ~suffix:"_cn" tag in
     let generate_ail_stat (id, it) =
-      let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack in
+      let b, s, e =
+        cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack
+      in
       let ail_memberof = A.(AilEmemberofptr (mk_expr res_ident, id)) in
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
       (b, s, assign_stat)
@@ -945,13 +982,20 @@ let rec cn_to_ail_expr_aux
     let alloc_stat = A.(AilSdeclaration [ (res_sym, Some fn_call) ]) in
     let b, s = ([ res_binding ], [ alloc_stat ]) in
     let bs, ss, assign_stats = list_split_three (List.map generate_ail_stat ms) in
-    dest d spec_mode (List.concat bs @ b, List.concat ss @ s @ assign_stats, mk_expr res_ident)
+    dest
+      d
+      spec_mode
+      (List.concat bs @ b, List.concat ss @ s @ assign_stats, mk_expr res_ident)
   | RecordMember (t, m) ->
     (* Currently assuming records only exist *)
-    let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack in
+    let b, s, e =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack
+    in
     dest d spec_mode (b, s, mk_expr A.(AilEmemberofptr (e, m)))
   | StructMember (t, m) ->
-    let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack in
+    let b, s, e =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack
+    in
     let ail_expr_ = A.(AilEmemberofptr (e, m)) in
     dest d spec_mode (b, s, mk_expr ail_expr_)
   | StructUpdate ((struct_term, m), new_val) ->
@@ -973,7 +1017,14 @@ let rec cn_to_ail_expr_aux
     (match tag_def with
      | C.StructDef (members, _) ->
        let b1, s1, e1 =
-         cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode struct_term PassBack
+         cn_to_ail_expr_aux
+           const_prop
+           pred_name
+           dts
+           globals
+           spec_mode
+           struct_term
+           PassBack
        in
        let b2, s2, e2 =
          cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode new_val PassBack
@@ -1000,7 +1051,8 @@ let rec cn_to_ail_expr_aux
        in
        let member_assignments = List.map (generate_member_assignment m) members in
        dest
-         d spec_mode
+         d
+         spec_mode
          (b1 @ b2 @ [ res_binding ], s1 @ s2 @ (res_decl :: member_assignments), res_ident)
      | UnionDef _ -> failwith (__LOC__ ^ ": Can't apply StructUpdate to a C union"))
     (* Allocation *)
@@ -1010,7 +1062,9 @@ let rec cn_to_ail_expr_aux
     let res_sym = Sym.fresh_anon () in
     let res_ident = A.(AilEident res_sym) in
     let generate_ail_stat (id, it) =
-      let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack in
+      let b, s, e =
+        cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack
+      in
       let ail_memberof = A.(AilEmemberofptr (mk_expr res_ident, id)) in
       let assign_stat = A.(AilSexpr (mk_expr (AilEassign (mk_expr ail_memberof, e)))) in
       (b, s, assign_stat)
@@ -1023,7 +1077,10 @@ let rec cn_to_ail_expr_aux
     let alloc_stat = A.(AilSdeclaration [ (res_sym, Some fn_call) ]) in
     let b, s = ([ res_binding ], [ alloc_stat ]) in
     let bs, ss, assign_stats = list_split_three (List.map generate_ail_stat ms) in
-    dest d spec_mode (List.concat bs @ b, List.concat ss @ s @ assign_stats, mk_expr res_ident)
+    dest
+      d
+      spec_mode
+      (List.concat bs @ b, List.concat ss @ s @ assign_stats, mk_expr res_ident)
   | RecordUpdate ((_t1, _m), _t2) -> failwith (__LOC__ ^ ": TODO RecordUpdate")
   (* Allocation *)
   | Constructor (sym, ms) ->
@@ -1070,7 +1127,9 @@ let rec cn_to_ail_expr_aux
     let e_ = A.(AilEmemberofptr (mk_expr res_ident, Id.make here "u")) in
     let e_' = A.(AilEmemberof (mk_expr e_, create_id_from_sym lc_constr_sym)) in
     let generate_ail_stat (id, it) =
-      let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack in
+      let b, s, e =
+        cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack
+      in
       let ail_memberof =
         if Id.equal id (Id.make here "tag") then
           e
@@ -1109,13 +1168,16 @@ let rec cn_to_ail_expr_aux
              (AilEassign (mk_expr tag_member_ptr, mk_expr (AilEident uc_constr_sym)))))
     in
     dest
-      d spec_mode 
+      d
+      spec_mode
       ( List.concat bs @ [ res_binding ],
         [ ail_decl; tag_assign ] @ List.concat ss @ constr_allocation_stat @ assign_stats,
         mk_expr res_ident )
   | MemberShift (it, tag, member) ->
     let membershift_macro_sym = Sym.fresh "cn_member_shift" in
-    let bs, ss, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack in
+    let bs, ss, e =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode it PassBack
+    in
     let ail_fcall =
       A.(
         AilEcall
@@ -1127,8 +1189,12 @@ let rec cn_to_ail_expr_aux
     in
     dest d spec_mode (bs, ss, mk_expr ail_fcall)
   | ArrayShift { base; ct; index } ->
-    let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode base PassBack in
-    let b2, s2, e2 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode index PassBack in
+    let b1, s1, e1 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode base PassBack
+    in
+    let b2, s2, e2 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode index PassBack
+    in
     let sizeof_expr = mk_expr A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype ct)) in
     let ail_expr_ =
       A.(
@@ -1141,7 +1207,9 @@ let rec cn_to_ail_expr_aux
   | Nil _bt -> failwith (__LOC__ ^ ": TODO Nil")
   | Cons (_x, _xs) -> failwith (__LOC__ ^ ": TODO Cons")
   | Head xs ->
-    let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode xs PassBack in
+    let b, s, e =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode xs PassBack
+    in
     (* dereference to get first value, where xs is assumed to be a pointer *)
     let ail_expr_ = A.(AilEunary (Indirection, e)) in
     dest d spec_mode (b, s, mk_expr ail_expr_)
@@ -1154,7 +1222,9 @@ let rec cn_to_ail_expr_aux
   | WrapI (_ct, t) -> cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t d
   | MapConst (_bt, _t) -> failwith (__LOC__ ^ ": TODO MapConst")
   | MapSet (m, key, value) ->
-    let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode m PassBack in
+    let b1, s1, e1 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode m PassBack
+    in
     let key_term =
       if IT.get_bt key == BT.Integer then
         key
@@ -1164,7 +1234,9 @@ let rec cn_to_ail_expr_aux
     let b2, s2, e2 =
       cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode key_term PassBack
     in
-    let b3, s3, e3 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode value PassBack in
+    let b3, s3, e3 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode value PassBack
+    in
     let new_map_sym = Sym.fresh_anon () in
     let new_map_binding = create_binding new_map_sym (bt_to_ail_ctype (IT.get_bt m)) in
     let map_deep_copy_fcall =
@@ -1180,13 +1252,16 @@ let rec cn_to_ail_expr_aux
             [ mk_expr A.(AilEident new_map_sym); e2; e3 ] ))
     in
     dest
-      d spec_mode 
+      d
+      spec_mode
       ( b1 @ b2 @ b3 @ [ new_map_binding ],
         s1 @ s2 @ s3 @ [ new_map_decl ],
         mk_expr map_set_fcall )
   | MapGet (m, key) ->
     (* Only works when index is a cn_integer *)
-    let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode m PassBack in
+    let b1, s1, e1 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode m PassBack
+    in
     let key_term =
       if IT.get_bt key == BT.Integer then
         key
@@ -1216,7 +1291,8 @@ let rec cn_to_ail_expr_aux
   | Apply (sym, ts) ->
     let bs_ss_es =
       List.map
-        (fun e -> cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode e PassBack)
+        (fun e ->
+           cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode e PassBack)
         ts
     in
     let bs, ss, es = list_split_three bs_ss_es in
@@ -1224,7 +1300,9 @@ let rec cn_to_ail_expr_aux
     let ail_expr_ = A.AilEcall (f, es) in
     dest d spec_mode (List.concat bs, List.concat ss, mk_expr ail_expr_)
   | Let ((var, t1), body) ->
-    let b1, s1, e1 = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t1 PassBack in
+    let b1, s1, e1 =
+      cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t1 PassBack
+    in
     let ctype = bt_to_ail_ctype (IT.get_bt t1) in
     let binding = create_binding var ctype in
     let ail_assign = A.(AilSdeclaration [ (var, Some e1) ]) in
@@ -1279,16 +1357,24 @@ let rec cn_to_ail_expr_aux
            (match d with
             | Assert loc ->
               cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t (Assert loc)
-            | Return -> cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t Return
+            | Return ->
+              cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t Return
             | AssignVar x ->
-              cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t (AssignVar x)
+              cn_to_ail_expr_aux
+                const_prop
+                pred_name
+                dts
+                globals
+                spec_mode
+                t
+                (AssignVar x)
             | PassBack ->
               cn_to_ail_expr_aux
                 const_prop
                 pred_name
                 dts
                 globals
-                spec_mode 
+                spec_mode
                 t
                 (AssignVar (Option.get res_sym_opt)))
          | [] -> failwith (__LOC__ ^ ": Incomplete pattern match")
@@ -1307,7 +1393,14 @@ let rec cn_to_ail_expr_aux
              | [] -> failwith (__LOC__ ^ ": Datatype not found")
              | dt :: _ ->
                let b1, s1, e1 =
-                 cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode term PassBack
+                 cn_to_ail_expr_aux
+                   const_prop
+                   pred_name
+                   dts
+                   globals
+                   spec_mode
+                   term
+                   PassBack
                in
                let build_case (constr_sym, members_with_types) =
                  let cases' = List.filter_map (expand_datatype constr_sym) cases in
@@ -1406,7 +1499,10 @@ let rec cn_to_ail_expr_aux
         let result_binding = create_binding result_sym (bt_to_ail_ctype basetype) in
         let result_decl = A.(AilSdeclaration [ (result_sym, None) ]) in
         let bs, ss = translate 1 vars cases (Some result_sym) in
-        dest PassBack spec_mode (result_binding :: bs, result_decl :: ss, mk_expr result_ident)
+        dest
+          PassBack
+          spec_mode
+          (result_binding :: bs, result_decl :: ss, mk_expr result_ident)
       | Assert _ -> translate 1 vars cases None
       | Return -> translate 1 vars cases None
       | AssignVar _ -> translate 1 vars cases None
@@ -1422,7 +1518,9 @@ let rec cn_to_ail_expr_aux
         in
         (wrap_with_convert_to ail_const_expr_ BT.Alloc_id, [], [])
       | _ ->
-        let b, s, e = cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack in
+        let b, s, e =
+          cn_to_ail_expr_aux const_prop pred_name dts globals spec_mode t PassBack
+        in
         let ail_expr_ =
           match
             ( get_typedef_string (bt_to_ail_ctype bt),
@@ -1440,16 +1538,22 @@ let rec cn_to_ail_expr_aux
 
 let cn_to_ail_expr
   : type a.
-    _ CF.Cn.cn_datatype list -> (C.union_tag * C.ctype) list -> spec_mode -> IT.t -> a dest -> a
+    _ CF.Cn.cn_datatype list ->
+    (C.union_tag * C.ctype) list ->
+    spec_mode ->
+    IT.t ->
+    a dest ->
+    a
   =
-  fun dts globals spec_mode cn_expr d -> cn_to_ail_expr_aux None None dts globals spec_mode cn_expr d
+  fun dts globals spec_mode cn_expr d ->
+  cn_to_ail_expr_aux None None dts globals spec_mode cn_expr d
 
 
 let cn_to_ail_expr_toplevel
       (dts : _ CF.Cn.cn_datatype list)
       (globals : (C.union_tag * C.ctype) list)
       (pred_sym_opt : Sym.t option)
-      (spec_mode: spec_mode)
+      (spec_mode : spec_mode)
       (it : IT.t)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
