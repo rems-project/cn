@@ -237,8 +237,7 @@ let cn_to_ail_unop bt =
     (match bt_typedef_str_opt with
      | Some typedef_str -> Some (typedef_str ^ "_negate")
      | None ->
-       failwith
-         (__LOC__ ^ ": typedef string not found in translation of BW_FLS_NoSMT unop"))
+       failwith (__LOC__ ^ ": typedef string not found in translation of Negate unop"))
   | BW_FLS_NoSMT ->
     let failure_msg =
       Printf.sprintf
@@ -254,7 +253,11 @@ let cn_to_ail_unop bt =
        else
          failwith (__LOC__ ^ failure_msg)
      | _ -> failwith (__LOC__ ^ failure_msg))
-  | BW_Compl -> failwith (__LOC__ ^ ": Translation of BW_Compl not implemented")
+  | BW_Compl ->
+    (match bt_typedef_str_opt with
+     | Some typedef_str -> Some (typedef_str ^ "_bw_compl")
+     | None ->
+       failwith (__LOC__ ^ ": typedef string not found in translation of BW_Compl unop"))
   | BW_CLZ_NoSMT | BW_CTZ_NoSMT | BW_FFS_NoSMT ->
     failwith (__LOC__ ^ ": Failure in trying to translate SMT-only unop from C source")
 
@@ -836,7 +839,13 @@ let rec cn_to_ail_expr_aux
     let ail_expr_ = A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype sct)) in
     let ail_call_ = wrap_with_convert_to ~sct ail_expr_ basetype in
     dest d ([], [], mk_expr ail_call_)
-  | OffsetOf _ -> failwith (__LOC__ ^ ": TODO OffsetOf")
+  | OffsetOf (tag, member) ->
+    let ail_struct_type = mk_ctype (Struct tag) in
+    let ail_expr_ = A.(AilEoffsetof (ail_struct_type, member)) in
+    let ail_call_ =
+      wrap_with_convert_to ~sct:(Integer (Unsigned LongLong)) ail_expr_ basetype
+    in
+    dest d ([], [], mk_expr ail_call_)
   | ITE (t1, t2, t3) ->
     let result_sym = Sym.fresh_anon () in
     let result_ident = A.(AilEident result_sym) in

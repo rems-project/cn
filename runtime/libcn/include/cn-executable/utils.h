@@ -258,6 +258,11 @@ cn_bool *cn_pointer_gt(cn_pointer *i1, cn_pointer *i2);
     return convert_to_##CNTYPE(-(i->val));                                               \
   }
 
+#define CN_GEN_BW_COMPL(CNTYPE)                                                            \
+  static inline CNTYPE *CNTYPE##_bw_compl(CNTYPE *i) {                                     \
+    return convert_to_##CNTYPE(~(i->val));                                               \
+  }
+
 #define CN_GEN_ADD(CTYPE, CNTYPE)                                                        \
   static inline CNTYPE *CNTYPE##_add(CNTYPE *i1, CNTYPE *i2) {                           \
     CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
@@ -379,6 +384,8 @@ static inline int ipow(int base, int exp) {
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
   convert_to_cn_pointer(&(((struct tag *)cn_ptr->ptr)->member_name))
 
+
+
 #define CN_GEN_INCREMENT(CNTYPE)                                                         \
   static inline CNTYPE *CNTYPE##_increment(CNTYPE *i) {                                  \
     i->val = i->val + 1;                                                                 \
@@ -464,6 +471,7 @@ cn_bool *default_cn_bool(void);
   CN_GEN_GT(CNTYPE)                                                                      \
   CN_GEN_GE(CNTYPE)                                                                      \
   CN_GEN_NEGATE(CNTYPE)                                                                  \
+  CN_GEN_BW_COMPL(CNTYPE)                                                                \
   CN_GEN_ADD(CTYPE, CNTYPE)                                                              \
   CN_GEN_SUB(CTYPE, CNTYPE)                                                              \
   CN_GEN_MUL(CTYPE, CNTYPE)                                                              \
