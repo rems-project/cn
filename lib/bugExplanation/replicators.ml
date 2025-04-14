@@ -601,7 +601,7 @@ let compile_pred
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
   let fsym = pred_sym sym in
-  let ret_type = CtA.bt_to_ail_ctype ~pred_sym:(Some sym) pred.oarg_bt in
+  let ret_type = CtA.bt_to_ail_ctype ~pred_sym:(Some sym) (snd pred.oarg) in
   let bs, ss =
     match pred.clauses with
     | Some clauses -> compile_clauses sigma prog5 clauses

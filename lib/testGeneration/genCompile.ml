@@ -46,7 +46,8 @@ let add_request
       iargs =
         (pred.pointer, BT.Loc ()) :: pred.iargs
         |> List.map (fun (x, bt) -> (x, GBT.of_bt bt));
-      oargs = compile_oargs pred.oarg_bt [] |> List.map (fun (x, bt) -> (x, GBT.of_bt bt));
+      oargs =
+        compile_oargs (snd pred.oarg) [] |> List.map (fun (x, bt) -> (x, GBT.of_bt bt));
       body = None
     }
   in

@@ -2489,7 +2489,7 @@ let cn_to_ail_resource
           exit 2
         | p :: _ -> p
       in
-      let cn_bt = bt_to_cn_base_type pred_def'.oarg_bt in
+      let cn_bt = bt_to_cn_base_type (snd pred_def'.oarg) in
       let ctype =
         match cn_bt with
         | CN_record _members ->
@@ -2497,7 +2497,7 @@ let cn_to_ail_resource
           mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct pred_record_name)))
         | _ -> cn_to_ail_base_type ~pred_sym:(Some pred_sym') cn_bt
       in
-      (ctype, pred_def'.oarg_bt)
+      (ctype, snd pred_def'.oarg)
   in
   let generate_owned_fn_name sct =
     let ct_str = str_of_ctype (Sctypes.to_ctype sct) in
@@ -2923,7 +2923,7 @@ let cn_to_ail_predicate
       cn_preds
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) rp_def.oarg_bt in
+  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
   let rec clause_translate (clauses : Definition.Clause.t list) =
     match clauses with
     | [] -> ([], [])
@@ -2956,7 +2956,7 @@ let cn_to_ail_predicate
     match rp_def.clauses with Some clauses -> clause_translate clauses | None -> ([], [])
   in
   let pred_body = List.map mk_stmt ss in
-  let ail_record_opt = generate_record_opt pred_sym rp_def.oarg_bt in
+  let ail_record_opt = generate_record_opt pred_sym (snd rp_def.oarg) in
   let params =
     List.map
       (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
@@ -3585,7 +3585,7 @@ let cn_to_ail_assume_resource
           exit 2
         | p :: _ -> p
       in
-      let cn_bt = bt_to_cn_base_type pred_def'.oarg_bt in
+      let cn_bt = bt_to_cn_base_type (snd pred_def'.oarg) in
       let ctype =
         match cn_bt with
         | CN_record _members ->
@@ -3593,7 +3593,7 @@ let cn_to_ail_assume_resource
           mk_ctype C.(Pointer (C.no_qualifiers, mk_ctype (Struct pred_record_name)))
         | _ -> cn_to_ail_base_type ~pred_sym:(Some pred_sym') cn_bt
       in
-      (ctype, pred_def'.oarg_bt)
+      (ctype, snd pred_def'.oarg)
   in
   function
   | Request.P p ->
@@ -3850,7 +3850,7 @@ let cn_to_ail_assume_predicate
       globals
       preds
   =
-  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) rp_def.oarg_bt in
+  let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
   let rec clause_translate (clauses : Definition.Clause.t list) =
     match clauses with
     | [] -> ([], [])

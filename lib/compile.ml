@@ -22,7 +22,7 @@ type[@warning "-69" (* unused-record-field *)] function_sig =
 
 type predicate_sig =
   { pred_iargs : (Sym.t * BaseTypes.t) list;
-    pred_output : BaseTypes.t
+    pred_output : Locations.t * BaseTypes.t
   }
 
 type 'a cerb_frontend_result =
@@ -42,7 +42,11 @@ type env =
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
-  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg_bt } in
+  let alloc_sig =
+    { pred_iargs = [];
+      pred_output = (Locations.other __LOC__, snd Definition.alloc.oarg)
+    }
+  in
   let builtins =
     List.fold_left
       (fun acc (_, sym, (def : Definition.Function.t)) ->
@@ -206,8 +210,9 @@ let add_predicates env defs =
         (fun (id_or_sym, bTy) -> (id_or_sym, SBT.proj (base_type env bTy)))
         def.cn_pred_iargs
     in
-    let output = SBT.proj (base_type env (snd def.cn_pred_output)) in
-    add_predicate def.cn_pred_name { pred_iargs = iargs; pred_output = output } env
+    let loc, output = def.cn_pred_output in
+    let bt = SBT.proj (base_type env output) in
+    add_predicate def.cn_pred_name { pred_iargs = iargs; pred_output = (loc, bt) } env
   in
   List.fold_left aux env defs
 
@@ -1097,7 +1102,7 @@ module C_vars = struct
               }
           | Some pred_sig -> return pred_sig
         in
-        let output_bt = pred_sig.pred_output in
+        let _, output_bt = pred_sig.pred_output in
         return (Req.PName pred, SBT.inj output_bt)
     in
     return (pname, ptr_expr, iargs, oargs_ty)
@@ -1500,10 +1505,10 @@ let cn_clauses env clauses =
 
 let predicate env (def : _ Cn.cn_predicate) =
   Pp.debug 2 (lazy (Pp.item "translating predicate defn" (Sym.pp def.cn_pred_name)));
-  let iargs, output_bt =
+  let iargs, output =
     match lookup_predicate def.cn_pred_name env with
     | None -> assert false
-    | Some pred_sig -> (pred_sig.pred_iargs, pred_sig.pred_output)
+    | Some { pred_iargs; pred_output } -> (pred_iargs, pred_output)
   in
   let env' =
     List.fold_left (fun acc (sym, bTy) -> add_logical sym (SBT.inj bTy) acc) env iargs
@@ -1523,7 +1528,7 @@ let predicate env (def : _ Cn.cn_predicate) =
           { loc = def.cn_pred_loc;
             pointer = iarg0;
             iargs = iargs';
-            oarg_bt = output_bt;
+            oarg = output;
             clauses
           } )
   | (_, found_bty) :: _ ->
