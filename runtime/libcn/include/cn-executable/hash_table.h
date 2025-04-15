@@ -27,9 +27,8 @@ SOFTWARE.
 
 */
 
-#include <stdbool.h>
-
-#include <cn-executable/alloc.h>
+#include "rts_deps.h"
+#include "alloc.h"
 
 #ifdef __cplusplus
 extern "C" {

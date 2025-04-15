@@ -62,14 +62,11 @@ let get_ownership_global_init_stats () =
     [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ]
 
 
-(* c_map_local_to_stack_depth((uintptr_t) &xs, sizeof(struct node * )) *)
+(* c_map_local_to_stack_depth(&xs, sizeof(struct node * )) *)
 
 let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
   let local_ident = mk_expr A.(AilEident local_sym) in
-  let arg1 =
-    A.(
-      AilEcast (C.no_qualifiers, C.uintptr_t, mk_expr (AilEunary (Address, local_ident))))
-  in
+  let arg1 = A.(AilEunary (Address, local_ident)) in
   let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
   let arg3 = A.(AilEcall (mk_expr (AilEident get_cn_stack_depth_sym), [])) in
   mk_expr
@@ -165,14 +162,11 @@ let generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings =
     [ (get_end_loc loc, List.concat bs, List.concat ss) ])
 
 
-(* c_remove_local_footprint((uintptr_t) &xs, cn_ownership_global_ghost_state,
+(* c_remove_local_footprint(&xs, cn_ownership_global_ghost_state,
    sizeof(struct node * )); *)
 let generate_c_local_ownership_exit (local_sym, local_ctype) =
   let local_ident = mk_expr A.(AilEident local_sym) in
-  let arg1 =
-    A.(
-      AilEcast (C.no_qualifiers, C.uintptr_t, mk_expr (AilEunary (Address, local_ident))))
-  in
+  let arg1 = A.(AilEunary (Address, local_ident)) in
   let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
   A.(
     AilSexpr

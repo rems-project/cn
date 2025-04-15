@@ -128,7 +128,7 @@ let generate_executable_specs
   in
   (* XXX temporary: should we inject in the pre-processed file or original one *)
   let filename = Common.there_can_only_be_one filename in
-  let use_preproc = false in
+  let use_preproc = true in
   let exec_spec_file, save =
     if use_preproc then (
       let pp_file = pick_cpp_file_name output_dir filename in
@@ -156,7 +156,7 @@ let generate_executable_specs
       Cerb_colour.without_colour
         (fun () ->
            (try
-              Fulminate.main
+              Fulminate.new_main
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
