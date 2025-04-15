@@ -192,7 +192,7 @@ let filter_selected_fns
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (full_instrumentation : Extract.instrumentation list)
   =
-  (* Filtering based on Common.Flags.only and Common.Flags.skip *)
+  (* Filtering based on Check.skip_and_only *)
   let prog5_fns_list = List.map fst (Pmap.bindings_list prog5.funs) in
   let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
   let selected_function_syms =
