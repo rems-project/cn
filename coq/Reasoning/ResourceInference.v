@@ -15,10 +15,13 @@ Import ListNotations.
 Inductive provable (g:Global.t): LCSet.t -> LogicalConstraints.t -> Prop :=
 | solvable_SMT: forall lc it, provable g lc it.
 
+(* Helper function to get a list of resources from the contex *)
+Definition ctx_resources_list (l: (list (Resource.t * Z)) * Z) : list Resource.t :=
+  List.map fst (fst l).
+
 (* Helper function to get a set of resources from the contex *)
-Definition ctx_resources_set (l:((list (Resource.t * Z)) * Z)) : ResSet.t
-  :=
-  Resource.set_from_list (List.map fst (fst l)).
+Definition ctx_resources_set (l: (list (Resource.t * Z)) * Z) : ResSet.t :=
+  Resource.set_from_list (ctx_resources_list l).
 
 Inductive term_is_struct: Terms.term BaseTypes.t -> Prop :=
 | term_is_struct_intro: forall tag fields,
@@ -521,6 +524,34 @@ Inductive unfold_one (globals:Global.t): Resource.t -> ResSet.t -> Prop :=
          iout)
       out_res.
 
+Definition apply_for_subsumed (iinit: init) (f : init -> bool) : bool :=
+  match iinit with
+  | Init => f Init
+  | Uninit => f Uninit || f Init
+  end.
+
+Lemma apply_for_subsumed_spec:
+  forall iinit f t, apply_for_subsumed iinit f = true ->
+  exists iinit', subsumed (Owned t iinit) (Owned t iinit') /\ f iinit' = true.
+Proof.
+  intros iinit f t H.
+  unfold apply_for_subsumed in H.
+  destruct iinit.
+  - exists Init; split.
+    + apply Subsumed_equal.
+      reflexivity.
+    + apply H.
+  - apply orb_true_iff in H as [H | H].
+    + exists Uninit; split.
+      * apply Subsumed_equal.
+        reflexivity.
+      * apply H.
+    + exists Init; split.
+      * apply Subsumed_owned.
+        reflexivity.
+      * apply H.
+Qed.
+
 (* Computable version of unfold_one predicate *) 
 Definition unfold_one_fun (globals:Global.t) (r : Resource.t) (out_res: list Resource.t) : bool :=
   match r with
@@ -532,9 +563,10 @@ Definition unfold_one_fun (globals:Global.t) (r : Resource.t) (out_res: list Res
         match SymMap.find isym globals.(Global.struct_decls) with
         | Some sdecl =>
           (List.length sdecl =? List.length out_res) &&
-          List.forallb
-            (fun '(piece, r) => struct_piece_to_resource_fun piece iinit ipointer iargs isym iout r)
-            (List.combine sdecl out_res)
+          apply_for_subsumed iinit (fun iinit' =>
+            List.forallb
+              (fun '(piece, r) => struct_piece_to_resource_fun piece iinit' ipointer iargs isym iout r)
+              (List.combine sdecl out_res))
         | None => false
         end
   | _ => false
@@ -559,9 +591,10 @@ Proof.
   apply SymMap.find_2 in Hf.
   assert (piece_def : Memory.struct_piece) by (repeat constructor).
   assert (res_def : Resource.t) by (repeat constructor).
-  eapply unfold_one_struct with (iinit' := i).
-  { apply Subsumed_equal.
-    reflexivity. }
+  apply apply_for_subsumed_spec with (t := Struct s) in H.
+  destruct H as [i' [Hi H]]. 
+  eapply unfold_one_struct with (iinit' := i').
+  { apply Hi. }
   { apply Hf. }
   intros r; split.
   - intros Hr.
@@ -615,6 +648,87 @@ Inductive unfold_all (globals:Global.t): ResSet.t -> ResSet.t -> Prop :=
         input ->
     ResSet.Equal input output ->
     unfold_all globals input output.
+
+Lemma unfold_one_Proper : Proper (eq ==> eq ==> ResSet.Equal ==> iff) unfold_one.
+Proof.
+  intros globals globals' Hglobals r r' Hr rs rs' Hrs.
+  subst r' globals'.
+  enough (forall r rs rs', ResSet.Equal rs rs' -> unfold_one globals r rs -> unfold_one globals r rs') as H.
+  { split; intros H1.
+    - eapply H.
+      + apply Hrs.
+      + apply H1.
+    - eapply H.
+      + symmetry; apply Hrs.
+      + apply H1. }
+  clear.
+  intros r rs rs' Hrs H.
+  inversion H; subst; clear H.
+  econstructor; eauto.
+  intros r; split; intros Hr.
+  - apply H2.
+    eapply ResSetDecide.F.In_m.
+    + reflexivity.
+    + apply Hrs.
+    + apply Hr.
+  - eapply ResSetDecide.F.In_m.
+    + reflexivity.
+    + symmetry.
+      apply Hrs.
+    + apply H2, Hr.
+Qed.
+
+Lemma unfold_all_Proper : Proper (eq ==> ResSet.Equal ==> ResSet.Equal ==> iff) unfold_all.
+Proof.
+  intros globals globals' Hglobals r1 r1' Hr1 r2 r2' Hr2.
+  subst globals'.
+  enough (forall r1 r1' r2 r2', ResSet.Equal r1 r1' -> ResSet.Equal r2 r2' ->
+          unfold_all globals r1 r2 -> unfold_all globals r1' r2') as H.
+  { split; intros H1.
+    - eapply H.
+      + apply Hr1.
+      + apply Hr2.
+      + apply H1.
+    - eapply H.
+      + symmetry; apply Hr1.
+      + symmetry; apply Hr2.
+      + apply H1. }
+  clear.
+  intros r1 r1' r2 r2' Hr1 Hr2 H.
+  revert r1' r2' Hr1 Hr2.
+  induction H; intros r1' r2' Hr1 Hr2.
+  - eapply unfold_all_step with (input' := input').
+    + apply Hr1, H.
+    + apply H0.
+    + ResSetDecide.fsetdec.
+    + apply IHunfold_all.
+      * reflexivity.
+      * apply Hr2.
+  - apply unfold_all_fixpoint.
+    + intros H1.
+      apply H.
+      destruct H1 as [r [Hr H1]].
+      exists r; split; try assumption.
+      apply Hr1, Hr.
+    + transitivity input.
+      { apply Equivalence_Symmetric, Hr1. }
+      transitivity output.
+      { apply H0. }
+      apply Hr2.
+Qed. 
+
+Lemma unfold_all_singleton_eq:
+  forall globals r output,
+  unfold_all globals (Resource.set_from_list [r]) output <->
+  unfold_all globals (ResSet.singleton r) output.
+Proof.
+  intros globals r output.
+  eapply unfold_all_Proper.
+  - reflexivity.
+  - cbn.
+    ResSetDecide.fsetdec.
+  - reflexivity.
+Qed.
 
 (* A version of `unfold_all`, using hints *)
 Inductive unfold_all_explicit (globals:Global.t):
@@ -745,6 +859,40 @@ Qed.
 
 Definition unfold_step_flatten (l : list unfold_step): unfold_changed :=
   List.concat (List.map fst l).
+
+Definition get_resources_from_log (log_entries : log) : list Resource.t :=
+  List.fold_right (fun log_entry rs =>
+    match log_entry with
+    | PredicateRequest _ _ _ (p, o) _ _ => (Request.P p, o) :: rs
+    | UnfoldResources _ _ _ _ => rs (* probably shouldn't happen *)
+    end) [] log_entries.
+
+Definition resource_set_init (r : Resource.t) : Resource.t :=
+  match r with
+  | (Request.P {| Predicate.name := Request.Owned t _;
+                  Predicate.pointer := p;
+                  Predicate.iargs := args |}, out) =>
+    (Request.P {| Predicate.name := Request.Owned t Init;
+                  Predicate.pointer := p;
+                  Predicate.iargs := args |}, out)
+  | r => r
+  end.
+
+Definition resource_set_correct_init_status (c : Context.t) (r : Resource.t) : Resource.t := 
+  if List.existsb (fun r' => bool_of_sum (Resource_as_DecidableType.eq_dec r r')) (ctx_resources_list c.(resources))
+  then r
+  else resource_set_init r.
+
+Fixpoint get_hints_from_log_entry (log_entry : log_entry) : unfold_changed :=
+  match log_entry with
+  | PredicateRequest _ _ _ _ [] _ => []
+  | PredicateRequest ic _ _ (p, o) log_entries _ =>
+      let r := (Request.P p, o) in
+      let unfolded_r := List.map (resource_set_correct_init_status ic) (get_resources_from_log log_entries) in
+      let hints_inner := List.concat (List.map get_hints_from_log_entry log_entries) in
+      (r, UnpackRES unfolded_r) :: hints_inner
+  | UnfoldResources _ _ _ _ => [] (* probably shouldn't happen *)
+  end.
 
 (** Inductive predicate which defines correctness of resource unfolding step *)
 Inductive unfold_step : Context.t -> Context.t -> Prop :=
