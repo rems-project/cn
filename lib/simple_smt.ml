@@ -900,6 +900,7 @@ let printf_log =
 let cvc5 : solver_config =
   { exe = "cvc5";
     (* opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_AUFBVDTLIA" ]; *)
+    (* NOTE cvc5 1.2.1 renamed --sets-ext to --sets-exp *)
     opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_ALL" ];
     params = [];
     exts = CVC5;

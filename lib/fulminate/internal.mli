@@ -40,6 +40,12 @@ val generate_c_struct_strs
        list ->
   string
 
+val generate_c_struct_decl_strs
+  :  (AilSyntax.ail_identifier
+     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Ctype.tag_definition))
+       list ->
+  string list
+
 val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> string
 
 val generate_c_functions

@@ -65,6 +65,13 @@ let run_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let basefile = Filename.basename filename in
+  let output_dir =
+    let dir, mk = output_dir in
+    mk dir
+  in
+  let pp_file = Filename.temp_file "cn_" basefile in
+  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -79,7 +86,7 @@ let run_tests
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
-    ~save_cpp:None (* XXX *)
+    ~save_cpp:(Some pp_file)
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       let config : TestGeneration.config =
@@ -125,10 +132,6 @@ let run_tests
         exit 0);
       Cerb_colour.without_colour
         (fun () ->
-           let output_dir =
-             let dir, mk = output_dir in
-             mk dir
-           in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            (try
               Fulminate.main
@@ -136,12 +139,9 @@ let run_tests
                 ~without_loop_invariants:true
                 ~with_loop_leak_checks:false
                 ~with_test_gen:true
-                ~copy_source_dir:false
-                filename
-                ~use_preproc:false (* XXX *)
+                pp_file
+                out_file
                 ail_prog
-                None
-                (Some output_dir)
                 prog5
             with
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);

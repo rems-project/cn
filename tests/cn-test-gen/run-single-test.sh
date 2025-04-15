@@ -25,26 +25,30 @@ NUM_FAILED=0
 FAILED=''
 
 function separator() {
-  OUTPUT="${OUTPUT}\n"
-  for i in {1..60}; do
-    OUTPUT="${OUTPUT}="
-  done
-  OUTPUT="${OUTPUT}\n\n"
+  OUTPUT="${OUTPUT}"$'\n===========================================================\n\n'
 }
 
-BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix --input-timeout=1000 --progress-level=function --sanitize=undefined --print-seed"
+BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix \
+  --input-timeout=1000 \
+  --progress-level=function \
+  --sanitize=undefined \
+  --print-seed"
 if [[ $(basename $TEST) == "mkm.pass.c" ]]; then
   BASE_CONFIG="$BASE_CONFIG --max-array-length=1024"
 fi
 
-ALT_CONFIGS=("--sized-null --sizing-strategy=uniform" "--coverage --sizing-strategy=quartile" "--with-static-hack --coverage --sizing-strategy=quickcheck" "--random-size-splits --no-replicas" "--random-size-splits --allowed-size-split-backtracks=10")
+ALT_CONFIGS=("--sized-null --sizing-strategy=uniform"
+  "--coverage --sizing-strategy=quartile"
+  "--coverage --sizing-strategy=quickcheck"
+  "--random-size-splits --no-replicas"
+  "--random-size-splits --allowed-size-split-backtracks=10")
 
 OUTPUT=""
 
 # For each configuration
 for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
   separator
-  OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\"\n"
+  OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\""$'\n'
   separator
 
   FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG"
@@ -54,11 +58,11 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     OUTPUT="${OUTPUT}$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)"
     RET=$?
     if [[ "$RET" != 0 ]]; then
-      OUTPUT="${OUTPUT}\n$TEST -- Tests failed unexpectedly\n"
+      OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
       NUM_FAILED=$(($NUM_FAILED + 1))
       FAILED="$FAILED ($ALT_CONFIG)"
     else
-      OUTPUT="${OUTPUT}\n$TEST -- Tests passed successfully\n"
+      OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
     fi
   elif [[ $TEST == *.fail.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
@@ -73,7 +77,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       NUM_FAILED=$(($NUM_FAILED + 1))
       FAILED="$FAILED ($ALT_CONFIG)"
     else
-      OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
+      OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
     fi
   elif [[ $TEST == *.flaky.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"

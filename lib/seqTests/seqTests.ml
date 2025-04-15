@@ -141,24 +141,11 @@ let stmt_to_doc (stmt : CF.GenTypes.genTypeCategory A.statement_) : Pp.document 
   CF.Pp_ail.(with_executable_spec (pp_statement ~bs:[]) (Utils.mk_stmt stmt))
 
 
-let create_test_file
-      (sequence : Pp.document)
-      (filename_base : string)
-      (fun_decls : Pp.document)
-  : Pp.document
-  =
+let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.document =
   let open Pp in
-  (if Config.with_static_hack () then
-     string "#include "
-     ^^ dquotes (string (filename_base ^ ".exec.c"))
-     ^^ hardline
-     ^^ string "#include "
-     ^^ dquotes (string "cn.c")
-   else
-     string "#include "
-     ^^ dquotes (string (filename_base ^ ".cn.h"))
-     ^^ twice hardline
-     ^^ fun_decls)
+  fun_decls
+  ^^ twice hardline
+  ^^ string "#include <cn-executable/utils.h>"
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
@@ -184,7 +171,7 @@ let out_to_list (command : string) =
   try go () with
   | End_of_file ->
     let status = Unix.close_process_in chan in
-    (!res, status)
+    (List.rev !res, status)
 
 
 let rec gen_sequence
@@ -275,15 +262,13 @@ let rec gen_sequence
             save
               output_dir
               (filename_base ^ ".test.c")
-              (create_test_file (seq_so_far ^^ curr_test) filename_base fun_decls)
+              (create_test_file (seq_so_far ^^ curr_test) fun_decls)
           in
           let output, status = out_to_list (output_dir ^ "/run_tests.sh") in
           (match status with
            | WEXITED 0 -> (ctx', prev, `Success (Sym.pp_string f, curr_test))
-           | _ ->
+           | WEXITED exit_code | WSIGNALED exit_code | WSTOPPED exit_code ->
              let violation_regex = Str.regexp {| +\^~+ .+\.c:\([0-9]+\):[0-9]+-[0-9]+|} in
-             let is_post_regex = Str.regexp {|[ \t]*\(/\*@\)?[ \t]*ensures|} in
-             let is_pre_regex = Str.regexp {|[ \t]*\(/\*@\)?[ \t]*requires|} in
              let is_bad_compile_regex = Str.regexp {|Failed to compile|} in
              let rec get_violation_line test_output =
                match test_output with
@@ -294,28 +279,9 @@ let rec gen_sequence
                  else
                    get_violation_line lines
              in
-             let rec is_precond_violation code =
-               match code with
-               | [] -> true
-               | line :: lines ->
-                 if Str.string_match is_post_regex line 0 then
-                   false
-                 else if Str.string_match is_pre_regex line 0 then
-                   true
-                 else
-                   is_precond_violation lines
-             in
+             let is_precond_violation = exit_code == 1 in
              let is_bad_compile code =
                List.exists (fun l -> Str.string_match is_bad_compile_regex l 0) code
-             in
-             let drop n l =
-               (* ripped from OCaml 5.3 *)
-               let rec aux i = function
-                 | _x :: l when i < n -> aux (i + 1) l
-                 | rest -> rest
-               in
-               if n < 0 then invalid_arg "List.drop";
-               aux 0 l
              in
              if is_bad_compile output then
                ( ctx',
@@ -331,10 +297,7 @@ let rec gen_sequence
                     ^^ string "return 123;") )
              else (
                let violation_line_num = get_violation_line output in
-               if
-                 is_precond_violation
-                   (drop (List.length src_code - violation_line_num) src_code)
-               then
+               if is_precond_violation then
                  gen_test
                    (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
                    (retries_left - 1)
@@ -489,7 +452,10 @@ let generate
         ())
   in
   let open Pp in
-  let fun_decls = separate_map hardline fun_to_decl insts in
+  let struct_decls = Fulminate.Internal.generate_c_struct_strs sigma.tag_definitions in
+  let fun_decls =
+    string struct_decls ^^ hardline ^^ separate_map hardline fun_to_decl insts
+  in
   let compiled_seq =
     compile_sequence
       sigma
@@ -549,7 +515,7 @@ let generate
           stats.skipped
           distrib_to_str )
   in
-  let tests_doc = create_test_file seq filename_base fun_decls in
+  let tests_doc = create_test_file seq fun_decls in
   print_endline output_msg;
   save output_dir test_file tests_doc;
   exit_code
@@ -593,8 +559,7 @@ let needs_static_hack
                       loc
                       (string "Static function"
                        ^^^ squotes (Sym.pp inst.fn)
-                       ^^^ string "could not be tested."
-                       ^/^ string "Try again with '--with-static-hack'")))
+                       ^^^ string "could not be tested.")))
                ();
            true
          | _ -> false)
@@ -637,8 +602,7 @@ let needs_static_hack
                        ^^^ string "relies on static global"
                        ^^^ squotes (Sym.pp sym)
                        ^^ comma
-                       ^^^ string "so could not be tested."
-                       ^^^ string "Try again with '--with-static-hack'.")))
+                       ^^^ string "so could not be tested.")))
                static_globs)
           ();
       true)
@@ -668,8 +632,7 @@ let needs_enum_hack
                  loc
                  (string "Function"
                   ^^^ squotes (Sym.pp inst.fn)
-                  ^^^ string "has enum arguments and so could not be tested."
-                  ^/^ string "Try again with '--with-static-hack'")))
+                  ^^^ string "has enum arguments and so could not be tested.")))
           ();
       true)
     else if match ret_ct with C.Ctype (_, Basic (Integer (Enum _))) -> true | _ -> false
@@ -682,8 +645,7 @@ let needs_enum_hack
                  loc
                  (string "Function"
                   ^^^ squotes (Sym.pp inst.fn)
-                  ^^^ string "has an enum return type and so could not be tested."
-                  ^/^ string "Try again with '--with-static-hack'")))
+                  ^^^ string "has an enum return type and so could not be tested.")))
           ();
       true)
     else
@@ -708,10 +670,9 @@ let functions_under_test
   |> List.filter (fun (inst : FExtract.instrumentation) ->
     Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
-    && (Config.with_static_hack ()
-        || not
-             (needs_static_hack ~with_warning cabs_tunit sigma inst
-              || needs_enum_hack ~with_warning sigma inst)))
+    && not
+         (needs_static_hack ~with_warning cabs_tunit sigma inst
+          || needs_enum_hack ~with_warning sigma inst))
 
 
 let run_seq
