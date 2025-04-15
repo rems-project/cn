@@ -248,9 +248,7 @@ let generate_doc_from_ail_struct ail_struct =
   CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
 
 
-let[@warning "-32" (* unused-value-declaration *)] generate_struct_decl_str
-                                                     (tag, (_, _, def))
-  =
+let generate_struct_decl_str (tag, (_, _, def)) =
   match def with
   | C.StructDef _ -> Printf.sprintf "struct %s;\n" (Sym.pp_string tag)
   | UnionDef _ -> ""
@@ -296,24 +294,27 @@ let generate_c_struct_strs c_structs =
   "\n/* ORIGINAL C STRUCTS */\n\n" ^ generate_str_from_ail_structs c_structs
 
 
+let generate_c_struct_decl_strs c_structs =
+  "/* ORIGINAL C STRUCTS DECLARATIONS */\n" :: List.map generate_struct_decl_str c_structs
+
+
 let generate_cn_versions_of_structs c_structs =
   let ail_structs = List.concat (List.map Cn_to_ail.cn_to_ail_struct c_structs) in
   "\n/* CN VERSIONS OF C STRUCTS */\n\n" ^ generate_str_from_ail_structs ail_structs
 
 
 let generate_fun_def_and_decl_docs funs =
-  let decls, defs = List.split funs in
-  let defs_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { A.empty_sigma with declarations = decls; function_definitions = defs }
+  let one_def_prog (decl, def) =
+    { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
   in
-  let decls_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { A.empty_sigma with declarations = decls; function_definitions = [] }
+  let one_decl_prog (decl, _) = { A.empty_sigma with declarations = [ decl ] } in
+  let pp_it x =
+    !^"static "
+    ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
   in
-  let pp_program_with_exec_spec prog =
-    CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
-  in
-  let defs_doc = pp_program_with_exec_spec defs_prog in
-  let decls_doc = pp_program_with_exec_spec decls_prog in
+  let pp_many f xs = List.fold_left (fun d x -> pp_it (f x) ^^ d) empty xs in
+  let defs_doc = pp_many one_def_prog funs in
+  let decls_doc = pp_many one_decl_prog funs in
   (defs_doc, decls_doc)
 
 
@@ -446,7 +447,7 @@ let generate_ownership_global_assignments
       (prog5 : unit Mucore.file)
   =
   match get_main sigm with
-  | [] -> failwith "CN-exec: No main function so ownership globals cannot be initialised"
+  | [] -> []
   | (main_sym, _) :: _ ->
     let globals = extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in

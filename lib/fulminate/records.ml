@@ -222,7 +222,8 @@ let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigm
       (eq_decls @ default_decls @ mapget_decls)
   in
   let fun_prot_strs =
-    List.map (fun doc -> [ CF.Pp_utils.to_plain_pretty_string doc ]) decl_docs
+    (* TODO put a flag to control this behavior *)
+    List.map (fun doc -> [ "static " ^ CF.Pp_utils.to_plain_pretty_string doc ]) decl_docs
   in
   let fun_prot_strs = String.concat "\n" (List.concat fun_prot_strs) in
   (fun_strs, fun_prot_strs)

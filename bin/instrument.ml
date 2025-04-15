@@ -2,16 +2,10 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let pick_cpp_file_name outdir filename =
-  let cpp_name = Filename.remove_extension filename ^ "-preproc.c" in
-  match outdir with None -> cpp_name | Some d -> Filename.concat d cpp_name
-
-
 let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
-  let cn_helper_filename = Fulminate.get_cn_helper_filename filename in
   let output_dir = Option.value ~default:"." output_dir in
   let in_folder ?ext fn =
     Filename.concat
@@ -24,21 +18,6 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   if not (Sys.file_exists runtime_prefix) then (
     print_endline
       ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
-    exit 1);
-  if
-    Sys.command
-      ("cc -c "
-       ^ includes
-       ^ " -o "
-       ^ in_folder ~ext:".o" cn_helper_filename
-       ^ " "
-       ^ in_folder cn_helper_filename)
-    == 0
-  then (
-    if print_steps then
-      print_endline ("Compiled '" ^ cn_helper_filename ^ "'"))
-  else (
-    print_endline ("Failed to compile '" ^ cn_helper_filename ^ "'");
     exit 1);
   if
     Sys.command
@@ -63,8 +42,6 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
        ^ in_folder ~ext:".out" instrumented_filename
        ^ " "
        ^ in_folder ~ext:".o" instrumented_filename
-       ^ " "
-       ^ in_folder ~ext:".o" cn_helper_filename
        ^ " "
        ^ Filename.concat runtime_prefix "libcn_exec.a")
     == 0
@@ -105,7 +82,6 @@ let generate_executable_specs
       without_loop_invariants
       with_loop_leak_checks
       with_test_gen
-      copy_source_dir
       run
       print_steps
   =
@@ -126,16 +102,10 @@ let generate_executable_specs
     Pp.error e.loc report.short (Option.to_list report.descr);
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
-  (* XXX temporary: should we inject in the pre-processed file or original one *)
   let filename = Common.there_can_only_be_one filename in
-  let use_preproc = false in
-  let exec_spec_file, save =
-    if use_preproc then (
-      let pp_file = pick_cpp_file_name output_dir filename in
-      (pp_file, Some pp_file))
-    else
-      (filename, None)
-  in
+  let basefile = Filename.basename filename in
+  let pp_file = Filename.temp_file "cn_" basefile in
+  let out_file = Fulminate.get_output_filename output_dir output basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -150,9 +120,12 @@ let generate_executable_specs
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
-    ~save_cpp:save
+    ~save_cpp:(Some pp_file)
     ~handle_error
     ~f:(fun ~cabs_tunit:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+      if run && Option.is_none prog5.main then (
+        print_endline "Tried running instrumented file (`--run`) without `main` function.";
+        exit 1);
       Cerb_colour.without_colour
         (fun () ->
            (try
@@ -161,25 +134,17 @@ let generate_executable_specs
                 ~without_loop_invariants
                 ~with_loop_leak_checks
                 ~with_test_gen
-                ~copy_source_dir
-                exec_spec_file
-                ~use_preproc
+                pp_file
+                out_file
                 ail_prog
-                output
-                output_dir
                 prog5
             with
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
            ())
         ();
       Or_TypeError.return
-        (if run then (
-           if with_test_gen then (
-             print_endline
-               "Tried running instrumented file (`--run`) with `main` function. (Due to \
-                use of `--with-test-gen`)";
-             exit 1);
-           run_instrumented_file ~filename ~output ~output_dir ~print_steps)))
+        (if run then
+           run_instrumented_file ~filename ~output ~output_dir ~print_steps))
 
 
 open Cmdliner
@@ -222,11 +187,6 @@ module Flags = struct
       \  the CN test generation tool."
     in
     Arg.(value & flag & info [ "with-test-gen" ] ~doc)
-
-
-  let copy_source_dir =
-    let doc = "Copy non-CN annotated files into output_dir for CN runtime testing" in
-    Arg.(value & flag & info [ "copy-source-dir" ] ~doc)
 
 
   let run =
@@ -281,7 +241,6 @@ let cmd =
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
     $ Flags.with_test_gen
-    $ Flags.copy_source_dir
     $ Flags.run
     $ Flags.print_steps
   in

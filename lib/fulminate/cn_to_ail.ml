@@ -100,6 +100,8 @@ let create_id_from_sym ?(lowercase = false) sym =
 
 let create_sym_from_id id = Sym.fresh (Id.get_string id)
 
+let ail_null = A.(AilEconst (ConstantInteger (IConstant (Z.zero, Decimal, None))))
+
 let generate_error_msg_info_update_stats ?(cn_source_loc_opt = None) () =
   let cn_source_loc_arg =
     match cn_source_loc_opt with
@@ -120,7 +122,7 @@ let generate_error_msg_info_update_stats ?(cn_source_loc_opt = None) () =
               (None, [ (Cerb_location.unknown, [ loc_str_2_escaped ^ loc_str_escaped ]) ]))
       in
       cn_source_loc_str
-    | None -> mk_expr A.(AilEconst ConstantNull)
+    | None -> mk_expr ail_null
   in
   let update_fn_sym = Sym.fresh "update_cn_error_message_info" in
   [ A.(
@@ -542,11 +544,7 @@ let cn_to_ail_const const basetype =
     | MemByte { alloc_id = _; value = i } ->
       wrap (A.AilEconst (ConstantInteger (IConstant (i, Decimal, None))))
     | Bits ((sgn, sz), i) ->
-      let z_min, z_max = BT.bits_range (sgn, sz) in
-      let ity =
-        let ibt = CF.IntegerType.IntN_t sz in
-        match sgn with Signed -> C.Signed ibt | Unsigned -> C.Unsigned ibt
-      in
+      let z_min, _ = BT.bits_range (sgn, sz) in
       let suffix =
         let size_of = Memory.size_of_integer_type in
         match sgn with
@@ -566,14 +564,17 @@ let cn_to_ail_const const basetype =
             Some A.LL
       in
       let ail_const =
-        if Z.equal i z_max then
-          A.ConstantInteger (IConstantMax ity)
-        else if Z.equal i z_min && BT.equal_sign sgn BT.Signed then
-          A.ConstantInteger (IConstantMin ity)
+        let k a = A.(AilEconst (ConstantInteger (IConstant (a, Decimal, suffix)))) in
+        if Z.equal i z_min && BT.equal_sign sgn BT.Signed then
+          A.(
+            AilEbinary
+              ( mk_expr (k (Z.neg (Z.sub (Z.neg i) Z.one))),
+                Arithmetic Sub,
+                mk_expr (k Z.one) ))
         else
-          ConstantInteger (IConstant (i, Decimal, suffix))
+          k i
       in
-      wrap (A.AilEconst ail_const)
+      wrap ail_const
     | Q q -> wrap (A.AilEconst (ConstantFloating (Q.to_string q, None)))
     | Pointer z ->
       let ail_const' =
@@ -584,9 +585,8 @@ let cn_to_ail_const const basetype =
     | Bool b ->
       wrap
         (A.AilEconst (ConstantPredefined (if b then PConstantTrue else PConstantFalse)))
-    | Unit ->
-      wrap (A.AilEconst ConstantNull) (* Gets overridden by dest_with_unit_check *)
-    | Null -> wrap (A.AilEconst ConstantNull)
+    | Unit -> wrap ail_null (* Gets overridden by dest_with_unit_check *)
+    | Null -> wrap ail_null
     | CType_const _ -> failwith (__LOC__ ^ ": TODO CType_const")
     | Default bt -> cn_to_ail_default bt
   in
@@ -705,10 +705,10 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
     if without_ownership_checking then
       ([], [])
     else (
-      let uintptr_t_type = C.uintptr_t in
-      let generic_c_ptr_binding = create_binding generic_c_ptr_sym uintptr_t_type in
+      let void_ptr = C.mk_ctype_pointer C.no_qualifiers C.void in
+      let generic_c_ptr_binding = create_binding generic_c_ptr_sym void_ptr in
       let uintptr_t_cast_expr =
-        mk_expr A.(AilEcast (C.no_qualifiers, uintptr_t_type, cast_expr))
+        mk_expr A.(AilEcast (C.no_qualifiers, void_ptr, cast_expr))
       in
       let generic_c_ptr_assign_stat_ =
         A.(AilSdeclaration [ (generic_c_ptr_sym, Some uintptr_t_cast_expr) ])

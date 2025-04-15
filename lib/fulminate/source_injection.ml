@@ -146,6 +146,7 @@ let move_to ?(print = true) ?(no_ident = false) st pos =
               Pos.newline st.current_pos (*{ line= st.current_pos.line + 1; col= 1 }*)
           }
       | exception End_of_file ->
+        (* TODO this should be a Pp.error but I don't see how to get that module here *)
         Printf.fprintf stderr "st.line= %d\npos.line= %d\n" st.current_pos.line pos.line;
         failwith "end of file")
   in
