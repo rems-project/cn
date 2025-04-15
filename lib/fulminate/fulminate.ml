@@ -207,7 +207,7 @@ let main
       ((_, sigm) as ail_prog)
       output_decorated
       output_decorated_dir
-      prog5
+      (prog5 : unit Mucore.file)
   =
   let output_filename =
     Option.value ~default:(get_instrumented_filename filename) output_decorated
@@ -218,7 +218,17 @@ let main
     Stdlib.open_out (Filename.concat prefix (get_cn_helper_filename filename))
   in
   let cn_header_oc = Stdlib.open_out (Filename.concat prefix "cn.h") in
-  let instrumentation, _ = Extract.collect_instrumentation prog5 in
+  let (full_instrumentation : Extract.instrumentation list), _ =
+    Extract.collect_instrumentation prog5
+  in
+  let prog5_fn_bindings_list = Pmap.bindings_list prog5.funs in
+  let all_fns_sym_set = Sym.Set.of_list (List.map fst prog5_fn_bindings_list) in
+  let selected_functions = Sym.Set.elements (Check.select_functions all_fns_sym_set) in
+  let instrumentation =
+    List.filter
+      (fun (i : Extract.instrumentation) -> List.mem Sym.equal i.fn selected_functions)
+      full_instrumentation
+  in
   Records.populate_record_map instrumentation prog5;
   let executable_spec =
     generate_c_specs

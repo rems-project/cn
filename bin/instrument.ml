@@ -87,6 +87,8 @@ let generate_executable_specs
       print_level
       print_sym_nums
       no_timestamps
+      only
+      skip
       diag
       csv_times
       log_times
@@ -113,6 +115,7 @@ let generate_executable_specs
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
+  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -251,6 +254,8 @@ let cmd =
     $ Common.Flags.print_level
     $ Common.Flags.print_sym_nums
     $ Common.Flags.no_timestamps
+    $ Common.Flags.only
+    $ Common.Flags.skip
     $ Verify.Flags.diag
     $ Common.Flags.csv_times
     $ Common.Flags.log_times

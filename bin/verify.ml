@@ -162,16 +162,6 @@ module Flags = struct
     Arg.(value & flag & info [ "try-hard" ] ~doc)
 
 
-  let only =
-    let doc = "only type-check this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
-
-
-  let skip =
-    let doc = "skip type-checking of this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
-
-
   (* TODO remove this when VIP impl complete *)
   let dont_use_vip =
     let doc = "(temporary) disable VIP rules" in
@@ -249,8 +239,8 @@ let verify_t : unit Term.t =
   $ CoqMucore_flags.coq_mucore
   $ CoqProofLog_flags.coq_proof_log
   $ CoqCheckProofLog_flags.coq_check_proof_log
-  $ Flags.only
-  $ Flags.skip
+  $ Common.Flags.only
+  $ Common.Flags.skip
   $ Common.Flags.csv_times
   $ Common.Flags.log_times
   $ Flags.solver_logging
