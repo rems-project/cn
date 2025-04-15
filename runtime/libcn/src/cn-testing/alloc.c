@@ -1,5 +1,5 @@
 #include <stdlib.h>
-
+#include <stdio.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/prelude.h>
 

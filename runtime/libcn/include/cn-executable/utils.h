@@ -2,14 +2,14 @@
 #ifndef CN_UTILS
 #define CN_UTILS
 
-#include <stdalign.h>
-#include <stdbool.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "cerb_types.h"
+#include "rts_deps.h"
+#include "alloc.h"
+#include "hash_table.h"
 
-#include <cn-executable/alloc.h>
-#include <cn-executable/hash_table.h>
+// XXX: things used by injected code
+#define true       1
+#define false      0
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,11 +39,6 @@ enum cn_trace_granularity get_cn_trace_granularity(void);
 /** Sets the trace granularity, returning the previous one */
 enum cn_trace_granularity set_cn_trace_granularity(
     enum cn_trace_granularity new_granularity);
-
-#define cn_printf(level, ...)                                                            \
-  if (get_cn_logging_level() >= level) {                                                 \
-    printf(__VA_ARGS__);                                                                 \
-  }
 
 void cn_print_nr_owned_predicates(void);
 
@@ -528,24 +523,24 @@ void ownership_ghost_state_set(int64_t *address_key, int stack_depth_val);
 void ownership_ghost_state_remove(int64_t *address_key);
 
 /* CN ownership checking */
-void cn_get_ownership(uintptr_t generic_c_ptr, size_t size, char *check_msg);
-void cn_put_ownership(uintptr_t generic_c_ptr, size_t size);
+void cn_get_ownership(void *generic_c_ptr, size_t size, char *check_msg);
+void cn_put_ownership(void *generic_c_ptr, size_t size);
 void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
 void cn_get_or_put_ownership(
-    enum OWNERSHIP owned_enum, uintptr_t generic_c_ptr, size_t size);
+    enum OWNERSHIP owned_enum, void *generic_c_ptr, size_t size);
 
 /* C ownership checking */
-void c_add_to_ghost_state(uintptr_t ptr_to_local, size_t size, signed long stack_depth);
-void c_remove_from_ghost_state(uintptr_t ptr_to_local, size_t size);
+void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth);
+void c_remove_from_ghost_state(void* ptr_to_local, size_t size);
 void c_ownership_check(char *access_kind,
-    uintptr_t generic_c_ptr,
+    void* generic_c_ptr,
     int offset,
     signed long expected_stack_depth);
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \
   STAT;                                                                                  \
-  c_add_to_ghost_state((uintptr_t)&VAR_NAME, GHOST_STATE, sizeof(CTYPE), STACK_DEPTH);
+  c_add_to_ghost_state(&VAR_NAME, GHOST_STATE, sizeof(CTYPE), STACK_DEPTH);
 
 #define c_declare_and_map_local(CTYPE, VAR_NAME)                                         \
   c_concat_with_mapping_stat(CTYPE VAR_NAME, CTYPE, VAR_NAME)
@@ -572,7 +567,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
     typeof(LV) *__tmp = &(LV);                                                           \
     update_cn_error_message_info_access_check(NULL);                                     \
     c_ownership_check(                                                                   \
-        "Load", (uintptr_t)__tmp, sizeof(typeof(LV)), get_cn_stack_depth());             \
+        "Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());                        \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
     *__tmp;                                                                              \
   })
@@ -583,7 +578,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(NULL);                                     \
     c_ownership_check(                                                                   \
-        "Store", (uintptr_t)__tmp, sizeof(typeof(LV)), get_cn_stack_depth());            \
+        "Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());                       \
     cn_store(__tmp, sizeof(typeof(LV)));                                                 \
     *__tmp op## = (X);                                                                   \
   })
@@ -596,7 +591,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(NULL);                                     \
     c_ownership_check("Postfix operation",                                               \
-        (uintptr_t)__tmp,                                                                \
+        __tmp,                                                                           \
         sizeof(typeof(LV)),                                                              \
         get_cn_stack_depth());                                                           \
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
@@ -605,6 +600,21 @@ static inline void cn_postfix(void *ptr, size_t size) {
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef CN_INSTRUMENTATION_MODE
+#undef size_t
+#undef uint8_t
+#undef uint16_t
+#undef uint32_t
+#undef uint64_t
+#undef uintptr_t
+#undef int8_t
+#undef int16_t
+#undef int32_t
+#undef int64_t
+#undef intptr_t
+#undef alignof
 #endif
 
 #endif  // CN_UTILS

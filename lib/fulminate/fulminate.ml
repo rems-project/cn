@@ -196,6 +196,149 @@ let get_instrumented_filename filename =
 
 let get_cn_helper_filename _filename = "cn.c"
 
+
+let new_main
+      ?(without_ownership_checking = false)
+      ?(without_loop_invariants = false)
+      ?(with_loop_leak_checks = false)
+      ?(with_test_gen = false)
+      ?(copy_source_dir = false)
+      filename
+      ~use_preproc
+      ((_, sigm) as ail_prog)
+      output_decorated
+      output_decorated_dir
+      prog5
+  =
+  let _,_ = copy_source_dir, use_preproc in
+  let instrumentation, _ = Extract.collect_instrumentation prog5 in
+  Records.populate_record_map instrumentation prog5;
+  let executable_spec = generate_c_specs
+    without_ownership_checking
+    without_loop_invariants
+    with_loop_leak_checks
+    instrumentation
+    sigm
+    prog5
+  in
+  let c_datatype_defs = generate_c_datatypes sigm in
+  let c_function_defs, c_function_decls, _c_function_locs =
+    generate_c_functions sigm prog5.logical_predicates
+  in
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs  =
+    generate_c_predicates sigm prog5.resource_predicates
+  in
+  let conversion_function_defs, conversion_function_decls =
+    generate_conversion_and_equality_functions sigm
+  in
+  let ownership_function_defs, ownership_function_decls =
+    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
+  in
+  let c_struct_decls = generate_c_struct_decl_strs sigm.tag_definitions in
+  let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions
+  in
+  let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
+  let record_defs = Records.generate_all_record_strs () in
+
+
+  (* Forward declarations and CN types *)
+  let cn_header_decls_list =
+    List.concat
+    [ c_struct_decls;
+      [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
+        record_defs;
+        cn_converted_struct_defs
+      ];
+      if List.is_empty c_datatype_defs then [] else ["/* CN DATATYPES */"];
+      List.map snd c_datatype_defs;
+      [
+        "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
+        ownership_function_decls;
+        conversion_function_decls;
+        record_fun_decls;
+        c_function_decls;
+        "\n";
+        c_predicate_decls
+      ]
+    ]
+  in
+
+  (* Definitions for CN helper functions *)
+  (* TODO: Topological sort *)
+  let cn_defs_list =
+    [ "#ifndef NULL\n"; "#include <stdlib.h>\n"; "#endif\n";
+      "#ifndef INT64_MAX\n"; "#include <stdint.h>\n"; "#endif\n";
+      (* record_equality_fun_strs; *)
+      (* record_equality_fun_strs'; *)
+      "/* RECORD */\n";
+      record_fun_defs;
+      "/* CONVERSION */\n";
+      conversion_function_defs;
+      ownership_function_defs;
+      "/* CN FUNCTIONS */\n";
+      c_function_defs;
+      "\n";
+      c_predicate_defs
+    ]
+  in
+  
+  let in_stmt_injs =
+    executable_spec.in_stmt
+    @ if without_ownership_checking then [] else memory_accesses_injections ail_prog
+  in
+
+  let pre_post_pairs =
+    if with_test_gen then
+      if not (has_main sigm) then
+        executable_spec.pre_post
+      else
+        failwith
+          "Input file cannot have predefined main function when passing to CN test-gen \
+           tooling"
+    else if without_ownership_checking then
+      executable_spec.pre_post
+    else (
+      (* XXX: ONLY IF THERE IS A MAIN *)
+      (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
+      let global_ownership_init_pair = generate_ownership_global_assignments sigm prog5 in
+      global_ownership_init_pair @ executable_spec.pre_post)
+  in
+
+  (* Save things *)
+  let output_filename =
+    match output_decorated with
+    | None -> Filename.(remove_extension (basename filename)) ^ "-exec.c"
+    | Some output_filename' -> output_filename'
+  in
+  let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
+  let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
+  output_to_oc oc
+    [ "#define CN_INSTRUMENTATION_MODE\n";
+      "#include <cn-executable/utils.h>\n"
+    ];
+  output_to_oc oc cn_header_decls_list;
+
+  (match
+     Source_injection.(
+       output_injections
+         oc
+         { filename;
+           program = ail_prog;
+           pre_post = pre_post_pairs;
+           in_stmt = in_stmt_injs;
+           returns = executable_spec.returns;
+           inject_in_preproc = true
+         })
+   with
+   | Ok () -> ()
+   | Error str ->
+     (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
+     prerr_endline str);
+ 
+  output_to_oc oc cn_defs_list;
+  close_out oc
+
+
 let main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)

@@ -1,7 +1,15 @@
 #include <inttypes.h>
 #include <signal.h>  // for SIGABRT
+#include <stdio.h>
+#include <stdlib.h>
 
 #include <cn-executable/utils.h>
+
+#define cn_printf(level, ...)                                                            \
+  if (get_cn_logging_level() >= level) {                                                 \
+    printf(__VA_ARGS__);                                                                 \
+  }
+
 
 typedef hash_table ownership_ghost_state;
 
@@ -225,6 +233,7 @@ void cn_postcondition_leak_check(void) {
     int* depth = it.value;
     if (*depth > cn_stack_depth) {
       print_error_msg_info(error_msg_info);
+      // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
           "Postcondition leak check failed, ownership leaked for pointer " FMT_PTR "\n",
           (uintptr_t)*key);
@@ -243,6 +252,7 @@ void cn_loop_leak_check(void) {
     /* Everything mapped to the function stack depth should have been bumped up by calls to Owned in invariant */
     if (*depth == cn_stack_depth - 1) {
       print_error_msg_info(error_msg_info);
+      // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
           "Loop invariant leak check failed, ownership leaked for pointer " FMT_PTR "\n",
           (uintptr_t)*key);
@@ -295,13 +305,13 @@ void dump_ownership_state() {
   // cn_printf(CN_LOGGING_INFO, "END\n");
 }
 
-void cn_get_ownership(uintptr_t generic_c_ptr, size_t size, char* check_msg) {
+void cn_get_ownership(void *generic_c_ptr, size_t size, char* check_msg) {
   /* Used for precondition and loop invariant taking/getting of ownership */
   c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
 }
 
-void cn_put_ownership(uintptr_t generic_c_ptr, size_t size) {
+void cn_put_ownership(void *generic_c_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: returning ownership] " FMT_PTR_2 ", size: %lu\n", generic_c_ptr, size);
   //// print_error_msg_info();
   c_ownership_check(
@@ -314,7 +324,7 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
   //// print_error_msg_info();
   for (int i = 0; i < size; i++) {
     int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
-    *address_key = ((uintptr_t)generic_c_ptr) + i;
+    *address_key = (uintptr_t)generic_c_ptr + i;
     /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
     /*        ((uintptr_t) generic_c_ptr) + i, fun); */
     ownership_ghost_state_set(address_key, cn_stack_depth);
@@ -322,7 +332,7 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
 }
 
 void cn_get_or_put_ownership(
-    enum OWNERSHIP owned_enum, uintptr_t generic_c_ptr, size_t size) {
+    enum OWNERSHIP owned_enum, void *generic_c_ptr, size_t size) {
   nr_owned_predicates++;
   switch (owned_enum) {
     case GET: {
@@ -339,34 +349,34 @@ void cn_get_or_put_ownership(
   }
 }
 
-void c_add_to_ghost_state(uintptr_t ptr_to_local, size_t size, signed long stack_depth) {
+void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] add local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
   for (int i = 0; i < size; i++) {
     int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
-    *address_key = ptr_to_local + i;
+    *address_key = (uintptr_t)ptr_to_local + i;
     /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
     ownership_ghost_state_set(address_key, stack_depth);
   }
 }
 
-void c_remove_from_ghost_state(uintptr_t ptr_to_local, size_t size) {
+void c_remove_from_ghost_state(void *ptr_to_local, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] remove local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
   for (int i = 0; i < size; i++) {
     int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
-    *address_key = ptr_to_local + i;
+    *address_key = (uintptr_t)ptr_to_local + i;
     /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
     ownership_ghost_state_remove(address_key);
   }
 }
 
 void c_ownership_check(char* access_kind,
-    uintptr_t generic_c_ptr,
+    void* generic_c_ptr,
     int offset,
     signed long expected_stack_depth) {
   int64_t address_key = 0;
   // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
   for (int i = 0; i < offset; i++) {
-    address_key = generic_c_ptr + i;
+    address_key = (uintptr_t)generic_c_ptr + i;
     int curr_depth = ownership_ghost_state_get(&address_key);
     if (curr_depth != expected_stack_depth) {
       print_error_msg_info(error_msg_info);
@@ -374,14 +384,14 @@ void c_ownership_check(char* access_kind,
       if (curr_depth == -1) {
         cn_printf(CN_LOGGING_ERROR,
             "  ==> " FMT_PTR "[%d] (" FMT_PTR ") not owned\n",
-            generic_c_ptr,
+            (uintptr_t)generic_c_ptr,
             i,
             (uintptr_t)((char*)generic_c_ptr + i));
       } else {
         cn_printf(CN_LOGGING_ERROR,
             "  ==> " FMT_PTR "[%d] (" FMT_PTR
             ") not owned at expected function call stack depth %ld\n",
-            generic_c_ptr,
+            (uintptr_t)generic_c_ptr,
             i,
             (uintptr_t)((char*)generic_c_ptr + i),
             expected_stack_depth);
@@ -618,8 +628,8 @@ void* cn_calloc(size_t num, size_t size) {
 void cn_free_sized(void* malloced_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: freeing ownership] " FMT_PTR ", size: %lu\n", (uintptr_t) malloced_ptr, size);
   if (malloced_ptr != NULL) {
-    c_ownership_check("Free", (uintptr_t)malloced_ptr, (int)size, cn_stack_depth);
-    c_remove_from_ghost_state((uintptr_t)malloced_ptr, size);
+    c_ownership_check("Free", malloced_ptr, (int)size, cn_stack_depth);
+    c_remove_from_ghost_state(malloced_ptr, size);
   }
 }
 
