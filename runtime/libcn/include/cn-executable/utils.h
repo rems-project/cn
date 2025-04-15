@@ -258,8 +258,8 @@ cn_bool *cn_pointer_gt(cn_pointer *i1, cn_pointer *i2);
     return convert_to_##CNTYPE(-(i->val));                                               \
   }
 
-#define CN_GEN_BW_COMPL(CNTYPE)                                                            \
-  static inline CNTYPE *CNTYPE##_bw_compl(CNTYPE *i) {                                     \
+#define CN_GEN_BW_COMPL(CNTYPE)                                                          \
+  static inline CNTYPE *CNTYPE##_bw_compl(CNTYPE *i) {                                   \
     return convert_to_##CNTYPE(~(i->val));                                               \
   }
 
@@ -383,8 +383,6 @@ static inline int ipow(int base, int exp) {
 
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
   convert_to_cn_pointer(&(((struct tag *)cn_ptr->ptr)->member_name))
-
-
 
 #define CN_GEN_INCREMENT(CNTYPE)                                                         \
   static inline CNTYPE *CNTYPE##_increment(CNTYPE *i) {                                  \
