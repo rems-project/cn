@@ -163,14 +163,12 @@ module Flags = struct
 
 
   let only =
-    let doc = "Only type-check/instrument this function (or comma-separated names)" in
+    let doc = "Only type-check this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
-    let doc =
-      "skip type-checking/instrumenting this function (or comma-separated names)"
-    in
+    let doc = "Skip type-checking of this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 
