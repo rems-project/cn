@@ -1,3 +1,4 @@
+module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
 module Extract = Extract
 module Internal = Internal
@@ -186,6 +187,43 @@ let memory_accesses_injections ail_prog =
   !acc
 
 
+let filter_selected_fns
+      (prog5 : unit Mucore.file)
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (full_instrumentation : Extract.instrumentation list)
+  =
+  (* Filtering based on Common.Flags.only and Common.Flags.skip *)
+  let prog5_fns_list = List.map fst (Pmap.bindings_list prog5.funs) in
+  let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
+  let selected_function_syms =
+    Sym.Set.elements (Check.select_functions all_fns_sym_set)
+  in
+  let main_sym =
+    List.filter (fun sym -> String.equal (Sym.pp_string sym) "main") prog5_fns_list
+  in
+  let is_sym_selected =
+    fun sym -> List.mem Sym.equal sym (selected_function_syms @ main_sym)
+  in
+  let filtered_instrumentation =
+    List.filter
+      (fun (i : Extract.instrumentation) -> is_sym_selected i.fn)
+      full_instrumentation
+  in
+  let filtered_ail_prog_decls =
+    List.filter (fun (decl_sym, _) -> is_sym_selected decl_sym) sigm.declarations
+  in
+  let filtered_ail_prog_defs =
+    List.filter (fun (def_sym, _) -> is_sym_selected def_sym) sigm.function_definitions
+  in
+  let filtered_sigm =
+    { sigm with
+      declarations = filtered_ail_prog_decls;
+      function_definitions = filtered_ail_prog_defs
+    }
+  in
+  (filtered_instrumentation, filtered_sigm)
+
+
 let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
@@ -204,7 +242,8 @@ let main
       ?(copy_source_dir = false)
       filename
       ~use_preproc
-      ((_, sigm) as ail_prog)
+      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
+       ail_prog)
       output_decorated
       output_decorated_dir
       (prog5 : unit Mucore.file)
@@ -221,21 +260,17 @@ let main
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation prog5
   in
-  let prog5_fn_bindings_list = Pmap.bindings_list prog5.funs in
-  let all_fns_sym_set = Sym.Set.of_list (List.map fst prog5_fn_bindings_list) in
-  let selected_functions = Sym.Set.elements (Check.select_functions all_fns_sym_set) in
-  let instrumentation =
-    List.filter
-      (fun (i : Extract.instrumentation) -> List.mem Sym.equal i.fn selected_functions)
-      full_instrumentation
+  let filtered_instrumentation, filtered_sigm =
+    filter_selected_fns prog5 sigm full_instrumentation
   in
-  Records.populate_record_map instrumentation prog5;
+  let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
+  Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
-      instrumentation
+      filtered_instrumentation
       sigm
       prog5
   in
@@ -317,7 +352,10 @@ let main
   in
   let toplevel_injections = List.map (fun loc -> (loc, [ "" ])) toplevel_locs in
   let accesses_stmt_injs =
-    if without_ownership_checking then [] else memory_accesses_injections ail_prog
+    if without_ownership_checking then
+      []
+    else
+      memory_accesses_injections filtered_ail_prog
   in
   let struct_locs = List.map (fun (_, (loc, _, _)) -> loc) sigm.tag_definitions in
   let struct_injs = List.map (fun loc -> (loc, [ "" ])) struct_locs in
