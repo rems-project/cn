@@ -54,7 +54,6 @@ val generate_c_struct_decl_strs
        list ->
   string list
 
-
 val generate_cn_versions_of_structs : Cn_to_ail.A.sigma_tag_definition list -> string
 
 val generate_c_functions
