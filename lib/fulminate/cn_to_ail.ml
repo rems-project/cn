@@ -842,9 +842,7 @@ let rec cn_to_ail_expr_aux
   | OffsetOf (tag, member) ->
     let ail_struct_type = mk_ctype (Struct tag) in
     let ail_expr_ = A.(AilEoffsetof (ail_struct_type, member)) in
-    let ail_call_ =
-      wrap_with_convert_to ~sct:(Integer (Unsigned LongLong)) ail_expr_ basetype
-    in
+    let ail_call_ = wrap_with_convert_to ail_expr_ basetype in
     dest d ([], [], mk_expr ail_call_)
   | ITE (t1, t2, t3) ->
     let result_sym = Sym.fresh_anon () in
