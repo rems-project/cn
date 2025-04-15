@@ -357,18 +357,6 @@ module Flags = struct
     Arg.(value & flag & info [ "no_timestamps" ] ~doc)
 
 
-  let only =
-    let doc = "Only type-check/instrument this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
-
-
-  let skip =
-    let doc =
-      "skip type-checking/instrumenting this function (or comma-separated names)"
-    in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
-
-
   let csv_times =
     let doc = "file in which to output csv timing information" in
     Arg.(value & opt (some string) None & info [ "times" ] ~docv:"FILE" ~doc)

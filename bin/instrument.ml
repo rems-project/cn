@@ -239,6 +239,16 @@ module Flags = struct
       "Print successful stages, such as instrumentation, compilation and linking."
     in
     Arg.(value & flag & info [ "print-steps" ] ~doc)
+
+
+  let only =
+    let doc = "Only instrument this function (or comma-separated names)" in
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+
+
+  let skip =
+    let doc = "Skip instrumenting this function (or comma-separated names)" in
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 end
 
 let cmd =
@@ -254,8 +264,8 @@ let cmd =
     $ Common.Flags.print_level
     $ Common.Flags.print_sym_nums
     $ Common.Flags.no_timestamps
-    $ Common.Flags.only
-    $ Common.Flags.skip
+    $ Flags.only
+    $ Flags.skip
     $ Verify.Flags.diag
     $ Common.Flags.csv_times
     $ Common.Flags.log_times
