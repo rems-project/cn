@@ -247,8 +247,8 @@ let generate_c_specs
 let generate_doc_from_ail_struct ail_struct =
   CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
 
-let generate_struct_decl_str (tag, (_, _, def))
-  =
+
+let generate_struct_decl_str (tag, (_, _, def)) =
   match def with
   | C.StructDef _ -> Printf.sprintf "struct %s;\n" (Sym.pp_string tag)
   | UnionDef _ -> ""
@@ -293,9 +293,10 @@ let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
 let generate_c_struct_strs c_structs =
   "\n/* ORIGINAL C STRUCTS */\n\n" ^ generate_str_from_ail_structs c_structs
 
+
 let generate_c_struct_decl_strs c_structs =
-  "/* ORIGINAL C STRUCTS */\n" ::
-  List.map generate_struct_decl_str c_structs
+  "/* ORIGINAL C STRUCTS */\n" :: List.map generate_struct_decl_str c_structs
+
 
 let generate_cn_versions_of_structs c_structs =
   let ail_structs = List.concat (List.map Cn_to_ail.cn_to_ail_struct c_structs) in
