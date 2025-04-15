@@ -42,11 +42,7 @@ type env =
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
-  let alloc_sig =
-    { pred_iargs = [];
-      pred_output = (Locations.other __LOC__, snd Definition.alloc.oarg)
-    }
-  in
+  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg } in
   let builtins =
     List.fold_left
       (fun acc (_, sym, (def : Definition.Function.t)) ->
