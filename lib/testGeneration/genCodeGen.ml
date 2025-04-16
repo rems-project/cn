@@ -31,11 +31,11 @@ let _str_name_of_bt (bt : BT.t) : string =
 
 
 let compile_it (sigma : CF.GenTypes.genTypeCategory A.sigma) (name : Sym.t) (it : IT.t) =
-  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) it
+  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) None it
 
 
 let compile_lc (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
-  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] lc
+  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] None lc
 
 
 let[@warning "-27"] rec compile_term
