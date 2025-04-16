@@ -244,20 +244,27 @@ let new_main
       ?(copy_source_dir = false)
       filename
       ~use_preproc
-      ((_, sigm) as ail_prog)
+      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
+       ail_prog)
       output_decorated
       output_decorated_dir
       prog5
   =
   let _, _ = (copy_source_dir, use_preproc) in
-  let instrumentation, _ = Extract.collect_instrumentation prog5 in
-  Records.populate_record_map instrumentation prog5;
+  let (full_instrumentation : Extract.instrumentation list), _ =
+    Extract.collect_instrumentation prog5
+  in
+  let filtered_instrumentation, filtered_sigm =
+    filter_selected_fns prog5 sigm full_instrumentation
+  in
+  let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
+  Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
-      instrumentation
+      filtered_instrumentation
       sigm
       prog5
   in
@@ -322,7 +329,11 @@ let new_main
   in
   let in_stmt_injs =
     executable_spec.in_stmt
-    @ if without_ownership_checking then [] else memory_accesses_injections ail_prog
+    @
+    if without_ownership_checking then
+      []
+    else
+      memory_accesses_injections filtered_ail_prog
   in
   let pre_post_pairs =
     if with_test_gen then
@@ -342,9 +353,7 @@ let new_main
   in
   (* Save things *)
   let output_filename =
-    match output_decorated with
-    | None -> Filename.(remove_extension (basename filename)) ^ "-exec.c"
-    | Some output_filename' -> output_filename'
+    Option.value ~default:(get_instrumented_filename filename) output_decorated
   in
   let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
   let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
