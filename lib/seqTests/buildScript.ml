@@ -54,6 +54,7 @@ let compile ~filename_base =
        (String.concat
           " "
           ([ "cc";
+             "-w";
              "-c";
              "-o";
              "\"./" ^ filename_base ^ "_test.o\"";
@@ -70,6 +71,7 @@ let compile ~filename_base =
              (String.concat
                 " "
                 ([ "cc";
+                   "-w";
                    "-c";
                    "-o";
                    "\"./" ^ filename_base ^ "-exec.o\"";
@@ -82,7 +84,7 @@ let compile ~filename_base =
         ^^ attempt
              (String.concat
                 " "
-                ([ "cc"; "-c"; "-o"; "\"./cn.o\""; "\"./cn.c\"" ] @ cc_flags ()))
+                ([ "cc"; "-w"; "-c"; "-o"; "\"./cn.o\""; "\"./cn.c\"" ] @ cc_flags ()))
              "Compiled 'cn.c'."
              "Failed to compile 'cn.c' in ${TEST_DIR}.")
   ^^ hardline
@@ -134,9 +136,9 @@ let run () =
 
 let run_intermediate () =
   let create_run_string (i : int) =
-      separate_map space string [ "./tests.out"; string_of_int i ]
-      ^^ hardline
-      ^^ string "echo \"**********\""
+    string "echo \"977567d9dcdabf701acff6f4d4ce077e\""
+    ^^ hardline
+    ^^ separate_map space string [ "./tests.out"; string_of_int i ]
   in
   let cmds = List.map create_run_string (List.init (Config.get_num_parallel ()) Fun.id) in
   string "# Run"
