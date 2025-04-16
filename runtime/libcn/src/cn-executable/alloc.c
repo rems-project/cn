@@ -59,7 +59,7 @@ bool bump_can_fit(size_t nbytes) {
 
 bool bump_expand() {
   if (bump_curr_block + 1 >= BUMP_BLOCK_COUNT) {
-    cn_failure(CN_FAILURE_ALLOC);
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return 0;
   }
 
@@ -79,7 +79,7 @@ void* bump_by(size_t nbytes) {
     fprintf(stderr,
         "Attempted to bump allocate larger than maximum allocation size %d.\n",
         BUMP_BLOCK_SIZE);
-    cn_failure(CN_FAILURE_ALLOC);
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return 0;
   }
 
@@ -536,7 +536,7 @@ void* cn_fl_aligned_alloc(size_t alignment, size_t size) {
     was_first_free = 0;
   }
 
-  cn_failure(CN_FAILURE_ALLOC);  // Out of memory
+  cn_failure(CN_FAILURE_ALLOC, NON_SPEC);  // Out of memory
   return NULL;
 }
 

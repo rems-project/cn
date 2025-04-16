@@ -3,11 +3,6 @@ open Utils
 module A = CF.AilSyntax
 module C = CF.Ctype
 
-type ownership_mode =
-  | Pre
-  | Post
-  | Loop
-
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
 
@@ -26,8 +21,6 @@ type ownership_injection =
     bs_and_ss : ail_bindings_and_statements;
     injection_kind : injection_kind
   }
-
-let ownership_mode_to_enum_str = function Pre -> "GET" | Post -> "PUT" | Loop -> "LOOP"
 
 let get_cn_stack_depth_sym = Sym.fresh "get_cn_stack_depth"
 
