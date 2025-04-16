@@ -5,6 +5,12 @@ module BT = BaseTypes
 
 val ownership_ctypes : C.ctype list ref
 
+type spec_mode =
+  | Pre
+  | Post
+  | Loop
+  | Statement
+
 module MembersKey : sig
   type t = (Id.t * BT.t) list
 
@@ -121,6 +127,7 @@ val cn_to_ail_expr_toplevel
   :  A.sigma_cn_datatype list ->
   (C.union_tag * C.ctype) list ->
   Sym.t option ->
+  spec_mode option ->
   IndexTerms.t ->
   A.bindings
   * CF.GenTypes.genTypeCategory A.statement_ list
@@ -129,6 +136,7 @@ val cn_to_ail_expr_toplevel
 val cn_to_ail_logical_constraint
   :  A.sigma_cn_datatype list ->
   (C.union_tag * C.ctype) list ->
+  spec_mode option ->
   LogicalConstraints.t ->
   A.bindings
   * CF.GenTypes.genTypeCategory A.statement_ list
