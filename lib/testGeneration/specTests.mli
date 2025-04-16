@@ -8,7 +8,8 @@ val compile_constant_tests
   Test.t list * Pp.document
 
 val compile_generators
-  :  CF.GenTypes.genTypeCategory A.sigma ->
+  :  string ->
+  CF.GenTypes.genTypeCategory A.sigma ->
   unit Mucore.file ->
   FExtract.instrumentation list ->
   Pp.document

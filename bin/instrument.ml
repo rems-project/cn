@@ -87,6 +87,8 @@ let generate_executable_specs
       print_level
       print_sym_nums
       no_timestamps
+      only
+      skip
       diag
       csv_times
       log_times
@@ -113,6 +115,7 @@ let generate_executable_specs
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
+  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -236,6 +239,16 @@ module Flags = struct
       "Print successful stages, such as instrumentation, compilation and linking."
     in
     Arg.(value & flag & info [ "print-steps" ] ~doc)
+
+
+  let only =
+    let doc = "Only instrument this function (or comma-separated names)" in
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+
+
+  let skip =
+    let doc = "Skip instrumenting this function (or comma-separated names)" in
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 end
 
 let cmd =
@@ -251,6 +264,8 @@ let cmd =
     $ Common.Flags.print_level
     $ Common.Flags.print_sym_nums
     $ Common.Flags.no_timestamps
+    $ Flags.only
+    $ Flags.skip
     $ Verify.Flags.diag
     $ Common.Flags.csv_times
     $ Common.Flags.log_times

@@ -56,13 +56,6 @@ jobs:
       with:
         path: ~/.opam
         key: ${{ matrix.version }}-with-coq
-  
-    # - name: Install Cerberus-lib
-    #   run: |
-    #     opam switch ${{ matrix.version }}-with-coq
-    #     eval $(opam env --switch=${{ matrix.version }}-with-coq )
-    #     opam pin --yes --no-action add cerberus-lib .
-    #     opam install --yes cerberus-lib
 
     - name: Install CN (with Coq)
       run: |
@@ -76,4 +69,4 @@ jobs:
       run: |
         opam switch ${{ matrix.version }}-with-coq
         eval $(opam env --switch=${{ matrix.version }}-with-coq )
-        ./tests/run-cn-coq.sh -v -p
+        ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)

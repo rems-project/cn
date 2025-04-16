@@ -1,3 +1,4 @@
+module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
 module Extract = Extract
 module Internal = Internal
@@ -186,15 +187,54 @@ let memory_accesses_injections ail_prog =
   !acc
 
 
+let filter_selected_fns
+      (prog5 : unit Mucore.file)
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (full_instrumentation : Extract.instrumentation list)
+  =
+  (* Filtering based on Check.skip_and_only *)
+  let prog5_fns_list = List.map fst (Pmap.bindings_list prog5.funs) in
+  let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
+  let selected_function_syms =
+    Sym.Set.elements (Check.select_functions all_fns_sym_set)
+  in
+  let main_sym =
+    List.filter (fun sym -> String.equal (Sym.pp_string sym) "main") prog5_fns_list
+  in
+  let is_sym_selected =
+    fun sym -> List.mem Sym.equal sym (selected_function_syms @ main_sym)
+  in
+  let filtered_instrumentation =
+    List.filter
+      (fun (i : Extract.instrumentation) -> is_sym_selected i.fn)
+      full_instrumentation
+  in
+  let filtered_ail_prog_decls =
+    List.filter (fun (decl_sym, _) -> is_sym_selected decl_sym) sigm.declarations
+  in
+  let filtered_ail_prog_defs =
+    List.filter (fun (def_sym, _) -> is_sym_selected def_sym) sigm.function_definitions
+  in
+  let filtered_sigm =
+    { sigm with
+      declarations = filtered_ail_prog_decls;
+      function_definitions = filtered_ail_prog_defs
+    }
+  in
+  (filtered_instrumentation, filtered_sigm)
+
+
 let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
 
 let get_instrumented_filename filename =
-  Filename.(remove_extension (basename filename)) ^ "-exec.c"
+  Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
-let get_cn_helper_filename _filename = "cn.c"
+let get_cn_helper_filename filename =
+  Filename.(remove_extension (basename filename)) ^ ".cn.c"
+
 
 let new_main
       ?(without_ownership_checking = false)
@@ -340,10 +380,11 @@ let main
       ?(copy_source_dir = false)
       filename
       ~use_preproc
-      ((_, sigm) as ail_prog)
+      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
+       ail_prog)
       output_decorated
       output_decorated_dir
-      prog5
+      (prog5 : unit Mucore.file)
   =
   let output_filename =
     Option.value ~default:(get_instrumented_filename filename) output_decorated
@@ -353,15 +394,24 @@ let main
   let cn_oc =
     Stdlib.open_out (Filename.concat prefix (get_cn_helper_filename filename))
   in
-  let cn_header_oc = Stdlib.open_out (Filename.concat prefix "cn.h") in
-  let instrumentation, _ = Extract.collect_instrumentation prog5 in
-  Records.populate_record_map instrumentation prog5;
+  let cn_header_filename =
+    Filename.remove_extension (get_cn_helper_filename filename) ^ ".h"
+  in
+  let cn_header_oc = Stdlib.open_out (Filename.concat prefix cn_header_filename) in
+  let (full_instrumentation : Extract.instrumentation list), _ =
+    Extract.collect_instrumentation prog5
+  in
+  let filtered_instrumentation, filtered_sigm =
+    filter_selected_fns prog5 sigm full_instrumentation
+  in
+  let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
+  Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
-      instrumentation
+      filtered_instrumentation
       sigm
       prog5
   in
@@ -375,7 +425,7 @@ let main
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions sigm
   in
-  let cn_header_pair = ("cn.h", false) in
+  let cn_header_pair = (cn_header_filename, false) in
   let cn_header = Utils.generate_include_header cn_header_pair in
   let cn_utils_header_pair = ("cn-executable/utils.h", true) in
   let cn_utils_header = Utils.generate_include_header cn_utils_header_pair in
@@ -409,7 +459,7 @@ let main
     Utils.ifndef_wrap "CN_HEADER" (String.concat "\n" cn_header_decls_list)
   in
   output_to_oc cn_header_oc [ cn_header_oc_str ];
-  (* Genereate CN.c *)
+  (* Genereate myfile.cn.c *)
 
   (* TODO: Topological sort *)
   let cn_defs_list =
@@ -425,7 +475,7 @@ let main
     ]
   in
   output_to_oc cn_oc cn_defs_list;
-  (* Generate myfile-exec.c *)
+  (* Generate myfile.exec.c *)
   let incls =
     [ ("assert.h", true);
       ("stdlib.h", true);
@@ -443,7 +493,10 @@ let main
   in
   let toplevel_injections = List.map (fun loc -> (loc, [ "" ])) toplevel_locs in
   let accesses_stmt_injs =
-    if without_ownership_checking then [] else memory_accesses_injections ail_prog
+    if without_ownership_checking then
+      []
+    else
+      memory_accesses_injections filtered_ail_prog
   in
   let struct_locs = List.map (fun (_, (loc, _, _)) -> loc) sigm.tag_definitions in
   let struct_injs = List.map (fun loc -> (loc, [ "" ])) struct_locs in

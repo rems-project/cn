@@ -61,7 +61,7 @@ EXEC_DIR=$(mktemp -d -t 'cn-exec.XXXX')
 # Instrument code with CN
 if cn instrument "${INPUT_FN}" \
     --run --print-steps \
-    --output="${INPUT_BASENAME}-exec.c" \
+    --output="${INPUT_BASENAME}.exec.c" \
     --output-dir="${EXEC_DIR}" \
     ${NO_CHECK_OWNERSHIP}; then
   [ "${QUIET}" ] || echo "Success!"

@@ -1153,7 +1153,7 @@ module WRS = struct
     | Request.Owned (ct, _init) -> return (Memory.bt_of_sct ct)
     | Request.PName pn ->
       let@ def = get_resource_predicate_def loc pn in
-      return def.oarg_bt
+      return (snd def.oarg)
 
 
   let oarg_bt loc = function
@@ -1191,7 +1191,7 @@ end
 module WLRT = struct
   module LRT = LogicalReturnTypes
 
-  let welltyped _loc lrt =
+  let welltyped lrt =
     let rec aux = function
       | LRT.Define ((s, it), ((loc, _) as info), lrt) ->
         (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
@@ -1217,14 +1217,14 @@ end
 module WRT = struct
   let pp = ReturnTypes.pp
 
-  let welltyped loc rt =
+  let welltyped rt =
     pure
       (match rt with
        | ReturnTypes.Computational ((name, bt), info, lrt) ->
          (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
          let@ bt = WBT.is_bt (fst info) bt in
          let@ () = add_a name bt (fst info, lazy (Sym.pp name)) in
-         let@ lrt = WLRT.welltyped loc lrt in
+         let@ lrt = WLRT.welltyped lrt in
          return (ReturnTypes.Computational ((name, bt), info, lrt)))
 end
 
@@ -1264,7 +1264,7 @@ module WLAT = struct
         let@ at = aux at in
         return (LAT.Constraint (lc, info, at))
       | LAT.I i ->
-        let@ i = i_welltyped loc i in
+        let@ i = i_welltyped i in
         return (LAT.I i)
     in
     pure (aux at)
@@ -1293,7 +1293,7 @@ module WAT = struct
 end
 
 module WFT = struct
-  let welltyped = WAT.welltyped (fun loc rt -> pure (WRT.welltyped loc rt)) WRT.pp
+  let welltyped = WAT.welltyped (fun rt -> pure (WRT.welltyped rt)) WRT.pp
 end
 
 (*
@@ -1318,7 +1318,7 @@ module WLArgs = struct
     | Mu.I i -> LAT.I (ityp i)
 
 
-  let welltyped (i_welltyped : Loc.t -> 'i -> 'j m) _kind loc (at : 'i Mu.arguments_l)
+  let welltyped (i_welltyped : 'i -> 'j m) _kind (at : 'i Mu.arguments_l)
     : 'j Mu.arguments_l m
     =
     let rec aux = function
@@ -1339,7 +1339,7 @@ module WLArgs = struct
         let@ at = aux at in
         return (Mu.Constraint (lc, info, at))
       | Mu.I i ->
-        let@ i = i_welltyped loc i in
+        let@ i = i_welltyped i in
         return (Mu.I i)
     in
     pure (aux at)
@@ -1355,10 +1355,9 @@ module WArgs = struct
 
 
   let welltyped
-    : 'i 'j.
-    (Loc.t -> 'i -> 'j m) -> string -> Loc.t -> 'i Mu.arguments -> 'j Mu.arguments m
+    : 'i 'j. ('i -> 'j m) -> string -> Loc.t -> 'i Mu.arguments -> 'j Mu.arguments m
     =
-    fun (i_welltyped : Loc.t -> 'i -> 'j m) kind loc (at : 'i Mu.arguments) ->
+    fun (i_welltyped : 'i -> 'j m) kind loc (at : 'i Mu.arguments) ->
     debug 6 (lazy !^__LOC__);
     debug
       12
@@ -1375,7 +1374,7 @@ module WArgs = struct
         let@ at = aux at in
         return (Mu.Computational ((name, bt), info, at))
       | Mu.L at ->
-        let@ at = WLArgs.welltyped i_welltyped kind loc at in
+        let@ at = WLArgs.welltyped i_welltyped kind at in
         return (Mu.L at)
     in
     pure (aux at)
@@ -2224,8 +2223,8 @@ module WProc = struct
   let welltyped : Loc.t -> _ Mu.args_and_body -> _ Mu.args_and_body m =
     fun (loc : Loc.t) (at : 'TY1 Mu.args_and_body) ->
     WArgs.welltyped
-      (fun loc (body, labels, rt) ->
-         let@ rt = pure (WRT.welltyped loc rt) in
+      (fun (body, labels, rt) ->
+         let@ rt = pure (WRT.welltyped rt) in
          let label_context = label_context rt labels in
          let@ labels =
            PmapM.mapM
@@ -2236,7 +2235,7 @@ module WProc = struct
                   let@ label_args_and_body =
                     pure
                       (WArgs.welltyped
-                         (fun _loc label_body ->
+                         (fun label_body ->
                             BaseTyping.check_expr label_context Unit label_body)
                          "label"
                          loc
@@ -2257,7 +2256,7 @@ end
 module WRPD = struct
   module Def = Definition
 
-  let welltyped Def.Predicate.{ loc; pointer; iargs; oarg_bt; clauses } =
+  let welltyped Def.Predicate.{ loc; pointer; iargs; oarg; clauses } =
     (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
     pure
       (let@ () = add_l pointer BT.(Loc ()) (loc, lazy (Pp.string "ptr-var")) in
@@ -2269,7 +2268,8 @@ module WRPD = struct
               return (s, bt))
            iargs
        in
-       let@ oarg_bt = WBT.is_bt loc oarg_bt in
+       let@ oarg_bt = WBT.is_bt loc (snd oarg) in
+       let oarg_loc = fst oarg in
        let@ clauses =
          match clauses with
          | None -> return None
@@ -2281,7 +2281,7 @@ module WRPD = struct
                   pure
                     (let@ packing_ft =
                        WLAT.welltyped
-                         (fun loc it -> WIT.check loc oarg_bt it)
+                         (fun it -> WIT.check oarg_loc oarg_bt it)
                          IT.pp
                          "clause"
                          loc
@@ -2293,7 +2293,8 @@ module WRPD = struct
            in
            return (Some clauses)
        in
-       return Def.Predicate.{ loc; pointer; iargs; oarg_bt; clauses })
+       let oarg = (oarg_loc, oarg_bt) in
+       return Def.Predicate.{ loc; pointer; iargs; oarg; clauses })
 
 
   module G = Graph.Persistent.Digraph.Concrete (Sym)
@@ -2391,7 +2392,7 @@ end
 module WLemma = struct
   let welltyped loc _lemma_s lemma_typ =
     WAT.welltyped
-      (fun loc lrt -> pure (WLRT.welltyped loc lrt))
+      (fun lrt -> pure (WLRT.welltyped lrt))
       LogicalReturnTypes.pp
       "lemma"
       loc

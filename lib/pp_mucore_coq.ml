@@ -2121,7 +2121,7 @@ let pp_definition_predicate (p : Definition.Predicate.t) =
       ("CNDefinition.def_predicate_pointer", pp_symbol p.pointer);
       ( "CNDefinition.def_predicate_iargs",
         pp_list (pp_pair pp_symbol (pp_basetype pp_unit)) p.iargs );
-      ("CNDefinition.def_predicate_oarg_bt", pp_basetype pp_unit p.oarg_bt);
+      ("CNDefinition.def_predicate_oarg_bt", pp_basetype pp_unit (snd p.oarg));
       ("CNDefinition.def_predicate_clauses", pp_option (pp_list pp_clause) p.clauses)
     ]
 

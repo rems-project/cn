@@ -142,7 +142,7 @@ let add_records_to_map_from_fns_and_preds cn_funs cn_preds =
     List.map (fun (sym, (def : Definition.Function.t)) -> (sym, def.return_bt)) cn_funs
   in
   let pred_syms_and_ret_types =
-    List.map (fun (sym, (def : Definition.Predicate.t)) -> (sym, def.oarg_bt)) cn_preds
+    List.map (fun (sym, (def : Definition.Predicate.t)) -> (sym, snd def.oarg)) cn_preds
   in
   List.iter
     (fun (cn_sym, bt) -> populate ~cn_sym bt)

@@ -84,11 +84,11 @@ def print_and_error(error_str):
 def gen_instr_cmd(f, input_basename):
     instr_cmd_prefix = "cn instrument"
     instr_cmd = time_cmd_str + instr_cmd_prefix + " " + tests_path + "/" + f
-    instr_cmd += " --output-decorated=" + input_basename + "-exec.c"
+    instr_cmd += " --output-decorated=" + input_basename + ".exec.c"
     return instr_cmd
 
 def gen_compile_cmd(input_basename, instrumented):
-    c_files = input_basename + "-exec.c cn.c" if instrumented else tests_path + "/" + input_basename + ".c "
+    c_files = input_basename + ".exec.c " + input_basename + ".cn.c" if instrumented else tests_path + "/" + input_basename + ".c "
     if not instrumented:
         c_files += "cn_uninstr_defs.c"
     compile_cmd = time_cmd_str + "cc "
@@ -101,7 +101,7 @@ def gen_compile_cmd(input_basename, instrumented):
     return compile_cmd
 
 def gen_link_cmd(input_basename, instrumented):
-    o_files = input_basename + "-exec.o cn.o " if instrumented else input_basename + ".o "
+    o_files = input_basename + ".exec.o " + input_basename + ".cn.o " if instrumented else input_basename + ".o "
     if not instrumented:
         o_files += " cn_uninstr_defs.o "
     bin_file = input_basename + "-exec-output.bin " if instrumented else input_basename + "-output.bin "
