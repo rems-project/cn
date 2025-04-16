@@ -184,7 +184,7 @@ void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 cn_bool *convert_to_cn_bool(_Bool b);
 _Bool convert_from_cn_bool(cn_bool *b);
-void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
+void cn_assert(cn_bool *cn_b, enum spec_mode spec_mode);
 cn_bool *cn_bool_and(cn_bool *b1, cn_bool *b2);
 cn_bool *cn_bool_or(cn_bool *b1, cn_bool *b2);
 cn_bool *cn_bool_not(cn_bool *b);
@@ -531,10 +531,7 @@ CN_GEN_DEFAULT(cn_pointer)
 CN_GEN_MAP_GET(cn_pointer)
 CN_GEN_MAP_GET(cn_map)
 
-
 /* OWNERSHIP */
-
-
 
 int ownership_ghost_state_get(int64_t *address_key);
 void ownership_ghost_state_set(int64_t *address_key, int stack_depth_val);
@@ -615,7 +612,6 @@ static inline void cn_postfix(void *ptr, size_t size) {
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
     (*__tmp) OP;                                                                         \
   })
-
 
 #ifdef __cplusplus
 }

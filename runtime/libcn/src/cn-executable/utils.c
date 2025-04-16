@@ -35,7 +35,8 @@ enum cn_logging_level set_cn_logging_level(enum cn_logging_level new_level) {
 }
 
 void cn_failure_default(enum cn_failure_mode failure_mode, enum spec_mode spec_mode) {
-  int exit_code = spec_mode; // Might need to differentiate between failure modes via this exit code in the future
+  int exit_code =
+      spec_mode;  // Might need to differentiate between failure modes via this exit code in the future
   switch (failure_mode) {
     case CN_FAILURE_ALLOC:
       printf("Out of memory!");
