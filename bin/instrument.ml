@@ -2,11 +2,6 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let pick_cpp_file_name outdir filename =
-  let cpp_name = Filename.remove_extension filename ^ "-preproc.c" in
-  match outdir with None -> cpp_name | Some d -> Filename.concat d cpp_name
-
-
 let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
@@ -126,7 +121,7 @@ let generate_executable_specs
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
-  let pp_file = pick_cpp_file_name output_dir filename in
+  let pp_file  = Filename.temp_file "cn_" filename in
   let out_file = Fulminate.get_output_filename output_dir output filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
