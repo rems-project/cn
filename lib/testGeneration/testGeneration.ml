@@ -152,11 +152,8 @@ let compile_includes ~filename_base =
   if Config.with_static_hack () then
     string "#include "
     ^^ dquotes (string (filename_base ^ ".exec.c"))
-    ^^ hardline
-    ^^ string "#include "
-    ^^ dquotes (string (filename_base ^ ".cn.c"))
   else
-    string "#include " ^^ dquotes (string (filename_base ^ ".cn.h"))
+    hardline
 
 
 let compile_test test =
@@ -232,7 +229,6 @@ let save_generators
   =
   let generators_doc =
     SpecTests.compile_generators
-      (filename_base ^ ".c")
       sigma
       prog5
       (List.filter (fun inst -> not (is_constant_function sigma inst)) insts)

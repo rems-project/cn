@@ -527,7 +527,7 @@ let compile_gen_def
   (sigma_decl, sigma_def)
 
 
-let compile filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context)
+let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context)
   : Pp.document
   =
   let defs =
@@ -572,11 +572,6 @@ let compile filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.con
   ^^ string "#define CN_GEN_H"
   ^^ twice hardline
   ^^ string "#include <cn-testing/prelude.h>"
-  ^^ twice hardline
-  ^^ string
-       ("#include \""
-        ^ (Filename.remove_extension (Fulminate.get_cn_helper_filename filename) ^ ".h")
-        ^ "\"")
   ^^ twice hardline
   ^^ CF.Pp_ail.(
        with_executable_spec

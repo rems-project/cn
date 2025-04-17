@@ -1,6 +1,7 @@
 #ifndef CN_TEST_H
 #define CN_TEST_H
 
+#include <stdio.h>
 #include <setjmp.h>
 #include <stdbool.h>
 
