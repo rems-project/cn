@@ -236,21 +236,22 @@ let get_cn_helper_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".cn.c"
 
 
+let get_output_filename output_decorated output_decorated_dir filename =
+  let file = Option.value ~default:(get_instrumented_filename filename) output_decorated in
+  let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
+(Filename.concat prefix file)
+
 let new_main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
       ?(with_loop_leak_checks = false)
       ?(with_test_gen = false)
-      ?(copy_source_dir = false)
-      filename
-      ~use_preproc
+      in_filename
+      out_filename
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
-      output_decorated
-      output_decorated_dir
       prog5
   =
-  let _, _ = (copy_source_dir, use_preproc) in
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation prog5
   in
@@ -352,11 +353,7 @@ let new_main
       global_ownership_init_pair @ executable_spec.pre_post)
   in
   (* Save things *)
-  let output_filename =
-    Option.value ~default:(get_instrumented_filename filename) output_decorated
-  in
-  let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
-  let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
+  let oc = Stdlib.open_out out_filename in
   output_to_oc
     oc
     [ "#define CN_INSTRUMENTATION_MODE\n"; "#include <cn-executable/utils.h>\n" ];
@@ -365,7 +362,7 @@ let new_main
      Source_injection.(
        output_injections
          oc
-         { filename;
+         { filename = in_filename;
            program = ail_prog;
            pre_post = pre_post_pairs;
            in_stmt = in_stmt_injs;
