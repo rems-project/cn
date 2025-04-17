@@ -133,7 +133,7 @@ let run_tests
         (fun () ->
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            (try
-              Fulminate.new_main
+              Fulminate.main
                 ~without_ownership_checking
                 ~without_loop_invariants:true
                 ~with_loop_leak_checks:false

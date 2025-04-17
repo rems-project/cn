@@ -36,6 +36,12 @@ let run_seq_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let pp_file = Filename.temp_file "cn_" filename in
+  let output_dir =
+    let dir, mk = output_dir in
+    mk dir
+  in
+  let out_file = Fulminate.get_output_filename (Some output_dir) None filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -67,22 +73,15 @@ let run_seq_tests
              print_endline "No testable functions, trivially passing";
              exit 0);
            let _, sigma = ail_prog in
-           let output_dir =
-             let dir, mk = output_dir in
-             mk dir
-           in
+           
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            Fulminate.main
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
              ~with_test_gen:true
-             ~copy_source_dir:false
-             filename
-             ~use_preproc:false
+             pp_file out_file
              ail_prog
-             None
-             (Some output_dir)
              prog5;
            let config : SeqTests.seq_config =
              { print_steps;
