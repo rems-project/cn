@@ -121,14 +121,20 @@ let link ~filename_base =
 
 
 let run () =
-  let cmd = separate_map space string [ "./tests.out" ] in
+  let create_run_string (i : int) =
+    (* string (Printf.sprintf "echo \"Test %d\"" i)
+    ^^ hardline
+    ^^  *)
+    separate_map space string [ "./tests.out"; string_of_int i ]
+  in
+  let cmds = List.map create_run_string (List.init (Config.get_num_parallel ()) Fun.id) in
   string "# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
         string "echo" ^^ twice hardline
       else
         empty)
-  ^^ cmd
+  ^^ separate hardline cmds
   ^^ hardline
   ^^ string "test_exit_code=$? # Save tests exit code for later"
   ^^ hardline

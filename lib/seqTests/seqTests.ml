@@ -22,7 +22,8 @@ type test_stats =
 
 type pass_or_violation =
   | Postcond of call * int
-  | Pass of call
+  | Precond
+  | Pass of call * int
 
 let no_qs : C.qualifiers = { const = false; restrict = false; volatile = false }
 
@@ -231,14 +232,14 @@ let test_to_doc
 
 
 let create_intermediate_test_file
-      (sequence : Pp.document)
-      (tests_to_try : call list)
+      (sequences : Pp.document list)
+      (tests_to_try : Pp.document list)
       (filename_base : string)
       (fun_decls : Pp.document)
   : Pp.document
   =
   let open Pp in
-  let create_try (i : int) (test : document) =
+  let create_try (i : int) (test : document) (sequence : document) =
     string "int try"
     ^^ int i
     ^^ parens empty
@@ -255,12 +256,10 @@ let create_intermediate_test_file
              ^^ hardline
              ^^ sequence
              ^^ hardline
-             ^^ test
-             ^^ hardline
-             ^^ string "return 0;")
+             ^^ test)
           ^^ hardline)
   in
-  let create_case (i : int) (_ : call) =
+  let create_case (i : int) (_ : Pp.document) =
     string "case"
     ^^ space
     ^^ int i
@@ -288,8 +287,8 @@ let create_intermediate_test_file
   ^^ separate
        (twice hardline)
        (List.mapi
-          (fun i (name, ret_ty, f, args) -> create_try i (test_to_doc name ret_ty f args))
-          tests_to_try)
+          (fun i (sequence, call) -> create_try i call sequence)
+          (List.combine sequences tests_to_try))
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
@@ -610,56 +609,88 @@ let shrink
     print_string (Printf.sprintf "%d %d\n" (List.length seq') (List.length shrunken''));
     (List.length shrunken'', ctx_to_tests shrunken'')
 
+
+let rec combine_stats (stats_list : test_stats list) (combined_stats : test_stats)
+  : test_stats
+  =
+  match stats_list with
+  | [] -> combined_stats
+  | stats :: stats_list ->
+    let combined_stats =
+      { successes = combined_stats.successes + stats.successes;
+        failures = combined_stats.failures + stats.failures;
+        discarded = combined_stats.discarded + stats.discarded;
+        skipped = combined_stats.skipped + stats.skipped;
+        distrib =
+          List.fold_left
+            (fun acc (f, num_calls) ->
+               match List.assoc_opt String.equal f acc with
+               | None -> (f, num_calls) :: acc
+               | Some n -> (f, n + num_calls) :: List.remove_assoc f acc)
+            combined_stats.distrib
+            stats.distrib
+      }
+    in
+    combine_stats stats_list combined_stats
+
+
 let rec gen_sequence
           (funcs :
             (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list)
           (fuel : int)
-          (stats : test_stats)
-          (ctx : context)
-          (prev : int)
-          (seq_so_far : Pp.document)
+          (test_states : (int * Pp.document * context * test_stats) list)
           (output_dir : string)
           (filename_base : string)
           (src_code : string list)
           (fun_decls : Pp.document)
   : (Pp.document * test_stats, Pp.document * test_stats) Either.either
   =
-  let max_retries = Config.get_max_backtracks () in
-  let num_resets = Config.get_max_resets () in
-  let num_samples = Config.get_num_samples () in
-  let instr_per_test = num_samples / (num_resets + 1) in
-  let instr_per_test =
-    if num_samples mod (num_resets + 1) = 0 then instr_per_test else instr_per_test + 1
-  in
   let open Pp in
   match fuel with
   | 0 ->
-    let unmap_stmts =
-      List.filter_map
-        (fun (name, ret, _, _) ->
-           match name with
-           | Some name ->
-             Some (Fulminate.Ownership_exec.generate_c_local_ownership_exit (name, ret))
-           | None -> None)
-        ctx
-    in
-    let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmts in
-    Right (seq_so_far ^^ unmap_str ^^ hardline ^^ string "return 0;", stats)
-  | n ->
-    let fs =
+    let test_strs =
       List.map
-        (fun ((_, (_, args)) as f) -> (calc_score ctx args, f))
-        (List.filter (callable ctx) funcs)
+        (fun (_, seq_so_far, ctx, _) ->
+           let unmap_stmt =
+             List.filter_map
+               (fun (name, ret, _, _) ->
+                  match name with
+                  | Some name ->
+                    Some
+                      (Fulminate.Ownership_exec.generate_c_local_ownership_exit
+                         (name, ret))
+                  | None -> None)
+               ctx
+           in
+           let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmt in
+           seq_so_far ^^ unmap_str ^^ hardline ^^ string "printf(\"S\");" ^^ hardline ^^ string "return 0;")
+        test_states
     in
-    let rec gen_test
-              (fs :
-                (int
-                * (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)))
-                  list)
-              (retries_left : int)
-      : context * int * (string option, call) Either.either
+    Either.Right
+      ( create_intermediate_test_file
+          test_strs
+          (List.init (Config.get_num_parallel ()) (fun _ -> empty))
+          filename_base
+          fun_decls,
+        combine_stats
+          (List.map (fun (_, _, _, stats) -> stats) test_states)
+          { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } )
+  | n ->
+    let callables =
+      List.map
+        (fun (_, _, ctx, _) ->
+           List.map
+             (fun ((_, (_, args)) as f) -> (calc_score ctx args, f))
+             (List.filter (callable ctx) funcs))
+        test_states
+    in
+    let gen_test ()
+      : ( int * Pp.document * context * test_stats,
+            int * Pp.document * context * test_stats )
+          Either.either
+          list
       =
-      let gen_test_h (f, ((_, ret_ty), params))
+      let gen_test_h (f, ((_, ret_ty), params)) (ctx : context) (prev : int)
         : int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
         =
         let name, prev =
@@ -678,17 +709,17 @@ let rec gen_sequence
                    * C.ctype
                    * SymSet.elt
                    * (C.ctype * string) list)
+                     option
                   * string)
                     list)
-                (prev : int option)
-                (ret_test : pass_or_violation option)
+        : pass_or_violation option list
         =
         match tests_and_msgs with
-        | [] -> (prev, ret_test)
-        | ((prev', name, ret_ty, f, args), output_msg) :: t ->
-          (* Printf.printf "--> LOG: [%s]\n%!" output_msg; *)
+        | [] -> []
+        | (None, _) :: t -> None :: analyze_results t
+        | (Some (prev', name, ret_ty, f, args), output_msg) :: t ->
           if String.compare output_msg "\n" = 0 then
-            analyze_results t (Some prev') (Some (Pass (name, ret_ty, f, args)))
+            Some (Pass ((name, ret_ty, f, args), prev')) :: analyze_results t
           else (
             let output_msg_lst = Str.split_delim (Str.regexp "\n") output_msg in
             let violation_line_num = get_violation_line output_msg_lst in
@@ -696,136 +727,153 @@ let rec gen_sequence
               is_precond_violation
                 (drop (List.length src_code - violation_line_num) src_code)
             then
-              (* (count := !count + 1;
-              Printf.printf "--> LOG: [%d]\n%!" !count; *)
-              analyze_results t prev ret_test
+              Some Precond :: analyze_results t
             else
-              (Some prev', Some (Postcond ((name, ret_ty, f, args), violation_line_num))))
+              Some (Postcond ((name, ret_ty, f, args), violation_line_num))
+              :: analyze_results t)
       in
-      if retries_left = 0 then
-        (ctx, prev, Either.Left None)
-      else (
-        let prev_and_tests =
-          List.map
-            (fun _ ->
-               gen_test_h
-                 (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs)))))
-            (List.init (Config.get_num_parallel ()) Fun.id)
-            (* once one hits the limit per test file, stop *)
-        in
-        let tests =
-          List.map
-            (fun (_, name, ret_ty, f, args) -> (name, ret_ty, f, args))
-            prev_and_tests
-        in
-        let intermediate_file = (create_intermediate_test_file seq_so_far tests filename_base fun_decls) in
-        save
-          output_dir
-          (filename_base ^ "_test.c")
-          intermediate_file;
-        save
-          output_dir
-          (filename_base ^ "_intermediate.c")
-          intermediate_file;
-        let output_str, _ =
-          out_to_a
-            (output_dir ^ "/run_tests_intermediate.sh")
-            (fun s a -> a ^ s ^ "\n")
-            ""
-        in
-        let output_msgs =
-          List.tl
-            (Str.split_delim (Str.regexp "977567d9dcdabf701acff6f4d4ce077e") output_str)
-        in
-        let tests_and_msgs = List.combine prev_and_tests output_msgs in
-        let prev_opt, res = analyze_results tests_and_msgs None None in
-        let prev = match prev_opt with None -> prev | Some prev' -> prev' in
-        match res with
-        | None -> gen_test fs (retries_left - 1)
-        | Some (Postcond (call, violation_line_num)) ->
-          ( call :: ctx,
-            prev,
-            Either.Left
-              (Some
-                 (Printf.sprintf
-                    "//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-                     //violation of post-condition at line number %d in %s detected on \
-                     this call"
-                    violation_line_num
-                    (filename_base ^ ".c"))) )
-        | Some (Pass ((name, ret_ty, f, args) as call)) ->
-          (call :: ctx, prev, Either.Right (name, ret_ty, f, args)))
-    in
-    (match List.length fs with
-     | 0 ->
-       Either.Right
-         ( seq_so_far ^^ string "/* unable to generate call at this point */",
-           { stats with failures = stats.failures + 1 } )
-     | _ ->
-       (match gen_test fs max_retries with
-        | ctx', prev, Either.Right (name, ret_ty, f, args) ->
-          let distrib =
-            let name = Sym.pp_string f in
-            match List.assoc_opt String.equal name stats.distrib with
-            | None -> (name, 1) :: stats.distrib
-            | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
-          in
-          let ctx', rest =
-            if
-              (n - (num_samples mod instr_per_test) - 1) mod instr_per_test = 0
-              && n >= instr_per_test
-            then (
-              let unmap_stmts =
-                List.filter_map
-                  (fun (name, ret, _, _) ->
-                     Option.bind name (fun name ->
-                       Some
-                         (Fulminate.Ownership_exec.generate_c_local_ownership_exit
-                            (name, ret))))
-                  ctx'
+      let prev_and_tests =
+        List.map
+          (fun (fs, (prev, _, ctx, _)) ->
+             if List.length fs = 0 then
+               None
+             else
+               Some
+                 (gen_test_h
+                    (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
+                    ctx
+                    prev))
+          (List.combine callables test_states)
+      in
+      let test_strs =
+        List.map
+          (fun call ->
+             match call with
+             | Some (_, name, ret_ty, f, args) -> test_to_doc name ret_ty f args
+             | None -> string "/* unable to generate call at this point */")
+       prev_and_tests
+      in
+      let intermediate_file =
+        create_intermediate_test_file
+          (List.map (fun (_, test_str, _, _) -> test_str) test_states)
+          test_strs
+          filename_base
+          fun_decls
+      in
+      save output_dir (filename_base ^ "_test.c") intermediate_file;
+      (* save output_dir (filename_base ^ "_intermediate.c") intermediate_file; *)
+      let output_str, _ =
+        out_to_a (output_dir ^ "/run_tests_intermediate.sh") (fun s a -> a ^ s ^ "\n") ""
+      in
+      let output_msgs =
+        List.tl
+          (Str.split_delim (Str.regexp "977567d9dcdabf701acff6f4d4ce077e") output_str)
+      in
+      let tests_and_msgs = List.combine prev_and_tests output_msgs in
+      let results = (analyze_results tests_and_msgs) in
+      let rec update_tests
+                (test_states : (int * Pp.document * context * test_stats) list)
+                (results : pass_or_violation option list)
+        =
+        match (test_states, results) with
+        | [], [] -> []
+        | (prev, test_so_far, ctx, stats) :: test_states, result :: results ->
+          let updated_state =
+            match result with
+            | None -> 
+              Either.Right
+                (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
+            | Some Precond -> Either.Right (prev, test_so_far, ctx, stats)
+            | Some (Pass (((name, ret_ty, f, args) as call), prev')) ->
+              let distrib =
+                let name = Sym.pp_string f in
+                match List.assoc_opt String.equal name stats.distrib with
+                | None -> (name, 1) :: stats.distrib
+                | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
               in
-              ( [],
-                hardline
-                ^^ separate_map hardline stmt_to_doc unmap_stmts
-                ^^ twice hardline ))
-            else
-              (ctx', empty)
+              Either.Right
+                ( prev',
+                  test_so_far ^^ test_to_doc name ret_ty f args,
+                  call :: ctx,
+                  { stats with successes = stats.successes + 1; distrib } )
+            | Some (Postcond (((name, ret_ty, f, args) as call), violation_line_num)) ->
+              let num_left, test_so_far =
+                shrink (call :: ctx) output_dir filename_base src_code fun_decls
+              in
+              Either.Left
+                ( prev,
+                  test_so_far
+                  ^^ string
+                       (Printf.sprintf
+                          "//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
+                           //violation of post-condition at line number %d in %s \
+                           detected on this call"
+                          violation_line_num
+                          (filename_base ^ ".c"))
+                  ^^ hardline
+                  ^^ string "return 123;",
+                  call :: ctx,
+                  { stats with
+                    discarded = stats.successes + 1 - num_left;
+                    failures = stats.failures + 1
+                  } )
           in
-          gen_sequence
-            funcs
-            (n - 1)
-            { stats with successes = stats.successes + 1; distrib }
-            ctx'
-            prev
-            (seq_so_far ^^ test_to_doc name ret_ty f args ^^ rest)
-            output_dir
+          updated_state :: update_tests test_states results
+        | _, _ -> failwith "impossible"
+      in
+      update_tests test_states results
+    in
+    let test_states = gen_test () in
+    let test_states' =
+      List.map
+        (fun result ->
+           match result with Either.Right result | Either.Left result -> result)
+        test_states
+    in
+    if
+      List.exists
+        (fun result -> match result with Either.Left _ -> true | _ -> false)
+        test_states
+    then (
+      let test_strs =
+        List.map
+          (fun result ->
+             match result with
+             | Either.Right (_, seq_so_far, ctx, _) ->
+               let unmap_stmt =
+                 List.filter_map
+                   (fun (name, ret, _, _) ->
+                      match name with
+                      | Some name ->
+                        Some
+                          (Fulminate.Ownership_exec.generate_c_local_ownership_exit
+                             (name, ret))
+                      | None -> None)
+                   ctx
+               in
+               let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmt in
+               seq_so_far ^^ unmap_str ^^ hardline ^^ string "return 0;"
+             | Either.Left (_, seq_so_far, ctx, _) -> seq_so_far)
+          test_states
+      in
+      Either.Left
+        ( create_intermediate_test_file
+            test_strs
+            (List.init (Config.get_num_parallel ()) (fun _ -> empty))
             filename_base
-            src_code
-            fun_decls
-        | ctx', prev, Either.Left err ->
-          (match err with
-           | None ->
-             gen_sequence
-               funcs
-               (n - 1)
-               { stats with skipped = stats.skipped + 1 }
-               ctx
-               prev
-               seq_so_far
-               output_dir
-               filename_base
-               src_code
-               fun_decls
-           | Some err ->
-             let num_left, seq_so_far =
-               shrink ctx' output_dir filename_base src_code fun_decls
-             in
-             Either.Left
-               ( seq_so_far ^^ string err ^^ hardline ^^ string "return 123;",
-                 { stats with
-                   discarded = stats.successes + 1 - num_left;
-                   failures = stats.failures + 1
-                 } ))))
+            fun_decls,
+          combine_stats
+            (List.map (fun (_, _, _, stats) -> stats) test_states')
+            { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } ))
+    else
+      gen_sequence
+        funcs
+        (fuel - 1)
+        test_states'
+        output_dir
+        filename_base
+        src_code
+        fun_decls
 
 
 let compile_sequence
@@ -868,10 +916,13 @@ let compile_sequence
   gen_sequence
     args_map
     fuel
-    { successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] }
-    []
-    0
-    Pp.empty
+    (List.map
+       (fun _ ->
+          ( 0,
+            Pp.empty,
+            [],
+            { successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] } ))
+       (List.init (Config.get_num_parallel ()) Fun.id))
     output_dir
     filename_base
     src_code
@@ -961,9 +1012,8 @@ let generate
           stats.skipped
           distrib_to_str )
   in
-  let tests_doc = create_test_file seq filename_base fun_decls in
   print_endline output_msg;
-  save output_dir test_file tests_doc;
+  save output_dir test_file seq;
   exit_code
 
 
