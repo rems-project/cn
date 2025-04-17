@@ -304,18 +304,13 @@ let generate_cn_versions_of_structs c_structs =
 
 
 let generate_fun_def_and_decl_docs funs =
-  let decls, defs = List.split funs in
-  let defs_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { A.empty_sigma with declarations = decls; function_definitions = defs }
-  in
-  let decls_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { A.empty_sigma with declarations = decls; function_definitions = [] }
-  in
-  let pp_program_with_exec_spec prog =
-    CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
-  in
-  let defs_doc = pp_program_with_exec_spec defs_prog in
-  let decls_doc = pp_program_with_exec_spec decls_prog in
+  let one_def_prog (decl,def) =
+      { A.empty_sigma with declarations = [decl]; function_definitions = [def] } in
+  let one_decl_prog (decl,_) = { A.empty_sigma with declarations = [decl] } in
+  let pp_it x = (!^ "static ") ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x)) in
+  let pp_many f xs = List.fold_left (fun d x -> pp_it (f x) ^^ d) empty xs in
+  let defs_doc = pp_many one_def_prog funs in
+  let decls_doc = pp_many one_decl_prog funs in
   (defs_doc, decls_doc)
 
 
