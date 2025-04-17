@@ -150,8 +150,7 @@ let compile_includes ~filename_base =
   ^^ hardline
   ^^
   if Config.with_static_hack () then
-    string "#include "
-    ^^ dquotes (string (filename_base ^ ".exec.c"))
+    string "#include " ^^ dquotes (string (filename_base ^ ".exec.c"))
   else
     hardline
 

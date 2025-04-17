@@ -149,11 +149,9 @@ let create_test_file
   =
   let open Pp in
   (if Config.with_static_hack () then
-     string "#include "
-     ^^ dquotes (string (filename_base ^ ".exec.c"))
+     string "#include " ^^ dquotes (string (filename_base ^ ".exec.c"))
    else
-        twice hardline
-     ^^ fun_decls)
+     twice hardline ^^ fun_decls)
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
