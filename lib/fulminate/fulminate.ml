@@ -235,10 +235,9 @@ let get_instrumented_filename filename =
 let get_cn_helper_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".cn.c"
 
-
-let get_output_filename output_decorated output_decorated_dir filename =
-  let file = Option.value ~default:(get_instrumented_filename filename) output_decorated in
-  let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
+let get_output_filename outdir outfile filename =
+  let file = Option.value ~default:(get_instrumented_filename filename) outfile in
+  let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
 (Filename.concat prefix file)
 
 let new_main
@@ -246,7 +245,7 @@ let new_main
       ?(without_loop_invariants = false)
       ?(with_loop_leak_checks = false)
       ?(with_test_gen = false)
-      in_filename
+      in_filename (* WARNING: this file will be delted after this function *)
       out_filename
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
@@ -375,7 +374,8 @@ let new_main
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
   output_to_oc oc cn_defs_list;
-  close_out oc
+  close_out oc;
+  Stdlib.Sys.remove in_filename
 
 
 let main

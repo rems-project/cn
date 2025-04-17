@@ -2,12 +2,6 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-
-let pick_cpp_file_name outdir filename =
-  let cpp_name = Filename.remove_extension filename ^ "-preproc.c" in
-  Filename.concat outdir cpp_name
-
-
 let run_tests
       (* Common *)
         filename
@@ -75,7 +69,7 @@ let run_tests
     let dir, mk = output_dir in
     mk dir
   in
-  let pp_file = pick_cpp_file_name output_dir filename in
+  let pp_file  = Filename.temp_file "cn_" filename in
   let out_file = Fulminate.get_output_filename (Some output_dir) None filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
