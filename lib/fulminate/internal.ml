@@ -448,7 +448,7 @@ let generate_ownership_global_assignments
       (prog5 : unit Mucore.file)
   =
   match get_main sigm with
-  | [] -> failwith "CN-exec: No main function so ownership globals cannot be initialised"
+  | [] -> []
   | (main_sym, _) :: _ ->
     let globals = extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
