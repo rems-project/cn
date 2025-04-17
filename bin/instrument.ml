@@ -6,7 +6,6 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
-  let cn_helper_filename = Fulminate.get_cn_helper_filename filename in
   let output_dir = Option.value ~default:"." output_dir in
   let in_folder ?ext fn =
     Filename.concat
@@ -19,21 +18,6 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   if not (Sys.file_exists runtime_prefix) then (
     print_endline
       ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
-    exit 1);
-  if
-    Sys.command
-      ("cc -c "
-       ^ includes
-       ^ " -o "
-       ^ in_folder ~ext:".o" cn_helper_filename
-       ^ " "
-       ^ in_folder cn_helper_filename)
-    == 0
-  then (
-    if print_steps then
-      print_endline ("Compiled '" ^ cn_helper_filename ^ "'"))
-  else (
-    print_endline ("Failed to compile '" ^ cn_helper_filename ^ "'");
     exit 1);
   if
     Sys.command
@@ -58,8 +42,6 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
        ^ in_folder ~ext:".out" instrumented_filename
        ^ " "
        ^ in_folder ~ext:".o" instrumented_filename
-       ^ " "
-       ^ in_folder ~ext:".o" cn_helper_filename
        ^ " "
        ^ Filename.concat runtime_prefix "libcn_exec.a")
     == 0
@@ -143,7 +125,7 @@ let generate_executable_specs
       Cerb_colour.without_colour
         (fun () ->
            (try
-              Fulminate.new_main
+              Fulminate.main
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
