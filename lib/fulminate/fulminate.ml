@@ -235,10 +235,12 @@ let get_instrumented_filename filename =
 let get_cn_helper_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".cn.c"
 
+
 let get_output_filename outdir outfile filename =
   let file = Option.value ~default:(get_instrumented_filename filename) outfile in
   let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
-(Filename.concat prefix file)
+  Filename.concat prefix file
+
 
 let new_main
       ?(without_ownership_checking = false)

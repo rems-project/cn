@@ -527,8 +527,7 @@ let compile_gen_def
   (sigma_decl, sigma_def)
 
 
-let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context)
-  : Pp.document
+let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : Pp.document
   =
   let defs =
     ctx

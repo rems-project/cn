@@ -304,10 +304,14 @@ let generate_cn_versions_of_structs c_structs =
 
 
 let generate_fun_def_and_decl_docs funs =
-  let one_def_prog (decl,def) =
-      { A.empty_sigma with declarations = [decl]; function_definitions = [def] } in
-  let one_decl_prog (decl,_) = { A.empty_sigma with declarations = [decl] } in
-  let pp_it x = (!^ "static ") ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x)) in
+  let one_def_prog (decl, def) =
+    { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
+  in
+  let one_decl_prog (decl, _) = { A.empty_sigma with declarations = [ decl ] } in
+  let pp_it x =
+    !^"static "
+    ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
+  in
   let pp_many f xs = List.fold_left (fun d x -> pp_it (f x) ^^ d) empty xs in
   let defs_doc = pp_many one_def_prog funs in
   let decls_doc = pp_many one_decl_prog funs in

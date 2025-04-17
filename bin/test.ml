@@ -69,7 +69,7 @@ let run_tests
     let dir, mk = output_dir in
     mk dir
   in
-  let pp_file  = Filename.temp_file "cn_" filename in
+  let pp_file = Filename.temp_file "cn_" filename in
   let out_file = Fulminate.get_output_filename (Some output_dir) None filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
@@ -131,7 +131,6 @@ let run_tests
         exit 0);
       Cerb_colour.without_colour
         (fun () ->
-           
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            (try
               Fulminate.new_main
