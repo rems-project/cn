@@ -1,5 +1,5 @@
-module CF = Cerb_frontend
 open Utils
+module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 

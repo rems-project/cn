@@ -1,11 +1,8 @@
-module CB = Cerb_backend
 open PPrint
 open Utils
-module BT = BaseTypes
+module CF = Cerb_frontend
+module C = CF.Ctype
 module A = CF.AilSyntax
-module IT = IndexTerms
-module LRT = LogicalReturnTypes
-module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 module OE = Ownership
 

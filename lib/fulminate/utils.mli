@@ -1,33 +1,30 @@
-module CF = Cerb_frontend
-module A = CF.AilSyntax
-module C = CF.Ctype
-module Cn = CF.Cn
+open Cerb_frontend
 
-val empty_attributes : CF.Annot.attributes
+val empty_attributes : Annot.attributes
 
-val mk_ctype : ?annots:Cerb_frontend.Annot.annot list -> C.ctype_ -> C.ctype
+val mk_ctype : ?annots:Annot.annot list -> Ctype.ctype_ -> Ctype.ctype
 
-val rm_ctype : C.ctype -> C.ctype_
+val rm_ctype : Ctype.ctype -> Ctype.ctype_
 
-val get_typedef_string : C.ctype -> string option
+val get_typedef_string : Ctype.ctype -> string option
 
 val mk_expr
   :  ?loc:Cerb_location.t ->
-  CF.GenTypes.genTypeCategory A.expression_ ->
-  CF.GenTypes.genTypeCategory A.expression
+  GenTypes.genTypeCategory AilSyntax.expression_ ->
+  GenTypes.genTypeCategory AilSyntax.expression
 
-val mk_stmt : 'a A.statement_ -> 'a A.statement
+val mk_stmt : 'a AilSyntax.statement_ -> 'a AilSyntax.statement
 
-val rm_expr : 'a A.expression -> 'a A.expression_
+val rm_expr : 'a AilSyntax.expression -> 'a AilSyntax.expression_
 
-val empty_ail_expr : 'a A.expression_
+val empty_ail_expr : 'a AilSyntax.expression_
 
 val generate_sym_with_suffix
   :  ?suffix:string ->
   ?uppercase:bool ->
   ?lowercase:bool ->
-  C.union_tag ->
-  C.union_tag
+  Ctype.union_tag ->
+  Ctype.union_tag
 
 val list_split_three : ('a * 'b * 'c) list -> 'a list * 'b list * 'c list
 
@@ -35,16 +32,20 @@ val ifndef_wrap : string -> string -> string
 
 val generate_include_header : string * bool -> string
 
-val get_ctype_without_ptr : C.ctype -> C.ctype
+val get_ctype_without_ptr : Ctype.ctype -> Ctype.ctype
 
-val str_of_ctype : C.ctype -> string
+val str_of_ctype : Ctype.ctype -> string
 
-val execCtypeEqual : C.ctype -> C.ctype -> bool
+val execCtypeEqual : Ctype.ctype -> Ctype.ctype -> bool
 
 val create_binding
   :  'a ->
   'b ->
-  'a * ((Cerb_location.t * A.storageDuration * bool) * 'c option * C.qualifiers * 'b)
+  'a
+  * ((Cerb_location.t * AilSyntax.storageDuration * bool)
+    * 'c option
+    * Ctype.qualifiers
+    * 'b)
 
 val find_ctype_from_bindings : (Sym.t * ('a * 'b * 'c * 'd)) list -> Sym.t -> 'd
 
@@ -52,4 +53,4 @@ val get_start_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
 
 val get_end_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
 
-val concat_map_newline : Pp.document list -> Pp.document
+val concat_map_newline : PPrint.document list -> PPrint.document
