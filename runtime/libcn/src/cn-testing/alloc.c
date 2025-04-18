@@ -1,5 +1,6 @@
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+
 #include <cn-executable/utils.h>
 #include <cn-testing/prelude.h>
 

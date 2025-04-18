@@ -1,8 +1,8 @@
 #include <inttypes.h>
 #include <stdalign.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <cn-executable/alloc.h>
 #include <cn-executable/utils.h>
