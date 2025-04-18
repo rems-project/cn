@@ -10,7 +10,6 @@
     printf(__VA_ARGS__);                                                                 \
   }
 
-
 typedef hash_table ownership_ghost_state;
 
 /* Ownership globals */
@@ -305,13 +304,13 @@ void dump_ownership_state() {
   // cn_printf(CN_LOGGING_INFO, "END\n");
 }
 
-void cn_get_ownership(void *generic_c_ptr, size_t size, char* check_msg) {
+void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg) {
   /* Used for precondition and loop invariant taking/getting of ownership */
   c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
 }
 
-void cn_put_ownership(void *generic_c_ptr, size_t size) {
+void cn_put_ownership(void* generic_c_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: returning ownership] " FMT_PTR_2 ", size: %lu\n", generic_c_ptr, size);
   //// print_error_msg_info();
   c_ownership_check(
@@ -332,7 +331,7 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
 }
 
 void cn_get_or_put_ownership(
-    enum OWNERSHIP owned_enum, void *generic_c_ptr, size_t size) {
+    enum OWNERSHIP owned_enum, void* generic_c_ptr, size_t size) {
   nr_owned_predicates++;
   switch (owned_enum) {
     case GET: {
@@ -349,7 +348,7 @@ void cn_get_or_put_ownership(
   }
 }
 
-void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth) {
+void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] add local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
   for (int i = 0; i < size; i++) {
     int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
@@ -359,7 +358,7 @@ void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_dep
   }
 }
 
-void c_remove_from_ghost_state(void *ptr_to_local, size_t size) {
+void c_remove_from_ghost_state(void* ptr_to_local, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] remove local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
   for (int i = 0; i < size; i++) {
     int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
