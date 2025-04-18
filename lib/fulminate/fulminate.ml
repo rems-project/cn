@@ -118,10 +118,12 @@ open Internal
 let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
+
 let get_output_filename outdir outfile filename =
   let file = Option.value ~default:(get_instrumented_filename filename) outfile in
   let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
   Filename.concat prefix file
+
 
 let main
       ?(without_ownership_checking = false)
@@ -259,4 +261,3 @@ let main
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename
-

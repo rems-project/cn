@@ -73,14 +73,14 @@ let run_seq_tests
              print_endline "No testable functions, trivially passing";
              exit 0);
            let _, sigma = ail_prog in
-           
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            Fulminate.main
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
              ~with_test_gen:true
-             pp_file out_file
+             pp_file
+             out_file
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
