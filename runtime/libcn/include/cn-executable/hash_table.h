@@ -27,8 +27,8 @@ SOFTWARE.
 
 */
 
-#include "rts_deps.h"
 #include "alloc.h"
+#include "rts_deps.h"
 
 #ifdef __cplusplus
 extern "C" {

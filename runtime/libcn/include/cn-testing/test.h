@@ -2,9 +2,9 @@
 #define CN_TEST_H
 
 #include <sys/time.h>
-#include <stdio.h>
 #include <setjmp.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <time.h>
 
 #include <cn-executable/utils.h>
