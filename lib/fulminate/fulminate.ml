@@ -1,5 +1,4 @@
 module Cn_to_ail = Cn_to_ail
-module CF = Cerb_frontend
 module Extract = Extract
 module Internal = Internal
 module Ownership = Ownership
