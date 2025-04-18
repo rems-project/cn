@@ -65,12 +65,13 @@ let run_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let basefile = Filename.basename filename in
   let output_dir =
     let dir, mk = output_dir in
     mk dir
   in
-  let pp_file = Filename.temp_file "cn_" filename in
-  let out_file = Fulminate.get_output_filename (Some output_dir) None filename in
+  let pp_file = Filename.temp_file "cn_" basefile in
+  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros

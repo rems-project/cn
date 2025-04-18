@@ -103,8 +103,9 @@ let generate_executable_specs
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
-  let pp_file = Filename.temp_file "cn_" filename in
-  let out_file = Fulminate.get_output_filename output_dir output filename in
+  let basefile = Filename.basename filename in
+  let pp_file = Filename.temp_file "cn_" basefile in
+  let out_file = Fulminate.get_output_filename output_dir output basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
