@@ -192,7 +192,7 @@ void cn_test_reproduce(struct cn_test_reproduction* repro) {
 }
 
 int cn_test_main(int argc, char* argv[]) {
-  int begin_time = cn_gen_get_milliseconds();
+  uint64_t begin_time = cn_gen_get_microseconds();
   set_cn_logging_level(CN_LOGGING_NONE);
 
   cn_gen_srand(cn_gen_get_milliseconds());
@@ -207,6 +207,9 @@ int cn_test_main(int argc, char* argv[]) {
   int replay = 1;
   int replicas = 1;
   int print_seed = 0;
+  bool output_tyche = false;
+  FILE* tyche_output_stream = NULL;
+
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
 
@@ -303,6 +306,12 @@ int cn_test_main(int argc, char* argv[]) {
       replicas = 0;
     } else if (strcmp("--print-seed", arg) == 0) {
       print_seed = 1;
+    } else if (strcmp("--output-tyche", arg) == 0) {
+      char* next = argv[i + 1];
+      tyche_output_stream = fopen(next, "w");
+      if (tyche_output_stream != NULL) {
+        output_tyche = true;
+      }
     }
   }
 
@@ -313,6 +322,7 @@ int cn_test_main(int argc, char* argv[]) {
   if (print_seed) {
     printf("Using seed: %016" PRIx64 "\n", seed);
   }
+
   cn_gen_srand(seed);
   cn_gen_rand();  // Junk to get something to make a checkpoint from
 
@@ -334,8 +344,15 @@ int cn_test_main(int argc, char* argv[]) {
       }
       repros[i].checkpoint = cn_gen_rand_save();
       cn_gen_set_input_timeout(input_timeout);
-      enum cn_test_result result =
-          test_case->func(false, progress_level, sizing_strategy, 0, 0);
+      struct cn_test_input test_input = {.replay = false,
+          .progress_level = progress_level,
+          .sizing_strategy = sizing_strategy,
+          .trap = 0,
+          .replicas = 0,
+          .output_tyche = output_tyche,
+          .tyche_output_stream = tyche_output_stream,
+          .begin_time = begin_time};
+      enum cn_test_result result = test_case->func(test_input);
       if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
         results[i] = result;
       }
@@ -357,8 +374,15 @@ int cn_test_main(int argc, char* argv[]) {
             cn_printf(CN_LOGGING_ERROR, "\n");
 
             cn_test_reproduce(&repros[i]);
-            enum cn_test_result replay_result = test_case->func(
-                true, CN_TEST_GEN_PROGRESS_NONE, sizing_strategy, trap, replicas);
+            struct cn_test_input test_input = {.replay = true,
+                .progress_level = CN_TEST_GEN_PROGRESS_NONE,
+                .sizing_strategy = sizing_strategy,
+                .trap = trap,
+                .replicas = replicas,
+                .output_tyche = output_tyche,
+                .tyche_output_stream = tyche_output_stream,
+                .begin_time = begin_time};
+            enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
               fprintf(stderr,
@@ -384,7 +408,7 @@ int cn_test_main(int argc, char* argv[]) {
       }
 
       if (timeout != 0) {
-        timediff = cn_gen_get_milliseconds() / 1000 - begin_time;
+        timediff = (cn_gen_get_microseconds() - begin_time) / 1000000;
       }
     }
     if (timediff < timeout) {
@@ -393,6 +417,10 @@ int cn_test_main(int argc, char* argv[]) {
   } while (timediff < timeout);
 
 outside_loop:;
+  if (tyche_output_stream != NULL) {
+    fclose(tyche_output_stream);
+  }
+
   int passed = 0;
   int failed = 0;
   int errored = 0;

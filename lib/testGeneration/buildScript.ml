@@ -218,11 +218,14 @@ let run () =
             [ "--no-replays" ]
           else
             [])
+       @ (if Config.has_no_replicas () then
+            [ "--no-replicas" ]
+          else
+            [])
        @
-       if Config.has_no_replicas () then
-         [ "--no-replicas" ]
-       else
-         [])
+       match Config.get_output_tyche () with
+       | Some file -> [ "--output-tyche"; file ]
+       | None -> [])
   in
   string "# Run"
   ^^ hardline
