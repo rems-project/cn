@@ -9,28 +9,28 @@
 
 #ifdef CN_INSTRUMENTATION_MODE
 
-// We define this just for the declarations in this file.
-// We also ensure that this is the first #include in the instrumented files.
-// See also the end of `rts.h` where these are undefined.
+  // We define this just for the declarations in this file.
+  // We also ensure that this is the first #include in the instrumented files.
+  // See also the end of `rts.h` where these are undefined.
 
-#define size_t     __cerbty_size_t
-#define uint8_t    __cerbty_uint8_t
-#define uint16_t   __cerbty_uint16_t
-#define uint32_t   __cerbty_uint32_t
-#define uint64_t   __cerbty_uint64_t
-#define uintptr_t  __cerbty_uintptr_t
-#define int8_t     __cerbty_int8_t
-#define int16_t    __cerbty_int16_t
-#define int32_t    __cerbty_int32_t
-#define int64_t    __cerbty_int64_t
-#define intptr_t   __cerbty_intptr_t
-#define alignof    _Alignof
+  #define size_t    __cerbty_size_t
+  #define uint8_t   __cerbty_uint8_t
+  #define uint16_t  __cerbty_uint16_t
+  #define uint32_t  __cerbty_uint32_t
+  #define uint64_t  __cerbty_uint64_t
+  #define uintptr_t __cerbty_uintptr_t
+  #define int8_t    __cerbty_int8_t
+  #define int16_t   __cerbty_int16_t
+  #define int32_t   __cerbty_int32_t
+  #define int64_t   __cerbty_int64_t
+  #define intptr_t  __cerbty_intptr_t
+  #define alignof   _Alignof
 
 #else
-#include <stdbool.h>
-#include <stdalign.h>
-#include <stddef.h>
-#include <stdint.h>
+  #include <stdalign.h>
+  #include <stdbool.h>
+  #include <stddef.h>
+  #include <stdint.h>
 #endif
 
 #endif

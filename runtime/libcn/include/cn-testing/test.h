@@ -1,9 +1,9 @@
 #ifndef CN_TEST_H
 #define CN_TEST_H
 
-#include <stdio.h>
 #include <setjmp.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
