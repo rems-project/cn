@@ -14,6 +14,8 @@
   (cn-executable/alloc.h as runtime/include/cn-executable/alloc.h)
   (cn-executable/hash_table.h as runtime/include/cn-executable/hash_table.h)
   (cn-executable/utils.h as runtime/include/cn-executable/utils.h)
+  (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
+  (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   ;
   (cn-testing/alloc.h as runtime/include/cn-testing/alloc.h)
   (cn-testing/backtrack.h as runtime/include/cn-testing/backtrack.h)

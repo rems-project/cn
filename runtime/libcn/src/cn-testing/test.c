@@ -15,6 +15,11 @@
 #include <cn-testing/test.h>
 #include <cn-replicate/shape.h>
 
+#define cn_printf(level, ...)                                                            \
+  if (get_cn_logging_level() >= level) {                                                 \
+    printf(__VA_ARGS__);                                                                 \
+  }
+
 struct cn_test_case {
   const char* suite;
   const char* name;

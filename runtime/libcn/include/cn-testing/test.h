@@ -3,6 +3,7 @@
 
 #include <setjmp.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>

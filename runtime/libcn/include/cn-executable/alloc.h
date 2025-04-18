@@ -1,8 +1,7 @@
 #ifndef CN_ALLOC
 #define CN_ALLOC
 
-#include <stddef.h>
-#include <stdint.h>
+#include "rts_deps.h"
 
 #ifdef __cplusplus
 extern "C" {
