@@ -8,6 +8,7 @@
 // and then we use normal system headers.
 
 #ifdef CN_INSTRUMENTATION_MODE
+  #include "cerb_types.h"
 
   // We define this just for the declarations in this file.
   // We also ensure that this is the first #include in the instrumented files.

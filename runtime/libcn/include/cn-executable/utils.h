@@ -3,7 +3,6 @@
 #define CN_UTILS
 
 #include "alloc.h"
-#include "cerb_types.h"
 #include "hash_table.h"
 #include "rts_deps.h"
 
