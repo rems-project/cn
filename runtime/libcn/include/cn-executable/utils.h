@@ -154,7 +154,7 @@ void cn_loop_leak_check_and_put_back_ownership(void);
 
 /* malloc, free */
 void *cn_aligned_alloc(size_t align, size_t size);
-void *cn_malloc(unsigned long size);
+void *cn_malloc(size_t size);
 void *cn_calloc(size_t num, size_t size);
 void cn_free_sized(void *, size_t len);
 
@@ -571,7 +571,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
 #define CN_LOAD(LV)                                                                      \
   ({                                                                                     \
     typeof(LV) *__tmp = &(LV);                                                           \
-    update_cn_error_message_info_access_check(NULL);                                     \
+    update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check("Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());          \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
     *__tmp;                                                                              \
@@ -581,7 +581,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
   ({                                                                                     \
     typeof(LV) *__tmp;                                                                   \
     __tmp = &(LV);                                                                       \
-    update_cn_error_message_info_access_check(NULL);                                     \
+    update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check("Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());         \
     cn_store(__tmp, sizeof(typeof(LV)));                                                 \
     *__tmp op## = (X);                                                                   \
@@ -593,7 +593,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
   ({                                                                                     \
     typeof(LV) *__tmp;                                                                   \
     __tmp = &(LV);                                                                       \
-    update_cn_error_message_info_access_check(NULL);                                     \
+    update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check(                                                                   \
         "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());           \
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
