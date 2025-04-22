@@ -62,7 +62,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
     longjmp(buf_##FuncName, 1);                                                          \
   }                                                                                      \
                                                                                          \
-  enum cn_test_result cn_test_const_##FuncName(struct cn_test_input) {                   \
+  enum cn_test_result cn_test_const_##FuncName(struct cn_test_input _input) {            \
     if (setjmp(buf_##FuncName)) {                                                        \
       return CN_TEST_FAIL;                                                               \
     }                                                                                    \
