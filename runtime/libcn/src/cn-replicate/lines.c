@@ -98,7 +98,7 @@ unsigned long hash(unsigned char *str) {
   unsigned long hash = 5381;
   int c;
 
-  while (c = *str++)
+  while ((c = *str++))
     hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
 
   return hash;
@@ -112,7 +112,7 @@ void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info) {
       "%.6lf, \"overall:gc\": 0.0, \"generate:n\": %.6lf }, \"coverage\": {} }\n",
       line_info->test_suite,
       line_info->test_name,
-      hash(line_info->representation),
+      hash((unsigned char *)line_info->representation),
       line_info->suite_begin_time / 1000000.0,
       line_info->status,
       line_info->representation,
