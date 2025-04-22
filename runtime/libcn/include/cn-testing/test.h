@@ -57,7 +57,8 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
 #define CN_UNIT_TEST_CASE(FuncName)                                                      \
   static jmp_buf buf_##FuncName;                                                         \
                                                                                          \
-  void cn_test_const_##FuncName##_fail() {                                               \
+  void cn_test_const_##FuncName##_fail(                                                  \
+      enum cn_failure_mode failure_mode, enum spec_mode spec_mode) {                     \
     longjmp(buf_##FuncName, 1);                                                          \
   }                                                                                      \
                                                                                          \
@@ -79,8 +80,9 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
 #define CN_RANDOM_TEST_CASE_WITH_CUSTOM_INIT(Suite, Name, Samples, Init, ...)            \
   static jmp_buf buf_##Name;                                                             \
                                                                                          \
-  void cn_test_gen_##Name##_fail(enum cn_failure_mode mode) {                            \
-    longjmp(buf_##Name, mode);                                                           \
+  void cn_test_gen_##Name##_fail(                                                        \
+      enum cn_failure_mode failure_mode, enum spec_mode spec_mode) {                     \
+    longjmp(buf_##Name, failure_mode);                                                   \
   }                                                                                      \
                                                                                          \
   enum cn_test_result cn_test_gen_##Name(struct cn_test_input test_input) {              \
