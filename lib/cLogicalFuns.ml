@@ -551,7 +551,7 @@ let rec symb_exec_expr ctxt state_vars expr =
                   (Pp_mucore.pp_expr expr))
              [@alert "-deprecated"]
          })
-  | Eccall (_act, fun_pe, args_pe) ->
+  | Eccall (_act, fun_pe, args_pe, gargs) ->
     let@ fun_it = symb_exec_pexpr ctxt var_map fun_pe in
     let@ args_its = ListM.mapM (symb_exec_pexpr ctxt var_map) args_pe in
     let fail_fun_it msg =
@@ -565,32 +565,36 @@ let rec symb_exec_expr ctxt state_vars expr =
             [@alert "-deprecated"]
         }
     in
-    let@ nm =
-      match IT.is_sym fun_it with
-      | None -> fail_fun_it "not a constant function address"
-      | Some (nm, _) -> return nm
-    in
-    if Sym.Map.mem nm ctxt.c_fun_pred_map then (
-      let loc, l_sym = Sym.Map.find nm ctxt.c_fun_pred_map in
-      let@ def = Global.get_logical_function_def loc l_sym in
-      rcval (IT.apply_ l_sym args_its def.Definition.Function.return_bt loc) state)
-    else (
-      let bail = fail_fun_it "not a function with a pure/logical interpretation" in
-      match Sym.has_id nm with
-      | None -> bail
-      | Some s ->
-        let wrap_int x = IT.wrapI_ (signed_int_ity, x) in
-        if String.equal s "ctz_proxy" then
-          rcval
-            (wrap_int (IT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
-            state
-        else if List.exists (String.equal s) [ "ffs_proxy"; "ffsl_proxy"; "ffsll_proxy" ]
-        then
-          rcval
-            (wrap_int (IT.arith_unop Terms.BW_FFS_NoSMT (List.hd args_its) loc) loc)
-            state
-        else
-          bail)
+    if not (List.is_empty gargs) then
+      fail_fun_it "cannot translate function calls with ghost arguments yet"
+    else
+      let@ nm =
+        match IT.is_sym fun_it with
+        | None -> fail_fun_it "not a constant function address"
+        | Some (nm, _) -> return nm
+      in
+      if Sym.Map.mem nm ctxt.c_fun_pred_map then (
+        let loc, l_sym = Sym.Map.find nm ctxt.c_fun_pred_map in
+        let@ def = Global.get_logical_function_def loc l_sym in
+        rcval (IT.apply_ l_sym args_its def.Definition.Function.return_bt loc) state)
+      else (
+        let bail = fail_fun_it "not a function with a pure/logical interpretation" in
+        match Sym.has_id nm with
+        | None -> bail
+        | Some s ->
+          let wrap_int x = IT.wrapI_ (signed_int_ity, x) in
+          if String.equal s "ctz_proxy" then
+            rcval
+              (wrap_int (IT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
+              state
+          else if
+            List.exists (String.equal s) [ "ffs_proxy"; "ffsl_proxy"; "ffsll_proxy" ]
+          then
+            rcval
+              (wrap_int (IT.arith_unop Terms.BW_FFS_NoSMT (List.hd args_its) loc) loc)
+              state
+          else
+            bail)
   | CN_progs _ -> rcval (IT.unit_ loc) state
   | _ ->
     fail_n
@@ -708,6 +712,14 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
         Typing.bind
           (Typing.add_a s bt (loc, lazy (Pp.item "argument" (Sym.pp s))))
           (fun () -> in_computational_ctxt args_and_body m)
+      | Ghost (_, _, _) ->
+        fail_n
+          { loc;
+            msg =
+              Generic
+                Pp.(!^"cannot translate function with ghost arguments:" ^^^ Sym.pp fsym)
+              [@alert "-deprecated"]
+          }
       | L _ -> m
     in
     let@ arg_map, (body, labels, rt) = mk_var_map Sym.Map.empty args_and_body def_args in

@@ -18,6 +18,7 @@ type message =
         has : int;
         expect : int
       }
+  | Unexpected_computational_args_in_lemma
   | Missing_member of Id.t
   | NIA of
       { it : IndexTerms.t;

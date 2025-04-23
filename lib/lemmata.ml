@@ -194,6 +194,7 @@ let try_coerce_res (ftyp : AT.lemmat) =
   let rec coerce_at t =
     match t with
     | AT.Computational (v, info, t) -> AT.Computational (v, info, coerce_at t)
+    | AT.Ghost (v, info, t) -> AT.Ghost (v, info, coerce_at t)
     | AT.L t ->
       let computationals, t = coerce_lat t in
       AT.mComputationals computationals (AT.L t)
@@ -229,7 +230,10 @@ let scan (ftyp : AT.lemmat) =
     | LAT.I t -> scan_lrt t
   in
   let rec scan_at t =
-    match t with AT.Computational (_, _, t) -> scan_at t | AT.L t -> scan_lat t
+    match t with
+    | AT.Computational (_, _, t) -> scan_at t
+    | AT.Ghost (_, _, t) -> scan_at t
+    | AT.L t -> scan_lat t
   in
   let x = scan_at ftyp in
   if Option.is_none x.res then
@@ -1223,7 +1227,8 @@ let ftyp_to_coq loc global list_mono (ftyp : AT.lemmat) =
   in
   let rec at_doc t =
     match t with
-    | AT.Computational ((sym, bt), _, t) ->
+    | AT.Computational _ -> failwith "lemma with unexpected computational argument"
+    | AT.Ghost ((sym, bt), _, t) ->
       let@ d = at_doc t in
       (match d with
        | None -> return None

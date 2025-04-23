@@ -276,6 +276,9 @@ let pp_welltyped = function
       ^^^ !^(string_of_int has)
     in
     { short; descr = Some descr; state = None }
+  | Unexpected_computational_args_in_lemma ->
+    let short = !^"Unexpected computational arguments in lemma definition" in
+    { short; descr = None; state = None }
   | Mismatch { has; expect } ->
     let short = !^"Mismatched types." in
     let descr =

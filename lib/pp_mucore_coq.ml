@@ -1398,6 +1398,15 @@ let rec pp_arguments ppf = function
             pp_arguments ppf rest
           ]
       ]
+  | Ghost (sbt, loc, rest) ->
+    pp_constructor1
+      "MuCore.Ghost"
+      [ pp_tuple
+          [ pp_pair pp_symbol (pp_basetype pp_unit) sbt;
+            pp_location_info loc;
+            pp_arguments ppf rest
+          ]
+      ]
   | L at -> pp_constructor1 "MuCore.L" [ pp_logical_args ppf at ]
 
 
@@ -1805,11 +1814,15 @@ and pp_expr pp_type = function
          | Ememop m -> pp_constructor1 "Ememop" [ pp_memop pp_type m ]
          | Eaction pa -> pp_constructor1 "Eaction" [ pp_paction pp_type pa ]
          | Eskip -> pp_constructor1 "Eskip" []
-         | Eccall (act, f, args) ->
+         | Eccall (act, f, args, ghost_args) ->
            pp_constructor1
              "Eccall"
              [ pp_tuple
-                 [ pp_act act; pp_pexpr pp_type f; pp_list (pp_pexpr pp_type) args ]
+                 [ pp_act act;
+                   pp_pexpr pp_type f;
+                   pp_list (pp_pexpr pp_type) args;
+                   pp_list pp_index_term ghost_args
+                 ]
              ]
          | Elet (pat, e1, e2) ->
            pp_constructor1
@@ -1876,14 +1889,6 @@ let pp_args_and_body pp_type =
          ])
 
 
-let pp_desugared_spec { accesses; requires; ensures } =
-  pp_record
-    [ ("accesses", pp_list (pp_pair pp_symbol pp_ctype) accesses);
-      ("requires", pp_list (pp_cn_condition pp_symbol pp_ctype) requires);
-      ("ensures", pp_list (pp_cn_condition pp_symbol pp_ctype) ensures)
-    ]
-
-
 let rec pp_logical_argument_types pp_type = function
   | LogicalArgumentTypes.I i -> pp_constructor1 "LogicalArgumentTypes.I" [ pp_type i ]
   | Resource ((sym, (req, bt)), info, at) ->
@@ -1913,6 +1918,13 @@ let rec pp_argument_types pp_type = function
   | ArgumentTypes.Computational (sbt, info, at) ->
     pp_constructor1
       "ArgumentTypes.Computational"
+      [ pp_pair pp_symbol (pp_basetype pp_unit) sbt;
+        pp_location_info info;
+        pp_argument_types pp_type at
+      ]
+  | ArgumentTypes.Ghost (sbt, info, at) ->
+    pp_constructor1
+      "ArgumentTypes.Ghost"
       [ pp_pair pp_symbol (pp_basetype pp_unit) sbt;
         pp_location_info info;
         pp_argument_types pp_type at
@@ -1977,7 +1989,7 @@ let pp_file pp_type pp_type_name file =
                    pp_location loc;
                    pp_option (pp_argument_types pp_return_type) ft
                  ])
-          | Proc { loc; args_and_body; trusted; desugared_spec } ->
+          | Proc { loc; args_and_body; trusted } ->
             coq_def
               (Sym.pp_string_no_nums sym)
               P.empty
@@ -1986,8 +1998,7 @@ let pp_file pp_type pp_type_name file =
                  [ pp_type_name;
                    pp_location loc;
                    pp_args_and_body pp_type args_and_body;
-                   pp_trusted trusted;
-                   pp_desugared_spec desugared_spec
+                   pp_trusted trusted
                  ]))
        file.funs
        P.empty

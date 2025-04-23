@@ -108,6 +108,7 @@ let add_records_to_map_from_instrumentation (i : Extract.instrumentation) =
   in
   let rec aux_at = function
     | AT.Computational ((_, _), _, at) -> aux_at at
+    | AT.Ghost ((_, _), _, at) -> aux_at at
     | L lat -> aux_lat lat
   in
   match i.internal with

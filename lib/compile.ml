@@ -1606,10 +1606,10 @@ let lemma env (def : _ Cn.cn_lemma) =
   let rec aux env = function
     | (sym, bTy) :: args' ->
       let bTy = base_type env bTy in
-      let env = add_computational sym bTy env in
+      let env = add_logical sym bTy env in
       let@ at = aux env args' in
       let info = (def.cn_lemma_loc, None) in
-      return (ArgumentTypes.Computational ((sym, SBT.proj bTy), info, at))
+      return (ArgumentTypes.Ghost ((sym, SBT.proj bTy), info, at))
     | [] ->
       let@ lat =
         logical_arg env C_vars.init (def.cn_lemma_requires, def.cn_lemma_ensures)

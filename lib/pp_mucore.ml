@@ -576,13 +576,14 @@ module Make (Config : CONFIG) = struct
                   (Pp_mem.pp_memop memop ^^ Pp.comma ^^^ comma_list pp_actype_or_pexpr pes)
            | Eaction (Paction (p, Action (_, act))) -> pp_polarity p (pp_action act)
            | Eskip -> pp_keyword "skip"
-           | Eccall (pe_ty, pe, pes) ->
+           | Eccall (pe_ty, pe, pes, its) ->
              pp_keyword "ccall"
              ^^ Pp.parens (pp_ct pe_ty.ct)
              ^^ Pp.parens
                   (comma_list
                      pp_actype_or_pexpr
                      (Right pe :: (List.map (fun pe -> Either.Right pe)) pes))
+             ^^ Pp.parens (comma_list IndexTerms.pp its)
            | CN_progs (_, stmts) ->
              pp_keyword "cn_prog"
              ^^ Pp.parens
@@ -673,6 +674,8 @@ module Make (Config : CONFIG) = struct
   let rec pp_arguments ppf = function
     | Computational ((s, bt), _info, a) ->
       Pp.parens (Cn_Pp.typ (pp_symbol s) (pp_bt bt)) ^^^ pp_arguments ppf a
+    | Ghost ((s, bt), _info, a) ->
+      Pp.parens (!^"ghost" ^^^ Cn_Pp.typ (pp_symbol s) (pp_bt bt)) ^^^ pp_arguments ppf a
     | L l -> pp_arguments_l ppf l
 
 

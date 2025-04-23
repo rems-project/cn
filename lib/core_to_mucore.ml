@@ -811,7 +811,9 @@ let rec n_expr
       | _ -> return @@ n_pexpr e2
     in
     let es = List.map n_pexpr es in
-    return (wrap (Eccall (ct1, e2, es)))
+    let ghost_args = [] in
+    (* TODO *)
+    return (wrap (Eccall (ct1, e2, es, ghost_args)))
   | Eproc (_a, name, es) ->
     let es = List.map n_pexpr es in
     (match (name, es) with
@@ -917,6 +919,7 @@ let rec lat_of_arguments f_i = function
 let rec at_of_arguments f_i = function
   | Mu.Computational (bound, info, a) ->
     AT.Computational (bound, info, at_of_arguments f_i a)
+  | Mu.Ghost (bound, info, a) -> AT.Ghost (bound, info, at_of_arguments f_i a)
   | L l -> AT.L (lat_of_arguments f_i l)
 
 
@@ -930,6 +933,7 @@ let rec arguments_of_lat f_i = function
 let rec arguments_of_at f_i = function
   | AT.Computational (bound, info, at) ->
     Mu.Computational (bound, info, arguments_of_at f_i at)
+  | AT.Ghost (bound, info, at) -> Mu.Ghost (bound, info, arguments_of_at f_i at)
   | AT.L lat -> L (arguments_of_lat f_i lat)
 
 
@@ -1523,8 +1527,7 @@ let normalise_fun_map_decl
            (List.combine (List.combine ail_args arg_cts) args)
            (accesses, requires)
        in
-       let desugared_spec = Mu.{ accesses = List.map snd accesses; requires; ensures } in
-       return (Some (Mu.Proc { loc; args_and_body; trusted; desugared_spec }, functions))
+       return (Some (Mu.Proc { loc; args_and_body; trusted }, functions))
      | Mi_ProcDecl (loc, ret_bt, _bts) ->
        (match Sym.Map.find_opt fname fun_specs with
         | Some parsed_decl_spec ->

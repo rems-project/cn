@@ -3661,6 +3661,17 @@ let rec cn_to_ail_loop_inv_aux
       cn_to_ail_loop_inv_aux filename dts globals preds spec_mode_opt subst_loop
     in
     ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
+  | AT.Ghost ((sym, bt), _, at') ->
+    let cn_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
+    let subst_loop =
+      ESE.loop_subst
+        (ESE.sym_subst (sym, bt, cn_sym))
+        (contains_user_spec, cond_loc, loop_loc, at')
+    in
+    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+      cn_to_ail_loop_inv_aux dts globals preds spec_mode_opt subst_loop
+    in
+    ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
   | L lat ->
     let rec modify_decls_for_loop decls modified_stats =
       let rec collect_initialised_syms_and_exprs = function
@@ -3915,6 +3926,24 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         filename
+        dts
+        preds
+        globals
+        c_return_type
+        subst_at
+    in
+    prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
+  | AT.Ghost ((sym, bt), _info, at) ->
+    let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+    let cn_ctype = bt_to_ail_ctype bt in
+    let binding = create_binding cn_sym cn_ctype in
+    let rhs = wrap_with_convert_to A.(AilEident sym) bt in
+    let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+    let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
+    let ail_executable_spec =
+      cn_to_ail_pre_post_aux
+        without_ownership_checking
+        with_loop_leak_checks
         dts
         preds
         globals
