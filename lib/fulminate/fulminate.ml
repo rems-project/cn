@@ -5,6 +5,20 @@ module Internal = Internal
 module Ownership = Ownership
 module Utils = Utils
 
+let rec group_toplevel_defs new_list = function
+  | [] -> new_list
+  | loc :: ls ->
+    let matching_elems = List.filter (fun toplevel_loc -> loc == toplevel_loc) new_list in
+    if List.is_empty matching_elems then
+      group_toplevel_defs (loc :: new_list) ls
+    else (
+      (* Unsafe *)
+      let non_matching_elems =
+        List.filter (fun toplevel_loc -> loc != toplevel_loc) new_list
+      in
+      group_toplevel_defs (loc :: non_matching_elems) ls)
+
+
 let filter_injs_by_filename inj_pairs fn =
   List.filter
     (fun (loc, _) ->
@@ -166,14 +180,21 @@ let main
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
   in
-  let c_struct_decls = generate_c_struct_decl_strs sigm.tag_definitions in
+  let c_struct_decls = generate_c_struct_strs sigm.tag_definitions in
   let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
-      [ c_struct_decls;
+      [ [ "#ifndef NULL\n";
+          "#include <stdlib.h>\n";
+          "#endif\n";
+          "#ifndef INT64_MAX\n";
+          "#include <stdint.h>\n";
+          "#endif\n"
+        ];
+        [ c_struct_decls ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
           record_defs;
           cn_converted_struct_defs
@@ -193,13 +214,7 @@ let main
   (* Definitions for CN helper functions *)
   (* TODO: Topological sort *)
   let cn_defs_list =
-    [ "#ifndef NULL\n";
-      "#include <stdlib.h>\n";
-      "#endif\n";
-      "#ifndef INT64_MAX\n";
-      "#include <stdint.h>\n";
-      "#endif\n";
-      (* record_equality_fun_strs; *)
+    [ (* record_equality_fun_strs; *)
       (* record_equality_fun_strs'; *)
       "/* RECORD */\n";
       record_fun_defs;
@@ -212,13 +227,23 @@ let main
       c_predicate_defs
     ]
   in
-  let in_stmt_injs =
-    executable_spec.in_stmt
-    @
+  let c_datatype_locs = List.map fst c_datatype_defs in
+  let toplevel_locs = group_toplevel_defs [] c_datatype_locs in
+  let toplevel_injections = List.map (fun loc -> (loc, [ "" ])) toplevel_locs in
+  let accesses_stmt_injs =
     if without_ownership_checking then
       []
     else
       memory_accesses_injections filtered_ail_prog
+  in
+  let struct_locs = List.map (fun (i, (loc, _, _)) -> (i, loc)) sigm.tag_definitions in
+  let struct_injs =
+    List.map
+      (fun (i, loc) -> (loc, [ "struct " ^ Pp.plain (CF.Pp_ail.pp_id i) ]))
+      struct_locs
+  in
+  let in_stmt_injs =
+    executable_spec.in_stmt @ accesses_stmt_injs @ toplevel_injections @ struct_injs
   in
   let pre_post_pairs =
     if with_test_gen then

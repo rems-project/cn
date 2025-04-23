@@ -295,7 +295,7 @@ let generate_c_struct_strs c_structs =
 
 
 let generate_c_struct_decl_strs c_structs =
-  "/* ORIGINAL C STRUCTS */\n" :: List.map generate_struct_decl_str c_structs
+  "/* ORIGINAL C STRUCTS DECLARATIONS */\n" :: List.map generate_struct_decl_str c_structs
 
 
 let generate_cn_versions_of_structs c_structs =

@@ -2,8 +2,8 @@
 // Tests that CN has a work-around for https://github.com/Z3Prover/z3/issues/7352
 
 #ifndef CN_UTILS
-void *cn_malloc(unsigned long long);
-void cn_free_sized(void*, unsigned long long);
+void *cn_malloc(unsigned long);
+void cn_free_sized(void*, unsigned long);
 #endif
 
 struct int_queue {
