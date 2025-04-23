@@ -1,5 +1,6 @@
-# Dune build directory
+# Build directories
 _build
+_opam
 
 # Dune temporary files
 *.install
