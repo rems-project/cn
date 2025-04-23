@@ -69,6 +69,9 @@ cn-dev-watch:
 	@echo "[DUNE] cn-dev-watch"
 	$(Q)dune build --watch -p cn,cn-coq --profile=$(PROFILE)
 
+.PHONY: format
 format:
-	dune fmt 2> /dev/null || exit 0
-	find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format -i
+	@echo "[DUNE] format"
+	$(Q)dune fmt || exit 0
+	@echo "[CLANG] format"
+	$(Q)find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format -i
