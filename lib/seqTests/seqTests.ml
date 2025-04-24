@@ -27,6 +27,8 @@ type pass_or_violation =
 
 let no_qs : C.qualifiers = { const = false; restrict = false; volatile = false }
 
+let src_code : string list ref = ref []
+
 let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
   : unit
   =
@@ -363,14 +365,75 @@ let ctx_to_tests =
   separate_map empty (fun (name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
 
 
+let rec analyze_results
+          (prev_and_tests :
+            (int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
+              option
+              list)
+          (sequences : PPrint.document list)
+          (filename_base : string)
+          (output_dir : string)
+          (fun_decls : PPrint.document)
+  : pass_or_violation option list
+  =
+  let tests_to_try =
+    List.map
+      (fun call ->
+         match call with
+         | None | Some (-1, _, _, _, _) ->
+           Pp.string "/* unable to generate call at this point */"
+         | Some (_, name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
+      prev_and_tests
+  in
+  let intermediate_file =
+    create_intermediate_test_file sequences tests_to_try filename_base fun_decls
+  in
+  save output_dir (filename_base ^ "_test.c") intermediate_file;
+  let output_str, _ =
+    out_to_a (output_dir ^ "/run_tests_intermediate.sh") (fun s a -> a ^ s ^ "\n") ""
+  in
+  let output_msgs =
+    List.tl (Str.split_delim (Str.regexp "977567d9dcdabf701acff6f4d4ce077e") output_str)
+  in
+  (* Printf.printf "--> LOG: [%d %d]\n%!" (List.length prev_and_tests) (List.length output_msgs); *)
+  let tests_and_msgs = List.combine prev_and_tests output_msgs in
+  let rec analyze_results_h
+            (tests_and_msgs :
+              ((int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
+                 option
+              * string)
+                list)
+    =
+    match tests_and_msgs with
+    | [] -> []
+    | (None, _) :: t -> None :: analyze_results_h t
+    | (Some (prev', name, ret_ty, f, args), output_msg) :: t ->
+      (* Printf.printf "--> LOG: [%s]\n%!" output_msg; *)
+      if String.compare output_msg "\n" = 0 then
+        Some (Pass ((name, ret_ty, f, args), prev')) :: analyze_results_h t
+      else (
+        let output_msg_lst = Str.split_delim (Str.regexp "\n") output_msg in
+        let violation_line_num = get_violation_line output_msg_lst in
+        if
+          is_precond_violation
+            (drop (List.length !src_code - violation_line_num) !src_code)
+        then
+          Some Precond :: analyze_results_h t
+        else (* (Printf.printf "--> LOG: [%s]\n%!" "postcond"; *)
+          Some (Postcond ((name, ret_ty, f, args), violation_line_num))
+          :: analyze_results_h t)
+  in
+  analyze_results_h tests_and_msgs
+
+
 let shrink
       (seq : context)
       (output_dir : string)
       (filename_base : string)
-      (src_code : string list)
       (fun_decls : Pp.document)
   : int * Pp.document
   =
+  (* Printf.printf "--> LOG: [%s]\n%!" "STARTING SHRINKING"; *)
   let open Pp in
   let name_eq (n1, _, _, _) (n2, _, _, _) =
     match (n1, n2) with Some name1, Some name2 -> Sym.equal name1 name2 | _ -> false
@@ -418,65 +481,55 @@ let shrink
     in
     (* print_string ((ctx_to_string rev_dep_graph) ^ "\n"); *)
     let reqs = dfs seq [] start in
-    let rec shrink_1 ((prev, ((name, _, _, _) as curr), next) : context * call * context) =
-      if List.mem name_eq curr reqs then (
-        match next with [] -> curr :: prev | h :: t -> shrink_1 (curr :: prev, h, t))
-      else (
-        let prev' =
-          match name with
-          | Some name ->
-            let removed =
-              List.filter_map
-                (fun (name, _, _, _) ->
-                   match name with None -> None | Some name -> Some (Sym.pp_string name))
-                (dfs
-                   rev_dep_graph
-                   []
-                   (List.find (name_eq (Some name, 0, 0, 0)) rev_dep_graph))
-            in
-            (* print_string ((Sym.pp_string name) ^ ":" ^ (List.fold_left (fun acc x -> acc ^ "," ^ x) "" removed) ^ "\n"); *)
-            List.filter
-              (fun ((name, _, _, args) : call) ->
-                 List.for_all
-                   (fun (_, arg_name) -> not (List.mem String.equal arg_name removed))
-                   args
-                 &&
-                 match name with
-                 | None -> true
-                 | Some name ->
-                   not
-                     (List.mem
-                        (fun name var -> String.equal (Sym.pp_string name) var)
-                        name
-                        removed))
-              prev
-          | None -> prev
-        in
-        let test_shrink = List.rev next @ prev' in
-        (* print_string ((ctx_to_string test_shrink) ^ "\n"); *)
-        save
-          output_dir
-          (filename_base ^ "_test.c")
-          (create_test_file
-             (ctx_to_tests test_shrink ^^ hardline ^^ string "return 123;")
-             filename_base
-             fun_decls);
-        let output, status = out_to_list (output_dir ^ "/run_tests.sh") in
-        match status with
-        | WEXITED 0 | WEXITED 1 ->
-          (match next with [] -> curr :: prev | h :: t -> shrink_1 (curr :: prev, h, t))
-          (* indicating no more bug (which means that call was part of the cause, or compiler error)
-             6 is a CN error
-          *)
-        | _ ->
-          let violation_line_num = get_violation_line output in
-          if
-            is_precond_violation
-              (drop (List.length src_code - violation_line_num) src_code)
-          then (
-            match next with [] -> curr :: prev | h :: t -> shrink_1 (curr :: prev, h, t))
+    let shrink_1 (tests : context) =
+      let rec generate acc remaining =
+        match remaining with
+        | [] -> [ acc ]
+        | test :: tests ->
+          if List.mem name_eq test reqs then
+            generate (test :: acc) tests
           else (
-            match next with [] -> prev' | h :: t -> shrink_1 (prev', h, t)))
+            let with_x = generate (test :: acc) tests in
+            let deps = dfs rev_dep_graph [] test in
+            let without_x =
+              generate
+                (List.filter (fun test -> not (List.mem name_eq test deps)) acc)
+                tests
+            in
+            with_x @ without_x)
+      in
+      let powerset =
+        List.sort
+          (fun l1 l2 -> Int.compare (List.length l1) (List.length l2))
+          (generate [] tests)
+      in
+      let script_doc' =
+        BuildScript.generate_intermediate
+          ~output_dir
+          ~filename_base
+          (List.length powerset)
+      in
+      save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
+      let elt = Sym.fresh_anon () in
+      let results =
+        analyze_results
+          (List.init
+             (List.length powerset)
+             (Fun.const (Some (-1, None, C.Ctype ([], Basic (Integer Char)), elt, []))))
+          (List.map
+             (fun test -> ctx_to_tests test ^^ hardline ^^ string "return 0;")
+             powerset)
+          filename_base
+          output_dir
+          fun_decls
+      in
+      match
+        List.find_index
+          (fun result -> match result with Some (Postcond _) -> true | _ -> false)
+          results
+      with
+      | Some i -> List.nth powerset i
+      | _ -> failwith "impossible"
     in
     let rec shrink_2 ((prev, next) : context * context) : context =
       let shrink_arg ((ty, arg_name) : C.ctype * string) : string list =
@@ -532,6 +585,15 @@ let shrink
         | None -> gen_lst_shrinks ty arg_name @ [ arg_name ]
         (* if arg is not a variable then just shrink *)
       in
+      let rec compare_args (args1 : string list) (args2 : string list) : int =
+        match (args1, args2) with
+        | [], [] -> 0
+        | [], _ -> -1
+        | _, [] -> 1
+        | arg1 :: args1, arg2 :: args2 ->
+          let cmp = String.compare arg1 arg2 in
+          if cmp <> 0 then cmp else compare_args args1 args2
+      in
       match next with
       | [] -> List.rev prev
       | ((name, ret_ty, f, args) as curr) :: t ->
@@ -539,72 +601,60 @@ let shrink
         (match shrinks with
          | [] -> shrink_2 (curr :: prev, t)
          | poss_args ->
-           let rec shrink_args
-                     (poss_args : string list list)
-                     ((prev_args, next_args) :
-                       (C.ctype * string) list * (C.ctype * string) list)
-             =
-             let rec try_shrinks (arg_shrinks : string list) =
-               let try_shrink
-                     (shrinks : string list)
-                     ((prev_args, next_args) :
-                       (C.ctype * string) list * (C.ctype * string) list)
-                 =
-                 match (shrinks, next_args) with
-                 | [], [] -> List.rev prev_args
-                 | shrink, (ty, arg) :: next_args ->
-                   (match shrink with
-                    | [] -> List.rev prev_args @ ((ty, arg) :: next_args)
-                    | new_arg :: _ -> List.rev prev_args @ ((ty, new_arg) :: next_args))
-                 | _, _ -> failwith "impossible"
-               in
-               match arg_shrinks with
-               | [] ->
-                 failwith
-                   "there will always be at least one possible arg (the original one)"
-               | orig_arg :: [] -> orig_arg
-               | new_arg :: rest ->
-                 let new_args = try_shrink arg_shrinks (prev_args, next_args) in
-                 let new_test = (name, ret_ty, f, new_args) in
-                 let test_shrink = List.rev prev @ (new_test :: t) in
-                 save
-                   output_dir
-                   (filename_base ^ "_test.c")
-                   (create_test_file
-                      (ctx_to_tests test_shrink ^^ hardline ^^ string "return 123;")
-                      filename_base
-                      fun_decls);
-                 let output, status = out_to_list (output_dir ^ "/run_tests.sh") in
-                 (match status with
-                  | WEXITED 0 | WEXITED 1 ->
-                    try_shrinks rest
-                    (* indicating no more bug (which means that call was part of the cause, or compiler error)
-                       6 is a CN error
-                    *)
-                  | _ ->
-                    let violation_line_num = get_violation_line output in
-                    if
-                      is_precond_violation
-                        (drop (List.length src_code - violation_line_num) src_code)
-                    then
-                      try_shrinks rest
-                    else
-                      new_arg)
-             in
-             match (poss_args, next_args) with
-             | [], [] -> (name, ret_ty, f, List.rev prev_args)
-             | arg_shrinks :: rest, (ty, _) :: next_args ->
-               shrink_args rest ((ty, try_shrinks arg_shrinks) :: prev_args, next_args)
-             | _, _ -> failwith "poss_args and next must have same length"
+           let rec gen_all_combos (lists : string list list) : string list list =
+             match lists with
+             | [] -> [ [] ]
+             | first :: rest ->
+               let rest_product = gen_all_combos rest in
+               List.concat
+                 (List.map (fun s -> List.map (fun r -> s :: r) rest_product) first)
            in
-           let shrunken_call = shrink_args poss_args ([], args) in
+           let arg_types = List.map fst args in
+           let all_combos =
+             List.map
+               (fun args -> (name, ret_ty, f, List.combine arg_types args))
+               (List.sort_uniq compare_args (gen_all_combos shrinks))
+           in
+           let script_doc' =
+             BuildScript.generate_intermediate
+               ~output_dir
+               ~filename_base
+               (List.length all_combos)
+           in
+           save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
+           let name, ret_ty, f, args = List.hd all_combos in
+           let results =
+             analyze_results
+               (List.init
+                  (List.length all_combos)
+                  (Fun.const (Some (-1, name, ret_ty, f, args))))
+               (* incredibly cooked fix *)
+               (List.map
+                  (fun combo ->
+                     (List.rev prev @ (combo :: t) |> ctx_to_tests)
+                     ^^ hardline
+                     ^^ string "return 0;")
+                  all_combos)
+               filename_base
+               output_dir
+               fun_decls
+           in
+           (* Printf.printf "--> LOG: [%s]\n%!" "looking for violation"; *)
+           let shrunken_call =
+             match
+               List.find
+                 (fun result ->
+                    match result with Some (Postcond _) -> true | _ -> false)
+                 results
+             with
+             | Some (Postcond (call, _)) -> call
+             | _ -> failwith "impossible"
+           in
            shrink_2 (shrunken_call :: prev, t))
     in
-    let shrunken = shrink_1 ([], start, seq) in
+    let shrunken = shrink_1 seq' in
     let shrunken' = List.rev (shrink_2 ([], shrunken)) in
-    let shrunken'' = shrink_1 ([], List.hd shrunken', List.tl shrunken') in
-    (* print_string (ctx_to_string shrunken''); *)
-    (* print_string (Printf.sprintf "%d %d\n" (List.length seq') (List.length shrunken'')); *)
+    let shrunken'' = shrink_1 shrunken' in
     (List.length shrunken'', ctx_to_tests shrunken'')
 
 
@@ -639,7 +689,6 @@ let rec gen_sequence
           (test_states : (int * Pp.document * context * test_stats) list)
           (output_dir : string)
           (filename_base : string)
-          (src_code : string list)
           (fun_decls : Pp.document)
   : (Pp.document * test_stats, Pp.document * test_stats) Either.either
   =
@@ -705,36 +754,6 @@ let rec gen_sequence
         let args = List.map (fun ((_, ty) as param) -> (ty, gen_arg ctx param)) params in
         (prev, name, ret_ty, f, args)
       in
-      let rec analyze_results
-                (tests_and_msgs :
-                  ((int
-                   * SymSet.elt option
-                   * C.ctype
-                   * SymSet.elt
-                   * (C.ctype * string) list)
-                     option
-                  * string)
-                    list)
-        : pass_or_violation option list
-        =
-        match tests_and_msgs with
-        | [] -> []
-        | (None, _) :: t -> None :: analyze_results t
-        | (Some (prev', name, ret_ty, f, args), output_msg) :: t ->
-          if String.compare output_msg "\n" = 0 then
-            Some (Pass ((name, ret_ty, f, args), prev')) :: analyze_results t
-          else (
-            let output_msg_lst = Str.split_delim (Str.regexp "\n") output_msg in
-            let violation_line_num = get_violation_line output_msg_lst in
-            if
-              is_precond_violation
-                (drop (List.length src_code - violation_line_num) src_code)
-            then
-              Some Precond :: analyze_results t
-            else
-              Some (Postcond ((name, ret_ty, f, args), violation_line_num))
-              :: analyze_results t)
-      in
       let prev_and_tests =
         List.map
           (fun (fs, (prev, _, ctx, _)) ->
@@ -748,32 +767,14 @@ let rec gen_sequence
                     prev))
           (List.combine callables test_states)
       in
-      let test_strs =
-        List.map
-          (fun call ->
-             match call with
-             | Some (_, name, ret_ty, f, args) -> test_to_doc name ret_ty f args
-             | None -> string "/* unable to generate call at this point */")
+      let results =
+        analyze_results
           prev_and_tests
-      in
-      let intermediate_file =
-        create_intermediate_test_file
           (List.map (fun (_, test_str, _, _) -> test_str) test_states)
-          test_strs
           filename_base
+          output_dir
           fun_decls
       in
-      save output_dir (filename_base ^ "_test.c") intermediate_file;
-      (* save output_dir (filename_base ^ "_intermediate.c") intermediate_file; *)
-      let output_str, _ =
-        out_to_a (output_dir ^ "/run_tests_intermediate.sh") (fun s a -> a ^ s ^ "\n") ""
-      in
-      let output_msgs =
-        List.tl
-          (Str.split_delim (Str.regexp "977567d9dcdabf701acff6f4d4ce077e") output_str)
-      in
-      let tests_and_msgs = List.combine prev_and_tests output_msgs in
-      let results = analyze_results tests_and_msgs in
       let rec update_tests
                 (test_states : (int * Pp.document * context * test_stats) list)
                 (results : pass_or_violation option list)
@@ -837,7 +838,7 @@ let rec gen_sequence
                 Int.compare (List.length ctx1) (List.length ctx2))
              postcond_violations)
       in
-      let num_left, seq = shrink ctx output_dir filename_base src_code fun_decls in
+      let num_left, seq = shrink ctx output_dir filename_base fun_decls in
       let combined_stats =
         combine_stats
           (List.map (fun (_, _, _, stats) -> stats) test_states')
@@ -850,14 +851,7 @@ let rec gen_sequence
             fun_decls,
           { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
     else
-      gen_sequence
-        funcs
-        (fuel - 1)
-        test_states'
-        output_dir
-        filename_base
-        src_code
-        fun_decls
+      gen_sequence funcs (fuel - 1) test_states' output_dir filename_base fun_decls
 
 
 let compile_sequence
@@ -866,7 +860,6 @@ let compile_sequence
       (num_samples : int)
       (output_dir : string)
       (filename_base : string)
-      (src_code : string list)
       (fun_decls : Pp.document)
   : (Pp.document * test_stats, Pp.document * test_stats) Either.either
   =
@@ -909,7 +902,6 @@ let compile_sequence
        (List.init (Config.get_num_tests ()) Fun.id))
     output_dir
     filename_base
-    src_code
     fun_decls
 
 
@@ -923,10 +915,11 @@ let generate
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
   let test_file = filename_base ^ "_test.c" in
-  let script_doc = BuildScript.generate ~output_dir ~filename_base in
-  let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
-  let src_code, _ = out_to_list ("cat " ^ filename) in
-  save ~perm:0o777 output_dir "run_tests.sh" script_doc;
+  let script_doc' =
+    BuildScript.generate_intermediate ~output_dir ~filename_base (Config.get_num_tests ())
+  in
+  let source_code, _ = out_to_list ("cat " ^ filename) in
+  src_code := source_code;
   save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
   let fun_to_decl (inst : FExtract.instrumentation) =
     CF.Pp_ail.(
@@ -947,12 +940,13 @@ let generate
       (Config.get_num_calls ())
       output_dir
       filename_base
-      src_code
       fun_decls
   in
   let exit_code, seq, output_msg =
     match compiled_seq with
     | Left (seq, stats) ->
+      let script_doc = BuildScript.generate ~output_dir ~filename_base 1 in
+      save ~perm:0o777 output_dir "run_tests.sh" script_doc;
       ( 123,
         seq,
         Printf.sprintf
@@ -982,6 +976,10 @@ let generate
             ""
             stats.distrib
       in
+      let script_doc =
+        BuildScript.generate ~output_dir ~filename_base (Config.get_num_tests ())
+      in
+      save ~perm:0o777 output_dir "run_tests.sh" script_doc;
       ( 0,
         seq,
         Printf.sprintf

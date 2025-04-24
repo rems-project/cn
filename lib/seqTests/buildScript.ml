@@ -120,14 +120,14 @@ let link ~filename_base =
   ^^ hardline
 
 
-let run () =
+let run (num_tests : int) =
   let create_run_string (i : int) =
     (* string (Printf.sprintf "echo \"Test %d\"" i)
     ^^ hardline
     ^^  *)
     separate_map space string [ "./tests.out"; string_of_int i ]
   in
-  let cmds = List.map create_run_string (List.init (Config.get_num_tests ()) Fun.id) in
+  let cmds = List.map create_run_string (List.init num_tests Fun.id) in
   string "# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
@@ -140,13 +140,13 @@ let run () =
   ^^ hardline
 
 
-let run_intermediate () =
+let run_intermediate (num_tests : int) =
   let create_run_string (i : int) =
     string "echo \"977567d9dcdabf701acff6f4d4ce077e\""
     ^^ hardline
     ^^ separate_map space string [ "./tests.out"; string_of_int i ]
   in
-  let cmds = List.map create_run_string (List.init (Config.get_num_tests ()) Fun.id) in
+  let cmds = List.map create_run_string (List.init num_tests Fun.id) in
   string "# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
@@ -181,14 +181,16 @@ let coverage ~filename_base =
   ^^ hardline
 
 
-let generate ~(output_dir : string) ~(filename_base : string) : Pp.document =
+let generate ~(output_dir : string) ~(filename_base : string) (num_tests : int)
+  : Pp.document
+  =
   setup ~output_dir
   ^^ hardline
   ^^ compile ~filename_base
   ^^ hardline
   ^^ link ~filename_base
   ^^ hardline
-  ^^ run ()
+  ^^ run num_tests
   ^^ hardline
   ^^ string "popd > /dev/null"
   ^^ hardline
@@ -196,14 +198,19 @@ let generate ~(output_dir : string) ~(filename_base : string) : Pp.document =
   ^^ hardline
 
 
-let generate_intermediate ~(output_dir : string) ~(filename_base : string) : Pp.document =
+let generate_intermediate
+      ~(output_dir : string)
+      ~(filename_base : string)
+      (num_tests : int)
+  : Pp.document
+  =
   setup ~output_dir
   ^^ hardline
   ^^ compile ~filename_base
   ^^ hardline
   ^^ link ~filename_base
   ^^ hardline
-  ^^ run_intermediate ()
+  ^^ run_intermediate num_tests
   ^^ hardline
   ^^ string "popd > /dev/null"
   ^^ hardline
