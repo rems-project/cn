@@ -8,7 +8,6 @@ on:
 
 env:
   CERBERUS_IMAGE_ID: ghcr.io/rems-project/cerberus/cn:release
-  PLATFORM: ubuntu-latest
 
 # cancel in-progress job when a new push is performed
 concurrency:
@@ -22,7 +21,7 @@ jobs:
         # version: [4.12.0, 4.14.1]
         version: [4.14.1]
 
-    runs-on: $PLATFORM
+    runs-on: ubuntu-latest
 
     steps:
 
@@ -51,7 +50,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-$PLATFORM
+        key: ${{ matrix.version }}-ubuntu-latest
   
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -66,7 +65,7 @@ jobs:
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-$PLATFORM
+        key: ${{ matrix.version }}-ubuntu-latest
 
     # - name: Install Cerberus-lib
     #   run: |
