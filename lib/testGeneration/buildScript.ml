@@ -69,12 +69,12 @@ let compile ~filename_base =
           ([ "cc";
              "-c";
              "-o";
-             "\"./" ^ filename_base ^ "_test.o\"";
-             "\"./" ^ filename_base ^ "_test.c\""
+             "\"./" ^ filename_base ^ ".test.o\"";
+             "\"./" ^ filename_base ^ ".test.c\""
            ]
            @ cc_flags ()))
-       ("Compiled '" ^ filename_base ^ "_test.c'.")
-       ("Failed to compile '" ^ filename_base ^ "_test.c' in ${TEST_DIR}.")
+       ("Compiled '" ^ filename_base ^ ".test.c'.")
+       ("Failed to compile '" ^ filename_base ^ ".test.c' in ${TEST_DIR}.")
   ^^ (if Config.with_static_hack () then
         empty
       else
@@ -85,19 +85,25 @@ let compile ~filename_base =
                 ([ "cc";
                    "-c";
                    "-o";
-                   "\"./" ^ filename_base ^ "-exec.o\"";
-                   "\"./" ^ filename_base ^ "-exec.c\""
+                   "\"./" ^ filename_base ^ ".exec.o\"";
+                   "\"./" ^ filename_base ^ ".exec.c\""
                  ]
                  @ cc_flags ()))
-             ("Compiled '" ^ filename_base ^ "-exec.c'.")
-             ("Failed to compile '" ^ filename_base ^ "-exec.c' in ${TEST_DIR}.")
+             ("Compiled '" ^ filename_base ^ ".exec.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}.")
         ^^ twice hardline
         ^^ attempt
              (String.concat
                 " "
-                ([ "cc"; "-c"; "-o"; "\"./cn.o\""; "\"./cn.c\"" ] @ cc_flags ()))
-             "Compiled 'cn.c'."
-             "Failed to compile 'cn.c' in ${TEST_DIR}.")
+                ([ "cc";
+                   "-c";
+                   "-o";
+                   "\"./" ^ filename_base ^ ".cn.o\"";
+                   "\"./" ^ filename_base ^ ".cn.c\""
+                 ]
+                 @ cc_flags ()))
+             ("Compiled '" ^ filename_base ^ ".cn.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".cn.c' in ${TEST_DIR}."))
   ^^ hardline
 
 
@@ -115,12 +121,12 @@ let link ~filename_base =
              "-o";
              "\"./tests.out\"";
              (filename_base
-              ^ "_test.o"
+              ^ ".test.o"
               ^
               if Config.with_static_hack () then
                 ""
               else
-                " " ^ filename_base ^ "-exec.o cn.o");
+                " " ^ filename_base ^ ".exec.o " ^ filename_base ^ ".cn.o");
              "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\""
@@ -212,11 +218,14 @@ let run () =
             [ "--no-replays" ]
           else
             [])
+       @ (if Config.has_no_replicas () then
+            [ "--no-replicas" ]
+          else
+            [])
        @
-       if Config.has_no_replicas () then
-         [ "--no-replicas" ]
-       else
-         [])
+       match Config.get_output_tyche () with
+       | Some file -> [ "--output-tyche"; file ]
+       | None -> [])
   in
   string "# Run"
   ^^ hardline
@@ -249,10 +258,10 @@ let coverage ~filename_base =
             "--directory .";
             "--remove coverage.info";
             "-o coverage_filtered.info";
-            realpath "cn.c";
-            realpath "cn.h";
-            realpath (filename_base ^ "_test.c");
-            realpath (filename_base ^ "_gen.h")
+            realpath (filename_base ^ ".cn.c");
+            realpath (filename_base ^ ".cn.h");
+            realpath (filename_base ^ ".test.c");
+            realpath (filename_base ^ ".gen.h")
           ])
        "Exclude test harnesses from coverage via lcov."
        "Failed to exclude test harnesses from coverage."

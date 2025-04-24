@@ -15,6 +15,16 @@
 extern "C" {
 #endif
 
+enum spec_mode {
+  PRE = 1,
+  POST = 2,
+  LOOP = 3,
+  STATEMENT = 4,
+  C_ACCESS = 5,
+  NON_SPEC = 6
+};
+
+/* Error handlers */
 void reset_fulminate(void);
 
 enum cn_logging_level {
@@ -165,16 +175,16 @@ enum cn_failure_mode {
   CN_FAILURE_ALLOC
 };
 
-typedef void (*cn_failure_callback)(enum cn_failure_mode);
+typedef void (*cn_failure_callback)(enum cn_failure_mode, enum spec_mode);
 void set_cn_failure_cb(cn_failure_callback callback);
 void reset_cn_failure_cb(void);
-void cn_failure(enum cn_failure_mode mode);
+void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 /* Conversion functions */
 
 cn_bool *convert_to_cn_bool(_Bool b);
 _Bool convert_from_cn_bool(cn_bool *b);
-void cn_assert(cn_bool *cn_b);
+void cn_assert(cn_bool *cn_b, enum spec_mode spec_mode);
 cn_bool *cn_bool_and(cn_bool *b1, cn_bool *b2);
 cn_bool *cn_bool_or(cn_bool *b1, cn_bool *b2);
 cn_bool *cn_bool_not(cn_bool *b);
@@ -256,6 +266,11 @@ cn_bool *cn_pointer_gt(cn_pointer *i1, cn_pointer *i2);
 #define CN_GEN_NEGATE(CNTYPE)                                                            \
   static inline CNTYPE *CNTYPE##_negate(CNTYPE *i) {                                     \
     return convert_to_##CNTYPE(-(i->val));                                               \
+  }
+
+#define CN_GEN_BW_COMPL(CNTYPE)                                                          \
+  static inline CNTYPE *CNTYPE##_bw_compl(CNTYPE *i) {                                   \
+    return convert_to_##CNTYPE(~(i->val));                                               \
   }
 
 #define CN_GEN_ADD(CTYPE, CNTYPE)                                                        \
@@ -464,6 +479,7 @@ cn_bool *default_cn_bool(void);
   CN_GEN_GT(CNTYPE)                                                                      \
   CN_GEN_GE(CNTYPE)                                                                      \
   CN_GEN_NEGATE(CNTYPE)                                                                  \
+  CN_GEN_BW_COMPL(CNTYPE)                                                                \
   CN_GEN_ADD(CTYPE, CNTYPE)                                                              \
   CN_GEN_SUB(CTYPE, CNTYPE)                                                              \
   CN_GEN_MUL(CTYPE, CNTYPE)                                                              \
@@ -517,12 +533,6 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-enum OWNERSHIP {
-  GET,
-  PUT,
-  LOOP
-};
-
 int ownership_ghost_state_get(int64_t *address_key);
 void ownership_ghost_state_set(int64_t *address_key, int stack_depth_val);
 void ownership_ghost_state_remove(int64_t *address_key);
@@ -532,7 +542,7 @@ void cn_get_ownership(uintptr_t generic_c_ptr, size_t size, char *check_msg);
 void cn_put_ownership(uintptr_t generic_c_ptr, size_t size);
 void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
 void cn_get_or_put_ownership(
-    enum OWNERSHIP owned_enum, uintptr_t generic_c_ptr, size_t size);
+    enum spec_mode spec_mode, uintptr_t generic_c_ptr, size_t size);
 
 /* C ownership checking */
 void c_add_to_ghost_state(uintptr_t ptr_to_local, size_t size, signed long stack_depth);

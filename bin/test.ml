@@ -52,6 +52,7 @@ let run_tests
       trap
       no_replays
       no_replicas
+      output_tyche
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -110,7 +111,8 @@ let run_tests
           disable_passes;
           trap;
           no_replays;
-          no_replicas
+          no_replicas;
+          output_tyche
         }
       in
       TestGeneration.set_config config;
@@ -129,7 +131,7 @@ let run_tests
            in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            (try
-              Fulminate.Executable_spec.main
+              Fulminate.main
                 ~without_ownership_checking
                 ~without_loop_invariants:true
                 ~with_loop_leak_checks:false
@@ -423,6 +425,14 @@ module Flags = struct
   let no_replicas =
     let doc = "Disable synthesizing C code to replicate bugs" in
     Arg.(value & flag & info [ "no-replicas" ] ~doc)
+
+
+  let output_tyche =
+    let doc = "Enable output in Tyche format" in
+    Arg.(
+      value
+      & opt (some string) TestGeneration.default_cfg.output_tyche
+      & info [ "output-tyche" ] ~doc)
 end
 
 let cmd =
@@ -474,6 +484,7 @@ let cmd =
     $ Flags.trap
     $ Flags.no_replays
     $ Flags.no_replicas
+    $ Flags.output_tyche
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

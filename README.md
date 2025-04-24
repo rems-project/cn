@@ -93,6 +93,10 @@ and its dependencies.
    ```
    which installs CN (as both a library and an executable), and
    dependencies.
+   
+   (If you update CN, you may also need to update its local version of
+   `cerberus-lib` to stay in sync, by re-running the `opam install`
+   step above.)
 
 ## Contributing
 

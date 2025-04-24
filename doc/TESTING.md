@@ -32,8 +32,10 @@ It calls the function with this input and uses [Fulminate](FULMINATE_README.md) 
 
 #### Understanding errors
 
-Currently, the tool does not print out counterexamples, but this is [planned](https://github.com/rems-project/cerberus/issues/841).
-Until then, `tests.out` can be run with the `--trap` flag in a debugger.
+By default, the tool will attempt to synthesize a C program which reproduces the failure.
+However, due to non-determinism of `malloc`, if your code include complex relationships between pointer, we cannot guarantee it will consistently reproduce the failure.
+
+If the C program provided does not reproduce the failure, `tests.out` can be run with the `--trap` flag in a debugger.
 Since seeds are printed each time the tool runs, `--seed <seed>` can be used to reproduce the test case.
 The debugger should automatically pause right before rerunning the failing test case.
 

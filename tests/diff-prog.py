@@ -104,7 +104,7 @@ def main(opts):
         config = json.load(config_file)
         prog = Prog(opts, config)
         files = filter_tests(test_dir=os.path.dirname(opts.config), suffix=opts.suffix, matcher=re.compile(config['filter']))
-        result = run_tests(prog, test_rel_paths=files, quiet=opts.quiet, max_workers=(1 if opts.bench else None))
+        result = run_tests(prog, test_rel_paths=files, quiet=opts.quiet, max_workers=(1 if opts.bench else opts.max_workers))
         if opts.bench:
             output_bench(config['name'], result['timings'])
         return result['code']
@@ -119,6 +119,7 @@ parser.add_argument('--dry-run', help='Print but do not run commands.', action='
 parser.add_argument('--suffix', help='Uniquely identifying suffix of a file in the test directory.')
 parser.add_argument('--quiet', help='Don\'t show tests completed so far on std out.', action='store_true')
 parser.add_argument('--bench', help='Output a JSON file with benchmarks, including total time.', action='store_true')
+parser.add_argument('--max-workers', help='Specify max number of workers for process pool (default is number of CPUs).', type=int)
 parser.set_defaults(func=main)
 
 # parse args and call func (as set using set_defaults)

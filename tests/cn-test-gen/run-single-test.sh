@@ -62,8 +62,26 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     fi
   elif [[ $TEST == *.fail.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    OUTPUT="${OUTPUT}$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)"
+    $CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG >/dev/null 2>/dev/null
     RET=$?
+    if [[ "$RET" = 0 ]]; then
+      OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+      NUM_FAILED=$(($NUM_FAILED + 1))
+      FAILED="$FAILED ($ALT_CONFIG)"
+    else
+      OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
+    fi
+  elif [[ $TEST == *.flaky.c ]]; then
+    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
+    $CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG >/dev/null 2>/dev/null
+    RET=$?
+
+    # Run twice, since flaky
+    if [[ "$RET" = 0 ]]; then
+      $CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG >/dev/null 2>/dev/null
+      RET=$?
+    fi
+
     if [[ "$RET" = 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
       NUM_FAILED=$(($NUM_FAILED + 1))

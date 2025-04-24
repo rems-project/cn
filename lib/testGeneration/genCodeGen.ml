@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module CtA = Fulminate.Cn_to_ail
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
@@ -31,11 +31,11 @@ let _str_name_of_bt (bt : BT.t) : string =
 
 
 let compile_it (sigma : CF.GenTypes.genTypeCategory A.sigma) (name : Sym.t) (it : IT.t) =
-  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) it
+  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) None it
 
 
 let compile_lc (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
-  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] lc
+  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] None lc
 
 
 let[@warning "-27"] rec compile_term
@@ -527,7 +527,8 @@ let compile_gen_def
   (sigma_decl, sigma_def)
 
 
-let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : Pp.document
+let compile filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context)
+  : Pp.document
   =
   let defs =
     ctx
@@ -572,7 +573,10 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   ^^ twice hardline
   ^^ string "#include <cn-testing/prelude.h>"
   ^^ twice hardline
-  ^^ string "#include \"cn.h\""
+  ^^ string
+       ("#include \""
+        ^ (Filename.remove_extension (Fulminate.get_cn_helper_filename filename) ^ ".h")
+        ^ "\"")
   ^^ twice hardline
   ^^ CF.Pp_ail.(
        with_executable_spec
