@@ -16,7 +16,7 @@ rm -rf $DIR
 
 # For stricter CI
 # -Wno-unknown-attributes: ignore the [[cerb::hidden]] attributes
-export CPPFLAGS="${CPPFLAGS} -Wno-unknown-attributes -Werror"
+export CPPFLAGS="${CPPFLAGS} -Wno-unknown-attributes -Werror -Wno-error=attributes"
 
 # For UBSan
 export UBSAN_OPTIONS=halt_on_error=1

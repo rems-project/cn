@@ -93,6 +93,8 @@ jobs:
       with:
         repository: rems-project/cn-tutorial
         path: cn-tutorial
+        # need to fix cn-tutorial's CI
+        ref: 485a5a099fd2955a8e35241a01c91dd8706151b6
 
     - name: Run CN tests
       run: |
