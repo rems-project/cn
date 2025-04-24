@@ -230,7 +230,7 @@ let test_to_doc
     ^^ f_call
     ^^ stmt_to_doc
          (A.AilSexpr
-            (Fulminate.Ownership_exec.generate_c_local_ownership_entry_fcall
+            (Fulminate.Ownership.generate_c_local_ownership_entry_fcall
                (name, ret_ty)))
     ^^ hardline
   | None -> f_call
@@ -255,7 +255,7 @@ let create_intermediate_test_file
             (hardline
              ^^
              let init_ghost =
-               Fulminate.Ownership_exec.get_ownership_global_init_stats ()
+               Fulminate.Ownership.get_ownership_global_init_stats ()
              in
              separate_map hardline stmt_to_doc init_ghost
              ^^ hardline
@@ -608,7 +608,7 @@ let shrink
         let shrinks = List.map shrink_arg args in
         (match shrinks with
          | [] -> shrink_2 (curr :: prev, t)
-         | poss_args ->
+         | _ ->
            let rec gen_all_combos (lists : string list list) : string list list =
              match lists with
              | [] -> [ [] ]
@@ -709,7 +709,7 @@ let rec gen_sequence
                   match name with
                   | Some name ->
                     Some
-                      (Fulminate.Ownership_exec.generate_c_local_ownership_exit
+                      (Fulminate.Ownership.generate_c_local_ownership_exit
                          (name, ret))
                   | None -> None)
                ctx
@@ -732,7 +732,7 @@ let rec gen_sequence
         combine_stats
           (List.map (fun (_, _, _, stats) -> stats) test_states)
           { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } )
-  | n ->
+  | _ ->
     let callables =
       List.map
         (fun (_, _, ctx, _) ->
@@ -805,7 +805,7 @@ let rec gen_sequence
                   test_so_far ^^ test_to_doc name ret_ty f args,
                   call :: ctx,
                   { stats with successes = stats.successes + 1; distrib } )
-            | Some (Postcond (((name, ret_ty, f, args) as call), violation_line_num)) ->
+            | Some (Postcond (((_, _, f, _) as call), _)) ->
               let distrib =
                 let name = Sym.pp_string f in
                 match List.assoc_opt String.equal name stats.distrib with
@@ -861,7 +861,6 @@ let rec gen_sequence
 
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : Fulminate.Extract.instrumentation list)
       (insts : FExtract.instrumentation list)
       (num_samples : int)
       (output_dir : string)
@@ -872,7 +871,6 @@ let compile_sequence
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
     insts
-    |> List.map (fun (inst : Fulminate.Extract.instrumentation) ->
     |> List.map (fun (inst : FExtract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
@@ -881,7 +879,6 @@ let compile_sequence
     =
     List.map
       (fun (inst : Fulminate.Extract.instrumentation) ->
-      (fun (inst : FExtract.instrumentation) ->
          ( inst.fn,
            let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
            match List.assoc Sym.equal inst.fn declarations with
@@ -917,7 +914,6 @@ let generate
       ~(output_dir : string)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : Fulminate.Extract.instrumentation list)
       (insts : FExtract.instrumentation list)
   : int
   =
