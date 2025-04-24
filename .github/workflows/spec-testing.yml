@@ -59,6 +59,7 @@ jobs:
         eval $(opam env --switch=${{ matrix.version }})
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
         opam install --deps-only --yes ./cn.opam
+        opam install --yes z3
   
     - name: Save OPAM cache
       uses: actions/cache/save@v4
