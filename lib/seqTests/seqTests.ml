@@ -484,28 +484,26 @@ let shrink
           match ty with
           | Ctype (_, ty1) ->
             (match ty1 with
-             | Basic (Integer (Signed _)) | Basic (Integer (Unsigned _)) ->
+             | Basic (Integer (Unsigned _)) ->
+               let gend_int = int_of_string arg in
+               List.map string_of_int [ 0; 1; gend_int / 4; gend_int / 2 ]
+             | Basic (Integer (Signed _)) ->
                let gend_int = int_of_string arg in
                List.map
                  string_of_int
-                 (List.sort_uniq
-                    (fun i1 i2 -> Int.compare (abs i1) (abs i2))
-                    [ 0; 1; -1; -gend_int / 4; gend_int / 4; -gend_int / 2; gend_int / 2 ])
+                 [ 0; 1; -1; gend_int / 4; -gend_int / 4; gend_int / 2; -gend_int / 2 ]
              | Basic (Floating _) ->
                let gend_float = float_of_string arg in
                List.map
                  string_of_float
-                 (List.sort_uniq
-                    (fun f1 f2 -> Float.compare (abs_float f1) (abs_float f2))
-                    [ 0.0;
-                      1.0;
-                      -1.0;
-                      gend_float /. -4.0;
-                      (* fix shrinking bug here (sort_uniq issues) *)
-                      gend_float /. 4.0;
-                      gend_float /. -2.0;
-                      gend_float /. 2.0
-                    ])
+                 [ 0.0;
+                   1.0;
+                   -1.0;
+                   gend_float /. 4.0;
+                   gend_float /. -4.0;
+                   gend_float /. 2.0;
+                   gend_float /. -2.0
+                 ]
              | _ -> [])
         in
         let gend_val =
@@ -674,7 +672,7 @@ let rec gen_sequence
     Either.Right
       ( create_intermediate_test_file
           test_strs
-          (List.init (Config.get_num_parallel ()) (fun _ -> empty))
+          (List.init (Config.get_num_tests ()) (fun _ -> empty))
           filename_base
           fun_decls,
         combine_stats
@@ -840,16 +838,17 @@ let rec gen_sequence
              postcond_violations)
       in
       let num_left, seq = shrink ctx output_dir filename_base src_code fun_decls in
-      let combined_stats =  combine_stats
-      (List.map (fun (_, _, _, stats) -> stats) test_states')
-      { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } in
+      let combined_stats =
+        combine_stats
+          (List.map (fun (_, _, _, stats) -> stats) test_states')
+          { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] }
+      in
       Either.Left
         ( create_test_file
             (seq ^^ hardline ^^ string "return 123;")
             filename_base
             fun_decls,
-            { combined_stats with discarded = combined_stats.successes + 1 - num_left }
-         ))
+          { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
     else
       gen_sequence
         funcs
@@ -907,7 +906,7 @@ let compile_sequence
             Pp.empty,
             [],
             { successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] } ))
-       (List.init (Config.get_num_parallel ()) Fun.id))
+       (List.init (Config.get_num_tests ()) Fun.id))
     output_dir
     filename_base
     src_code
@@ -945,7 +944,7 @@ let generate
     compile_sequence
       sigma
       insts
-      (Config.get_num_samples ())
+      (Config.get_num_calls ())
       output_dir
       filename_base
       src_code

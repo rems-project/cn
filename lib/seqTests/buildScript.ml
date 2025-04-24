@@ -127,7 +127,7 @@ let run () =
     ^^  *)
     separate_map space string [ "./tests.out"; string_of_int i ]
   in
-  let cmds = List.map create_run_string (List.init (Config.get_num_parallel ()) Fun.id) in
+  let cmds = List.map create_run_string (List.init (Config.get_num_tests ()) Fun.id) in
   string "# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
@@ -146,7 +146,7 @@ let run_intermediate () =
     ^^ hardline
     ^^ separate_map space string [ "./tests.out"; string_of_int i ]
   in
-  let cmds = List.map create_run_string (List.init (Config.get_num_parallel ()) Fun.id) in
+  let cmds = List.map create_run_string (List.init (Config.get_num_tests ()) Fun.id) in
   string "# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
