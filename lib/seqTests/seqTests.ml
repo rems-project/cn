@@ -622,13 +622,10 @@ let shrink
                (List.length all_combos)
            in
            save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
-           let name, ret_ty, f, args = List.hd all_combos in
            let results =
              analyze_results
-               (List.init
-                  (List.length all_combos)
-                  (Fun.const (Some (-1, name, ret_ty, f, args))))
-               (* incredibly cooked fix *)
+               (List.map
+                  (fun (name, ret_ty, f, args) -> (Some (-1, name, ret_ty, f, args))) all_combos)
                (List.map
                   (fun combo ->
                      (List.rev prev @ (combo :: t) |> ctx_to_tests)
@@ -639,7 +636,7 @@ let shrink
                output_dir
                fun_decls
            in
-           (* Printf.printf "--> LOG: [%s]\n%!" "looking for violation"; *)
+           (* Printf.printf "--> LOG: [%s]\n%!" (test_to_doc name ret_ty f args); *)
            let shrunken_call =
              match
                List.find
