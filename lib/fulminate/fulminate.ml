@@ -188,15 +188,16 @@ let main
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
-      (* TODO because we are using this in a preprocessed file there aren't any
-         defines and these are unconditional, right? *)
-      [ [ "#ifndef NULL\n";
-          "#include <stdlib.h>\n";
-          "#endif\n";
-          "#ifndef INT64_MAX\n";
-          "#include <stdint.h>\n";
-          "#endif\n";
-          "#include <cn-executable/cerb_types.h>\n"
+      [ [ (* TODO need handling for the stuff in stdlib.h and stdint.h but we
+             can't include them here, they'll clash in essentially unavoidable
+             ways with the stuff we already included and processed *)
+          "#include <cn-executable/cerb_types.h>\n";
+          (* TODO necessary because of the types in the struct decls. proper
+             handling would be to hoist all definitions and toposort them *)
+          "typedef __cerbty_intptr_t intptr_t;";
+          "typedef __cerbty_uintptr_t uintptr_t;";
+          "typedef __cerbty_intmax_t intmax_t;";
+          "typedef __cerbty_uintmax_t uintmax_t;"
         ];
         [ c_struct_decls ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
