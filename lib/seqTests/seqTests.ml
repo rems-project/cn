@@ -606,7 +606,7 @@ let shrink
     let shrunken' = List.rev (shrink_2 ([], shrunken)) in
     let shrunken'' = shrink_1 ([], List.hd shrunken', List.tl shrunken') in
     (* print_string (ctx_to_string shrunken''); *)
-    print_string (Printf.sprintf "%d %d\n" (List.length seq') (List.length shrunken''));
+    (* print_string (Printf.sprintf "%d %d\n" (List.length seq') (List.length shrunken'')); *)
     (List.length shrunken'', ctx_to_tests shrunken'')
 
 
@@ -663,7 +663,12 @@ let rec gen_sequence
                ctx
            in
            let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmt in
-           seq_so_far ^^ unmap_str ^^ hardline ^^ string "printf(\"S\");" ^^ hardline ^^ string "return 0;")
+           seq_so_far
+           ^^ unmap_str
+           ^^ hardline
+           ^^ string "printf(\"S\");"
+           ^^ hardline
+           ^^ string "return 0;")
         test_states
     in
     Either.Right
@@ -751,7 +756,7 @@ let rec gen_sequence
              match call with
              | Some (_, name, ret_ty, f, args) -> test_to_doc name ret_ty f args
              | None -> string "/* unable to generate call at this point */")
-       prev_and_tests
+          prev_and_tests
       in
       let intermediate_file =
         create_intermediate_test_file
@@ -770,7 +775,7 @@ let rec gen_sequence
           (Str.split_delim (Str.regexp "977567d9dcdabf701acff6f4d4ce077e") output_str)
       in
       let tests_and_msgs = List.combine prev_and_tests output_msgs in
-      let results = (analyze_results tests_and_msgs) in
+      let results = analyze_results tests_and_msgs in
       let rec update_tests
                 (test_states : (int * Pp.document * context * test_stats) list)
                 (results : pass_or_violation option list)
@@ -780,7 +785,7 @@ let rec gen_sequence
         | (prev, test_so_far, ctx, stats) :: test_states, result :: results ->
           let updated_state =
             match result with
-            | None -> 
+            | None ->
               Either.Right
                 (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
             | Some Precond -> Either.Right (prev, test_so_far, ctx, stats)
@@ -797,26 +802,17 @@ let rec gen_sequence
                   call :: ctx,
                   { stats with successes = stats.successes + 1; distrib } )
             | Some (Postcond (((name, ret_ty, f, args) as call), violation_line_num)) ->
-              let num_left, test_so_far =
-                shrink (call :: ctx) output_dir filename_base src_code fun_decls
+              let distrib =
+                let name = Sym.pp_string f in
+                match List.assoc_opt String.equal name stats.distrib with
+                | None -> (name, 1) :: stats.distrib
+                | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
               in
               Either.Left
                 ( prev,
-                  test_so_far
-                  ^^ string
-                       (Printf.sprintf
-                          "//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\
-                           //violation of post-condition at line number %d in %s \
-                           detected on this call"
-                          violation_line_num
-                          (filename_base ^ ".c"))
-                  ^^ hardline
-                  ^^ string "return 123;",
+                  empty,
                   call :: ctx,
-                  { stats with
-                    discarded = stats.successes + 1 - num_left;
-                    failures = stats.failures + 1
-                  } )
+                  { stats with failures = stats.failures + 1; distrib } )
           in
           updated_state :: update_tests test_states results
         | _, _ -> failwith "impossible"
@@ -830,41 +826,30 @@ let rec gen_sequence
            match result with Either.Right result | Either.Left result -> result)
         test_states
     in
-    if
-      List.exists
-        (fun result -> match result with Either.Left _ -> true | _ -> false)
+    let postcond_violations =
+      List.filter_map
+        (fun result -> match result with Either.Left x -> Some x | _ -> None)
         test_states
-    then (
-      let test_strs =
-        List.map
-          (fun result ->
-             match result with
-             | Either.Right (_, seq_so_far, ctx, _) ->
-               let unmap_stmt =
-                 List.filter_map
-                   (fun (name, ret, _, _) ->
-                      match name with
-                      | Some name ->
-                        Some
-                          (Fulminate.Ownership_exec.generate_c_local_ownership_exit
-                             (name, ret))
-                      | None -> None)
-                   ctx
-               in
-               let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmt in
-               seq_so_far ^^ unmap_str ^^ hardline ^^ string "return 0;"
-             | Either.Left (_, seq_so_far, ctx, _) -> seq_so_far)
-          test_states
+    in
+    if List.length postcond_violations <> 0 then (
+      let _, _, ctx, _ =
+        List.hd
+          (List.sort
+             (fun (_, _, ctx1, _) (_, _, ctx2, _) ->
+                Int.compare (List.length ctx1) (List.length ctx2))
+             postcond_violations)
       in
+      let num_left, seq = shrink ctx output_dir filename_base src_code fun_decls in
+      let combined_stats =  combine_stats
+      (List.map (fun (_, _, _, stats) -> stats) test_states')
+      { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } in
       Either.Left
-        ( create_intermediate_test_file
-            test_strs
-            (List.init (Config.get_num_parallel ()) (fun _ -> empty))
+        ( create_test_file
+            (seq ^^ hardline ^^ string "return 123;")
             filename_base
             fun_decls,
-          combine_stats
-            (List.map (fun (_, _, _, stats) -> stats) test_states')
-            { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } ))
+            { combined_stats with discarded = combined_stats.successes + 1 - num_left }
+         ))
     else
       gen_sequence
         funcs
