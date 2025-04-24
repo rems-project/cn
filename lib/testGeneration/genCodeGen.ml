@@ -3,6 +3,7 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
+module Records = Fulminate.Records
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
@@ -565,6 +566,7 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   let sigma : 'a A.sigma =
     { A.empty_sigma with tag_definitions; declarations; function_definitions }
   in
+  let record_defs = Records.generate_all_record_strs () in
   let open Pp in
   string "#ifndef CN_GEN_H"
   ^^ hardline
@@ -572,18 +574,31 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   ^^ twice hardline
   ^^ string "#include <cn-testing/prelude.h>"
   ^^ twice hardline
+  ^^ string "/* TAG DEFINITIONS */"
+  ^^ hardline
+  ^^ string record_defs
+  (* TODO this block differs from record_defs by only including the gen
+     functions, but this solution feels off *)
+  (*
   ^^ CF.Pp_ail.(
        with_executable_spec
          (separate_map (twice hardline) pp_tag_definition)
          tag_definitions)
+   *)
   ^^ twice hardline
+  ^^ string "/* TYPEDEFS */"
+  ^^ hardline
   ^^ separate hardline typedef_docs
+  ^^ string "/* FUNCTION DECLARATIONS */"
+  ^^ hardline
   ^^ CF.Pp_ail.(
        with_executable_spec
          (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->
             CF.Pp_ail.pp_function_prototype tag decl))
          declarations)
   ^^ twice hardline
+  ^^ string "/* EVERYTHING ELSE */"
+  ^^ hardline
   ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, sigma))
   ^^ hardline
   ^^ string "#endif // CN_GEN_H"

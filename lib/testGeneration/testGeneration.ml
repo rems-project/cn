@@ -5,9 +5,11 @@ module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
 module ESpecInternal = Fulminate.Internal
+module Records = Fulminate.Records
 module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 module Options = Config.Options
+module Cn_to_ail = Fulminate.Cn_to_ail
 
 type config = Config.t
 
@@ -145,6 +147,9 @@ let compile_includes ~filename_base =
   string "#include "
   ^^ angles (string "cn-replicate/shape.h")
   ^^ hardline
+  (* TODO the static hack has been removed from the testing files, and the hack
+     should change from including the whole exec file to creating wrappers for
+     every static function and calling those instead *)
   ^^ string "#include "
   ^^ dquotes (string (filename_base ^ ".gen.h"))
   ^^ hardline
@@ -176,8 +181,70 @@ let compile_test_file
     SpecTests.compile_generator_tests sigma prog5 for_generator
   in
   let tests = [ constant_tests; generator_tests ] in
+  (* TODO copied from fulminate.ml, put somewhere shared *)
+  let open ESpecInternal in
+  let c_datatype_defs = generate_c_datatypes sigma in
+  let c_function_defs, c_function_decls, _c_function_locs =
+    generate_c_functions sigma prog5.logical_predicates
+  in
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
+    generate_c_predicates sigma prog5.resource_predicates
+  in
+  let conversion_function_defs, conversion_function_decls =
+    generate_conversion_and_equality_functions sigma
+  in
+  let ownership_function_defs, ownership_function_decls =
+    generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
+  in
+  let c_struct_decls = generate_c_struct_strs sigma.tag_definitions in
+  let cn_converted_struct_defs = generate_cn_versions_of_structs sigma.tag_definitions in
+  let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigma in
+  (* let record_defs = Records.generate_all_record_strs () in *)
+  let cn_header_decls_list =
+    List.concat
+      [ [ "#ifndef NULL\n";
+          "#include <stdlib.h>\n";
+          "#endif\n";
+          "#include <stdint.h>\n";
+          "#include <cn-executable/utils.h>\n";
+          "#include <cn-executable/cerb_types.h>\n";
+        ];
+        [ c_struct_decls ];
+        [ (* (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else ""); *)
+          (*  record_defs; *)
+          cn_converted_struct_defs
+        ];
+        (if List.is_empty c_datatype_defs then [] else [ "/* CN DATATYPES */" ]);
+        List.map snd c_datatype_defs;
+        [ "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
+          ownership_function_decls;
+          conversion_function_decls;
+          record_fun_decls;
+          c_function_decls;
+          "\n";
+          c_predicate_decls
+        ]
+      ]
+  in
+  let cn_defs_list =
+    [ (* record_equality_fun_strs; *)
+      (* record_equality_fun_strs'; *)
+      "/* RECORD */\n";
+      record_fun_defs;
+      "/* CONVERSION */\n";
+      conversion_function_defs;
+      ownership_function_defs;
+      "/* CN FUNCTIONS */\n";
+      c_function_defs;
+      "\n";
+      c_predicate_defs
+    ]
+  in
   let open Pp in
-  compile_includes ~filename_base
+
+  !^(String.concat " " cn_header_decls_list)
+
+  ^^ compile_includes ~filename_base
   ^^ twice hardline
   ^^ pp_label
        "Assume Ownership Functions"
@@ -203,6 +270,7 @@ let compile_test_file
                  ^^ string "return cn_test_main(argc, argv);")
               ^^ hardline))
   ^^ hardline
+  ^^ !^(String.concat " " cn_defs_list)
 
 
 let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)

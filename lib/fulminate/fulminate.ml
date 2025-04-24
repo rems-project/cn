@@ -2,6 +2,7 @@ module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
 module Extract = Extract
 module Internal = Internal
+module Records = Records
 module Ownership = Ownership
 module Utils = Utils
 
@@ -187,12 +188,15 @@ let main
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
+      (* TODO because we are using this in a preprocessed file there aren't any
+         defines and these are unconditional, right? *)
       [ [ "#ifndef NULL\n";
           "#include <stdlib.h>\n";
           "#endif\n";
           "#ifndef INT64_MAX\n";
           "#include <stdint.h>\n";
-          "#endif\n"
+          "#endif\n";
+          "#include <cn-executable/cerb_types.h>\n";
         ];
         [ c_struct_decls ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
@@ -203,7 +207,9 @@ let main
         List.map snd c_datatype_defs;
         [ "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
           ownership_function_decls;
+          "/* CONVERSION FUNCTIONS */\n";
           conversion_function_decls;
+          "/* RECORD FUNCTIONS */\n";
           record_fun_decls;
           c_function_decls;
           "\n";
@@ -220,6 +226,7 @@ let main
       record_fun_defs;
       "/* CONVERSION */\n";
       conversion_function_defs;
+      "/* OWNERSHIP FUNCTIONS */\n";
       ownership_function_defs;
       "/* CN FUNCTIONS */\n";
       c_function_defs;

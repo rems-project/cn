@@ -232,21 +232,34 @@ let coverage ~filename_base =
   ^^ string "echo"
   ^^ hardline
   ^^ attempt
-       "lcov --capture --directory . --output-file coverage.info --gcov-tool gcov"
+       (String.concat
+          " "
+          [ "lcov";
+            "-b";
+            ".";
+            "--capture";
+            "--substitute";
+            "\"s/.*" ^ filename_base ^ ".c" ^ "/" ^ filename_base ^ ".exec.c/\"";
+            "--directory";
+            ".";
+            "--output-file";
+            "coverage.info";
+            "--gcov-tool";
+            "gcov"
+          ])
        "Collected coverage via lcov."
        "Failed to collect coverage."
   ^^ twice hardline
   ^^ attempt
-       (let realpath s = "$(realpath \"" ^ s ^ "\")" in
-        String.concat
+       (String.concat
           " "
           [ "lcov";
             "--ignore-errors unused";
             "--directory .";
             "--remove coverage.info";
             "-o coverage_filtered.info";
-            realpath (filename_base ^ ".test.c");
-            realpath (filename_base ^ ".gen.h")
+            filename_base ^ ".test.c";
+            filename_base ^ ".gen.h"
           ])
        "Exclude test harnesses from coverage via lcov."
        "Failed to exclude test harnesses from coverage."
