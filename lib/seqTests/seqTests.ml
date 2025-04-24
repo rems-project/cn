@@ -591,7 +591,12 @@ let shrink
         | [], _ -> -1
         | _, [] -> 1
         | arg1 :: args1, arg2 :: args2 ->
-          let cmp = String.compare arg1 arg2 in
+          let cmp = 
+          if String.starts_with ~prefix:"x" arg1 && String.starts_with ~prefix:"x" arg2 then
+            String.compare arg1 arg2
+          else 
+            Int.compare (int_of_string arg1) (int_of_string arg2)
+          in
           if cmp <> 0 then cmp else compare_args args1 args2
       in
       match next with
