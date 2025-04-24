@@ -1,8 +1,10 @@
 {
 	"name": "CN Development",
-	"build": {
-		"dockerfile": "../Dockerfile.devcontainer"
-	},
+	"image": "ghcr.io/rems-project/cn:release-devcontainer",
+	// Uncomment to build the dev container locally.
+	//	"build": {
+	//		"dockerfile": "../Dockerfile.devcontainer"
+	//	},
 	"features": {},
 	"postCreateCommand": "",
 	"customizations": {
