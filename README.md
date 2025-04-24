@@ -70,6 +70,12 @@ and its dependencies.
    opam init --yes --compiler=5.2.0
    ````
 
+   Make sure you follow the instructions provided at the end of the output of `opam init` to complete the initialisation. Typically, on Unix, this is:
+
+   ```
+   eval $(opam env)
+   ```
+
 4. Clone the CN repo:
    ```
    git clone https://github.com/rems-project/cn.git
@@ -87,6 +93,10 @@ and its dependencies.
    ```
    which installs CN (as both a library and an executable), and
    dependencies.
+   
+   (If you update CN, you may also need to update its local version of
+   `cerberus-lib` to stay in sync, by re-running the `opam install`
+   step above.)
 
 ## Contributing
 

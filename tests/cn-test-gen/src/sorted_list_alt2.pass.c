@@ -1,15 +1,15 @@
 struct List {
-  int value;
+  unsigned int value;
   struct List *next;
 };
 
 /*@
 datatype IntList {
   Nil {},
-  Cons { i32 head, IntList tail }
+  Cons { u32 head, IntList tail }
 }
 
-function (boolean) validCons(i32 head, IntList tail) {
+function (boolean) validCons(u32 head, IntList tail) {
   match tail {
     Nil {} => { true }
     Cons { head: next, tail: _ } => { head <= next }
@@ -17,14 +17,14 @@ function (boolean) validCons(i32 head, IntList tail) {
 }
 
 datatype I32Option {
-  SomeI32 { i32 data },
+  SomeI32 { u32 data },
   NoneI32 {}
 }
 
-function (i32) getSome(datatype I32Option opt) {
+function (u32) getSome(datatype I32Option opt) {
   match (opt) {
     SomeI32 { data: data } => { data }
-    NoneI32 {} => { default<i32> }
+    NoneI32 {} => { default<u32> }
   }
 }
 
@@ -52,7 +52,7 @@ predicate IntList ListSegment(pointer from, pointer to) {
 }
 @*/
 
-int sum(struct List *xs)
+unsigned int sum(struct List *xs)
 /*@
   requires
     take l1 = ListSegment(xs,NULL);
@@ -62,7 +62,7 @@ int sum(struct List *xs)
     true;
 @*/
 {
-  int result = 0;
+  unsigned int result = 0;
   while (xs) {
     result += xs->value;
     xs = xs->next;
@@ -74,7 +74,7 @@ void *cn_malloc(unsigned long size);
 void cn_free_sized(void *p, unsigned long size);
 
 /*@
-function [rec] (IntList) insertList(boolean dups, i32 x, IntList xs) {
+function [rec] (IntList) insertList(boolean dups, u32 x, IntList xs) {
   match xs {
     Nil {} => { Cons { head: x, tail: Nil {} } }
     Cons { head: head, tail: tail } => {
@@ -92,7 +92,7 @@ function [rec] (IntList) insertList(boolean dups, i32 x, IntList xs) {
 }
 @*/
 
-void insert(int x, struct List **xs)
+void insert(unsigned int x, struct List **xs)
 /*@
   requires
     take list_ptr = Owned<struct List*>(xs);

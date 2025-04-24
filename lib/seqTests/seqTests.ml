@@ -3,10 +3,10 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 module Config = SeqTestGenConfig
 module SymSet = Set.Make (Sym)
-module FExtract = Fulminate.Executable_spec_extract
+module FExtract = Fulminate.Extract
 
 type call = SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
 
@@ -182,12 +182,15 @@ let create_test_file
   let open Pp in
   (if Config.with_static_hack () then
      string "#include "
-     ^^ dquotes (string (filename_base ^ "-exec.c"))
+     ^^ dquotes (string (filename_base ^ ".exec.c"))
      ^^ hardline
      ^^ string "#include "
      ^^ dquotes (string "cn.c")
    else
-     string "#include " ^^ dquotes (string "cn.h") ^^ twice hardline ^^ fun_decls)
+     string "#include "
+     ^^ dquotes (string (filename_base ^ ".cn.h"))
+     ^^ twice hardline
+     ^^ fun_decls)
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
@@ -197,7 +200,7 @@ let create_test_file
           2
           (hardline
            ^^
-           let init_ghost = Fulminate.Ownership_exec.get_ownership_global_init_stats () in
+           let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
            separate_map hardline stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
 
@@ -878,7 +881,7 @@ let rec gen_sequence
 
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : FExtract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
       (num_samples : int)
       (output_dir : string)
       (filename_base : string)
@@ -889,14 +892,14 @@ let compile_sequence
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
     insts
-    |> List.map (fun (inst : FExtract.instrumentation) ->
+    |> List.map (fun (inst : Fulminate.Extract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
   let args_map
     : (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
     =
     List.map
-      (fun (inst : FExtract.instrumentation) ->
+      (fun (inst : Fulminate.Extract.instrumentation) ->
          ( inst.fn,
            let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
            match List.assoc Sym.equal inst.fn declarations with
@@ -933,18 +936,18 @@ let generate
       ~(output_dir : string)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : FExtract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : int
   =
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
-  let test_file = filename_base ^ "_test.c" in
+  let test_file = filename_base ^ ".test.c" in
   let script_doc = BuildScript.generate ~output_dir ~filename_base in
   let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
   let src_code, _ = out_to_list ("cat " ^ filename) in
   save ~perm:0o777 output_dir "run_tests.sh" script_doc;
   save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
-  let fun_to_decl (inst : FExtract.instrumentation) =
+  let fun_to_decl (inst : Fulminate.Extract.instrumentation) =
     CF.Pp_ail.(
       with_executable_spec
         (fun () ->

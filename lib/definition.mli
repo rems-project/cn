@@ -54,7 +54,7 @@ module Predicate : sig
     { loc : Locations.t;
       pointer : Sym.t;
       iargs : (Sym.t * BaseTypes.t) list;
-      oarg_bt : BaseTypes.t;
+      oarg : Locations.t * BaseTypes.t;
       clauses : Clause.t list option
     }
 

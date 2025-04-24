@@ -550,7 +550,6 @@ ensures take Client_out = OptionClientNew(return, fd, CS_RECV_KEY_ID);
 {
   struct client *c = cn_malloc(sizeof(struct client));
   if (c == ((void *)0)) {
-    0;
     return ((void *)0);
   }
   /*@ from_bytes Block<struct client>(c); @*/
@@ -570,13 +569,11 @@ requires take Client_in = ClientObject(c);
 {
   int ret = 0;
   if (ret != 0) {
-    0;
     // Keep going.  Even if TCP shutdown fails, we still need to close the
     // file descriptor.
   }
   ret = 0;
   if (ret != 0) {
-    0;
     // Keep going.  On Linux, `close` always closes the file descriptor,
     // but may report I/O errors afterward.
   }
@@ -724,7 +721,6 @@ ensures
   /*@ apply UnViewShift_Owned_u8(buf, buf + pos, pos, buf_size - pos ); @*/
   /*@ apply UnSplitAt_Owned_u8(buf, buf_size, pos, buf_size - pos ); @*/
   if (ret < 0) {
-    0;
     return RES_ERROR;
   } else if (ret == 0) {
     return RES_EOF;
@@ -763,7 +759,6 @@ ensures
   /*@ apply UnViewShift_Owned_u8(buf, buf + pos, pos, buf_size - pos ); @*/
   /*@ apply UnSplitAt_Owned_u8(buf, buf_size, pos, buf_size - pos ); @*/
   if (ret < 0) {
-    0;
     return RES_ERROR;
   } else if (ret == 0) {
     return RES_EOF;

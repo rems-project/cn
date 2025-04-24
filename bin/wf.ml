@@ -1,8 +1,6 @@
 module CF = Cerb_frontend
 module CB = Cerb_backend
-open CB.Pipeline
 open Cn
-open Setup
 
 let well_formed
       filename

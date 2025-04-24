@@ -2,8 +2,8 @@
 
 (env
  (dev
-  (flags :standard -bin-annot))
+  (flags :standard -w +26+27+60 -open Monomorphic.Int -bin-annot))
  (release
-  (flags :standard -bin-annot)))
+  (flags :standard -w +26+27+60 -open Monomorphic.Int)))
 
 (dirs lib bin coq tools runtime)

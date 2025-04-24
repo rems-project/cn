@@ -21,6 +21,16 @@ int16_t cn_gen_uniform_i16(uint16_t);
 int32_t cn_gen_uniform_i32(uint32_t);
 int64_t cn_gen_uniform_i64(uint64_t);
 
+uint8_t cn_gen_uniform_u8_sized(uint8_t);
+uint16_t cn_gen_uniform_u16_sized(uint16_t);
+uint32_t cn_gen_uniform_u32_sized(uint32_t);
+uint64_t cn_gen_uniform_u64_sized(uint64_t);
+
+int8_t cn_gen_uniform_i8_sized(uint8_t);
+int16_t cn_gen_uniform_i16_sized(uint16_t);
+int32_t cn_gen_uniform_i32_sized(uint32_t);
+int64_t cn_gen_uniform_i64_sized(uint64_t);
+
 uint8_t cn_gen_range_u8(uint8_t, uint8_t);
 uint16_t cn_gen_range_u16(uint16_t, uint16_t);
 uint32_t cn_gen_range_u32(uint32_t, uint32_t);

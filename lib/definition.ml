@@ -132,7 +132,7 @@ module Predicate = struct
     { loc : Locations.t;
       pointer : Sym.t;
       iargs : (Sym.t * BaseTypes.t) list;
-      oarg_bt : BaseTypes.t;
+      oarg : Locations.t * BaseTypes.t;
       clauses : Clause.t list option
     }
 
@@ -140,7 +140,7 @@ module Predicate = struct
     let open Pp in
     item "pointer" (Sym.pp def.pointer)
     ^/^ item "iargs" (Pp.list (fun (s, _) -> Sym.pp s) def.iargs)
-    ^/^ item "oarg_bt" (BaseTypes.pp def.oarg_bt)
+    ^/^ item "oarg_bt" (BaseTypes.pp (snd def.oarg))
     ^/^ item
           "clauses"
           (match def.clauses with
@@ -200,7 +200,7 @@ let alloc =
     { loc = Locations.other __LOC__;
       pointer = Sym.fresh "ptr";
       iargs = [];
-      oarg_bt = Alloc.History.value_bt;
+      oarg = (Locations.other __LOC__, Alloc.History.value_bt);
       clauses = None
     }
 

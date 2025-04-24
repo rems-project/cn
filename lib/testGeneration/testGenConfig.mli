@@ -51,7 +51,8 @@ type t =
     disable_passes : string list;
     trap : bool;
     no_replays : bool;
-    no_replicas : bool
+    no_replicas : bool;
+    output_tyche : string option
   }
 
 val default : t
@@ -135,3 +136,5 @@ val is_trap : unit -> bool
 val has_no_replays : unit -> bool
 
 val has_no_replicas : unit -> bool
+
+val get_output_tyche : unit -> string option

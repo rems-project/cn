@@ -330,7 +330,7 @@ let rec check_pred
   : (LC.t list, Pp.document) Result.t
   =
   (* ensure candidate type matches output type of predicate *)
-  assert (BT.equal (IT.get_bt candidate) def.oarg_bt);
+  assert (BT.equal (IT.get_bt candidate) (snd def.oarg));
   let open Pp in
   match def.clauses with
   | None -> Result.unknown (!^"Predicate" ^^^ Sym.pp name ^^^ !^"is uninterpreted. ")

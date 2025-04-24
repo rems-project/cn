@@ -4,8 +4,8 @@ module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
-module ESpecInternal = Fulminate.Executable_spec_internal
-module FExtract = Fulminate.Executable_spec_extract
+module ESpecInternal = Fulminate.Internal
+module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 module Options = Config.Options
 
@@ -72,7 +72,7 @@ let compile_assumes
 let compile_shape_analyzers
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : Pp.document
   =
   let declarations, function_definitions =
@@ -95,7 +95,7 @@ let compile_shape_analyzers
 let compile_replicators
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Executable_spec_extract.instrumentation list)
+      (insts : Fulminate.Extract.instrumentation list)
   : Pp.document
   =
   let declarations, function_definitions =
@@ -146,17 +146,17 @@ let compile_includes ~filename_base =
   ^^ angles (string "cn-replicate/shape.h")
   ^^ hardline
   ^^ string "#include "
-  ^^ dquotes (string (filename_base ^ "_gen.h"))
+  ^^ dquotes (string (filename_base ^ ".gen.h"))
   ^^ hardline
   ^^
   if Config.with_static_hack () then
     string "#include "
-    ^^ dquotes (string (filename_base ^ "-exec.c"))
+    ^^ dquotes (string (filename_base ^ ".exec.c"))
     ^^ hardline
     ^^ string "#include "
-    ^^ dquotes (string "cn.c")
+    ^^ dquotes (string (filename_base ^ ".cn.c"))
   else
-    string "#include " ^^ dquotes (string "cn.h")
+    string "#include " ^^ dquotes (string (filename_base ^ ".cn.h"))
 
 
 let compile_test test =
@@ -232,11 +232,12 @@ let save_generators
   =
   let generators_doc =
     SpecTests.compile_generators
+      (filename_base ^ ".c")
       sigma
       prog5
       (List.filter (fun inst -> not (is_constant_function sigma inst)) insts)
   in
-  let generators_fn = filename_base ^ "_gen.h" in
+  let generators_fn = filename_base ^ ".gen.h" in
   save output_dir generators_fn generators_doc
 
 
@@ -252,7 +253,7 @@ let save_tests
   let tests_doc =
     compile_test_file ~without_ownership_checking filename_base sigma prog5 insts
   in
-  save output_dir (filename_base ^ "_test.c") tests_doc
+  save output_dir (filename_base ^ ".test.c") tests_doc
 
 
 let save_build_script ~output_dir ~filename_base =

@@ -1,13 +1,12 @@
-struct List
-{
-    int value;
-    struct List* next;
+struct List {
+  unsigned int value;
+  struct List *next;
 };
 
 /*@
 datatype IntList {
   Nil {},
-  Cons { i32 head, IntList tail }
+  Cons { u32 head, IntList tail }
 }
 
 predicate IntList ListSegment(pointer from, pointer to) {
@@ -21,7 +20,7 @@ predicate IntList ListSegment(pointer from, pointer to) {
 }
 @*/
 
-int sum(struct List* xs)
+unsigned int sum(struct List *xs)
 /*@
   requires
     take l1 = ListSegment(xs,NULL);
@@ -30,10 +29,10 @@ int sum(struct List* xs)
     l1 == l2;
 @*/
 {
-    int result = 0;
-    while (xs) {
-        result += xs->value;
-        xs = xs->next;
-    }
-    return result;
+  unsigned int result = 0;
+  while (xs) {
+    result += xs->value;
+    xs = xs->next;
+  }
+  return result;
 }

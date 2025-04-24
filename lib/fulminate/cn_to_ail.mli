@@ -1,12 +1,15 @@
-module CF = Cerb_frontend
-module A = CF.AilSyntax
-module C = CF.Ctype
-module BT = BaseTypes
+open Cerb_frontend
 
-val ownership_ctypes : C.ctype list ref
+val ownership_ctypes : Ctype.ctype list ref
+
+type spec_mode =
+  | Pre
+  | Post
+  | Loop
+  | Statement
 
 module MembersKey : sig
-  type t = (Id.t * BT.t) list
+  type t = (Id.t * BaseTypes.t) list
 
   val compare : t -> t -> int
 end
@@ -15,34 +18,30 @@ module RecordMap : module type of Map.Make (MembersKey)
 
 val records : Sym.t RecordMap.t ref
 
-val augment_record_map : ?cn_sym:Sym.t -> BT.t -> unit
+val augment_record_map : ?cn_sym:Sym.t -> BaseTypes.t -> unit
 
-val bt_to_cn_base_type : BT.t -> Sym.t CF.Cn.cn_base_type
+val lookup_records_map_opt : BaseTypes.t -> Sym.t option
 
-val bt_to_ail_ctype : ?pred_sym:Sym.t option -> BT.t -> C.ctype
-
-val get_conversion_to_fn_str : BT.t -> string option
-
-val get_conversion_from_fn_str : BT.t -> string option
+val bt_to_ail_ctype : ?pred_sym:Sym.t option -> BaseTypes.t -> Ctype.ctype
 
 val wrap_with_convert_from
   :  ?sct:Sctypes.t ->
-  CF.GenTypes.genTypeCategory A.expression_ ->
-  BT.t ->
-  CF.GenTypes.genTypeCategory A.expression_
+  GenTypes.genTypeCategory AilSyntax.expression_ ->
+  BaseTypes.t ->
+  GenTypes.genTypeCategory AilSyntax.expression_
 
 val wrap_with_convert_to
   :  ?sct:Sctypes.t ->
-  CF.GenTypes.genTypeCategory A.expression_ ->
-  BT.t ->
-  CF.GenTypes.genTypeCategory A.expression_
+  GenTypes.genTypeCategory AilSyntax.expression_ ->
+  BaseTypes.t ->
+  GenTypes.genTypeCategory AilSyntax.expression_
 
 val wrap_with_convert_from_cn_bool
-  :  CF.GenTypes.genTypeCategory A.expression ->
-  CF.GenTypes.genTypeCategory A.expression
+  :  GenTypes.genTypeCategory AilSyntax.expression ->
+  GenTypes.genTypeCategory AilSyntax.expression
 
 type ail_bindings_and_statements =
-  A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+  AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
 
 type ail_executable_spec =
   { pre : ail_bindings_and_statements;
@@ -56,131 +55,164 @@ type ail_executable_spec =
 
 val generate_get_or_put_ownership_function
   :  without_ownership_checking:bool ->
-  C.ctype ->
-  A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
+  Ctype.ctype ->
+  AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
 val generate_assume_ownership_function
   :  without_ownership_checking:bool ->
-  C.ctype ->
-  A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
+  Ctype.ctype ->
+  AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
 val generate_datatype_equality_function
-  :  A.sigma_cn_datatype ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  :  AilSyntax.sigma_cn_datatype ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_datatype_map_get
   :  Cerb_frontend.Symbol.sym Cerb_frontend.Cn.cn_datatype ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_datatype_default_function
   :  Cerb_frontend.Symbol.sym Cerb_frontend.Cn.cn_datatype ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_struct_conversion_to_function
-  :  A.sigma_tag_definition ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  :  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_struct_conversion_from_function
-  :  A.sigma_tag_definition ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  :  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_struct_equality_function
   :  ?is_record:bool ->
-  A.sigma_tag_definition ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_struct_map_get
-  :  A.sigma_tag_definition ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  :  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_struct_default_function
   :  ?is_record:bool ->
-  A.sigma_tag_definition ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  AilSyntax.sigma_tag_definition ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
-val generate_record_opt : Sym.t -> BT.t -> A.sigma_tag_definition option
+val generate_record_tag : Sym.t -> BaseTypes.t -> Sym.t option
+
+val generate_record_opt : Sym.t -> BaseTypes.t -> AilSyntax.sigma_tag_definition option
 
 val generate_record_equality_function
-  :  Sym.t * BT.member_types ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  :  Sym.t * BaseTypes.member_types ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_record_default_function
   :  'a ->
-  Sym.t * BT.member_types ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  Sym.t * BaseTypes.member_types ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val generate_record_map_get
   :  Sym.t * 'a ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val cn_to_ail_expr_toplevel
-  :  A.sigma_cn_datatype list ->
-  (C.union_tag * C.ctype) list ->
+  :  AilSyntax.sigma_cn_datatype list ->
+  (Ctype.union_tag * Ctype.ctype) list ->
   Sym.t option ->
+  spec_mode option ->
   IndexTerms.t ->
-  A.bindings
-  * CF.GenTypes.genTypeCategory A.statement_ list
-  * CF.GenTypes.genTypeCategory A.expression
+  AilSyntax.bindings
+  * GenTypes.genTypeCategory AilSyntax.statement_ list
+  * GenTypes.genTypeCategory AilSyntax.expression
 
 val cn_to_ail_logical_constraint
-  :  A.sigma_cn_datatype list ->
-  (C.union_tag * C.ctype) list ->
+  :  AilSyntax.sigma_cn_datatype list ->
+  (Ctype.union_tag * Ctype.ctype) list ->
+  spec_mode option ->
   LogicalConstraints.t ->
-  A.bindings
-  * CF.GenTypes.genTypeCategory A.statement_ list
-  * CF.GenTypes.genTypeCategory A.expression
+  AilSyntax.bindings
+  * GenTypes.genTypeCategory AilSyntax.statement_ list
+  * GenTypes.genTypeCategory AilSyntax.expression
 
-val cn_to_ail_struct : A.sigma_tag_definition -> A.sigma_tag_definition list
+val cn_to_ail_struct
+  :  AilSyntax.sigma_tag_definition ->
+  AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_datatype
   :  ?first:bool ->
-  A.sigma_cn_datatype ->
-  Locations.t * A.sigma_tag_definition list
+  AilSyntax.sigma_cn_datatype ->
+  Locations.t * AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_records
-  :  (MembersKey.t * A.ail_identifier) list ->
-  A.sigma_tag_definition list
+  :  (MembersKey.t * AilSyntax.ail_identifier) list ->
+  AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_function
   :  Sym.t * Definition.Function.t ->
-  A.sigma_cn_datatype list ->
-  A.sigma_cn_function list ->
-  ((Locations.t * A.sigma_declaration)
-  * CF.GenTypes.genTypeCategory A.sigma_function_definition option)
-  * A.sigma_tag_definition option
+  AilSyntax.sigma_cn_datatype list ->
+  AilSyntax.sigma_cn_function list ->
+  ((Locations.t * AilSyntax.sigma_declaration)
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition option)
+  * AilSyntax.sigma_tag_definition option
 
 val cn_to_ail_predicates
   :  (Sym.t * Definition.Predicate.t) list ->
-  A.sigma_cn_datatype list ->
-  (Sym.t * C.ctype) list ->
-  A.sigma_cn_predicate list ->
-  ((Locations.t * A.sigma_declaration)
-  * CF.GenTypes.genTypeCategory A.sigma_function_definition)
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Ctype.ctype) list ->
+  AilSyntax.sigma_cn_predicate list ->
+  ((Locations.t * AilSyntax.sigma_declaration)
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
-  * A.sigma_tag_definition option list
+  * AilSyntax.sigma_tag_definition option list
 
 val cn_to_ail_pre_post
   :  without_ownership_checking:bool ->
   with_loop_leak_checks:bool ->
-  A.sigma_cn_datatype list ->
+  AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
-  (Sym.t * C.ctype) list ->
-  C.ctype ->
-  Executable_spec_extract.fn_args_and_body option ->
+  (Sym.t * Ctype.ctype) list ->
+  Ctype.ctype ->
+  Extract.fn_args_and_body option ->
   ail_executable_spec
 
 val cn_to_ail_assume_predicates
   :  (Sym.t * Definition.Predicate.t) list ->
-  A.sigma_cn_datatype list ->
-  (Sym.t * C.ctype) list ->
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Ctype.ctype) list ->
   (Sym.t * Definition.Predicate.t) list ->
-  (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
 
 val cn_to_ail_assume_pre
-  :  A.sigma_cn_datatype list ->
-  C.union_tag ->
-  (C.union_tag * (BT.t * C.ctype)) list ->
-  (C.union_tag * C.ctype) list ->
-  (C.union_tag * Definition.Predicate.t) list ->
+  :  AilSyntax.sigma_cn_datatype list ->
+  Ctype.union_tag ->
+  (Ctype.union_tag * (BaseTypes.t * Ctype.ctype)) list ->
+  (Ctype.union_tag * Ctype.ctype) list ->
+  (Ctype.union_tag * Definition.Predicate.t) list ->
   'a LogicalArgumentTypes.t ->
-  A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
+  AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition

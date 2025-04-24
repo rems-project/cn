@@ -65,11 +65,11 @@ DIRNAME=$(dirname "$0")
 
 # If single file specified, use that, otherwise find all .c files
 if [ -n "${SINGLE_FILE}" ]; then
-    if [ ! -f "${DIRNAME}/cn/${SINGLE_FILE}" ]; then
-        echo "Error: Test file ${DIRNAME}/cn/${SINGLE_FILE} not found"
+    if [ ! -f "${SINGLE_FILE}" ]; then
+        echo "Error: Test file ${SINGLE_FILE} not found"
         exit 1
     fi
-    SUCC="${DIRNAME}/cn/${SINGLE_FILE}"
+    SUCC="${SINGLE_FILE}"
 else
     SUCC=$(find "${DIRNAME}"/cn -name '*.c' | grep -v '\.error\.c')
 fi
@@ -114,7 +114,7 @@ for TEST in ${SUCC}; do
     VERIFY_START=$(date +%s)
     if timeout 60 "${VERIFY_CMD[@]}" > "${TMPDIR}/cn.log" 2>&1; then
         VERIFY_ELAPSED=$(($(date +%s) - ${VERIFY_START}))
-        printf "  CN verify:    \033[32mSUCCESS\033[0m\n"
+        printf "  CN verify:    SUCCESS\n"
         
         if [ ${VERBOSE_USAGE} -eq 1 ]; then
             printf "      Verification time: %s sec.\n" "${VERIFY_ELAPSED}"
@@ -139,11 +139,11 @@ for TEST in ${SUCC}; do
             if [ ${VERBOSE_USAGE} -eq 1 ]; then
                 printf "      Coq compilation time: %s sec.\n" "${COMPILE_ELAPSED}"
             fi
-            printf "  Coq compile:  \033[32mSUCCESS\033[0m\n"
+            printf "  Coq compile:  SUCCESS\n"
             rm -rf "${TMPDIR}"
             PASSED_COUNT=$((PASSED_COUNT + 1))
         else
-            printf "  Coq compile:  \033[31mFAIL\033[0m\n"
+            printf "  Coq compile:  FAIL\n"
             printf "\nOutput from failed Coq compilation:\n"
             cat "${TMPDIR}/coq.log"
             printf "\n"
@@ -156,7 +156,7 @@ for TEST in ${SUCC}; do
             FAILED_COUNT=$((FAILED_COUNT + 1))
         fi
     else
-        printf "  CN verify:    \033[31mFAIL\033[0m\n"
+        printf "  CN verify:    FAIL\n"
         printf "\nOutput from failed test:\n"
         cat "${TMPDIR}/cn.log"
         printf "\n"

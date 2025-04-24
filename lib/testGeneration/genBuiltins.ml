@@ -2,7 +2,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module GT = GenTerms
 module CtA = Fulminate.Cn_to_ail
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 
 let gen_syms_bits (name : string) : (BT.t * Sym.t) list =
   let aux (bt : BT.t) : BT.t * Sym.t =
@@ -42,7 +42,7 @@ let lt_check (it_max : IT.t) gt loc =
   GT.assert_ (T (IT.gt_ (it_max, IT.num_lit_ min (IT.get_bt it_max) loc) loc), gt) loc
 
 
-let range_check (it_min : IT.t) (it_max : IT.t) gt loc =
+let[@warning "-27"] range_check (it_min : IT.t) (it_max : IT.t) gt loc =
   let it_min, cmp, it_max =
     match (it_min, it_max) with
     | IT (Binop (Sub, it_min', IT (Const (Bits (_, n)), _, _)), _, _), _

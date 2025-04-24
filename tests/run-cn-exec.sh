@@ -53,7 +53,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "mod.c" \
     ! -name "mod_precedence.c" \
     ! -name "left_shift_const.c" \
-    ! -name "bitwise_compl_precedence.c" \
     ! -name "fun_ptr_three_opts.c" \
     ! -name "inconsistent2.c" \
     ! -name "list_rev01.c" \
@@ -69,7 +68,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "tag_defs.c" \
     ! -name "cn_inline.c" \
     ! -path "mutual_rec/mutual_rec.c" \
-    ! -name "bitwise_and.c" \
     ! -name "test_pointer_eq.c" \
     ! -name "get_from_array.c" \
     ! -name "ownership_at_negative_index.c" \
@@ -80,7 +78,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "pred_def04.c" \
     ! -name "gnu_types_compatible.c" \
     ! -name "implies_precedence.c" \
-    ! -name "bitwise_compl.c" \
     ! -name "fun_ptr_extern.c" \
     ! -name "b_xor.c" \
     ! -name "copy_alloc_id.c" \
@@ -120,7 +117,6 @@ BUGGY="cn/division_casting.c \
        cn/multifile/g.c \
        cn/multifile/f.c \
        cn/left_shift_const.c \
-       cn/bitwise_compl_precedence.c \
        cn/fun_ptr_three_opts.c \
        cn/inconsistent2.c \
        cn/list_rev01.c \
@@ -136,7 +132,6 @@ BUGGY="cn/division_casting.c \
        cn/tag_defs.c \
        cn/cn_inline.c \
        cn/mutual_rec/mutual_rec.c \
-       cn/bitwise_and.c \
        cn/test_pointer_eq.c \
        cn/get_from_array.c \
        cn/ownership_at_negative_index.c \
@@ -147,7 +142,6 @@ BUGGY="cn/division_casting.c \
        cn/pred_def04.c \
        cn/gnu_types_compatible.c \
        cn/implies_precedence.c \
-       cn/bitwise_compl.c \
        cn/fun_ptr_extern.c \
        cn/b_xor.c \
        cn/copy_alloc_id.c \

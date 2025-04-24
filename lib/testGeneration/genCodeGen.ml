@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module CtA = Fulminate.Cn_to_ail
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
@@ -12,17 +12,12 @@ let mk_expr = Utils.mk_expr
 
 let mk_stmt = Utils.mk_stmt
 
-let bt_to_ctype (pred_sym : Sym.t) (bt : BT.t) : C.ctype =
-  let pred_sym = Some pred_sym in
-  CtA.bt_to_ail_ctype ~pred_sym bt
+let bt_to_ctype (bt : BT.t) : C.ctype = CtA.bt_to_ail_ctype bt
 
-
-let name_of_bt (pred_sym : Sym.t) (bt : BT.t) : string =
-  let ct = bt_to_ctype pred_sym bt in
+let name_of_bt (bt : BT.t) : string =
+  let ct = bt_to_ctype bt in
   let ct' =
-    match bt_to_ctype pred_sym bt with
-    | Ctype (_, Pointer (_, ct')) -> ct'
-    | _ -> failwith ""
+    match bt_to_ctype bt with Ctype (_, Pointer (_, ct')) -> ct' | _ -> failwith ""
   in
   let default =
     CF.Pp_utils.to_plain_string
@@ -31,23 +26,23 @@ let name_of_bt (pred_sym : Sym.t) (bt : BT.t) : string =
   Utils.get_typedef_string ct |> Option.value ~default
 
 
-let _str_name_of_bt (pred_sym : Sym.t) (bt : BT.t) : string =
-  name_of_bt pred_sym bt |> String.split_on_char ' ' |> String.concat "_"
+let _str_name_of_bt (bt : BT.t) : string =
+  name_of_bt bt |> String.split_on_char ' ' |> String.concat "_"
 
 
 let compile_it (sigma : CF.GenTypes.genTypeCategory A.sigma) (name : Sym.t) (it : IT.t) =
-  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) it
+  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) None it
 
 
 let compile_lc (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
-  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] lc
+  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] None lc
 
 
-let rec compile_term
-          (sigma : CF.GenTypes.genTypeCategory A.sigma)
-          (ctx : GR.context)
-          (name : Sym.t)
-          (tm : GR.term)
+let[@warning "-27"] rec compile_term
+                          (sigma : CF.GenTypes.genTypeCategory A.sigma)
+                          (ctx : GR.context)
+                          (name : Sym.t)
+                          (tm : GR.term)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
@@ -61,7 +56,7 @@ let rec compile_term
         mk_expr
           (AilEcall
              ( mk_expr (AilEident (Sym.fresh "CN_GEN_UNIFORM")),
-               List.map mk_expr [ AilEident (Sym.fresh (name_of_bt name bt)) ] ))) )
+               List.map mk_expr [ AilEident (Sym.fresh (name_of_bt bt)) ] ))) )
   | Pick { bt; choice_var; choices; last_var } ->
     let var = Sym.fresh_anon () in
     let bs, ss =
@@ -99,7 +94,7 @@ let rec compile_term
                   ( mk_expr (AilEident (Sym.fresh "CN_GEN_PICK_BEGIN")),
                     List.map
                       mk_expr
-                      [ AilEident (Sym.fresh (name_of_bt name bt));
+                      [ AilEident (Sym.fresh (name_of_bt bt));
                         AilEident var;
                         AilEident choice_var;
                         AilEident last_var
@@ -161,7 +156,7 @@ let rec compile_term
     in
     let es = List.map mk_expr (es @ sized_call) in
     let x = Sym.fresh_anon () in
-    let b = Utils.create_binding x (bt_to_ctype fsym oarg_bt) in
+    let b = Utils.create_binding x (bt_to_ctype oarg_bt) in
     let wrap_to_string (sym : Sym.t) =
       A.(
         AilEcast
@@ -272,26 +267,7 @@ let rec compile_term
                   ( mk_expr (AilEident (Sym.fresh "CN_GEN_LET_BODY")),
                     List.map
                       mk_expr
-                      [ AilEident
-                          (Sym.fresh
-                             (name_of_bt
-                                (Option.value
-                                   ~default:name
-                                   (match value with
-                                    | Call
-                                        { fsym;
-                                          iargs;
-                                          oarg_bt = _;
-                                          path_vars = _;
-                                          sized = _
-                                        } ->
-                                      Some
-                                        (GenUtils.get_mangled_name
-                                           (fsym :: List.map fst iargs))
-                                    | _ -> None))
-                                x_bt));
-                        AilEident x
-                      ]
+                      [ AilEident (Sym.fresh (name_of_bt x_bt)); AilEident x ]
                     @ [ e2 ] )))
         ]
         @ [ AilSexpr
@@ -322,7 +298,7 @@ let rec compile_term
           ])
     in
     let b4, s4, e4 = compile_term sigma ctx name rest in
-    (b2 @ [ Utils.create_binding x (bt_to_ctype name x_bt) ] @ b4, s1 @ s2 @ s3 @ s4, e4)
+    (b2 @ [ Utils.create_binding x (bt_to_ctype x_bt) ] @ b4, s1 @ s2 @ s3 @ s4, e4)
   | Return { value } ->
     let b, s, e = compile_it sigma name value in
     (b, s, e)
@@ -359,7 +335,7 @@ let rec compile_term
     let b_else, s_else, e_else = compile_term sigma ctx name f in
     let res_sym = Sym.fresh_anon () in
     let res_expr = mk_expr (AilEident res_sym) in
-    let res_binding = Utils.create_binding res_sym (bt_to_ctype name bt) in
+    let res_binding = Utils.create_binding res_sym (bt_to_ctype bt) in
     let res_stmt_ e = A.(AilSexpr (mk_expr (AilEassign (res_expr, e)))) in
     ( b_if @ [ res_binding ],
       (s_if
@@ -376,9 +352,9 @@ let rec compile_term
       res_expr )
   | Map { i; bt; min; max; perm; inner; last_var } ->
     let sym_map = Sym.fresh_anon () in
-    let b_map = Utils.create_binding sym_map (bt_to_ctype name bt) in
+    let b_map = Utils.create_binding sym_map (bt_to_ctype bt) in
     let i_bt, _ = BT.map_bt bt in
-    let b_i = Utils.create_binding i (bt_to_ctype name i_bt) in
+    let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
     let b_min, s_min, e_min = compile_it sigma name min in
     let b_max, s_max, e_max = compile_it sigma name max in
     assert (b_max == []);
@@ -386,7 +362,7 @@ let rec compile_term
     let e_args =
       [ mk_expr (AilEident sym_map);
         mk_expr (AilEident i);
-        mk_expr (AilEident (Sym.fresh (name_of_bt name i_bt)))
+        mk_expr (AilEident (Sym.fresh (name_of_bt i_bt)))
       ]
     in
     let e_perm =
@@ -477,19 +453,19 @@ let compile_gen_def
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (ctx : GR.context)
       ((name, gr) : Sym.t * GR.definition)
-  : A.sigma_tag_definition * (A.sigma_declaration * 'a A.sigma_function_definition)
+  : A.sigma_declaration * 'a A.sigma_function_definition
   =
   let loc = Locations.other __LOC__ in
   let bt_ret =
     BT.Record (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) gr.oargs)
   in
-  let struct_def = CtA.generate_record_opt name bt_ret |> Option.get in
-  let ct_ret = C.(mk_ctype_pointer no_qualifiers (Ctype ([], Struct (fst struct_def)))) in
+  let struct_tag = CtA.lookup_records_map_opt bt_ret |> Option.get in
+  let ct_ret = C.(mk_ctype_pointer no_qualifiers (Ctype ([], Struct struct_tag))) in
   let decl : A.declaration =
     A.Decl_function
       ( false,
         (C.no_qualifiers, ct_ret),
-        (List.map (fun (_, bt) -> (C.no_qualifiers, bt_to_ctype name bt, false)) gr.iargs
+        (List.map (fun (_, bt) -> (C.no_qualifiers, bt_to_ctype bt, false)) gr.iargs
          @
          if gr.sized then
            [ (C.no_qualifiers, C.mk_ctype_integer Size_t, false) ]
@@ -544,14 +520,15 @@ let compile_gen_def
                                   C.(
                                     mk_ctype_pointer
                                       no_qualifiers
-                                      (Ctype ([], Struct (fst struct_def)))),
+                                      (Ctype ([], Struct struct_tag))),
                                   e2 )))
                       ]) )) ) )
   in
-  (struct_def, (sigma_decl, sigma_def))
+  (sigma_decl, sigma_def)
 
 
-let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : Pp.document
+let compile filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context)
+  : Pp.document
   =
   let defs =
     ctx
@@ -562,15 +539,30 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
         defs)
     |> List.flatten
   in
-  defs
-  |> List.iter (fun ((name, def) : Sym.t * GR.definition) ->
-    let loc = Locations.other __LOC__ in
-    let bt =
-      BT.Record (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) def.oargs)
-    in
-    CtA.augment_record_map ~cn_sym:name bt);
-  let tag_definitions, funcs = List.split (List.map (compile_gen_def sigma ctx) defs) in
-  let declarations, function_definitions = List.split funcs in
+  let typedef_docs, tag_definitions =
+    defs
+    |> List.map (fun ((name, def) : Sym.t * GR.definition) ->
+      let loc = Locations.other __LOC__ in
+      let bt =
+        BT.Record
+          (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) def.oargs)
+      in
+      let new_tag = Option.get (CtA.generate_record_tag name bt) in
+      let typedef_doc tag =
+        let open Pp in
+        string "typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
+      in
+      match CtA.lookup_records_map_opt bt with
+      | None ->
+        CtA.augment_record_map ~cn_sym:name bt;
+        (typedef_doc new_tag, Some (CtA.generate_record_opt name bt |> Option.get))
+      | Some existing_sym -> (typedef_doc existing_sym, None))
+    |> List.split
+  in
+  let tag_definitions = List.filter_map (fun x -> x) tag_definitions in
+  let declarations, function_definitions =
+    List.split (List.map (compile_gen_def sigma ctx) defs)
+  in
   let sigma : 'a A.sigma =
     { A.empty_sigma with tag_definitions; declarations; function_definitions }
   in
@@ -581,13 +573,17 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   ^^ twice hardline
   ^^ string "#include <cn-testing/prelude.h>"
   ^^ twice hardline
-  ^^ string "#include \"cn.h\""
+  ^^ string
+       ("#include \""
+        ^ (Filename.remove_extension (Fulminate.get_cn_helper_filename filename) ^ ".h")
+        ^ "\"")
   ^^ twice hardline
   ^^ CF.Pp_ail.(
        with_executable_spec
          (separate_map (twice hardline) pp_tag_definition)
          tag_definitions)
   ^^ twice hardline
+  ^^ separate hardline typedef_docs
   ^^ CF.Pp_ail.(
        with_executable_spec
          (separate_map (twice hardline) (fun (tag, (_, _, decl)) ->

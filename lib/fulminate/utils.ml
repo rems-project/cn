@@ -3,7 +3,9 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module Cn = CF.Cn
 
-let const_qualifiers : C.qualifiers = { const = true; restrict = false; volatile = false }
+let[@warning "-32" (* unused-value-declaration *)] const_qualifiers : C.qualifiers =
+  { const = true; restrict = false; volatile = false }
+
 
 let empty_attributes = CF.Annot.Attrs []
 
@@ -24,28 +26,43 @@ let mk_expr ?(loc = Cerb_location.unknown) expr_ =
     (CF.GenTypes.GenLValueType (C.no_qualifiers, mk_ctype C.Void, false), [], loc, expr_)
 
 
-let get_expr_strs = function
+let[@warning "-32" (* unused-value-declaration *)] get_expr_strs = function
   | A.AnnotatedExpression (CF.GenTypes.GenLValueType (_, _, _), strs, _, _) -> strs
   | _ -> []
 
 
-let mk_cn_expr cn_expr_ = Cn.CNExpr (Cerb_location.unknown, cn_expr_)
+let[@warning "-32" (* unused-value-declaration *)] mk_cn_expr cn_expr_ =
+  Cn.CNExpr (Cerb_location.unknown, cn_expr_)
 
-let rm_cn_expr (Cn.CNExpr (_, cn_expr_)) = cn_expr_
 
-let mk_stmt stmt_ = A.AnnotatedStatement (Cerb_location.unknown, CF.Annot.Attrs [], stmt_)
+let[@warning "-32" (* unused-value-declaration *)] rm_cn_expr (Cn.CNExpr (_, cn_expr_)) =
+  cn_expr_
+
+
+let mk_stmt stmt_ =
+  A.
+    { loc = Cerb_location.unknown;
+      is_forloop = false;
+      attrs = CF.Annot.Attrs [];
+      node = stmt_
+    }
+
 
 let rm_expr (A.AnnotatedExpression (_, _, _, expr_)) = expr_
 
-let rm_stmt (A.AnnotatedStatement (_, _, stmt_)) = stmt_
+let[@warning "-32" (* unused-value-declaration *)] rm_stmt = function
+  | A.{ loc = _; is_forloop = _; attrs = _; node = stmt_ } -> stmt_
+
 
 let empty_ail_str = "empty_ail"
 
 let empty_ail_expr = A.(AilEident (Sym.fresh empty_ail_str))
 
-let empty_ail_stmt = A.(AilSexpr (mk_expr empty_ail_expr))
+let[@warning "-32" (* unused-value-declaration *)] empty_ail_stmt =
+  A.(AilSexpr (mk_expr empty_ail_expr))
 
-let is_empty_ail_stmt = function
+
+let[@warning "-32" (* unused-value-declaration *)] is_empty_ail_stmt = function
   | A.(AilSexpr (AnnotatedExpression (_, _, _, AilEident sym))) ->
     String.equal empty_ail_str (Sym.pp_string sym)
   | _ -> false
@@ -70,12 +87,14 @@ let rec list_split_three = function
     (x :: xs, y :: ys, z :: zs)
 
 
-type cn_dependencies = CF.Symbol.sym list
+type[@warning "-34" (* unused-type-declaration *)] cn_dependencies = CF.Symbol.sym list
 
-type cn_dependency_graph =
+type[@warning "-34-69" (* unused-type-declaration, unused-record-field *)] cn_dependency_graph =
   { cn_functions_with_dependencies : (CF.Symbol.sym, C.ctype) Cn.cn_function list }
 
-let compute_cn_dependencies ail_prog = ail_prog
+let[@warning "-32" (* unused-value-declaration *)] compute_cn_dependencies ail_prog =
+  ail_prog
+
 
 let ifndef_wrap ifndef_str str =
   "#ifndef " ^ ifndef_str ^ "\n#define " ^ ifndef_str ^ "\n" ^ str ^ "\n#endif"
@@ -96,7 +115,9 @@ let get_ctype_without_ptr ctype =
   match rm_ctype ctype with C.(Pointer (_, ct)) -> ct | _ -> ctype
 
 
-let is_pointer ctype = match rm_ctype ctype with C.(Pointer _) -> true | _ -> false
+let[@warning "-32" (* unused-value-declaration *)] is_pointer ctype =
+  match rm_ctype ctype with C.(Pointer _) -> true | _ -> false
+
 
 let rec _transform_ctype_for_ptr (C.(Ctype (annots, ctype)) as original_ctype) =
   let mk_pointer_from_ctype ctype' =
@@ -145,7 +166,10 @@ let rec execCtypeEqual (C.Ctype (_, ty1)) (C.Ctype (_, ty2)) =
   | _ -> false
 
 
-let str_of_it_ = function Terms.Sym sym -> Sym.pp_string sym | _ -> ""
+let[@warning "-32" (* unused-value-declaration *)] str_of_it_ = function
+  | Terms.Sym sym -> Sym.pp_string sym
+  | _ -> ""
+
 
 let create_binding sym ctype =
   A.(sym, ((Cerb_location.unknown, Automatic, false), None, C.no_qualifiers, ctype))
@@ -157,12 +181,14 @@ let find_ctype_from_bindings bindings sym =
 
 
 (* Decl_object of (storageDuration * bool) * maybe alignment * qualifiers * ctype*)
-let create_decl_object ctype =
+let[@warning "-32" (* unused-value-declaration *)] create_decl_object ctype =
   A.(Decl_object ((Automatic, false), None, C.no_qualifiers, ctype))
 
 
 (* declarations: list (ail_identifier * (Loc.t * Annot.attributes * declaration)) *)
-let create_declaration sym decl = (sym, (Cerb_location.unknown, CF.Annot.Attrs [], decl))
+let[@warning "-32" (* unused-value-declaration *)] create_declaration sym decl =
+  (sym, (Cerb_location.unknown, CF.Annot.Attrs [], decl))
+
 
 let get_start_loc ?(offset = 0) = function
   | Cerb_location.Loc_region (start_pos, _, _) ->

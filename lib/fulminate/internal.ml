@@ -1,13 +1,10 @@
-module CB = Cerb_backend
 open PPrint
-open Executable_spec_utils
-module BT = BaseTypes
+open Utils
+module CF = Cerb_frontend
+module C = CF.Ctype
 module A = CF.AilSyntax
-module IT = IndexTerms
-module LRT = LogicalReturnTypes
-module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
-module OE = Ownership_exec
+module OE = Ownership
 
 type executable_spec =
   { pre_post : (CF.Symbol.sym * (string list * string list)) list;
@@ -60,7 +57,7 @@ let generate_c_specs_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
-      (instrumentation : Executable_spec_extract.instrumentation)
+      (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -191,11 +188,11 @@ let generate_c_specs_internal
 
 
 let generate_c_assume_pres_internal
-      (instrumentation_list : Executable_spec_extract.instrumentation list)
+      (instrumentation_list : Extract.instrumentation list)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   =
-  let aux (inst : Executable_spec_extract.instrumentation) =
+  let aux (inst : Extract.instrumentation) =
     let dts = sigma.cn_datatypes in
     let preds = prog5.resource_predicates in
     let args =
@@ -216,12 +213,11 @@ let generate_c_assume_pres_internal
       (AT.get_lat (Option.get inst.internal))
   in
   instrumentation_list
-  |> List.filter (fun (inst : Executable_spec_extract.instrumentation) ->
-    Option.is_some inst.internal)
+  |> List.filter (fun (inst : Extract.instrumentation) -> Option.is_some inst.internal)
   |> List.map aux
 
 
-(* Executable_spec_extract.instrumentation list -> executable_spec *)
+(* Extract.instrumentation list -> executable_spec *)
 let generate_c_specs
       without_ownership_checking
       without_loop_invariants
@@ -231,7 +227,7 @@ let generate_c_specs
       (prog5 : unit Mucore.file)
   : executable_spec
   =
-  let generate_c_spec (instrumentation : Executable_spec_extract.instrumentation) =
+  let generate_c_spec (instrumentation : Extract.instrumentation) =
     generate_c_specs_internal
       without_ownership_checking
       without_loop_invariants
@@ -241,7 +237,7 @@ let generate_c_specs
       prog5
   in
   let specs = List.map generate_c_spec instrumentation_list in
-  let pre_post, in_stmt, returns = Executable_spec_utils.list_split_three specs in
+  let pre_post, in_stmt, returns = Utils.list_split_three specs in
   { pre_post = List.concat pre_post;
     in_stmt = List.concat in_stmt;
     returns = List.concat returns
@@ -252,7 +248,9 @@ let generate_doc_from_ail_struct ail_struct =
   CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
 
 
-let generate_struct_decl_str (tag, (_, _, def)) =
+let[@warning "-32" (* unused-value-declaration *)] generate_struct_decl_str
+                                                     (tag, (_, _, def))
+  =
   match def with
   | C.StructDef _ -> Printf.sprintf "struct %s;\n" (Sym.pp_string tag)
   | UnionDef _ -> ""
@@ -263,13 +261,14 @@ let generate_c_records ail_structs =
   doc_to_pretty_string (PPrint.concat struct_docs)
 
 
-let generate_str_from_ail_struct ail_struct =
+let[@warning "-32" (* unused-value-declaration *)] generate_str_from_ail_struct ail_struct
+  =
   doc_to_pretty_string (generate_doc_from_ail_struct ail_struct)
 
 
 let generate_str_from_ail_structs ail_structs =
   let docs = List.map generate_doc_from_ail_struct ail_structs in
-  doc_to_pretty_string (Executable_spec_utils.concat_map_newline docs)
+  doc_to_pretty_string (Utils.concat_map_newline docs)
 
 
 let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
@@ -285,8 +284,7 @@ let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
     List.map
       (fun (loc, structs) ->
          let doc =
-           Executable_spec_utils.concat_map_newline
-             (List.map generate_doc_from_ail_struct structs)
+           Utils.concat_map_newline (List.map generate_doc_from_ail_struct structs)
          in
          (loc, doc_to_pretty_string doc))
       ail_datatypes
@@ -337,7 +335,7 @@ let generate_c_functions
   (doc_to_pretty_string defs_doc, decl_str_comment ^ doc_to_pretty_string decls_doc, locs)
 
 
-let rec remove_duplicates eq_fun = function
+let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun = function
   | [] -> []
   | t :: ts ->
     if List.mem eq_fun t ts then

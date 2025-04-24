@@ -32,22 +32,26 @@
     goto cn_label_bennet_backtrack;                                                      \
   }
 
-#define CN_GEN_UNIFORM(ty) cn_gen_uniform_##ty(cn_gen_get_size())
+#define CN_GEN_UNIFORM(ty) cn_gen_uniform_##ty(0)
 
 #define CN_GEN_ALLOC(sz)                                                                 \
   ({                                                                                     \
     cn_pointer* ptr;                                                                     \
-    uint8_t null_in_every = get_null_in_every();                                         \
-    if (is_sized_null()) {                                                               \
-      set_null_in_every(cn_gen_rec_size);                                                \
-    }                                                                                    \
-    if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_ALLOC && cn_gen_rec_size <= 2) {     \
-      ptr = convert_to_cn_pointer(NULL);                                                 \
-    } else {                                                                             \
+    if (sz != 0) {                                                                       \
       ptr = cn_gen_alloc(sz);                                                            \
-    }                                                                                    \
-    if (is_sized_null()) {                                                               \
-      set_null_in_every(null_in_every);                                                  \
+    } else {                                                                             \
+      uint8_t null_in_every = get_null_in_every();                                       \
+      if (is_sized_null()) {                                                             \
+        set_null_in_every(cn_gen_rec_size);                                              \
+      }                                                                                  \
+      if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_ALLOC && cn_gen_rec_size <= 1) {   \
+        ptr = convert_to_cn_pointer(NULL);                                               \
+      } else {                                                                           \
+        ptr = cn_gen_alloc(sz);                                                          \
+      }                                                                                  \
+      if (is_sized_null()) {                                                             \
+        set_null_in_every(null_in_every);                                                \
+      }                                                                                  \
     }                                                                                    \
     ptr;                                                                                 \
   })

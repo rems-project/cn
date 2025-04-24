@@ -31,7 +31,7 @@ end
 
 module LocMap = Map.Make (LocCompare)
 
-let stmt_loc = function AnnotatedStatement (loc, _, _) -> loc
+let stmt_loc = function { loc; _ } -> loc
 
 let expr_loc = function AnnotatedExpression (_, _, loc, _) -> loc
 
@@ -88,7 +88,7 @@ let add_map_stmt (stmt : 'a statement) m =
   let rec f stmts m =
     match stmts with
     | [] -> m
-    | AnnotatedStatement (l, _, x) :: ss ->
+    | { loc = l; is_forloop = _; attrs = _; node = x } :: ss ->
       let m = map l m l in
       (match x with
        | AilSblock (_, ss2) -> f (ss2 @ ss) m

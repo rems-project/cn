@@ -3,8 +3,6 @@
 (library
  (name cn)
  (public_name cn)
- (flags
-  (:standard -w @60 -open Monomorphic.Int))
  (libraries
   cerberus-lib.backend_common
   cerberus-lib.frontend
