@@ -3,10 +3,10 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module Utils = Fulminate.Executable_spec_utils
+module Utils = Fulminate.Utils
 module Config = SeqTestGenConfig
 module SymSet = Set.Make (Sym)
-module FExtract = Fulminate.Executable_spec_extract
+module FExtract = Fulminate.Extract
 
 type call = SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
 
@@ -184,12 +184,15 @@ let create_test_file
   let open Pp in
   (if Config.with_static_hack () then
      string "#include "
-     ^^ dquotes (string (filename_base ^ "-exec.c"))
+     ^^ dquotes (string (filename_base ^ ".exec.c"))
      ^^ hardline
      ^^ string "#include "
      ^^ dquotes (string "cn.c")
    else
-     string "#include " ^^ dquotes (string "cn.h") ^^ twice hardline ^^ fun_decls)
+     string "#include "
+     ^^ dquotes (string (filename_base ^ ".cn.h"))
+     ^^ twice hardline
+     ^^ fun_decls)
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
@@ -199,7 +202,7 @@ let create_test_file
           2
           (hardline
            ^^
-           let init_ghost = Fulminate.Ownership_exec.get_ownership_global_init_stats () in
+           let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
            separate_map hardline stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
 
@@ -858,6 +861,7 @@ let rec gen_sequence
 
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (insts : Fulminate.Extract.instrumentation list)
       (insts : FExtract.instrumentation list)
       (num_samples : int)
       (output_dir : string)
@@ -868,6 +872,7 @@ let compile_sequence
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
     insts
+    |> List.map (fun (inst : Fulminate.Extract.instrumentation) ->
     |> List.map (fun (inst : FExtract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
@@ -875,6 +880,7 @@ let compile_sequence
     : (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
     =
     List.map
+      (fun (inst : Fulminate.Extract.instrumentation) ->
       (fun (inst : FExtract.instrumentation) ->
          ( inst.fn,
            let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
@@ -911,6 +917,7 @@ let generate
       ~(output_dir : string)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (insts : Fulminate.Extract.instrumentation list)
       (insts : FExtract.instrumentation list)
   : int
   =
@@ -1012,7 +1019,7 @@ let needs_static_hack
       ~(with_warning : bool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (inst : FExtract.instrumentation)
+      (inst : Fulminate.Extract.instrumentation)
   =
   let (TUnit decls) = cabs_tunit in
   let is_static_func () =
@@ -1096,7 +1103,7 @@ let needs_static_hack
 let needs_enum_hack
       ~(with_warning : bool)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (inst : FExtract.instrumentation)
+      (inst : Fulminate.Extract.instrumentation)
   =
   match List.assoc Sym.equal inst.fn sigma.declarations with
   | loc, _, Decl_function (_, (_, ret_ct), cts, _, _, _) ->
@@ -1142,16 +1149,16 @@ let functions_under_test
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-  : FExtract.instrumentation list
+  : Fulminate.Extract.instrumentation list
   =
-  let insts = prog5 |> FExtract.collect_instrumentation |> fst in
+  let insts = prog5 |> Fulminate.Extract.collect_instrumentation |> fst in
   let selected_fsyms =
     Check.select_functions
       (Sym.Set.of_list
-         (List.map (fun (inst : FExtract.instrumentation) -> inst.fn) insts))
+         (List.map (fun (inst : Fulminate.Extract.instrumentation) -> inst.fn) insts))
   in
   insts
-  |> List.filter (fun (inst : FExtract.instrumentation) ->
+  |> List.filter (fun (inst : Fulminate.Extract.instrumentation) ->
     Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
     && (Config.with_static_hack ()

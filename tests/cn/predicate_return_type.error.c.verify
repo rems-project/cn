@@ -1,0 +1,8 @@
+return code: 1
+tests/cn/predicate_return_type.error.c:4:10: error: Type error
+  return p;
+         ^
+Expression 'p' has type 'pointer'.
+I expected it to have type 'void' because of tests/cn/predicate_return_type.error.c:2:11:
+predicate void Test(pointer p)
+          ^~~~ 

@@ -51,7 +51,8 @@ type t =
     disable_passes : string list;
     trap : bool;
     no_replays : bool;
-    no_replicas : bool
+    no_replicas : bool;
+    output_tyche : string option
   }
 
 let default =
@@ -83,7 +84,8 @@ let default =
     disable_passes = [];
     trap = false;
     no_replays = false;
-    no_replicas = false
+    no_replicas = false;
+    output_tyche = Option.None
   }
 
 
@@ -207,3 +209,5 @@ let is_trap () = !instance.trap
 let has_no_replays () = !instance.no_replays
 
 let has_no_replicas () = !instance.no_replicas
+
+let get_output_tyche () = !instance.output_tyche

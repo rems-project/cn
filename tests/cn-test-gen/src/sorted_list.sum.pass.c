@@ -1,18 +1,17 @@
 // Sorted list
 
-struct List
-{
-  int value;
-  struct List* next;
+struct List {
+  unsigned int value;
+  struct List *next;
 };
 
 /*@
 datatype IntList {
   Nil {},
-  Cons { i32 head, IntList tail }
+  Cons { u32 head, IntList tail }
 }
 
-function (boolean) validCons(i32 head, IntList tail) {
+function (boolean) validCons(u32 head, IntList tail) {
   match tail {
     Nil {} => { true }
     Cons { head: next, tail: _ } => { head <= next }
@@ -31,9 +30,9 @@ predicate IntList ListSegment(pointer from, pointer to) {
 }
 @*/
 
-
-// This is a valid spec, even though to verify with CN we'd need a loop invariant.
-int sum(struct List* xs)
+// This is a valid spec, even though to verify with CN we'd need a loop
+// invariant.
+unsigned int sum(struct List *xs)
 /*@
   requires
     take l1 = ListSegment(xs,NULL);
@@ -43,8 +42,8 @@ int sum(struct List* xs)
     true;
 @*/
 {
-  int result = 0;
-  while(xs) {
+  unsigned int result = 0;
+  while (xs) {
     result += xs->value;
     xs = xs->next;
   }

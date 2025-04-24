@@ -1,8 +1,6 @@
 module CF = Cerb_frontend
 module CB = Cerb_backend
-open CB.Pipeline
 open Cn
-open Setup
 
 let verify
       filename
@@ -165,12 +163,12 @@ module Flags = struct
 
 
   let only =
-    let doc = "only type-check this function (or comma-separated names)" in
+    let doc = "Only type-check this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
-    let doc = "skip type-checking of this function (or comma-separated names)" in
+    let doc = "Skip type-checking of this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 

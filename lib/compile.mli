@@ -101,7 +101,7 @@ val expr
 val let_resource
   :  env ->
   C_vars.env ->
-  Locations.t * Sym.t * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_resource ->
+  Sym.t * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_resource ->
   ((Request.t * BaseTypes.Surface.t)
   * (LogicalConstraints.t * (Locations.t * string option)) list
   * (IndexTerms.Surface.t * IndexTerms.Surface.t) list)

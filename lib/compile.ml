@@ -14,14 +14,15 @@ module STermMap = Map.Make (IndexTerms.Surface)
 module StringMap = Map.Make (String)
 open Pp.Infix
 
-type function_sig =
+type[@warning "-69" (* unused-record-field *)] function_sig =
   { args : (Sym.t * BaseTypes.t) list;
+      (* FIXME either delete this field, or explain why we don't need it *)
     return_bty : BaseTypes.t
   }
 
 type predicate_sig =
   { pred_iargs : (Sym.t * BaseTypes.t) list;
-    pred_output : BaseTypes.t
+    pred_output : Locations.t * BaseTypes.t
   }
 
 type 'a cerb_frontend_result =
@@ -41,7 +42,7 @@ type env =
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
-  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg_bt } in
+  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg } in
   let builtins =
     List.fold_left
       (fun acc (_, sym, (def : Definition.Function.t)) ->
@@ -113,10 +114,6 @@ let add_datatype sym info env =
 let add_datatype_constr sym info env =
   let datatype_constrs = Sym.Map.add sym info env.datatype_constrs in
   { env with datatype_constrs }
-
-
-let get_datatype_maps env =
-  (Sym.Map.bindings env.datatypes, Sym.Map.bindings env.datatype_constrs)
 
 
 let big_union = List.fold_left Sym.Set.union Sym.Set.empty
@@ -195,11 +192,11 @@ let rec base_type env (bTy : _ Cn.cn_base_type) =
   | CN_user_type_name _ ->
     failwith "user type-abbreviation not removed by cabs->ail elaboration"
   | CN_c_typedef_name sym ->
-    (* FIXME handle errors here properly *)
+    (* FIXME handle errors here with CN mechanisms *)
     let here = Locations.other __LOC__ in
     (match env.fetch_typedef here sym with
      | CF.Exception.Result r -> Memory.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
-     | CF.Exception.Exception (loc, msg) -> failwith (CF.Pp_errors.short_message msg))
+     | CF.Exception.Exception (_loc, msg) -> failwith (CF.Pp_errors.short_message msg))
 
 
 let add_predicates env defs =
@@ -209,8 +206,9 @@ let add_predicates env defs =
         (fun (id_or_sym, bTy) -> (id_or_sym, SBT.proj (base_type env bTy)))
         def.cn_pred_iargs
     in
-    let output = SBT.proj (base_type env (snd def.cn_pred_output)) in
-    add_predicate def.cn_pred_name { pred_iargs = iargs; pred_output = output } env
+    let loc, output = def.cn_pred_output in
+    let bt = SBT.proj (base_type env output) in
+    add_predicate def.cn_pred_name { pred_iargs = iargs; pred_output = (loc, bt) } env
   in
   List.fold_left aux env defs
 
@@ -280,10 +278,10 @@ let convert_enum_expr =
 
 
 let do_decode_enum env loc sym =
-  (* FIXME handle errors here properly *)
+  (* FIXME handle errors with CN mechanisms *)
   match env.fetch_enum_expr loc sym with
   | CF.Exception.Result expr -> convert_enum_expr expr
-  | CF.Exception.Exception (loc, msg) -> failwith (CF.Pp_errors.short_message msg)
+  | CF.Exception.Exception (_loc, msg) -> failwith (CF.Pp_errors.short_message msg)
 
 
 let add_function _loc sym func_sig env =
@@ -436,12 +434,6 @@ module C_vars = struct
     | Some ty -> return ty
     | None ->
       fail { loc; msg = Global (Unexpected_member (List.map fst member_types, member)) }
-
-
-  let lookup_datatype loc sym env =
-    match Sym.Map.find_opt sym env.datatypes with
-    | Some info -> return info
-    | None -> fail { loc; msg = Global (Unknown_datatype sym) }
 
 
   let lookup_constr loc sym env =
@@ -1106,13 +1098,13 @@ module C_vars = struct
               }
           | Some pred_sig -> return pred_sig
         in
-        let output_bt = pred_sig.pred_output in
+        let _, output_bt = pred_sig.pred_output in
         return (Req.PName pred, SBT.inj output_bt)
     in
     return (pname, ptr_expr, iargs, oargs_ty)
 
 
-  let split_pointer_linear_step loc ((_q, bt, _) as sym_args) (ptr_expr : IT.Surface.t) =
+  let split_pointer_linear_step loc sym_args (ptr_expr : IT.Surface.t) =
     let open Pp in
     let qs = IT.sym_ sym_args in
     let msg_s = "Iterated predicate pointer must be array_shift<ctype>(ptr, q_var):" in
@@ -1136,7 +1128,7 @@ module C_vars = struct
     | _ -> []
 
 
-  let cn_let_resource__pred env res_loc sym (pred_loc, res, args) =
+  let cn_let_resource__pred env sym (pred_loc, res, args) =
     let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
     let@ pname, ptr_expr, iargs, oargs_ty = cn_res_info ~pred_loc env res args in
     let pt =
@@ -1157,7 +1149,7 @@ module C_vars = struct
     return (pt, pointee_value)
 
 
-  let cn_let_resource__each env res_loc (q, bt, guard, pred_loc, res, args) =
+  let cn_let_resource__each env (q, bt, guard, pred_loc, res, args) =
     (* FIXME pred_loc is the wrong location, but the frontend is not tracking the correct one *)
     let@ bt' = check_quantified_base_type env pred_loc q bt in
     let env_with_q = add_logical q bt' env in
@@ -1182,13 +1174,13 @@ module C_vars = struct
     return (pt, [])
 
 
-  let cn_let_resource env (res_loc, sym, the_res) =
+  let cn_let_resource env (sym, the_res) =
     let@ pt, pointee_values =
       match the_res with
       | Cn.CN_pred (pred_loc, res, args) ->
-        cn_let_resource__pred env res_loc sym (pred_loc, res, args)
+        cn_let_resource__pred env sym (pred_loc, res, args)
       | CN_each (q, bt, guard, pred_loc, res, args) ->
-        cn_let_resource__each env res_loc (q, bt, guard, pred_loc, res, args)
+        cn_let_resource__each env (q, bt, guard, pred_loc, res, args)
     in
     return (pt, owned_good sym pt, pointee_values)
 
@@ -1443,7 +1435,7 @@ let ownership (loc, (addr_s, ct)) env =
     Cn.CN_pred (loc, CN_owned (Some ct), [ CNExpr (loc, CNExpr_var addr_s) ])
   in
   let@ (pt_ret, oa_bt), lcs, _ =
-    Handle.pure "'Accesses'" (C_vars.cn_let_resource env (loc, name, resource))
+    Handle.pure "'Accesses'" (C_vars.cn_let_resource env (name, resource))
   in
   let value = IT.sym_ (name, oa_bt, loc) in
   return (name, ((pt_ret, oa_bt), lcs), value)
@@ -1465,7 +1457,7 @@ let cn_clause env clause =
     match clause with
     | Cn.CN_letResource (res_loc, sym, the_res, cl) ->
       let@ (pt_ret, oa_bt), lcs, pointee_vals =
-        Handle.with_state st (C_vars.cn_let_resource env (res_loc, sym, the_res))
+        Handle.with_state st (C_vars.cn_let_resource env (sym, the_res))
       in
       let acc' z =
         acc
@@ -1509,10 +1501,10 @@ let cn_clauses env clauses =
 
 let predicate env (def : _ Cn.cn_predicate) =
   Pp.debug 2 (lazy (Pp.item "translating predicate defn" (Sym.pp def.cn_pred_name)));
-  let iargs, output_bt =
+  let iargs, output =
     match lookup_predicate def.cn_pred_name env with
     | None -> assert false
-    | Some pred_sig -> (pred_sig.pred_iargs, pred_sig.pred_output)
+    | Some { pred_iargs; pred_output } -> (pred_iargs, pred_output)
   in
   let env' =
     List.fold_left (fun acc (sym, bTy) -> add_logical sym (SBT.inj bTy) acc) env iargs
@@ -1532,7 +1524,7 @@ let predicate env (def : _ Cn.cn_predicate) =
           { loc = def.cn_pred_loc;
             pointer = iarg0;
             iargs = iargs';
-            oarg_bt = output_bt;
+            oarg = output;
             clauses
           } )
   | (_, found_bty) :: _ ->
@@ -1546,7 +1538,7 @@ let predicate env (def : _ Cn.cn_predicate) =
 let rec logical_ret_generic env st = function
   | Cn.CN_cletResource (loc, name, resource) :: ensures ->
     let@ (pt_ret, oa_bt), lcs, pointee_values =
-      Handle.with_state st (C_vars.cn_let_resource env (loc, name, resource))
+      Handle.with_state st (C_vars.cn_let_resource env (name, resource))
     in
     let env = add_logical name oa_bt env in
     let st = C_vars.add_pointee_values pointee_values st in
@@ -1634,5 +1626,4 @@ let statement
       env
       (Cn.CN_statement (loc, stmt_))
   =
-  let open Cnprog in
   Handle.with_loads allocations old_states (C_vars.cn_statement env (loc, stmt_))

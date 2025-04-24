@@ -116,17 +116,19 @@ struct queue* empty_queue ()
   p->back = 0;
   return p;
 }
+
+void push_lemma(struct queue_cell *front, struct queue_cell *p)
 /*@
-lemma push_lemma (pointer front, pointer p)
+  trusted;
   requires
-      ptr_eq(front, p) || !addr_eq(front, p);
       take Q = QueueAux(front, p);
       take P = Owned<struct queue_cell>(p);
+      !is_null(P.next);
   ensures
-      ptr_eq(front, P.next) || !addr_eq(front, P.next);
-      take Q_post = QueueAux(front, P.next);
-      Q_post == Snoc(Q, P.first);
+      take NewQ = QueueAux(front, P.next);
+      NewQ == Snoc(Q, P.first);
 @*/
+{}
 
 void push_queue (int x, struct queue *q)
 /*@ requires take Q = QueuePtr_At(q);
@@ -145,7 +147,7 @@ void push_queue (int x, struct queue *q)
     struct queue_cell *oldback = q->back;
     q->back->next = c;
     q->back = c;
-    /*@ apply push_lemma (q->front, oldback); @*/
+    push_lemma (q->front, oldback);
     return;
   }
 }

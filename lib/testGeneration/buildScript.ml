@@ -46,7 +46,7 @@ let attempt cmd success failure =
 
 
 let cc_flags () =
-  [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\"" ]
+  [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\""; "${CFLAGS}"; "${CPPFLAGS}" ]
   @ (let sanitize, no_sanitize = Config.has_sanitizers () in
      (match sanitize with Some sanitize -> [ "-fsanitize=" ^ sanitize ] | None -> [])
      @
@@ -69,12 +69,12 @@ let compile ~filename_base =
           ([ "cc";
              "-c";
              "-o";
-             "\"./" ^ filename_base ^ "_test.o\"";
-             "\"./" ^ filename_base ^ "_test.c\""
+             "\"./" ^ filename_base ^ ".test.o\"";
+             "\"./" ^ filename_base ^ ".test.c\""
            ]
            @ cc_flags ()))
-       ("Compiled '" ^ filename_base ^ "_test.c'.")
-       ("Failed to compile '" ^ filename_base ^ "_test.c' in ${TEST_DIR}.")
+       ("Compiled '" ^ filename_base ^ ".test.c'.")
+       ("Failed to compile '" ^ filename_base ^ ".test.c' in ${TEST_DIR}.")
   ^^ (if Config.with_static_hack () then
         empty
       else
@@ -85,19 +85,25 @@ let compile ~filename_base =
                 ([ "cc";
                    "-c";
                    "-o";
-                   "\"./" ^ filename_base ^ "-exec.o\"";
-                   "\"./" ^ filename_base ^ "-exec.c\""
+                   "\"./" ^ filename_base ^ ".exec.o\"";
+                   "\"./" ^ filename_base ^ ".exec.c\""
                  ]
                  @ cc_flags ()))
-             ("Compiled '" ^ filename_base ^ "-exec.c'.")
-             ("Failed to compile '" ^ filename_base ^ "-exec.c' in ${TEST_DIR}.")
+             ("Compiled '" ^ filename_base ^ ".exec.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}.")
         ^^ twice hardline
         ^^ attempt
              (String.concat
                 " "
-                ([ "cc"; "-c"; "-o"; "\"./cn.o\""; "\"./cn.c\"" ] @ cc_flags ()))
-             "Compiled 'cn.c'."
-             "Failed to compile 'cn.c' in ${TEST_DIR}.")
+                ([ "cc";
+                   "-c";
+                   "-o";
+                   "\"./" ^ filename_base ^ ".cn.o\"";
+                   "\"./" ^ filename_base ^ ".cn.c\""
+                 ]
+                 @ cc_flags ()))
+             ("Compiled '" ^ filename_base ^ ".cn.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".cn.c' in ${TEST_DIR}."))
   ^^ hardline
 
 
@@ -115,12 +121,12 @@ let link ~filename_base =
              "-o";
              "\"./tests.out\"";
              (filename_base
-              ^ "_test.o"
+              ^ ".test.o"
               ^
               if Config.with_static_hack () then
                 ""
               else
-                " " ^ filename_base ^ "-exec.o cn.o");
+                " " ^ filename_base ^ ".exec.o " ^ filename_base ^ ".cn.o");
              "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\""
@@ -212,11 +218,14 @@ let run () =
             [ "--no-replays" ]
           else
             [])
+       @ (if Config.has_no_replicas () then
+            [ "--no-replicas" ]
+          else
+            [])
        @
-       if Config.has_no_replicas () then
-         [ "--no-replicas" ]
-       else
-         [])
+       match Config.get_output_tyche () with
+       | Some file -> [ "--output-tyche"; file ]
+       | None -> [])
   in
   string "# Run"
   ^^ hardline
@@ -236,17 +245,29 @@ let coverage ~filename_base =
   ^^ string "echo"
   ^^ hardline
   ^^ attempt
-       ("gcov \"" ^ filename_base ^ "_test.c\"")
-       "Recorded coverage via gcov."
-       "Failed to record coverage."
-  ^^ twice hardline
-  ^^ attempt
-       "lcov --capture --directory . --output-file coverage.info"
+       "lcov --capture --directory . --output-file coverage.info --gcov-tool gcov"
        "Collected coverage via lcov."
        "Failed to collect coverage."
   ^^ twice hardline
   ^^ attempt
-       "genhtml --output-directory html \"coverage.info\""
+       (let realpath s = "$(realpath \"" ^ s ^ "\")" in
+        String.concat
+          " "
+          [ "lcov";
+            "--ignore-errors unused";
+            "--directory .";
+            "--remove coverage.info";
+            "-o coverage_filtered.info";
+            realpath (filename_base ^ ".cn.c");
+            realpath (filename_base ^ ".cn.h");
+            realpath (filename_base ^ ".test.c");
+            realpath (filename_base ^ ".gen.h")
+          ])
+       "Exclude test harnesses from coverage via lcov."
+       "Failed to exclude test harnesses from coverage."
+  ^^ twice hardline
+  ^^ attempt
+       "genhtml --output-directory html \"coverage_filtered.info\""
        "Generated HTML report at '${TEST_DIR}/html/'."
        "Failed to generate HTML report."
   ^^ hardline

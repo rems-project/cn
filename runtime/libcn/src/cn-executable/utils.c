@@ -34,21 +34,23 @@ enum cn_logging_level set_cn_logging_level(enum cn_logging_level new_level) {
   return old_level;
 }
 
-void cn_failure_default(enum cn_failure_mode mode) {
-  switch (mode) {
+void cn_failure_default(enum cn_failure_mode failure_mode, enum spec_mode spec_mode) {
+  int exit_code =
+      spec_mode;  // Might need to differentiate between failure modes via this exit code in the future
+  switch (failure_mode) {
     case CN_FAILURE_ALLOC:
       printf("Out of memory!");
     case CN_FAILURE_ASSERT:
     case CN_FAILURE_CHECK_OWNERSHIP:
     case CN_FAILURE_OWNERSHIP_LEAK:
-      exit(SIGABRT);
+      exit(exit_code);
   }
 }
 
 static cn_failure_callback cn_failure_aux = &cn_failure_default;
 
-void cn_failure(enum cn_failure_mode mode) {
-  cn_failure_aux(mode);
+void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode) {
+  cn_failure_aux(failure_mode, spec_mode);
 }
 
 void set_cn_failure_cb(cn_failure_callback callback) {
@@ -127,11 +129,11 @@ _Bool convert_from_cn_bool(cn_bool* b) {
   return b->val;
 }
 
-void cn_assert(cn_bool* cn_b) {
+void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode) {
   // cn_printf(CN_LOGGING_INFO, "[CN: assertion] function %s, file %s, line %d\n", error_msg_info.function_name, error_msg_info.file_name, error_msg_info.line_number);
   if (!(cn_b->val)) {
     print_error_msg_info(error_msg_info);
-    cn_failure(CN_FAILURE_ASSERT);
+    cn_failure(CN_FAILURE_ASSERT, spec_mode);
   }
 }
 
@@ -228,7 +230,7 @@ void cn_postcondition_leak_check(void) {
       cn_printf(CN_LOGGING_ERROR,
           "Postcondition leak check failed, ownership leaked for pointer " FMT_PTR "\n",
           (uintptr_t)*key);
-      cn_failure(CN_FAILURE_OWNERSHIP_LEAK);
+      cn_failure(CN_FAILURE_OWNERSHIP_LEAK, POST);
       // cn_printf(CN_LOGGING_INFO, FMT_PTR_2 " (%d),", *key, *depth);
     }
   }
@@ -246,7 +248,7 @@ void cn_loop_leak_check(void) {
       cn_printf(CN_LOGGING_ERROR,
           "Loop invariant leak check failed, ownership leaked for pointer " FMT_PTR "\n",
           (uintptr_t)*key);
-      cn_failure(CN_FAILURE_OWNERSHIP_LEAK);
+      cn_failure(CN_FAILURE_OWNERSHIP_LEAK, LOOP);
       // cn_printf(CN_LOGGING_INFO, FMT_PTR_2 " (%d),", *key, *depth);
     }
   }
@@ -322,19 +324,22 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
 }
 
 void cn_get_or_put_ownership(
-    enum OWNERSHIP owned_enum, uintptr_t generic_c_ptr, size_t size) {
+    enum spec_mode spec_mode, uintptr_t generic_c_ptr, size_t size) {
   nr_owned_predicates++;
-  switch (owned_enum) {
-    case GET: {
+  switch (spec_mode) {
+    case PRE: {
       cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
       break;
     }
-    case PUT: {
+    case POST: {
       cn_put_ownership(generic_c_ptr, size);
       break;
     }
     case LOOP: {
       cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
+    }
+    default: {
+      break;
     }
   }
 }
@@ -387,7 +392,7 @@ void c_ownership_check(char* access_kind,
             expected_stack_depth);
         cn_printf(CN_LOGGING_ERROR, "  ==> (owned at stack depth: %d)\n", curr_depth);
       }
-      cn_failure(CN_FAILURE_CHECK_OWNERSHIP);
+      cn_failure(CN_FAILURE_CHECK_OWNERSHIP, C_ACCESS);
     }
   }
   // cn_printf(CN_LOGGING_INFO, "\n");
@@ -498,9 +503,9 @@ cn_bool* cn_map_equality(
       cn_map_subset(m2, m1, value_equality_fun));
 }
 
-cn_pointer* convert_to_cn_pointer(void* ptr) {
+cn_pointer* convert_to_cn_pointer(const void* ptr) {
   cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));
-  res->ptr = ptr;  // Carries around an address
+  res->ptr = (void*)ptr;  // Carries around an address
   return res;
 }
 

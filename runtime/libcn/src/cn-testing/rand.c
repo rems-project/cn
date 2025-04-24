@@ -153,17 +153,40 @@ SIGNED_GEN(64);
 #define SIZED_GEN(sm)                                                                    \
   uint##sm##_t cn_gen_uniform_u##sm##_sized(uint##sm##_t s) {                            \
     size_t sz = cn_gen_get_size();                                                       \
-    if (s > sz) {                                                                        \
-      s = sz;                                                                            \
+    if (s != 0 && s < sz) {                                                              \
+      sz = s;                                                                            \
     }                                                                                    \
-    return cn_gen_uniform_u##sm(s);                                                      \
+                                                                                         \
+    if (sz <= 8 * sizeof(size_t)) {                                                      \
+      size_t extremes_likelihood = 1 << (sz / 2 + 1);                                    \
+      if (!cn_gen_uniform_u64(extremes_likelihood)) {                                    \
+        return (s == 0) ? UINT##sm##_MAX : (s - 1);                                      \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    return cn_gen_uniform_u##sm(sz);                                                     \
   }                                                                                      \
-  int##sm##_t cn_gen_uniform_i##sm##_sized(int##sm##_t s) {                              \
+  int##sm##_t cn_gen_uniform_i##sm##_sized(uint##sm##_t s) {                             \
     size_t sz = cn_gen_get_size();                                                       \
-    if (s > sz) {                                                                        \
-      s = sz;                                                                            \
+    if (s != 0 && s < sz) {                                                              \
+      sz = s;                                                                            \
     }                                                                                    \
-    return cn_gen_uniform_i##sm(s);                                                      \
+                                                                                         \
+    if (sz <= 8 * sizeof(size_t)) {                                                      \
+      size_t extremes_likelihood = 1 << (sz / 2 + 1);                                    \
+      if (!cn_gen_uniform_u64(extremes_likelihood)) {                                    \
+        switch (cn_gen_uniform_u8(2)) {                                                  \
+          case 0:                                                                        \
+            return (s == 0) ? INT##sm##_MIN : -(s - 1);                                  \
+          case 1:                                                                        \
+            return (s == 0) ? INT##sm##_MAX : (s - 1);                                   \
+          default:                                                                       \
+            assert(0);                                                                   \
+        }                                                                                \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    return cn_gen_uniform_i##sm(sz);                                                     \
   }
 
 SIZED_GEN(8);

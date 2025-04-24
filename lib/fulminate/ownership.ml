@@ -1,12 +1,7 @@
+open Utils
 module CF = Cerb_frontend
-open Executable_spec_utils
 module A = CF.AilSyntax
 module C = CF.Ctype
-
-type ownership_mode =
-  | Pre
-  | Post
-  | Loop
 
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
@@ -26,8 +21,6 @@ type ownership_injection =
     bs_and_ss : ail_bindings_and_statements;
     injection_kind : injection_kind
   }
-
-let ownership_mode_to_enum_str = function Pre -> "GET" | Post -> "PUT" | Loop -> "LOOP"
 
 let get_cn_stack_depth_sym = Sym.fresh "get_cn_stack_depth"
 
@@ -86,7 +79,7 @@ let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
 
 let generate_c_local_cn_addr_var sym =
   (* Hardcoding parts of cn_to_ail_base_type to prevent circular dependency between
-     this module and Cn_internal_to_ail, which includes Ownership_exec already. *)
+     this module and Cn_internal_to_ail, which includes Ownership already. *)
   let cn_addr_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
   let annots = [ CF.Annot.Atypedef (Sym.fresh "cn_pointer") ] in
   (* Ctype_ doesn't matter to pretty-printer when typedef annotations are present *)
@@ -113,28 +106,53 @@ let generate_c_local_ownership_entry_bs_and_ss (sym, ctype) =
 
    int x = 0, _dummy = (c_map_local(&x), 0), y = 5, _dummy2 = (c_map_local(&y), 0); *)
 
+(* NEW SCHEME:
+
+   Case 1: initial value provided
+   =================================
+
+   int x = 0, y = 5;
+
+   ->
+
+   int x = (c_map_local(&x), 0), y = (c_map_local(&y), 5);
+
+   Case 2: no initial value (expr_opt = None)
+   ===========================================
+
+   int x;
+
+   ->
+
+   ?????????
+   NB: In this special case for inside a for-loop condition, it's unlikely that there will be no initial value provided. Leaving as a TODO for now.
+*)
+
 (* TODO: Include binding + declaration of <sym>_addr_cn via generate_c_local_cn_addr_var function *)
 let rec gen_loop_ownership_entry_decls bindings = function
-  | [] -> ([], [])
+  | [] -> []
   | (sym, expr_opt) :: xs ->
-    let dummy_sym = Sym.fresh_anon () in
-    let ctype = find_ctype_from_bindings bindings sym in
-    let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
-    let zero_const =
-      A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
-    in
-    let dummy_rhs = mk_expr A.(AilEbinary (entry_fcall, Comma, mk_expr zero_const)) in
-    let new_bindings =
-      List.map (fun sym -> create_binding sym ctype) [ sym; dummy_sym ]
-    in
-    let bindings', decls' = gen_loop_ownership_entry_decls bindings xs in
-    (new_bindings @ bindings', (sym, expr_opt) :: (dummy_sym, Some dummy_rhs) :: decls')
+    (* For now, requiring that every variable being declared has some initial value *)
+    (match expr_opt with
+     | Some expr ->
+       let ctype = find_ctype_from_bindings bindings sym in
+       let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
+       let new_rhs_expr = mk_expr A.(AilEbinary (entry_fcall, Comma, expr)) in
+       (sym, Some new_rhs_expr) :: gen_loop_ownership_entry_decls bindings xs
+     | None ->
+       let error_msg =
+         Printf.sprintf
+           "TODO: Uninitialised declared variables in loop conditions not supported yet. \
+            For a quick fix, provide some initial value for variable %s\n"
+           (Sym.pp_string sym)
+       in
+       failwith error_msg)
 
 
-let generate_c_local_ownership_entry_inj dest_is_loop loc decls bindings =
-  if dest_is_loop then (
-    let new_bindings, new_decls = gen_loop_ownership_entry_decls bindings decls in
-    [ (loc, new_bindings, [ A.AilSdeclaration new_decls ]) ])
+let generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings =
+  if is_forloop then (
+    let new_decls = gen_loop_ownership_entry_decls bindings decls in
+    [ (loc, bindings, [ A.AilSdeclaration new_decls ]) ])
   else (
     let ownership_bs_and_ss =
       List.map
@@ -177,7 +195,7 @@ let get_c_local_ownership_checking params =
 
 let rec collect_visibles bindings = function
   | [] -> []
-  | A.(AnnotatedStatement (_, _, AilSdeclaration decls)) :: ss ->
+  | A.{ loc = _; is_forloop = _; attrs = _; node = AilSdeclaration decls } :: ss ->
     let decl_syms_and_ctypes =
       List.map (fun (sym, _) -> (sym, find_ctype_from_bindings bindings sym)) decls
     in
@@ -185,7 +203,6 @@ let rec collect_visibles bindings = function
   | _ :: ss -> collect_visibles bindings ss
 
 
-(* TODO replace with Base.List: https://github.com/rems-project/cerberus/pull/347 *)
 let rec take n = function
   | [] -> []
   | x :: xs ->
@@ -200,7 +217,7 @@ let rec get_c_control_flow_block_unmaps_aux
           continue_vars
           return_vars
           bindings
-          A.(AnnotatedStatement (loc, _, s_))
+          A.{ loc; is_forloop = _; attrs = _; node = s_ }
   : ownership_injection list
   =
   match s_ with
@@ -274,20 +291,8 @@ let get_c_control_flow_block_unmaps stat =
 
 
 (* Ghost state tracking for block declarations *)
-let rec get_c_block_entry_exit_injs_aux bindings A.(AnnotatedStatement (loc, _, s_)) =
-  match s_ with
-  | A.(AilSdeclaration decls) ->
-    (* int x = 0; -> int x = 0, _dummy = (c_map_local(&x), 0); *)
-    generate_c_local_ownership_entry_inj false loc decls bindings
-  | AilSblock
-      ( bs,
-        [ A.AnnotatedStatement (decl_loc, _, A.AilSdeclaration decls);
-          A.AnnotatedStatement (_, _, A.AilSwhile (_, s, _))
-        ] ) ->
-    let inj = generate_c_local_ownership_entry_inj true decl_loc decls bs in
-    let injs' = get_c_block_entry_exit_injs_aux [] s in
-    inj @ injs'
-  | AilSblock (bs, ss) ->
+let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; node = s_; _ } =
+  let gen_standard_block_injs bs ss =
     let exit_injs =
       List.map
         (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
@@ -298,6 +303,23 @@ let rec get_c_block_entry_exit_injs_aux bindings A.(AnnotatedStatement (loc, _, 
     let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
     let stat_injs = List.map (fun s -> get_c_block_entry_exit_injs_aux bs s) ss in
     List.concat stat_injs @ exit_injs'
+  in
+  match s_ with
+  | A.(AilSdeclaration decls) ->
+    generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings
+  | AilSblock
+      ( bs,
+        ([ A.{ loc = decl_loc; node = AilSdeclaration decls; _ };
+           A.{ node = A.AilSwhile (_, s, _); _ }
+         ] as ss) ) ->
+    if is_forloop then (
+      (* WIP: special case for for-loops *)
+      let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
+      let injs' = get_c_block_entry_exit_injs_aux [] s in
+      inj @ injs')
+    else
+      gen_standard_block_injs bs ss
+  | AilSblock (bs, ss) -> gen_standard_block_injs bs ss
   | AilSif (_, s1, s2) ->
     let injs = get_c_block_entry_exit_injs_aux bindings s1 in
     let injs' = get_c_block_entry_exit_injs_aux bindings s2 in
@@ -337,7 +359,7 @@ let rec remove_duplicates ds = function
 
 
 let get_c_block_local_ownership_checking_injs
-      A.(AnnotatedStatement (_, _, fn_block) as statement)
+      A.({ loc = _; is_forloop = _; attrs = _; node = fn_block } as statement)
   =
   match fn_block with
   | A.(AilSblock _) ->
@@ -370,9 +392,7 @@ let get_c_block_local_ownership_checking_injs
       List.map
         (fun l ->
            let injs' = combine_injs_over_location l injs in
-           let bs_list, ss_list, inj_kind_list =
-             Executable_spec_utils.list_split_three injs'
-           in
+           let bs_list, ss_list, inj_kind_list = Utils.list_split_three injs' in
            let inj_kind = get_return_inj_kind inj_kind_list in
            { loc = l;
              bs_and_ss = (List.concat bs_list, List.concat ss_list);
@@ -382,7 +402,7 @@ let get_c_block_local_ownership_checking_injs
     in
     combined_injs
   | _ ->
-    Printf.printf "Ownership_exec: function body is not a block";
+    Printf.printf "Ownership: function body is not a block";
     []
 
 

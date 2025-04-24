@@ -1,0 +1,6 @@
+{
+    "name": "coq",
+    "args": ["-pf"],
+    "filter": "^(.*(?<!error)\\.c)$",
+    "timeout": 300
+}

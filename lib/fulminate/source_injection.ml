@@ -328,7 +328,7 @@ let in_stmt_injs xs num_headers =
 (* (List.filter (fun (loc, _) -> Cerb_location.from_main_file loc) xs) *)
 
 (* build the injections for the pre/post conditions of a C function *)
-let pre_post_injs pre_post is_void is_main (A.AnnotatedStatement (loc, _, _)) =
+let pre_post_injs pre_post is_void is_main A.{ loc; _ } =
   let* pre_pos, post_pos =
     let* pre_pos, post_pos = Pos.of_location loc in
     let* pre_pos = Pos.offset_col ~off:1 pre_pos in

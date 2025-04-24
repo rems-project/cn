@@ -1,24 +1,21 @@
 [@@@landmark "auto"]
 
 (* copy pasted from pp_core.ml and adapted *)
-module PpThis = Pp
+module Cn_Pp = Pp
 open Cerb_frontend
-module Pp = PpThis (* todo: fix *)
-open Lem_pervasives
-open Core
-open Annot
-open Either
-open Cerb_colour
-open Cerb_pp_prelude
+module Pp = Cn_Pp
+open Pp.Infix
+
+let comma_list = Cerb_pp_prelude.comma_list
 
 type budget = int option
 
-let pp_ctype ty = P.squotes (Pp_core_ctype.pp_ctype ty)
+let pp_ctype ty = Pp.squotes (Pp_core_ctype.pp_ctype ty)
 
 module Loc = Cerb_location
 
 module type CONFIG = sig
-  val ansi_format : ansi_style list -> string -> string
+  val ansi_format : Cerb_colour.ansi_style list -> string -> string
 
   val show_locations : bool
 end
@@ -39,25 +36,25 @@ module Pp_typ = struct
 end
 
 let rec pp_core_object_type = function
-  | OTy_integer -> !^"integer"
+  | Core.OTy_integer -> !^"integer"
   | OTy_floating -> !^"floating"
   | OTy_pointer -> !^"pointer"
   | OTy_array bty ->
     (* TODO: THIS IS NOT BEING PARSED CORRECTLY *)
-    !^"array" ^^ P.parens (pp_core_object_type bty)
+    !^"array" ^^ Pp.parens (pp_core_object_type bty)
   | OTy_struct ident -> !^"struct" ^^^ pp_symbol ident
   | OTy_union ident -> !^"union" ^^^ pp_symbol ident
 
 
 let rec pp_core_base_type = function
-  | BTy_storable -> !^"storable"
+  | Core.BTy_storable -> !^"storable"
   | BTy_object bty -> pp_core_object_type bty
   | BTy_loaded bty -> !^"loaded" ^^^ pp_core_object_type bty
   | BTy_boolean -> !^"boolean"
   | BTy_ctype -> !^"ctype"
   | BTy_unit -> !^"unit"
-  | BTy_list bTy -> P.brackets (pp_core_base_type bTy)
-  | BTy_tuple bTys -> P.parens (P.separate_map P.comma pp_core_base_type bTys)
+  | BTy_list bTy -> Pp.brackets (pp_core_base_type bTy)
+  | BTy_tuple bTys -> Pp.parens (Pp.separate_map Pp.comma pp_core_base_type bTys)
 
 
 module Make (Config : CONFIG) = struct
@@ -76,19 +73,19 @@ module Make (Config : CONFIG) = struct
   let pp_number n = !^(ansi_format [ Yellow ] n)
 
   let pp_impl i =
-    P.angles
+    Pp.angles
       !^(ansi_format [ Yellow ] (Implementation.string_of_implementation_constant i))
 
 
   let pp_undef ub =
-    P.angles
-      (P.angles !^(ansi_format [ Magenta ] (Undefined.stringFromUndefined_behaviour ub)))
+    Pp.angles
+      (Pp.angles !^(ansi_format [ Magenta ] (Undefined.stringFromUndefined_behaviour ub)))
 
 
-  let maybe_print_location : Loc.t -> P.document =
+  let maybe_print_location : Loc.t -> Pp.document =
     fun loc ->
     if not show_locations then
-      P.empty
+      Pp.empty
     else if Locations.is_unknown_location loc then
       !^"{--}"
     else
@@ -139,28 +136,28 @@ module Make (Config : CONFIG) = struct
   let pp_function = Mucore.pp_function
 
   let pp_binop = function
-    | OpAdd -> P.plus
-    | OpSub -> P.minus
-    | OpMul -> P.star
-    | OpDiv -> P.slash
+    | Core.OpAdd -> Pp.plus
+    | OpSub -> Pp.minus
+    | OpMul -> Pp.star
+    | OpDiv -> Pp.slash
     | OpRem_t -> pp_keyword "rem_t"
     | OpRem_f -> pp_keyword "rem_f"
-    | OpExp -> P.caret
-    | OpEq -> P.equals
-    | OpLt -> P.langle
-    | OpLe -> P.langle ^^ P.equals
-    | OpGt -> P.rangle
-    | OpGe -> P.rangle ^^ P.equals
+    | OpExp -> Pp.caret
+    | OpEq -> Pp.equals
+    | OpLt -> Pp.langle ()
+    | OpLe -> Pp.langle () ^^ Pp.equals
+    | OpGt -> Pp.rangle ()
+    | OpGe -> Pp.rangle () ^^ Pp.equals
     | OpAnd -> !^"/\\"
     | OpOr -> !^"\\/"
 
 
   let pp_iop = function
-    | IOpAdd -> P.plus
-    | IOpSub -> P.minus
-    | IOpMul -> P.star
-    | IOpShl -> P.langle ^^ P.langle
-    | IOpShr -> P.rangle ^^ P.rangle
+    | Core.IOpAdd -> Pp.plus
+    | IOpSub -> Pp.minus
+    | IOpMul -> Pp.star
+    | IOpShl -> Pp.langle () ^^ Pp.langle ()
+    | IOpShr -> Pp.rangle () ^^ Pp.rangle ()
 
 
   let pp_bound = function
@@ -169,11 +166,11 @@ module Make (Config : CONFIG) = struct
 
 
   let pp_polarity = function
-    | Pos -> fun z -> z
-    | Neg -> fun z -> pp_keyword "neg" ^^ P.parens z
+    | Core.Pos -> fun z -> z
+    | Neg -> fun z -> pp_keyword "neg" ^^ Pp.parens z
 
 
-  let pp_name = function Sym a -> pp_symbol a | Impl i -> pp_impl i
+  let pp_name = function Core.Sym a -> pp_symbol a | Impl i -> pp_impl i
 
   let pp_memory_order = function
     | Cmm_csem.NA -> !^"NA"
@@ -199,7 +196,7 @@ module Make (Config : CONFIG) = struct
 
 
   let pp_mem_addr (pref, _addr) =
-    P.at ^^ P.braces (Pp_symbol.pp_prefix pref ^^ P.colon ^^^ !^"TODO(addr)")
+    Pp.at ^^ Pp.braces (Pp_symbol.pp_prefix pref ^^ Pp.colon ^^^ !^"TODO(addr)")
 
 
   let pp_actype (actype : act) = pp_ct actype.ct
@@ -216,17 +213,17 @@ module Make (Config : CONFIG) = struct
         (fun fval -> !^(string_of_float fval))
     | OVpointer ptr_val -> Impl_mem.pp_pointer_value ptr_val
     | OVarray lvals ->
-      pp_const "Array" ^^ P.parens (P.nest 1 (comma_list pp_object_value lvals))
+      pp_const "Array" ^^ Pp.parens (Pp.nest 1 (comma_list pp_object_value lvals))
     | OVstruct (tag_sym, xs) ->
-      P.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
-      ^^ P.braces
+      Pp.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
+      ^^ Pp.braces
            (comma_list
               (fun (Symbol.Identifier (_, ident), _, mval) ->
-                 P.dot ^^ !^ident ^^ P.equals ^^^ Impl_mem.pp_mem_value mval)
+                 Pp.dot ^^ !^ident ^^ Pp.equals ^^^ Impl_mem.pp_mem_value mval)
               xs)
     | OVunion (tag_sym, Symbol.Identifier (_, ident), mval) ->
-      P.parens (pp_const "union" ^^^ pp_raw_symbol tag_sym)
-      ^^ P.braces (P.dot ^^ !^ident ^^ P.equals ^^^ Impl_mem.pp_mem_value mval)
+      Pp.parens (pp_const "union" ^^^ pp_raw_symbol tag_sym)
+      ^^ Pp.braces (Pp.dot ^^ !^ident ^^ Pp.equals ^^^ Impl_mem.pp_mem_value mval)
 
 
   and pp_value (V (_bty, v)) =
@@ -234,11 +231,11 @@ module Make (Config : CONFIG) = struct
     | Vunit -> pp_const "Unit"
     | Vtrue -> pp_const "True"
     | Vfalse -> pp_const "False"
-    | Vlist (_, cvals) -> P.brackets (comma_list pp_value cvals)
-    | Vtuple cvals -> P.parens (comma_list pp_value cvals)
+    | Vlist (_, cvals) -> Pp.brackets (comma_list pp_value cvals)
+    | Vtuple cvals -> Pp.parens (comma_list pp_value cvals)
     | Vobject oval -> pp_object_value oval
-    | Vctype ct -> P.squotes (pp_ctype ct)
-    | Vfunction_addr sym -> P.parens (P.ampersand ^^^ pp_symbol sym)
+    | Vctype ct -> Pp.squotes (pp_ctype ct)
+    | Vfunction_addr sym -> Pp.parens (Pp.ampersand ^^^ pp_symbol sym)
 
 
   let pp_ctor = function
@@ -250,16 +247,16 @@ module Make (Config : CONFIG) = struct
 
   let rec pp_pattern (Pattern (_, _, _, pat)) =
     match pat with
-    | CaseBase (None, bTy) -> P.underscore ^^ P.colon ^^^ pp_core_base_type bTy
-    | CaseBase (Some sym, bTy) -> pp_symbol sym ^^ P.colon ^^^ pp_core_base_type bTy
-    | CaseCtor (Ctuple, pats) -> P.parens (comma_list pp_pattern pats)
-    | CaseCtor (ctor, pats) -> pp_ctor ctor ^^ P.parens (comma_list pp_pattern pats)
+    | CaseBase (None, bTy) -> Pp.underscore ^^ Pp.colon ^^^ pp_core_base_type bTy
+    | CaseBase (Some sym, bTy) -> pp_symbol sym ^^ Pp.colon ^^^ pp_core_base_type bTy
+    | CaseCtor (Ctuple, pats) -> Pp.parens (comma_list pp_pattern pats)
+    | CaseCtor (ctor, pats) -> pp_ctor ctor ^^ Pp.parens (comma_list pp_pattern pats)
 
 
-  let abbreviated = P.dot ^^ P.dot ^^ P.dot
+  let abbreviated = Pp.dot ^^ Pp.dot ^^ Pp.dot
 
   let rec pp_actype_or_pexpr budget = function
-    | Left ct -> pp_actype ct
+    | Either.Left ct -> pp_actype ct
     | Right sym -> pp_pexpr budget sym
 
 
@@ -271,27 +268,27 @@ module Make (Config : CONFIG) = struct
       | _ ->
         let budget' = match budget with Some n -> Some (n - 1) | None -> None in
         let prec' = precedence pe in
-        let pp z = P.group (pp budget' prec' z) in
-        let pp_pexpr pe = P.group (pp_pexpr budget' pe) in
+        let pp z = Pp.group (pp budget' prec' z) in
+        let pp_pexpr pe = Pp.group (pp_pexpr budget' pe) in
         maybe_print_location loc
-        ^^^ (if compare_precedence prec' prec then fun z -> z else P.parens)
+        ^^^ (if compare_precedence prec' prec then fun z -> z else Pp.parens)
               (match pe with
                | PEval cval -> pp_value cval
                | PEconstrained xs ->
                  pp_keyword "constrained"
-                 ^^ P.parens
+                 ^^ Pp.parens
                       (comma_list
                          (fun (cs, pe) ->
-                            P.brackets
+                            Pp.brackets
                               (Pp_mem.pp_mem_constraint Impl_mem.pp_integer_value cs)
-                            ^^^ P.equals
-                            ^^ P.rangle
+                            ^^^ Pp.equals
+                            ^^ Pp.rangle ()
                             ^^ pp_pexpr pe)
                          xs)
                | PEsym sym -> pp_symbol sym
-               | PEctor (Cnil _, _) -> P.brackets P.empty
-               | PEctor (Ctuple, pes) -> P.parens (comma_list pp_pexpr pes)
-               | PEctor (ctor, pes) -> pp_ctor ctor ^^ P.parens (comma_list pp_pexpr pes)
+               | PEctor (Cnil _, _) -> Pp.brackets Pp.empty
+               | PEctor (Ctuple, pes) -> Pp.parens (comma_list pp_pexpr pes)
+               | PEctor (ctor, pes) -> pp_ctor ctor ^^ Pp.parens (comma_list pp_pexpr pes)
                | PEbitwise_unop (unop, p1) ->
                  let opnm =
                    match unop with
@@ -299,7 +296,7 @@ module Make (Config : CONFIG) = struct
                    | BW_CTZ -> "builtin_ctz"
                    | BW_FFS -> "builtin_ffs"
                  in
-                 !^opnm ^^ P.parens (pp_pexpr p1)
+                 !^opnm ^^ Pp.parens (pp_pexpr p1)
                | PEbitwise_binop (binop, p1, p2) ->
                  let opnm =
                    match binop with
@@ -307,92 +304,92 @@ module Make (Config : CONFIG) = struct
                    | BW_AND -> "IvAND"
                    | BW_XOR -> "IvXOR"
                  in
-                 !^opnm ^^ P.parens (separate comma [ pp_pexpr p1; pp_pexpr p2 ])
-               | Cfvfromint p1 -> !^"Cfvfromint" ^^ P.parens (pp_pexpr p1)
+                 !^opnm ^^ Pp.parens (separate comma [ pp_pexpr p1; pp_pexpr p2 ])
+               | Cfvfromint p1 -> !^"Cfvfromint" ^^ Pp.parens (pp_pexpr p1)
                | Civfromfloat (ct, p1) ->
                  !^"Civfromfloat"
-                 ^^ P.parens (separate comma [ pp_actype ct; pp_pexpr p1 ])
+                 ^^ Pp.parens (separate comma [ pp_actype ct; pp_pexpr p1 ])
                | PEarray_shift (pe1, ty, pe2) ->
                  pp_keyword "array_shift"
-                 ^^ P.parens
-                      (pp_pexpr pe1 ^^ P.comma ^^^ pp_ct ty ^^ P.comma ^^^ pp_pexpr pe2)
+                 ^^ Pp.parens
+                      (pp_pexpr pe1 ^^ Pp.comma ^^^ pp_ct ty ^^ Pp.comma ^^^ pp_pexpr pe2)
                | PEmember_shift (pe, tag_sym, Symbol.Identifier (_, memb_ident)) ->
                  pp_keyword "member_shift"
-                 ^^ P.parens
+                 ^^ Pp.parens
                       (pp_pexpr pe
-                       ^^ P.comma
+                       ^^ Pp.comma
                        ^^^ pp_raw_symbol tag_sym
-                       ^^ P.comma
-                       ^^^ P.dot
+                       ^^ Pp.comma
+                       ^^^ Pp.dot
                        ^^ !^memb_ident)
-               | PEnot pe -> pp_keyword "not" ^^ P.parens (pp_pexpr pe)
+               | PEnot pe -> pp_keyword "not" ^^ Pp.parens (pp_pexpr pe)
                | PEop (bop, pe1, pe2) -> pp_pexpr pe1 ^^^ pp_binop bop ^^^ pp_pexpr pe2
                | PEapply_fun (f, args) ->
-                 Pp.c_app (pp_function f) (List.map pp_pexpr args)
+                 Cn_Pp.c_app (pp_function f) (List.map pp_pexpr args)
                | PEstruct (tag_sym, xs) ->
-                 P.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
-                 ^^ P.braces
+                 Pp.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
+                 ^^ Pp.braces
                       (comma_list
                          (fun (Symbol.Identifier (_, ident), pe) ->
-                            P.dot ^^ !^ident ^^ P.equals ^^^ pp_pexpr pe)
+                            Pp.dot ^^ !^ident ^^ Pp.equals ^^^ pp_pexpr pe)
                          xs)
                | PEunion (tag_sym, Symbol.Identifier (_, ident), pe) ->
-                 P.parens (pp_const "union" ^^^ pp_raw_symbol tag_sym)
-                 ^^ P.braces (P.dot ^^ !^ident ^^ P.equals ^^^ pp_pexpr pe)
-               | PEcfunction pe -> pp_keyword "cfunction" ^^ P.parens (pp pe)
+                 Pp.parens (pp_const "union" ^^^ pp_raw_symbol tag_sym)
+                 ^^ Pp.braces (Pp.dot ^^ !^ident ^^ Pp.equals ^^^ pp_pexpr pe)
+               | PEcfunction pe -> pp_keyword "cfunction" ^^ Pp.parens (pp pe)
                | PEmemberof (tag_sym, memb_ident, pe) ->
                  pp_keyword "memberof"
-                 ^^ P.parens
+                 ^^ Pp.parens
                       (pp_symbol tag_sym
-                       ^^ P.comma
+                       ^^ Pp.comma
                        ^^^ Pp_symbol.pp_identifier memb_ident
-                       ^^ P.comma
+                       ^^ Pp.comma
                        ^^^ pp_pexpr pe)
                | PEbool_to_integer asym ->
-                 pp_keyword "bool_to_integer" ^^ P.parens (pp_pexpr asym)
+                 pp_keyword "bool_to_integer" ^^ Pp.parens (pp_pexpr asym)
                | PEconv_int (ct_expr, int_expr) ->
-                 Pp.c_app !^"conv_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
+                 Cn_Pp.c_app !^"conv_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
                | PEconv_loaded_int (ct_expr, int_expr) ->
-                 Pp.c_app !^"conv_loaded_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
+                 Cn_Pp.c_app !^"conv_loaded_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
                | PEwrapI (act, asym) ->
-                 !^"wrapI" ^^ P.parens (pp_ct act.ct ^^ P.comma ^^^ pp_pexpr asym)
+                 !^"wrapI" ^^ Pp.parens (pp_ct act.ct ^^ Pp.comma ^^^ pp_pexpr asym)
                | PEbounded_binop (bound, iop, arg1, arg2) ->
                  !^"bound_op"
-                 ^^ P.parens
-                      (P.flow
-                         (P.comma ^^ P.break 1)
+                 ^^ Pp.parens
+                      (Pp.flow
+                         (Pp.comma ^^ Pp.break 1)
                          [ pp_bound bound;
-                           P.squotes (pp_iop iop);
+                           Pp.squotes (pp_iop iop);
                            pp_pexpr arg1;
                            pp_pexpr arg2
                          ])
                | PEcatch_exceptional_condition (act, asym) ->
                  !^"catch_exceptional_condition"
-                 ^^ P.parens (pp_ct act.ct ^^ P.comma ^^^ pp_pexpr asym)
+                 ^^ Pp.parens (pp_ct act.ct ^^ Pp.comma ^^^ pp_pexpr asym)
                | PEis_representable_integer (asym, act) ->
                  !^"is_representable_integer"
-                 ^^ P.parens (pp_pexpr asym ^^ P.comma ^^^ pp_ct act.ct)
+                 ^^ Pp.parens (pp_pexpr asym ^^ Pp.comma ^^^ pp_ct act.ct)
                | PElet (pat, pe1, pe2) ->
                  pp_control "let"
                  ^^^ pp_pattern pat
-                 ^^^ P.equals
+                 ^^^ Pp.equals
                  ^^^ pp_pexpr pe1
                  ^^^ pp_control "in"
-                 ^^ P.break 1
+                 ^^ Pp.break 1
                  ^^ pp pe2
                | PEif (pe1, pe2, pe3) ->
-                 P.group
+                 Pp.group
                    (pp_control "if"
                     ^^^ pp_pexpr pe1
                     ^^^ pp_control "then"
-                    ^^ P.nest 2 (P.break 1 ^^ pp pe2)
-                    ^^ P.break 1
+                    ^^ Pp.nest 2 (Pp.break 1 ^^ pp pe2)
+                    ^^ Pp.break 1
                     ^^ pp_control "else"
-                    ^^ P.nest 2 (P.break 1 ^^ pp pe3))
-               | PEundef (_, ub) -> pp_keyword "undef" ^^ P.parens (pp_undef ub)
+                    ^^ Pp.nest 2 (Pp.break 1 ^^ pp pe3))
+               | PEundef (_, ub) -> pp_keyword "undef" ^^ Pp.parens (pp_undef ub)
                | PEerror (str, pe) ->
                  pp_keyword "error"
-                 ^^ P.parens (P.dquotes !^str ^^ P.comma ^^^ pp_pexpr pe))
+                 ^^ Pp.parens (Pp.dquotes !^str ^^ Pp.comma ^^^ pp_pexpr pe))
     in
     pp budget None pe
 
@@ -401,92 +398,103 @@ module Make (Config : CONFIG) = struct
     let pp_actype_or_pexpr = pp_actype_or_pexpr budget in
     let pp_pexpr = pp_pexpr budget in
     let pp_args args mo =
-      P.parens
+      Pp.parens
         (comma_list pp_actype_or_pexpr args
-         ^^ (match mo with Cmm_csem.NA -> P.empty | _ -> P.comma)
+         ^^ (match mo with Cmm_csem.NA -> Pp.empty | _ -> Pp.comma)
          ^^^ pp_memory_order mo)
     in
     match act with
     | Create (al, ty, _) ->
-      pp_keyword "create" ^^ P.parens (pp_pexpr al ^^ P.comma ^^^ pp_actype ty)
+      pp_keyword "create" ^^ Pp.parens (pp_pexpr al ^^ Pp.comma ^^^ pp_actype ty)
     | CreateReadOnly (al, ty, init, _) ->
       pp_keyword "create_readonly"
-      ^^ P.parens (pp_pexpr al ^^ P.comma ^^^ pp_actype ty ^^ P.comma ^^^ pp_pexpr init)
+      ^^ Pp.parens (pp_pexpr al ^^ Pp.comma ^^^ pp_actype ty ^^ Pp.comma ^^^ pp_pexpr init)
     | Alloc (al, n, _) ->
-      pp_keyword "alloc" ^^ P.parens (pp_pexpr al ^^ P.comma ^^^ pp_pexpr n)
-    | Kill (Dynamic, e) -> pp_keyword "free" ^^ P.parens (pp_pexpr e)
+      pp_keyword "alloc" ^^ Pp.parens (pp_pexpr al ^^ Pp.comma ^^^ pp_pexpr n)
+    | Kill (Dynamic, e) -> pp_keyword "free" ^^ Pp.parens (pp_pexpr e)
     | Kill (Static ct, e) ->
-      pp_keyword "kill" ^^ P.parens (pp_ct ct ^^ P.comma ^^^ pp_pexpr e)
+      pp_keyword "kill" ^^ Pp.parens (pp_ct ct ^^ Pp.comma ^^^ pp_pexpr e)
     | Store (is_locking, ty, e1, e2, mo) ->
       pp_keyword (if is_locking then "store_lock" else "store")
       ^^ pp_args [ Left ty; Right e1; Right e2 ] mo
     | Load (ty, e, mo) -> pp_keyword "load" ^^ pp_args [ Left ty; Right e ] mo
     | RMW (ty, e1, e2, e3, mo1, mo2) ->
       pp_keyword "rmw"
-      ^^ P.parens
+      ^^ Pp.parens
            (pp_actype ty
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e1
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e2
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e3
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_memory_order mo1
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_memory_order mo2)
-    | Fence mo -> pp_keyword "fence" ^^ P.parens (pp_memory_order mo)
+    | Fence mo -> pp_keyword "fence" ^^ Pp.parens (pp_memory_order mo)
     | CompareExchangeStrong (ty, e1, e2, e3, mo1, mo2) ->
       pp_keyword "compare_exchange_strong"
-      ^^ P.parens
+      ^^ Pp.parens
            (pp_actype ty
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e1
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e2
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e3
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_memory_order mo1
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_memory_order mo2)
     | CompareExchangeWeak (ty, e1, e2, e3, mo1, mo2) ->
       pp_keyword "compare_exchange_weak"
-      ^^ P.parens
+      ^^ Pp.parens
            (pp_actype ty
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e1
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e2
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_pexpr e3
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_memory_order mo1
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_memory_order mo2)
-    | LinuxFence mo -> pp_keyword "linux_fence" ^^ P.parens (pp_linux_memory_order mo)
+    | LinuxFence mo -> pp_keyword "linux_fence" ^^ Pp.parens (pp_linux_memory_order mo)
     | LinuxStore (ty, e1, e2, mo) ->
       pp_keyword "linux_store"
-      ^^ P.parens
+      ^^ Pp.parens
            (comma_list pp_actype_or_pexpr [ Left ty; Right e1; Right e2 ]
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_linux_memory_order mo)
     | LinuxLoad (ty, e, mo) ->
       pp_keyword "linux_load"
-      ^^ P.parens
+      ^^ Pp.parens
            (comma_list pp_actype_or_pexpr [ Left ty; Right e ]
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_linux_memory_order mo)
     | LinuxRMW (ty, e1, e2, mo) ->
       pp_keyword "linux_rmw"
-      ^^ P.parens
+      ^^ Pp.parens
            (comma_list pp_actype_or_pexpr [ Left ty; Right e1; Right e2 ]
-            ^^ P.comma
+            ^^ Pp.comma
             ^^^ pp_linux_memory_order mo)
 
 
+  let pp_str_label : Cerb_frontend.Annot.label_annot -> string = function
+    | LAloop i -> "while_" ^ string_of_int i
+    | LAloop_continue i -> "continue_" ^ string_of_int i
+    | LAloop_break i -> "break_" ^ string_of_int i
+    | LAreturn -> "return"
+    | LAswitch -> "switch"
+    | LAcase -> "case"
+    | LAdefault -> "default"
+    | LAactual_label -> "C-source"
+
+
   let pp_str_annot = function
-    | Aloc _ -> []
+    | Annot.Aloc _ -> []
     | Astd _str -> []
     | Auid _uid -> [ !^"TODO(uid)" ]
     | Amarker n -> [ !^("marker " ^ string_of_int n) ]
@@ -494,7 +502,7 @@ module Make (Config : CONFIG) = struct
     | Abmc annot -> (match annot with Abmc_id id -> [ !^(string_of_int id) ])
     | Atypedef sym -> [ pp_symbol sym ]
     | Aattrs _ -> [ !^"TODO(Aattrs)" ]
-    | Alabel _ -> [ !^"TODO(label)" ]
+    | Alabel label -> [ !^(pp_str_label label) ]
     | Acerb _ -> []
     | Avalue (Ainteger ity) -> [ !^"type" ^^^ Pp_core_ctype.pp_integer_ctype ity ]
     | Ainlined_label (_, s, _) -> [ !^"inlined" ^^^ pp_symbol s ]
@@ -526,7 +534,7 @@ module Make (Config : CONFIG) = struct
           (maybe_print_location loc
            ^^^
            match (e : 'ty expr_) with
-           | Epure pe -> pp_keyword "pure" ^^ P.parens (pp_pexpr pe)
+           | Epure pe -> pp_keyword "pure" ^^ Pp.parens (pp_pexpr pe)
            | Ememop memop ->
              let aux memop =
                let open Mem_common in
@@ -564,31 +572,31 @@ module Make (Config : CONFIG) = struct
              in
              let memop, pes = aux memop in
              pp_keyword "memop"
-             ^^ P.parens
-                  (Pp_mem.pp_memop memop ^^ P.comma ^^^ comma_list pp_actype_or_pexpr pes)
+             ^^ Pp.parens
+                  (Pp_mem.pp_memop memop ^^ Pp.comma ^^^ comma_list pp_actype_or_pexpr pes)
            | Eaction (Paction (p, Action (_, act))) -> pp_polarity p (pp_action act)
            | Eskip -> pp_keyword "skip"
            | Eccall (pe_ty, pe, pes) ->
              pp_keyword "ccall"
-             ^^ P.parens (pp_ct pe_ty.ct)
-             ^^ P.parens
+             ^^ Pp.parens (pp_ct pe_ty.ct)
+             ^^ Pp.parens
                   (comma_list
                      pp_actype_or_pexpr
-                     (Right pe :: (map (fun pe -> Right pe)) pes))
+                     (Right pe :: (List.map (fun pe -> Either.Right pe)) pes))
            | CN_progs (_, stmts) ->
              pp_keyword "cn_prog"
-             ^^ P.parens
+             ^^ Pp.parens
                   (* use the AST printer to at least print something, TODO improve *)
-                  (Pp.list Pp_ast.pp_doc_tree (List.map Cnprog.dtree stmts))
-           | Eunseq es -> pp_control "unseq" ^^ P.parens (comma_list pp es)
+                  (Cn_Pp.list Pp_ast.pp_doc_tree (List.map Cnprog.dtree stmts))
+           | Eunseq es -> pp_control "unseq" ^^ Pp.parens (comma_list pp es)
            | Elet (pat, pe1, e2) ->
-             P.group
-               (P.prefix
+             Pp.group
+               (Pp.prefix
                   0
                   1
                   (pp_control "let"
                    ^^^ pp_pattern pat
-                   ^^^ P.equals
+                   ^^^ Pp.equals
                    ^^^ pp_pexpr pe1
                    ^^^ pp_control "in")
                   (pp e2))
@@ -596,34 +604,34 @@ module Make (Config : CONFIG) = struct
              pp_control "if"
              ^^^ pp_pexpr pe1
              ^^^ pp_control "then"
-             ^^ P.nest 2 (P.break 1 ^^ pp e2)
-             ^^ P.break 1
+             ^^ Pp.nest 2 (Pp.break 1 ^^ pp e2)
+             ^^ Pp.break 1
              ^^ pp_control "else"
-             ^^ P.nest 2 (P.break 1 ^^ pp e3)
+             ^^ Pp.nest 2 (Pp.break 1 ^^ pp e3)
            | Ewseq (pat, e1, e2) ->
-             P.group
+             Pp.group
                (pp_control "let weak"
                 ^^^ pp_pattern pat
-                ^^^ P.equals
+                ^^^ Pp.equals
                 ^^^
                 let doc_e1 = pp e1 in
-                P.ifflat doc_e1 (P.nest 2 (P.break 1 ^^ doc_e1)) ^^^ pp_control "in")
-             ^^ P.break 1
+                Pp.ifflat doc_e1 (Pp.nest 2 (Pp.break 1 ^^ doc_e1)) ^^^ pp_control "in")
+             ^^ Pp.break 1
              ^^ pp e2
            | Esseq (pat, e1, e2) ->
-             P.group
+             Pp.group
                (pp_control "let strong"
                 ^^^ pp_pattern pat
-                ^^^ P.equals
+                ^^^ Pp.equals
                 ^^^
                 let doc_e1 = pp e1 in
-                P.ifflat doc_e1 (P.nest 2 (P.break 1 ^^ doc_e1)) ^^^ pp_control "in")
-             ^^ P.break 1
+                Pp.ifflat doc_e1 (Pp.nest 2 (Pp.break 1 ^^ doc_e1)) ^^^ pp_control "in")
+             ^^ Pp.break 1
              ^^ pp e2
-           | End es -> pp_keyword "nd" ^^ P.parens (comma_list pp es)
-           | Ebound e -> Pp.c_app (pp_keyword "bound") [ pp e ]
+           | End es -> pp_keyword "nd" ^^ Pp.parens (comma_list pp es)
+           | Ebound e -> Cn_Pp.c_app (pp_keyword "bound") [ pp e ]
            | Erun (sym, pes) ->
-             pp_keyword "run" ^^^ Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes))
+             pp_keyword "run" ^^^ Cn_Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes))
     in
     pp budget expr
 
@@ -638,17 +646,17 @@ module Make (Config : CONFIG) = struct
         pp_keyword "def"
         ^^^ pp_keyword "struct"
         ^^^ pp_raw_symbol sym
-        ^^^ P.colon
-        ^^ P.equals
+        ^^^ Pp.colon
+        ^^ Pp.equals
         ^^ pp_st sd
       | UnionDef -> pp_keyword "def" ^^^ pp_keyword "union" ^^^ pp_raw_symbol sym
     in
-    P.separate_map (P.break 1 ^^ P.break 1) pp tagDefs
+    Pp.separate_map (Pp.break 1 ^^ Pp.break 1) pp tagDefs
 
 
-  let pp_argument (sym, bTy) = pp_symbol sym ^^ P.colon ^^^ pp_bt bTy
+  let pp_argument (sym, bTy) = pp_symbol sym ^^ Pp.colon ^^^ pp_bt bTy
 
-  let pp_params params = P.parens (comma_list pp_argument params)
+  let pp_params params = Pp.parens (comma_list pp_argument params)
 
   let rec pp_arguments_l ppf = function
     | Define ((s, it), _info, l) ->
@@ -664,12 +672,12 @@ module Make (Config : CONFIG) = struct
 
   let rec pp_arguments ppf = function
     | Computational ((s, bt), _info, a) ->
-      Pp.parens (Pp.typ (pp_symbol s) (pp_bt bt)) ^^^ pp_arguments ppf a
+      Pp.parens (Cn_Pp.typ (pp_symbol s) (pp_bt bt)) ^^^ pp_arguments ppf a
     | L l -> pp_arguments_l ppf l
 
 
   let pp_fun_map budget funs =
-    let pp_cond loc d = if Cerb_location.from_main_file loc then d else P.empty in
+    let pp_cond loc d = if Cerb_location.from_main_file loc then d else Pp.empty in
     Pmap.fold
       (fun sym decl acc ->
          acc
@@ -679,7 +687,7 @@ module Make (Config : CONFIG) = struct
                @@ pp_keyword "proc"
                ^^^ pp_symbol sym
                ^^ Pp.colon
-               ^^^ Pp.option pp_ft "(no spec)" ft
+               ^^^ Cn_Pp.option pp_ft "(no spec)" ft
              | Proc { loc; args_and_body; _ } ->
                pp_cond loc
                @@ pp_keyword "proc"
@@ -687,9 +695,9 @@ module Make (Config : CONFIG) = struct
                ^^^ Pp.equals
                ^^^ pp_arguments
                      (fun (body, labels, _rt) ->
-                        P.equals
-                        ^^^ P.hardline
-                        ^^ P.nest
+                        Pp.equals
+                        ^^^ Pp.hardline
+                        ^^ Pp.nest
                              2
                              ((* pp label definitions *)
                               Pmap.fold
@@ -697,50 +705,55 @@ module Make (Config : CONFIG) = struct
                                    acc
                                    ^^ (match def with
                                        | Return _ ->
-                                         P.break 1 ^^ !^"return label" ^^^ pp_symbol sym
+                                         Pp.break 1 ^^ !^"return label" ^^^ pp_symbol sym
                                        | Label
                                            ( _loc,
                                              label_args_and_body,
                                              _annots,
                                              _,
                                              _loop_info ) ->
-                                         P.break 1
+                                         Pp.break 1
                                          ^^ !^"label"
                                          ^^^ pp_symbol sym
                                          ^^ Pp.equals
                                          ^^^ pp_arguments
                                                (fun label_body ->
                                                   (* label core function definition *)
-                                                  P.nest
+                                                  Pp.nest
                                                     2
-                                                    (P.break 1
+                                                    (Pp.break 1
                                                      ^^ pp_expr budget label_body))
                                                label_args_and_body)
-                                   ^^ P.hardline)
+                                   ^^ Pp.hardline)
                                 labels
-                                P.empty
+                                Pp.empty
                               (* pp body *)
-                              ^^ P.break 1
+                              ^^ Pp.break 1
                               ^^ !^"body"
-                              ^^^ P.equals
-                              ^^^ P.nest 2 (P.break 1 ^^ pp_expr budget body)))
+                              ^^^ Pp.equals
+                              ^^^ Pp.nest 2 (Pp.break 1 ^^ pp_expr budget body)))
                      args_and_body)
-         ^^ P.hardline
-         ^^ P.hardline)
+         ^^ Pp.hardline
+         ^^ Pp.hardline)
       funs
-      P.empty
+      Pp.empty
 
 
   let pp_extern_symmap symmap =
-    !^"-- Extern symbols map:" ^^ P.break 1
+    !^"-- Extern symbols map:" ^^ Pp.break 1
     |> Pmap.fold
          (fun sym_from sym_to acc ->
-            acc ^^ pp_raw_symbol sym_from ^^^ !^"->" ^^^ pp_raw_symbol sym_to ^^ P.break 1)
+            acc
+            ^^ pp_raw_symbol sym_from
+            ^^^ !^"->"
+            ^^^ pp_raw_symbol sym_to
+            ^^ Pp.break 1)
          symmap
 
 
   let mk_comment doc =
-    pp_ansi_format [ Red ] (fun () -> !^"{-" ^^ P.break 1 ^^ doc ^^ P.break 1 ^^ !^"-}")
+    Cerb_colour.pp_ansi_format [ Red ] (fun () ->
+      !^"{-" ^^ Pp.break 1 ^^ doc ^^ Pp.break 1 ^^ !^"-}")
 
 
   let pp_globs budget globs =
@@ -751,31 +764,31 @@ module Make (Config : CONFIG) = struct
            acc
            ^^ pp_keyword "glob"
            ^^^ pp_symbol sym
-           ^^ P.colon
-           ^^^ P.brackets (!^"ct" ^^^ P.equals ^^^ pp_ct gt)
-           ^^^ P.colon
-           ^^ P.equals
-           ^^ P.nest 2 (P.break 1 ^^ pp_expr budget e)
-           ^^ P.break 1
-           ^^ P.break 1
+           ^^ Pp.colon
+           ^^^ Pp.brackets (!^"ct" ^^^ Pp.equals ^^^ pp_ct gt)
+           ^^^ Pp.colon
+           ^^ Pp.equals
+           ^^ Pp.nest 2 (Pp.break 1 ^^ pp_expr budget e)
+           ^^ Pp.break 1
+           ^^ Pp.break 1
          | GlobalDecl _ -> acc)
-      P.empty
+      Pp.empty
       globs
 
 
   let pp_file budget file =
     let show_aggregate = not @@ Pmap.is_empty file.tagDefs in
     let show_globs = file.globs != [] in
-    let guard b doc = if b then doc else P.empty in
+    let guard b doc = if b then doc else Pp.empty in
     guard
       show_aggregate
       (!^"-- Aggregates"
-       ^^ P.break 1
+       ^^ Pp.break 1
        ^^ pp_tagDefinitions file.tagDefs
-       ^^ P.break 1
-       ^^ P.break 1)
-    ^^ guard show_globs (!^"-- Globals" ^^ P.break 1 ^^ pp_globs budget file.globs)
-    ^^ guard (show_aggregate || show_globs) (!^"-- Fun map" ^^ P.break 1)
+       ^^ Pp.break 1
+       ^^ Pp.break 1)
+    ^^ guard show_globs (!^"-- Globals" ^^ Pp.break 1 ^^ pp_globs budget file.globs)
+    ^^ guard (show_aggregate || show_globs) (!^"-- Fun map" ^^ Pp.break 1)
     ^^ pp_fun_map budget file.funs
 
 
@@ -797,14 +810,14 @@ end
 module Pp_standard_typ = struct
   let pp_bt = pp_core_base_type
 
-  let pp_ct ty = P.squotes (Pp_core_ctype.pp_ctype ty)
+  let pp_ct ty = Pp.squotes (Pp_core_ctype.pp_ctype ty)
 
   let pp_ut membrs =
     let _ty, tags = ("union", membrs) in
     let pp_tag (Symbol.Identifier (_, name), (_, _, _, ct)) =
-      !^name ^^ P.colon ^^^ pp_ct ct
+      !^name ^^ Pp.colon ^^^ pp_ct ct
     in
-    P.nest 2 (P.break 1 ^^ P.separate_map (P.break 1) pp_tag tags)
+    Pp.nest 2 (Pp.break 1 ^^ Pp.separate_map (Pp.break 1) pp_tag tags)
 
 
   let pp_st (membrs_, flexible_opt) =
@@ -815,9 +828,9 @@ module Pp_standard_typ = struct
     in
     let _ty, tags = ("struct", membrs) in
     let pp_tag (Symbol.Identifier (_, name), (_, _, _, ct)) =
-      !^name ^^ P.colon ^^^ pp_ct ct
+      !^name ^^ Pp.colon ^^^ pp_ct ct
     in
-    P.nest 2 (P.break 1 ^^ P.separate_map (P.break 1) pp_tag tags)
+    Pp.nest 2 (Pp.break 1 ^^ Pp.separate_map (Pp.break 1) pp_tag tags)
 
 
   let pp_rt ret_bt = pp_core_base_type ret_bt
@@ -829,7 +842,7 @@ module Pp_standard_typ = struct
   let pp_lt params =
     comma_list
       (fun (_, (ty, by_pointer)) ->
-         if by_pointer then pp_ctype ty else pp_ctype ty ^^^ P.parens (P.string "val"))
+         if by_pointer then pp_ctype ty else pp_ctype ty ^^^ Pp.parens (Pp.string "val"))
       params
 end
 
@@ -845,7 +858,7 @@ module WithLocations = Make (struct
     let show_locations = true
   end)
 
-let pp_budget () = Some (!Cerb_debug.debug_level + !Pp.print_level + 6)
+let pp_budget () = Some (!Cerb_debug.debug_level + !Cn_Pp.print_level + 6)
 
 let pp_pexpr_w b e = Basic.pp_pexpr b e
 

@@ -1,8 +1,6 @@
 module CF = Cerb_frontend
 module CB = Cerb_backend
-open CB.Pipeline
 open Cn
-open Setup
 
 let run_seq_tests
       (* Common *)
@@ -74,7 +72,7 @@ let run_seq_tests
              mk dir
            in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
-           Fulminate.Executable_spec.main
+           Fulminate.main
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
