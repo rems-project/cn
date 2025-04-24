@@ -194,10 +194,16 @@ let main
           "#include <cn-executable/cerb_types.h>\n";
           (* TODO necessary because of the types in the struct decls. proper
              handling would be to hoist all definitions and toposort them *)
+          (* TODO actually instead of *hoisting* types we can *lower* structs
+             etc to the highest place they're valid *)
           "typedef __cerbty_intptr_t intptr_t;";
           "typedef __cerbty_uintptr_t uintptr_t;";
           "typedef __cerbty_intmax_t intmax_t;";
-          "typedef __cerbty_uintmax_t uintmax_t;"
+          "typedef __cerbty_uintmax_t uintmax_t;";
+          (* TODO need to inject definitions for all the __cerbvars in cerberus
+             builtins.lem. Hoisting/lowering doesn't affect needing to do this *)
+          "static const int __cerbvar_INT_MAX = 0x7fffffff;";
+          "static const int __cerbvar_INT_MIN = ~0x7fffffff;"
         ];
         [ c_struct_decls ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");

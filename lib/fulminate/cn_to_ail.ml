@@ -100,7 +100,7 @@ let create_id_from_sym ?(lowercase = false) sym =
 
 let create_sym_from_id id = Sym.fresh (Id.get_string id)
 
-let ail_null = A.(AilEconst (ConstantInteger (IConstant (Z.zero,Decimal,None))))
+let ail_null = A.(AilEconst (ConstantInteger (IConstant (Z.zero, Decimal, None))))
 
 let generate_error_msg_info_update_stats ?(cn_source_loc_opt = None) () =
   let cn_source_loc_arg =
@@ -566,7 +566,11 @@ let cn_to_ail_const const basetype =
       let ail_const =
         let k a = A.(AilEconst (ConstantInteger (IConstant (a, Decimal, suffix)))) in
         if Z.equal i z_min && BT.equal_sign sgn BT.Signed then
-          A.(AilEbinary (mk_expr (k (Z.neg (Z.sub (Z.neg i) Z.one))), Arithmetic Sub, mk_expr (k Z.one)))
+          A.(
+            AilEbinary
+              ( mk_expr (k (Z.neg (Z.sub (Z.neg i) Z.one))),
+                Arithmetic Sub,
+                mk_expr (k Z.one) ))
         else
           k i
       in
@@ -581,8 +585,7 @@ let cn_to_ail_const const basetype =
     | Bool b ->
       wrap
         (A.AilEconst (ConstantPredefined (if b then PConstantTrue else PConstantFalse)))
-    | Unit ->
-      wrap ail_null (* Gets overridden by dest_with_unit_check *)
+    | Unit -> wrap ail_null (* Gets overridden by dest_with_unit_check *)
     | Null -> wrap ail_null
     | CType_const _ -> failwith (__LOC__ ^ ": TODO CType_const")
     | Default bt -> cn_to_ail_default bt
