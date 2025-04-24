@@ -207,7 +207,7 @@ let compile_test_file
           "#endif\n";
           "#include <stdint.h>\n";
           "#include <cn-executable/utils.h>\n";
-          "#include <cn-executable/cerb_types.h>\n";
+          "#include <cn-executable/cerb_types.h>\n"
         ];
         [ c_struct_decls ];
         [ (* (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else ""); *)
@@ -241,9 +241,7 @@ let compile_test_file
     ]
   in
   let open Pp in
-
   !^(String.concat " " cn_header_decls_list)
-
   ^^ compile_includes ~filename_base
   ^^ twice hardline
   ^^ pp_label

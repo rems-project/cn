@@ -196,7 +196,7 @@ let main
           "#ifndef INT64_MAX\n";
           "#include <stdint.h>\n";
           "#endif\n";
-          "#include <cn-executable/cerb_types.h>\n";
+          "#include <cn-executable/cerb_types.h>\n"
         ];
         [ c_struct_decls ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
