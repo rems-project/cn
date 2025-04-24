@@ -54,7 +54,6 @@ let compile ~filename_base =
        (String.concat
           " "
           ([ "cc";
-             "-w";
              "-c";
              "-o";
              "\"./" ^ filename_base ^ ".test.o\"";
@@ -71,7 +70,6 @@ let compile ~filename_base =
              (String.concat
                 " "
                 ([ "cc";
-                   "-w";
                    "-c";
                    "-o";
                    "\"./" ^ filename_base ^ ".exec.o\"";
@@ -84,40 +82,46 @@ let compile ~filename_base =
         ^^ attempt
              (String.concat
                 " "
-                ([ "cc"; "-w"; "-c"; "-o"; "\"./cn.o\""; "\"./cn.c\"" ] @ cc_flags ()))
-             "Compiled 'cn.c'."
-             "Failed to compile 'cn.c' in ${TEST_DIR}.")
+                ([ "cc";
+                   "-c";
+                   "-o";
+                   "\"./" ^ filename_base ^ ".cn.o\"";
+                   "\"./" ^ filename_base ^ ".cn.c\""
+                 ]
+                 @ cc_flags ()))
+             ("Compiled '" ^ filename_base ^ ".cn.c'.")
+             ("Failed to compile '" ^ filename_base ^ ".cn.c' in ${TEST_DIR}."))
   ^^ hardline
 
 
-let link ~filename_base =
-  string "# Link"
-  ^^ hardline
-  ^^ (if Config.is_print_steps () then
-        string "echo" ^^ twice hardline
-      else
-        empty)
-  ^^ attempt
-       (String.concat
-          " "
-          ([ "cc";
-             "-o";
-             "\"./tests.out\"";
-             (filename_base
-              ^ ".test.o"
-              ^
-              if Config.with_static_hack () then
-                ""
-              else
-                " " ^ filename_base ^ ".exec.o " ^ filename_base ^ ".cn.o");
-             "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
-             "\"${RUNTIME_PREFIX}/libcn_test.a\"";
-             "\"${RUNTIME_PREFIX}/libcn_replica.a\""
-           ]
-           @ cc_flags ()))
-       "Linked C *.o files."
-       "Failed to link *.o files in ${TEST_DIR}."
-  ^^ hardline
+  let link ~filename_base =
+    string "# Link"
+    ^^ hardline
+    ^^ (if Config.is_print_steps () then
+          string "echo" ^^ twice hardline
+        else
+          empty)
+    ^^ attempt
+         (String.concat
+            " "
+            ([ "cc";
+               "-o";
+               "\"./tests.out\"";
+               (filename_base
+                ^ ".test.o"
+                ^
+                if Config.with_static_hack () then
+                  ""
+                else
+                  " " ^ filename_base ^ ".exec.o " ^ filename_base ^ ".cn.o");
+               "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
+               "\"${RUNTIME_PREFIX}/libcn_test.a\"";
+               "\"${RUNTIME_PREFIX}/libcn_replica.a\""
+             ]
+             @ cc_flags ()))
+         "Linked C *.o files."
+         "Failed to link *.o files in ${TEST_DIR}."
+    ^^ hardline
 
 
 let run (num_tests : int) =

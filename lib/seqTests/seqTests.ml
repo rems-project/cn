@@ -261,7 +261,9 @@ let create_intermediate_test_file
              ^^ hardline
              ^^ sequence
              ^^ hardline
-             ^^ test)
+             ^^ test
+             ^^ hardline
+             ^^ string "return 0;")
           ^^ hardline)
   in
   let create_case (i : int) (_ : Pp.document) =
@@ -287,7 +289,7 @@ let create_intermediate_test_file
      ^^ string "#include "
      ^^ dquotes (string "cn.c")
    else
-     string "#include " ^^ dquotes (string "cn.h") ^^ twice hardline ^^ fun_decls)
+     string "#include " ^^ dquotes (string (filename_base ^ ".cn.h")) ^^ twice hardline ^^ fun_decls)
   ^^ twice hardline
   ^^ separate
        (twice hardline)
@@ -368,7 +370,7 @@ let ctx_to_tests =
   separate_map empty (fun (name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
 
 
-let rec analyze_results
+let analyze_results
           (prev_and_tests :
             (int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
               option
@@ -391,7 +393,7 @@ let rec analyze_results
   let intermediate_file =
     create_intermediate_test_file sequences tests_to_try filename_base fun_decls
   in
-  save output_dir (filename_base ^ "_test.c") intermediate_file;
+  save output_dir (filename_base ^ ".test.c") intermediate_file;
   let output_str, _ =
     out_to_a (output_dir ^ "/run_tests_intermediate.sh") (fun s a -> a ^ s ^ "\n") ""
   in
@@ -595,10 +597,11 @@ let shrink
         | _, [] -> 1
         | arg1 :: args1, arg2 :: args2 ->
           let cmp = 
+            (* String.compare arg1 arg2 *)
           if String.starts_with ~prefix:"x" arg1 && String.starts_with ~prefix:"x" arg2 then
-            String.compare arg1 arg2
+            0
           else 
-            Int.compare (int_of_string arg1) (int_of_string arg2)
+            Int.compare (int_of_string arg1 |> abs) (int_of_string arg2 |> abs)
           in
           if cmp <> 0 then cmp else compare_args args1 args2
       in
@@ -919,7 +922,7 @@ let generate
   =
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
-  let test_file = filename_base ^ "_test.c" in
+  let test_file = filename_base ^ ".test.c" in
   let script_doc' =
     BuildScript.generate_intermediate ~output_dir ~filename_base (Config.get_num_tests ())
   in
