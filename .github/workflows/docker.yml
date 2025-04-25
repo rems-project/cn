@@ -56,7 +56,7 @@ jobs:
         file: Dockerfile.${{ matrix.os }}
         github-token: ${{ secrets.GITHUB_TOKEN }}
 
-  combine-multios:
+  combine-multiplatform:
 
     if: ${{ github.event_name != 'pull_request' }}
 
@@ -93,7 +93,7 @@ jobs:
       matrix:
         os: [ubuntu, redhat, devcontainer]
     runs-on: ubuntu-latest
-    needs: [combine-multios]
+    needs: [combine-multiplatform]
 
     steps:
     - uses: actions/checkout@v4

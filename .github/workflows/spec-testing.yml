@@ -1,5 +1,4 @@
-# Installs CN (without Coq) and runs tests
-name: CN Proof
+name: Spec Testing
 
 on:
   pull_request:
@@ -22,6 +21,7 @@ jobs:
         # version: [4.12.0, 4.14.1]
         version: [4.14.1]
 
+
     runs-on: ubuntu-22.04
 
     steps:
@@ -29,9 +29,22 @@ jobs:
     - name: Checkout CN
       uses: actions/checkout@v4
 
-    - name: System dependencies (Ubuntu)
+    - name: System dependencies (ubuntu)
       run: |
-        sudo apt-get install build-essential libgmp-dev z3 opam
+        sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+        sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+        sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+        sudo apt-get update
+        sudo apt-get install clang-19 clang-format-19
+
+    - name: Check LibCN code formatting
+      run: |
+        find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format-19 --dry-run -Werror
+
+    - name: Check Clang warnings
+      run: |
+        find runtime/libcn/ -iname '*.c' | xargs clang-19 -I runtime/libcn/include/ -fsyntax-only -Werror
 
     - name: Restore OPAM cache
       id: cache-opam-restore
@@ -47,7 +60,7 @@ jobs:
         eval $(opam env --switch=${{ matrix.version }})
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
         opam install --deps-only --yes ./cn.opam
-
+  
     - name: Save OPAM cache
       uses: actions/cache/save@v4
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -62,52 +75,42 @@ jobs:
     #     opam pin --yes --no-action add cerberus-lib .
     #     opam install --yes cerberus-lib
 
-    - name: Download cvc5 release
-      uses: robinraju/release-downloader@v1
-      with:
-        repository: cvc5/cvc5
-        tag: cvc5-1.2.0
-        fileName: cvc5-Linux-x86_64-static.zip
-
-    - name: Unzip and install cvc5
-      run: |
-        unzip cvc5-Linux-x86_64-static.zip
-        chmod +x cvc5-Linux-x86_64-static/bin/cvc5
-        sudo cp cvc5-Linux-x86_64-static/bin/cvc5 /usr/local/bin/
-
     - name: Install CN
       run: |
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam pin --yes --no-action add cn .
-        opam install --yes cn ocamlformat.0.27.0
+        opam install --yes cn
 
-    - name: Check CN code formatting
+    - name: Run CN-runtime CI tests (Cerberus)
       run: |
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
-        dune build @fmt
+        cd tests; ./run-cn-exec.sh
 
     - name: Checkout cn-tutorial
       uses: actions/checkout@v4
       with:
         repository: rems-project/cn-tutorial
         path: cn-tutorial
+        ref: cn-runtime-testing # FIXME: remove once the branch is merged 
 
-    - name: Run CN tests
+    - name: Run CN-runtime CI tests (CN tutorial)
       run: |
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
-        ./tests/diff-prog.py cn tests/cn/verify.json 2> diff.patch || (cat diff.patch; exit 1)
+        cd cn-tutorial; ./runtime-test.sh 
+        cd ..
 
-    - name: Run CN Tutorial tests
+    - name: Run CN-Test-Gen CI tests
       run: |
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
-        tests/run-cn-tutorial-ci.sh cn-tutorial
-
-    - name: Run CN VIP tests
+        cd tests; ./run-cn-test-gen.sh
+    
+    - name: Run CN-Seq-Test-Gen CI tests
       run: |
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
-        tests/run-cn-vip.sh
+        cd tests; ./run-cn-seq-test-gen.sh
+
