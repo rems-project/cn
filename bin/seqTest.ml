@@ -43,13 +43,6 @@ let run_seq_tests
     mk dir
   in
   let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
-  Printf.fprintf
-    stderr
-    "filename %s\nbasefile %s\npp_file %s\nout_file %s\n"
-    filename
-    basefile
-    pp_file
-    out_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -91,16 +84,6 @@ let run_seq_tests
              out_file
              ail_prog
              prog5;
-           (try
-              TestGeneration.run
-                ~output_dir
-                ~filename
-                ~without_ownership_checking
-                cabs_tunit
-                sigma
-                prog5
-            with
-            | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
            let config : SeqTests.seq_config =
              { print_steps;
                with_static_hack;
