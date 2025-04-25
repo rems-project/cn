@@ -20,15 +20,6 @@ let rec group_toplevel_defs new_list = function
       group_toplevel_defs (loc :: non_matching_elems) ls)
 
 
-let filter_injs_by_filename inj_pairs fn =
-  List.filter
-    (fun (loc, _) ->
-       match Cerb_location.get_filename loc with
-       | Some name -> String.equal name fn
-       | None -> false)
-    inj_pairs
-
-
 let memory_accesses_injections ail_prog =
   let open Cerb_frontend in
   let open Cerb_location in
