@@ -8,7 +8,10 @@ def eprint(*args, then_exit=True, **kwargs):
         exit(1)
 
 def time_cmd(cmd):
-    return ["/usr/bin/time", "--quiet", "--format", "%e"] + cmd
+    if sys.platform == 'darwin':
+      return ["/usr/bin/time"] + cmd
+    else:
+      return ["/usr/bin/time", "--quiet", "--format", "%e"] + cmd
 
 class Prog:
 
@@ -33,7 +36,10 @@ class Prog:
         try:
             completed = self.run(test_rel_path);
             lines = completed.stdout.splitlines(True)
-            time = float(lines[-1])
+            if sys.platform == 'darwin':
+                time = float([ x for x in lines[-1].split(' ') if x != ''][0])
+            else:
+                time = float(lines[-1])
             return { 'time': time, 'lines' : [("return code: %d\n" % completed.returncode)] + lines[:-1] }
         except subprocess.TimeoutExpired:
             return { 'time': float(self.timeout), 'lines': ["TIMEOUT\n"] }
