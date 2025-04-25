@@ -179,7 +179,7 @@ let out_to_list (command : string) =
   try go () with
   | End_of_file ->
     let status = Unix.close_process_in chan in
-    (!res, status)
+    (List.rev !res, status)
 
 
 let rec gen_sequence
