@@ -484,7 +484,10 @@ let generate
         ())
   in
   let open Pp in
-  let fun_decls = separate_map hardline fun_to_decl insts in
+  let struct_decls = Fulminate.Internal.generate_c_struct_strs sigma.tag_definitions in
+  let fun_decls =
+    string struct_decls ^^ hardline ^^ separate_map hardline fun_to_decl insts
+  in
   let compiled_seq =
     compile_sequence
       sigma
