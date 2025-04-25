@@ -188,6 +188,7 @@ let main
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
+      (* TODO instead use hcat on these includes and typedefs *)
       [ [ (* TODO need handling for the stuff in stdlib.h and stdint.h but we
              can't include them here, they'll clash in essentially unavoidable
              ways with the stuff we already included and processed *)
