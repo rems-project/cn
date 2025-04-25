@@ -45,7 +45,7 @@ let attempt cmd success failure =
   ^^ string "fi"
 
 
-let cc_flags () = [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\"" ]
+let cc_flags () = [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\""; "-Wno-attributes" ]
 
 let compile ~filename_base =
   string "# Compile"
