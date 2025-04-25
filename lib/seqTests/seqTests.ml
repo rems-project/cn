@@ -198,7 +198,10 @@ let rec gen_sequence
           (filename_base : string)
           (src_code : string list)
           (fun_decls : Pp.document)
-  : (Pp.document * test_stats, Pp.document * test_stats) Either.either
+  : [ `PostConditionViolation of Pp.document * test_stats
+    | `Success of Pp.document * test_stats
+    | `CompileFailure of Pp.document * test_stats
+    ]
   =
   let max_retries = Config.get_max_backtracks () in
   let num_resets = Config.get_max_resets () in
@@ -212,7 +215,7 @@ let rec gen_sequence
   | 0 ->
     let unmap_stmts = List.map Fulminate.Ownership.generate_c_local_ownership_exit ctx in
     let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmts in
-    Right (seq_so_far ^^ unmap_str ^^ hardline ^^ string "return 0;", stats)
+    `Success (seq_so_far ^^ unmap_str ^^ hardline ^^ string "return 0;", stats)
   | n ->
     let fs =
       List.map
@@ -222,10 +225,16 @@ let rec gen_sequence
     let rec gen_test
               (args_map : Sym.t * ((C.qualifiers * C.ctype) * (Sym.t * C.ctype) list))
               (retries_left : int)
-      : (SymSet.elt * C.ctype) list * int * (document, string * document) Either.either
+      : (SymSet.elt * C.ctype) list
+        * int
+        * [ `OutOfTries of unit
+          | `CompileFailure of document
+          | `PostConditionViolation of document
+          | `Success of string * document
+          ]
       =
       if retries_left = 0 then
-        (ctx, prev, Either.Left empty)
+        (ctx, prev, `OutOfTries ())
       else (
         match args_map with
         | f, ((qualifiers, ret_ty), args) ->
@@ -270,11 +279,12 @@ let rec gen_sequence
           in
           let output, status = out_to_list (output_dir ^ "/run_tests.sh") in
           (match status with
-           | WEXITED 0 -> (ctx', prev, Either.Right (Sym.pp_string f, curr_test))
+           | WEXITED 0 -> (ctx', prev, `Success (Sym.pp_string f, curr_test))
            | _ ->
              let violation_regex = Str.regexp {| +\^~+ .+\.c:\([0-9]+\):[0-9]+-[0-9]+|} in
              let is_post_regex = Str.regexp {|[ \t]*\(/\*@\)?[ \t]*ensures|} in
              let is_pre_regex = Str.regexp {|[ \t]*\(/\*@\)?[ \t]*requires|} in
+             let is_bad_compile_regex = Str.regexp {|Failed to compile|} in
              let rec get_violation_line test_output =
                match test_output with
                | [] -> 0
@@ -295,6 +305,9 @@ let rec gen_sequence
                  else
                    is_precond_violation lines
              in
+             let is_bad_compile code =
+               List.exists (fun l -> Str.string_match is_bad_compile_regex l 0) code
+             in
              let drop n l =
                (* ripped from OCaml 5.3 *)
                let rec aux i = function
@@ -304,32 +317,45 @@ let rec gen_sequence
                if n < 0 then invalid_arg "List.drop";
                aux 0 l
              in
-             let violation_line_num = get_violation_line output in
-             if
-               is_precond_violation
-                 (drop (List.length src_code - violation_line_num) src_code)
-             then
-               gen_test
-                 (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
-                 (retries_left - 1)
-             else
+             if is_bad_compile output then
                ( ctx',
                  prev,
-                 Either.Left
+                 `CompileFailure
                    (string
                       (Printf.sprintf
-                         "/* violation of post-condition at line number %d in %s \
-                          detected on this call: */"
-                         violation_line_num
+                         "/* Failed to compile while seq-testing %s */"
                          (filename_base ^ ".c"))
                     ^^ hardline
                     ^^ curr_test
                     ^^ hardline
-                    ^^ string "return 123;") )))
+                    ^^ string "return 123;") )
+             else (
+               let violation_line_num = get_violation_line output in
+               if
+                 is_precond_violation
+                   (drop (List.length src_code - violation_line_num) src_code)
+               then
+                 gen_test
+                   (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
+                   (retries_left - 1)
+               else
+                 ( ctx',
+                   prev,
+                   `PostConditionViolation
+                     (string
+                        (Printf.sprintf
+                           "/* violation of post-condition at line number %d in %s \
+                            detected on this call: */"
+                           violation_line_num
+                           (filename_base ^ ".c"))
+                      ^^ hardline
+                      ^^ curr_test
+                      ^^ hardline
+                      ^^ string "return 123;") ))))
     in
     (match List.length fs with
      | 0 ->
-       Right
+       `Success
          ( seq_so_far ^^ string "/* unable to generate call at this point */",
            { stats with failures = stats.failures + 1 } )
      | _ ->
@@ -338,7 +364,7 @@ let rec gen_sequence
             (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
             max_retries
         with
-        | ctx', prev, Either.Right (name, test) ->
+        | ctx', prev, `Success (name, test) ->
           let distrib =
             match List.assoc_opt String.equal name stats.distrib with
             | None -> (name, 1) :: stats.distrib
@@ -370,21 +396,22 @@ let rec gen_sequence
             filename_base
             src_code
             fun_decls
-        | _, prev, Either.Left err ->
-          if is_empty err then
-            gen_sequence
-              funcs
-              (n - 1)
-              { stats with skipped = stats.skipped + 1 }
-              ctx
-              prev
-              seq_so_far
-              output_dir
-              filename_base
-              src_code
-              fun_decls
-          else
-            Either.Left (seq_so_far ^^ err, { stats with failures = 1 })))
+        | _, prev, `OutOfTries () ->
+          gen_sequence
+            funcs
+            (n - 1)
+            { stats with skipped = stats.skipped + 1 }
+            ctx
+            prev
+            seq_so_far
+            output_dir
+            filename_base
+            src_code
+            fun_decls
+        | _, _, `PostConditionViolation err ->
+          `PostConditionViolation (seq_so_far ^^ err, { stats with failures = 1 })
+        | _, _, `CompileFailure err ->
+          `CompileFailure (seq_so_far ^^ err, { stats with failures = 1 })))
 
 
 let compile_sequence
@@ -395,7 +422,10 @@ let compile_sequence
       (filename_base : string)
       (src_code : string list)
       (fun_decls : Pp.document)
-  : (Pp.document * test_stats, Pp.document * test_stats) Either.either
+  : [ `PostConditionViolation of Pp.document * test_stats
+    | `Success of Pp.document * test_stats
+    | `CompileFailure of Pp.document * test_stats
+    ]
   =
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
@@ -472,7 +502,7 @@ let generate
   in
   let exit_code, seq, output_msg =
     match compiled_seq with
-    | Left (seq, stats) ->
+    | `PostConditionViolation (seq, stats) ->
       ( 123,
         seq,
         Printf.sprintf
@@ -483,7 +513,14 @@ let generate
           stats.successes
           output_dir
           test_file )
-    | Right (seq, stats) ->
+    | `CompileFailure (seq, _) ->
+      ( 123,
+        seq,
+        Printf.sprintf
+          "Failed to compile a generated test file.\nSee %s/%s for details"
+          output_dir
+          test_file )
+    | `Success (seq, stats) ->
       let num_tests = List.fold_left (fun acc (_, num) -> acc + num) 0 stats.distrib in
       let distrib_to_str =
         if List.length stats.distrib = 0 then
