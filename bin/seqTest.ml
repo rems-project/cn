@@ -43,7 +43,13 @@ let run_seq_tests
     mk dir
   in
   let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
-  Printf.fprintf stderr "filename %s\nbasefile %s\npp_file %s\nout_file %s\n" filename basefile pp_file out_file;
+  Printf.fprintf
+    stderr
+    "filename %s\nbasefile %s\npp_file %s\nout_file %s\n"
+    filename
+    basefile
+    pp_file
+    out_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
