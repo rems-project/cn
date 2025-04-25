@@ -150,14 +150,13 @@ let compile_includes ~filename_base =
   (* TODO the static hack has been removed from the testing files, and the hack
      should change from including the whole exec file to creating wrappers for
      every static function and calling those instead *)
+  ^^ (if Config.with_static_hack () then
+        string "#include " ^^ dquotes (string (filename_base ^ ".exec.c")) ^^ hardline
+      else
+        empty)
   ^^ string "#include "
   ^^ dquotes (string (filename_base ^ ".gen.h"))
   ^^ hardline
-  ^^
-  if Config.with_static_hack () then
-    string "#include " ^^ dquotes (string (filename_base ^ ".exec.c"))
-  else
-    hardline
 
 
 let compile_test test =
