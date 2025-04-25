@@ -23,11 +23,7 @@ NUM_FAILED=0
 FAILED=''
 
 function separator() {
-  printf '\n'
-  for i in {1..60}; do
-    printf "="
-  done
-  printf '\n\n'
+  printf '\n===========================================================\n\n'
 }
 
 CONFIGS=("--num-samples=30 --max-resets=1")

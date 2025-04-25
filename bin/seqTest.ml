@@ -36,12 +36,14 @@ let run_seq_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
-  let pp_file = Filename.temp_file "cn_" filename in
+  let basefile = Filename.basename filename in
+  let pp_file = Filename.temp_file "cn_" basefile in
   let output_dir =
     let dir, mk = output_dir in
     mk dir
   in
-  let out_file = Fulminate.get_output_filename (Some output_dir) None filename in
+  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
+  Printf.fprintf stderr "filename %s\nbasefile %s\npp_file %s\nout_file %s\n" filename basefile pp_file out_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros
@@ -56,7 +58,7 @@ let run_seq_tests
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
-    ~save_cpp:None (* XXX *)
+    ~save_cpp:(Some pp_file)
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
