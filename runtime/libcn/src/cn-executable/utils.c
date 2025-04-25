@@ -332,8 +332,7 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
   }
 }
 
-void cn_get_or_put_ownership(
-    enum spec_mode spec_mode, void *generic_c_ptr, size_t size) {
+void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size_t size) {
   nr_owned_predicates++;
   switch (spec_mode) {
     case PRE: {
