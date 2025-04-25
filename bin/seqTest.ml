@@ -85,6 +85,16 @@ let run_seq_tests
              out_file
              ail_prog
              prog5;
+           (try
+              TestGeneration.run
+                ~output_dir
+                ~filename
+                ~without_ownership_checking
+                cabs_tunit
+                sigma
+                prog5
+            with
+            | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
            let config : SeqTests.seq_config =
              { print_steps;
                with_static_hack;

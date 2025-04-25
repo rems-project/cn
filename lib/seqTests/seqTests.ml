@@ -151,7 +151,9 @@ let create_test_file
   (if Config.with_static_hack () then
      string "#include " ^^ dquotes (string (filename_base ^ ".exec.c"))
    else
-     twice hardline ^^ fun_decls)
+     fun_decls)
+  ^^ twice hardline
+  ^^ string "#include <cn-executable/utils.h>"
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
