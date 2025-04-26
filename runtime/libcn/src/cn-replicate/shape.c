@@ -180,6 +180,7 @@ static void init_decimal_places() {
       count /= 10;
       log++;
     }
+    decimal_places = log;
   }
 }
 
