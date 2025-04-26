@@ -1,5 +1,5 @@
 #!/bin/bash
 
-cd cn-test-gen
+cd cn-test-gen || exit 1
 
 make -j

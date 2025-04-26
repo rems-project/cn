@@ -116,3 +116,18 @@ jobs:
       - name: Check GCC warnings
         run: |
           find runtime/libcn/ -iname '*.c' | xargs gcc -I runtime/libcn/include/ -fsyntax-only -Werror
+
+  shellcheck:
+    name: ShellCheck
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get install shellcheck
+
+      - name: Check test scripts
+        run: shellcheck -S error tests/**/*.sh

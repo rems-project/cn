@@ -62,7 +62,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     fi
   elif [[ $TEST == *.fail.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    $CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG >/dev/null 2>/dev/null
+    $CN test "$TEST" --output-dir="$DIR" "$FULL_CONFIG" >/dev/null 2>/dev/null
     RET=$?
     if [[ "$RET" = 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
