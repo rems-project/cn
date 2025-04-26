@@ -186,8 +186,6 @@ int cn_gen_ownership_check(void* p, size_t sz) {
     return 1;
   }
 
-  int bytes = sz;
-
   struct pointer_data* q =
       (struct pointer_data*)((uintptr_t)ownership_curr - sizeof(struct pointer_data));
   for (; (uintptr_t)q >= (uintptr_t)ownership_buf; q--) {

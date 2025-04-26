@@ -178,6 +178,9 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       }
 
       return max_size + 1;
+
+    default:
+      assert(false);
   }
 }
 

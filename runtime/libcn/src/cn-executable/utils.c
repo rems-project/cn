@@ -291,7 +291,7 @@ void dump_ownership_state() {
   hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
   // cn_printf(CN_LOGGING_INFO, "BEGIN ownership state\n");
   while (ht_next(&it)) {
-    int depth = it.value ? *(int*)it.value : -1;
+    // int depth = it.value ? *(int*)it.value : -1;
     // cn_printf(CN_LOGGING_INFO, "[%#lx] => depth: %d\n", *it.key, depth);
   }
   // cn_printf(CN_LOGGING_INFO, "END\n");

@@ -293,7 +293,6 @@ void cn_gen_shuffle(void* arr, size_t len, size_t size) {
   // byte size is implementation-defined (6.5.3.4, bullet 2)
   // but `sizeof(char) == 1` is guaranteed.
   char tmp[size];
-  char* p = arr;
 
   for (int i = len - 1; i >= 0; i--) {
     uint8_t j = cn_gen_range_u8(0, i + 1);
@@ -301,17 +300,6 @@ void cn_gen_shuffle(void* arr, size_t len, size_t size) {
     memcpy(arr + i * size, arr + j * size, size);
     memcpy(arr + j * size, tmp, size);
   }
-}
-
-static int comp_size_t(const void* x, const void* y) {
-  size_t a = *(const size_t*)x;
-  size_t b = *(const size_t*)y;
-
-  if (a < b)
-    return -1;
-  if (b > a)
-    return 1;
-  return 0;
 }
 
 void cn_gen_split(size_t n, size_t* arr[], size_t len) {
