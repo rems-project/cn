@@ -96,7 +96,7 @@ jobs:
 
       - name: Check Clang warnings
         run: |
-          find runtime/libcn/ -iname '*.c' | xargs clang-19 -I runtime/libcn/include/ -fsyntax-only -Werror -Wall
+          find runtime/libcn/ -iname '*.c' -exec clang-19 -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
 
   gcc-warnings:
     name: GCC warnings
@@ -115,7 +115,7 @@ jobs:
 
       - name: Check GCC warnings
         run: |
-          find runtime/libcn/ -iname '*.c' | xargs gcc -I runtime/libcn/include/ -fsyntax-only -Werror -Wall
+          find runtime/libcn/ -iname '*.c' -exec gcc -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
 
   shellcheck:
     name: ShellCheck
