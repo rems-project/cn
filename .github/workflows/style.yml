@@ -1,0 +1,118 @@
+# Check style of codebase
+name: Style
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ocaml-format:
+    strategy:
+      matrix:
+        version: [4.14.1]
+
+    name: OCamlFormat
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
+
+      - name: Install OPAM
+        run: sudo apt-get install opam
+
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}
+    
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam install --deps-only --yes ./cn.opam
+  
+      - name: Save OPAM cache
+        uses: actions/cache/save@v4
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}
+  
+      - name: Install OCamlFormat
+        run: |
+          eval $(opam env --switch=${{ matrix.version }})
+          opam install --yes ocamlformat.0.27.0
+
+      - name: Check CN code formatting
+        run: |
+          eval $(opam env --switch=${{ matrix.version }})
+          dune build @fmt
+
+  clang-format:
+    name: ClangFormat
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
+
+      - name: Install ClangFormat
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo apt-get update
+          sudo apt-get install clang-format-19
+
+      - name: Check LibCN code formatting
+        run: |
+          find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format-19 --dry-run -Werror
+
+  clang-warnings:
+    name: Clang warnings
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
+
+      - name: Install Clang
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo apt-get update
+          sudo apt-get install clang-19
+
+      - name: Check Clang warnings
+        run: |
+          find runtime/libcn/ -iname '*.c' | xargs clang-19 -I runtime/libcn/include/ -fsyntax-only -Werror
+
+  gcc-warnings:
+    name: GCC warnings
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
+
+      - name: Install GCC
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install gcc
+
+      - name: Check GCC warnings
+        run: |
+          find runtime/libcn/ -iname '*.c' | xargs gcc -I runtime/libcn/include/ -fsyntax-only -Werror

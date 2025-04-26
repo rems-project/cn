@@ -55,13 +55,6 @@ jobs:
         path: ~/.opam
         key: ${{ matrix.version }}
 
-    # - name: Install Cerberus-lib
-    #   run: |
-    #     opam switch ${{ matrix.version }}
-    #     eval $(opam env --switch=${{ matrix.version }})
-    #     opam pin --yes --no-action add cerberus-lib .
-    #     opam install --yes cerberus-lib
-
     - name: Download cvc5 release
       uses: robinraju/release-downloader@v1
       with:
@@ -80,13 +73,7 @@ jobs:
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam pin --yes --no-action add cn .
-        opam install --yes cn ocamlformat.0.27.0
-
-    - name: Check CN code formatting
-      run: |
-        opam switch ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }})
-        dune build @fmt
+        opam install --yes cn
 
     - name: Checkout cn-tutorial
       uses: actions/checkout@v4

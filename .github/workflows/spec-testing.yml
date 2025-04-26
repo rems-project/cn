@@ -32,19 +32,6 @@ jobs:
     - name: System dependencies (ubuntu)
       run: |
         sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
-        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
-        sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
-        sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
-        sudo apt-get update
-        sudo apt-get install clang-19 clang-format-19
-
-    - name: Check LibCN code formatting
-      run: |
-        find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format-19 --dry-run -Werror
-
-    - name: Check Clang warnings
-      run: |
-        find runtime/libcn/ -iname '*.c' | xargs clang-19 -I runtime/libcn/include/ -fsyntax-only -Werror
 
     - name: Restore OPAM cache
       id: cache-opam-restore
@@ -67,13 +54,6 @@ jobs:
       with:
         path: ~/.opam
         key: ${{ matrix.version }}
-
-    # - name: Install Cerberus-lib
-    #   run: |
-    #     opam switch ${{ matrix.version }}
-    #     eval $(opam env --switch=${{ matrix.version }})
-    #     opam pin --yes --no-action add cerberus-lib .
-    #     opam install --yes cerberus-lib
 
     - name: Install CN
       run: |
