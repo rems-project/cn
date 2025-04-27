@@ -62,10 +62,14 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     fi
   elif [[ $TEST == *.fail.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    $CN test "$TEST" --output-dir="$DIR" "$FULL_CONFIG" >/dev/null 2>/dev/null
+    THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
     RET=$?
-    if [[ "$RET" = 0 ]]; then
+    if [[ "$RET" == 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+      NUM_FAILED=$(($NUM_FAILED + 1))
+      FAILED="$FAILED ($ALT_CONFIG)"
+    elif [[ "$RET" != 1 ]]; then
+      OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
       NUM_FAILED=$(($NUM_FAILED + 1))
       FAILED="$FAILED ($ALT_CONFIG)"
     else
@@ -73,17 +77,21 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     fi
   elif [[ $TEST == *.flaky.c ]]; then
     CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    $CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG >/dev/null 2>/dev/null
+    THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
     RET=$?
 
     # Run twice, since flaky
-    if [[ "$RET" = 0 ]]; then
-      $CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG >/dev/null 2>/dev/null
+    if [[ "$RET" == 0 ]]; then
+      THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
       RET=$?
     fi
 
-    if [[ "$RET" = 0 ]]; then
+    if [[ "$RET" == 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+      NUM_FAILED=$(($NUM_FAILED + 1))
+      FAILED="$FAILED ($ALT_CONFIG)"
+    elif [[ "$RET" != 1 ]]; then
+      OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
       NUM_FAILED=$(($NUM_FAILED + 1))
       FAILED="$FAILED ($ALT_CONFIG)"
     else
@@ -99,6 +107,6 @@ if [ -z "$FAILED" ]; then
   exit 0
 else
   OUTPUT="${OUTPUT}$TEST - $NUM_FAILED configs failed:\n  $FAILED"
-  printf "%s\n" "${OUTPUT}"
+  printf "${OUTPUT}\n"
   exit 1
 fi
