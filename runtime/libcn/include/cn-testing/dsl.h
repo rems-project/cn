@@ -137,7 +137,6 @@
           cn_gen_backtrack_type() == CN_GEN_BACKTRACK_DEPTH) {                           \
         var##_backtracks--;                                                              \
         cn_gen_backtrack_reset();                                                        \
-        cn_gen_rand_replace(var##_rand_checkpoint_before);                               \
       } else if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {                    \
         if (toAdd[0] != NULL) {                                                          \
           goto cn_label_##last_var##_backtrack;                                          \
