@@ -802,7 +802,7 @@ module C_vars = struct
         return (IT (SizeOf scty, Memory.size_sbt, loc))
       | CNExpr_offsetof (tag, member) ->
         let@ _ = lookup_struct loc tag env in
-        return (IT (OffsetOf (tag, member), Memory.sint_sbt, loc))
+        return (IT (OffsetOf (tag, member), Memory.size_sbt, loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
         let@ ct = infer_scty ~pred_loc:loc ~ptr:base `Array_shift ty_annot in

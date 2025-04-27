@@ -1,5 +1,5 @@
-# Builds CN with Coq and runs Coq tests
-name: CN-Coq
+# Builds CN with Rocq and runs its tests
+name: Rocq
 
 on:
   pull_request:

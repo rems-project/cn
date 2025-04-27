@@ -865,9 +865,9 @@ module WIT = struct
         let@ _ty = get_struct_member_type loc tag member in
         let@ decl = get_struct_decl loc tag in
         let o = Option.get (Memory.member_offset decl member) in
-        let rs = Option.get (BT.is_bits_bt Memory.sint_bt) in
+        let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
         let@ () = ensure_z_fits_bits_type loc rs (Z.of_int o) in
-        return (IT (OffsetOf (tag, member), Memory.sint_bt, loc))
+        return (IT (OffsetOf (tag, member), Memory.size_bt, loc))
       | Aligned t ->
         let@ t_t = check loc (Loc ()) t.t in
         let@ t_align = check loc Memory.uintptr_bt t.align in
