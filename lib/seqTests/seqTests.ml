@@ -230,8 +230,7 @@ let test_to_doc
     ^^ f_call
     ^^ stmt_to_doc
          (A.AilSexpr
-            (Fulminate.Ownership.generate_c_local_ownership_entry_fcall
-               (name, ret_ty)))
+            (Fulminate.Ownership.generate_c_local_ownership_entry_fcall (name, ret_ty)))
     ^^ hardline
   | None -> f_call
 
@@ -254,9 +253,7 @@ let create_intermediate_test_file
             2
             (hardline
              ^^
-             let init_ghost =
-               Fulminate.Ownership.get_ownership_global_init_stats ()
-             in
+             let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
              separate_map hardline stmt_to_doc init_ghost
              ^^ hardline
              ^^ sequence
@@ -289,7 +286,10 @@ let create_intermediate_test_file
      ^^ string "#include "
      ^^ dquotes (string "cn.c")
    else
-     string "#include " ^^ dquotes (string (filename_base ^ ".cn.h")) ^^ twice hardline ^^ fun_decls)
+     string "#include "
+     ^^ dquotes (string (filename_base ^ ".cn.h"))
+     ^^ twice hardline
+     ^^ fun_decls)
   ^^ twice hardline
   ^^ separate
        (twice hardline)
@@ -371,14 +371,13 @@ let ctx_to_tests =
 
 
 let analyze_results
-          (prev_and_tests :
-            (int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
-              option
-              list)
-          (sequences : PPrint.document list)
-          (filename_base : string)
-          (output_dir : string)
-          (fun_decls : PPrint.document)
+      (prev_and_tests :
+        (int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) option
+          list)
+      (sequences : PPrint.document list)
+      (filename_base : string)
+      (output_dir : string)
+      (fun_decls : PPrint.document)
   : pass_or_violation option list
   =
   let tests_to_try =
@@ -590,74 +589,35 @@ let shrink
         | None -> gen_lst_shrinks ty arg_name @ [ arg_name ]
         (* if arg is not a variable then just shrink *)
       in
-      let rec compare_args (args1 : string list) (args2 : string list) : int =
-        match (args1, args2) with
-        | [], [] -> 0
-        | [], _ -> -1
-        | _, [] -> 1
-        | arg1 :: args1, arg2 :: args2 ->
-          let cmp = 
-            (* String.compare arg1 arg2 *)
-          if String.starts_with ~prefix:"x" arg1 && String.starts_with ~prefix:"x" arg2 then
-            0
-          else 
-            Int.compare (int_of_string arg1 |> abs) (int_of_string arg2 |> abs)
-          in
-          if cmp <> 0 then cmp else compare_args args1 args2
-      in
       match next with
       | [] -> List.rev prev
       | ((name, ret_ty, f, args) as curr) :: t ->
-        let shrinks = List.map shrink_arg args in
-        (match shrinks with
-         | [] -> shrink_2 (curr :: prev, t)
-         | _ ->
-           let rec gen_all_combos (lists : string list list) : string list list =
-             match lists with
-             | [] -> [ [] ]
-             | first :: rest ->
-               let rest_product = gen_all_combos rest in
-               List.concat
-                 (List.map (fun s -> List.map (fun r -> s :: r) rest_product) first)
+           let rec shrink_args
+                     (poss_args : string list)
+                     ((prev_args, next_args) :
+                       (C.ctype * string) list * (C.ctype * string) list)
+             =
+             let rec try_shrinks (arg_shrinks : string list) =
+               let try_shrink
+                     (new_arg : string)
+                 =
+                 match next_args with
+                 | [] -> List.rev prev_args
+                 | (ty, _) :: next_args -> List.rev prev_args @ ((ty, new_arg) :: next_args)
+                 in
+                 let new_tests = List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) poss_args in
+                 let new_sequences = List.map (fun (_, name, ret_ty, f, args) -> ctx_to_tests (List.rev prev @ ((name, ret_ty, f, args) :: t))) new_tests in
+                 let result = analyze_results (List.map (fun test -> Some(test)) new_tests) new_sequences filename_base output_dir fun_decls in
+                 
+                 
+             in
+             match (poss_args, next_args) with
+             | [], [] -> (name, ret_ty, f, List.rev prev_args)
+             | arg_shrinks :: rest, (ty, _) :: next_args ->
+               shrink_args rest ((ty, try_shrinks arg_shrinks) :: prev_args, next_args)
+             | _, _ -> failwith "poss_args and next must have same length"
            in
-           let arg_types = List.map fst args in
-           let all_combos =
-             List.map
-               (fun args -> (name, ret_ty, f, List.combine arg_types args))
-               (List.sort_uniq compare_args (gen_all_combos shrinks))
-           in
-           let script_doc' =
-             BuildScript.generate_intermediate
-               ~output_dir
-               ~filename_base
-               (List.length all_combos)
-           in
-           save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
-           let results =
-             analyze_results
-               (List.map
-                  (fun (name, ret_ty, f, args) -> (Some (-1, name, ret_ty, f, args))) all_combos)
-               (List.map
-                  (fun combo ->
-                     (List.rev prev @ (combo :: t) |> ctx_to_tests)
-                     ^^ hardline
-                     ^^ string "return 0;")
-                  all_combos)
-               filename_base
-               output_dir
-               fun_decls
-           in
-           (* Printf.printf "--> LOG: [%s]\n%!" (test_to_doc name ret_ty f args); *)
-           let shrunken_call =
-             match
-               List.find
-                 (fun result ->
-                    match result with Some (Postcond _) -> true | _ -> false)
-                 results
-             with
-             | Some (Postcond (call, _)) -> call
-             | _ -> failwith "impossible"
-           in
+           let shrunken_call = shrink_args poss_args ([], args) in
            shrink_2 (shrunken_call :: prev, t))
     in
     let shrunken = shrink_1 seq' in
@@ -711,9 +671,7 @@ let rec gen_sequence
                (fun (name, ret, _, _) ->
                   match name with
                   | Some name ->
-                    Some
-                      (Fulminate.Ownership.generate_c_local_ownership_exit
-                         (name, ret))
+                    Some (Fulminate.Ownership.generate_c_local_ownership_exit (name, ret))
                   | None -> None)
                ctx
            in

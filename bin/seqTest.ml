@@ -143,6 +143,7 @@ module Flags = struct
       & opt int SeqTests.default_seq_cfg.max_backtracks
       & info [ "max-backtrack-attempts" ] ~doc)
 
+
   let num_tests =
     let doc = "Number of tests to generate" in
     Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
