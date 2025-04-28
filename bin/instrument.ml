@@ -81,7 +81,7 @@ let generate_executable_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
-      with_test_gen
+      with_testing
       run
       print_steps
   =
@@ -133,7 +133,7 @@ let generate_executable_specs
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
-                ~with_test_gen
+                ~with_testing
                 pp_file
                 out_file
                 ail_prog
@@ -186,7 +186,16 @@ module Flags = struct
       "Generate CN executable specifications in the correct format for feeding into \n\
       \  the CN test generation tool."
     in
-    Arg.(value & flag & info [ "with-test-gen" ] ~doc)
+    let deprecated = "Use `--with-testing` instead." in
+    Arg.(value & flag & info [ "with-test-gen" ] ~deprecated ~doc)
+
+
+  let with_testing =
+    let doc =
+      "Generate intrumentation in a format more amenable to testing. Ignores an existing \
+       `main` function."
+    in
+    Arg.(value & flag & info [ "with-testing" ] ~doc)
 
 
   let run =
@@ -240,7 +249,9 @@ let cmd =
     $ Flags.without_ownership_checking
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
-    $ Flags.with_test_gen
+    $ Term.map
+        (fun (x, y) -> x || y)
+        (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
     $ Flags.print_steps
   in

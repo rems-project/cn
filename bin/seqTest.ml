@@ -79,7 +79,7 @@ let run_seq_tests
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
-             ~with_test_gen:true
+             ~with_testing:true
              pp_file
              out_file
              ail_prog
