@@ -54,6 +54,8 @@ let compile ~filename_base =
        (String.concat
           " "
           ([ "cc";
+             "${CFLAGS}";
+             "${CPPFLAGS}";
              "-c";
              "-o";
              "\"./" ^ filename_base ^ ".test.o\"";
@@ -67,6 +69,8 @@ let compile ~filename_base =
            (String.concat
               " "
               ([ "cc";
+                 "${CFLAGS}";
+                 "${CPPFLAGS}";
                  "-c";
                  "-o";
                  "\"./" ^ filename_base ^ ".exec.o\"";
@@ -89,6 +93,8 @@ let link ~filename_base =
        (String.concat
           " "
           ([ "cc";
+             "${CFLAGS}";
+             "${CPPFLAGS}";
              "-o";
              "\"./tests.out\"";
              filename_base ^ ".test.o " ^ filename_base ^ ".exec.o";
