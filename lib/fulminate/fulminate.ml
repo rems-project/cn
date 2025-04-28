@@ -159,7 +159,7 @@ let main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
       ?(with_loop_leak_checks = false)
-      ?(with_test_gen = false)
+      ?(with_testing = false)
       in_filename (* WARNING: this file will be delted after this function *)
       out_filename
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
@@ -295,14 +295,7 @@ let main
     executable_spec.in_stmt @ accesses_stmt_injs @ toplevel_injections @ struct_injs
   in
   let pre_post_pairs =
-    if with_test_gen then
-      if not (has_main sigm) then
-        executable_spec.pre_post
-      else
-        failwith
-          "Input file cannot have predefined main function when passing to CN test-gen \
-           tooling"
-    else if without_ownership_checking then
+    if with_testing || without_ownership_checking then
       executable_spec.pre_post
     else (
       (* XXX: ONLY IF THERE IS A MAIN *)
@@ -332,7 +325,8 @@ let main
            pre_post = pre_post_pairs;
            in_stmt = in_stmt_injs;
            returns = executable_spec.returns;
-           inject_in_preproc = true
+           inject_in_preproc = true;
+           with_testing
          })
    with
    | Ok () -> ()

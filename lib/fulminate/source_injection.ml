@@ -167,6 +167,8 @@ type injection_kind =
       * bool (* flag for whether injection is for main function *)
   (* Inject a post-condition for a function *)
   | Post of string list * Cerb_frontend.Ctype.ctype
+  (* Delete `main` function *)
+  | DeleteMain of bool (* flag for whether start (true) or end (false) *)
 
 (* Describes how much space we need for an edit. *)
 type injection_footprint =
@@ -247,6 +249,8 @@ let inject st inj =
            indent ^ ";\n"
          else
            indent ^ "\nreturn __cn_ret;\n\n")
+    | DeleteMain pre ->
+      if pre then do_output st "\n#if 0\n" else do_output st "\n#endif\n"
   in
   fst (move_to ~print:false st inj.footprint.end_pos)
 
@@ -392,6 +396,23 @@ let return_injs xs =
   aux (Ok []) xs
 
 
+let main_inj with_testing pre_post is_void loc stmt =
+  if not with_testing then
+    pre_post_injs pre_post is_void true stmt
+  else
+    let* pre_pos, post_pos =
+      let* pre_pos, post_pos = Pos.of_location loc in
+      let* pre_pos = Pos.offset_col ~off:0 pre_pos in
+      let* pos_pos = Pos.offset_col ~off:0 post_pos in
+      Ok (pre_pos, pos_pos)
+    in
+    Ok
+      ( { footprint = { start_pos = pre_pos; end_pos = pre_pos }; kind = DeleteMain true },
+        { footprint = { start_pos = post_pos; end_pos = post_pos };
+          kind = DeleteMain false
+        } )
+
+
 (* EXTERNAL *)
 type 'a cn_injection =
   { filename : string;
@@ -399,7 +420,8 @@ type 'a cn_injection =
     pre_post : (Symbol.sym * (string list * string list)) list;
     in_stmt : (Cerb_location.t * string list) list;
     returns : (Cerb_location.t * ('a AilSyntax.expression option * string list)) list;
-    inject_in_preproc : bool
+    inject_in_preproc : bool;
+    with_testing : bool
   }
 
 let output_injections oc cn_inj =
@@ -429,7 +451,12 @@ let output_injections oc cn_inj =
                        | Some main_sym when Symbol.equal_sym main_sym fun_sym -> true
                        | _ -> false
                      in
-                     let* pre, post = pre_post_injs pre_post_strs ret_ty is_main stmt in
+                     let* pre, post =
+                       if is_main then
+                         main_inj cn_inj.with_testing pre_post_strs ret_ty loc stmt
+                       else
+                         pre_post_injs pre_post_strs ret_ty false stmt
+                     in
                      Ok (pre :: post :: acc)
                    | _ -> assert false)
                 | None -> acc_))

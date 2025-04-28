@@ -12,8 +12,9 @@ type 'a cn_injection =
       (** Additional statement injections to insert at the given locations. *)
     returns : (Cerb_location.t * ('a AilSyntax.expression option * string list)) list;
       (** Injections to add when a function returns. *)
-    inject_in_preproc : bool
+    inject_in_preproc : bool;
       (** Should we inject using pre-processed locations (true) or not (false). *)
+    with_testing : bool (** Should we disable the `main` function. *)
   }
 
 (** [output_injections oc inj] performs the injections specified by [inj]
