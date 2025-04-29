@@ -31,15 +31,21 @@ let _str_name_of_bt (bt : BT.t) : string =
   name_of_bt bt |> String.split_on_char ' ' |> String.concat "_"
 
 
-let compile_it (sigma : CF.GenTypes.genTypeCategory A.sigma) (name : Sym.t) (it : IT.t) =
-  CtA.cn_to_ail_expr_toplevel sigma.cn_datatypes [] (Some name) None it
+let compile_it
+      filename
+      (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (name : Sym.t)
+      (it : IT.t)
+  =
+  CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] (Some name) None it
 
 
-let compile_lc (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
-  CtA.cn_to_ail_logical_constraint sigma.cn_datatypes [] None lc
+let compile_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
+  CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
 
 
 let[@warning "-27"] rec compile_term
+                          (filename : string)
                           (sigma : CF.GenTypes.genTypeCategory A.sigma)
                           (ctx : GR.context)
                           (name : Sym.t)
@@ -64,7 +70,7 @@ let[@warning "-27"] rec compile_term
       List.split
         (List.mapi
            (fun i (_, gr) ->
-              let bs, ss, e = compile_term sigma ctx name gr in
+              let bs, ss, e = compile_term filename sigma ctx name gr in
               ( bs,
                 A.(
                   [ AilSexpr
@@ -124,7 +130,7 @@ let[@warning "-27"] rec compile_term
       A.(mk_expr (AilEident var)) )
   | Alloc { bytes = it; sized } ->
     let alloc_sym = Sym.fresh "CN_GEN_ALLOC" in
-    let b, s, e = compile_it sigma name it in
+    let b, s, e = compile_it filename sigma name it in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     let sym = GenUtils.get_mangled_name (fsym :: List.map fst iargs) in
@@ -197,8 +203,10 @@ let[@warning "-27"] rec compile_term
       mk_expr (AilEident x) )
   | Asgn { pointer; addr; sct; value; last_var; rest } ->
     let tmp_sym = Sym.fresh_anon () in
-    let b1, s1, e1 = compile_it sigma name addr in
-    let b2, s2, AnnotatedExpression (_, _, _, e2_) = compile_it sigma name value in
+    let b1, s1, e1 = compile_it filename sigma name addr in
+    let b2, s2, AnnotatedExpression (_, _, _, e2_) =
+      compile_it filename sigma name value
+    in
     let b3 = [ Utils.create_binding tmp_sym C.(mk_ctype_pointer no_qualifiers void) ] in
     let s3 =
       A.
@@ -241,7 +249,7 @@ let[@warning "-27"] rec compile_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b4, s4, e4 = compile_term sigma ctx name rest in
+    let b4, s4, e4 = compile_term filename sigma ctx name rest in
     (b1 @ b2 @ b3 @ b4, s1 @ s2 @ s3 @ s4, e4)
   | Let { backtracks; x; x_bt; value; last_var; rest } ->
     let s1 =
@@ -259,7 +267,7 @@ let[@warning "-27"] rec compile_term
                       ] )))
         ]
     in
-    let b2, s2, e2 = compile_term sigma ctx name value in
+    let b2, s2, e2 = compile_term filename sigma ctx name value in
     let s3 =
       A.(
         [ AilSexpr
@@ -298,13 +306,13 @@ let[@warning "-27"] rec compile_term
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
-    let b4, s4, e4 = compile_term sigma ctx name rest in
+    let b4, s4, e4 = compile_term filename sigma ctx name rest in
     (b2 @ [ Utils.create_binding x (bt_to_ctype x_bt) ] @ b4, s1 @ s2 @ s3 @ s4, e4)
   | Return { value } ->
-    let b, s, e = compile_it sigma name value in
+    let b, s, e = compile_it filename sigma name value in
     (b, s, e)
   | Assert { prop; last_var; rest } ->
-    let b1, s1, e1 = compile_lc sigma prop in
+    let b1, s1, e1 = compile_lc filename sigma prop in
     let s_assert =
       A.
         [ AilSexpr
@@ -328,12 +336,12 @@ let[@warning "-27"] rec compile_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b2, s2, e2 = compile_term sigma ctx name rest in
+    let b2, s2, e2 = compile_term filename sigma ctx name rest in
     (b1 @ b2, s1 @ s_assert @ s2, e2)
   | ITE { bt; cond; t; f } ->
-    let b_if, s_if, e_if = compile_it sigma name cond in
-    let b_then, s_then, e_then = compile_term sigma ctx name t in
-    let b_else, s_else, e_else = compile_term sigma ctx name f in
+    let b_if, s_if, e_if = compile_it filename sigma name cond in
+    let b_then, s_then, e_then = compile_term filename sigma ctx name t in
+    let b_else, s_else, e_else = compile_term filename sigma ctx name f in
     let res_sym = Sym.fresh_anon () in
     let res_expr = mk_expr (AilEident res_sym) in
     let res_binding = Utils.create_binding res_sym (bt_to_ctype bt) in
@@ -356,8 +364,8 @@ let[@warning "-27"] rec compile_term
     let b_map = Utils.create_binding sym_map (bt_to_ctype bt) in
     let i_bt, _ = BT.map_bt bt in
     let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
-    let b_min, s_min, e_min = compile_it sigma name min in
-    let b_max, s_max, e_max = compile_it sigma name max in
+    let b_min, s_min, e_min = compile_it filename sigma name min in
+    let b_max, s_max, e_max = compile_it filename sigma name max in
     assert (b_max == []);
     assert (s_max == []);
     let e_args =
@@ -367,7 +375,7 @@ let[@warning "-27"] rec compile_term
       ]
     in
     let e_perm =
-      let b_perm, s_perm, e_perm = compile_it sigma name perm in
+      let b_perm, s_perm, e_perm = compile_it filename sigma name perm in
       A.(
         mk_expr
           (AilEgcc_statement (b_perm, List.map mk_stmt (s_perm @ [ AilSexpr e_perm ]))))
@@ -397,7 +405,7 @@ let[@warning "-27"] rec compile_term
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
-    let b_val, s_val, e_val = compile_term sigma ctx name inner in
+    let b_val, s_val, e_val = compile_term filename sigma ctx name inner in
     let s_end =
       A.(
         s_val
@@ -410,7 +418,7 @@ let[@warning "-27"] rec compile_term
     in
     ([ b_map; b_i ] @ b_min @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
   | SplitSize { rest; _ } when not (TestGenConfig.is_random_size_splits ()) ->
-    compile_term sigma ctx name rest
+    compile_term filename sigma ctx name rest
   | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
     let e_tmp = mk_expr (AilEident marker_var) in
     let syms_l = syms |> Sym.Set.to_seq |> List.of_seq in
@@ -446,7 +454,7 @@ let[@warning "-27"] rec compile_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b', s', e' = compile_term sigma ctx name rest in
+    let b', s', e' = compile_term filename sigma ctx name rest in
     (b @ b', s @ s', e')
 
 
@@ -487,7 +495,7 @@ let compile_gen_def
                      (Sym.fresh (if gr.sized then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
                 [] ))))
   in
-  let b2, s2, e2 = compile_term sigma ctx name gr.body in
+  let b2, s2, e2 = compile_term gr.filename sigma ctx name gr.body in
   let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =
     ( name,
       ( loc,

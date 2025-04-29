@@ -19,9 +19,16 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
     print_endline
       ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
     exit 1);
+  let flags =
+    let cflags = Option.value ~default:"" (Sys.getenv_opt "CFLAGS") in
+    let cppflags = Option.value ~default:"" (Sys.getenv_opt "CPPFLAGS") in
+    cflags ^ cppflags
+  in
   if
     Sys.command
       ("cc -c "
+       ^ flags
+       ^ " "
        ^ includes
        ^ " -o "
        ^ in_folder ~ext:".o" instrumented_filename
@@ -37,6 +44,8 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   if
     Sys.command
       ("cc "
+       ^ flags
+       ^ " "
        ^ includes
        ^ " -o "
        ^ in_folder ~ext:".out" instrumented_filename
@@ -134,6 +143,7 @@ let generate_executable_specs
                 ~without_loop_invariants
                 ~with_loop_leak_checks
                 ~with_testing
+                filename
                 pp_file
                 out_file
                 ail_prog

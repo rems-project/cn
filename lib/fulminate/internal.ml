@@ -57,6 +57,7 @@ let generate_c_specs_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -73,6 +74,7 @@ let generate_c_specs_internal
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      filename
       dts
       preds
       globals
@@ -188,6 +190,7 @@ let generate_c_specs_internal
 
 
 let generate_c_assume_pres_internal
+      filename
       (instrumentation_list : Extract.instrumentation list)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
@@ -205,6 +208,7 @@ let generate_c_assume_pres_internal
     in
     let globals = extract_global_variables prog5.globs in
     Cn_to_ail.cn_to_ail_assume_pre
+      filename
       dts
       inst.fn
       args
@@ -222,6 +226,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       instrumentation_list
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -232,6 +237,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       instrumentation
       sigm
       prog5
@@ -319,12 +325,14 @@ let generate_fun_def_and_decl_docs funs =
 
 
 let generate_c_functions
+      filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (logical_predicates : (Sym.t * Definition.Function.t) list)
   =
   let ail_funs_and_records =
     List.map
-      (fun cn_f -> Cn_to_ail.cn_to_ail_function cn_f sigm.cn_datatypes sigm.cn_functions)
+      (fun cn_f ->
+         Cn_to_ail.cn_to_ail_function filename cn_f sigm.cn_datatypes sigm.cn_functions)
       logical_predicates
   in
   let ail_funs, _ = List.split ail_funs_and_records in
@@ -346,12 +354,14 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 
 
 let generate_c_predicates
+      filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (resource_predicates : (Sym.t * Definition.Predicate.t) list)
   =
   let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
       resource_predicates
+      filename
       sigm.cn_datatypes
       []
       sigm.cn_predicates
@@ -388,6 +398,7 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
 
 
 let generate_conversion_and_equality_functions
+      filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   let struct_conversion_funs =
@@ -398,7 +409,7 @@ let generate_conversion_and_equality_functions
     List.map Cn_to_ail.generate_struct_equality_function sigm.tag_definitions
   in
   let datatype_equality_funs =
-    List.map Cn_to_ail.generate_datatype_equality_function sigm.cn_datatypes
+    List.map (Cn_to_ail.generate_datatype_equality_function filename) sigm.cn_datatypes
   in
   let struct_map_get_funs =
     List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions

@@ -80,6 +80,7 @@ let run_seq_tests
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
              ~with_testing:true
+             filename
              pp_file
              out_file
              ail_prog

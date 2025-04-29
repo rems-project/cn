@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
 module Extract = Extract
+module Globals = Globals
 module Internal = Internal
 module Records = Records
 module Ownership = Ownership
@@ -160,6 +161,7 @@ let main
       ?(without_loop_invariants = false)
       ?(with_loop_leak_checks = false)
       ?(with_testing = false)
+      filename
       in_filename (* WARNING: this file will be delted after this function *)
       out_filename
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
@@ -198,19 +200,20 @@ let main
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       filtered_instrumentation
       sigm
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions sigm prog5.logical_predicates
+    generate_c_functions filename sigm prog5.logical_predicates
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates sigm prog5.resource_predicates
+    generate_c_predicates filename sigm prog5.resource_predicates
   in
   let conversion_function_defs, conversion_function_decls =
-    generate_conversion_and_equality_functions sigm
+    generate_conversion_and_equality_functions filename sigm
   in
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
@@ -316,6 +319,11 @@ let main
       "#endif\n"
     ];
   output_string oc "#pragma GCC diagnostic ignored \"-Wattributes\"\n";
+  output_string oc "\n/* GLOBAL ACCESSORS */\n";
+  output_string
+    oc
+    ("void* memcpy(void* dest, const void* src, __cerbty_size_t count );\n"
+     ^ Globals.accessors_prototypes filename prog5);
   (match
      Source_injection.(
        output_injections
@@ -333,6 +341,7 @@ let main
    | Error str ->
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
+  output_to_oc oc [ Globals.accessors_str filename prog5 ];
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename
