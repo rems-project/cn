@@ -115,6 +115,7 @@ let convert_from ((x, ct) : Sym.t * C.ctype) =
 
 
 let compile_random_test_case
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       ((test, inst) : Test.t * FExtract.instrumentation)
@@ -192,26 +193,28 @@ let compile_random_test_case
                                (pp_ctype ~is_human:false C.no_qualifiers)
                                (Sctypes.to_ctype sct))
                          in
-                         Sym.pp sym
-                         ^^ space
-                         ^^ equals
-                         ^^ space
-                         ^^ star
-                         ^^ parens (ty ^^ star)
-                         ^^ string "convert_from_cn_pointer"
-                         ^^ parens
-                              (string "res->"
-                               ^^ Sym.pp (GenUtils.get_mangled_name [ sym ]))
+                         let tmp_doc = Sym.pp sym ^^ string "_tmp" in
+                         (ty ^^ star)
+                         ^^^ tmp_doc
+                         ^^^ equals
+                         ^^^ (string "convert_from_cn_pointer"
+                              ^^ parens
+                                   (string "res->"
+                                    ^^ Sym.pp (GenUtils.get_mangled_name [ sym ]))
+                              ^^ semi
+                              ^^ hardline
+                              ^^ string "cn_assume_ownership"
+                              ^^ parens
+                                   (separate
+                                      (comma ^^ space)
+                                      [ string (Fulminate.Globals.getter_str filename sym);
+                                        string "sizeof" ^^ parens ty;
+                                        string "(char*)" ^^ dquotes init_name
+                                      ]))
                          ^^ semi
                          ^^ hardline
-                         ^^ string "cn_assume_ownership"
-                         ^^ parens
-                              (separate
-                                 (comma ^^ space)
-                                 [ ampersand ^^ Sym.pp sym;
-                                   string "sizeof" ^^ parens ty;
-                                   string "(char*)" ^^ dquotes init_name
-                                 ])
+                         ^^ string (Fulminate.Globals.setter_str filename sym)
+                         ^^ parens tmp_doc
                          ^^ semi)
                       globals)
               ^^ hardline)
@@ -230,6 +233,7 @@ let compile_random_test_case
 
 
 let compile_generator_tests
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (insts : FExtract.instrumentation list)
@@ -252,4 +256,6 @@ let compile_generator_tests
       insts
   in
   let open Pp in
-  (tests, concat_map (compile_random_test_case sigma prog5) (List.combine tests insts))
+  ( tests,
+    concat_map (compile_random_test_case filename sigma prog5) (List.combine tests insts)
+  )

@@ -66,7 +66,8 @@ val generate_assume_ownership_function
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
 val generate_datatype_equality_function
-  :  AilSyntax.sigma_cn_datatype ->
+  :  string ->
+  AilSyntax.sigma_cn_datatype ->
   (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
@@ -139,7 +140,8 @@ val generate_record_map_get
     list
 
 val cn_to_ail_expr_toplevel
-  :  AilSyntax.sigma_cn_datatype list ->
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
   (Ctype.union_tag * Ctype.ctype) list ->
   Sym.t option ->
   spec_mode option ->
@@ -149,7 +151,8 @@ val cn_to_ail_expr_toplevel
   * GenTypes.genTypeCategory AilSyntax.expression
 
 val cn_to_ail_logical_constraint
-  :  AilSyntax.sigma_cn_datatype list ->
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
   (Ctype.union_tag * Ctype.ctype) list ->
   spec_mode option ->
   LogicalConstraints.t ->
@@ -171,7 +174,8 @@ val cn_to_ail_records
   AilSyntax.sigma_tag_definition list
 
 val cn_to_ail_function
-  :  Sym.t * Definition.Function.t ->
+  :  string ->
+  Sym.t * Definition.Function.t ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
   ((Locations.t * AilSyntax.sigma_declaration)
@@ -180,6 +184,7 @@ val cn_to_ail_function
 
 val cn_to_ail_predicates
   :  (Sym.t * Definition.Predicate.t) list ->
+  string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->
   AilSyntax.sigma_cn_predicate list ->
@@ -191,6 +196,7 @@ val cn_to_ail_predicates
 val cn_to_ail_pre_post
   :  without_ownership_checking:bool ->
   with_loop_leak_checks:bool ->
+  string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
@@ -199,7 +205,8 @@ val cn_to_ail_pre_post
   ail_executable_spec
 
 val cn_to_ail_assume_predicates
-  :  (Sym.t * Definition.Predicate.t) list ->
+  :  string ->
+  (Sym.t * Definition.Predicate.t) list ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->
   (Sym.t * Definition.Predicate.t) list ->
@@ -208,7 +215,8 @@ val cn_to_ail_assume_predicates
     list
 
 val cn_to_ail_assume_pre
-  :  AilSyntax.sigma_cn_datatype list ->
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
   Ctype.union_tag ->
   (Ctype.union_tag * (BaseTypes.t * Ctype.ctype)) list ->
   (Ctype.union_tag * Ctype.ctype) list ->

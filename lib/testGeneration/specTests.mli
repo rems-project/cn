@@ -14,7 +14,8 @@ val compile_generators
   Pp.document
 
 val compile_generator_tests
-  :  CF.GenTypes.genTypeCategory A.sigma ->
+  :  string ->
+  CF.GenTypes.genTypeCategory A.sigma ->
   unit Mucore.file ->
   FExtract.instrumentation list ->
   Test.t list * Pp.document
