@@ -144,25 +144,6 @@ let run (num_tests : int) =
   ^^ hardline
 
 
-let run_intermediate (num_tests : int) =
-  let create_run_string (i : int) =
-    string "echo \"977567d9dcdabf701acff6f4d4ce077e\""
-    ^^ hardline
-    ^^ separate_map space string [ "./tests.out"; string_of_int i ]
-  in
-  let cmds = List.map create_run_string (List.init num_tests Fun.id) in
-  string "# Run"
-  ^^ hardline
-  ^^ (if Config.is_print_steps () then
-        string "echo" ^^ twice hardline
-      else
-        empty)
-  ^^ separate hardline cmds
-  ^^ hardline
-  ^^ string "test_exit_code=$? # Save tests exit code for later"
-  ^^ hardline
-
-
 let[@warning "-32" (* unused-value-declaration *)] coverage ~filename_base =
   string "# Coverage"
   ^^ hardline
@@ -205,7 +186,7 @@ let generate ~(output_dir : string) ~(filename_base : string) (num_tests : int)
 let generate_intermediate
       ~(output_dir : string)
       ~(filename_base : string)
-      (num_tests : int)
+      (* (num_tests : int) *)
   : Pp.document
   =
   setup ~output_dir
@@ -214,8 +195,8 @@ let generate_intermediate
   ^^ hardline
   ^^ link ~filename_base
   ^^ hardline
-  ^^ run_intermediate num_tests
-  ^^ hardline
+  (* ^^ run_intermediate num_tests
+  ^^ hardline *)
   ^^ string "popd > /dev/null"
   ^^ hardline
   ^^ string "exit $test_exit_code"

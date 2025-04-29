@@ -21,13 +21,11 @@ type test_stats =
   }
 
 type pass_or_violation =
-  | Postcond of call * int
+  | Postcond of call
   | Precond
   | Pass of call * int
 
 let no_qs : C.qualifiers = { const = false; restrict = false; volatile = false }
-
-let src_code : string list ref = ref []
 
 let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
   : unit
@@ -317,54 +315,6 @@ let create_intermediate_test_file
            ^^ hardline))
 
 
-let rec get_violation_line test_output =
-  let violation_regex = Str.regexp {| +\^~+ .+\.c:\([0-9]+\):[0-9]+-[0-9]+|} in
-  match test_output with
-  | [] -> 0
-  | line :: lines ->
-    if Str.string_match violation_regex line 0 then
-      int_of_string (Str.matched_group 1 line)
-    else
-      get_violation_line lines
-
-
-let rec is_precond_violation code =
-  let is_post_regex = Str.regexp {|[ \t]*\(/\*@\)?[ \t]*ensures|} in
-  let is_pre_regex = Str.regexp {|[ \t]*\(/\*@\)?[ \t]*requires|} in
-  match code with
-  | [] -> true
-  | line :: lines ->
-    if Str.string_match is_post_regex line 0 then
-      false
-    else if Str.string_match is_pre_regex line 0 then
-      true
-    else
-      is_precond_violation lines
-
-
-let out_to_a (command : string) (op : string -> 'a -> 'a) (start : 'a) =
-  let chan = Unix.open_process_in command in
-  let res = ref start in
-  let rec go () =
-    let e = input_line chan in
-    res := op e !res;
-    go ()
-  in
-  try go () with
-  | End_of_file ->
-    let status = Unix.close_process_in chan in
-    (!res, status)
-
-
-let out_to_list (command : string) = out_to_a command (fun s l -> s :: l) []
-
-let drop n l =
-  (* ripped from OCaml 5.3 *)
-  let rec aux i = function _x :: l when i < n -> aux (i + 1) l | rest -> rest in
-  if n < 0 then invalid_arg "List.drop";
-  aux 0 l
-
-
 let ctx_to_tests =
   let open Pp in
   separate_map empty (fun (name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
@@ -393,41 +343,45 @@ let analyze_results
     create_intermediate_test_file sequences tests_to_try filename_base fun_decls
   in
   save output_dir (filename_base ^ ".test.c") intermediate_file;
-  let output_str, _ =
-    out_to_a (output_dir ^ "/run_tests_intermediate.sh") (fun s a -> a ^ s ^ "\n") ""
-  in
-  let output_msgs =
-    List.tl (Str.split_delim (Str.regexp "977567d9dcdabf701acff6f4d4ce077e") output_str)
-  in
-  (* Printf.printf "--> LOG: [%d %d]\n%!" (List.length prev_and_tests) (List.length output_msgs); *)
-  let tests_and_msgs = List.combine prev_and_tests output_msgs in
-  let rec analyze_results_h
-            (tests_and_msgs :
-              ((int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
-                 option
-              * string)
-                list)
-    =
-    match tests_and_msgs with
-    | [] -> []
-    | (None, _) :: t -> None :: analyze_results_h t
-    | (Some (prev', name, ret_ty, f, args), output_msg) :: t ->
-      (* Printf.printf "--> LOG: [%s]\n%!" output_msg; *)
-      if String.compare output_msg "\n" = 0 then
-        Some (Pass ((name, ret_ty, f, args), prev')) :: analyze_results_h t
-      else (
-        let output_msg_lst = Str.split_delim (Str.regexp "\n") output_msg in
-        let violation_line_num = get_violation_line output_msg_lst in
-        if
-          is_precond_violation
-            (drop (List.length !src_code - violation_line_num) !src_code)
-        then
-          Some Precond :: analyze_results_h t
-        else (* (Printf.printf "--> LOG: [%s]\n%!" "postcond"; *)
-          Some (Postcond ((name, ret_ty, f, args), violation_line_num))
-          :: analyze_results_h t)
-  in
-  analyze_results_h tests_and_msgs
+  match Unix.system (output_dir ^ "/run_tests_intermediate.sh > /dev/null") with
+  | WEXITED 0 ->
+    let num_tests = List.length prev_and_tests in
+    let rec run_tests (test_num : int) =
+      if test_num < num_tests then (
+        match
+          Unix.system
+            (output_dir ^ "/tests.out " ^ string_of_int test_num ^ " > /dev/null")
+        with
+        | WEXITED n -> n :: run_tests (test_num + 1)
+        | _ -> failwith "Process was stopped or killed by signal :(")
+      else
+        []
+    in
+    let tests_and_msgs = List.combine prev_and_tests (run_tests 0) in
+    let rec analyze_results_h
+              (tests_and_msgs :
+                ((int
+                 * SymSet.elt option
+                 * C.ctype
+                 * SymSet.elt
+                 * (C.ctype * string) list)
+                   option
+                * int)
+                  list)
+      =
+      match tests_and_msgs with
+      | [] -> []
+      | (None, _) :: t -> None :: analyze_results_h t
+      | (Some (prev', name, ret_ty, f, args), exit_code) :: t ->
+        (match exit_code with
+         | 0 -> Some (Pass ((name, ret_ty, f, args), prev')) :: analyze_results_h t
+         | 1 -> Some Precond :: analyze_results_h t
+         | 2 -> Some (Postcond (name, ret_ty, f, args)) :: analyze_results_h t
+         | _ -> failwith "unhandled exit code")
+    in
+    analyze_results_h tests_and_msgs
+  | WEXITED _ -> failwith "compilation failure"
+  | _ -> failwith "compilation stopped unexpectedly"
 
 
 let shrink
@@ -507,12 +461,7 @@ let shrink
           (fun l1 l2 -> Int.compare (List.length l1) (List.length l2))
           (generate [] tests)
       in
-      let script_doc' =
-        BuildScript.generate_intermediate
-          ~output_dir
-          ~filename_base
-          (List.length powerset)
-      in
+      let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
       save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
       let elt = Sym.fresh_anon () in
       let results =
@@ -591,34 +540,49 @@ let shrink
       in
       match next with
       | [] -> List.rev prev
-      | ((name, ret_ty, f, args) as curr) :: t ->
-           let rec shrink_args
-                     (poss_args : string list)
-                     ((prev_args, next_args) :
-                       (C.ctype * string) list * (C.ctype * string) list)
-             =
-             let rec try_shrinks (arg_shrinks : string list) =
-               let try_shrink
-                     (new_arg : string)
-                 =
-                 match next_args with
-                 | [] -> List.rev prev_args
-                 | (ty, _) :: next_args -> List.rev prev_args @ ((ty, new_arg) :: next_args)
-                 in
-                 let new_tests = List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) poss_args in
-                 let new_sequences = List.map (fun (_, name, ret_ty, f, args) -> ctx_to_tests (List.rev prev @ ((name, ret_ty, f, args) :: t))) new_tests in
-                 let result = analyze_results (List.map (fun test -> Some(test)) new_tests) new_sequences filename_base output_dir fun_decls in
-                 
-                 
-             in
-             match (poss_args, next_args) with
-             | [], [] -> (name, ret_ty, f, List.rev prev_args)
-             | arg_shrinks :: rest, (ty, _) :: next_args ->
-               shrink_args rest ((ty, try_shrinks arg_shrinks) :: prev_args, next_args)
-             | _, _ -> failwith "poss_args and next must have same length"
-           in
-           let shrunken_call = shrink_args poss_args ([], args) in
-           shrink_2 (shrunken_call :: prev, t))
+      | (name, ret_ty, f, args) :: t ->
+        let rec shrink_args
+                  ((prev_args, next_args) :
+                    (C.ctype * string) list * (C.ctype * string) list)
+          =
+          let try_shrinks (arg_shrinks : string list) =
+            let try_shrink (new_arg : string) =
+              match next_args with
+              | [] -> List.rev prev_args
+              | (ty, _) :: next_args -> List.rev prev_args @ ((ty, new_arg) :: next_args)
+            in
+            let new_tests =
+              List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) arg_shrinks
+            in
+            let new_sequences =
+              List.map
+                (fun (_, name, ret_ty, f, args) ->
+                   ctx_to_tests (List.rev prev @ ((name, ret_ty, f, args) :: t)))
+                new_tests
+            in
+            let results =
+              analyze_results
+                (List.map (fun test -> Some test) new_tests)
+                new_sequences
+                filename_base
+                output_dir
+                fun_decls
+            in
+            match
+              List.find_index
+                (fun result -> match result with Some (Postcond _) -> true | _ -> false)
+                results
+            with
+            | Some i -> List.nth arg_shrinks i
+            | None -> failwith "impossible"
+          in
+          match next_args with
+          | [] -> (name, ret_ty, f, List.rev prev_args)
+          | (ty, arg) :: next_args ->
+            shrink_args ((ty, try_shrinks (shrink_arg (ty, arg))) :: prev_args, next_args)
+        in
+        let shrunken_call = shrink_args ([], args) in
+        shrink_2 (shrunken_call :: prev, t)
     in
     let shrunken = shrink_1 seq' in
     let shrunken' = List.rev (shrink_2 ([], shrunken)) in
@@ -766,7 +730,7 @@ let rec gen_sequence
                   test_so_far ^^ test_to_doc name ret_ty f args,
                   call :: ctx,
                   { stats with successes = stats.successes + 1; distrib } )
-            | Some (Postcond (((_, _, f, _) as call), _)) ->
+            | Some (Postcond ((_, _, f, _) as call)) ->
               let distrib =
                 let name = Sym.pp_string f in
                 match List.assoc_opt String.equal name stats.distrib with
@@ -881,11 +845,7 @@ let generate
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
   let test_file = filename_base ^ ".test.c" in
-  let script_doc' =
-    BuildScript.generate_intermediate ~output_dir ~filename_base (Config.get_num_tests ())
-  in
-  let source_code, _ = out_to_list ("cat " ^ filename) in
-  src_code := source_code;
+  let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
   save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
   let fun_to_decl (inst : FExtract.instrumentation) =
     CF.Pp_ail.(
