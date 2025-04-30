@@ -391,7 +391,6 @@ let shrink
       (fun_decls : Pp.document)
   : int * Pp.document
   =
-  (* Printf.printf "--> LOG: [%s]\n%!" "STARTING SHRINKING"; *)
   let open Pp in
   let name_eq (n1, _, _, _) (n2, _, _, _) =
     match (n1, n2) with Some name1, Some name2 -> Sym.equal name1 name2 | _ -> false
@@ -437,29 +436,44 @@ let shrink
                     seq') ))
         seq'
     in
-    (* print_string ((ctx_to_string rev_dep_graph) ^ "\n"); *)
     let reqs = dfs seq [] start in
-    let shrink_1 (tests : context) =
-      let rec generate acc remaining =
-        match remaining with
-        | [] -> [ acc ]
-        | test :: tests ->
-          if List.mem name_eq test reqs then
-            generate (test :: acc) tests
-          else (
-            let with_x = generate (test :: acc) tests in
-            let deps = dfs rev_dep_graph [] test in
-            let without_x =
-              generate
-                (List.filter (fun test -> not (List.mem name_eq test deps)) acc)
-                tests
-            in
-            with_x @ without_x)
+    let rec shrink_1 (tests : context) =
+      let generate_lists lst =
+        let rec aux left right acc =
+          match right with
+          | [] -> acc
+          | ((name, _, _, _) as test) :: rest ->
+            if List.mem name_eq test reqs then
+              aux (test :: left) rest (List.rev_append left right :: acc)
+            else (
+              let deps =
+                match name with
+                | None -> []
+                | Some name1 ->
+                  dfs
+                    rev_dep_graph
+                    []
+                    (List.find
+                       (fun (name2, _, _, _) ->
+                          match name2 with
+                          | None -> false
+                          | Some name2 ->
+                            String.equal (Sym.pp_string name1) (Sym.pp_string name2))
+                       rev_dep_graph)
+              in
+              let removed =
+                List.rev_append
+                  (List.filter (fun test -> not (List.mem name_eq test deps)) left)
+                  rest
+              in
+              aux (test :: left) rest (removed :: acc))
+        in
+        aux [] lst []
       in
-      let powerset =
+      let shrunken_sequences =
         List.sort
           (fun l1 l2 -> Int.compare (List.length l1) (List.length l2))
-          (generate [] tests)
+          (generate_lists tests)
       in
       let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
       save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
@@ -467,11 +481,11 @@ let shrink
       let results =
         analyze_results
           (List.init
-             (List.length powerset)
+             (List.length shrunken_sequences)
              (Fun.const (Some (-1, None, C.Ctype ([], Basic (Integer Char)), elt, []))))
           (List.map
-             (fun test -> ctx_to_tests test ^^ hardline ^^ string "return 0;")
-             powerset)
+             (fun tests -> ctx_to_tests tests ^^ hardline ^^ string "return 0;")
+             shrunken_sequences)
           filename_base
           output_dir
           fun_decls
@@ -481,8 +495,13 @@ let shrink
           (fun result -> match result with Some (Postcond _) -> true | _ -> false)
           results
       with
-      | Some i -> List.nth powerset i
-      | _ -> failwith "impossible"
+      | Some i ->
+        let shrunken_sequence = List.nth shrunken_sequences i in
+        if List.length shrunken_sequence = List.length tests then
+          shrunken_sequence
+        else
+          shrink_1 (List.nth shrunken_sequences i)
+      | None -> tests
     in
     let rec shrink_2 ((prev, next) : context * context) : context =
       let shrink_arg ((ty, arg_name) : C.ctype * string) : string list =
@@ -533,9 +552,8 @@ let shrink
         in
         match gend_val with
         | Some v ->
-          gen_lst_shrinks ty v @ [ v; arg_name ]
-          (* generate arg for variable, then shrink *)
-        | None -> gen_lst_shrinks ty arg_name @ [ arg_name ]
+          gen_lst_shrinks ty v @ [ v ] (* generate arg for variable, then shrink *)
+        | None -> gen_lst_shrinks ty arg_name
         (* if arg is not a variable then just shrink *)
       in
       match next with
@@ -545,48 +563,54 @@ let shrink
                   ((prev_args, next_args) :
                     (C.ctype * string) list * (C.ctype * string) list)
           =
-          let try_shrinks (arg_shrinks : string list) =
-            let try_shrink (new_arg : string) =
-              match next_args with
-              | [] -> List.rev prev_args
-              | (ty, _) :: next_args -> List.rev prev_args @ ((ty, new_arg) :: next_args)
-            in
-            let new_tests =
-              List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) arg_shrinks
-            in
-            let new_sequences =
-              List.map
-                (fun (_, name, ret_ty, f, args) ->
-                   ctx_to_tests (List.rev prev @ ((name, ret_ty, f, args) :: t)))
-                new_tests
-            in
-            let results =
-              analyze_results
-                (List.map (fun test -> Some test) new_tests)
-                new_sequences
-                filename_base
-                output_dir
-                fun_decls
-            in
-            match
-              List.find_index
-                (fun result -> match result with Some (Postcond _) -> true | _ -> false)
-                results
-            with
-            | Some i -> List.nth arg_shrinks i
-            | None -> failwith "impossible"
+          let try_shrinks (arg_shrinks : string list) (orig_arg : string) =
+            match arg_shrinks with
+            | [] -> orig_arg
+            | _ ->
+              let try_shrink (new_arg : string) =
+                match next_args with
+                | [] -> List.rev prev_args
+                | (ty, _) :: next_args ->
+                  List.rev_append prev_args ((ty, new_arg) :: next_args)
+              in
+              let new_tests =
+                List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) arg_shrinks
+              in
+              let new_sequences =
+                List.map
+                  (fun (_, name, ret_ty, f, args) ->
+                     ctx_to_tests (List.rev_append prev ((name, ret_ty, f, args) :: t)))
+                  new_tests
+              in
+              let results =
+                analyze_results
+                  (List.map (fun test -> Some test) new_tests)
+                  new_sequences
+                  filename_base
+                  output_dir
+                  fun_decls
+              in
+              (match
+                 List.find_index
+                   (fun result ->
+                      match result with Some (Postcond _) -> true | _ -> false)
+                   results
+               with
+               | Some i -> List.nth arg_shrinks i
+               | None -> orig_arg)
           in
           match next_args with
           | [] -> (name, ret_ty, f, List.rev prev_args)
           | (ty, arg) :: next_args ->
-            shrink_args ((ty, try_shrinks (shrink_arg (ty, arg))) :: prev_args, next_args)
+            shrink_args
+              ((ty, try_shrinks (shrink_arg (ty, arg)) arg) :: prev_args, next_args)
         in
         let shrunken_call = shrink_args ([], args) in
         shrink_2 (shrunken_call :: prev, t)
     in
-    let shrunken = shrink_1 seq' in
+    let shrunken = shrink_1 (List.rev seq') in
     let shrunken' = List.rev (shrink_2 ([], shrunken)) in
-    let shrunken'' = shrink_1 shrunken' in
+    let shrunken'' = shrink_1 (List.rev shrunken') in
     (List.length shrunken'', ctx_to_tests shrunken'')
 
 
