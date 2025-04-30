@@ -438,19 +438,16 @@ let shrink
         seq'
     in
     let reqs = dfs seq [] start in
-    let rec shrink_1 (tests : context) =
-      let generate_lists lst =
-        (* Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string lst ^ "\n");
-        Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string rev_dep_graph ^ "\n");
-        Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string reqs ^ "\n"); *)
-        let rec aux left right acc =
+    let rec shrink_1 (tests : context) : context =
+      let generate_lists (lst : context) : context list =
+        let rec aux (left : context) (right : context) (acc : context list) : context list =
           match right with
           | [] -> acc
           | ((name, _, _, _) as test) :: rest ->
             if List.mem name_eq test reqs then
               aux (test :: left) rest (List.rev_append left right :: acc)
             else (
-              let deps = 
+              let deps =
                 match name with
                 | None -> []
                 | Some name1 ->
@@ -468,12 +465,23 @@ let shrink
               let removed =
                 List.rev_append
                   left
-                  (List.filter (fun test -> not (List.mem name_eq test deps)) rest)
+                  (List.filter
+                     (fun ((_, _, _, args) as test) ->
+                        (not (List.mem name_eq test deps))
+                        && List.for_all
+                             (fun (_, arg) ->
+                                not
+                                  (List.mem
+                                     (fun name1 (name2, _, _, _) ->
+                                        match name2 with
+                                        | None -> false
+                                        | Some name2 ->
+                                          (String.equal name1) (Sym.pp_string name2))
+                                     arg
+                                     deps))
+                             args)
+                     rest)
               in
-              (* Printf.printf "--> LOG: [%s]\n%!" ("in AUX");
-              Printf.printf "--> LOG: [%s]\n%!" (Sym.pp_string f);
-              Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string deps ^ "\n");
-              Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string removed ^ "\n"); *)
               aux (test :: left) rest (removed :: acc))
         in
         aux [] lst []
@@ -571,7 +579,7 @@ let shrink
                   ((prev_args, next_args) :
                     (C.ctype * string) list * (C.ctype * string) list)
           =
-          let try_shrinks (arg_shrinks : string list) (orig_arg : string) =
+          let try_shrinks (arg_shrinks : string list) (orig_arg : string) : string =
             match arg_shrinks with
             | [] -> orig_arg
             | _ ->
