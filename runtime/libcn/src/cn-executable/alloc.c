@@ -248,10 +248,6 @@ static inline uint32_t fl_offset(block_header* fl) {
   return (uintptr_t)fl - (uintptr_t)block_list;
 }
 
-static inline free_block_header* fl_by_offset(uint32_t offset) {
-  return (free_block_header*)((uintptr_t)block_list + offset);
-}
-
 static inline free_block_header* fl_next_free_node(free_block_header* fl) {
   if (fl->next > MAX_BLOCK_INDEX) {
     return NULL;

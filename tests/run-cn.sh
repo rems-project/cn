@@ -37,12 +37,12 @@ function exits_with_code() {
   local file=$2
   local -a expected_exit_codes=$3
 
-  printf "[$file]...\n"
-  timeout 60 ${action} "$file"
+  printf "[%s]...\n" "$file"
+  timeout 60 "${action}" "$file"
   local result=$?
 
   for code in "${expected_exit_codes[@]}"; do
-    if [ $result -eq $code ]; then
+    if [ $result -eq "$code" ]; then
       printf "\033[32mPASS\033[0m\n"
       return 0
     fi

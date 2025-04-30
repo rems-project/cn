@@ -2,7 +2,7 @@
 
 FLAGS=""
 if [[ -n "${GITHUB_ACTIONS+isset}" ]]; then
-    FLAGS="-Werror"
+    FLAGS="-Werror -Wall"
 fi
 
 cc ${FLAGS} -I ../../include/ -c -g "$@"
