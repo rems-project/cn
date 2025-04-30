@@ -4,7 +4,6 @@ Learn how the CN project works and how you can contribute.
 
 ## Start here
 
-TODO (dcm41): Setting up ocamlformat.
 TOD (PS?): licensing agreements, acks etc?
 
 We use [this GitHub project](https://github.com/orgs/GaloisInc/projects/23/views/9) to
@@ -25,10 +24,17 @@ Wondering if the juice is worth the squeeze? Jump to [Why this process?](#why-th
 
 ## Setting up your development environment
 
-We currently don't have any specific environment setup, but will add information
-here as we progress in the project.
+### VSCode development container
 
-Mac OS X users should install the coreutils package with the following to run the `timeout` command which is used in test scripts (like `tests/run-cn.sh`).
+For those using Visual Studio Code, there is a development container that may be used as a CN development environment. This requires a Docker container engine and the [Dev Containers VSCode extension](https://marketplace.visualstudio.com/items/?itemName=ms-vscode-remote.remote-containers). If these are installed, on opening the CN repository in VSCode you will be prompted to reopen in a container. This will pull the image and set everything up.
+
+### General setup instructions
+
+For those setting up a development environment outside VSCode, see [the project README](../README.md#installation) for instructions on the basic development-environment setup (following step 6 "for CN developers").
+
+If modifying any ML or C files, be sure you have the correct versions of code-formatting tools installed (see [the "Coding style" section](#coding-style) below).
+
+Those developing on macOS should install the `coreutils` package to enable running the `timeout` command used in test scripts such as `tests/run-cn.sh`. If using the [Homebrew](https://brew.sh/) package manager, this is installed as follows:
 ```
 brew install coreutils
 ```
@@ -129,6 +135,24 @@ guidelines on merging your branch commit history into `main`.
 - Libraries should not call exit or produce console output (unless initiating a truly mandatory crash); libraries should not have fatal crashes
 - Prefer library-first development (the functionality of any program should be available as a library)
 - A clean version control history is important (e.g., to support bisecting and code understanding), but extensive history rewriting is not important (more on this in [Git guidelines](#git-guidelines))
+
+### Coding style
+
+CN maintains (and enforces in its CI builds) coding styles for both its ML and C source files.
+
+CN's ML style rules (viewable [here](../.ocamlformat)) are maintained by the `ocamlformat` tool. The C style rules are the default LLVM style and are maintained by the `clang-format` tool. Style rules vary slightly between different versions of `clang-format`, so it is important to use a compatible version to ensure that the style tests in the CI builds pass. The CI uses the latest release of version 19 from [the LLVM Foundation](https://llvm.org/), which is also available for Debian/Ubuntu systems through an [APT repository](https://apt.llvm.org/).
+
+When developing with Visual Studio Code, if `ocamlformat` is installed, the OCaml extension will automatically format any ML file when it is saved. VSCode's C extension can also be configured to auto-format C files with `clang-format` on save. CN's [development container](#vscode-development-container) contains the formatting tools for both languages.
+
+Outside of VSCode, the style of the ML files can be checked by running the following command from the repository's root directory:
+```
+dune build @fmt
+```
+The C files' style may be checked by running `clang-format` on every file with the extension `.c` or `.h` in the `runtime/libcn` directory. On a POSIX-compliant system, the style-checking command is
+```
+find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format --dry-run -Werror
+```
+
 
 ## Git guidelines
 

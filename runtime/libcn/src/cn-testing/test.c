@@ -178,6 +178,9 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       }
 
       return max_size + 1;
+
+    default:
+      assert(false);
   }
 }
 
@@ -385,6 +388,9 @@ int cn_test_main(int argc, char* argv[]) {
             enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
+              if (get_cn_logging_level() < CN_LOGGING_ERROR) {
+                printf("\n");
+              }
               fprintf(stderr,
                   "Replay of failure did not fail (result = %d).\n",
                   replay_result);
