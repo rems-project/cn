@@ -30,7 +30,7 @@ function separator() {
   printf '\n\n'
 }
 
-CONFIGS=("--num-calls=30 --num-tests=10")
+CONFIGS=("--max-num-calls=30 --num-tests=10")
 
 # For each configuration
 for CONFIG in "${CONFIGS[@]}"; do

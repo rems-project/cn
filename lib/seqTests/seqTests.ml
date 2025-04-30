@@ -391,6 +391,7 @@ let shrink
       (fun_decls : Pp.document)
   : int * Pp.document
   =
+  (* Printf.printf "--> LOG: [%s]\n%!" "STARTING SHRINKING"; *)
   let open Pp in
   let name_eq (n1, _, _, _) (n2, _, _, _) =
     match (n1, n2) with Some name1, Some name2 -> Sym.equal name1 name2 | _ -> false
@@ -439,6 +440,9 @@ let shrink
     let reqs = dfs seq [] start in
     let rec shrink_1 (tests : context) =
       let generate_lists lst =
+        (* Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string lst ^ "\n");
+        Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string rev_dep_graph ^ "\n");
+        Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string reqs ^ "\n"); *)
         let rec aux left right acc =
           match right with
           | [] -> acc
@@ -446,7 +450,7 @@ let shrink
             if List.mem name_eq test reqs then
               aux (test :: left) rest (List.rev_append left right :: acc)
             else (
-              let deps =
+              let deps = 
                 match name with
                 | None -> []
                 | Some name1 ->
@@ -463,9 +467,13 @@ let shrink
               in
               let removed =
                 List.rev_append
-                  (List.filter (fun test -> not (List.mem name_eq test deps)) left)
-                  rest
+                  left
+                  (List.filter (fun test -> not (List.mem name_eq test deps)) rest)
               in
+              (* Printf.printf "--> LOG: [%s]\n%!" ("in AUX");
+              Printf.printf "--> LOG: [%s]\n%!" (Sym.pp_string f);
+              Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string deps ^ "\n");
+              Printf.printf "--> LOG: [%s]\n%!" (ctx_to_string removed ^ "\n"); *)
               aux (test :: left) rest (removed :: acc))
         in
         aux [] lst []
