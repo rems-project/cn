@@ -379,20 +379,24 @@ let compile_spec
 
 
 let compile
+      filename
       ?(ctx : GD.context option)
       (preds : (Sym.t * Def.Predicate.t) list)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
   : GD.context
   =
   let recursive_preds = GenAnalysis.get_recursive_preds preds in
   let context_specs =
     insts
-    |> List.map (fun (inst : FExtract.instrumentation) ->
+    |> List.map (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
       compile_spec
         (Option.get (Cerb_location.get_filename inst.fn_loc))
         recursive_preds
         preds
-        inst.fn
+        (if is_static then
+           Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+         else
+           inst.fn)
         (Option.get inst.internal))
     |> List.fold_left
          (fun ctx f ->

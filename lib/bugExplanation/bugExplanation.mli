@@ -5,12 +5,12 @@ val synthesize_replicators
   :  string ->
   CF.GenTypes.genTypeCategory A.sigma ->
   unit Mucore.file ->
-  Fulminate.Extract.instrumentation list ->
+  (bool * Fulminate.Extract.instrumentation) list ->
   (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
 
 val synthesize_shape_analyzers
   :  string ->
   CF.GenTypes.genTypeCategory A.sigma ->
   unit Mucore.file ->
-  Fulminate.Extract.instrumentation list ->
+  (bool * Fulminate.Extract.instrumentation) list ->
   (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list

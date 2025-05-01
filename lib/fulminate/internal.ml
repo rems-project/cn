@@ -191,11 +191,11 @@ let generate_c_specs_internal
 
 let generate_c_assume_pres_internal
       filename
-      (instrumentation_list : Extract.instrumentation list)
+      (insts : (bool * Extract.instrumentation) list)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   =
-  let aux (inst : Extract.instrumentation) =
+  let aux ((is_static, inst) : bool * Extract.instrumentation) =
     let dts = sigma.cn_datatypes in
     let preds = prog5.resource_predicates in
     let args =
@@ -207,17 +207,24 @@ let generate_c_assume_pres_internal
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
     let globals = extract_global_variables prog5.globs in
+    let fsym =
+      if is_static then
+        Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+      else
+        inst.fn
+    in
     Cn_to_ail.cn_to_ail_assume_pre
       filename
       dts
-      inst.fn
+      fsym
       args
       globals
       preds
       (AT.get_lat (Option.get inst.internal))
   in
-  instrumentation_list
-  |> List.filter (fun (inst : Extract.instrumentation) -> Option.is_some inst.internal)
+  insts
+  |> List.filter (fun ((_, inst) : bool * Extract.instrumentation) ->
+    Option.is_some inst.internal)
   |> List.map aux
 
 

@@ -2,16 +2,9 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 
-let prefix filename =
-  filename
-  |> Filename.basename
-  |> Filename.remove_extension
-  |> String.to_seq
-  |> Seq.filter (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false)
-  |> String.of_seq
+let getter_str filename sym =
+  "cn_test_get_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
-
-let getter_str filename sym = "cn_test_get_" ^ prefix filename ^ "_" ^ Sym.pp_string sym
 
 let getter filename (sym : Sym.t) (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
@@ -44,7 +37,9 @@ let getter filename (sym : Sym.t) (sct : Sctypes.t)
                  ] )) ) ) )
 
 
-let setter_str filename sym = "cn_test_set_" ^ prefix filename ^ "_" ^ Sym.pp_string sym
+let setter_str filename sym =
+  "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
+
 
 let setter filename (sym : Sym.t) (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition

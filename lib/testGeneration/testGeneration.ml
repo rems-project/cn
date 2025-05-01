@@ -37,7 +37,7 @@ let compile_assumes
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
   : Pp.document
   =
   let declarations, function_definitions =
@@ -79,7 +79,7 @@ let compile_shape_analyzers
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Extract.instrumentation list)
+      (insts : (bool * Fulminate.Extract.instrumentation) list)
   : Pp.document
   =
   let declarations, function_definitions =
@@ -103,7 +103,7 @@ let compile_replicators
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Extract.instrumentation list)
+      (insts : (bool * Fulminate.Extract.instrumentation) list)
   : Pp.document
   =
   let declarations, function_definitions =
@@ -167,22 +167,47 @@ let compile_includes ~filename =
   ^^ hardline
 
 
-let compile_test test =
+let compile_test (test : Test.t) =
   let open Pp in
-  let macro = Test.registration_macro test in
-  string macro ^^ parens (string test.suite ^^ comma ^^ space ^^ string test.test) ^^ semi
+  (match test.kind with
+   | Constant ->
+     if test.is_static then
+       string "CN_REGISTER_STATIC_UNIT_TEST_CASE"
+     else
+       string "CN_REGISTER_EXTERN_UNIT_TEST_CASE"
+   | Generator ->
+     if test.is_static then
+       string "CN_REGISTER_STATIC_RANDOM_TEST_CASE"
+     else
+       string "CN_REGISTER_EXTERN_RANDOM_TEST_CASE")
+  ^^ parens
+       (string test.suite
+        ^^ comma
+        ^^ space
+        ^^ string test.test
+        ^^
+        if test.is_static then
+          comma ^^^ string (Fulminate.Utils.static_prefix test.filename)
+        else
+          empty)
+  ^^ semi
 
+
+(* let macro = Test.registration_macro test in
+  string macro ^^ parens (string test.suite ^^ comma ^^ space ^^ string test.test) ^^ semi *)
 
 let compile_test_file
       ~(without_ownership_checking : bool)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
   =
-  let for_constant, for_generator = List.partition (is_constant_function sigma) insts in
+  let for_constant, for_generator =
+    insts |> List.partition (fun (_, inst) -> is_constant_function sigma inst)
+  in
   let constant_tests, constant_tests_defs =
-    SpecTests.compile_constant_tests sigma for_constant
+    SpecTests.compile_constant_tests filename sigma for_constant
   in
   let generator_tests, generator_tests_defs =
     SpecTests.compile_generator_tests filename sigma prog5 for_generator
@@ -296,7 +321,7 @@ let save_generators
       ~filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
   : unit
   =
   let filename_base = filename |> Filename.basename |> Filename.remove_extension in
@@ -304,12 +329,35 @@ let save_generators
     Pp.(
       separate
         hardline
-        [ string (Fulminate.Globals.accessors_prototypes filename prog5);
-          SpecTests.compile_generators
-            sigma
-            prog5
-            (List.filter (fun inst -> not (is_constant_function sigma inst)) insts)
-        ])
+        ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
+         @ (insts
+            |> List.filter fst
+            |> List.map snd
+            |> List.map (fun (inst : FExtract.instrumentation) ->
+              let decl = List.assoc Sym.equal inst.fn sigma.A.declarations in
+              let fsym =
+                Sym.fresh
+                  (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+              in
+              (* TODO: delete *)
+              (* string "typedef struct"
+              ^^^ (string "cn_gen_" ^^ Sym.pp inst.fn ^^ string "_record")
+              ^^^ (string "cn_gen_"
+                   ^^ string (Fulminate.Utils.static_prefix filename)
+                   ^^ underscore
+                   ^^ Sym.pp inst.fn
+                   ^^ string "_record")
+              ^^ semi *)
+              (* ^^ hardline *)
+              (* ^^ *)
+              CF.Pp_ail.pp_program
+                ~show_include:false
+                (None, { CF.AilSyntax.empty_sigma with declarations = [ (fsym, decl) ] }))
+           )
+         @ [ insts
+             |> List.filter (fun (_, inst) -> not (is_constant_function sigma inst))
+             |> SpecTests.compile_generators filename sigma prog5
+           ]))
   in
   let generators_fn = filename_base ^ ".gen.h" in
   save output_dir generators_fn generators_doc
@@ -321,7 +369,7 @@ let save_tests
       ~without_ownership_checking
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
   : unit
   =
   let tests_doc =
@@ -337,44 +385,26 @@ let save_build_script ~output_dir ~filename =
   save ~perm:0o777 output_dir "run_tests.sh" script_doc
 
 
-(** Workaround for https://github.com/rems-project/cerberus/issues/784 *)
-let needs_static_hack
-      ~(with_warning : bool)
-      (cabs_tunit : CF.Cabs.translation_unit)
-      (inst : FExtract.instrumentation)
-  =
+let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumentation) =
   let (TUnit decls) = cabs_tunit in
-  let is_static_func () =
-    List.exists
-      (fun decl ->
-         match decl with
-         | CF.Cabs.EDecl_func
-             (FunDef
-                ( loc,
-                  _,
-                  { storage_classes; _ },
-                  Declarator
-                    (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
-                  _ ))
-           when String.equal (Sym.pp_string inst.fn) fn'
-                && List.exists
-                     (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
-                     storage_classes ->
-           if with_warning then
-             Cerb_colour.with_colour
-               (fun () ->
-                  Pp.(
-                    warn
-                      loc
-                      (string "Static function"
-                       ^^^ squotes (Sym.pp inst.fn)
-                       ^^^ string "could not be tested.")))
-               ();
-           true
-         | _ -> false)
-      decls
-  in
-  is_static_func ()
+  List.exists
+    (fun decl ->
+       match decl with
+       | CF.Cabs.EDecl_func
+           (FunDef
+              ( _,
+                _,
+                { storage_classes; _ },
+                Declarator
+                  (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
+                _ ))
+         when String.equal (Sym.pp_string inst.fn) fn'
+              && List.exists
+                   (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
+                   storage_classes ->
+         true
+       | _ -> false)
+    decls
 
 
 (** Workaround for https://github.com/rems-project/cerberus/issues/765 *)
@@ -427,7 +457,7 @@ let functions_under_test
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-  : FExtract.instrumentation list
+  : (bool * FExtract.instrumentation) list
   =
   let insts = prog5 |> FExtract.collect_instrumentation |> fst in
   let selected_fsyms =
@@ -442,9 +472,8 @@ let functions_under_test
      | None -> true)
     && Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
-    && not
-         (needs_static_hack ~with_warning cabs_tunit inst
-          || needs_enum_hack ~with_warning sigma inst))
+    && not (needs_enum_hack ~with_warning sigma inst))
+  |> List.map (fun (inst : FExtract.instrumentation) -> (is_static cabs_tunit inst, inst))
 
 
 let run

@@ -164,6 +164,7 @@ let main
       filename
       in_filename (* WARNING: this file will be delted after this function *)
       out_filename
+      (static_funcs : string list)
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
       prog5
@@ -192,6 +193,13 @@ let main
   in
   let filtered_instrumentation, filtered_sigm =
     filter_selected_fns prog5 sigm full_instrumentation
+  in
+  let static_funcs =
+    filtered_instrumentation
+    |> List.filter (fun (inst : Extract.instrumentation) ->
+      List.exists (String.equal (Sym.pp_string inst.fn)) static_funcs)
+    |> List.map (fun (inst : Extract.instrumentation) -> inst.fn)
+    |> Sym.Set.of_list
   in
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation prog5;
@@ -328,8 +336,10 @@ let main
      Source_injection.(
        output_injections
          oc
-         { filename = in_filename;
+         { orig_filename = filename;
+           filename = in_filename;
            program = ail_prog;
+           static_funcs;
            pre_post = pre_post_pairs;
            in_stmt = in_stmt_injs;
            returns = executable_spec.returns;

@@ -261,6 +261,27 @@ let handle_error_with_user_guidance ~(label : string) (e : exn) : unit =
   exit 1
 
 
+let static_funcs (cabs_tunit : CF.Cabs.translation_unit) : string list =
+  let (CF.Cabs.TUnit decls) = cabs_tunit in
+  List.filter_map
+    (fun decl ->
+       match decl with
+       | CF.Cabs.EDecl_func
+           (FunDef
+              ( _,
+                _,
+                { storage_classes; _ },
+                Declarator
+                  (_, DDecl_function (DDecl_identifier (_, Identifier (_, fsym)), _)),
+                _ ))
+         when List.exists
+                (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
+                storage_classes ->
+         Some fsym
+       | _ -> None)
+    decls
+
+
 open Cmdliner
 
 let (dir_and_mk_if_not_exist :
