@@ -1101,16 +1101,7 @@ end = struct
     k it_arg
 
 
-  let spine
-        rt_subst
-        rt_pp
-        loc
-        (situation : call_situation)
-        args
-        (gargs : IT.t list)
-        ftyp
-        k
-    =
+  let spine rt_subst rt_pp loc situation args gargs ftyp k =
     let open ArgumentTypes in
     let original_ftyp = ftyp in
     let original_args = args in
