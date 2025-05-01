@@ -112,16 +112,6 @@ let alpha_unique ss =
   f ss
 
 
-(* let binders i_binders i_subst = *)
-(*   let rec aux = function *)
-(*     | Computational ((s, bt), _, t) -> *)
-(*       let s, t = alpha_rename i_subst s t in *)
-(*       let here = Locations.other __LOC__ in *)
-(*       (Id.make here (Sym.pp_string s), bt) :: aux t *)
-(*     | L t -> LAT.binders i_binders i_subst t *)
-(*   in *)
-(*   aux *)
-
 let of_rt (rt : RT.t) (rest : 'i LAT.t) : 'i t =
   let (RT.Computational ((name, t), info, lrt)) = rt in
   Computational ((name, t), info, L (LAT.of_lrt lrt rest))
