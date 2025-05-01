@@ -20,11 +20,6 @@ type test_stats =
     distrib : (string * int) list
   }
 
-type pass_or_violation =
-  | Postcond of call
-  | Precond
-  | Pass of call * int
-
 let no_qs : C.qualifiers = { const = false; restrict = false; volatile = false }
 
 let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
@@ -328,7 +323,15 @@ let analyze_results
       (filename_base : string)
       (output_dir : string)
       (fun_decls : PPrint.document)
-  : pass_or_violation option list
+  : [ `CompileFailure
+    | `PreConditionViolation
+    | `PostConditionViolation of
+        SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+    | `Success of
+        (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+    ]
+      option
+      list
   =
   let tests_to_try =
     List.map
@@ -348,12 +351,11 @@ let analyze_results
     let num_tests = List.length prev_and_tests in
     let rec run_tests (test_num : int) =
       if test_num < num_tests then (
-        match
+        let process_status =
           Unix.system
             (output_dir ^ "/tests.out " ^ string_of_int test_num ^ " > /dev/null")
-        with
-        | WEXITED n -> n :: run_tests (test_num + 1)
-        | _ -> failwith "Process was stopped or killed by signal :(")
+        in
+        process_status :: run_tests (test_num + 1))
       else
         []
     in
@@ -366,22 +368,32 @@ let analyze_results
                  * SymSet.elt
                  * (C.ctype * string) list)
                    option
-                * int)
+                * Unix.process_status)
                   list)
+      : [ `CompileFailure
+        | `PreConditionViolation
+        | `PostConditionViolation of
+            SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+        | `Success of
+            (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+        ]
+          option
+          list
       =
       match tests_and_msgs with
       | [] -> []
       | (None, _) :: t -> None :: analyze_results_h t
       | (Some (prev', name, ret_ty, f, args), exit_code) :: t ->
         (match exit_code with
-         | 0 -> Some (Pass ((name, ret_ty, f, args), prev')) :: analyze_results_h t
-         | 1 -> Some Precond :: analyze_results_h t
-         | 2 -> Some (Postcond (name, ret_ty, f, args)) :: analyze_results_h t
+         | WEXITED 0 ->
+           Some (`Success ((name, ret_ty, f, args), prev')) :: analyze_results_h t
+         | WEXITED 1 -> Some `PreConditionViolation :: analyze_results_h t
+         | WEXITED 2 ->
+           Some (`PostConditionViolation (name, ret_ty, f, args)) :: analyze_results_h t
          | _ -> failwith "unhandled exit code")
     in
     analyze_results_h tests_and_msgs
-  | WEXITED _ -> failwith "compilation failure"
-  | _ -> failwith "compilation stopped unexpectedly"
+  | _ -> [ Some `CompileFailure ]
 
 
 let shrink
@@ -440,7 +452,8 @@ let shrink
     let reqs = dfs seq [] start in
     let rec shrink_1 (tests : context) : context =
       let generate_lists (lst : context) : context list =
-        let rec aux (left : context) (right : context) (acc : context list) : context list =
+        let rec aux (left : context) (right : context) (acc : context list) : context list
+          =
           match right with
           | [] -> acc
           | ((name, _, _, _) as test) :: rest ->
@@ -508,7 +521,8 @@ let shrink
       in
       match
         List.find_index
-          (fun result -> match result with Some (Postcond _) -> true | _ -> false)
+          (fun result ->
+             match result with Some (`PostConditionViolation _) -> true | _ -> false)
           results
       with
       | Some i ->
@@ -609,7 +623,9 @@ let shrink
               (match
                  List.find_index
                    (fun result ->
-                      match result with Some (Postcond _) -> true | _ -> false)
+                      match result with
+                      | Some (`PostConditionViolation _) -> true
+                      | _ -> false)
                    results
                with
                | Some i -> List.nth arg_shrinks i
@@ -662,11 +678,13 @@ let rec gen_sequence
           (output_dir : string)
           (filename_base : string)
           (fun_decls : Pp.document)
-  : (Pp.document * test_stats, Pp.document * test_stats) Either.either
+  : [ `PostConditionViolation of Pp.document * test_stats
+    | `Success of Pp.document * test_stats
+    | `CompileFailure
+    ]
   =
   let open Pp in
-  match fuel with
-  | 0 ->
+  if fuel = 0 then (
     let test_strs =
       List.map
         (fun (_, seq_so_far, ctx, _) ->
@@ -688,7 +706,7 @@ let rec gen_sequence
            ^^ string "return 0;")
         test_states
     in
-    Either.Right
+    `Success
       ( create_intermediate_test_file
           test_strs
           (List.init (Config.get_num_tests ()) (fun _ -> empty))
@@ -696,8 +714,8 @@ let rec gen_sequence
           fun_decls,
         combine_stats
           (List.map (fun (_, _, _, stats) -> stats) test_states)
-          { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } )
-  | _ ->
+          { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } ))
+  else (
     let callables =
       List.map
         (fun (_, _, ctx, _) ->
@@ -707,9 +725,11 @@ let rec gen_sequence
         test_states
     in
     let gen_test ()
-      : ( int * Pp.document * context * test_stats,
-            int * Pp.document * context * test_stats )
-          Either.either
+      : [ `CompileFailure of int * document * context * test_stats
+        | `PreConditionViolation of int * document * context * test_stats
+        | `PostConditionViolation of int * document * context * test_stats
+        | `Success of int * document * context * test_stats
+        ]
           list
       =
       let gen_test_h (f, ((_, ret_ty), params)) (ctx : context) (prev : int)
@@ -747,7 +767,17 @@ let rec gen_sequence
       in
       let rec update_tests
                 (test_states : (int * Pp.document * context * test_stats) list)
-                (results : pass_or_violation option list)
+                (results :
+                  [ `CompileFailure
+                  | `PreConditionViolation
+                  | `PostConditionViolation of
+                      SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+                  | `Success of
+                      (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
+                      * int
+                  ]
+                    option
+                    list)
         =
         match (test_states, results) with
         | [], [] -> []
@@ -755,32 +785,33 @@ let rec gen_sequence
           let updated_state =
             match result with
             | None ->
-              Either.Right
-                (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
-            | Some Precond -> Either.Right (prev, test_so_far, ctx, stats)
-            | Some (Pass (((name, ret_ty, f, args) as call), prev')) ->
+              `Success (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
+            | Some `CompileFailure -> `CompileFailure (-1, empty, ctx, stats)
+            | Some `PreConditionViolation ->
+              `PreConditionViolation (prev, test_so_far, ctx, stats)
+            | Some (`Success (((name, ret_ty, f, args) as call), prev')) ->
               let distrib =
                 let name = Sym.pp_string f in
                 match List.assoc_opt String.equal name stats.distrib with
                 | None -> (name, 1) :: stats.distrib
                 | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
               in
-              Either.Right
+              `Success
                 ( prev',
                   test_so_far ^^ test_to_doc name ret_ty f args,
                   call :: ctx,
                   { stats with successes = stats.successes + 1; distrib } )
-            | Some (Postcond ((_, _, f, _) as call)) ->
+            | Some (`PostConditionViolation ((_, _, f, _) as call)) ->
               let distrib =
                 let name = Sym.pp_string f in
                 match List.assoc_opt String.equal name stats.distrib with
                 | None -> (name, 1) :: stats.distrib
                 | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
               in
-              Either.Left
+              `PostConditionViolation
                 ( prev,
                   empty,
-                  call :: ctx,
+                  (call :: ctx : context),
                   { stats with failures = stats.failures + 1; distrib } )
           in
           updated_state :: update_tests test_states results
@@ -789,39 +820,51 @@ let rec gen_sequence
       update_tests test_states results
     in
     let test_states = gen_test () in
-    let test_states' =
-      List.map
-        (fun result ->
-           match result with Either.Right result | Either.Left result -> result)
-        test_states
-    in
     let postcond_violations =
       List.filter_map
-        (fun result -> match result with Either.Left x -> Some x | _ -> None)
+        (fun result ->
+           match result with `PostConditionViolation x -> Some x | _ -> None)
         test_states
     in
-    if List.length postcond_violations <> 0 then (
-      let _, _, ctx, _ =
-        List.hd
-          (List.sort
-             (fun (_, _, ctx1, _) (_, _, ctx2, _) ->
-                Int.compare (List.length ctx1) (List.length ctx2))
-             postcond_violations)
+    match
+      List.find_opt
+        (fun status -> match status with `CompileFailure _ -> true | _ -> false)
+        test_states
+    with
+    | Some (`CompileFailure _) -> `CompileFailure
+    | _ ->
+      let test_states' =
+        List.map
+          (fun result ->
+             match result with
+             | `Success info -> info
+             | `CompileFailure info -> info
+             | `PreConditionViolation info -> info
+             | `PostConditionViolation info -> info)
+          test_states
       in
-      let num_left, seq = shrink ctx output_dir filename_base fun_decls in
-      let combined_stats =
-        combine_stats
-          (List.map (fun (_, _, _, stats) -> stats) test_states')
-          { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] }
-      in
-      Either.Left
-        ( create_test_file
-            (seq ^^ hardline ^^ string "return 123;")
-            filename_base
-            fun_decls,
-          { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
-    else
-      gen_sequence funcs (fuel - 1) test_states' output_dir filename_base fun_decls
+      if List.length postcond_violations <> 0 then (
+        let _, _, ctx, _ =
+          List.hd
+            (List.sort
+               (fun (_, _, ctx1, _) (_, _, ctx2, _) ->
+                  Int.compare (List.length ctx1) (List.length ctx2))
+               postcond_violations)
+        in
+        let num_left, seq = shrink ctx output_dir filename_base fun_decls in
+        let combined_stats =
+          combine_stats
+            (List.map (fun (_, _, _, stats) -> stats) test_states')
+            { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] }
+        in
+        `PostConditionViolation
+          ( create_test_file
+              (seq ^^ hardline ^^ string "return 123;")
+              filename_base
+              fun_decls,
+            { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
+      else
+        gen_sequence funcs (fuel - 1) test_states' output_dir filename_base fun_decls)
 
 
 let compile_sequence
@@ -831,7 +874,10 @@ let compile_sequence
       (output_dir : string)
       (filename_base : string)
       (fun_decls : Pp.document)
-  : (Pp.document * test_stats, Pp.document * test_stats) Either.either
+  : [ `PostConditionViolation of Pp.document * test_stats
+    | `Success of Pp.document * test_stats
+    | `CompileFailure
+    ]
   =
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
@@ -910,7 +956,16 @@ let generate
   in
   let exit_code, seq, output_msg =
     match compiled_seq with
-    | Left (seq, stats) ->
+    | `CompileFailure ->
+      ( 139,
+        empty,
+        Printf.sprintf
+          "============================================\n\n\
+           FATAL ERROR:\n\
+           Failed to compile while seq-testing %s\n\n\
+           ============================================"
+          (filename_base ^ ".c") )
+    | `PostConditionViolation (seq, stats) ->
       let script_doc = BuildScript.generate ~output_dir ~filename_base 1 in
       save ~perm:0o777 output_dir "run_tests.sh" script_doc;
       ( 123,
@@ -925,7 +980,7 @@ let generate
           stats.successes
           stats.discarded
           (float_of_int stats.discarded /. float_of_int (stats.successes + 1) *. 100.0) )
-    | Right (seq, stats) ->
+    | `Success (seq, stats) ->
       let num_tests = List.fold_left (fun acc (_, num) -> acc + num) 0 stats.distrib in
       let distrib_to_str =
         if List.length stats.distrib = 0 then
