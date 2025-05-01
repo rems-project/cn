@@ -355,11 +355,18 @@ let compile_spec
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
+      (is_static : bool)
       (sym : Sym.t)
       (at : 'a AT.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
-  let fsym = pred_sym sym in
+  let fsym =
+    pred_sym
+      (if is_static then
+         Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym)
+       else
+         sym)
+  in
   let args =
     match List.assoc Sym.equal sym sigma.declarations with
     | _, _, Decl_function (_, _, args, _, _, _) ->
@@ -427,7 +434,7 @@ let synthesize
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Extract.instrumentation list)
+      (insts : (bool * Fulminate.Extract.instrumentation) list)
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
   (* Per type *)
@@ -454,7 +461,10 @@ let synthesize
   (* Per specification *)
   let spec_analyzers =
     insts
-    |> List.filter_map (fun (inst : Fulminate.Extract.instrumentation) ->
-      Option.map (fun lat -> compile_spec filename sigma prog5 inst.fn lat) inst.internal)
+    |> List.filter_map
+         (fun ((is_static, inst) : bool * Fulminate.Extract.instrumentation) ->
+            Option.map
+              (fun lat -> compile_spec filename sigma prog5 is_static inst.fn lat)
+              inst.internal)
   in
   type_analyzers @ pred_analyzers @ spec_analyzers

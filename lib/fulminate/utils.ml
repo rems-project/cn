@@ -225,3 +225,12 @@ let get_end_loc ?(offset = 0) = function
 
 
 let concat_map_newline docs = PPrint.(concat_map (fun doc -> doc ^^ hardline) docs)
+
+let static_prefix filename =
+  "static_"
+  ^ (filename
+     |> Filename.basename
+     |> Filename.remove_extension
+     |> String.to_seq
+     |> Seq.filter (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false)
+     |> String.of_seq)

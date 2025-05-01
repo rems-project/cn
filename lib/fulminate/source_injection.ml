@@ -1,4 +1,6 @@
-open Cerb_frontend
+module CF = Cerb_frontend
+module A = CF.AilSyntax
+module C = CF.Ctype
 
 let use_preproc_loc = ref true
 
@@ -162,13 +164,13 @@ type injection_kind =
 
   (* Inject a pre-condition for a function *)
   | Pre of
-      string list
-      * Cerb_frontend.Ctype.ctype
-      * bool (* flag for whether injection is for main function *)
+      string list * C.ctype * bool (* flag for whether injection is for main function *)
   (* Inject a post-condition for a function *)
-  | Post of string list * Cerb_frontend.Ctype.ctype
+  | Post of string list * C.ctype
   (* Delete `main` function *)
   | DeleteMain of bool (* flag for whether start (true) or end (false) *)
+  (* Insert a non-static wrapper of a static function *)
+  | WrapStatic of string * CF.AilSyntax.sigma_declaration
 
 (* Describes how much space we need for an edit. *)
 type injection_footprint =
@@ -208,20 +210,20 @@ let inject st inj =
          ^ "/* EXECUTABLE CN PRECONDITION */"
          ^ "\n"
          ^ indent
-         ^ (if AilTypesAux.is_void ret_ty then
+         ^ (if CF.AilTypesAux.is_void ret_ty then
               ""
             else (
               let cn_ret_sym = Sym.fresh "__cn_ret" in
               let ret_type_doc =
-                Pp_ail.(
+                CF.Pp_ail.(
                   with_executable_spec
                     (pp_ctype_declaration
-                       (Pp_ail.pp_id_obj cn_ret_sym)
-                       Ctype.no_qualifiers)
+                       (CF.Pp_ail.pp_id_obj cn_ret_sym)
+                       C.no_qualifiers)
                     ret_ty)
               in
               let initialisation_str = if is_main then " = 0" else "" in
-              Pp_utils.to_plain_pretty_string ret_type_doc
+              CF.Pp_utils.to_plain_pretty_string ret_type_doc
               ^ initialisation_str
               ^ ";\n"
               ^ indent))
@@ -245,12 +247,62 @@ let inject st inj =
          ^ "\n__cn_epilogue:\n"
          ^ str
          ^
-         if Cerb_frontend.AilTypesAux.is_void ret_ty then
+         if CF.AilTypesAux.is_void ret_ty then
            indent ^ ";\n"
          else
            indent ^ "\nreturn __cn_ret;\n\n")
     | DeleteMain pre ->
       if pre then do_output st "\n#if 0\n" else do_output st "\n#endif\n"
+    | WrapStatic (prefix, decl) ->
+      let fsym = Sym.fresh (prefix ^ "_" ^ Sym.pp_string (fst decl)) in
+      let declarations = [ (fsym, snd decl) ] in
+      let ret_ty, arg_tys =
+        match decl with
+        | _, (_, _, A.Decl_function (_, (_, ret_ty), arg_tys, _, _, _)) ->
+          (ret_ty, arg_tys)
+        | _ -> failwith __LOC__
+      in
+      let args =
+        let rec aux n tys =
+          match tys with
+          | _ :: tys' -> Sym.fresh ("arg_" ^ string_of_int n) :: aux (n + 1) tys'
+          | [] -> []
+        in
+        aux 0 arg_tys
+      in
+      let e_call =
+        Utils.mk_expr
+          (AilEcall
+             ( Utils.mk_expr (AilEident (fst decl)),
+               List.map (fun x -> Utils.mk_expr (AilEident x)) args ))
+      in
+      let function_definitions =
+        [ ( fsym,
+            ( Locations.other __LOC__,
+              0,
+              CF.Annot.Attrs [],
+              args,
+              Utils.mk_stmt
+                A.(
+                  AilSblock
+                    ( [],
+                      [ Utils.mk_stmt
+                          (if C.ctypeEqual C.void ret_ty then
+                             AilSexpr e_call
+                           else
+                             AilSreturn e_call)
+                      ] )) ) )
+        ]
+      in
+      do_output
+        st
+        Pp.(
+          plain
+            (hardline
+             ^^ CF.Pp_ail.pp_program
+                  ~show_include:false
+                  (None, { A.empty_sigma with declarations; function_definitions })
+             ^^ hardline))
   in
   fst (move_to ~print:false st inj.footprint.end_pos)
 
@@ -291,9 +343,6 @@ let inject_all oc filename xs =
   in
   aux ()
 
-
-open Cerb_frontend
-module A = AilSyntax
 
 let ( let* ) = Result.bind
 
@@ -413,13 +462,23 @@ let main_inj with_testing pre_post is_void loc stmt =
         } )
 
 
+let static_inj filename loc decl =
+  let* _, pos = Pos.of_location loc in
+  Ok
+    { footprint = { start_pos = pos; end_pos = pos };
+      kind = WrapStatic (Utils.static_prefix filename, decl)
+    }
+
+
 (* EXTERNAL *)
 type 'a cn_injection =
-  { filename : string;
+  { orig_filename : string;
+    filename : string;
     program : 'a A.ail_program;
-    pre_post : (Symbol.sym * (string list * string list)) list;
+    static_funcs : Sym.Set.t;
+    pre_post : (Sym.t * (string list * string list)) list;
     in_stmt : (Cerb_location.t * string list) list;
-    returns : (Cerb_location.t * ('a AilSyntax.expression option * string list)) list;
+    returns : (Cerb_location.t * ('a A.expression option * string list)) list;
     inject_in_preproc : bool;
     with_testing : bool
   }
@@ -436,19 +495,18 @@ let output_injections oc cn_inj =
                  (Cerb_location.simple_location loc) in *)
                 acc_
               else (
-                match List.assoc_opt Symbol.equal_sym fun_sym cn_inj.pre_post with
+                match List.assoc_opt Sym.equal fun_sym cn_inj.pre_post with
                 | Some pre_post_strs ->
                   (match
                      ( acc_,
-                       List.assoc
-                         Symbol.equal_sym
-                         fun_sym
-                         (snd cn_inj.program).A.declarations )
+                       List.assoc Sym.equal fun_sym (snd cn_inj.program).A.declarations )
                    with
-                   | Ok acc, (_, _, A.Decl_function (_, (_, ret_ty), _, _, _, _)) ->
+                   | ( Ok acc,
+                       ((_, _, A.Decl_function (_, (_, ret_ty), _, _, _, _)) as decl') )
+                     ->
                      let is_main =
                        match fst cn_inj.program with
-                       | Some main_sym when Symbol.equal_sym main_sym fun_sym -> true
+                       | Some main_sym when Sym.equal main_sym fun_sym -> true
                        | _ -> false
                      in
                      let* pre, post =
@@ -457,7 +515,14 @@ let output_injections oc cn_inj =
                        else
                          pre_post_injs pre_post_strs ret_ty false stmt
                      in
-                     Ok (pre :: post :: acc)
+                     let acc = pre :: post :: acc in
+                     if Sym.Set.mem fun_sym cn_inj.static_funcs then
+                       let* wrapper =
+                         static_inj cn_inj.orig_filename loc (fun_sym, decl')
+                       in
+                       Ok (wrapper :: acc)
+                     else
+                       Ok acc
                    | _ -> assert false)
                 | None -> acc_))
            (Ok [])

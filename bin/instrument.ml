@@ -131,7 +131,7 @@ let generate_executable_specs
     ~magic_comment_char_dollar (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~handle_error
-    ~f:(fun ~cabs_tunit:_ ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       if run && Option.is_none prog5.main then (
         print_endline "Tried running instrumented file (`--run`) without `main` function.";
         exit 1);
@@ -146,6 +146,7 @@ let generate_executable_specs
                 filename
                 pp_file
                 out_file
+                (Common.static_funcs cabs_tunit)
                 ail_prog
                 prog5
             with

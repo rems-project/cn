@@ -83,6 +83,7 @@ let run_seq_tests
              filename
              pp_file
              out_file
+             (Common.static_funcs cabs_tunit)
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
