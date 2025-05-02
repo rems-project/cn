@@ -1113,46 +1113,40 @@ end = struct
         debug 6 (lazy (item "spec" (pp rt_pp ftyp))))
     in
     let check =
-      let rec aux args_acc gargs_acc args gargs ftyp k =
+      let rec aux args_acc args gargs ftyp k =
         match (args, gargs, ftyp) with
         | arg :: args, _, Computational ((s, bt), _info, ftyp) ->
           check_arg_pexpr arg ~expect:bt (fun arg ->
             aux
               (args_acc @ [ arg ])
-              gargs_acc
               args
               gargs
               (subst rt_subst (make_subst [ (s, arg) ]) ftyp)
               k)
-        | _ :: _, _, _ | [], _, Computational _ ->
-          let expect = count_computational original_ftyp in
-          let has = List.length original_args in
-          WellTyped.ensure_same_argument_number loc `Other has ~expect
-        | [], garg :: gargs, Ghost ((s, bt), info, ftyp) ->
+        | _, garg :: gargs, Ghost ((s, bt), info, ftyp) ->
           check_arg_it (fst info) garg ~expect:bt (fun garg ->
-            aux
-              args_acc
-              (gargs_acc @ [ garg ])
-              args
-              gargs
-              (subst rt_subst (make_subst [ (s, garg) ]) ftyp)
-              k)
-        | [], _ :: _, L _ | [], [], Ghost _ ->
-          let expect = count_ghost original_ftyp in
-          let has = List.length original_gargs in
-          WellTyped.ensure_same_argument_number loc `Other has ~expect
+            aux args_acc args gargs (subst rt_subst (make_subst [ (s, garg) ]) ftyp) k)
         | [], [], L ftyp ->
           let@ () =
             match situation with
-            | FunctionCall fsym -> record_action (Call (fsym, args_acc), loc)
+            | FunctionCall fsym ->
+              record_action (Call { fsym; args = args_acc; gargs = original_gargs }, loc)
             | Subtyping | LabelCall LAreturn ->
               let returned = match args_acc with [ v ] -> v | _ -> assert false in
-              record_action (Return returned, loc)
+              record_action (Return { arg = returned; gargs = original_gargs }, loc)
             | _ -> return ()
           in
           k ftyp
+        | _ :: _, _, L _ | [], _, Computational _ ->
+          let expect = count_computational original_ftyp in
+          let has = List.length original_args in
+          WellTyped.ensure_same_argument_number loc `Other has ~expect
+        | _, _ :: _, L _ | _, [], Ghost _ ->
+          let expect = count_ghost original_ftyp in
+          let has = List.length original_gargs in
+          WellTyped.ensure_same_argument_number loc `Other has ~expect
       in
-      fun args gargs ftyp k -> aux [] [] args gargs ftyp k
+      fun args gargs ftyp k -> aux [] args gargs ftyp k
     in
     check args gargs ftyp (fun lftyp -> spine_l rt_subst rt_pp loc situation lftyp k)
 
