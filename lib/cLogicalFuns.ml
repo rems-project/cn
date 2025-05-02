@@ -714,14 +714,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
         Typing.bind
           (Typing.add_a s bt (loc, lazy (Pp.item "argument" (Sym.pp s))))
           (fun () -> in_computational_ctxt args_and_body m)
-      | Ghost (_, _, _) ->
-        fail_n
-          { loc;
-            msg =
-              Generic
-                Pp.(!^"cannot translate function with ghost arguments:" ^^^ Sym.pp fsym)
-              [@alert "-deprecated"]
-          }
+      | Ghost (_, _, _) -> fail_n { loc; msg = Not_impl_ghost_args_in_pure_C_function }
       | L _ -> m
     in
     let@ arg_map, (body, labels, rt) = mk_var_map Sym.Map.empty args_and_body def_args in

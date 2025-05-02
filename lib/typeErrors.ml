@@ -186,6 +186,7 @@ type message =
       { spec : int;
         decl : int
       }
+  | Not_impl_ghost_args_in_pure_C_function
 
 type t =
   { loc : Locations.t;
@@ -627,6 +628,11 @@ let pp_message = function
       ^^^ !^(string_of_int decl)
     in
     { short; descr = Some descr; state = None }
+  | Not_impl_ghost_args_in_pure_C_function ->
+    let short =
+      !^"Cannot lift a pure C function which uses ghost arguments (not implemented)."
+    in
+    { short; descr = None; state = None }
 
 
 (** Convert a possibly-relative filepath into an absolute one. *)
