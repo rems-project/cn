@@ -20,6 +20,10 @@ type test_stats =
     distrib : (string * int) list
   }
 
+let empty_stats =
+  { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] }
+
+
 let no_qs : C.qualifiers = { const = false; restrict = false; volatile = false }
 
 let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
@@ -82,10 +86,9 @@ let callable
 let calc_score (ctx : context) (args : (SymSet.elt * C.ctype) list) : int =
   List.fold_left
     (fun acc (_, ty) ->
-       if List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx then
-         acc + 25
-       else
-         acc)
+       match List.find_opt (fun (_, ct, _, _) -> ty_eq ty ct) ctx with
+       | Some _ -> acc + 25
+       | None -> acc)
     1
     args
 
@@ -390,7 +393,7 @@ let analyze_results
          | WEXITED 1 -> Some `PreConditionViolation :: analyze_results_h t
          | WEXITED 2 ->
            Some (`PostConditionViolation (name, ret_ty, f, args)) :: analyze_results_h t
-         | _ -> failwith "unhandled exit code")
+         | _ -> failwith "PLACEHOLDER: unhandled exit code")
     in
     analyze_results_h tests_and_msgs
   | _ -> [ Some `CompileFailure ]
@@ -712,9 +715,8 @@ let rec gen_sequence
           (List.init (Config.get_num_tests ()) (fun _ -> empty))
           filename_base
           fun_decls,
-        combine_stats
-          (List.map (fun (_, _, _, stats) -> stats) test_states)
-          { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] } ))
+        combine_stats (List.map (fun (_, _, _, stats) -> stats) test_states) empty_stats
+      ))
   else (
     let callables =
       List.map
@@ -781,6 +783,7 @@ let rec gen_sequence
         =
         match (test_states, results) with
         | [], [] -> []
+        | _, [ Some `CompileFailure ] -> [ `CompileFailure (-1, empty, [], empty_stats) ]
         | (prev, test_so_far, ctx, stats) :: test_states, result :: results ->
           let updated_state =
             match result with
@@ -820,19 +823,15 @@ let rec gen_sequence
       update_tests test_states results
     in
     let test_states = gen_test () in
-    let postcond_violations =
-      List.filter_map
-        (fun result ->
-           match result with `PostConditionViolation x -> Some x | _ -> None)
-        test_states
-    in
-    match
-      List.find_opt
-        (fun status -> match status with `CompileFailure _ -> true | _ -> false)
-        test_states
-    with
-    | Some (`CompileFailure _) -> `CompileFailure
+    match List.hd test_states with
+    | `CompileFailure _ -> `CompileFailure
     | _ ->
+      let postcond_violations =
+        List.filter_map
+          (fun result ->
+             match result with `PostConditionViolation x -> Some x | _ -> None)
+          test_states
+      in
       let test_states' =
         List.map
           (fun result ->
@@ -855,7 +854,7 @@ let rec gen_sequence
         let combined_stats =
           combine_stats
             (List.map (fun (_, _, _, stats) -> stats) test_states')
-            { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] }
+            empty_stats
         in
         `PostConditionViolation
           ( create_test_file
