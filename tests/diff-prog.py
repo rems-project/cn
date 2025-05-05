@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-import os, sys, re, subprocess, json, difflib, argparse, concurrent.futures, math
+import os, sys, re, subprocess, json, difflib, argparse, concurrent.futures, math, multiprocessing
 
 def eprint(*args, then_exit=True, **kwargs):
     print('Error:', *args, file=sys.stderr, **kwargs)
@@ -8,7 +8,7 @@ def eprint(*args, then_exit=True, **kwargs):
         exit(1)
 
 def time_cmd(cmd):
-    return ["/usr/bin/time", "--quiet", "--format", "%e"] + cmd
+    return ["/usr/bin/time", "-p"] + cmd
 
 class Prog:
 
@@ -33,8 +33,8 @@ class Prog:
         try:
             completed = self.run(test_rel_path);
             lines = completed.stdout.splitlines(True)
-            time = float(lines[-1])
-            return { 'time': time, 'lines' : [("return code: %d\n" % completed.returncode)] + lines[:-1] }
+            time = float(lines[-3].split()[1])
+            return { 'time': time, 'lines' : [("return code: %d\n" % completed.returncode)] + lines[:-3] }
         except subprocess.TimeoutExpired:
             return { 'time': float(self.timeout), 'lines': ["TIMEOUT\n"] }
 
@@ -123,5 +123,7 @@ parser.add_argument('--max-workers', help='Specify max number of workers for pro
 parser.set_defaults(func=main)
 
 # parse args and call func (as set using set_defaults)
-opts = parser.parse_args()
-exit(opts.func(opts))
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    opts = parser.parse_args()
+    exit(opts.func(opts))
