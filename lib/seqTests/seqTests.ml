@@ -3,63 +3,15 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
-module Utils = Fulminate.Utils
 module Config = SeqTestGenConfig
 module SymSet = Set.Make (Sym)
 module FExtract = Fulminate.Extract
-
-type call = SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
-
-type context = call list
-
-type test_stats =
-  { successes : int;
-    failures : int;
-    skipped : int;
-    discarded : int;
-    distrib : (string * int) list
-  }
-
-let empty_stats =
-  { successes = 0; failures = 0; discarded = 0; skipped = 0; distrib = [] }
-
-
-let no_qs : C.qualifiers = { const = false; restrict = false; volatile = false }
-
-let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
-  : unit
-  =
-  let oc =
-    Stdlib.open_out_gen
-      [ Open_wronly; Open_creat; Open_trunc; Open_text ]
-      perm
-      (Filename.concat output_dir filename)
-  in
-  output_string oc (Pp.plain ~width:80 doc);
-  close_out oc
-
-
-let rec pick
-          (distribution :
-            (int
-            * (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)))
-              list)
-          (i : int)
-  : SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)
-  =
-  match distribution with
-  | [] -> failwith "impossible case"
-  | (score, f) :: fs -> if i <= score then f else pick fs (i - score)
-
-
-let rec ty_eq (ty1 : C.ctype) (ty2 : C.ctype) : bool =
-  match (ty1, ty2) with
-  | Ctype (_, Pointer (_, ty1)), Ctype (_, Pointer (_, ty2)) -> ty_eq ty1 ty2
-  | _, _ -> C.ctypeEqual ty1 ty2
-
+module T = Types
+module SUtils = Utils
+module Shrink = Shrink
 
 let callable
-      (ctx : context)
+      (ctx : T.context)
       ((_, (_, args)) :
         SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
   : bool
@@ -76,73 +28,88 @@ let callable
            | Basic (Floating _)
            | Void ->
              true
-           | Pointer (_, ty) -> List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx
+           | Pointer (_, ty) -> List.exists (fun (_, ct, _, _) -> SUtils.ty_eq ty ct) ctx
            | _ -> false))
-       || List.exists (fun (_, ct, _, _) -> ty_eq ty ct) ctx)
+       || List.exists (fun (_, ct, _, _) -> SUtils.ty_eq ty ct) ctx)
     args
 
 
+let rec update_tests
+          (test_states : (int * Pp.document * T.context * T.test_stats) list)
+          (results :
+            [ `CompileFailure
+            | `PreConditionViolation
+            | `PostConditionViolation of
+                SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+            | `Success of
+                (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+            ]
+              option
+              list)
+  =
+  let open Pp in
+  match (test_states, results) with
+  | [], [] -> []
+  | _, [ Some `CompileFailure ] -> [ `CompileFailure (-1, empty, [], T.empty_stats) ]
+  | (prev, test_so_far, ctx, stats) :: test_states, result :: results ->
+    let updated_state =
+      match result with
+      | None ->
+        `Success (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
+      | Some `CompileFailure -> `CompileFailure (-1, empty, ctx, stats)
+      | Some `PreConditionViolation ->
+        `PreConditionViolation (prev, test_so_far, ctx, stats)
+      | Some (`Success (((name, ret_ty, f, args) as call), prev')) ->
+        let distrib =
+          let name = Sym.pp_string f in
+          match List.assoc_opt String.equal name stats.distrib with
+          | None -> (name, 1) :: stats.distrib
+          | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
+        in
+        `Success
+          ( prev',
+            test_so_far ^^ SUtils.test_to_doc name ret_ty f args,
+            call :: ctx,
+            { stats with successes = stats.successes + 1; distrib } )
+      | Some (`PostConditionViolation ((_, _, f, _) as call)) ->
+        let distrib =
+          let name = Sym.pp_string f in
+          match List.assoc_opt String.equal name stats.distrib with
+          | None -> (name, 1) :: stats.distrib
+          | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
+        in
+        `PostConditionViolation
+          ( prev,
+            empty,
+            (call :: ctx : T.context),
+            { stats with failures = stats.failures + 1; distrib } )
+    in
+    updated_state :: update_tests test_states results
+  | _, _ -> failwith "impossible"
+
 (* needs way more complexity here *)
-let calc_score (ctx : context) (args : (SymSet.elt * C.ctype) list) : int =
+let calc_score (ctx : T.context) (args : (SymSet.elt * C.ctype) list) : int =
   List.fold_left
     (fun acc (_, ty) ->
-       match List.find_opt (fun (_, ct, _, _) -> ty_eq ty ct) ctx with
+       match List.find_opt (fun (_, ct, _, _) -> SUtils.ty_eq ty ct) ctx with
        | Some _ -> acc + 25
        | None -> acc)
     1
     args
 
 
-let ctx_to_string (ctx : context) : string =
-  List.fold_left
-    (fun acc (name, ty, f, args) ->
-       match name with
-       | Some name ->
-         acc
-         ^ "("
-         ^ Sym.pp_string name
-         ^ ":"
-         ^ CF.String_core_ctype.string_of_ctype ty
-         ^ ":"
-         ^ Sym.pp_string f
-         ^ ":"
-         ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
-         ^ ")"
-         ^ "\n"
-       | None ->
-         acc
-         ^ "(void:"
-         ^ Sym.pp_string f
-         ^ ":"
-         ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
-         ^ ")"
-         ^ "\n")
-    "\n"
-    ctx
-
-
-let gen_arg (ctx : context) ((name, ty) : SymSet.elt * C.ctype) : string =
-  let generated_base_ty =
-    match ty with
-    | Ctype (_, ty1) ->
-      (match ty1 with
-       | Basic (Integer Char) ->
-         [ "\'" ^ String.make 1 (char_of_int (Random.int 96 + 32)) ^ "\'" ]
-       | Basic (Integer Bool) -> [ (if Random.int 2 = 1 then "true" else "false") ]
-       | Basic (Integer (Signed _)) ->
-         let rand_int = Random.int 32767 in
-         [ string_of_int (if Random.int 2 = 1 then rand_int * -1 else rand_int) ]
-       | Basic (Integer (Unsigned _)) -> [ string_of_int (Random.int 65536) ]
-       | Basic (Floating _) -> [ string_of_float (Random.float 65536.0) ]
-       | _ -> [])
-  in
+let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
+  let generated_base_ty = SUtils.gen_val ty in
   let prev_call =
     let prev_calls =
       List.filter
         (fun (name, ct, _, _) ->
            Option.is_some name
-           && (ty_eq ty ct
-               || match ty with Ctype (_, Pointer (_, ty)) -> ty_eq ty ct | _ -> false))
+           && (SUtils.ty_eq ty ct
+               ||
+               match ty with
+               | Ctype (_, Pointer (_, ty)) -> SUtils.ty_eq ty ct
+               | _ -> false))
         ctx
     in
     match List.length prev_calls with
@@ -150,7 +117,8 @@ let gen_arg (ctx : context) ((name, ty) : SymSet.elt * C.ctype) : string =
     | n ->
       (match List.nth prev_calls (Random.int n) with
        | Some name, ty', _, _ ->
-         if not (ty_eq ty' ty) then (* only way they're not directly equal is if pointer*)
+         if not (SUtils.ty_eq ty' ty) then
+           (* only way they're not directly equal is if pointer*)
            [ "&" ^ Sym.pp_string name ]
          else
            [ Sym.pp_string name ]
@@ -160,15 +128,11 @@ let gen_arg (ctx : context) ((name, ty) : SymSet.elt * C.ctype) : string =
   match List.length options with
   | 0 ->
     failwith
-      ("unable to generate arg or reuse context for "
+      ("unable to generate arg or reuse T.context for "
        ^ Sym.pp_string name
-       ^ " in context "
-       ^ ctx_to_string ctx)
+       ^ " in T.context "
+       ^ SUtils.ctx_to_string ctx)
   | n -> List.nth options (Random.int n)
-
-
-let stmt_to_doc (stmt : CF.GenTypes.genTypeCategory A.statement_) : Pp.document =
-  CF.Pp_ail.(with_executable_spec (pp_statement ~bs:[]) (Utils.mk_stmt stmt))
 
 
 let create_test_file
@@ -199,490 +163,20 @@ let create_test_file
           (hardline
            ^^
            let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
-           separate_map hardline stmt_to_doc init_ghost ^^ hardline ^^ sequence)
+           separate_map hardline SUtils.stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
-
-
-let test_to_doc
-      (name : SymSet.elt option)
-      (ret_ty : C.ctype)
-      (f : SymSet.elt)
-      (args : (C.ctype * string) list)
-  : Pp.document
-  =
-  let open Pp in
-  let f_call =
-    Sym.pp f
-    ^^ parens
-         (separate
-            (comma ^^ space)
-            [ separate (comma ^^ space) (List.map (fun (_, arg) -> string arg) args) ])
-    ^^ semi
-    ^^ hardline
-  in
-  match name with
-  | Some name ->
-    separate space [ CF.Pp_ail.pp_ctype no_qs ret_ty; Sym.pp name; equals ]
-    ^^ f_call
-    ^^ stmt_to_doc
-         (A.AilSexpr
-            (Fulminate.Ownership.generate_c_local_ownership_entry_fcall (name, ret_ty)))
-    ^^ hardline
-  | None -> f_call
-
-
-let create_intermediate_test_file
-      (sequences : Pp.document list)
-      (tests_to_try : Pp.document list)
-      (filename_base : string)
-      (fun_decls : Pp.document)
-  : Pp.document
-  =
-  let open Pp in
-  let create_try (i : int) (test : document) (sequence : document) =
-    string "int try"
-    ^^ int i
-    ^^ parens empty
-    ^^ break 1
-    ^^ braces
-         (nest
-            2
-            (hardline
-             ^^
-             let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
-             separate_map hardline stmt_to_doc init_ghost
-             ^^ hardline
-             ^^ sequence
-             ^^ hardline
-             ^^ test
-             ^^ hardline
-             ^^ string "return 0;")
-          ^^ hardline)
-  in
-  let create_case (i : int) (_ : Pp.document) =
-    string "case"
-    ^^ space
-    ^^ int i
-    ^^ colon
-    ^^ nest
-         2
-         (hardline
-          ^^ string "try"
-          ^^ int i
-          ^^ parens empty
-          ^^ semi
-          ^^ hardline
-          ^^ string "break"
-          ^^ semi)
-  in
-  (if Config.with_static_hack () then
-     string "#include "
-     ^^ dquotes (string (filename_base ^ "-exec.c"))
-     ^^ hardline
-     ^^ string "#include "
-     ^^ dquotes (string "cn.c")
-   else
-     string "#include "
-     ^^ dquotes (string (filename_base ^ ".cn.h"))
-     ^^ twice hardline
-     ^^ fun_decls)
-  ^^ twice hardline
-  ^^ separate
-       (twice hardline)
-       (List.mapi
-          (fun i (sequence, call) -> create_try i call sequence)
-          (List.combine sequences tests_to_try))
-  ^^ twice hardline
-  ^^ string "int main"
-  ^^ parens (string "int argc, char* argv[]")
-  ^^ break 1
-  ^^ braces
-       (nest
-          2
-          (hardline
-           ^^ (string "switch(atoi(argv[1]))"
-               ^^ break 1
-               ^^ braces
-                    (nest
-                       2
-                       (hardline
-                        ^^ separate hardline (List.mapi create_case tests_to_try)
-                        ^^ hardline)))
-           ^^ hardline
-           ^^ string "return 0;"
-           ^^ hardline))
-
-
-let ctx_to_tests =
-  let open Pp in
-  separate_map empty (fun (name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
-
-
-let analyze_results
-      (prev_and_tests :
-        (int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) option
-          list)
-      (sequences : PPrint.document list)
-      (filename_base : string)
-      (output_dir : string)
-      (fun_decls : PPrint.document)
-  : [ `CompileFailure
-    | `PreConditionViolation
-    | `PostConditionViolation of
-        SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
-    | `Success of
-        (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
-    ]
-      option
-      list
-  =
-  let tests_to_try =
-    List.map
-      (fun call ->
-         match call with
-         | None | Some (-1, _, _, _, _) ->
-           Pp.string "/* unable to generate call at this point */"
-         | Some (_, name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
-      prev_and_tests
-  in
-  let intermediate_file =
-    create_intermediate_test_file sequences tests_to_try filename_base fun_decls
-  in
-  save output_dir (filename_base ^ ".test.c") intermediate_file;
-  match Unix.system (output_dir ^ "/run_tests_intermediate.sh > /dev/null") with
-  | WEXITED 0 ->
-    let num_tests = List.length prev_and_tests in
-    let rec run_tests (test_num : int) =
-      if test_num < num_tests then (
-        let process_status =
-          Unix.system
-            (output_dir ^ "/tests.out " ^ string_of_int test_num ^ " > /dev/null")
-        in
-        process_status :: run_tests (test_num + 1))
-      else
-        []
-    in
-    let tests_and_msgs = List.combine prev_and_tests (run_tests 0) in
-    let rec analyze_results_h
-              (tests_and_msgs :
-                ((int
-                 * SymSet.elt option
-                 * C.ctype
-                 * SymSet.elt
-                 * (C.ctype * string) list)
-                   option
-                * Unix.process_status)
-                  list)
-      : [ `CompileFailure
-        | `PreConditionViolation
-        | `PostConditionViolation of
-            SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
-        | `Success of
-            (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
-        ]
-          option
-          list
-      =
-      match tests_and_msgs with
-      | [] -> []
-      | (None, _) :: t -> None :: analyze_results_h t
-      | (Some (prev', name, ret_ty, f, args), exit_code) :: t ->
-        (match exit_code with
-         | WEXITED 0 ->
-           Some (`Success ((name, ret_ty, f, args), prev')) :: analyze_results_h t
-         | WEXITED 1 -> Some `PreConditionViolation :: analyze_results_h t
-         | WEXITED 2 ->
-           Some (`PostConditionViolation (name, ret_ty, f, args)) :: analyze_results_h t
-         | _ -> failwith "PLACEHOLDER: unhandled exit code")
-    in
-    analyze_results_h tests_and_msgs
-  | _ -> [ Some `CompileFailure ]
-
-
-let shrink
-      (seq : context)
-      (output_dir : string)
-      (filename_base : string)
-      (fun_decls : Pp.document)
-  : int * Pp.document
-  =
-  (* Printf.printf "--> LOG: [%s]\n%!" "STARTING SHRINKING"; *)
-  let open Pp in
-  let name_eq (n1, _, _, _) (n2, _, _, _) =
-    match (n1, n2) with Some name1, Some name2 -> Sym.equal name1 name2 | _ -> false
-  in
-  match seq with
-  | [] -> (0, empty)
-  | start :: seq as seq' ->
-    let rec dfs (graph : context) (visited : context) ((_, _, _, args) as node) : context =
-      if not (List.mem name_eq node visited) then (
-        let names = List.map (fun (_, name) -> name) args in
-        let succs =
-          List.filter
-            (fun (name, _, _, _) ->
-               match name with
-               | None -> false
-               | Some name -> List.mem String.equal (Sym.pp_string name) names)
-            graph
-        in
-        List.fold_left (dfs seq) (node :: visited) succs)
-      else
-        visited
-    in
-    let rev_dep_graph =
-      List.map
-        (fun (name, ret_ty, f, _) ->
-           ( name,
-             ret_ty,
-             f,
-             match name with
-             | None -> []
-             | Some name ->
-               List.filter_map
-                 (fun (name, ret_ty, _, _) ->
-                    match name with
-                    | None -> None
-                    | Some name -> Some (ret_ty, Sym.pp_string name))
-                 (List.filter
-                    (fun (_, _, _, args) ->
-                       List.mem
-                         (fun name (_, var) -> String.equal (Sym.pp_string name) var)
-                         name
-                         args)
-                    seq') ))
-        seq'
-    in
-    let reqs = dfs seq [] start in
-    let rec shrink_1 (tests : context) : context =
-      let generate_lists (lst : context) : context list =
-        let rec aux (left : context) (right : context) (acc : context list) : context list
-          =
-          match right with
-          | [] -> acc
-          | ((name, _, _, _) as test) :: rest ->
-            if List.mem name_eq test reqs then
-              aux (test :: left) rest (List.rev_append left right :: acc)
-            else (
-              let deps =
-                match name with
-                | None -> []
-                | Some name1 ->
-                  dfs
-                    rev_dep_graph
-                    []
-                    (List.find
-                       (fun (name2, _, _, _) ->
-                          match name2 with
-                          | None -> false
-                          | Some name2 ->
-                            String.equal (Sym.pp_string name1) (Sym.pp_string name2))
-                       rev_dep_graph)
-              in
-              let removed =
-                List.rev_append
-                  left
-                  (List.filter
-                     (fun ((_, _, _, args) as test) ->
-                        (not (List.mem name_eq test deps))
-                        && List.for_all
-                             (fun (_, arg) ->
-                                not
-                                  (List.mem
-                                     (fun name1 (name2, _, _, _) ->
-                                        match name2 with
-                                        | None -> false
-                                        | Some name2 ->
-                                          (String.equal name1) (Sym.pp_string name2))
-                                     arg
-                                     deps))
-                             args)
-                     rest)
-              in
-              aux (test :: left) rest (removed :: acc))
-        in
-        aux [] lst []
-      in
-      let shrunken_sequences =
-        List.sort
-          (fun l1 l2 -> Int.compare (List.length l1) (List.length l2))
-          (generate_lists tests)
-      in
-      let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
-      save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
-      let elt = Sym.fresh_anon () in
-      let results =
-        analyze_results
-          (List.init
-             (List.length shrunken_sequences)
-             (Fun.const (Some (-1, None, C.Ctype ([], Basic (Integer Char)), elt, []))))
-          (List.map
-             (fun tests -> ctx_to_tests tests ^^ hardline ^^ string "return 0;")
-             shrunken_sequences)
-          filename_base
-          output_dir
-          fun_decls
-      in
-      match
-        List.find_index
-          (fun result ->
-             match result with Some (`PostConditionViolation _) -> true | _ -> false)
-          results
-      with
-      | Some i ->
-        let shrunken_sequence = List.nth shrunken_sequences i in
-        if List.length shrunken_sequence = List.length tests then
-          shrunken_sequence
-        else
-          shrink_1 (List.nth shrunken_sequences i)
-      | None -> tests
-    in
-    let rec shrink_2 ((prev, next) : context * context) : context =
-      let shrink_arg ((ty, arg_name) : C.ctype * string) : string list =
-        let gen_lst_shrinks (ty : C.ctype) (arg : string) : string list =
-          match ty with
-          | Ctype (_, ty1) ->
-            (match ty1 with
-             | Basic (Integer (Unsigned _)) ->
-               let gend_int = int_of_string arg in
-               List.map string_of_int [ 0; 1; gend_int / 4; gend_int / 2 ]
-             | Basic (Integer (Signed _)) ->
-               let gend_int = int_of_string arg in
-               List.map
-                 string_of_int
-                 [ 0; 1; -1; gend_int / 4; -gend_int / 4; gend_int / 2; -gend_int / 2 ]
-             | Basic (Floating _) ->
-               let gend_float = float_of_string arg in
-               List.map
-                 string_of_float
-                 [ 0.0;
-                   1.0;
-                   -1.0;
-                   gend_float /. 4.0;
-                   gend_float /. -4.0;
-                   gend_float /. 2.0;
-                   gend_float /. -2.0
-                 ]
-             | _ -> [])
-        in
-        let gend_val =
-          if String.starts_with ~prefix:"x" arg_name then (
-            match ty with
-            | Ctype (_, ty1) ->
-              (match ty1 with
-               | Basic (Integer Char) ->
-                 Some ("\'" ^ String.make 1 (char_of_int (Random.int 96 + 32)) ^ "\'")
-               | Basic (Integer Bool) ->
-                 Some (if Random.int 2 = 1 then "true" else "false")
-               | Basic (Integer (Signed _)) ->
-                 let rand_int = Random.int 32767 in
-                 Some
-                   (string_of_int (if Random.int 2 = 1 then rand_int * -1 else rand_int))
-               | Basic (Integer (Unsigned _)) -> Some (string_of_int (Random.int 65536))
-               | Basic (Floating _) -> Some (string_of_float (Random.float 65536.0))
-               | _ -> None))
-          else
-            None
-        in
-        match gend_val with
-        | Some v ->
-          gen_lst_shrinks ty v @ [ v ] (* generate arg for variable, then shrink *)
-        | None -> gen_lst_shrinks ty arg_name
-        (* if arg is not a variable then just shrink *)
-      in
-      match next with
-      | [] -> List.rev prev
-      | (name, ret_ty, f, args) :: t ->
-        let rec shrink_args
-                  ((prev_args, next_args) :
-                    (C.ctype * string) list * (C.ctype * string) list)
-          =
-          let try_shrinks (arg_shrinks : string list) (orig_arg : string) : string =
-            match arg_shrinks with
-            | [] -> orig_arg
-            | _ ->
-              let try_shrink (new_arg : string) =
-                match next_args with
-                | [] -> List.rev prev_args
-                | (ty, _) :: next_args ->
-                  List.rev_append prev_args ((ty, new_arg) :: next_args)
-              in
-              let new_tests =
-                List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) arg_shrinks
-              in
-              let new_sequences =
-                List.map
-                  (fun (_, name, ret_ty, f, args) ->
-                     ctx_to_tests (List.rev_append prev ((name, ret_ty, f, args) :: t)))
-                  new_tests
-              in
-              let results =
-                analyze_results
-                  (List.map (fun test -> Some test) new_tests)
-                  new_sequences
-                  filename_base
-                  output_dir
-                  fun_decls
-              in
-              (match
-                 List.find_index
-                   (fun result ->
-                      match result with
-                      | Some (`PostConditionViolation _) -> true
-                      | _ -> false)
-                   results
-               with
-               | Some i -> List.nth arg_shrinks i
-               | None -> orig_arg)
-          in
-          match next_args with
-          | [] -> (name, ret_ty, f, List.rev prev_args)
-          | (ty, arg) :: next_args ->
-            shrink_args
-              ((ty, try_shrinks (shrink_arg (ty, arg)) arg) :: prev_args, next_args)
-        in
-        let shrunken_call = shrink_args ([], args) in
-        shrink_2 (shrunken_call :: prev, t)
-    in
-    let shrunken = shrink_1 (List.rev seq') in
-    let shrunken' = List.rev (shrink_2 ([], shrunken)) in
-    let shrunken'' = shrink_1 (List.rev shrunken') in
-    (List.length shrunken'', ctx_to_tests shrunken'')
-
-
-let rec combine_stats (stats_list : test_stats list) (combined_stats : test_stats)
-  : test_stats
-  =
-  match stats_list with
-  | [] -> combined_stats
-  | stats :: stats_list ->
-    let combined_stats =
-      { successes = combined_stats.successes + stats.successes;
-        failures = combined_stats.failures + stats.failures;
-        discarded = combined_stats.discarded + stats.discarded;
-        skipped = combined_stats.skipped + stats.skipped;
-        distrib =
-          List.fold_left
-            (fun acc (f, num_calls) ->
-               match List.assoc_opt String.equal f acc with
-               | None -> (f, num_calls) :: acc
-               | Some n -> (f, n + num_calls) :: List.remove_assoc f acc)
-            combined_stats.distrib
-            stats.distrib
-      }
-    in
-    combine_stats stats_list combined_stats
 
 
 let rec gen_sequence
           (funcs :
             (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list)
           (fuel : int)
-          (test_states : (int * Pp.document * context * test_stats) list)
+          (test_states : (int * Pp.document * T.context * T.test_stats) list)
           (output_dir : string)
           (filename_base : string)
           (fun_decls : Pp.document)
-  : [ `PostConditionViolation of Pp.document * test_stats
-    | `Success of Pp.document * test_stats
+  : [ `PostConditionViolation of Pp.document * T.test_stats
+    | `Success of Pp.document * T.test_stats
     | `CompileFailure
     ]
   =
@@ -700,7 +194,9 @@ let rec gen_sequence
                   | None -> None)
                ctx
            in
-           let unmap_str = hardline ^^ separate_map hardline stmt_to_doc unmap_stmt in
+           let unmap_str =
+             hardline ^^ separate_map hardline SUtils.stmt_to_doc unmap_stmt
+           in
            seq_so_far
            ^^ unmap_str
            ^^ hardline
@@ -710,13 +206,14 @@ let rec gen_sequence
         test_states
     in
     `Success
-      ( create_intermediate_test_file
+      ( SUtils.create_intermediate_test_file
           test_strs
           (List.init (Config.get_num_tests ()) (fun _ -> empty))
           filename_base
           fun_decls,
-        combine_stats (List.map (fun (_, _, _, stats) -> stats) test_states) empty_stats
-      ))
+        SUtils.combine_stats
+          (List.map (fun (_, _, _, stats) -> stats) test_states)
+          T.empty_stats ))
   else (
     let callables =
       List.map
@@ -727,14 +224,14 @@ let rec gen_sequence
         test_states
     in
     let gen_test ()
-      : [ `CompileFailure of int * document * context * test_stats
-        | `PreConditionViolation of int * document * context * test_stats
-        | `PostConditionViolation of int * document * context * test_stats
-        | `Success of int * document * context * test_stats
+      : [ `CompileFailure of int * document * T.context * T.test_stats
+        | `PreConditionViolation of int * document * T.context * T.test_stats
+        | `PostConditionViolation of int * document * T.context * T.test_stats
+        | `Success of int * document * T.context * T.test_stats
         ]
           list
       =
-      let gen_test_h (f, ((_, ret_ty), params)) (ctx : context) (prev : int)
+      let gen_test_h (f, ((_, ret_ty), params)) (ctx : T.context) (prev : int)
         : int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
         =
         let name, prev =
@@ -754,71 +251,20 @@ let rec gen_sequence
              else
                Some
                  (gen_test_h
-                    (pick fs (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
+                    (SUtils.pick
+                       fs
+                       (Random.int (List.fold_left ( + ) 1 (List.map fst fs))))
                     ctx
                     prev))
           (List.combine callables test_states)
       in
       let results =
-        analyze_results
+        SUtils.analyze_results
           prev_and_tests
           (List.map (fun (_, test_str, _, _) -> test_str) test_states)
           filename_base
           output_dir
           fun_decls
-      in
-      let rec update_tests
-                (test_states : (int * Pp.document * context * test_stats) list)
-                (results :
-                  [ `CompileFailure
-                  | `PreConditionViolation
-                  | `PostConditionViolation of
-                      SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
-                  | `Success of
-                      (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list)
-                      * int
-                  ]
-                    option
-                    list)
-        =
-        match (test_states, results) with
-        | [], [] -> []
-        | _, [ Some `CompileFailure ] -> [ `CompileFailure (-1, empty, [], empty_stats) ]
-        | (prev, test_so_far, ctx, stats) :: test_states, result :: results ->
-          let updated_state =
-            match result with
-            | None ->
-              `Success (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
-            | Some `CompileFailure -> `CompileFailure (-1, empty, ctx, stats)
-            | Some `PreConditionViolation ->
-              `PreConditionViolation (prev, test_so_far, ctx, stats)
-            | Some (`Success (((name, ret_ty, f, args) as call), prev')) ->
-              let distrib =
-                let name = Sym.pp_string f in
-                match List.assoc_opt String.equal name stats.distrib with
-                | None -> (name, 1) :: stats.distrib
-                | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
-              in
-              `Success
-                ( prev',
-                  test_so_far ^^ test_to_doc name ret_ty f args,
-                  call :: ctx,
-                  { stats with successes = stats.successes + 1; distrib } )
-            | Some (`PostConditionViolation ((_, _, f, _) as call)) ->
-              let distrib =
-                let name = Sym.pp_string f in
-                match List.assoc_opt String.equal name stats.distrib with
-                | None -> (name, 1) :: stats.distrib
-                | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
-              in
-              `PostConditionViolation
-                ( prev,
-                  empty,
-                  (call :: ctx : context),
-                  { stats with failures = stats.failures + 1; distrib } )
-          in
-          updated_state :: update_tests test_states results
-        | _, _ -> failwith "impossible"
       in
       update_tests test_states results
     in
@@ -850,11 +296,11 @@ let rec gen_sequence
                   Int.compare (List.length ctx1) (List.length ctx2))
                postcond_violations)
         in
-        let num_left, seq = shrink ctx output_dir filename_base fun_decls in
+        let num_left, seq = Shrink.shrink ctx output_dir filename_base fun_decls in
         let combined_stats =
-          combine_stats
+          SUtils.combine_stats
             (List.map (fun (_, _, _, stats) -> stats) test_states')
-            empty_stats
+            T.empty_stats
         in
         `PostConditionViolation
           ( create_test_file
@@ -873,8 +319,8 @@ let compile_sequence
       (output_dir : string)
       (filename_base : string)
       (fun_decls : Pp.document)
-  : [ `PostConditionViolation of Pp.document * test_stats
-    | `Success of Pp.document * test_stats
+  : [ `PostConditionViolation of Pp.document * T.test_stats
+    | `Success of Pp.document * T.test_stats
     | `CompileFailure
     ]
   =
@@ -913,7 +359,7 @@ let compile_sequence
           ( 0,
             Pp.empty,
             [],
-            { successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] } ))
+            { T.successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] } ))
        (List.init (Config.get_num_tests ()) Fun.id))
     output_dir
     filename_base
@@ -931,7 +377,7 @@ let generate
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
   let test_file = filename_base ^ ".test.c" in
   let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
-  save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
+  SUtils.save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
   let fun_to_decl (inst : FExtract.instrumentation) =
     CF.Pp_ail.(
       with_executable_spec
@@ -966,7 +412,7 @@ let generate
           (filename_base ^ ".c") )
     | `PostConditionViolation (seq, stats) ->
       let script_doc = BuildScript.generate ~output_dir ~filename_base 1 in
-      save ~perm:0o777 output_dir "run_tests.sh" script_doc;
+      SUtils.save ~perm:0o777 output_dir "run_tests.sh" script_doc;
       ( 123,
         seq,
         Printf.sprintf
@@ -999,7 +445,7 @@ let generate
       let script_doc =
         BuildScript.generate ~output_dir ~filename_base (Config.get_num_tests ())
       in
-      save ~perm:0o777 output_dir "run_tests.sh" script_doc;
+      SUtils.save ~perm:0o777 output_dir "run_tests.sh" script_doc;
       ( 0,
         seq,
         Printf.sprintf
@@ -1015,7 +461,7 @@ let generate
           distrib_to_str )
   in
   print_endline output_msg;
-  save output_dir test_file seq;
+  SUtils.save output_dir test_file seq;
   exit_code
 
 
