@@ -2634,7 +2634,6 @@ let cn_to_ail_resource
       let matching_preds =
         List.filter (fun (pred_sym', _def) -> Sym.equal pname pred_sym') preds
       in
-      Printf.printf "Pred sym: %s\n" (Sym.pp_string pname);
       let pred_sym', pred_def' =
         match matching_preds with
         | [] ->
