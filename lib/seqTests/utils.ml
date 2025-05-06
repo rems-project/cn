@@ -217,7 +217,7 @@ let analyze_results
       (filename_base : string)
       (output_dir : string)
       (fun_decls : PPrint.document)
-  : [ `CompileFailure
+  : [ `OtherFailure
     | `PreConditionViolation
     | `PostConditionViolation of
         SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
@@ -264,7 +264,7 @@ let analyze_results
                    option
                 * Unix.process_status)
                   list)
-      : [ `CompileFailure
+      : [ `OtherFailure
         | `PreConditionViolation
         | `PostConditionViolation of
             SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
@@ -284,10 +284,10 @@ let analyze_results
          | WEXITED 1 -> Some `PreConditionViolation :: analyze_results_h t
          | WEXITED 2 ->
            Some (`PostConditionViolation (name, ret_ty, f, args)) :: analyze_results_h t
-         | _ -> failwith "PLACEHOLDER: unhandled exit code")
+         | _ -> [ Some `OtherFailure ])
     in
     analyze_results_h tests_and_msgs
-  | _ -> [ Some `CompileFailure ]
+  | _ -> [ Some `OtherFailure ]
 
 
 let name_eq (n1, _, _, _) (n2, _, _, _) =

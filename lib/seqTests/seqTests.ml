@@ -37,7 +37,7 @@ let callable
 let rec update_tests
           (test_states : (int * Pp.document * T.context * T.test_stats) list)
           (results :
-            [ `CompileFailure
+            [ `OtherFailure
             | `PreConditionViolation
             | `PostConditionViolation of
                 SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
@@ -50,13 +50,13 @@ let rec update_tests
   let open Pp in
   match (test_states, results) with
   | [], [] -> []
-  | _, [ Some `CompileFailure ] -> [ `CompileFailure (-1, empty, [], T.empty_stats) ]
+  | _, [ Some `OtherFailure ] -> [ `OtherFailure (-1, empty, [], T.empty_stats) ]
   | (prev, test_so_far, ctx, stats) :: test_states, result :: results ->
     let updated_state =
       match result with
       | None ->
         `Success (prev, test_so_far, ctx, { stats with skipped = stats.skipped + 1 })
-      | Some `CompileFailure -> `CompileFailure (-1, empty, ctx, stats)
+      | Some `OtherFailure -> `OtherFailure (-1, empty, ctx, stats)
       | Some `PreConditionViolation ->
         `PreConditionViolation (prev, test_so_far, ctx, stats)
       | Some (`Success (((name, ret_ty, f, args) as call), prev')) ->
@@ -177,7 +177,7 @@ let rec gen_sequence
           (fun_decls : Pp.document)
   : [ `PostConditionViolation of Pp.document * T.test_stats
     | `Success of Pp.document * T.test_stats
-    | `CompileFailure
+    | `OtherFailure
     ]
   =
   let open Pp in
@@ -224,7 +224,7 @@ let rec gen_sequence
         test_states
     in
     let gen_test ()
-      : [ `CompileFailure of int * document * T.context * T.test_stats
+      : [ `OtherFailure of int * document * T.context * T.test_stats
         | `PreConditionViolation of int * document * T.context * T.test_stats
         | `PostConditionViolation of int * document * T.context * T.test_stats
         | `Success of int * document * T.context * T.test_stats
@@ -270,7 +270,7 @@ let rec gen_sequence
     in
     let test_states = gen_test () in
     match List.hd test_states with
-    | `CompileFailure _ -> `CompileFailure
+    | `OtherFailure _ -> `OtherFailure
     | _ ->
       let postcond_violations =
         List.filter_map
@@ -283,7 +283,7 @@ let rec gen_sequence
           (fun result ->
              match result with
              | `Success info -> info
-             | `CompileFailure info -> info
+             | `OtherFailure info -> info
              | `PreConditionViolation info -> info
              | `PostConditionViolation info -> info)
           test_states
@@ -321,7 +321,7 @@ let compile_sequence
       (fun_decls : Pp.document)
   : [ `PostConditionViolation of Pp.document * T.test_stats
     | `Success of Pp.document * T.test_stats
-    | `CompileFailure
+    | `OtherFailure
     ]
   =
   let fuel = num_samples in
@@ -401,13 +401,13 @@ let generate
   in
   let exit_code, seq, output_msg =
     match compiled_seq with
-    | `CompileFailure ->
+    | `OtherFailure ->
       ( 139,
         empty,
         Printf.sprintf
           "============================================\n\n\
            FATAL ERROR:\n\
-           Failed to compile while seq-testing %s\n\n\
+           Failure occured while seq-testing %s\n\n\
            ============================================"
           (filename_base ^ ".c") )
     | `PostConditionViolation (seq, stats) ->
