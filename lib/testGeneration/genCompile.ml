@@ -328,7 +328,7 @@ let compile_spec
   : unit m
   =
   (* Necessary to avoid triggering special-cased logic in [CtA] w.r.t globals *)
-  let rename x = GenUtils.get_mangled_name [ x ] in
+  let rename x = GenUtils.destroy_object_refs x in
   let lat =
     let lat = AT.get_lat at in
     let subst =

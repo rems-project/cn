@@ -108,9 +108,7 @@ let convert_from ((x, ct) : Sym.t * C.ctype) =
           A.(
             AilEmemberofptr
               ( Utils.mk_expr (AilEident (Sym.fresh "res")),
-                CF.Symbol.Identifier
-                  ( Locations.other __LOC__,
-                    Sym.pp_string (GenUtils.get_mangled_name [ x ]) ) ))
+                CF.Symbol.Identifier (Locations.other __LOC__, Sym.pp_string x) ))
           (Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))))
 
 
@@ -198,9 +196,7 @@ let compile_random_test_case
                          ^^^ tmp_doc
                          ^^^ equals
                          ^^^ (string "convert_from_cn_pointer"
-                              ^^ parens
-                                   (string "res->"
-                                    ^^ Sym.pp (GenUtils.get_mangled_name [ sym ]))
+                              ^^ parens (string "res->" ^^ Sym.pp sym)
                               ^^ semi
                               ^^ hardline
                               ^^ string "cn_assume_ownership"
