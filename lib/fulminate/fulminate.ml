@@ -286,6 +286,27 @@ let main
     Filename.remove_extension (get_cn_helper_filename filename) ^ ".h"
   in
   let cn_header_oc = Stdlib.open_out (Filename.concat prefix cn_header_filename) in
+  let compile_commands_json_oc =
+    Stdlib.open_out (Filename.concat prefix "compile_commands.json")
+  in
+  let opam_switch_prefix =
+    match Sys.getenv_opt "OPAM_SWITCH_PREFIX" with
+    | Some p -> p
+    | None -> failwith "OPAM_SWITCH_PREFIX not set"
+  in
+  let compile_commands_json_str =
+    [ "[";
+      "\n\t{ \"directory\": \"" ^ prefix ^ "\",";
+      "\n\t\"command\": \"cc -I"
+      ^ opam_switch_prefix
+      ^ "/lib/cn/runtime/include/ "
+      ^ output_filename
+      ^ "\",";
+      "\n\t\"file\": \"" ^ output_filename ^ "\" }";
+      "\n]"
+    ]
+  in
+  output_to_oc compile_commands_json_oc compile_commands_json_str;
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation prog5
   in
@@ -447,4 +468,5 @@ let main
     remaining_fns_and_ocs;
   close_out oc;
   close_out cn_oc;
-  close_out cn_header_oc
+  close_out cn_header_oc;
+  close_out compile_commands_json_oc
