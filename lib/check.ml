@@ -1140,11 +1140,11 @@ end = struct
         | _ :: _, _, L _ | [], _, Computational _ ->
           let expect = count_computational original_ftyp in
           let has = List.length original_args in
-          WellTyped.ensure_same_argument_number loc `Other has ~expect
+          WellTyped.ensure_same_argument_number loc `Computational has ~expect
         | _, _ :: _, L _ | _, [], Ghost _ ->
           let expect = count_ghost original_ftyp in
           let has = List.length original_gargs in
-          WellTyped.ensure_same_argument_number loc `Other has ~expect
+          WellTyped.ensure_same_argument_number loc `Ghost has ~expect
       in
       fun args gargs ftyp k -> aux [] args gargs ftyp k
     in

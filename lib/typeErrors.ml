@@ -266,7 +266,12 @@ let pp_welltyped = function
     { short; descr = None; state = None }
   | Number_arguments { type_; has; expect } ->
     let type_ =
-      match type_ with `Other -> "" | `Input -> "input" | `Output -> "output"
+      match type_ with
+      | `Computational -> "C"
+      | `Ghost -> "ghost"
+      | `Other -> ""
+      | `Input -> "input"
+      | `Output -> "output"
     in
     let short = !^"Wrong number" ^^^ !^type_ ^^^ !^"of arguments" in
     let descr =

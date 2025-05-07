@@ -24,7 +24,7 @@ type message =
         reason : string
       }
   | Number_arguments of
-      { type_ : [ `Other | `Input | `Output ];
+      { type_ : [ `Computational | `Ghost | `Other | `Input | `Output ];
         has : int;
         expect : int
       }
@@ -979,7 +979,7 @@ module WIT = struct
       | Apply (name, args) ->
         let@ def = get_logical_function_def loc name in
         let has_args, expect_args = (List.length args, List.length def.args) in
-        let@ () = ensure_same_argument_number loc `Other has_args ~expect:expect_args in
+        let@ () = ensure_same_argument_number loc `Ghost has_args ~expect:expect_args in
         let@ args =
           ListM.map2M
             (fun has_arg (_, def_arg_bt) ->

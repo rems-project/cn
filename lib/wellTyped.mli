@@ -14,7 +14,7 @@ type message =
         reason : string
       }
   | Number_arguments of
-      { type_ : [ `Other | `Input | `Output ];
+      { type_ : [ `Computational | `Ghost | `Other | `Input | `Output ];
         has : int;
         expect : int
       }
