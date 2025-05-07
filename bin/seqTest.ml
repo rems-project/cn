@@ -22,9 +22,9 @@ let run_seq_tests
         output_dir
       print_steps
       with_static_hack
-      num_samples
+      num_calls
       backtrack_attempts
-      num_resets
+      num_tests
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -87,9 +87,9 @@ let run_seq_tests
            let config : SeqTests.seq_config =
              { print_steps;
                with_static_hack;
-               num_samples;
+               num_calls;
                max_backtracks = backtrack_attempts;
-               num_resets
+               num_tests
              }
            in
            SeqTests.set_seq_config config;
@@ -127,10 +127,10 @@ module Flags = struct
     Arg.(value & flag & info [ "with-static-hack" ] ~doc)
 
 
-  let gen_num_samples =
-    let doc = "Set the number of samples to test" in
+  let gen_num_calls =
+    let doc = "Maximum number of calls per test" in
     Arg.(
-      value & opt int SeqTests.default_seq_cfg.num_samples & info [ "num-samples" ] ~doc)
+      value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
 
 
   let gen_backtrack_attempts =
@@ -144,9 +144,9 @@ module Flags = struct
       & info [ "max-backtrack-attempts" ] ~doc)
 
 
-  let num_resets =
-    let doc = "Number of context resets for sequence testing" in
-    Arg.(value & opt int SeqTests.default_seq_cfg.num_resets & info [ "max-resets" ] ~doc)
+  let num_tests =
+    let doc = "Number of tests to generate" in
+    Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
 end
 
 let cmd =
@@ -168,9 +168,9 @@ let cmd =
     $ Flags.output_test_dir
     $ Flags.print_steps
     $ Flags.with_static_hack
-    $ Flags.gen_num_samples
+    $ Flags.gen_num_calls
     $ Flags.gen_backtrack_attempts
-    $ Flags.num_resets
+    $ Flags.num_tests
   in
   let doc =
     "Generates sequences of calls for the API in [FILE].\n\
