@@ -294,7 +294,6 @@ type 'TY expr_ =
   | Eaction of 'TY paction
   | Eskip
   | Eccall of act * 'TY pexpr * 'TY pexpr list * IndexTerms.t list
-  (* pexpr list is computational arguments; IndexTerms.t list is logical arguments *)
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
   | Ewseq of 'TY pattern * 'TY expr * 'TY expr
