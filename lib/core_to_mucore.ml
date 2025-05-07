@@ -812,7 +812,7 @@ let rec n_expr
     in
     let es = List.map n_pexpr es in
     let ghost_args = [] in
-    (* TODO *)
+    (* TODO: https://github.com/rems-project/cn/issues/123 *)
     return (wrap (Eccall (ct1, e2, es, ghost_args)))
   | Eproc (_a, name, es) ->
     let es = List.map n_pexpr es in
