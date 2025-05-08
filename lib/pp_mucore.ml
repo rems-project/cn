@@ -631,8 +631,10 @@ module Make (Config : CONFIG) = struct
              ^^ pp e2
            | End es -> pp_keyword "nd" ^^ Pp.parens (comma_list pp es)
            | Ebound e -> Cn_Pp.c_app (pp_keyword "bound") [ pp e ]
-           | Erun (sym, pes) ->
-             pp_keyword "run" ^^^ Cn_Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes))
+           | Erun (sym, pes, its) ->
+             pp_keyword "run"
+             ^^^ Cn_Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes)
+             ^^ Pp.parens (comma_list IndexTerms.pp its))
     in
     pp budget expr
 

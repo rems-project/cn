@@ -899,7 +899,9 @@ let rec n_expr
     assert_error loc !^"core_anormalisation: Esave"
   | Erun (_a, sym1, pes) ->
     let pes = List.map n_pexpr pes in
-    return (wrap (Erun (sym1, pes)))
+    let ghost_args = [] in
+    (* TODO: https://github.com/rems-project/cn/issues/123 *)
+    return (wrap (Erun (sym1, pes, ghost_args)))
   | Epar _es -> assert_error loc !^"core_anormalisation: Epar"
   | Ewait _tid1 -> assert_error loc !^"core_anormalisation: Ewait"
   | Eannot _ -> assert_error loc !^"core_anormalisation: Eannot"

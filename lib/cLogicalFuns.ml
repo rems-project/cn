@@ -491,7 +491,24 @@ let rec symb_exec_expr ctxt state_vars expr =
         return (If_Else (t, r_x, r_y))
     in
     cont1 state [] exps
-  | Erun (sym, args) ->
+  | Erun (sym, args, gargs) ->
+    let fail_fun_it msg =
+      fail_n
+        { loc;
+          msg =
+            Generic
+              (Pp.item
+                 ("getting expr from C syntax: run val: " ^ msg)
+                 (Pp_mucore.pp_expr expr))
+            [@alert "-deprecated"]
+        }
+    in
+    let@ () =
+      if not (List.is_empty gargs) then
+        fail_fun_it "cannot translate runs with ghost arguments yet"
+      else
+        return ()
+    in
     let@ arg_vs = ListM.mapM (symb_exec_pexpr ctxt var_map) args in
     (match Pmap.lookup sym ctxt.label_defs with
      | Some (Return _) ->

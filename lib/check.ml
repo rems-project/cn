@@ -2162,7 +2162,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          check_expr labels e2 (fun it2 ->
            let@ () = remove_as bound_a in
            k it2))
-     | Erun (label_sym, pes) ->
+     | Erun (label_sym, pes, its) ->
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        let@ lt, lkind =
          match Sym.Map.find_opt label_sym labels with
@@ -2176,7 +2176,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          | Some (lt, lkind, _) -> return (lt, lkind)
        in
        let@ original_resources = all_resources_tagged loc in
-       Spine.calltype_lt loc pes [] (lt, lkind) (fun False ->
+       Spine.calltype_lt loc pes its (lt, lkind) (fun False ->
          let@ () = all_empty loc original_resources in
          return ()))
 

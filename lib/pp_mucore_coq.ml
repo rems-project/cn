@@ -1847,10 +1847,15 @@ and pp_expr pp_type = function
              [ pp_tuple [ pp_pexpr pp_type c; pp_expr pp_type t; pp_expr pp_type e ] ]
          | Ebound e -> pp_constructor1 "Ebound" [ pp_expr pp_type e ]
          | End exprs -> pp_constructor1 "End" [ pp_list (pp_expr pp_type) exprs ]
-         | Erun (sym, args) ->
+         | Erun (sym, args, its) ->
            pp_constructor1
              "Erun"
-             [ pp_tuple [ pp_symbol sym; pp_list (pp_pexpr pp_type) args ] ]
+             [ pp_tuple
+                 [ pp_symbol sym;
+                   pp_list (pp_pexpr pp_type) args;
+                   pp_list pp_index_term its
+                 ]
+             ]
          | CN_progs (stmts, progs) ->
            pp_constructor1
              "CN_progs"

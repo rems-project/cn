@@ -2142,7 +2142,7 @@ module BaseTyping = struct
           let@ es = ListM.mapM (infer_expr label_context) es in
           let bts = List.map bt_of_expr es in
           return (Tuple bts, Eunseq es)
-        | Erun (l, pes) ->
+        | Erun (l, pes, its) ->
           (* copying from check.ml *)
           let@ lt, _lkind =
             match Sym.Map.find_opt l label_context with
@@ -2154,24 +2154,33 @@ module BaseTyping = struct
                 }
             | Some (lt, lkind, _) -> return (lt, lkind)
           in
-          let@ pes =
-            let wrong_number_arguments () =
+          let@ pes, its =
+            let wrong_number_computational_args () =
               let has = List.length pes in
               let expect = AT.count_computational lt in
-              fail { loc; msg = Number_arguments { type_ = `Other; has; expect } }
+              fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
             in
-            let rec check_args lt pes =
-              match (lt, pes) with
-              | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
+            let wrong_number_ghost_args () =
+              let has = List.length its in
+              let expect = AT.count_ghost lt in
+              fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
+            in
+            let rec check_args acc_pes acc_its lt pes its =
+              match (lt, pes, its) with
+              | AT.Computational ((_s, bt), _info, lt'), pe :: pes', _ ->
                 let@ pe = check_pexpr bt pe in
-                let@ pes' = check_args lt' pes' in
-                return (pe :: pes')
-              | AT.L _lat, [] -> return []
-              | _ -> wrong_number_arguments ()
+                check_args (acc_pes @ [ pe ]) acc_its lt' pes' its
+              | AT.Ghost ((_s, bt), info, lt'), _, it :: its' ->
+                let@ it = WIT.check (fst info) bt it in
+                check_args acc_pes (acc_its @ [ it ]) lt' pes its'
+              | AT.L _lat, [], [] -> return (acc_pes, acc_its)
+              | AT.Computational _, [], _ | AT.L _, _ :: _, _ ->
+                wrong_number_computational_args ()
+              | AT.Ghost _, _, [] | AT.L _, _, _ :: _ -> wrong_number_ghost_args ()
             in
-            check_args lt pes
+            check_args [] [] lt pes its
           in
-          return (Unit, Erun (l, pes))
+          return (Unit, Erun (l, pes, its))
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM check_cnprog cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))

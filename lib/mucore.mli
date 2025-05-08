@@ -213,7 +213,7 @@ type 'TY expr_ =
   | Eif of 'TY pexpr * 'TY expr * 'TY expr
   | Ebound of 'TY expr
   | End of 'TY expr list
-  | Erun of Sym.t * 'TY pexpr list
+  | Erun of Sym.t * 'TY pexpr list * IndexTerms.t list
   | CN_progs of
       (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement list
       * Cnprog.t list
