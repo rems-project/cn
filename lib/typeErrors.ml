@@ -273,7 +273,7 @@ let pp_welltyped = function
       | `Input -> "input"
       | `Output -> "output"
     in
-    let short = !^"Wrong number" ^^^ !^type_ ^^^ !^"of arguments" in
+    let short = !^"Wrong number of" ^^^ !^type_ ^^^ !^"arguments" in
     let descr =
       !^"Expected"
       ^^^ !^(string_of_int expect)

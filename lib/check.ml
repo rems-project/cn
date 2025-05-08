@@ -1096,11 +1096,6 @@ end = struct
     check_pexpr pe k
 
 
-  let check_arg_it loc it_arg ~(expect : BT.t) k =
-    let@ it_arg = WellTyped.check_term loc expect it_arg in
-    k it_arg
-
-
   let spine rt_subst rt_pp loc situation args gargs ftyp k =
     let open ArgumentTypes in
     let original_ftyp = ftyp in
@@ -1124,8 +1119,8 @@ end = struct
               (subst rt_subst (make_subst [ (s, arg) ]) ftyp)
               k)
         | _, garg :: gargs, Ghost ((s, bt), info, ftyp) ->
-          check_arg_it (fst info) garg ~expect:bt (fun garg ->
-            aux args_acc args gargs (subst rt_subst (make_subst [ (s, garg) ]) ftyp) k)
+          let@ garg = WellTyped.check_term (fst info) bt garg in
+          aux args_acc args gargs (subst rt_subst (make_subst [ (s, garg) ]) ftyp) k
         | [], [], L ftyp ->
           let@ () =
             match situation with

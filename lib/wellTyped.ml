@@ -1915,7 +1915,7 @@ module BaseTyping = struct
         let wrong_number_arguments () =
           let has = List.length its in
           let expect = AT.count_ghost lemma_typ in
-          fail { loc; msg = Number_arguments { type_ = `Other; has; expect } }
+          fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
         in
         let rec check_args lemma_typ its =
           match (lemma_typ, its) with
