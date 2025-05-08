@@ -117,7 +117,7 @@ let generate_executable_specs
   let out_file = Fulminate.get_output_filename output_dir output basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
-    ~macros
+    ~macros:(("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
     ~coq_export_file:None

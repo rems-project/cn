@@ -162,7 +162,7 @@ let main
       ?(with_loop_leak_checks = false)
       ?(with_testing = false)
       filename
-      in_filename (* WARNING: this file will be delted after this function *)
+      in_filename (* WARNING: this file will be deleted after this function *)
       out_filename
       (static_funcs : string list)
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
@@ -316,9 +316,7 @@ let main
   in
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
-  output_to_oc
-    oc
-    [ "#define CN_INSTRUMENTATION_MODE\n"; "#include <cn-executable/utils.h>\n" ];
+  output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc
