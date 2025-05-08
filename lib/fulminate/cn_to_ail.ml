@@ -3661,6 +3661,7 @@ let rec cn_to_ail_loop_inv_aux
       cn_to_ail_loop_inv_aux filename dts globals preds spec_mode_opt subst_loop
     in
     ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
+  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
   | L lat ->
     let rec modify_decls_for_loop decls modified_stats =
       let rec collect_initialised_syms_and_exprs = function
@@ -3922,6 +3923,7 @@ let rec cn_to_ail_pre_post_aux
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
+  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
   | AT.L lat ->
     cn_to_ail_lat_2
       without_ownership_checking

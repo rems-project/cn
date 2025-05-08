@@ -131,6 +131,7 @@ type message =
       { spec : int;
         decl : int
       }
+  | Not_impl_ghost_args_in_pure_C_function
 
 type t =
   { loc : Locations.t;

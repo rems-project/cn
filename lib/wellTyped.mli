@@ -14,10 +14,11 @@ type message =
         reason : string
       }
   | Number_arguments of
-      { type_ : [ `Other | `Input | `Output ];
+      { type_ : [ `Computational | `Ghost | `Other | `Input | `Output ];
         has : int;
         expect : int
       }
+  | Unexpected_computational_args_in_lemma
   | Missing_member of Id.t
   | NIA of
       { it : IndexTerms.t;

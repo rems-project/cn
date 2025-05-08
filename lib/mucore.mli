@@ -205,7 +205,7 @@ type 'TY expr_ =
   | Ememop of 'TY memop
   | Eaction of 'TY paction
   | Eskip
-  | Eccall of act * 'TY pexpr * 'TY pexpr list
+  | Eccall of act * 'TY pexpr * 'TY pexpr list * IndexTerms.t list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
   | Ewseq of 'TY pattern * 'TY expr * 'TY expr
@@ -213,7 +213,7 @@ type 'TY expr_ =
   | Eif of 'TY pexpr * 'TY expr * 'TY expr
   | Ebound of 'TY expr
   | End of 'TY expr list
-  | Erun of Sym.t * 'TY pexpr list
+  | Erun of Sym.t * 'TY pexpr list * IndexTerms.t list
   | CN_progs of
       (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement list
       * Cnprog.t list
@@ -260,6 +260,7 @@ val mResources
 
 type 'i arguments =
   | Computational of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
+  | Ghost of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | L of 'i arguments_l
 
 val mComputational
@@ -291,12 +292,6 @@ type trusted =
   | Trusted of Locations.t
   | Checked
 
-type desugared_spec =
-  { accesses : (Sym.t * Cerb_frontend.Ctype.ctype) list;
-    requires : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list;
-    ensures : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list
-  }
-
 type 'TY args_and_body =
   ('TY expr * (Sym.t, 'TY label_def) Pmap.map * ReturnTypes.t) arguments
 
@@ -304,8 +299,7 @@ type 'TY fun_map_decl =
   | Proc of
       { loc : Locations.t;
         args_and_body : 'TY args_and_body;
-        trusted : trusted;
-        desugared_spec : desugared_spec
+        trusted : trusted
       }
   | ProcDecl of Locations.t * ArgumentTypes.ft option
 

@@ -24,10 +24,11 @@ type message =
         reason : string
       }
   | Number_arguments of
-      { type_ : [ `Other | `Input | `Output ];
+      { type_ : [ `Computational | `Ghost | `Other | `Input | `Output ];
         has : int;
         expect : int
       }
+  | Unexpected_computational_args_in_lemma
   | Missing_member of Id.t
   | NIA of
       { it : IT.t;
@@ -978,7 +979,7 @@ module WIT = struct
       | Apply (name, args) ->
         let@ def = get_logical_function_def loc name in
         let has_args, expect_args = (List.length args, List.length def.args) in
-        let@ () = ensure_same_argument_number loc `Other has_args ~expect:expect_args in
+        let@ () = ensure_same_argument_number loc `Ghost has_args ~expect:expect_args in
         let@ args =
           ListM.map2M
             (fun has_arg (_, def_arg_bt) ->
@@ -1285,6 +1286,12 @@ module WAT = struct
         let@ () = add_a name bt (fst info, lazy (Sym.pp name)) in
         let@ at = aux at in
         return (AT.Computational ((name, bt), info, at))
+      | AT.Ghost ((name, bt), info, at) ->
+        (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
+        let@ bt = WBT.is_bt (fst info) bt in
+        let@ () = add_l name bt (fst info, lazy (Sym.pp name)) in
+        let@ at = aux at in
+        return (AT.Ghost ((name, bt), info, at))
       | AT.L at ->
         let@ at = WLAT.welltyped i_welltyped i_pp kind loc at in
         return (AT.L at)
@@ -1351,6 +1358,7 @@ module WArgs = struct
 
   let rec typ ityp = function
     | Mu.Computational (bound, info, at) -> AT.Computational (bound, info, typ ityp at)
+    | Mu.Ghost (bound, info, at) -> AT.Ghost (bound, info, typ ityp at)
     | Mu.L lat -> AT.L (WLArgs.typ ityp lat)
 
 
@@ -1373,6 +1381,12 @@ module WArgs = struct
         let@ () = add_a name bt (fst info, lazy (Sym.pp name)) in
         let@ at = aux at in
         return (Mu.Computational ((name, bt), info, at))
+      | Mu.Ghost ((name, bt), info, at) ->
+        (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
+        let@ bt = WBT.is_bt (fst info) bt in
+        let@ () = add_l name bt (fst info, lazy (Sym.pp name)) in
+        let@ at = aux at in
+        return (Mu.Ghost ((name, bt), info, at))
       | Mu.L at ->
         let@ at = WLArgs.welltyped i_welltyped kind at in
         return (Mu.L at)
@@ -1900,17 +1914,18 @@ module BaseTyping = struct
       let@ its =
         let wrong_number_arguments () =
           let has = List.length its in
-          let expect = AT.count_computational lemma_typ in
-          fail { loc; msg = Number_arguments { type_ = `Other; has; expect } }
+          let expect = AT.count_ghost lemma_typ in
+          fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
         in
         let rec check_args lemma_typ its =
           match (lemma_typ, its) with
-          | AT.Computational ((_s, bt), _info, lemma_typ'), it :: its' ->
+          | AT.Ghost ((_s, bt), _info, lemma_typ'), it :: its' ->
             let@ it = WIT.check loc bt it in
             let@ its' = check_args lemma_typ' its' in
             return (it :: its')
+          | AT.Computational _, _ -> failwith "unexpected computational argument in lemma"
           | AT.L _, [] -> return []
-          | _ -> wrong_number_arguments ()
+          | AT.Ghost _, [] | AT.L _, _ :: _ -> wrong_number_arguments ()
         in
         check_args lemma_typ its
       in
@@ -2067,7 +2082,7 @@ module BaseTyping = struct
           in
           return (bTy, Eaction (Paction (pol, Action (aloc, action_))))
         | Eskip -> return (Unit, Eskip)
-        | Eccall (act, f_pe, pes) ->
+        | Eccall (act, f_pe, pes, its) ->
           let@ () = WCT.is_ct act.loc act.ct in
           let@ ret_ct, arg_cts =
             match act.ct with
@@ -2088,7 +2103,8 @@ module BaseTyping = struct
              can't when f_pe is dynamic *)
           let arg_bt_specs = List.map (fun ct -> Memory.bt_of_sct ct) arg_cts in
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
-          return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes))
+          let@ its = ListM.mapM WIT.infer its in
+          return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, its))
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, e1, e2 =
@@ -2126,7 +2142,7 @@ module BaseTyping = struct
           let@ es = ListM.mapM (infer_expr label_context) es in
           let bts = List.map bt_of_expr es in
           return (Tuple bts, Eunseq es)
-        | Erun (l, pes) ->
+        | Erun (l, pes, its) ->
           (* copying from check.ml *)
           let@ lt, _lkind =
             match Sym.Map.find_opt l label_context with
@@ -2138,24 +2154,33 @@ module BaseTyping = struct
                 }
             | Some (lt, lkind, _) -> return (lt, lkind)
           in
-          let@ pes =
-            let wrong_number_arguments () =
+          let@ pes, its =
+            let wrong_number_computational_args () =
               let has = List.length pes in
               let expect = AT.count_computational lt in
-              fail { loc; msg = Number_arguments { type_ = `Other; has; expect } }
+              fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
             in
-            let rec check_args lt pes =
-              match (lt, pes) with
-              | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
+            let wrong_number_ghost_args () =
+              let has = List.length its in
+              let expect = AT.count_ghost lt in
+              fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
+            in
+            let rec check_args acc_pes acc_its lt pes its =
+              match (lt, pes, its) with
+              | AT.Computational ((_s, bt), _info, lt'), pe :: pes', _ ->
                 let@ pe = check_pexpr bt pe in
-                let@ pes' = check_args lt' pes' in
-                return (pe :: pes')
-              | AT.L _lat, [] -> return []
-              | _ -> wrong_number_arguments ()
+                check_args (acc_pes @ [ pe ]) acc_its lt' pes' its
+              | AT.Ghost ((_s, bt), info, lt'), _, it :: its' ->
+                let@ it = WIT.check (fst info) bt it in
+                check_args acc_pes (acc_its @ [ it ]) lt' pes its'
+              | AT.L _lat, [], [] -> return (acc_pes, acc_its)
+              | AT.Computational _, [], _ | AT.L _, _ :: _, _ ->
+                wrong_number_computational_args ()
+              | AT.Ghost _, _, [] | AT.L _, _, _ :: _ -> wrong_number_ghost_args ()
             in
-            check_args lt pes
+            check_args [] [] lt pes its
           in
-          return (Unit, Erun (l, pes))
+          return (Unit, Erun (l, pes, its))
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM check_cnprog cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
@@ -2390,13 +2415,21 @@ module WLFD = struct
 end
 
 module WLemma = struct
+  module AT = ArgumentTypes
+
   let welltyped loc _lemma_s lemma_typ =
-    WAT.welltyped
-      (fun lrt -> pure (WLRT.welltyped lrt))
-      LogicalReturnTypes.pp
-      "lemma"
-      loc
-      lemma_typ
+    let@ lt =
+      WAT.welltyped
+        (fun lrt -> pure (WLRT.welltyped lrt))
+        LogicalReturnTypes.pp
+        "lemma"
+        loc
+        lemma_typ
+    in
+    if AT.count_computational lt != 0 then
+      fail { loc; msg = Unexpected_computational_args_in_lemma }
+    else
+      return lt
 end
 
 module WDT = struct

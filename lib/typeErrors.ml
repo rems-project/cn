@@ -186,6 +186,7 @@ type message =
       { spec : int;
         decl : int
       }
+  | Not_impl_ghost_args_in_pure_C_function
 
 type t =
   { loc : Locations.t;
@@ -265,9 +266,14 @@ let pp_welltyped = function
     { short; descr = None; state = None }
   | Number_arguments { type_; has; expect } ->
     let type_ =
-      match type_ with `Other -> "" | `Input -> "input" | `Output -> "output"
+      match type_ with
+      | `Computational -> "C"
+      | `Ghost -> "ghost"
+      | `Other -> ""
+      | `Input -> "input"
+      | `Output -> "output"
     in
-    let short = !^"Wrong number" ^^^ !^type_ ^^^ !^"of arguments" in
+    let short = !^"Wrong number of" ^^^ !^type_ ^^^ !^"arguments" in
     let descr =
       !^"Expected"
       ^^^ !^(string_of_int expect)
@@ -276,6 +282,9 @@ let pp_welltyped = function
       ^^^ !^(string_of_int has)
     in
     { short; descr = Some descr; state = None }
+  | Unexpected_computational_args_in_lemma ->
+    let short = !^"Unexpected computational arguments in lemma definition" in
+    { short; descr = None; state = None }
   | Mismatch { has; expect } ->
     let short = !^"Mismatched types." in
     let descr =
@@ -624,6 +633,11 @@ let pp_message = function
       ^^^ !^(string_of_int decl)
     in
     { short; descr = Some descr; state = None }
+  | Not_impl_ghost_args_in_pure_C_function ->
+    let short =
+      !^"Cannot lift a pure C function which uses ghost arguments (not implemented)."
+    in
+    { short; descr = None; state = None }
 
 
 (** Convert a possibly-relative filepath into an absolute one. *)
