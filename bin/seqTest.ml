@@ -45,7 +45,7 @@ let run_seq_tests
   let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
-    ~macros
+    ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
     ~csv_times

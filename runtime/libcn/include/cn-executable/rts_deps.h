@@ -1,13 +1,13 @@
 #ifndef RTS_DEPS
 #define RTS_DEPS
 
-// Any RTS dependencies on system headers should be done throgh this file.
-// CN_INSTRUMENTATION_MODE indicates that we are using the header
+// Any RTS dependencies on system headers should be done through this file.
+// __CN_INSTRUMENT indicates that we are using the header
 // *after* the pre-processor, so we need to use the manual definition.
 // This flag is not set when compiling the implementation of the RTS
 // and then we use normal system headers.
 
-#ifdef CN_INSTRUMENTATION_MODE
+#ifdef __CN_INSTRUMENT
   #include "cerb_types.h"
 
   // We define this just for the declarations in this file.

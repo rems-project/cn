@@ -604,7 +604,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
 }
 #endif
 
-#ifdef CN_INSTRUMENTATION_MODE
+#ifdef __CN_INSTRUMENT
   #undef size_t
   #undef uint8_t
   #undef uint16_t
