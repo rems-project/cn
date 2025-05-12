@@ -10,7 +10,8 @@ type executable_spec =
   }
 
 val generate_c_assume_pres_internal
-  :  Extract.instrumentation list ->
+  :  string ->
+  (bool * Extract.instrumentation) list ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (AilSyntax.sigma_declaration
@@ -21,6 +22,7 @@ val generate_c_specs
   :  bool ->
   bool ->
   bool ->
+  string ->
   Extract.instrumentation list ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
@@ -40,22 +42,31 @@ val generate_c_struct_strs
        list ->
   string
 
+val generate_c_struct_decl_strs
+  :  (AilSyntax.ail_identifier
+     * (Cerb_location.t * Cerb_frontend.Annot.attributes * Ctype.tag_definition))
+       list ->
+  string list
+
 val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> string
 
 val generate_c_functions
-  :  GenTypes.genTypeCategory AilSyntax.sigma ->
+  :  string ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
   (AilSyntax.ail_identifier * Definition.Function.t) list ->
   string * string * Cerb_location.t list
 
 val generate_c_predicates
-  :  GenTypes.genTypeCategory AilSyntax.sigma ->
+  :  string ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
   (Sym.t * Definition.Predicate.t) list ->
   string * string * Cerb_location.t list
 
 val generate_ownership_functions : bool -> Ctype.ctype list -> string * string
 
 val generate_conversion_and_equality_functions
-  :  GenTypes.genTypeCategory AilSyntax.sigma ->
+  :  string ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
   string * string
 
 val has_main : GenTypes.genTypeCategory AilSyntax.sigma -> bool

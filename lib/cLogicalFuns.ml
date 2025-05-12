@@ -491,7 +491,24 @@ let rec symb_exec_expr ctxt state_vars expr =
         return (If_Else (t, r_x, r_y))
     in
     cont1 state [] exps
-  | Erun (sym, args) ->
+  | Erun (sym, args, gargs) ->
+    let fail_fun_it msg =
+      fail_n
+        { loc;
+          msg =
+            Generic
+              (Pp.item
+                 ("getting expr from C syntax: run val: " ^ msg)
+                 (Pp_mucore.pp_expr expr))
+            [@alert "-deprecated"]
+        }
+    in
+    let@ () =
+      if not (List.is_empty gargs) then
+        fail_fun_it "cannot translate runs with ghost arguments yet"
+      else
+        return ()
+    in
     let@ arg_vs = ListM.mapM (symb_exec_pexpr ctxt var_map) args in
     (match Pmap.lookup sym ctxt.label_defs with
      | Some (Return _) ->
@@ -551,7 +568,7 @@ let rec symb_exec_expr ctxt state_vars expr =
                   (Pp_mucore.pp_expr expr))
              [@alert "-deprecated"]
          })
-  | Eccall (_act, fun_pe, args_pe) ->
+  | Eccall (_act, fun_pe, args_pe, gargs) ->
     let@ fun_it = symb_exec_pexpr ctxt var_map fun_pe in
     let@ args_its = ListM.mapM (symb_exec_pexpr ctxt var_map) args_pe in
     let fail_fun_it msg =
@@ -564,6 +581,12 @@ let rec symb_exec_expr ctxt state_vars expr =
                  (Pp.typ (Pp_mucore.pp_pexpr fun_pe) (IT.pp fun_it)))
             [@alert "-deprecated"]
         }
+    in
+    let@ () =
+      if not (List.is_empty gargs) then
+        fail_fun_it "cannot translate function calls with ghost arguments yet"
+      else
+        return ()
     in
     let@ nm =
       match IT.is_sym fun_it with
@@ -708,6 +731,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
         Typing.bind
           (Typing.add_a s bt (loc, lazy (Pp.item "argument" (Sym.pp s))))
           (fun () -> in_computational_ctxt args_and_body m)
+      | Ghost (_, _, _) -> fail_n { loc; msg = Not_impl_ghost_args_in_pure_C_function }
       | L _ -> m
     in
     let@ arg_map, (body, labels, rt) = mk_var_map Sym.Map.empty args_and_body def_args in

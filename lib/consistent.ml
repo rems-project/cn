@@ -99,6 +99,10 @@ let argumentTypes i_welltyped i_pp kind loc at : unit Typing.t =
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_a name bt (fst info, lazy (Sym.pp name)) in
       aux at
+    | AT.Ghost ((name, bt), info, at) ->
+      (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
+      let@ () = add_l name bt (fst info, lazy (Sym.pp name)) in
+      aux at
     | L at -> logicalArgumentTypes i_welltyped i_pp kind loc at
   in
   pure (aux at)
@@ -173,6 +177,10 @@ let arguments
     | Mucore.Computational ((name, bt), info, at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_a name bt (fst info, lazy (Sym.pp name)) in
+      aux at
+    | Mucore.Ghost ((name, bt), info, at) ->
+      (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
+      let@ () = add_l name bt (fst info, lazy (Sym.pp name)) in
       aux at
     | L at -> logicalArguments i_welltyped kind loc at
   in

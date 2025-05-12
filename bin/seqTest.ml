@@ -21,7 +21,7 @@ let run_seq_tests
       (* Test Generation *)
         output_dir
       print_steps
-      with_static_hack
+      _with_static_hack
       num_calls
       backtrack_attempts
       num_tests
@@ -36,9 +36,16 @@ let run_seq_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let basefile = Filename.basename filename in
+  let pp_file = Filename.temp_file "cn_" basefile in
+  let output_dir =
+    let dir, mk = output_dir in
+    mk dir
+  in
+  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
-    ~macros
+    ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
     ~csv_times
@@ -50,7 +57,7 @@ let run_seq_tests
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
-    ~save_cpp:None (* XXX *)
+    ~save_cpp:(Some pp_file)
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
@@ -67,30 +74,20 @@ let run_seq_tests
              print_endline "No testable functions, trivially passing";
              exit 0);
            let _, sigma = ail_prog in
-           let output_dir =
-             let dir, mk = output_dir in
-             mk dir
-           in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            Fulminate.main
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
-             ~with_test_gen:true
-             ~copy_source_dir:false
+             ~with_testing:true
              filename
-             ~use_preproc:false
+             pp_file
+             out_file
+             (Common.static_funcs cabs_tunit)
              ail_prog
-             None
-             (Some output_dir)
              prog5;
            let config : SeqTests.seq_config =
-             { print_steps;
-               with_static_hack;
-               num_calls;
-               max_backtracks = backtrack_attempts;
-               num_tests
-             }
+             { print_steps; num_calls; max_backtracks = backtrack_attempts; num_tests }
            in
            SeqTests.set_seq_config config;
            if SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0 then
@@ -124,7 +121,8 @@ module Flags = struct
       "(HACK) Use an `#include` instead of linking to build testing. Necessary until \
        https://github.com/rems-project/cerberus/issues/784 or equivalent."
     in
-    Arg.(value & flag & info [ "with-static-hack" ] ~doc)
+    let deprecated = "No longer does anything. Will be removed after May 18." in
+    Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
   let gen_num_calls =

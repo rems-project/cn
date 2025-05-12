@@ -70,7 +70,7 @@ let verify
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
-    ~macros
+    ~macros:(("__CN_VERIFY", None) :: macros)
     ~incl_dirs
     ~incl_files
     ~coq_export_file

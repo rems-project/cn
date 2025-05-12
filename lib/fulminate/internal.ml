@@ -57,6 +57,7 @@ let generate_c_specs_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -73,6 +74,7 @@ let generate_c_specs_internal
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      filename
       dts
       preds
       globals
@@ -188,11 +190,12 @@ let generate_c_specs_internal
 
 
 let generate_c_assume_pres_internal
-      (instrumentation_list : Extract.instrumentation list)
+      filename
+      (insts : (bool * Extract.instrumentation) list)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   =
-  let aux (inst : Extract.instrumentation) =
+  let aux ((is_static, inst) : bool * Extract.instrumentation) =
     let dts = sigma.cn_datatypes in
     let preds = prog5.resource_predicates in
     let args =
@@ -204,16 +207,24 @@ let generate_c_assume_pres_internal
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
     let globals = extract_global_variables prog5.globs in
+    let fsym =
+      if is_static then
+        Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+      else
+        inst.fn
+    in
     Cn_to_ail.cn_to_ail_assume_pre
+      filename
       dts
-      inst.fn
+      fsym
       args
       globals
       preds
       (AT.get_lat (Option.get inst.internal))
   in
-  instrumentation_list
-  |> List.filter (fun (inst : Extract.instrumentation) -> Option.is_some inst.internal)
+  insts
+  |> List.filter (fun ((_, inst) : bool * Extract.instrumentation) ->
+    Option.is_some inst.internal)
   |> List.map aux
 
 
@@ -222,6 +233,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       instrumentation_list
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -232,6 +244,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       instrumentation
       sigm
       prog5
@@ -248,9 +261,7 @@ let generate_doc_from_ail_struct ail_struct =
   CF.Pp_ail.(with_executable_spec pp_tag_definition ail_struct) ^^ PPrint.hardline
 
 
-let[@warning "-32" (* unused-value-declaration *)] generate_struct_decl_str
-                                                     (tag, (_, _, def))
-  =
+let generate_struct_decl_str (tag, (_, _, def)) =
   match def with
   | C.StructDef _ -> Printf.sprintf "struct %s;\n" (Sym.pp_string tag)
   | UnionDef _ -> ""
@@ -296,34 +307,39 @@ let generate_c_struct_strs c_structs =
   "\n/* ORIGINAL C STRUCTS */\n\n" ^ generate_str_from_ail_structs c_structs
 
 
+let generate_c_struct_decl_strs c_structs =
+  "/* ORIGINAL C STRUCTS DECLARATIONS */\n" :: List.map generate_struct_decl_str c_structs
+
+
 let generate_cn_versions_of_structs c_structs =
   let ail_structs = List.concat (List.map Cn_to_ail.cn_to_ail_struct c_structs) in
   "\n/* CN VERSIONS OF C STRUCTS */\n\n" ^ generate_str_from_ail_structs ail_structs
 
 
 let generate_fun_def_and_decl_docs funs =
-  let decls, defs = List.split funs in
-  let defs_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { A.empty_sigma with declarations = decls; function_definitions = defs }
+  let one_def_prog (decl, def) =
+    { A.empty_sigma with declarations = [ decl ]; function_definitions = [ def ] }
   in
-  let decls_prog : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma =
-    { A.empty_sigma with declarations = decls; function_definitions = [] }
+  let one_decl_prog (decl, _) = { A.empty_sigma with declarations = [ decl ] } in
+  let pp_it x =
+    !^"static "
+    ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, x))
   in
-  let pp_program_with_exec_spec prog =
-    CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, prog))
-  in
-  let defs_doc = pp_program_with_exec_spec defs_prog in
-  let decls_doc = pp_program_with_exec_spec decls_prog in
+  let pp_many f xs = List.fold_left (fun d x -> pp_it (f x) ^^ d) empty xs in
+  let defs_doc = pp_many one_def_prog funs in
+  let decls_doc = pp_many one_decl_prog funs in
   (defs_doc, decls_doc)
 
 
 let generate_c_functions
+      filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (logical_predicates : (Sym.t * Definition.Function.t) list)
   =
   let ail_funs_and_records =
     List.map
-      (fun cn_f -> Cn_to_ail.cn_to_ail_function cn_f sigm.cn_datatypes sigm.cn_functions)
+      (fun cn_f ->
+         Cn_to_ail.cn_to_ail_function filename cn_f sigm.cn_datatypes sigm.cn_functions)
       logical_predicates
   in
   let ail_funs, _ = List.split ail_funs_and_records in
@@ -345,12 +361,14 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 
 
 let generate_c_predicates
+      filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (resource_predicates : (Sym.t * Definition.Predicate.t) list)
   =
   let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
       resource_predicates
+      filename
       sigm.cn_datatypes
       []
       sigm.cn_predicates
@@ -387,6 +405,7 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
 
 
 let generate_conversion_and_equality_functions
+      filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   let struct_conversion_funs =
@@ -397,7 +416,7 @@ let generate_conversion_and_equality_functions
     List.map Cn_to_ail.generate_struct_equality_function sigm.tag_definitions
   in
   let datatype_equality_funs =
-    List.map Cn_to_ail.generate_datatype_equality_function sigm.cn_datatypes
+    List.map (Cn_to_ail.generate_datatype_equality_function filename) sigm.cn_datatypes
   in
   let struct_map_get_funs =
     List.map Cn_to_ail.generate_struct_map_get sigm.tag_definitions
@@ -446,7 +465,7 @@ let generate_ownership_global_assignments
       (prog5 : unit Mucore.file)
   =
   match get_main sigm with
-  | [] -> failwith "CN-exec: No main function so ownership globals cannot be initialised"
+  | [] -> []
   | (main_sym, _) :: _ ->
     let globals = extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in

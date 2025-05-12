@@ -23,6 +23,10 @@ function exits_with_code() {
   local file=$1
   local expected_exit_code=$2
 
+  if ! [ -f "$1" ]; then
+    printf "\033[31mFAIL\033[0m (file '$1' does not exist)\n"
+    return 1
+  fi
   printf "[$file]... "
   timeout 40 "${CHECK_SCRIPT}" "${SCRIPT_OPT}" "$file" &> /dev/null
   local result=$?
@@ -31,7 +35,7 @@ function exits_with_code() {
     printf "\033[32mPASS\033[0m\n"
     return 0
   else
-    printf "\033[31mFAIL\033[0m (Unexpected return code: $result)\n"
+    printf "\033[31mFAIL\033[0m (Unexpected return code: $result expected: $expected_exit_code)\n"
     return 1
   fi
 }
@@ -42,7 +46,7 @@ SUCCESS=$(find cn -name '*.c' \
     ! -path '*/multifile/*' \
     ! -path '*/mutual_rec/*' \
     ! -path '*/tree16/*' \
-    ! -path "*/accesses_on_spec/*" \
+    ! -path "cn/accesses_on_spec/clientfile.c" \
     ! -name "division_casting.c" \
     ! -name "b_or.c" \
     ! -name "mod_with_constants.c" \
@@ -52,12 +56,9 @@ SUCCESS=$(find cn -name '*.c' \
     ! -path "tree16/as_mutual_dt/tree16.c" \
     ! -name "mod.c" \
     ! -name "mod_precedence.c" \
-    ! -name "left_shift_const.c" \
     ! -name "fun_ptr_three_opts.c" \
     ! -name "inconsistent2.c" \
-    ! -name "list_rev01.c" \
     ! -name "block_type.c" \
-    ! -name "gnu_choose.c" \
     ! -name "division_with_constants.c" \
     ! -name "division.c" \
     ! -name "get_from_arr.c" \
@@ -68,15 +69,12 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "tag_defs.c" \
     ! -name "cn_inline.c" \
     ! -path "mutual_rec/mutual_rec.c" \
-    ! -name "test_pointer_eq.c" \
     ! -name "get_from_array.c" \
     ! -name "ownership_at_negative_index.c" \
     ! -name "fun_addrs_cn_stmt.c" \
-    ! -name "enum_and_and.c" \
     ! -name "division_precedence.c" \
     ! -name "implies_associativity.c" \
     ! -name "pred_def04.c" \
-    ! -name "gnu_types_compatible.c" \
     ! -name "implies_precedence.c" \
     ! -name "fun_ptr_extern.c" \
     ! -name "b_xor.c" \
@@ -102,48 +100,45 @@ SUCCESS=$(find cn -name '*.c' \
 )
 
 # Include files which cause error for proof but not testing
-SUCCESS+=("merging_arrays.error.c" "pointer_to_char_cast.error.c" "pointer_to_unsigned_int_cast.error.c")
+SUCCESS+=("cn/merging_arrays.error.c" "cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c")
 
-
-BUGGY="cn/division_casting.c \
+NO_MAIN="\
        cn/b_or.c \
+       cn/division_casting.c \
        cn/mod_with_constants.c \
-       cn/inconsistent.c \
-       cn/forloop_with_decl.c \
        cn/tree16/as_partial_map/tree16.c \
        cn/tree16/as_mutual_dt/tree16.c \
        cn/mod.c \
        cn/mod_precedence.c \
        cn/multifile/g.c \
        cn/multifile/f.c \
-       cn/left_shift_const.c \
-       cn/fun_ptr_three_opts.c \
-       cn/inconsistent2.c \
-       cn/list_rev01.c \
        cn/block_type.c \
-       cn/gnu_choose.c \
        cn/division_with_constants.c \
        cn/division.c \
-       cn/get_from_arr.c \
        cn/implies.c \
-       cn/split_case.c \
        cn/mod_casting.c \
        cn/arrow_access.c \
+       cn/division_precedence.c \
+       cn/implies_associativity.c \
+       cn/implies_precedence.c \
+       cn/b_xor.c \
+       cn/previously_inconsistent_assumptions1.c \
+       cn/previously_inconsistent_assumptions2.c \
+       "
+
+BUGGY="\
+       cn/forloop_with_decl.c \
+       cn/fun_ptr_three_opts.c \
+       cn/get_from_arr.c \
+       cn/split_case.c \
        cn/tag_defs.c \
        cn/cn_inline.c \
-       cn/mutual_rec/mutual_rec.c \
-       cn/test_pointer_eq.c \
+       cn/mutual_rec/mutual_rec*.c \
        cn/get_from_array.c \
        cn/ownership_at_negative_index.c \
        cn/fun_addrs_cn_stmt.c \
-       cn/enum_and_and.c \
-       cn/division_precedence.c \
-       cn/implies_associativity.c \
        cn/pred_def04.c \
-       cn/gnu_types_compatible.c \
-       cn/implies_precedence.c \
        cn/fun_ptr_extern.c \
-       cn/b_xor.c \
        cn/copy_alloc_id.c \
        cn/copy_alloc_id.error.c \
        cn/copy_alloc_id2.error.c \
@@ -155,8 +150,6 @@ BUGGY="cn/division_casting.c \
        cn/alloc_token.c \
        cn/ptr_diff.c \
        cn/mask_ptr.c \
-       cn/previously_inconsistent_assumptions1.c \
-       cn/previously_inconsistent_assumptions2.c \
        cn/ptr_relop.c \
        cn/ptr_relop.error.c \
        cn/int_to_ptr.c \
@@ -164,7 +157,6 @@ BUGGY="cn/division_casting.c \
        cn/create_rdonly.c \
        cn/offsetof_int_const.c \
        cn/accesses_on_spec/clientfile.c \
-       cn/accesses_on_spec/libfile.c \
        "
 
 # Exclude files which cause error for proof but not testing
@@ -181,13 +173,19 @@ SHOULD_FAIL=$(find cn -name '*.error.c' \
 
 FAILED=""
 
-for FILE in ${SUCCESS}; do
+for FILE in ${SUCCESS[@]}; do
   if ! exits_with_code "${FILE}" 0; then
     FAILED+=" ${FILE}"
   fi
 done
 
 for FILE in ${SHOULD_FAIL}; do
+  if ! exits_with_code "${FILE}" 1; then
+    FAILED+=" ${FILE}"
+  fi
+done
+
+for FILE in ${NO_MAIN}; do
   if ! exits_with_code "${FILE}" 1; then
     FAILED+=" ${FILE}"
   fi

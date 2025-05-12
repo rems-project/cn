@@ -419,11 +419,13 @@ let rec extract_global_variables = function
 
 
 let compile_it
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (it : IT.t)
   =
   CtA.cn_to_ail_expr_toplevel
+    filename
     sigma.cn_datatypes
     (extract_global_variables prog5.globs)
     None
@@ -432,6 +434,7 @@ let compile_it
 
 
 let owned_sct_call
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (sct : Sctypes.t)
@@ -440,13 +443,14 @@ let owned_sct_call
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
   =
-  let b1, s1, e1 = compile_it sigma prog5 pointer in
+  let b1, s1, e1 = compile_it filename sigma prog5 pointer in
   let fsym = owned_sct_sym (Sctypes.to_ctype sct) in
   let e2 = mk_expr A.(AilEcall (mk_expr (AilEident fsym), [ e1 ])) in
   (b1, s1, e2)
 
 
 let compile_req
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (req : Request.t)
@@ -459,11 +463,11 @@ let compile_req
     match req with
     | P { name = Owned (sct, _); pointer; iargs } ->
       assert (List.is_empty iargs);
-      owned_sct_call sigma prog5 sct pointer
+      owned_sct_call filename sigma prog5 sct pointer
     | P { name = PName name; pointer; iargs } ->
       let b, s, es =
         pointer :: iargs
-        |> List.map (compile_it sigma prog5)
+        |> List.map (compile_it filename sigma prog5)
         |> List.fold_left
              (fun (b, s, es) (b', s', e) -> (b @ b', s @ s', es @ [ e ]))
              ([], [], [])
@@ -474,15 +478,15 @@ let compile_req
       assert (List.is_empty iargs);
       let q_it = IT.sym_ (q_sym, q_bt, q_loc) in
       let e_perm =
-        let b_perm, s_perm, e_perm = compile_it sigma prog5 permission in
+        let b_perm, s_perm, e_perm = compile_it filename sigma prog5 permission in
         A.(
           mk_expr
             (AilEgcc_statement (b_perm, List.map mk_stmt (s_perm @ [ AilSexpr e_perm ]))))
       in
       let b1, s1, e_min, e_max =
         let it_min, it_max = IT.Bounds.get_bounds (q_sym, q_bt) permission in
-        let b1, s1, e_min = compile_it sigma prog5 it_min in
-        let b2, s2, e_max = compile_it sigma prog5 it_max in
+        let b1, s1, e_min = compile_it filename sigma prog5 it_min in
+        let b2, s2, e_max = compile_it filename sigma prog5 it_max in
         (b1 @ b2, s1 @ s2, e_min, e_max)
       in
       let map_sym = Sym.fresh_anon () in
@@ -526,6 +530,7 @@ let compile_req
 let compile_lat
       ?(f : 'a -> A.bindings * CF.GenTypes.genTypeCategory A.statement_ list =
         fun _ -> ([], []))
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (lat : 'a LAT.t)
@@ -534,13 +539,13 @@ let compile_lat
   let rec aux (lat : 'a LAT.t) =
     match lat with
     | Define ((x, it), _, lat') ->
-      let b1, s1, e = compile_it sigma prog5 it in
+      let b1, s1, e = compile_it filename sigma prog5 it in
       let b2 = [ Utils.create_binding x (bt_to_ctype (IT.get_bt it)) ] in
       let s2 = A.[ AilSdeclaration [ (x, Some e) ] ] in
       let b3, s3 = aux lat' in
       (b1 @ b2 @ b3, s1 @ s2 @ s3)
     | Resource ((x, (req, bt)), (loc, _), lat') ->
-      let b1, s1, e = compile_req sigma prog5 req loc in
+      let b1, s1, e = compile_req filename sigma prog5 req loc in
       let b2 = [ Utils.create_binding x (bt_to_ctype bt) ] in
       let s2 =
         if BT.equal bt BT.Unit then
@@ -557,6 +562,7 @@ let compile_lat
 
 
 let compile_clauses
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (cls : Definition.Clause.t list)
@@ -569,16 +575,16 @@ let compile_clauses
       if BT.equal (IT.get_bt it) BT.Unit then
         ([], [ A.AilSreturnVoid ])
       else (
-        let b, s, e = compile_it sigma prog5 it in
+        let b, s, e = compile_it filename sigma prog5 it in
         (b, s @ [ AilSreturn e ]))
     in
     match cls with
     | [ cl ] ->
       assert (IT.is_true cl.guard);
-      compile_lat ~f:aux_it sigma prog5 cl.packing_ft
+      compile_lat ~f:aux_it filename sigma prog5 cl.packing_ft
     | cl :: cls' ->
-      let b_if, s_if, e_if = compile_it sigma prog5 cl.guard in
-      let b_then, s_then = compile_lat ~f:aux_it sigma prog5 cl.packing_ft in
+      let b_if, s_if, e_if = compile_it filename sigma prog5 cl.guard in
+      let b_then, s_then = compile_lat ~f:aux_it filename sigma prog5 cl.packing_ft in
       let b_else, s_else = aux cls' in
       let s_then_else =
         A.
@@ -595,6 +601,7 @@ let compile_clauses
 
 
 let compile_pred
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (sym : Sym.t)
@@ -605,7 +612,7 @@ let compile_pred
   let ret_type = CtA.bt_to_ail_ctype ~pred_sym:(Some sym) (snd pred.oarg) in
   let bs, ss =
     match pred.clauses with
-    | Some clauses -> compile_clauses sigma prog5 clauses
+    | Some clauses -> compile_clauses filename sigma prog5 clauses
     | None -> ([], [])
   in
   let params =
@@ -635,13 +642,21 @@ let compile_pred
 
 
 let compile_spec
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
+      (is_static : bool)
       (sym : Sym.t)
       (at : 'a AT.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
-  let fsym = pred_sym sym in
+  let fsym =
+    pred_sym
+      (if is_static then
+         Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym)
+       else
+         sym)
+  in
   let args =
     match List.assoc Sym.equal sym sigma.declarations with
     | _, _, Decl_function (_, _, args, _, _, _) ->
@@ -700,7 +715,7 @@ let compile_spec
       (AT.get_lat at)
   in
   (* Generate function *)
-  let bs2, ss2 = compile_lat sigma prog5 lat in
+  let bs2, ss2 = compile_lat filename sigma prog5 lat in
   let bs3, ss3 =
     let bs, ss =
       (args |> List.map_snd snd |> List.map (fun x -> (false, x)))
@@ -717,21 +732,35 @@ let compile_spec
         in
         let b_arg = [ Utils.create_binding arg_str_sym C.pointer_to_char ] in
         let s_arg =
-          [ A.AilSdeclaration
-              [ ( arg_str_sym,
-                  Some
-                    (mk_expr
-                       (AilEcall
-                          ( mk_expr (AilEident fsym),
-                            [ mk_expr
-                                (CtA.wrap_with_convert_to
-                                   (match bt with
-                                    | Loc () -> AilEident arg
-                                    | _ -> AilEunary (Address, mk_expr (AilEident arg)))
-                                   (BT.Loc ()))
-                            ] ))) )
-              ]
-          ]
+          A.
+            [ (let e_var =
+                 match Sym.description arg with
+                 | SD_ObjectAddress _ ->
+                   AilEunary
+                     ( Indirection,
+                       mk_expr
+                         (AilEcall
+                            ( mk_expr
+                                (AilEident
+                                   (Sym.fresh (Fulminate.Globals.getter_str filename arg))),
+                              [] )) )
+                 | _ -> AilEident arg
+               in
+               AilSdeclaration
+                 [ ( arg_str_sym,
+                     Some
+                       (mk_expr
+                          (AilEcall
+                             ( mk_expr (AilEident fsym),
+                               [ mk_expr
+                                   (CtA.wrap_with_convert_to
+                                      (match bt with
+                                       | Loc () -> e_var
+                                       | _ -> AilEunary (Address, mk_expr e_var))
+                                      (BT.Loc ()))
+                               ] ))) )
+                 ])
+            ]
         in
         let b_cast, s_cast =
           sprintf_to_buf
@@ -808,9 +837,10 @@ let compile_spec
 
 
 let synthesize
+      filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : Fulminate.Extract.instrumentation list)
+      (insts : (bool * Fulminate.Extract.instrumentation) list)
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
   (* Per type *)
@@ -825,6 +855,7 @@ let synthesize
     let module SctypesSet = Set.Make (Sctypes) in
     let arg_types =
       insts
+      |> List.map snd
       |> List.filter (fun (inst : Fulminate.Extract.instrumentation) ->
         Option.is_some inst.internal)
       |> List.filter_map (fun (inst : Fulminate.Extract.instrumentation) ->
@@ -877,12 +908,15 @@ let synthesize
   (* Per predicate *)
   let pred_replicators =
     prog5.resource_predicates
-    |> List.map (fun (sym, pred) -> compile_pred sigma prog5 sym pred)
+    |> List.map (fun (sym, pred) -> compile_pred filename sigma prog5 sym pred)
   in
   (* Per specification *)
   let spec_replicators =
     insts
-    |> List.filter_map (fun (inst : Fulminate.Extract.instrumentation) ->
-      Option.map (fun lat -> compile_spec sigma prog5 inst.fn lat) inst.internal)
+    |> List.filter_map
+         (fun ((is_static, inst) : bool * Fulminate.Extract.instrumentation) ->
+            Option.map
+              (fun lat -> compile_spec filename sigma prog5 is_static inst.fn lat)
+              inst.internal)
   in
   type_replicators @ pred_replicators @ spec_replicators

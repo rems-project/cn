@@ -45,7 +45,7 @@ let attempt cmd success failure =
   ^^ string "fi"
 
 
-let cc_flags () = [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\"" ]
+let cc_flags () = [ "-g"; "\"-I${RUNTIME_PREFIX}/include/\""; "-Wno-attributes" ]
 
 let compile ~filename_base =
   string "# Compile"
@@ -54,6 +54,8 @@ let compile ~filename_base =
        (String.concat
           " "
           ([ "cc";
+             "${CFLAGS}";
+             "${CPPFLAGS}";
              "-c";
              "-o";
              "\"./" ^ filename_base ^ ".test.o\"";
@@ -62,35 +64,21 @@ let compile ~filename_base =
            @ cc_flags ()))
        ("Compiled '" ^ filename_base ^ ".test.c'.")
        ("Failed to compile '" ^ filename_base ^ ".test.c' in ${TEST_DIR}.")
-  ^^ (if Config.with_static_hack () then
-        empty
-      else
-        twice hardline
-        ^^ attempt
-             (String.concat
-                " "
-                ([ "cc";
-                   "-c";
-                   "-o";
-                   "\"./" ^ filename_base ^ ".exec.o\"";
-                   "\"./" ^ filename_base ^ ".exec.c\""
-                 ]
-                 @ cc_flags ()))
-             ("Compiled '" ^ filename_base ^ ".exec.c'.")
-             ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}.")
-        ^^ twice hardline
-        ^^ attempt
-             (String.concat
-                " "
-                ([ "cc";
-                   "-c";
-                   "-o";
-                   "\"./" ^ filename_base ^ ".cn.o\"";
-                   "\"./" ^ filename_base ^ ".cn.c\""
-                 ]
-                 @ cc_flags ()))
-             ("Compiled '" ^ filename_base ^ ".cn.c'.")
-             ("Failed to compile '" ^ filename_base ^ ".cn.c' in ${TEST_DIR}."))
+  ^^ (twice hardline
+      ^^ attempt
+           (String.concat
+              " "
+              ([ "cc";
+                 "${CFLAGS}";
+                 "${CPPFLAGS}";
+                 "-c";
+                 "-o";
+                 "\"./" ^ filename_base ^ ".exec.o\"";
+                 "\"./" ^ filename_base ^ ".exec.c\""
+               ]
+               @ cc_flags ()))
+           ("Compiled '" ^ filename_base ^ ".exec.c'.")
+           ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}."))
   ^^ hardline
 
 
@@ -105,15 +93,11 @@ let link ~filename_base =
        (String.concat
           " "
           ([ "cc";
+             "${CFLAGS}";
+             "${CPPFLAGS}";
              "-o";
              "\"./tests.out\"";
-             (filename_base
-              ^ ".test.o"
-              ^
-              if Config.with_static_hack () then
-                ""
-              else
-                " " ^ filename_base ^ ".exec.o " ^ filename_base ^ ".cn.o");
+             filename_base ^ ".test.o " ^ filename_base ^ ".exec.o";
              "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\""

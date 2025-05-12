@@ -8,5 +8,14 @@ uint64_t count()
         __count < 100u64;
   @*/
 {
-    return __count++;
+  return __count++;
+}
+
+static uint64_t count_alt()
+/*@ accesses __count;
+    requires
+        __count < 100u64;
+  @*/
+{
+  return __count++;
 }

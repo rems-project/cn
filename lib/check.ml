@@ -1043,6 +1043,7 @@ module Spine : sig
     :  Loc.t ->
     fsym:Sym.t ->
     BT.t Mu.pexpr list ->
+    IT.t list ->
     AT.ft ->
     (RT.t -> unit m) ->
     unit m
@@ -1050,6 +1051,7 @@ module Spine : sig
   val calltype_lt
     :  Loc.t ->
     BT.t Mu.pexpr list ->
+    IT.t list ->
     AT.lt * Where.label ->
     (False.t -> unit m) ->
     unit m
@@ -1057,7 +1059,7 @@ module Spine : sig
   val calltype_lemma
     :  Loc.t ->
     lemma:Sym.t ->
-    (Loc.t * IT.t) list ->
+    IT.t list ->
     AT.lemmat ->
     (LRT.t -> unit m) ->
     unit m
@@ -1087,46 +1089,6 @@ end = struct
     k rt
 
 
-  let spine check_arg rt_subst rt_pp loc (situation : call_situation) args ftyp k =
-    let open ArgumentTypes in
-    let original_ftyp = ftyp in
-    let original_args = args in
-    let@ () =
-      print_with_ctxt (fun ctxt ->
-        debug 6 (lazy (call_situation situation));
-        debug 6 (lazy (item "ctxt" (Context.pp ctxt)));
-        debug 6 (lazy (item "spec" (pp rt_pp ftyp))))
-    in
-    let check =
-      let rec aux args_acc args ftyp k =
-        match (args, ftyp) with
-        | arg :: args, Computational ((s, bt), _info, ftyp) ->
-          check_arg arg ~expect:bt (fun arg ->
-            aux
-              (args_acc @ [ arg ])
-              args
-              (subst rt_subst (make_subst [ (s, arg) ]) ftyp)
-              k)
-        | [], L ftyp ->
-          let@ () =
-            match situation with
-            | FunctionCall fsym -> record_action (Call (fsym, args_acc), loc)
-            | Subtyping | LabelCall LAreturn ->
-              let returned = match args_acc with [ v ] -> v | _ -> assert false in
-              record_action (Return returned, loc)
-            | _ -> return ()
-          in
-          k ftyp
-        | _ ->
-          let expect = count_computational original_ftyp in
-          let has = List.length original_args in
-          WellTyped.ensure_same_argument_number loc `Other has ~expect
-      in
-      fun args ftyp k -> aux [] args ftyp k
-    in
-    check args ftyp (fun lftyp -> spine_l rt_subst rt_pp loc situation lftyp k)
-
-
   let check_arg_pexpr (pe : BT.t Mu.pexpr) ~expect k =
     let@ () =
       WellTyped.ensure_base_type (Mu.loc_of_pexpr pe) ~expect (Mu.bt_of_pexpr pe)
@@ -1134,21 +1096,66 @@ end = struct
     check_pexpr pe k
 
 
-  let check_arg_it (loc, it_arg) ~(expect : BT.t) k =
-    let@ it_arg = WellTyped.check_term loc expect it_arg in
-    k it_arg
+  let spine rt_subst rt_pp loc situation args gargs ftyp k =
+    let open ArgumentTypes in
+    let original_ftyp = ftyp in
+    let original_args = args in
+    let original_gargs = gargs in
+    let@ () =
+      print_with_ctxt (fun ctxt ->
+        debug 6 (lazy (call_situation situation));
+        debug 6 (lazy (item "ctxt" (Context.pp ctxt)));
+        debug 6 (lazy (item "spec" (pp rt_pp ftyp))))
+    in
+    let check =
+      let rec aux args_acc args gargs ftyp k =
+        match (args, gargs, ftyp) with
+        | arg :: args, _, Computational ((s, bt), _info, ftyp) ->
+          check_arg_pexpr arg ~expect:bt (fun arg ->
+            aux
+              (args_acc @ [ arg ])
+              args
+              gargs
+              (subst rt_subst (make_subst [ (s, arg) ]) ftyp)
+              k)
+        | _, garg :: gargs, Ghost ((s, bt), info, ftyp) ->
+          let@ garg = WellTyped.check_term (fst info) bt garg in
+          aux args_acc args gargs (subst rt_subst (make_subst [ (s, garg) ]) ftyp) k
+        | [], [], L ftyp ->
+          let@ () =
+            match situation with
+            | FunctionCall fsym ->
+              record_action (Call { fsym; args = args_acc; gargs = original_gargs }, loc)
+            | Subtyping | LabelCall LAreturn ->
+              let returned = match args_acc with [ v ] -> v | _ -> assert false in
+              record_action (Return { arg = returned; gargs = original_gargs }, loc)
+            | _ -> return ()
+          in
+          k ftyp
+        | _ :: _, _, L _ | [], _, Computational _ ->
+          let expect = count_computational original_ftyp in
+          let has = List.length original_args in
+          WellTyped.ensure_same_argument_number loc `Computational has ~expect
+        | _, _ :: _, L _ | _, [], Ghost _ ->
+          let expect = count_ghost original_ftyp in
+          let has = List.length original_gargs in
+          WellTyped.ensure_same_argument_number loc `Ghost has ~expect
+      in
+      fun args gargs ftyp k -> aux [] args gargs ftyp k
+    in
+    check args gargs ftyp (fun lftyp -> spine_l rt_subst rt_pp loc situation lftyp k)
 
 
-  let calltype_ft loc ~fsym args (ftyp : AT.ft) k =
-    spine check_arg_pexpr RT.subst RT.pp loc (FunctionCall fsym) args ftyp k
+  let calltype_ft loc ~fsym args gargs (ftyp : AT.ft) k =
+    spine RT.subst RT.pp loc (FunctionCall fsym) args gargs ftyp k
 
 
-  let calltype_lt loc args ((ltyp : AT.lt), label_kind) k =
-    spine check_arg_pexpr False.subst False.pp loc (LabelCall label_kind) args ltyp k
+  let calltype_lt loc args gargs ((ltyp : AT.lt), label_kind) k =
+    spine False.subst False.pp loc (LabelCall label_kind) args gargs ltyp k
 
 
-  let calltype_lemma loc ~lemma args lemma_typ k =
-    spine check_arg_it LRT.subst LRT.pp loc (LemmaApplication lemma) args lemma_typ k
+  let calltype_lemma loc ~lemma gargs lemma_typ k =
+    spine LRT.subst LRT.pp loc (LemmaApplication lemma) [] gargs lemma_typ k
 
 
   (* The "subtyping" judgment needs the same resource/lvar/constraint
@@ -1786,7 +1793,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | Eskip ->
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        k (unit_ loc)
-     | Eccall (act, f_pe, pes) ->
+     | Eccall (act, f_pe, pes, its) ->
        let@ () = WellTyped.check_ct act.loc act.ct in
        (* copied TS's, from wellTyped.ml *)
        (* let@ (_ret_ct, _arg_cts) = match act.ct with *)
@@ -1813,13 +1820,19 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                })
          in
          (* checks pes against their annotations, and that they match ft's argument types *)
-         Spine.calltype_ft loc ~fsym pes ft (fun (Computational ((_, bt), _, _) as rt) ->
-           let@ () = WellTyped.ensure_base_type loc ~expect bt in
-           let@ _, members =
-             make_return_record loc (call_prefix (FunctionCall fsym)) (RT.binders rt)
-           in
-           let@ lvt = bind_return loc members rt in
-           k lvt))
+         Spine.calltype_ft
+           loc
+           ~fsym
+           pes
+           its
+           ft
+           (fun (Computational ((_, bt), _, _) as rt) ->
+              let@ () = WellTyped.ensure_base_type loc ~expect bt in
+              let@ _, members =
+                make_return_record loc (call_prefix (FunctionCall fsym)) (RT.binders rt)
+              in
+              let@ lvt = bind_return loc members rt in
+              k lvt))
      | Eif (c_pe, e1, e2) ->
        let@ () =
          WellTyped.ensure_base_type (Mu.loc_of_expr e1) ~expect (Mu.bt_of_expr e1)
@@ -2058,7 +2071,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
               add_c loc (LC.T (eq_ (apply_ f args def.return_bt loc, body) loc)))
          | Apply (lemma, args) ->
            let@ _loc, lemma_typ = Global.get_lemma loc lemma in
-           let args = List.map (fun arg -> (loc, arg)) args in
            Spine.calltype_lemma loc ~lemma args lemma_typ (fun lrt ->
              let@ _, members =
                make_return_record
@@ -2150,7 +2162,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          check_expr labels e2 (fun it2 ->
            let@ () = remove_as bound_a in
            k it2))
-     | Erun (label_sym, pes) ->
+     | Erun (label_sym, pes, its) ->
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        let@ lt, lkind =
          match Sym.Map.find_opt label_sym labels with
@@ -2164,7 +2176,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          | Some (lt, lkind, _) -> return (lt, lkind)
        in
        let@ original_resources = all_resources_tagged loc in
-       Spine.calltype_lt loc pes (lt, lkind) (fun False ->
+       Spine.calltype_lt loc pes its (lt, lkind) (fun False ->
          let@ () = all_empty loc original_resources in
          return ()))
 
@@ -2210,6 +2222,9 @@ let bind_arguments (_loc : Locations.t) (full_args : _ Mu.arguments) =
   let rec aux_a = function
     | Mu.Computational ((s, bt), info, args) ->
       let@ () = add_a s bt (fst info, lazy (Sym.pp s)) in
+      aux_a args
+    | Mu.Ghost ((s, bt), info, args) ->
+      let@ () = add_l s bt (fst info, lazy (Sym.pp s)) in
       aux_a args
     | L args -> aux_l [] args
   in

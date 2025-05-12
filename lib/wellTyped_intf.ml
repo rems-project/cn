@@ -7,7 +7,7 @@ module type S = sig
 
   val ensure_same_argument_number
     :  Locations.t ->
-    [ `Other | `Input | `Output ] ->
+    [ `Computational | `Ghost | `Other | `Input | `Output ] ->
     int ->
     expect:int ->
     unit t

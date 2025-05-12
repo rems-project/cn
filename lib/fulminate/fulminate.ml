@@ -1,7 +1,9 @@
 module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
 module Extract = Extract
+module Globals = Globals
 module Internal = Internal
+module Records = Records
 module Ownership = Ownership
 module Utils = Utils
 
@@ -17,114 +19,6 @@ let rec group_toplevel_defs new_list = function
         List.filter (fun toplevel_loc -> loc != toplevel_loc) new_list
       in
       group_toplevel_defs (loc :: non_matching_elems) ls)
-
-
-let rec open_auxilliary_files
-          source_filename
-          prefix
-          included_filenames
-          already_opened_list
-  =
-  match included_filenames with
-  | [] -> []
-  | fn :: fns ->
-    (match fn with
-     | Some fn' ->
-       if
-         String.equal fn' source_filename || List.mem String.equal fn' already_opened_list
-       then
-         []
-       else (
-         let fn_list = String.split_on_char '/' fn' in
-         let output_fn = List.nth fn_list (List.length fn_list - 1) in
-         let output_fn_with_prefix = Filename.concat prefix output_fn in
-         if Sys.file_exists output_fn_with_prefix then (
-           Printf.printf
-             "Error in opening file %s as it already exists\n"
-             output_fn_with_prefix;
-           open_auxilliary_files source_filename prefix fns (fn' :: already_opened_list))
-         else (
-           let output_channel = Stdlib.open_out output_fn_with_prefix in
-           (fn', output_channel)
-           :: open_auxilliary_files source_filename prefix fns (fn' :: already_opened_list)))
-     | None -> [])
-
-
-let filter_injs_by_filename inj_pairs fn =
-  List.filter
-    (fun (loc, _) ->
-       match Cerb_location.get_filename loc with
-       | Some name -> String.equal name fn
-       | None -> false)
-    inj_pairs
-
-
-let rec inject_injs_to_multiple_files ail_prog in_stmt_injs block_return_injs cn_header
-  = function
-  | [] -> ()
-  | (fn', oc') :: xs ->
-    Stdlib.output_string oc' (cn_header ^ "\n");
-    let in_stmt_injs_for_fn' = filter_injs_by_filename in_stmt_injs fn' in
-    let return_injs_for_fn' = filter_injs_by_filename block_return_injs fn' in
-    (match
-       Source_injection.(
-         output_injections
-           oc'
-           { filename = fn';
-             program = ail_prog;
-             pre_post = [];
-             in_stmt = in_stmt_injs_for_fn';
-             returns = return_injs_for_fn';
-             inject_in_preproc = false
-           })
-     with
-     | Ok () -> ()
-     | Error str ->
-       (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
-       prerr_endline str);
-    Stdlib.close_out oc';
-    inject_injs_to_multiple_files ail_prog in_stmt_injs block_return_injs cn_header xs
-
-
-let copy_source_dir_files_into_output_dir filename already_opened_fns_and_ocs prefix =
-  let source_files_already_opened = filename :: List.map fst already_opened_fns_and_ocs in
-  let split_str_list = String.split_on_char '/' filename in
-  let rec remove_last_elem = function
-    | [] -> []
-    | [ _ ] -> []
-    | x :: xs -> x :: remove_last_elem xs
-  in
-  let source_dir_path = String.concat "/" (remove_last_elem split_str_list) in
-  let source_dir_all_files_without_path = Array.to_list (Sys.readdir source_dir_path) in
-  let source_dir_all_files_with_path =
-    List.map
-      (fun fn -> String.concat "/" [ source_dir_path; fn ])
-      source_dir_all_files_without_path
-  in
-  let remaining_source_dir_files =
-    List.filter
-      (fun fn -> not (List.mem String.equal fn source_files_already_opened))
-      source_dir_all_files_with_path
-  in
-  let remaining_source_dir_files =
-    List.filter
-      (fun fn -> List.mem String.equal (Filename.extension fn) [ ".c"; ".h" ])
-      remaining_source_dir_files
-  in
-  let remaining_source_dir_files_opt =
-    List.map (fun str -> Some str) remaining_source_dir_files
-  in
-  let remaining_fns_and_ocs =
-    open_auxilliary_files filename prefix remaining_source_dir_files_opt []
-  in
-  let read_file file = In_channel.with_open_bin file In_channel.input_all in
-  let copy_file_contents_to_output_dir (input_fn, fn_oc) =
-    let input_file_contents = read_file input_fn in
-    Stdlib.output_string fn_oc input_file_contents;
-    ()
-  in
-  let _ = List.map copy_file_contents_to_output_dir remaining_fns_and_ocs in
-  ()
 
 
 let memory_accesses_injections ail_prog =
@@ -256,41 +150,56 @@ let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
-let get_cn_helper_filename filename =
-  Filename.(remove_extension (basename filename)) ^ ".cn.c"
+let get_output_filename outdir outfile filename =
+  let file = Option.value ~default:(get_instrumented_filename filename) outfile in
+  let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
+  Filename.concat prefix file
 
 
 let main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
       ?(with_loop_leak_checks = false)
-      ?(with_test_gen = false)
-      ?(copy_source_dir = false)
+      ?(with_testing = false)
       filename
-      ~use_preproc
+      in_filename (* WARNING: this file will be deleted after this function *)
+      out_filename
+      (static_funcs : string list)
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
-      output_decorated
-      output_decorated_dir
-      (prog5 : unit Mucore.file)
+      prog5
   =
-  let output_filename =
-    Option.value ~default:(get_instrumented_filename filename) output_decorated
+  let compile_commands_json_oc = Stdlib.open_out "compile_commands.json" in
+  let opam_switch_prefix =
+    match Sys.getenv_opt "OPAM_SWITCH_PREFIX" with
+    | Some p -> p
+    | None -> failwith "OPAM_SWITCH_PREFIX not set"
   in
-  let prefix = match output_decorated_dir with Some dir_name -> dir_name | None -> "" in
-  let oc = Stdlib.open_out (Filename.concat prefix output_filename) in
-  let cn_oc =
-    Stdlib.open_out (Filename.concat prefix (get_cn_helper_filename filename))
+  let compile_commands_json_str =
+    [ "[";
+      "\n\t{ \"directory\": \"" ^ "\",";
+      "\n\t\"command\": \"cc -I"
+      ^ opam_switch_prefix
+      ^ "/lib/cn/runtime/include/ "
+      ^ out_filename
+      ^ "\",";
+      "\n\t\"file\": \"" ^ out_filename ^ "\" }";
+      "\n]"
+    ]
   in
-  let cn_header_filename =
-    Filename.remove_extension (get_cn_helper_filename filename) ^ ".h"
-  in
-  let cn_header_oc = Stdlib.open_out (Filename.concat prefix cn_header_filename) in
+  output_to_oc compile_commands_json_oc compile_commands_json_str;
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation prog5
   in
   let filtered_instrumentation, filtered_sigm =
     filter_selected_fns prog5 sigm full_instrumentation
+  in
+  let static_funcs =
+    filtered_instrumentation
+    |> List.filter (fun (inst : Extract.instrumentation) ->
+      List.exists (String.equal (Sym.pp_string inst.fn)) static_funcs)
+    |> List.map (fun (inst : Extract.instrumentation) -> inst.fn)
+    |> Sym.Set.of_list
   in
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation prog5;
@@ -299,86 +208,87 @@ let main
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      filename
       filtered_instrumentation
       sigm
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
-  let c_function_defs, c_function_decls, c_function_locs =
-    generate_c_functions sigm prog5.logical_predicates
+  let c_function_defs, c_function_decls, _c_function_locs =
+    generate_c_functions filename sigm prog5.logical_predicates
   in
-  let c_predicate_defs, c_predicate_decls, c_predicate_locs =
-    generate_c_predicates sigm prog5.resource_predicates
+  let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
+    generate_c_predicates filename sigm prog5.resource_predicates
   in
   let conversion_function_defs, conversion_function_decls =
-    generate_conversion_and_equality_functions sigm
+    generate_conversion_and_equality_functions filename sigm
   in
-  let cn_header_pair = (cn_header_filename, false) in
-  let cn_header = Utils.generate_include_header cn_header_pair in
-  let cn_utils_header_pair = ("cn-executable/utils.h", true) in
-  let cn_utils_header = Utils.generate_include_header cn_utils_header_pair in
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
   in
-  let c_struct_defs = generate_c_struct_strs sigm.tag_definitions in
+  let c_struct_decls = generate_c_struct_strs sigm.tag_definitions in
   let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
-  let datatype_strs = String.concat "\n" (List.map snd c_datatype_defs) in
   let record_defs = Records.generate_all_record_strs () in
+  (* Forward declarations and CN types *)
   let cn_header_decls_list =
-    [ cn_utils_header;
-      "\n";
-      (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
-      record_defs;
-      c_struct_defs;
-      cn_converted_struct_defs;
-      (if not (String.equal datatype_strs "") then "\n/* CN DATATYPES */\n\n" else "");
-      datatype_strs;
-      "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
-      ownership_function_decls;
-      conversion_function_decls;
-      record_fun_decls;
-      c_function_decls;
-      "\n";
-      c_predicate_decls
-    ]
+    List.concat
+      (* TODO instead use hcat on these includes and typedefs *)
+      [ [ (* TODO need handling for the stuff in stdlib.h and stdint.h but we
+             can't include them here, they'll clash in essentially unavoidable
+             ways with the stuff we already included and processed *)
+          "#include <cn-executable/cerb_types.h>\n";
+          (* TODO necessary because of the types in the struct decls. proper
+             handling would be to hoist all definitions and toposort them *)
+          (* TODO actually instead of *hoisting* types we can *lower* structs
+             etc to the highest place they're valid *)
+          "typedef __cerbty_intptr_t intptr_t;\n";
+          "typedef __cerbty_uintptr_t uintptr_t;\n";
+          "typedef __cerbty_intmax_t intmax_t;\n";
+          "typedef __cerbty_uintmax_t uintmax_t;\n";
+          (* TODO need to inject definitions for all the __cerbvars in cerberus
+             builtins.lem. Hoisting/lowering doesn't affect needing to do this *)
+          "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
+          "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n"
+        ];
+        [ c_struct_decls ];
+        [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
+          record_defs;
+          cn_converted_struct_defs
+        ];
+        (if List.is_empty c_datatype_defs then [] else [ "/* CN DATATYPES */" ]);
+        List.map snd c_datatype_defs;
+        [ "\n\n/* OWNERSHIP FUNCTIONS */\n\n";
+          ownership_function_decls;
+          "/* CONVERSION FUNCTIONS */\n";
+          conversion_function_decls;
+          "/* RECORD FUNCTIONS */\n";
+          record_fun_decls;
+          c_function_decls;
+          "\n";
+          c_predicate_decls
+        ]
+      ]
   in
-  let cn_header_oc_str =
-    Utils.ifndef_wrap "CN_HEADER" (String.concat "\n" cn_header_decls_list)
-  in
-  output_to_oc cn_header_oc [ cn_header_oc_str ];
-  (* Genereate myfile.cn.c *)
-
+  (* Definitions for CN helper functions *)
   (* TODO: Topological sort *)
   let cn_defs_list =
-    [ cn_header;
-      (* record_equality_fun_strs; *)
+    [ (* record_equality_fun_strs; *)
       (* record_equality_fun_strs'; *)
+      "/* RECORD */\n";
       record_fun_defs;
+      "/* CONVERSION */\n";
       conversion_function_defs;
+      "/* OWNERSHIP FUNCTIONS */\n";
       ownership_function_defs;
+      "/* CN FUNCTIONS */\n";
       c_function_defs;
       "\n";
       c_predicate_defs
     ]
   in
-  output_to_oc cn_oc cn_defs_list;
-  (* Generate myfile.exec.c *)
-  let incls =
-    [ ("assert.h", true);
-      ("stdlib.h", true);
-      ("stdbool.h", true);
-      ("math.h", true);
-      ("limits.h", true)
-    ]
-  in
-  let headers = List.map Utils.generate_include_header incls in
-  let source_file_strs_list = [ cn_header; List.fold_left ( ^ ) "" headers; "\n" ] in
-  output_to_oc oc source_file_strs_list;
   let c_datatype_locs = List.map fst c_datatype_defs in
-  let toplevel_locs =
-    group_toplevel_defs [] (c_datatype_locs @ c_function_locs @ c_predicate_locs)
-  in
+  let toplevel_locs = group_toplevel_defs [] c_datatype_locs in
   let toplevel_injections = List.map (fun loc -> (loc, [ "" ])) toplevel_locs in
   let accesses_stmt_injs =
     if without_ownership_checking then
@@ -386,65 +296,60 @@ let main
     else
       memory_accesses_injections filtered_ail_prog
   in
-  let struct_locs = List.map (fun (_, (loc, _, _)) -> loc) sigm.tag_definitions in
-  let struct_injs = List.map (fun loc -> (loc, [ "" ])) struct_locs in
+  let struct_locs = List.map (fun (i, (loc, _, _)) -> (i, loc)) sigm.tag_definitions in
+  let struct_injs =
+    List.map
+      (fun (i, loc) -> (loc, [ "struct " ^ Pp.plain (CF.Pp_ail.pp_id i) ]))
+      struct_locs
+  in
   let in_stmt_injs =
     executable_spec.in_stmt @ accesses_stmt_injs @ toplevel_injections @ struct_injs
   in
-  (* Treat source file separately from header files *)
-  let source_file_in_stmt_injs = filter_injs_by_filename in_stmt_injs filename in
-  (* Return injections *)
-  let block_return_injs = executable_spec.returns in
-  let source_file_return_injs = filter_injs_by_filename block_return_injs filename in
-  let included_filenames =
-    List.map (fun (loc, _) -> Cerb_location.get_filename loc) in_stmt_injs
-    @ List.map (fun (loc, _) -> Cerb_location.get_filename loc) block_return_injs
-  in
-  let remaining_fns_and_ocs =
-    if use_preproc then
-      []
-    else
-      open_auxilliary_files filename prefix included_filenames []
-  in
   let pre_post_pairs =
-    if with_test_gen then
-      if not (has_main sigm) then
-        executable_spec.pre_post
-      else
-        failwith
-          "Input file cannot have predefined main function when passing to CN test-gen \
-           tooling"
-    else if without_ownership_checking then
+    if with_testing || without_ownership_checking then
       executable_spec.pre_post
     else (
+      (* XXX: ONLY IF THERE IS A MAIN *)
       (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
       let global_ownership_init_pair = generate_ownership_global_assignments sigm prog5 in
       global_ownership_init_pair @ executable_spec.pre_post)
   in
+  (* Save things *)
+  let oc = Stdlib.open_out out_filename in
+  output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
+  output_to_oc oc cn_header_decls_list;
+  output_to_oc
+    oc
+    [ "#ifndef offsetof\n";
+      "#define offsetof(st, m) ((__cerbty_size_t)((char *)&((st *)0)->m - (char *)0))\n";
+      "#endif\n"
+    ];
+  output_string oc "#pragma GCC diagnostic ignored \"-Wattributes\"\n";
+  output_string oc "\n/* GLOBAL ACCESSORS */\n";
+  output_string
+    oc
+    ("void* memcpy(void* dest, const void* src, __cerbty_size_t count );\n"
+     ^ Globals.accessors_prototypes filename prog5);
   (match
      Source_injection.(
        output_injections
          oc
-         { filename;
+         { orig_filename = filename;
+           filename = in_filename;
            program = ail_prog;
+           static_funcs;
            pre_post = pre_post_pairs;
-           in_stmt = source_file_in_stmt_injs;
-           returns = source_file_return_injs;
-           inject_in_preproc = use_preproc
+           in_stmt = in_stmt_injs;
+           returns = executable_spec.returns;
+           inject_in_preproc = true;
+           with_testing
          })
    with
    | Ok () -> ()
    | Error str ->
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
-  if copy_source_dir then
-    copy_source_dir_files_into_output_dir filename remaining_fns_and_ocs prefix;
-  inject_injs_to_multiple_files
-    ail_prog
-    in_stmt_injs
-    block_return_injs
-    cn_header
-    remaining_fns_and_ocs;
+  output_to_oc oc [ Globals.accessors_str filename prog5 ];
+  output_to_oc oc cn_defs_list;
   close_out oc;
-  close_out cn_oc;
-  close_out cn_header_oc
+  Stdlib.Sys.remove in_filename

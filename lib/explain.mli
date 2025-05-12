@@ -4,8 +4,15 @@ type action =
   | Write of IndexTerms.t * IndexTerms.t
   | Create of IndexTerms.t
   | Kill of IndexTerms.t
-  | Call of Sym.t * IndexTerms.t list
-  | Return of IndexTerms.t
+  | Call of
+      { fsym : Sym.t;
+        args : IndexTerms.t list;
+        gargs : IndexTerms.t list
+      }
+  | Return of
+      { arg : IndexTerms.t;
+        gargs : IndexTerms.t list
+      }
 
 (** Info about what happened *)
 type log_entry =

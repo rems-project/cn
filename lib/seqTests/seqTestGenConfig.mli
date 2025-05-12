@@ -1,7 +1,6 @@
 type t =
   { (* Compile time *)
     print_steps : bool;
-    with_static_hack : bool;
     num_calls : int;
     max_backtracks : int;
     num_tests : int
@@ -19,4 +18,3 @@ val get_max_backtracks : unit -> int
 
 val get_num_tests : unit -> int
 
-val with_static_hack : unit -> bool

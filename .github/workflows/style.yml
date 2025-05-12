@@ -77,8 +77,12 @@ jobs:
         run: |
           find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format-19 --dry-run -Werror
 
-  clang-warnings:
-    name: Clang warnings
+  c-warnings:
+    strategy:
+      matrix:
+        compiler: [gcc, clang-19]
+
+    name: C compiler warnings
 
     runs-on: ubuntu-22.04
 
@@ -86,7 +90,15 @@ jobs:
       - name: Checkout CN
         uses: actions/checkout@v4
 
+      - name: Install GCC
+        if: ${{ matrix.compiler == 'gcc' }}
+        run: |
+          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install gcc
+
       - name: Install Clang
+        if: ${{ matrix.compiler == 'clang-19' }}
         run: |
           wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
           sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
@@ -94,28 +106,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install clang-19
 
-      - name: Check Clang warnings
+      - name: Check compiler warnings
         run: |
-          find runtime/libcn/ -iname '*.c' -exec clang-19 -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
-
-  gcc-warnings:
-    name: GCC warnings
-
-    runs-on: ubuntu-24.04
-
-    steps:
-      - name: Checkout CN
-        uses: actions/checkout@v4
-
-      - name: Install GCC
-        run: |
-          sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-          sudo apt-get update
-          sudo apt-get install gcc
-
-      - name: Check GCC warnings
-        run: |
-          find runtime/libcn/ -iname '*.c' -exec gcc -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
+          find runtime/libcn/ -iname '*.c' -exec ${{ matrix.compiler }} -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
 
   shellcheck:
     name: ShellCheck

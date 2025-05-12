@@ -18,3 +18,7 @@ let get_mangled_name (syms : Sym.t list) : Sym.t =
       let res_sym = Sym.fresh (CF.Pp_utils.to_plain_string doc) in
       names := (syms, res_sym) :: !names;
       res_sym)
+
+
+let destroy_object_refs sym =
+  match Sym.description sym with SD_ObjectAddress x -> Sym.fresh x | _ -> sym

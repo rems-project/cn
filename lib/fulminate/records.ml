@@ -108,6 +108,7 @@ let add_records_to_map_from_instrumentation (i : Extract.instrumentation) =
   in
   let rec aux_at = function
     | AT.Computational ((_, _), _, at) -> aux_at at
+    | AT.Ghost ((_, _), _, at) -> aux_at at
     | L lat -> aux_lat lat
   in
   match i.internal with
@@ -222,7 +223,8 @@ let generate_c_record_funs (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigm
       (eq_decls @ default_decls @ mapget_decls)
   in
   let fun_prot_strs =
-    List.map (fun doc -> [ CF.Pp_utils.to_plain_pretty_string doc ]) decl_docs
+    (* TODO put a flag to control this behavior *)
+    List.map (fun doc -> [ "static " ^ CF.Pp_utils.to_plain_pretty_string doc ]) decl_docs
   in
   let fun_prot_strs = String.concat "\n" (List.concat fun_prot_strs) in
   (fun_strs, fun_prot_strs)

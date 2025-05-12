@@ -7,6 +7,7 @@ module LAT = LogicalArgumentTypes
 
 type 'i t =
   | Computational of (Sym.t * BT.t) * info * 'i t
+  | Ghost of (Sym.t * BT.t) * info * 'i t
   | L of 'i LAT.t
 
 let mComputational (name, bound, info) t = Computational ((name, bound), info, t)
@@ -18,6 +19,9 @@ let rec subst i_subst (substitution : _ Subst.t) at =
   | Computational ((name, bt), info, t) ->
     let name, t = suitably_alpha_rename i_subst substitution.relevant name t in
     Computational ((name, bt), info, subst i_subst substitution t)
+  | Ghost ((name, bt), info, t) ->
+    let name, t = suitably_alpha_rename i_subst substitution.relevant name t in
+    Ghost ((name, bt), info, subst i_subst substitution t)
   | L t -> L (LAT.subst i_subst substitution t)
 
 
@@ -38,6 +42,9 @@ let simp i_subst simp_i simp_it simp_lc simp_re =
     | Computational ((s, bt), info, t) ->
       let s, t = alpha_rename i_subst s t in
       Computational ((s, bt), info, aux t)
+    | Ghost ((s, bt), info, t) ->
+      let s, t = alpha_rename i_subst s t in
+      Ghost ((s, bt), info, aux t)
     | L lt -> L (LAT.simp i_subst simp_i simp_it simp_lc simp_re lt)
   in
   aux
@@ -49,6 +56,9 @@ let pp i_pp ft =
     | Computational ((name, bt), _info, t) ->
       let op = if !unicode then utf8string "\u{03A0}" else !^"AC" in
       group (op ^^^ typ (Sym.pp name) (BT.pp bt) ^^ dot) :: aux t
+    | Ghost ((name, bt), _info, t) ->
+      let op = if !unicode then utf8string "\u{2200}" else !^"AL" in
+      group (op ^^^ typ (Sym.pp name) (BT.pp bt) ^^ dot) :: aux t
     | L t -> LAT.pp_aux i_pp t
   in
   flow (break 1) (aux ft)
@@ -56,20 +66,31 @@ let pp i_pp ft =
 
 let rec get_return = function
   | Computational (_, _, ft) -> get_return ft
+  | Ghost (_, _, ft) -> get_return ft
   | L t -> LAT.get_return t
 
 
-let rec get_lat = function Computational (_, _, ft) -> get_lat ft | L t -> t
+let rec get_lat = function
+  | Computational (_, _, ft) -> get_lat ft
+  | Ghost (_, _, ft) -> get_lat ft
+  | L t -> t
+
 
 let rec get_computational = function
   | Computational (sbt, _, ft) -> sbt :: get_computational ft
+  | Ghost (_, _, ft) -> get_computational ft
   | L _ -> []
 
 
-let rec count_computational = function
-  | Computational (_, _, ft) -> 1 + count_computational ft
-  | L _ -> 0
+let rec get_ghost = function
+  | Computational (_, _, ft) -> get_ghost ft
+  | Ghost (sbt, _, ft) -> sbt :: get_ghost ft
+  | L _ -> []
 
+
+let count_computational at = List.length (get_computational at)
+
+let count_ghost at = List.length (get_ghost at)
 
 module LRT = LogicalReturnTypes
 module RT = ReturnTypes
@@ -82,20 +103,13 @@ let alpha_unique ss =
       let name, t = rename_if ss name t in
       let t = f (Sym.Set.add name ss) t in
       Computational ((name, bt), info, t)
+    | Ghost ((name, bt), info, t) ->
+      let name, t = rename_if ss name t in
+      let t = f (Sym.Set.add name ss) t in
+      Ghost ((name, bt), info, t)
     | L t -> L (LAT.alpha_unique ss t)
   in
   f ss
-
-
-let binders i_binders i_subst =
-  let rec aux = function
-    | Computational ((s, bt), _, t) ->
-      let s, t = alpha_rename i_subst s t in
-      let here = Locations.other __LOC__ in
-      (Id.make here (Sym.pp_string s), bt) :: aux t
-    | L t -> LAT.binders i_binders i_subst t
-  in
-  aux
 
 
 let of_rt (rt : RT.t) (rest : 'i LAT.t) : 'i t =
@@ -106,6 +120,7 @@ let of_rt (rt : RT.t) (rest : 'i LAT.t) : 'i t =
 let rec map (f : 'i -> 'j) (at : 'i t) : 'j t =
   match at with
   | Computational (bound, info, at) -> Computational (bound, info, map f at)
+  | Ghost (bound, info, at) -> Ghost (bound, info, map f at)
   | L t -> L (LAT.map f t)
 
 
@@ -123,6 +138,7 @@ let dtree dtree_i =
   let rec aux = function
     | Computational ((s, _bt), _, lat) ->
       Dnode (pp_ctor "Computational", [ Dleaf (Sym.pp s); aux lat ])
+    | Ghost ((s, _bt), _, lat) -> Dnode (pp_ctor "Ghost", [ Dleaf (Sym.pp s); aux lat ])
     | L l -> LAT.dtree dtree_i l
   in
   aux

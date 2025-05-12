@@ -137,22 +137,13 @@ let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
 
 let create_test_file
       (sequence : Pp.document)
-      (filename_base : string)
       (fun_decls : Pp.document)
   : Pp.document
   =
   let open Pp in
-  (if Config.with_static_hack () then
-     string "#include "
-     ^^ dquotes (string (filename_base ^ ".exec.c"))
-     ^^ hardline
-     ^^ string "#include "
-     ^^ dquotes (string "cn.c")
-   else
-     string "#include "
-     ^^ dquotes (string (filename_base ^ ".cn.h"))
-     ^^ twice hardline
-     ^^ fun_decls)
+  fun_decls
+  ^^ twice hardline
+  ^^ string "#include <cn-executable/utils.h>"
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
@@ -389,7 +380,10 @@ let generate
         ())
   in
   let open Pp in
-  let fun_decls = separate_map hardline fun_to_decl insts in
+  let struct_decls = Fulminate.Internal.generate_c_struct_strs sigma.tag_definitions in
+  let fun_decls =
+    string struct_decls ^^ hardline ^^ separate_map hardline fun_to_decl insts
+  in
   let compiled_seq =
     compile_sequence
       sigma
@@ -503,8 +497,7 @@ let needs_static_hack
                       loc
                       (string "Static function"
                        ^^^ squotes (Sym.pp inst.fn)
-                       ^^^ string "could not be tested."
-                       ^/^ string "Try again with '--with-static-hack'")))
+                       ^^^ string "could not be tested.")))
                ();
            true
          | _ -> false)
@@ -547,8 +540,7 @@ let needs_static_hack
                        ^^^ string "relies on static global"
                        ^^^ squotes (Sym.pp sym)
                        ^^ comma
-                       ^^^ string "so could not be tested."
-                       ^^^ string "Try again with '--with-static-hack'.")))
+                       ^^^ string "so could not be tested.")))
                static_globs)
           ();
       true)
@@ -578,8 +570,7 @@ let needs_enum_hack
                  loc
                  (string "Function"
                   ^^^ squotes (Sym.pp inst.fn)
-                  ^^^ string "has enum arguments and so could not be tested."
-                  ^/^ string "Try again with '--with-static-hack'")))
+                  ^^^ string "has enum arguments and so could not be tested.")))
           ();
       true)
     else if match ret_ct with C.Ctype (_, Basic (Integer (Enum _))) -> true | _ -> false
@@ -592,8 +583,7 @@ let needs_enum_hack
                  loc
                  (string "Function"
                   ^^^ squotes (Sym.pp inst.fn)
-                  ^^^ string "has an enum return type and so could not be tested."
-                  ^/^ string "Try again with '--with-static-hack'")))
+                  ^^^ string "has an enum return type and so could not be tested.")))
           ();
       true)
     else
@@ -618,10 +608,9 @@ let functions_under_test
   |> List.filter (fun (inst : Fulminate.Extract.instrumentation) ->
     Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
-    && (Config.with_static_hack ()
-        || not
-             (needs_static_hack ~with_warning cabs_tunit sigma inst
-              || needs_enum_hack ~with_warning sigma inst)))
+    && not
+         (needs_static_hack ~with_warning cabs_tunit sigma inst
+          || needs_enum_hack ~with_warning sigma inst))
 
 
 let run_seq
