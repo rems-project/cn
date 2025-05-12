@@ -130,7 +130,7 @@ let rec combine_stats (stats_list : T.test_stats list) (combined_stats : T.test_
 let create_intermediate_test_file
       (sequences : Pp.document list)
       (tests_to_try : Pp.document list)
-      (filename_base : string)
+      (_ : string)
       (fun_decls : Pp.document)
   : Pp.document
   =
@@ -171,10 +171,19 @@ let create_intermediate_test_file
           ^^ string "break"
           ^^ semi)
   in
-     (string "#include "
-     ^^ dquotes (string (filename_base ^ ".cn.h"))
-     ^^ twice hardline
-     ^^ fun_decls)
+  (separate
+     hardline
+     (List.map
+        string
+        [ "#ifndef NULL\n";
+          "#include <stdlib.h>\n";
+          "#endif\n";
+          "#include <stdint.h>\n";
+          "#include <cn-executable/utils.h>\n";
+          "#include <cn-executable/cerb_types.h>\n"
+        ])
+   ^^ twice hardline
+   ^^ fun_decls)
   ^^ twice hardline
   ^^ separate
        (twice hardline)

@@ -6,13 +6,7 @@ type t =
     num_tests : int
   }
 
-let default =
-  { print_steps = false;
-    num_calls = 30;
-    max_backtracks = 25;
-    num_tests = 10
-  }
-
+let default = { print_steps = false; num_calls = 30; max_backtracks = 25; num_tests = 10 }
 
 let instance = ref default
 
@@ -25,4 +19,3 @@ let get_num_calls () = !instance.num_calls
 let get_max_backtracks () = !instance.max_backtracks
 
 let get_num_tests () = !instance.num_tests
-

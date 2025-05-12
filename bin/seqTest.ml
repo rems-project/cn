@@ -90,7 +90,7 @@ let run_seq_tests
              { print_steps; num_calls; max_backtracks = backtrack_attempts; num_tests }
            in
            SeqTests.set_seq_config config;
-           if SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0 then
+           if SeqTests.run_seq ~output_dir ~filename sigma prog5 <> 0 then
              exit 123)
         ();
       Or_TypeError.return ())

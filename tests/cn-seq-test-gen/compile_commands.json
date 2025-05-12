@@ -1,0 +1,5 @@
+[
+	{ "directory": "",
+	"command": "cc -I/Users/ethanchou/.opam/5.2.0/lib/cn/runtime/include/ test/ini_queue.fail.exec.c",
+	"file": "test/ini_queue.fail.exec.c" }
+]
