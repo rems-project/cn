@@ -71,7 +71,7 @@ let run_tests
     mk dir
   in
   let pp_file = Filename.temp_file "cn_" basefile in
-  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
+  let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
@@ -142,6 +142,7 @@ let run_tests
                 filename
                 pp_file
                 out_file
+                (Some output_dir)
                 (Common.static_funcs cabs_tunit)
                 ail_prog
                 prog5
