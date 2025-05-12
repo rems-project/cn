@@ -296,7 +296,6 @@ let rec gen_sequence
         `PostConditionViolation
           ( create_test_file
               (seq ^^ hardline ^^ string "return 123;")
-              filename_base
               fun_decls,
             { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
       else

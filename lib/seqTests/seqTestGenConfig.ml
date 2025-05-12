@@ -1,7 +1,6 @@
 type t =
   { (* Compile time *)
     print_steps : bool;
-    with_static_hack : bool;
     num_calls : int;
     max_backtracks : int;
     num_tests : int
@@ -9,7 +8,6 @@ type t =
 
 let default =
   { print_steps = false;
-    with_static_hack = false;
     num_calls = 30;
     max_backtracks = 25;
     num_tests = 10
@@ -28,4 +26,3 @@ let get_max_backtracks () = !instance.max_backtracks
 
 let get_num_tests () = !instance.num_tests
 
-let with_static_hack () = !instance.with_static_hack

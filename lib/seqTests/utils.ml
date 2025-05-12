@@ -171,14 +171,7 @@ let create_intermediate_test_file
           ^^ string "break"
           ^^ semi)
   in
-  (if Config.with_static_hack () then
-     string "#include "
-     ^^ dquotes (string (filename_base ^ "-exec.c"))
-     ^^ hardline
-     ^^ string "#include "
-     ^^ dquotes (string "cn.c")
-   else
-     string "#include "
+     (string "#include "
      ^^ dquotes (string (filename_base ^ ".cn.h"))
      ^^ twice hardline
      ^^ fun_decls)
