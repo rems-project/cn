@@ -6,6 +6,8 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 
+#include <stdio.h>
+
 // XXX: things used by injected code
 #define true  1
 #define false 0
@@ -13,6 +15,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define cn_printf(level, ...)                                                            \
+  if (get_cn_logging_level() >= level) {                                                 \
+    printf(__VA_ARGS__);                                                                 \
+  }
 
 enum spec_mode {
   PRE = 1,
@@ -556,13 +563,13 @@ void c_ownership_check(
 // /Unused
 
 static inline void cn_load(void *ptr, size_t size) {
-  //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mLOAD\x1b[0m[%lu] - ptr: %p\n", size, ptr);
+  // cn_printf(CN_LOGGING_INFO, "  \x1b[31mLOAD\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
 static inline void cn_store(void *ptr, size_t size) {
-  //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mSTORE\x1b[0m[%lu] - ptr: %p\n", size, ptr);
+  // cn_printf(CN_LOGGING_INFO, "  \x1b[31mSTORE\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
 static inline void cn_postfix(void *ptr, size_t size) {
-  //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mPOSTFIX\x1b[0m[%lu] - ptr: %p\n", size, ptr);
+  // cn_printf(CN_LOGGING_INFO, "  \x1b[31mPOSTFIX\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
 
 // use this macro to wrap an argument to another macro that contains commas
