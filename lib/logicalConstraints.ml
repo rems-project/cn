@@ -107,3 +107,12 @@ let is_interesting : t -> bool =
   | T (IT (Representable _, _, _)) -> false
   | T (IT (Good _, _, _)) -> false
   | _ -> true
+
+
+(** make `lc` conditional on `it` *)
+let impl loc (it : IT.t) (lc : t) : t =
+  match lc with
+  | T t -> T (IT.impl_ (it, t) loc)
+  | Forall ((s, bt), t) ->
+    let s, t = IT.alpha_rename s t in
+    Forall ((s, bt), IT.impl_ (it, t) loc)

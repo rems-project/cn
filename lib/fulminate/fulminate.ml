@@ -150,10 +150,9 @@ let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
-let get_output_filename outdir outfile filename =
-  let file = Option.value ~default:(get_instrumented_filename filename) outfile in
+let get_filename_with_prefix outdir filename =
   let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
-  Filename.concat prefix file
+  Filename.concat prefix filename
 
 
 let main
@@ -164,20 +163,24 @@ let main
       filename
       in_filename (* WARNING: this file will be deleted after this function *)
       out_filename
+      output_dir
       (static_funcs : string list)
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
       prog5
   =
-  let compile_commands_json_oc = Stdlib.open_out "compile_commands.json" in
+  let compile_commands_json_oc =
+    Stdlib.open_out (get_filename_with_prefix output_dir "compile_commands.json")
+  in
   let opam_switch_prefix =
     match Sys.getenv_opt "OPAM_SWITCH_PREFIX" with
     | Some p -> p
     | None -> failwith "OPAM_SWITCH_PREFIX not set"
   in
+  let directory = match output_dir with Some dir -> dir | None -> "." in
   let compile_commands_json_str =
     [ "[";
-      "\n\t{ \"directory\": \"" ^ "\",";
+      "\n\t{ \"directory\": \"" ^ directory ^ "\",";
       "\n\t\"command\": \"cc -I"
       ^ opam_switch_prefix
       ^ "/lib/cn/runtime/include/ "
@@ -188,6 +191,8 @@ let main
     ]
   in
   output_to_oc compile_commands_json_oc compile_commands_json_str;
+  close_out compile_commands_json_oc;
+  let out_filename = get_filename_with_prefix output_dir out_filename in
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation prog5
   in

@@ -37,3 +37,5 @@ val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 val is_forall : t -> bool
 
 val is_interesting : t -> bool
+
+val impl : Locations.t -> IndexTerms.t -> t -> t

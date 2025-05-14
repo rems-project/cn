@@ -42,7 +42,7 @@ let run_seq_tests
     let dir, mk = output_dir in
     mk dir
   in
-  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
+  let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
@@ -83,6 +83,7 @@ let run_seq_tests
              filename
              pp_file
              out_file
+             (Some output_dir)
              (Common.static_funcs cabs_tunit)
              ail_prog
              prog5;

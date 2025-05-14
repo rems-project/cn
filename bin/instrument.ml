@@ -114,7 +114,9 @@ let generate_executable_specs
   let filename = Common.there_can_only_be_one filename in
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
-  let out_file = Fulminate.get_output_filename output_dir output basefile in
+  let out_file =
+    Option.value ~default:(Fulminate.get_instrumented_filename basefile) output
+  in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros:(("__CN_INSTRUMENT", None) :: macros)
@@ -146,6 +148,7 @@ let generate_executable_specs
                 filename
                 pp_file
                 out_file
+                output_dir
                 (Common.static_funcs cabs_tunit)
                 ail_prog
                 prog5
