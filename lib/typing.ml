@@ -77,18 +77,19 @@ let pure (m : 'a t) : 'a t =
   Option.iter (fun s -> Solver.pop s 1) s.solver;
   outcome
 
+
 let pure_persist_logical_variables (m : 'a t) : 'a t =
   fun s ->
   Option.iter Solver.push s.solver;
-  let outcome = 
-    match m s with 
-    | Ok (a, s') -> 
-      let typing_context = 
+  let outcome =
+    match m s with
+    | Ok (a, s') ->
+      let typing_context =
         let open Context in
         { s.typing_context with logical = s'.typing_context.logical }
       in
-      Ok (a, {s with typing_context }) 
-    | Error e -> Error e 
+      Ok (a, { s with typing_context })
+    | Error e -> Error e
   in
   Option.iter (fun s -> Solver.pop s 1) s.solver;
   outcome
