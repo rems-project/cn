@@ -287,7 +287,7 @@ int ownership_ghost_state_get(int64_t* address_key) {
 }
 
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
-  int* new_depth = cn_bump_malloc(sizeof(int));
+  int* new_depth = cn_fl_malloc(sizeof(int));
   *new_depth = stack_depth_val;
   ht_set(cn_ownership_global_ghost_state, address_key, new_depth);
 }
@@ -324,11 +324,10 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
   // cn_printf(CN_LOGGING_INFO, "[CN: assuming ownership (%s)] " FMT_PTR_2 ", size: %lu\n", fun, (uintptr_t) generic_c_ptr, size);
   //// print_error_msg_info();
   for (int i = 0; i < size; i++) {
-    int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
-    *address_key = (uintptr_t)generic_c_ptr + i;
+    int64_t address_key = (uintptr_t)generic_c_ptr + i;
     /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
     /*        ((uintptr_t) generic_c_ptr) + i, fun); */
-    ownership_ghost_state_set(address_key, cn_stack_depth);
+    ownership_ghost_state_set(&address_key, cn_stack_depth);
   }
 }
 
@@ -355,20 +354,18 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
 void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] add local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
   for (int i = 0; i < size; i++) {
-    int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
-    *address_key = (uintptr_t)ptr_to_local + i;
+    int64_t address_key = (uintptr_t)ptr_to_local + i;
     /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
-    ownership_ghost_state_set(address_key, stack_depth);
+    ownership_ghost_state_set(&address_key, stack_depth);
   }
 }
 
 void c_remove_from_ghost_state(void* ptr_to_local, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] remove local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
   for (int i = 0; i < size; i++) {
-    int64_t* address_key = cn_bump_malloc(sizeof(int64_t));
-    *address_key = (uintptr_t)ptr_to_local + i;
+    int64_t address_key = (uintptr_t)ptr_to_local + i;
     /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
-    ownership_ghost_state_remove(address_key);
+    ownership_ghost_state_remove(&address_key);
   }
 }
 
@@ -414,18 +411,16 @@ void c_ownership_check(char* access_kind,
 
 //     for (int i = 0; i < n; i++) {
 //         uintptr_t fn_local_ptr = va_arg(args, uintptr_t);
-//         signed long *address_key = cn_bump_malloc(sizeof(long));
-//         *address_key = fn_local_ptr;
-//         ghost_state_set(cn_ownership_global_ghost_state, address_key, cn_stack_depth);
+//         signed long address_key = fn_local_ptr;
+//         ghost_state_set(cn_ownership_global_ghost_state, &address_key, cn_stack_depth);
+//         cn_fl_free(address_key);
 //     }
 
 //     va_end(args);
 // }
 
 cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value) {
-  int64_t* key_ptr = cn_bump_malloc(sizeof(int64_t));
-  *key_ptr = key->val;
-  ht_set(m, key_ptr, value);
+  ht_set(m, &key->val, value);
   return m;
 }
 
