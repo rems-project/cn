@@ -44,12 +44,12 @@ let compile_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t
   CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
 
 
-let[@warning "-27"] rec compile_term
-                          (filename : string)
-                          (sigma : CF.GenTypes.genTypeCategory A.sigma)
-                          (ctx : GR.context)
-                          (name : Sym.t)
-                          (tm : GR.term)
+let rec compile_term
+          (filename : string)
+          (sigma : CF.GenTypes.genTypeCategory A.sigma)
+          (ctx : GR.context)
+          (name : Sym.t)
+          (tm : GR.term)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
@@ -128,7 +128,7 @@ let[@warning "-27"] rec compile_term
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | Alloc { bytes = it; sized } ->
+  | Alloc { bytes = it } ->
     let alloc_sym = Sym.fresh "CN_GEN_ALLOC" in
     let b, s, e = compile_it filename sigma name it in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
