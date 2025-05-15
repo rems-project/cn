@@ -111,6 +111,6 @@ if [ -z "$FAILED" ]; then
   exit 0
 else
   OUTPUT="${OUTPUT}$TEST - $NUM_FAILED configs failed:\n  $FAILED"
-  printf "${OUTPUT}\n"
+  printf "%b\n" "${OUTPUT}"
   exit 1
 fi
