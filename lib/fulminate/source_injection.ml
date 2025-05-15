@@ -209,6 +209,7 @@ let inject st inj =
          ^ indent
          ^ "/* EXECUTABLE CN PRECONDITION */"
          ^ "\n"
+         ^ "cn_bump_frame_id cn_frame_id = cn_bump_get_frame_id();\n"
          ^ indent
          ^ (if CF.AilTypesAux.is_void ret_ty then
               ""
@@ -250,7 +251,7 @@ let inject st inj =
          if CF.AilTypesAux.is_void ret_ty then
            indent ^ ";\n"
          else
-           indent ^ "\nreturn __cn_ret;\n\n")
+           indent ^ "\ncn_bump_free_after(cn_frame_id);\n" ^ "\nreturn __cn_ret;\n\n")
     | DeleteMain pre ->
       if pre then do_output st "\n#if 0\n" else do_output st "\n#endif\n"
     | WrapStatic (prefix, decl) ->
