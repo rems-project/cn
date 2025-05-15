@@ -216,7 +216,7 @@ let compile_req
                           AilEident q_sym;
                           AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
-                      @ [ e_perm; e_max ] )))
+                      @ [ e_perm; e_min ] )))
           ]
         @ s_val
         @ [ AilSexpr
@@ -229,7 +229,7 @@ let compile_req
                           AilEident q_sym;
                           AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
-                      @ [ e_val; e_min ] )))
+                      @ [ e_val; e_max ] )))
           ]
       in
       (b1 @ b_val, s1 @ s2, mk_expr (A.AilEident map_sym))
