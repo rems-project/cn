@@ -434,9 +434,10 @@ cn_bool *default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
-    int64_t *key_ptr = cn_bump_malloc(sizeof(int64_t));                                  \
+    int64_t *key_ptr = cn_fl_malloc(sizeof(int64_t));                                    \
     *key_ptr = key->val;                                                                 \
     void *res = ht_get(m, key_ptr);                                                      \
+    cn_fl_free(key_ptr);                                                                 \
     if (!res) {                                                                          \
       return (void *)default_##CNTYPE();                                                 \
     }                                                                                    \
