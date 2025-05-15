@@ -724,7 +724,11 @@ let memberShift_ (base, tag, member) loc =
   IT (MemberShift (base, tag, member), BT.Loc (), loc)
 
 
-let arrayShift_ ~base ~index ct loc = IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
+(* invariant of ArrayShift: index must have type uintptr_bt *)
+let arrayShift_ ?(do_cast = true) ~base ~index ct loc =
+  let index = if do_cast then cast_ Memory.uintptr_bt index loc else index in
+  IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
+
 
 let copyAllocId_ ~addr ~loc:ptr loc = IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc)
 

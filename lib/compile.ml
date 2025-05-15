@@ -454,7 +454,12 @@ module C_vars = struct
        | Some ct ->
          let (IT (it_, _, _)) =
            Surface.inj
-             (arrayShift_ ~base:(Surface.proj e1) ct ~index:(Surface.proj e2) loc)
+             (arrayShift_
+                ~do_cast:false
+                ~base:(Surface.proj e1)
+                ct
+                ~index:(Surface.proj e2)
+                loc)
          in
          return (IT (it_, Loc oct, loc))
        | None -> fail { loc; msg = No_pointee_ctype e1 })
@@ -467,6 +472,7 @@ module C_vars = struct
          let (IT (it_, _, _)) =
            Surface.inj
              (arrayShift_
+                ~do_cast:false
                 ~base:(Surface.proj e1)
                 ct
                 ~index:(sub_ (int_ 0 here, Surface.proj e2) here)
