@@ -150,10 +150,7 @@ let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
-let get_filename_with_prefix outdir filename =
-  let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
-  Filename.concat prefix filename
-
+let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
 let main
       ?(without_ownership_checking = false)
@@ -177,10 +174,9 @@ let main
     | Some p -> p
     | None -> failwith "OPAM_SWITCH_PREFIX not set"
   in
-  let directory = match output_dir with Some dir -> dir | None -> "." in
   let compile_commands_json_str =
     [ "[";
-      "\n\t{ \"directory\": \"" ^ directory ^ "\",";
+      "\n\t{ \"directory\": \"" ^ output_dir ^ "\",";
       "\n\t\"command\": \"cc -I"
       ^ opam_switch_prefix
       ^ "/lib/cn/runtime/include/ "
