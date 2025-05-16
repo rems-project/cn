@@ -846,6 +846,7 @@ module WIT = struct
         let@ () = WCT.is_ct loc ct in
         let@ base = check loc (Loc ()) base in
         let@ index = infer index in
+        let index = cast_ Memory.uintptr_bt index loc in
         let@ () = ensure_bits_type loc (IT.get_bt index) in
         return (IT (ArrayShift { base; ct; index }, BT.Loc (), loc))
       | CopyAllocId { addr; loc = ptr } ->

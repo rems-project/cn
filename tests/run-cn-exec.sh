@@ -97,6 +97,7 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "int_to_ptr.error.c" \
     ! -name "create_rdonly.c" \
     ! -name "offsetof_int_const.c" \
+    ! -name "issue_113.c" \
 )
 
 # Include files which cause error for proof but not testing
@@ -124,6 +125,7 @@ NO_MAIN="\
        cn/b_xor.c \
        cn/previously_inconsistent_assumptions1.c \
        cn/previously_inconsistent_assumptions2.c \
+       cn/issue_113.c \
        "
 
 BUGGY="\
