@@ -32,6 +32,7 @@ let frontend
       ~filename
       ~magic_comment_char_dollar
       ~save_cpp
+      ~disable_linemarkers
   =
   Cerb_global.set_cerb_conf
     ~backend_name:"Cn"
@@ -55,7 +56,9 @@ let frontend
   let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
-  let conf = Setup.conf macros incl_dirs incl_files astprints save_cpp in
+  let conf =
+    Setup.conf macros incl_dirs incl_files disable_linemarkers astprints save_cpp
+  in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
       functions = List.map (fun (str, sym) -> (str, sym, None)) Builtins.fun_names;
@@ -134,6 +137,7 @@ let with_well_formedness_check
       ~no_inherit_loc
       ~magic_comment_char_dollar
       ~save_cpp
+      ~disable_linemarkers
       ~(* Callbacks *)
        handle_error
       ~(f :
@@ -153,7 +157,8 @@ let with_well_formedness_check
          ~astprints
          ~filename
          ~magic_comment_char_dollar
-         ~save_cpp)
+         ~save_cpp
+         ~disable_linemarkers)
   in
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel
