@@ -1333,12 +1333,12 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
   let (Expr (loc, annots, expect, e_)) = e in
   let@ () = add_trace_information labels annots in
   let here = Locations.other __LOC__ in
-  let@ omodel = model_with loc (bool_ true here) in
+  (* let@ omodel = model_with loc (bool_ true here) in
   match omodel with
   | None ->
     warn loc !^"Completed type-checking early along this path due to inconsistent facts.";
     return ()
-  | Some _ ->
+  | Some _ -> *)
     let@ () =
       print_with_ctxt (fun ctxt ->
         debug 3 (lazy (action "inferring expression"));
