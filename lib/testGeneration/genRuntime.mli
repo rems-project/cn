@@ -16,10 +16,7 @@ type term =
         choices : (int * term) list;
         last_var : Sym.t
       }
-  | Alloc of
-      { bytes : IT.t;
-        sized : bool
-      }
+  | Alloc of { bytes : IT.t }
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
