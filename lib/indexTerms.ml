@@ -725,8 +725,8 @@ let memberShift_ (base, tag, member) loc =
 
 
 (* invariant of ArrayShift: index must have type uintptr_bt *)
-let arrayShift_ ?(do_cast = true) ~base ~index ct loc =
-  let index = if do_cast then cast_ Memory.uintptr_bt index loc else index in
+let arrayShift_ ~base ~index ct loc =
+  let index = cast_ Memory.uintptr_bt index loc in
   IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
 
 
