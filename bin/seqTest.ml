@@ -112,11 +112,8 @@ module Flags = struct
 
 
   let with_static_hack =
-    let doc =
-      "(HACK) Use an `#include` instead of linking to build testing. Necessary until \
-       https://github.com/rems-project/cerberus/issues/784 or equivalent."
-    in
-    let deprecated = "No longer does anything. Will be removed after May 18." in
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after May 31." in
     Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
