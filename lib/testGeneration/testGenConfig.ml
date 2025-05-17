@@ -27,7 +27,6 @@ type t =
     max_backtracks : int;
     max_unfolds : int option;
     max_array_length : int;
-    with_static_hack : bool;
     build_tool : build_tool;
     sanitizers : string option * string option;
     (* Run time *)
@@ -61,7 +60,6 @@ let default =
     max_backtracks = 25;
     max_unfolds = None;
     max_array_length = 50;
-    with_static_hack = false;
     build_tool = Bash;
     sanitizers = (None, None);
     print_seed = false;
@@ -149,8 +147,6 @@ let get_max_backtracks () = !instance.max_backtracks
 let get_max_unfolds () = !instance.max_unfolds
 
 let get_max_array_length () = !instance.max_array_length
-
-let with_static_hack () = !instance.with_static_hack
 
 let get_build_tool () = !instance.build_tool
 

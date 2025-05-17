@@ -55,20 +55,15 @@ let compile_constant_tests
                test = Sym.pp_string inst.fn
              },
            let open Pp in
-           (if not (Config.with_static_hack ()) then
-              CF.Pp_ail.(
-                with_executable_spec
-                  (fun () ->
-                     pp_function_prototype
-                       inst.fn
-                       (let _, _, decl =
-                          List.assoc Sym.equal inst.fn sigma.declarations
-                        in
-                        decl))
-                  ())
-              ^^ hardline
-            else
-              empty)
+           (CF.Pp_ail.(
+              with_executable_spec
+                (fun () ->
+                   pp_function_prototype
+                     inst.fn
+                     (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
+                      decl))
+                ())
+            ^^ hardline)
            ^^ CF.Pp_ail.pp_statement
                 A.(
                   Utils.mk_stmt
@@ -168,18 +163,15 @@ let compile_random_test_case
          | GlobalDef (sct, _) -> (sym, sct))
       global_syms
   in
-  (if not (Config.with_static_hack ()) then
-     CF.Pp_ail.(
-       with_executable_spec
-         (fun () ->
-            pp_function_prototype
-              inst.fn
-              (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
-               decl))
-         ())
-     ^^ hardline
-   else
-     empty)
+  (CF.Pp_ail.(
+     with_executable_spec
+       (fun () ->
+          pp_function_prototype
+            inst.fn
+            (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
+             decl))
+       ())
+   ^^ hardline)
   ^^ (if List.is_empty globals then
         string
           (if is_static then

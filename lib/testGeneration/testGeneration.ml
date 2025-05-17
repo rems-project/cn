@@ -153,15 +153,6 @@ let compile_includes ~filename =
   string "#include "
   ^^ angles (string "cn-replicate/shape.h")
   ^^ hardline
-  (* TODO the static hack has been removed from the testing files, and the hack
-     should change from including the whole exec file to creating wrappers for
-     every static function and calling those instead *)
-  ^^ (if Config.with_static_hack () then
-        string "#include "
-        ^^ dquotes (string (filename_base filename ^ ".exec.c"))
-        ^^ hardline
-      else
-        empty)
   ^^ string "#include "
   ^^ dquotes (string (filename_base filename ^ ".gen.h"))
   ^^ hardline

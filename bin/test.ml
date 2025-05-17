@@ -28,7 +28,7 @@ let run_tests
       max_backtracks
       max_unfolds
       max_array_length
-      with_static_hack
+      _with_static_hack
       build_tool
       sanitizers
       print_seed
@@ -92,7 +92,6 @@ let run_tests
           max_backtracks;
           max_unfolds;
           max_array_length;
-          with_static_hack;
           build_tool;
           sanitizers;
           print_seed;
@@ -226,11 +225,9 @@ module Flags = struct
 
 
   let with_static_hack =
-    let doc =
-      "(HACK) Use an `#include` instead of linking to build testing. Necessary until \
-       https://github.com/rems-project/cerberus/issues/784 or equivalent."
-    in
-    Arg.(value & flag & info [ "with-static-hack" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after May 31." in
+    Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
   let build_tool =
