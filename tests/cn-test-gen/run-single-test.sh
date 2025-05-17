@@ -107,7 +107,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
 done
 
 if [ -z "$FAILED" ]; then
-  # echo "$TEST - all configs passed."
+  echo "$TEST - all configs passed."
   exit 0
 else
   OUTPUT="${OUTPUT}$TEST - $NUM_FAILED configs failed:\n  $FAILED"
