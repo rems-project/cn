@@ -28,14 +28,14 @@ function exits_with_code() {
     return 1
   fi
   printf "[$file]... "
-  timeout 40 "${CHECK_SCRIPT}" "${SCRIPT_OPT}" "$file" &> /dev/null
+  OUTPUT=$(timeout 40 "${CHECK_SCRIPT}" "${SCRIPT_OPT}" "$file" 2>&1)
   local result=$?
 
   if [ $result -eq $expected_exit_code ]; then
     printf "\033[32mPASS\033[0m\n"
     return 0
   else
-    printf "\033[31mFAIL\033[0m (Unexpected return code: $result expected: $expected_exit_code)\n"
+    printf "\033[31mFAIL\033[0m (Unexpected return code: $result expected: $expected_exit_code)\n${OUTPUT}\n"
     return 1
   fi
 }
