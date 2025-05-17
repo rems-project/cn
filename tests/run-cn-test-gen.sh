@@ -2,4 +2,4 @@
 
 cd cn-test-gen || exit 1
 
-make -j
+make -sj
