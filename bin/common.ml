@@ -282,24 +282,59 @@ let static_funcs (cabs_tunit : CF.Cabs.translation_unit) : string list =
     decls
 
 
+type subcommand =
+  | Verify
+  | Instrument
+  | Test
+  | SeqTest
+
+let tool_name cmd =
+  match cmd with
+  | Verify -> "CN"
+  | Instrument -> "Fulminate"
+  | Test -> "Bennet"
+  | SeqTest -> "CN-Seq-Test"
+
+
 open Cmdliner
 
-let (dir_and_mk_if_not_exist :
-      ([ `May_not_exist of string ] * ([ `May_not_exist of string ] -> string))
-        Cmdliner.Arg.conv)
-  =
-  let parse dir =
-    let mkdir (`May_not_exist dir) =
-      if not (Sys.file_exists dir) then (
-        print_endline ("Directory \"" ^ dir ^ "\" does not exist.");
-        Sys.mkdir dir 0o777;
-        print_endline ("Created directory \"" ^ dir ^ "\" with full permissions."));
-      dir
-    in
-    Result.Ok (`May_not_exist dir, mkdir)
+let mk_dir_if_not_exist_maybe_tmp ~mktemp ?(print_steps = false) (cmd : subcommand) dir =
+  let dir =
+    match dir with
+    | Some dir -> dir
+    | None ->
+      if mktemp then (
+        let dir =
+          let tmp_dir = Filename.get_temp_dir_name () in
+          let rec create_unique_dir () =
+            let dir_name =
+              Filename.concat
+                tmp_dir
+                (String.lowercase_ascii (tool_name cmd)
+                 ^ "."
+                 ^ Printf.sprintf "%04X" (Random.int 65536))
+            in
+            if Sys.file_exists dir_name then
+              create_unique_dir () (* Retry if it exists *)
+            else (
+              Sys.mkdir dir_name 0o777;
+              (* Create the directory with permissions 777 *)
+              dir_name)
+          in
+          create_unique_dir ()
+        in
+        print_endline ("Using temporary directory: " ^ dir);
+        dir)
+      else
+        "."
   in
-  let print _ (`May_not_exist x, _) = print_string x in
-  Arg.conv' ~docv:"DIR" (parse, print)
+  if not (Sys.file_exists dir) then (
+    if print_steps then
+      print_endline ("Directory \"" ^ dir ^ "\" does not exist.");
+    Sys.mkdir dir 0o777;
+    if print_steps then
+      print_endline ("Created directory \"" ^ dir ^ "\" with full permissions."));
+  dir
 
 
 (* some of these stolen from backend/driver *)

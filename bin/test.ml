@@ -65,11 +65,8 @@ let run_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let output_dir = Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true Test output_dir in
   let basefile = Filename.basename filename in
-  let output_dir =
-    let dir, mk = output_dir in
-    mk dir
-  in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
@@ -142,7 +139,7 @@ let run_tests
                 filename
                 pp_file
                 out_file
-                (Some output_dir)
+                output_dir
                 (Common.static_funcs cabs_tunit)
                 ail_prog
                 prog5
@@ -175,14 +172,9 @@ module Flags = struct
     Arg.(value & flag & info [ "print-steps" ] ~doc)
 
 
-  let output_test_dir =
+  let output_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(
-      value
-      & opt
-          Common.dir_and_mk_if_not_exist
-          (`May_not_exist ".", fun (`May_not_exist x) -> x)
-      & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let only =
@@ -455,7 +447,7 @@ let cmd =
     $ Common.Flags.magic_comment_char_dollar
     $ Instrument.Flags.without_ownership_checking
     $ Flags.print_steps
-    $ Flags.output_test_dir
+    $ Flags.output_dir
     $ Flags.only
     $ Flags.skip
     $ Flags.dont_run

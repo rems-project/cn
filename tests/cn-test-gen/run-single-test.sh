@@ -7,12 +7,6 @@ TEST=$1
 
 # Clean directory
 cd "$DIRNAME" || exit
-if [[ $TEST == *.pass.c ]]; then
-  DIR=passing-$(basename $TEST .pass.c)
-else
-  DIR=failing-$(basename $TEST .fail.c)
-fi
-rm -rf $DIR
 
 # For stricter CI
 export CPPFLAGS="${CPPFLAGS} -Werror"
@@ -54,8 +48,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
   FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG"
 
   if [[ $TEST == *.pass.c ]]; then
-    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    OUTPUT="${OUTPUT}$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)"
+    OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
     RET=$?
     if [[ "$RET" != 0 ]]; then
       OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
@@ -65,8 +58,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
     fi
   elif [[ $TEST == *.fail.c ]]; then
-    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
+    THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
     RET=$?
     if [[ "$RET" == 0 ]]; then
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
@@ -80,13 +72,12 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
     fi
   elif [[ $TEST == *.flaky.c ]]; then
-    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
+    THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
     RET=$?
 
     # Run twice, since flaky
     if [[ "$RET" == 0 ]]; then
-      THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
+      THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
       RET=$?
     fi
 
@@ -103,7 +94,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     fi
   fi
 
-  eval "$CLEANUP"
+  separator
 done
 
 if [ -z "$FAILED" ]; then

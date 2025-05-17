@@ -6,7 +6,6 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
-  let output_dir = Option.value ~default:"." output_dir in
   let in_folder ?ext fn =
     Filename.concat
       output_dir
@@ -92,6 +91,7 @@ let generate_executable_specs
       with_loop_leak_checks
       with_testing
       run
+      mktemp
       print_steps
   =
   (*flags *)
@@ -137,6 +137,12 @@ let generate_executable_specs
       if run && Option.is_none prog5.main then (
         print_endline "Tried running instrumented file (`--run`) without `main` function.";
         exit 1);
+      if mktemp && Option.is_some output_dir then (
+        print_endline "Cannot use '--tmp' and '--output-dir' together.";
+        exit 1);
+      let output_dir =
+        Common.mk_dir_if_not_exist_maybe_tmp ~mktemp Instrument output_dir
+      in
       Cerb_colour.without_colour
         (fun () ->
            (try
@@ -217,6 +223,11 @@ module Flags = struct
     Arg.(value & flag & info [ "run" ] ~doc)
 
 
+  let mktemp =
+    let doc = "Use a temporary directory" in
+    Arg.(value & flag & info [ "tmp" ] ~doc)
+
+
   let print_steps =
     let doc =
       "Print successful stages, such as instrumentation, compilation and linking."
@@ -267,6 +278,7 @@ let cmd =
         (fun (x, y) -> x || y)
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
+    $ Flags.mktemp
     $ Flags.print_steps
   in
   let doc =
