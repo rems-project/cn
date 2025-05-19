@@ -15,6 +15,13 @@ val compile_generators
   (bool * FExtract.instrumentation) list ->
   Pp.document
 
+val compile_random_test_case
+  :  string ->
+  CF.GenTypes.genTypeCategory A.sigma ->
+  unit Mucore.file ->
+  Test.t ->
+  Pp.document
+
 val compile_generator_tests
   :  string ->
   CF.GenTypes.genTypeCategory A.sigma ->

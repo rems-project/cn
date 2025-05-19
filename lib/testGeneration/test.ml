@@ -4,13 +4,23 @@ type kind =
 
 type t =
   { filename : string;
-    is_static : bool;
     kind : kind;
     suite : string;
-    test : string
+    test : string;
+    is_static : bool;
+    fn : Sym.t;
+    fn_loc : Locations.t;
+    internal : Fulminate.Extract.fn_args_and_body
   }
 
-(* let registration_macro (test : t) : string =
-  match test.kind with
-  | Constant -> "CN_REGISTER_EXTERN_UNIT_TEST_CASE"
-  | Generator -> "CN_REGISTER_EXTERN_RANDOM_TEST_CASE" *)
+let of_instrumentation is_static kind (inst : Fulminate.Extract.instrumentation) : t =
+  let filename = inst.fn_loc |> Cerb_location.get_filename |> Option.get in
+  { filename;
+    kind;
+    suite = filename |> Filename.basename |> String.split_on_char '.' |> List.hd;
+    test = Sym.pp_string inst.fn;
+    is_static;
+    fn = inst.fn;
+    fn_loc = inst.fn_loc;
+    internal = Option.get inst.internal
+  }

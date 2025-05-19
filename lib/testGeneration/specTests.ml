@@ -38,22 +38,10 @@ let compile_constant_tests
       (insts : (bool * FExtract.instrumentation) list)
   : Test.t list * Pp.document
   =
-  let test_names, docs =
+  let tests, docs =
     List.map_split
       (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         ( Test.
-             { filename;
-               is_static;
-               kind = Constant;
-               suite =
-                 inst.fn_loc
-                 |> Cerb_location.get_filename
-                 |> Option.get
-                 |> Filename.basename
-                 |> String.split_on_char '.'
-                 |> List.hd;
-               test = Sym.pp_string inst.fn
-             },
+         ( Test.of_instrumentation is_static Constant inst,
            let open Pp in
            (CF.Pp_ail.(
               with_executable_spec
@@ -88,7 +76,7 @@ let compile_constant_tests
       insts
   in
   let open Pp in
-  (test_names, separate (twice hardline) docs ^^ twice hardline)
+  (tests, separate (twice hardline) docs ^^ twice hardline)
 
 
 let compile_generators
@@ -128,26 +116,25 @@ let compile_random_test_case
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      ((test, (is_static, inst)) : Test.t * (bool * FExtract.instrumentation))
+      (Test.{ is_static; suite; test; fn; internal; _ } : Test.t)
   : Pp.document
   =
   let open Pp in
   let args =
-    let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
-    match List.assoc Sym.equal inst.fn sigma.declarations with
+    let _, _, _, xs, _ = List.assoc Sym.equal fn sigma.function_definitions in
+    match List.assoc Sym.equal fn sigma.declarations with
     | _, _, Decl_function (_, _, cts, _, _, _) ->
       List.combine xs (List.map (fun (_, ct, _) -> ct) cts)
     | _ ->
       failwith
         (String.concat
            " "
-           [ "Function declaration not found for"; Sym.pp_string inst.fn; "@"; __LOC__ ])
+           [ "Function declaration not found for"; Sym.pp_string fn; "@"; __LOC__ ])
   in
   let globals =
     let global_syms =
       let args = args |> List.map fst in
-      inst.internal
-      |> Option.get
+      internal
       |> AT.get_lat
       |> LAT.free_vars (fun _ -> Sym.Set.empty)
       |> Sym.Set.to_seq
@@ -167,8 +154,8 @@ let compile_random_test_case
      with_executable_spec
        (fun () ->
           pp_function_prototype
-            inst.fn
-            (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
+            fn
+            (let _, _, decl = List.assoc Sym.equal fn sigma.declarations in
              decl))
        ())
    ^^ hardline)
@@ -182,11 +169,9 @@ let compile_random_test_case
         let init_name =
           string "cn_test_gen_"
           ^^ (if is_static then
-                string (Fulminate.Utils.static_prefix filename)
-                ^^ underscore
-                ^^ Sym.pp inst.fn
+                string (Fulminate.Utils.static_prefix filename) ^^ underscore ^^ Sym.pp fn
               else
-                Sym.pp inst.fn)
+                Sym.pp fn)
           ^^ string "_init"
         in
         string "void"
@@ -198,11 +183,9 @@ let compile_random_test_case
                    "_"
                    [ "cn_gen";
                      (if is_static then
-                        Fulminate.Utils.static_prefix filename
-                        ^ "_"
-                        ^ Sym.pp_string inst.fn
+                        Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string fn
                       else
-                        Sym.pp_string inst.fn);
+                        Sym.pp_string fn);
                      "record"
                    ])
               ^^ star
@@ -254,7 +237,7 @@ let compile_random_test_case
   ^^ parens
        (separate
           (comma ^^ space)
-          ([ string test.suite; string test.test ]
+          ([ string suite; string test ]
            @ (if is_static then
                 [ string (Fulminate.Utils.static_prefix filename) ]
               else
@@ -276,22 +259,8 @@ let compile_generator_tests
   let tests =
     List.map
       (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         Test.
-           { filename;
-             is_static;
-             kind = Generator;
-             suite =
-               inst.fn_loc
-               |> Cerb_location.get_filename
-               |> Option.get
-               |> Filename.basename
-               |> String.split_on_char '.'
-               |> List.hd;
-             test = Sym.pp_string inst.fn
-           })
+         Test.of_instrumentation is_static Generator inst)
       insts
   in
   let open Pp in
-  ( tests,
-    concat_map (compile_random_test_case filename sigma prog5) (List.combine tests insts)
-  )
+  (tests, concat_map (compile_random_test_case filename sigma prog5) tests)
