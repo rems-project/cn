@@ -585,14 +585,6 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   ^^ !^"/* TAG DEFINITIONS */"
   ^^ hardline
   ^^ !^record_defs
-  (* TODO this block differs from record_defs by only including the gen
-     functions, but this solution feels off *)
-  (*
-  ^^ CF.Pp_ail.(
-       with_executable_spec
-         (separate_map (twice hardline) pp_tag_definition)
-         tag_definitions)
-   *)
   ^^ twice hardline
   ^^ !^"/* TYPEDEFS */"
   ^^ hardline
