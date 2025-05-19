@@ -1,4 +1,6 @@
-type build_tool = Bash
+type build_tool =
+  | Bash
+  | Make
 
 type logging_level =
   | None

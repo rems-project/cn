@@ -1,4 +1,6 @@
-type build_tool = Bash
+type build_tool =
+  | Bash
+  | Make
 
 type logging_level =
   | None
@@ -110,7 +112,7 @@ let string_of_sizing_strategy (sizing_strategy : sizing_strategy) =
 
 
 module Options = struct
-  let build_tool = [ ("bash", Bash) ]
+  let build_tool = [ ("bash", Bash); ("make", Make) ]
 
   let logging_level : (string * logging_level) list =
     List.map (fun lvl -> (string_of_logging_level lvl, lvl)) [ None; Error; Info ]

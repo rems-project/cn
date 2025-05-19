@@ -2,9 +2,9 @@ module Config = TestGenConfig
 open Pp
 
 let setup ~output_dir =
-  string "#!/bin/bash"
+  !^"#!/bin/bash"
   ^^ twice hardline
-  ^^ !^"# copied from cn-runtime-single-file.sh"
+  ^^ !^"# Auto-generated bash script for CN test generation"
   ^^ hardline
   ^^ !^"RUNTIME_PREFIX=\"$OPAM_SWITCH_PREFIX/lib/cn/runtime\""
   ^^ hardline
@@ -56,7 +56,7 @@ let cc_flags () =
 
 
 let compile ~filename_base =
-  string "# Compile"
+  !^"# Compile"
   ^^ hardline
   ^^ attempt
        (String.concat
@@ -87,10 +87,10 @@ let compile ~filename_base =
 
 
 let link ~filename_base =
-  string "# Link"
+  !^"# Link"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
-        string "echo" ^^ twice hardline
+        !^"echo" ^^ twice hardline
       else
         empty)
   ^^ attempt
@@ -200,10 +200,10 @@ let run () =
        | Some file -> [ "--output-tyche"; file ]
        | None -> [])
   in
-  string "# Run"
+  !^"# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
-        string "echo" ^^ twice hardline
+        !^"echo" ^^ twice hardline
       else
         empty)
   ^^ cmd
@@ -213,7 +213,7 @@ let run () =
 
 
 let coverage ~filename_base =
-  string "# Coverage"
+  !^"# Coverage"
   ^^ hardline
   ^^ !^"echo"
   ^^ hardline
@@ -275,3 +275,23 @@ let generate ~(output_dir : string) ~(filename_base : string) : Pp.document =
   ^^ hardline
   ^^ !^"exit $test_exit_code"
   ^^ hardline
+
+
+let filename_base fn = fn |> Filename.basename |> Filename.remove_extension
+
+let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
+  : unit
+  =
+  let oc =
+    Stdlib.open_out_gen
+      [ Open_wronly; Open_creat; Open_trunc; Open_text ]
+      perm
+      (Filename.concat output_dir filename)
+  in
+  output_string oc (Pp.plain ~width:80 doc);
+  close_out oc
+
+
+let generate_and_save ~(output_dir : string) ~(filename : string) : unit =
+  let script_doc = generate ~output_dir ~filename_base:(filename_base filename) in
+  save ~perm:0o777 output_dir "run_tests.sh" script_doc
