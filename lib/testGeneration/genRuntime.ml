@@ -23,10 +23,7 @@ type term =
         choices : (int * term) list;
         last_var : Sym.t
       }
-  | Alloc of
-      { bytes : IT.t;
-        sized : bool
-      }
+  | Alloc of { bytes : IT.t }
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
@@ -87,7 +84,7 @@ let rec free_vars_term (tm : term) : Sym.Set.t =
   | Uniform _ -> Sym.Set.empty
   | Pick { bt = _; choice_var = _; choices; last_var = _ } ->
     free_vars_term_list (List.map snd choices)
-  | Alloc { bytes; sized = _ } -> IT.free_vars bytes
+  | Alloc { bytes } -> IT.free_vars bytes
   | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; sized = _ } ->
     Sym.Set.of_list (List.map snd iargs)
   | Asgn { pointer = _; addr; sct = _; value; last_var = _; rest } ->
@@ -135,8 +132,7 @@ let rec pp_term (tm : term) : Pp.document =
                              parens
                                (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp_term gt))))
                           choices)))
-  | Alloc { bytes; sized } ->
-    (if sized then !^"alloc_sized" else !^"alloc") ^^ parens (IT.pp bytes)
+  | Alloc { bytes } -> !^"alloc" ^^ parens (IT.pp bytes)
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     parens
       (Sym.pp fsym
@@ -339,7 +335,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
                wgts);
           last_var
         }
-    | Alloc bytes -> Alloc { bytes; sized = false }
+    | Alloc bytes -> Alloc { bytes }
     | Call (fsym, xits) ->
       let (iargs : (Sym.t * Sym.t) list), (gt_lets : Sym.t -> term -> term) =
         List.fold_right
@@ -516,7 +512,7 @@ module Sizing = struct
         in
         (gr', Sym.Set.singleton sym)
       | Uniform _ | Call _ | Return _ -> (gr, Sym.Set.empty)
-      | Alloc { bytes; sized = _ } -> (Alloc { bytes; sized = true }, Sym.Set.empty)
+      | Alloc { bytes } -> (Alloc { bytes }, Sym.Set.empty)
       | Pick ({ choices; _ } as gr) ->
         let choices, syms =
           choices
