@@ -348,13 +348,6 @@ let save_tests
   save output_dir (filename_base filename ^ ".test.c") tests_doc
 
 
-let save_build_script ~output_dir ~filename =
-  let script_doc =
-    BuildScript.generate ~output_dir ~filename_base:(filename_base filename)
-  in
-  save ~perm:0o777 output_dir "run_tests.sh" script_doc
-
-
 let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumentation) =
   let (TUnit decls) = cabs_tunit in
   List.exists
@@ -450,6 +443,7 @@ let run
       ~output_dir
       ~filename
       ~without_ownership_checking
+      (build_tool : TestGenConfig.build_tool)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
@@ -459,5 +453,5 @@ let run
   let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 in
   save_generators ~output_dir ~filename sigma prog5 insts;
   save_tests ~output_dir ~filename ~without_ownership_checking sigma prog5 insts;
-  save_build_script ~output_dir ~filename;
+  BuildScripts.generate_and_save ~output_dir ~filename build_tool;
   Cerb_debug.end_csv_timing "specification test generation"

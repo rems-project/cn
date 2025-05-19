@@ -150,6 +150,7 @@ let run_tests
                 ~output_dir
                 ~filename
                 ~without_ownership_checking
+                build_tool
                 cabs_tunit
                 sigma
                 prog5
@@ -157,7 +158,12 @@ let run_tests
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
            if not dont_run then (
              Cerb_debug.maybe_close_csv_timing_file ();
-             Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])))
+             match build_tool with
+             | Bash ->
+               Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
+             | Make ->
+               Unix.chdir output_dir;
+               Unix.execvp "make" (Array.of_list [ "make" ])))
         ();
       Or_TypeError.return ())
 
