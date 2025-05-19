@@ -10,6 +10,7 @@ val conf
   :  (string * string option) list ->
   string list ->
   string list ->
+  bool ->
   Cerb_backend.Pipeline.language list ->
   string option ->
   Cerb_backend.Pipeline.configuration
