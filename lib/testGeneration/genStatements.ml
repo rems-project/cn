@@ -46,24 +46,14 @@ let pp (stmt : t) : Pp.document =
   let open Pp in
   match stmt with
   | Asgn ((it_addr, ty), it_val) ->
-    Sctypes.pp ty
-    ^^ space
-    ^^ IT.pp it_addr
-    ^^ space
-    ^^ string ":="
-    ^^ space
-    ^^ IT.pp it_val
+    Sctypes.pp ty ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val
   | Let (backtracks, (x, gt)) ->
-    string "let"
+    !^"let"
     ^^ (if backtracks <> 0 then parens (int backtracks) else empty)
     ^^ (if GT.is_return gt then empty else star)
-    ^^ space
-    ^^ Sym.pp x
-    ^^ space
-    ^^ colon
-    ^^ space
-    ^^ BT.pp (GT.basetype gt)
-    ^^ space
-    ^^ equals
+    ^^^ Sym.pp x
+    ^^^ colon
+    ^^^ BT.pp (GT.basetype gt)
+    ^^^ equals
     ^^ nest 2 (break 1 ^^ GT.pp gt)
-  | Assert lc -> string "assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1)
+  | Assert lc -> !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1)

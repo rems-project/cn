@@ -7,7 +7,7 @@ module Config = TestGenConfig
 
 let generated_size (bt : BT.t) : int =
   match bt with
-  | Datatype _ -> failwith Pp.(plain (BT.pp bt ^^ space ^^ at ^^ space ^^ string __LOC__))
+  | Datatype _ -> failwith Pp.(plain (BT.pp bt ^^^ at ^^^ !^__LOC__))
   | _ -> 0
 
 
@@ -70,8 +70,7 @@ let default_weights (gt : GT.t) : GT.t =
       match gt_ with
       | Arbitrary ->
         (match bt with
-         | Map _ | Loc () ->
-           failwith Pp.(plain (BT.pp bt ^^ space ^^ at ^^ space ^^ string __LOC__))
+         | Map _ | Loc () -> failwith Pp.(plain (BT.pp bt ^^^ at ^^^ !^__LOC__))
          | _ -> GT.Uniform (generated_size bt))
       | _ -> gt_
     in
@@ -98,9 +97,8 @@ let confirm_distribution (gt : GT.t) : GT.t =
     failwith
       Pp.(
         plain
-          (string "Distribute failure: `arbitrary` still remaining at following locations"
-           ^^ space
-           ^^ brackets (separate_map (comma ^^ break 1) Locations.pp failures)))
+          (!^"Distribute failure: `arbitrary` still remaining at following locations"
+           ^^^ brackets (separate_map (comma ^^ break 1) Locations.pp failures)))
 
 
 let distribute_gen (gt : GT.t) : GT.t =

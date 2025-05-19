@@ -160,26 +160,23 @@ let compile_random_test_case
        ())
    ^^ hardline)
   ^^ (if List.is_empty globals then
-        string
-          (if is_static then
+        !^(if is_static then
              "CN_STATIC_RANDOM_TEST_CASE"
            else
              "CN_EXTERN_RANDOM_TEST_CASE")
       else (
         let init_name =
-          string "cn_test_gen_"
+          !^"cn_test_gen_"
           ^^ (if is_static then
                 string (Fulminate.Utils.static_prefix filename) ^^ underscore ^^ Sym.pp fn
               else
                 Sym.pp fn)
-          ^^ string "_init"
+          ^^ !^"_init"
         in
-        string "void"
-        ^^ space
-        ^^ init_name
+        !^"void"
+        ^^^ init_name
         ^^ parens
-             (string
-                (String.concat
+             (!^(String.concat
                    "_"
                    [ "cn_gen";
                      (if is_static then
@@ -189,48 +186,45 @@ let compile_random_test_case
                      "record"
                    ])
               ^^ star
-              ^^ space
-              ^^ string "res")
-        ^^ space
-        ^^ braces
-             (nest
-                2
-                (hardline
-                 ^^ separate_map
-                      hardline
-                      (fun (sym, sct) ->
-                         let ty =
-                           CF.Pp_ail.(
-                             with_executable_spec
-                               (pp_ctype ~is_human:false C.no_qualifiers)
-                               (Sctypes.to_ctype sct))
-                         in
-                         let tmp_doc = Sym.pp sym ^^ string "_tmp" in
-                         (ty ^^ star)
-                         ^^^ tmp_doc
-                         ^^^ equals
-                         ^^^ (string "convert_from_cn_pointer"
-                              ^^ parens (string "res->" ^^ Sym.pp sym)
-                              ^^ semi
-                              ^^ hardline
-                              ^^ string "cn_assume_ownership"
-                              ^^ parens
-                                   (separate
-                                      (comma ^^ space)
-                                      [ string (Fulminate.Globals.getter_str filename sym);
-                                        string "sizeof" ^^ parens ty;
-                                        string "(char*)" ^^ dquotes init_name
-                                      ]))
-                         ^^ semi
-                         ^^ hardline
-                         ^^ string (Fulminate.Globals.setter_str filename sym)
-                         ^^ parens tmp_doc
-                         ^^ semi)
-                      globals)
-              ^^ hardline)
+              ^^^ !^"res")
+        ^^^ braces
+              (nest
+                 2
+                 (hardline
+                  ^^ separate_map
+                       hardline
+                       (fun (sym, sct) ->
+                          let ty =
+                            CF.Pp_ail.(
+                              with_executable_spec
+                                (pp_ctype ~is_human:false C.no_qualifiers)
+                                (Sctypes.to_ctype sct))
+                          in
+                          let tmp_doc = Sym.pp sym ^^ !^"_tmp" in
+                          (ty ^^ star)
+                          ^^^ tmp_doc
+                          ^^^ equals
+                          ^^^ (!^"convert_from_cn_pointer"
+                               ^^ parens (!^"res->" ^^ Sym.pp sym)
+                               ^^ semi
+                               ^^ hardline
+                               ^^ !^"cn_assume_ownership"
+                               ^^ parens
+                                    (separate
+                                       (comma ^^ space)
+                                       [ !^(Fulminate.Globals.getter_str filename sym);
+                                         !^"sizeof" ^^ parens ty;
+                                         !^"(char*)" ^^ dquotes init_name
+                                       ]))
+                          ^^ semi
+                          ^^ hardline
+                          ^^ !^(Fulminate.Globals.setter_str filename sym)
+                          ^^ parens tmp_doc
+                          ^^ semi)
+                       globals)
+               ^^ hardline)
         ^^ twice hardline
-        ^^ string
-             (if is_static then
+        ^^ !^(if is_static then
                 "CN_STATIC_RANDOM_TEST_CASE_WITH_INIT"
               else
                 "CN_EXTERN_RANDOM_TEST_CASE_WITH_INIT")))

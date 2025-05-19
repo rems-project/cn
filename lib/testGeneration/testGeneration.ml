@@ -138,10 +138,8 @@ let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.docum
           else
             padding)
          slash
-    ^^ space
-    ^^ string label
-    ^^ space
-    ^^ repeat padding slash
+    ^^^ !^label
+    ^^^ repeat padding slash
     ^^ hardline
     ^^ repeat width slash
     ^^ twice hardline
@@ -150,10 +148,10 @@ let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.docum
 
 let compile_includes ~filename =
   let open Pp in
-  string "#include "
-  ^^ angles (string "cn-replicate/shape.h")
+  !^"#include "
+  ^^ angles !^"cn-replicate/shape.h"
   ^^ hardline
-  ^^ string "#include "
+  ^^ !^"#include "
   ^^ dquotes (string (filename_base filename ^ ".gen.h"))
   ^^ hardline
 
@@ -163,29 +161,25 @@ let compile_test (test : Test.t) =
   (match test.kind with
    | Test.Constant ->
      if test.is_static then
-       string "CN_REGISTER_STATIC_UNIT_TEST_CASE"
+       !^"CN_REGISTER_STATIC_UNIT_TEST_CASE"
      else
-       string "CN_REGISTER_EXTERN_UNIT_TEST_CASE"
+       !^"CN_REGISTER_EXTERN_UNIT_TEST_CASE"
    | Test.Generator ->
      if test.is_static then
-       string "CN_REGISTER_STATIC_RANDOM_TEST_CASE"
+       !^"CN_REGISTER_STATIC_RANDOM_TEST_CASE"
      else
-       string "CN_REGISTER_EXTERN_RANDOM_TEST_CASE")
+       !^"CN_REGISTER_EXTERN_RANDOM_TEST_CASE")
   ^^ parens
        (string test.suite
         ^^ comma
-        ^^ space
-        ^^ string test.test
+        ^^^ !^(test.test)
         ^^
         if test.is_static then
-          comma ^^^ string (Fulminate.Utils.static_prefix test.filename)
+          comma ^^^ !^(Fulminate.Utils.static_prefix test.filename)
         else
           empty)
   ^^ semi
 
-
-(* let macro = Test.registration_macro test in
-  string macro ^^ parens (string test.suite ^^ comma ^^ space ^^ string test.test) ^^ semi *)
 
 let compile_test_file
       ~(without_ownership_checking : bool)
@@ -276,17 +270,16 @@ let compile_test_file
   ^^ pp_label "Generator-based tests" generator_tests_defs
   ^^ pp_label
        "Main function"
-       (string "int main"
-        ^^ parens (string "int argc, char* argv[]")
-        ^^ break 1
-        ^^ braces
-             (nest
-                2
-                (hardline
-                 ^^ separate_map hardline compile_test all_tests
-                 ^^ twice hardline
-                 ^^ string "return cn_test_main(argc, argv);")
-              ^^ hardline))
+       (!^"int main"
+        ^^ parens !^"int argc, char* argv[]"
+        ^/^ braces
+              (nest
+                 2
+                 (hardline
+                  ^^ separate_map hardline compile_test all_tests
+                  ^^ twice hardline
+                  ^^ !^"return cn_test_main(argc, argv);")
+               ^^ hardline))
   ^^ hardline
   ^^ !^(String.concat " " cn_defs_list)
 
@@ -329,12 +322,12 @@ let save_generators
               in
               (* TODO: delete *)
               (* string "typedef struct"
-              ^^^ (string "cn_gen_" ^^ Sym.pp inst.fn ^^ string "_record")
+              ^^^ (string "cn_gen_" ^^ Sym.pp inst.fn ^^ !^ "_record")
               ^^^ (string "cn_gen_"
-                   ^^ string (Fulminate.Utils.static_prefix filename)
+                   ^^ !^ (Fulminate.Utils.static_prefix filename)
                    ^^ underscore
                    ^^ Sym.pp inst.fn
-                   ^^ string "_record")
+                   ^^ !^ "_record")
               ^^ semi *)
               (* ^^ hardline *)
               (* ^^ *)
@@ -415,10 +408,10 @@ let needs_enum_hack
              Pp.(
                warn
                  loc
-                 (string "Function"
+                 (!^"Function"
                   ^^^ squotes (Sym.pp inst.fn)
-                  ^^^ string "has enum arguments and so could not be tested."
-                  ^/^ string "See https://github.com/rems-project/cerberus/issues/765.")))
+                  ^^^ !^"has enum arguments and so could not be tested."
+                  ^/^ !^"See https://github.com/rems-project/cerberus/issues/765.")))
           ();
       true)
     else if match ret_ct with C.Ctype (_, Basic (Integer (Enum _))) -> true | _ -> false
@@ -429,10 +422,10 @@ let needs_enum_hack
              Pp.(
                warn
                  loc
-                 (string "Function"
+                 (!^"Function"
                   ^^^ squotes (Sym.pp inst.fn)
-                  ^^^ string "has an enum return type and so could not be tested."
-                  ^/^ string "See https://github.com/rems-project/cerberus/issues/765.")))
+                  ^^^ !^"has an enum return type and so could not be tested."
+                  ^/^ !^"See https://github.com/rems-project/cerberus/issues/765.")))
           ();
       true)
     else
