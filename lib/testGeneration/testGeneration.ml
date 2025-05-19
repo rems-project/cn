@@ -320,17 +320,6 @@ let save_generators
                 Sym.fresh
                   (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
               in
-              (* TODO: delete *)
-              (* string "typedef struct"
-              ^^^ (string "cn_gen_" ^^ Sym.pp inst.fn ^^ !^ "_record")
-              ^^^ (string "cn_gen_"
-                   ^^ !^ (Fulminate.Utils.static_prefix filename)
-                   ^^ underscore
-                   ^^ Sym.pp inst.fn
-                   ^^ !^ "_record")
-              ^^ semi *)
-              (* ^^ hardline *)
-              (* ^^ *)
               CF.Pp_ail.pp_program
                 ~show_include:false
                 (None, { CF.AilSyntax.empty_sigma with declarations = [ (fsym, decl) ] }))
