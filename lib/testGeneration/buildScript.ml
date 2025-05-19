@@ -229,8 +229,9 @@ let coverage ~filename_base =
             "-b";
             ".";
             "--capture";
-            "--substitute";
-            "\"s/.*" ^ filename_base ^ ".c" ^ "/" ^ filename_base ^ ".exec.c/\"";
+            (* TODO: Related to working around line markers *)
+            (* "--substitute"; *)
+            (* "\"s/.*" ^ filename_base ^ ".c" ^ "/" ^ filename_base ^ ".exec.c/\""; *)
             "--directory";
             ".";
             "--output-file";
