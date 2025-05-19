@@ -161,12 +161,12 @@ let compile_includes ~filename =
 let compile_test (test : Test.t) =
   let open Pp in
   (match test.kind with
-   | Constant ->
+   | Test.Constant ->
      if test.is_static then
        string "CN_REGISTER_STATIC_UNIT_TEST_CASE"
      else
        string "CN_REGISTER_EXTERN_UNIT_TEST_CASE"
-   | Generator ->
+   | Test.Generator ->
      if test.is_static then
        string "CN_REGISTER_STATIC_RANDOM_TEST_CASE"
      else
@@ -203,7 +203,7 @@ let compile_test_file
   let generator_tests, generator_tests_defs =
     SpecTests.compile_generator_tests filename sigma prog5 for_generator
   in
-  let tests = [ constant_tests; generator_tests ] in
+  let all_tests = constant_tests @ generator_tests in
   (* TODO copied from fulminate.ml, put somewhere shared *)
   let open ESpecInternal in
   let c_datatype_defs = generate_c_datatypes sigma in
@@ -283,10 +283,7 @@ let compile_test_file
              (nest
                 2
                 (hardline
-                 ^^ separate_map
-                      (twice hardline)
-                      (separate_map hardline compile_test)
-                      tests
+                 ^^ separate_map hardline compile_test all_tests
                  ^^ twice hardline
                  ^^ string "return cn_test_main(argc, argv);")
               ^^ hardline))
