@@ -558,7 +558,7 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
       let new_tag = Option.get (CtA.generate_record_tag name bt) in
       let typedef_doc tag =
         let open Pp in
-        string "typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
+        !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
       in
       match CtA.lookup_records_map_opt bt with
       | None ->
@@ -576,15 +576,15 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   in
   let record_defs = Records.generate_all_record_strs () in
   let open Pp in
-  string "#ifndef CN_GEN_H"
+  !^"#ifndef CN_GEN_H"
   ^^ hardline
-  ^^ string "#define CN_GEN_H"
+  ^^ !^"#define CN_GEN_H"
   ^^ twice hardline
-  ^^ string "#include <cn-testing/prelude.h>"
+  ^^ !^"#include <cn-testing/prelude.h>"
   ^^ twice hardline
-  ^^ string "/* TAG DEFINITIONS */"
+  ^^ !^"/* TAG DEFINITIONS */"
   ^^ hardline
-  ^^ string record_defs
+  ^^ !^record_defs
   (* TODO this block differs from record_defs by only including the gen
      functions, but this solution feels off *)
   (*
@@ -594,10 +594,10 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
          tag_definitions)
    *)
   ^^ twice hardline
-  ^^ string "/* TYPEDEFS */"
+  ^^ !^"/* TYPEDEFS */"
   ^^ hardline
   ^^ separate hardline typedef_docs
-  ^^ string "/* FUNCTION DECLARATIONS */"
+  ^^ !^"/* FUNCTION DECLARATIONS */"
   ^^ hardline
   ^^ CF.Pp_ail.(
        with_executable_spec
@@ -605,9 +605,9 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
             CF.Pp_ail.pp_function_prototype tag decl))
          declarations)
   ^^ twice hardline
-  ^^ string "/* EVERYTHING ELSE */"
+  ^^ !^"/* EVERYTHING ELSE */"
   ^^ hardline
   ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, sigma))
   ^^ hardline
-  ^^ string "#endif // CN_GEN_H"
+  ^^ !^"#endif // CN_GEN_H"
   ^^ hardline

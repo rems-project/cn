@@ -22,23 +22,18 @@ let mangled_name
 let pp (gd : t) : Pp.document =
   let open Pp in
   group
-    (string "generator"
-     ^^ space
-     ^^ braces
-          (separate_map
-             (comma ^^ space)
-             (fun (x, ty) -> GBT.pp ty ^^ space ^^ Sym.pp x)
-             gd.oargs)
-     ^^ space
-     ^^ Sym.pp gd.name
+    (!^"generator"
+     ^^^ braces
+           (separate_map
+              (comma ^^ space)
+              (fun (x, ty) -> GBT.pp ty ^^^ Sym.pp x)
+              gd.oargs)
+     ^^^ Sym.pp gd.name
      ^^ parens
-          (separate_map
-             (comma ^^ space)
-             (fun (x, ty) -> GBT.pp ty ^^ space ^^ Sym.pp x)
-             gd.iargs)
+          (separate_map (comma ^^ space) (fun (x, ty) -> GBT.pp ty ^^^ Sym.pp x) gd.iargs)
      ^^
      match gd.body with
-     | Some body -> space ^^ lbrace ^^ nest 2 (break 1 ^^ GT.pp body) ^^ break 1 ^^ rbrace
+     | Some body -> space ^^ lbrace ^^ nest 2 (break 1 ^^ GT.pp body) ^/^ rbrace
      | None -> semi)
 
 

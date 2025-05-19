@@ -157,10 +157,10 @@ let is_ite (gt : t) : bool =
 let rec pp (gt : t) : Pp.document =
   let open Pp in
   match gt with
-  | GT (Arbitrary, bt, _here) -> string "arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
-  | GT (Uniform sz, bt, _here) -> string "uniform" ^^ angles (BT.pp bt) ^^ parens (int sz)
+  | GT (Arbitrary, bt, _here) -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
+  | GT (Uniform sz, bt, _here) -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens (int sz)
   | GT (Pick wgts, _bt, _here) ->
-    string "pick"
+    !^"pick"
     ^^ parens
          (brackets
             (separate_map
@@ -168,7 +168,7 @@ let rec pp (gt : t) : Pp.document =
                (fun (w, gt) ->
                   parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                wgts))
-  | GT (Alloc it, _bt, _here) -> string "alloc" ^^ parens (IT.pp it)
+  | GT (Alloc it, _bt, _here) -> !^"alloc" ^^ parens (IT.pp it)
   | GT (Call (fsym, xits), _bt, _here) ->
     Sym.pp fsym
     ^^ parens
@@ -176,56 +176,33 @@ let rec pp (gt : t) : Pp.document =
             2
             (separate_map
                (comma ^^ break 1)
-               (fun (x, it) -> Sym.pp x ^^ colon ^^ space ^^ IT.pp it)
+               (fun (x, it) -> Sym.pp x ^^ colon ^^^ IT.pp it)
                xits))
   | GT (Asgn ((it_addr, ty), it_val, gt'), _bt, _here) ->
-    Sctypes.pp ty
-    ^^ space
-    ^^ IT.pp it_addr
-    ^^ space
-    ^^ string ":="
-    ^^ space
-    ^^ IT.pp it_val
-    ^^ semi
-    ^^ break 1
-    ^^ pp gt'
+    Sctypes.pp ty ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val ^^ semi ^/^ pp gt'
   | GT (Let (tries, (x, gt1), gt2), _bt, _here) ->
-    string "let"
+    !^"let"
     ^^ (if tries <> 0 then parens (int tries) else empty)
     ^^ (if is_return gt1 then empty else star)
-    ^^ space
-    ^^ Sym.pp x
-    ^^ space
-    ^^ colon
-    ^^ space
-    ^^ BT.pp (basetype gt1)
-    ^^ space
-    ^^ equals
+    ^^^ Sym.pp x
+    ^^^ colon
+    ^^^ BT.pp (basetype gt1)
+    ^^^ equals
     ^^ nest 2 (break 1 ^^ pp gt1)
     ^^ semi
-    ^^ break 1
-    ^^ pp gt2
-  | GT (Return it, _bt, _here) -> string "return" ^^ space ^^ IT.pp it
+    ^/^ pp gt2
+  | GT (Return it, _bt, _here) -> !^"return" ^^^ IT.pp it
   | GT (Assert (lc, gt'), _bt, _here) ->
-    string "assert"
-    ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1)
-    ^^ semi
-    ^^ break 1
-    ^^ pp gt'
+    !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1) ^^ semi ^/^ pp gt'
   | GT (ITE (it_if, gt_then, gt_else), _bt, _here) ->
-    string "if"
-    ^^ space
-    ^^ parens (IT.pp it_if)
-    ^^ space
-    ^^ braces (nest 2 (break 1 ^^ pp gt_then) ^^ break 1)
-    ^^ space
-    ^^ string "else"
-    ^^ space
-    ^^ braces (nest 2 (break 1 ^^ pp gt_else) ^^ break 1)
+    !^"if"
+    ^^^ parens (IT.pp it_if)
+    ^^^ braces (nest 2 (break 1 ^^ pp gt_then) ^^ break 1)
+    ^^^ !^"else"
+    ^^^ braces (nest 2 (break 1 ^^ pp gt_else) ^^ break 1)
   | GT (Map ((i, i_bt, it_perm), gt'), _bt, _here) ->
-    string "map"
-    ^^ space
-    ^^ parens (BT.pp i_bt ^^ space ^^ Sym.pp i ^^ semi ^^ space ^^ IT.pp it_perm)
+    !^"map"
+    ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ IT.pp it_perm)
     ^^ braces (nest 2 (break 1 ^^ pp gt') ^^ break 1)
 
 

@@ -4,28 +4,25 @@ open Pp
 let setup ~output_dir =
   string "#!/bin/bash"
   ^^ twice hardline
-  ^^ string "# copied from cn-runtime-single-file.sh"
+  ^^ !^"# copied from cn-runtime-single-file.sh"
   ^^ hardline
-  ^^ string "RUNTIME_PREFIX=\"$OPAM_SWITCH_PREFIX/lib/cn/runtime\""
+  ^^ !^"RUNTIME_PREFIX=\"$OPAM_SWITCH_PREFIX/lib/cn/runtime\""
   ^^ hardline
-  ^^ string "[ -d \"${RUNTIME_PREFIX}\" ]"
-  ^^ space
-  ^^ twice bar
-  ^^ space
-  ^^ parens
-       (nest
-          4
-          (hardline
-           ^^ string
-                "printf \"Could not find CN's runtime directory (looked at: \
-                 '${RUNTIME_PREFIX}')\""
-           ^^ hardline
-           ^^ string "exit 1")
-        ^^ hardline)
+  ^^ !^"[ -d \"${RUNTIME_PREFIX}\" ]"
+  ^^^ twice bar
+  ^^^ parens
+        (nest
+           4
+           (hardline
+            ^^ !^"printf \"Could not find CN's runtime directory (looked at: \
+                  '${RUNTIME_PREFIX}')\""
+            ^^ hardline
+            ^^ !^"exit 1")
+         ^^ hardline)
   ^^ twice hardline
-  ^^ string ("TEST_DIR=" ^ Filename.dirname (Filename.concat output_dir "junk"))
+  ^^ !^("TEST_DIR=" ^ Filename.dirname (Filename.concat output_dir "junk"))
   ^^ hardline
-  ^^ string "pushd $TEST_DIR > /dev/null"
+  ^^ !^"pushd $TEST_DIR > /dev/null"
   ^^ hardline
 
 
@@ -37,12 +34,10 @@ let attempt cmd success failure =
         ^^ if Config.is_print_steps () then string ("echo \"" ^ success ^ "\"") else colon
        )
   ^^ hardline
-  ^^ string "else"
-  ^^ nest
-       4
-       (hardline ^^ string ("printf \"" ^ failure ^ "\"") ^^ hardline ^^ string "exit 1")
+  ^^ !^"else"
+  ^^ nest 4 (hardline ^^ !^("printf \"" ^ failure ^ "\"") ^^ hardline ^^ !^"exit 1")
   ^^ hardline
-  ^^ string "fi"
+  ^^ !^"fi"
 
 
 let cc_flags () =
@@ -213,14 +208,14 @@ let run () =
         empty)
   ^^ cmd
   ^^ hardline
-  ^^ string "test_exit_code=$? # Save tests exit code for later"
+  ^^ !^"test_exit_code=$? # Save tests exit code for later"
   ^^ hardline
 
 
 let coverage ~filename_base =
   string "# Coverage"
   ^^ hardline
-  ^^ string "echo"
+  ^^ !^"echo"
   ^^ hardline
   ^^ attempt
        (String.concat
@@ -276,7 +271,7 @@ let generate ~(output_dir : string) ~(filename_base : string) : Pp.document =
         coverage ~filename_base ^^ hardline
       else
         empty)
-  ^^ string "popd > /dev/null"
+  ^^ !^"popd > /dev/null"
   ^^ hardline
-  ^^ string "exit $test_exit_code"
+  ^^ !^"exit $test_exit_code"
   ^^ hardline
