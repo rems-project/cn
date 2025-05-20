@@ -167,11 +167,13 @@ let filter_unspecified_fns
   Printf.printf
     "# fns filtered in instrumentation: %d\n"
     (List.length filtered_instrumentation);
-  let instrumented_fn_syms =
+  let specified_fn_syms =
     List.map (fun (i : Extract.instrumentation) -> i.fn) filtered_instrumentation
   in
+  Printf.printf "Functions with CN spec:\n";
+  List.iter (fun sym -> Printf.printf "%s\n" (Sym.pp_string sym)) specified_fn_syms;
   let is_fn_instrumented =
-    fun sym -> List.mem Sym.equal sym (instrumented_fn_syms @ get_main_sym prog5_fns_list)
+    fun sym -> List.mem Sym.equal sym (specified_fn_syms @ get_main_sym prog5_fns_list)
   in
   filter_selected_fns is_fn_instrumented (sigm, instrumentation)
 
@@ -230,7 +232,7 @@ let main
   let filtered_instrumentation, filtered_sigm =
     filter_using_skip_and_only (prog5, sigm, full_instrumentation)
   in
-  let filtered_instrumentation', filtered_sigm' =
+  let filtered_instrumentation', _ =
     filter_unspecified_fns (prog5, filtered_sigm, filtered_instrumentation)
   in
   let static_funcs =
@@ -240,7 +242,7 @@ let main
     |> List.map (fun (inst : Extract.instrumentation) -> inst.fn)
     |> Sym.Set.of_list
   in
-  let filtered_ail_prog = (startup_sym_opt, filtered_sigm') in
+  let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
   Records.populate_record_map filtered_instrumentation' prog5;
   let executable_spec =
     generate_c_specs
