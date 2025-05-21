@@ -125,6 +125,10 @@ let not_too_many_snippets = function
   | _ -> return ()
 
 
+let cn_ghost_args annots =
+  annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_ghost_args)
+
+
 let function_spec (A.Attrs attributes) =
   let magic_attrs = A.get_cerb_magic_attr [ A.Aattrs (Attrs (List.rev attributes)) ] in
   let@ () = not_too_many_snippets magic_attrs in

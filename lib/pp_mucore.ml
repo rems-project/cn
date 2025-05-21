@@ -583,7 +583,10 @@ module Make (Config : CONFIG) = struct
                   (comma_list
                      pp_actype_or_pexpr
                      (Right pe :: (List.map (fun pe -> Either.Right pe)) pes))
-             ^^ Pp.parens (comma_list IndexTerms.pp its)
+             ^^ Pp.parens
+                  (Cn_Pp.list
+                     Pp_ast.pp_doc_tree
+                     (List.map (Cnprog.dtree IndexTerms.dtree) its))
            | CN_progs (_, stmts) ->
              pp_keyword "cn_prog"
              ^^ Pp.parens
@@ -636,7 +639,10 @@ module Make (Config : CONFIG) = struct
            | Erun (sym, pes, its) ->
              pp_keyword "run"
              ^^^ Cn_Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes)
-             ^^ Pp.parens (comma_list IndexTerms.pp its))
+             ^^ Pp.parens
+                  (Cn_Pp.list
+                     Pp_ast.pp_doc_tree
+                     (List.map (Cnprog.dtree IndexTerms.dtree) its)))
     in
     pp budget expr
 

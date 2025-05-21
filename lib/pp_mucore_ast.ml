@@ -177,7 +177,7 @@ module PP = struct
       Dnode
         ( pp_pure_ctor "Erun",
           [ Dnode (pp_ctor "Args", List.map dtree_of_pexpr asyms);
-            Dnode (pp_ctor "Ghost args", List.map IndexTerms.dtree its)
+            Dnode (pp_ctor "Ghost args", List.map (Cnprog.dtree IndexTerms.dtree) its)
           ] )
     | Ebound e -> Dnode (pp_ctor "Ebound", [ dtree_of_expr e ])
     | Ememop _ | Eccall (_, _, _, _) | Eunseq _ | End _ | CN_progs (_, _) ->

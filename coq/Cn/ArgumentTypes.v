@@ -11,6 +11,7 @@ Require Import False.
 (* Define the argument type *)
 Inductive argument_type (i : Type) : Type :=
   | Computational : (Sym.t * BaseTypes.t) -> info -> argument_type i -> argument_type i
+  | Ghost : (Sym.t * BaseTypes.t) -> info -> argument_type i -> argument_type i
   | L : LogicalArgumentTypes.t i -> argument_type i.
 
 (* Type alias for the main type *)

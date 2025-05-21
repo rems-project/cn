@@ -66,6 +66,8 @@ module Translate = struct
   let predicate x1 x2 = lift (predicate x1 x2)
 
   let statement x1 x2 x3 x4 = lift (statement x1 x2 x3 x4)
+
+  let expr_ghost x1 x2 x3 x4 = lift (expr_ghost x1 x2 x3 x4)
 end
 
 module Parse = struct
@@ -819,8 +821,48 @@ let rec n_expr
       | _ -> return @@ n_pexpr e2
     in
     let es = List.map n_pexpr es in
-    let ghost_args = [] in
-    (* TODO: https://github.com/rems-project/cn/issues/123 *)
+    let@ parsed_ghosts = Parse.cn_ghost_args annots in
+    let@ ghost_args =
+      match parsed_ghosts with
+      (* Handling the empty case separately because rems-project/cerberus@f58daf7
+        only adds markers if there is a magic comment, otherwise Option.get throws an exception *)
+      | [] -> return []
+      | _ :: _ ->
+        let marker_id = Option.get (CF.Annot.get_marker annots) in
+        let marker_id_object_types =
+          Option.get (CF.Annot.get_marker_object_types annots)
+        in
+        let visible_objects =
+          global_types @ Pmap.find marker_id_object_types visible_objects_env
+        in
+        let get_c_obj sym =
+          match List.assoc_opt Sym.equal sym visible_objects with
+          | Some obj_ty -> obj_ty
+          | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+        in
+        let@ ghosts =
+          ListM.mapM
+            (fun parsed_ghost ->
+               let@ desugared_ghost =
+                 do_ail_desugar_rdonly
+                   CAE.
+                     { markers_env;
+                       inner =
+                         { (Pmap.find marker_id markers_env) with
+                           cn_state = cn_desugaring_state
+                         }
+                     }
+                   (Desugar.cn_expr parsed_ghost)
+               in
+               let@ ghost =
+                 Translate.expr_ghost get_c_obj old_states env desugared_ghost
+               in
+               return ghost)
+            parsed_ghosts
+        in
+        let ghost_args = List.map (Cnprog.map IT.Surface.proj) ghosts in
+        return ghost_args
+    in
     return (wrap (Eccall (ct1, e2, es, ghost_args)))
   | Eproc (_a, name, es) ->
     let es = List.map n_pexpr es in
@@ -855,6 +897,14 @@ let rec n_expr
            let marker_id_object_types =
              Option.get (CF.Annot.get_marker_object_types annots)
            in
+           let visible_objects =
+             global_types @ Pmap.find marker_id_object_types visible_objects_env
+           in
+           let get_c_obj sym =
+             match List.assoc_opt Sym.equal sym visible_objects with
+             | Some obj_ty -> obj_ty
+             | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+           in
            let@ desugared_stmts_and_stmts =
              ListM.mapM
                (fun parsed_stmt ->
@@ -869,18 +919,9 @@ let rec n_expr
                         }
                       (Desugar.cn_statement parsed_stmt)
                   in
-                  let visible_objects =
-                    global_types @ Pmap.find marker_id_object_types visible_objects_env
-                  in
                   (* debug 6 (lazy (!^"CN statement before translation")); debug 6 (lazy
                     (pp_doc_tree (CF.Cn_ocaml.PpAil.dtree_of_cn_statement
                     desugared_stmt))); *)
-                  let get_c_obj sym =
-                    match List.assoc_opt Sym.equal sym visible_objects with
-                    | Some obj_ty -> obj_ty
-                    | None ->
-                      failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
-                  in
                   let@ stmt =
                     Translate.statement get_c_obj old_states env desugared_stmt
                   in
@@ -1049,8 +1090,8 @@ let make_label_args f_i loc env st args (accesses, inv) =
   aux ([], []) env st args
 
 
-let make_function_args f_i loc env args (accesses, requires) =
-  let rec aux arg_states good_lcs env st = function
+let make_function_args f_i loc env args accesses ghost_params requires =
+  let rec aux_comp arg_states good_lcs env st = function
     | ((mut_arg, (mut_arg', ct)), (pure_arg, cbt)) :: rest ->
       assert (Option.equal Sym.equal (Some mut_arg) mut_arg');
       let ct = convert_ct loc ct in
@@ -1066,18 +1107,32 @@ let make_function_args f_i loc env args (accesses, requires) =
       (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
       let@ at =
-        aux (arg_states @ [ (mut_arg, arg_state) ]) (* good_lc :: *) good_lcs env st rest
+        aux_comp
+          (arg_states @ [ (mut_arg, arg_state) ])
+          (* good_lc :: *) good_lcs
+          env
+          st
+          rest
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
       let@ lat = make_largs_with_accesses (f_i arg_states) env st (accesses, requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] [] env Translate.C_vars.init args
+  let rec aux_ghost arg_states env st = function
+    | (arg, cnbt) :: rest ->
+      let sbt = Translate.base_type env cnbt in
+      let bt = SBT.proj sbt in
+      let env = Translate.add_logical arg sbt env in
+      let@ at = aux_ghost arg_states env st rest in
+      return (Mu.Ghost ((arg, bt), (loc, None), at))
+    | [] -> aux_comp arg_states [] env st args
+  in
+  aux_ghost [] env Translate.C_vars.init ghost_params
 
 
-let make_fun_with_spec_args f_i loc env args (accesses, requires) =
-  let rec aux good_lcs env st = function
+let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
+  let rec aux_comp good_lcs env st = function
     | ((pure_arg, cn_bt), ct_ct) :: rest ->
       let ct = convert_ct loc ct_ct in
       let sbt = Memory.sbt_of_sct ct in
@@ -1105,13 +1160,22 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       (*   let here = Locations.other __LOC__ in *)
       (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
-      let@ at = aux (* good_lc :: *) good_lcs env st rest in
+      let@ at = aux_comp (* good_lc :: *) good_lcs env st rest in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
       let@ lat = make_largs_with_accesses f_i env st (accesses, requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] env Translate.C_vars.init args
+  let rec aux_ghost env st = function
+    | (arg, cnbt) :: rest ->
+      let sbt = Translate.base_type env cnbt in
+      let bt = SBT.proj sbt in
+      let env = Translate.add_logical arg sbt env in
+      let@ at = aux_ghost env st rest in
+      return (Mu.Ghost ((arg, bt), (loc, None), at))
+    | [] -> aux_comp [] env st args
+  in
+  aux_ghost env Translate.C_vars.init ghost_params
 
 
 let desugar_access d_st global_types (loc, id) =
@@ -1190,6 +1254,11 @@ let dtree_of_requires conds =
 let dtree_of_ensures conds =
   let open CF.Pp_ast in
   Dnode (pp_ctor "EnsuresAnnotation", dtree_of_conds conds)
+
+
+let dtree_of_ghost_args args =
+  let open CF.Pp_ast in
+  Dnode (pp_ctor "GhostArguments", CF.Cn_ocaml.PpAil.dtrees_of_cn_ghosts args)
 
 
 let dtree_of_accesses accesses =
@@ -1286,6 +1355,7 @@ module Spec = struct
   type 'a parsed =
     { trusted : Mu.trusted;
       accesses : (Cerb_location.t * Id.t) list;
+      ghost_params : (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list;
       requires : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       ensures : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       functions : (Cerb_location.t * Id.t) list;
@@ -1295,6 +1365,7 @@ module Spec = struct
   let default : _ parsed =
     { trusted = Mucore.Checked;
       accesses = [];
+      ghost_params = [];
       requires = [];
       ensures = [];
       functions = [];
@@ -1310,6 +1381,11 @@ module Spec = struct
     let cross_fst x =
       match x with None -> [] | Some (a, bs) -> List.map (fun b -> (a, b)) bs
     in
+    let cross_fst2 x =
+      match x with
+      | None -> ([], [])
+      | Some (a, (bs, cs)) -> (cross_fst (Some (a, bs)), cross_fst (Some (a, cs)))
+    in
     let trusted =
       match cn_func_trusted with None -> Mucore.Checked | Some loc -> Mucore.Trusted loc
     in
@@ -1319,15 +1395,12 @@ module Spec = struct
       | Some (loc, Cn.CN_mk_function nm) -> ([], [ (loc, nm) ])
       | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
     in
-    let cn_func_requires =
-      Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_requires
-    in
+    let ghost_params, requires = cross_fst2 cn_func_requires in
     let cn_func_ensures =
       Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_ensures
     in
-    let requires = cross_fst cn_func_requires in
     let ensures = cross_fst cn_func_ensures in
-    { trusted; accesses; requires; ensures; functions; if_spec }
+    { trusted; accesses; ghost_params; requires; ensures; functions; if_spec }
 
 
   let there_can_only_be_one defn_loc fname parsed_decl_spec parsed_defn_specs =
@@ -1392,6 +1465,7 @@ module Spec = struct
   type desugared =
     { trusted : Mu.trusted;
       accesses : (Cerb_location.t * (Sym.t * Ctype.ctype)) list;
+      ghost_params : (Sym.t * Sym.t Cn.cn_base_type) list;
       requires : (Sym.t, Ctype.ctype) Cn.cn_condition list;
       ensures : (Sym.t, Ctype.ctype) Cn.cn_condition list;
       functions : (Cerb_location.t * Sym.t) list
@@ -1400,18 +1474,21 @@ module Spec = struct
   let desugar
         global_types
         d_st
-        ({ trusted; accesses; requires; ensures; functions; if_spec = _ } : _ parsed)
+        ({ trusted; accesses; ghost_params; requires; ensures; functions; if_spec = _ } :
+          _ parsed)
     : (desugared * _ * _) t
     =
     let@ functions = logical_fun_syms d_st functions in
     let@ accesses = ListM.mapM (desugar_access d_st global_types) accesses in
+    let@ ghost_params, d_st = desugar_and_add_args d_st (List.map snd ghost_params) in
     let@ requires, d_st = desugar_conds d_st (List.map snd requires) in
     debug 6 (lazy (string "desugared requires conds"));
     let here = Locations.other __LOC__ in
     let@ ret_s, ret_d_st = register_new_cn_local (Id.make here "return") d_st in
     let@ ensures, _ = desugar_conds ret_d_st (List.map snd ensures) in
     debug 6 (lazy (string "desugared ensures conds"));
-    return ({ trusted; accesses; requires; ensures; functions }, ret_s, ret_d_st)
+    return
+      ({ trusted; accesses; ghost_params; requires; ensures; functions }, ret_s, ret_d_st)
 end
 
 let normalise_fun_map_decl
@@ -1454,11 +1531,13 @@ let normalise_fun_map_decl
            args
            (List.map snd arg_cts)
        in
-       let@ { trusted; accesses; requires; ensures; functions }, ret_s, d_st =
+       let@ { trusted; accesses; ghost_params; requires; ensures; functions }, ret_s, d_st
+         =
          Spec.desugar global_types d_st parsed
        in
        debug 6 (lazy (!^"function requires/ensures" ^^^ Sym.pp fname));
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_accesses accesses)));
+       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ghost_args ghost_params)));
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_requires requires)));
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ensures ensures)));
        let@ args_and_body =
@@ -1499,7 +1578,9 @@ let normalise_fun_map_decl
            loc
            env
            (List.combine (List.combine ail_args arg_cts) args)
-           (accesses, requires)
+           accesses
+           ghost_params
+           requires
        in
        return (Some (Mu.Proc { loc; args_and_body; trusted }, functions))
      | Mi_ProcDecl (loc, ret_bt, _bts) ->
@@ -1512,7 +1593,10 @@ let normalise_fun_map_decl
           let ail_marker, spec_loc, spec_args = Option.get parsed.if_spec in
           let d_st = CAE.{ inner = Pmap.find ail_marker markers_env; markers_env } in
           let@ spec_args, d_st = Spec.desugar_and_add_args d_st spec_args in
-          let@ { trusted = _; accesses; requires; ensures; functions }, ret_s, _ =
+          let@ ( { trusted = _; accesses; ghost_params; requires; ensures; functions },
+                 ret_s,
+                 _ )
+            =
             Spec.desugar global_types d_st parsed
           in
           let@ () =
@@ -1533,7 +1617,9 @@ let normalise_fun_map_decl
               loc
               env
               (List.combine spec_args (List.map snd arg_cts))
-              (accesses, requires)
+              accesses
+              ghost_params
+              requires
           in
           let ft = at_of_arguments Tools.id args_and_rt in
           return (Some (Mu.ProcDecl (loc, Some ft), functions))
