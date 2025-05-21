@@ -1631,3 +1631,8 @@ let statement
       (Cn.CN_statement (loc, stmt_))
   =
   Handle.with_loads loc allocations old_states (C_vars.cn_statement env (loc, stmt_))
+
+
+let expr_ghost allocations old_states env expr =
+  let (Cn.CNExpr (loc, _)) = expr in
+  Handle.with_loads loc allocations old_states (C_vars.cn_expr Sym.Set.empty env expr)
