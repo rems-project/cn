@@ -1786,6 +1786,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                    [@alert "-deprecated"]
                })
          in
+         let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
+         let its = List.map snd its in
          (* checks pes against their annotations, and that they match ft's argument types *)
          Spine.calltype_ft
            loc
@@ -2138,6 +2140,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          | Some (lt, lkind, _) -> return (lt, lkind)
        in
        let@ original_resources = all_resources_tagged loc in
+       let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
+       let its = List.map snd its in
        Spine.calltype_lt loc pes its (lt, lkind) (fun False ->
          let@ () = all_empty loc original_resources in
          return ()))

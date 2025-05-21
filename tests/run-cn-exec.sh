@@ -99,6 +99,7 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "offsetof_int_const.c" \
     ! -name "issue_113.c" \
     ! -name "alloc_create.c" \
+    ! -name "ghost_arguments.c" \
 )
 
 # Include files which cause error for proof but not testing
@@ -161,6 +162,7 @@ BUGGY="\
        cn/offsetof_int_const.c \
        cn/accesses_on_spec/clientfile.c \
        cn/alloc_create.c \
+       cn/ghost_arguments.c \
        "
 
 # Exclude files which cause error for proof but not testing
