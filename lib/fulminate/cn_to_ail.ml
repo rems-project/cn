@@ -3974,7 +3974,12 @@ let cn_to_ail_pre_post
 let has_spec =
   let has_post = function LRT.I -> false | _ -> true in
   let has_stats = List.non_empty in
-  let has_loop_inv = List.non_empty in
+  let has_loop_inv (loops : Extract.loops) =
+    List.fold_left
+      ( || )
+      false
+      (List.map (fun (contains_user_spec, _, _, _) -> contains_user_spec) loops)
+  in
   let has_spec_lat = function
     | LAT.I (ReturnTypes.Computational (_, _, post), (stats, loops)) ->
       has_post post || has_stats stats || has_loop_inv loops
