@@ -1037,7 +1037,7 @@ let make_label_args f_i loc env st args (accesses, inv) =
 
 let make_function_args f_i loc env args (accesses, requires) =
   let rec aux arg_states good_lcs env st = function
-    | ((mut_arg, (mut_arg', ct)), (pure_arg, cbt)) :: rest ->
+    | ((mut_arg, (mut_arg', ct)), (pure_arg, cbt)) :: rest, ghost_args ->
       assert (Option.equal Sym.equal (Some mut_arg) mut_arg');
       let ct = convert_ct loc ct in
       let sbt = Memory.sbt_of_sct ct in
@@ -1052,19 +1052,32 @@ let make_function_args f_i loc env args (accesses, requires) =
       (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
       let@ at =
-        aux (arg_states @ [ (mut_arg, arg_state) ]) (* good_lc :: *) good_lcs env st rest
+        aux
+          (arg_states @ [ (mut_arg, arg_state) ])
+          (* good_lc :: *) good_lcs
+          env
+          st
+          (rest, ghost_args)
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
-    | [] ->
-      let@ lat = make_largs_with_accesses (f_i arg_states) env st (accesses, requires) in
+    | [], (arg, cnbt) :: rest ->
+      let sbt = Compile.base_type env cnbt in
+      let bt = SBT.proj sbt in
+      let env = Translate.add_logical arg sbt env in
+      let@ at = aux arg_states good_lcs env st ([], rest) in
+      return (Mu.Ghost ((arg, bt), (loc, None), at))
+    | [], [] ->
+      let@ lat =
+        make_largs_with_accesses (f_i arg_states) env st (accesses, snd requires)
+      in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] [] env Translate.C_vars.init args
+  aux [] [] env Translate.C_vars.init (args, fst requires)
 
 
 let make_fun_with_spec_args f_i loc env args (accesses, requires) =
   let rec aux good_lcs env st = function
-    | ((pure_arg, cn_bt), ct_ct) :: rest ->
+    | ((pure_arg, cn_bt), ct_ct) :: rest, ghost_args ->
       let ct = convert_ct loc ct_ct in
       let sbt = Memory.sbt_of_sct ct in
       let bt = SBT.proj sbt in
@@ -1091,13 +1104,19 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       (*   let here = Locations.other __LOC__ in *)
       (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
-      let@ at = aux (* good_lc :: *) good_lcs env st rest in
+      let@ at = aux (* good_lc :: *) good_lcs env st (rest, ghost_args) in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
-    | [] ->
-      let@ lat = make_largs_with_accesses f_i env st (accesses, requires) in
+    | [], (arg, cnbt) :: rest ->
+      let sbt = Compile.base_type env cnbt in
+      let bt = SBT.proj sbt in
+      let env = Translate.add_logical arg sbt env in
+      let@ at = aux good_lcs env st ([], rest) in
+      return (Mu.Ghost ((arg, bt), (loc, None), at))
+    | [], [] ->
+      let@ lat = make_largs_with_accesses f_i env st (accesses, snd requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] env Translate.C_vars.init args
+  aux [] env Translate.C_vars.init (args, fst requires)
 
 
 let desugar_access d_st global_types (loc, id) =
@@ -1176,6 +1195,16 @@ let dtree_of_requires conds =
 let dtree_of_ensures conds =
   let open CF.Pp_ast in
   Dnode (pp_ctor "EnsuresAnnotation", dtree_of_conds conds)
+
+
+let dtree_of_ghost_args args =
+  let open CF.Pp_ast in
+  Dnode (pp_ctor "GhostArguments", CF.Cn_ocaml.PpAil.dtrees_of_cn_ghosts args)
+
+
+let dtree_of_ghost_rets rets =
+  let open CF.Pp_ast in
+  Dnode (pp_ctor "GhostReturns", CF.Cn_ocaml.PpAil.dtrees_of_cn_ghosts rets)
 
 
 let dtree_of_accesses accesses =
@@ -1272,8 +1301,12 @@ module Spec = struct
   type 'a parsed =
     { trusted : Mu.trusted;
       accesses : (Cerb_location.t * Id.t) list;
-      requires : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
-      ensures : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
+      requires :
+        (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list
+        * (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
+      ensures :
+        (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list
+        * (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       functions : (Cerb_location.t * Id.t) list;
       if_spec : (int * Cerb_location.t * (Id.t * Id.t Cn.cn_base_type) list) option
     }
@@ -1281,8 +1314,8 @@ module Spec = struct
   let default : _ parsed =
     { trusted = Mucore.Checked;
       accesses = [];
-      requires = [];
-      ensures = [];
+      requires = ([], []);
+      ensures = ([], []);
       functions = [];
       if_spec = None
     }
@@ -1296,6 +1329,9 @@ module Spec = struct
     let cross_fst x =
       match x with None -> [] | Some (a, bs) -> List.map (fun b -> (a, b)) bs
     in
+    let cross_fst2 x =
+      match x with None -> [], [] | Some (a, (bs, cs)) -> cross_fst (Some (a, bs)), cross_fst (Some (a, cs))
+    in
     let trusted =
       match cn_func_trusted with None -> Mucore.Checked | Some loc -> Mucore.Trusted loc
     in
@@ -1305,14 +1341,8 @@ module Spec = struct
       | Some (loc, Cn.CN_mk_function nm) -> ([], [ (loc, nm) ])
       | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
     in
-    let cn_func_requires =
-      Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_requires
-    in
-    let cn_func_ensures =
-      Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_ensures
-    in
-    let requires = cross_fst cn_func_requires in
-    let ensures = cross_fst cn_func_ensures in
+    let requires = cross_fst2 cn_func_requires in
+    let ensures = cross_fst2 cn_func_ensures in
     { trusted; accesses; requires; ensures; functions; if_spec }
 
 
@@ -1378,8 +1408,10 @@ module Spec = struct
   type desugared =
     { trusted : Mu.trusted;
       accesses : (Cerb_location.t * (Sym.t * Ctype.ctype)) list;
-      requires : (Sym.t, Ctype.ctype) Cn.cn_condition list;
-      ensures : (Sym.t, Ctype.ctype) Cn.cn_condition list;
+      requires :
+        (Sym.t * Sym.t Cn.cn_base_type) list * (Sym.t, Ctype.ctype) Cn.cn_condition list;
+      ensures :
+        (Sym.t * Sym.t Cn.cn_base_type) list * (Sym.t, Ctype.ctype) Cn.cn_condition list;
       functions : (Cerb_location.t * Sym.t) list
     }
 
@@ -1391,13 +1423,25 @@ module Spec = struct
     =
     let@ functions = logical_fun_syms d_st functions in
     let@ accesses = ListM.mapM (desugar_access d_st global_types) accesses in
-    let@ requires, d_st = desugar_conds d_st (List.map snd requires) in
+    let@ ghost_args, d_st = desugar_and_add_args d_st (List.map snd (fst requires)) in
+    let@ requires, d_st = desugar_conds d_st (List.map snd (snd requires)) in
     debug 6 (lazy (string "desugared requires conds"));
     let here = Locations.other __LOC__ in
     let@ ret_s, ret_d_st = register_new_cn_local (Id.make here "return") d_st in
-    let@ ensures, _ = desugar_conds ret_d_st (List.map snd ensures) in
+    let@ ghost_rets, ret_d_st =
+      desugar_and_add_args ret_d_st (List.map snd (fst ensures))
+    in
+    let@ ensures, _ = desugar_conds ret_d_st (List.map snd (snd ensures)) in
     debug 6 (lazy (string "desugared ensures conds"));
-    return ({ trusted; accesses; requires; ensures; functions }, ret_s, ret_d_st)
+    return
+      ( { trusted;
+          accesses;
+          requires = (ghost_args, requires);
+          ensures = (ghost_rets, ensures);
+          functions
+        },
+        ret_s,
+        ret_d_st )
 end
 
 let normalise_fun_map_decl
@@ -1445,8 +1489,10 @@ let normalise_fun_map_decl
        in
        debug 6 (lazy (!^"function requires/ensures" ^^^ Sym.pp fname));
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_accesses accesses)));
-       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_requires requires)));
-       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ensures ensures)));
+       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ghost_args (fst requires))));
+       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_requires (snd requires))));
+       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ghost_rets (fst ensures))));
+       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ensures (snd ensures))));
        let@ args_and_body =
          make_function_args
            (fun arg_states env st ->
@@ -1466,7 +1512,8 @@ let normalise_fun_map_decl
                   env
                   (Translate.C_vars.add arg_states st)
                   (ret_s, ret_ct)
-                  (accesses, ensures)
+                  (* TODO: add ghost return to frontend *)
+                  (accesses, snd ensures)
               in
               let@ labels =
                 PmapM.mapM
@@ -1513,7 +1560,8 @@ let normalise_fun_map_decl
             make_fun_with_spec_args
               (fun env st ->
                  let@ returned =
-                   Translate.return_type loc env st (ret_s, ret_ct) (accesses, ensures)
+                   (* TODO: add ghost return to frontend *)
+                   Translate.return_type loc env st (ret_s, ret_ct) (accesses, snd ensures)
                  in
                  return returned)
               loc
