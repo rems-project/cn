@@ -151,7 +151,17 @@ let generate_c_loop_invariants
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
 
 
-let generate_c_specs_internal
+type cn_spec_inj_info =
+  { pre_str : string list;
+    post_str : string list;
+    in_stmt_and_loop_inv_injs : (Cerb_location.t * string list) list
+  }
+
+let empty_cn_spec_inj_info : cn_spec_inj_info =
+  { pre_str = []; post_str = []; in_stmt_and_loop_inv_injs = [] }
+
+
+let generate_c_specs_from_cn_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -159,6 +169,7 @@ let generate_c_specs_internal
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
+  : cn_spec_inj_info
   =
   let dts = sigm.cn_datatypes in
   let preds = prog5.resource_predicates in
@@ -181,10 +192,6 @@ let generate_c_specs_internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
   let post_str = generate_ail_stat_strs ail_executable_spec.post in
-  (* C ownership checking *)
-  let stack_local_var_inj_info : stack_local_var_inj_info =
-    generate_stack_local_var_inj_strs instrumentation.fn sigm
-  in
   (* Needed for extracting correct location for CN statement injection *)
   let modify_magic_comment_loc loc =
     match loc with
@@ -203,14 +210,45 @@ let generate_c_specs_internal
   let loop_invariant_injs =
     generate_c_loop_invariants without_loop_invariants ail_executable_spec
   in
+  { pre_str; post_str; in_stmt_and_loop_inv_injs = in_stmt @ loop_invariant_injs }
+
+
+let generate_c_specs_internal
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      filename
+      (instrumentation : Extract.instrumentation)
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation.internal in
+  (* C stack-local variable ownership checking: needed regardless of whether user has provided CN spec *)
+  let stack_local_var_inj_info : stack_local_var_inj_info =
+    generate_stack_local_var_inj_strs instrumentation.fn sigm
+  in
+  let cn_spec_inj_info =
+    if contains_user_spec then
+      generate_c_specs_from_cn_internal
+        without_ownership_checking
+        without_loop_invariants
+        with_loop_leak_checks
+        filename
+        instrumentation
+        sigm
+        prog5
+    else
+      empty_cn_spec_inj_info
+  in
   (* NOTE - the nesting pre - entry - exit - post *)
   ( [ ( instrumentation.fn,
-        ( pre_str
+        ( cn_spec_inj_info.pre_str
           @ ("\n\t/* C OWNERSHIP */\n\n" :: stack_local_var_inj_info.entry_ownership_str),
           ("\n\t/* C OWNERSHIP */\n\n" :: stack_local_var_inj_info.exit_ownership_str)
-          @ post_str ) )
+          @ cn_spec_inj_info.post_str ) )
     ],
-    in_stmt @ stack_local_var_inj_info.block_ownership_stmts @ loop_invariant_injs,
+    cn_spec_inj_info.in_stmt_and_loop_inv_injs
+    @ stack_local_var_inj_info.block_ownership_stmts,
     stack_local_var_inj_info.return_ownership_stmts )
 
 

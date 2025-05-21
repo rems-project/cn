@@ -152,32 +152,6 @@ let filter_using_skip_and_only
   filter_selected_fns is_sym_selected (sigm, instrumentation)
 
 
-let filter_unspecified_fns
-      ( (prog5 : unit Mucore.file),
-        (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma),
-        (instrumentation : Extract.instrumentation list) )
-  =
-  let prog5_fns_list = List.map fst (Pmap.bindings_list prog5.funs) in
-  let filtered_instrumentation =
-    List.filter
-      (fun (i : Extract.instrumentation) -> Cn_to_ail.has_spec i.internal)
-      instrumentation
-  in
-  Printf.printf "# fns collected in instrumentation: %d\n" (List.length instrumentation);
-  Printf.printf
-    "# fns filtered in instrumentation: %d\n"
-    (List.length filtered_instrumentation);
-  let specified_fn_syms =
-    List.map (fun (i : Extract.instrumentation) -> i.fn) filtered_instrumentation
-  in
-  Printf.printf "Functions with CN spec:\n";
-  List.iter (fun sym -> Printf.printf "%s\n" (Sym.pp_string sym)) specified_fn_syms;
-  let is_fn_instrumented =
-    fun sym -> List.mem Sym.equal sym (specified_fn_syms @ get_main_sym prog5_fns_list)
-  in
-  filter_selected_fns is_fn_instrumented (sigm, instrumentation)
-
-
 let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
@@ -232,25 +206,22 @@ let main
   let filtered_instrumentation, filtered_sigm =
     filter_using_skip_and_only (prog5, sigm, full_instrumentation)
   in
-  let filtered_instrumentation', _ =
-    filter_unspecified_fns (prog5, filtered_sigm, filtered_instrumentation)
-  in
   let static_funcs =
-    filtered_instrumentation'
+    filtered_instrumentation
     |> List.filter (fun (inst : Extract.instrumentation) ->
       List.exists (String.equal (Sym.pp_string inst.fn)) static_funcs)
     |> List.map (fun (inst : Extract.instrumentation) -> inst.fn)
     |> Sym.Set.of_list
   in
   let filtered_ail_prog = (startup_sym_opt, filtered_sigm) in
-  Records.populate_record_map filtered_instrumentation' prog5;
+  Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       filename
-      filtered_instrumentation'
+      filtered_instrumentation
       sigm
       prog5
   in

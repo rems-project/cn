@@ -3971,7 +3971,7 @@ let cn_to_ail_pre_post
   | None -> empty_ail_executable_spec
 
 
-let has_spec =
+let has_cn_spec =
   let has_post = function LRT.I -> false | _ -> true in
   let has_stats = List.non_empty in
   let has_loop_inv (loops : Extract.loops) =
