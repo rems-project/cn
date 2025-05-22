@@ -102,7 +102,7 @@ let from_fn (fn, decl) =
            (rt, (stmts, loops)))
         args_and_body
     in
-    let trusted_flag = trusted != Mucore.Checked in
+    let trusted_flag = match trusted with Mucore.Trusted _ -> true | _ -> false in
     { fn; fn_loc; internal = Some internal; trusted = trusted_flag }
 
 
