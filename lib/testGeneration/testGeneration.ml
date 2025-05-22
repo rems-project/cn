@@ -243,19 +243,28 @@ let compile_test_file
         ]
       ]
   in
-  let cn_defs_list =
-    [ (* record_equality_fun_strs; *)
-      (* record_equality_fun_strs'; *)
-      "/* RECORD */\n";
-      record_fun_defs;
-      "/* CONVERSION */\n";
-      conversion_function_defs;
-      ownership_function_defs;
-      "/* CN FUNCTIONS */\n";
-      c_function_defs;
-      "\n";
-      c_predicate_defs
-    ]
+  let static_wrappers_defs =
+    insts
+    |> List.filter fst
+    |> List.map snd
+    |> List.map (fun (inst : FExtract.instrumentation) ->
+      let fsym =
+        Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+      in
+      let declarations =
+        [ ( fsym,
+            match List.assoc Sym.equal inst.fn sigma.A.declarations with
+            | _, _, A.Decl_function (_, ret_ct, args_ct, _, _, _) ->
+              ( Locations.other __LOC__,
+                CF.Annot.Attrs [],
+                A.Decl_function (false, ret_ct, args_ct, false, false, false) )
+            | _ -> failwith __LOC__ )
+        ]
+      in
+      CF.Pp_ail.pp_program
+        ~show_include:true
+        (None, { CF.AilSyntax.empty_sigma with declarations }))
+    |> Pp.(separate hardline)
   in
   let open Pp in
   !^(String.concat " " cn_header_decls_list)
@@ -266,6 +275,7 @@ let compile_test_file
        (compile_assumes ~without_ownership_checking filename sigma prog5 insts)
   ^^ pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
   ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts)
+  ^^ pp_label "Static Wrappers" static_wrappers_defs
   ^^ pp_label "Constant function tests" constant_tests_defs
   ^^ pp_label "Generator-based tests" generator_tests_defs
   ^^ pp_label
@@ -281,7 +291,18 @@ let compile_test_file
                   ^^ !^"return cn_test_main(argc, argv);")
                ^^ hardline))
   ^^ hardline
-  ^^ !^(String.concat " " cn_defs_list)
+  ^^ !^(String.concat
+          " "
+          [ "/* RECORD */\n";
+            record_fun_defs;
+            "/* CONVERSION */\n";
+            conversion_function_defs;
+            ownership_function_defs;
+            "/* CN FUNCTIONS */\n";
+            c_function_defs;
+            "\n";
+            c_predicate_defs
+          ])
 
 
 let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
@@ -311,19 +332,6 @@ let save_generators
       separate
         hardline
         ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
-         @ (insts
-            |> List.filter fst
-            |> List.map snd
-            |> List.map (fun (inst : FExtract.instrumentation) ->
-              let decl = List.assoc Sym.equal inst.fn sigma.A.declarations in
-              let fsym =
-                Sym.fresh
-                  (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
-              in
-              CF.Pp_ail.pp_program
-                ~show_include:false
-                (None, { CF.AilSyntax.empty_sigma with declarations = [ (fsym, decl) ] }))
-           )
          @ [ insts
              |> List.filter (fun (_, inst) -> not (is_constant_function sigma inst))
              |> SpecTests.compile_generators filename sigma prog5
