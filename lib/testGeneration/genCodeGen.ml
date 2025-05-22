@@ -7,7 +7,7 @@ module Records = Fulminate.Records
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module GR = GenRuntime
+module GE = GenElaboration
 
 let mk_expr = Utils.mk_expr
 
@@ -47,9 +47,9 @@ let compile_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t
 let rec compile_term
           (filename : string)
           (sigma : CF.GenTypes.genTypeCategory A.sigma)
-          (ctx : GR.context)
+          (ctx : GE.context)
           (name : Sym.t)
-          (tm : GR.term)
+          (tm : GE.term)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
@@ -302,7 +302,7 @@ let rec compile_term
                                          ( None,
                                            [ (Locations.other __LOC__, [ Sym.pp_string x ])
                                            ] )) )))
-                          (List.of_seq (Sym.Set.to_seq (GR.free_vars_term value)))
+                          (List.of_seq (Sym.Set.to_seq (GE.free_vars_term value)))
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
@@ -459,8 +459,8 @@ let rec compile_term
 
 let compile_gen_def
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (ctx : GR.context)
-      ((name, gr) : Sym.t * GR.definition)
+      (ctx : GE.context)
+      ((name, gr) : Sym.t * GE.definition)
   : A.sigma_declaration * 'a A.sigma_function_definition
   =
   let loc = Locations.other __LOC__ in
@@ -535,20 +535,20 @@ let compile_gen_def
   (sigma_decl, sigma_def)
 
 
-let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : Pp.document
+let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GE.context) : Pp.document
   =
   let defs =
     ctx
     |> List.map (fun (_, defs) ->
       List.map
-        (fun ((_, gr) : _ * GR.definition) ->
+        (fun ((_, gr) : _ * GE.definition) ->
            (GenUtils.get_mangled_name (gr.name :: List.map fst gr.iargs), gr))
         defs)
     |> List.flatten
   in
   let typedef_docs, tag_definitions =
     defs
-    |> List.map (fun ((name, def) : Sym.t * GR.definition) ->
+    |> List.map (fun ((name, def) : Sym.t * GE.definition) ->
       let loc = Locations.other __LOC__ in
       let bt =
         BT.Record
