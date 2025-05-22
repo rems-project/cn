@@ -1,5 +1,6 @@
 #include <inttypes.h>
 #include <signal.h>  // for SIGABRT
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -401,6 +402,31 @@ void c_ownership_check(char* access_kind,
     }
   }
   // cn_printf(CN_LOGGING_INFO, "\n");
+}
+
+void dump_ownership_ghost_state(int stack_depth) {
+  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+  cn_printf(CN_LOGGING_INFO, "ADDRESS \t\t\tCN STACK DEPTH\n")
+      cn_printf(CN_LOGGING_INFO, "====================\n") while (ht_next(&it)) {
+    int64_t* key = it.key;
+    int* depth = it.value;
+    if (*depth == stack_depth) {
+      cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
+    }
+  }
+}
+
+_Bool is_mapped(void* ptr) {
+  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+  while (ht_next(&it)) {
+    int64_t* key = it.key;
+    if (*key == (int64_t)ptr) {
+      int* depth = it.value;
+      cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
+      return true;
+    }
+  }
+  return false;
 }
 
 /* TODO: Need address of and size of every stack-allocated variable - could store in struct and pass through. But this is an optimisation */

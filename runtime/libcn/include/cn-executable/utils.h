@@ -160,6 +160,8 @@ void cn_free_sized(void *, size_t len);
 
 void cn_print_nr_u64(int i, unsigned long u);
 void cn_print_u64(const char *str, unsigned long u);
+void dump_ownership_ghost_state(int stack_depth);
+_Bool is_mapped(void *ptr);
 
 /* cn_failure callbacks */
 enum cn_failure_mode {
