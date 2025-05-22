@@ -12,8 +12,13 @@ let mk_expr = Utils.mk_expr
 
 let mk_stmt = Utils.mk_stmt
 
-let string_of_ctype ctype =
-  String.concat "_" (String.split_on_char ' ' (Utils.str_of_ctype ctype))
+let rec string_of_ctype ctype =
+  match ctype with
+  | C.Ctype (_, Pointer (_, Ctype (_, Function ((_, ret), args, _)))) ->
+    string_of_ctype ret
+    ^ "_from_"
+    ^ String.concat "_and_" (List.map (fun (_, ct, _) -> string_of_ctype ct) args)
+  | _ -> String.concat "_" (String.split_on_char ' ' (Utils.str_of_ctype ctype))
 
 
 let bt_to_ctype (bt : BT.t) : C.ctype = CtA.bt_to_ail_ctype bt
