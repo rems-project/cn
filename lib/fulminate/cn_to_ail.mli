@@ -204,7 +204,7 @@ val cn_to_ail_pre_post
   Extract.fn_args_and_body option ->
   ail_executable_spec
 
-val has_cn_spec : Extract.fn_args_and_body option -> bool
+val has_cn_spec : Extract.instrumentation -> bool
 
 val cn_to_ail_assume_predicates
   :  string ->

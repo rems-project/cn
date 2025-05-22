@@ -222,7 +222,7 @@ let generate_c_specs_internal
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation.internal in
+  let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation in
   (* C stack-local variable ownership checking: needed regardless of whether user has provided CN spec *)
   let stack_local_var_inj_info : stack_local_var_inj_info =
     generate_stack_local_var_inj_strs instrumentation.fn sigm
