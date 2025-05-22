@@ -9,7 +9,6 @@ module GBT = GenBaseTypes
 module GT = GenTerms
 module GD = GenDefinitions
 module Config = TestGenConfig
-module FExtract = Fulminate.Extract
 
 type s = GD.context
 
@@ -382,22 +381,22 @@ let compile
       filename
       ?(ctx : GD.context option)
       (preds : (Sym.t * Def.Predicate.t) list)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : GD.context
   =
   let recursive_preds = GenAnalysis.get_recursive_preds preds in
   let context_specs =
-    insts
-    |> List.map (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
+    tests
+    |> List.map (fun (test : Test.t) ->
       compile_spec
-        (Option.get (Cerb_location.get_filename inst.fn_loc))
+        (Option.get (Cerb_location.get_filename test.fn_loc))
         recursive_preds
         preds
-        (if is_static then
-           Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
+        (if test.is_static then
+           Sym.fresh (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn)
          else
-           inst.fn)
-        (Option.get inst.internal))
+           test.fn)
+        test.internal)
     |> List.fold_left
          (fun ctx f ->
             let (), ctx' = f ctx in
