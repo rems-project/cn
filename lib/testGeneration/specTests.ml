@@ -170,7 +170,7 @@ let compile_random_test_case
                 string (Fulminate.Utils.static_prefix filename) ^^ underscore ^^ Sym.pp fn
               else
                 Sym.pp fn)
-          ^^ !^"_init"
+          ^^ !^"_cn_test_setup"
         in
         !^"void"
         ^^^ init_name

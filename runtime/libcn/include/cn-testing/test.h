@@ -213,8 +213,12 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
   }
 
 #define CN_RANDOM_TEST_CASE_WITH_INIT(Suite, Name, FuncName, Samples, ...)               \
-  CN_RANDOM_TEST_CASE_WITH_CUSTOM_INIT(                                                  \
-      Suite, Name, FuncName, Samples, cn_test_gen_##FuncName##_init, __VA_ARGS__)
+  CN_RANDOM_TEST_CASE_WITH_CUSTOM_INIT(Suite,                                            \
+      Name,                                                                              \
+      FuncName,                                                                          \
+      Samples,                                                                           \
+      cn_test_gen_##FuncName##_cn_test_setup,                                            \
+      __VA_ARGS__)
 
 #define CN_EXTERN_RANDOM_TEST_CASE_WITH_INIT(Suite, Name, Samples, ...)                  \
   CN_RANDOM_TEST_CASE_WITH_INIT(Suite, Name, Name, Samples, __VA_ARGS__)
