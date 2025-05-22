@@ -366,8 +366,6 @@ let rec compile_term
     let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
     let b_min, s_min, e_min = compile_it filename sigma name min in
     let b_max, s_max, e_max = compile_it filename sigma name max in
-    assert (b_max == []);
-    assert (s_max == []);
     let e_args =
       [ mk_expr (AilEident sym_map);
         mk_expr (AilEident i);
@@ -383,6 +381,7 @@ let rec compile_term
     let s_begin =
       A.(
         s_min
+        @ s_max
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
@@ -416,7 +415,7 @@ let rec compile_term
                       e_args @ [ e_min; e_val ] )))
           ])
     in
-    ([ b_map; b_i ] @ b_min @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
+    ([ b_map; b_i ] @ b_min @ b_max @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
   | SplitSize { rest; _ } when not (TestGenConfig.is_random_size_splits ()) ->
     compile_term filename sigma ctx name rest
   | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
