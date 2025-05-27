@@ -25,6 +25,7 @@ let print_log_file =
 
 
 let frontend
+      ~cc
       ~macros
       ~incl_dirs
       ~incl_files
@@ -57,7 +58,7 @@ let frontend
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
   let conf =
-    Setup.conf macros incl_dirs incl_files disable_linemarkers astprints save_cpp
+    Setup.conf cc macros incl_dirs incl_files disable_linemarkers astprints save_cpp
   in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
@@ -123,6 +124,7 @@ let there_can_only_be_one =
 
 let with_well_formedness_check
       (* CLI arguments *)
+      ~cc
       ~filename
       ~macros
       ~incl_dirs
@@ -151,6 +153,7 @@ let with_well_formedness_check
   let cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
+         ~cc
          ~macros
          ~incl_dirs
          ~incl_files
@@ -326,6 +329,11 @@ module Flags = struct
   let file =
     let doc = "Source C file" in
     Arg.(non_empty & pos_all non_dir_file [] & info [] ~docv:"FILE" ~doc)
+
+
+  let cc =
+    let doc = "C compiler to use" in
+    Arg.(value & opt string "cc" & info ~env:(Cmd.Env.info "CC") [ "cc" ] ~doc)
 
 
   (* copied from cerberus' executable (backend/driver/main.ml) *)

@@ -4,6 +4,7 @@ open Cn
 
 let verify
       filename
+      cc
       macros
       incl_dirs
       incl_files
@@ -70,6 +71,7 @@ let verify
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_VERIFY", None) :: macros)
     ~incl_dirs
     ~incl_files
@@ -233,6 +235,7 @@ let verify_t : unit Term.t =
   let open Term in
   const verify
   $ Common.Flags.file
+  $ Common.Flags.cc
   $ Common.Flags.macros
   $ Common.Flags.incl_dirs
   $ Common.Flags.incl_files
