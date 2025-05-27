@@ -32,7 +32,16 @@
     goto cn_label_bennet_backtrack;                                                      \
   }
 
-#define CN_GEN_UNIFORM(ty) cn_gen_uniform_##ty(0)
+#define CN_GEN_UNIFORM(ty)                                                               \
+  ({                                                                                     \
+    ty* result;                                                                          \
+    if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {                             \
+      result = cast_cn_pointer_to_##ty(CN_GEN_ALLOC(0));                                 \
+    } else {                                                                             \
+      result = cn_gen_uniform_##ty(0);                                                   \
+    }                                                                                    \
+    result;                                                                              \
+  })
 
 #define CN_GEN_ALLOC(sz)                                                                 \
   ({                                                                                     \
@@ -88,16 +97,19 @@
 #define CN_GEN_ASSIGN(pointer, addr, addr_ty, value, tmp, gen_name, last_var, ...)       \
   if (convert_from_cn_pointer(pointer) == 0) {                                           \
     cn_gen_backtrack_relevant_add((char*)#pointer);                                      \
-    cn_gen_backtrack_alloc_set(8);                                                       \
+    if (sizeof(addr_ty) > sizeof(intmax_t)) {                                            \
+      cn_gen_backtrack_alloc_set(sizeof(addr_ty));                                       \
+    } else {                                                                             \
+      cn_gen_backtrack_alloc_set(sizeof(intmax_t));                                      \
+    }                                                                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   void* tmp##_ptr = convert_from_cn_pointer(addr);                                       \
   if (!cn_gen_alloc_check(tmp##_ptr, sizeof(addr_ty))) {                                 \
     cn_gen_backtrack_relevant_add((char*)#pointer);                                      \
-    cn_bits_u64* tmp##_size =                                                            \
-        convert_to_cn_bits_u64((uintptr_t)tmp##_ptr + sizeof(addr_ty) -                  \
-                               (uintptr_t)convert_from_cn_pointer(pointer));             \
-    cn_gen_backtrack_alloc_set(convert_from_cn_bits_u64(tmp##_size));                    \
+    size_t tmp##_size = (uintptr_t)tmp##_ptr + sizeof(addr_ty) -                         \
+                        (uintptr_t)convert_from_cn_pointer(pointer);                     \
+    cn_gen_backtrack_alloc_set(tmp##_size);                                              \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   if (!cn_gen_ownership_check(tmp##_ptr, sizeof(addr_ty))) {                             \
