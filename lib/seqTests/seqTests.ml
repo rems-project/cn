@@ -12,8 +12,8 @@ module Shrink = Shrink
 
 let callable
       (ctx : T.context)
-      ((_, (_, args)) :
-        SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
+      ((_, _, (_, args)) :
+        bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
   : bool
   =
   List.for_all
@@ -28,21 +28,21 @@ let callable
            | Basic (Floating _)
            | Void ->
              true
-           | Pointer (_, ty) -> List.exists (fun (_, ct, _, _) -> SUtils.ty_eq ty ct) ctx
+           | Pointer (_, ty) ->
+             List.exists (fun (_, _, ct, _, _) -> SUtils.ty_eq ty ct) ctx
            | _ -> false))
-       || List.exists (fun (_, ct, _, _) -> SUtils.ty_eq ty ct) ctx)
+       || List.exists (fun (_, _, ct, _, _) -> SUtils.ty_eq ty ct) ctx)
     args
 
 
 let rec update_tests
+          (filename : string)
           (test_states : (int * Pp.document * T.context * T.test_stats) list)
           (results :
             [ `OtherFailure
             | `PreConditionViolation
-            | `PostConditionViolation of
-                SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
-            | `Success of
-                (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+            | `PostConditionViolation of T.call
+            | `Success of T.call * int
             ]
               option
               list)
@@ -59,7 +59,7 @@ let rec update_tests
       | Some `OtherFailure -> `OtherFailure (-1, empty, ctx, stats)
       | Some `PreConditionViolation ->
         `PreConditionViolation (prev, test_so_far, ctx, stats)
-      | Some (`Success (((name, ret_ty, f, args) as call), prev')) ->
+      | Some (`Success (((name, is_static, ret_ty, f, args) as call), prev')) ->
         let distrib =
           let name = Sym.pp_string f in
           match List.assoc_opt String.equal name stats.distrib with
@@ -68,10 +68,10 @@ let rec update_tests
         in
         `Success
           ( prev',
-            test_so_far ^^ SUtils.test_to_doc name ret_ty f args,
+            test_so_far ^^ SUtils.test_to_doc filename name is_static ret_ty f args,
             call :: ctx,
             { stats with successes = stats.successes + 1; distrib } )
-      | Some (`PostConditionViolation ((_, _, f, _) as call)) ->
+      | Some (`PostConditionViolation ((_, _, _, f, _) as call)) ->
         let distrib =
           let name = Sym.pp_string f in
           match List.assoc_opt String.equal name stats.distrib with
@@ -84,7 +84,7 @@ let rec update_tests
             (call :: ctx : T.context),
             { stats with failures = stats.failures + 1; distrib } )
     in
-    updated_state :: update_tests test_states results
+    updated_state :: update_tests filename test_states results
   | _, _ -> failwith "impossible"
 
 
@@ -92,7 +92,7 @@ let rec update_tests
 let calc_score (ctx : T.context) (args : (SymSet.elt * C.ctype) list) : int =
   List.fold_left
     (fun acc (_, ty) ->
-       match List.find_opt (fun (_, ct, _, _) -> SUtils.ty_eq ty ct) ctx with
+       match List.find_opt (fun (_, _, ct, _, _) -> SUtils.ty_eq ty ct) ctx with
        | Some _ -> acc + 25
        | None -> acc)
     1
@@ -104,7 +104,7 @@ let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
   let prev_call =
     let prev_calls =
       List.filter
-        (fun (name, ct, _, _) ->
+        (fun (name, _, ct, _, _) ->
            Option.is_some name
            && (SUtils.ty_eq ty ct
                ||
@@ -117,13 +117,13 @@ let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
     | 0 -> []
     | n ->
       (match List.nth prev_calls (Random.int n) with
-       | Some name, ty', _, _ ->
+       | Some name, _, ty', _, _ ->
          if not (SUtils.ty_eq ty' ty) then
            (* only way they're not directly equal is if pointer*)
            [ "&" ^ Sym.pp_string name ]
          else
            [ Sym.pp_string name ]
-       | None, _, _, _ -> failwith "impossible case")
+       | None, _, _, _, _ -> failwith "impossible case")
   in
   let options = List.append generated_base_ty prev_call in
   match List.length options with
@@ -157,15 +157,16 @@ let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.doc
 
 let rec gen_sequence
           (funcs :
-            (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list)
+            (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
+              list)
           (fuel : int)
           (test_states : (int * Pp.document * T.context * T.test_stats) list)
           (output_dir : string)
-          (filename_base : string)
+          (filename : string)
           (fun_decls : Pp.document)
   : [ `PostConditionViolation of Pp.document * T.test_stats
     | `Success of Pp.document * T.test_stats
-    | `OtherFailure
+    | `OtherFailure of Pp.document
     ]
   =
   let open Pp in
@@ -175,7 +176,7 @@ let rec gen_sequence
         (fun (_, seq_so_far, ctx, _) ->
            let unmap_stmt =
              List.filter_map
-               (fun (name, ret, _, _) ->
+               (fun (name, _, ret, _, _) ->
                   match name with
                   | Some name ->
                     Some (Fulminate.Ownership.generate_c_local_ownership_exit (name, ret))
@@ -197,7 +198,6 @@ let rec gen_sequence
       ( SUtils.create_intermediate_test_file
           test_strs
           (List.init (Config.get_num_tests ()) (fun _ -> empty))
-          filename_base
           fun_decls,
         SUtils.combine_stats
           (List.map (fun (_, _, _, stats) -> stats) test_states)
@@ -207,7 +207,7 @@ let rec gen_sequence
       List.map
         (fun (_, _, ctx, _) ->
            List.map
-             (fun ((_, (_, args)) as f) -> (calc_score ctx args, f))
+             (fun ((_, _, (_, args)) as f) -> (calc_score ctx args, f))
              (List.filter (callable ctx) funcs))
         test_states
     in
@@ -219,8 +219,8 @@ let rec gen_sequence
         ]
           list
       =
-      let gen_test_h (f, ((_, ret_ty), params)) (ctx : T.context) (prev : int)
-        : int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+      let gen_test_h (is_static, f, ((_, ret_ty), params)) (ctx : T.context) (prev : int)
+        : int * SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list
         =
         let name, prev =
           match ret_ty with
@@ -229,11 +229,17 @@ let rec gen_sequence
           | _ -> (Some (Sym.fresh ("x" ^ string_of_int prev)), prev + 1)
         in
         let args = List.map (fun ((_, ty) as param) -> (ty, gen_arg ctx param)) params in
-        (prev, name, ret_ty, f, args)
+        (prev, name, is_static, ret_ty, f, args)
       in
       let prev_and_tests =
         List.map
-          (fun (fs, (prev, _, ctx, _)) ->
+          (fun ((fs, (prev, _, ctx, _)) :
+                 (int
+                 * (bool
+                   * SymSet.elt
+                   * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)))
+                   list
+                 * 'a) ->
              if List.length fs = 0 then
                None
              else
@@ -250,15 +256,19 @@ let rec gen_sequence
         SUtils.analyze_results
           prev_and_tests
           (List.map (fun (_, test_str, _, _) -> test_str) test_states)
-          filename_base
+          filename
           output_dir
           fun_decls
       in
-      update_tests test_states results
+      update_tests filename test_states results
     in
     let test_states = gen_test () in
     match List.hd test_states with
-    | `OtherFailure _ -> `OtherFailure
+    | `OtherFailure (_, _, ctx, _) ->
+      `OtherFailure
+        (create_test_file
+           (SUtils.ctx_to_tests filename ctx ^^ hardline ^^ string "return 123;")
+           fun_decls)
     | _ ->
       let postcond_violations =
         List.filter_map
@@ -284,7 +294,7 @@ let rec gen_sequence
                   Int.compare (List.length ctx1) (List.length ctx2))
                postcond_violations)
         in
-        let num_left, seq = Shrink.shrink ctx output_dir filename_base fun_decls in
+        let num_left, seq = Shrink.shrink ctx output_dir filename fun_decls in
         let combined_stats =
           SUtils.combine_stats
             (List.map (fun (_, _, _, stats) -> stats) test_states')
@@ -294,33 +304,34 @@ let rec gen_sequence
           ( create_test_file (seq ^^ hardline ^^ string "return 123;") fun_decls,
             { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
       else
-        gen_sequence funcs (fuel - 1) test_states' output_dir filename_base fun_decls)
+        gen_sequence funcs (fuel - 1) test_states' output_dir filename fun_decls)
 
 
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
       (num_samples : int)
       (output_dir : string)
-      (filename_base : string)
+      (filename : string)
       (fun_decls : Pp.document)
   : [ `PostConditionViolation of Pp.document * T.test_stats
     | `Success of Pp.document * T.test_stats
-    | `OtherFailure
+    | `OtherFailure of Pp.document
     ]
   =
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
     insts
-    |> List.map (fun (inst : FExtract.instrumentation) ->
+    |> List.map (fun ((_, inst) : bool * FExtract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
   let args_map
-    : (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
+    : (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
     =
     List.map
-      (fun (inst : Fulminate.Extract.instrumentation) ->
-         ( inst.fn,
+      (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
+         ( is_static,
+           inst.fn,
            let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
            match List.assoc Sym.equal inst.fn declarations with
            | _, _, Decl_function (_, (qual, ret), cts, _, _, _) ->
@@ -347,7 +358,7 @@ let compile_sequence
             { T.successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] } ))
        (List.init (Config.get_num_tests ()) Fun.id))
     output_dir
-    filename_base
+    filename
     fun_decls
 
 
@@ -355,7 +366,7 @@ let generate
       ~(output_dir : string)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : FExtract.instrumentation list)
+      (insts : (bool * FExtract.instrumentation) list)
   : int
   =
   if List.is_empty insts then failwith "No testable functions";
@@ -363,7 +374,7 @@ let generate
   let test_file = filename_base ^ ".test.c" in
   let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
   SUtils.save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
-  let fun_to_decl (inst : FExtract.instrumentation) =
+  let fun_to_decl ((is_static, inst) : bool * FExtract.instrumentation) =
     CF.Pp_ail.(
       with_executable_spec
         (fun () ->
@@ -379,25 +390,19 @@ let generate
     string struct_decls ^^ hardline ^^ separate_map hardline fun_to_decl insts
   in
   let compiled_seq =
-    compile_sequence
-      sigma
-      insts
-      (Config.get_num_calls ())
-      output_dir
-      filename_base
-      fun_decls
+    compile_sequence sigma insts (Config.get_num_calls ()) output_dir filename fun_decls
   in
   let exit_code, seq, output_msg =
     match compiled_seq with
-    | `OtherFailure ->
+    | `OtherFailure seq ->
       ( 139,
-        empty,
+        seq,
         Printf.sprintf
           "============================================\n\n\
            FATAL ERROR:\n\
            Failure occured while seq-testing %s\n\n\
            ============================================"
-          (filename_base ^ ".c") )
+          filename )
     | `PostConditionViolation (seq, stats) ->
       let script_doc = BuildScript.generate ~output_dir ~filename_base 1 in
       SUtils.save ~perm:0o777 output_dir "run_tests.sh" script_doc;
@@ -459,86 +464,26 @@ let default_seq_cfg : seq_config = SeqTestGenConfig.default
 
 let set_seq_config = SeqTestGenConfig.initialize
 
-let needs_static_hack
-      ~(with_warning : bool)
-      (cabs_tunit : CF.Cabs.translation_unit)
-      (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (inst : FExtract.instrumentation)
-  =
+let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumentation) =
   let (TUnit decls) = cabs_tunit in
-  let is_static_func () =
-    List.exists
-      (fun decl ->
-         match decl with
-         | CF.Cabs.EDecl_func
-             (FunDef
-                ( loc,
-                  _,
-                  { storage_classes; _ },
-                  Declarator
-                    (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
-                  _ ))
-           when String.equal (Sym.pp_string inst.fn) fn'
-                && List.exists
-                     (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
-                     storage_classes ->
-           if with_warning then
-             Cerb_colour.with_colour
-               (fun () ->
-                  Pp.(
-                    warn
-                      loc
-                      (string "Static function"
-                       ^^^ squotes (Sym.pp inst.fn)
-                       ^^^ string "could not be tested.")))
-               ();
-           true
-         | _ -> false)
-      decls
-  in
-  let _, _, _, args, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
-  let depends_on_static_glob () =
-    let global_syms =
-      inst.internal
-      |> Option.get
-      |> AT.get_lat
-      |> LAT.free_vars (fun _ -> Sym.Set.empty)
-      |> Sym.Set.to_seq
-      |> List.of_seq
-      |> List.filter (fun x ->
-        not
-          (List.mem (fun x y -> String.equal (Sym.pp_string x) (Sym.pp_string y)) x args))
-    in
-    let static_globs =
-      List.filter_map
-        (fun sym ->
-           match List.assoc Sym.equal sym sigma.declarations with
-           | loc, _, Decl_object ((Static, _), _, _, _) -> Some (sym, loc)
-           | _ -> None)
-        global_syms
-    in
-    if List.is_empty static_globs then
-      false
-    else (
-      if with_warning then
-        Cerb_colour.with_colour
-          (fun () ->
-             List.iter
-               (fun (sym, loc) ->
-                  Pp.(
-                    warn
-                      loc
-                      (string "Function"
-                       ^^^ squotes (Sym.pp inst.fn)
-                       ^^^ string "relies on static global"
-                       ^^^ squotes (Sym.pp sym)
-                       ^^ comma
-                       ^^^ string "so could not be tested.")))
-               static_globs)
-          ();
-      true)
-  in
-  is_static_func () || depends_on_static_glob ()
+  List.exists
+    (fun decl ->
+       match decl with
+       | CF.Cabs.EDecl_func
+           (FunDef
+              ( _,
+                _,
+                { storage_classes; _ },
+                Declarator
+                  (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
+                _ ))
+         when String.equal (Sym.pp_string inst.fn) fn'
+              && List.exists
+                   (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
+                   storage_classes ->
+         true
+       | _ -> false)
+    decls
 
 
 (** Workaround for https://github.com/rems-project/cerberus/issues/765 *)
@@ -589,7 +534,7 @@ let functions_under_test
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-  : Fulminate.Extract.instrumentation list
+  : (bool * Fulminate.Extract.instrumentation) list
   =
   let insts = prog5 |> Fulminate.Extract.collect_instrumentation |> fst in
   let selected_fsyms =
@@ -601,9 +546,8 @@ let functions_under_test
   |> List.filter (fun (inst : Fulminate.Extract.instrumentation) ->
     Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
-    && not
-         (needs_enum_hack ~with_warning sigma inst
-          || needs_static_hack ~with_warning cabs_tunit sigma inst))
+    && not (needs_enum_hack ~with_warning sigma inst))
+  |> List.map (fun (inst : FExtract.instrumentation) -> (is_static cabs_tunit inst, inst))
 
 
 let run_seq

@@ -22,10 +22,12 @@ let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.doc
 let rec pick
           (distribution :
             (int
-            * (SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)))
+            * (bool
+              * SymSet.elt
+              * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)))
               list)
           (i : int)
-  : SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)
+  : bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)
   =
   match distribution with
   | [] -> failwith "impossible case"
@@ -40,7 +42,7 @@ let rec ty_eq (ty1 : C.ctype) (ty2 : C.ctype) : bool =
 
 let ctx_to_string (ctx : T.context) : string =
   List.fold_left
-    (fun acc (name, ty, f, args) ->
+    (fun acc (name, _, ty, f, args) ->
        match name with
        | Some name ->
          acc
@@ -71,7 +73,9 @@ let stmt_to_doc (stmt : CF.GenTypes.genTypeCategory A.statement_) : Pp.document 
 
 
 let test_to_doc
+      (filename : string)
       (name : SymSet.elt option)
+      (is_static : bool)
       (ret_ty : C.ctype)
       (f : SymSet.elt)
       (args : (C.ctype * string) list)
@@ -79,7 +83,10 @@ let test_to_doc
   =
   let open Pp in
   let f_call =
-    Sym.pp f
+    (if is_static then
+       string (Fulminate.Utils.static_prefix filename) ^^ underscore ^^ Sym.pp f
+     else
+       Sym.pp f)
     ^^ parens
          (separate
             (comma ^^ space)
@@ -98,9 +105,13 @@ let test_to_doc
   | None -> f_call
 
 
-let ctx_to_tests =
+let ctx_to_tests (filename : string) (ctx : T.context) =
   let open Pp in
-  separate_map empty (fun (name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
+  separate_map
+    empty
+    (fun (name, is_static, ret_ty, f, args) ->
+       test_to_doc filename name is_static ret_ty f args)
+    ctx
 
 
 let rec combine_stats (stats_list : T.test_stats list) (combined_stats : T.test_stats)
@@ -130,7 +141,6 @@ let rec combine_stats (stats_list : T.test_stats list) (combined_stats : T.test_
 let create_intermediate_test_file
       (sequences : Pp.document list)
       (tests_to_try : Pp.document list)
-      (_ : string)
       (fun_decls : Pp.document)
   : Pp.document
   =
@@ -213,18 +223,19 @@ let create_intermediate_test_file
 
 let analyze_results
       (prev_and_tests :
-        (int * SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) option
+        (int * SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list)
+          option
           list)
       (sequences : PPrint.document list)
-      (filename_base : string)
+      (filename : string)
       (output_dir : string)
       (fun_decls : PPrint.document)
   : [ `OtherFailure
     | `PreConditionViolation
     | `PostConditionViolation of
-        SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+        SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list
     | `Success of
-        (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+        (SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list) * int
     ]
       option
       list
@@ -233,15 +244,19 @@ let analyze_results
     List.map
       (fun call ->
          match call with
-         | None | Some (-1, _, _, _, _) ->
+         | None | Some (-1, _, _, _, _, _) ->
            Pp.string "/* unable to generate call at this point */"
-         | Some (_, name, ret_ty, f, args) -> test_to_doc name ret_ty f args)
+         | Some (_, name, is_static, ret_ty, f, args) ->
+           test_to_doc filename name is_static ret_ty f args)
       prev_and_tests
   in
   let intermediate_file =
-    create_intermediate_test_file sequences tests_to_try filename_base fun_decls
+    create_intermediate_test_file sequences tests_to_try fun_decls
   in
-  save output_dir (filename_base ^ ".test.c") intermediate_file;
+  save
+    output_dir
+    ((filename |> Filename.basename |> Filename.chop_extension) ^ ".test.c")
+    intermediate_file;
   match Unix.system (output_dir ^ "/run_tests_intermediate.sh > /dev/null") with
   | WEXITED 0 ->
     let num_tests = List.length prev_and_tests in
@@ -260,6 +275,7 @@ let analyze_results
               (tests_and_msgs :
                 ((int
                  * SymSet.elt option
+                 * bool
                  * C.ctype
                  * SymSet.elt
                  * (C.ctype * string) list)
@@ -269,9 +285,10 @@ let analyze_results
       : [ `OtherFailure
         | `PreConditionViolation
         | `PostConditionViolation of
-            SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list
+            SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list
         | `Success of
-            (SymSet.elt option * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+            (SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list)
+            * int
         ]
           option
           list
@@ -279,20 +296,22 @@ let analyze_results
       match tests_and_msgs with
       | [] -> []
       | (None, _) :: t -> None :: analyze_results_h t
-      | (Some (prev', name, ret_ty, f, args), exit_code) :: t ->
+      | (Some (prev', name, is_static, ret_ty, f, args), exit_code) :: t ->
         (match exit_code with
          | WEXITED 0 ->
-           Some (`Success ((name, ret_ty, f, args), prev')) :: analyze_results_h t
+           Some (`Success ((name, is_static, ret_ty, f, args), prev'))
+           :: analyze_results_h t
          | WEXITED 1 -> Some `PreConditionViolation :: analyze_results_h t
          | WEXITED 2 ->
-           Some (`PostConditionViolation (name, ret_ty, f, args)) :: analyze_results_h t
+           Some (`PostConditionViolation (name, is_static, ret_ty, f, args))
+           :: analyze_results_h t
          | _ -> [ Some `OtherFailure ])
     in
     analyze_results_h tests_and_msgs
   | _ -> [ Some `OtherFailure ]
 
 
-let name_eq (n1, _, _, _) (n2, _, _, _) =
+let name_eq (n1, _, _, _, _) (n2, _, _, _, _) =
   match (n1, n2) with Some name1, Some name2 -> Sym.equal name1 name2 | _ -> false
 
 

@@ -38,7 +38,7 @@ let gen_lst_shrinks (ty : C.ctype) (arg : string) : string list =
 let shrink
       (seq : T.context)
       (output_dir : string)
-      (filename_base : string)
+      (filename : string)
       (fun_decls : Pp.document)
   : int * Pp.document
   =
@@ -46,14 +46,14 @@ let shrink
   match seq with
   | [] -> (0, empty)
   | start :: seq as seq' ->
-    let rec dfs (graph : T.context) (visited : T.context) ((_, _, _, args) as node)
+    let rec dfs (graph : T.context) (visited : T.context) ((_, _, _, _, args) as node)
       : T.context
       =
       if not (List.mem SUtils.name_eq node visited) then (
         let names = List.map (fun (_, name) -> name) args in
         let succs =
           List.filter
-            (fun (name, _, _, _) ->
+            (fun (name, _, _, _, _) ->
                match name with
                | None -> false
                | Some name -> List.mem String.equal (Sym.pp_string name) names)
@@ -65,20 +65,21 @@ let shrink
     in
     let rev_dep_graph =
       List.map
-        (fun (name, ret_ty, f, _) ->
+        (fun (name, is_static, ret_ty, f, _) ->
            ( name,
+             is_static,
              ret_ty,
              f,
              match name with
              | None -> []
              | Some name ->
                List.filter_map
-                 (fun (name, ret_ty, _, _) ->
+                 (fun (name, _, ret_ty, _, _) ->
                     match name with
                     | None -> None
                     | Some name -> Some (ret_ty, Sym.pp_string name))
                  (List.filter
-                    (fun (_, _, _, args) ->
+                    (fun (_, _, _, _, args) ->
                        List.mem
                          (fun name (_, var) -> String.equal (Sym.pp_string name) var)
                          name
@@ -94,7 +95,7 @@ let shrink
           =
           match right with
           | [] -> acc
-          | ((name, _, _, _) as test) :: rest ->
+          | ((name, _, _, _, _) as test) :: rest ->
             if List.mem SUtils.name_eq test reqs then
               aux (test :: left) rest (List.rev_append left right :: acc)
             else (
@@ -106,7 +107,7 @@ let shrink
                     rev_dep_graph
                     []
                     (List.find
-                       (fun (name2, _, _, _) ->
+                       (fun (name2, _, _, _, _) ->
                           match name2 with
                           | None -> false
                           | Some name2 ->
@@ -117,13 +118,13 @@ let shrink
                 List.rev_append
                   left
                   (List.filter
-                     (fun ((_, _, _, args) as test) ->
+                     (fun ((_, _, _, _, args) as test) ->
                         (not (List.mem SUtils.name_eq test deps))
                         && List.for_all
                              (fun (_, arg) ->
                                 not
                                   (List.mem
-                                     (fun name1 (name2, _, _, _) ->
+                                     (fun name1 (name2, _, _, _, _) ->
                                         match name2 with
                                         | None -> false
                                         | Some name2 ->
@@ -142,6 +143,7 @@ let shrink
           (fun l1 l2 -> Int.compare (List.length l1) (List.length l2))
           (generate_lists tests)
       in
+      let filename_base = filename |> Filename.basename |> Filename.chop_extension in
       let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
       SUtils.save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
       let elt = Sym.fresh_anon () in
@@ -149,11 +151,13 @@ let shrink
         SUtils.analyze_results
           (List.init
              (List.length shrunken_sequences)
-             (Fun.const (Some (-1, None, C.Ctype ([], Basic (Integer Char)), elt, []))))
+             (Fun.const
+                (Some (-1, None, false, C.Ctype ([], Basic (Integer Char)), elt, []))))
           (List.map
-             (fun tests -> SUtils.ctx_to_tests tests ^^ hardline ^^ string "return 0;")
+             (fun tests ->
+                SUtils.ctx_to_tests filename tests ^^ hardline ^^ string "return 0;")
              shrunken_sequences)
-          filename_base
+          filename
           output_dir
           fun_decls
       in
@@ -187,7 +191,7 @@ let shrink
       in
       match next with
       | [] -> List.rev prev
-      | (name, ret_ty, f, args) :: t ->
+      | (name, is_static, ret_ty, f, args) :: t ->
         let rec shrink_args
                   ((prev_args, next_args) :
                     (C.ctype * string) list * (C.ctype * string) list)
@@ -203,20 +207,23 @@ let shrink
                   List.rev_append prev_args ((ty, new_arg) :: next_args)
               in
               let new_tests =
-                List.map (fun arg -> (-1, name, ret_ty, f, try_shrink arg)) arg_shrinks
+                List.map
+                  (fun arg -> (-1, name, is_static, ret_ty, f, try_shrink arg))
+                  arg_shrinks
               in
               let new_sequences =
                 List.map
-                  (fun (_, name, ret_ty, f, args) ->
+                  (fun (_, name, is_static, ret_ty, f, args) ->
                      SUtils.ctx_to_tests
-                       (List.rev_append prev ((name, ret_ty, f, args) :: t)))
+                       filename
+                       (List.rev_append prev ((name, is_static, ret_ty, f, args) :: t)))
                   new_tests
               in
               let results =
                 SUtils.analyze_results
                   (List.map (fun test -> Some test) new_tests)
                   new_sequences
-                  filename_base
+                  filename
                   output_dir
                   fun_decls
               in
@@ -232,7 +239,7 @@ let shrink
                | None -> orig_arg)
           in
           match next_args with
-          | [] -> (name, ret_ty, f, List.rev prev_args)
+          | [] -> (name, is_static, ret_ty, f, List.rev prev_args)
           | (ty, arg) :: next_args ->
             shrink_args
               ((ty, try_shrinks (shrink_arg (ty, arg)) arg) :: prev_args, next_args)
@@ -243,4 +250,4 @@ let shrink
     let shrunken = shrink_1 (List.rev seq') in
     let shrunken' = List.rev (shrink_2 ([], shrunken)) in
     let shrunken'' = shrink_1 (List.rev shrunken') in
-    (List.length shrunken'', SUtils.ctx_to_tests shrunken'')
+    (List.length shrunken'', SUtils.ctx_to_tests filename shrunken'')
