@@ -403,9 +403,10 @@ let functions_under_test
   in
   insts
   |> List.filter (fun (inst : FExtract.instrumentation) ->
-    (match prog5.main with
-     | Some main_fn -> not (Sym.equal main_fn inst.fn)
-     | None -> true)
+    CtA.has_cn_spec inst
+    && (match prog5.main with
+        | Some main_fn -> not (Sym.equal main_fn inst.fn)
+        | None -> true)
     && Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
     && not (needs_enum_hack ~with_warning sigma inst))
