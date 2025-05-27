@@ -660,7 +660,7 @@ let functions_under_test
       (prog5 : unit Mucore.file)
   : FExtract.instrumentation list
   =
-  let insts = prog5 |> FExtract.collect_instrumentation |> fst in
+  let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
     Check.select_functions
       (Sym.Set.of_list

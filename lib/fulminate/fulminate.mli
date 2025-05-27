@@ -17,7 +17,7 @@ val main
   String.t ->
   String.t ->
   String.t ->
-  string list ->
+  Cerb_frontend.Cabs.translation_unit ->
   Sym.t option * Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
   unit

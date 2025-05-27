@@ -74,3 +74,13 @@ let of_instrumentation
     fn_loc = inst.fn_loc;
     internal = Option.get inst.internal
   }
+
+
+let to_instrumentation (test : t) : FExtract.instrumentation =
+  FExtract.
+    { fn = test.fn;
+      fn_loc = test.fn_loc;
+      internal = Some test.internal;
+      trusted = test.is_trusted;
+      is_static = test.is_static
+    }
