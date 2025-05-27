@@ -379,7 +379,17 @@ let generate
       with_executable_spec
         (fun () ->
            pp_function_prototype
-             inst.fn
+             (match inst.fn with
+              | Symbol (s, n, SD_Id str) ->
+                Symbol
+                  ( s,
+                    n,
+                    SD_Id
+                      (if is_static then
+                         Fulminate.Utils.static_prefix filename ^ "_" ^ str
+                       else
+                         str) )
+              | s -> s)
              (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
               decl))
         ())

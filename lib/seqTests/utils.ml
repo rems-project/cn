@@ -146,7 +146,7 @@ let create_intermediate_test_file
   =
   let open Pp in
   let create_try (i : int) (test : document) (sequence : document) =
-    string "int try"
+    string "int test"
     ^^ int i
     ^^ parens empty
     ^^ break 1
@@ -173,7 +173,7 @@ let create_intermediate_test_file
     ^^ nest
          2
          (hardline
-          ^^ string "try"
+          ^^ string "test"
           ^^ int i
           ^^ parens empty
           ^^ semi
