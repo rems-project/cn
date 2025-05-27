@@ -64,6 +64,7 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
 
 let generate_executable_specs
       filename
+      cc
       macros
       incl_dirs
       incl_files
@@ -119,6 +120,7 @@ let generate_executable_specs
   in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
@@ -251,6 +253,7 @@ let cmd =
   let instrument_t =
     const generate_executable_specs
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files

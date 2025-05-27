@@ -5,6 +5,7 @@ open Cn
 let run_seq_tests
       (* Common *)
         filename
+      cc
       macros
       incl_dirs
       incl_files
@@ -44,6 +45,7 @@ let run_seq_tests
   let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
@@ -145,6 +147,7 @@ let cmd =
   let test_t =
     const run_seq_tests
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
