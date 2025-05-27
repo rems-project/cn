@@ -126,6 +126,9 @@ let not_too_many_snippets = function
     Monad.fail { loc = loc2; msg }
   | _ -> return ()
 
+let cn_ghosts annots =
+  annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_ghost_args)
+
 
 let function_spec (A.Attrs attributes) =
   let magic_attrs = A.get_cerb_magic_attr [ A.Aattrs (Attrs (List.rev attributes)) ] in

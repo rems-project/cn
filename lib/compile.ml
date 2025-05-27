@@ -1207,7 +1207,7 @@ module C_vars = struct
 
 
   let cn_statement env (loc, (stmt_ : _ Cn.cn_statement_)) =
-    let open Cnprog in
+    let open Cnstatement in
     match stmt_ with
     | CN_pack_unpack (pack_unpack, pred, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
@@ -1220,22 +1220,20 @@ module C_vars = struct
               iargs = List.map IT.Surface.proj iargs
             } )
       in
-      return (Statement (loc, stmt))
+      return stmt
     | CN_to_from_bytes (to_from, pred, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let@ name, pointer, iargs, _oargs_ty = cn_res_info ~pred_loc:loc env pred args in
       return
-        (Statement
-           ( loc,
-             To_from_bytes
-               ( to_from,
-                 { name;
-                   pointer = IT.Surface.proj pointer;
-                   iargs = List.map IT.Surface.proj iargs
-                 } ) ))
+        (To_from_bytes
+           ( to_from,
+             { name;
+               pointer = IT.Surface.proj pointer;
+               iargs = List.map IT.Surface.proj iargs
+             } ))
     | CN_have assrt ->
       let@ assrt = cn_assrt env (loc, assrt) in
-      return (Statement (loc, Have assrt))
+      return (Have assrt)
     | CN_instantiate (to_instantiate, expr) ->
       let@ expr = cn_expr Sym.Set.empty env expr in
       let expr = IT.Surface.proj expr in
@@ -1245,10 +1243,10 @@ module C_vars = struct
         | I_Function f -> I_Function f
         | I_Good ct -> I_Good (Sctypes.of_ctype_unsafe loc ct)
       in
-      return (Statement (loc, Instantiate (to_instantiate, expr)))
+      return (Instantiate (to_instantiate, expr))
     | CN_split_case e ->
       let@ e = cn_assrt env (loc, e) in
-      return (Statement (loc, Split_case e))
+      return (Split_case e)
     | CN_extract (attrs, to_extract, expr) ->
       let@ expr = cn_expr Sym.Set.empty env expr in
       let expr = IT.Surface.proj expr in
@@ -1261,23 +1259,23 @@ module C_vars = struct
           E_Pred (CN_block (Option.map (Sctypes.of_ctype_unsafe loc) oty))
         | E_Pred (CN_named pn) -> E_Pred (CN_named pn)
       in
-      return (Statement (loc, Extract (attrs, to_extract, expr)))
+      return (Extract (attrs, to_extract, expr))
     | CN_unfold (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let args = List.map IT.Surface.proj args in
-      return (Statement (loc, Unfold (s, args)))
+      return (Unfold (s, args))
     | CN_assert_stmt e ->
       let@ e = cn_assrt env (loc, e) in
-      return (Statement (loc, Assert e))
+      return (Assert e)
     | CN_apply (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let args = List.map IT.Surface.proj args in
-      return (Statement (loc, Apply (s, args)))
-    | CN_inline nms -> return (Statement (loc, Inline nms))
+      return (Apply (s, args))
+    | CN_inline nms -> return (Inline nms)
     | CN_print expr ->
       let@ expr = cn_expr Sym.Set.empty env expr in
       let expr = IT.Surface.proj expr in
-      return (Statement (loc, Print expr))
+      return (Print expr)
 end
 
 module Handle = struct
@@ -1333,9 +1331,9 @@ module Handle = struct
       fail { loc; msg }
 
 
-  let with_loads allocations old_states : Cnprog.t C_vars.t -> Cnprog.t Or_Error.t =
+  let with_loads loc allocations old_states : 'a C_vars.t -> 'a Cnprog.t Or_Error.t =
     let rec aux = function
-      | C_vars.Done x -> return x
+      | C_vars.Done x -> return (Cnprog.Statement (loc, x))
       | Error { loc; msg } -> fail { loc; msg }
       | Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with
@@ -1632,4 +1630,9 @@ let statement
       env
       (Cn.CN_statement (loc, stmt_))
   =
-  Handle.with_loads allocations old_states (C_vars.cn_statement env (loc, stmt_))
+  Handle.with_loads loc allocations old_states (C_vars.cn_statement env (loc, stmt_))
+
+
+let expr_ghost allocations old_states env expr =
+  let (Cn.CNExpr (loc, _)) = expr in
+  Handle.with_loads loc allocations old_states (C_vars.cn_expr Sym.Set.empty env expr)

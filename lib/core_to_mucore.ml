@@ -66,6 +66,8 @@ module Translate = struct
   let predicate x1 x2 = lift (predicate x1 x2)
 
   let statement x1 x2 x3 x4 = lift (statement x1 x2 x3 x4)
+
+  let expr_ghost x1 x2 x3 x4 = lift (expr_ghost x1 x2 x3 x4)
 end
 
 open CF.Core
@@ -805,7 +807,49 @@ let rec n_expr
       | _ -> return @@ n_pexpr e2
     in
     let es = List.map n_pexpr es in
-    let ghost_args = [] in
+    let@ parsed_ghosts = liftParse (Parse.cn_ghosts annots) in
+    let@ ghost_args =
+      match parsed_ghosts with
+      | _ :: _ ->
+        let marker_id = Option.get (CF.Annot.get_marker annots) in
+        let marker_id_object_types =
+          Option.get (CF.Annot.get_marker_object_types annots)
+        in
+        let@ desugared_ghosts_and_ghosts =
+          ListM.mapM
+            (fun parsed_ghost ->
+               let@ desugared_ghost =
+                 do_ail_desugar_rdonly
+                   CAE.
+                     { markers_env;
+                       inner =
+                         { (Pmap.find marker_id markers_env) with
+                           cn_state = cn_desugaring_state
+                         }
+                     }
+                   (Desugar.cn_expr parsed_ghost)
+               in
+               let visible_objects =
+                 global_types @ Pmap.find marker_id_object_types visible_objects_env
+               in
+               let get_c_obj sym =
+                 match List.assoc_opt Sym.equal sym visible_objects with
+                 | Some obj_ty -> obj_ty
+                 | None ->
+                   failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+               in
+               let@ ghost =
+                 Translate.expr_ghost get_c_obj old_states env desugared_ghost
+               in
+               return (desugared_ghost, ghost))
+            parsed_ghosts
+        in
+        let _, ghosts = List.split desugared_ghosts_and_ghosts in
+        let ghost_args = List.map (Cnprog.map IT.Surface.proj) ghosts in
+        return ghost_args
+      | [] -> return []
+    in
+    (* let ghost_args = [] in *)
     (* TODO: https://github.com/rems-project/cn/issues/123 *)
     return (wrap (Eccall (ct1, e2, es, ghost_args)))
   | Eproc (_a, name, es) ->

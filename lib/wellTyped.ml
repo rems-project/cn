@@ -1849,10 +1849,8 @@ module BaseTyping = struct
 
 
   let check_cn_statement loc stmt =
-    let open Cnprog in
-    Pp.debug
-      22
-      (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree_of_statement stmt))));
+    let open Cnstatement in
+    Pp.debug 22 (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree stmt))));
     match stmt with
     | Pack_unpack (pack_unpack, pt) ->
       let@ p_pt = WReq.welltyped loc (P pt) in
@@ -1945,7 +1943,7 @@ module BaseTyping = struct
       return (Split_case lc)
 
 
-  let check_cnprog p =
+  let check_cnprog f p =
     let open Cnprog in
     let rec aux = function
       | Let (loc, (s, { ct; pointer }), p') ->
@@ -1954,9 +1952,9 @@ module BaseTyping = struct
         let@ () = add_l s (Memory.bt_of_sct ct) (loc, lazy (Sym.pp s)) in
         let@ p' = aux p' in
         return (Let (loc, (s, { ct; pointer }), p'))
-      | Statement (loc, stmt) ->
-        let@ stmt = check_cn_statement loc stmt in
-        return (Statement (loc, stmt))
+      | Statement (loc, x) ->
+        let@ x = f loc x in
+        return (Statement (loc, x))
     in
     pure (aux p)
 
@@ -2104,7 +2102,8 @@ module BaseTyping = struct
              can't when f_pe is dynamic *)
           let arg_bt_specs = List.map (fun ct -> Memory.bt_of_sct ct) arg_cts in
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
-          let@ its = ListM.mapM WIT.infer its in
+          let@ its = ListM.mapM (check_cnprog (fun _ it -> WIT.infer it)) its in
+          (* let@ it = (check_cnprog (fun _ it -> WIT.check (fst info) bt it)) it in *)
           return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, its))
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in
@@ -2172,7 +2171,8 @@ module BaseTyping = struct
                 let@ pe = check_pexpr bt pe in
                 check_args (acc_pes @ [ pe ]) acc_its lt' pes' its
               | AT.Ghost ((_s, bt), info, lt'), _, it :: its' ->
-                let@ it = WIT.check (fst info) bt it in
+                (* let@ it = WIT.check (fst info) bt it in *)
+                let@ it = (check_cnprog (fun _ it -> WIT.check (fst info) bt it)) it in
                 check_args acc_pes (acc_its @ [ it ]) lt' pes its'
               | AT.L _lat, [], [] -> return (acc_pes, acc_its)
               | AT.Computational _, [], _ | AT.L _, _ :: _, _ ->
@@ -2183,7 +2183,7 @@ module BaseTyping = struct
           in
           return (Unit, Erun (l, pes, its))
         | CN_progs (surfaceprog, cnprogs) ->
-          let@ cnprogs = ListM.mapM check_cnprog cnprogs in
+          let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
         | End _ -> todo ()
       in

@@ -1712,7 +1712,7 @@ let pp_cnprogs_extract (ids, extract, term) =
 
 
 let pp_cnprog_statement = function
-  | Cnprog.Pack_unpack (pu, pred) ->
+  | Cnstatement.Pack_unpack (pu, pred) ->
     pp_constructor "CNProgs.Pack_unpack" [ pp_pack_unpack pu; pp_request_ppredicate pred ]
   | To_from_bytes (tf, pred) ->
     pp_constructor "CNProgs.To_from_bytes" [ pp_to_from tf; pp_request_ppredicate pred ]
@@ -1737,13 +1737,15 @@ let pp_cnprog_load (r : Cnprog.load) =
     [ ("CNProgs.ct", pp_sctype r.ct); ("CNProgs.pointer", pp_index_term r.pointer) ]
 
 
-let rec pp_cn_prog = function
+let rec pp_cn_prog f = function
   | Cnprog.Let (loc, (name, l), prog) ->
     pp_constructor
       "CNProgs.CLet"
-      [ pp_location loc; pp_tuple [ pp_symbol name; pp_cnprog_load l ]; pp_cn_prog prog ]
-  | Statement (loc, stmt) ->
-    pp_constructor "CNProgs.Statement" [ pp_location loc; pp_cnprog_statement stmt ]
+      [ pp_location loc;
+        pp_tuple [ pp_symbol name; pp_cnprog_load l ];
+        pp_cn_prog f prog
+      ]
+  | Statement (loc, stmt) -> pp_constructor "CNProgs" [ pp_location loc; f stmt ]
 
 
 let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
@@ -1821,7 +1823,7 @@ and pp_expr pp_type = function
                  [ pp_act act;
                    pp_pexpr pp_type f;
                    pp_list (pp_pexpr pp_type) args;
-                   pp_list pp_index_term ghost_args
+                   pp_list (pp_cn_prog pp_index_term) ghost_args
                  ]
              ]
          | Elet (pat, e1, e2) ->
@@ -1853,7 +1855,7 @@ and pp_expr pp_type = function
              [ pp_tuple
                  [ pp_symbol sym;
                    pp_list (pp_pexpr pp_type) args;
-                   pp_list pp_index_term its
+                   pp_list (pp_cn_prog pp_index_term) its
                  ]
              ]
          | CN_progs (stmts, progs) ->
@@ -1861,7 +1863,7 @@ and pp_expr pp_type = function
              "CN_progs"
              [ pp_tuple
                  [ pp_list (pp_cn_statement pp_symbol pp_ctype) stmts;
-                   pp_list pp_cn_prog progs
+                   pp_list (pp_cn_prog pp_cnprog_statement) progs
                  ]
              ])
       ]
