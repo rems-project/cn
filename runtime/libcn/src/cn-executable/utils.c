@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <limits.h>
 #include <signal.h>  // for SIGABRT
 #include <stdint.h>
 #include <stdio.h>
@@ -16,6 +17,8 @@ struct cn_error_message_info* error_msg_info;
 signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
+
+signed long WILDCARD_DEPTH = LONG_MAX;
 
 void reset_fulminate(void) {
   cn_bump_free_all();
@@ -302,6 +305,19 @@ void dump_ownership_state() {
   // cn_printf(CN_LOGGING_INFO, "END\n");
 }
 
+_Bool is_wildcard(void* generic_c_ptr, int offset) {
+  int64_t address_key = 0;
+  // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
+  for (int i = 0; i < offset; i++) {
+    address_key = (uintptr_t)generic_c_ptr + i;
+    int depth = ownership_ghost_state_get(&address_key);
+    if (depth != WILDCARD_DEPTH) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg) {
   /* Used for precondition and loop invariant taking/getting of ownership */
   c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1);
@@ -316,33 +332,37 @@ void cn_put_ownership(void* generic_c_ptr, size_t size) {
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
 }
 
-void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
+void cn_assume_ownership(
+    void* generic_c_ptr, unsigned long size, char* fun, _Bool wildcard) {
   // cn_printf(CN_LOGGING_INFO, "[CN: assuming ownership (%s)] " FMT_PTR_2 ", size: %lu\n", fun, (uintptr_t) generic_c_ptr, size);
   //// print_error_msg_info();
   for (int i = 0; i < size; i++) {
     int64_t address_key = (uintptr_t)generic_c_ptr + i;
     /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
     /*        ((uintptr_t) generic_c_ptr) + i, fun); */
-    ownership_ghost_state_set(&address_key, cn_stack_depth);
+    signed long depth = wildcard ? WILDCARD_DEPTH : cn_stack_depth;
+    ownership_ghost_state_set(&address_key, depth);
   }
 }
 
 void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size_t size) {
   nr_owned_predicates++;
-  switch (spec_mode) {
-    case PRE: {
-      cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
-      break;
-    }
-    case POST: {
-      cn_put_ownership(generic_c_ptr, size);
-      break;
-    }
-    case LOOP: {
-      cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
-    }
-    default: {
-      break;
+  if (!is_wildcard(generic_c_ptr, (int)size)) {
+    switch (spec_mode) {
+      case PRE: {
+        cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
+        break;
+      }
+      case POST: {
+        cn_put_ownership(generic_c_ptr, size);
+        break;
+      }
+      case LOOP: {
+        cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
+      }
+      default: {
+        break;
+      }
     }
   }
 }
@@ -608,11 +628,11 @@ cn_bits_u64* cn_bits_u64_flsl(cn_bits_u64* i1) {
   return res;
 }
 
-void* cn_aligned_alloc(size_t align, size_t size) {
+void* cn_aligned_alloc_aux(size_t align, size_t size, _Bool wildcard) {
   void* p = aligned_alloc(align, size);
-  char str[] = "cn_aligned_malloc";
+  char str[] = "cn_aligned_alloc";
   if (p) {
-    cn_assume_ownership((void*)p, size, str);
+    cn_assume_ownership((void*)p, size, str, wildcard);
     return p;
   } else {
     cn_printf(CN_LOGGING_INFO, "aligned_alloc failed\n");
@@ -620,11 +640,19 @@ void* cn_aligned_alloc(size_t align, size_t size) {
   }
 }
 
-void* cn_malloc(unsigned long size) {
+void* cn_aligned_alloc(size_t align, size_t size) {
+  return cn_aligned_alloc_aux(align, size, false);
+}
+
+void* cn_unsafe_aligned_alloc(size_t align, size_t size) {
+  return cn_aligned_alloc_aux(align, size, true);
+}
+
+void* cn_malloc_aux(unsigned long size, _Bool wildcard) {
   void* p = malloc(size);
   char str[] = "cn_malloc";
   if (p) {
-    cn_assume_ownership((void*)p, size, str);
+    cn_assume_ownership((void*)p, size, str, wildcard);
     return p;
   } else {
     cn_printf(CN_LOGGING_INFO, "malloc failed\n");
@@ -632,16 +660,32 @@ void* cn_malloc(unsigned long size) {
   }
 }
 
-void* cn_calloc(size_t num, size_t size) {
+void* cn_malloc(unsigned long size) {
+  return cn_malloc_aux(size, false);
+}
+
+void* cn_unsafe_malloc(unsigned long size) {
+  return cn_malloc_aux(size, true);
+}
+
+void* cn_calloc_aux(size_t num, size_t size, _Bool wildcard) {
   void* p = calloc(num, size);
   char str[] = "cn_calloc";
   if (p) {
-    cn_assume_ownership((void*)p, num * size, str);
+    cn_assume_ownership((void*)p, num * size, str, wildcard);
     return p;
   } else {
     cn_printf(CN_LOGGING_INFO, "calloc failed\n");
     return p;
   }
+}
+
+void* cn_calloc(size_t num, size_t size) {
+  return cn_calloc_aux(num, size, false);
+}
+
+void* cn_unsafe_calloc(size_t num, size_t size) {
+  return cn_calloc_aux(num, size, true);
 }
 
 void cn_free_sized(void* malloced_ptr, size_t size) {

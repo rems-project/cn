@@ -160,8 +160,11 @@ void cn_loop_leak_check_and_put_back_ownership(void);
 
 /* malloc, free */
 void *cn_aligned_alloc(size_t align, size_t size);
+void *cn_unsafe_aligned_alloc(size_t align, size_t size);
 void *cn_malloc(size_t size);
+void *cn_unsafe_malloc(size_t size);
 void *cn_calloc(size_t num, size_t size);
+void *cn_unsafe_calloc(size_t num, size_t size);
 void cn_free_sized(void *, size_t len);
 
 void cn_print_nr_u64(int i, unsigned long u);
@@ -543,7 +546,8 @@ void ownership_ghost_state_remove(int64_t *address_key);
 /* CN ownership checking */
 void cn_get_ownership(void *generic_c_ptr, size_t size, char *check_msg);
 void cn_put_ownership(void *generic_c_ptr, size_t size);
-void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
+void cn_assume_ownership(
+    void *generic_c_ptr, unsigned long size, char *fun, _Bool wildcard);
 void cn_get_or_put_ownership(enum spec_mode spec_mode, void *generic_c_ptr, size_t size);
 
 /* C ownership checking */
