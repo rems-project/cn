@@ -35,45 +35,44 @@ let debug_stage (stage : string) (str : string) : unit =
 let compile_constant_tests
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : Test.t list * Pp.document
   =
-  let tests, docs =
-    List.map_split
-      (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         ( Test.of_instrumentation is_static Constant inst,
-           let open Pp in
-           (CF.Pp_ail.(
-              with_executable_spec
-                (fun () ->
-                   pp_function_prototype
-                     inst.fn
-                     (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
-                      decl))
-                ())
-            ^^ hardline)
-           ^^ CF.Pp_ail.pp_statement
-                A.(
-                  Utils.mk_stmt
-                    (AilSexpr
-                       (Utils.mk_expr
-                          (AilEcall
-                             ( Utils.mk_expr
-                                 (AilEident
-                                    (Sym.fresh
-                                       (if is_static then
-                                          "CN_STATIC_UNIT_TEST_CASE"
-                                        else
-                                          "CN_EXTERN_UNIT_TEST_CASE"))),
-                               [ Utils.mk_expr (AilEident inst.fn) ]
-                               @
-                               if is_static then
-                                 [ Utils.mk_expr
-                                     (AilEident (Sym.fresh (Utils.static_prefix filename)))
-                                 ]
-                               else
-                                 [] ))))) ))
-      insts
+  let docs =
+    List.map
+      (fun (test : Test.t) ->
+         let open Pp in
+         (CF.Pp_ail.(
+            with_executable_spec
+              (fun () ->
+                 pp_function_prototype
+                   test.fn
+                   (let _, _, decl = List.assoc Sym.equal test.fn sigma.declarations in
+                    decl))
+              ())
+          ^^ hardline)
+         ^^ CF.Pp_ail.pp_statement
+              A.(
+                Utils.mk_stmt
+                  (AilSexpr
+                     (Utils.mk_expr
+                        (AilEcall
+                           ( Utils.mk_expr
+                               (AilEident
+                                  (Sym.fresh
+                                     (if test.is_static then
+                                        "CN_STATIC_UNIT_TEST_CASE"
+                                      else
+                                        "CN_EXTERN_UNIT_TEST_CASE"))),
+                             [ Utils.mk_expr (AilEident test.fn) ]
+                             @
+                             if test.is_static then
+                               [ Utils.mk_expr
+                                   (AilEident (Sym.fresh (Utils.static_prefix filename)))
+                               ]
+                             else
+                               [] ))))))
+      tests
   in
   let open Pp in
   (tests, separate (twice hardline) docs ^^ twice hardline)
@@ -83,10 +82,10 @@ let compile_generators
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : Pp.document
   =
-  let ctx = GenCompile.compile filename prog5.resource_predicates insts in
+  let ctx = GenCompile.compile filename prog5.resource_predicates tests in
   debug_stage "Compile" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
   let ctx = ctx |> GenInline.inline in
   debug_stage "Inline" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
@@ -171,7 +170,7 @@ let compile_random_test_case
                 string (Fulminate.Utils.static_prefix filename) ^^ underscore ^^ Sym.pp fn
               else
                 Sym.pp fn)
-          ^^ !^"_init"
+          ^^ !^"_cn_test_setup"
         in
         !^"void"
         ^^^ init_name
@@ -247,14 +246,8 @@ let compile_generator_tests
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : Test.t list * Pp.document
   =
-  let tests =
-    List.map
-      (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         Test.of_instrumentation is_static Generator inst)
-      insts
-  in
   let open Pp in
   (tests, concat_map (compile_random_test_case filename sigma prog5) tests)
