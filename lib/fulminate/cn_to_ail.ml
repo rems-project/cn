@@ -3377,7 +3377,7 @@ let cn_to_ail_predicate
          let bs'', ss'' = clause_translate cs in
          (bs @ bs'', ss @ ss'')
        | _ ->
-         let _, _, e =
+         let bs', ss', e =
            cn_to_ail_expr_with_pred_name
              filename
              (Some pred_sym)
@@ -3398,7 +3398,7 @@ let cn_to_ail_predicate
                  mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
                  mk_stmt (AilSblock (bs'', List.map mk_stmt ss'')) ))
          in
-         ([], [ ail_if_stat ]))
+         (bs', ss' @ [ ail_if_stat ]))
   in
   let bs, ss =
     match rp_def.clauses with Some clauses -> clause_translate clauses | None -> ([], [])
@@ -4456,7 +4456,7 @@ let cn_to_ail_assume_predicate
          let bs'', ss'' = clause_translate cs in
          (bs @ bs'', ss @ ss'')
        | _ ->
-         let _, _, e =
+         let bs', ss', e =
            cn_to_ail_expr_with_pred_name
              filename
              (Some pred_sym)
@@ -4477,7 +4477,7 @@ let cn_to_ail_assume_predicate
                  mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
                  mk_stmt (AilSblock (bs'', List.map mk_stmt ss'')) ))
          in
-         ([], [ ail_if_stat ]))
+         (bs', ss' @ [ ail_if_stat ]))
   in
   let bs, ss =
     match rp_def.clauses with Some clauses -> clause_translate clauses | None -> ([], [])
