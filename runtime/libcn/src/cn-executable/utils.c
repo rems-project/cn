@@ -18,7 +18,7 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
-signed long WILDCARD_DEPTH = LONG_MAX;
+static signed long WILDCARD_DEPTH = INT_MAX - 1;
 
 void reset_fulminate(void) {
   cn_bump_free_all();
@@ -231,7 +231,7 @@ void cn_postcondition_leak_check(void) {
   while (ht_next(&it)) {
     int64_t* key = it.key;
     int* depth = it.value;
-    if (*depth > cn_stack_depth) {
+    if (*depth != WILDCARD_DEPTH && *depth > cn_stack_depth) {
       print_error_msg_info(error_msg_info);
       // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
