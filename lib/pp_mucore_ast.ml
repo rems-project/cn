@@ -173,14 +173,14 @@ module PP = struct
         ( pp_ctor "Esseq" (* ^^^ P.group (Pp_core.Basic.pp_pattern pat) *),
           (*add_std_annot*)
           [ (* Dleaf (pp_ctor "TODO_pattern") ; *) dtree_of_expr e1; dtree_of_expr e2 ] )
-    | Erun (_l, asyms, its) ->
+    (* | Erun (_l, asyms, its) ->
       Dnode
         ( pp_pure_ctor "Erun",
           [ Dnode (pp_ctor "Args", List.map dtree_of_pexpr asyms);
             Dnode (pp_ctor "Ghost args", List.map IndexTerms.dtree its)
-          ] )
+          ] ) *)
     | Ebound e -> Dnode (pp_ctor "Ebound", [ dtree_of_expr e ])
-    | Ememop _ | Eccall (_, _, _, _) | Eunseq _ | End _ | CN_progs (_, _) ->
+    | Erun _ | Ememop _ | Eccall (_, _, _, _) | Eunseq _ | End _ | CN_progs (_, _) ->
       Dnode (pp_ctor "TExpr(TODO)", [ Dleaf (Pp_mucore.pp_expr expr) ])
 
 

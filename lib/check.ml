@@ -1897,7 +1897,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        let aux loc stmt =
          (* copying bits of code from elsewhere in check.ml *)
          match stmt with
-         | Cnprog.Pack_unpack (_pack_unpack, _pt) ->
+         | Cnstatement.Pack_unpack (_pack_unpack, _pt) ->
            warn loc !^"Explicit pack/unpack unsupported.";
            return ()
          | To_from_bytes ((To | From), { name = PName _; _ }) ->
@@ -2071,7 +2071,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            loop (subbed :: cn_progs)
          | Cnprog.Statement (loc, cn_statement) :: cn_progs ->
            (match cn_statement with
-            | Cnprog.Split_case lc ->
+            | Cnstatement.Split_case lc ->
               Pp.debug 5 (lazy (Pp.headline "checking split_case"));
               let@ lc = WellTyped.logical_constraint loc lc in
               let@ it =

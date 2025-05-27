@@ -293,7 +293,7 @@ type 'TY expr_ =
   | Ememop of 'TY memop
   | Eaction of 'TY paction
   | Eskip
-  | Eccall of act * 'TY pexpr * 'TY pexpr list * IndexTerms.t list
+  | Eccall of act * 'TY pexpr * 'TY pexpr list * IndexTerms.t Cnprog.t list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
   | Ewseq of 'TY pattern * 'TY expr * 'TY expr
@@ -301,10 +301,10 @@ type 'TY expr_ =
   | Eif of 'TY pexpr * 'TY expr * 'TY expr
   | Ebound of 'TY expr
   | End of 'TY expr list
-  | Erun of Sym.t * 'TY pexpr list * IndexTerms.t list
+  | Erun of Sym.t * 'TY pexpr list * IndexTerms.t Cnprog.t list
   | CN_progs of
       (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement list
-      * Cnprog.t list
+      * Cnstatement.statement Cnprog.t list
 
 and 'TY expr = Expr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY expr_
 
