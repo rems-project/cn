@@ -332,10 +332,8 @@ void cn_put_ownership(void* generic_c_ptr, size_t size) {
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
 }
 
-void cn_assume_ownership(
+void fulminate_assume_ownership(
     void* generic_c_ptr, unsigned long size, char* fun, _Bool wildcard) {
-  // cn_printf(CN_LOGGING_INFO, "[CN: assuming ownership (%s)] " FMT_PTR_2 ", size: %lu\n", fun, (uintptr_t) generic_c_ptr, size);
-  //// print_error_msg_info();
   for (int i = 0; i < size; i++) {
     int64_t address_key = (uintptr_t)generic_c_ptr + i;
     /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
@@ -343,6 +341,12 @@ void cn_assume_ownership(
     signed long depth = wildcard ? WILDCARD_DEPTH : cn_stack_depth;
     ownership_ghost_state_set(&address_key, depth);
   }
+}
+
+void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
+  // cn_printf(CN_LOGGING_INFO, "[CN: assuming ownership (%s)] " FMT_PTR_2 ", size: %lu\n", fun, (uintptr_t) generic_c_ptr, size);
+  //// print_error_msg_info();
+  fulminate_assume_ownership(generic_c_ptr, size, fun, false);
 }
 
 void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size_t size) {
@@ -632,7 +636,7 @@ void* cn_aligned_alloc_aux(size_t align, size_t size, _Bool wildcard) {
   void* p = aligned_alloc(align, size);
   char str[] = "cn_aligned_alloc";
   if (p) {
-    cn_assume_ownership((void*)p, size, str, wildcard);
+    fulminate_assume_ownership((void*)p, size, str, wildcard);
     return p;
   } else {
     cn_printf(CN_LOGGING_INFO, "aligned_alloc failed\n");
@@ -652,7 +656,7 @@ void* cn_malloc_aux(unsigned long size, _Bool wildcard) {
   void* p = malloc(size);
   char str[] = "cn_malloc";
   if (p) {
-    cn_assume_ownership((void*)p, size, str, wildcard);
+    fulminate_assume_ownership((void*)p, size, str, wildcard);
     return p;
   } else {
     cn_printf(CN_LOGGING_INFO, "malloc failed\n");
@@ -672,7 +676,7 @@ void* cn_calloc_aux(size_t num, size_t size, _Bool wildcard) {
   void* p = calloc(num, size);
   char str[] = "cn_calloc";
   if (p) {
-    cn_assume_ownership((void*)p, num * size, str, wildcard);
+    fulminate_assume_ownership((void*)p, num * size, str, wildcard);
     return p;
   } else {
     cn_printf(CN_LOGGING_INFO, "calloc failed\n");
