@@ -156,7 +156,7 @@ let generate_executable_specs
                 pp_file
                 out_file
                 output_dir
-                (Common.static_funcs cabs_tunit)
+                cabs_tunit
                 ail_prog
                 prog5
             with
