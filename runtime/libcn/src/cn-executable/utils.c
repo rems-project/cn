@@ -394,7 +394,7 @@ void c_ownership_check(char* access_kind,
   for (int i = 0; i < offset; i++) {
     address_key = (uintptr_t)generic_c_ptr + i;
     int curr_depth = ownership_ghost_state_get(&address_key);
-    if (curr_depth != expected_stack_depth) {
+    if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
       print_error_msg_info(error_msg_info);
       cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
       if (curr_depth == -1) {
