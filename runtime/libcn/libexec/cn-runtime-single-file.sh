@@ -44,29 +44,13 @@ INPUT_DIR=$(dirname "$INPUT_FN")
 
 RUNTIME_PREFIX="$OPAM_SWITCH_PREFIX/lib/cn/runtime"
 [ -d "${RUNTIME_PREFIX}" ] || echo_and_err "Could not find CN's runtime directory (looked at: '${RUNTIME_PREFIX}')"
- 
-# the XXXX is ignored by Darwin's mktemp but needed
-# by the GNU version
-# EXEC_DIR="buddy-exec-2"
-# rm -rf $EXEC_DIR
-# mkdir $EXEC_DIR
-EXEC_DIR=$(mktemp -d -t 'cn-exec.XXXX')
-[ -d "${EXEC_DIR}" ] || echo_and_err "Failed to create temporary directory."
-
-# Pre-processing sometimes helps but sometimes doesn't for cn-tutorial/cn-runtime-testing src/examples/*.c
-# So disabling for now...
-# cpp -P -CC "${INPUT_FN}" > "${EXEC_DIR}/${INPUT_BASENAME}.pp.c"  # macros present - need to preprocess
-# INPUT_FN="${EXEC_DIR}/${INPUT_BASENAME}.pp.c"
 
 # Instrument code with CN
 if cn instrument "${INPUT_FN}" \
-    --run --print-steps \
+    --run --tmp --print-steps \
     --output="${INPUT_BASENAME}.exec.c" \
-    --output-dir="${EXEC_DIR}" \
     ${NO_CHECK_OWNERSHIP}; then
   [ "${QUIET}" ] || echo "Success!"
 else
-  echo_and_err "Test $1 failed in ${EXEC_DIR}."
+  echo_and_err "Test $1 failed."
 fi
-
-echo "${EXEC_DIR}"

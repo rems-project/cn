@@ -160,6 +160,8 @@ void cn_free_sized(void *, size_t len);
 
 void cn_print_nr_u64(int i, unsigned long u);
 void cn_print_u64(const char *str, unsigned long u);
+void dump_ownership_ghost_state(int stack_depth);
+_Bool is_mapped(void *ptr);
 
 /* cn_failure callbacks */
 enum cn_failure_mode {
@@ -434,9 +436,10 @@ cn_bool *default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
-    int64_t *key_ptr = cn_bump_malloc(sizeof(int64_t));                                  \
+    int64_t *key_ptr = cn_fl_malloc(sizeof(int64_t));                                    \
     *key_ptr = key->val;                                                                 \
     void *res = ht_get(m, key_ptr);                                                      \
+    cn_fl_free(key_ptr);                                                                 \
     if (!res) {                                                                          \
       return (void *)default_##CNTYPE();                                                 \
     }                                                                                    \

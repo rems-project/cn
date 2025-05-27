@@ -23,10 +23,7 @@ type term =
         choices : (int * term) list;
         last_var : Sym.t
       }
-  | Alloc of
-      { bytes : IT.t;
-        sized : bool
-      }
+  | Alloc of { bytes : IT.t }
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
@@ -87,7 +84,7 @@ let rec free_vars_term (tm : term) : Sym.Set.t =
   | Uniform _ -> Sym.Set.empty
   | Pick { bt = _; choice_var = _; choices; last_var = _ } ->
     free_vars_term_list (List.map snd choices)
-  | Alloc { bytes; sized = _ } -> IT.free_vars bytes
+  | Alloc { bytes } -> IT.free_vars bytes
   | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; sized = _ } ->
     Sym.Set.of_list (List.map snd iargs)
   | Asgn { pointer = _; addr; sct = _; value; last_var = _; rest } ->
@@ -115,75 +112,55 @@ and free_vars_term_list : term list -> Sym.Set.t =
 let rec pp_term (tm : term) : Pp.document =
   let open Pp in
   match tm with
-  | Uniform { bt; sz } -> string "uniform" ^^ angles (BT.pp bt) ^^ parens (int sz)
+  | Uniform { bt; sz } -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens (int sz)
   | Pick { bt; choice_var; choices; last_var } ->
-    string "pick"
+    !^"pick"
     ^^ parens
-         (c_comment (string "chosen by " ^^ Sym.pp choice_var)
+         (c_comment (!^"chosen by " ^^ Sym.pp choice_var)
           ^^ comma
-          ^^ break 1
-          ^^ twice slash
-          ^^ space
-          ^^ string "backtracks to"
-          ^^ space
-          ^^ Sym.pp last_var
-          ^^ break 1
-          ^^ brackets
-               (nest
-                  2
-                  (break 1
-                   ^^ c_comment (BT.pp bt)
-                   ^^ break 1
-                   ^^ separate_map
-                        (semi ^^ break 1)
-                        (fun (w, gt) ->
-                           parens
-                             (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp_term gt))))
-                        choices)))
-  | Alloc { bytes; sized } ->
-    (if sized then string "alloc_sized" else string "alloc") ^^ parens (IT.pp bytes)
+          ^/^ twice slash
+          ^^^ !^"backtracks to"
+          ^^^ Sym.pp last_var
+          ^/^ brackets
+                (nest
+                   2
+                   (break 1
+                    ^^ c_comment (BT.pp bt)
+                    ^/^ separate_map
+                          (semi ^^ break 1)
+                          (fun (w, gt) ->
+                             parens
+                               (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp_term gt))))
+                          choices)))
+  | Alloc { bytes } -> !^"alloc" ^^ parens (IT.pp bytes)
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     parens
       (Sym.pp fsym
-       ^^ optional
-            (fun (n, sym) -> brackets (int n ^^ comma ^^ space ^^ Sym.pp sym))
-            sized
+       ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
        ^^ parens
             (nest
                2
                (separate_map
                   (comma ^^ break 1)
-                  (fun (x, y) -> Sym.pp x ^^ colon ^^ space ^^ Sym.pp y)
+                  (fun (x, y) -> Sym.pp x ^^ colon ^^^ Sym.pp y)
                   iargs))
-       ^^ space
-       ^^ colon
-       ^^ space
-       ^^ BT.pp oarg_bt
+       ^^^ colon
+       ^^^ BT.pp oarg_bt
        ^^ c_comment
-            (string "path affected by"
-             ^^ space
-             ^^ separate_map
-                  (comma ^^ space)
-                  Sym.pp
-                  (path_vars |> Sym.Set.to_seq |> List.of_seq)))
+            (!^"path affected by"
+             ^^^ separate_map
+                   (comma ^^ space)
+                   Sym.pp
+                   (path_vars |> Sym.Set.to_seq |> List.of_seq)))
   | Asgn { pointer; addr; sct; value; last_var; rest } ->
     Sctypes.pp sct
-    ^^ space
-    ^^ IT.pp addr
-    ^^ space
-    ^^ string ":="
-    ^^ space
-    ^^ IT.pp value
+    ^^^ IT.pp addr
+    ^^^ !^":="
+    ^^^ IT.pp value
     ^^ semi
-    ^^ space
-    ^^ c_comment
-         (string "backtracks to"
-          ^^ space
-          ^^ Sym.pp last_var
-          ^^ string " allocs via "
-          ^^ Sym.pp pointer)
-    ^^ break 1
-    ^^ pp_term rest
+    ^^^ c_comment
+          (!^"backtracks to" ^^^ Sym.pp last_var ^^ !^" allocs via " ^^ Sym.pp pointer)
+    ^/^ pp_term rest
   | Let
       { backtracks : int;
         x : Sym.t;
@@ -192,86 +169,61 @@ let rec pp_term (tm : term) : Pp.document =
         last_var : Sym.t;
         rest : term
       } ->
-    string "let"
+    !^"let"
     ^^ (if backtracks <> 0 then parens (int backtracks) else empty)
     ^^ (if is_return value then empty else star)
-    ^^ space
-    ^^ Sym.pp x
-    ^^ space
-    ^^ colon
-    ^^ space
-    ^^ BT.pp x_bt
-    ^^ space
-    ^^ equals
+    ^^^ Sym.pp x
+    ^^^ colon
+    ^^^ BT.pp x_bt
+    ^^^ equals
     ^^ nest 2 (break 1 ^^ pp_term value)
     ^^ semi
-    ^^ space
-    ^^ twice slash
-    ^^ space
-    ^^ string "backtracks to"
-    ^^ space
-    ^^ Sym.pp last_var
-    ^^ break 1
-    ^^ pp_term rest
-  | Return { value : IT.t } -> string "return" ^^ space ^^ IT.pp value
+    ^^^ twice slash
+    ^^^ !^"backtracks to"
+    ^^^ Sym.pp last_var
+    ^/^ pp_term rest
+  | Return { value : IT.t } -> !^"return" ^^^ IT.pp value
   | Assert { prop : LC.t; last_var : Sym.t; rest : term } ->
-    string "assert"
+    !^"assert"
     ^^ parens (nest 2 (break 1 ^^ LC.pp prop) ^^ break 1)
     ^^ semi
-    ^^ space
-    ^^ twice slash
-    ^^ space
-    ^^ string "backtracks to"
-    ^^ space
-    ^^ Sym.pp last_var
-    ^^ break 1
-    ^^ pp_term rest
+    ^^^ twice slash
+    ^^^ !^"backtracks to"
+    ^^^ Sym.pp last_var
+    ^/^ pp_term rest
   | ITE { bt : BT.t; cond : IT.t; t : term; f : term } ->
-    string "if"
-    ^^ space
-    ^^ parens (IT.pp cond)
-    ^^ space
-    ^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^^ break 1 ^^ pp_term t) ^^ break 1)
-    ^^ space
-    ^^ string "else"
-    ^^ space
-    ^^ braces (nest 2 (break 1 ^^ pp_term f) ^^ break 1)
+    !^"if"
+    ^^^ parens (IT.pp cond)
+    ^^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^/^ pp_term t) ^^ break 1)
+    ^^^ !^"else"
+    ^^^ braces (nest 2 (break 1 ^^ pp_term f) ^^ break 1)
   | Map { i; bt; min; max; perm; inner; last_var } ->
     let i_bt, _ = BT.map_bt bt in
-    string "map"
-    ^^ space
-    ^^ parens
-         (BT.pp i_bt
-          ^^ space
-          ^^ Sym.pp i
-          ^^ semi
-          ^^ space
-          ^^ IT.pp perm
-          ^^ c_comment
-               (IT.pp min ^^ string " <= " ^^ Sym.pp i ^^ string " <= " ^^ IT.pp max)
-          ^^ c_comment (string "backtracks to" ^^ space ^^ Sym.pp last_var))
+    !^"map"
+    ^^^ parens
+          (BT.pp i_bt
+           ^^^ Sym.pp i
+           ^^ semi
+           ^^^ IT.pp perm
+           ^^ c_comment (IT.pp min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ IT.pp max)
+           ^^ c_comment (!^"backtracks to" ^^^ Sym.pp last_var))
     ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp_term inner) ^^ break 1)
   | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
-    string "split_size"
+    !^"split_size"
     ^^ brackets (Sym.pp marker_var)
     ^^ parens
          (separate_map (comma ^^ space) Sym.pp (syms |> Sym.Set.to_seq |> List.of_seq))
-    ^^ space
-    ^^ c_comment
-         (string "backtracks to"
-          ^^ space
-          ^^ Sym.pp last_var
-          ^^ comma
-          ^^ space
-          ^^ string "path affected by"
-          ^^ space
-          ^^ separate_map
-               (comma ^^ space)
-               Sym.pp
-               (path_vars |> Sym.Set.to_seq |> List.of_seq))
+    ^^^ c_comment
+          (!^"backtracks to"
+           ^^^ Sym.pp last_var
+           ^^ comma
+           ^^^ !^"path affected by"
+           ^^^ separate_map
+                 (comma ^^ space)
+                 Sym.pp
+                 (path_vars |> Sym.Set.to_seq |> List.of_seq))
     ^^ semi
-    ^^ break 1
-    ^^ pp_term rest
+    ^/^ pp_term rest
 
 
 let nice_names (inputs : Sym.Set.t) (gt : GT.t) : GT.t =
@@ -280,8 +232,7 @@ let nice_names (inputs : Sym.Set.t) (gt : GT.t) : GT.t =
     match description sym with
     | SD_Id name | SD_CN_Id name | SD_ObjectAddress name | SD_FunArgValue name -> name
     | SD_None -> "fresh"
-    | _ ->
-      failwith Pp.(plain (Sym.pp_debug sym ^^ space ^^ at ^^ space ^^ string __LOC__))
+    | _ -> failwith Pp.(plain (Sym.pp_debug sym ^^^ at ^^^ !^__LOC__))
   in
   let rec aux (vars : int StringMap.t) (gt : GT.t) : int StringMap.t * GT.t =
     let (GT (gt_, _, loc)) = gt in
@@ -351,9 +302,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
     match gt_ with
     | Arbitrary ->
       failwith
-        Pp.(
-          plain
-            (string "Value from " ^^ Locations.pp loc ^^ string " is still `arbitrary`"))
+        Pp.(plain (!^"Value from " ^^ Locations.pp loc ^^ !^" is still `arbitrary`"))
     | Uniform sz -> Uniform { bt; sz }
     | Pick wgts ->
       let choice_var = Sym.fresh_anon () in
@@ -386,7 +335,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
                wgts);
           last_var
         }
-    | Alloc bytes -> Alloc { bytes; sized = false }
+    | Alloc bytes -> Alloc { bytes }
     | Call (fsym, xits) ->
       let (iargs : (Sym.t * Sym.t) list), (gt_lets : Sym.t -> term -> term) =
         List.fold_right
@@ -428,8 +377,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
                       (comma ^^ space)
                       Sym.pp
                       (List.map fst (Sym.Map.bindings pointers)))
-                 ^^ space
-                 ^^ string " in "
+                 ^^^ !^" in "
                  ^^ IT.pp addr)));
         List.find
           (fun x -> Sym.Map.mem x pointers)
@@ -478,25 +426,18 @@ type definition =
 let pp_definition (def : definition) : Pp.document =
   let open Pp in
   group
-    (string "generator"
-     ^^ space
-     ^^ braces
-          (separate_map
-             (comma ^^ space)
-             (fun (x, ty) -> BT.pp ty ^^ space ^^ Sym.pp x)
-             def.oargs)
-     ^^ space
-     ^^ Sym.pp def.name
+    (!^"generator"
+     ^^^ braces
+           (separate_map
+              (comma ^^ space)
+              (fun (x, ty) -> BT.pp ty ^^^ Sym.pp x)
+              def.oargs)
+     ^^^ Sym.pp def.name
      ^^ parens
-          (separate_map
-             (comma ^^ space)
-             (fun (x, ty) -> BT.pp ty ^^ space ^^ Sym.pp x)
-             def.iargs)
-     ^^ space
-     ^^ lbrace
+          (separate_map (comma ^^ space) (fun (x, ty) -> BT.pp ty ^^^ Sym.pp x) def.iargs)
+     ^^^ lbrace
      ^^ nest 2 (break 1 ^^ pp_term def.body)
-     ^^ break 1
-     ^^ rbrace)
+     ^/^ rbrace)
 
 
 let elaborate_gd ({ filename; recursive; spec = _; name; iargs; oargs; body } : GD.t)
@@ -571,7 +512,7 @@ module Sizing = struct
         in
         (gr', Sym.Set.singleton sym)
       | Uniform _ | Call _ | Return _ -> (gr, Sym.Set.empty)
-      | Alloc { bytes; sized = _ } -> (Alloc { bytes; sized = true }, Sym.Set.empty)
+      | Alloc { bytes } -> (Alloc { bytes }, Sym.Set.empty)
       | Pick ({ choices; _ } as gr) ->
         let choices, syms =
           choices

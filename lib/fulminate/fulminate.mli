@@ -8,13 +8,12 @@ module Utils = Utils
 
 val get_instrumented_filename : string -> string
 
-val get_output_filename : string option -> string option -> string -> string
-
 val main
   :  ?without_ownership_checking:bool ->
   ?without_loop_invariants:bool ->
   ?with_loop_leak_checks:bool ->
   ?with_testing:bool ->
+  String.t ->
   String.t ->
   String.t ->
   String.t ->

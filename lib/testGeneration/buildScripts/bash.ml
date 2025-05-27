@@ -2,30 +2,27 @@ module Config = TestGenConfig
 open Pp
 
 let setup ~output_dir =
-  string "#!/bin/bash"
+  !^"#!/bin/bash"
   ^^ twice hardline
-  ^^ string "# copied from cn-runtime-single-file.sh"
+  ^^ !^"# Auto-generated bash script for CN test generation"
   ^^ hardline
-  ^^ string "RUNTIME_PREFIX=\"$OPAM_SWITCH_PREFIX/lib/cn/runtime\""
+  ^^ !^"RUNTIME_PREFIX=\"$OPAM_SWITCH_PREFIX/lib/cn/runtime\""
   ^^ hardline
-  ^^ string "[ -d \"${RUNTIME_PREFIX}\" ]"
-  ^^ space
-  ^^ twice bar
-  ^^ space
-  ^^ parens
-       (nest
-          4
-          (hardline
-           ^^ string
-                "printf \"Could not find CN's runtime directory (looked at: \
-                 '${RUNTIME_PREFIX}')\""
-           ^^ hardline
-           ^^ string "exit 1")
-        ^^ hardline)
+  ^^ !^"[ -d \"${RUNTIME_PREFIX}\" ]"
+  ^^^ twice bar
+  ^^^ parens
+        (nest
+           4
+           (hardline
+            ^^ !^"printf \"Could not find CN's runtime directory (looked at: \
+                  '${RUNTIME_PREFIX}')\""
+            ^^ hardline
+            ^^ !^"exit 1")
+         ^^ hardline)
   ^^ twice hardline
-  ^^ string ("TEST_DIR=" ^ Filename.dirname (Filename.concat output_dir "junk"))
+  ^^ !^("TEST_DIR=" ^ Filename.dirname (Filename.concat output_dir "junk"))
   ^^ hardline
-  ^^ string "pushd $TEST_DIR > /dev/null"
+  ^^ !^"pushd $TEST_DIR > /dev/null"
   ^^ hardline
 
 
@@ -37,12 +34,10 @@ let attempt cmd success failure =
         ^^ if Config.is_print_steps () then string ("echo \"" ^ success ^ "\"") else colon
        )
   ^^ hardline
-  ^^ string "else"
-  ^^ nest
-       4
-       (hardline ^^ string ("printf \"" ^ failure ^ "\"") ^^ hardline ^^ string "exit 1")
+  ^^ !^"else"
+  ^^ nest 4 (hardline ^^ !^("printf \"" ^ failure ^ "\"") ^^ hardline ^^ !^"exit 1")
   ^^ hardline
-  ^^ string "fi"
+  ^^ !^"fi"
 
 
 let cc_flags () =
@@ -61,7 +56,7 @@ let cc_flags () =
 
 
 let compile ~filename_base =
-  string "# Compile"
+  !^"# Compile"
   ^^ hardline
   ^^ attempt
        (String.concat
@@ -75,30 +70,27 @@ let compile ~filename_base =
            @ cc_flags ()))
        ("Compiled '" ^ filename_base ^ ".test.c'.")
        ("Failed to compile '" ^ filename_base ^ ".test.c' in ${TEST_DIR}.")
-  ^^ (if Config.with_static_hack () then
-        empty
-      else
-        twice hardline
-        ^^ attempt
-             (String.concat
-                " "
-                ([ "cc";
-                   "-c";
-                   "-o";
-                   "\"./" ^ filename_base ^ ".exec.o\"";
-                   "\"./" ^ filename_base ^ ".exec.c\""
-                 ]
-                 @ cc_flags ()))
-             ("Compiled '" ^ filename_base ^ ".exec.c'.")
-             ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}."))
+  ^^ (twice hardline
+      ^^ attempt
+           (String.concat
+              " "
+              ([ "cc";
+                 "-c";
+                 "-o";
+                 "\"./" ^ filename_base ^ ".exec.o\"";
+                 "\"./" ^ filename_base ^ ".exec.c\""
+               ]
+               @ cc_flags ()))
+           ("Compiled '" ^ filename_base ^ ".exec.c'.")
+           ("Failed to compile '" ^ filename_base ^ ".exec.c' in ${TEST_DIR}."))
   ^^ hardline
 
 
 let link ~filename_base =
-  string "# Link"
+  !^"# Link"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
-        string "echo" ^^ twice hardline
+        !^"echo" ^^ twice hardline
       else
         empty)
   ^^ attempt
@@ -107,13 +99,7 @@ let link ~filename_base =
           ([ "cc";
              "-o";
              "\"./tests.out\"";
-             (filename_base
-              ^ ".test.o"
-              ^
-              if Config.with_static_hack () then
-                ""
-              else
-                " " ^ filename_base ^ ".exec.o");
+             filename_base ^ ".test.o " ^ filename_base ^ ".exec.o";
              "\"${RUNTIME_PREFIX}/libcn_exec.a\"";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\""
@@ -214,22 +200,22 @@ let run () =
        | Some file -> [ "--output-tyche"; file ]
        | None -> [])
   in
-  string "# Run"
+  !^"# Run"
   ^^ hardline
   ^^ (if Config.is_print_steps () then
-        string "echo" ^^ twice hardline
+        !^"echo" ^^ twice hardline
       else
         empty)
   ^^ cmd
   ^^ hardline
-  ^^ string "test_exit_code=$? # Save tests exit code for later"
+  ^^ !^"test_exit_code=$? # Save tests exit code for later"
   ^^ hardline
 
 
 let coverage ~filename_base =
-  string "# Coverage"
+  !^"# Coverage"
   ^^ hardline
-  ^^ string "echo"
+  ^^ !^"echo"
   ^^ hardline
   ^^ attempt
        (String.concat
@@ -238,8 +224,9 @@ let coverage ~filename_base =
             "-b";
             ".";
             "--capture";
-            "--substitute";
-            "\"s/.*" ^ filename_base ^ ".c" ^ "/" ^ filename_base ^ ".exec.c/\"";
+            (* TODO: Related to working around line markers *)
+            (* "--substitute"; *)
+            (* "\"s/.*" ^ filename_base ^ ".c" ^ "/" ^ filename_base ^ ".exec.c/\""; *)
             "--directory";
             ".";
             "--output-file";
@@ -284,7 +271,27 @@ let generate ~(output_dir : string) ~(filename_base : string) : Pp.document =
         coverage ~filename_base ^^ hardline
       else
         empty)
-  ^^ string "popd > /dev/null"
+  ^^ !^"popd > /dev/null"
   ^^ hardline
-  ^^ string "exit $test_exit_code"
+  ^^ !^"exit $test_exit_code"
   ^^ hardline
+
+
+let filename_base fn = fn |> Filename.basename |> Filename.remove_extension
+
+let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.document)
+  : unit
+  =
+  let oc =
+    Stdlib.open_out_gen
+      [ Open_wronly; Open_creat; Open_trunc; Open_text ]
+      perm
+      (Filename.concat output_dir filename)
+  in
+  output_string oc (Pp.plain ~width:80 doc);
+  close_out oc
+
+
+let generate_and_save ~(output_dir : string) ~(filename : string) : unit =
+  let script_doc = generate ~output_dir ~filename_base:(filename_base filename) in
+  save ~perm:0o777 output_dir "run_tests.sh" script_doc

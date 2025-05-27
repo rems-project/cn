@@ -53,70 +53,26 @@ let rec extract_global_variables = function
      | GlobalDecl ctype -> (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds)
 
 
-let generate_c_specs_internal
-      without_ownership_checking
-      without_loop_invariants
-      with_loop_leak_checks
-      filename
-      (instrumentation : Extract.instrumentation)
-      (sigm : _ CF.AilSyntax.sigma)
-      (prog5 : unit Mucore.file)
-  =
-  let dts = sigm.cn_datatypes in
-  let preds = prog5.resource_predicates in
-  let c_return_type =
-    match List.assoc CF.Symbol.equal_sym instrumentation.fn sigm.A.declarations with
-    | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
-    | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
+type stack_local_var_inj_info =
+  { entry_ownership_str : string list;
+    exit_ownership_str : string list;
+    block_ownership_stmts : (Cerb_location.t * string list) list;
+    return_ownership_stmts :
+      (Cerb_location.t * (CF.GenTypes.genTypeCategory A.expression option * string list))
+        list
+  }
+
+let generate_stack_local_var_inj_strs fn_sym (sigm : _ CF.AilSyntax.sigma) =
+  let fn_ownership_stats_opt, block_ownership_injs =
+    OE.get_c_fn_local_ownership_checking_injs fn_sym sigm
   in
-  let globals = extract_global_variables prog5.globs in
-  let ail_executable_spec =
-    Cn_to_ail.cn_to_ail_pre_post
-      ~without_ownership_checking
-      ~with_loop_leak_checks
-      filename
-      dts
-      preds
-      globals
-      c_return_type
-      instrumentation.internal
-  in
-  let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
-  let post_str = generate_ail_stat_strs ail_executable_spec.post in
-  (* C ownership checking *)
-  let (pre_str, post_str), block_ownership_injs =
-    if without_ownership_checking then
-      ((pre_str, post_str), [])
-    else (
-      let fn_ownership_stats_opt, block_ownership_injs =
-        OE.get_c_fn_local_ownership_checking_injs instrumentation.fn sigm
-      in
-      match fn_ownership_stats_opt with
-      | Some (entry_ownership_bs_and_ss, exit_ownership_bs_and_ss) ->
-        let entry_ownership_str = generate_ail_stat_strs entry_ownership_bs_and_ss in
-        let exit_ownership_str = generate_ail_stat_strs exit_ownership_bs_and_ss in
-        let pre_post_pair =
-          ( pre_str @ ("\n\t/* C OWNERSHIP */\n\n" :: entry_ownership_str),
-            (* NOTE - the nesting pre - entry - exit - post *)
-            ("\n\t/* C OWNERSHIP */\n\n" :: exit_ownership_str) @ post_str )
-        in
-        (pre_post_pair, block_ownership_injs)
-      | None -> ((pre_str, post_str), []))
-  in
-  (* Needed for extracting correct location for CN statement injection *)
-  let modify_magic_comment_loc loc =
-    match loc with
-    | Cerb_location.Loc_region (start_pos, end_pos, cursor) ->
-      Cerb_location.region
-        (Cerb_position.change_cnum start_pos (-3), Cerb_position.change_cnum end_pos 2)
-        cursor
-    | _ -> assert false (* loc should always be a region *)
-  in
-  let in_stmt =
-    List.map
-      (fun (loc, bs_and_ss) ->
-         (modify_magic_comment_loc loc, generate_ail_stat_strs bs_and_ss))
-      ail_executable_spec.in_stmt
+  let (entry_ownership_str, exit_ownership_str), block_ownership_injs =
+    match fn_ownership_stats_opt with
+    | Some (entry_ownership_bs_and_ss, exit_ownership_bs_and_ss) ->
+      let entry_ownership_str = generate_ail_stat_strs entry_ownership_bs_and_ss in
+      let exit_ownership_str = generate_ail_stat_strs exit_ownership_bs_and_ss in
+      ((entry_ownership_str, exit_ownership_str), block_ownership_injs)
+    | None -> (([], []), [])
   in
   let rec get_return_and_non_return_injs return_ownership_stmts block_ownership_stmts
     = function
@@ -145,48 +101,155 @@ let generate_c_specs_internal
   let return_ownership_stmts, block_ownership_stmts =
     get_return_and_non_return_injs [] [] block_ownership_injs
   in
-  let loop_invariant_injs =
-    if without_loop_invariants then
-      []
-    else (
-      let ail_loop_invariants = ail_executable_spec.loops in
-      let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
-      (* A bit of a hack *)
-      let rec remove_last = function
-        | [] -> []
-        | [ _ ] -> []
-        | x :: xs -> x :: remove_last xs
-      in
-      let rec remove_last_semicolon = function
-        | [] -> []
-        | [ x ] ->
-          let split_x = String.split_on_char ';' x in
-          let without_whitespace_x = remove_last split_x in
-          let res = String.concat ";" without_whitespace_x in
-          [ res ]
-        | x :: xs -> x :: remove_last_semicolon xs
-      in
-      let ail_cond_injs =
-        List.map
-          (fun (loc, bs_and_ss) ->
-             ( get_start_loc loc,
-               remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
-          ail_cond_stats
-      in
-      let ail_loop_decl_injs =
-        List.map
-          (fun (loc, bs_and_ss) ->
-             (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
-          ail_loop_decls
-      in
-      let ail_loop_close_block_injs =
-        List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
-      in
-      ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
+  { entry_ownership_str;
+    exit_ownership_str;
+    block_ownership_stmts;
+    return_ownership_stmts
+  }
+
+
+let generate_c_loop_invariants
+      without_loop_invariants
+      (ail_executable_spec : Cn_to_ail.ail_executable_spec)
+  =
+  if without_loop_invariants then
+    []
+  else (
+    let ail_loop_invariants = ail_executable_spec.loops in
+    let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
+    (* A bit of a hack *)
+    let rec remove_last = function
+      | [] -> []
+      | [ _ ] -> []
+      | x :: xs -> x :: remove_last xs
+    in
+    let rec remove_last_semicolon = function
+      | [] -> []
+      | [ x ] ->
+        let split_x = String.split_on_char ';' x in
+        let without_whitespace_x = remove_last split_x in
+        let res = String.concat ";" without_whitespace_x in
+        [ res ]
+      | x :: xs -> x :: remove_last_semicolon xs
+    in
+    let ail_cond_injs =
+      List.map
+        (fun (loc, bs_and_ss) ->
+           ( get_start_loc loc,
+             remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
+        ail_cond_stats
+    in
+    let ail_loop_decl_injs =
+      List.map
+        (fun (loc, bs_and_ss) ->
+           (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
+        ail_loop_decls
+    in
+    let ail_loop_close_block_injs =
+      List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
+    in
+    ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
+
+
+type cn_spec_inj_info =
+  { pre_str : string list;
+    post_str : string list;
+    in_stmt_and_loop_inv_injs : (Cerb_location.t * string list) list
+  }
+
+let empty_cn_spec_inj_info : cn_spec_inj_info =
+  { pre_str = []; post_str = []; in_stmt_and_loop_inv_injs = [] }
+
+
+let generate_c_specs_from_cn_internal
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      filename
+      (instrumentation : Extract.instrumentation)
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  : cn_spec_inj_info
+  =
+  let dts = sigm.cn_datatypes in
+  let preds = prog5.resource_predicates in
+  let c_return_type =
+    match List.assoc CF.Symbol.equal_sym instrumentation.fn sigm.A.declarations with
+    | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
+    | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
-  ( [ (instrumentation.fn, (pre_str, post_str)) ],
-    in_stmt @ block_ownership_stmts @ loop_invariant_injs,
-    return_ownership_stmts )
+  let globals = extract_global_variables prog5.globs in
+  let ail_executable_spec =
+    Cn_to_ail.cn_to_ail_pre_post
+      ~without_ownership_checking
+      ~with_loop_leak_checks
+      filename
+      dts
+      preds
+      globals
+      c_return_type
+      instrumentation.internal
+  in
+  let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
+  let post_str = generate_ail_stat_strs ail_executable_spec.post in
+  (* Needed for extracting correct location for CN statement injection *)
+  let modify_magic_comment_loc loc =
+    match loc with
+    | Cerb_location.Loc_region (start_pos, end_pos, cursor) ->
+      Cerb_location.region
+        (Cerb_position.change_cnum start_pos (-3), Cerb_position.change_cnum end_pos 2)
+        cursor
+    | _ -> assert false (* loc should always be a region *)
+  in
+  let in_stmt =
+    List.map
+      (fun (loc, bs_and_ss) ->
+         (modify_magic_comment_loc loc, generate_ail_stat_strs bs_and_ss))
+      ail_executable_spec.in_stmt
+  in
+  let loop_invariant_injs =
+    generate_c_loop_invariants without_loop_invariants ail_executable_spec
+  in
+  { pre_str; post_str; in_stmt_and_loop_inv_injs = in_stmt @ loop_invariant_injs }
+
+
+let generate_c_specs_internal
+      without_ownership_checking
+      without_loop_invariants
+      with_loop_leak_checks
+      filename
+      (instrumentation : Extract.instrumentation)
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation in
+  (* C stack-local variable ownership checking: needed regardless of whether user has provided CN spec *)
+  let stack_local_var_inj_info : stack_local_var_inj_info =
+    generate_stack_local_var_inj_strs instrumentation.fn sigm
+  in
+  let cn_spec_inj_info =
+    if contains_user_spec then
+      generate_c_specs_from_cn_internal
+        without_ownership_checking
+        without_loop_invariants
+        with_loop_leak_checks
+        filename
+        instrumentation
+        sigm
+        prog5
+    else
+      empty_cn_spec_inj_info
+  in
+  (* NOTE - the nesting pre - entry - exit - post *)
+  ( [ ( instrumentation.fn,
+        ( cn_spec_inj_info.pre_str
+          @ ("\n\t/* C OWNERSHIP */\n\n" :: stack_local_var_inj_info.entry_ownership_str),
+          ("\n\t/* C OWNERSHIP */\n\n" :: stack_local_var_inj_info.exit_ownership_str)
+          @ cn_spec_inj_info.post_str ) )
+    ],
+    cn_spec_inj_info.in_stmt_and_loop_inv_injs
+    @ stack_local_var_inj_info.block_ownership_stmts,
+    stack_local_var_inj_info.return_ownership_stmts )
 
 
 let generate_c_assume_pres_internal

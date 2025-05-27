@@ -7,12 +7,6 @@ TEST=$1
 
 # Clean directory
 cd "$DIRNAME" || exit
-if [[ $TEST == *.pass.c ]]; then
-  DIR=passing-$(basename $TEST .pass.c)
-else
-  DIR=failing-$(basename $TEST .fail.c)
-fi
-rm -rf $DIR
 
 # For stricter CI
 export CPPFLAGS="${CPPFLAGS} -Werror"
@@ -43,74 +37,75 @@ ALT_CONFIGS=("--sized-null --sizing-strategy=uniform"
   "--random-size-splits --no-replicas"
   "--random-size-splits --allowed-size-split-backtracks=10")
 
+BUILD_TOOLS=("bash" "make")
+
 OUTPUT=""
 
 # For each configuration
 for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
-  separator
-  OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\""$'\n'
-  separator
+  for BUILD_TOOL in "${BUILD_TOOLS[@]}"; do
+    separator
+    OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\""$'\n'
+    separator
 
-  FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG"
+    FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG --build-tool=$BUILD_TOOL"
 
-  if [[ $TEST == *.pass.c ]]; then
-    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    OUTPUT="${OUTPUT}$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)"
-    RET=$?
-    if [[ "$RET" != 0 ]]; then
-      OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
-      NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED ($ALT_CONFIG)"
-    else
-      OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
-    fi
-  elif [[ $TEST == *.fail.c ]]; then
-    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
-    RET=$?
-    if [[ "$RET" == 0 ]]; then
-      OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
-      NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED ($ALT_CONFIG)"
-    elif [[ "$RET" != 1 ]]; then
-      OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
-      NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED ($ALT_CONFIG)"
-    else
-      OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
-    fi
-  elif [[ $TEST == *.flaky.c ]]; then
-    CLEANUP="rm -rf ${DIR} run_tests.sh;separator"
-    THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
-    RET=$?
-
-    # Run twice, since flaky
-    if [[ "$RET" == 0 ]]; then
-      THIS_OUTPUT=$($CN test "$TEST" --output-dir="$DIR" $FULL_CONFIG 2>&1)
+    if [[ $TEST == *.pass.c ]]; then
+      OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
       RET=$?
+      if [[ "$RET" != 0 ]]; then
+        OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
+        NUM_FAILED=$(($NUM_FAILED + 1))
+        FAILED="$FAILED ($ALT_CONFIG)"
+      else
+        OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
+      fi
+    elif [[ $TEST == *.fail.c ]]; then
+      THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
+      RET=$?
+      if [[ "$RET" == 0 ]]; then
+        OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+        NUM_FAILED=$(($NUM_FAILED + 1))
+        FAILED="$FAILED ($ALT_CONFIG)"
+      elif [[ "$BUILD_TOOL" == "bash" && "$RET" != 1 ]]; then
+        OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
+        NUM_FAILED=$(($NUM_FAILED + 1))
+        FAILED="$FAILED ($ALT_CONFIG)"
+      else
+        OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
+      fi
+    elif [[ $TEST == *.flaky.c ]]; then
+      THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
+      RET=$?
+
+      # Run twice, since flaky
+      if [[ "$RET" == 0 ]]; then
+        THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
+        RET=$?
+      fi
+
+      if [[ "$RET" == 0 ]]; then
+        OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+        NUM_FAILED=$(($NUM_FAILED + 1))
+        FAILED="$FAILED ($ALT_CONFIG)"
+      elif [[ "$BUILD_TOOL" == "bash" && "$RET" != 1 ]]; then
+        OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
+        NUM_FAILED=$(($NUM_FAILED + 1))
+        FAILED="$FAILED ($ALT_CONFIG)"
+      else
+        OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
+      fi
     fi
 
-    if [[ "$RET" == 0 ]]; then
-      OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
-      NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED ($ALT_CONFIG)"
-    elif [[ "$RET" != 1 ]]; then
-      OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
-      NUM_FAILED=$(($NUM_FAILED + 1))
-      FAILED="$FAILED ($ALT_CONFIG)"
-    else
-      OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
-    fi
-  fi
-
-  eval "$CLEANUP"
+    separator
+  done
 done
 
 if [ -z "$FAILED" ]; then
-  # echo "$TEST - all configs passed."
+  echo "$TEST - all configs passed."
   exit 0
 else
   OUTPUT="${OUTPUT}$TEST - $NUM_FAILED configs failed:\n  $FAILED"
-  printf "${OUTPUT}\n"
+  printf "%b\n" "${OUTPUT}"
   exit 1
 fi
