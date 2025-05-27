@@ -28,14 +28,14 @@ function exits_with_code() {
     return 1
   fi
   printf "[$file]... "
-  timeout 40 "${CHECK_SCRIPT}" "${SCRIPT_OPT}" "$file" &> /dev/null
+  OUTPUT=$(timeout 40 "${CHECK_SCRIPT}" "${SCRIPT_OPT}" "$file" 2>&1)
   local result=$?
 
   if [ $result -eq $expected_exit_code ]; then
     printf "\033[32mPASS\033[0m\n"
     return 0
   else
-    printf "\033[31mFAIL\033[0m (Unexpected return code: $result expected: $expected_exit_code)\n"
+    printf "\033[31mFAIL\033[0m (Unexpected return code: $result expected: $expected_exit_code)\n${OUTPUT}\n"
     return 1
   fi
 }
@@ -97,6 +97,7 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "int_to_ptr.error.c" \
     ! -name "create_rdonly.c" \
     ! -name "offsetof_int_const.c" \
+    ! -name "issue_113.c" \
 )
 
 # Include files which cause error for proof but not testing
@@ -124,6 +125,7 @@ NO_MAIN="\
        cn/b_xor.c \
        cn/previously_inconsistent_assumptions1.c \
        cn/previously_inconsistent_assumptions2.c \
+       cn/issue_113.c \
        "
 
 BUGGY="\

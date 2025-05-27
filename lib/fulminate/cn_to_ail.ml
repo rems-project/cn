@@ -3971,6 +3971,31 @@ let cn_to_ail_pre_post
   | None -> empty_ail_executable_spec
 
 
+let has_cn_spec (instrumentation : Extract.instrumentation) =
+  let has_cn_spec_aux =
+    let has_post = function LRT.I -> false | _ -> true in
+    let has_stats = List.non_empty in
+    let has_loop_inv (loops : Extract.loops) =
+      List.fold_left
+        ( || )
+        false
+        (List.map (fun (contains_user_spec, _, _, _) -> contains_user_spec) loops)
+    in
+    let has_spec_lat = function
+      | LAT.I (ReturnTypes.Computational (_, _, post), (stats, loops)) ->
+        has_post post || has_stats stats || has_loop_inv loops
+      | _ -> true
+    in
+    let rec has_spec_at = function
+      | AT.Computational (_, _, at) -> has_spec_at at
+      | AT.Ghost _ -> true
+      | AT.L lat -> has_spec_lat lat
+    in
+    function Some internal -> has_spec_at internal | None -> false
+  in
+  instrumentation.trusted || has_cn_spec_aux instrumentation.internal
+
+
 (* CN test generation *)
 
 let generate_assume_ownership_function ~without_ownership_checking ctype

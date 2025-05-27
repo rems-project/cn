@@ -24,5 +24,5 @@ int range(int *arr, int len)
     i++;
   }
 
-  return 0;
+  return (len < 10);
 }

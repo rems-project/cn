@@ -55,6 +55,7 @@ void ht_destroy(hash_table* table);
 
 void* ht_get(hash_table* table, int64_t* key);
 
+/** Note: the value pointer is stored in the table, but the key's is not */
 int64_t* ht_set(hash_table* table, int64_t* key, void* value);
 
 int ht_size(hash_table* table);

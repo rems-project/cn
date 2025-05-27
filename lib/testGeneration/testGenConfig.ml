@@ -1,4 +1,6 @@
-type build_tool = Bash
+type build_tool =
+  | Bash
+  | Make
 
 type logging_level =
   | None
@@ -27,7 +29,6 @@ type t =
     max_backtracks : int;
     max_unfolds : int option;
     max_array_length : int;
-    with_static_hack : bool;
     build_tool : build_tool;
     sanitizers : string option * string option;
     (* Run time *)
@@ -61,7 +62,6 @@ let default =
     max_backtracks = 25;
     max_unfolds = None;
     max_array_length = 50;
-    with_static_hack = false;
     build_tool = Bash;
     sanitizers = (None, None);
     print_seed = false;
@@ -112,7 +112,7 @@ let string_of_sizing_strategy (sizing_strategy : sizing_strategy) =
 
 
 module Options = struct
-  let build_tool = [ ("bash", Bash) ]
+  let build_tool = [ ("bash", Bash); ("make", Make) ]
 
   let logging_level : (string * logging_level) list =
     List.map (fun lvl -> (string_of_logging_level lvl, lvl)) [ None; Error; Info ]
@@ -149,8 +149,6 @@ let get_max_backtracks () = !instance.max_backtracks
 let get_max_unfolds () = !instance.max_unfolds
 
 let get_max_array_length () = !instance.max_array_length
-
-let with_static_hack () = !instance.with_static_hack
 
 let get_build_tool () = !instance.build_tool
 

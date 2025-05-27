@@ -11,12 +11,13 @@ val functions_under_test
   Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
-  (bool * Fulminate.Extract.instrumentation) list
+  Test.t list
 
 val run
   :  output_dir:string ->
   filename:string ->
   without_ownership_checking:bool ->
+  TestGenConfig.build_tool ->
   Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->

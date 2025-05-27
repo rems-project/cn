@@ -35,75 +35,57 @@ let debug_stage (stage : string) (str : string) : unit =
 let compile_constant_tests
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : Test.t list * Pp.document
   =
-  let test_names, docs =
-    List.map_split
-      (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         ( Test.
-             { filename;
-               is_static;
-               kind = Constant;
-               suite =
-                 inst.fn_loc
-                 |> Cerb_location.get_filename
-                 |> Option.get
-                 |> Filename.basename
-                 |> String.split_on_char '.'
-                 |> List.hd;
-               test = Sym.pp_string inst.fn
-             },
-           let open Pp in
-           (if not (Config.with_static_hack ()) then
-              CF.Pp_ail.(
-                with_executable_spec
-                  (fun () ->
-                     pp_function_prototype
-                       inst.fn
-                       (let _, _, decl =
-                          List.assoc Sym.equal inst.fn sigma.declarations
-                        in
-                        decl))
-                  ())
-              ^^ hardline
-            else
-              empty)
-           ^^ CF.Pp_ail.pp_statement
-                A.(
-                  Utils.mk_stmt
-                    (AilSexpr
-                       (Utils.mk_expr
-                          (AilEcall
-                             ( Utils.mk_expr
-                                 (AilEident
-                                    (Sym.fresh
-                                       (if is_static then
-                                          "CN_STATIC_UNIT_TEST_CASE"
-                                        else
-                                          "CN_EXTERN_UNIT_TEST_CASE"))),
-                               [ Utils.mk_expr (AilEident inst.fn) ]
-                               @
-                               if is_static then
-                                 [ Utils.mk_expr
-                                     (AilEident (Sym.fresh (Utils.static_prefix filename)))
-                                 ]
-                               else
-                                 [] ))))) ))
-      insts
+  let docs =
+    List.map
+      (fun (test : Test.t) ->
+         let open Pp in
+         (CF.Pp_ail.(
+            with_executable_spec
+              (fun () ->
+                 pp_function_prototype
+                   test.fn
+                   (let _, _, decl = List.assoc Sym.equal test.fn sigma.declarations in
+                    decl))
+              ())
+          ^^ hardline)
+         ^^ CF.Pp_ail.pp_statement
+              A.(
+                Utils.mk_stmt
+                  (AilSexpr
+                     (Utils.mk_expr
+                        (AilEcall
+                           ( Utils.mk_expr
+                               (AilEident
+                                  (Sym.fresh
+                                     (if test.is_static then
+                                        "CN_STATIC_UNIT_TEST_CASE"
+                                      else
+                                        "CN_EXTERN_UNIT_TEST_CASE"))),
+                             [ Utils.mk_expr (AilEident test.fn) ]
+                             @
+                             if test.is_static then
+                               [ Utils.mk_expr
+                                   (AilEident (Sym.fresh (Utils.static_prefix filename)))
+                               ]
+                             else
+                               [] ))))))
+      tests
   in
   let open Pp in
-  (test_names, separate (twice hardline) docs ^^ twice hardline)
+  (tests, separate (twice hardline) docs ^^ twice hardline)
 
 
 let compile_generators
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : Pp.document
   =
-  let ctx = GenCompile.compile filename prog5.resource_predicates insts in
+  let ctx = GenCompile.compile filename prog5.resource_predicates tests in
   debug_stage "Compile" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
   let ctx = ctx |> GenInline.inline in
   debug_stage "Inline" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
@@ -133,26 +115,25 @@ let compile_random_test_case
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      ((test, (is_static, inst)) : Test.t * (bool * FExtract.instrumentation))
+      (Test.{ is_static; suite; test; fn; internal; _ } : Test.t)
   : Pp.document
   =
   let open Pp in
   let args =
-    let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
-    match List.assoc Sym.equal inst.fn sigma.declarations with
+    let _, _, _, xs, _ = List.assoc Sym.equal fn sigma.function_definitions in
+    match List.assoc Sym.equal fn sigma.declarations with
     | _, _, Decl_function (_, _, cts, _, _, _) ->
       List.combine xs (List.map (fun (_, ct, _) -> ct) cts)
     | _ ->
       failwith
         (String.concat
            " "
-           [ "Function declaration not found for"; Sym.pp_string inst.fn; "@"; __LOC__ ])
+           [ "Function declaration not found for"; Sym.pp_string fn; "@"; __LOC__ ])
   in
   let globals =
     let global_syms =
       let args = args |> List.map fst in
-      inst.internal
-      |> Option.get
+      internal
       |> AT.get_lat
       |> LAT.free_vars (fun _ -> Sym.Set.empty)
       |> Sym.Set.to_seq
@@ -168,101 +149,88 @@ let compile_random_test_case
          | GlobalDef (sct, _) -> (sym, sct))
       global_syms
   in
-  (if not (Config.with_static_hack ()) then
-     CF.Pp_ail.(
-       with_executable_spec
-         (fun () ->
-            pp_function_prototype
-              inst.fn
-              (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
-               decl))
-         ())
-     ^^ hardline
-   else
-     empty)
+  (CF.Pp_ail.(
+     with_executable_spec
+       (fun () ->
+          pp_function_prototype
+            fn
+            (let _, _, decl = List.assoc Sym.equal fn sigma.declarations in
+             decl))
+       ())
+   ^^ hardline)
   ^^ (if List.is_empty globals then
-        string
-          (if is_static then
+        !^(if is_static then
              "CN_STATIC_RANDOM_TEST_CASE"
            else
              "CN_EXTERN_RANDOM_TEST_CASE")
       else (
         let init_name =
-          string "cn_test_gen_"
+          !^"cn_test_gen_"
           ^^ (if is_static then
-                string (Fulminate.Utils.static_prefix filename)
-                ^^ underscore
-                ^^ Sym.pp inst.fn
+                string (Fulminate.Utils.static_prefix filename) ^^ underscore ^^ Sym.pp fn
               else
-                Sym.pp inst.fn)
-          ^^ string "_init"
+                Sym.pp fn)
+          ^^ !^"_cn_test_setup"
         in
-        string "void"
-        ^^ space
-        ^^ init_name
+        !^"void"
+        ^^^ init_name
         ^^ parens
-             (string
-                (String.concat
+             (!^(String.concat
                    "_"
                    [ "cn_gen";
                      (if is_static then
-                        Fulminate.Utils.static_prefix filename
-                        ^ "_"
-                        ^ Sym.pp_string inst.fn
+                        Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string fn
                       else
-                        Sym.pp_string inst.fn);
+                        Sym.pp_string fn);
                      "record"
                    ])
               ^^ star
-              ^^ space
-              ^^ string "res")
-        ^^ space
-        ^^ braces
-             (nest
-                2
-                (hardline
-                 ^^ separate_map
-                      hardline
-                      (fun (sym, sct) ->
-                         let ty =
-                           CF.Pp_ail.(
-                             with_executable_spec
-                               (pp_ctype ~is_human:false C.no_qualifiers)
-                               (Sctypes.to_ctype sct))
-                         in
-                         let tmp_doc = Sym.pp sym ^^ string "_tmp" in
-                         (ty ^^ star)
-                         ^^^ tmp_doc
-                         ^^^ equals
-                         ^^^ (string "convert_from_cn_pointer"
-                              ^^ parens (string "res->" ^^ Sym.pp sym)
-                              ^^ semi
-                              ^^ hardline
-                              ^^ string "cn_assume_ownership"
-                              ^^ parens
-                                   (separate
-                                      (comma ^^ space)
-                                      [ string (Fulminate.Globals.getter_str filename sym);
-                                        string "sizeof" ^^ parens ty;
-                                        string "(char*)" ^^ dquotes init_name
-                                      ]))
-                         ^^ semi
-                         ^^ hardline
-                         ^^ string (Fulminate.Globals.setter_str filename sym)
-                         ^^ parens tmp_doc
-                         ^^ semi)
-                      globals)
-              ^^ hardline)
+              ^^^ !^"res")
+        ^^^ braces
+              (nest
+                 2
+                 (hardline
+                  ^^ separate_map
+                       hardline
+                       (fun (sym, sct) ->
+                          let ty =
+                            CF.Pp_ail.(
+                              with_executable_spec
+                                (pp_ctype ~is_human:false C.no_qualifiers)
+                                (Sctypes.to_ctype sct))
+                          in
+                          let tmp_doc = Sym.pp sym ^^ !^"_tmp" in
+                          (ty ^^ star)
+                          ^^^ tmp_doc
+                          ^^^ equals
+                          ^^^ (!^"convert_from_cn_pointer"
+                               ^^ parens (!^"res->" ^^ Sym.pp sym)
+                               ^^ semi
+                               ^^ hardline
+                               ^^ !^"cn_assume_ownership"
+                               ^^ parens
+                                    (separate
+                                       (comma ^^ space)
+                                       [ !^(Fulminate.Globals.getter_str filename sym);
+                                         !^"sizeof" ^^ parens ty;
+                                         !^"(char*)" ^^ dquotes init_name
+                                       ]))
+                          ^^ semi
+                          ^^ hardline
+                          ^^ !^(Fulminate.Globals.setter_str filename sym)
+                          ^^ parens tmp_doc
+                          ^^ semi)
+                       globals)
+               ^^ hardline)
         ^^ twice hardline
-        ^^ string
-             (if is_static then
+        ^^ !^(if is_static then
                 "CN_STATIC_RANDOM_TEST_CASE_WITH_INIT"
               else
                 "CN_EXTERN_RANDOM_TEST_CASE_WITH_INIT")))
   ^^ parens
        (separate
           (comma ^^ space)
-          ([ string test.suite; string test.test ]
+          ([ string suite; string test ]
            @ (if is_static then
                 [ string (Fulminate.Utils.static_prefix filename) ]
               else
@@ -278,28 +246,8 @@ let compile_generator_tests
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (insts : (bool * FExtract.instrumentation) list)
+      (tests : Test.t list)
   : Test.t list * Pp.document
   =
-  let tests =
-    List.map
-      (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         Test.
-           { filename;
-             is_static;
-             kind = Generator;
-             suite =
-               inst.fn_loc
-               |> Cerb_location.get_filename
-               |> Option.get
-               |> Filename.basename
-               |> String.split_on_char '.'
-               |> List.hd;
-             test = Sym.pp_string inst.fn
-           })
-      insts
-  in
   let open Pp in
-  ( tests,
-    concat_map (compile_random_test_case filename sigma prog5) (List.combine tests insts)
-  )
+  (tests, concat_map (compile_random_test_case filename sigma prog5) tests)

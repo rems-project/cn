@@ -179,18 +179,7 @@ let rec arbitrary_of_sctype (sct : Sctypes.t) loc : GT.t =
         arbitrary_of_sctype ct' loc )
       loc
   | Array (_, None) ->
-    failwith
-      Pp.(
-        plain
-          (Sctypes.pp sct
-           ^^ space
-           ^^ at
-           ^^ space
-           ^^ Locations.pp loc
-           ^^ space
-           ^^ at
-           ^^ space
-           ^^ string __LOC__))
+    failwith Pp.(plain (Sctypes.pp sct ^^^ at ^^^ Locations.pp loc ^^^ at ^^^ !^__LOC__))
   | _ -> GT.arbitrary_ (Memory.bt_of_sct sct) loc
 
 

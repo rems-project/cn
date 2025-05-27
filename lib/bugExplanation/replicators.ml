@@ -12,8 +12,13 @@ let mk_expr = Utils.mk_expr
 
 let mk_stmt = Utils.mk_stmt
 
-let string_of_ctype ctype =
-  String.concat "_" (String.split_on_char ' ' (Utils.str_of_ctype ctype))
+let rec string_of_ctype ctype =
+  match ctype with
+  | C.Ctype (_, Pointer (_, Ctype (_, Function ((_, ret), args, _)))) ->
+    string_of_ctype ret
+    ^ "_from_"
+    ^ String.concat "_and_" (List.map (fun (_, ct, _) -> string_of_ctype ct) args)
+  | _ -> String.concat "_" (String.split_on_char ' ' (Utils.str_of_ctype ctype))
 
 
 let bt_to_ctype (bt : BT.t) : C.ctype = CtA.bt_to_ail_ctype bt
@@ -506,7 +511,7 @@ let compile_req
                           AilEident q_sym;
                           AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
-                      @ [ e_perm; e_max ] )))
+                      @ [ e_perm; e_min ] )))
           ]
         @ s_val
         @ [ AilSexpr
@@ -519,7 +524,7 @@ let compile_req
                           AilEident q_sym;
                           AilEident (Sym.fresh (name_of_bt q_bt))
                         ]
-                      @ [ e_val; e_min ] )))
+                      @ [ e_val; e_max ] )))
           ]
       in
       (b1 @ b_val, s1 @ s2, mk_expr (A.AilEident map_sym))

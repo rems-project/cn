@@ -47,7 +47,8 @@ let fn_largs_and_body_subst subst (lat : fn_largs_and_body) : fn_largs_and_body 
 type instrumentation =
   { fn : Sym.t;
     fn_loc : Locations.t;
-    internal : fn_args_and_body option
+    internal : fn_args_and_body option;
+    trusted : bool
   }
 
 (* replace `s_replace` of basetype `bt` with `s_with` *)
@@ -90,8 +91,8 @@ let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
 
 let from_fn (fn, decl) =
   match decl with
-  | ProcDecl (fn_loc, _fn) -> { fn; fn_loc; internal = None }
-  | Proc { loc = fn_loc; args_and_body; _ } ->
+  | ProcDecl (fn_loc, _fn) -> { fn; fn_loc; internal = None; trusted = false }
+  | Proc { loc = fn_loc; args_and_body; trusted } ->
     let args_and_body = Core_to_mucore.at_of_arguments Fun.id args_and_body in
     let internal =
       ArgumentTypes.map
@@ -101,7 +102,8 @@ let from_fn (fn, decl) =
            (rt, (stmts, loops)))
         args_and_body
     in
-    { fn; fn_loc; internal = Some internal }
+    let trusted_flag = match trusted with Mucore.Trusted _ -> true | _ -> false in
+    { fn; fn_loc; internal = Some internal; trusted = trusted_flag }
 
 
 let from_file (file : _ Mucore.file) =

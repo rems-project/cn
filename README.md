@@ -1,7 +1,7 @@
-[![CN Proof](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml)
-[![CN Spec Testing](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml)
-[![CN-Coq](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml)
-
+[![Style](https://github.com/rems-project/cn/actions/workflows/style.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/style.yml)
+[![Proof](https://github.com/rems-project/cn/actions/workflows/proof.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/proof.yml)
+[![Spec Testing](https://github.com/rems-project/cn/actions/workflows/spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/spec-testing.yml)
+[![Rocq](https://github.com/rems-project/cn/actions/workflows/rocq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/rocq.yml)
 
 
 # CN
