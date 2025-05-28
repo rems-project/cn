@@ -269,17 +269,17 @@ cn_bool *cn_pointer_gt(cn_pointer *i1, cn_pointer *i2);
     return convert_to_##CNTYPE(~(i->val));                                               \
   }
 
-#define CN_GEN_ADD(CTYPE, CNTYPE)                                                        \
+#define CN_GEN_ADD(UCTYPE, CTYPE, CNTYPE)                                                \
   static inline CNTYPE *CNTYPE##_add(CNTYPE *i1, CNTYPE *i2) {                           \
     CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
-    res->val = i1->val + i2->val;                                                        \
+    res->val = (UCTYPE)i1->val + (UCTYPE)i2->val;                                        \
     return res;                                                                          \
   }
 
-#define CN_GEN_SUB(CTYPE, CNTYPE)                                                        \
+#define CN_GEN_SUB(UCTYPE, CTYPE, CNTYPE)                                                \
   static inline CNTYPE *CNTYPE##_sub(CNTYPE *i1, CNTYPE *i2) {                           \
     CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
-    res->val = i1->val - i2->val;                                                        \
+    res->val = (UCTYPE)i1->val - (UCTYPE)i2->val;                                        \
     return res;                                                                          \
   }
 
@@ -465,9 +465,9 @@ cn_bool *default_cn_bool(void);
   CN_GEN_CAST_TO_PTR(CNTYPE, intptr_t)                                                   \
   CN_GEN_CAST_FROM_PTR(CTYPE, CNTYPE, intptr_t)
 
-#define CN_GEN_ALL(CTYPE, CNTYPE) CN_GEN_ALL_(CTYPE, CNTYPE)
+#define CN_GEN_ALL(UCTYPE, CTYPE, CNTYPE) CN_GEN_ALL_(UCTYPE, CTYPE, CNTYPE)
 
-#define CN_GEN_ALL_(CTYPE, CNTYPE)                                                       \
+#define CN_GEN_ALL_(UCTYPE, CTYPE, CNTYPE)                                               \
   CN_GEN_CONVERT(CTYPE, CNTYPE)                                                          \
   CN_GEN_CONVERT_FROM(CTYPE, CNTYPE)                                                     \
   CN_GEN_EQUALITY(CNTYPE)                                                                \
@@ -477,8 +477,8 @@ cn_bool *default_cn_bool(void);
   CN_GEN_GE(CNTYPE)                                                                      \
   CN_GEN_NEGATE(CNTYPE)                                                                  \
   CN_GEN_BW_COMPL(CNTYPE)                                                                \
-  CN_GEN_ADD(CTYPE, CNTYPE)                                                              \
-  CN_GEN_SUB(CTYPE, CNTYPE)                                                              \
+  CN_GEN_ADD(UCTYPE, CTYPE, CNTYPE)                                                      \
+  CN_GEN_SUB(UCTYPE, CTYPE, CNTYPE)                                                      \
   CN_GEN_MUL(CTYPE, CNTYPE)                                                              \
   CN_GEN_DIV(CTYPE, CNTYPE)                                                              \
   CN_GEN_SHIFT_LEFT(CTYPE, CNTYPE)                                                       \
@@ -497,15 +497,15 @@ cn_bool *default_cn_bool(void);
   CN_GEN_DEFAULT(CNTYPE)                                                                 \
   CN_GEN_MAP_GET(CNTYPE)
 
-CN_GEN_ALL(int8_t, cn_bits_i8)
-CN_GEN_ALL(int16_t, cn_bits_i16)
-CN_GEN_ALL(int32_t, cn_bits_i32)
-CN_GEN_ALL(int64_t, cn_bits_i64)
-CN_GEN_ALL(uint8_t, cn_bits_u8)
-CN_GEN_ALL(uint16_t, cn_bits_u16)
-CN_GEN_ALL(uint32_t, cn_bits_u32)
-CN_GEN_ALL(uint64_t, cn_bits_u64)
-CN_GEN_ALL(signed long, cn_integer)
+CN_GEN_ALL(uint8_t, int8_t, cn_bits_i8)
+CN_GEN_ALL(uint16_t, int16_t, cn_bits_i16)
+CN_GEN_ALL(uint32_t, int32_t, cn_bits_i32)
+CN_GEN_ALL(uint64_t, int64_t, cn_bits_i64)
+CN_GEN_ALL(uint8_t, uint8_t, cn_bits_u8)
+CN_GEN_ALL(uint16_t, uint16_t, cn_bits_u16)
+CN_GEN_ALL(uint32_t, uint32_t, cn_bits_u32)
+CN_GEN_ALL(uint64_t, uint64_t, cn_bits_u64)
+CN_GEN_ALL(unsigned long, signed long, cn_integer)
 
 CN_GEN_PTR_CASTS_SIGNED(int8_t, cn_bits_i8)
 CN_GEN_PTR_CASTS_SIGNED(int16_t, cn_bits_i16)
