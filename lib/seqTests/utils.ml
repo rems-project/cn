@@ -222,20 +222,15 @@ let create_intermediate_test_file
 
 
 let analyze_results
-      (prev_and_tests :
-        (int * SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list)
-          option
-          list)
+      (prev_and_tests : (int * T.call) option list)
       (sequences : PPrint.document list)
       (filename : string)
       (output_dir : string)
       (fun_decls : PPrint.document)
   : [ `OtherFailure
     | `PreConditionViolation
-    | `PostConditionViolation of
-        SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list
-    | `Success of
-        (SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list) * int
+    | `PostConditionViolation of T.call
+    | `Success of T.call * int
     ]
       option
       list
@@ -244,9 +239,9 @@ let analyze_results
     List.map
       (fun call ->
          match call with
-         | None | Some (-1, _, _, _, _, _) ->
+         | None | Some (-1, (_, _, _, _, _)) ->
            Pp.string "/* unable to generate call at this point */"
-         | Some (_, name, is_static, ret_ty, f, args) ->
+         | Some (_, (name, is_static, ret_ty, f, args)) ->
            test_to_doc filename name is_static ret_ty f args)
       prev_and_tests
   in
@@ -272,23 +267,11 @@ let analyze_results
     in
     let tests_and_msgs = List.combine prev_and_tests (run_tests 0) in
     let rec analyze_results_h
-              (tests_and_msgs :
-                ((int
-                 * SymSet.elt option
-                 * bool
-                 * C.ctype
-                 * SymSet.elt
-                 * (C.ctype * string) list)
-                   option
-                * Unix.process_status)
-                  list)
+              (tests_and_msgs : ((int * T.call) option * Unix.process_status) list)
       : [ `OtherFailure
         | `PreConditionViolation
-        | `PostConditionViolation of
-            SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list
-        | `Success of
-            (SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list)
-            * int
+        | `PostConditionViolation of T.call
+        | `Success of T.call * int
         ]
           option
           list
@@ -296,7 +279,7 @@ let analyze_results
       match tests_and_msgs with
       | [] -> []
       | (None, _) :: t -> None :: analyze_results_h t
-      | (Some (prev', name, is_static, ret_ty, f, args), exit_code) :: t ->
+      | (Some (prev', (name, is_static, ret_ty, f, args)), exit_code) :: t ->
         (match exit_code with
          | WEXITED 0 ->
            Some (`Success ((name, is_static, ret_ty, f, args), prev'))

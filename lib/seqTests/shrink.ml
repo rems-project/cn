@@ -152,7 +152,7 @@ let shrink
           (List.init
              (List.length shrunken_sequences)
              (Fun.const
-                (Some (-1, None, false, C.Ctype ([], Basic (Integer Char)), elt, []))))
+                (Some (-1, (None, false, C.Ctype ([], Basic (Integer Char)), elt, [])))))
           (List.map
              (fun tests ->
                 SUtils.ctx_to_tests filename tests ^^ hardline ^^ string "return 0;")
@@ -208,12 +208,12 @@ let shrink
               in
               let new_tests =
                 List.map
-                  (fun arg -> (-1, name, is_static, ret_ty, f, try_shrink arg))
+                  (fun arg -> (-1, (name, is_static, ret_ty, f, try_shrink arg)))
                   arg_shrinks
               in
               let new_sequences =
                 List.map
-                  (fun (_, name, is_static, ret_ty, f, args) ->
+                  (fun (_, (name, is_static, ret_ty, f, args)) ->
                      SUtils.ctx_to_tests
                        filename
                        (List.rev_append prev ((name, is_static, ret_ty, f, args) :: t)))

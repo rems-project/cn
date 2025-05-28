@@ -1,8 +1,6 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
-module AT = ArgumentTypes
-module LAT = LogicalArgumentTypes
 module Config = SeqTestGenConfig
 module SymSet = Set.Make (Sym)
 module FExtract = Fulminate.Extract
@@ -220,7 +218,7 @@ let rec gen_sequence
           list
       =
       let gen_test_h (is_static, f, ((_, ret_ty), params)) (ctx : T.context) (prev : int)
-        : int * SymSet.elt option * bool * C.ctype * SymSet.elt * (C.ctype * string) list
+        : int * T.call
         =
         let name, prev =
           match ret_ty with
@@ -229,7 +227,7 @@ let rec gen_sequence
           | _ -> (Some (Sym.fresh ("x" ^ string_of_int prev)), prev + 1)
         in
         let args = List.map (fun ((_, ty) as param) -> (ty, gen_arg ctx param)) params in
-        (prev, name, is_static, ret_ty, f, args)
+        (prev, (name, is_static, ret_ty, f, args))
       in
       let prev_and_tests =
         List.map
@@ -309,7 +307,7 @@ let rec gen_sequence
 
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : (bool * FExtract.instrumentation) list)
+      (insts : FExtract.instrumentation list)
       (num_samples : int)
       (output_dir : string)
       (filename : string)
@@ -322,15 +320,15 @@ let compile_sequence
   let fuel = num_samples in
   let declarations : A.sigma_declaration list =
     insts
-    |> List.map (fun ((_, inst) : bool * FExtract.instrumentation) ->
+    |> List.map (fun (inst : FExtract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
   let args_map
     : (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
     =
     List.map
-      (fun ((is_static, inst) : bool * FExtract.instrumentation) ->
-         ( is_static,
+      (fun (inst : FExtract.instrumentation) ->
+         ( inst.is_static,
            inst.fn,
            let _, _, _, xs, _ = List.assoc Sym.equal inst.fn sigma.function_definitions in
            match List.assoc Sym.equal inst.fn declarations with
@@ -366,7 +364,7 @@ let generate
       ~(output_dir : string)
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (insts : (bool * FExtract.instrumentation) list)
+      (insts : FExtract.instrumentation list)
   : int
   =
   if List.is_empty insts then failwith "No testable functions";
@@ -374,7 +372,7 @@ let generate
   let test_file = filename_base ^ ".test.c" in
   let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
   SUtils.save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
-  let fun_to_decl ((is_static, inst) : bool * FExtract.instrumentation) =
+  let fun_to_decl (inst : FExtract.instrumentation) =
     CF.Pp_ail.(
       with_executable_spec
         (fun () ->
@@ -385,7 +383,7 @@ let generate
                   ( s,
                     n,
                     SD_Id
-                      (if is_static then
+                      (if inst.is_static then
                          Fulminate.Utils.static_prefix filename ^ "_" ^ str
                        else
                          str) )
@@ -474,7 +472,7 @@ let default_seq_cfg : seq_config = SeqTestGenConfig.default
 
 let set_seq_config = SeqTestGenConfig.initialize
 
-let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumentation) =
+(* let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumentation) =
   let (TUnit decls) = cabs_tunit in
   List.exists
     (fun decl ->
@@ -493,8 +491,7 @@ let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumen
                    storage_classes ->
          true
        | _ -> false)
-    decls
-
+    decls *)
 
 (** Workaround for https://github.com/rems-project/cerberus/issues/765 *)
 let needs_enum_hack
@@ -544,7 +541,7 @@ let functions_under_test
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-  : (bool * Fulminate.Extract.instrumentation) list
+  : Fulminate.Extract.instrumentation list
   =
   let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
@@ -557,7 +554,6 @@ let functions_under_test
     Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
     && not (needs_enum_hack ~with_warning sigma inst))
-  |> List.map (fun (inst : FExtract.instrumentation) -> (is_static cabs_tunit inst, inst))
 
 
 let run_seq
