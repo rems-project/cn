@@ -1,7 +1,7 @@
-[![CN Proof](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn.yml)
-[![CN Spec Testing](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-spec-testing.yml)
-[![CN-Coq](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/ci-cn-coq.yml)
-
+[![Style](https://github.com/rems-project/cn/actions/workflows/style.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/style.yml)
+[![Proof](https://github.com/rems-project/cn/actions/workflows/proof.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/proof.yml)
+[![Spec Testing](https://github.com/rems-project/cn/actions/workflows/spec-testing.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/spec-testing.yml)
+[![Rocq](https://github.com/rems-project/cn/actions/workflows/rocq.yml/badge.svg)](https://github.com/rems-project/cn/actions/workflows/rocq.yml)
 
 
 # CN
@@ -62,7 +62,7 @@ and its dependencies.
 
 2. Install the opam package manager for OCaml:
    https://ocaml.org/docs/installing-ocaml#install-opam.
-   On Ubuntu, `sudo apt install opam`.
+   On Ubuntu 25.04 or later, `sudo apt install opam`. Older Ubuntu versions have outdated versions of opam, so for those, follow the opam instructions.
 
 3. Initialise opam with a recent version of OCaml (the CI builds with 4.14.1,
    CN developers use 5.2.0).

@@ -382,7 +382,7 @@ module IndexTerms = struct
          | Negate, Unop (Negate, x) -> x
          | Negate, Const (Z z) -> z_ (Z.neg z) the_loc
          | Negate, Const (Bits ((sign, width), z)) ->
-           num_lit_ (Z.neg z) (BT.Bits (sign, width)) the_loc
+           num_lit_norm (BT.Bits (sign, width)) (Z.neg z) the_loc
          | Negate, Const (Q q) -> q1_ (Q.neg q) the_loc
          | BW_CTZ_NoSMT, Const (Z z) ->
            (match do_ctz_z z with

@@ -1,4 +1,6 @@
-type build_tool = Bash
+type build_tool =
+  | Bash
+  | Make
 
 type logging_level =
   | None
@@ -27,7 +29,6 @@ type t =
     max_backtracks : int;
     max_unfolds : int option;
     max_array_length : int;
-    with_static_hack : bool;
     build_tool : build_tool;
     sanitizers : string option * string option;
     (* Run time *)
@@ -82,8 +83,6 @@ val get_max_backtracks : unit -> int
 val get_max_unfolds : unit -> int option
 
 val get_max_array_length : unit -> int
-
-val with_static_hack : unit -> bool
 
 val get_build_tool : unit -> build_tool
 

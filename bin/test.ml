@@ -28,7 +28,7 @@ let run_tests
       max_backtracks
       max_unfolds
       max_array_length
-      with_static_hack
+      _with_static_hack
       build_tool
       sanitizers
       print_seed
@@ -65,13 +65,10 @@ let run_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let output_dir = Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true Test output_dir in
   let basefile = Filename.basename filename in
-  let output_dir =
-    let dir, mk = output_dir in
-    mk dir
-  in
   let pp_file = Filename.temp_file "cn_" basefile in
-  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
+  let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
@@ -87,6 +84,7 @@ let run_tests
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
     ~save_cpp:(Some pp_file)
+    ~disable_linemarkers:true
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       let config : TestGeneration.config =
@@ -95,7 +93,6 @@ let run_tests
           max_backtracks;
           max_unfolds;
           max_array_length;
-          with_static_hack;
           build_tool;
           sanitizers;
           print_seed;
@@ -142,7 +139,8 @@ let run_tests
                 filename
                 pp_file
                 out_file
-                (Common.static_funcs cabs_tunit)
+                output_dir
+                cabs_tunit
                 ail_prog
                 prog5
             with
@@ -152,6 +150,7 @@ let run_tests
                 ~output_dir
                 ~filename
                 ~without_ownership_checking
+                build_tool
                 cabs_tunit
                 sigma
                 prog5
@@ -159,7 +158,12 @@ let run_tests
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
            if not dont_run then (
              Cerb_debug.maybe_close_csv_timing_file ();
-             Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])))
+             match build_tool with
+             | Bash ->
+               Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
+             | Make ->
+               Unix.chdir output_dir;
+               Unix.execvp "make" (Array.of_list [ "make" ])))
         ();
       Or_TypeError.return ())
 
@@ -174,14 +178,9 @@ module Flags = struct
     Arg.(value & flag & info [ "print-steps" ] ~doc)
 
 
-  let output_test_dir =
+  let output_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(
-      value
-      & opt
-          Common.dir_and_mk_if_not_exist
-          (`May_not_exist ".", fun (`May_not_exist x) -> x)
-      & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let only =
@@ -233,11 +232,9 @@ module Flags = struct
 
 
   let with_static_hack =
-    let doc =
-      "(HACK) Use an `#include` instead of linking to build testing. Necessary until \
-       https://github.com/rems-project/cerberus/issues/784 or equivalent."
-    in
-    Arg.(value & flag & info [ "with-static-hack" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after May 31." in
+    Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
   let build_tool =
@@ -454,7 +451,7 @@ let cmd =
     $ Common.Flags.magic_comment_char_dollar
     $ Instrument.Flags.without_ownership_checking
     $ Flags.print_steps
-    $ Flags.output_test_dir
+    $ Flags.output_dir
     $ Flags.only
     $ Flags.skip
     $ Flags.dont_run

@@ -17,7 +17,7 @@ let gen_syms_bits (name : string) : (BT.t * Sym.t) list =
                name;
                Option.get (Utils.get_typedef_string (CtA.bt_to_ail_ctype bt))
              ]) )
-    | None -> failwith Pp.(plain (BT.pp bt ^^ space ^^ at ^^ space ^^ string __LOC__))
+    | None -> failwith Pp.(plain (BT.pp bt ^^^ at ^^^ !^__LOC__))
   in
   [ aux (BT.Bits (Unsigned, 8));
     aux (BT.Bits (Signed, 8));
@@ -42,7 +42,7 @@ let lt_check (it_max : IT.t) gt loc =
   GT.assert_ (T (IT.gt_ (it_max, IT.num_lit_ min (IT.get_bt it_max) loc) loc), gt) loc
 
 
-let[@warning "-27"] range_check (it_min : IT.t) (it_max : IT.t) gt loc =
+let range_check (it_min : IT.t) (it_max : IT.t) gt loc =
   let it_min, cmp, it_max =
     match (it_min, it_max) with
     | IT (Binop (Sub, it_min', IT (Const (Bits (_, n)), _, _)), _, _), _
@@ -50,7 +50,8 @@ let[@warning "-27"] range_check (it_min : IT.t) (it_max : IT.t) gt loc =
       when Z.equal n Z.one ->
       (it_min', IT.le_, it_max)
     | _, IT (Binop (Add, it_max', IT (Const (Bits (_, n)), _, _)), _, _)
-    | _, IT (Binop (Add, it_max', IT (Const (Z n), _, _)), _, _) ->
+    | _, IT (Binop (Add, it_max', IT (Const (Z n), _, _)), _, _)
+      when Z.equal n Z.one ->
       (it_min, IT.le_, it_max')
     | _ -> (it_min, IT.lt_, it_max)
   in

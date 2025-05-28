@@ -209,6 +209,7 @@ let inject st inj =
          ^ indent
          ^ "/* EXECUTABLE CN PRECONDITION */"
          ^ "\n"
+         ^ "cn_bump_frame_id cn_frame_id = cn_bump_get_frame_id();\n"
          ^ indent
          ^ (if CF.AilTypesAux.is_void ret_ty then
               ""
@@ -250,12 +251,21 @@ let inject st inj =
          if CF.AilTypesAux.is_void ret_ty then
            indent ^ ";\n"
          else
-           indent ^ "\nreturn __cn_ret;\n\n")
+           indent ^ "\ncn_bump_free_after(cn_frame_id);\n" ^ "\nreturn __cn_ret;\n\n")
     | DeleteMain pre ->
       if pre then do_output st "\n#if 0\n" else do_output st "\n#endif\n"
     | WrapStatic (prefix, decl) ->
       let fsym = Sym.fresh (prefix ^ "_" ^ Sym.pp_string (fst decl)) in
-      let declarations = [ (fsym, snd decl) ] in
+      let declarations =
+        [ ( fsym,
+            match snd decl with
+            | _, _, A.Decl_function (_, ret_ct, args_ct, _, _, _) ->
+              ( Locations.other __LOC__,
+                CF.Annot.Attrs [],
+                A.Decl_function (false, ret_ct, args_ct, false, false, false) )
+            | _ -> failwith __LOC__ )
+        ]
+      in
       let ret_ty, arg_tys =
         match decl with
         | _, (_, _, A.Decl_function (_, (_, ret_ty), arg_tys, _, _, _)) ->
@@ -300,7 +310,7 @@ let inject st inj =
           plain
             (hardline
              ^^ CF.Pp_ail.pp_program
-                  ~show_include:false
+                  ~show_include:true
                   (None, { A.empty_sigma with declarations; function_definitions })
              ^^ hardline))
   in
@@ -516,7 +526,8 @@ let output_injections oc cn_inj =
                          pre_post_injs pre_post_strs ret_ty false stmt
                      in
                      let acc = pre :: post :: acc in
-                     if Sym.Set.mem fun_sym cn_inj.static_funcs then
+                     if cn_inj.with_testing && Sym.Set.mem fun_sym cn_inj.static_funcs
+                     then
                        let* wrapper =
                          static_inj cn_inj.orig_filename loc (fun_sym, decl')
                        in

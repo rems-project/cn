@@ -47,7 +47,9 @@ let fn_largs_and_body_subst subst (lat : fn_largs_and_body) : fn_largs_and_body 
 type instrumentation =
   { fn : Sym.t;
     fn_loc : Locations.t;
-    internal : fn_args_and_body option
+    internal : fn_args_and_body option;
+    trusted : bool;
+    is_static : bool
   }
 
 (* replace `s_replace` of basetype `bt` with `s_with` *)
@@ -88,10 +90,11 @@ let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
     Some (contains_user_spec, loop_condition_loc, loop_loc, label_args_and_statements)
 
 
-let from_fn (fn, decl) =
+let from_fn cabs_tunit (fn, decl) =
   match decl with
-  | ProcDecl (fn_loc, _fn) -> { fn; fn_loc; internal = None }
-  | Proc { loc = fn_loc; args_and_body; _ } ->
+  | ProcDecl (fn_loc, _fn) ->
+    { fn; fn_loc; internal = None; trusted = false; is_static = false }
+  | Proc { loc = fn_loc; args_and_body; trusted } ->
     let args_and_body = Core_to_mucore.at_of_arguments Fun.id args_and_body in
     let internal =
       ArgumentTypes.map
@@ -101,12 +104,34 @@ let from_fn (fn, decl) =
            (rt, (stmts, loops)))
         args_and_body
     in
-    { fn; fn_loc; internal = Some internal }
+    let trusted_flag = match trusted with Mucore.Trusted _ -> true | _ -> false in
+    let is_static =
+      let (Cerb_frontend.Cabs.TUnit decls) = cabs_tunit in
+      List.exists
+        (fun decl ->
+           match decl with
+           | Cerb_frontend.Cabs.EDecl_func
+               (FunDef
+                  ( _,
+                    _,
+                    { storage_classes; _ },
+                    Declarator
+                      (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
+                    _ ))
+             when String.equal (Sym.pp_string fn) fn'
+                  && List.exists
+                       (fun scs ->
+                          match scs with
+                          | Cerb_frontend.Cabs.SC_static -> true
+                          | _ -> false)
+                       storage_classes ->
+             true
+           | _ -> false)
+        decls
+    in
+    { fn; fn_loc; internal = Some internal; trusted = trusted_flag; is_static }
 
 
-let from_file (file : _ Mucore.file) =
-  let instrs = List.map from_fn (Pmap.bindings_list file.funs) in
+let collect_instrumentation cabs_tunit (file : _ Mucore.file) =
+  let instrs = List.map (from_fn cabs_tunit) (Pmap.bindings_list file.funs) in
   (instrs, Compile.exec_spec_hack_syms)
-
-
-let collect_instrumentation = from_file

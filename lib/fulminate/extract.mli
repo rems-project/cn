@@ -32,9 +32,12 @@ val fn_largs_and_body_subst
 type instrumentation =
   { fn : Sym.t;
     fn_loc : Locations.t;
-    internal : fn_args_and_body option
+    internal : fn_args_and_body option;
+    trusted : bool;
+    is_static : bool
   }
 
 val collect_instrumentation
-  :  'a Mucore.file ->
+  :  Cerb_frontend.Cabs.translation_unit ->
+  'a Mucore.file ->
   instrumentation list * BaseTypes.Surface.t Hashtbl.Make(Sym).t

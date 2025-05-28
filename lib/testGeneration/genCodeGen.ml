@@ -7,7 +7,7 @@ module Records = Fulminate.Records
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module GR = GenRuntime
+module GE = GenElaboration
 
 let mk_expr = Utils.mk_expr
 
@@ -44,12 +44,12 @@ let compile_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t
   CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
 
 
-let[@warning "-27"] rec compile_term
-                          (filename : string)
-                          (sigma : CF.GenTypes.genTypeCategory A.sigma)
-                          (ctx : GR.context)
-                          (name : Sym.t)
-                          (tm : GR.term)
+let rec compile_term
+          (filename : string)
+          (sigma : CF.GenTypes.genTypeCategory A.sigma)
+          (ctx : GE.context)
+          (name : Sym.t)
+          (tm : GE.term)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
@@ -128,7 +128,7 @@ let[@warning "-27"] rec compile_term
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | Alloc { bytes = it; sized } ->
+  | Alloc { bytes = it } ->
     let alloc_sym = Sym.fresh "CN_GEN_ALLOC" in
     let b, s, e = compile_it filename sigma name it in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
@@ -302,7 +302,7 @@ let[@warning "-27"] rec compile_term
                                          ( None,
                                            [ (Locations.other __LOC__, [ Sym.pp_string x ])
                                            ] )) )))
-                          (List.of_seq (Sym.Set.to_seq (GR.free_vars_term value)))
+                          (List.of_seq (Sym.Set.to_seq (GE.free_vars_term value)))
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
@@ -366,8 +366,6 @@ let[@warning "-27"] rec compile_term
     let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
     let b_min, s_min, e_min = compile_it filename sigma name min in
     let b_max, s_max, e_max = compile_it filename sigma name max in
-    assert (b_max == []);
-    assert (s_max == []);
     let e_args =
       [ mk_expr (AilEident sym_map);
         mk_expr (AilEident i);
@@ -383,6 +381,7 @@ let[@warning "-27"] rec compile_term
     let s_begin =
       A.(
         s_min
+        @ s_max
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
@@ -416,7 +415,7 @@ let[@warning "-27"] rec compile_term
                       e_args @ [ e_min; e_val ] )))
           ])
     in
-    ([ b_map; b_i ] @ b_min @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
+    ([ b_map; b_i ] @ b_min @ b_max @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
   | SplitSize { rest; _ } when not (TestGenConfig.is_random_size_splits ()) ->
     compile_term filename sigma ctx name rest
   | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
@@ -460,8 +459,8 @@ let[@warning "-27"] rec compile_term
 
 let compile_gen_def
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (ctx : GR.context)
-      ((name, gr) : Sym.t * GR.definition)
+      (ctx : GE.context)
+      ((name, gr) : Sym.t * GE.definition)
   : A.sigma_declaration * 'a A.sigma_function_definition
   =
   let loc = Locations.other __LOC__ in
@@ -536,20 +535,20 @@ let compile_gen_def
   (sigma_decl, sigma_def)
 
 
-let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : Pp.document
+let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GE.context) : Pp.document
   =
   let defs =
     ctx
     |> List.map (fun (_, defs) ->
       List.map
-        (fun ((_, gr) : _ * GR.definition) ->
+        (fun ((_, gr) : _ * GE.definition) ->
            (GenUtils.get_mangled_name (gr.name :: List.map fst gr.iargs), gr))
         defs)
     |> List.flatten
   in
   let typedef_docs, tag_definitions =
     defs
-    |> List.map (fun ((name, def) : Sym.t * GR.definition) ->
+    |> List.map (fun ((name, def) : Sym.t * GE.definition) ->
       let loc = Locations.other __LOC__ in
       let bt =
         BT.Record
@@ -558,7 +557,7 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
       let new_tag = Option.get (CtA.generate_record_tag name bt) in
       let typedef_doc tag =
         let open Pp in
-        string "typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
+        !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
       in
       match CtA.lookup_records_map_opt bt with
       | None ->
@@ -576,28 +575,20 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
   in
   let record_defs = Records.generate_all_record_strs () in
   let open Pp in
-  string "#ifndef CN_GEN_H"
+  !^"#ifndef CN_GEN_H"
   ^^ hardline
-  ^^ string "#define CN_GEN_H"
+  ^^ !^"#define CN_GEN_H"
   ^^ twice hardline
-  ^^ string "#include <cn-testing/prelude.h>"
+  ^^ !^"#include <cn-testing/prelude.h>"
   ^^ twice hardline
-  ^^ string "/* TAG DEFINITIONS */"
+  ^^ !^"/* TAG DEFINITIONS */"
   ^^ hardline
-  ^^ string record_defs
-  (* TODO this block differs from record_defs by only including the gen
-     functions, but this solution feels off *)
-  (*
-  ^^ CF.Pp_ail.(
-       with_executable_spec
-         (separate_map (twice hardline) pp_tag_definition)
-         tag_definitions)
-   *)
+  ^^ !^record_defs
   ^^ twice hardline
-  ^^ string "/* TYPEDEFS */"
+  ^^ !^"/* TYPEDEFS */"
   ^^ hardline
   ^^ separate hardline typedef_docs
-  ^^ string "/* FUNCTION DECLARATIONS */"
+  ^^ !^"/* FUNCTION DECLARATIONS */"
   ^^ hardline
   ^^ CF.Pp_ail.(
        with_executable_spec
@@ -605,9 +596,9 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GR.context) : P
             CF.Pp_ail.pp_function_prototype tag decl))
          declarations)
   ^^ twice hardline
-  ^^ string "/* EVERYTHING ELSE */"
+  ^^ !^"/* EVERYTHING ELSE */"
   ^^ hardline
   ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, sigma))
   ^^ hardline
-  ^^ string "#endif // CN_GEN_H"
+  ^^ !^"#endif // CN_GEN_H"
   ^^ hardline

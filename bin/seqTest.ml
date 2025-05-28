@@ -36,13 +36,12 @@ let run_seq_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
+  let output_dir =
+    Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:false SeqTest output_dir
+  in
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
-  let output_dir =
-    let dir, mk = output_dir in
-    mk dir
-  in
-  let out_file = Fulminate.get_output_filename (Some output_dir) None basefile in
+  let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
@@ -58,6 +57,7 @@ let run_seq_tests
     ~no_inherit_loc
     ~magic_comment_char_dollar (* Callbacks *)
     ~save_cpp:(Some pp_file)
+    ~disable_linemarkers:true
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
@@ -83,7 +83,8 @@ let run_seq_tests
              filename
              pp_file
              out_file
-             (Common.static_funcs cabs_tunit)
+             output_dir
+             cabs_tunit
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
@@ -99,14 +100,9 @@ let run_seq_tests
 open Cmdliner
 
 module Flags = struct
-  let output_test_dir =
+  let output_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(
-      value
-      & opt
-          Common.dir_and_mk_if_not_exist
-          (`May_not_exist ".", fun (`May_not_exist x) -> x)
-      & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let print_steps =
@@ -117,11 +113,8 @@ module Flags = struct
 
 
   let with_static_hack =
-    let doc =
-      "(HACK) Use an `#include` instead of linking to build testing. Necessary until \
-       https://github.com/rems-project/cerberus/issues/784 or equivalent."
-    in
-    let deprecated = "No longer does anything. Will be removed after May 18." in
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after May 31." in
     Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
@@ -163,7 +156,7 @@ let cmd =
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
     $ Instrument.Flags.without_ownership_checking
-    $ Flags.output_test_dir
+    $ Flags.output_dir
     $ Flags.print_steps
     $ Flags.with_static_hack
     $ Flags.gen_num_calls

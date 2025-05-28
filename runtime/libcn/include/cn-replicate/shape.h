@@ -15,21 +15,21 @@ void cn_replica_alloc_reset(void);
 // First Pass //
 void cn_analyze_shape_owned(void* ptr, size_t sz);
 
-#define CN_ANALYZE_SHAPE_EACH_BEGIN(map, i, i_ty, perm, max)                             \
+#define CN_ANALYZE_SHAPE_EACH_BEGIN(map, i, i_ty, perm, min)                             \
   cn_map* map = map_create();                                                            \
   {                                                                                      \
-    i_ty* i = max;                                                                       \
+    i_ty* i = min;                                                                       \
     while (convert_from_cn_bool(perm)) {                                                 \
     /* Inner analyzer */
 
-#define CN_ANALYZE_SHAPE_EACH_END(map, i, i_ty, val, min)                                \
+#define CN_ANALYZE_SHAPE_EACH_END(map, i, i_ty, val, max)                                \
   cn_map_set(map, cast_##i_ty##_to_cn_integer(i), val);                                  \
                                                                                          \
-  if (convert_from_cn_bool(i_ty##_equality(i, min))) {                                   \
+  if (convert_from_cn_bool(i_ty##_equality(i, max))) {                                   \
     break;                                                                               \
   }                                                                                      \
                                                                                          \
-  i = i_ty##_sub(i, convert_to_##i_ty(1));                                               \
+  i_ty##_increment(i);                                                                   \
   }                                                                                      \
   }
 
@@ -62,11 +62,11 @@ char* cn_replicate_owned_cn_bits_u64_aux(cn_pointer* p);
     buf;                                                                                 \
   })
 
-#define CN_REPLICATE_EACH_BEGIN(map, i, i_ty, perm, max)                                 \
-  CN_ANALYZE_SHAPE_EACH_BEGIN(map, i, i_ty, perm, max)
+#define CN_REPLICATE_EACH_BEGIN(map, i, i_ty, perm, min)                                 \
+  CN_ANALYZE_SHAPE_EACH_BEGIN(map, i, i_ty, perm, min)
 
-#define CN_REPLICATE_EACH_END(map, i, i_ty, val, min)                                    \
-  CN_ANALYZE_SHAPE_EACH_END(map, i, i_ty, val, min)
+#define CN_REPLICATE_EACH_END(map, i, i_ty, val, max)                                    \
+  CN_ANALYZE_SHAPE_EACH_END(map, i, i_ty, val, max)
 
 #ifdef __cplusplus
 }

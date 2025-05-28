@@ -106,26 +106,14 @@ let memory_accesses_injections ail_prog =
 
 
 let filter_selected_fns
-      (prog5 : unit Mucore.file)
-      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
-      (full_instrumentation : Extract.instrumentation list)
+      (is_sym_selected : Sym.t -> bool)
+      ( (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma),
+        (instrumentation : Extract.instrumentation list) )
   =
-  (* Filtering based on Check.skip_and_only *)
-  let prog5_fns_list = List.map fst (Pmap.bindings_list prog5.funs) in
-  let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
-  let selected_function_syms =
-    Sym.Set.elements (Check.select_functions all_fns_sym_set)
-  in
-  let main_sym =
-    List.filter (fun sym -> String.equal (Sym.pp_string sym) "main") prog5_fns_list
-  in
-  let is_sym_selected =
-    fun sym -> List.mem Sym.equal sym (selected_function_syms @ main_sym)
-  in
   let filtered_instrumentation =
     List.filter
       (fun (i : Extract.instrumentation) -> is_sym_selected i.fn)
-      full_instrumentation
+      instrumentation
   in
   let filtered_ail_prog_decls =
     List.filter (fun (decl_sym, _) -> is_sym_selected decl_sym) sigm.declarations
@@ -142,6 +130,28 @@ let filter_selected_fns
   (filtered_instrumentation, filtered_sigm)
 
 
+let get_main_sym sym_list =
+  List.filter (fun sym -> String.equal (Sym.pp_string sym) "main") sym_list
+
+
+(* Filtering based on Check.skip_and_only *)
+let filter_using_skip_and_only
+      ( (prog5 : unit Mucore.file),
+        (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma),
+        (instrumentation : Extract.instrumentation list) )
+  =
+  let prog5_fns_list = List.map fst (Pmap.bindings_list prog5.funs) in
+  let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
+  let main_sym = get_main_sym prog5_fns_list in
+  let selected_function_syms =
+    Sym.Set.elements (Check.select_functions all_fns_sym_set)
+  in
+  let is_sym_selected =
+    fun sym -> List.mem Sym.equal sym (selected_function_syms @ main_sym)
+  in
+  filter_selected_fns is_sym_selected (sigm, instrumentation)
+
+
 let output_to_oc oc str_list = List.iter (Stdlib.output_string oc) str_list
 
 open Internal
@@ -150,11 +160,7 @@ let get_instrumented_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".exec.c"
 
 
-let get_output_filename outdir outfile filename =
-  let file = Option.value ~default:(get_instrumented_filename filename) outfile in
-  let prefix = match outdir with Some dir_name -> dir_name | None -> "" in
-  Filename.concat prefix file
-
+let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
 let main
       ?(without_ownership_checking = false)
@@ -164,12 +170,15 @@ let main
       filename
       in_filename (* WARNING: this file will be deleted after this function *)
       out_filename
-      (static_funcs : string list)
+      output_dir
+      cabs_tunit
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
       prog5
   =
-  let compile_commands_json_oc = Stdlib.open_out "compile_commands.json" in
+  let compile_commands_json_oc =
+    Stdlib.open_out (get_filename_with_prefix output_dir "compile_commands.json")
+  in
   let opam_switch_prefix =
     match Sys.getenv_opt "OPAM_SWITCH_PREFIX" with
     | Some p -> p
@@ -177,7 +186,7 @@ let main
   in
   let compile_commands_json_str =
     [ "[";
-      "\n\t{ \"directory\": \"" ^ "\",";
+      "\n\t{ \"directory\": \"" ^ output_dir ^ "\",";
       "\n\t\"command\": \"cc -I"
       ^ opam_switch_prefix
       ^ "/lib/cn/runtime/include/ "
@@ -188,16 +197,18 @@ let main
     ]
   in
   output_to_oc compile_commands_json_oc compile_commands_json_str;
+  close_out compile_commands_json_oc;
+  let out_filename = get_filename_with_prefix output_dir out_filename in
   let (full_instrumentation : Extract.instrumentation list), _ =
-    Extract.collect_instrumentation prog5
+    Extract.collect_instrumentation cabs_tunit prog5
   in
+  (* Filters based on functions passed to --only and/or --skip *)
   let filtered_instrumentation, filtered_sigm =
-    filter_selected_fns prog5 sigm full_instrumentation
+    filter_using_skip_and_only (prog5, sigm, full_instrumentation)
   in
   let static_funcs =
     filtered_instrumentation
-    |> List.filter (fun (inst : Extract.instrumentation) ->
-      List.exists (String.equal (Sym.pp_string inst.fn)) static_funcs)
+    |> List.filter (fun (inst : Extract.instrumentation) -> inst.is_static)
     |> List.map (fun (inst : Extract.instrumentation) -> inst.fn)
     |> Sym.Set.of_list
   in
