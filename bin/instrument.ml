@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
+let run_instrumented_file ~filename ~cc ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
@@ -25,7 +25,8 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
   in
   if
     Sys.command
-      ("cc -c "
+      (cc
+       ^ " -c "
        ^ flags
        ^ " "
        ^ includes
@@ -42,7 +43,8 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
     exit 1);
   if
     Sys.command
-      ("cc "
+      (cc
+       ^ " "
        ^ flags
        ^ " "
        ^ includes
@@ -155,6 +157,7 @@ let generate_executable_specs
                 ~with_loop_leak_checks
                 ~with_testing
                 filename
+                cc
                 pp_file
                 out_file
                 output_dir
@@ -167,7 +170,7 @@ let generate_executable_specs
         ();
       Or_TypeError.return
         (if run then
-           run_instrumented_file ~filename ~output ~output_dir ~print_steps))
+           run_instrumented_file ~filename ~cc ~output ~output_dir ~print_steps))
 
 
 open Cmdliner
