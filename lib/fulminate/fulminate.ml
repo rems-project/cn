@@ -168,6 +168,7 @@ let main
       ?(with_loop_leak_checks = false)
       ?(with_testing = false)
       filename
+      cc
       in_filename (* WARNING: this file will be deleted after this function *)
       out_filename
       output_dir
@@ -187,7 +188,9 @@ let main
   let compile_commands_json_str =
     [ "[";
       "\n\t{ \"directory\": \"" ^ output_dir ^ "\",";
-      "\n\t\"command\": \"cc -I"
+      "\n\t\"command\": \""
+      ^ cc
+      ^ " -I"
       ^ opam_switch_prefix
       ^ "/lib/cn/runtime/include/ "
       ^ out_filename

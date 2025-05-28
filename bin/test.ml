@@ -141,6 +141,7 @@ let run_tests
                 ~with_loop_leak_checks:false
                 ~with_testing:true
                 filename
+                cc
                 pp_file
                 out_file
                 output_dir
