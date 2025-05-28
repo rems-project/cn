@@ -6,6 +6,11 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 
+#define cn_printf(level, ...)                                                            \
+  if (get_cn_logging_level() >= level) {                                                 \
+    printf(__VA_ARGS__);                                                                 \
+  }
+
 // XXX: things used by injected code
 #define true  1
 #define false 0
