@@ -546,7 +546,7 @@ let functions_under_test
       (prog5 : unit Mucore.file)
   : (bool * Fulminate.Extract.instrumentation) list
   =
-  let insts = prog5 |> Fulminate.Extract.collect_instrumentation |> fst in
+  let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
     Check.select_functions
       (Sym.Set.of_list

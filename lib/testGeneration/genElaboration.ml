@@ -360,30 +360,43 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : term =
       in
       gt_lets last_var (Call { fsym; iargs; oarg_bt = bt; path_vars; sized = None })
     | Asgn ((addr, sct), value, rest) ->
-      let pointer =
-        let pointers =
-          let free_vars = IT.free_vars_bts addr in
-          if Sym.Map.cardinal free_vars == 1 then
-            free_vars
-          else
-            free_vars |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
-        in
-        if not (Sym.Map.cardinal pointers == 1) then
-          Cerb_debug.print_debug 2 [] (fun () ->
-            Pp.(
-              plain
-                (braces
-                   (separate_map
-                      (comma ^^ space)
-                      Sym.pp
-                      (List.map fst (Sym.Map.bindings pointers)))
-                 ^^^ !^" in "
-                 ^^ IT.pp addr)));
-        List.find
-          (fun x -> Sym.Map.mem x pointers)
-          (vars @ List.of_seq (Sym.Set.to_seq inputs))
+      let rec pointer_of (it : IT.t) =
+        match it with
+        | IT (ArrayShift { base; _ }, _, _) -> pointer_of base
+        | IT (Sym x, _, _) | IT (Cast (_, IT (Sym x, _, _)), _, _) -> x
+        | _ ->
+          let pointers =
+            addr
+            |> IT.free_vars_bts
+            |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
+            |> Sym.Map.bindings
+            |> List.map fst
+            |> Sym.Set.of_list
+          in
+          if not (Sym.Set.cardinal pointers == 1) then
+            Cerb_debug.print_debug 2 [] (fun () ->
+              Pp.(
+                plain
+                  (braces
+                     (separate_map
+                        (comma ^^ space)
+                        Sym.pp
+                        (List.of_seq (Sym.Set.to_seq pointers)))
+                   ^^^ !^" in "
+                   ^^ IT.pp addr)));
+          if Sym.Set.is_empty pointers then (
+            print_endline (Pp.plain (IT.pp it));
+            failwith __LOC__);
+          Sym.Set.choose pointers
       in
-      Asgn { pointer; addr; sct; value; last_var; rest = aux vars path_vars rest }
+      Asgn
+        { pointer = pointer_of addr;
+          addr;
+          sct;
+          value;
+          last_var;
+          rest = aux vars path_vars rest
+        }
     | Let (backtracks, (x, gt1), gt2) ->
       Let
         { backtracks;

@@ -184,16 +184,7 @@ let compile_test_file
   let all_tests = constant_tests @ generator_tests in
   (* Convert tests to (bool * instrumentation) format for remaining functions *)
   let insts =
-    List.map
-      (fun (test : Test.t) ->
-         ( test.is_static,
-           FExtract.
-             { fn = test.fn;
-               fn_loc = test.fn_loc;
-               internal = Some test.internal;
-               trusted = test.is_trusted
-             } ))
-      tests
+    List.map (fun (test : Test.t) -> (test.is_static, Test.to_instrumentation test)) tests
   in
   (* TODO copied from fulminate.ml, put somewhere shared *)
   let open ESpecInternal in
@@ -404,7 +395,7 @@ let functions_under_test
       (prog5 : unit Mucore.file)
   : Test.t list
   =
-  let insts = prog5 |> FExtract.collect_instrumentation |> fst in
+  let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
     Check.select_functions
       (Sym.Set.of_list
@@ -412,9 +403,10 @@ let functions_under_test
   in
   insts
   |> List.filter (fun (inst : FExtract.instrumentation) ->
-    (match prog5.main with
-     | Some main_fn -> not (Sym.equal main_fn inst.fn)
-     | None -> true)
+    CtA.has_cn_spec inst
+    && (match prog5.main with
+        | Some main_fn -> not (Sym.equal main_fn inst.fn)
+        | None -> true)
     && Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
     && not (needs_enum_hack ~with_warning sigma inst))

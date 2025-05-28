@@ -106,7 +106,7 @@ cn_pointer* cn_gen_alloc(cn_bits_u64* sz) {
     if (rnd == 0) {
       bytes = 0;
     } else {
-      bytes = 8;
+      bytes = sizeof(intmax_t);
     }
   }
 

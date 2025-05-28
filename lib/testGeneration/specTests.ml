@@ -95,8 +95,8 @@ let compile_generators
   debug_stage "Distribute" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
   let ctx = ctx |> GenOptimize.optimize prog5 in
   debug_stage "Optimize" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenRuntime.elaborate in
-  debug_stage "Elaborated" (ctx |> GenRuntime.pp |> Pp.plain ~width:80);
+  let ctx = ctx |> GenElaboration.elaborate in
+  debug_stage "Elaborated" (ctx |> GenElaboration.pp |> Pp.plain ~width:80);
   ctx |> GenCodeGen.compile sigma
 
 

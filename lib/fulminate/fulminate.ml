@@ -171,7 +171,7 @@ let main
       in_filename (* WARNING: this file will be deleted after this function *)
       out_filename
       output_dir
-      (static_funcs : string list)
+      cabs_tunit
       ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
        ail_prog)
       prog5
@@ -200,7 +200,7 @@ let main
   close_out compile_commands_json_oc;
   let out_filename = get_filename_with_prefix output_dir out_filename in
   let (full_instrumentation : Extract.instrumentation list), _ =
-    Extract.collect_instrumentation prog5
+    Extract.collect_instrumentation cabs_tunit prog5
   in
   (* Filters based on functions passed to --only and/or --skip *)
   let filtered_instrumentation, filtered_sigm =
@@ -208,8 +208,7 @@ let main
   in
   let static_funcs =
     filtered_instrumentation
-    |> List.filter (fun (inst : Extract.instrumentation) ->
-      List.exists (String.equal (Sym.pp_string inst.fn)) static_funcs)
+    |> List.filter (fun (inst : Extract.instrumentation) -> inst.is_static)
     |> List.map (fun (inst : Extract.instrumentation) -> inst.fn)
     |> Sym.Set.of_list
   in
