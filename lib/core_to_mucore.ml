@@ -687,12 +687,6 @@ let n_memop ~inherit_loc loc memop pexprs =
     assert_error loc err
 
 
-let liftParse parseResult =
-  Result.map_error
-    (fun Parse.{ loc; msg } -> TypeErrors.{ loc; msg = Parser msg })
-    parseResult
-
-
 let unsupported loc doc = fail { loc; msg = Unsupported (!^"unsupported" ^^^ doc) }
 
 let rec n_expr
@@ -840,7 +834,7 @@ let rec n_expr
       match (pat, e1) with
       | ( Pattern ([], CaseBase (None, BTy_unit)),
           Expr ([], Epure (Pexpr ([], (), PEval Vunit))) ) ->
-        let@ parsed_stmts = liftParse (Parse.cn_statements annots) in
+        let@ parsed_stmts = Parse.cn_statements annots in
         (match parsed_stmts with
          | _ :: _ ->
            let marker_id = Option.get (CF.Annot.get_marker annots) in
@@ -1214,7 +1208,7 @@ let normalise_label
        let@ desugared_inv, cn_desugaring_state, loop_info =
          match Pmap.lookup loop_id loop_attributes with
          | Some { marker_id; attributes = attrs; loc_condition; loc_loop } ->
-           let@ inv = liftParse (Parse.loop_spec attrs) in
+           let@ inv = Parse.loop_spec attrs in
            let contains_user_spec = List.non_empty inv in
            let d_st =
              CAE.
@@ -1294,90 +1288,48 @@ module Spec = struct
     }
 
 
-  let combine ?if_spec parsed : _ parsed t =
-    let process
-          Cn.{ cn_func_trusted; cn_func_acc_func; cn_func_requires; cn_func_ensures }
-      : _ parsed
-      =
-      let cross_fst x =
-        match x with None -> [] | Some (a, bs) -> List.map (fun b -> (a, b)) bs
-      in
-      let trusted =
-        match cn_func_trusted with
-        | None -> Mucore.Checked
-        | Some loc -> Mucore.Trusted loc
-      in
-      let accesses, functions =
-        match cn_func_acc_func with
-        | None -> ([], [])
-        | Some (loc, Cn.CN_mk_function nm) -> ([], [ (loc, nm) ])
-        | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
-      in
-      let requires = cross_fst cn_func_requires in
-      let ensures = cross_fst cn_func_ensures in
-      { trusted; accesses; requires; ensures; functions; if_spec }
+  let process
+        ?if_spec
+        Cn.{ cn_func_trusted; cn_func_acc_func; cn_func_requires; cn_func_ensures }
+    : _ parsed
+    =
+    let cross_fst x =
+      match x with None -> [] | Some (a, bs) -> List.map (fun b -> (a, b)) bs
     in
-    let parsed = List.map process parsed in
-    match parsed with
-    | [] -> return default
-    | [ condition ] -> return condition
-    | _ :: _ :: _ ->
-      assert (Option.is_none if_spec);
-      let trust left right =
-        match (left, right) with
-        | Mucore.Trusted loc, _ -> Mucore.Trusted loc
-        | _, Mucore.Trusted loc -> Mucore.Trusted loc
-        | _, _ -> Mucore.Checked
-      in
-      let combine left right =
-        match (left, right) with
-        | { ensures = _ :: _ as ens; _ }, { requires = (loc, _) :: _; _ } ->
-          let ens_loc = fst (Option.get (List.last ens)) in
-          fail { loc; msg = Requires_after_ensures { ens_loc } }
-        | ( { trusted = t1;
-              accesses = a1;
-              requires = r1;
-              ensures = e1;
-              functions = f1;
-              if_spec = _
-            },
-            { trusted = t2;
-              accesses = a2;
-              requires = r2;
-              ensures = e2;
-              functions = f2;
-              if_spec = _
-            } ) ->
-          return
-            { trusted = trust t1 t2;
-              accesses = a1 @ a2;
-              requires = r1 @ r2;
-              ensures = e1 @ e2;
-              functions = f1 @ f2;
-              if_spec = None
-            }
-      in
-      ListM.fold_leftM combine default parsed
+    let trusted =
+      match cn_func_trusted with None -> Mucore.Checked | Some loc -> Mucore.Trusted loc
+    in
+    let accesses, functions =
+      match cn_func_acc_func with
+      | None -> ([], [])
+      | Some (loc, Cn.CN_mk_function nm) -> ([], [ (loc, nm) ])
+      | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
+    in
+    let requires = cross_fst cn_func_requires in
+    let ensures = cross_fst cn_func_ensures in
+    { trusted; accesses; requires; ensures; functions; if_spec }
 
 
   let there_can_only_be_one defn_loc fname parsed_decl_spec parsed_defn_specs =
     let _ : (_ * _ Cn.cn_decl_spec) list = parsed_decl_spec in
     match (parsed_decl_spec, parsed_defn_specs) with
     (* No specs *)
-    | [], [] -> return default
-    (* Multiple definition specs: combined to support ifdefs on specs *)
-    | [], (_ :: _ as parsed_defn_specs) -> combine parsed_defn_specs
+    | [], None -> return default
+    (* Definition spec *)
+    | [], Some parsed_defn_specs -> return (process parsed_defn_specs)
     (* Single decl spec *)
-    | [ (decl_marker, parsed_decl_spec) ], [] ->
-      combine
-        ~if_spec:(decl_marker, parsed_decl_spec.cn_decl_loc, parsed_decl_spec.cn_decl_args)
-        [ parsed_decl_spec.cn_func_spec ]
-    (* Multiple decl spec: not supported due to variable re-binding complexity *)
-    | (_, spec) :: (_, spec') :: _, [] ->
+    | [ (decl_marker, parsed_decl_spec) ], None ->
+      return
+        (process
+           ~if_spec:
+             (decl_marker, parsed_decl_spec.cn_decl_loc, parsed_decl_spec.cn_decl_args)
+           parsed_decl_spec.cn_func_spec)
+    (* Multiple decl specs: not supported due to variable re-binding complexity *)
+    | (_, spec) :: (_, spec') :: _, None ->
       let loc, orig_loc = (spec'.cn_decl_loc, spec.cn_decl_loc) in
       fail { loc; msg = Double_spec { fname; orig_loc } }
     (* Decl and definition spec: user error *)
-    | (_, decl_spec) :: _, _ :: _ ->
+    | (_, decl_spec) :: _, Some _ ->
       let loc, orig_loc = (defn_loc, decl_spec.cn_decl_loc) in
       fail { loc; msg = Double_spec { fname; orig_loc } }
 
@@ -1461,7 +1413,7 @@ let normalise_fun_map_decl
      | CF.Milicore.Mi_Fun (_bt, _args, _pe) -> assert false
      | Mi_Proc (loc, _mrk, _ret_bt, args, body, labels) ->
        debug 2 (lazy (item "normalising procedure" (Sym.pp fname)));
-       let@ parsed_defn_specs = liftParse (Parse.function_spec attrs) in
+       let@ parsed_defn_specs = Parse.function_spec attrs in
        let parsed_decl_spec =
          Option.fold (Sym.Map.find_opt fname fun_specs) ~none:[] ~some:Fun.id
        in
@@ -1536,7 +1488,7 @@ let normalise_fun_map_decl
           let@ () =
             check_against_core_bt loc ret_bt (Memory.bt_of_sct (convert_ct loc ret_ct))
           in
-          let@ parsed = Spec.there_can_only_be_one loc fname parsed_decl_spec [] in
+          let@ parsed = Spec.there_can_only_be_one loc fname parsed_decl_spec None in
           let ail_marker, spec_loc, spec_args = Option.get parsed.if_spec in
           let d_st = CAE.{ inner = Pmap.find ail_marker markers_env; markers_env } in
           let@ spec_args, d_st = Spec.desugar_and_add_args d_st spec_args in

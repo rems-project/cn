@@ -31,6 +31,7 @@ let frontend
       ~astprints
       ~filename
       ~magic_comment_char_dollar
+      ~allow_split_magic_comments
       ~save_cpp
       ~disable_linemarkers
   =
@@ -52,6 +53,7 @@ let frontend
         shift to the effectful version. "strict_pointer_relationals" is also
         assumed, but this does not affect elaboration. *)
      @ if magic_comment_char_dollar then [ "magic_comment_char_dollar" ] else []);
+  if allow_split_magic_comments then Parse.allow_split_magic_comments := true;
   let return = CF.Exception.except_return in
   let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
@@ -136,6 +138,7 @@ let with_well_formedness_check
       ~astprints
       ~no_inherit_loc
       ~magic_comment_char_dollar
+      ~allow_split_magic_comments
       ~save_cpp
       ~disable_linemarkers
       ~(* Callbacks *)
@@ -157,6 +160,7 @@ let with_well_formedness_check
          ~astprints
          ~filename
          ~magic_comment_char_dollar
+         ~allow_split_magic_comments
          ~save_cpp
          ~disable_linemarkers)
   in
@@ -439,4 +443,12 @@ module Flags = struct
   let magic_comment_char_dollar =
     let doc = "Override CN's default magic comment syntax to be \"/*\\$ ... \\$*/\"" in
     Arg.(value & flag & info [ "magic-comment-char-dollar" ] ~doc)
+
+
+  let allow_split_magic_comments =
+    let doc =
+      "Alloc function specifications and loop invariants to be split across multiple \
+       magic comments"
+    in
+    Arg.(value & flag & info [ "allow_split_magic_comments" ] ~doc)
 end
