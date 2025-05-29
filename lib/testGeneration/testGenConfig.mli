@@ -31,6 +31,7 @@ type t =
     max_array_length : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
+    experimental : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -87,6 +88,8 @@ val get_max_array_length : unit -> int
 val get_build_tool : unit -> build_tool
 
 val has_sanitizers : unit -> string option * string option
+
+val is_experimental : unit -> bool
 
 val has_input_timeout : unit -> int option
 

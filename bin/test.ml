@@ -53,6 +53,7 @@ let run_tests
       no_replays
       no_replicas
       output_tyche
+      experimental
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -95,6 +96,7 @@ let run_tests
           max_array_length;
           build_tool;
           sanitizers;
+          experimental;
           print_seed;
           input_timeout;
           null_in_every;
@@ -432,6 +434,11 @@ module Flags = struct
       value
       & opt (some string) TestGeneration.default_cfg.output_tyche
       & info [ "output-tyche" ] ~doc)
+
+
+  let experimental =
+    let doc = "Actively developed experimental stuff o.o" in
+    Arg.(value & flag & info [ "experimental" ] ~doc)
 end
 
 let cmd =
@@ -484,6 +491,7 @@ let cmd =
     $ Flags.no_replays
     $ Flags.no_replicas
     $ Flags.output_tyche
+    $ Flags.experimental
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
