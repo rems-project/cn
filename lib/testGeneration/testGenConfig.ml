@@ -31,6 +31,7 @@ type t =
     max_array_length : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
+    experimental : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -64,6 +65,7 @@ let default =
     max_array_length = 50;
     build_tool = Bash;
     sanitizers = (None, None);
+    experimental = false;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -153,6 +155,8 @@ let get_max_array_length () = !instance.max_array_length
 let get_build_tool () = !instance.build_tool
 
 let has_sanitizers () = !instance.sanitizers
+
+let is_experimental () = !instance.experimental
 
 let has_input_timeout () = !instance.input_timeout
 
