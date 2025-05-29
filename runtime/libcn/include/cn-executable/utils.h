@@ -391,7 +391,7 @@ static inline int ipow(int base, int exp) {
   }
 
 #define cn_array_shift(cn_ptr, size, index)                                              \
-  convert_to_cn_pointer((char *)cn_ptr->ptr + (index->val * size))
+  convert_to_cn_pointer((char *)((uintptr_t)cn_ptr->ptr + (uintptr_t)(index->val * size)))
 
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
   convert_to_cn_pointer(&(((struct tag *)cn_ptr->ptr)->member_name))
