@@ -1329,6 +1329,16 @@ let check_pexpr (pe : BT.t Mu.pexpr) (k : IT.t -> unit m) : unit m =
   k lvt
 
 
+let rec cn_prog_sub_let f = function
+  | Cnprog.Let (loc, (sym, { ct; pointer }), cn_prog) ->
+    let@ pointer = WellTyped.check_term loc (Loc ()) pointer in
+    let@ () = WellTyped.check_ct loc ct in
+    let@ value = load loc pointer ct in
+    let subbed = Cnprog.subst f (IT.make_subst [ (sym, value) ]) cn_prog in
+    cn_prog_sub_let f subbed
+  | Statement (loc, x) -> return (loc, x)
+
+
 let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
   let (Expr (loc, annots, expect, e_)) = e in
   let@ () = add_trace_information labels annots in
@@ -1776,6 +1786,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                    [@alert "-deprecated"]
                })
          in
+         let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
+         let its = List.map snd its in
          (* checks pes against their annotations, and that they match ft's argument types *)
          Spine.calltype_ft
            loc
@@ -2061,15 +2073,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            print stdout (item "printed" (IT.pp it));
            return ()
        in
+       let@ stmts = ListM.mapM (cn_prog_sub_let Cnstatement.subst) cn_progs in
        let rec loop = function
          | [] -> k (unit_ loc)
-         | Cnprog.Let (loc, (sym, { ct; pointer }), cn_prog) :: cn_progs ->
-           let@ pointer = WellTyped.check_term loc (Loc ()) pointer in
-           let@ () = WellTyped.check_ct loc ct in
-           let@ value = load loc pointer ct in
-           let subbed = Cnprog.subst (IT.make_subst [ (sym, value) ]) cn_prog in
-           loop (subbed :: cn_progs)
-         | Cnprog.Statement (loc, cn_statement) :: cn_progs ->
+         | (loc, cn_statement) :: cn_progs ->
            (match cn_statement with
             | Cnstatement.Split_case lc ->
               Pp.debug 5 (lazy (Pp.headline "checking split_case"));
@@ -2105,7 +2112,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
               let@ () = aux loc cn_statement in
               loop cn_progs)
        in
-       loop cn_progs
+       loop stmts
      | Ewseq (p, e1, e2) | Esseq (p, e1, e2) ->
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_expr e2) in
        let@ () =
@@ -2133,6 +2140,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          | Some (lt, lkind, _) -> return (lt, lkind)
        in
        let@ original_resources = all_resources_tagged loc in
+       let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
+       let its = List.map snd its in
        Spine.calltype_lt loc pes its (lt, lkind) (fun False ->
          let@ () = all_empty loc original_resources in
          return ()))
