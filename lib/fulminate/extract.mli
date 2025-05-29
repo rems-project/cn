@@ -1,4 +1,4 @@
-type statement = Locations.t * Cnprog.t list
+type statement = Locations.t * Cnstatement.statement Cnprog.t list
 
 type statements = statement list
 
