@@ -2,7 +2,8 @@
 #ifndef CN_UTILS
 #define CN_UTILS
 
-#include "alloc.h"
+#include "bump_alloc.h"
+#include "fl_alloc.h"
 #include "hash_table.h"
 #include "rts_deps.h"
 
