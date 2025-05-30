@@ -8,6 +8,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 module GE = GenElaboration
+module GED = GenDefinitions.Make (GenElaboratedTerms)
 
 let mk_expr = Utils.mk_expr
 
@@ -157,7 +158,7 @@ let rec compile_term
           ]
         | None
           when (not (GenBuiltins.is_builtin fsym))
-               && (List.assoc Sym.equal fsym ctx).sized ->
+               && (List.assoc Sym.equal fsym ctx).recursive ->
           [ AilEcall (mk_expr (AilEident (Sym.fresh "cn_gen_get_size")), []) ]
         | None -> [])
     in
@@ -461,7 +462,7 @@ let rec compile_term
 let compile_gen_def
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (ctx : GE.context)
-      ((name, gr) : Sym.t * GE.definition)
+      ((name, gr) : Sym.t * GED.t)
   : A.sigma_declaration * 'a A.sigma_function_definition
   =
   let loc = Locations.other __LOC__ in
@@ -476,7 +477,7 @@ let compile_gen_def
         (C.no_qualifiers, ct_ret),
         (List.map (fun (_, bt) -> (C.no_qualifiers, bt_to_ctype bt, false)) gr.iargs
          @
-         if gr.sized then
+         if gr.recursive then
            [ (C.no_qualifiers, C.mk_ctype_integer Size_t, false) ]
          else
            []),
@@ -492,10 +493,11 @@ let compile_gen_def
            (AilEcall
               ( mk_expr
                   (AilEident
-                     (Sym.fresh (if gr.sized then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
+                     (Sym.fresh
+                        (if gr.recursive then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
                 [] ))))
   in
-  let b2, s2, e2 = compile_term gr.filename sigma ctx name gr.body in
+  let b2, s2, e2 = compile_term gr.filename sigma ctx name (Option.get gr.body) in
   let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =
     ( name,
       ( loc,
@@ -503,7 +505,7 @@ let compile_gen_def
         CF.Annot.Attrs [],
         (List.map fst gr.iargs
          @
-         if gr.sized then
+         if gr.recursive then
            [ Sym.fresh "cn_gen_rec_size" ]
          else
            []),
@@ -540,13 +542,13 @@ let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GE.context) : P
   =
   let defs =
     List.map
-      (fun ((_, gr) : _ * GE.definition) ->
+      (fun ((_, gr) : _ * GED.t) ->
          (GenUtils.get_mangled_name (gr.name :: List.map fst gr.iargs), gr))
       ctx
   in
   let typedef_docs, tag_definitions =
     defs
-    |> List.map (fun ((name, def) : Sym.t * GE.definition) ->
+    |> List.map (fun ((name, def) : Sym.t * GED.t) ->
       let loc = Locations.other __LOC__ in
       let bt =
         BT.Record

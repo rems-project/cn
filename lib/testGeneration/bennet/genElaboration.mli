@@ -4,19 +4,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 
-type definition =
-  { filename : string;
-    sized : bool;
-    name : Sym.t;
-    iargs : (Sym.t * BT.t) list;
-    oargs : (Sym.t * BT.t) list;
-    body : GenElaboratedTerms.t
-  }
-[@@deriving eq, ord]
-
-val pp_definition : definition -> Pp.document
-
-type context = (A.ail_identifier * definition) list
+type context = (A.ail_identifier * GenDefinitions.Make(GenElaboratedTerms).t) list
 
 val pp : context -> Pp.document
 
