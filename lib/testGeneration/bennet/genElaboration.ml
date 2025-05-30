@@ -7,6 +7,7 @@ module GT = GenTerms
 module GD = GenDefinitions.Make (GenTerms)
 module GC = GenContext.Make (GenTerms)
 module GET = GenElaboratedTerms
+module GED = GenDefinitions.Make (GenElaboratedTerms)
 module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
@@ -213,62 +214,30 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : GET.t =
   aux [] Sym.Set.empty (nice_names inputs gt)
 
 
-type definition =
-  { filename : string;
-    sized : bool;
-    name : Sym.t;
-    iargs : (Sym.t * BT.t) list;
-    oargs : (Sym.t * BT.t) list;
-    body : GET.t
-  }
-[@@deriving eq, ord]
-
-let pp_definition (def : definition) : Pp.document =
-  let open Pp in
-  group
-    (!^"generator"
-     ^^^ braces
-           (separate_map
-              (comma ^^ space)
-              (fun (x, ty) -> BT.pp ty ^^^ Sym.pp x)
-              def.oargs)
-     ^^^ Sym.pp def.name
-     ^^ parens
-          (separate_map (comma ^^ space) (fun (x, ty) -> BT.pp ty ^^^ Sym.pp x) def.iargs)
-     ^^^ lbrace
-     ^^ nest 2 (break 1 ^^ GET.pp def.body)
-     ^/^ rbrace)
-
-
-let elaborate_gd ({ filename; recursive; spec = _; name; iargs; oargs; body } : GD.t)
-  : definition
-  =
+let elaborate_gd ({ filename; recursive; spec; name; iargs; oargs; body } : GD.t) : GED.t =
   { filename;
-    sized = recursive;
+    recursive;
+    spec;
     name;
     iargs;
     oargs;
     body =
-      Option.get body
-      |> GenNormalize.MemberIndirection.transform
-      |> elaborate_gt (Sym.Set.of_list (List.map fst iargs))
+      Option.map
+        (fun body ->
+           body
+           |> GenNormalize.MemberIndirection.transform
+           |> elaborate_gt (Sym.Set.of_list (List.map fst iargs)))
+        body
   }
 
 
-type context = (A.ail_identifier * definition) list
+type context = (A.ail_identifier * GED.t) list
 
 let pp (ctx : context) : Pp.document =
   let open Pp in
   ctx
   |> List.map snd
-  |> surround_separate_map
-       2
-       1
-       empty
-       lbracket
-       (semi ^^ twice hardline)
-       rbracket
-       pp_definition
+  |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket GED.pp
 
 
 module Sizing = struct
@@ -373,27 +342,33 @@ module Sizing = struct
   let transform_def
         (cg : SymGraph.t)
         ({ filename : string;
-           sized : bool;
+           recursive : bool;
+           spec;
            name : Sym.Set.elt;
            iargs : (Sym.Set.elt * BT.t) list;
            oargs : (Sym.Set.elt * BT.t) list;
-           body : GET.t
+           body : GET.t option
          } :
-          definition)
-    : definition
+          GED.t)
+    : GED.t
     =
     { filename;
-      sized;
+      recursive;
+      spec;
       name;
       iargs;
       oargs;
-      body = transform_gr (SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty) body
+      body =
+        Option.map
+          (transform_gr (SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty))
+          body
     }
 
 
   let transform (cg : SymGraph.t) (ctx : context) : context =
     List.map_snd
-      (fun ({ sized; _ } as def) -> if sized then transform_def cg def else def)
+      (fun (GED.{ recursive; _ } as def) ->
+         if recursive then transform_def cg def else def)
       ctx
 end
 
