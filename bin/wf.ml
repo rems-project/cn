@@ -4,6 +4,7 @@ open Cn
 
 let well_formed
       filename
+      cc
       macros
       incl_dirs
       incl_files
@@ -19,6 +20,7 @@ let well_formed
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check
     ~filename
+    ~cc
     ~macros
     ~incl_dirs
     ~incl_files
@@ -45,6 +47,7 @@ let cmd =
   let wf_t =
     const well_formed
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
