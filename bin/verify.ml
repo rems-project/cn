@@ -37,6 +37,7 @@ let verify
       quiet
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       disable_resource_derived_constraints
       try_hard
   =
@@ -84,6 +85,7 @@ let verify
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
+    ~allow_split_magic_comments
     ~save_cpp:None
     ~disable_linemarkers:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
@@ -268,6 +270,7 @@ let verify_t : unit Term.t =
   $ Flags.quiet
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar
+  $ Common.Flags.allow_split_magic_comments
   $ Flags.disable_resource_derived_constraints
   $ Flags.try_hard
 
