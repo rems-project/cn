@@ -6,7 +6,7 @@ module LC = LogicalConstraints
 module Def = Definition
 module LAT = LogicalArgumentTypes
 module GT = GenTerms
-module GD = GenDefinitions
+module GD = GenDefinitions.Make (GenTerms)
 
 let rec is_pure (gt : GT.t) : bool =
   let (GT (gt_, _, _)) = gt in

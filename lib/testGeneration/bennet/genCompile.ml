@@ -6,7 +6,7 @@ module LAT = LogicalArgumentTypes
 module Def = Definition
 module Req = Request
 module GT = GenTerms
-module GD = GenDefinitions
+module GD = GenDefinitions.Make (GenTerms)
 module Config = TestGenConfig
 
 type s = GD.context

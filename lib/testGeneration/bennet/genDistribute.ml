@@ -1,7 +1,7 @@
 module BT = BaseTypes
 module IT = IndexTerms
 module GT = GenTerms
-module GD = GenDefinitions
+module GD = GenDefinitions.Make (GenTerms)
 
 let generated_size (bt : BT.t) : int =
   match bt with
