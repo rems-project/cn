@@ -28,7 +28,7 @@ let run_tests
       num_samples
       max_backtracks
       max_unfolds
-      max_array_length
+      _max_array_length
       _with_static_hack
       build_tool
       sanitizers
@@ -96,7 +96,6 @@ let run_tests
           num_samples;
           max_backtracks;
           max_unfolds;
-          max_array_length;
           build_tool;
           sanitizers;
           experimental;
@@ -231,10 +230,8 @@ module Flags = struct
 
   let max_array_length =
     let doc = "Set the maximum length for an array generated" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_array_length
-      & info [ "max-array-length" ] ~doc)
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
 
 
   let with_static_hack =

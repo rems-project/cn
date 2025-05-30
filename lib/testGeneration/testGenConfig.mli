@@ -29,7 +29,6 @@ type t =
     num_samples : int;
     max_backtracks : int;
     max_unfolds : int option;
-    max_array_length : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
     experimental : bool;
@@ -85,8 +84,6 @@ val get_num_samples : unit -> int
 val get_max_backtracks : unit -> int
 
 val get_max_unfolds : unit -> int option
-
-val get_max_array_length : unit -> int
 
 val get_build_tool : unit -> build_tool
 
