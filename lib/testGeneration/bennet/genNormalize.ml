@@ -2,7 +2,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 module GT = GenTerms
-module GD = GenDefinitions
+module GD = GenDefinitions.Make (GenTerms)
 
 module MemberIndirection = struct
   type kind =

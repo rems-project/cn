@@ -1,1 +1,3 @@
-val distribute : GenDefinitions.context -> GenDefinitions.context
+val distribute
+  :  GenDefinitions.Make(GenTerms).context ->
+  GenDefinitions.Make(GenTerms).context

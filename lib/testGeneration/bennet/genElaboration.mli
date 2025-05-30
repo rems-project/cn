@@ -3,7 +3,6 @@ module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module GD = GenDefinitions
 
 type term =
   | Uniform of
@@ -92,4 +91,4 @@ type context = (A.ail_identifier * (A.ail_identifier list * definition) list) li
 
 val pp : context -> Pp.document
 
-val elaborate : GD.context -> context
+val elaborate : GenDefinitions.Make(GenTerms).context -> context
