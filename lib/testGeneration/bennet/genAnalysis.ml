@@ -128,8 +128,6 @@ end
 
 let get_call_graph (ctx : GD.context) : SymGraph.t =
   ctx
-  |> List.map_snd (List.map snd)
-  |> List.map_snd (fun gds -> match gds with [ gd ] -> gd | _ -> failwith __LOC__)
   |> List.map_snd get_calls
   |> List.fold_left
        (fun cg (fsym, calls) ->

@@ -284,4 +284,4 @@ let normalize_gen_def
 
 
 let normalize (prog5 : unit Mucore.file) (ctx : GD.context) : GD.context =
-  List.map_snd (List.map_snd (normalize_gen_def prog5)) ctx
+  List.map_snd (normalize_gen_def prog5) ctx

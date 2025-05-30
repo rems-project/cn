@@ -1858,8 +1858,6 @@ module Reordering = struct
     let rec_fsyms =
       gtx
       |> List.map snd
-      |> List.flatten
-      |> List.map snd
       |> List.filter_map (fun (gd' : GD.t) ->
         if gd'.recursive then Some gd'.name else None)
       |> Sym.Set.of_list
@@ -3100,4 +3098,4 @@ let optimize
   =
   let default = all_passes prog5 |> List.map (fun p -> p.name) |> StringSet.of_list in
   let passes = Option.value ~default passes in
-  List.map_snd (List.map_snd (optimize_gen_def prog5 passes)) ctx
+  List.map_snd (optimize_gen_def prog5 passes) ctx
