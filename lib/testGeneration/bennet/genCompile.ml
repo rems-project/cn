@@ -394,16 +394,12 @@ let compile
   in
   let context_preds (ctx : GD.context) : GD.context =
     List.fold_left
-      (fun ctx' (_, iargs_defs) ->
-         List.fold_left
-           (fun ctx'' ((_, gd) : _ * GD.t) ->
-              if Option.is_some gd.body then
-                ctx''
-              else (
-                let (), ctx''' = compile_pred recursive_preds preds gd ctx'' in
-                ctx'''))
+      (fun ctx' ((_, gd) : _ * GD.t) ->
+         if Option.is_some gd.body then
            ctx'
-           iargs_defs)
+         else (
+           let (), ctx'' = compile_pred recursive_preds preds gd ctx' in
+           ctx''))
       ctx
       ctx
   in

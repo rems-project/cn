@@ -87,7 +87,7 @@ type definition =
 
 val pp_definition : definition -> Pp.document
 
-type context = (A.ail_identifier * (A.ail_identifier list * definition) list) list
+type context = (A.ail_identifier * definition) list
 
 val pp : context -> Pp.document
 

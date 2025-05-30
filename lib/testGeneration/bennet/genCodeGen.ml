@@ -157,7 +157,7 @@ let rec compile_term
           ]
         | None
           when (not (GenBuiltins.is_builtin fsym))
-               && (ctx |> List.assoc Sym.equal fsym |> List.hd |> snd).sized ->
+               && (List.assoc Sym.equal fsym ctx).sized ->
           [ AilEcall (mk_expr (AilEident (Sym.fresh "cn_gen_get_size")), []) ]
         | None -> [])
     in
@@ -538,13 +538,10 @@ let compile_gen_def
 let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GE.context) : Pp.document
   =
   let defs =
-    ctx
-    |> List.map (fun (_, defs) ->
-      List.map
-        (fun ((_, gr) : _ * GE.definition) ->
-           (GenUtils.get_mangled_name (gr.name :: List.map fst gr.iargs), gr))
-        defs)
-    |> List.flatten
+    List.map
+      (fun ((_, gr) : _ * GE.definition) ->
+         (GenUtils.get_mangled_name (gr.name :: List.map fst gr.iargs), gr))
+      ctx
   in
   let typedef_docs, tag_definitions =
     defs

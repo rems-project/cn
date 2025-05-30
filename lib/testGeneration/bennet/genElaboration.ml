@@ -467,20 +467,20 @@ let elaborate_gd ({ filename; recursive; spec = _; name; iargs; oargs; body } : 
   }
 
 
-type context = (A.ail_identifier * (A.ail_identifier list * definition) list) list
+type context = (A.ail_identifier * definition) list
 
 let pp (ctx : context) : Pp.document =
-  let defns = ctx |> List.map snd |> List.flatten |> List.map snd in
   let open Pp in
-  surround_separate_map
-    2
-    1
-    empty
-    lbracket
-    (semi ^^ twice hardline)
-    rbracket
-    pp_definition
-    defns
+  ctx
+  |> List.map snd
+  |> surround_separate_map
+       2
+       1
+       empty
+       lbracket
+       (semi ^^ twice hardline)
+       rbracket
+       pp_definition
 
 
 module Sizing = struct
@@ -605,11 +605,10 @@ module Sizing = struct
 
   let transform (cg : SymGraph.t) (ctx : context) : context =
     List.map_snd
-      (List.map_snd (fun ({ sized; _ } as def) ->
-         if sized then transform_def cg def else def))
+      (fun ({ sized; _ } as def) -> if sized then transform_def cg def else def)
       ctx
 end
 
 let elaborate (gtx : GD.context) : context =
   let cg = GA.get_call_graph gtx in
-  gtx |> List.map_snd (List.map_snd elaborate_gd) |> Sizing.transform cg
+  gtx |> List.map_snd elaborate_gd |> Sizing.transform cg

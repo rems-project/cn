@@ -73,5 +73,4 @@ let distribute_gen_def ({ filename; recursive; spec; name; iargs; oargs; body } 
   { filename; recursive; spec; name; iargs; oargs; body = Option.map distribute_gen body }
 
 
-let distribute (ctx : GD.context) : GD.context =
-  List.map_snd (List.map_snd distribute_gen_def) ctx
+let distribute (ctx : GD.context) : GD.context = List.map_snd distribute_gen_def ctx

@@ -51,43 +51,23 @@ module Make (GT : GEN_TERM) = struct
        | None -> semi)
 
 
-  type context = (Sym.t * (Sym.t list * t) list) list [@@deriving eq, ord]
+  type context = (Sym.t * t) list [@@deriving eq, ord]
 
   let empty_context = []
 
   let pp_context (ctx : context) : Pp.document =
-    let defns = ctx |> List.map snd |> List.flatten |> List.map snd in
     let open Pp in
-    surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket pp defns
+    ctx
+    |> List.map snd
+    |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket pp
 
 
-  let add_context
-        ({ filename; recursive; spec; name; iargs; oargs; body } : t)
-        (ctx : context)
-    : context
-    =
-    let desired_iargs = List.map fst iargs in
-    match List.assoc_opt Sym.equal name ctx with
-    | Some iargs_defs ->
-      let others = List.filter (fun (fsym, _) -> not (Sym.equal name fsym)) ctx in
-      (match List.assoc_opt (List.equal Sym.equal) desired_iargs iargs_defs with
-       | Some { body = None; _ } when Option.is_some body ->
-         let others2 =
-           List.filter
-             (fun (xs, _) -> not (List.equal Sym.equal desired_iargs xs))
-             iargs_defs
-         in
-         ( name,
-           (desired_iargs, { filename; recursive; spec; name; iargs; oargs; body })
-           :: others2 )
-         :: others
-       | Some _ -> ctx
-       | None ->
-         ( name,
-           (desired_iargs, { filename; recursive; spec; name; iargs; oargs; body })
-           :: iargs_defs )
-         :: others)
-    | None ->
-      (name, [ (desired_iargs, { filename; recursive; spec; name; iargs; oargs; body }) ])
-      :: ctx
+  let add_context (gd : t) (ctx : context) : context =
+    match (List.assoc_opt Sym.equal gd.name ctx, gd.body) with
+    | Some { body = Some _; _ }, Some _ ->
+      failwith ("Tried to add generator twice (`" ^ Sym.pp_string gd.name ^ "`)")
+    | Some { body = None; _ }, Some _ ->
+      (gd.name, gd) :: List.filter (fun (name, _) -> not (Sym.equal name gd.name)) ctx
+    | Some { body = _; _ }, None -> ctx
+    | None, _ -> (gd.name, gd) :: ctx
 end
