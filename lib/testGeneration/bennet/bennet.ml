@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 
 let debug_log_file : out_channel option ref = ref None
 
@@ -34,13 +35,13 @@ let synthesize
   : Pp.document
   =
   let ctx = GenCompile.compile filename prog5.resource_predicates tests in
-  debug_stage "Compile" (ctx |> GD.pp_context |> Pp.plain ~width:80);
+  debug_stage "Compile" (ctx |> GC.pp |> Pp.plain ~width:80);
   let ctx = ctx |> GenNormalize.normalize prog5 in
-  debug_stage "Normalize" (ctx |> GD.pp_context |> Pp.plain ~width:80);
+  debug_stage "Normalize" (ctx |> GC.pp |> Pp.plain ~width:80);
   let ctx = ctx |> GenDistribute.distribute in
-  debug_stage "Distribute" (ctx |> GD.pp_context |> Pp.plain ~width:80);
+  debug_stage "Distribute" (ctx |> GC.pp |> Pp.plain ~width:80);
   let ctx = ctx |> GenOptimize.optimize prog5 in
-  debug_stage "Optimize" (ctx |> GD.pp_context |> Pp.plain ~width:80);
+  debug_stage "Optimize" (ctx |> GC.pp |> Pp.plain ~width:80);
   let ctx = ctx |> GenElaboration.elaborate in
   debug_stage "Elaborated" (ctx |> GenElaboration.pp |> Pp.plain ~width:80);
   ctx |> GenCodeGen.compile sigma

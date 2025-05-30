@@ -4,5 +4,5 @@ end
 
 val normalize
   :  unit Mucore.file ->
-  GenDefinitions.Make(GenTerms).context ->
-  GenDefinitions.Make(GenTerms).context
+  GenContext.Make(GenTerms).t ->
+  GenContext.Make(GenTerms).t

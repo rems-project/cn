@@ -2,6 +2,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module GT = GenTerms
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 
 let generated_size (bt : BT.t) : int =
   match bt with
@@ -73,4 +74,4 @@ let distribute_gen_def ({ filename; recursive; spec; name; iargs; oargs; body } 
   { filename; recursive; spec; name; iargs; oargs; body = Option.map distribute_gen body }
 
 
-let distribute (ctx : GD.context) : GD.context = List.map_snd distribute_gen_def ctx
+let distribute (ctx : GC.t) : GC.t = List.map_snd distribute_gen_def ctx

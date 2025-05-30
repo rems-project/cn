@@ -91,4 +91,4 @@ type context = (A.ail_identifier * definition) list
 
 val pp : context -> Pp.document
 
-val elaborate : GenDefinitions.Make(GenTerms).context -> context
+val elaborate : GenContext.Make(GenTerms).t -> context

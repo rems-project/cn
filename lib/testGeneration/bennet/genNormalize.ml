@@ -3,6 +3,7 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module GT = GenTerms
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 
 module MemberIndirection = struct
   type kind =
@@ -283,5 +284,5 @@ let normalize_gen_def
   }
 
 
-let normalize (prog5 : unit Mucore.file) (ctx : GD.context) : GD.context =
+let normalize (prog5 : unit Mucore.file) (ctx : GC.t) : GC.t =
   List.map_snd (normalize_gen_def prog5) ctx
