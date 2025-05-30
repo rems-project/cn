@@ -24,6 +24,7 @@ type sizing_strategy =
 
 type t =
   { (* Compile time *)
+    cc : string;
     print_steps : bool;
     num_samples : int;
     max_backtracks : int;
@@ -58,7 +59,8 @@ type t =
   }
 
 let default =
-  { print_steps = false;
+  { cc = "cc";
+    print_steps = false;
     num_samples = 100;
     max_backtracks = 25;
     max_unfolds = None;
@@ -139,6 +141,8 @@ end
 let instance = ref default
 
 let initialize (cfg : t) = instance := cfg
+
+let get_cc () = !instance.cc
 
 let is_print_steps () = !instance.print_steps
 
