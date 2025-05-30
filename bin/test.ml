@@ -27,7 +27,7 @@ let run_tests
       dont_run
       num_samples
       max_backtracks
-      max_unfolds
+      _max_unfolds
       _max_array_length
       _with_static_hack
       build_tool
@@ -95,7 +95,6 @@ let run_tests
           print_steps;
           num_samples;
           max_backtracks;
-          max_unfolds;
           build_tool;
           sanitizers;
           experimental;
@@ -222,10 +221,8 @@ module Flags = struct
 
   let gen_max_unfolds =
     let doc = "Set the maximum number of unfolds for recursive generators" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.max_unfolds
-      & info [ "max-unfolds" ] ~doc)
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~deprecated ~doc)
 
 
   let max_array_length =
