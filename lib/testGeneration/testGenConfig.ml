@@ -28,7 +28,6 @@ type t =
     print_steps : bool;
     num_samples : int;
     max_backtracks : int;
-    max_unfolds : int option;
     build_tool : build_tool;
     sanitizers : string option * string option;
     experimental : bool;
@@ -62,7 +61,6 @@ let default =
     print_steps = false;
     num_samples = 100;
     max_backtracks = 25;
-    max_unfolds = None;
     build_tool = Bash;
     sanitizers = (None, None);
     experimental = false;
@@ -149,8 +147,6 @@ let is_print_seed () = !instance.print_seed
 let get_num_samples () = !instance.num_samples
 
 let get_max_backtracks () = !instance.max_backtracks
-
-let get_max_unfolds () = !instance.max_unfolds
 
 let get_build_tool () = !instance.build_tool
 

@@ -87,8 +87,6 @@ let compile_generators
   =
   let ctx = GenCompile.compile filename prog5.resource_predicates tests in
   debug_stage "Compile" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenInline.inline in
-  debug_stage "Inline" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
   let ctx = ctx |> GenNormalize.normalize prog5 in
   debug_stage "Normalize" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
   let ctx = ctx |> GenDistribute.distribute in
