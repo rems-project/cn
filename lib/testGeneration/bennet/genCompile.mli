@@ -1,6 +1,6 @@
 val compile
   :  string ->
-  ?ctx:GenDefinitions.Make(GenTerms).context ->
+  ?ctx:GenContext.Make(GenTerms).t ->
   (Sym.t * Definition.Predicate.t) list ->
   Test.t list ->
-  GenDefinitions.Make(GenTerms).context
+  GenContext.Make(GenTerms).t

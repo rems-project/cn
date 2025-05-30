@@ -5,6 +5,7 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module GT = GenTerms
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
@@ -609,6 +610,6 @@ module Sizing = struct
       ctx
 end
 
-let elaborate (gtx : GD.context) : context =
+let elaborate (gtx : GC.t) : context =
   let cg = GA.get_call_graph gtx in
   gtx |> List.map_snd elaborate_gd |> Sizing.transform cg

@@ -7,6 +7,7 @@ module Def = Definition
 module LAT = LogicalArgumentTypes
 module GT = GenTerms
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 
 let rec is_pure (gt : GT.t) : bool =
   let (GT (gt_, _, _)) = gt in
@@ -126,7 +127,7 @@ open struct
   module Oper = Graph.Oper.P (SymGraph)
 end
 
-let get_call_graph (ctx : GD.context) : SymGraph.t =
+let get_call_graph (ctx : GC.t) : SymGraph.t =
   ctx
   |> List.map_snd get_calls
   |> List.fold_left

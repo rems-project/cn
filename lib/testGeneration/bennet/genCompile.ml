@@ -7,9 +7,10 @@ module Def = Definition
 module Req = Request
 module GT = GenTerms
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 module Config = TestGenConfig
 
-type s = GD.context
+type s = GC.t
 
 type 'a t = s -> 'a * s
 
@@ -46,7 +47,7 @@ let add_request
       body = None
     }
   in
-  fun s -> ((), GD.add_context gd s)
+  fun s -> ((), GC.add_context gd s)
 
 
 let compile_vars (generated : Sym.Set.t) (oargs : (Sym.t * BT.t) list) (lat : IT.t LAT.t)
@@ -310,7 +311,7 @@ let compile_pred
       (Option.get pred.clauses)
   in
   let gd : GD.t = { filename; recursive; spec; name; iargs; oargs; body = Some gt } in
-  fun s -> ((), GD.add_context gd s)
+  fun s -> ((), GC.add_context gd s)
 
 
 let compile_spec
@@ -363,15 +364,15 @@ let compile_spec
   let gd : GD.t =
     { filename; recursive = false; spec = true; name; iargs = []; oargs; body = Some gt }
   in
-  fun s -> ((), GD.add_context gd s)
+  fun s -> ((), GC.add_context gd s)
 
 
 let compile
       filename
-      ?(ctx : GD.context option)
+      ?(ctx : GC.t option)
       (preds : (Sym.t * Def.Predicate.t) list)
       (tests : Test.t list)
-  : GD.context
+  : GC.t
   =
   let recursive_preds = GenAnalysis.get_recursive_preds preds in
   let context_specs =
@@ -390,9 +391,9 @@ let compile
          (fun ctx f ->
             let (), ctx' = f ctx in
             ctx')
-         GD.empty_context
+         GC.empty_context
   in
-  let context_preds (ctx : GD.context) : GD.context =
+  let context_preds (ctx : GC.t) : GC.t =
     List.fold_left
       (fun ctx' ((_, gd) : _ * GD.t) ->
          if Option.is_some gd.body then
@@ -403,9 +404,9 @@ let compile
       ctx
       ctx
   in
-  let rec loop (ctx : GD.context) : GD.context =
+  let rec loop (ctx : GC.t) : GC.t =
     let old_ctx = ctx in
     let new_ctx = context_preds ctx in
-    if GD.equal_context old_ctx new_ctx then ctx else loop new_ctx
+    if GC.equal old_ctx new_ctx then ctx else loop new_ctx
   in
   loop (Option.value ~default:context_specs ctx)

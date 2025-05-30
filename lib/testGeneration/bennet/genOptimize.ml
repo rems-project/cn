@@ -5,6 +5,7 @@ module LC = LogicalConstraints
 module GT = GenTerms
 module GS = GenStatements
 module GD = GenDefinitions.Make (GenTerms)
+module GC = GenContext.Make (GenTerms)
 module GA = GenAnalysis
 module Config = TestGenConfig
 module StringSet = Set.Make (String)
@@ -1854,7 +1855,7 @@ module Reordering = struct
     GS.gt_of_stmts stmts gt_last
 
 
-  let transform (gtx : GD.context) (gd : GD.t) : GD.t =
+  let transform (gtx : GC.t) (gd : GD.t) : GD.t =
     let rec_fsyms =
       gtx
       |> List.map snd
@@ -3090,11 +3091,8 @@ let optimize_gen_def (prog5 : unit Mucore.file) (passes : StringSet.t) (gd : GD.
   |> aux
 
 
-let optimize
-      (prog5 : unit Mucore.file)
-      ?(passes : StringSet.t option = None)
-      (ctx : GD.context)
-  : GD.context
+let optimize (prog5 : unit Mucore.file) ?(passes : StringSet.t option = None) (ctx : GC.t)
+  : GC.t
   =
   let default = all_passes prog5 |> List.map (fun p -> p.name) |> StringSet.of_list in
   let passes = Option.value ~default passes in
