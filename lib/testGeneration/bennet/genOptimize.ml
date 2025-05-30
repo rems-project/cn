@@ -998,33 +998,6 @@ module BranchPruning = struct
       let aux (gt : GT.t) : GT.t =
         match gt with
         | GT (Pick [ (_, gt') ], _, _) -> gt'
-        (* TODO: Understand why this is so bad *)
-        (* | GT (Pick wgts, _, loc_pick) ->
-          let rec aux'' (wgts : (Z.t * GT.t) list) : (Z.t * GT.t) list =
-            match List.find_index (fun (_, gt') -> GT.is_pick gt') wgts with
-            | Some i ->
-              let w, gt' = List.nth wgts i in
-              let wgts = List.filteri (fun i' _ -> i <> i') wgts in
-              (match gt' with
-               | GT (Pick wgts', _, _) when List.non_empty wgts' ->
-                 let w_sum = List.fold_left Z.add Z.zero (List.map fst wgts') in
-                 let wgts =
-                   List.map_fst (Z.mul w_sum) wgts @ List.map_fst (Z.mul w) wgts'
-                 in
-                 let wgts =
-                   let gcd =
-                     List.fold_left
-                       (fun x y -> Z.gcd x y)
-                       (fst (List.hd wgts))
-                       (List.map fst (List.tl wgts))
-                   in
-                   List.map_fst (fun x -> Z.div x gcd) wgts
-                 in
-                 aux'' wgts
-               | _ -> failwith ("unreachable @ " ^ __LOC__))
-            | None -> wgts
-          in
-          GT.pick_ (aux'' wgts) loc_pick *)
         | GT (ITE (it_cond, gt_then, gt_else), _, _) ->
           if IT.is_true it_cond then
             gt_then
@@ -1471,98 +1444,6 @@ module SplitConstraints = struct
   let passes =
     [ Conjunction.pass; Let.pass; ITE.pass; Disjunction.pass; Implication.pass ]
 end
-
-(** This pass infers how much allocation is needed
-    for each pointer given the current intraprocedural
-    context *)
-(* module InferAllocationSize = struct
-  let name = "infer_alloc_size"
-
-  let infer_size (vars : Sym.Set.t) (x : Sym.t) (gt : GT.t) : IT.t option =
-    let merge loc oa ob =
-      match (oa, ob) with
-      | Some a, Some b -> Some (IT.max_ (a, b) loc)
-      | Some a, _ | _, Some a -> Some a
-      | None, None -> None
-    in
-    let rec aux (gt : GT.t) : IT.t option =
-      let (GT (gt_, _, _)) = gt in
-      match gt_ with
-      | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> None
-      | Pick wgts ->
-        wgts
-        |> List.map snd
-        |> List.map aux
-        |> List.fold_left (merge (Locations.other __LOC__)) None
-      | Asgn ((it_addr, sct), _it_val, gt') ->
-        let oit_size =
-          let (IT (_, _, loc)) = it_addr in
-          let open Option in
-          let@ psym, it_offset = GA.get_addr_offset_opt it_addr in
-          if Sym.equal x psym && Sym.Set.subset (IT.free_vars it_offset) vars then
-            return (IT.add_ (it_offset, IT.sizeOf_ sct loc) loc)
-          else
-            None
-        in
-        (merge (Locations.other __LOC__)) oit_size (aux gt')
-      | Let (_, (y, gt_inner), gt') ->
-        let oit = aux gt_inner in
-        let gt' = if Sym.equal x y then snd (GT.alpha_rename_gen x gt') else gt' in
-        (merge (Locations.other __LOC__)) oit (aux gt')
-      | Assert (_, gt') -> aux gt'
-      | ITE (_it_if, gt_then, gt_else) ->
-        (merge (Locations.other __LOC__)) (aux gt_then) (aux gt_else)
-      | Map ((i_sym, i_bt, it_perm), gt_inner) ->
-        let j_sym, gt_inner =
-          if Sym.equal x i_sym then GT.alpha_rename_gen x gt_inner else (i_sym, gt_inner)
-        in
-        let open Option in
-        let@ it = aux gt_inner in
-        if Sym.Set.mem j_sym (IT.free_vars it) then (
-          let _, it_max = GA.get_bounds (i_sym, i_bt) it_perm in
-          return (IT.subst (IT.make_subst [ (j_sym, it_max) ]) it))
-        else
-          return it
-    in
-    aux gt
-
-
-  let transform (gd : GD.t) : GD.t =
-    let rec aux (vars : Sym.Set.t) (gt : GT.t) : GT.t =
-      let (GT (gt_, _bt, loc)) = gt in
-      match gt_ with
-      | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
-      | Pick wgts -> GT.pick_ (List.map_snd (aux vars) wgts) loc
-      | Asgn ((it_addr, sct), it_val, gt_rest) ->
-        GT.asgn_ ((it_addr, sct), it_val, aux vars gt_rest) loc
-      | Let (backtracks, (x, (GT (Alloc it_size, _bt, loc_alloc) as gt_inner)), gt_rest)
-        ->
-        let gt_rest = aux (Sym.Set.add x vars) gt_rest in
-        (match infer_size vars x gt_rest with
-         | Some it_size' ->
-           let here = Locations.other __LOC__ in
-           GT.let_
-             ( backtracks,
-               (x, GT.alloc_ (IT.max_ (it_size, it_size') here) loc_alloc),
-               gt_rest )
-             loc
-         | None ->
-           GT.let_
-             (backtracks, (x, aux vars gt_inner), aux (Sym.Set.add x vars) gt_rest)
-             loc)
-      | Let (backtracks, (x, gt_inner), gt_rest) ->
-        GT.let_ (backtracks, (x, aux vars gt_inner), aux (Sym.Set.add x vars) gt_rest) loc
-      | Assert (lc, gt_rest) -> GT.assert_ (lc, aux vars gt_rest) loc
-      | ITE (it_if, gt_then, gt_else) ->
-        GT.ite_ (it_if, aux vars gt_then, aux vars gt_else) loc
-      | Map ((i_sym, i_bt, it_perm), gt_inner) ->
-        GT.map_ ((i_sym, i_bt, it_perm), aux (Sym.Set.add i_sym vars) gt_inner) loc
-    in
-    let body =
-      Some (aux (gd.iargs |> List.map fst |> Sym.Set.of_list) (Option.get gd.body))
-    in
-    { gd with body }
-end *)
 
 (** This pass uses [Simplify] to rewrite [IndexTerms.t] *)
 module TermSimplification = struct
@@ -3208,7 +3089,6 @@ let optimize_gen_def (prog5 : unit Mucore.file) (passes : StringSet.t) (gd : GD.
        Specialization.Pointer.transform)
       else
         fun gd' -> gd')
-  (* |> InferAllocationSize.transform *)
   |> aux
 
 
