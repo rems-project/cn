@@ -5,7 +5,6 @@ module LC = LogicalConstraints
 module LAT = LogicalArgumentTypes
 module Def = Definition
 module Req = Request
-module GBT = GenBaseTypes
 module GT = GenTerms
 module GD = GenDefinitions
 module Config = TestGenConfig
@@ -42,18 +41,15 @@ let add_request
       recursive = Sym.Set.mem fsym recursive;
       spec = false;
       name = fsym;
-      iargs =
-        (pred.pointer, BT.Loc ()) :: pred.iargs
-        |> List.map (fun (x, bt) -> (x, GBT.of_bt bt));
-      oargs =
-        compile_oargs (snd pred.oarg) [] |> List.map (fun (x, bt) -> (x, GBT.of_bt bt));
+      iargs = (pred.pointer, BT.Loc ()) :: pred.iargs;
+      oargs = compile_oargs (snd pred.oarg) [];
       body = None
     }
   in
   fun s -> ((), GD.add_context gd s)
 
 
-let compile_vars (generated : Sym.Set.t) (oargs : (Sym.t * GBT.t) list) (lat : IT.t LAT.t)
+let compile_vars (generated : Sym.Set.t) (oargs : (Sym.t * BT.t) list) (lat : IT.t LAT.t)
   : Sym.Set.t * (GT.t -> GT.t)
   =
   let backtrack_num = Config.get_max_backtracks () in
@@ -83,7 +79,6 @@ let compile_vars (generated : Sym.Set.t) (oargs : (Sym.t * GBT.t) list) (lat : I
           (IT.free_vars_bts it)
           (oargs
            |> List.filter (fun (x, _) -> not (Sym.equal x cn_return))
-           |> List.map_snd GBT.bt
            |> List.to_seq
            |> Sym.Map.of_seq) )
   in
@@ -102,7 +97,7 @@ let rec compile_it_lat
           (preds : (Sym.t * Def.Predicate.t) list)
           (name : Sym.t)
           (generated : Sym.Set.t)
-          (oargs : (Sym.t * GBT.t) list)
+          (oargs : (Sym.t * BT.t) list)
           (lat : IT.t LAT.t)
   : GT.t m
   =
@@ -255,7 +250,7 @@ let rec compile_it_lat
       return (GT.assert_ (lc, gt') loc)
     | I it ->
       let here = Locations.other __LOC__ in
-      let conv_fn = List.map (fun (x, gbt) -> (x, IT.sym_ (x, GBT.bt gbt, here))) in
+      let conv_fn = List.map (fun (x, bt) -> (x, IT.sym_ (x, bt, here))) in
       let it_oargs =
         match oargs with
         | (sym, _) :: oargs' when Sym.equal sym cn_return ->
@@ -278,7 +273,7 @@ let rec compile_clauses
           (preds : (Sym.t * Def.Predicate.t) list)
           (name : Sym.t)
           (iargs : Sym.Set.t)
-          (oargs : (Sym.t * GBT.t) list)
+          (oargs : (Sym.t * BT.t) list)
           (cls : Def.Clause.t list)
   : GT.t m
   =
@@ -343,12 +338,7 @@ let compile_spec
   in
   let here = Locations.other __FUNCTION__ in
   let oargs =
-    let oargs' =
-      lat
-      |> LAT.free_vars_bts (fun _ -> Sym.Map.empty)
-      |> Sym.Map.bindings
-      |> List.map_snd GBT.of_bt
-    in
+    let oargs' = lat |> LAT.free_vars_bts (fun _ -> Sym.Map.empty) |> Sym.Map.bindings in
     oargs'
     @ (at
        |> AT.get_computational
@@ -358,8 +348,7 @@ let compile_spec
            (List.mem_assoc
               (fun x y -> String.equal (Sym.pp_string x) (Sym.pp_string y))
               x
-              oargs'))
-       |> List.map_snd GBT.of_bt)
+              oargs')))
   in
   let@ gt =
     compile_it_lat

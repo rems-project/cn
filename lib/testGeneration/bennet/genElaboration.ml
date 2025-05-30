@@ -5,7 +5,6 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module GT = GenTerms
 module GD = GenDefinitions
-module GBT = GenBaseTypes
 module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
@@ -459,8 +458,8 @@ let elaborate_gd ({ filename; recursive; spec = _; name; iargs; oargs; body } : 
   { filename;
     sized = recursive;
     name;
-    iargs = List.map_snd GBT.bt iargs;
-    oargs = List.map_snd GBT.bt oargs;
+    iargs;
+    oargs;
     body =
       Option.get body
       |> GenNormalize.MemberIndirection.transform
