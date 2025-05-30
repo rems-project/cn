@@ -91,7 +91,8 @@ let run_tests
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       let config : TestGeneration.config =
-        { print_steps;
+        { cc;
+          print_steps;
           num_samples;
           max_backtracks;
           max_unfolds;
