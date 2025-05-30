@@ -160,8 +160,11 @@ void cn_loop_leak_check_and_put_back_ownership(void);
 
 /* malloc, free */
 void *cn_aligned_alloc(size_t align, size_t size);
+void *cn_unsafe_aligned_alloc(size_t align, size_t size);
 void *cn_malloc(size_t size);
+void *cn_unsafe_malloc(size_t size);
 void *cn_calloc(size_t num, size_t size);
+void *cn_unsafe_calloc(size_t num, size_t size);
 void cn_free_sized(void *, size_t len);
 
 void cn_print_nr_u64(int i, unsigned long u);
