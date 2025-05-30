@@ -2769,12 +2769,7 @@ module ConstraintPropagation = struct
       in
       gt |> propagate_constraints iargs |> loop iargs
     in
-    let iargs =
-      gd.iargs
-      |> List.map (fun (x, gbt) -> (x, GenBaseTypes.bt gbt))
-      |> List.to_seq
-      |> Sym.Map.of_seq
-    in
+    let iargs = gd.iargs |> List.to_seq |> Sym.Map.of_seq in
     { gd with body = Some (aux iargs (Option.get gd.body)) }
 end
 

@@ -1,4 +1,4 @@
-module GBT = GenBaseTypes
+module BT = BaseTypes
 module GT = GenTerms
 
 type t =
@@ -6,8 +6,8 @@ type t =
     recursive : bool;
     spec : bool;
     name : Sym.t;
-    iargs : (Sym.t * GBT.t) list;
-    oargs : (Sym.t * GBT.t) list;
+    iargs : (Sym.t * BT.t) list;
+    oargs : (Sym.t * BT.t) list;
     body : GT.t option
   }
 [@@deriving eq, ord]
@@ -24,13 +24,10 @@ let pp (gd : t) : Pp.document =
   group
     (!^"generator"
      ^^^ braces
-           (separate_map
-              (comma ^^ space)
-              (fun (x, ty) -> GBT.pp ty ^^^ Sym.pp x)
-              gd.oargs)
+           (separate_map (comma ^^ space) (fun (x, ty) -> BT.pp ty ^^^ Sym.pp x) gd.oargs)
      ^^^ Sym.pp gd.name
      ^^ parens
-          (separate_map (comma ^^ space) (fun (x, ty) -> GBT.pp ty ^^^ Sym.pp x) gd.iargs)
+          (separate_map (comma ^^ space) (fun (x, ty) -> BT.pp ty ^^^ Sym.pp x) gd.iargs)
      ^^
      match gd.body with
      | Some body -> space ^^ lbrace ^^ nest 2 (break 1 ^^ GT.pp body) ^/^ rbrace

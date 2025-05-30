@@ -2,7 +2,6 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 module CF = Cerb_frontend
-module GBT = GenBaseTypes
 
 type t_ =
   | Arbitrary (** Generate arbitrary values *)
@@ -213,8 +212,8 @@ let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : 
   | Pick wgts -> Pick (List.map_snd (subst su) wgts)
   | Alloc it -> Alloc (IT.subst su it)
   | Call (fsym, xits) -> Call (fsym, List.map_snd (IT.subst su) xits)
-  | Asgn ((it_addr, gbt), it_val, g') ->
-    Asgn ((IT.subst su it_addr, gbt), IT.subst su it_val, subst su g')
+  | Asgn ((it_addr, bt), it_val, g') ->
+    Asgn ((IT.subst su it_addr, bt), IT.subst su it_val, subst su g')
   | Let (tries, (x, gt1), gt2) ->
     let x, gt2 = suitably_alpha_rename_gen su.relevant x gt2 in
     Let (tries, (x, subst su gt1), subst su gt2)
