@@ -56,7 +56,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       if [[ "$RET" != 0 ]]; then
         OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
         NUM_FAILED=$(($NUM_FAILED + 1))
-        FAILED="$FAILED ($ALT_CONFIG)"
+        FAILED="$FAILED ($ALT_CONFIG --build-tool=$BUILD_TOOL)"
       else
         OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
       fi

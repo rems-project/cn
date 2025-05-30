@@ -6,11 +6,6 @@
 
 #include <cn-executable/utils.h>
 
-#define cn_printf(level, ...)                                                            \
-  if (get_cn_logging_level() >= level) {                                                 \
-    printf(__VA_ARGS__);                                                                 \
-  }
-
 typedef hash_table ownership_ghost_state;
 
 /* Ownership globals */

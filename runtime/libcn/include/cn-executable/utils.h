@@ -2,9 +2,15 @@
 #ifndef CN_UTILS
 #define CN_UTILS
 
-#include "alloc.h"
+#include "bump_alloc.h"
+#include "fl_alloc.h"
 #include "hash_table.h"
 #include "rts_deps.h"
+
+#define cn_printf(level, ...)                                                            \
+  if (get_cn_logging_level() >= level) {                                                 \
+    printf(__VA_ARGS__);                                                                 \
+  }
 
 // XXX: things used by injected code
 #define true  1
@@ -385,7 +391,7 @@ static inline int ipow(int base, int exp) {
   }
 
 #define cn_array_shift(cn_ptr, size, index)                                              \
-  convert_to_cn_pointer((char *)cn_ptr->ptr + (index->val * size))
+  convert_to_cn_pointer((char *)((uintptr_t)cn_ptr->ptr + (uintptr_t)(index->val * size)))
 
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
   convert_to_cn_pointer(&(((struct tag *)cn_ptr->ptr)->member_name))

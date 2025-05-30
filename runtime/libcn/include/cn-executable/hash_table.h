@@ -27,7 +27,7 @@ SOFTWARE.
 
 */
 
-#include "alloc.h"
+#include "fl_alloc.h"
 #include "rts_deps.h"
 
 #ifdef __cplusplus
