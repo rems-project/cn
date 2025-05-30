@@ -49,7 +49,7 @@ let rec compile_term
           (sigma : CF.GenTypes.genTypeCategory A.sigma)
           (ctx : GE.context)
           (name : Sym.t)
-          (tm : GE.term)
+          (tm : GenElaboratedTerms.t)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
@@ -302,7 +302,8 @@ let rec compile_term
                                          ( None,
                                            [ (Locations.other __LOC__, [ Sym.pp_string x ])
                                            ] )) )))
-                          (List.of_seq (Sym.Set.to_seq (GE.free_vars_term value)))
+                          (List.of_seq
+                             (Sym.Set.to_seq (GenElaboratedTerms.free_vars value)))
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
