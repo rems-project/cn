@@ -91,7 +91,12 @@ let run_seq_tests
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
-             { print_steps; num_calls; max_backtracks = backtrack_attempts; num_tests }
+             { cc;
+               print_steps;
+               num_calls;
+               max_backtracks = backtrack_attempts;
+               num_tests
+             }
            in
            SeqTests.set_seq_config config;
            if SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0 then

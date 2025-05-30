@@ -1,16 +1,21 @@
 type t =
   { (* Compile time *)
+    cc : string;
     print_steps : bool;
     num_calls : int;
     max_backtracks : int;
     num_tests : int
   }
 
-let default = { print_steps = false; num_calls = 30; max_backtracks = 25; num_tests = 10 }
+let default =
+  { cc = "cc"; print_steps = false; num_calls = 30; max_backtracks = 25; num_tests = 10 }
+
 
 let instance = ref default
 
 let initialize (cfg : t) = instance := cfg
+
+let get_cc () = !instance.cc
 
 let is_print_steps () = !instance.print_steps
 

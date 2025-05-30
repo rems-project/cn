@@ -1,5 +1,6 @@
 type t =
   { (* Compile time *)
+    cc : string;
     print_steps : bool;
     num_calls : int;
     max_backtracks : int;
@@ -9,6 +10,8 @@ type t =
 val default : t
 
 val initialize : t -> unit
+
+val get_cc : unit -> string
 
 val is_print_steps : unit -> bool
 
