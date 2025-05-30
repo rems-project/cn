@@ -51,7 +51,7 @@ module FlipIfs = struct
       | Map ((i, i_bt, it_perm), gt_inner) ->
         GT.map_ ((i, i_bt, it_perm), aux gt_inner) loc
     in
-    { gd with body = Some (aux (Option.get gd.body)) }
+    { gd with body = aux gd.body }
 end
 
 module Fusion = struct
@@ -230,9 +230,7 @@ module Fusion = struct
         | Map ((i, i_bt, it_perm), gt_inner) ->
           GT.map_ ((i, i_bt, it_perm), aux (Sym.Set.add i vars) gt_inner) loc
       in
-      let body =
-        Some (aux (gd.iargs |> List.map fst |> Sym.Set.of_list) (Option.get gd.body))
-      in
+      let body = aux (gd.iargs |> List.map fst |> Sym.Set.of_list) gd.body in
       { gd with body }
   end
 end
@@ -1883,7 +1881,7 @@ module Reordering = struct
       gt |> reorder rec_fsyms iargs |> loop iargs
     in
     let iargs = gd.iargs |> List.map fst |> Sym.Set.of_list in
-    { gd with body = Some (aux iargs (Option.get gd.body)) }
+    { gd with body = aux iargs gd.body }
 end
 
 module ConstraintPropagation = struct
@@ -2650,7 +2648,7 @@ module ConstraintPropagation = struct
       gt |> propagate_constraints iargs |> loop iargs
     in
     let iargs = gd.iargs |> List.to_seq |> Sym.Map.of_seq in
-    { gd with body = Some (aux iargs (Option.get gd.body)) }
+    { gd with body = aux iargs gd.body }
 end
 
 module Specialization = struct
@@ -2723,7 +2721,7 @@ module Specialization = struct
         in
         gt |> specialize vars |> loop vars
       in
-      { gd with body = Some (aux iargs (Option.get gd.body)) }
+      { gd with body = aux iargs gd.body }
   end
 
   module Integer = struct
@@ -2921,7 +2919,7 @@ module Specialization = struct
         gt |> specialize vars |> loop vars
       in
       let iargs = gd.iargs |> List.map fst |> Sym.Set.of_list in
-      { gd with body = Some (aux iargs (Option.get gd.body)) }
+      { gd with body = aux iargs gd.body }
   end
 
   module Pointer = struct
@@ -3002,8 +3000,7 @@ module Specialization = struct
       GT.map_gen_pre aux gt
 
 
-    let transform (gd : GD.t) : GD.t =
-      { gd with body = Some (transform_gt (Option.get gd.body)) }
+    let transform (gd : GD.t) : GD.t = { gd with body = transform_gt gd.body }
   end
 end
 
@@ -3055,7 +3052,7 @@ let optimize_gen_def (prog5 : unit Mucore.file) (passes : StringSet.t) (gd : GD.
       spec;
       iargs;
       oargs;
-      body = Option.map (optimize_gen prog5 passes) body
+      body = optimize_gen prog5 passes body
     }
   in
   gd

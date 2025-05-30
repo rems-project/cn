@@ -222,12 +222,9 @@ let elaborate_gd ({ filename; recursive; spec; name; iargs; oargs; body } : GD.t
     iargs;
     oargs;
     body =
-      Option.map
-        (fun body ->
-           body
-           |> GenNormalize.MemberIndirection.transform
-           |> elaborate_gt (Sym.Set.of_list (List.map fst iargs)))
-        body
+      body
+      |> GenNormalize.MemberIndirection.transform
+      |> elaborate_gt (Sym.Set.of_list (List.map fst iargs))
   }
 
 
@@ -347,7 +344,7 @@ module Sizing = struct
            name : Sym.Set.elt;
            iargs : (Sym.Set.elt * BT.t) list;
            oargs : (Sym.Set.elt * BT.t) list;
-           body : GET.t option
+           body : GET.t
          } :
           GED.t)
     : GED.t
@@ -358,10 +355,7 @@ module Sizing = struct
       name;
       iargs;
       oargs;
-      body =
-        Option.map
-          (transform_gr (SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty))
-          body
+      body = transform_gr (SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty) body
     }
 
 

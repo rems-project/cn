@@ -6,8 +6,8 @@ module LAT = LogicalArgumentTypes
 module Def = Definition
 module Req = Request
 module GT = GenTerms
-module GD = GenDefinitions.Make (GenTerms)
-module GC = GenContext.Make (GenTerms)
+module GD = GenDefinitions.MakeOptional (GenTerms)
+module GC = GenContext.MakeOptional (GenTerms)
 module Config = TestGenConfig
 
 type s = GC.t
@@ -372,7 +372,7 @@ let compile
       ?(ctx : GC.t option)
       (preds : (Sym.t * Def.Predicate.t) list)
       (tests : Test.t list)
-  : GC.t
+  : GenContext.Make(GT).t
   =
   let recursive_preds = GenAnalysis.get_recursive_preds preds in
   let context_specs =
@@ -409,4 +409,4 @@ let compile
     let new_ctx = context_preds ctx in
     if GC.equal old_ctx new_ctx then ctx else loop new_ctx
   in
-  loop (Option.value ~default:context_specs ctx)
+  GC.drop_nones (loop (Option.value ~default:context_specs ctx))
