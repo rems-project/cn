@@ -71,7 +71,7 @@ let distribute_gen (gt : GT.t) : GT.t =
 let distribute_gen_def ({ filename; recursive; spec; name; iargs; oargs; body } : GD.t)
   : GD.t
   =
-  { filename; recursive; spec; name; iargs; oargs; body = Option.map distribute_gen body }
+  { filename; recursive; spec; name; iargs; oargs; body = distribute_gen body }
 
 
 let distribute (ctx : GC.t) : GC.t = List.map_snd distribute_gen_def ctx

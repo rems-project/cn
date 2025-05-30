@@ -497,7 +497,7 @@ let compile_gen_def
                         (if gr.recursive then "CN_GEN_INIT_SIZED" else "CN_GEN_INIT"))),
                 [] ))))
   in
-  let b2, s2, e2 = compile_term gr.filename sigma ctx name (Option.get gr.body) in
+  let b2, s2, e2 = compile_term gr.filename sigma ctx name gr.body in
   let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =
     ( name,
       ( loc,

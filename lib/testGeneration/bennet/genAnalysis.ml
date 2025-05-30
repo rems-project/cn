@@ -120,7 +120,7 @@ open struct
       | Asgn (_, _, gt') | Assert (_, gt') | Map (_, gt') -> aux gt'
       | Let (_, (_, gt1), gt2) | ITE (_, gt1, gt2) -> Sym.Set.union (aux gt1) (aux gt2)
     in
-    aux (Option.get gd.body)
+    aux gd.body
 
 
   module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
