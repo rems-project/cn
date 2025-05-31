@@ -6,17 +6,15 @@ let ocaml_int_bt = BT.Bits (Signed, Sys.int_size + 1)
 
 let names = ref []
 
-let get_mangled_name (syms : Sym.t list) : Sym.t =
-  let open Pp in
-  if GenBuiltins.is_builtin (List.hd syms) then
-    List.hd syms
+let get_mangled_name (fsym : Sym.t) : Sym.t =
+  if GenBuiltins.is_builtin fsym then
+    fsym
   else (
-    match List.assoc_opt (List.equal Sym.equal) syms !names with
+    match List.assoc_opt Sym.equal fsym !names with
     | Some sym -> sym
     | None ->
-      let doc = !^"cn_gen_" ^^ separate_map underscore Sym.pp syms in
-      let res_sym = Sym.fresh (CF.Pp_utils.to_plain_string doc) in
-      names := (syms, res_sym) :: !names;
+      let res_sym = Sym.fresh ("cn_gen_" ^ Sym.pp_string fsym) in
+      names := (fsym, res_sym) :: !names;
       res_sym)
 
 
