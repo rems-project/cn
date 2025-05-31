@@ -136,7 +136,7 @@ let rec compile_term
     in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
-    let sym = GenUtils.get_mangled_name (fsym :: List.map fst iargs) in
+    let sym = GenUtils.get_mangled_name fsym in
     let es = iargs |> List.map snd |> List.map (fun x -> A.(AilEident x)) in
     let sized_call =
       A.(
@@ -543,10 +543,7 @@ let compile_gen_def
 let compile (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : GE.context) : Pp.document
   =
   let defs =
-    List.map
-      (fun ((_, gr) : _ * GED.t) ->
-         (GenUtils.get_mangled_name (gr.name :: List.map fst gr.iargs), gr))
-      ctx
+    List.map (fun ((_, gr) : _ * GED.t) -> (GenUtils.get_mangled_name gr.name, gr)) ctx
   in
   let typedef_docs, tag_definitions =
     defs
