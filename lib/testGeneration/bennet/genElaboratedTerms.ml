@@ -11,17 +11,14 @@ module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
 type t =
-  | Uniform of
-      { bt : BT.t;
-        sz : int
-      }
+  | Uniform of { bt : BT.t }
   | Pick of
       { bt : BT.t;
         choice_var : Sym.t;
         choices : (int * t) list;
         last_var : Sym.t
       }
-  | Alloc of { bytes : IT.t }
+  | Alloc
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
@@ -79,10 +76,9 @@ let is_return (tm : t) : bool = match tm with Return _ -> true | _ -> false
 
 let rec free_vars (tm : t) : Sym.Set.t =
   match tm with
-  | Uniform _ -> Sym.Set.empty
+  | Uniform _ | Alloc -> Sym.Set.empty
   | Pick { bt = _; choice_var = _; choices; last_var = _ } ->
     free_vars_list (List.map snd choices)
-  | Alloc { bytes } -> IT.free_vars bytes
   | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; sized = _ } ->
     Sym.Set.of_list (List.map snd iargs)
   | Asgn { pointer = _; addr; sct = _; value; last_var = _; rest } ->
@@ -109,7 +105,7 @@ and free_vars_list : t list -> Sym.Set.t =
 let rec pp (tm : t) : Pp.document =
   let open Pp in
   match tm with
-  | Uniform { bt; sz } -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens (int sz)
+  | Uniform { bt } -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens empty
   | Pick { bt; choice_var; choices; last_var } ->
     !^"pick"
     ^^ parens
@@ -128,7 +124,7 @@ let rec pp (tm : t) : Pp.document =
                           (fun (w, gt) ->
                              parens (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                           choices)))
-  | Alloc { bytes } -> !^"alloc" ^^ parens (IT.pp bytes)
+  | Alloc -> !^"alloc" ^^ parens empty
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     parens
       (Sym.pp fsym

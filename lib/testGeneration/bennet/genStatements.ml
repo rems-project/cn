@@ -15,8 +15,7 @@ let stmts_of_gt (gt : GT.t) : t list * GT.t =
   let rec aux (gt : GT.t) : t list * GT.t =
     let (GT (gt_, _, _)) = gt in
     match gt_ with
-    | Arbitrary | Uniform _ | Pick _ | Alloc _ | Call _ | Return _ | ITE _ | Map _ ->
-      ([], gt)
+    | Arbitrary | Uniform | Pick _ | Alloc | Call _ | Return _ | ITE _ | Map _ -> ([], gt)
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       let stmts, gt_last = aux gt_rest in
       (Asgn ((it_addr, sct), it_val) :: stmts, gt_last)

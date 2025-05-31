@@ -12,9 +12,9 @@ module GC = GenContext.Make (GenTerms)
 let rec is_pure (gt : GT.t) : bool =
   let (GT (gt_, _, _)) = gt in
   match gt_ with
-  | Arbitrary | Uniform _ -> true
+  | Arbitrary | Uniform -> true
   | Pick wgts -> wgts |> List.map snd |> List.for_all is_pure
-  | Alloc _ -> false
+  | Alloc -> false
   | Call _ -> false (* Could be less conservative... *)
   | Asgn _ -> false
   | Let (_, (_, gt1), gt2) -> is_pure gt1 && is_pure gt2
@@ -51,10 +51,10 @@ let get_single_uses ?(pure : bool = false) (gt : GT.t) : Sym.Set.t =
   let rec aux (gt : GT.t) : int option Sym.Map.t =
     let (GT (gt_, _, _)) = gt in
     match gt_ with
-    | Arbitrary | Uniform _ -> Sym.Map.empty
+    | Arbitrary | Uniform | Alloc -> Sym.Map.empty
     | Pick wgts ->
       wgts |> List.map snd |> List.map aux |> List.fold_left union Sym.Map.empty
-    | Alloc it | Return it -> aux_it it
+    | Return it -> aux_it it
     | Call (_, iargs) ->
       iargs |> List.map snd |> List.map aux_it |> List.fold_left union Sym.Map.empty
     | Asgn ((it_addr, _), it_val, gt') ->
@@ -113,7 +113,7 @@ open struct
     let rec aux (gt : GT.t) : Sym.Set.t =
       let (GT (gt_, _, _)) = gt in
       match gt_ with
-      | Arbitrary | Uniform _ | Alloc _ | Return _ -> Sym.Set.empty
+      | Arbitrary | Uniform | Alloc | Return _ -> Sym.Set.empty
       | Pick wgts ->
         wgts |> List.map snd |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
       | Call (fsym, _) -> Sym.Set.singleton fsym

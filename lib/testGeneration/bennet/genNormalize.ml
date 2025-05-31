@@ -84,7 +84,7 @@ module MemberIndirection = struct
       let (GT (gt_, bt, loc)) = gt in
       let gt_ =
         match gt_ with
-        | Alloc it -> GT.Alloc (repl it)
+        | Alloc -> GT.Alloc
         | Call (fsym, xits) -> GT.Call (fsym, List.map_snd repl xits)
         | Asgn ((it_addr, sct), it_val, gt') ->
           GT.Asgn ((repl it_addr, sct), repl it_val, gt')
