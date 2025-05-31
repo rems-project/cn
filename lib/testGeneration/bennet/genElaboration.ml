@@ -25,7 +25,7 @@ let nice_names (inputs : Sym.Set.t) (gt : GT.t) : GT.t =
   let rec aux (vars : int StringMap.t) (gt : GT.t) : int StringMap.t * GT.t =
     let (GT (gt_, _, loc)) = gt in
     match gt_ with
-    | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> (vars, gt)
+    | Arbitrary | Uniform | Alloc | Call _ | Return _ -> (vars, gt)
     | Pick wgts ->
       let vars, wgts =
         List.fold_right
@@ -91,7 +91,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : GET.t =
     | Arbitrary ->
       failwith
         Pp.(plain (!^"Value from " ^^ Locations.pp loc ^^ !^" is still `arbitrary`"))
-    | Uniform sz -> Uniform { sz; bt }
+    | Uniform -> Uniform { bt }
     | Pick wgts ->
       let choice_var = Sym.fresh_anon () in
       Pick
@@ -123,7 +123,7 @@ let elaborate_gt (inputs : Sym.Set.t) (gt : GT.t) : GET.t =
                wgts);
           last_var
         }
-    | Alloc bytes -> Alloc { bytes }
+    | Alloc -> Alloc
     | Call (fsym, xits) ->
       let (iargs : (Sym.t * Sym.t) list), (gt_lets : Sym.t -> GET.t -> GET.t) =
         List.fold_right
@@ -241,7 +241,7 @@ module Sizing = struct
   let count_recursive_calls (syms : Sym.Set.t) (gr : GET.t) : int =
     let rec aux (gr : GET.t) : int =
       match gr with
-      | Uniform _ | Alloc _ | Return _ -> 0
+      | Uniform _ | Alloc | Return _ -> 0
       | Pick { choices; _ } ->
         choices |> List.map snd |> List.map aux |> List.fold_left max 0
       | Call { fsym; _ } -> if Sym.Set.mem fsym syms then 1 else 0
@@ -278,7 +278,7 @@ module Sizing = struct
         in
         (gr', Sym.Set.singleton sym)
       | Uniform _ | Call _ | Return _ -> (gr, Sym.Set.empty)
-      | Alloc { bytes } -> (Alloc { bytes }, Sym.Set.empty)
+      | Alloc -> (Alloc, Sym.Set.empty)
       | Pick ({ choices; _ } as gr) ->
         let choices, syms =
           choices

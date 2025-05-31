@@ -23,7 +23,7 @@ module FlipIfs = struct
     let rec aux (gt : GT.t) : GT.t =
       let (GT (gt_, _, loc)) = gt in
       match gt_ with
-      | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+      | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
       | Pick wgts -> GT.pick_ (List.map_snd aux wgts) loc
       | ITE (it_if, gt_then, gt_else) ->
         let gt_then, gt_else = (aux gt_then, aux gt_else) in
@@ -113,7 +113,7 @@ module Fusion = struct
       let rec aux (gt : GT.t) : GT.t * (Sym.t * IT.t) list =
         let (GT (gt_, _, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ | Pick _ | Alloc _ | Call _ | Return _ | ITE _ | Map _ ->
+        | Arbitrary | Uniform | Pick _ | Alloc | Call _ | Return _ | ITE _ | Map _ ->
           (gt, [])
         | Asgn ((it_addr, sct), it_val, gt') ->
           let gt', res = aux gt' in
@@ -165,7 +165,7 @@ module Fusion = struct
       let rec aux (vars : Sym.Set.t) (gt : GT.t) : GT.t =
         let (GT (gt_, _bt, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+        | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
         | Pick wgts -> GT.pick_ (List.map_snd (aux vars) wgts) loc
         | Asgn ((it_addr, sct), it_val, gt') ->
           GT.asgn_ ((it_addr, sct), it_val, aux vars gt') loc
@@ -880,9 +880,8 @@ module PartialEvaluation = struct
       let rec aux (gt : GT.t) : GT.t =
         let (GT (gt_, bt, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ -> gt
+        | Arbitrary | Uniform | Alloc -> gt
         | Pick wgts -> GT.pick_ (List.map_snd aux wgts) loc
-        | Alloc it -> GT.alloc_ (partial_eval_it it) loc
         | Call (fsym, xits) -> GT.call_ (fsym, List.map_snd partial_eval_it xits) bt loc
         | Asgn ((it_addr, sct), it_val, gt') ->
           GT.asgn_ ((partial_eval_it it_addr, sct), partial_eval_it it_val, aux gt') loc
@@ -1016,7 +1015,7 @@ module BranchPruning = struct
     let rec contains_false_assertion (gt : GT.t) : bool =
       let (GT (gt_, _, _)) = gt in
       match gt_ with
-      | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> false
+      | Arbitrary | Uniform | Alloc | Call _ | Return _ -> false
       | Pick wgts ->
         List.is_empty wgts
         || List.for_all (fun (_, gt') -> contains_false_assertion gt') wgts
@@ -1107,7 +1106,7 @@ module Inline = struct
       let rec transform_aux (gt : GT.t) : GT.t * bool Sym.Map.t =
         let (GT (gt_, _, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ -> (gt, Sym.Map.empty)
+        | Arbitrary | Uniform | Alloc -> (gt, Sym.Map.empty)
         | Pick wgts ->
           let wgts, only_ret =
             wgts
@@ -1116,7 +1115,6 @@ module Inline = struct
             |> List.split
           in
           (GT.pick_ wgts loc, List.fold_left union Sym.Map.empty only_ret)
-        | Alloc it -> (gt, it |> IT.free_vars |> of_symset)
         | Call (_fsym, xits) ->
           ( gt,
             xits
@@ -1304,7 +1302,7 @@ module SplitConstraints = struct
   let rec is_external (gt : GT.t) : bool =
     let (GT (gt_, _, _)) = gt in
     match gt_ with
-    | Arbitrary | Uniform _ | Alloc _ | Return _ -> false
+    | Arbitrary | Uniform | Alloc | Return _ -> false
     | Call _ -> true
     | Pick wgts -> wgts |> List.map snd |> List.exists is_external
     | Asgn (_, _, gt_rest) -> is_external gt_rest
@@ -1368,7 +1366,7 @@ module SplitConstraints = struct
       let rec aux (ext : Sym.Set.t) (gt : GT.t) : GT.t =
         let (GT (gt_, _bt, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+        | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
         | Pick wgts -> GT.pick_ (List.map_snd (aux ext) wgts) loc
         | Asgn ((it_addr, sct), it_val, gt_rest) ->
           GT.asgn_ ((it_addr, sct), it_val, aux ext gt_rest) loc
@@ -1466,7 +1464,6 @@ module TermSimplification = struct
     let aux (gt : GT.t) : GT.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Alloc it -> GT.alloc_ (simp_it it) loc
       | Call (fsym, iargs) -> GT.call_ (fsym, List.map_snd simp_it iargs) bt loc
       | Asgn ((it_addr, sct), it_val, gt') ->
         GT.asgn_ ((simp_it it_addr, sct), simp_it it_val, gt') loc
@@ -1621,7 +1618,6 @@ module TermSimplification' = struct
     let aux (gt : GT.t) : GT.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Alloc it -> GT.alloc_ (simplify_it it) loc
       | Call (fsym, iargs) -> GT.call_ (fsym, List.map_snd simplify_it iargs) bt loc
       | Asgn ((it_addr, sct), it_val, gt') ->
         GT.asgn_ ((simplify_it it_addr, sct), simplify_it it_val, gt') loc
@@ -1865,7 +1861,7 @@ module Reordering = struct
       let rec loop (iargs : Sym.Set.t) (gt : GT.t) : GT.t =
         let (GT (gt_, _bt, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+        | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
         | Pick wgts -> GT.pick_ (List.map_snd (aux iargs) wgts) loc
         | Asgn ((it_addr, sct), it_val, gt_rest) ->
           GT.asgn_ ((it_addr, sct), it_val, loop iargs gt_rest) loc
@@ -2627,7 +2623,7 @@ module ConstraintPropagation = struct
       let rec loop (iargs : BT.t Sym.Map.t) (gt : GT.t) : GT.t =
         let (GT (gt_, _bt, loc)) = gt in
         match gt_ with
-        | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+        | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
         | Pick wgts -> GT.pick_ (List.map_snd (aux iargs) wgts) loc
         | Asgn ((it_addr, sct), it_val, gt_rest) ->
           GT.asgn_ ((it_addr, sct), it_val, loop iargs gt_rest) loc
@@ -2677,8 +2673,8 @@ module Specialization = struct
       let rec aux (vars : Sym.Set.t) (stmts : GS.t list) : GS.t list =
         match stmts with
         | Let (backtracks, (x, (GT (Arbitrary, _, loc) as gt))) :: stmts'
-        | Let (backtracks, (x, (GT (Uniform _, _, loc) as gt))) :: stmts'
-        | Let (backtracks, (x, (GT (Alloc _, _, loc) as gt))) :: stmts' ->
+        | Let (backtracks, (x, (GT (Uniform, _, loc) as gt))) :: stmts'
+        | Let (backtracks, (x, (GT (Alloc, _, loc) as gt))) :: stmts' ->
           let stmts', gt =
             match find_constraint vars x stmts' with
             | Some (stmts', it) -> (stmts', GT.return_ it loc)
@@ -2705,7 +2701,7 @@ module Specialization = struct
         let rec loop (vars : Sym.Set.t) (gt : GT.t) : GT.t =
           let (GT (gt_, _bt, loc)) = gt in
           match gt_ with
-          | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+          | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
           | Pick wgts -> GT.pick_ (List.map_snd (aux vars) wgts) loc
           | Asgn ((it_addr, sct), it_val, gt_rest) ->
             GT.asgn_ ((it_addr, sct), it_val, loop vars gt_rest) loc
@@ -2842,7 +2838,7 @@ module Specialization = struct
         | None -> []
       in
       match gt with
-      | GT (Uniform _, _, _) ->
+      | GT (Uniform, _, _) ->
         let loc = Locations.other __LOC__ in
         ( (match v with
            | { mult = None; min = None; max = None } -> gt
@@ -2861,11 +2857,12 @@ module Specialization = struct
            | { mult = Some n1; min = Some n2; max = Some n3 } ->
              GenBuiltins.mult_range_gen n1 n2 n3 (GT.bt gt) loc),
           [] )
-      | GT (Alloc sz, _, _) when Option.is_some v.mult ->
+      | GT (Alloc, _, _) when Option.is_some v.mult ->
         let loc = Locations.other __LOC__ in
         (match v with
          | { mult = Some n; min; max } ->
-           (GenBuiltins.aligned_alloc_gen n sz loc, min_to_stmt min @ max_to_stmt max)
+           ( GenBuiltins.aligned_alloc_gen n (IT.num_lit_ Z.zero (IT.get_bt n) loc) loc,
+             min_to_stmt min @ max_to_stmt max )
          | _ -> failwith ("unreachable @ " ^ __LOC__))
       | _ -> (gt, mult_to_stmt v.mult @ min_to_stmt v.min @ max_to_stmt v.max)
 
@@ -2902,7 +2899,7 @@ module Specialization = struct
         let rec loop (vars : Sym.Set.t) (gt : GT.t) : GT.t =
           let (GT (gt_, _bt, loc)) = gt in
           match gt_ with
-          | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> gt
+          | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
           | Pick wgts -> GT.pick_ (List.map_snd (aux vars) wgts) loc
           | Asgn ((it_addr, sct), it_val, gt_rest) ->
             GT.asgn_ ((it_addr, sct), it_val, loop vars gt_rest) loc
@@ -2920,87 +2917,6 @@ module Specialization = struct
       in
       let iargs = gd.iargs |> List.map fst |> Sym.Set.of_list in
       { gd with body = aux iargs gd.body }
-  end
-
-  module Pointer = struct
-    let is_not_null (x : Sym.t) (gt : GT.t) : bool * GT.t =
-      let rec aux (gt : GT.t) : bool * GT.t =
-        let (GT (gt_, _, loc)) = gt in
-        match gt_ with
-        | Arbitrary | Uniform _ | Alloc _ | Call _ | Return _ -> (false, gt)
-        | Pick wgts ->
-          let bools, wgts' =
-            wgts
-            |> List.map_snd aux
-            |> List.map (fun (w, (b, gt)) -> (b, (w, gt)))
-            |> List.split
-          in
-          (List.fold_left ( && ) true bools, GT.pick_ wgts' loc)
-        | Asgn ((it_addr, sct), it_val, gt_rest) ->
-          let b, gt_rest' = aux gt_rest in
-          (b, GT.asgn_ ((it_addr, sct), it_val, gt_rest') loc)
-        | Let (backtracks, (x, gt_inner), gt_rest) ->
-          let b, gt_inner' = aux gt_inner in
-          let b', gt_rest' = aux gt_rest in
-          (b || b', GT.let_ (backtracks, (x, gt_inner'), gt_rest') loc)
-        | Assert
-            ( T
-                (IT
-                   ( Unop
-                       ( Not,
-                         IT (Binop (EQ, IT (Sym y, _, _), IT (Const Null, _, _)), _, _) ),
-                     _,
-                     _ )),
-              gt_rest )
-        | Assert
-            ( T
-                (IT
-                   ( Unop
-                       ( Not,
-                         IT (Binop (EQ, IT (Const Null, _, _), IT (Sym y, _, _)), _, _) ),
-                     _,
-                     _ )),
-              gt_rest )
-          when Sym.equal x y ->
-          (true, snd (aux gt_rest))
-        | Assert (lc, gt_rest) ->
-          let b, gt_rest' = aux gt_rest in
-          (b, GT.assert_ (lc, gt_rest') loc)
-        | ITE (it_if, gt_then, gt_else) ->
-          let b, gt_then' = aux gt_then in
-          let b', gt_else' = aux gt_else in
-          (b && b', GT.ite_ (it_if, gt_then', gt_else') loc)
-        | Map ((i, i_bt, it_perm), gt_inner) ->
-          let b, gt_inner' = aux gt_inner in
-          (b, GT.map_ ((i, i_bt, it_perm), gt_inner') loc)
-      in
-      aux gt
-
-
-    let transform_gt (gt : GT.t) : GT.t =
-      let aux (gt : GT.t) : GT.t =
-        let (GT (gt_, _, loc)) = gt in
-        match gt_ with
-        | Let
-            ( backtracks,
-              (x, GT (Alloc (IT (Const (Bits (_, n)), _, _)), _, loc_size)),
-              gt_rest )
-          when Z.equal n Z.zero ->
-          let not_null, gt_rest' = is_not_null x gt_rest in
-          if not_null then
-            GT.let_
-              ( backtracks,
-                (x, GT.alloc_ (IT.num_lit_ (Z.of_int 8) Memory.size_bt loc_size) loc),
-                gt_rest' )
-              loc
-          else
-            gt
-        | _ -> gt
-      in
-      GT.map_gen_pre aux gt
-
-
-    let transform (gd : GD.t) : GD.t = { gd with body = transform_gt gd.body }
   end
 end
 
@@ -3078,11 +2994,9 @@ let optimize_gen_def (prog5 : unit Mucore.file) (passes : StringSet.t) (gd : GD.
           ConstraintPropagation.transform)
       |> (debug "specialization_equality";
           Specialization.Equality.transform)
-      |> (debug "specialization_integer";
-          Specialization.Integer.transform)
       |>
-      (debug "specialization_pointer";
-       Specialization.Pointer.transform)
+      (debug "specialization_integer";
+       Specialization.Integer.transform)
       else
         fun gd' -> gd')
   |> aux

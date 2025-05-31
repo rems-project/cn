@@ -57,7 +57,7 @@ let rec compile_term
   =
   let loc = Locations.other __LOC__ in
   match tm with
-  | Uniform { bt; sz = _ } ->
+  | Uniform { bt } ->
     ( [],
       [],
       A.(
@@ -129,9 +129,11 @@ let rec compile_term
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | Alloc { bytes = it } ->
+  | Alloc ->
     let alloc_sym = Sym.fresh "CN_GEN_ALLOC" in
-    let b, s, e = compile_it filename sigma name it in
+    let b, s, e =
+      compile_it filename sigma name (IT.num_lit_ Z.zero Memory.size_bt loc)
+    in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     let sym = GenUtils.get_mangled_name (fsym :: List.map fst iargs) in

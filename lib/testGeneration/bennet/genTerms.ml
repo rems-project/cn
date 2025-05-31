@@ -5,10 +5,10 @@ module CF = Cerb_frontend
 
 type t_ =
   | Arbitrary (** Generate arbitrary values *)
-  | Uniform of int (** Generate uniform values *)
+  | Uniform (** Generate uniform integer values *)
   | Pick of (Z.t * t) list
   (** Pick among a list of options, weighted by the provided [Z.t]s *)
-  | Alloc of IT.t (** Allocate an array of a length [IT.t]  and return its address *)
+  | Alloc (** Generate a pointer *)
   | Call of Sym.t * (Sym.t * IT.t) list
   (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
   | Asgn of (IT.t * Sctypes.t) * IT.t * t
@@ -37,9 +37,9 @@ let loc (GT (_, _, loc)) = loc
 
 let arbitrary_ (bt : BT.t) (loc : Locations.t) : t = GT (Arbitrary, bt, loc)
 
-let uniform_ ((bt, sz) : BT.t * int) (loc : Locations.t) : t = GT (Uniform sz, bt, loc)
+let uniform_ (bt : BT.t) (loc : Locations.t) : t = GT (Uniform, bt, loc)
 
-let alloc_ (it : IT.t) loc : t = GT (Alloc it, BT.Loc (), loc)
+let alloc_ loc : t = GT (Alloc, BT.Loc (), loc)
 
 let call_ (fsym, xits) (bt : BT.t) loc : t = GT (Call (fsym, xits), bt, loc)
 
@@ -90,7 +90,7 @@ let is_arbitrary (gt : t) : bool =
   is_arbitrary_ gt_
 
 
-let is_uniform_ (gt_ : t_) : bool = match gt_ with Uniform _ -> true | _ -> false
+let is_uniform_ (gt_ : t_) : bool = match gt_ with Uniform -> true | _ -> false
 
 let is_uniform (gt : t) : bool =
   let (GT (gt_, _, _)) = gt in
@@ -104,7 +104,7 @@ let is_pick (gt : t) : bool =
   is_pick_ gt_
 
 
-let is_alloc_ (gt_ : t_) : bool = match gt_ with Alloc _ -> true | _ -> false
+let is_alloc_ (gt_ : t_) : bool = match gt_ with Alloc -> true | _ -> false
 
 let is_alloc (gt : t) : bool =
   let (GT (gt_, _, _)) = gt in
@@ -157,7 +157,7 @@ let rec pp (gt : t) : Pp.document =
   let open Pp in
   match gt with
   | GT (Arbitrary, bt, _here) -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
-  | GT (Uniform sz, bt, _here) -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens (int sz)
+  | GT (Uniform, bt, _here) -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens empty
   | GT (Pick wgts, _bt, _here) ->
     !^"pick"
     ^^ parens
@@ -167,7 +167,7 @@ let rec pp (gt : t) : Pp.document =
                (fun (w, gt) ->
                   parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                wgts))
-  | GT (Alloc it, _bt, _here) -> !^"alloc" ^^ parens (IT.pp it)
+  | GT (Alloc, _bt, _here) -> !^"alloc" ^^ parens empty
   | GT (Call (fsym, xits), _bt, _here) ->
     Sym.pp fsym
     ^^ parens
@@ -208,9 +208,9 @@ let rec pp (gt : t) : Pp.document =
 let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
   match gt_ with
   | Arbitrary -> Arbitrary
-  | Uniform sz -> Uniform sz
+  | Uniform -> Uniform
   | Pick wgts -> Pick (List.map_snd (subst su) wgts)
-  | Alloc it -> Alloc (IT.subst su it)
+  | Alloc -> Alloc
   | Call (fsym, xits) -> Call (fsym, List.map_snd (IT.subst su) xits)
   | Asgn ((it_addr, bt), it_val, g') ->
     Asgn ((IT.subst su it_addr, bt), IT.subst su it_val, subst su g')
@@ -246,9 +246,8 @@ and suitably_alpha_rename_gen syms x gt =
 let rec free_vars_bts_ (gt_ : t_) : BT.t Sym.Map.t =
   let loc = Locations.other __LOC__ in
   match gt_ with
-  | Arbitrary | Uniform _ -> Sym.Map.empty
+  | Arbitrary | Uniform | Alloc -> Sym.Map.empty
   | Pick wgts -> free_vars_bts_list (List.map snd wgts)
-  | Alloc it -> IT.free_vars_bts it
   | Call (_, xits) -> IT.free_vars_bts_list (List.map snd xits)
   | Asgn ((it_addr, _), it_val, gt') ->
     free_vars_bts_list [ return_ it_addr loc; return_ it_val loc; gt' ]
@@ -297,9 +296,9 @@ let rec map_gen_pre (f : t -> t) (g : t) : t =
   let gt_ =
     match gt_ with
     | Arbitrary -> Arbitrary
-    | Uniform sz -> Uniform sz
+    | Uniform -> Uniform
     | Pick wgts -> Pick (List.map_snd (map_gen_pre f) wgts)
-    | Alloc it -> Alloc it
+    | Alloc -> Alloc
     | Call (fsym, its) -> Call (fsym, its)
     | Asgn ((it_addr, sct), it_val, gt') ->
       Asgn ((it_addr, sct), it_val, map_gen_pre f gt')
@@ -317,9 +316,9 @@ let rec map_gen_post (f : t -> t) (g : t) : t =
   let gt_ =
     match gt_ with
     | Arbitrary -> Arbitrary
-    | Uniform sz -> Uniform sz
+    | Uniform -> Uniform
     | Pick wgts -> Pick (List.map_snd (map_gen_post f) wgts)
-    | Alloc it -> Alloc it
+    | Alloc -> Alloc
     | Call (fsym, its) -> Call (fsym, its)
     | Asgn ((it_addr, sct), it_val, gt') ->
       Asgn ((it_addr, sct), it_val, map_gen_post f gt')
@@ -336,7 +335,7 @@ let rec map_gen_post (f : t -> t) (g : t) : t =
 let rec contains_call (gt : t) : bool =
   let (GT (gt_, _, _)) = gt in
   match gt_ with
-  | Arbitrary | Uniform _ | Alloc _ | Return _ -> false
+  | Arbitrary | Uniform | Alloc | Return _ -> false
   | Pick wgts -> wgts |> List.map snd |> List.exists contains_call
   | Call _ -> true
   | Asgn (_, _, gt_rest) -> contains_call gt_rest
