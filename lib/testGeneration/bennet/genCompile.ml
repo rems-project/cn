@@ -47,7 +47,7 @@ let add_request
       body = None
     }
   in
-  fun s -> ((), GC.add_context gd s)
+  fun s -> ((), GC.add gd s)
 
 
 let compile_vars (generated : Sym.Set.t) (oargs : (Sym.t * BT.t) list) (lat : IT.t LAT.t)
@@ -311,7 +311,7 @@ let compile_pred
       (Option.get pred.clauses)
   in
   let gd : GD.t = { filename; recursive; spec; name; iargs; oargs; body = Some gt } in
-  fun s -> ((), GC.add_context gd s)
+  fun s -> ((), GC.add gd s)
 
 
 let compile_spec
@@ -364,7 +364,7 @@ let compile_spec
   let gd : GD.t =
     { filename; recursive = false; spec = true; name; iargs = []; oargs; body = Some gt }
   in
-  fun s -> ((), GC.add_context gd s)
+  fun s -> ((), GC.add gd s)
 
 
 let compile
@@ -391,7 +391,7 @@ let compile
          (fun ctx f ->
             let (), ctx' = f ctx in
             ctx')
-         GC.empty_context
+         GC.empty
   in
   let context_preds (ctx : GC.t) : GC.t =
     List.fold_left
