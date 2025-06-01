@@ -3,7 +3,7 @@ module Make (GT : GenDefinitions.GEN_TERM) = struct
 
   type t = (Sym.t * GD.t) list [@@deriving eq, ord]
 
-  let empty_context = []
+  let empty = []
 
   let pp (ctx : t) : Pp.document =
     let open Pp in
@@ -17,7 +17,7 @@ module MakeOptional (GT : GenDefinitions.GEN_TERM) = struct
 
   type t = (Sym.t * GD.t) list [@@deriving eq, ord]
 
-  let empty_context = []
+  let empty = []
 
   let pp (ctx : t) : Pp.document =
     let open Pp in
@@ -26,7 +26,7 @@ module MakeOptional (GT : GenDefinitions.GEN_TERM) = struct
     |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket GD.pp
 
 
-  let add_context (gd : GD.t) (ctx : t) : t =
+  let add (gd : GD.t) (ctx : t) : t =
     match (List.assoc_opt Sym.equal gd.name ctx, gd.body) with
     | Some { body = Some _; _ }, Some _ ->
       failwith ("Tried to add generator twice (`" ^ Sym.pp_string gd.name ^ "`)")
