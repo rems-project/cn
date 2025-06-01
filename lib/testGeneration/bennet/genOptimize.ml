@@ -2649,75 +2649,79 @@ end
 
 module Specialization = struct
   module Equality = struct
-    let find_constraint (vars : Sym.Set.t) (x : Sym.t) (stmts : GS.t list)
-      : (GS.t list * IT.t) option
-      =
-      let rec aux (stmts : GS.t list) : (GS.t list * IT.t) option =
+    let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : GT.t) : (GT.t * IT.t) option =
+      let rec aux (gt : GT.t) : (GT.t * IT.t) option =
         let open Option in
-        match stmts with
-        | Assert (T (IT (Binop (EQ, IT (Sym x', _, _), it), _, _))) :: stmts'
+        let (GT (gt_, _, loc)) = gt in
+        match gt_ with
+        | Arbitrary | Uniform | Alloc | Pick _ | Call _ | Return _ | ITE _ | Map _ -> None
+        | Asgn ((it_addr, sct), it_val, gt_rest) ->
+          let@ gt_rest, it = aux gt_rest in
+          return (GT.asgn_ ((it_addr, sct), it_val, gt_rest) loc, it)
+        | Let (backtracks, (x, gt_inner), gt_rest) ->
+          if Config.has_pass "reorder" then
+            (* We assume reordering has been applied,
+               so `assert`s appear before the next `let*` *)
+            None
+          else
+            let@ gt_rest, it = aux gt_rest in
+            return (GT.let_ (backtracks, (x, gt_inner), gt_rest) loc, it)
+        | Assert (T (IT (Binop (EQ, IT (Sym x', _, _), it), _, _)), gt_rest)
           when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
-          return (stmts', it)
-        | Assert (T (IT (Binop (EQ, it, IT (Sym x', _, _)), _, _))) :: stmts'
+          return (gt_rest, it)
+        | Assert (T (IT (Binop (EQ, it, IT (Sym x', _, _)), _, _)), gt_rest)
           when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
-          return (stmts', it)
-        | stmt :: stmts' ->
-          let@ stmts', it = aux stmts' in
-          return (stmt :: stmts', it)
-        | [] -> None
+          return (gt_rest, it)
+        | Assert (lc, gt_rest) ->
+          let@ gt_rest, it = aux gt_rest in
+          return (GT.assert_ (lc, gt_rest) loc, it)
       in
-      aux stmts
+      aux gt
 
 
-    let specialize_stmts (vars : Sym.Set.t) (stmts : GS.t list) : GS.t list =
-      let rec aux (vars : Sym.Set.t) (stmts : GS.t list) : GS.t list =
-        match stmts with
-        | Let (backtracks, (x, (GT (Arbitrary, _, loc) as gt))) :: stmts'
-        | Let (backtracks, (x, (GT (Uniform, _, loc) as gt))) :: stmts'
-        | Let (backtracks, (x, (GT (Alloc, _, loc) as gt))) :: stmts' ->
-          let stmts', gt =
-            match find_constraint vars x stmts' with
-            | Some (stmts', it) -> (stmts', GT.return_ it loc)
-            | None -> (stmts', gt)
-          in
-          let vars = Sym.Set.add x vars in
-          GS.Let (backtracks, (x, gt)) :: aux vars stmts'
-        | (Let (_, (x, _)) as stmt) :: stmts' -> stmt :: aux (Sym.Set.add x vars) stmts'
-        | stmt :: stmts' -> stmt :: aux vars stmts'
-        | [] -> []
-      in
-      aux vars stmts
-
-
-    let specialize (vars : Sym.Set.t) (gt : GT.t) : GT.t =
-      let stmts, gt_last = GS.stmts_of_gt gt in
-      let stmts = specialize_stmts vars stmts in
-      GS.gt_of_stmts stmts gt_last
-
-
-    let transform (gd : GD.t) : GD.t =
-      let iargs = gd.iargs |> List.map fst |> Sym.Set.of_list in
+    let transform_gt (vars : Sym.Set.t) (gt : GT.t) : GT.t =
       let rec aux (vars : Sym.Set.t) (gt : GT.t) : GT.t =
-        let rec loop (vars : Sym.Set.t) (gt : GT.t) : GT.t =
-          let (GT (gt_, _bt, loc)) = gt in
-          match gt_ with
-          | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
-          | Pick wgts -> GT.pick_ (List.map_snd (aux vars) wgts) loc
-          | Asgn ((it_addr, sct), it_val, gt_rest) ->
-            GT.asgn_ ((it_addr, sct), it_val, loop vars gt_rest) loc
-          | Let (backtracks, (x, gt'), gt_rest) ->
-            GT.let_
-              (backtracks, (x, (aux vars) gt'), loop (Sym.Set.add x vars) gt_rest)
-              loc
-          | Assert (lc, gt_rest) -> GT.assert_ (lc, loop vars gt_rest) loc
-          | ITE (it_if, gt_then, gt_else) ->
-            GT.ite_ (it_if, aux vars gt_then, aux vars gt_else) loc
-          | Map ((i_sym, i_bt, it_perm), gt_inner) ->
-            GT.map_ ((i_sym, i_bt, it_perm), aux (Sym.Set.add i_sym vars) gt_inner) loc
-        in
-        gt |> specialize vars |> loop vars
+        let (GT (gt_, _, loc)) = gt in
+        match gt_ with
+        | Arbitrary | Uniform | Alloc | Call _ | Return _ -> gt
+        | Pick wgts -> GT.pick_ (List.map_snd (aux vars) wgts) loc
+        | Asgn ((it_addr, sct), it_val, gt_rest) ->
+          GT.asgn_ ((it_addr, sct), it_val, aux vars gt_rest) loc
+        | Let (backtracks, (x, (GT (Uniform, _, loc) as gt_inner)), gt_rest)
+        | Let (backtracks, (x, (GT (Alloc, _, loc) as gt_inner)), gt_rest) ->
+          let gt_rest, gt_res =
+            match find_constraint vars x gt_rest with
+            | Some (gt_rest, it) -> (gt_rest, GT.return_ it loc)
+            | None -> (gt_rest, gt_inner)
+          in
+          GT.let_ (backtracks, (x, gt_res), aux (Sym.Set.add x vars) gt_rest) loc
+        | Let (backtracks, (x, gt_inner), gt_rest) ->
+          GT.let_
+            (backtracks, (x, aux vars gt_inner), aux (Sym.Set.add x vars) gt_rest)
+            loc
+        | Assert (lc, gt_rest) -> GT.assert_ (lc, aux vars gt_rest) loc
+        | ITE (it_if, gt_then, gt_else) ->
+          GT.ite_ (it_if, aux vars gt_then, aux vars gt_else) loc
+        | Map ((i, i_bt, it_perm), gt_inner) ->
+          GT.map_ ((i, i_bt, it_perm), aux (Sym.Set.add i vars) gt_inner) loc
       in
-      { gd with body = aux iargs gd.body }
+      aux vars gt
+
+
+    let transform
+          ({ filename : string;
+             recursive : bool;
+             spec;
+             name : Sym.Set.elt;
+             iargs : (Sym.Set.elt * BT.t) list;
+             oargs : (Sym.Set.elt * BT.t) list;
+             body : GT.t
+           } :
+            GD.t)
+      : GD.t
+      =
+      let vars = iargs |> List.map fst |> Sym.Set.of_list in
+      { filename; recursive; spec; name; iargs; oargs; body = transform_gt vars body }
   end
 
   module Integer = struct
