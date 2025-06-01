@@ -10,36 +10,52 @@ let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * IT.
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       let@ gt_rest, it = aux gt_rest in
       return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc, it)
-    | LetStar _ ->
-      (* We assume reordering has been applied,
-         so `assert`s appear before the next `let*` *)
-      None
+    | LetStar ((x, gt_inner), gt_rest) ->
+      if TestGenConfig.has_pass "reorder" then
+        (* We assume reordering has been applied,
+           so `assert`s appear before the next `let*` *)
+        None
+      else
+        let@ gt_rest, it = aux gt_rest in
+        return (Term.let_star_ ((x, gt_inner), gt_rest) loc, it)
     | Assert (T (IT (Binop (EQ, IT (Sym x', _, _), it), _, _)), gt_rest)
       when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
       return (gt_rest, it)
     | Assert (T (IT (Binop (EQ, it, IT (Sym x', _, _)), _, _)), gt_rest)
       when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
       return (gt_rest, it)
-    | _ -> None
+    | Assert (lc, gt_rest) ->
+      let@ gt_rest, it = aux gt_rest in
+      return (Term.assert_ (lc, gt_rest) loc, it)
   in
   aux gt
 
 
 let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
-  let aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
-    let (GT (gt_, _, _)) = gt in
+  let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
+    let (GT (gt_, _, loc)) = gt in
     match gt_ with
-    | LetStar ((x, (GT (Uniform, _, loc) as gt)), gt_rest)
-    | LetStar ((x, (GT (Alloc, _, loc) as gt)), gt_rest) ->
+    | Uniform | Alloc | Call _ | Return _ -> gt
+    | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) loc
+    | Asgn ((it_addr, sct), it_val, gt_rest) ->
+      Term.asgn_ ((it_addr, sct), it_val, aux vars gt_rest) loc
+    | LetStar ((x, (GT (Uniform, _, loc) as gt_inner)), gt_rest)
+    | LetStar ((x, (GT (Alloc, _, loc) as gt_inner)), gt_rest) ->
       let gt_rest, gt_res =
         match find_constraint vars x gt_rest with
         | Some (gt_rest, it) -> (gt_rest, Term.return_ it loc)
-        | None -> (gt_rest, gt)
+        | None -> (gt_rest, gt_inner)
       in
-      Term.let_star_ ((x, gt_res), gt_rest) loc
-    | _ -> gt
+      Term.let_star_ ((x, gt_res), aux (Sym.Set.add x vars) gt_rest) loc
+    | LetStar ((x, gt_inner), gt_rest) ->
+      Term.let_star_ ((x, aux vars gt_inner), aux (Sym.Set.add x vars) gt_rest) loc
+    | Assert (lc, gt_rest) -> Term.assert_ (lc, aux vars gt_rest) loc
+    | ITE (it_if, gt_then, gt_else) ->
+      Term.ite_ (it_if, aux vars gt_then, aux vars gt_else) loc
+    | Map ((i, i_bt, it_perm), gt_inner) ->
+      Term.map_ ((i, i_bt, it_perm), aux (Sym.Set.add i vars) gt_inner) loc
   in
-  Term.map_gen_pre (aux vars) gt
+  aux vars gt
 
 
 let transform_gd
