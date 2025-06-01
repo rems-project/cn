@@ -122,6 +122,12 @@ let replicate_call (sct : Sctypes.t) e_arg =
     A.AilEcall
       ( mk_expr (AilEident (Sym.fresh "cn_replicate_owned_cn_pointer_aux")),
         [ mk_expr e_arg ] )
+  | Struct _ ->
+    let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
+    let e_arg =
+      CtA.wrap_with_convert_to (AilEunary (Address, mk_expr e_arg)) (BT.Loc ())
+    in
+    A.AilEcall (mk_expr (AilEident fsym), [ mk_expr e_arg ])
   | _ ->
     let bt = Memory.bt_of_sct sct in
     let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
