@@ -1,0 +1,1 @@
+include GenContext.Make (Term)
