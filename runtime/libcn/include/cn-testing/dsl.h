@@ -36,7 +36,7 @@
   ({                                                                                     \
     ty* result;                                                                          \
     if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {                             \
-      result = cast_cn_pointer_to_##ty(CN_GEN_ALLOC(0));                                 \
+      result = cast_cn_pointer_to_##ty(CN_GEN_ALLOC(convert_to_cn_bits_u64(0)));         \
     } else {                                                                             \
       result = cn_gen_uniform_##ty(0);                                                   \
     }                                                                                    \
