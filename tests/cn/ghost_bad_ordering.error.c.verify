@@ -1,2 +1,5 @@
-return code: 0
-[1/1]: foo -- pass
+return code: 1
+tests/cn/ghost_bad_ordering.error.c:3:5: error: unexpected token after ';' and before 'requires'
+Please add error message for state 1696 to parsers/c/c_parser_error.messages
+    requires ghost i32 n; true;
+    ^~~~~~~~ 
