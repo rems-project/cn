@@ -46,7 +46,7 @@ let transform_gt (gt : Stage2.Term.t) : Term.t =
           xits
           ([], fun gr -> gr)
       in
-      gt_lets (Call { fsym; iargs; oarg_bt = bt; sized = None })
+      gt_lets (Call { fsym; iargs; oarg_bt = bt })
     | Asgn ((addr, sct), value, rest) -> Asgn { addr; sct; value; rest = aux rest }
     | LetStar ((x, gt1), gt2) ->
       LetStar { x; x_bt = Stage2.Term.bt gt1; value = aux gt1; rest = aux gt2 }

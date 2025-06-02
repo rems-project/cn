@@ -7,110 +7,148 @@ module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
-let bennet = Sym.fresh "bennet"
+let count_recursive_calls (syms : Sym.Set.t) (gr : Stage3.Term.t) : int =
+  let rec aux (gr : Stage3.Term.t) : int =
+    match gr with
+    | Uniform _ | Alloc | Return _ -> 0
+    | Pick { choices; _ } ->
+      choices |> List.map snd |> List.map aux |> List.fold_left max 0
+    | Call { fsym; _ } -> if Sym.Set.mem fsym syms then 1 else 0
+    | Asgn { rest; _ } -> aux rest
+    | LetStar { value; rest; _ } -> aux value + aux rest
+    | Assert { rest; _ } -> aux rest
+    | ITE { t; f; _ } -> max (aux t) (aux f)
+    | Map { inner; _ } -> aux inner
+  in
+  aux gr
 
-let transform_gt (gt : Stage3.Term.t) : Term.t =
-  let rec aux (vars : Sym.t list) (path_vars : Sym.Set.t) (gt : Stage3.Term.t) : Term.t =
-    let last_var = match vars with v :: _ -> v | [] -> bennet in
-    match gt with
-    | Uniform { bt } -> Uniform { bt }
+
+let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage3.Term.t)
+  : Term.t * Sym.Set.t
+  =
+  let rec aux (gr : Stage3.Term.t) : Term.t * Sym.Set.t =
+    match gr with
+    | Uniform { bt } -> (Uniform { bt }, Sym.Set.empty)
     | Pick { bt; choices } ->
-      let choice_var = Sym.fresh_anon () in
-      Pick
-        { bt;
-          choice_var;
-          choices =
-            (let choices =
-               let gcd =
-                 List.fold_left
-                   (fun x y -> Z.gcd x y)
-                   (fst (List.hd choices))
-                   (List.map fst (List.tl choices))
-               in
-               List.map_fst (fun x -> Z.div x gcd) choices
-             in
-             let w_sum = List.fold_left Z.add Z.zero (List.map fst choices) in
-             let max_int = Z.of_int Int.max_int in
-             let f =
-               if Z.leq w_sum max_int then
-                 fun w -> Z.to_int w
-               else
-                 fun w ->
-               Z.to_int
-                 (Z.max Z.one (Z.div w (Z.div (Z.add w_sum (Z.pred max_int)) max_int)))
-             in
-             List.map
-               (fun (w, gt) ->
-                  (f w, aux (choice_var :: vars) (Sym.Set.add choice_var path_vars) gt))
-               choices);
-          last_var
-        }
-    | Alloc -> Alloc
-    | Call { fsym; iargs; oarg_bt; sized } ->
-      Call { fsym; iargs; oarg_bt; path_vars; sized }
-    | Asgn { addr; sct; value; rest } ->
-      let rec pointer_of (it : IT.t) =
-        match it with
-        | IT (ArrayShift { base; _ }, _, _) -> pointer_of base
-        | IT (Sym x, _, _) | IT (Cast (_, IT (Sym x, _, _)), _, _) -> x
-        | _ ->
-          let pointers =
-            addr
-            |> IT.free_vars_bts
-            |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
-            |> Sym.Map.bindings
-            |> List.map fst
-            |> Sym.Set.of_list
-          in
-          if not (Sym.Set.cardinal pointers == 1) then
-            Cerb_debug.print_debug 2 [] (fun () ->
-              Pp.(
-                plain
-                  (braces
-                     (separate_map
-                        (comma ^^ space)
-                        Sym.pp
-                        (List.of_seq (Sym.Set.to_seq pointers)))
-                   ^^^ !^" in "
-                   ^^ IT.pp addr)));
-          if Sym.Set.is_empty pointers then (
-            print_endline (Pp.plain (IT.pp it));
-            failwith __LOC__);
-          Sym.Set.choose pointers
+      let choices, syms =
+        choices
+        |> List.map (fun (w, gr) ->
+          let gr, syms = aux gr in
+          ((w, gr), syms))
+        |> List.split
       in
-      Asgn
-        { pointer = pointer_of addr;
-          addr;
-          sct;
-          value;
-          last_var;
-          rest = aux vars path_vars rest
-        }
+      (Pick { bt; choices }, List.fold_left Sym.Set.union Sym.Set.empty syms)
+    | Alloc -> (Alloc, Sym.Set.empty)
+    | Call { fsym; iargs; oarg_bt } ->
+      let sized, set =
+        if Sym.Set.mem fsym syms then (
+          let sym = Sym.fresh_anon () in
+          (Some (size, sym), Sym.Set.singleton sym))
+        else
+          (None, Sym.Set.empty)
+      in
+      (Term.Call { fsym; iargs; oarg_bt; sized }, set)
+    | Return { value } -> (Return { value }, Sym.Set.empty)
+    | Asgn { addr; sct; value; rest } ->
+      let rest, syms = aux rest in
+      (Asgn { addr; sct; value; rest }, syms)
     | LetStar { x; x_bt; value; rest } ->
-      LetStar
-        { x;
-          x_bt;
-          value = aux vars path_vars value;
-          last_var;
-          rest = aux (x :: vars) path_vars rest
-        }
-    | Return { value } -> Return { value }
-    | Assert { prop; rest } -> Assert { prop; last_var; rest = aux vars path_vars rest }
+      let value, syms = aux value in
+      let rest, syms' = aux rest in
+      (LetStar { x; x_bt; value; rest }, Sym.Set.union syms syms')
+    | Assert { prop; rest } ->
+      let rest, syms = aux rest in
+      (Assert { prop; rest }, syms)
+    | ITE { bt; cond; t; f } ->
+      let t, syms = aux t in
+      let f, syms' = aux f in
+      (ITE { bt; cond; t; f }, Sym.Set.union syms syms')
+    | Map { i; bt; perm; inner } ->
+      let inner, syms = aux inner in
+      (Map { i; bt; perm; inner }, syms)
+  in
+  aux gr
+
+
+let transform_gt (syms : Sym.Set.t) (gr : Stage3.Term.t) : Term.t =
+  let rec aux (path_vars : Sym.Set.t) (gr : Stage3.Term.t) : Term.t =
+    match gr with
     | ITE { bt; cond; t; f } ->
       let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
-      ITE { bt; cond; t = aux vars path_vars t; f = aux vars path_vars f }
-    | Map { i; bt; perm; inner } ->
-      let i_bt, _ = BT.map_bt bt in
-      let min, max = IndexTerms.Bounds.get_bounds (i, i_bt) perm in
-      Map { i; bt; min; max; perm; inner = aux (i :: vars) path_vars inner; last_var }
+      ITE { bt; cond; t = aux path_vars t; f = aux path_vars f }
+    | Pick { bt; choices } -> Pick { bt; choices = List.map_snd (aux path_vars) choices }
+    | _ ->
+      let count = count_recursive_calls syms gr in
+      let gr, _syms = size_recursive_calls syms count gr in
+      if count > 1 then
+        SplitSize { syms; rest = gr }
+      else
+        gr
   in
-  aux [] Sym.Set.empty gt
+  aux Sym.Set.empty gr
 
 
-let transform_gd ({ filename; recursive; spec; name; iargs; oargs; body } : Stage3.Def.t)
+let transform_gd
+      (cg : SymGraph.t)
+      ({ filename : string;
+         recursive : bool;
+         spec;
+         name : Sym.Set.elt;
+         iargs : (Sym.Set.elt * BT.t) list;
+         oargs : (Sym.Set.elt * BT.t) list;
+         body : Stage3.Term.t
+       } :
+        Stage3.Def.t)
   : Def.t
   =
-  { filename; recursive; spec; name; iargs; oargs; body = body |> transform_gt }
+  let recursive_syms =
+    if recursive then
+      SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty
+    else
+      Sym.Set.empty
+  in
+  { filename;
+    recursive;
+    spec;
+    name;
+    iargs;
+    oargs;
+    body = transform_gt recursive_syms body
+  }
 
 
-let transform (ctx : Stage3.Ctx.t) : Ctx.t = List.map_snd transform_gd ctx
+open struct
+  let get_calls (gd : Stage3.Def.t) : Sym.Set.t =
+    let rec aux (gt : Stage3.Term.t) : Sym.Set.t =
+      match gt with
+      | Uniform _ | Alloc | Return _ -> Sym.Set.empty
+      | Pick { choices; _ } ->
+        choices
+        |> List.map snd
+        |> List.map aux
+        |> List.fold_left Sym.Set.union Sym.Set.empty
+      | Call { fsym; _ } -> Sym.Set.singleton fsym
+      | Asgn { rest = gt'; _ } | Assert { rest = gt'; _ } | Map { inner = gt'; _ } ->
+        aux gt'
+      | LetStar { value = gt1; rest = gt2; _ } | ITE { t = gt1; f = gt2; _ } ->
+        Sym.Set.union (aux gt1) (aux gt2)
+    in
+    aux gd.body
+
+
+  module Oper = Graph.Oper.P (SymGraph)
+end
+
+let get_call_graph (ctx : Stage3.Ctx.t) : SymGraph.t =
+  ctx
+  |> List.map_snd get_calls
+  |> List.fold_left
+       (fun cg (fsym, calls) ->
+          Sym.Set.fold (fun fsym' cg' -> SymGraph.add_edge cg' fsym fsym') calls cg)
+       SymGraph.empty
+  |> Oper.transitive_closure
+
+
+let transform (ctx : Stage3.Ctx.t) : Ctx.t =
+  let cg = get_call_graph ctx in
+  List.map_snd (transform_gd cg) ctx
