@@ -24,6 +24,8 @@ concurrency:
 jobs:
   build-and-release:
 
+    name: Docker -- Build and Release
+
     strategy:
       matrix:
         os: [ubuntu, redhat, devcontainer]
@@ -58,6 +60,8 @@ jobs:
 
   combine-multiplatform:
 
+    name: Docker -- Combine Multiplatform
+
     if: ${{ github.event_name != 'pull_request' }}
 
     strategy:
@@ -86,6 +90,8 @@ jobs:
 
 # Other CI is testing anyway - if need be, can run tests in Dockerfile itself
   test-docker-images:
+
+    name: Docker -- Test Docker Images
 
     if: ${{ github.event_name != 'pull_request' }}
 

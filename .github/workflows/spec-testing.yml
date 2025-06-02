@@ -16,6 +16,9 @@ concurrency:
 
 jobs:
   build:
+
+    name: Spec testing
+
     strategy:
       matrix:
         version: [4.14.1]
