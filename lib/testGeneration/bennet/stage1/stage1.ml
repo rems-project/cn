@@ -7,4 +7,4 @@ let transform filename (prog5 : unit Mucore.file) (tests : Test.t list)
   =
   tests
   |> Convert.transform filename prog5.resource_predicates
-  |> Destruct_arbitrary.transform prog5
+  |> DestructArbitrary.transform prog5
