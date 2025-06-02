@@ -61,7 +61,7 @@ let compile ~filename_base =
   ^^ attempt
        (String.concat
           " "
-          ([ "cc";
+          ([ Config.get_cc ();
              "-c";
              "-o";
              "\"./" ^ filename_base ^ ".test.o\"";
@@ -74,7 +74,7 @@ let compile ~filename_base =
       ^^ attempt
            (String.concat
               " "
-              ([ "cc";
+              ([ Config.get_cc ();
                  "-c";
                  "-o";
                  "\"./" ^ filename_base ^ ".exec.o\"";
@@ -96,7 +96,7 @@ let link ~filename_base =
   ^^ attempt
        (String.concat
           " "
-          ([ "cc";
+          ([ Config.get_cc ();
              "-o";
              "\"./tests.out\"";
              filename_base ^ ".test.o " ^ filename_base ^ ".exec.o";

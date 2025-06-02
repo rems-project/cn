@@ -5,6 +5,7 @@ open Cn
 let run_tests
       (* Common *)
         filename
+      cc
       macros
       incl_dirs
       incl_files
@@ -27,8 +28,8 @@ let run_tests
       dont_run
       num_samples
       max_backtracks
-      max_unfolds
-      max_array_length
+      _max_unfolds
+      _max_array_length
       _with_static_hack
       build_tool
       sanitizers
@@ -73,6 +74,7 @@ let run_tests
   let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
@@ -91,11 +93,10 @@ let run_tests
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       let config : TestGeneration.config =
-        { print_steps;
+        { cc;
+          print_steps;
           num_samples;
           max_backtracks;
-          max_unfolds;
-          max_array_length;
           build_tool;
           sanitizers;
           experimental;
@@ -141,6 +142,7 @@ let run_tests
                 ~with_loop_leak_checks:false
                 ~with_testing:true
                 filename
+                cc
                 pp_file
                 out_file
                 output_dir
@@ -221,18 +223,14 @@ module Flags = struct
 
   let gen_max_unfolds =
     let doc = "Set the maximum number of unfolds for recursive generators" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.max_unfolds
-      & info [ "max-unfolds" ] ~doc)
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~deprecated ~doc)
 
 
   let max_array_length =
     let doc = "Set the maximum length for an array generated" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_array_length
-      & info [ "max-array-length" ] ~doc)
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
 
 
   let with_static_hack =
@@ -448,6 +446,7 @@ let cmd =
   let test_t =
     const run_tests
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files

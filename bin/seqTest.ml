@@ -5,6 +5,7 @@ open Cn
 let run_seq_tests
       (* Common *)
         filename
+      cc
       macros
       incl_dirs
       incl_files
@@ -23,9 +24,9 @@ let run_seq_tests
         output_dir
       print_steps
       _with_static_hack
-      num_samples
+      num_calls
       backtrack_attempts
-      num_resets
+      num_tests
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -45,6 +46,7 @@ let run_seq_tests
   let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
     ~incl_dirs
     ~incl_files
@@ -83,6 +85,7 @@ let run_seq_tests
              ~with_loop_leak_checks:false
              ~with_testing:true
              filename
+             cc
              pp_file
              out_file
              output_dir
@@ -90,7 +93,12 @@ let run_seq_tests
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
-             { print_steps; num_samples; max_backtracks = backtrack_attempts; num_resets }
+             { cc;
+               print_steps;
+               num_calls;
+               max_backtracks = backtrack_attempts;
+               num_tests
+             }
            in
            SeqTests.set_seq_config config;
            if SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0 then
@@ -120,10 +128,10 @@ module Flags = struct
     Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
-  let gen_num_samples =
-    let doc = "Set the number of samples to test" in
+  let gen_num_calls =
+    let doc = "Maximum number of calls per test" in
     Arg.(
-      value & opt int SeqTests.default_seq_cfg.num_samples & info [ "num-samples" ] ~doc)
+      value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
 
 
   let gen_backtrack_attempts =
@@ -137,9 +145,9 @@ module Flags = struct
       & info [ "max-backtrack-attempts" ] ~doc)
 
 
-  let num_resets =
-    let doc = "Number of context resets for sequence testing" in
-    Arg.(value & opt int SeqTests.default_seq_cfg.num_resets & info [ "max-resets" ] ~doc)
+  let num_tests =
+    let doc = "Number of tests to generate" in
+    Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
 end
 
 let cmd =
@@ -147,6 +155,7 @@ let cmd =
   let test_t =
     const run_seq_tests
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
@@ -162,9 +171,9 @@ let cmd =
     $ Flags.output_dir
     $ Flags.print_steps
     $ Flags.with_static_hack
-    $ Flags.gen_num_samples
+    $ Flags.gen_num_calls
     $ Flags.gen_backtrack_attempts
-    $ Flags.num_resets
+    $ Flags.num_tests
   in
   let doc =
     "Generates sequences of calls for the API in [FILE].\n\

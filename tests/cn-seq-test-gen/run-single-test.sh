@@ -28,7 +28,7 @@ function separator() {
   OUTPUT="${OUTPUT}"$'\n===========================================================\n\n'
 }
 
-CONFIGS=("--num-samples=30 --max-resets=1")
+CONFIGS=("--max-num-calls=30 --num-tests=10")
 
 OUTPUT=""
 

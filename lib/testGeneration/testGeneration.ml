@@ -322,7 +322,7 @@ let save_generators
       separate
         hardline
         ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
-         @ [ SpecTests.compile_generators filename sigma prog5 tests_for_generators ]))
+         @ [ Bennet.synthesize filename sigma prog5 tests_for_generators ]))
   in
   let generators_fn = filename_base ^ ".gen.h" in
   save output_dir generators_fn generators_doc
