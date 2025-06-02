@@ -807,7 +807,7 @@ let rec n_expr
       | _ -> return @@ n_pexpr e2
     in
     let es = List.map n_pexpr es in
-    let@ parsed_ghosts = liftParse (Parse.cn_ghosts annots) in
+    let@ parsed_ghosts = Parse.cn_ghost_args annots in
     let@ ghost_args =
       match parsed_ghosts with
       | _ :: _ ->
@@ -1374,7 +1374,9 @@ module Spec = struct
       match x with None -> [] | Some (a, bs) -> List.map (fun b -> (a, b)) bs
     in
     let cross_fst2 x =
-      match x with None -> [], [] | Some (a, (bs, cs)) -> cross_fst (Some (a, bs)), cross_fst (Some (a, cs))
+      match x with
+      | None -> ([], [])
+      | Some (a, (bs, cs)) -> (cross_fst (Some (a, bs)), cross_fst (Some (a, cs)))
     in
     let trusted =
       match cn_func_trusted with None -> Mucore.Checked | Some loc -> Mucore.Trusted loc
