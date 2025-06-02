@@ -6,5 +6,5 @@ let transform (ctx : Stage1.Ctx.t) : Ctx.t =
   ctx
   |> Convert.transform
   |> Reorder.transform
-  |> Specialize_equality.transform
-  |> Simplify_names.transform
+  |> SpecializeEquality.transform
+  |> SimplifyNames.transform
