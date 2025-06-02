@@ -1,3 +1,5 @@
+module IT = IndexTerms
+module StringMap = Map.Make (String)
 module Term = Term
 module Def = Def
 module Ctx = Ctx

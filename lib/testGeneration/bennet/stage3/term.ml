@@ -20,8 +20,7 @@ type t =
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
-        oarg_bt : BT.t;
-        sized : (int * Sym.t) option
+        oarg_bt : BT.t
       }
   | Asgn of
       { addr : IT.t;
@@ -60,8 +59,7 @@ let rec free_vars (tm : t) : Sym.Set.t =
   match tm with
   | Uniform _ | Alloc -> Sym.Set.empty
   | Pick { bt = _; choices } -> free_vars_list (List.map snd choices)
-  | Call { fsym = _; iargs; oarg_bt = _; sized = _ } ->
-    Sym.Set.of_list (List.map snd iargs)
+  | Call { fsym = _; iargs; oarg_bt = _ } -> Sym.Set.of_list (List.map snd iargs)
   | Asgn { addr; sct = _; value; rest } ->
     Sym.Set.union (IT.free_vars_list [ addr; value ]) (free_vars rest)
   | LetStar { x; x_bt = _; value; rest } ->
@@ -96,10 +94,9 @@ let rec pp (tm : t) : Pp.document =
                          parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                       choices)))
   | Alloc -> !^"alloc" ^^ parens empty
-  | Call { fsym; iargs; oarg_bt; sized } ->
+  | Call { fsym; iargs; oarg_bt } ->
     parens
       (Sym.pp fsym
-       ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
        ^^ parens
             (nest
                2

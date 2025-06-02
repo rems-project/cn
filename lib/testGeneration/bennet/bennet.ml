@@ -43,7 +43,9 @@ let synthesize
     debug_stage "Stage 3" (ctx |> Stage3.Ctx.pp |> Pp.plain ~width:80);
     let ctx = Stage4.transform ctx in
     debug_stage "Stage 4" (ctx |> Stage4.Ctx.pp |> Pp.plain ~width:80);
-    Stage5.transform sigma ctx)
+    let ctx = Stage5.transform ctx in
+    debug_stage "Stage 5" (ctx |> Stage5.Ctx.pp |> Pp.plain ~width:80);
+    Stage6.transform sigma ctx)
   else (
     let ctx = GenCompile.compile filename prog5.resource_predicates tests in
     debug_stage "Compile" (ctx |> GC.pp |> Pp.plain ~width:80);
