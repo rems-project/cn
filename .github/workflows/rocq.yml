@@ -18,6 +18,9 @@ concurrency:
 
 jobs:
   build:
+
+    name: Rocq
+    
     strategy:
       matrix:
         version: [5.2.0]
