@@ -2103,7 +2103,6 @@ module BaseTyping = struct
           let arg_bt_specs = List.map (fun ct -> Memory.bt_of_sct ct) arg_cts in
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
           let@ its = ListM.mapM (check_cnprog (fun _ it -> WIT.infer it)) its in
-          (* let@ it = (check_cnprog (fun _ it -> WIT.check (fst info) bt it)) it in *)
           return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, its))
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in
@@ -2171,7 +2170,6 @@ module BaseTyping = struct
                 let@ pe = check_pexpr bt pe in
                 check_args (acc_pes @ [ pe ]) acc_its lt' pes' its
               | AT.Ghost ((_s, bt), info, lt'), _, it :: its' ->
-                (* let@ it = WIT.check (fst info) bt it in *)
                 let@ it = (check_cnprog (fun _ it -> WIT.check (fst info) bt it)) it in
                 check_args acc_pes (acc_its @ [ it ]) lt' pes its'
               | AT.L _lat, [], [] -> return (acc_pes, acc_its)
