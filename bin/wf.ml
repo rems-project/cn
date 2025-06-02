@@ -16,6 +16,7 @@ let well_formed
       astprints
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
   =
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check
@@ -33,6 +34,7 @@ let well_formed
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
+    ~allow_split_magic_comments
     ~save_cpp:None
     ~disable_linemarkers:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
@@ -59,6 +61,7 @@ let cmd =
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
   in
   let doc =
     "Runs CN's well-formedness check\n\

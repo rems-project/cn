@@ -16,6 +16,7 @@ let run_tests
       astprints
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       (* Executable spec *)
         without_ownership_checking
       (* without_loop_invariants *)
@@ -85,7 +86,8 @@ let run_tests
     ~log_times
     ~astprints
     ~no_inherit_loc
-    ~magic_comment_char_dollar (* Callbacks *)
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
@@ -455,6 +457,7 @@ let cmd =
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
     $ Flags.print_steps
     $ Flags.output_dir

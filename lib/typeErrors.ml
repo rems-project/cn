@@ -180,6 +180,10 @@ type message =
       { fname : Sym.t;
         orig_loc : Locations.t
       }
+  | Spec_split_across_multiple_magic_comments of
+      { loc1 : Locations.t;
+        loc2 : Locations.t
+      }
   | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
   | Number_spec_args of
@@ -612,6 +616,21 @@ let pp_message = function
     let short = !^"double specification of" ^^^ Sym.pp fname in
     let head, pos = Locations.head_pos_of_location orig_loc in
     let descr = Some (!^"first specification at" ^^^ !^head ^/^ !^pos) in
+    { short; descr; state = None }
+  | Spec_split_across_multiple_magic_comments { loc1; loc2 } ->
+    let short = !^"specifications split across multiple magic comments" in
+    let head1, pos1 = Locations.head_pos_of_location loc1 in
+    let head2, pos2 = Locations.head_pos_of_location loc2 in
+    let descr =
+      Some
+        (!^"specification at"
+         ^^^ !^head1
+         ^/^ !^pos1
+         ^^^ !^"and"
+         ^^^ !^head2
+         ^/^ !^pos2
+         ^/^ parens !^"enable using --allow_split_magic_comments")
+    in
     { short; descr; state = None }
   | Requires_after_ensures { ens_loc } ->
     let short = !^"all requires clauses must come before any ensures clauses" in

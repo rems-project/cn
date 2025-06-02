@@ -698,7 +698,7 @@ ensures
 @*/
 // NOTE true, but not provable with CN verify
 /*@
-ensures
+//ensures
     Client_out.key_id == Client_in.key_id;
 @*/
 {

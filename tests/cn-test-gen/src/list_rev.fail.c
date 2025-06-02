@@ -50,10 +50,10 @@ function [rec] (datatype seq) rev(datatype seq xs) {
 @*/
 
 struct int_list* IntList_rev_aux(struct int_list* xs, struct int_list* ys)
-  /*@ requires take L1 = IntList(xs); @*/
-  /*@ requires take L2 = IntList(ys); @*/
-  /*@ ensures take R = IntList(return); @*/
-  /*@ ensures R == append(rev(L2), L1); @*/
+  /*@ requires take L1 = IntList(xs);
+               take L2 = IntList(ys);
+      ensures take R = IntList(return);
+              R == append(rev(L2), L1); @*/
 {
   if (ys == 0) {
     return xs;
@@ -67,9 +67,9 @@ struct int_list* IntList_rev_aux(struct int_list* xs, struct int_list* ys)
 }
 
 struct int_list* IntList_rev(struct int_list* xs)
-  /*@ requires take L1 = IntList(xs); @*/
-  /*@ ensures take L1_rev = IntList(return); @*/
-  /*@ ensures L1_rev == rev(L1); @*/
+  /*@ requires take L1 = IntList(xs);
+      ensures take L1_rev = IntList(return);
+              L1_rev == rev(L1); @*/
 {
   return IntList_rev_aux(0, xs);
 }

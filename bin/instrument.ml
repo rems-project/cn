@@ -86,6 +86,7 @@ let generate_executable_specs
       fail_fast
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       (* Executable spec *)
         output
       output_dir
@@ -134,7 +135,8 @@ let generate_executable_specs
     ~log_times
     ~astprints
     ~no_inherit_loc
-    ~magic_comment_char_dollar (* Callbacks *)
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
@@ -276,6 +278,7 @@ let cmd =
     $ Verify.Flags.fail_fast
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
     $ Flags.output
     $ Flags.output_dir
     $ Flags.without_ownership_checking
