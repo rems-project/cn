@@ -367,6 +367,31 @@ let compile_spec
   fun s -> ((), GC.add gd s)
 
 
+let inline (ctx : GC.t) : GC.t =
+  let rec loop (gd : GD.t) : GD.t =
+    let aux (gt : GT.t) : GT.t =
+      let (GT (gt_, _, _)) = gt in
+      match gt_ with
+      | Call (fsym, iargs) when List.non_empty iargs ->
+        let gd' = ctx |> List.assoc Sym.equal fsym in
+        if gd'.recursive then
+          gt
+        else
+          GT.subst (IT.make_subst iargs) (Option.get gd'.body)
+      | _ -> gt
+    in
+    let gt = Option.get gd.body in
+    let gt' = GT.map_gen_post aux gt in
+    if GT.equal gt gt' then
+      { gd with body = Some gt' }
+    else
+      loop { gd with body = Some gt' }
+  in
+  ctx
+  |> List.map (fun ((fsym, gd) : Sym.t * GD.t) ->
+    (fsym, if gd.recursive then gd else loop gd))
+
+
 let compile
       filename
       ?(ctx : GC.t option)
@@ -409,4 +434,4 @@ let compile
     let new_ctx = context_preds ctx in
     if GC.equal old_ctx new_ctx then ctx else loop new_ctx
   in
-  GC.drop_nones (loop (Option.value ~default:context_specs ctx))
+  ctx |> Option.value ~default:context_specs |> loop |> inline |> GC.drop_nones
