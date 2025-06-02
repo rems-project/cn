@@ -1,0 +1,7 @@
+return code: 1
+[1/2]: foo -- pass
+[2/2]: main -- fail
+tests/cn/ghost_arguments_too_many.error.c:16:10: error: Wrong number of ghost arguments
+  return foo(6 /*@ x, x @*/);
+         ^~~~~~~~~~~~~~~~~~~ 
+Expected 1, has 2
