@@ -1,0 +1,19 @@
+module GT = Term
+
+let transform_gt (gt : GT.t) : GT.t =
+  let aux (gt : GT.t) : GT.t =
+    let (GT (gt_, _bt, loc)) = gt in
+    match gt_ with
+    | Assert (T (IT (Binop (Implies, it_if, it_then), _, loc_implies)), gt') ->
+      GT.ite_ (it_if, GT.assert_ (T it_then, gt') loc, gt') loc_implies
+    | _ -> gt
+  in
+  GT.map_gen_pre aux gt
+
+
+let transform_gd ({ filename; recursive; spec; name; iargs; oargs; body } : Def.t) : Def.t
+  =
+  Def.{ filename; recursive; spec; name; iargs; oargs; body = transform_gt body }
+
+
+let transform (ctx : Ctx.t) : Ctx.t = List.map_snd transform_gd ctx
