@@ -1,7 +1,7 @@
 int foo(int p)
 /*@
 requires
-  ghost boolean b;
+  cn_ghost boolean b;
   true;
 ensures
   true;
