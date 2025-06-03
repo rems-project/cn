@@ -1,4 +1,7 @@
 return code: 1
+tests/cn/ghost_arguments_type_mismatch.error.c:4:3: warning: experimental keyword 'cn_ghost' (use of experimental features is discouraged)
+  cn_ghost boolean b;
+  ^~~~~~~~ 
 [1/2]: foo -- pass
 [2/2]: main -- fail
 tests/cn/ghost_arguments_type_mismatch.error.c:15:11: error: Type error
