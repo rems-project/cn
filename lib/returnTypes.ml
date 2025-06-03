@@ -63,7 +63,13 @@ let pp_aux rt =
 
 let pp rt = Pp.flow (Pp.break 1) (pp_aux rt)
 
-let json = function
+let json =
+  let variant (str : string) (xs_opt : Yojson.Safe.t option) : Yojson.Safe.t =
+    `Assoc
+      (("Tag", `String str)
+       :: Stdlib.Option.fold ~none:[] ~some:(fun x -> [ ("Arg", x) ]) xs_opt)
+  in
+  function
   | Computational ((s, bt), _info, t) ->
     let args =
       [ ("symbol", Sym.json s);
@@ -71,7 +77,7 @@ let json = function
         ("return_type", LRT.json t)
       ]
     in
-    `Variant ("Computational", Some (`Assoc args))
+    variant "Computational" (Some (`Assoc args))
 
 
 let alpha_equivalent rt rt' =

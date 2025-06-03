@@ -69,32 +69,37 @@ let json_lexing_position pos =
 
 let json_raw_loc loc : Yojson.Safe.t =
   let open Cerb_location in
+  let variant (str : string) (xs_opt : Yojson.Safe.t option) : Yojson.Safe.t =
+    `Assoc
+      (("Tag", `String str)
+       :: Stdlib.Option.fold ~none:[] ~some:(fun x -> [ ("Arg", x) ]) xs_opt)
+  in
   let json =
     match loc with
-    | Loc_unknown -> `Variant ("Unknown", None)
-    | Loc_other str -> `Variant ("Other", Some (`String str))
+    | Loc_unknown -> variant "Unknown" None
+    | Loc_other str -> variant "Other" (Some (`String str))
     | Loc_point point ->
-      `Variant ("Point", Some (json_lexing_position point)) (* start, end, cursor *)
+      variant "Point" (Some (json_lexing_position point)) (* start, end, cursor *)
     | Loc_region (startp, endp, cursor) ->
       let startp' = json_lexing_position startp in
       let endp' = json_lexing_position endp in
       let cursor' =
         match cursor with
-        | NoCursor -> `Variant ("NoCursor", None)
-        | PointCursor p -> `Variant ("PointCursor", Some (json_lexing_position p))
+        | NoCursor -> variant "NoCursor" None
+        | PointCursor p -> variant "PointCursor" (Some (json_lexing_position p))
         | RegionCursor (b, e) ->
-          `Variant
-            ( "RegionCursor",
-              Some
-                (`Assoc
-                    [ ("cursor_start", json_lexing_position b);
-                      ("cursor_end", json_lexing_position e)
-                    ]) )
+          variant
+            "RegionCursor"
+            (Some
+               (`Assoc
+                   [ ("cursor_start", json_lexing_position b);
+                     ("cursor_end", json_lexing_position e)
+                   ]))
       in
       let args =
         [ ("region_start", startp'); ("region_end", endp'); ("region_cursor", cursor') ]
       in
-      `Variant ("Region", Some (`Assoc args))
+      variant "Region" (Some (`Assoc args))
     | Loc_regions (starts_ends, cursor) ->
       let starts_ends' =
         List.map
@@ -106,19 +111,19 @@ let json_raw_loc loc : Yojson.Safe.t =
       in
       let cursor' =
         match cursor with
-        | NoCursor -> `Variant ("NoCursor", None)
-        | PointCursor p -> `Variant ("PointCursor", Some (json_lexing_position p))
+        | NoCursor -> variant "NoCursor" None
+        | PointCursor p -> variant "PointCursor" (Some (json_lexing_position p))
         | RegionCursor (b, e) ->
-          `Variant
-            ( "RegionCursor",
-              Some
-                (`Assoc
-                    [ ("cursor_start", json_lexing_position b);
-                      ("cursor_end", json_lexing_position e)
-                    ]) )
+          variant
+            "RegionCursor"
+            (Some
+               (`Assoc
+                   [ ("cursor_start", json_lexing_position b);
+                     ("cursor_end", json_lexing_position e)
+                   ]))
       in
       let args = [ ("regions", `List starts_ends'); ("cursor", cursor') ] in
-      `Variant ("Region", Some (`Assoc args))
+      variant "Region" (Some (`Assoc args))
   in
   json
 
@@ -126,8 +131,13 @@ let json_raw_loc loc : Yojson.Safe.t =
 let json_loc loc : Yojson.Safe.t = json_raw_loc loc
 
 let json_path locs : Yojson.Safe.t =
+  let variant (str : string) (xs_opt : Yojson.Safe.t option) : Yojson.Safe.t =
+    `Assoc
+      (("Tag", `String str)
+       :: Stdlib.Option.fold ~none:[] ~some:(fun x -> [ ("Arg", x) ]) xs_opt)
+  in
   let locs_json = List.map json_loc (List.rev locs) in
-  `Variant ("path", Some (`List locs_json))
+  variant "path" (Some (`List locs_json))
 
 
 type region = Cerb_position.t * Cerb_position.t

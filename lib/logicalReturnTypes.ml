@@ -142,21 +142,27 @@ let rec pp_aux lrt =
 
 let pp rt = Pp.flow (Pp.break 1) (pp_aux rt)
 
-let rec json = function
+let rec json =
+  let variant (str : string) (xs_opt : Yojson.Safe.t option) : Yojson.Safe.t =
+    `Assoc
+      (("Tag", `String str)
+       :: Stdlib.Option.fold ~none:[] ~some:(fun x -> [ ("Arg", x) ]) xs_opt)
+  in
+  function
   | Define ((s, it), _info, t) ->
     let args =
       [ ("symbol", Sym.json s); ("term", IT.json it); ("return_type", json t) ]
     in
-    `Variant ("Define", Some (`Assoc args))
+    variant "Define" (Some (`Assoc args))
   | Resource ((s, (r, _bt)), _info, t) ->
     let args =
       [ ("symbol", Sym.json s); ("resource", RT.json r); ("return_type", json t) ]
     in
-    `Variant ("Resource", Some (`Assoc args))
+    variant "Resource" (Some (`Assoc args))
   | Constraint (lc, _info, t) ->
     let args = [ ("constraint", LogicalConstraints.json lc); ("return_type", json t) ] in
-    `Variant ("Constraint", Some (`Assoc args))
-  | I -> `Variant ("I", None)
+    variant "Constraint" (Some (`Assoc args))
+  | I -> variant "I" None
 
 
 let rec alpha_equivalent lrt lrt' =

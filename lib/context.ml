@@ -234,9 +234,14 @@ let clone_history id ids m =
 
 
 let json (ctxt : t) : Yojson.Safe.t =
+  let variant (str : string) (xs_opt : Yojson.Safe.t option) : Yojson.Safe.t =
+    `Assoc
+      (("Tag", `String str)
+       :: Stdlib.Option.fold ~none:[] ~some:(fun x -> [ ("Arg", x) ]) xs_opt)
+  in
   let basetype_or_value = function
-    | BaseType bt -> `Variant ("BaseType", Some (BT.json bt))
-    | Value it -> `Variant ("Value", Some (IndexTerms.json it))
+    | BaseType bt -> variant "BaseType" (Some (BT.json bt))
+    | Value it -> variant "Value" (Some (IndexTerms.json it))
   in
   let computational =
     List.map
@@ -260,7 +265,7 @@ let json (ctxt : t) : Yojson.Safe.t =
         ("constraints", `List constraints)
       ]
   in
-  `Variant ("Context", Some json_record)
+  variant "Context" (Some json_record)
 
 
 (* picks out universally quantified constraints, recursive functions,
