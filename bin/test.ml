@@ -30,7 +30,6 @@ let run_tests
       max_backtracks
       _max_unfolds
       _max_array_length
-      _with_static_hack
       build_tool
       sanitizers
       print_seed
@@ -230,12 +229,6 @@ module Flags = struct
     let doc = "Does nothing." in
     let deprecated = "Will be removed after June 31." in
     Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
-
-
-  let with_static_hack =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after May 31." in
-    Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
 
 
   let build_tool =
@@ -465,7 +458,6 @@ let cmd =
     $ Flags.gen_backtrack_attempts
     $ Flags.gen_max_unfolds
     $ Flags.max_array_length
-    $ Flags.with_static_hack
     $ Flags.build_tool
     $ Term.product Flags.sanitize Flags.no_sanitize
     $ Flags.print_seed
