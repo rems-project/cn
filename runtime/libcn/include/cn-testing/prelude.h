@@ -2,8 +2,8 @@
 #define CN_PRELUDE_H
 
 #include <cn-testing/alloc.h>
-#include <cn-testing/backtrack.h>
 #include <cn-testing/dsl.h>
+#include <cn-testing/failure.h>
 #include <cn-testing/rand.h>
 #include <cn-testing/result.h>
 #include <cn-testing/size.h>

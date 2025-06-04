@@ -98,9 +98,9 @@ void unset_sized_null(void) {
 
 cn_pointer* cn_gen_alloc(cn_bits_u64* sz) {
   uint64_t bytes = convert_from_cn_bits_u64(sz);
-  if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {
-    bytes = cn_gen_backtrack_alloc_get();
-    cn_gen_backtrack_reset();
+  if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ALLOC) {
+    bytes = cn_gen_failure_get_allocation_needed();
+    cn_gen_failure_reset();
   } else if (bytes == 0) {
     uint64_t rnd = cn_gen_uniform_u8(null_in_every);
     if (rnd == 0) {
@@ -121,9 +121,9 @@ cn_pointer* cn_gen_alloc(cn_bits_u64* sz) {
 
 cn_pointer* cn_gen_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
   uint64_t bytes = convert_from_cn_bits_u64(sz);
-  if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {
-    bytes = cn_gen_backtrack_alloc_get();
-    cn_gen_backtrack_reset();
+  if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ALLOC) {
+    bytes = cn_gen_failure_get_allocation_needed();
+    cn_gen_failure_reset();
   }
 
   uint64_t align = convert_from_cn_bits_u64(alignment);

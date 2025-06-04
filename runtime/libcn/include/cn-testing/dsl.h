@@ -4,14 +4,14 @@
 #include <assert.h>
 #include <stdlib.h>
 
-#include <cn-testing/backtrack.h>
+#include <cn-testing/failure.h>
 
 #define CN_GEN_CHECK_TIMEOUT()                                                           \
   if (cn_gen_get_input_timeout() != 0 &&                                                 \
       cn_gen_get_milliseconds() - cn_gen_get_input_timer() >                             \
           cn_gen_get_input_timeout()) {                                                  \
-    cn_gen_backtrack_reset();                                                            \
-    cn_gen_backtrack_assert_failure();                                                   \
+    cn_gen_failure_reset();                                                              \
+    cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ASSERT);                            \
     goto cn_label_bennet_backtrack;                                                      \
   }
 
@@ -28,14 +28,14 @@
   CN_GEN_CHECK_TIMEOUT();                                                                \
   cn_gen_increment_depth();                                                              \
   if (cn_gen_rec_size <= 0 || cn_gen_depth() == cn_gen_max_depth()) {                    \
-    cn_gen_backtrack_depth_exceeded();                                                   \
+    cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_DEPTH);                             \
     goto cn_label_bennet_backtrack;                                                      \
   }
 
 #define CN_GEN_UNIFORM(ty)                                                               \
   ({                                                                                     \
     ty* result;                                                                          \
-    if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {                             \
+    if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ALLOC) {                   \
       result = cast_cn_pointer_to_##ty(CN_GEN_ALLOC(convert_to_cn_bits_u64(0)));         \
     } else {                                                                             \
       result = cn_gen_uniform_##ty(0);                                                   \
@@ -53,7 +53,8 @@
       if (is_sized_null()) {                                                             \
         set_null_in_every(cn_gen_rec_size);                                              \
       }                                                                                  \
-      if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_ALLOC && cn_gen_rec_size <= 1) {   \
+      if (cn_gen_failure_get_failure_type() != CN_GEN_BACKTRACK_ALLOC &&                 \
+          cn_gen_rec_size <= 1) {                                                        \
         ptr = convert_to_cn_pointer(NULL);                                               \
       } else {                                                                           \
         ptr = cn_gen_alloc(sz);                                                          \
@@ -85,37 +86,40 @@
 
 #define CN_GEN_CALL_TO(...)                                                              \
   char* to[] = {__VA_ARGS__, NULL};                                                      \
-  cn_gen_backtrack_relevant_remap_many(from, to);                                        \
+  cn_gen_failure_remap_blamed_many(from, to);                                            \
   }
 
 #define CN_GEN_CALL_PATH_VARS(...)                                                       \
-  if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_DEPTH) {                               \
+  if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_DEPTH) {                     \
     char* toAdd[] = {__VA_ARGS__, NULL};                                                 \
-    cn_gen_backtrack_relevant_add_many(toAdd);                                           \
+    cn_gen_failure_blame_many(toAdd);                                                    \
   }
 
 #define CN_GEN_ASSIGN(pointer, addr, addr_ty, value, tmp, gen_name, last_var, ...)       \
   if (convert_from_cn_pointer(pointer) == 0) {                                           \
-    cn_gen_backtrack_relevant_add((char*)#pointer);                                      \
+    cn_gen_failure_blame((char*)#pointer);                                               \
     if (sizeof(addr_ty) > sizeof(intmax_t)) {                                            \
-      cn_gen_backtrack_alloc_set(sizeof(addr_ty));                                       \
+      cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ALLOC);                           \
+      cn_gen_failure_set_allocation_needed(sizeof(addr_ty));                             \
     } else {                                                                             \
-      cn_gen_backtrack_alloc_set(sizeof(intmax_t));                                      \
+      cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ALLOC);                           \
+      cn_gen_failure_set_allocation_needed(sizeof(intmax_t));                            \
     }                                                                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   void* tmp##_ptr = convert_from_cn_pointer(addr);                                       \
   if (!cn_gen_alloc_check(tmp##_ptr, sizeof(addr_ty))) {                                 \
-    cn_gen_backtrack_relevant_add((char*)#pointer);                                      \
+    cn_gen_failure_blame((char*)#pointer);                                               \
     size_t tmp##_size = (uintptr_t)tmp##_ptr + sizeof(addr_ty) -                         \
                         (uintptr_t)convert_from_cn_pointer(pointer);                     \
-    cn_gen_backtrack_alloc_set(tmp##_size);                                              \
+    cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ALLOC);                             \
+    cn_gen_failure_set_allocation_needed(tmp##_size);                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   if (!cn_gen_ownership_check(tmp##_ptr, sizeof(addr_ty))) {                             \
-    cn_gen_backtrack_assert_failure();                                                   \
+    cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ASSERT);                            \
     char* toAdd[] = {__VA_ARGS__};                                                       \
-    cn_gen_backtrack_relevant_add_many(toAdd);                                           \
+    cn_gen_failure_blame_many(toAdd);                                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   *(addr_ty*)tmp##_ptr = value;                                                          \
@@ -134,26 +138,26 @@
   cn_gen_rand_checkpoint var##_rand_checkpoint_after = cn_gen_rand_save();
 
 #define CN_GEN_LET_END(backtracks, var, last_var, ...)                                   \
-  if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_NONE) {                                \
+  if (cn_gen_failure_get_failure_type() != CN_GEN_BACKTRACK_NONE) {                      \
     cn_label_##var##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
     cn_bump_free_after(var##_checkpoint);                                                \
     cn_gen_alloc_restore(var##_alloc_checkpoint);                                        \
     cn_gen_ownership_restore(var##_ownership_checkpoint);                                \
-    if (cn_gen_backtrack_relevant_contains((char*)#var)) {                               \
+    if (cn_gen_failure_is_blamed((char*)#var)) {                                         \
       char* toAdd[] = {__VA_ARGS__};                                                     \
-      cn_gen_backtrack_relevant_add_many(toAdd);                                         \
+      cn_gen_failure_blame_many(toAdd);                                                  \
       if (var##_backtracks <= 0) {                                                       \
         goto cn_label_##last_var##_backtrack;                                            \
       }                                                                                  \
-      if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ASSERT ||                          \
-          cn_gen_backtrack_type() == CN_GEN_BACKTRACK_DEPTH) {                           \
+      if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ASSERT ||                \
+          cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_DEPTH) {                 \
         var##_backtracks--;                                                              \
-        cn_gen_backtrack_reset();                                                        \
-      } else if (cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ALLOC) {                    \
+        cn_gen_failure_reset();                                                          \
+      } else if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ALLOC) {          \
         if (toAdd[0] != NULL) {                                                          \
           goto cn_label_##last_var##_backtrack;                                          \
         }                                                                                \
-        if (cn_gen_backtrack_alloc_get() > 0) {                                          \
+        if (cn_gen_failure_get_allocation_needed() > 0) {                                \
           cn_gen_rand_restore(var##_rand_checkpoint_after);                              \
         }                                                                                \
       }                                                                                  \
@@ -165,9 +169,9 @@
 
 #define CN_GEN_ASSERT(cond, last_var, ...)                                               \
   if (!convert_from_cn_bool(cond)) {                                                     \
-    cn_gen_backtrack_assert_failure();                                                   \
+    cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ASSERT);                            \
     char* toAdd[] = {__VA_ARGS__};                                                       \
-    cn_gen_backtrack_relevant_add_many(toAdd);                                           \
+    cn_gen_failure_blame_many(toAdd);                                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }
 
@@ -176,9 +180,9 @@
   {                                                                                      \
     if (0) {                                                                             \
       cn_label_##i##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
-      if (cn_gen_backtrack_relevant_contains((char*)#i)) {                               \
+      if (cn_gen_failure_is_blamed((char*)#i)) {                                         \
         char* toAdd[] = {__VA_ARGS__};                                                   \
-        cn_gen_backtrack_relevant_add_many(toAdd);                                       \
+        cn_gen_failure_blame_many(toAdd);                                                \
       }                                                                                  \
       goto cn_label_##last_var##_backtrack;                                              \
     }                                                                                    \
@@ -217,10 +221,10 @@
     cn_bump_free_after(tmp##_checkpoint);                                                \
     cn_gen_alloc_restore(tmp##_alloc_checkpoint);                                        \
     cn_gen_ownership_restore(tmp##_ownership_checkpoint);                                \
-    if ((cn_gen_backtrack_type() == CN_GEN_BACKTRACK_ASSERT ||                           \
-            cn_gen_backtrack_type() == CN_GEN_BACKTRACK_DEPTH) &&                        \
+    if ((cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ASSERT ||                 \
+            cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_DEPTH) &&              \
         tmp##_urn->size != 0) {                                                          \
-      cn_gen_backtrack_reset();                                                          \
+      cn_gen_failure_reset();                                                            \
       goto cn_label_##tmp##_gen;                                                         \
     } else {                                                                             \
       goto cn_label_##last_var##_backtrack;                                              \
@@ -256,9 +260,9 @@
 
 #define CN_GEN_SPLIT_END(tmp, last_var, ...)                                             \
   if (count >= cn_gen_rec_size) {                                                        \
-    cn_gen_backtrack_depth_exceeded();                                                   \
+    cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_DEPTH);                             \
     char* toAdd[] = {__VA_ARGS__};                                                       \
-    cn_gen_backtrack_relevant_add_many(toAdd);                                           \
+    cn_gen_failure_blame_many(toAdd);                                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   cn_gen_split(cn_gen_rec_size - count - 1, vars, count);                                \
@@ -271,14 +275,14 @@
     cn_bump_free_after(tmp##_checkpoint);                                                \
     cn_gen_alloc_restore(tmp##_alloc_checkpoint);                                        \
     cn_gen_ownership_restore(tmp##_ownership_checkpoint);                                \
-    if (cn_gen_backtrack_relevant_contains(#tmp)) {                                      \
+    if (cn_gen_failure_is_blamed(#tmp)) {                                                \
       char* toAdd[] = {__VA_ARGS__};                                                     \
-      cn_gen_backtrack_relevant_add_many(toAdd);                                         \
+      cn_gen_failure_blame_many(toAdd);                                                  \
       if (tmp##_backtracks <= 0) {                                                       \
         goto cn_label_##last_var##_backtrack;                                            \
       }                                                                                  \
       tmp##_backtracks--;                                                                \
-      cn_gen_backtrack_reset();                                                          \
+      cn_gen_failure_reset();                                                            \
       goto cn_label_##tmp##_gen;                                                         \
     } else {                                                                             \
       goto cn_label_##last_var##_backtrack;                                              \

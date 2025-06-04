@@ -19,7 +19,7 @@
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   ;
   (cn-testing/alloc.h as runtime/include/cn-testing/alloc.h)
-  (cn-testing/backtrack.h as runtime/include/cn-testing/backtrack.h)
+  (cn-testing/failure.h as runtime/include/cn-testing/failure.h)
   (cn-testing/dsl.h as runtime/include/cn-testing/dsl.h)
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/rand.h as runtime/include/cn-testing/rand.h)
