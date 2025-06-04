@@ -142,23 +142,6 @@ let rec pp_aux lrt =
 
 let pp rt = Pp.flow (Pp.break 1) (pp_aux rt)
 
-let rec json = function
-  | Define ((s, it), _info, t) ->
-    let args =
-      [ ("symbol", Sym.json s); ("term", IT.json it); ("return_type", json t) ]
-    in
-    `Variant ("Define", Some (`Assoc args))
-  | Resource ((s, (r, _bt)), _info, t) ->
-    let args =
-      [ ("symbol", Sym.json s); ("resource", RT.json r); ("return_type", json t) ]
-    in
-    `Variant ("Resource", Some (`Assoc args))
-  | Constraint (lc, _info, t) ->
-    let args = [ ("constraint", LogicalConstraints.json lc); ("return_type", json t) ] in
-    `Variant ("Constraint", Some (`Assoc args))
-  | I -> `Variant ("I", None)
-
-
 let rec alpha_equivalent lrt lrt' =
   match (lrt, lrt') with
   | Define ((s, it), _, lrt), Define ((s', it'), _, lrt') ->
