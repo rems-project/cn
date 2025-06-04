@@ -3,7 +3,18 @@
  (modes exe)
  (public_name cn)
  (package cn)
- (libraries cmdliner cn menhirLib monomorphic ocamlgraph result str unix))
+ (libraries
+  cmdliner
+  cn
+  lwt
+  lwt.unix
+  menhirLib
+  monomorphic
+  ocamlgraph
+  result
+  str
+  unix
+  yojson))
 
 ; There is already a Version in Cerb_frontend, but if new commits only require
 ; rebuilding the CN backend that module will be out of date.

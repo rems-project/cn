@@ -4,6 +4,8 @@ open CB.Pipeline
 open Cn
 open Setup
 
+let version_str = Cn_version.git_version ^ " [" ^ Cn_version.git_version_date ^ "]"
+
 let print_log_file =
   let print_count = ref 0 in
   let print_file filename = function
