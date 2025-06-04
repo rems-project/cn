@@ -85,11 +85,6 @@ let define_test_flags () =
        |> Option.to_list
        |> List.flatten)
     @ (if Config.is_sized_null () then [ "--sized-null" ] else [])
-    @ (Config.has_allowed_depth_failures ()
-       |> Option.map (fun allowed_depth_failures ->
-         [ "--allowed-depth-failures"; string_of_int allowed_depth_failures ])
-       |> Option.to_list
-       |> List.flatten)
     @ (Config.has_allowed_size_split_backtracks ()
        |> Option.map (fun allowed_size_split_backtracks ->
          [ "--allowed-size-split-backtracks";
