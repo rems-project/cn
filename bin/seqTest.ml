@@ -23,7 +23,6 @@ let run_seq_tests
       (* Test Generation *)
         output_dir
       print_steps
-      _with_static_hack
       num_calls
       backtrack_attempts
       num_tests
@@ -122,12 +121,6 @@ module Flags = struct
     Arg.(value & flag & info [ "print-steps" ] ~doc)
 
 
-  let with_static_hack =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after May 31." in
-    Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
-
-
   let gen_num_calls =
     let doc = "Maximum number of calls per test" in
     Arg.(
@@ -170,7 +163,6 @@ let cmd =
     $ Instrument.Flags.without_ownership_checking
     $ Flags.output_dir
     $ Flags.print_steps
-    $ Flags.with_static_hack
     $ Flags.gen_num_calls
     $ Flags.gen_backtrack_attempts
     $ Flags.num_tests
