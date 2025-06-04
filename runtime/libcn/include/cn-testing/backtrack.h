@@ -24,7 +24,6 @@ void cn_gen_backtrack_relevant_add_many(char* toAdd[]);
 int cn_gen_backtrack_relevant_contains(char* varname);
 
 void cn_gen_backtrack_depth_exceeded();
-uint16_t cn_gen_backtrack_depth_failures();
 
 /**
  * @brief Remaps a relevant variable

@@ -43,7 +43,7 @@ let run_tests
       until_timeout
       exit_fast
       max_stack_depth
-      allowed_depth_failures
+      _allowed_depth_failures
       max_generator_size
       sizing_strategy
       random_size_splits
@@ -110,7 +110,6 @@ let run_tests
           until_timeout;
           exit_fast;
           max_stack_depth;
-          allowed_depth_failures;
           max_generator_size;
           sizing_strategy;
           random_size_splits;
@@ -222,13 +221,13 @@ module Flags = struct
 
 
   let gen_max_unfolds =
-    let doc = "Set the maximum number of unfolds for recursive generators" in
+    let doc = "Does nothing." in
     let deprecated = "Will be removed after June 31." in
     Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~deprecated ~doc)
 
 
   let max_array_length =
-    let doc = "Set the maximum length for an array generated" in
+    let doc = "Does nothing." in
     let deprecated = "Will be removed after June 31." in
     Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
 
@@ -343,11 +342,9 @@ module Flags = struct
 
 
   let allowed_depth_failures =
-    let doc = "Maximum stack depth failures before discarding an attempt" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.allowed_depth_failures
-      & info [ "allowed-depth-failures" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after July 31." in
+    Arg.(value & opt (some int) None & info [ "allowed-depth-failures" ] ~deprecated ~doc)
 
 
   let max_generator_size =
