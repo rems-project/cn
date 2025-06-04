@@ -1305,6 +1305,12 @@ module Spec = struct
       | Some (loc, Cn.CN_mk_function nm) -> ([], [ (loc, nm) ])
       | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
     in
+    let cn_func_requires =
+      Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_requires
+    in
+    let cn_func_ensures =
+      Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_ensures
+    in
     let requires = cross_fst cn_func_requires in
     let ensures = cross_fst cn_func_ensures in
     { trusted; accesses; requires; ensures; functions; if_spec }
