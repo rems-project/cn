@@ -789,11 +789,11 @@ let report_json
   in
   let json =
     `Assoc
-      [ ("loc", Locations.json_loc loc);
+      [ ("loc", (Cerb_location.to_json loc :> Yojson.t));
         ("short", `String (plain report.short));
         ("descr", descr);
         ("state", state_error_file);
         ("report", report_file)
       ]
   in
-  Yojson.Safe.to_channel ~std:true stderr json
+  Yojson.to_channel ~std:true stderr json

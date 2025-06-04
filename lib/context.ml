@@ -233,36 +233,6 @@ let clone_history id ids m =
   List.fold_right (fun id2 m -> set_map_history id2 h m) ids m
 
 
-let json (ctxt : t) : Yojson.Safe.t =
-  let basetype_or_value = function
-    | BaseType bt -> `Variant ("BaseType", Some (BT.json bt))
-    | Value it -> `Variant ("Value", Some (IndexTerms.json it))
-  in
-  let computational =
-    List.map
-      (fun (sym, (binding, _)) ->
-         `Assoc [ ("name", Sym.json sym); ("type", basetype_or_value binding) ])
-      (Sym.Map.bindings ctxt.computational)
-  in
-  let logical =
-    List.map
-      (fun (sym, (binding, _)) ->
-         `Assoc [ ("name", Sym.json sym); ("type", basetype_or_value binding) ])
-      (Sym.Map.bindings ctxt.logical)
-  in
-  let resources = List.map Res.json (get_rs ctxt) in
-  let constraints = List.map LC.json (LC.Set.elements ctxt.constraints) in
-  let json_record =
-    `Assoc
-      [ ("computational", `List computational);
-        ("logical", `List logical);
-        ("resources", `List resources);
-        ("constraints", `List constraints)
-      ]
-  in
-  `Variant ("Context", Some json_record)
-
-
 (* picks out universally quantified constraints, recursive functions,
    and resource predicates that will not be given to the solver *)
 let not_given_to_solver ctxt =

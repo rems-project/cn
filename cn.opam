@@ -23,7 +23,7 @@ depends: [
   "zarith" {>= "1.13"}
 ]
 pin-depends: [
-  ["cerberus-lib.dev" "git+https://github.com/rems-project/cerberus.git#5a3c0d7"]
+  ["cerberus-lib.dev" "git+https://github.com/rems-project/cerberus.git#f11e6b3"]
 ]
 build: [
   ["dune" "subst"] {pinned}

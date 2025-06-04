@@ -63,17 +63,6 @@ let pp_aux rt =
 
 let pp rt = Pp.flow (Pp.break 1) (pp_aux rt)
 
-let json = function
-  | Computational ((s, bt), _info, t) ->
-    let args =
-      [ ("symbol", Sym.json s);
-        ("basetype", BaseTypes.json bt);
-        ("return_type", LRT.json t)
-      ]
-    in
-    `Variant ("Computational", Some (`Assoc args))
-
-
 let alpha_equivalent rt rt' =
   match (rt, rt') with
   | Computational ((s, bt), _, t), Computational ((s', bt'), _, t') ->

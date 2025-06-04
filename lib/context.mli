@@ -99,8 +99,6 @@ val clone_history
   resource_history Map.Make(Int).t ->
   resource_history Map.Make(Int).t
 
-val json : t -> Yojson.Safe.t
-
 val not_given_to_solver
   :  t ->
   LogicalConstraints.t list

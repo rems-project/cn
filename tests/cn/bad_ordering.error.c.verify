@@ -1,5 +1,5 @@
 return code: 1
 tests/cn/bad_ordering.error.c:4:5: error: unexpected token after ';' and before 'requires'
-Please add error message for state 1688 to parsers/c/c_parser_error.messages
+Please add error message for state 1696 to parsers/c/c_parser_error.messages
     requires x < MAXi32(); @*/
     ^~~~~~~~ 

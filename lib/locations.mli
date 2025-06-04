@@ -34,12 +34,6 @@ val head_pos_of_location : t -> string * string
 
 val unpack : t -> Cerb_location.t
 
-(* TODO: BCP: What's to do? *)
-(* todo *)
-val json_loc : t -> Yojson.Safe.t
-
-val json_path : path -> Yojson.Safe.t
-
 type region = Cerb_position.t * Cerb_position.t
 
 val point : Cerb_position.t -> t
