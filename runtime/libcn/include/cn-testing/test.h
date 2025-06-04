@@ -164,7 +164,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         cn_gen_set_input_timeout(0);                                                     \
       }                                                                                  \
       cn_gen_##FuncName##_record* res = cn_gen_##FuncName();                             \
-      if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_NONE) {                            \
+      if (cn_gen_failure_get_failure_type() != CN_GEN_BACKTRACK_NONE) {                  \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
@@ -254,7 +254,7 @@ int cn_test_main(int argc, char* argv[]);
 
 #define CN_TEST_INIT()                                                                   \
   reset_fulminate();                                                                     \
-  cn_gen_backtrack_reset();                                                              \
+  cn_gen_failure_reset();                                                                \
   cn_gen_alloc_reset();                                                                  \
   cn_gen_ownership_reset();
 

@@ -39,7 +39,7 @@
     -rcs
     %{target}
     cn-testing/alloc.o
-    cn-testing/backtrack.o
+    cn-testing/failure.o
     cn-testing/rand.o
     cn-testing/size.o
     cn-testing/test.o
