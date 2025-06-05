@@ -75,9 +75,6 @@ let transform_gt (gt : Term.t) : Term.t =
   Term.map_gen_pre aux gt
 
 
-let transform_gd ({ filename; recursive; spec; name; iargs; oargs; body } : Def.t) : Def.t
-  =
-  Def.{ filename; recursive; spec; name; iargs; oargs; body = transform_gt body }
-
+let transform_gd (gd : Def.t) : Def.t = Def.{ gd with body = transform_gt gd.body }
 
 let transform (ctx : Ctx.t) : Ctx.t = List.map_snd transform_gd ctx

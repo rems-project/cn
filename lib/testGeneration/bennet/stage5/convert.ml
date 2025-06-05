@@ -3,7 +3,6 @@ module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 

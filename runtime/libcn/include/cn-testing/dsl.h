@@ -137,7 +137,7 @@
   ty* var = gen;                                                                         \
   cn_gen_rand_checkpoint var##_rand_checkpoint_after = cn_gen_rand_save();
 
-#define CN_GEN_LET_END(backtracks, var, last_var, ...)                                   \
+#define CN_GEN_LET_END(var, last_var, ...)                                               \
   if (cn_gen_failure_get_failure_type() != CN_GEN_BACKTRACK_NONE) {                      \
     cn_label_##var##_backtrack : CN_GEN_CHECK_TIMEOUT();                                 \
     cn_bump_free_after(var##_checkpoint);                                                \

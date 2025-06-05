@@ -1,5 +1,4 @@
 module BT = BaseTypes
-module GT = GenTerms
 
 module type GEN_TERM = sig
   type t
