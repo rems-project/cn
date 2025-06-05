@@ -185,11 +185,3 @@ end
 
 let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
   gt |> Builtin.transform_gt prog5 |> Fixes.transform_gt
-
-
-let transform_gd (prog5 : unit Mucore.file) (gd : Def.t) : Def.t =
-  { gd with body = transform_gt prog5 gd.body }
-
-
-let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) : Ctx.t =
-  List.map_snd (transform_gd prog5) ctx

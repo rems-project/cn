@@ -1,4 +1,3 @@
-module BT = BaseTypes
 module IT = IndexTerms
 
 let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * IT.t) option =

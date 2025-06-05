@@ -10,7 +10,7 @@ let transform_gt prog5 gt =
         |> BranchPruning.transform_gt
         |> SimplifyIndexTerm.transform_gt prog5
         |> RemoveUnused.transform_gt
-        |> Inline.transform_gt
+        |> InlineTerm.transform_gt
         |> PushPull.transform_gt
         |> PartialEvaluation.transform_gt prog5
         |> MemberIndirection.transform_gt

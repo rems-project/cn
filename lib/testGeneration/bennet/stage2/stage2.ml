@@ -5,6 +5,7 @@ module Ctx = Ctx
 let transform (prog5 : unit Mucore.file) (ctx : Stage1.Ctx.t) : Ctx.t =
   ctx
   |> Convert.transform
+  |> SimplifyGen.transform prog5
   |> EachFusion.transform
   |> SimplifyGen.transform prog5
   |> FlipIfs.transform
