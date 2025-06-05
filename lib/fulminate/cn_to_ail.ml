@@ -3465,6 +3465,15 @@ let cn_to_ail_predicates preds filename dts globals cn_preds
   List.split (List.map (cn_to_ail_predicate filename dts globals preds cn_preds) preds)
 
 
+let cn_to_ail_lemmas lemmata filename dts globals cn_preds
+  : ((Locations.t * A.sigma_declaration)
+    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
+      list
+    * A.sigma_tag_definition option list
+  =
+  List.split (List.map cn_to_ail_lemma lemmata)
+
+
 (* TODO: Add destination passing? *)
 let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
   | LRT.Define ((name, it), (_loc, _), t) ->
