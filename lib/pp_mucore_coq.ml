@@ -1738,14 +1738,11 @@ let pp_cnprog_load (r : Cnprog.load) =
 
 
 let rec pp_cn_prog f = function
-  | Cnprog.Let (loc, (name, l), prog) ->
+  | Cnprog.Let ((name, l), prog) ->
     pp_constructor
       "CNProgs.CLet"
-      [ pp_location loc;
-        pp_tuple [ pp_symbol name; pp_cnprog_load l ];
-        pp_cn_prog f prog
-      ]
-  | Pure (loc, x) -> pp_constructor "CNProgs" [ pp_location loc; f x ]
+      [ pp_tuple [ pp_symbol name; pp_cnprog_load l ]; pp_cn_prog f prog ]
+  | Pure x -> pp_constructor "CNProgs.Pure" [ f x ]
 
 
 let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =

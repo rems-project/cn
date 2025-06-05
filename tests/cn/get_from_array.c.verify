@@ -9,7 +9,7 @@ tests/cn/get_from_array.c:40:23: warning: 'focus' prefers a 'u64', but '(i32)idx
   /*@ focus RW<int>, ((i32) idx); @*/
                       ^~~~~~~~~ 
 [1/2]: get_global_array_width_for_cn -- pass
-tests/cn/get_from_array.c:41:7: warning: nothing instantiated
+tests/cn/get_from_array.c:41:6: warning: nothing instantiated
   /*@ instantiate good<int>, ((i32) idx); @*/
-      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [2/2]: set_a_pointer -- pass

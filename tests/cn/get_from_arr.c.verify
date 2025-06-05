@@ -8,7 +8,7 @@ tests/cn/get_from_arr.c:9:18: warning: 'each' prefers a 'u64', but 'j' has type 
 tests/cn/get_from_arr.c:14:23: warning: 'focus' prefers a 'u64', but '4'i32' has type 'i32'.
   /*@ focus RW<char>, 4i32; @*/
                       ^
-tests/cn/get_from_arr.c:15:7: warning: nothing instantiated
+tests/cn/get_from_arr.c:15:6: warning: nothing instantiated
   /*@ instantiate good<char>, 4i32; @*/
-      ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: get_from_arr -- pass
