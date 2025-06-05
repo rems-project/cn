@@ -1952,9 +1952,9 @@ module BaseTyping = struct
         let@ () = add_l s (Memory.bt_of_sct ct) (loc, lazy (Sym.pp s)) in
         let@ p' = aux p' in
         return (Let (loc, (s, { ct; pointer }), p'))
-      | Statement (loc, x) ->
+      | Pure (loc, x) ->
         let@ x = f loc x in
-        return (Statement (loc, x))
+        return (Pure (loc, x))
     in
     pure (aux p)
 

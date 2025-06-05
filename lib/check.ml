@@ -1336,7 +1336,7 @@ let rec cn_prog_sub_let f = function
     let@ value = load loc pointer ct in
     let subbed = Cnprog.subst f (IT.make_subst [ (sym, value) ]) cn_prog in
     cn_prog_sub_let f subbed
-  | Statement (loc, x) -> return (loc, x)
+  | Pure (loc, x) -> return (loc, x)
 
 
 let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
