@@ -1333,7 +1333,7 @@ module Handle = struct
 
   let with_loads loc allocations old_states : 'a C_vars.t -> 'a Cnprog.t Or_Error.t =
     let rec aux = function
-      | C_vars.Done x -> return (Cnprog.Statement (loc, x))
+      | C_vars.Done x -> return (Cnprog.Pure (loc, x))
       | Error { loc; msg } -> fail { loc; msg }
       | Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with

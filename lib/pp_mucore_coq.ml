@@ -1745,7 +1745,7 @@ let rec pp_cn_prog f = function
         pp_tuple [ pp_symbol name; pp_cnprog_load l ];
         pp_cn_prog f prog
       ]
-  | Statement (loc, stmt) -> pp_constructor "CNProgs" [ pp_location loc; f stmt ]
+  | Pure (loc, x) -> pp_constructor "CNProgs" [ pp_location loc; f x ]
 
 
 let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =

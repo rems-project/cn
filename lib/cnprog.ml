@@ -8,7 +8,7 @@ type load =
 
 type 'a t =
   | Let of Loc.t * (Sym.t * load) * 'a t
-  | Statement of Loc.t * 'a
+  | Pure of Loc.t * 'a
 [@@deriving map]
 
 let rec subst f substitution = function
@@ -16,7 +16,7 @@ let rec subst f substitution = function
     let pointer = IT.subst substitution pointer in
     let name, prog = suitably_alpha_rename f substitution.relevant name prog in
     Let (loc, (name, { ct; pointer }), subst f substitution prog)
-  | Statement (loc, x) -> Statement (loc, f substitution x)
+  | Pure (loc, x) -> Pure (loc, f substitution x)
 
 
 and alpha_rename_ f ~from ~to_ prog = (to_, subst f (IT.make_rename ~from ~to_) prog)
@@ -44,4 +44,4 @@ let rec dtree f =
           Dleaf (Sctypes.pp load.ct);
           dtree f prog
         ] )
-  | Statement (_loc, stmt) -> f stmt
+  | Pure (_loc, x) -> f x
