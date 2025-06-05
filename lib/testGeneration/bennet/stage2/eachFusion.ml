@@ -1,4 +1,3 @@
-module BT = BaseTypes
 module IT = IndexTerms
 
 let simp = Simplify.IndexTerms.simp (Simplify.default Global.empty)

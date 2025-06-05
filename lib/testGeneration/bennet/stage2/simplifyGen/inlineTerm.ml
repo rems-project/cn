@@ -3,8 +3,6 @@ module LC = LogicalConstraints
 
 (** This pass inlines generators that just return a constant or symbol *)
 module Returns = struct
-  let name = "inline_return"
-
   let transform_gt (gt : Term.t) : Term.t =
     let aux (gt : Term.t) : Term.t =
       let (GT (gt_, _, _loc)) = gt in
@@ -18,8 +16,6 @@ end
 
 (* This pass inlines terms used a single time *)
 module SingleUse = struct
-  let name = "inline_single_use_gen"
-
   let subst (x : Sym.t) (gt_repl : Term.t) (gt : Term.t) : Term.t =
     let aux (gt : Term.t) : Term.t =
       let (GT (gt_, _, _)) = gt in

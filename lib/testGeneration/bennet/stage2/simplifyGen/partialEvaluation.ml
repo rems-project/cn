@@ -651,10 +651,3 @@ module GenTerms = struct
 end
 
 let transform_gt (prog5 : unit Mucore.file) = GenTerms.partial_eval ~mode:Lazy ~prog5
-
-let transform_gd (prog5 : unit Mucore.file) (gd : Def.t) : Def.t =
-  { gd with body = transform_gt prog5 gd.body }
-
-
-let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) =
-  List.map_snd (transform_gd prog5) ctx

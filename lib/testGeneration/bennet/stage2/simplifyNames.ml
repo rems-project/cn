@@ -1,4 +1,3 @@
-module BT = BaseTypes
 module IT = IndexTerms
 module StringMap = Map.Make (String)
 

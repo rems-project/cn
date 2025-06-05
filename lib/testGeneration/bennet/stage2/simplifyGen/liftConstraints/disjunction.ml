@@ -112,8 +112,3 @@ let transform_gt (gt : GT.t) : GT.t =
       GT.map_ ((i, i_bt, it_perm), aux ext gt_inner) loc
   in
   aux Sym.Set.empty gt
-
-
-let transform_gd (gd : Def.t) : Def.t = Def.{ gd with body = transform_gt gd.body }
-
-let transform (ctx : Ctx.t) : Ctx.t = List.map_snd transform_gd ctx
