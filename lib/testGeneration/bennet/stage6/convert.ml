@@ -258,7 +258,10 @@ let rec transform_term
                       [ AilEconst
                           (ConstantInteger
                              (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                ( (if Stage5.Term.is_return value then
+                                     Z.zero
+                                   else
+                                     Z.of_int (TestGenConfig.get_max_backtracks ())),
                                   Decimal,
                                   None )));
                         AilEident x
@@ -281,17 +284,7 @@ let rec transform_term
               (mk_expr
                  (AilEcall
                     ( mk_expr (AilEident (Sym.fresh "CN_GEN_LET_END")),
-                      List.map
-                        mk_expr
-                        [ AilEconst
-                            (ConstantInteger
-                               (IConstant
-                                  ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                    Decimal,
-                                    None )));
-                          AilEident x;
-                          AilEident last_var
-                        ]
+                      List.map mk_expr [ AilEident x; AilEident last_var ]
                       @ List.map
                           (fun x ->
                              mk_expr

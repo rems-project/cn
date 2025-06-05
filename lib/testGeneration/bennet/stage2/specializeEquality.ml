@@ -58,20 +58,9 @@ let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
   aux vars gt
 
 
-let transform_gd
-      ({ filename : string;
-         recursive : bool;
-         spec;
-         name : Sym.Set.elt;
-         iargs : (Sym.Set.elt * BT.t) list;
-         oargs : (Sym.Set.elt * BT.t) list;
-         body : Term.t
-       } :
-        Def.t)
-  : Def.t
-  =
-  let vars = iargs |> List.map fst |> Sym.Set.of_list in
-  { filename; recursive; spec; name; iargs; oargs; body = transform_gt vars body }
+let transform_gd (gd : Def.t) : Def.t =
+  let vars = gd.iargs |> List.map fst |> Sym.Set.of_list in
+  { gd with body = transform_gt vars gd.body }
 
 
 let transform (ctx : Ctx.t) : Ctx.t = List.map_snd transform_gd ctx

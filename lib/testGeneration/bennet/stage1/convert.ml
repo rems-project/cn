@@ -347,7 +347,9 @@ let transform_spec
   : unit m
   =
   (* Necessary to avoid triggering special-cased logic in [CtA] w.r.t globals *)
-  let rename x = GenUtils.destroy_object_refs x in
+  let rename x =
+    match Sym.description x with SD_ObjectAddress x' -> Sym.fresh x' | _ -> x
+  in
   let lat =
     let lat = AT.get_lat at in
     let subst =
@@ -391,13 +393,43 @@ let transform_spec
   modify (Ctx.add gd)
 
 
+let get_recursive_preds (preds : (Sym.t * Definition.Predicate.t) list) : Sym.Set.t =
+  let get_calls (pred : Definition.Predicate.t) : Sym.Set.t =
+    pred.clauses
+    |> Option.get
+    |> List.map (fun (cl : Definition.Clause.t) -> cl.packing_ft)
+    |> List.map LAT.r_resource_requests
+    |> List.flatten
+    |> List.map snd
+    |> List.map fst
+    |> List.map Request.get_name
+    |> List.filter_map (fun (n : Request.name) ->
+      match n with PName name -> Some name | Owned _ -> None)
+    |> Sym.Set.of_list
+  in
+  let module G = Graph.Persistent.Digraph.Concrete (Sym) in
+  let g =
+    List.fold_left
+      (fun g (fsym, pred) ->
+         Sym.Set.fold (fun gsym g' -> G.add_edge g' fsym gsym) (get_calls pred) g)
+      G.empty
+      preds
+  in
+  let module Oper = Graph.Oper.P (G) in
+  let closure = Oper.transitive_closure g in
+  preds
+  |> List.map fst
+  |> List.filter (fun fsym -> G.mem_edge closure fsym fsym)
+  |> Sym.Set.of_list
+
+
 let transform
       filename
       (preds : (Sym.t * Definition.Predicate.t) list)
       (tests : Test.t list)
   : GenContext.Make(Term).t
   =
-  let recursive_preds = GenAnalysis.get_recursive_preds preds in
+  let recursive_preds = get_recursive_preds preds in
   let context_specs =
     tests
     |> List.map (fun (test : Test.t) ->

@@ -3,7 +3,6 @@ module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module GA = GenAnalysis
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
@@ -30,14 +29,14 @@ let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage3.Term.t)
     match gr with
     | Uniform { bt } -> (Uniform { bt }, Sym.Set.empty)
     | Pick { bt; choices } ->
-      let choices, syms =
+      let choices, sym_sets =
         choices
         |> List.map (fun (w, gr) ->
           let gr, syms = aux gr in
           ((w, gr), syms))
         |> List.split
       in
-      (Pick { bt; choices }, List.fold_left Sym.Set.union Sym.Set.empty syms)
+      (Pick { bt; choices }, List.fold_left Sym.Set.union Sym.Set.empty sym_sets)
     | Alloc -> (Alloc, Sym.Set.empty)
     | Call { fsym; iargs; oarg_bt } ->
       let sized, set =
@@ -79,9 +78,9 @@ let transform_gt (syms : Sym.Set.t) (gr : Stage3.Term.t) : Term.t =
     | Pick { bt; choices } -> Pick { bt; choices = List.map_snd (aux path_vars) choices }
     | _ ->
       let count = count_recursive_calls syms gr in
-      let gr, _syms = size_recursive_calls syms count gr in
+      let gr, sz_syms = size_recursive_calls syms count gr in
       if count > 1 then
-        SplitSize { syms; rest = gr }
+        SplitSize { syms = sz_syms; rest = gr }
       else
         gr
   in
