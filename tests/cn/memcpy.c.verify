@@ -20,7 +20,7 @@ tests/cn/memcpy.c:19:16: warning: 'each' prefers a 'u64', but 'j' has type 'i32'
 tests/cn/memcpy.c:28:25: warning: 'focus' prefers a 'u64', but '(i32)read_&i0' has type 'i32'.
     /*@ focus RW<char>, (i32)i; @*/
                         ^~~~~~ 
-tests/cn/memcpy.c:29:9: warning: nothing instantiated
+tests/cn/memcpy.c:29:8: warning: nothing instantiated
     /*@ instantiate good<char>, (i32)i; @*/
-        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: naive_memcpy -- pass

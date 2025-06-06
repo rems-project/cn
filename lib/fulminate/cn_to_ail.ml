@@ -3541,8 +3541,8 @@ let cn_to_ail_cnstatement
   | Print _t -> (default_res_for_dest, true)
 
 
-let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
-  | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
+let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt loc = function
+  | Cnprog.Let ((name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
     let cn_ptr_deref_sym = Sym.fresh "cn_pointer_deref" in
     let ctype_sym =
@@ -3564,12 +3564,14 @@ let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
         AilSdeclaration
           [ (name, Some (mk_expr (wrap_with_convert_to cn_ptr_deref_fcall bt))) ])
     in
-    let (b2, ss), no_op = cn_to_ail_cnprog_aux filename dts globals spec_mode_opt prog in
+    let (b2, ss), no_op =
+      cn_to_ail_cnprog_aux filename dts globals spec_mode_opt loc prog
+    in
     if no_op then
       (([], []), true)
     else
       ((b1 @ (binding :: b2), s @ (ail_stat_ :: ss)), false)
-  | Statement (loc, stmt) ->
+  | Statement stmt ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let (bs, ss), no_op =
@@ -3578,8 +3580,8 @@ let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
     ((bs, upd_s @ ss @ pop_s), no_op)
 
 
-let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
-  let (bs, ss), _ = cn_to_ail_cnprog_aux filename dts globals spec_mode_opt cn_prog in
+let cn_to_ail_cnprog filename dts globals spec_mode_opt loc cn_prog =
+  let (bs, ss), _ = cn_to_ail_cnprog_aux filename dts globals spec_mode_opt loc cn_prog in
   (bs, ss)
 
 
@@ -3588,7 +3590,7 @@ let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =
   let pop_s = generate_cn_pop_msg_info in
   let bs_and_ss =
     List.map
-      (fun prog -> cn_to_ail_cnprog filename dts globals spec_mode_opt prog)
+      (fun prog -> cn_to_ail_cnprog filename dts globals spec_mode_opt loc prog)
       cn_progs
   in
   let bs, ss = List.split bs_and_ss in

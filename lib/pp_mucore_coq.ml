@@ -1737,12 +1737,15 @@ let pp_cnprog_load (r : Cnprog.load) =
     [ ("CNProgs.ct", pp_sctype r.ct); ("CNProgs.pointer", pp_index_term r.pointer) ]
 
 
-let rec pp_cn_prog = function
-  | Cnprog.Let (loc, (name, l), prog) ->
+let rec pp_cn_prog loc = function
+  | Cnprog.Let ((name, l), prog) ->
     pp_constructor
       "CNProgs.CLet"
-      [ pp_location loc; pp_tuple [ pp_symbol name; pp_cnprog_load l ]; pp_cn_prog prog ]
-  | Statement (loc, stmt) ->
+      [ pp_location loc;
+        pp_tuple [ pp_symbol name; pp_cnprog_load l ];
+        pp_cn_prog loc prog
+      ]
+  | Statement stmt ->
     pp_constructor "CNProgs.Statement" [ pp_location loc; pp_cnprog_statement stmt ]
 
 
@@ -1861,7 +1864,7 @@ and pp_expr pp_type = function
              "CN_progs"
              [ pp_tuple
                  [ pp_list (pp_cn_statement pp_symbol pp_ctype) stmts;
-                   pp_list pp_cn_prog progs
+                   pp_list (pp_cn_prog loc) progs
                  ]
              ])
       ]

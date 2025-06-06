@@ -1945,18 +1945,18 @@ module BaseTyping = struct
       return (Split_case lc)
 
 
-  let check_cnprog p =
+  let check_cnprog loc p =
     let open Cnprog in
     let rec aux = function
-      | Let (loc, (s, { ct; pointer }), p') ->
+      | Let ((s, { ct; pointer }), p') ->
         let@ () = WCT.is_ct loc ct in
         let@ pointer = WIT.check loc (Loc ()) pointer in
         let@ () = add_l s (Memory.bt_of_sct ct) (loc, lazy (Sym.pp s)) in
         let@ p' = aux p' in
-        return (Let (loc, (s, { ct; pointer }), p'))
-      | Statement (loc, stmt) ->
+        return (Let ((s, { ct; pointer }), p'))
+      | Statement stmt ->
         let@ stmt = check_cn_statement loc stmt in
-        return (Statement (loc, stmt))
+        return (Statement stmt)
     in
     pure (aux p)
 
@@ -2183,7 +2183,7 @@ module BaseTyping = struct
           in
           return (Unit, Erun (l, pes, its))
         | CN_progs (surfaceprog, cnprogs) ->
-          let@ cnprogs = ListM.mapM check_cnprog cnprogs in
+          let@ cnprogs = ListM.mapM (check_cnprog loc) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
         | End _ -> todo ()
       in

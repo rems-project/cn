@@ -11,10 +11,10 @@ tests/cn/swap_pair.c:11:38: warning: 'focus' prefers a 'u64', but '0'i32' has ty
 tests/cn/swap_pair.c:13:38: warning: 'focus' prefers a 'u64', but '1'i32' has type 'i32'.
     /*@ focus RW<unsigned long int>, 1i32; @*/
                                      ^
-tests/cn/swap_pair.c:14:9: warning: nothing instantiated
+tests/cn/swap_pair.c:14:8: warning: nothing instantiated
     /*@ instantiate good<unsigned long int>, 0i32; @*/
-        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-tests/cn/swap_pair.c:16:9: warning: nothing instantiated
+       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+tests/cn/swap_pair.c:16:8: warning: nothing instantiated
     /*@ instantiate good<unsigned long int>, 1i32; @*/
-        ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+       ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
 [1/1]: swap_pair -- pass

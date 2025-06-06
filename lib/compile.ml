@@ -1220,22 +1220,21 @@ module C_vars = struct
               iargs = List.map IT.Surface.proj iargs
             } )
       in
-      return (Statement (loc, stmt))
+      return (Statement stmt)
     | CN_to_from_bytes (to_from, pred, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let@ name, pointer, iargs, _oargs_ty = cn_res_info ~pred_loc:loc env pred args in
       return
         (Statement
-           ( loc,
-             To_from_bytes
-               ( to_from,
-                 { name;
-                   pointer = IT.Surface.proj pointer;
-                   iargs = List.map IT.Surface.proj iargs
-                 } ) ))
+           (To_from_bytes
+              ( to_from,
+                { name;
+                  pointer = IT.Surface.proj pointer;
+                  iargs = List.map IT.Surface.proj iargs
+                } )))
     | CN_have assrt ->
       let@ assrt = cn_assrt env (loc, assrt) in
-      return (Statement (loc, Have assrt))
+      return (Statement (Have assrt))
     | CN_instantiate (to_instantiate, expr) ->
       let@ expr = cn_expr Sym.Set.empty env expr in
       let expr = IT.Surface.proj expr in
@@ -1245,10 +1244,10 @@ module C_vars = struct
         | I_Function f -> I_Function f
         | I_Good ct -> I_Good (Sctypes.of_ctype_unsafe loc ct)
       in
-      return (Statement (loc, Instantiate (to_instantiate, expr)))
+      return (Statement (Instantiate (to_instantiate, expr)))
     | CN_split_case e ->
       let@ e = cn_assrt env (loc, e) in
-      return (Statement (loc, Split_case e))
+      return (Statement (Split_case e))
     | CN_extract (attrs, to_extract, expr) ->
       let@ expr = cn_expr Sym.Set.empty env expr in
       let expr = IT.Surface.proj expr in
@@ -1261,23 +1260,23 @@ module C_vars = struct
           E_Pred (CN_block (Option.map (Sctypes.of_ctype_unsafe loc) oty))
         | E_Pred (CN_named pn) -> E_Pred (CN_named pn)
       in
-      return (Statement (loc, Extract (attrs, to_extract, expr)))
+      return (Statement (Extract (attrs, to_extract, expr)))
     | CN_unfold (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let args = List.map IT.Surface.proj args in
-      return (Statement (loc, Unfold (s, args)))
+      return (Statement (Unfold (s, args)))
     | CN_assert_stmt e ->
       let@ e = cn_assrt env (loc, e) in
-      return (Statement (loc, Assert e))
+      return (Statement (Assert e))
     | CN_apply (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let args = List.map IT.Surface.proj args in
-      return (Statement (loc, Apply (s, args)))
-    | CN_inline nms -> return (Statement (loc, Inline nms))
+      return (Statement (Apply (s, args)))
+    | CN_inline nms -> return (Statement (Inline nms))
     | CN_print expr ->
       let@ expr = cn_expr Sym.Set.empty env expr in
       let expr = IT.Surface.proj expr in
-      return (Statement (loc, Print expr))
+      return (Statement (Print expr))
 end
 
 module Handle = struct
@@ -1369,7 +1368,7 @@ module Handle = struct
       let value = IT.sym_ (value_s, value_bt, value_loc) in
       let@ prog = aux (k (Some value)) in
       let load = Cnprog.{ ct = pointee_ct; pointer = IT.Surface.proj pointer } in
-      return (Cnprog.Let (loc, (value_s, load), prog))
+      return (Cnprog.Let ((value_s, load), prog))
     in
     aux
 end

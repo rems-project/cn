@@ -2063,13 +2063,13 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        in
        let rec loop = function
          | [] -> k (unit_ loc)
-         | Cnprog.Let (loc, (sym, { ct; pointer }), cn_prog) :: cn_progs ->
+         | Cnprog.Let ((sym, { ct; pointer }), cn_prog) :: cn_progs ->
            let@ pointer = WellTyped.check_term loc (Loc ()) pointer in
            let@ () = WellTyped.check_ct loc ct in
            let@ value = load loc pointer ct in
            let subbed = Cnprog.subst (IT.make_subst [ (sym, value) ]) cn_prog in
            loop (subbed :: cn_progs)
-         | Cnprog.Statement (loc, cn_statement) :: cn_progs ->
+         | Cnprog.Statement cn_statement :: cn_progs ->
            (match cn_statement with
             | Cnprog.Split_case lc ->
               Pp.debug 5 (lazy (Pp.headline "checking split_case"));

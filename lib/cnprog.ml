@@ -30,15 +30,15 @@ type load =
   }
 
 type t =
-  | Let of Loc.t * (Sym.t * load) * t
-  | Statement of Loc.t * statement
+  | Let of (Sym.t * load) * t
+  | Statement of statement
 
 let rec subst substitution = function
-  | Let (loc, (name, { ct; pointer }), prog) ->
+  | Let ((name, { ct; pointer }), prog) ->
     let pointer = IT.subst substitution pointer in
     let name, prog = suitably_alpha_rename substitution.relevant name prog in
-    Let (loc, (name, { ct; pointer }), subst substitution prog)
-  | Statement (loc, stmt) ->
+    Let ((name, { ct; pointer }), subst substitution prog)
+  | Statement stmt ->
     let stmt =
       match stmt with
       | Pack_unpack (pack_unpack, pt) ->
@@ -62,7 +62,7 @@ let rec subst substitution = function
       | Inline nms -> Inline nms
       | Print it -> Print (IT.subst substitution it)
     in
-    Statement (loc, stmt)
+    Statement stmt
 
 
 and alpha_rename_ ~from ~to_ prog = (to_, subst (IT.make_rename ~from ~to_) prog)
@@ -133,7 +133,7 @@ let dtree_of_statement =
 let rec dtree =
   let open Cerb_frontend.Pp_ast in
   function
-  | Let (_loc, (s, load), prog) ->
+  | Let ((s, load), prog) ->
     Dnode
       ( pp_ctor "LetLoad",
         [ Dleaf (Sym.pp s);
@@ -141,4 +141,4 @@ let rec dtree =
           Dleaf (Sctypes.pp load.ct);
           dtree prog
         ] )
-  | Statement (_loc, stmt) -> dtree_of_statement stmt
+  | Statement stmt -> dtree_of_statement stmt
