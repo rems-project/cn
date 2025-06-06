@@ -71,10 +71,10 @@ let add_records_to_map_from_cn_statement = function
 
 let add_records_to_map_from_cnprogs (_, cn_progs) =
   let rec aux = function
-    | Cnprog.Let ((_, { ct = _; pointer }), prog) ->
+    | Cnprog.Let (_, (_, { ct = _; pointer }), prog) ->
       add_records_to_map_from_it pointer;
       aux prog
-    | Pure x -> add_records_to_map_from_cn_statement x
+    | Pure (_, x) -> add_records_to_map_from_cn_statement x
   in
   List.iter aux cn_progs
 

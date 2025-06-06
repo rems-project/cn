@@ -7,16 +7,16 @@ type load =
   }
 
 type 'a t =
-  | Let of (Sym.t * load) * 'a t
-  | Pure of 'a
+  | Let of Loc.t * (Sym.t * load) * 'a t
+  | Pure of Loc.t * 'a
 [@@deriving map]
 
 let rec subst f substitution = function
-  | Let ((name, { ct; pointer }), prog) ->
+  | Let (loc, (name, { ct; pointer }), prog) ->
     let pointer = IT.subst substitution pointer in
     let name, prog = suitably_alpha_rename f substitution.relevant name prog in
-    Let ((name, { ct; pointer }), subst f substitution prog)
-  | Pure x -> Pure (f substitution x)
+    Let (loc, (name, { ct; pointer }), subst f substitution prog)
+  | Pure (loc, x) -> Pure (loc, f substitution x)
 
 
 and alpha_rename_ f ~from ~to_ prog = (to_, subst f (IT.make_rename ~from ~to_) prog)
@@ -36,7 +36,7 @@ and suitably_alpha_rename f syms s prog =
 let rec dtree f =
   let open Cerb_frontend.Pp_ast in
   function
-  | Let ((s, load), prog) ->
+  | Let (_loc, (s, load), prog) ->
     Dnode
       ( pp_ctor "LetLoad",
         [ Dleaf (Sym.pp s);
@@ -44,4 +44,4 @@ let rec dtree f =
           Dleaf (Sctypes.pp load.ct);
           dtree f prog
         ] )
-  | Pure x -> f x
+  | Pure (_loc, x) -> f x
