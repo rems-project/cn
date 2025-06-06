@@ -1331,9 +1331,9 @@ module Handle = struct
       fail { loc; msg }
 
 
-  let with_loads allocations old_states : 'a C_vars.t -> 'a Cnprog.t Or_Error.t =
+  let with_loads loc allocations old_states : 'a C_vars.t -> 'a Cnprog.t Or_Error.t =
     let rec aux = function
-      | C_vars.Done x -> return (Cnprog.Pure x)
+      | C_vars.Done x -> return (Cnprog.Pure (loc, x))
       | Error { loc; msg } -> fail { loc; msg }
       | Value_of_c_variable (loc, sym, scope, k) ->
         (match scope with
@@ -1367,7 +1367,7 @@ module Handle = struct
       let value = IT.sym_ (value_s, value_bt, value_loc) in
       let@ prog = aux (k (Some value)) in
       let load = Cnprog.{ ct = pointee_ct; pointer = IT.Surface.proj pointer } in
-      return (Cnprog.Let ((value_s, load), prog))
+      return (Cnprog.Let (loc, (value_s, load), prog))
     in
     aux
 end
@@ -1630,9 +1630,9 @@ let statement
       env
       (Cn.CN_statement (loc, stmt_))
   =
-  Handle.with_loads allocations old_states (C_vars.cn_statement env (loc, stmt_))
+  Handle.with_loads loc allocations old_states (C_vars.cn_statement env (loc, stmt_))
 
 
 let expr_ghost allocations old_states env expr =
-  let (Cn.CNExpr (_, _)) = expr in
-  Handle.with_loads allocations old_states (C_vars.cn_expr Sym.Set.empty env expr)
+  let (Cn.CNExpr (loc, _)) = expr in
+  Handle.with_loads loc allocations old_states (C_vars.cn_expr Sym.Set.empty env expr)
