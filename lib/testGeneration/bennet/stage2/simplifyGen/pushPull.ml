@@ -25,9 +25,10 @@ let pull_out_inner_generators (gt : Term.t) : Term.t =
              Term.let_star_ ((x, gt_then), gt2) loc_let,
              Term.let_star_ ((x, gt_else), gt2) loc_let )
            loc_ite
-       | GT (Pick wgts, _, loc_pick) ->
+       | GT (Pick wgts, bt, loc_pick) ->
          Term.pick_
            (List.map_snd (fun gt' -> Term.let_star_ ((x, gt'), gt2) loc_let) wgts)
+           bt
            loc_pick
        | _ -> gt)
     | _ -> gt
@@ -38,17 +39,20 @@ let pull_out_inner_generators (gt : Term.t) : Term.t =
 let push_in_outer_generators (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
     match gt with
-    | GT (Asgn ((it_addr, sct), it_val, GT (Pick wgts, _, loc_pick)), _, loc_asgn) ->
+    | GT (Asgn ((it_addr, sct), it_val, GT (Pick wgts, _, loc_pick)), bt, loc_asgn) ->
       Term.pick_
         (List.map_snd (fun gt' -> Term.asgn_ ((it_addr, sct), it_val, gt') loc_asgn) wgts)
+        bt
         loc_pick
-    | GT (LetStar ((x, gt_inner), GT (Pick wgts, _, loc_pick)), _, loc_let) ->
+    | GT (LetStar ((x, gt_inner), GT (Pick wgts, _, loc_pick)), bt, loc_let) ->
       Term.pick_
         (List.map_snd (fun gt' -> Term.let_star_ ((x, gt_inner), gt') loc_let) wgts)
+        bt
         loc_pick
-    | GT (LetStar ((x, GT (Pick wgts, _, loc_pick)), gt_rest), _, loc_let) ->
+    | GT (LetStar ((x, GT (Pick wgts, _, loc_pick)), gt_rest), bt, loc_let) ->
       Term.pick_
         (List.map_snd (fun gt' -> Term.let_star_ ((x, gt'), gt_rest) loc_let) wgts)
+        bt
         loc_pick
     | GT (LetStar ((x, GT (ITE (it_if, gt_then, gt_else), _, loc_ite)), gt2), _, loc_let)
       ->
@@ -57,9 +61,10 @@ let push_in_outer_generators (gt : Term.t) : Term.t =
           Term.let_star_ ((x, gt_then), gt2) loc_let,
           Term.let_star_ ((x, gt_else), gt2) loc_let )
         loc_ite
-    | GT (Assert (lc, GT (Pick wgts, _, loc_pick)), _, loc_assert) ->
+    | GT (Assert (lc, GT (Pick wgts, _, loc_pick)), bt, loc_assert) ->
       Term.pick_
         (List.map_snd (fun gt' -> Term.assert_ (lc, gt') loc_assert) wgts)
+        bt
         loc_pick
     | _ -> gt
   in

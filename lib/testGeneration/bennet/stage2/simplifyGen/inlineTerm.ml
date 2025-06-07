@@ -31,7 +31,7 @@ module SingleUse = struct
   let union = Sym.Map.union (fun _ a b -> Some (not (a || b)))
 
   let rec transform_aux (gt : Term.t) : Term.t * bool Sym.Map.t =
-    let (GT (gt_, _, loc)) = gt in
+    let (GT (gt_, bt, loc)) = gt in
     match gt_ with
     | Uniform | Alloc -> (gt, Sym.Map.empty)
     | Pick wgts ->
@@ -41,7 +41,7 @@ module SingleUse = struct
         |> List.map (fun (a, (b, c)) -> ((a, b), c))
         |> List.split
       in
-      (Term.pick_ wgts loc, List.fold_left union Sym.Map.empty only_ret)
+      (Term.pick_ wgts bt loc, List.fold_left union Sym.Map.empty only_ret)
     | Call (_fsym, xits) ->
       ( gt,
         xits
