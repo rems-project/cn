@@ -91,4 +91,6 @@ module SingleUse = struct
   let transform_gt (gt : Term.t) : Term.t = fst (transform_aux gt)
 end
 
-let transform_gt (gt : Term.t) = gt |> SingleUse.transform_gt |> Returns.transform_gt
+let transform_gt (gt : Term.t) =
+  Cerb_debug.print_debug 2 [] (fun () -> "inline_term");
+  gt |> SingleUse.transform_gt |> Returns.transform_gt

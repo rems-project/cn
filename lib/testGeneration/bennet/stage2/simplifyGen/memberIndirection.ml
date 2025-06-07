@@ -98,6 +98,7 @@ let replace_memberof_gt
 
 
 let transform_gt (gt : Term.t) : Term.t =
+  Cerb_debug.print_debug 2 [] (fun () -> "member_indirection");
   let aux (gt : Term.t) : Term.t =
     match gt with
     | GT

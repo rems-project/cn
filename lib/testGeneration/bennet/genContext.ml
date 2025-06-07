@@ -30,9 +30,12 @@ module MakeOptional (GT : GenDefinitions.GEN_TERM) = struct
     match (List.assoc_opt Sym.equal gd.name ctx, gd.body) with
     | Some { body = Some _; _ }, Some _ ->
       failwith ("Tried to add generator twice (`" ^ Sym.pp_string gd.name ^ "`)")
-    | Some { body = None; _ }, Some _ ->
-      (gd.name, gd) :: List.filter (fun (name, _) -> not (Sym.equal name gd.name)) ctx
-    | Some { body = _; _ }, None -> ctx
+    | Some { body = None; recursive; _ }, Some _ ->
+      (gd.name, { gd with recursive = recursive || gd.recursive })
+      :: List.filter (fun (name, _) -> not (Sym.equal name gd.name)) ctx
+    | Some ({ body = _; recursive; _ } as gd'), None ->
+      (gd.name, { gd' with recursive = recursive || gd.recursive })
+      :: List.filter (fun (name, _) -> not (Sym.equal name gd.name)) ctx
     | None, _ -> (gd.name, gd) :: ctx
 
 

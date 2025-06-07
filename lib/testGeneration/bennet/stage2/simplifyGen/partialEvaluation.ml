@@ -650,4 +650,6 @@ module GenTerms = struct
     aux gt
 end
 
-let transform_gt (prog5 : unit Mucore.file) = GenTerms.partial_eval ~mode:Lazy ~prog5
+let transform_gt (prog5 : unit Mucore.file) =
+  Cerb_debug.print_debug 2 [] (fun () -> "partial_eval");
+  GenTerms.partial_eval ~mode:Lazy ~prog5

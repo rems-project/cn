@@ -16,6 +16,7 @@ let rec is_pure (gt : Term.t) : bool =
 
 
 let transform_gt (gt : Term.t) : Term.t =
+  Cerb_debug.print_debug 2 [] (fun () -> "remove_unused");
   let aux (gt : Term.t) : Term.t =
     let (GT (gt_, _, _)) = gt in
     match gt_ with

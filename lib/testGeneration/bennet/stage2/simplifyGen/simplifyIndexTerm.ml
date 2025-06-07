@@ -184,4 +184,5 @@ module Fixes = struct
 end
 
 let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
+  Cerb_debug.print_debug 2 [] (fun () -> "simplify_index_term");
   gt |> Builtin.transform_gt prog5 |> Fixes.transform_gt

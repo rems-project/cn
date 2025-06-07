@@ -72,6 +72,7 @@ let push_in_outer_generators (gt : Term.t) : Term.t =
 
 
 let transform_gt (gt : Term.t) : Term.t =
+  Cerb_debug.print_debug 2 [] (fun () -> "push_pull");
   let rec loop (gt : Term.t) : Term.t =
     let old_gt = gt in
     let new_gt = gt |> pull_out_inner_generators |> push_in_outer_generators in

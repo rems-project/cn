@@ -134,6 +134,9 @@ let rec transform_term
     in
     (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
+    (match List.assoc_opt Sym.equal fsym ctx with
+     | Some _ -> ()
+     | None -> failwith (Sym.pp_string fsym));
     let sym = GenUtils.get_mangled_name fsym in
     let es = iargs |> List.map snd |> List.map (fun x -> A.(AilEident x)) in
     let sized_call =
