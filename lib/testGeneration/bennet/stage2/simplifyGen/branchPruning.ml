@@ -64,4 +64,5 @@ module Inconsistent = struct
 end
 
 let transform_gt (gt : Term.t) : Term.t =
+  Cerb_debug.print_debug 2 [] (fun () -> "branch_pruning");
   gt |> Inconsistent.transform_gt |> Unused.transform_gt

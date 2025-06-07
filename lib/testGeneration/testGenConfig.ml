@@ -31,6 +31,7 @@ type t =
     build_tool : build_tool;
     sanitizers : string option * string option;
     experimental : bool;
+    inline_everything : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -63,6 +64,7 @@ let default =
     build_tool = Bash;
     sanitizers = (None, None);
     experimental = false;
+    inline_everything = false;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -151,6 +153,8 @@ let get_build_tool () = !instance.build_tool
 let has_sanitizers () = !instance.sanitizers
 
 let is_experimental () = !instance.experimental
+
+let has_inline_everything () = !instance.inline_everything
 
 let has_input_timeout () = !instance.input_timeout
 

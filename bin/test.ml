@@ -55,6 +55,7 @@ let run_tests
       no_replicas
       output_tyche
       experimental
+      inline_everything
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -99,6 +100,7 @@ let run_tests
           build_tool;
           sanitizers;
           experimental;
+          inline_everything;
           print_seed;
           input_timeout;
           null_in_every;
@@ -429,6 +431,11 @@ module Flags = struct
   let experimental =
     let doc = "Actively developed experimental stuff o.o" in
     Arg.(value & flag & info [ "experimental" ] ~doc)
+
+
+  let inline_everything =
+    let doc = "Maximally inline everything" in
+    Arg.(value & flag & info [ "inline-everything" ] ~doc)
 end
 
 let cmd =
@@ -483,6 +490,7 @@ let cmd =
     $ Flags.no_replicas
     $ Flags.output_tyche
     $ Flags.experimental
+    $ Flags.inline_everything
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
