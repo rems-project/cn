@@ -3,10 +3,10 @@ module IT = IndexTerms
 let transform_gd (gd : Def.t) : Def.t =
   let iargs = gd.iargs |> List.map fst |> Sym.Set.of_list in
   let rec aux (gt : Term.t) : Term.t =
-    let (GT (gt_, _, loc)) = gt in
+    let (GT (gt_, bt, loc)) = gt in
     match gt_ with
     | Uniform | Alloc | Call _ | Return _ -> gt
-    | Pick wgts -> Term.pick_ (List.map_snd aux wgts) loc
+    | Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
     | ITE (it_if, gt_then, gt_else) ->
       let gt_then, gt_else = (aux gt_then, aux gt_else) in
       if not (Sym.Set.subset (IT.free_vars it_if) iargs) then (
@@ -22,7 +22,7 @@ let transform_gd (gd : Def.t) : Def.t =
             List.map_snd (fun gt' -> Term.assert_ (T (IT.not_ it_if loc), gt') loc) wgts
           | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') loc) ]
         in
-        Term.pick_ (wgts1 @ wgts2) loc)
+        Term.pick_ (wgts1 @ wgts2) bt loc)
       else
         Term.ite_ (it_if, gt_then, gt_else) loc
     | Asgn ((it_addr, sct), it_val, gt') ->

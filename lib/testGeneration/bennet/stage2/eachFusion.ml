@@ -144,10 +144,10 @@ let replace_index (m : Sym.t) (i : Sym.t) (result : Sym.t) (it : IT.t) : IT.t =
 
 let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
-    let (GT (gt_, _bt, loc)) = gt in
+    let (GT (gt_, bt, loc)) = gt in
     match gt_ with
     | Uniform | Alloc | Call _ | Return _ -> gt
-    | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) loc
+    | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) bt loc
     | Asgn ((it_addr, sct), it_val, gt') ->
       Term.asgn_ ((it_addr, sct), it_val, aux vars gt') loc
     | LetStar ((x, GT (Map ((i, i_bt, it_perm), gt_inner), _, loc_map)), gt_rest) ->

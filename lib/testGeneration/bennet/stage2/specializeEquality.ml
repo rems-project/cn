@@ -32,10 +32,10 @@ let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * IT.
 
 let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
-    let (GT (gt_, _, loc)) = gt in
+    let (GT (gt_, bt, loc)) = gt in
     match gt_ with
     | Uniform | Alloc | Call _ | Return _ -> gt
-    | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) loc
+    | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) bt loc
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       Term.asgn_ ((it_addr, sct), it_val, aux vars gt_rest) loc
     | LetStar ((x, (GT (Uniform, _, loc) as gt_inner)), gt_rest)

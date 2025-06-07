@@ -54,7 +54,7 @@ let assert_ ((lc, gt') : LC.t * t) (loc : Locations.t) : t =
   GT (Assert (lc, gt'), basetype gt', loc)
 
 
-let pick_ (wgts : (Z.t * t) list) (loc : Locations.t) : t =
+let pick_ (wgts : (Z.t * t) list) (bt : BT.t) (loc : Locations.t) : t =
   match wgts with
   | (_, gt) :: wgts' ->
     let bt =
@@ -66,7 +66,7 @@ let pick_ (wgts : (Z.t * t) list) (loc : Locations.t) : t =
         wgts'
     in
     GT (Pick wgts, bt, loc)
-  | [] -> assert_ (T (IT.bool_ false loc), return_ (IT.null_ loc) loc) loc
+  | [] -> assert_ (LC.T (IT.bool_ false loc), return_ (IT.default_ bt loc) loc) loc
 
 
 let ite_ ((it_if, gt_then, gt_else) : IT.t * t * t) loc : t =

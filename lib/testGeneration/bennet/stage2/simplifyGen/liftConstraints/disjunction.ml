@@ -62,10 +62,10 @@ let listify_constraints (it : IT.t) : IT.t list =
 
 let transform_gt (gt : GT.t) : GT.t =
   let rec aux (ext : Sym.Set.t) (gt : GT.t) : GT.t =
-    let (GT (gt_, _bt, loc)) = gt in
+    let (GT (gt_, bt, loc)) = gt in
     match gt_ with
     | Uniform | Alloc | Call _ | Return _ -> gt
-    | Pick wgts -> GT.pick_ (List.map_snd (aux ext) wgts) loc
+    | Pick wgts -> GT.pick_ (List.map_snd (aux ext) wgts) bt loc
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       GT.asgn_ ((it_addr, sct), it_val, aux ext gt_rest) loc
     | LetStar ((x, gt_inner), gt_rest) ->
@@ -88,22 +88,25 @@ let transform_gt (gt : GT.t) : GT.t =
                true
              | _ -> Sym.Set.disjoint ext (IT.free_vars it'))
          in
-         let gt' =
-           if List.is_empty its_left then
-             gt'
-           else (
-             let it' =
-               List.fold_left
-                 (fun it1 it2 -> IT.or2_ (it1, it2) loc)
-                 (List.hd its_left)
-                 (List.tl its_left)
-             in
-             GT.assert_ (T it', gt') loc)
-         in
-         let cases =
-           its_split |> List.map (fun it' -> (Z.one, GT.assert_ (T it', gt') loc))
-         in
-         GT.pick_ cases loc
+         if List.is_empty its_split then
+           gt
+         else (
+           let gt' =
+             if List.is_empty its_left then
+               gt'
+             else (
+               let it' =
+                 List.fold_left
+                   (fun it1 it2 -> IT.or2_ (it1, it2) loc)
+                   (List.hd its_left)
+                   (List.tl its_left)
+               in
+               GT.assert_ (T it', gt') loc)
+           in
+           let cases =
+             its_split |> List.map (fun it' -> (Z.one, GT.assert_ (T it', gt') loc))
+           in
+           GT.pick_ cases bt loc)
        | _ -> GT.assert_ (T it, gt') loc)
     | Assert ((Forall _ as lc), gt_rest) -> GT.assert_ (lc, aux ext gt_rest) loc
     | ITE (it_if, gt_then, gt_else) ->

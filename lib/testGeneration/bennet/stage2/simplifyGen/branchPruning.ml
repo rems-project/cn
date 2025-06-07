@@ -46,9 +46,10 @@ module Inconsistent = struct
   let transform_gt (gt : Term.t) : Term.t =
     let aux (gt : Term.t) : Term.t =
       match gt with
-      | GT (Pick wgts, _, loc_pick) ->
+      | GT (Pick wgts, bt, loc_pick) ->
         Term.pick_
           (List.filter (fun (_, gt') -> not (contains_false_assertion gt')) wgts)
+          bt
           loc_pick
       | GT (ITE (it_if, gt_then, gt_else), _, loc_ite) ->
         if contains_false_assertion gt_else then

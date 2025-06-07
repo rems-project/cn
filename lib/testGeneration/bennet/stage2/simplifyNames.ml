@@ -10,7 +10,7 @@ let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
     | _ -> failwith Pp.(plain (Sym.pp_debug sym ^^^ at ^^^ !^__LOC__))
   in
   let rec aux (vars : int StringMap.t) (gt : Term.t) : int StringMap.t * Term.t =
-    let (GT (gt_, _, loc)) = gt in
+    let (GT (gt_, bt, loc)) = gt in
     match gt_ with
     | Uniform | Alloc | Call _ | Return _ -> (vars, gt)
     | Pick wgts ->
@@ -22,7 +22,7 @@ let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
           wgts
           (vars, [])
       in
-      (vars, Term.pick_ wgts loc)
+      (vars, Term.pick_ wgts bt loc)
     | Asgn ((it_addr, sct), it_val, gt') ->
       let vars', gt' = aux vars gt' in
       (vars', Term.asgn_ ((it_addr, sct), it_val, gt') loc)
