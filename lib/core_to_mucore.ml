@@ -1556,7 +1556,7 @@ let normalise_fun_map_decl
                   env
                   (Translate.C_vars.add arg_states st)
                   (ret_s, ret_ct)
-                  (* TODO: add ghost return to frontend *)
+                  (* TODO: add ghost return to frontend: https://github.com/rems-project/cn/issues/181 *)
                   (accesses, snd ensures)
               in
               let@ labels =
@@ -1604,7 +1604,7 @@ let normalise_fun_map_decl
             make_fun_with_spec_args
               (fun env st ->
                  let@ returned =
-                   (* TODO: add ghost return to frontend *)
+                   (* TODO: add ghost return to frontend: https://github.com/rems-project/cn/issues/181 *)
                    Translate.return_type loc env st (ret_s, ret_ct) (accesses, snd ensures)
                  in
                  return returned)
