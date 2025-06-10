@@ -3465,15 +3465,6 @@ let cn_to_ail_predicates preds filename dts globals cn_preds
   List.split (List.map (cn_to_ail_predicate filename dts globals preds cn_preds) preds)
 
 
-let cn_to_ail_lemmas lemmata filename dts globals cn_preds
-  : ((Locations.t * A.sigma_declaration)
-    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
-      list
-    * A.sigma_tag_definition option list
-  =
-  List.split (List.map cn_to_ail_lemma lemmata)
-
-
 (* TODO: Add destination passing? *)
 let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
   | LRT.Define ((name, it), (_loc, _), t) ->
@@ -3906,6 +3897,73 @@ let rec cn_to_ail_lat_2
     }
 
 
+let translate_computational_at (sym, bt) =
+  let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+  let cn_ctype = bt_to_ail_ctype bt in
+  let binding = create_binding cn_sym cn_ctype in
+  let rhs = wrap_with_convert_to A.(AilEident sym) bt in
+  let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+  (cn_sym, (binding, decl))
+
+
+let rec cn_to_ail_lemma_aux
+          without_ownership_checking
+          with_loop_leak_checks
+          filename
+          dts
+          preds
+          globals
+          c_return_type
+  = function
+  | AT.Computational ((sym, bt), _info, at) ->
+    let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
+    let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
+    let ail_executable_spec =
+      cn_to_ail_lemma_aux
+        without_ownership_checking
+        with_loop_leak_checks
+        filename
+        dts
+        preds
+        globals
+        c_return_type
+        subst_at
+    in
+    prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
+  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
+  | AT.L lrt -> failwith "TODO: Make cn_to_ail_post return full postcondition block"
+
+
+(* cn_to_ail_post filename dts globals preds lrt *)
+
+let cn_to_ail_lemma (sym, (loc, lemmat)) =
+  let ret_type = mk_ctype C.Void in
+  let param_syms, param_types = ([], []) in
+  let body_bs, body_ss = ([], []) in
+  (* Generating function declaration *)
+  let decl =
+    ( sym,
+      ( loc,
+        empty_attributes,
+        A.(
+          Decl_function
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
+  in
+  (* Generating function definition *)
+  let def =
+    (sym, (loc, 0, empty_attributes, param_syms, mk_stmt A.(AilSblock (body_bs, body_ss))))
+  in
+  ((loc, decl), def)
+
+
+let cn_to_ail_lemmas lemmata
+  : ((Locations.t * A.sigma_declaration)
+    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
+      list
+  =
+  List.map cn_to_ail_lemma lemmata
+
+
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
@@ -3916,11 +3974,7 @@ let rec cn_to_ail_pre_post_aux
           c_return_type
   = function
   | AT.Computational ((sym, bt), _info, at) ->
-    let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
-    let cn_ctype = bt_to_ail_ctype bt in
-    let binding = create_binding cn_sym cn_ctype in
-    let rhs = wrap_with_convert_to A.(AilEident sym) bt in
-    let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+    let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ail_executable_spec =
       cn_to_ail_pre_post_aux
