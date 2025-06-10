@@ -1241,11 +1241,6 @@ let dtree_of_ghost_args args =
   Dnode (pp_ctor "GhostArguments", CF.Cn_ocaml.PpAil.dtrees_of_cn_ghosts args)
 
 
-let dtree_of_ghost_rets rets =
-  let open CF.Pp_ast in
-  Dnode (pp_ctor "GhostReturns", CF.Cn_ocaml.PpAil.dtrees_of_cn_ghosts rets)
-
-
 let dtree_of_accesses accesses =
   let open CF.Pp_ast in
   Dnode
@@ -1343,9 +1338,7 @@ module Spec = struct
       requires :
         (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list
         * (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
-      ensures :
-        (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list
-        * (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
+      ensures : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       functions : (Cerb_location.t * Id.t) list;
       if_spec : (int * Cerb_location.t * (Id.t * Id.t Cn.cn_base_type) list) option
     }
@@ -1354,7 +1347,7 @@ module Spec = struct
     { trusted = Mucore.Checked;
       accesses = [];
       requires = ([], []);
-      ensures = ([], []);
+      ensures = [];
       functions = [];
       if_spec = None
     }
@@ -1383,7 +1376,10 @@ module Spec = struct
       | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
     in
     let requires = cross_fst2 cn_func_requires in
-    let ensures = cross_fst2 cn_func_ensures in
+    let cn_func_ensures =
+      Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_ensures
+    in
+    let ensures = cross_fst cn_func_ensures in
     { trusted; accesses; requires; ensures; functions; if_spec }
 
 
@@ -1451,8 +1447,7 @@ module Spec = struct
       accesses : (Cerb_location.t * (Sym.t * Ctype.ctype)) list;
       requires :
         (Sym.t * Sym.t Cn.cn_base_type) list * (Sym.t, Ctype.ctype) Cn.cn_condition list;
-      ensures :
-        (Sym.t * Sym.t Cn.cn_base_type) list * (Sym.t, Ctype.ctype) Cn.cn_condition list;
+      ensures : (Sym.t, Ctype.ctype) Cn.cn_condition list;
       functions : (Cerb_location.t * Sym.t) list
     }
 
@@ -1469,18 +1464,10 @@ module Spec = struct
     debug 6 (lazy (string "desugared requires conds"));
     let here = Locations.other __LOC__ in
     let@ ret_s, ret_d_st = register_new_cn_local (Id.make here "return") d_st in
-    let@ ghost_rets, ret_d_st =
-      desugar_and_add_args ret_d_st (List.map snd (fst ensures))
-    in
-    let@ ensures, _ = desugar_conds ret_d_st (List.map snd (snd ensures)) in
+    let@ ensures, _ = desugar_conds ret_d_st (List.map snd ensures) in
     debug 6 (lazy (string "desugared ensures conds"));
     return
-      ( { trusted;
-          accesses;
-          requires = (ghost_args, requires);
-          ensures = (ghost_rets, ensures);
-          functions
-        },
+      ( { trusted; accesses; requires = (ghost_args, requires); ensures; functions },
         ret_s,
         ret_d_st )
 end
@@ -1532,8 +1519,7 @@ let normalise_fun_map_decl
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_accesses accesses)));
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ghost_args (fst requires))));
        debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_requires (snd requires))));
-       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ghost_rets (fst ensures))));
-       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ensures (snd ensures))));
+       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_ensures ensures)));
        let@ args_and_body =
          make_function_args
            (fun arg_states env st ->
@@ -1554,7 +1540,7 @@ let normalise_fun_map_decl
                   (Translate.C_vars.add arg_states st)
                   (ret_s, ret_ct)
                   (* TODO: add ghost return to frontend: https://github.com/rems-project/cn/issues/181 *)
-                  (accesses, snd ensures)
+                  (accesses, ensures)
               in
               let@ labels =
                 PmapM.mapM
@@ -1602,7 +1588,7 @@ let normalise_fun_map_decl
               (fun env st ->
                  let@ returned =
                    (* TODO: add ghost return to frontend: https://github.com/rems-project/cn/issues/181 *)
-                   Translate.return_type loc env st (ret_s, ret_ct) (accesses, snd ensures)
+                   Translate.return_type loc env st (ret_s, ret_ct) (accesses, ensures)
                  in
                  return returned)
               loc
