@@ -3936,6 +3936,7 @@ let rec cn_to_ail_lemma_aux
 
 (* cn_to_ail_post filename dts globals preds lrt *)
 
+(* Another idea: transform lemma into a ((ReturnTypes.t * ESE.fn_body) AT.t) so that cn_to_ail_pre_post can be reused directly without duplication *)
 let cn_to_ail_lemma (sym, (loc, lemmat)) =
   let ret_type = mk_ctype C.Void in
   let param_syms, param_types = ([], []) in
