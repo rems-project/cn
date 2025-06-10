@@ -815,6 +815,14 @@ let rec n_expr
         let marker_id_object_types =
           Option.get (CF.Annot.get_marker_object_types annots)
         in
+        let visible_objects =
+          global_types @ Pmap.find marker_id_object_types visible_objects_env
+        in
+        let get_c_obj sym =
+          match List.assoc_opt Sym.equal sym visible_objects with
+          | Some obj_ty -> obj_ty
+          | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+        in
         let@ desugared_ghosts_and_ghosts =
           ListM.mapM
             (fun parsed_ghost ->
@@ -828,15 +836,6 @@ let rec n_expr
                          }
                      }
                    (Desugar.cn_expr parsed_ghost)
-               in
-               let visible_objects =
-                 global_types @ Pmap.find marker_id_object_types visible_objects_env
-               in
-               let get_c_obj sym =
-                 match List.assoc_opt Sym.equal sym visible_objects with
-                 | Some obj_ty -> obj_ty
-                 | None ->
-                   failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
                in
                let@ ghost =
                  Translate.expr_ghost get_c_obj old_states env desugared_ghost
@@ -883,6 +882,14 @@ let rec n_expr
            let marker_id_object_types =
              Option.get (CF.Annot.get_marker_object_types annots)
            in
+           let visible_objects =
+             global_types @ Pmap.find marker_id_object_types visible_objects_env
+           in
+           let get_c_obj sym =
+             match List.assoc_opt Sym.equal sym visible_objects with
+             | Some obj_ty -> obj_ty
+             | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+           in
            let@ desugared_stmts_and_stmts =
              ListM.mapM
                (fun parsed_stmt ->
@@ -897,18 +904,9 @@ let rec n_expr
                         }
                       (Desugar.cn_statement parsed_stmt)
                   in
-                  let visible_objects =
-                    global_types @ Pmap.find marker_id_object_types visible_objects_env
-                  in
                   (* debug 6 (lazy (!^"CN statement before translation")); debug 6 (lazy
                     (pp_doc_tree (CF.Cn_ocaml.PpAil.dtree_of_cn_statement
                     desugared_stmt))); *)
-                  let get_c_obj sym =
-                    match List.assoc_opt Sym.equal sym visible_objects with
-                    | Some obj_ty -> obj_ty
-                    | None ->
-                      failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
-                  in
                   let@ stmt =
                     Translate.statement get_c_obj old_states env desugared_stmt
                   in
