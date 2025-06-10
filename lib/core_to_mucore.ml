@@ -1335,9 +1335,8 @@ module Spec = struct
   type 'a parsed =
     { trusted : Mu.trusted;
       accesses : (Cerb_location.t * Id.t) list;
-      requires :
-        (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list
-        * (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
+      ghost_params : (Cerb_location.t * (Id.t * Id.t Cn.cn_base_type)) list;
+      requires : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       ensures : (Cerb_location.t * (Id.t, 'a) Cn.cn_condition) list;
       functions : (Cerb_location.t * Id.t) list;
       if_spec : (int * Cerb_location.t * (Id.t * Id.t Cn.cn_base_type) list) option
@@ -1346,7 +1345,8 @@ module Spec = struct
   let default : _ parsed =
     { trusted = Mucore.Checked;
       accesses = [];
-      requires = ([], []);
+      ghost_params = [];
+      requires = [];
       ensures = [];
       functions = [];
       if_spec = None
@@ -1375,12 +1375,12 @@ module Spec = struct
       | Some (loc, Cn.CN_mk_function nm) -> ([], [ (loc, nm) ])
       | Some (loc, Cn.CN_accesses ids) -> (cross_fst (Some (loc, ids)), [])
     in
-    let requires = cross_fst2 cn_func_requires in
+    let ghost_params, requires = cross_fst2 cn_func_requires in
     let cn_func_ensures =
       Option.map (fun (loc, (_ghost, conds)) -> (loc, conds)) cn_func_ensures
     in
     let ensures = cross_fst cn_func_ensures in
-    { trusted; accesses; requires; ensures; functions; if_spec }
+    { trusted; accesses; ghost_params; requires; ensures; functions; if_spec }
 
 
   let there_can_only_be_one defn_loc fname parsed_decl_spec parsed_defn_specs =
@@ -1454,13 +1454,14 @@ module Spec = struct
   let desugar
         global_types
         d_st
-        ({ trusted; accesses; requires; ensures; functions; if_spec = _ } : _ parsed)
+        ({ trusted; accesses; ghost_params; requires; ensures; functions; if_spec = _ } :
+          _ parsed)
     : (desugared * _ * _) t
     =
     let@ functions = logical_fun_syms d_st functions in
     let@ accesses = ListM.mapM (desugar_access d_st global_types) accesses in
-    let@ ghost_args, d_st = desugar_and_add_args d_st (List.map snd (fst requires)) in
-    let@ requires, d_st = desugar_conds d_st (List.map snd (snd requires)) in
+    let@ ghost_args, d_st = desugar_and_add_args d_st (List.map snd ghost_params) in
+    let@ requires, d_st = desugar_conds d_st (List.map snd requires) in
     debug 6 (lazy (string "desugared requires conds"));
     let here = Locations.other __LOC__ in
     let@ ret_s, ret_d_st = register_new_cn_local (Id.make here "return") d_st in
