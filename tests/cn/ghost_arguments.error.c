@@ -15,5 +15,5 @@ int main()
   int x = 3;
   int v = 1;
   int* p = &v;
-  return foo(6 /*@ 2i32, x + *p - *p, *p @*/);
+  return foo(6 /*@ 2i32, x + *p, *p @*/);
 }
