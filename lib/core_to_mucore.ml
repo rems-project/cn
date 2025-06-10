@@ -823,7 +823,7 @@ let rec n_expr
           | Some obj_ty -> obj_ty
           | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
         in
-        let@ desugared_ghosts_and_ghosts =
+        let@ ghosts =
           ListM.mapM
             (fun parsed_ghost ->
                let@ desugared_ghost =
@@ -840,10 +840,9 @@ let rec n_expr
                let@ ghost =
                  Translate.expr_ghost get_c_obj old_states env desugared_ghost
                in
-               return (desugared_ghost, ghost))
+               return ghost)
             parsed_ghosts
         in
-        let _, ghosts = List.split desugared_ghosts_and_ghosts in
         let ghost_args = List.map (Cnprog.map IT.Surface.proj) ghosts in
         return ghost_args
       | [] -> return []
