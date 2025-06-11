@@ -444,6 +444,30 @@ let generate_c_predicates
     locs )
 
 
+let generate_c_lemmas
+      without_ownership_checking
+      filename
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let globals = extract_global_variables prog5.globs in
+  let ail_funs =
+    Cn_to_ail.cn_to_ail_lemmas
+      without_ownership_checking
+      filename
+      sigm.cn_datatypes
+      prog5.resource_predicates
+      globals
+      prog5.lemmata
+  in
+  let locs_and_decls, defs = List.split ail_funs in
+  let locs, decls = List.split locs_and_decls in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
+  ( "\n/* CN LEMMAS */\n\n" ^ doc_to_pretty_string defs_doc,
+    doc_to_pretty_string decls_doc,
+    locs )
+
+
 let generate_ownership_functions without_ownership_checking ownership_ctypes =
   let rec remove_duplicates ret_list = function
     | [] -> []

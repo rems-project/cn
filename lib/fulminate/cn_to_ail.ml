@@ -3515,7 +3515,6 @@ let cn_to_ail_post
   (bs, List.map mk_stmt ss)
 
 
-(* TODO: Add destination passing *)
 let cn_to_ail_cnstatement
   : type a.
     string ->
@@ -3536,7 +3535,16 @@ let cn_to_ail_cnstatement
   | Split_case _ -> (default_res_for_dest, true)
   | Extract (_, _, _it) -> (default_res_for_dest, true)
   | Unfold (_fsym, _args) -> (default_res_for_dest, true) (* fsym is a function symbol *)
-  | Apply (_fsym, _args) -> (default_res_for_dest, true) (* fsym is a lemma symbol *)
+  | Apply (fsym, args) ->
+    ( cn_to_ail_expr
+        filename
+        dts
+        globals
+        spec_mode_opt
+        (IT.IT (Apply (fsym, args), BT.Unit, Locations.other __LOC__))
+        d,
+      false )
+    (* fsym is a lemma symbol *)
   | Assert lc ->
     (cn_to_ail_logical_constraint_aux filename dts globals spec_mode_opt d lc, false)
   | Inline _ -> failwith "TODO Inline"
@@ -3571,13 +3579,20 @@ let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
       (([], []), true)
     else
       ((b1 @ (binding :: b2), s @ (ail_stat_ :: ss)), false)
-  | Pure (loc, x) ->
+  | Pure (loc, stmt) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
-    let (bs, ss), no_op =
-      cn_to_ail_cnstatement filename dts globals spec_mode_opt (Assert loc) x
-    in
-    ((bs, upd_s @ ss @ pop_s), no_op)
+    (match stmt with
+     | Cnstatement.Apply _ ->
+       let (bs, ss, e), no_op =
+         cn_to_ail_cnstatement filename dts globals spec_mode_opt PassBack stmt
+       in
+       ((bs, upd_s @ ss @ [ A.AilSexpr e ] @ pop_s), no_op)
+     | _ ->
+       let (bs, ss), no_op =
+         cn_to_ail_cnstatement filename dts globals spec_mode_opt (Assert loc) stmt
+       in
+       ((bs, upd_s @ ss @ pop_s), no_op))
 
 
 let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
@@ -3906,65 +3921,6 @@ let translate_computational_at (sym, bt) =
   (cn_sym, (binding, decl))
 
 
-let rec cn_to_ail_lemma_aux
-          without_ownership_checking
-          with_loop_leak_checks
-          filename
-          dts
-          preds
-          globals
-          c_return_type
-  = function
-  | AT.Computational ((sym, bt), _info, at) ->
-    let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
-    let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
-    let ail_executable_spec =
-      cn_to_ail_lemma_aux
-        without_ownership_checking
-        with_loop_leak_checks
-        filename
-        dts
-        preds
-        globals
-        c_return_type
-        subst_at
-    in
-    prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
-  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
-  | AT.L lrt -> failwith "TODO: Make cn_to_ail_post return full postcondition block"
-
-
-(* cn_to_ail_post filename dts globals preds lrt *)
-
-(* Another idea: transform lemma into a ((ReturnTypes.t * ESE.fn_body) AT.t) so that cn_to_ail_pre_post can be reused directly without duplication *)
-let cn_to_ail_lemma (sym, (loc, lemmat)) =
-  let ret_type = mk_ctype C.Void in
-  let param_syms, param_types = ([], []) in
-  let body_bs, body_ss = ([], []) in
-  (* Generating function declaration *)
-  let decl =
-    ( sym,
-      ( loc,
-        empty_attributes,
-        A.(
-          Decl_function
-            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
-  in
-  (* Generating function definition *)
-  let def =
-    (sym, (loc, 0, empty_attributes, param_syms, mk_stmt A.(AilSblock (body_bs, body_ss))))
-  in
-  ((loc, decl), def)
-
-
-let cn_to_ail_lemmas lemmata
-  : ((Locations.t * A.sigma_declaration)
-    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
-      list
-  =
-  List.map cn_to_ail_lemma lemmata
-
-
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
@@ -3989,7 +3945,17 @@ let rec cn_to_ail_pre_post_aux
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
-  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
+  | AT.Ghost (_bound, _info, at) ->
+    Pp.(warn_noloc !^"TODO Fulminate: Ghost arguments not yet supported at runtime");
+    cn_to_ail_pre_post_aux
+      without_ownership_checking
+      with_loop_leak_checks
+      filename
+      dts
+      preds
+      globals
+      c_return_type
+      at
   | AT.L lat ->
     cn_to_ail_lat_2
       without_ownership_checking
@@ -4035,6 +4001,69 @@ let cn_to_ail_pre_post
     in
     prepend_to_precondition ail_executable_spec ([], extra_stats_)
   | None -> empty_ail_executable_spec
+
+
+(* Another idea: transform lemma into a ((ReturnTypes.t * ESE.fn_body) AT.t) so that cn_to_ail_pre_post can be reused directly without duplication *)
+let cn_to_ail_lemma
+      without_ownership_checking
+      filename
+      dts
+      preds
+      globals
+      (sym, (loc, lemmat))
+  =
+  let ret_type = mk_ctype C.Void in
+  let param_syms, param_bts = List.split (AT.get_ghost lemmat) in
+  let param_types = List.map (fun bt -> bt_to_ail_ctype bt) param_bts in
+  let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
+  let dummy_bound_and_info =
+    ((Sym.fresh_anon (), BT.Unit), (Cerb_location.unknown, None))
+  in
+  let transformed_lemmat =
+    AT.map
+      (fun post -> (ReturnTypes.mComputational dummy_bound_and_info post, ([], [])))
+      lemmat
+  in
+  let ail_executable_spec : ail_executable_spec =
+    cn_to_ail_pre_post
+      ~without_ownership_checking
+      ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
+      filename
+      dts
+      preds
+      globals
+      ret_type
+      (Some transformed_lemmat)
+  in
+  let pre_bs, pre_ss = ail_executable_spec.pre in
+  let post_bs, post_ss = ail_executable_spec.post in
+  (* Generating function declaration *)
+  let decl =
+    ( sym,
+      ( loc,
+        empty_attributes,
+        A.(
+          Decl_function
+            (false, (C.no_qualifiers, ret_type), param_types, false, false, false)) ) )
+  in
+  (* Generating function definition *)
+  let def =
+    ( sym,
+      ( loc,
+        0,
+        empty_attributes,
+        param_syms,
+        mk_stmt A.(AilSblock (pre_bs @ post_bs, List.map mk_stmt (pre_ss @ post_ss))) ) )
+  in
+  ((loc, decl), def)
+
+
+let cn_to_ail_lemmas without_ownership_checking filename dts preds globals lemmata
+  : ((Locations.t * A.sigma_declaration)
+    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
+      list
+  =
+  List.map (cn_to_ail_lemma without_ownership_checking filename dts preds globals) lemmata
 
 
 let has_cn_spec (instrumentation : Extract.instrumentation) =
