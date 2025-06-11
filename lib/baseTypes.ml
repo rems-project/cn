@@ -263,7 +263,7 @@ module Surface = struct
 
   let of_sct = of_sct Option.some
 
-  let unintptr_bt = uintptr_bt Option.some
+  let uintptr_bt = uintptr_bt Option.some
 
   let intptr_bt = intptr_bt Option.some
 
