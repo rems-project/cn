@@ -198,8 +198,7 @@ val cn_to_ail_predicates
   * AilSyntax.sigma_tag_definition option list
 
 val cn_to_ail_lemmas
-  :  bool ->
-  string ->
+  :  string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->

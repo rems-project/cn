@@ -63,8 +63,7 @@ val generate_c_predicates
   string * string * Cerb_location.t list
 
 val generate_c_lemmas
-  :  bool ->
-  string ->
+  :  string ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   string * string * Cerb_location.t list

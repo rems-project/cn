@@ -4003,15 +4003,7 @@ let cn_to_ail_pre_post
   | None -> empty_ail_executable_spec
 
 
-(* Another idea: transform lemma into a ((ReturnTypes.t * ESE.fn_body) AT.t) so that cn_to_ail_pre_post can be reused directly without duplication *)
-let cn_to_ail_lemma
-      without_ownership_checking
-      filename
-      dts
-      preds
-      globals
-      (sym, (loc, lemmat))
-  =
+let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
   let ret_type = mk_ctype C.Void in
   let param_syms, param_bts = List.split (AT.get_ghost lemmat) in
   let param_types = List.map (fun bt -> bt_to_ail_ctype bt) param_bts in
@@ -4026,7 +4018,7 @@ let cn_to_ail_lemma
   in
   let ail_executable_spec : ail_executable_spec =
     cn_to_ail_pre_post
-      ~without_ownership_checking
+      ~without_ownership_checking:true
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       filename
       dts
@@ -4058,12 +4050,12 @@ let cn_to_ail_lemma
   ((loc, decl), def)
 
 
-let cn_to_ail_lemmas without_ownership_checking filename dts preds globals lemmata
+let cn_to_ail_lemmas filename dts preds globals lemmata
   : ((Locations.t * A.sigma_declaration)
     * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list
   =
-  List.map (cn_to_ail_lemma without_ownership_checking filename dts preds globals) lemmata
+  List.map (cn_to_ail_lemma filename dts preds globals) lemmata
 
 
 let has_cn_spec (instrumentation : Extract.instrumentation) =
