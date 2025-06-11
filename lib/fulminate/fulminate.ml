@@ -234,9 +234,7 @@ let main
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates filename sigm prog5.resource_predicates
   in
-  let c_lemma_defs, c_lemma_decls, _ =
-    generate_c_lemmas without_ownership_checking filename sigm prog5
-  in
+  let c_lemma_defs, c_lemma_decls, _ = generate_c_lemmas filename sigm prog5 in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
   in

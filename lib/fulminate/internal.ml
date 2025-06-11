@@ -445,7 +445,6 @@ let generate_c_predicates
 
 
 let generate_c_lemmas
-      without_ownership_checking
       filename
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -453,7 +452,6 @@ let generate_c_lemmas
   let globals = extract_global_variables prog5.globs in
   let ail_funs =
     Cn_to_ail.cn_to_ail_lemmas
-      without_ownership_checking
       filename
       sigm.cn_datatypes
       prog5.resource_predicates
