@@ -1,3 +1,5 @@
+module MemberIndirection = MemberIndirection
+
 let transform_gt prog5 gt =
   let rec aux gt fuel =
     if fuel <= 0 then
