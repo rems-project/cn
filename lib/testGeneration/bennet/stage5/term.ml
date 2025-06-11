@@ -23,7 +23,7 @@ type t =
         sized : (int * Sym.t) option
       }
   | Asgn of
-      { pointer : Sym.t;
+      { pointer : Sym.t * BT.t;
         addr : IT.t;
         sct : Sctypes.t;
         value : IT.t;
@@ -139,14 +139,19 @@ let rec pp (tm : t) : Pp.document =
                    (comma ^^ space)
                    Sym.pp
                    (path_vars |> Sym.Set.to_seq |> List.of_seq)))
-  | Asgn { pointer; addr; sct; value; last_var; rest } ->
+  | Asgn { pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
     Sctypes.pp sct
     ^^^ IT.pp addr
     ^^^ !^":="
     ^^^ IT.pp value
     ^^ semi
     ^^^ c_comment
-          (!^"backtracks to" ^^^ Sym.pp last_var ^^ !^" allocs via " ^^ Sym.pp pointer)
+          (!^"backtracks to"
+           ^^^ Sym.pp last_var
+           ^^ !^" allocs via "
+           ^^ Sym.pp p_sym
+           ^^^ colon
+           ^^^ BT.pp p_bt)
     ^/^ pp rest
   | LetStar { x : Sym.t; x_bt : BT.t; value : t; last_var : Sym.t; rest : t } ->
     !^"let*"

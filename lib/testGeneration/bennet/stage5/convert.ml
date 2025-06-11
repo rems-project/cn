@@ -48,34 +48,31 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
     | Call { fsym; iargs; oarg_bt; sized } ->
       Call { fsym; iargs; oarg_bt; path_vars; sized }
     | Asgn { addr; sct; value; rest } ->
-      let rec pointer_of (it : IT.t) =
+      let rec pointer_of (it : IT.t) : Sym.t * BT.t =
         match it with
         | IT (ArrayShift { base; _ }, _, _) -> pointer_of base
-        | IT (Sym x, _, _) | IT (Cast (_, IT (Sym x, _, _)), _, _) -> x
+        | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
         | _ ->
           let pointers =
             addr
             |> IT.free_vars_bts
             |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
-            |> Sym.Map.bindings
-            |> List.map fst
-            |> Sym.Set.of_list
           in
-          if not (Sym.Set.cardinal pointers == 1) then
+          if not (Sym.Map.cardinal pointers == 1) then
             Cerb_debug.print_debug 2 [] (fun () ->
               Pp.(
                 plain
                   (braces
                      (separate_map
                         (comma ^^ space)
-                        Sym.pp
-                        (List.of_seq (Sym.Set.to_seq pointers)))
+                        (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
+                        (List.of_seq (Sym.Map.to_seq pointers)))
                    ^^^ !^" in "
                    ^^ IT.pp addr)));
-          if Sym.Set.is_empty pointers then (
+          if Sym.Map.is_empty pointers then (
             print_endline (Pp.plain (IT.pp it));
             failwith __LOC__);
-          Sym.Set.choose pointers
+          Sym.Map.choose pointers
       in
       Asgn
         { pointer = pointer_of addr;

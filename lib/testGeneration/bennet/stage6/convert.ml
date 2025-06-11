@@ -199,7 +199,7 @@ let rec transform_term
              (path_vars |> Sym.Set.to_seq |> List.of_seq |> List.map wrap_to_string)
          ]),
       mk_expr (AilEident x) )
-  | Asgn { pointer; addr; sct; value; last_var; rest } ->
+  | Asgn { pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
     let tmp_sym = Sym.fresh_anon () in
     let b1, s1, e1 = transform_it filename sigma name addr in
     let b2, s2, AnnotatedExpression (_, _, _, e2_) =
@@ -212,7 +212,22 @@ let rec transform_term
             (mk_expr
                (AilEcall
                   ( mk_expr (AilEident (Sym.fresh "CN_GEN_ASSIGN")),
-                    [ mk_expr (AilEident pointer);
+                    [ mk_expr (AilEident p_sym);
+                      mk_expr
+                        (let b, s =
+                           let b, s, e =
+                             transform_it
+                               filename
+                               sigma
+                               name
+                               (IT.cast_
+                                  (BT.Loc ())
+                                  (IT.sym_ (p_sym, p_bt, Locations.other __LOC__))
+                                  (Locations.other __LOC__))
+                           in
+                           (b, List.map mk_stmt (s @ [ A.AilSexpr e ]))
+                         in
+                         A.AilEgcc_statement (b, s));
                       e1;
                       mk_expr
                         (AilEident
