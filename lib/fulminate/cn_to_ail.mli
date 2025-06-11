@@ -203,7 +203,7 @@ val cn_to_ail_lemmas
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
   (Sym.t * (Cerb_location.t * ArgumentTypes.lemmat)) list ->
-  ((Cerb_location.t * AilSyntax.sigma_declaration)
+  (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
 
