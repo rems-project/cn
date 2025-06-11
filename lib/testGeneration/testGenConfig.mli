@@ -30,8 +30,8 @@ type t =
     max_backtracks : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
-    experimental : bool;
     inline_everything : bool;
+    experimental_struct_asgn_destruction : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -86,9 +86,9 @@ val get_build_tool : unit -> build_tool
 
 val has_sanitizers : unit -> string option * string option
 
-val is_experimental : unit -> bool
-
 val has_inline_everything : unit -> bool
+
+val is_experimental_struct_asgn_destruction : unit -> bool
 
 val has_input_timeout : unit -> int option
 
