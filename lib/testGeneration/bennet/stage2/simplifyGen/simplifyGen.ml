@@ -13,7 +13,11 @@ let transform_gt prog5 gt =
         |> InlineTerm.transform_gt
         |> PushPull.transform_gt
         |> PartialEvaluation.transform_gt prog5
-        |> MemberIndirection.transform_gt
+        |>
+        if TestGenConfig.is_experimental_product_arg_destruction () then
+          fun ctx -> ctx
+        else
+          MemberIndirection.transform_gt
       in
       if Term.equal old_gt new_gt then new_gt else aux new_gt (fuel - 1))
   in

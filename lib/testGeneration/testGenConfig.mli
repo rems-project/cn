@@ -32,6 +32,7 @@ type t =
     sanitizers : string option * string option;
     inline_everything : bool;
     experimental_struct_asgn_destruction : bool;
+    experimental_product_arg_destruction : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -89,6 +90,8 @@ val has_sanitizers : unit -> string option * string option
 val has_inline_everything : unit -> bool
 
 val is_experimental_struct_asgn_destruction : unit -> bool
+
+val is_experimental_product_arg_destruction : unit -> bool
 
 val has_input_timeout : unit -> int option
 
