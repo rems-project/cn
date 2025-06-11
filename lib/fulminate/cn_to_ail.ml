@@ -198,16 +198,11 @@ let lookup_records_map_opt bt =
   match bt with BT.Record members -> RecordMap.find_opt members !records | _ -> None
 
 
-let lookup_records_map members =
-  match lookup_records_map_opt (BT.Record members) with
+let lookup_records_map bt =
+  match lookup_records_map_opt bt with
   | Some sym -> sym
-  | None ->
-    failwith
-      ("Record not found in map ("
-       ^ String.concat
-           ", "
-           (List.map (fun (x, bt) -> Pp.(plain (BT.pp bt ^^ space ^^ Id.pp x))) members)
-       ^ ")")
+  | None -> failwith ("Record not found in map (" ^ Pp.plain (BT.pp bt) ^ ")")
+
 
 
 (* TODO: Complete *)
@@ -241,7 +236,7 @@ let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
     | CN_record members ->
       let sym =
         lookup_records_map
-          (List.map (fun (id, bt) -> (id, cn_base_type_to_bt bt)) members)
+          (BT.Record (List.map (fun (id, bt) -> (id, cn_base_type_to_bt bt)) members))
       in
       Struct sym
     (* Every struct is converted into a struct pointer *)
@@ -364,8 +359,8 @@ let get_underscored_typedef_string_from_bt ?(is_record = false) bt =
        let suffix = if is_record then "" else "_cn" in
        let cn_sym = generate_sym_with_suffix ~suffix sym in
        Some ("struct_" ^ Sym.pp_string cn_sym)
-     | BT.Record ms ->
-       let sym = lookup_records_map ms in
+     | BT.Record _ ->
+       let sym = lookup_records_map bt in
        Some ("struct_" ^ Sym.pp_string sym)
      | _ -> None)
 
@@ -1191,7 +1186,7 @@ let rec cn_to_ail_expr_aux
       (b, s, assign_stat)
     in
     let transformed_ms = List.map (fun (id, it) -> (id, IT.get_bt it)) ms in
-    let sym_name = lookup_records_map transformed_ms in
+    let sym_name = lookup_records_map (BT.Record transformed_ms) in
     let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct sym_name))) in
     let res_binding = create_binding res_sym (mk_ctype ctype_) in
     let fn_call = mk_alloc_expr (Struct sym_name) in
