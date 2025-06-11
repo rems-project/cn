@@ -1100,7 +1100,7 @@ let make_function_args f_i loc env args (accesses, requires) =
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [], (arg, cnbt) :: rest ->
-      let sbt = Compile.base_type env cnbt in
+      let sbt = Translate.base_type env cnbt in
       let bt = SBT.proj sbt in
       let env = Translate.add_logical arg sbt env in
       let@ at = aux arg_states good_lcs env st ([], rest) in
@@ -1146,7 +1146,7 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       let@ at = aux (* good_lc :: *) good_lcs env st (rest, ghost_args) in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [], (arg, cnbt) :: rest ->
-      let sbt = Compile.base_type env cnbt in
+      let sbt = Translate.base_type env cnbt in
       let bt = SBT.proj sbt in
       let env = Translate.add_logical arg sbt env in
       let@ at = aux good_lcs env st ([], rest) in
