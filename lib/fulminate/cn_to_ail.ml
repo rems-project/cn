@@ -4047,13 +4047,11 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
         param_syms,
         mk_stmt A.(AilSblock (pre_bs @ post_bs, List.map mk_stmt (pre_ss @ post_ss))) ) )
   in
-  ((loc, decl), def)
+  (decl, def)
 
 
 let cn_to_ail_lemmas filename dts preds globals lemmata
-  : ((Locations.t * A.sigma_declaration)
-    * CF.GenTypes.genTypeCategory A.sigma_function_definition)
-      list
+  : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
   List.map (cn_to_ail_lemma filename dts preds globals) lemmata
 
