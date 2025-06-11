@@ -204,6 +204,13 @@ let lookup_records_map bt =
   | None -> failwith ("Record not found in map (" ^ Pp.plain (BT.pp bt) ^ ")")
 
 
+let lookup_records_map_with_default ?(cn_sym : Sym.t option) bt =
+  match lookup_records_map_opt bt with
+  | Some tag -> tag
+  | None ->
+    augment_record_map ?cn_sym bt;
+    lookup_records_map bt
+
 
 (* TODO: Complete *)
 let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
@@ -235,7 +242,7 @@ let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
     | CN_struct sym -> C.(Struct (generate_sym_with_suffix ~suffix:"_cn" sym))
     | CN_record members ->
       let sym =
-        lookup_records_map
+        lookup_records_map_with_default
           (BT.Record (List.map (fun (id, bt) -> (id, cn_base_type_to_bt bt)) members))
       in
       Struct sym
@@ -360,7 +367,7 @@ let get_underscored_typedef_string_from_bt ?(is_record = false) bt =
        let cn_sym = generate_sym_with_suffix ~suffix sym in
        Some ("struct_" ^ Sym.pp_string cn_sym)
      | BT.Record _ ->
-       let sym = lookup_records_map bt in
+       let sym = lookup_records_map_with_default bt in
        Some ("struct_" ^ Sym.pp_string sym)
      | _ -> None)
 
@@ -1186,7 +1193,7 @@ let rec cn_to_ail_expr_aux
       (b, s, assign_stat)
     in
     let transformed_ms = List.map (fun (id, it) -> (id, IT.get_bt it)) ms in
-    let sym_name = lookup_records_map (BT.Record transformed_ms) in
+    let sym_name = lookup_records_map_with_default (BT.Record transformed_ms) in
     let ctype_ = C.(Pointer (C.no_qualifiers, mk_ctype (Struct sym_name))) in
     let res_binding = create_binding res_sym (mk_ctype ctype_) in
     let fn_call = mk_alloc_expr (Struct sym_name) in

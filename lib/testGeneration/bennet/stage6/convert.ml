@@ -479,7 +479,7 @@ let transform_gen_def
   let bt_ret =
     BT.Record (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) gr.oargs)
   in
-  let struct_tag = CtA.lookup_records_map_opt bt_ret |> Option.get in
+  let struct_tag = CtA.lookup_records_map_with_default bt_ret in
   let ct_ret = C.(mk_ctype_pointer no_qualifiers (Ctype ([], Struct struct_tag))) in
   let decl : A.declaration =
     A.Decl_function
@@ -556,7 +556,7 @@ let transform (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Stage5.Ctx.t)
       (fun ((_, gr) : _ * Stage5.Def.t) -> (GenUtils.get_mangled_name gr.name, gr))
       ctx
   in
-  let typedef_docs, tag_definitions =
+  let typedef_docs =
     defs
     |> List.map (fun ((name, def) : Sym.t * Stage5.Def.t) ->
       let loc = Locations.other __LOC__ in
@@ -569,20 +569,12 @@ let transform (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Stage5.Ctx.t)
         let open Pp in
         !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
       in
-      match CtA.lookup_records_map_opt bt with
-      | None ->
-        CtA.augment_record_map ~cn_sym:name bt;
-        (typedef_doc new_tag, Some (CtA.generate_record_opt name bt |> Option.get))
-      | Some existing_sym -> (typedef_doc existing_sym, None))
-    |> List.split
+      typedef_doc (CtA.lookup_records_map_with_default bt))
   in
-  let tag_definitions = List.filter_map (fun x -> x) tag_definitions in
   let declarations, function_definitions =
     List.split (List.map (transform_gen_def sigma ctx) defs)
   in
-  let sigma : 'a A.sigma =
-    { A.empty_sigma with tag_definitions; declarations; function_definitions }
-  in
+  let sigma : 'a A.sigma = { A.empty_sigma with declarations; function_definitions } in
   let record_defs = Records.generate_all_record_strs () in
   let open Pp in
   !^"#ifndef CN_GEN_H"
