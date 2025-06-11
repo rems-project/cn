@@ -50,7 +50,10 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
     | Asgn { addr; sct; value; rest } ->
       let rec pointer_of (it : IT.t) : Sym.t * BT.t =
         match it with
-        | IT (ArrayShift { base; _ }, _, _) -> pointer_of base
+        | IT (CopyAllocId { loc = ptr; _ }, _, _)
+        | IT (ArrayShift { base = ptr; _ }, _, _)
+        | IT (MemberShift (ptr, _, _), _, _) ->
+          pointer_of ptr
         | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
         | _ ->
           let pointers =

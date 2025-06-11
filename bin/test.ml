@@ -54,8 +54,8 @@ let run_tests
       no_replays
       no_replicas
       output_tyche
-      experimental
       inline_everything
+      experimental_struct_asgn_destruction
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -99,8 +99,8 @@ let run_tests
           max_backtracks;
           build_tool;
           sanitizers;
-          experimental;
           inline_everything;
+          experimental_struct_asgn_destruction;
           print_seed;
           input_timeout;
           null_in_every;
@@ -428,14 +428,14 @@ module Flags = struct
       & info [ "output-tyche" ] ~doc)
 
 
-  let experimental =
-    let doc = "Actively developed experimental stuff o.o" in
-    Arg.(value & flag & info [ "experimental" ] ~doc)
-
-
   let inline_everything =
     let doc = "Maximally inline everything" in
     Arg.(value & flag & info [ "inline-everything" ] ~doc)
+
+
+  let experimental_struct_asgn_destruction =
+    let doc = "Destructs struct assignments" in
+    Arg.(value & flag & info [ "experimental-struct-asgn-destruction" ] ~doc)
 end
 
 let cmd =
@@ -489,8 +489,8 @@ let cmd =
     $ Flags.no_replays
     $ Flags.no_replicas
     $ Flags.output_tyche
-    $ Flags.experimental
     $ Flags.inline_everything
+    $ Flags.experimental_struct_asgn_destruction
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

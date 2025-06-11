@@ -55,7 +55,15 @@ let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
            Term.let_star_ ((y, gt_arb), gt'') loc_arb)
         gt_struct
         members
-    | GT (LetStar ((x, GT (Arbitrary, Struct tag, loc_arb)), gt'), _, _) ->
+    | GT
+        ( LetStar
+            ( (x, GT (Arbitrary, Struct tag, loc_arb)),
+              GT (Asgn ((it_addr, Struct tag'), IT (Sym x', _, _), gt_rest), _, _) ),
+          _,
+          _ )
+      when TestGenConfig.is_experimental_struct_asgn_destruction () ->
+      assert (Sym.equal tag tag');
+      assert (Sym.equal x x');
       (* Generate fresh vars for each member *)
       let members =
         match Pmap.find tag prog5.tagDefs with
@@ -79,14 +87,20 @@ let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
                        members )
                    loc_arb)
                 loc_arb ),
-            gt' )
+            gt_rest )
           loc_arb
       in
-      (* Generate appropriate generators for the members *)
+      let loc = Locations.other __LOC__ in
       List.fold_left
-        (fun gt'' (y, (_, sct)) ->
-           let gt_arb = arbitrary_of_sctype sct loc_arb in
-           Term.let_star_ ((y, gt_arb), gt'') loc_arb)
+        (fun gt_rest' (y, (member, sct)) ->
+           Term.let_star_
+             ( (y, arbitrary_of_sctype sct loc_arb),
+               Term.asgn_
+                 ( (IT.memberShift_ (it_addr, tag, member) (IT.get_loc it_addr), sct),
+                   IT.sym_ (y, Memory.bt_of_sct sct, loc),
+                   gt_rest' )
+                 loc )
+             loc_arb)
         gt_struct
         members
     | _ -> gt

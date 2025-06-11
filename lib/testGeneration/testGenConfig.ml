@@ -30,8 +30,8 @@ type t =
     max_backtracks : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
-    experimental : bool;
     inline_everything : bool;
+    experimental_struct_asgn_destruction : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -63,8 +63,8 @@ let default =
     max_backtracks = 25;
     build_tool = Bash;
     sanitizers = (None, None);
-    experimental = false;
     inline_everything = false;
+    experimental_struct_asgn_destruction = false;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -152,7 +152,9 @@ let get_build_tool () = !instance.build_tool
 
 let has_sanitizers () = !instance.sanitizers
 
-let is_experimental () = !instance.experimental
+let is_experimental_struct_asgn_destruction () =
+  !instance.experimental_struct_asgn_destruction
+
 
 let has_inline_everything () = !instance.inline_everything
 
