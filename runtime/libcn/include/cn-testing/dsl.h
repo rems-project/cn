@@ -95,8 +95,9 @@
     cn_gen_failure_blame_many(toAdd);                                                    \
   }
 
-#define CN_GEN_ASSIGN(pointer, addr, addr_ty, value, tmp, gen_name, last_var, ...)       \
-  if (convert_from_cn_pointer(pointer) == 0) {                                           \
+#define CN_GEN_ASSIGN(                                                                   \
+    pointer, pointer_val, addr, addr_ty, value, tmp, gen_name, last_var, ...)            \
+  if (convert_from_cn_pointer(pointer_val) == 0) {                                       \
     cn_gen_failure_blame((char*)#pointer);                                               \
     if (sizeof(addr_ty) > sizeof(intmax_t)) {                                            \
       cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ALLOC);                           \
@@ -111,7 +112,7 @@
   if (!cn_gen_alloc_check(tmp##_ptr, sizeof(addr_ty))) {                                 \
     cn_gen_failure_blame((char*)#pointer);                                               \
     size_t tmp##_size = (uintptr_t)tmp##_ptr + sizeof(addr_ty) -                         \
-                        (uintptr_t)convert_from_cn_pointer(pointer);                     \
+                        (uintptr_t)convert_from_cn_pointer(pointer_val);                 \
     cn_gen_failure_set_failure_type(CN_GEN_BACKTRACK_ALLOC);                             \
     cn_gen_failure_set_allocation_needed(tmp##_size);                                    \
     goto cn_label_##last_var##_backtrack;                                                \
