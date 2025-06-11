@@ -234,6 +234,9 @@ let main
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates filename sigm prog5.resource_predicates
   in
+  let c_lemma_defs, c_lemma_decls, _ =
+    generate_c_lemmas without_ownership_checking filename sigm prog5
+  in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
   in
@@ -280,7 +283,8 @@ let main
           record_fun_decls;
           c_function_decls;
           "\n";
-          c_predicate_decls
+          c_predicate_decls;
+          c_lemma_decls
         ]
       ]
   in
@@ -298,7 +302,8 @@ let main
       "/* CN FUNCTIONS */\n";
       c_function_defs;
       "\n";
-      c_predicate_defs
+      c_predicate_defs;
+      c_lemma_defs
     ]
   in
   let c_datatype_locs = List.map fst c_datatype_defs in
