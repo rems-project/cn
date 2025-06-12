@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_instrumented_file ~filename ~cc ~output ~output_dir ~print_steps =
+let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
@@ -19,9 +19,10 @@ let run_instrumented_file ~filename ~cc ~output ~output_dir ~print_steps =
       ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
     exit 1);
   let flags =
+    let debug_info_flag = if no_debug_info then "" else " -g " in
     let cflags = Option.value ~default:"" (Sys.getenv_opt "CFLAGS") in
     let cppflags = Option.value ~default:"" (Sys.getenv_opt "CPPFLAGS") in
-    cflags ^ cppflags
+    debug_info_flag ^ cflags ^ cppflags
   in
   if
     Sys.command
@@ -95,6 +96,7 @@ let generate_executable_specs
       with_loop_leak_checks
       with_testing
       run
+      no_debug_info
       mktemp
       print_steps
   =
@@ -172,7 +174,13 @@ let generate_executable_specs
         ();
       Or_TypeError.return
         (if run then
-           run_instrumented_file ~filename ~cc ~output ~output_dir ~print_steps))
+           run_instrumented_file
+             ~filename
+             ~cc
+             ~no_debug_info
+             ~output
+             ~output_dir
+             ~print_steps))
 
 
 open Cmdliner
@@ -251,6 +259,11 @@ module Flags = struct
   let skip =
     let doc = "Skip instrumenting this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+
+
+  let no_debug_info =
+    let doc = "Run the instrumented program without collecting debug information" in
+    Arg.(value & flag & info [ "no-debug-info" ] ~doc)
 end
 
 let cmd =
@@ -288,6 +301,7 @@ let cmd =
         (fun (x, y) -> x || y)
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
+    $ Flags.no_debug_info
     $ Flags.mktemp
     $ Flags.print_steps
   in
