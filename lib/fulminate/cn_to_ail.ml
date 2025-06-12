@@ -3924,6 +3924,7 @@ let translate_computational_at (sym, bt) =
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
+          is_lemma
           filename
           dts
           preds
@@ -3937,6 +3938,7 @@ let rec cn_to_ail_pre_post_aux
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
+        is_lemma
         filename
         dts
         preds
@@ -3946,16 +3948,20 @@ let rec cn_to_ail_pre_post_aux
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
   | AT.Ghost (_bound, _info, at) ->
-    Pp.(warn_noloc !^"TODO Fulminate: Ghost arguments not yet supported at runtime");
-    cn_to_ail_pre_post_aux
-      without_ownership_checking
-      with_loop_leak_checks
-      filename
-      dts
-      preds
-      globals
-      c_return_type
-      at
+    (* is_lemma argument can be deleted when ghost arguments are fully supported at runtime *)
+    if is_lemma then
+      cn_to_ail_pre_post_aux
+        without_ownership_checking
+        with_loop_leak_checks
+        is_lemma
+        filename
+        dts
+        preds
+        globals
+        c_return_type
+        at
+    else
+      failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
   | AT.L lat ->
     cn_to_ail_lat_2
       without_ownership_checking
@@ -3971,6 +3977,7 @@ let rec cn_to_ail_pre_post_aux
 let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      ~is_lemma
       filename
       dts
       preds
@@ -3982,6 +3989,7 @@ let cn_to_ail_pre_post
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
+        is_lemma
         filename
         dts
         preds
@@ -4020,6 +4028,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
     cn_to_ail_pre_post
       ~without_ownership_checking:true
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
+      ~is_lemma:true
       filename
       dts
       preds

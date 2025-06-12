@@ -183,6 +183,7 @@ let generate_c_specs_from_cn_internal
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      ~is_lemma:false
       filename
       dts
       preds
