@@ -1,9 +1,9 @@
 open Mucore
 
-type statement = Locations.t * Cnprog.t list
+type statement = Locations.t * Cnstatement.statement Cnprog.t list
 
 let statement_subst subst ((loc, cnprogs) : statement) : statement =
-  (loc, List.map (Cnprog.subst subst) cnprogs)
+  (loc, List.map ((Cnprog.subst Cnstatement.subst) subst) cnprogs)
 
 
 type statements = statement list

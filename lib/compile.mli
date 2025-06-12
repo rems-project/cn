@@ -156,4 +156,4 @@ val statement
   C_vars.named_scopes ->
   env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement ->
-  Cnprog.t Or_Error.t
+  Cnstatement.statement Cnprog.t Or_Error.t
