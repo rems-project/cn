@@ -47,7 +47,7 @@ RUNTIME_PREFIX="$OPAM_SWITCH_PREFIX/lib/cn/runtime"
 
 # Instrument code with CN
 if cn instrument "${INPUT_FN}" \
-    --run --tmp --print-steps \
+    --run --no-debug-info --tmp --print-steps \
     --output="${INPUT_BASENAME}.exec.c" \
     ${NO_CHECK_OWNERSHIP}; then
   [ "${QUIET}" ] || echo "Success!"
