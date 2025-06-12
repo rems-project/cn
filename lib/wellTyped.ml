@@ -1849,10 +1849,8 @@ module BaseTyping = struct
 
 
   let check_cn_statement loc stmt =
-    let open Cnprog in
-    Pp.debug
-      22
-      (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree_of_statement stmt))));
+    let open Cnstatement in
+    Pp.debug 22 (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree stmt))));
     match stmt with
     | Pack_unpack (pack_unpack, pt) ->
       let@ p_pt = WReq.welltyped loc (P pt) in
@@ -1945,7 +1943,7 @@ module BaseTyping = struct
       return (Split_case lc)
 
 
-  let check_cnprog p =
+  let check_cnprog f p =
     let open Cnprog in
     let rec aux = function
       | Let (loc, (s, { ct; pointer }), p') ->
@@ -1954,9 +1952,9 @@ module BaseTyping = struct
         let@ () = add_l s (Memory.bt_of_sct ct) (loc, lazy (Sym.pp s)) in
         let@ p' = aux p' in
         return (Let (loc, (s, { ct; pointer }), p'))
-      | Statement (loc, stmt) ->
-        let@ stmt = check_cn_statement loc stmt in
-        return (Statement (loc, stmt))
+      | Pure (loc, x) ->
+        let@ x = f loc x in
+        return (Pure (loc, x))
     in
     pure (aux p)
 
@@ -2183,7 +2181,7 @@ module BaseTyping = struct
           in
           return (Unit, Erun (l, pes, its))
         | CN_progs (surfaceprog, cnprogs) ->
-          let@ cnprogs = ListM.mapM check_cnprog cnprogs in
+          let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
         | End _ -> todo ()
       in

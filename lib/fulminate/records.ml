@@ -62,7 +62,7 @@ let add_records_to_map_from_lc = function
 
 
 let add_records_to_map_from_cn_statement = function
-  | Cnprog.Assert lc -> add_records_to_map_from_lc lc
+  | Cnstatement.Assert lc -> add_records_to_map_from_lc lc
   (* All other CN statements are (currently) no-ops at runtime *)
   | Pack_unpack _ | To_from_bytes _ | Have _ | Instantiate _ | Split_case _ | Extract _
   | Unfold _ | Apply _ | Inline _ | Print _ ->
@@ -74,7 +74,7 @@ let add_records_to_map_from_cnprogs (_, cn_progs) =
     | Cnprog.Let (_, (_, { ct = _; pointer }), prog) ->
       add_records_to_map_from_it pointer;
       aux prog
-    | Statement (_, stmt) -> add_records_to_map_from_cn_statement stmt
+    | Pure (_, stmt) -> add_records_to_map_from_cn_statement stmt
   in
   List.iter aux cn_progs
 

@@ -216,7 +216,7 @@ type 'TY expr_ =
   | Erun of Sym.t * 'TY pexpr list * IndexTerms.t list
   | CN_progs of
       (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement list
-      * Cnprog.t list
+      * Cnstatement.statement Cnprog.t list
 
 and 'TY expr = Expr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY expr_
 

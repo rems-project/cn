@@ -1712,7 +1712,7 @@ let pp_cnprogs_extract (ids, extract, term) =
 
 
 let pp_cnprog_statement = function
-  | Cnprog.Pack_unpack (pu, pred) ->
+  | Cnstatement.Pack_unpack (pu, pred) ->
     pp_constructor "CNProgs.Pack_unpack" [ pp_pack_unpack pu; pp_request_ppredicate pred ]
   | To_from_bytes (tf, pred) ->
     pp_constructor "CNProgs.To_from_bytes" [ pp_to_from tf; pp_request_ppredicate pred ]
@@ -1742,7 +1742,7 @@ let rec pp_cn_prog = function
     pp_constructor
       "CNProgs.CLet"
       [ pp_location loc; pp_tuple [ pp_symbol name; pp_cnprog_load l ]; pp_cn_prog prog ]
-  | Statement (loc, stmt) ->
+  | Pure (loc, stmt) ->
     pp_constructor "CNProgs.Statement" [ pp_location loc; pp_cnprog_statement stmt ]
 
 

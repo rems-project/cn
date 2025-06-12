@@ -588,7 +588,9 @@ module Make (Config : CONFIG) = struct
              pp_keyword "cn_prog"
              ^^ Pp.parens
                   (* use the AST printer to at least print something, TODO improve *)
-                  (Cn_Pp.list Pp_ast.pp_doc_tree (List.map Cnprog.dtree stmts))
+                  (Cn_Pp.list
+                     Pp_ast.pp_doc_tree
+                     (List.map (Cnprog.dtree Cnstatement.dtree) stmts))
            | Eunseq es -> pp_control "unseq" ^^ Pp.parens (comma_list pp es)
            | Elet (pat, pe1, e2) ->
              Pp.group
