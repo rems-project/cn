@@ -3523,13 +3523,13 @@ let cn_to_ail_cnstatement
     (C.union_tag * C.ctype) list ->
     spec_mode option ->
     a dest ->
-    Cnprog.statement ->
+    Cnstatement.statement ->
     a * bool
   =
   fun filename dts globals spec_mode_opt d cnstatement ->
   let default_res_for_dest = empty_for_dest d in
   match cnstatement with
-  | Cnprog.Pack_unpack (_pack_unpack, _pt) -> (default_res_for_dest, true)
+  | Cnstatement.Pack_unpack (_pack_unpack, _pt) -> (default_res_for_dest, true)
   | To_from_bytes (_to_from, _res) -> (default_res_for_dest, true)
   | Have _lc -> failwith "TODO Have"
   | Instantiate (_to_instantiate, _it) -> (default_res_for_dest, true)
@@ -3571,11 +3571,11 @@ let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
       (([], []), true)
     else
       ((b1 @ (binding :: b2), s @ (ail_stat_ :: ss)), false)
-  | Statement (loc, stmt) ->
+  | Pure (loc, x) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let (bs, ss), no_op =
-      cn_to_ail_cnstatement filename dts globals spec_mode_opt (Assert loc) stmt
+      cn_to_ail_cnstatement filename dts globals spec_mode_opt (Assert loc) x
     in
     ((bs, upd_s @ ss @ pop_s), no_op)
 
