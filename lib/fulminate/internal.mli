@@ -62,6 +62,12 @@ val generate_c_predicates
   (Sym.t * Definition.Predicate.t) list ->
   string * string * Cerb_location.t list
 
+val generate_c_lemmas
+  :  string ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  unit Mucore.file ->
+  string * string
+
 val generate_ownership_functions : bool -> Ctype.ctype list -> string * string
 
 val generate_conversion_and_equality_functions

@@ -183,6 +183,7 @@ let generate_c_specs_from_cn_internal
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      ~is_lemma:false
       filename
       dts
       preds
@@ -442,6 +443,25 @@ let generate_c_predicates
   ( "\n/* CN PREDICATES */\n\n" ^ doc_to_pretty_string defs_doc,
     doc_to_pretty_string decls_doc,
     locs )
+
+
+let generate_c_lemmas
+      filename
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let globals = extract_global_variables prog5.globs in
+  let ail_funs =
+    Cn_to_ail.cn_to_ail_lemmas
+      filename
+      sigm.cn_datatypes
+      prog5.resource_predicates
+      globals
+      prog5.lemmata
+  in
+  let decls, defs = List.split ail_funs in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
+  ("\n/* CN LEMMAS */\n\n" ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
 
 let generate_ownership_functions without_ownership_checking ownership_ctypes =
