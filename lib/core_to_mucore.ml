@@ -1077,8 +1077,8 @@ let make_label_args f_i loc env st args (accesses, inv) =
 
 
 let make_function_args f_i loc env args (accesses, requires) =
-  let rec aux arg_states good_lcs env st = function
-    | ((mut_arg, (mut_arg', ct)), (pure_arg, cbt)) :: rest, ghost_args ->
+  let rec aux_comp arg_states good_lcs env st = function
+    | ((mut_arg, (mut_arg', ct)), (pure_arg, cbt)) :: rest ->
       assert (Option.equal Sym.equal (Some mut_arg) mut_arg');
       let ct = convert_ct loc ct in
       let sbt = Memory.sbt_of_sct ct in
@@ -1093,32 +1093,35 @@ let make_function_args f_i loc env args (accesses, requires) =
       (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
       let@ at =
-        aux
+        aux_comp
           (arg_states @ [ (mut_arg, arg_state) ])
           (* good_lc :: *) good_lcs
           env
           st
-          (rest, ghost_args)
+          rest
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
-    | [], (arg, cnbt) :: rest ->
-      let sbt = Translate.base_type env cnbt in
-      let bt = SBT.proj sbt in
-      let env = Translate.add_logical arg sbt env in
-      let@ at = aux arg_states good_lcs env st ([], rest) in
-      return (Mu.Ghost ((arg, bt), (loc, None), at))
-    | [], [] ->
+    | [] ->
       let@ lat =
         make_largs_with_accesses (f_i arg_states) env st (accesses, snd requires)
       in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] [] env Translate.C_vars.init (args, fst requires)
+  let rec aux_ghost arg_states env st = function
+    | (arg, cnbt) :: rest ->
+      let sbt = Translate.base_type env cnbt in
+      let bt = SBT.proj sbt in
+      let env = Translate.add_logical arg sbt env in
+      let@ at = aux_ghost arg_states env st rest in
+      return (Mu.Ghost ((arg, bt), (loc, None), at))
+    | [] -> aux_comp arg_states [] env st args
+  in
+  aux_ghost [] env Translate.C_vars.init (fst requires)
 
 
 let make_fun_with_spec_args f_i loc env args (accesses, requires) =
-  let rec aux good_lcs env st = function
-    | ((pure_arg, cn_bt), ct_ct) :: rest, ghost_args ->
+  let rec aux_comp good_lcs env st = function
+    | ((pure_arg, cn_bt), ct_ct) :: rest ->
       let ct = convert_ct loc ct_ct in
       let sbt = Memory.sbt_of_sct ct in
       let bt = SBT.proj sbt in
@@ -1145,19 +1148,22 @@ let make_fun_with_spec_args f_i loc env args (accesses, requires) =
       (*   let here = Locations.other __LOC__ in *)
       (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
       (* in *)
-      let@ at = aux (* good_lc :: *) good_lcs env st (rest, ghost_args) in
+      let@ at = aux_comp (* good_lc :: *) good_lcs env st rest in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
-    | [], (arg, cnbt) :: rest ->
-      let sbt = Translate.base_type env cnbt in
-      let bt = SBT.proj sbt in
-      let env = Translate.add_logical arg sbt env in
-      let@ at = aux good_lcs env st ([], rest) in
-      return (Mu.Ghost ((arg, bt), (loc, None), at))
-    | [], [] ->
+    | [] ->
       let@ lat = make_largs_with_accesses f_i env st (accesses, snd requires) in
       return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
   in
-  aux [] env Translate.C_vars.init (args, fst requires)
+  let rec aux_ghost env st = function
+    | (arg, cnbt) :: rest ->
+      let sbt = Translate.base_type env cnbt in
+      let bt = SBT.proj sbt in
+      let env = Translate.add_logical arg sbt env in
+      let@ at = aux_ghost env st rest in
+      return (Mu.Ghost ((arg, bt), (loc, None), at))
+    | [] -> aux_comp [] env st args
+  in
+  aux_ghost env Translate.C_vars.init (fst requires)
 
 
 let desugar_access d_st global_types (loc, id) =
