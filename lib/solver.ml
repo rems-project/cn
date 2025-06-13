@@ -310,6 +310,8 @@ module CN_MemByte = struct
          ])
 end
 
+let use_composable_array_shift_semantics = ref false
+
 module CN_Pointer = struct
   let name = "pointer"
 
@@ -424,7 +426,15 @@ module CN_Pointer = struct
 
 
   let ptr_shift ~ptr ~offset ~null_case =
-    SMT.app_ ptr_shift_name [ ptr; offset; null_case ]
+    let default = SMT.app_ ptr_shift_name [ ptr; offset; null_case ] in
+    if !use_composable_array_shift_semantics then (
+      match ptr with
+      | List [ Atom ptr_shift_name; base; offset1; _ ] ->
+        let new_offset = SMT.bv_add offset1 offset in
+        SMT.app_ ptr_shift_name [ base; new_offset; null_case ]
+      | _ -> default)
+    else
+      default
 
 
   let copy_alloc_id ~ptr ~addr ~null_case =
@@ -703,6 +713,12 @@ let rec translate_term s iterm =
     let here = Locations.other __LOC__ in
     translate_term s (IT.default_ bt here)
   in
+  let null_case () =
+    if !use_composable_array_shift_semantics then
+      CN_Pointer.con_null
+    else
+      default (Loc ())
+  in
   match IT.get_term iterm with
   | Const c -> translate_const s c
   | Sym x -> translate_var s x (IT.get_bt iterm)
@@ -937,12 +953,12 @@ let rec translate_term s iterm =
   | MemberShift (t, tag, member) ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s t)
-      ~null_case:(default (Loc ()))
+      ~null_case:(null_case ())
       ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt, loc)))
   | ArrayShift { base; ct; index } ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s base)
-      ~null_case:(default (Loc ()))
+      ~null_case:(null_case ())
       ~offset:
         (let el_size = int_lit_ (Memory.size_of_ctype ct) Memory.uintptr_bt loc in
          translate_term s (mul_ (el_size, index) loc))
