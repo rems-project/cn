@@ -39,6 +39,7 @@ let verify
       magic_comment_char_dollar
       allow_split_magic_comments
       disable_resource_derived_constraints
+      use_composable_array_shift_semantics
       try_hard
   =
   if json then (
@@ -67,6 +68,7 @@ let verify
   Diagnostics.diag_string := diag;
   WellTyped.use_ity := not no_use_ity;
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
+  Solver.use_composable_array_shift_semantics := use_composable_array_shift_semantics;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
   let filename = Common.there_can_only_be_one filename in
@@ -201,6 +203,11 @@ module Flags = struct
   let disable_resource_derived_constraints =
     let doc = "disable resource-derived constraints" in
     Arg.(value & flag & info [ "disable-resource-derived-constraints" ] ~doc)
+
+
+  let use_composable_array_shift_semantics =
+    let doc = "Adopt semantics for array_shift such that array_shift(NULL, n) = NULL" in
+    Arg.(value & flag & info [ "use-composable-array-shift-semantics" ] ~doc)
 end
 
 module Lemma_flags = struct
@@ -272,6 +279,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.magic_comment_char_dollar
   $ Common.Flags.allow_split_magic_comments
   $ Flags.disable_resource_derived_constraints
+  $ Flags.use_composable_array_shift_semantics
   $ Flags.try_hard
 
 

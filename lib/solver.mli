@@ -20,6 +20,8 @@ val solver_flags : string list option ref
 
 val solver_type : Simple_smt.solver_extensions option ref
 
+val use_composable_array_shift_semantics : bool ref
+
 (* Create a solver *)
 val make : Global.t -> solver
 
