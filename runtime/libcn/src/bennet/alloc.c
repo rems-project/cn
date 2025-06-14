@@ -1,22 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <bennet/prelude.h>
 #include <cn-executable/utils.h>
-#include <cn-testing/prelude.h>
 
 #define MEM_SIZE (1024 * 1024 * 256)
 static char alloc_buf[MEM_SIZE];
 static void* alloc_curr = alloc_buf;
 
-void cn_gen_alloc_reset(void) {
+void bennet_alloc_reset(void) {
   alloc_curr = alloc_buf;
 }
 
-void* cn_gen_alloc_save(void) {
+void* bennet_alloc_save(void) {
   return alloc_curr;
 }
 
-void cn_gen_alloc_restore(void* ptr) {
+void bennet_alloc_restore(void* ptr) {
   if (alloc_buf <= (char*)ptr && (char*)ptr < alloc_buf + MEM_SIZE) {
     alloc_curr = ptr;
     return;
@@ -29,15 +29,15 @@ void cn_gen_alloc_restore(void* ptr) {
 static char ownership_buf[MEM_SIZE];
 static void* ownership_curr = ownership_buf;
 
-void cn_gen_ownership_reset(void) {
+void bennet_ownership_reset(void) {
   ownership_curr = ownership_buf;
 }
 
-void* cn_gen_ownership_save(void) {
+void* bennet_ownership_save(void) {
   return ownership_curr;
 }
 
-void cn_gen_ownership_restore(void* ptr) {
+void bennet_ownership_restore(void* ptr) {
   if (ownership_buf <= (char*)ptr && (char*)ptr < ownership_buf + MEM_SIZE) {
     ownership_curr = ptr;
     return;
@@ -96,13 +96,13 @@ void unset_sized_null(void) {
   sized_null = 0;
 }
 
-cn_pointer* cn_gen_alloc(cn_bits_u64* sz) {
+cn_pointer* bennet_alloc(cn_bits_u64* sz) {
   uint64_t bytes = convert_from_cn_bits_u64(sz);
-  if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ALLOC) {
-    bytes = cn_gen_failure_get_allocation_needed();
-    cn_gen_failure_reset();
+  if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {
+    bytes = bennet_failure_get_allocation_needed();
+    bennet_failure_reset();
   } else if (bytes == 0) {
-    uint64_t rnd = cn_gen_uniform_u8(null_in_every);
+    uint64_t rnd = bennet_uniform_u8(null_in_every);
     if (rnd == 0) {
       bytes = 0;
     } else {
@@ -119,11 +119,11 @@ cn_pointer* cn_gen_alloc(cn_bits_u64* sz) {
   }
 }
 
-cn_pointer* cn_gen_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
+cn_pointer* bennet_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
   uint64_t bytes = convert_from_cn_bits_u64(sz);
-  if (cn_gen_failure_get_failure_type() == CN_GEN_BACKTRACK_ALLOC) {
-    bytes = cn_gen_failure_get_allocation_needed();
-    cn_gen_failure_reset();
+  if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {
+    bytes = bennet_failure_get_allocation_needed();
+    bennet_failure_reset();
   }
 
   uint64_t align = convert_from_cn_bits_u64(alignment);
@@ -133,7 +133,7 @@ cn_pointer* cn_gen_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
 
   if (bytes == 0) {
     void* p;
-    uint64_t rnd = cn_gen_uniform_u8(null_in_every);
+    uint64_t rnd = bennet_uniform_u8(null_in_every);
     if (rnd == 0) {
       p = NULL;
     } else {
@@ -148,7 +148,7 @@ cn_pointer* cn_gen_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
   }
 }
 
-int cn_gen_alloc_check(void* p, size_t sz) {
+int bennet_alloc_check(void* p, size_t sz) {
   if (alloc_curr == alloc_buf) {
     return 0;
   }
@@ -178,11 +178,11 @@ int cn_gen_alloc_check(void* p, size_t sz) {
   return (bytes == 0);
 }
 
-void cn_gen_ownership_update(void* p, size_t sz) {
+void bennet_ownership_update(void* p, size_t sz) {
   update_ownership(p, sz);
 }
 
-int cn_gen_ownership_check(void* p, size_t sz) {
+int bennet_ownership_check(void* p, size_t sz) {
   if (ownership_curr == ownership_buf) {
     return 1;
   }

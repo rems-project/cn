@@ -173,8 +173,8 @@ let rules ~filename_base =
   ^^ !^"\t@"
   ^^ !^(if Config.is_print_steps () then "echo \"Linking object files\"" else ":")
   ^^ hardline
-  ^^ !^"\t$(CC) -o $@ $^ $(RUNTIME_PREFIX)/libcn_exec.a $(RUNTIME_PREFIX)/libcn_test.a \
-        $(RUNTIME_PREFIX)/libcn_replica.a $(CFLAGS_TEST)"
+  ^^ !^"\t$(CC) -o $@ $^ $(RUNTIME_PREFIX)/libcn_exec.a $(RUNTIME_PREFIX)/libbennet.a \
+        $(RUNTIME_PREFIX)/libcn_test.a $(RUNTIME_PREFIX)/libcn_replica.a $(CFLAGS_TEST)"
   ^^ twice hardline
 
 

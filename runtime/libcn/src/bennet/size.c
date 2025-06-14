@@ -1,75 +1,75 @@
-#include <cn-testing/size.h>
+#include <bennet/size.h>
 
 static size_t global_size = 20;
 
-size_t cn_gen_get_size(void) {
+size_t bennet_get_size(void) {
   return global_size;
 }
 
-void cn_gen_set_size(size_t sz) {
+void bennet_set_size(size_t sz) {
   global_size = sz;
 }
 
 static size_t global_max_size = 25;
 
-size_t cn_gen_get_max_size(void) {
+size_t bennet_get_max_size(void) {
   return global_max_size;
 }
 
-void cn_gen_set_max_size(size_t sz) {
+void bennet_set_max_size(size_t sz) {
   global_max_size = sz;
 }
 
 static uint16_t stack_depth = 0;
 static uint16_t max_stack_depth = UINT8_MAX;
 
-uint16_t cn_gen_depth() {
+uint16_t bennet_depth() {
   return stack_depth;
 }
 
-uint16_t cn_gen_max_depth() {
+uint16_t bennet_max_depth() {
   return max_stack_depth;
 }
 
-void cn_gen_set_max_depth(uint16_t msd) {
+void bennet_set_max_depth(uint16_t msd) {
   max_stack_depth = msd;
 }
 
-void cn_gen_increment_depth() {
+void bennet_increment_depth() {
   stack_depth++;
 }
 
-void cn_gen_decrement_depth() {
+void bennet_decrement_depth() {
   stack_depth--;
 }
 
 static uint16_t size_split_backtracks_allowed = 0;
 
-void cn_gen_set_size_split_backtracks_allowed(uint16_t allowed) {
+void bennet_set_size_split_backtracks_allowed(uint16_t allowed) {
   size_split_backtracks_allowed = allowed;
 }
 
-uint16_t cn_gen_get_size_split_backtracks_allowed() {
+uint16_t bennet_get_size_split_backtracks_allowed() {
   return size_split_backtracks_allowed;
 }
 
 static uint64_t timeout = 0;
 
-void cn_gen_set_input_timeout(uint64_t ms) {
+void bennet_set_input_timeout(uint64_t ms) {
   timeout = ms;
 }
 
-uint64_t cn_gen_get_input_timeout(void) {
+uint64_t bennet_get_input_timeout(void) {
   return timeout;
 }
 
 static uint64_t timer = 0;
 
-void cn_gen_set_input_timer(uint64_t time) {
+void bennet_set_input_timer(uint64_t time) {
   timer = time;
 }
 
-uint64_t cn_gen_get_input_timer(void) {
+uint64_t bennet_get_input_timer(void) {
   return timer;
 }
 
@@ -100,14 +100,14 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp) {
 }
 #endif
 
-uint64_t cn_gen_get_milliseconds(void) {
+uint64_t bennet_get_milliseconds(void) {
   struct timeval tv;
 
   gettimeofday(&tv, NULL);
   return (((uint64_t)tv.tv_sec) * 1000) + (tv.tv_usec / 1000);
 }
 
-uint64_t cn_gen_get_microseconds(void) {
+uint64_t bennet_get_microseconds(void) {
   struct timeval tv;
 
   gettimeofday(&tv, NULL);

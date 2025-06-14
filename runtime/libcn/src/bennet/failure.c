@@ -2,8 +2,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include <cn-testing/failure.h>
-#include <cn-testing/size.h>
+#include <bennet/failure.h>
+#include <bennet/size.h>
 
 struct bennet_allocation_failure_info {
   int allocate_more_than;
@@ -24,15 +24,15 @@ union bennet_failure_body {
 
 struct bennet_failure {
   struct name_list* blamed;
-  enum cn_gen_failure_type type;
+  enum bennet_failure_type type;
   union bennet_failure_body body;
 };
 
 static struct bennet_failure failure =
-    (struct bennet_failure){.blamed = NULL, .type = CN_GEN_BACKTRACK_NONE};
+    (struct bennet_failure){.blamed = NULL, .type = BENNET_BACKTRACK_NONE};
 
-void cn_gen_failure_reset(void) {
-  failure.type = CN_GEN_BACKTRACK_NONE;
+void bennet_failure_reset(void) {
+  failure.type = BENNET_BACKTRACK_NONE;
 
   while (failure.blamed != NULL) {
     void* tmp = failure.blamed->next;
@@ -41,15 +41,15 @@ void cn_gen_failure_reset(void) {
   }
 }
 
-enum cn_gen_failure_type cn_gen_failure_get_failure_type(void) {
+enum bennet_failure_type bennet_failure_get_failure_type(void) {
   return failure.type;
 }
 
-void cn_gen_failure_set_failure_type(enum cn_gen_failure_type type) {
+void bennet_failure_set_failure_type(enum bennet_failure_type type) {
   failure.type = type;
 }
 
-void cn_gen_failure_blame(char* varname) {
+void bennet_failure_blame(char* varname) {
   struct name_list* new_node = (struct name_list*)malloc(sizeof(struct name_list));
   *new_node = (struct name_list){.name = varname, .next = 0};
 
@@ -78,14 +78,14 @@ void cn_gen_failure_blame(char* varname) {
   curr->next = new_node;
 }
 
-void cn_gen_failure_blame_many(char* toAdd[]) {
+void bennet_failure_blame_many(char* toAdd[]) {
   for (int i = 0; toAdd[i] != NULL; i++) {
-    cn_gen_failure_blame(toAdd[i]);
+    bennet_failure_blame(toAdd[i]);
   }
 }
 
-int cn_gen_failure_is_blamed(char* varname) {
-  assert(failure.type != CN_GEN_BACKTRACK_NONE);
+int bennet_failure_is_blamed(char* varname) {
+  assert(failure.type != BENNET_BACKTRACK_NONE);
 
   struct name_list* curr = failure.blamed;
   while (curr != NULL) {
@@ -98,7 +98,7 @@ int cn_gen_failure_is_blamed(char* varname) {
   return 0;
 }
 
-int cn_gen_failure_remap_blamed(char* from, char* to) {
+int bennet_failure_remap_blamed(char* from, char* to) {
   struct name_list* curr = failure.blamed;
   while (curr != NULL) {
     if (strcmp(from, curr->name) == 0) {
@@ -111,7 +111,7 @@ int cn_gen_failure_remap_blamed(char* from, char* to) {
   return 0;
 }
 
-int cn_gen_failure_remap_blamed_many(char* from[], char* to[]) {
+int bennet_failure_remap_blamed_many(char* from[], char* to[]) {
   int number_of_remaps = 0;
   for (int i = 0; from[i] != 0; i++) {
     number_of_remaps += 1;
@@ -136,11 +136,11 @@ int cn_gen_failure_remap_blamed_many(char* from[], char* to[]) {
     (toUnique[i][len + 1]) = '\0';
 
     // We do this indirection in case there's a duplicate between `from` and `to`
-    successes &= cn_gen_failure_remap_blamed(from[i], toUnique[i]);
+    successes &= bennet_failure_remap_blamed(from[i], toUnique[i]);
   }
 
   for (int i = 0; from[i] != 0; i++) {
-    successes &= cn_gen_failure_remap_blamed(toUnique[i], to[i]);
+    successes &= bennet_failure_remap_blamed(toUnique[i], to[i]);
   }
 
   for (int i = 0; i < number_of_remaps; i++) {
@@ -151,12 +151,12 @@ int cn_gen_failure_remap_blamed_many(char* from[], char* to[]) {
   return successes;
 }
 
-void cn_gen_failure_set_allocation_needed(size_t sz) {
-  failure.type = CN_GEN_BACKTRACK_ALLOC;
+void bennet_failure_set_allocation_needed(size_t sz) {
+  failure.type = BENNET_BACKTRACK_ALLOC;
   failure.body.allocation.allocate_more_than = sz;
 }
 
-size_t cn_gen_failure_get_allocation_needed() {
-  assert(failure.type == CN_GEN_BACKTRACK_ALLOC);
+size_t bennet_failure_get_allocation_needed() {
+  assert(failure.type == BENNET_BACKTRACK_ALLOC);
   return failure.body.allocation.allocate_more_than;
 }

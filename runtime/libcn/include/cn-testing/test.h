@@ -8,9 +8,9 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <bennet/uniform.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
-#include <cn-testing/uniform.h>
 #include <cn-replicate/lines.h>
 #include <cn-replicate/shape.h>
 
@@ -20,16 +20,16 @@ enum cn_test_gen_progress {
   CN_TEST_GEN_PROGRESS_ALL = 2
 };
 
-enum cn_gen_sizing_strategy {
-  CN_GEN_SIZE_UNIFORM = 0,
-  CN_GEN_SIZE_QUARTILE = 1,
-  CN_GEN_SIZE_QUICKCHECK = 2
+enum bennet_sizing_strategy {
+  BENNET_SIZE_UNIFORM = 0,
+  BENNET_SIZE_QUARTILE = 1,
+  BENNET_SIZE_QUICKCHECK = 2
 };
 
 struct cn_test_input {
   bool replay;
   enum cn_test_gen_progress progress_level;
-  enum cn_gen_sizing_strategy sizing_strategy;
+  enum bennet_sizing_strategy sizing_strategy;
   bool trap;
   bool replicas;
   bool output_tyche;
@@ -46,7 +46,7 @@ void print_test_info(const char* suite, const char* name, int tests, int discard
 /** This function is called right before rerunning a failing test case. */
 void cn_trap(void);
 
-size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
+size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
     int max_tests,
     size_t max_size,
     int max_discard_ratio,
@@ -102,7 +102,7 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
                                                                                          \
   enum cn_test_result cn_test_gen_##FuncName(struct cn_test_input test_input) {          \
     struct timeval start_time, end_time;                                                 \
-    cn_gen_rand_checkpoint checkpoint = cn_gen_rand_save();                              \
+    bennet_rand_checkpoint checkpoint = bennet_rand_save();                              \
     int i = 0, d = 0, recentDiscards = 0;                                                \
     set_cn_failure_cb(&cn_test_gen_##FuncName##_fail);                                   \
     switch (setjmp(buf_##FuncName)) {                                                    \
@@ -149,22 +149,22 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         return CN_TEST_GEN_FAIL;                                                         \
       }                                                                                  \
       if (!test_input.replay) {                                                          \
-        cn_gen_set_size(cn_gen_compute_size(test_input.sizing_strategy,                  \
+        bennet_set_size(bennet_compute_size(test_input.sizing_strategy,                  \
             Samples,                                                                     \
-            cn_gen_get_max_size(),                                                       \
+            bennet_get_max_size(),                                                       \
             10,                                                                          \
             i,                                                                           \
             recentDiscards));                                                            \
-        cn_gen_rand_replace(checkpoint);                                                 \
+        bennet_rand_replace(checkpoint);                                                 \
       }                                                                                  \
       CN_TEST_INIT();                                                                    \
       if (!test_input.replay) {                                                          \
-        cn_gen_set_input_timer(cn_gen_get_milliseconds());                               \
+        bennet_set_input_timer(bennet_get_milliseconds());                               \
       } else {                                                                           \
-        cn_gen_set_input_timeout(0);                                                     \
+        bennet_set_input_timeout(0);                                                     \
       }                                                                                  \
-      cn_gen_##FuncName##_record* res = cn_gen_##FuncName();                             \
-      if (cn_gen_failure_get_failure_type() != CN_GEN_BACKTRACK_NONE) {                  \
+      bennet_##FuncName##_record* res = bennet_##FuncName();                             \
+      if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                  \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
@@ -254,8 +254,8 @@ int cn_test_main(int argc, char* argv[]);
 
 #define CN_TEST_INIT()                                                                   \
   reset_fulminate();                                                                     \
-  cn_gen_failure_reset();                                                                \
-  cn_gen_alloc_reset();                                                                  \
-  cn_gen_ownership_reset();
+  bennet_failure_reset();                                                                \
+  bennet_alloc_reset();                                                                  \
+  bennet_ownership_reset();
 
 #endif  // CN_TEST_H

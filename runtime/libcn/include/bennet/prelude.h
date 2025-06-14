@@ -1,0 +1,12 @@
+#ifndef BENNET_PRELUDE_H
+#define BENNET_PRELUDE_H
+
+#include <bennet/alloc.h>
+#include <bennet/dsl.h>
+#include <bennet/failure.h>
+#include <bennet/rand.h>
+#include <bennet/size.h>
+#include <bennet/uniform.h>
+#include <bennet/urn.h>
+
+#endif  // BENNET_PRELUDE_H

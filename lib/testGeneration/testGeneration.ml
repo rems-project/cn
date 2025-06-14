@@ -130,14 +130,27 @@ let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.docum
     ^^ doc
 
 
-let compile_includes ~filename =
+let compile_includes ~filename ~generators =
   let open Pp in
   !^"#include "
+  ^^ angles !^"bennet/prelude.h"
+  ^^ hardline
+  ^^ !^"#include "
+  ^^ angles !^"cn-testing/prelude.h"
+  ^^ hardline
+  ^^ !^"#include "
   ^^ angles !^"cn-replicate/shape.h"
   ^^ hardline
   ^^ !^"#include "
-  ^^ dquotes (string (filename_base filename ^ ".gen.h"))
+  ^^ angles !^"cn-replicate/lines.h"
   ^^ hardline
+  ^^
+  if generators then
+    !^"#include " ^^ dquotes (string (filename_base filename ^ ".gen.h")) ^^ hardline
+  else (
+    let record_defs = Records.generate_all_record_strs () in
+    let open Pp in
+    hardline ^^ !^"/* TAG DEFINITIONS */" ^^ hardline ^^ !^record_defs ^^ twice hardline)
 
 
 let compile_test (test : Test.t) =
@@ -255,7 +268,7 @@ let compile_test_file
   in
   let open Pp in
   !^(String.concat " " cn_header_decls_list)
-  ^^ compile_includes ~filename
+  ^^ compile_includes ~filename ~generators:(List.non_empty generator_tests)
   ^^ twice hardline
   ^^ pp_label
        "Assume Ownership Functions"
@@ -317,15 +330,16 @@ let save_generators
   let tests_for_generators =
     List.filter (fun (test : Test.t) -> Test.equal_kind test.kind Test.Generator) tests
   in
-  let generators_doc =
-    Pp.(
-      separate
-        hardline
-        ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
-         @ [ Bennet.synthesize filename sigma prog5 tests_for_generators ]))
-  in
-  let generators_fn = filename_base ^ ".gen.h" in
-  save output_dir generators_fn generators_doc
+  if List.non_empty tests_for_generators then (
+    let generators_doc =
+      Pp.(
+        separate
+          hardline
+          ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
+           @ [ Bennet.synthesize filename sigma prog5 tests_for_generators ]))
+    in
+    let generators_fn = filename_base ^ ".gen.h" in
+    save output_dir generators_fn generators_doc)
 
 
 let save_tests
