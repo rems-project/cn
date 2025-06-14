@@ -21,6 +21,31 @@
     cn-executable/utils.o))))
 
 (rule
+ (target libbennet.a)
+ (deps
+  (:headers
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/bennet/*.h))
+  (:src
+   (glob_files ../src/bennet/*.c)))
+ (action
+  (progn
+   (run mkdir -p bennet)
+   (chdir
+    bennet
+    (run ../compile.sh %{src}))
+   (run
+    ar
+    -rcs
+    %{target}
+    bennet/alloc.o
+    bennet/failure.o
+    bennet/rand.o
+    bennet/size.o
+    bennet/uniform.o
+    bennet/urn.o))))
+
+(rule
  (target libcn_test.a)
  (deps
   (:headers
@@ -34,17 +59,7 @@
    (chdir
     cn-testing
     (run ../compile.sh %{src}))
-   (run
-    ar
-    -rcs
-    %{target}
-    cn-testing/alloc.o
-    cn-testing/failure.o
-    cn-testing/rand.o
-    cn-testing/size.o
-    cn-testing/test.o
-    cn-testing/uniform.o
-    cn-testing/urn.o))))
+   (run ar -rcs %{target} cn-testing/test.o))))
 
 (rule
  (target libcn_replica.a)
@@ -65,6 +80,7 @@
 (install
  (files
   (libcn_exec.a as runtime/libcn_exec.a)
+  (libbennet.a as runtime/libbennet.a)
   (libcn_test.a as runtime/libcn_test.a)
   (libcn_replica.a as runtime/libcn_replica.a))
  (section lib)

@@ -7,11 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/alloc.h>
+#include <bennet/rand.h>
+#include <bennet/size.h>
 #include <cn-executable/utils.h>
-#include <cn-testing/alloc.h>
-#include <cn-testing/rand.h>
 #include <cn-testing/result.h>
-#include <cn-testing/size.h>
 #include <cn-testing/test.h>
 #include <cn-replicate/shape.h>
 
@@ -135,14 +135,14 @@ void cn_trap(void) {
   _cn_trap();
 }
 
-size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
+size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
     int max_tests,
     size_t max_size,
     int max_discard_ratio,
     int successes,
     int recent_discards) {
   switch (strategy) {
-    case CN_GEN_SIZE_QUARTILE:
+    case BENNET_SIZE_QUARTILE:
       if (successes < max_tests / 4) {
         max_size /= 4;
       } else if (successes < max_tests / 2) {
@@ -152,11 +152,11 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         max_size *= 3;
       }
 
-    case CN_GEN_SIZE_UNIFORM:;
-      size_t sz = cn_gen_uniform_u16(max_size + 1) + 1;
+    case BENNET_SIZE_UNIFORM:;
+      size_t sz = bennet_uniform_u16(max_size + 1) + 1;
       return sz;
 
-    case CN_GEN_SIZE_QUICKCHECK:;
+    case BENNET_SIZE_QUICKCHECK:;
       size_t discard_divisor;
       if (max_discard_ratio > 0) {
         discard_divisor = (successes * max_discard_ratio / 3);
@@ -191,27 +191,27 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
 
 struct cn_test_reproduction {
   size_t size;
-  cn_gen_rand_checkpoint checkpoint;
+  bennet_rand_checkpoint checkpoint;
 };
 
 void cn_test_reproduce(struct cn_test_reproduction* repro) {
-  cn_gen_set_size(repro->size);
-  cn_gen_rand_restore(repro->checkpoint);
+  bennet_set_size(repro->size);
+  bennet_rand_restore(repro->checkpoint);
 }
 
 int cn_test_main(int argc, char* argv[]) {
-  uint64_t begin_time = cn_gen_get_microseconds();
+  uint64_t begin_time = bennet_get_microseconds();
   set_cn_logging_level(CN_LOGGING_NONE);
 
-  cn_gen_srand(cn_gen_get_milliseconds());
+  bennet_srand(bennet_get_milliseconds());
   enum cn_test_gen_progress progress_level = CN_TEST_GEN_PROGRESS_ALL;
-  uint64_t seed = cn_gen_rand();
+  uint64_t seed = bennet_rand();
   enum cn_logging_level logging_level = CN_LOGGING_ERROR;
   int timeout = 0;
   int input_timeout = 1000;
   int exit_fast = 0;
   int trap = 0;
-  enum cn_gen_sizing_strategy sizing_strategy = CN_GEN_SIZE_QUICKCHECK;
+  enum bennet_sizing_strategy sizing_strategy = BENNET_SIZE_QUICKCHECK;
   int replay = 1;
   int replicas = 1;
   int print_seed = 0;
@@ -278,28 +278,28 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--exit-fast", arg) == 0) {
       exit_fast = 1;
     } else if (strcmp("--max-stack-depth", arg) == 0) {
-      cn_gen_set_max_depth(strtoul(argv[i + 1], NULL, 10));
+      bennet_set_max_depth(strtoul(argv[i + 1], NULL, 10));
       i++;
     } else if (strcmp("--max-generator-size", arg) == 0) {
       uint64_t sz = strtoul(argv[i + 1], NULL, 10);
       assert(sz != 0);
-      cn_gen_set_max_size(sz);
+      bennet_set_max_size(sz);
       i++;
     } else if (strcmp("--sized-null", arg) == 0) {
       set_sized_null();
     } else if (strcmp("--allowed-size-split-backtracks", arg) == 0) {
-      cn_gen_set_size_split_backtracks_allowed(strtoul(argv[i + 1], NULL, 10));
+      bennet_set_size_split_backtracks_allowed(strtoul(argv[i + 1], NULL, 10));
       i++;
     } else if (strcmp("--trap", arg) == 0) {
       trap = 1;
     } else if (strcmp("--sizing-strategy", arg) == 0) {
       char* next = argv[i + 1];
       if (strcmp("uniform", next) == 0) {
-        sizing_strategy = CN_GEN_SIZE_UNIFORM;
+        sizing_strategy = BENNET_SIZE_UNIFORM;
       } else if (strcmp("quartile", next) == 0) {
-        sizing_strategy = CN_GEN_SIZE_QUARTILE;
+        sizing_strategy = BENNET_SIZE_QUARTILE;
       } else if (strcmp("quickcheck", next) == 0) {
-        sizing_strategy = CN_GEN_SIZE_QUICKCHECK;
+        sizing_strategy = BENNET_SIZE_QUICKCHECK;
       } else {
         sizing_strategy = strtoul(next, NULL, 10);
       }
@@ -328,8 +328,8 @@ int cn_test_main(int argc, char* argv[]) {
     printf("Using seed: %016" PRIx64 "\n", seed);
   }
 
-  cn_gen_srand(seed);
-  cn_gen_rand();  // Junk to get something to make a checkpoint from
+  bennet_srand(seed);
+  bennet_rand();  // Junk to get something to make a checkpoint from
 
   struct cn_test_reproduction repros[CN_TEST_MAX_TEST_CASES];
   enum cn_test_result results[CN_TEST_MAX_TEST_CASES];
@@ -347,8 +347,8 @@ int cn_test_main(int argc, char* argv[]) {
       if (progress_level == CN_TEST_GEN_PROGRESS_ALL) {
         print_test_info(test_case->suite, test_case->name, 0, 0);
       }
-      repros[i].checkpoint = cn_gen_rand_save();
-      cn_gen_set_input_timeout(input_timeout);
+      repros[i].checkpoint = bennet_rand_save();
+      bennet_set_input_timeout(input_timeout);
       struct cn_test_input test_input = {.replay = false,
           .progress_level = progress_level,
           .sizing_strategy = sizing_strategy,
@@ -361,7 +361,7 @@ int cn_test_main(int argc, char* argv[]) {
       if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
         results[i] = result;
       }
-      repros[i].size = cn_gen_get_size();
+      repros[i].size = bennet_get_size();
       if (progress_level == CN_TEST_GEN_PROGRESS_NONE) {
         continue;
       }
@@ -416,7 +416,7 @@ int cn_test_main(int argc, char* argv[]) {
       }
 
       if (timeout != 0) {
-        timediff = (cn_gen_get_microseconds() - begin_time) / 1000000;
+        timediff = (bennet_get_microseconds() - begin_time) / 1000000;
       }
     }
     if (timediff < timeout) {

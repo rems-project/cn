@@ -2,14 +2,14 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include <cn-testing/rand.h>
-#include <cn-testing/urn.h>
+#include <bennet/rand.h>
+#include <bennet/urn.h>
 
-int is_leaf(struct cn_gen_int_tree* tree) {
+int is_leaf(struct bennet_int_tree* tree) {
   return tree->left == NULL && tree->right == NULL;
 }
 
-uint64_t sample_tree_det(struct cn_gen_int_tree* tree, uint64_t index) {
+uint64_t sample_tree_det(struct bennet_int_tree* tree, uint64_t index) {
   if (tree == NULL) {
     return -1;
   }
@@ -25,20 +25,20 @@ uint64_t sample_tree_det(struct cn_gen_int_tree* tree, uint64_t index) {
   return sample_tree_det(tree->right, index - tree->left->weight);
 }
 
-uint64_t sample_urn(struct cn_gen_int_urn* urn) {
-  uint64_t index = cn_gen_uniform_u64(urn->tree->weight);
+uint64_t sample_urn(struct bennet_int_urn* urn) {
+  uint64_t index = bennet_uniform_u64(urn->tree->weight);
   return sample_tree_det(urn->tree, index);
 }
 
-struct cn_gen_int_tree* insert_tree(
-    uint8_t path, struct cn_gen_int_tree* tree, struct cn_gen_int_tree* leaf) {
+struct bennet_int_tree* insert_tree(
+    uint8_t path, struct bennet_int_tree* tree, struct bennet_int_tree* leaf) {
   if (tree == NULL) {
     return leaf;
   }
 
   if (is_leaf(tree)) {
-    struct cn_gen_int_tree* res =
-        (struct cn_gen_int_tree*)malloc(sizeof(struct cn_gen_int_tree));
+    struct bennet_int_tree* res =
+        (struct bennet_int_tree*)malloc(sizeof(struct bennet_int_tree));
     res->weight = tree->weight + leaf->weight;
     res->left = tree;
     res->right = leaf;
@@ -55,9 +55,9 @@ struct cn_gen_int_tree* insert_tree(
   return tree;
 }
 
-void urn_insert(struct cn_gen_int_urn* urn, uint64_t weight, uint64_t value) {
-  struct cn_gen_int_tree* leaf =
-      (struct cn_gen_int_tree*)malloc(sizeof(struct cn_gen_int_tree));
+void urn_insert(struct bennet_int_urn* urn, uint64_t weight, uint64_t value) {
+  struct bennet_int_tree* leaf =
+      (struct bennet_int_tree*)malloc(sizeof(struct bennet_int_tree));
   leaf->weight = weight;
   leaf->value = value;
   leaf->left = NULL;
@@ -67,9 +67,9 @@ void urn_insert(struct cn_gen_int_urn* urn, uint64_t weight, uint64_t value) {
   urn->size += 1;
 }
 
-struct cn_gen_int_urn* urn_from_array(uint64_t elems[], uint8_t len) {
-  struct cn_gen_int_urn* urn =
-      (struct cn_gen_int_urn*)malloc(sizeof(struct cn_gen_int_urn));
+struct bennet_int_urn* urn_from_array(uint64_t elems[], uint8_t len) {
+  struct bennet_int_urn* urn =
+      (struct bennet_int_urn*)malloc(sizeof(struct bennet_int_urn));
   urn->size = 0;
   urn->tree = NULL;
   for (uint16_t i = 0; i < 2 * (uint16_t)len; i += 2) {
@@ -89,7 +89,7 @@ struct replace_res {
 };
 
 struct replace_res replace_tree(
-    struct cn_gen_int_tree* tree, uint64_t weight, uint64_t value, uint64_t index) {
+    struct bennet_int_tree* tree, uint64_t weight, uint64_t value, uint64_t index) {
   if (tree == NULL) {
     assert(false);
   }
@@ -124,7 +124,7 @@ struct replace_res replace_tree(
 }
 
 uint64_t replace(
-    struct cn_gen_int_urn* urn, uint64_t weight, uint64_t value, uint64_t index) {
+    struct bennet_int_urn* urn, uint64_t weight, uint64_t value, uint64_t index) {
   return replace_tree(urn->tree, weight, value, index).valueOld;
 }
 
@@ -134,10 +134,10 @@ struct uninsert_res {
 
   uint64_t lowerBound;
 
-  struct cn_gen_int_tree* tree;
+  struct bennet_int_tree* tree;
 };
 
-struct uninsert_res uninsert_tree(uint8_t path, struct cn_gen_int_tree* tree) {
+struct uninsert_res uninsert_tree(uint8_t path, struct bennet_int_tree* tree) {
   if (tree == NULL) {
     assert(false);
   }
@@ -167,12 +167,12 @@ struct uninsert_res uninsert_tree(uint8_t path, struct cn_gen_int_tree* tree) {
   }
 }
 
-struct uninsert_res uninsert_urn(struct cn_gen_int_urn* urn) {
+struct uninsert_res uninsert_urn(struct bennet_int_urn* urn) {
   urn->size -= 1;
   return uninsert_tree(urn->size, urn->tree);
 }
 
-uint64_t remove_urn_det(struct cn_gen_int_urn* urn, uint64_t index) {
+uint64_t remove_urn_det(struct bennet_int_urn* urn, uint64_t index) {
   struct uninsert_res res = uninsert_urn(urn);
 
   if (res.tree == NULL) {
@@ -188,12 +188,12 @@ uint64_t remove_urn_det(struct cn_gen_int_urn* urn, uint64_t index) {
   }
 }
 
-uint64_t urn_remove(struct cn_gen_int_urn* urn) {
-  uint64_t index = cn_gen_uniform_u64(urn->tree->weight);
+uint64_t urn_remove(struct bennet_int_urn* urn) {
+  uint64_t index = bennet_uniform_u64(urn->tree->weight);
   return remove_urn_det(urn, index);
 }
 
-void tree_free(struct cn_gen_int_tree* tree) {
+void tree_free(struct bennet_int_tree* tree) {
   if (tree == NULL) {
     return;
   }
@@ -207,7 +207,7 @@ void tree_free(struct cn_gen_int_tree* tree) {
   return free(tree);
 }
 
-void urn_free(struct cn_gen_int_urn* urn) {
+void urn_free(struct bennet_int_urn* urn) {
   free(urn->tree);
   free(urn);
 }
