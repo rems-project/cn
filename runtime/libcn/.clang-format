@@ -13,7 +13,7 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: "<(bennet)/"
+  - Regex: "<(bennet(-exp)?)/"
     Priority: 3
     SortPriority: 3
     CaseSensitive: true

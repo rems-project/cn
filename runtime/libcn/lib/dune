@@ -46,6 +46,31 @@
     bennet/urn.o))))
 
 (rule
+ (target libbennet-exp.a)
+ (deps
+  (:headers
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/bennet-exp/*.h))
+  (:src
+   (glob_files ../src/bennet-exp/*.c)))
+ (action
+  (progn
+   (run mkdir -p bennet-exp)
+   (chdir
+    bennet-exp
+    (run ../compile.sh %{src}))
+   (run
+    ar
+    -rcs
+    %{target}
+    bennet-exp/alloc.o
+    bennet-exp/failure.o
+    bennet-exp/rand.o
+    bennet-exp/size.o
+    bennet-exp/uniform.o
+    bennet-exp/urn.o))))
+
+(rule
  (target libcn_test.a)
  (deps
   (:headers
@@ -81,6 +106,7 @@
  (files
   (libcn_exec.a as runtime/libcn_exec.a)
   (libbennet.a as runtime/libbennet.a)
+  (libbennet-exp.a as runtime/libbennet-exp.a)
   (libcn_test.a as runtime/libcn_test.a)
   (libcn_replica.a as runtime/libcn_replica.a))
  (section lib)

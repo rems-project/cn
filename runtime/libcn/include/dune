@@ -27,6 +27,15 @@
   (bennet/uniform.h as runtime/include/bennet/uniform.h)
   (bennet/urn.h as runtime/include/bennet/urn.h)
   ;
+  (bennet-exp/alloc.h as runtime/include/bennet-exp/alloc.h)
+  (bennet-exp/failure.h as runtime/include/bennet-exp/failure.h)
+  (bennet-exp/dsl.h as runtime/include/bennet-exp/dsl.h)
+  (bennet-exp/prelude.h as runtime/include/bennet-exp/prelude.h)
+  (bennet-exp/rand.h as runtime/include/bennet-exp/rand.h)
+  (bennet-exp/size.h as runtime/include/bennet-exp/size.h)
+  (bennet-exp/uniform.h as runtime/include/bennet-exp/uniform.h)
+  (bennet-exp/urn.h as runtime/include/bennet-exp/urn.h)
+  ;
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)

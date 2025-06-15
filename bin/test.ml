@@ -57,6 +57,7 @@ let run_tests
       inline_everything
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
+      experimental_runtime
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -103,6 +104,7 @@ let run_tests
           inline_everything;
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
+          experimental_runtime;
           print_seed;
           input_timeout;
           null_in_every;
@@ -443,6 +445,11 @@ module Flags = struct
   let experimental_product_arg_destruction =
     let doc = "Destructs all records and structs arguments" in
     Arg.(value & flag & info [ "experimental-product-arg-destruction" ] ~doc)
+
+
+  let experimental_runtime =
+    let doc = "Use experimental runtime" in
+    Arg.(value & flag & info [ "experimental-runtime" ] ~doc)
 end
 
 let cmd =
@@ -499,6 +506,7 @@ let cmd =
     $ Flags.inline_everything
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
+    $ Flags.experimental_runtime
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
