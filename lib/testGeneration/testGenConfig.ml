@@ -33,6 +33,7 @@ type t =
     inline_everything : bool;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
+    experimental_runtime : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -67,6 +68,7 @@ let default =
     inline_everything = false;
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
+    experimental_runtime = false;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -161,6 +163,8 @@ let is_experimental_struct_asgn_destruction () =
 let is_experimental_product_arg_destruction () =
   !instance.experimental_product_arg_destruction
 
+
+let is_experimental_runtime () = !instance.experimental_runtime
 
 let has_inline_everything () = !instance.inline_everything
 
