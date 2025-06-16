@@ -82,6 +82,8 @@ module Parse = struct
   let loop_spec attrs = lift (loop_spec attrs)
 
   let cn_statements annots = lift (cn_statements annots)
+
+  let cn_ghost_args annots = lift (cn_ghost_args annots)
 end
 
 open CF.Core
@@ -1116,19 +1118,22 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
-      let@ lat = make_largs_with_accesses (f_i arg_states) env st (accesses, requires) in
-      return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
+      let rec aux_ghost arg_states env st = function
+        | (arg, cnbt) :: rest ->
+          let sbt = Translate.base_type env cnbt in
+          let bt = SBT.proj sbt in
+          let env = Translate.add_logical arg sbt env in
+          let@ at = aux_ghost arg_states env st rest in
+          return (Mu.Ghost ((arg, bt), (loc, None), at))
+        | [] ->
+          let@ lat =
+            make_largs_with_accesses (f_i arg_states) env st (accesses, requires)
+          in
+          return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
+      in
+      aux_ghost arg_states env st ghost_params
   in
-  let rec aux_ghost arg_states env st = function
-    | (arg, cnbt) :: rest ->
-      let sbt = Translate.base_type env cnbt in
-      let bt = SBT.proj sbt in
-      let env = Translate.add_logical arg sbt env in
-      let@ at = aux_ghost arg_states env st rest in
-      return (Mu.Ghost ((arg, bt), (loc, None), at))
-    | [] -> aux_comp arg_states [] env st args
-  in
-  aux_ghost [] env Translate.C_vars.init ghost_params
+  aux_comp [] [] env Translate.C_vars.init args
 
 
 let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
@@ -1163,19 +1168,20 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
       let@ at = aux_comp (* good_lc :: *) good_lcs env st rest in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
-      let@ lat = make_largs_with_accesses f_i env st (accesses, requires) in
-      return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
+      let rec aux_ghost env st = function
+        | (arg, cnbt) :: rest ->
+          let sbt = Translate.base_type env cnbt in
+          let bt = SBT.proj sbt in
+          let env = Translate.add_logical arg sbt env in
+          let@ at = aux_ghost env st rest in
+          return (Mu.Ghost ((arg, bt), (loc, None), at))
+        | [] ->
+          let@ lat = make_largs_with_accesses f_i env st (accesses, requires) in
+          return (Mu.L (Mu.mConstraints (List.rev good_lcs) lat))
+      in
+      aux_ghost env st ghost_params
   in
-  let rec aux_ghost env st = function
-    | (arg, cnbt) :: rest ->
-      let sbt = Translate.base_type env cnbt in
-      let bt = SBT.proj sbt in
-      let env = Translate.add_logical arg sbt env in
-      let@ at = aux_ghost env st rest in
-      return (Mu.Ghost ((arg, bt), (loc, None), at))
-    | [] -> aux_comp [] env st args
-  in
-  aux_ghost env Translate.C_vars.init ghost_params
+  aux_comp [] env Translate.C_vars.init args
 
 
 let desugar_access d_st global_types (loc, id) =
