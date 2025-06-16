@@ -826,8 +826,8 @@ let rec n_expr
       match parsed_ghosts with
       (* Handling the empty case separately because rems-project/cerberus@f58daf7
         only adds markers if there is a magic comment, otherwise Option.get throws an exception *)
-      | [] -> return []
-      | _ :: _ ->
+      | _, [] -> return Mu.{ loc = None; args = [] }
+      | ghost_loc, _ :: _ ->
         let marker_id = Option.get (CF.Annot.get_marker annots) in
         let marker_id_object_types =
           Option.get (CF.Annot.get_marker_object_types annots)
@@ -858,10 +858,10 @@ let rec n_expr
                  Translate.expr_ghost get_c_obj old_states env desugared_ghost
                in
                return ghost)
-            parsed_ghosts
+            (snd parsed_ghosts)
         in
         let ghost_args = List.map (Cnprog.map IT.Surface.proj) ghosts in
-        return ghost_args
+        return Mu.{ loc = ghost_loc; args = ghost_args }
     in
     return (wrap (Eccall (ct1, e2, es, ghost_args)))
   | Eproc (_a, name, es) ->
@@ -950,7 +950,7 @@ let rec n_expr
     let pes = List.map n_pexpr pes in
     let ghost_args = [] in
     (* TODO: https://github.com/rems-project/cn/issues/123 *)
-    return (wrap (Erun (sym1, pes, ghost_args)))
+    return (wrap (Erun (sym1, pes, { loc = None; args = ghost_args })))
   | Epar _es -> assert_error loc !^"core_anormalisation: Epar"
   | Ewait _tid1 -> assert_error loc !^"core_anormalisation: Ewait"
   | Eannot _ -> assert_error loc !^"core_anormalisation: Eannot"

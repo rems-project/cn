@@ -504,7 +504,7 @@ let rec symb_exec_expr ctxt state_vars expr =
         }
     in
     let@ () =
-      if not (List.is_empty gargs) then
+      if not (List.is_empty gargs.args) then
         fail_fun_it "cannot translate runs with ghost arguments yet"
       else
         return ()
@@ -583,7 +583,7 @@ let rec symb_exec_expr ctxt state_vars expr =
         }
     in
     let@ () =
-      if not (List.is_empty gargs) then
+      if not (List.is_empty gargs.args) then
         fail_fun_it "cannot translate function calls with ghost arguments yet"
       else
         return ()

@@ -586,7 +586,7 @@ module Make (Config : CONFIG) = struct
              ^^ Pp.parens
                   (Cn_Pp.list
                      Pp_ast.pp_doc_tree
-                     (List.map (Cnprog.dtree IndexTerms.dtree) its))
+                     (List.map (Cnprog.dtree IndexTerms.dtree) its.args))
            | CN_progs (_, stmts) ->
              pp_keyword "cn_prog"
              ^^ Pp.parens
@@ -642,7 +642,7 @@ module Make (Config : CONFIG) = struct
              ^^ Pp.parens
                   (Cn_Pp.list
                      Pp_ast.pp_doc_tree
-                     (List.map (Cnprog.dtree IndexTerms.dtree) its)))
+                     (List.map (Cnprog.dtree IndexTerms.dtree) its.args)))
     in
     pp budget expr
 

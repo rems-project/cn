@@ -126,7 +126,13 @@ let not_too_many_snippets = function
 
 
 let cn_ghost_args annots =
-  annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_ghost_args)
+  (* annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_ghost_args) *)
+  match A.get_cerb_magic_attr annots with
+  | [] -> return (None, [])
+  | [ (loc, str) ] ->
+    let@ args = (parse C_parser.cn_ghost_args) (loc, str) in
+    return (Some loc, args)
+  | (_loc1, _) :: (_loc2, _) :: _ -> failwith "Impossible by frontend"
 
 
 let function_spec (A.Attrs attributes) =

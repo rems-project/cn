@@ -1823,7 +1823,7 @@ and pp_expr pp_type = function
                  [ pp_act act;
                    pp_pexpr pp_type f;
                    pp_list (pp_pexpr pp_type) args;
-                   pp_list (pp_cn_prog pp_index_term) ghost_args
+                   pp_list (pp_cn_prog pp_index_term) ghost_args.args
                  ]
              ]
          | Elet (pat, e1, e2) ->
@@ -1855,7 +1855,7 @@ and pp_expr pp_type = function
              [ pp_tuple
                  [ pp_symbol sym;
                    pp_list (pp_pexpr pp_type) args;
-                   pp_list (pp_cn_prog pp_index_term) its
+                   pp_list (pp_cn_prog pp_index_term) its.args
                  ]
              ]
          | CN_progs (stmts, progs) ->
