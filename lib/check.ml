@@ -994,11 +994,16 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
 
 
 module Spine : sig
+  type ghost_args =
+    { loc : Locations.t option;
+      args : IT.t list
+    }
+
   val calltype_ft
     :  Loc.t ->
     fsym:Sym.t ->
     BT.t Mu.pexpr list ->
-    IT.t list ->
+    ghost_args ->
     AT.ft ->
     (RT.t -> unit m) ->
     unit m
@@ -1006,7 +1011,7 @@ module Spine : sig
   val calltype_lt
     :  Loc.t ->
     BT.t Mu.pexpr list ->
-    IT.t list ->
+    ghost_args ->
     AT.lt * Where.label ->
     (False.t -> unit m) ->
     unit m
@@ -1014,13 +1019,18 @@ module Spine : sig
   val calltype_lemma
     :  Loc.t ->
     lemma:Sym.t ->
-    IT.t list ->
+    ghost_args ->
     AT.lemmat ->
     (LRT.t -> unit m) ->
     unit m
 
   val subtype : Locations.t -> LRT.t -> (unit -> unit m) -> unit m
 end = struct
+  type ghost_args =
+    { loc : Locations.t option;
+      args : IT.t list
+    }
+
   let spine_l rt_subst rt_pp loc (situation : call_situation) ftyp k =
     let start_spine = time_log_start "spine_l" "" in
     let@ original_resources = all_resources_tagged loc in
@@ -1044,7 +1054,7 @@ end = struct
     k rt
 
 
-  let spine rt_subst rt_pp loc situation args gargs ftyp k =
+  let spine rt_subst rt_pp loc situation args { loc = ghost_loc; args = gargs } ftyp k =
     let open ArgumentTypes in
     let original_ftyp = ftyp in
     let original_args = args in
@@ -1090,6 +1100,7 @@ end = struct
         | _, _ :: _, L _ | _, [], Ghost _ ->
           let expect = count_ghost original_ftyp in
           let has = List.length original_gargs in
+          let loc = match ghost_loc with None -> loc | Some loc -> loc in
           WellTyped.ensure_same_argument_number loc `Ghost has ~expect
       in
       fun args gargs ftyp k -> aux [] args gargs ftyp k
@@ -1760,7 +1771,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | Eskip ->
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        k (unit_ loc)
-     | Eccall (act, f_pe, pes, its) ->
+     | Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) ->
        let@ () = WellTyped.check_ct act.loc act.ct in
        (* copied TS's, from wellTyped.ml *)
        (* let@ (_ret_ct, _arg_cts) = match act.ct with *)
@@ -1793,7 +1804,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            loc
            ~fsym
            pes
-           its
+           { loc = ghost_loc; args = its }
            ft
            (fun (Computational ((_, bt), _, _) as rt) ->
               let@ () = WellTyped.ensure_base_type loc ~expect bt in
@@ -2040,7 +2051,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
               add_c loc (LC.T (eq_ (apply_ f args def.return_bt loc, body) loc)))
          | Apply (lemma, args) ->
            let@ _loc, lemma_typ = Global.get_lemma loc lemma in
-           Spine.calltype_lemma loc ~lemma args lemma_typ (fun lrt ->
+           Spine.calltype_lemma loc ~lemma { loc = None; args } lemma_typ (fun lrt ->
              let@ _, members =
                make_return_record
                  loc
@@ -2126,7 +2137,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          check_expr labels e2 (fun it2 ->
            let@ () = remove_as bound_a in
            k it2))
-     | Erun (label_sym, pes, its) ->
+     | Erun (label_sym, pes, { loc = ghost_loc; args = its }) ->
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        let@ lt, lkind =
          match Sym.Map.find_opt label_sym labels with
@@ -2142,7 +2153,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        let@ original_resources = all_resources_tagged loc in
        let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
        let its = List.map snd its in
-       Spine.calltype_lt loc pes its (lt, lkind) (fun False ->
+       Spine.calltype_lt loc pes { loc = ghost_loc; args = its } (lt, lkind) (fun False ->
          let@ () = all_empty loc original_resources in
          return ()))
 

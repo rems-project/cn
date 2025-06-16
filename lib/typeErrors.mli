@@ -127,7 +127,8 @@ type message =
       }
   | Spec_split_across_multiple_magic_comments of
       { loc1 : Locations.t;
-        loc2 : Locations.t
+        loc2 : Locations.t;
+        can_be_enabled : bool
       }
   | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype

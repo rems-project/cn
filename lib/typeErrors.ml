@@ -182,7 +182,8 @@ type message =
       }
   | Spec_split_across_multiple_magic_comments of
       { loc1 : Locations.t;
-        loc2 : Locations.t
+        loc2 : Locations.t;
+        can_be_enabled : bool
       }
   | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
@@ -617,19 +618,23 @@ let pp_message = function
     let head, pos = Locations.head_pos_of_location orig_loc in
     let descr = Some (!^"first specification at" ^^^ !^head ^/^ !^pos) in
     { short; descr; state = None }
-  | Spec_split_across_multiple_magic_comments { loc1; loc2 } ->
+  | Spec_split_across_multiple_magic_comments { loc1; loc2; can_be_enabled } ->
     let short = !^"specifications split across multiple magic comments" in
     let head1, pos1 = Locations.head_pos_of_location loc1 in
     let head2, pos2 = Locations.head_pos_of_location loc2 in
     let descr =
-      Some
-        (!^"specification at"
-         ^^^ !^head1
-         ^/^ !^pos1
-         ^^^ !^"and"
-         ^^^ !^head2
-         ^/^ !^pos2
-         ^/^ parens !^"enable using --allow_split_magic_comments")
+      if can_be_enabled then
+        Some
+          (!^"specification at"
+           ^^^ !^head1
+           ^/^ !^pos1
+           ^^^ !^"and"
+           ^^^ !^head2
+           ^/^ !^pos2
+           ^/^ parens !^"enable using --allow_split_magic_comments")
+      else
+        Some
+          (!^"specification at" ^^^ !^head1 ^/^ !^pos1 ^^^ !^"and" ^^^ !^head2 ^/^ !^pos2)
     in
     { short; descr; state = None }
   | Requires_after_ensures { ens_loc } ->

@@ -2081,7 +2081,7 @@ module BaseTyping = struct
           in
           return (bTy, Eaction (Paction (pol, Action (aloc, action_))))
         | Eskip -> return (Unit, Eskip)
-        | Eccall (act, f_pe, pes, its) ->
+        | Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) ->
           let@ () = WCT.is_ct act.loc act.ct in
           let@ ret_ct, arg_cts =
             match act.ct with
@@ -2103,7 +2103,9 @@ module BaseTyping = struct
           let arg_bt_specs = List.map (fun ct -> Memory.bt_of_sct ct) arg_cts in
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
           let@ its = ListM.mapM (check_cnprog (fun _ it -> WIT.infer it)) its in
-          return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, its))
+          return
+            ( Memory.bt_of_sct ret_ct,
+              Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) )
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, e1, e2 =
@@ -2141,7 +2143,7 @@ module BaseTyping = struct
           let@ es = ListM.mapM (infer_expr label_context) es in
           let bts = List.map bt_of_expr es in
           return (Tuple bts, Eunseq es)
-        | Erun (l, pes, its) ->
+        | Erun (l, pes, { loc = ghost_loc; args = its }) ->
           (* copying from check.ml *)
           let@ lt, _lkind =
             match Sym.Map.find_opt l label_context with
@@ -2162,6 +2164,7 @@ module BaseTyping = struct
             let wrong_number_ghost_args () =
               let has = List.length its in
               let expect = AT.count_ghost lt in
+              let loc = match ghost_loc with None -> loc | Some loc -> loc in
               fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
             in
             let rec check_args acc_pes acc_its lt pes its =
@@ -2179,7 +2182,7 @@ module BaseTyping = struct
             in
             check_args [] [] lt pes its
           in
-          return (Unit, Erun (l, pes, its))
+          return (Unit, Erun (l, pes, { loc = ghost_loc; args = its }))
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
