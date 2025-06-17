@@ -15,6 +15,40 @@ let rec flatten_tree (t : destruct_tree) : (Sym.t * BT.t) list =
   | Leaf (x, bt) -> [ (x, bt) ]
 
 
+let member_map = ref []
+
+let get_member_new_name (parent : Sym.t) (member : Id.t) =
+  let k = (parent, member) in
+  match
+    List.assoc_opt
+      (fun (x1, y1) (x2, y2) -> Sym.equal x1 x2 && Id.equal y1 y2)
+      k
+      !member_map
+  with
+  | Some name -> name
+  | None ->
+    let name = Sym.fresh Pp.(plain (Sym.pp parent ^^ underscore ^^ Id.pp member)) in
+    member_map := (k, name) :: !member_map;
+    name
+
+
+let item_map = ref []
+
+let get_item_new_name (parent : Sym.t) (i : int) =
+  let k = (parent, i) in
+  match
+    List.assoc_opt
+      (fun (x1, y1) (x2, y2) -> Sym.equal x1 x2 && Int.equal y1 y2)
+      k
+      !item_map
+  with
+  | Some name -> name
+  | None ->
+    let name = Sym.fresh Pp.(plain (Sym.pp parent ^^ underscore ^^ int i)) in
+    item_map := (k, name) :: !item_map;
+    name
+
+
 let transform_iarg (prog5 : unit Mucore.file) (arg : Sym.t * BT.t) : destruct_tree =
   let rec aux ((arg_sym, arg_bt) : Sym.t * BT.t) : destruct_tree =
     match arg_bt with
@@ -27,9 +61,7 @@ let transform_iarg (prog5 : unit Mucore.file) (arg : Sym.t * BT.t) : destruct_tr
              member_or_padding)
            (* |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2) *)
            |> List.map (fun (member, sct) ->
-             ( member,
-               ( Sym.fresh Pp.(plain (Sym.pp arg_sym ^^ underscore ^^ Id.pp member)),
-                 Memory.bt_of_sct sct ) ))
+             (member, (get_member_new_name arg_sym member, Memory.bt_of_sct sct)))
            |> List.map_snd aux
          in
          Struct (tag, members)
@@ -39,17 +71,13 @@ let transform_iarg (prog5 : unit Mucore.file) (arg : Sym.t * BT.t) : destruct_tr
         members
         (* |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2) *)
         |> List.map (fun (member, bt) ->
-          ( member,
-            (Sym.fresh Pp.(plain (Sym.pp arg_sym ^^ underscore ^^ Id.pp member)), bt) ))
+          (member, (get_member_new_name arg_sym member, bt)))
         |> List.map_snd aux
       in
       Record members
     | BT.Tuple items ->
       let items =
-        items
-        |> List.mapi (fun i bt ->
-          (Sym.fresh Pp.(plain (Sym.pp arg_sym ^^ underscore ^^ int i)), bt))
-        |> List.map aux
+        items |> List.mapi (fun i bt -> (get_item_new_name arg_sym i, bt)) |> List.map aux
       in
       Tuple items
     | _ -> Leaf (arg_sym, arg_bt)
