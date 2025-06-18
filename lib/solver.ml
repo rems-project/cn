@@ -429,7 +429,7 @@ module CN_Pointer = struct
     let default = SMT.app_ ptr_shift_name [ ptr; offset; null_case ] in
     if !use_composable_array_shift_semantics then (
       match ptr with
-      | List [ Atom ptr_shift_name; base; offset1; _ ] ->
+      | List [ Atom name; base; offset1; _ ] when String.equal name ptr_shift_name ->
         let new_offset = SMT.bv_add offset1 offset in
         SMT.app_ ptr_shift_name [ base; new_offset; null_case ]
       | _ -> default)
