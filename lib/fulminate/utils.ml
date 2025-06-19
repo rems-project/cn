@@ -42,7 +42,7 @@ let[@warning "-32" (* unused-value-declaration *)] rm_cn_expr (Cn.CNExpr (_, cn_
 let mk_stmt stmt_ =
   A.
     { loc = Cerb_location.unknown;
-      is_forloop = false;
+      desug_info = Desug_none;
       attrs = CF.Annot.Attrs [];
       node = stmt_
     }
@@ -51,7 +51,7 @@ let mk_stmt stmt_ =
 let rm_expr (A.AnnotatedExpression (_, _, _, expr_)) = expr_
 
 let[@warning "-32" (* unused-value-declaration *)] rm_stmt = function
-  | A.{ loc = _; is_forloop = _; attrs = _; node = stmt_ } -> stmt_
+  | A.{ loc = _; desug_info = _; attrs = _; node = stmt_ } -> stmt_
 
 
 let empty_ail_str = "empty_ail"

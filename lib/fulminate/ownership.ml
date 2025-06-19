@@ -189,7 +189,7 @@ let get_c_local_ownership_checking params =
 
 let rec collect_visibles bindings = function
   | [] -> []
-  | A.{ loc = _; is_forloop = _; attrs = _; node = AilSdeclaration decls } :: ss ->
+  | A.{ loc = _; desug_info = _; attrs = _; node = AilSdeclaration decls } :: ss ->
     let decl_syms_and_ctypes =
       List.map (fun (sym, _) -> (sym, find_ctype_from_bindings bindings sym)) decls
     in
@@ -211,7 +211,7 @@ let rec get_c_control_flow_block_unmaps_aux
           continue_vars
           return_vars
           bindings
-          A.{ loc; is_forloop = _; attrs = _; node = s_ }
+          A.{ loc; desug_info = _; attrs = _; node = s_ }
   : ownership_injection list
   =
   match s_ with
@@ -285,7 +285,7 @@ let get_c_control_flow_block_unmaps stat =
 
 
 (* Ghost state tracking for block declarations *)
-let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; node = s_; _ } =
+let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; desug_info; node = s_; _ } =
   let gen_standard_block_injs bs ss =
     let exit_injs =
       List.map
@@ -298,6 +298,7 @@ let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; is_forloop; node = s_;
     let stat_injs = List.map (fun s -> get_c_block_entry_exit_injs_aux bs s) ss in
     List.concat stat_injs @ exit_injs'
   in
+  let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
   match s_ with
   | A.(AilSdeclaration decls) ->
     generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings
@@ -353,7 +354,7 @@ let rec remove_duplicates ds = function
 
 
 let get_c_block_local_ownership_checking_injs
-      A.({ loc = _; is_forloop = _; attrs = _; node = fn_block } as statement)
+      A.({ loc = _; desug_info = _; attrs = _; node = fn_block } as statement)
   =
   match fn_block with
   | A.(AilSblock _) ->
