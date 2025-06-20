@@ -286,7 +286,10 @@ int ownership_ghost_state_get(int64_t* address_key) {
 }
 
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
-  int* new_depth = cn_fl_malloc(sizeof(int));
+  int* new_depth = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
+  if (!new_depth) {
+    new_depth = cn_fl_malloc(sizeof(int));
+  }
   *new_depth = stack_depth_val;
   ht_set(cn_ownership_global_ghost_state, address_key, new_depth);
 }
