@@ -88,6 +88,7 @@ type message =
   | Compile of Compile.message
   | Global of Global.message
   | WellTyped of WellTyped.message
+  | Parse of Parse.message
   | Missing_resource of
       { requests : RequestChain.t;
         situation : situation;
@@ -172,7 +173,6 @@ type message =
         ctxt : Context.t * Explain.log
       } [@deprecated "Please add a specific constructor"]
   | Unsupported of document
-  | Parser of Cerb_frontend.Errors.cparser_cause
   | Empty_provenance
   | Inconsistent_assumptions of string * (Context.t * Explain.log)
   | Byte_conv_needs_owned
@@ -180,11 +180,6 @@ type message =
       { fname : Sym.t;
         orig_loc : Locations.t
       }
-  | Spec_split_across_multiple_magic_comments of
-      { loc1 : Locations.t;
-        loc2 : Locations.t
-      }
-  | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
   | Number_spec_args of
       { spec : int;
@@ -362,6 +357,25 @@ let pp_builtins : Builtins.message -> _ = function
     { short; descr = None; state = None }
 
 
+let pp_parse : Parse.message -> _ = function
+  | Parser err ->
+    let short = !^(Cerb_frontend.Pp_errors.string_of_cparser_cause err) in
+    { short; descr = None; state = None }
+  | Split_spec loc ->
+    let short = !^"Cannot split specifications across multiple magic comments" in
+    let head, pos = Locations.head_pos_of_location loc in
+    let descr =
+      Some
+        (!^"previous magic comment starts here"
+         ^^^ !^head
+         ^/^ !^pos
+         ^/^ parens
+               !^"deprecated, for backwards compatibility use \
+                  --allow-split-magic-comments")
+    in
+    { short; descr; state = None }
+
+
 let pp_compile : Compile.message -> _ = function
   | ((Generic err) [@alert "-deprecated"]) ->
     let short = err in
@@ -428,6 +442,7 @@ let pp_message = function
   | WellTyped msg -> pp_welltyped msg
   | Compile msg -> pp_compile msg
   | Builtins msg -> pp_builtins msg
+  | Parse msg -> pp_parse msg
   | Missing_resource { requests; situation; ctxt; model } ->
     let short = !^"Missing resource" ^^^ for_situation situation in
     let descr = RequestChain.pp requests in
@@ -598,9 +613,6 @@ let pp_message = function
   | Unsupported err ->
     let short = err in
     { short; descr = None; state = None }
-  | Parser err ->
-    let short = !^(Cerb_frontend.Pp_errors.string_of_cparser_cause err) in
-    { short; descr = None; state = None }
   | Empty_provenance ->
     let short = !^"Empty provenance" in
     { short; descr = None; state = None }
@@ -616,26 +628,6 @@ let pp_message = function
     let short = !^"double specification of" ^^^ Sym.pp fname in
     let head, pos = Locations.head_pos_of_location orig_loc in
     let descr = Some (!^"first specification at" ^^^ !^head ^/^ !^pos) in
-    { short; descr; state = None }
-  | Spec_split_across_multiple_magic_comments { loc1; loc2 } ->
-    let short = !^"specifications split across multiple magic comments" in
-    let head1, pos1 = Locations.head_pos_of_location loc1 in
-    let head2, pos2 = Locations.head_pos_of_location loc2 in
-    let descr =
-      Some
-        (!^"specification at"
-         ^^^ !^head1
-         ^/^ !^pos1
-         ^^^ !^"and"
-         ^^^ !^head2
-         ^/^ !^pos2
-         ^/^ parens !^"enable using --allow_split_magic_comments")
-    in
-    { short; descr; state = None }
-  | Requires_after_ensures { ens_loc } ->
-    let short = !^"all requires clauses must come before any ensures clauses" in
-    let head, pos = Locations.head_pos_of_location ens_loc in
-    let descr = Some (!^"ensures clause at" ^^^ !^head ^/^ !^pos) in
     { short; descr; state = None }
   | Unsupported_byte_conv_ct ct ->
     let short =

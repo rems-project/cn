@@ -68,6 +68,20 @@ module Translate = struct
   let statement x1 x2 x3 x4 = lift (statement x1 x2 x3 x4)
 end
 
+module Parse = struct
+  include Parse
+
+  let lift x =
+    Result.map_error (fun { loc; msg } -> TypeErrors.{ loc; msg = Parse msg }) x
+
+
+  let function_spec attrs = lift (function_spec attrs)
+
+  let loop_spec attrs = lift (loop_spec attrs)
+
+  let cn_statements annots = lift (cn_statements annots)
+end
+
 open CF.Core
 open Pp
 
