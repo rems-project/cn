@@ -4026,7 +4026,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
   in
   let ail_executable_spec : ail_executable_spec =
     cn_to_ail_pre_post
-      ~without_ownership_checking:true
+      ~without_ownership_checking:false
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~is_lemma:true
       filename
