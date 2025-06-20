@@ -247,11 +247,13 @@ let inject st inj =
          ^ "/* EXECUTABLE CN POSTCONDITION */"
          ^ "\n__cn_epilogue:\n"
          ^ str
+         ^ indent
+         ^ "\ncn_bump_free_after(cn_frame_id);\n"
          ^
          if CF.AilTypesAux.is_void ret_ty then
-           indent ^ ";\n"
+           ""
          else
-           indent ^ "\ncn_bump_free_after(cn_frame_id);\n" ^ "\nreturn __cn_ret;\n\n")
+           indent ^ "\nreturn __cn_ret;\n\n")
     | DeleteMain pre ->
       if pre then do_output st "\n#if 0\n" else do_output st "\n#endif\n"
     | WrapStatic (prefix, decl) ->
