@@ -476,6 +476,29 @@ let cn_bool_true_expr : CF.GenTypes.genTypeCategory A.expression =
   mk_expr (wrap_with_convert_to true_const BT.Bool)
 
 
+let gen_bump_alloc_bs_and_ss () =
+  let frame_id_ctype =
+    mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh "cn_bump_frame_id") ] Void
+  in
+  let frame_id_var_sym = Sym.fresh "cn_frame_id" in
+  let frame_id_var_expr_ = A.(AilEident frame_id_var_sym) in
+  let frame_id_binding = create_binding frame_id_var_sym frame_id_ctype in
+  let start_fn_call =
+    A.(AilEcall (mk_expr (AilEident (Sym.fresh "cn_bump_get_frame_id")), []))
+  in
+  let start_stat_ =
+    A.(AilSdeclaration [ (frame_id_var_sym, Some (mk_expr start_fn_call)) ])
+  in
+  let end_fn_call =
+    A.(
+      AilEcall
+        ( mk_expr (AilEident (Sym.fresh "cn_bump_free_after")),
+          [ mk_expr frame_id_var_expr_ ] ))
+  in
+  let end_stat_ = A.(AilSexpr (mk_expr end_fn_call)) in
+  (frame_id_binding, start_stat_, end_stat_)
+
+
 let gen_bool_while_loop sym bt start_expr while_cond ?(if_cond_opt = None) (bs, ss, e) =
   (*
      Input:
@@ -3750,11 +3773,20 @@ let cn_to_ail_loop_inv
         AilSexpr
           (mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))))
     in
-    let stats =
-      (cn_stack_depth_incr_call :: cond_ss)
-      @ [ cn_loop_put_call; cn_stack_depth_decr_call; dummy_expr_as_stat ]
+    let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
+      gen_bump_alloc_bs_and_ss ()
     in
-    let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
+    let stats =
+      (bump_alloc_start_stat_ :: cn_stack_depth_incr_call :: cond_ss)
+      @ [ cn_loop_put_call;
+          cn_stack_depth_decr_call;
+          bump_alloc_end_stat_;
+          dummy_expr_as_stat
+        ]
+    in
+    let ail_gcc_stat_as_expr =
+      A.(AilEgcc_statement ([ bump_alloc_binding ], List.map mk_stmt stats))
+    in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some ((cond_loc, (cond_bs, [ ail_stat_as_expr_stat ])), (loop_loc, loop_bs_and_ss)))
   else
