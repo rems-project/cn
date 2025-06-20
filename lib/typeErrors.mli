@@ -33,6 +33,7 @@ type message =
   | Compile of Compile.message
   | Global of Global.message
   | WellTyped of WellTyped.message
+  | Parse of Parse.message
   | Missing_resource of
       { requests : RequestChain.t;
         situation : Error_common.situation;
@@ -116,7 +117,6 @@ type message =
         ctxt : Context.t * Explain.log
       } [@deprecated "Please add a specific constructor"] (** TODO delete this too *)
   | Unsupported of Pp.document (** TODO add source location *)
-  | Parser of Cerb_frontend.Errors.cparser_cause
   | Empty_provenance
   | Inconsistent_assumptions of string * (Context.t * Explain.log)
   (** TODO replace string with an actual type *)
@@ -125,11 +125,6 @@ type message =
       { fname : Sym.t;
         orig_loc : Locations.t
       }
-  | Spec_split_across_multiple_magic_comments of
-      { loc1 : Locations.t;
-        loc2 : Locations.t
-      }
-  | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
   | Number_spec_args of
       { spec : int;

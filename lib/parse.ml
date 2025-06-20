@@ -4,15 +4,14 @@ module Cn = CF.Cn
 
 let allow_split_magic_comments = ref false
 
-(* type msg = Cerb_frontend.Errors.cparser_cause *)
-type msg = TypeErrors.message
+type message =
+  | Parser of Cerb_frontend.Errors.cparser_cause
+  | Split_spec of Locations.t
 
-type err = TypeErrors.t
-(* { loc : Locations.t; *)
-(*   msg : msg *)
-(* } *)
-
-open TypeErrors
+type err =
+  { loc : Locations.t;
+    msg : message
+  }
 
 module Monad = struct
   type 'a t = ('a, err) Result.t
@@ -121,9 +120,8 @@ let join_snippets_list snippets =
 
 
 let not_too_many_snippets = function
-  | (loc1, _) :: (loc2, _) :: _ when not !allow_split_magic_comments ->
-    let msg = TypeErrors.Spec_split_across_multiple_magic_comments { loc1; loc2 } in
-    Monad.fail { loc = loc2; msg }
+  | (first, _) :: (second, _) :: _ when not !allow_split_magic_comments ->
+    Monad.fail { loc = second; msg = Split_spec first }
   | _ -> return ()
 
 

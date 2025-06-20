@@ -458,5 +458,5 @@ module Flags = struct
       "Alloc function specifications and loop invariants to be split across multiple \
        magic comments"
     in
-    Arg.(value & flag & info [ "allow_split_magic_comments" ] ~doc)
+    Arg.(value & flag & info [ "allow-split-magic-comments" ] ~doc)
 end
