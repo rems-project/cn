@@ -3799,6 +3799,11 @@ let prepend_to_precondition ail_executable_spec (b1, s1) =
   { ail_executable_spec with pre = (b1 @ b2, s1 @ s2) }
 
 
+let append_to_postcondition ail_executable_spec (b2, s2) =
+  let b1, s1 = ail_executable_spec.post in
+  { ail_executable_spec with post = (b1 @ b2, s1 @ s2) }
+
+
 let rec cn_to_ail_lat_2
           without_ownership_checking
           with_loop_leak_checks
@@ -4029,7 +4034,7 @@ let cn_to_ail_pre_post
         c_return_type
         internal
     in
-    let extra_stats_ =
+    let ownership_stats_ =
       if without_ownership_checking then
         []
       else (
@@ -4039,7 +4044,15 @@ let cn_to_ail_pre_post
         in
         [ cn_stack_depth_incr_stat_ ])
     in
-    prepend_to_precondition ail_executable_spec ([], extra_stats_)
+    let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
+      gen_bump_alloc_bs_and_ss ()
+    in
+    let ail_executable_spec' =
+      prepend_to_precondition
+        ail_executable_spec
+        ([ bump_alloc_binding ], bump_alloc_start_stat_ :: ownership_stats_)
+    in
+    append_to_postcondition ail_executable_spec' ([], [ bump_alloc_end_stat_ ])
   | None -> empty_ail_executable_spec
 
 
