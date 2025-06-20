@@ -197,9 +197,20 @@ val cn_to_ail_predicates
     list
   * AilSyntax.sigma_tag_definition option list
 
+val cn_to_ail_lemmas
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Definition.Predicate.t) list ->
+  (Sym.t * Ctype.ctype) list ->
+  (Sym.t * (Cerb_location.t * ArgumentTypes.lemmat)) list ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
 val cn_to_ail_pre_post
   :  without_ownership_checking:bool ->
   with_loop_leak_checks:bool ->
+  is_lemma:bool ->
   string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
