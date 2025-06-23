@@ -841,6 +841,7 @@ let rec n_expr
           match List.assoc_opt Sym.equal sym visible_objects with
           | Some obj_ty -> obj_ty
           | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+          (* should not occur since Cerberus guarantees every C object in scope has a type *)
         in
         let@ ghosts =
           ListM.mapM
@@ -906,6 +907,7 @@ let rec n_expr
              match List.assoc_opt Sym.equal sym visible_objects with
              | Some obj_ty -> obj_ty
              | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
+             (* should not occur since Cerberus guarantees every C object in scope has a type *)
            in
            let@ desugared_stmts_and_stmts =
              ListM.mapM
@@ -1386,6 +1388,8 @@ module Spec = struct
     let cross_fst x =
       match x with None -> [] | Some (a, bs) -> List.map (fun b -> (a, b)) bs
     in
+    (* TODO: replace cross_fst2 with correct locations:
+      https://github.com/rems-project/cn/issues/200 *)
     let cross_fst2 x =
       match x with
       | None -> ([], [])

@@ -1044,7 +1044,6 @@ end = struct
     k rt
 
 
-  (* let spine rt_subst rt_pp loc situation args { loc = ghost_loc; args = gargs } ftyp k = *)
   let spine rt_subst rt_pp loc situation args gargs_opt ftyp k =
     let open ArgumentTypes in
     let original_ftyp = ftyp in

@@ -2081,7 +2081,6 @@ module BaseTyping = struct
           in
           return (bTy, Eaction (Paction (pol, Action (aloc, action_))))
         | Eskip -> return (Unit, Eskip)
-        (* | Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) -> *)
         | Eccall (act, f_pe, pes, gargs_opt) ->
           let@ () = WCT.is_ct act.loc act.ct in
           let@ ret_ct, arg_cts =

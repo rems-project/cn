@@ -126,7 +126,6 @@ let not_too_many_snippets = function
 
 
 let cn_ghost_args annots =
-  (* annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_ghost_args) *)
   match A.get_cerb_magic_attr annots with
   | [] -> return None
   | [ (loc, str) ] ->
