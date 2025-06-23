@@ -211,7 +211,7 @@ let rec get_c_control_flow_block_unmaps_aux
           continue_vars
           return_vars
           bindings
-          A.{ loc; desug_info = _; attrs = _; node = s_ }
+          A.{ loc; desug_info; attrs = _; node = s_ }
   : ownership_injection list
   =
   match s_ with
@@ -250,7 +250,19 @@ let rec get_c_control_flow_block_unmaps_aux
     get_c_control_flow_block_unmaps_aux [] continue_vars return_vars bindings s
   | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _) ->
     get_c_control_flow_block_unmaps_aux break_vars continue_vars return_vars bindings s
-  | AilSgoto _ -> [] (* TODO *)
+  | AilSgoto _ ->
+    (match desug_info with
+     | Desug_continue ->
+       let loc_before_continue = get_start_loc loc in
+       [ { loc = loc_before_continue;
+           bs_and_ss = ([], List.map generate_c_local_ownership_exit continue_vars);
+           injection_kind = NonReturnInj
+         }
+       ]
+     | _ ->
+       (* In this case, we are dealing with a for-real C goto *)
+       []
+       (* TODO *))
   | AilSreturnVoid ->
     [ { loc;
         bs_and_ss = ([], List.map generate_c_local_ownership_exit return_vars);
@@ -263,13 +275,6 @@ let rec get_c_control_flow_block_unmaps_aux
         injection_kind = ReturnInj (ReturnExpr e)
       }
     ]
-  | AilScontinue ->
-    let loc_before_continue = get_start_loc loc in
-    [ { loc = loc_before_continue;
-        bs_and_ss = ([], List.map generate_c_local_ownership_exit continue_vars);
-        injection_kind = NonReturnInj
-      }
-    ]
   | AilSbreak ->
     let loc_before_break = get_start_loc loc in
     [ { loc = loc_before_break;
@@ -277,7 +282,9 @@ let rec get_c_control_flow_block_unmaps_aux
         injection_kind = NonReturnInj
       }
     ]
-  | AilSskip | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ -> []
+  (* Continue dealt with in AilSgoto case *)
+  | AilScontinue | AilSskip | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
+    []
 
 
 let get_c_control_flow_block_unmaps stat =
