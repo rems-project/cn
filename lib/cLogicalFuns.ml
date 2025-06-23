@@ -491,24 +491,7 @@ let rec symb_exec_expr ctxt state_vars expr =
         return (If_Else (t, r_x, r_y))
     in
     cont1 state [] exps
-  | Erun (sym, args, gargs) ->
-    let fail_fun_it msg =
-      fail_n
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 ("getting expr from C syntax: run val: " ^ msg)
-                 (Pp_mucore.pp_expr expr))
-            [@alert "-deprecated"]
-        }
-    in
-    let@ () =
-      if not (List.is_empty gargs.args) then
-        fail_fun_it "cannot translate runs with ghost arguments yet"
-      else
-        return ()
-    in
+  | Erun (sym, args) ->
     let@ arg_vs = ListM.mapM (symb_exec_pexpr ctxt var_map) args in
     (match Pmap.lookup sym ctxt.label_defs with
      | Some (Return _) ->
@@ -568,7 +551,7 @@ let rec symb_exec_expr ctxt state_vars expr =
                   (Pp_mucore.pp_expr expr))
              [@alert "-deprecated"]
          })
-  | Eccall (_act, fun_pe, args_pe, gargs) ->
+  | Eccall (_act, fun_pe, args_pe, gargs_opt) ->
     let@ fun_it = symb_exec_pexpr ctxt var_map fun_pe in
     let@ args_its = ListM.mapM (symb_exec_pexpr ctxt var_map) args_pe in
     let fail_fun_it msg =
@@ -583,7 +566,8 @@ let rec symb_exec_expr ctxt state_vars expr =
         }
     in
     let@ () =
-      if not (List.is_empty gargs.args) then
+      let gargs = match gargs_opt with None -> [] | Some (_, gargs) -> gargs in
+      if not (List.is_empty gargs) then
         fail_fun_it "cannot translate function calls with ghost arguments yet"
       else
         return ()

@@ -128,10 +128,10 @@ let not_too_many_snippets = function
 let cn_ghost_args annots =
   (* annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_ghost_args) *)
   match A.get_cerb_magic_attr annots with
-  | [] -> return (None, [])
+  | [] -> return None
   | [ (loc, str) ] ->
     let@ args = (parse C_parser.cn_ghost_args) (loc, str) in
-    return (Some loc, args)
+    return (Some (loc, args))
   | (loc1, _) :: (loc2, _) :: _ -> Monad.fail { loc = loc2; msg = Split_spec loc1 }
 
 

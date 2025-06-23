@@ -2081,7 +2081,8 @@ module BaseTyping = struct
           in
           return (bTy, Eaction (Paction (pol, Action (aloc, action_))))
         | Eskip -> return (Unit, Eskip)
-        | Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) ->
+        (* | Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) -> *)
+        | Eccall (act, f_pe, pes, gargs_opt) ->
           let@ () = WCT.is_ct act.loc act.ct in
           let@ ret_ct, arg_cts =
             match act.ct with
@@ -2102,10 +2103,14 @@ module BaseTyping = struct
              can't when f_pe is dynamic *)
           let arg_bt_specs = List.map (fun ct -> Memory.bt_of_sct ct) arg_cts in
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
+          let its = match gargs_opt with None -> [] | Some (_, its) -> its in
           let@ its = ListM.mapM (check_cnprog (fun _ it -> WIT.infer it)) its in
-          return
-            ( Memory.bt_of_sct ret_ct,
-              Eccall (act, f_pe, pes, { loc = ghost_loc; args = its }) )
+          let gargs_opt =
+            match gargs_opt with
+            | None -> None
+            | Some (ghost_loc, _) -> Some (ghost_loc, its)
+          in
+          return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, gargs_opt))
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, e1, e2 =
@@ -2143,7 +2148,7 @@ module BaseTyping = struct
           let@ es = ListM.mapM (infer_expr label_context) es in
           let bts = List.map bt_of_expr es in
           return (Tuple bts, Eunseq es)
-        | Erun (l, pes, { loc = ghost_loc; args = its }) ->
+        | Erun (l, pes) ->
           (* copying from check.ml *)
           let@ lt, _lkind =
             match Sym.Map.find_opt l label_context with
@@ -2155,34 +2160,30 @@ module BaseTyping = struct
                 }
             | Some (lt, lkind, _) -> return (lt, lkind)
           in
-          let@ pes, its =
+          let@ pes =
             let wrong_number_computational_args () =
               let has = List.length pes in
               let expect = AT.count_computational lt in
               fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
             in
             let wrong_number_ghost_args () =
-              let has = List.length its in
+              let has = 0 in
               let expect = AT.count_ghost lt in
-              let loc = match ghost_loc with None -> loc | Some loc -> loc in
               fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
             in
-            let rec check_args acc_pes acc_its lt pes its =
-              match (lt, pes, its) with
-              | AT.Computational ((_s, bt), _info, lt'), pe :: pes', _ ->
+            let rec check_args acc_pes lt pes =
+              match (lt, pes) with
+              | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
                 let@ pe = check_pexpr bt pe in
-                check_args (acc_pes @ [ pe ]) acc_its lt' pes' its
-              | AT.Ghost ((_s, bt), info, lt'), _, it :: its' ->
-                let@ it = (check_cnprog (fun _ it -> WIT.check (fst info) bt it)) it in
-                check_args acc_pes (acc_its @ [ it ]) lt' pes its'
-              | AT.L _lat, [], [] -> return (acc_pes, acc_its)
-              | AT.Computational _, [], _ | AT.L _, _ :: _, _ ->
+                check_args (acc_pes @ [ pe ]) lt' pes'
+              | AT.L _lat, [] -> return acc_pes
+              | AT.Computational _, [] | AT.L _, _ :: _ ->
                 wrong_number_computational_args ()
-              | AT.Ghost _, _, [] | AT.L _, _, _ :: _ -> wrong_number_ghost_args ()
+              | AT.Ghost _, _ -> wrong_number_ghost_args ()
             in
-            check_args [] [] lt pes its
+            check_args [] lt pes
           in
-          return (Unit, Erun (l, pes, { loc = ghost_loc; args = its }))
+          return (Unit, Erun (l, pes))
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
