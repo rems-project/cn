@@ -209,7 +209,6 @@ let inject st inj =
          ^ indent
          ^ "/* EXECUTABLE CN PRECONDITION */"
          ^ "\n"
-         ^ "cn_bump_frame_id cn_frame_id = cn_bump_get_frame_id();\n"
          ^ indent
          ^ (if CF.AilTypesAux.is_void ret_ty then
               ""
@@ -247,8 +246,6 @@ let inject st inj =
          ^ "/* EXECUTABLE CN POSTCONDITION */"
          ^ "\n__cn_epilogue:\n"
          ^ str
-         ^ indent
-         ^ "\ncn_bump_free_after(cn_frame_id);\n"
          ^
          if CF.AilTypesAux.is_void ret_ty then
            ""
