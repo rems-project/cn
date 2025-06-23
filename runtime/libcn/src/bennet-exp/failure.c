@@ -6,8 +6,9 @@
 #include <bennet-exp/size.h>
 
 struct bennet_allocation_failure_info {
-  int allocate_more_than;
-  bool should_be_null;
+  size_t lower_offset_bound;  // Inclusive
+  size_t upper_offset_bound;  // Exclusive
+  bool is_null;
 };
 
 struct name_list {
@@ -151,12 +152,35 @@ int bennet_failure_remap_blamed_many(char* from[], char* to[]) {
   return successes;
 }
 
-void bennet_failure_set_allocation_needed(size_t sz) {
+void bennet_failure_set_offset_bounds(void* p_alloc, void* p, size_t bytes) {
   failure.type = BENNET_BACKTRACK_ALLOC;
-  failure.body.allocation.allocate_more_than = sz;
+
+  size_t lower_offset = (p < p_alloc) ? (p_alloc - p) : 0;
+  size_t upper_offset = (p + bytes > p_alloc) ? ((p + bytes) - p_alloc) : 1;
+
+  failure.body.allocation.lower_offset_bound = lower_offset;
+  failure.body.allocation.upper_offset_bound = upper_offset;
+  failure.body.allocation.is_null = false;
 }
 
-size_t bennet_failure_get_allocation_needed() {
+void bennet_failure_set_should_be_null() {
+  failure.type = BENNET_BACKTRACK_ALLOC;
+  failure.body.allocation.lower_offset_bound = 0;
+  failure.body.allocation.upper_offset_bound = 0;
+  failure.body.allocation.is_null = true;
+}
+
+bool bennet_failure_get_should_be_null(void) {
   assert(failure.type == BENNET_BACKTRACK_ALLOC);
-  return failure.body.allocation.allocate_more_than;
+  return failure.body.allocation.is_null;
+}
+
+size_t bennet_failure_get_lower_offset_bound(void) {
+  assert(failure.type == BENNET_BACKTRACK_ALLOC);
+  return failure.body.allocation.lower_offset_bound;
+}
+
+size_t bennet_failure_get_upper_offset_bound(void) {
+  assert(failure.type == BENNET_BACKTRACK_ALLOC);
+  return failure.body.allocation.upper_offset_bound;
 }

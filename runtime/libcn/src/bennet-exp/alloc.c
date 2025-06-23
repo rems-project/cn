@@ -96,12 +96,15 @@ void unset_sized_null(void) {
   sized_null = 0;
 }
 
-cn_pointer* bennet_alloc(cn_bits_u64* sz) {
-  uint64_t bytes = convert_from_cn_bits_u64(sz);
-  if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {
-    bytes = bennet_failure_get_allocation_needed();
-    bennet_failure_reset();
-  } else if (bytes == 0) {
+cn_pointer* bennet_alloc(
+    size_t lower_offset_bound, size_t upper_offset_bound, bool is_null) {
+  if (is_null) {
+    return convert_to_cn_pointer(NULL);
+  }
+
+  size_t bytes = upper_offset_bound + lower_offset_bound;
+
+  if (bytes == 0) {
     uint64_t rnd = bennet_uniform_u8(null_in_every);
     if (rnd == 0) {
       bytes = 0;
@@ -115,36 +118,7 @@ cn_pointer* bennet_alloc(cn_bits_u64* sz) {
   } else {
     void* p = cn_bump_malloc(bytes);
     update_alloc(p, bytes);
-    return convert_to_cn_pointer(p);
-  }
-}
-
-cn_pointer* bennet_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz) {
-  uint64_t bytes = convert_from_cn_bits_u64(sz);
-  if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {
-    bytes = bennet_failure_get_allocation_needed();
-    bennet_failure_reset();
-  }
-
-  uint64_t align = convert_from_cn_bits_u64(alignment);
-  if (bytes != 0) {
-    bytes = (bytes + (align - 1)) / align;
-  }
-
-  if (bytes == 0) {
-    void* p;
-    uint64_t rnd = bennet_uniform_u8(null_in_every);
-    if (rnd == 0) {
-      p = NULL;
-    } else {
-      p = aligned_alloc(align, 1);
-      update_alloc(p, 1);
-    }
-    return convert_to_cn_pointer(p);
-  } else {
-    void* p = aligned_alloc(align, bytes);
-    update_alloc(p, bytes);
-    return convert_to_cn_pointer(p);
+    return convert_to_cn_pointer(p + lower_offset_bound);
   }
 }
 
