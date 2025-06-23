@@ -282,6 +282,7 @@ let rec get_c_control_flow_block_unmaps_aux
         injection_kind = NonReturnInj
       }
     ]
+  (* Continue dealt with in AilSgoto case *)
   | AilScontinue | AilSskip | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
     []
 
