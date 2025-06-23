@@ -48,6 +48,7 @@ let rec transform_term
           (sigma : CF.GenTypes.genTypeCategory A.sigma)
           (ctx : Stage5.Ctx.t)
           (name : Sym.t)
+          (current_var : Sym.t)
           (tm : Stage5.Term.t)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
@@ -56,20 +57,31 @@ let rec transform_term
   let loc = Locations.other __LOC__ in
   match tm with
   | Uniform { bt } ->
-    ( [],
-      [],
-      A.(
-        mk_expr
-          (AilEcall
-             ( mk_expr (AilEident (Sym.fresh "BENNET_UNIFORM")),
-               List.map mk_expr [ AilEident (Sym.fresh (name_of_bt bt)) ] ))) )
+    if TestGenConfig.is_experimental_runtime () then
+      ( [],
+        [],
+        A.(
+          mk_expr
+            (AilEcall
+               ( mk_expr (AilEident (Sym.fresh "BENNET_UNIFORM")),
+                 List.map
+                   mk_expr
+                   [ AilEident (Sym.fresh (name_of_bt bt)); AilEident current_var ] ))) )
+    else
+      ( [],
+        [],
+        A.(
+          mk_expr
+            (AilEcall
+               ( mk_expr (AilEident (Sym.fresh "BENNET_UNIFORM")),
+                 List.map mk_expr [ AilEident (Sym.fresh (name_of_bt bt)) ] ))) )
   | Pick { bt; choice_var; choices; last_var } ->
     let var = Sym.fresh_anon () in
     let bs, ss =
       List.split
         (List.mapi
            (fun i (_, gr) ->
-              let bs, ss, e = transform_term filename sigma ctx name gr in
+              let bs, ss, e = transform_term filename sigma ctx name current_var gr in
               ( bs,
                 A.(
                   [ AilSexpr
@@ -129,10 +141,17 @@ let rec transform_term
       A.(mk_expr (AilEident var)) )
   | Alloc ->
     let alloc_sym = Sym.fresh "BENNET_ALLOC" in
-    let b, s, e =
-      transform_it filename sigma name (IT.num_lit_ Z.zero Memory.size_bt loc)
-    in
-    (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
+    if TestGenConfig.is_experimental_runtime () then
+      ( [],
+        [],
+        mk_expr
+          (AilEcall (mk_expr (AilEident alloc_sym), [ mk_expr (AilEident current_var) ]))
+      )
+    else (
+      let b, s, e =
+        transform_it filename sigma name (IT.num_lit_ Z.zero Memory.size_bt loc)
+      in
+      (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ]))))
   | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
     (match List.assoc_opt Sym.equal fsym ctx with
      | Some _ -> ()
@@ -262,7 +281,7 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b4, s4, e4 = transform_term filename sigma ctx name rest in
+    let b4, s4, e4 = transform_term filename sigma ctx name current_var rest in
     (b1 @ b2 @ b3 @ b4, s1 @ s2 @ s3 @ s4, e4)
   | LetStar { x; x_bt; value; last_var; rest } ->
     let s1 =
@@ -286,7 +305,7 @@ let rec transform_term
                       ] )))
         ]
     in
-    let b2, s2, e2 = transform_term filename sigma ctx name value in
+    let b2, s2, e2 = transform_term filename sigma ctx name x value in
     let s3 =
       A.(
         [ AilSexpr
@@ -318,7 +337,7 @@ let rec transform_term
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
-    let b4, s4, e4 = transform_term filename sigma ctx name rest in
+    let b4, s4, e4 = transform_term filename sigma ctx name current_var rest in
     (b2 @ [ Utils.create_binding x (bt_to_ctype x_bt) ] @ b4, s1 @ s2 @ s3 @ s4, e4)
   | Return { value } ->
     let b, s, e = transform_it filename sigma name value in
@@ -348,12 +367,12 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b2, s2, e2 = transform_term filename sigma ctx name rest in
+    let b2, s2, e2 = transform_term filename sigma ctx name current_var rest in
     (b1 @ b2, s1 @ s_assert @ s2, e2)
   | ITE { bt; cond; t; f } ->
     let b_if, s_if, e_if = transform_it filename sigma name cond in
-    let b_then, s_then, e_then = transform_term filename sigma ctx name t in
-    let b_else, s_else, e_else = transform_term filename sigma ctx name f in
+    let b_then, s_then, e_then = transform_term filename sigma ctx name current_var t in
+    let b_else, s_else, e_else = transform_term filename sigma ctx name current_var f in
     let res_sym = Sym.fresh_anon () in
     let res_expr = mk_expr (AilEident res_sym) in
     let res_binding = Utils.create_binding res_sym (bt_to_ctype bt) in
@@ -416,7 +435,7 @@ let rec transform_term
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
-    let b_val, s_val, e_val = transform_term filename sigma ctx name inner in
+    let b_val, s_val, e_val = transform_term filename sigma ctx name current_var inner in
     let s_end =
       A.(
         s_val
@@ -429,7 +448,7 @@ let rec transform_term
     in
     ([ b_map; b_i ] @ b_min @ b_max @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
   | SplitSize { rest; _ } when not (TestGenConfig.is_random_size_splits ()) ->
-    transform_term filename sigma ctx name rest
+    transform_term filename sigma ctx name current_var rest
   | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
     let e_tmp = mk_expr (AilEident marker_var) in
     let syms_l = syms |> Sym.Set.to_seq |> List.of_seq in
@@ -465,7 +484,7 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b', s', e' = transform_term filename sigma ctx name rest in
+    let b', s', e' = transform_term filename sigma ctx name current_var rest in
     (b @ b', s @ s', e')
 
 
@@ -507,7 +526,9 @@ let transform_gen_def
                         (if gr.recursive then "BENNET_INIT_SIZED" else "BENNET_INIT"))),
                 [] ))))
   in
-  let b2, s2, e2 = transform_term gr.filename sigma ctx name gr.body in
+  let b2, s2, e2 =
+    transform_term gr.filename sigma ctx name (Sym.fresh "bennet") gr.body
+  in
   let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =
     ( name,
       ( loc,
@@ -593,7 +614,13 @@ let transform (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Stage5.Ctx.t)
   ^^ hardline
   ^^ (!^"#define" ^^^ include_guard_name)
   ^^ twice hardline
-  ^^ !^"#include <bennet/prelude.h>"
+  ^^ !^"#include"
+  ^^^ angles
+        !^((if TestGenConfig.is_experimental_runtime () then
+              "bennet-exp"
+            else
+              "bennet")
+           ^ "/prelude.h")
   ^^ twice hardline
   ^^ !^"/* TAG DEFINITIONS */"
   ^^ hardline

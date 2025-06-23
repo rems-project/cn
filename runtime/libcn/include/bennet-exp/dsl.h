@@ -32,37 +32,46 @@
     goto cn_label_bennet_backtrack;                                                      \
   }
 
-#define BENNET_UNIFORM(ty)                                                               \
+#define BENNET_UNIFORM(ty, var)                                                          \
   ({                                                                                     \
     ty* result;                                                                          \
     if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {                   \
-      result = cast_cn_pointer_to_##ty(BENNET_ALLOC(convert_to_cn_bits_u64(0)));         \
+      result = cast_cn_pointer_to_##ty(BENNET_ALLOC(var));                               \
     } else {                                                                             \
       result = bennet_uniform_##ty(0);                                                   \
     }                                                                                    \
     result;                                                                              \
   })
 
-#define BENNET_ALLOC(sz)                                                                 \
+#define BENNET_ALLOC(var)                                                                \
   ({                                                                                     \
     cn_pointer* ptr;                                                                     \
-    if (sz != 0) {                                                                       \
-      ptr = bennet_alloc(sz);                                                            \
-    } else {                                                                             \
-      uint8_t null_in_every = get_null_in_every();                                       \
-      if (is_sized_null()) {                                                             \
-        set_null_in_every(bennet_rec_size);                                              \
-      }                                                                                  \
-      if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_ALLOC &&                 \
-          bennet_rec_size <= 1) {                                                        \
-        ptr = convert_to_cn_pointer(NULL);                                               \
-      } else {                                                                           \
-        ptr = bennet_alloc(sz);                                                          \
-      }                                                                                  \
-      if (is_sized_null()) {                                                             \
-        set_null_in_every(null_in_every);                                                \
-      }                                                                                  \
+                                                                                         \
+    uint8_t null_in_every = get_null_in_every();                                         \
+    if (is_sized_null()) {                                                               \
+      set_null_in_every(bennet_rec_size);                                                \
     }                                                                                    \
+    if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_ALLOC &&                   \
+        bennet_rec_size <= 1) {                                                          \
+      ptr = convert_to_cn_pointer(NULL);                                                 \
+    } else {                                                                             \
+      if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {                 \
+        size_t alt_lower_offset_bound = bennet_failure_get_lower_offset_bound();         \
+        if (alt_lower_offset_bound > var##_lower_offset_bound) {                         \
+          var##_lower_offset_bound = alt_lower_offset_bound;                             \
+        }                                                                                \
+        size_t alt_upper_offset_bound = bennet_failure_get_upper_offset_bound();         \
+        if (alt_upper_offset_bound > var##_upper_offset_bound) {                         \
+          var##_upper_offset_bound = alt_upper_offset_bound;                             \
+        }                                                                                \
+        bennet_failure_reset();                                                          \
+      }                                                                                  \
+      ptr = bennet_alloc(var##_lower_offset_bound, var##_upper_offset_bound, false);     \
+    }                                                                                    \
+    if (is_sized_null()) {                                                               \
+      set_null_in_every(null_in_every);                                                  \
+    }                                                                                    \
+                                                                                         \
     ptr;                                                                                 \
   })
 
@@ -97,24 +106,22 @@
 
 #define BENNET_ASSIGN(                                                                   \
     pointer, pointer_val, addr, addr_ty, value, tmp, gen_name, last_var, ...)            \
-  if (convert_from_cn_pointer(pointer_val) == 0) {                                       \
+  if (convert_from_cn_pointer(pointer_val) == NULL) {                                    \
     bennet_failure_blame((char*)#pointer);                                               \
+    bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                             \
     if (sizeof(addr_ty) > sizeof(intmax_t)) {                                            \
-      bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                           \
-      bennet_failure_set_allocation_needed(sizeof(addr_ty));                             \
+      bennet_failure_set_offset_bounds(NULL, NULL, sizeof(addr_ty));                     \
     } else {                                                                             \
-      bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                           \
-      bennet_failure_set_allocation_needed(sizeof(intmax_t));                            \
+      bennet_failure_set_offset_bounds(NULL, NULL, sizeof(intmax_t));                    \
     }                                                                                    \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   void* tmp##_ptr = convert_from_cn_pointer(addr);                                       \
   if (!bennet_alloc_check(tmp##_ptr, sizeof(addr_ty))) {                                 \
     bennet_failure_blame((char*)#pointer);                                               \
-    size_t tmp##_size = (uintptr_t)tmp##_ptr + sizeof(addr_ty) -                         \
-                        (uintptr_t)convert_from_cn_pointer(pointer_val);                 \
     bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                             \
-    bennet_failure_set_allocation_needed(tmp##_size);                                    \
+    bennet_failure_set_offset_bounds(                                                    \
+        convert_from_cn_pointer(pointer_val), tmp##_ptr, sizeof(addr_ty));               \
     goto cn_label_##last_var##_backtrack;                                                \
   }                                                                                      \
   if (!bennet_ownership_check(tmp##_ptr, sizeof(addr_ty))) {                             \
@@ -131,6 +138,8 @@
   cn_bump_frame_id var##_checkpoint = cn_bump_get_frame_id();                            \
   void* var##_alloc_checkpoint = bennet_alloc_save();                                    \
   void* var##_ownership_checkpoint = bennet_ownership_save();                            \
+  size_t var##_lower_offset_bound = 0;                                                   \
+  size_t var##_upper_offset_bound = 0;                                                   \
   cn_label_##var##_gen :;
 
 #define BENNET_LET_BODY(ty, var, gen)                                                    \
@@ -158,7 +167,7 @@
         if (toAdd[0] != NULL) {                                                          \
           goto cn_label_##last_var##_backtrack;                                          \
         }                                                                                \
-        if (bennet_failure_get_allocation_needed() > 0) {                                \
+        if (!bennet_failure_get_should_be_null()) {                                      \
           bennet_rand_restore(var##_rand_checkpoint_after);                              \
         }                                                                                \
       }                                                                                  \

@@ -40,8 +40,12 @@ int bennet_failure_remap_blamed(char* from, char* to);
  */
 int bennet_failure_remap_blamed_many(char* from[], char* to[]);
 
-void bennet_failure_set_allocation_needed(size_t sz);
+void bennet_failure_set_offset_bounds(void* p_alloc, void* p, size_t bytes);
 
-size_t bennet_failure_get_allocation_needed();
+void bennet_failure_set_should_be_null(void);
+bool bennet_failure_get_should_be_null(void);
+
+size_t bennet_failure_get_lower_offset_bound(void);
+size_t bennet_failure_get_upper_offset_bound(void);
 
 #endif  // BENNET_EXP_FAILURE_H

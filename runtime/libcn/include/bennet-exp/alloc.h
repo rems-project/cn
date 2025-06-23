@@ -26,9 +26,8 @@ void* bennet_ownership_save(void);
 
 void bennet_ownership_restore(void* ptr);
 
-cn_pointer* bennet_alloc(cn_bits_u64* sz);
-
-cn_pointer* bennet_aligned_alloc(cn_bits_u64* alignment, cn_bits_u64* sz);
+cn_pointer* bennet_alloc(
+    size_t lower_offset_bound, size_t upper_offset_bound, bool is_null);
 
 int bennet_alloc_check(void* p, size_t sz);
 
