@@ -2104,11 +2104,7 @@ module BaseTyping = struct
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
           let its = match gargs_opt with None -> [] | Some (_, its) -> its in
           let@ its = ListM.mapM (check_cnprog (fun _ it -> WIT.infer it)) its in
-          let gargs_opt =
-            match gargs_opt with
-            | None -> None
-            | Some (ghost_loc, _) -> Some (ghost_loc, its)
-          in
+          let gargs_opt = Option.map (fun (ghost_loc, _) -> (ghost_loc, its)) gargs_opt in
           return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, gargs_opt))
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in

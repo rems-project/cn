@@ -840,8 +840,9 @@ let rec n_expr
         let get_c_obj sym =
           match List.assoc_opt Sym.equal sym visible_objects with
           | Some obj_ty -> obj_ty
-          | None -> failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
-          (* should not occur since Cerberus guarantees every C object in scope has a type *)
+          | None ->
+            (* should not occur since Cerberus guarantees every C object in scope has a type *)
+            failwith ("use of C obj without known type: " ^ Sym.pp_string sym)
         in
         let@ ghosts =
           ListM.mapM

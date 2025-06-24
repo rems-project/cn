@@ -131,7 +131,7 @@ let cn_ghost_args annots =
   | [ (loc, str) ] ->
     let@ args = (parse C_parser.cn_ghost_args) (loc, str) in
     return (Some (loc, args))
-  | (loc1, _) :: (loc2, _) :: _ -> Monad.fail { loc = loc2; msg = Split_spec loc1 }
+  | _ :: _ :: _ -> failwith "frontend should guarantee unreachable"
 
 
 let function_spec (A.Attrs attributes) =
