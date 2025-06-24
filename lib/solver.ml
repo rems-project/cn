@@ -1331,10 +1331,11 @@ let model_evaluator, reset_model_evaluator_state =
   let reset_model_evaluator_state () =
     match !model_evaluator_solver with
     | None -> ()
-    | Some e -> SMT.(e.stop ());
-    currently_loaded_model := 0;
-    model_evaluator_solver := None;
-    model_id := 0
+    | Some e ->
+      SMT.(e.stop ());
+      currently_loaded_model := 0;
+      model_evaluator_solver := None;
+      model_id := 0
   in
   let model_evaluator solver mo =
     match SMT.to_list mo with
