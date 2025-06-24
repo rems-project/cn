@@ -22,8 +22,7 @@ static signed long WILDCARD_DEPTH = INT_MAX - 1;
 
 void reset_fulminate(void) {
   cn_bump_free_all();
-  // TODO: Fix
-  // fulminate_free_all();
+  free_ownership_ghost_state();
   reset_error_msg_info();
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
