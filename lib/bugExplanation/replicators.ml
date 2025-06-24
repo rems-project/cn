@@ -71,6 +71,9 @@ let rec buf_length (fmt : string list) (args : string list) : string list =
 let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
   let b_buf = Utils.create_binding buf_sym C.pointer_to_char in
   let e_args = List.map (fun x -> mk_expr (AilEident (Sym.fresh x))) args in
+  let e_buffer_length =
+    mk_expr (AilEident (Sym.fresh (String.concat " + " (buf_length fmt args) ^ " + 1")))
+  in
   let s =
     A.(
       [ AilSdeclaration
@@ -78,18 +81,14 @@ let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
               Some
                 (mk_expr
                    (AilEcall
-                      ( mk_expr (AilEident (Sym.fresh "malloc")),
-                        [ mk_expr
-                            (AilEident
-                               (Sym.fresh
-                                  (String.concat " + " (buf_length fmt args) ^ " + 1")))
-                        ] ))) )
+                      (mk_expr (AilEident (Sym.fresh "malloc")), [ e_buffer_length ]))) )
           ];
         AilSexpr
           (mk_expr
              (AilEcall
-                ( mk_expr (AilEident (Sym.fresh "sprintf")),
+                ( mk_expr (AilEident (Sym.fresh "snprintf")),
                   [ mk_expr (AilEident buf_sym);
+                    e_buffer_length;
                     mk_expr (AilEstr (None, [ (Locations.other __LOC__, fmt) ]))
                   ]
                   @ e_args )))

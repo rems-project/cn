@@ -11,8 +11,9 @@ cd "$DIRNAME" || exit
 # For stricter CI
 export CPPFLAGS="${CPPFLAGS} -Werror"
 
-# For UBSan
+# For sanitizers
 export UBSAN_OPTIONS=halt_on_error=1
+export ASAN_OPTIONS="allocator_may_return_null=1:detect_leaks=0"
 
 # Track failures
 NUM_FAILED=0
@@ -25,7 +26,7 @@ function separator() {
 BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix \
   --input-timeout=1000 \
   --progress-level=function \
-  --sanitize=undefined \
+  --sanitize=address,undefined \
   --allow-split-magic-comments \
   --print-seed"
 if [[ $(basename $TEST) == "mkm.pass.c" ]]; then
