@@ -2176,6 +2176,8 @@ module BaseTyping = struct
                 wrong_number_computational_args ()
               | AT.Ghost _, _ -> wrong_number_ghost_args ()
             in
+            (* TODO: fix duplication wrt Check.check_expr, cf.
+                     https://github.com/rems-project/cn/issues/210 *)
             check_args [] lt pes
           in
           return (Unit, Erun (l, pes))
