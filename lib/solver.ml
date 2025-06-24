@@ -1329,6 +1329,9 @@ let model_evaluator, reset_model_evaluator_state =
     !model_id
   in
   let reset_model_evaluator_state () =
+    match !model_evaluator_solver with
+    | None -> ()
+    | Some e -> SMT.(e.stop ());
     currently_loaded_model := 0;
     model_evaluator_solver := None;
     model_id := 0
@@ -1445,6 +1448,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let _ = loc in
   let set_model smt_solver qs =
     let defs = SMT.get_model smt_solver in
+    reset_model_evaluator_state ();
     let model = model_evaluator solver defs in
     model_state := Model (model, qs)
   in
