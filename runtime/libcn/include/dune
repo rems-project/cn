@@ -12,7 +12,9 @@
  (files
   ;
   (cn-executable/bump_alloc.h as runtime/include/cn-executable/bump_alloc.h)
-  (cn-executable/fl_alloc.h as runtime/include/cn-executable/fl_alloc.h)
+  (cn-executable/fulminate_alloc.h
+   as
+   runtime/include/cn-executable/fulminate_alloc.h)
   (cn-executable/hash_table.h as runtime/include/cn-executable/hash_table.h)
   (cn-executable/utils.h as runtime/include/cn-executable/utils.h)
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)

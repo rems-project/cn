@@ -16,7 +16,7 @@
     -rcs
     %{target}
     cn-executable/bump_alloc.o
-    cn-executable/fl_alloc.o
+    cn-executable/fulminate_alloc.o
     cn-executable/hash_table.o
     cn-executable/utils.o))))
 

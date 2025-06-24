@@ -22,7 +22,8 @@ static signed long WILDCARD_DEPTH = INT_MAX - 1;
 
 void reset_fulminate(void) {
   cn_bump_free_all();
-  cn_fl_free_all();
+  // TODO: Fix
+  // fulminate_free_all();
   reset_error_msg_info();
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
@@ -288,7 +289,7 @@ int ownership_ghost_state_get(int64_t* address_key) {
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
   int* new_depth = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
   if (!new_depth) {
-    new_depth = cn_fl_malloc(sizeof(int));
+    new_depth = fulminate_malloc(sizeof(int));
   }
   *new_depth = stack_depth_val;
   ht_set(cn_ownership_global_ghost_state, address_key, new_depth);
@@ -461,7 +462,7 @@ _Bool is_mapped(void* ptr) {
 //         uintptr_t fn_local_ptr = va_arg(args, uintptr_t);
 //         signed long address_key = fn_local_ptr;
 //         ghost_state_set(cn_ownership_global_ghost_state, &address_key, cn_stack_depth);
-//         cn_fl_free(address_key);
+//         fulminate_free(address_key);
 //     }
 
 //     va_end(args);
@@ -569,8 +570,8 @@ struct cn_error_message_info* make_error_message_info_entry(const char* function
     int line_number,
     char* cn_source_loc,
     struct cn_error_message_info* parent) {
-  struct cn_error_message_info* entry =
-      (struct cn_error_message_info*)cn_fl_malloc(sizeof(struct cn_error_message_info));
+  struct cn_error_message_info* entry = (struct cn_error_message_info*)fulminate_malloc(
+      sizeof(struct cn_error_message_info));
   entry->function_name = function_name;
   entry->file_name = file_name;
   entry->line_number = line_number;
@@ -612,7 +613,7 @@ void cn_pop_msg_info() {
   if (error_msg_info) {
     error_msg_info->child = NULL;
   }
-  cn_fl_free(old);
+  fulminate_free(old);
 }
 
 static uint32_t cn_fls(uint32_t x) {

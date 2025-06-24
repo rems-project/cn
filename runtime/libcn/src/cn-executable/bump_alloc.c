@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include <cn-executable/bump_alloc.h>
-#include <cn-executable/fl_alloc.h>
+#include <cn-executable/fulminate_alloc.h>
 #include <cn-executable/utils.h>
 
 #define BUMP_BLOCK_SIZE  (1024 * 1024)
@@ -39,7 +39,7 @@ void cn_bump_print() {}
 
 void cn_bump_init() {
   if (bump_curr == NULL) {
-    bump_blocks[0] = cn_fl_malloc(BUMP_BLOCK_SIZE);
+    bump_blocks[0] = fulminate_malloc(BUMP_BLOCK_SIZE);
     bump_curr = bump_blocks[0];
   }
 }
@@ -65,7 +65,7 @@ bool bump_expand() {
   bump_curr_block++;
 
   if (bump_blocks[bump_curr_block] == NULL) {
-    bump_blocks[bump_curr_block] = cn_fl_malloc(BUMP_BLOCK_SIZE);
+    bump_blocks[bump_curr_block] = fulminate_malloc(BUMP_BLOCK_SIZE);
   }
 
   bump_curr = bump_blocks[bump_curr_block];
@@ -137,7 +137,7 @@ void* cn_bump_calloc(size_t count, size_t size) {
 
 void cn_bump_free_all(void) {
   for (uint16_t i = 0; bump_blocks[i] != NULL; i++) {
-    cn_fl_free(bump_blocks[i]);
+    fulminate_free(bump_blocks[i]);
     bump_blocks[i] = NULL;
   }
   bump_curr_block = 0;
