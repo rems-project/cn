@@ -41,7 +41,8 @@ char *cn_replica_lines_to_str() {
     sz += strlen(lines[i]) + 1;  // +1 for newline
   }
 
-  char *res = malloc(sz + 1);
+  char *res = malloc(sz + 1);  // +1 for string terminator
+  res[0] = '\0';
   for (int i = 0; i < size; i++) {
     strcat(res, lines[i]);
     strcat(res, "\n");
