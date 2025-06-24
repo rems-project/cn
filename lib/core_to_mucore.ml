@@ -826,8 +826,6 @@ let rec n_expr
     let@ parsed_ghosts = Parse.cn_ghost_args annots in
     let@ ghost_args =
       match parsed_ghosts with
-      (* Handling the empty case separately because rems-project/cerberus@f58daf7
-        only adds markers if there is a magic comment, otherwise Option.get throws an exception *)
       | None -> return None
       | Some (ghost_loc, args) ->
         let marker_id = Option.get (CF.Annot.get_marker annots) in
