@@ -157,3 +157,10 @@ val statement
   env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement ->
   Cnstatement.statement Cnprog.t Or_Error.t
+
+val expr_ghost
+  :  (Sym.t -> Cerb_frontend.Ctype.ctype) ->
+  C_vars.named_scopes ->
+  env ->
+  (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_expr ->
+  IndexTerms.Surface.t Cnprog.t Or_Error.t

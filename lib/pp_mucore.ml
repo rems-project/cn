@@ -576,14 +576,20 @@ module Make (Config : CONFIG) = struct
                   (Pp_mem.pp_memop memop ^^ Pp.comma ^^^ comma_list pp_actype_or_pexpr pes)
            | Eaction (Paction (p, Action (_, act))) -> pp_polarity p (pp_action act)
            | Eskip -> pp_keyword "skip"
-           | Eccall (pe_ty, pe, pes, its) ->
+           | Eccall (pe_ty, pe, pes, gargs_opt) ->
+             let ghost_args =
+               match gargs_opt with None -> [] | Some (_loc, ghost_args) -> ghost_args
+             in
              pp_keyword "ccall"
              ^^ Pp.parens (pp_ct pe_ty.ct)
              ^^ Pp.parens
                   (comma_list
                      pp_actype_or_pexpr
                      (Right pe :: (List.map (fun pe -> Either.Right pe)) pes))
-             ^^ Pp.parens (comma_list IndexTerms.pp its)
+             ^^ Pp.parens
+                  (Cn_Pp.list
+                     Pp_ast.pp_doc_tree
+                     (List.map (Cnprog.dtree IndexTerms.dtree) ghost_args))
            | CN_progs (_, stmts) ->
              pp_keyword "cn_prog"
              ^^ Pp.parens
@@ -633,10 +639,8 @@ module Make (Config : CONFIG) = struct
              ^^ pp e2
            | End es -> pp_keyword "nd" ^^ Pp.parens (comma_list pp es)
            | Ebound e -> Cn_Pp.c_app (pp_keyword "bound") [ pp e ]
-           | Erun (sym, pes, its) ->
-             pp_keyword "run"
-             ^^^ Cn_Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes)
-             ^^ Pp.parens (comma_list IndexTerms.pp its))
+           | Erun (sym, pes) ->
+             pp_keyword "run" ^^^ Cn_Pp.c_app (pp_symbol sym) (List.map pp_pexpr pes))
     in
     pp budget expr
 

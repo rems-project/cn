@@ -125,6 +125,15 @@ let not_too_many_snippets = function
   | _ -> return ()
 
 
+let cn_ghost_args annots =
+  match A.get_cerb_magic_attr annots with
+  | [] -> return None
+  | [ (loc, str) ] ->
+    let@ args = (parse C_parser.cn_ghost_args) (loc, str) in
+    return (Some (loc, args))
+  | _ :: _ :: _ -> failwith "frontend should guarantee unreachable"
+
+
 let function_spec (A.Attrs attributes) =
   let magic_attrs = A.get_cerb_magic_attr [ A.Aattrs (Attrs (List.rev attributes)) ] in
   let@ () = not_too_many_snippets magic_attrs in

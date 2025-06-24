@@ -1737,13 +1737,15 @@ let pp_cnprog_load (r : Cnprog.load) =
     [ ("CNProgs.ct", pp_sctype r.ct); ("CNProgs.pointer", pp_index_term r.pointer) ]
 
 
-let rec pp_cn_prog = function
+let rec pp_cn_prog f = function
   | Cnprog.Let (loc, (name, l), prog) ->
     pp_constructor
       "CNProgs.CLet"
-      [ pp_location loc; pp_tuple [ pp_symbol name; pp_cnprog_load l ]; pp_cn_prog prog ]
-  | Pure (loc, stmt) ->
-    pp_constructor "CNProgs.Statement" [ pp_location loc; pp_cnprog_statement stmt ]
+      [ pp_location loc;
+        pp_tuple [ pp_symbol name; pp_cnprog_load l ];
+        pp_cn_prog f prog
+      ]
+  | Pure (loc, x) -> pp_constructor "CNProgs" [ pp_location loc; f x ]
 
 
 let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
@@ -1814,14 +1816,17 @@ and pp_expr pp_type = function
          | Ememop m -> pp_constructor1 "Ememop" [ pp_memop pp_type m ]
          | Eaction pa -> pp_constructor1 "Eaction" [ pp_paction pp_type pa ]
          | Eskip -> pp_constructor1 "Eskip" []
-         | Eccall (act, f, args, ghost_args) ->
+         | Eccall (act, f, args, gargs_opt) ->
+           let ghost_args =
+             match gargs_opt with None -> [] | Some (_loc, ghost_args) -> ghost_args
+           in
            pp_constructor1
              "Eccall"
              [ pp_tuple
                  [ pp_act act;
                    pp_pexpr pp_type f;
                    pp_list (pp_pexpr pp_type) args;
-                   pp_list pp_index_term ghost_args
+                   pp_list (pp_cn_prog pp_index_term) ghost_args
                  ]
              ]
          | Elet (pat, e1, e2) ->
@@ -1847,21 +1852,16 @@ and pp_expr pp_type = function
              [ pp_tuple [ pp_pexpr pp_type c; pp_expr pp_type t; pp_expr pp_type e ] ]
          | Ebound e -> pp_constructor1 "Ebound" [ pp_expr pp_type e ]
          | End exprs -> pp_constructor1 "End" [ pp_list (pp_expr pp_type) exprs ]
-         | Erun (sym, args, its) ->
+         | Erun (sym, args) ->
            pp_constructor1
              "Erun"
-             [ pp_tuple
-                 [ pp_symbol sym;
-                   pp_list (pp_pexpr pp_type) args;
-                   pp_list pp_index_term its
-                 ]
-             ]
+             [ pp_tuple [ pp_symbol sym; pp_list (pp_pexpr pp_type) args ] ]
          | CN_progs (stmts, progs) ->
            pp_constructor1
              "CN_progs"
              [ pp_tuple
                  [ pp_list (pp_cn_statement pp_symbol pp_ctype) stmts;
-                   pp_list pp_cn_prog progs
+                   pp_list (pp_cn_prog pp_cnprog_statement) progs
                  ]
              ])
       ]
