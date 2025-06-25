@@ -4,6 +4,12 @@
 
 #include "bump_alloc.h"
 #include "fulminate_alloc.h"
+
+#include <stdlib.h>
+
+static struct alloc_fns fulminate_internal_alloc =
+    (struct alloc_fns){.malloc = &malloc, .calloc = &calloc, .free = &free};
+
 #include "hash_table.h"
 #include "rts_deps.h"
 
