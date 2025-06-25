@@ -7,6 +7,8 @@
 
 #include "rts_deps.h"
 
+#include <cn-executable/fulminate_alloc.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -27,6 +29,8 @@ typedef struct {
 cn_bump_frame_id cn_bump_get_frame_id(void);
 
 void cn_bump_free_after(cn_bump_frame_id frame_id);
+
+void cn_bump_free(void*);
 
 void cn_bump_print();
 
