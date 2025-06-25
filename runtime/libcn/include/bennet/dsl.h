@@ -66,20 +66,6 @@
     ptr;                                                                                 \
   })
 
-#define BENNET_LT_(ty, max) bennet_lt_##ty(max)
-
-#define BENNET_GT_(ty, min) bennet_gt_##ty(min)
-
-#define BENNET_LE_(ty, max) bennet_max_##ty(max)
-
-#define BENNET_GE_(ty, min) bennet_min_##ty(min)
-
-#define BENNET_RANGE(ty, min, max) bennet_range_##ty(min, max)
-
-#define BENNET_MULT_RANGE(ty, mul, min, max) bennet_mult_range_##ty(mul, min, max)
-
-#define BENNET_MULT(ty, mul) bennet_mult_##ty(mul)
-
 #define BENNET_CALL_FROM(...)                                                            \
   {                                                                                      \
     char* from[] = {__VA_ARGS__, NULL};
