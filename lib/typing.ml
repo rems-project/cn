@@ -808,7 +808,7 @@ let prev_models_with loc prop =
   return (List.filter (has_prop prop) ms)
 
 
-let model_with loc prop =
+let _model_with loc prop =
   let@ () = sync_unfold_resources loc in
   model_with_internal loc prop
 

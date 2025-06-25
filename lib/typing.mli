@@ -46,7 +46,7 @@ val provable : Locations.t -> (LogicalConstraints.t -> [> `True | `False ]) m
 
 val model : unit -> Solver.model_with_q m
 
-val model_with : Locations.t -> IndexTerms.t -> Solver.model_with_q option m
+(* val model_with : Locations.t -> IndexTerms.t -> Solver.model_with_q option m *)
 
 (* val prev_models_with : Locations.t -> IndexTerms.t -> Solver.model_with_q list m *)
 

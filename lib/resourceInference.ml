@@ -69,18 +69,20 @@ module General = struct
       List.partition_map (function One c -> Left c | Many c -> Right c) cases
     in
     let@ base_value =
-      let module BT = BaseTypes in
+      let default = IT.default_ (BaseTypes.Map (a_bt, item_bt)) here in
       match (manys, item_bt) with
       | [ { many_guard = _; value } ], _ -> return value
-      | [], _ | _, BT.Unit -> return (IT.default_ (BT.Map (a_bt, item_bt)) here)
+      | [], _ | _, BaseTypes.Unit -> return default
       | _many, _ ->
-        let term = IT.bool_ true here in
-        let@ model = model_with here term in
-        let model = Option.get model in
-        let msg ctxt =
-          TypeErrors.Merging_multiple_arrays { requests; situation; ctxt; model }
-        in
-        fail (fun ctxt -> { loc; msg = msg ctxt })
+        let@ provable = provable loc in
+        (match provable (LC.T (IT.bool_ false here)) with
+         | `False ->
+           let@ model = model () in
+           let msg ctxt =
+             TypeErrors.Merging_multiple_arrays { requests; situation; ctxt; model }
+           in
+           fail (fun ctxt -> { loc; msg = msg ctxt })
+         | `True -> return default)
     in
     return (update_with_ones base_value ones)
 
@@ -114,15 +116,18 @@ module General = struct
       (match o_re_oarg with
        | None ->
          let here = Locations.other __LOC__ in
-         let@ model = model_with loc (IT.bool_ true here) in
-         let model = Option.get model in
-         fail (fun ctxt ->
-           (* let ctxt = { ctxt with resources = original_resources } in *)
-           let msg =
-             TypeErrors.Missing_resource
-               { requests = request_chain; situation; model; ctxt }
-           in
-           { loc; msg })
+         let@ provable = provable loc in
+         (match provable (LC.T (IT.bool_ false here)) with
+          | `False ->
+            let@ model = model () in
+            fail (fun ctxt ->
+              (* let ctxt = { ctxt with resources = original_resources } in *)
+              let msg =
+                TypeErrors.Missing_resource
+                  { requests = request_chain; situation; model; ctxt }
+              in
+              { loc; msg })
+          | `True -> assert false)
        | Some ((re, Resource.O oargs), changed_or_deleted', l) ->
          assert (Request.equal re resource);
          let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
@@ -479,11 +484,14 @@ end
 module Special = struct
   let fail_missing_resource loc (situation, requests) =
     let here = Locations.other __LOC__ in
-    let@ model = model_with loc (IT.bool_ true here) in
-    let model = Option.get model in
-    fail (fun ctxt ->
-      let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
-      { loc; msg })
+    let@ provable = provable loc in
+    match provable (LC.T (IT.bool_ false here)) with
+    | `False ->
+      let@ model = model () in
+      fail (fun ctxt ->
+        let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
+        { loc; msg })
+    | `True -> assert false
 
 
   let predicate_request loc situation (request, oinfo) =
