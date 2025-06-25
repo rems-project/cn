@@ -50,17 +50,11 @@
       ptr = bennet_alloc(sz);                                                            \
     } else {                                                                             \
       uint8_t null_in_every = get_null_in_every();                                       \
-      if (is_sized_null()) {                                                             \
-        set_null_in_every(bennet_rec_size);                                              \
-      }                                                                                  \
       if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_ALLOC &&                 \
           bennet_rec_size <= 1) {                                                        \
         ptr = convert_to_cn_pointer(NULL);                                               \
       } else {                                                                           \
         ptr = bennet_alloc(sz);                                                          \
-      }                                                                                  \
-      if (is_sized_null()) {                                                             \
-        set_null_in_every(null_in_every);                                                \
       }                                                                                  \
     }                                                                                    \
     ptr;                                                                                 \

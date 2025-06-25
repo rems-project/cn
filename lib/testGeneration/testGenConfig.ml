@@ -49,7 +49,6 @@ type t =
     sizing_strategy : sizing_strategy option;
     random_size_splits : bool;
     allowed_size_split_backtracks : int option;
-    sized_null : bool;
     coverage : bool;
     disable_passes : string list;
     trap : bool;
@@ -83,7 +82,6 @@ let default =
     sizing_strategy = None;
     random_size_splits = false;
     allowed_size_split_backtracks = None;
-    sized_null = false;
     coverage = false;
     disable_passes = [];
     trap = false;
@@ -207,8 +205,6 @@ let has_sizing_strategy_str () =
 let is_random_size_splits () = !instance.random_size_splits
 
 let has_allowed_size_split_backtracks () = !instance.allowed_size_split_backtracks
-
-let is_sized_null () = !instance.sized_null
 
 let is_coverage () = !instance.coverage
 

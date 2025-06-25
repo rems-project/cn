@@ -82,20 +82,6 @@ void set_null_in_every(uint8_t n) {
   null_in_every = n;
 }
 
-static int sized_null = 0;
-
-int is_sized_null(void) {
-  return sized_null;
-}
-
-void set_sized_null(void) {
-  sized_null = 1;
-}
-
-void unset_sized_null(void) {
-  sized_null = 0;
-}
-
 cn_pointer* bennet_alloc(cn_bits_u64* sz) {
   uint64_t bytes = convert_from_cn_bits_u64(sz);
   if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {

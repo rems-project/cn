@@ -82,20 +82,6 @@ void set_null_in_every(uint8_t n) {
   null_in_every = n;
 }
 
-static int sized_null = 0;
-
-int is_sized_null(void) {
-  return sized_null;
-}
-
-void set_sized_null(void) {
-  sized_null = 1;
-}
-
-void unset_sized_null(void) {
-  sized_null = 0;
-}
-
 cn_pointer* bennet_alloc(
     size_t lower_offset_bound, size_t upper_offset_bound, bool is_null) {
   if (is_null) {
