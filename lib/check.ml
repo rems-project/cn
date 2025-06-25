@@ -325,7 +325,9 @@ let check_single_ct loc expr =
          }))
 
 
-let uniquely_determined_as_one_of loc t candidates =
+(* Assumes that only one of the `candidates` can apply. (Otherwise it selects
+   the first match.) *)
+let determined_as_one_of loc t candidates =
   let@ provable = provable loc in
   match provable (LC.T (bool_ false loc)) with
   | `True -> return `Inconsistent_context
@@ -339,7 +341,7 @@ let uniquely_determined_as_one_of loc t candidates =
         if Option.get (IT.is_bool (Option.get (Solver.eval model equality))) then (
           match provable (LC.T equality) with
           | `True -> return (`This c)
-          | `False -> return `No_unique_model)
+          | `False -> identify cs)
         else
           identify cs
     in
@@ -361,16 +363,9 @@ let known_function_pointer loc p =
            (sym, t))
         global_funs
     in
-    let@ o = uniquely_determined_as_one_of loc p function_addrs in
+    let@ o = determined_as_one_of loc p function_addrs in
     (match o with
      | `This s -> return (`Known s)
-     | `No_unique_model ->
-       fail (fun _ ->
-         { loc;
-           msg =
-             Generic (Pp.item "Function pointer must be uniquely determined." (IT.pp p))
-             [@alert "-deprecated"]
-         })
      | `None_of_these ->
        fail (fun _ ->
          { loc;
