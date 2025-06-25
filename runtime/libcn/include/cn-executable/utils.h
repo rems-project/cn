@@ -15,9 +15,6 @@
 static struct alloc_fns fulminate_internal_alloc =
     (struct alloc_fns){.malloc = &malloc, .calloc = &calloc, .free = &free};
 
-static struct alloc_fns bump_alloc = (struct alloc_fns){
-    .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
-
 // XXX: things used by injected code
 #define true  1
 #define false 0

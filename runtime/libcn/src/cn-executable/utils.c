@@ -20,6 +20,9 @@ signed long nr_owned_predicates;
 
 static signed long WILDCARD_DEPTH = INT_MAX - 1;
 
+static struct alloc_fns bump_alloc = (struct alloc_fns){
+  .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
+
 void reset_fulminate(void) {
   cn_bump_free_all();
   free_ownership_ghost_state();
