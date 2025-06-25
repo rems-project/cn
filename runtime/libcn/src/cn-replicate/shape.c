@@ -74,7 +74,7 @@ void cn_analyze_shape_owned(void* ptr, size_t sz) {
     size_t* new_sz = malloc(sizeof(size_t));
     *new_sz = sz;
 
-    ht_set(alloc_sizes, key, new_sz, fulminate_internal_alloc);
+    ht_set(alloc_sizes, key, new_sz, &fulminate_internal_alloc);
   } else if (*old_sz < sz) {
     *old_sz = sz;
   }
@@ -115,7 +115,7 @@ static const char* cn_replicate_get(void* p) {
   name = malloc(22);
   sprintf(name, "p%d", pointer_count++);
 
-  ht_set(allocated, key, name, fulminate_internal_alloc);
+  ht_set(allocated, key, name, &fulminate_internal_alloc);
   free(key);
 
   size_t sz = cn_replica_alloc_get(p);
@@ -209,8 +209,8 @@ CN_REPLICATE_BITS(u64);
 
 void cn_replica_alloc_reset(void) {
   // First pass
-  alloc_sizes = ht_create(fulminate_internal_alloc);
+  alloc_sizes = ht_create(&fulminate_internal_alloc);
 
   // Second pass
-  allocated = ht_create(fulminate_internal_alloc);
+  allocated = ht_create(&fulminate_internal_alloc);
 }

@@ -186,17 +186,17 @@ void* cn_ite(cn_bool* b, void* e1, void* e2) {
 }
 
 cn_map* map_create(void) {
-  return ht_create(bump_alloc);
+  return ht_create(&bump_alloc);
 }
 
 void initialise_ownership_ghost_state(void) {
   nr_owned_predicates = 0;
-  cn_ownership_global_ghost_state = ht_create(fulminate_internal_alloc);
+  cn_ownership_global_ghost_state = ht_create(&fulminate_internal_alloc);
 }
 
 void free_ownership_ghost_state(void) {
   nr_owned_predicates = 0;
-  ht_destroy(cn_ownership_global_ghost_state, fulminate_internal_alloc);
+  ht_destroy(cn_ownership_global_ghost_state, &fulminate_internal_alloc);
 }
 
 void initialise_ghost_stack_depth(void) {
@@ -292,7 +292,7 @@ void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
   }
   *new_depth = stack_depth_val;
   ht_set(
-      cn_ownership_global_ghost_state, address_key, new_depth, fulminate_internal_alloc);
+      cn_ownership_global_ghost_state, address_key, new_depth, &fulminate_internal_alloc);
 }
 
 void ownership_ghost_state_remove(int64_t* address_key) {
@@ -469,7 +469,7 @@ _Bool is_mapped(void* ptr) {
 // }
 
 cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value) {
-  ht_set(m, &key->val, value, bump_alloc);
+  ht_set(m, &key->val, value, &bump_alloc);
   return m;
 }
 
@@ -481,7 +481,7 @@ cn_map* cn_map_deep_copy(cn_map* m1) {
   while (ht_next(&hti)) {
     int64_t* curr_key = hti.key;
     void* val = ht_get(m1, curr_key);
-    ht_set(m2, curr_key, val, bump_alloc);
+    ht_set(m2, curr_key, val, &bump_alloc);
   }
 
   return m2;
