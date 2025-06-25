@@ -12,8 +12,8 @@
 #include <cn-executable/bump_alloc.h>
 #include <cn-executable/utils.h>
 
-#define BUMP_BLOCK_SIZE  (1024 * 1024)
-#define BUMP_BLOCK_COUNT 1024
+#define BUMP_BLOCK_SIZE  (1024 * 1024 * 8)
+#define BUMP_BLOCK_COUNT (1024 / 8)
 static char* bump_blocks[BUMP_BLOCK_COUNT];
 static uint16_t bump_curr_block;
 static char* bump_curr;
