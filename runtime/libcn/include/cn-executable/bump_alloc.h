@@ -34,9 +34,6 @@ void cn_bump_free(void*);
 
 void cn_bump_print();
 
-static struct alloc_fns bump_alloc = (struct alloc_fns){
-    .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
-
 #ifdef __cplusplus
 }
 #endif
