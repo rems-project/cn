@@ -33,10 +33,10 @@ if [[ $(basename $TEST) == "mkm.pass.c" ]]; then
   BASE_CONFIG="$BASE_CONFIG --max-array-length=1024"
 fi
 
-ALT_CONFIGS=("--sized-null --sizing-strategy=uniform"
+ALT_CONFIGS=(
   "--coverage --sizing-strategy=quartile"
   "--coverage --sizing-strategy=quickcheck"
-  "--random-size-splits --no-replicas"
+  "--random-size-splits --sizing-strategy=uniform"
   "--random-size-splits --allowed-size-split-backtracks=10")
 
 BUILD_TOOLS=("bash" "make")

@@ -49,7 +49,6 @@ type t =
     sizing_strategy : sizing_strategy option;
     random_size_splits : bool;
     allowed_size_split_backtracks : int option;
-    sized_null : bool;
     coverage : bool;
     disable_passes : string list;
     trap : bool;
@@ -129,8 +128,6 @@ val has_sizing_strategy_str : unit -> string option
 val is_random_size_splits : unit -> bool
 
 val has_allowed_size_split_backtracks : unit -> int option
-
-val is_sized_null : unit -> bool
 
 val is_coverage : unit -> bool
 

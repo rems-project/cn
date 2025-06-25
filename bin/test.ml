@@ -46,7 +46,7 @@ let run_tests
       sizing_strategy
       random_size_splits
       allowed_size_split_backtracks
-      sized_null
+      _sized_null
       coverage
       disable_passes
       trap
@@ -117,7 +117,6 @@ let run_tests
           sizing_strategy;
           random_size_splits;
           allowed_size_split_backtracks;
-          sized_null;
           coverage;
           disable_passes;
           trap;
@@ -379,10 +378,9 @@ module Flags = struct
 
 
   let sized_null =
-    let doc =
-      "Scale the likelihood of [NULL] proportionally for a desired size (1/n for size n)"
-    in
-    Arg.(value & flag & info [ "sized-null" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after July 31." in
+    Arg.(value & flag & info [ "sized-null" ] ~deprecated ~doc)
 
 
   let coverage =

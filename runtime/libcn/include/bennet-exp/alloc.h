@@ -12,10 +12,6 @@ extern "C" {
 uint8_t get_null_in_every(void);
 void set_null_in_every(uint8_t n);
 
-int is_sized_null(void);
-void set_sized_null(void);
-void unset_sized_null(void);
-
 void bennet_alloc_reset(void);
 void* bennet_alloc_save(void);
 void bennet_alloc_restore(void* ptr);

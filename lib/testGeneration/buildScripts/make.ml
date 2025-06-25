@@ -84,7 +84,6 @@ let define_test_flags () =
        |> Option.map (fun sizing_strategy -> [ "--sizing-strategy"; sizing_strategy ])
        |> Option.to_list
        |> List.flatten)
-    @ (if Config.is_sized_null () then [ "--sized-null" ] else [])
     @ (Config.has_allowed_size_split_backtracks ()
        |> Option.map (fun allowed_size_split_backtracks ->
          [ "--allowed-size-split-backtracks";
