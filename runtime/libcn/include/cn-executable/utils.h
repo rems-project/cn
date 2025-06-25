@@ -443,6 +443,18 @@ static inline int ipow(int base, int exp) {
 cn_map *default_cn_map(void);
 cn_bool *default_cn_bool(void);
 
+#define CN_GEN_MAP_GET(CNTYPE)                                                           \
+  static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
+    int64_t *key_ptr = (*fulminate_internal_alloc.malloc)(sizeof(int64_t));              \
+    *key_ptr = key->val;                                                                 \
+    void *res = ht_get(m, key_ptr);                                                      \
+    (*fulminate_internal_alloc.free)(key_ptr);                                           \
+    if (!res) {                                                                          \
+      return (void *)default_##CNTYPE();                                                 \
+    }                                                                                    \
+    return res;                                                                          \
+  }
+
 #define CN_GEN_CASTS_INNER(CTYPE, CNTYPE)                                                \
   CN_GEN_CAST_INT_TYPES(cn_bits_i8, CTYPE, CNTYPE)                                       \
   CN_GEN_CAST_INT_TYPES(cn_bits_i16, CTYPE, CNTYPE)                                      \
