@@ -415,14 +415,14 @@ char* bennet_rand_to_str(bennet_rand_checkpoint checkpoint) {
   }
 
   if (curr != NULL) {
-    sprintf(buf, "%" PRIu64, curr->choice);
+    snprintf(buf, bytes, "%" PRIu64, curr->choice);
 
     curr = curr->next;
   }
 
   while (curr != NULL) {
     char* tmp = malloc(21);
-    sprintf(tmp, ", %" PRIu64, curr->choice);
+    snprintf(tmp, 21, ", %" PRIu64, curr->choice);
     strcat(buf, tmp);
     free(tmp);
 
