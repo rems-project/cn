@@ -294,102 +294,89 @@ let is_representable_integer arg ity =
     here
 
 
-let eq_value_with f expr =
-  match f expr with
-  | Some y -> return (Some (expr, y))
-  | None ->
-    let@ group = value_eq_group None expr in
-    (match
-       List.find_opt (fun t -> Option.is_some (f t)) (EqTable.ITSet.elements group)
-     with
-     | Some x ->
-       let y = Option.get (f x) in
-       return (Some (x, y))
-     | None -> return None)
-
-
-let prefer_value_with f expr =
-  let@ r = eq_value_with (fun it -> if f it then Some () else None) expr in
-  match r with None -> return expr | Some (x, _) -> return x
-
-
-let try_prove_constant loc expr =
-  let@ known = eq_value_with IT.is_const expr in
-  match known with
-  | Some (it, _) -> return it
-  | None ->
-    (* backup strategy, try to figure out the single value *)
-    let fail2 msg =
-      fail (fun _ ->
-        { loc;
-          msg = Generic (!^"model constant calculation:" ^^^ !^msg) [@alert "-deprecated"]
-        })
-    in
-    let fail_on_none msg = function Some m -> return m | None -> fail2 msg in
-    let here = Locations.other __LOC__ in
-    let@ m = model_with loc (IT.bool_ true here) in
-    let@ m = fail_on_none "cannot get model" m in
-    let@ y = fail_on_none "cannot eval term" (Solver.eval (fst m) expr) in
-    let@ _ = fail_on_none "eval to non-constant term" (IT.is_const y) in
-    let eq = IT.eq_ (expr, y) here in
-    let@ provable = provable loc in
-    (match provable (LC.T eq) with
-     | `True ->
-       let@ () = add_c loc (LC.T eq) in
-       return y
-     | `False -> return expr)
+let unique_model loc t =
+  let@ provable = provable loc in
+  match provable (LC.T (bool_ false loc)) with
+  | `True -> return `Inconsistent_context
+  | `False ->
+    let@ model, qs = model () in
+    assert (List.is_empty qs);
+    let v = Option.get (Solver.eval model t) in
+    (match provable (LC.T (eq_ (v, t) loc)) with
+     | `True -> return (`Unique v)
+     | `False -> return `No_unique_model)
 
 
 let check_single_ct loc expr =
-  let@ _pointer = WellTyped.check_term loc BT.CType expr in
-  let@ t = try_prove_constant loc expr in
-  match IT.is_const t with
-  | Some (IT.CType_const ct, _) -> return ct
-  | Some _ -> assert false (* should be impossible given the type *)
+  let@ expr = WellTyped.check_term loc BT.CType expr in
+  match is_ctype_const expr with
+  | Some v -> return v
   | None ->
-    fail (fun _ ->
-      { loc;
-        msg =
-          Generic !^"use of non-constant ctype mucore expression" [@alert "-deprecated"]
-      })
+    let@ model = unique_model loc expr in
+    (match model with
+     | `Inconsistent_context -> assert false
+     | `Unique v -> return (Option.get (is_ctype_const v))
+     | `No_unique_model ->
+       fail (fun _ ->
+         { loc;
+           msg =
+             Generic !^"use of non-constant ctype mucore expression"
+             [@alert "-deprecated"]
+         }))
 
 
-let is_fun_addr global t =
-  match IT.is_sym t with
-  | Some (s, _) ->
-    if Global.is_fun_decl global s then
-      Some s
-    else
-      None
-  | _ -> None
+(* Assumes that only one of the `candidates` can apply. (Otherwise it selects
+   the first match.) *)
+let determined_as_one_of loc t candidates =
+  let@ provable = provable loc in
+  match provable (LC.T (bool_ false loc)) with
+  | `True -> return `Inconsistent_context
+  | `False ->
+    let@ model, qs = model () in
+    assert (List.is_empty qs);
+    let rec identify = function
+      | [] -> return `None_of_these
+      | (c, c_t) :: cs ->
+        let equality = eq_ (c_t, t) loc in
+        if Option.get (IT.is_bool (Option.get (Solver.eval model equality))) then (
+          match provable (LC.T equality) with
+          | `True -> return (`This c)
+          | `False -> identify cs)
+        else
+          identify cs
+    in
+    identify candidates
 
 
 let known_function_pointer loc p =
   let@ global = get_global () in
-  let@ already_known = eq_value_with (is_fun_addr global) p in
-  let@ () =
-    match already_known with
-    | Some _ -> (* no need to find more eqs *) return ()
-    | None ->
-      let@ global_funs = Global.get_fun_decls () in
-      let fun_addrs =
-        List.map (fun (sym, (loc, _, _)) -> IT.sym_ (sym, BT.(Loc ()), loc)) global_funs
-      in
-      test_value_eqs loc None p fun_addrs
-  in
-  let@ now_known = eq_value_with (is_fun_addr global) p in
-  match now_known with
-  | Some (_, sym) -> return sym
-  | None ->
-    fail (fun _ ->
-      { loc;
-        msg =
-          Generic
-            (Pp.item
-               "function pointer must be provably equal to a defined function"
-               (IT.pp p))
-          [@alert "-deprecated"]
-      })
+  match IT.is_sym p with
+  | Some (s, _) when Global.is_fun_decl global s ->
+    (* the function pointer is a known constant *)
+    return (`Known s)
+  | _ ->
+    let@ global_funs = Global.get_fun_decls () in
+    let function_addrs =
+      List.map
+        (fun (sym, (loc, _, _)) ->
+           let t = IT.sym_ (sym, BT.(Loc ()), loc) in
+           (sym, t))
+        global_funs
+    in
+    let@ o = determined_as_one_of loc p function_addrs in
+    (match o with
+     | `This s -> return (`Known s)
+     | `None_of_these ->
+       fail (fun _ ->
+         { loc;
+           msg =
+             Generic
+               (Pp.item
+                  "Function pointer must be provably equal to a defined function."
+                  (IT.pp p))
+             [@alert "-deprecated"]
+         })
+     | `Inconsistent_context -> return `Inconsistent_context)
 
 
 let check_conv_int loc ~expect ct arg =
@@ -789,18 +776,21 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
     let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe2) in
     let@ ptr = check_pexpr pe2 in
     (* function vals are just symbols the same as the names of functions *)
-    let@ sym = known_function_pointer loc ptr in
-    (* need to conjure up the characterising 4-tuple *)
-    let@ _, _, c_sig = Global.get_fun_decl loc sym in
-    (match IT.const_of_c_sig c_sig loc with
-     | Some it -> return it
-     | None ->
-       fail (fun _ ->
-         { loc;
-           msg =
-             Generic (!^"unsupported c-type in sig of:" ^^^ Sym.pp sym)
-             [@alert "-deprecated"]
-         }))
+    let@ known = known_function_pointer loc ptr in
+    (match known with
+     | `Inconsistent_context -> assert false
+     | `Known sym ->
+       (* need to conjure up the characterising 4-tuple *)
+       let@ _, _, c_sig = Global.get_fun_decl loc sym in
+       (match IT.const_of_c_sig c_sig loc with
+        | Some it -> return it
+        | None ->
+          fail (fun _ ->
+            { loc;
+              msg =
+                Generic (!^"unsupported c-type in sig of:" ^^^ Sym.pp sym)
+                [@alert "-deprecated"]
+            })))
   | PEmemberof _ -> Cerb_debug.error "todo: PEmemberof"
   | PEbool_to_integer pe ->
     let@ _ = ensure_bitvector_type loc ~expect in
@@ -1777,41 +1767,43 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        (* in *)
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr f_pe) in
        check_pexpr f_pe (fun f_it ->
-         let@ _global = get_global () in
-         let@ fsym = known_function_pointer loc f_it in
-         let@ _loc, opt_ft, _ = Global.get_fun_decl loc fsym in
-         let@ ft =
-           match opt_ft with
-           | Some ft -> return ft
-           | None ->
-             fail (fun _ ->
-               { loc;
-                 msg =
-                   Generic (!^"Call to function with no spec:" ^^^ Sym.pp fsym)
-                   [@alert "-deprecated"]
-               })
-         in
-         let ghost_loc, its =
-           match gargs_opt with
-           | None -> (loc, [])
-           | Some (ghost_loc, gargs) -> (ghost_loc, gargs)
-         in
-         let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
-         let its = List.map snd its in
-         (* checks pes against their annotations, and that they match ft's argument types *)
-         Spine.calltype_ft
-           loc
-           ~fsym
-           pes
-           (Some (ghost_loc, its))
-           ft
-           (fun (Computational ((_, bt), _, _) as rt) ->
-              let@ () = WellTyped.ensure_base_type loc ~expect bt in
-              let@ _, members =
-                make_return_record loc (call_prefix (FunctionCall fsym)) (RT.binders rt)
-              in
-              let@ lvt = bind_return loc members rt in
-              k lvt))
+         let@ known = known_function_pointer loc f_it in
+         match known with
+         | `Inconsistent_context -> return ()
+         | `Known fsym ->
+           let@ _loc, opt_ft, _ = Global.get_fun_decl loc fsym in
+           let@ ft =
+             match opt_ft with
+             | Some ft -> return ft
+             | None ->
+               fail (fun _ ->
+                 { loc;
+                   msg =
+                     Generic (!^"Call to function with no spec:" ^^^ Sym.pp fsym)
+                     [@alert "-deprecated"]
+                 })
+           in
+           let ghost_loc, its =
+             match gargs_opt with
+             | None -> (loc, [])
+             | Some (ghost_loc, gargs) -> (ghost_loc, gargs)
+           in
+           let@ its = ListM.mapM (cn_prog_sub_let IT.subst) its in
+           let its = List.map snd its in
+           (* checks pes against their annotations, and that they match ft's argument types *)
+           Spine.calltype_ft
+             loc
+             ~fsym
+             pes
+             (Some (ghost_loc, its))
+             ft
+             (fun (Computational ((_, bt), _, _) as rt) ->
+                let@ () = WellTyped.ensure_base_type loc ~expect bt in
+                let@ _, members =
+                  make_return_record loc (call_prefix (FunctionCall fsym)) (RT.binders rt)
+                in
+                let@ lvt = bind_return loc members rt in
+                k lvt))
      | Eif (c_pe, e1, e2) ->
        let@ () =
          WellTyped.ensure_base_type (Mu.loc_of_expr e1) ~expect (Mu.bt_of_expr e1)

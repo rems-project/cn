@@ -464,6 +464,8 @@ let is_pred_ = function IT (Apply (name, args), _, _) -> Some (name, args) | _ -
 
 let is_member = function IT (StructMember (it, id), _, _) -> Some (it, id) | _ -> None
 
+let is_ctype_const = function IT (Const (CType_const ct), _, _) -> Some ct | _ -> None
+
 (* shorthands *)
 
 let use_vip = ref true
