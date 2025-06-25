@@ -186,17 +186,17 @@ void* cn_ite(cn_bool* b, void* e1, void* e2) {
 }
 
 cn_map* map_create(void) {
-  return ht_create();
+  return ht_create(bump_alloc);
 }
 
 void initialise_ownership_ghost_state(void) {
   nr_owned_predicates = 0;
-  cn_ownership_global_ghost_state = ht_create();
+  cn_ownership_global_ghost_state = ht_create(fulminate_internal_alloc);
 }
 
 void free_ownership_ghost_state(void) {
   nr_owned_predicates = 0;
-  ht_destroy(cn_ownership_global_ghost_state);
+  ht_destroy(cn_ownership_global_ghost_state, fulminate_internal_alloc);
 }
 
 void initialise_ghost_stack_depth(void) {
@@ -288,10 +288,11 @@ int ownership_ghost_state_get(int64_t* address_key) {
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
   int* new_depth = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
   if (!new_depth) {
-    new_depth = fulminate_malloc(sizeof(int));
+    new_depth = (*fulminate_internal_alloc.malloc)(sizeof(int));
   }
   *new_depth = stack_depth_val;
-  ht_set(cn_ownership_global_ghost_state, address_key, new_depth);
+  ht_set(
+      cn_ownership_global_ghost_state, address_key, new_depth, fulminate_internal_alloc);
 }
 
 void ownership_ghost_state_remove(int64_t* address_key) {
@@ -468,7 +469,7 @@ _Bool is_mapped(void* ptr) {
 // }
 
 cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value) {
-  ht_set(m, &key->val, value);
+  ht_set(m, &key->val, value, bump_alloc);
   return m;
 }
 
@@ -480,7 +481,7 @@ cn_map* cn_map_deep_copy(cn_map* m1) {
   while (ht_next(&hti)) {
     int64_t* curr_key = hti.key;
     void* val = ht_get(m1, curr_key);
-    ht_set(m2, curr_key, val);
+    ht_set(m2, curr_key, val, bump_alloc);
   }
 
   return m2;
@@ -569,8 +570,9 @@ struct cn_error_message_info* make_error_message_info_entry(const char* function
     int line_number,
     char* cn_source_loc,
     struct cn_error_message_info* parent) {
-  struct cn_error_message_info* entry = (struct cn_error_message_info*)fulminate_malloc(
-      sizeof(struct cn_error_message_info));
+  struct cn_error_message_info* entry =
+      (struct cn_error_message_info*)(*fulminate_internal_alloc.malloc)(
+          sizeof(struct cn_error_message_info));
   entry->function_name = function_name;
   entry->file_name = file_name;
   entry->line_number = line_number;
@@ -612,7 +614,7 @@ void cn_pop_msg_info() {
   if (error_msg_info) {
     error_msg_info->child = NULL;
   }
-  fulminate_free(old);
+  (*fulminate_internal_alloc.free)(old);
 }
 
 static uint32_t cn_fls(uint32_t x) {

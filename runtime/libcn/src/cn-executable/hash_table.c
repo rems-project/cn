@@ -32,9 +32,9 @@ SOFTWARE.
 
 #define INITIAL_CAPACITY 16  // must not be zero
 
-hash_table* ht_create(void) {
+hash_table* ht_create(struct alloc_fns alloc) {
   // Allocate space for hash table struct.
-  hash_table* table = fulminate_malloc(sizeof(hash_table));
+  hash_table* table = (*alloc.malloc)(sizeof(hash_table));
   if (table == NULL) {
     return NULL;
   }
@@ -42,27 +42,27 @@ hash_table* ht_create(void) {
   table->capacity = INITIAL_CAPACITY;
 
   // Allocate (zero'd) space for entry buckets.
-  table->entries = fulminate_calloc(table->capacity, sizeof(ht_entry));
-  if (table->entries == NULL) {
-    fulminate_free(table);  // error, free table before we return!
-    return NULL;
-  }
+  table->entries = (*alloc.calloc)(table->capacity, sizeof(ht_entry));
+  // if (table->entries == NULL) {
+  //   fulminate_free(table);  // error, free table before we return!
+  //   return NULL;
+  // }
   return table;
 }
 
-void ht_destroy(hash_table* table) {
+void ht_destroy(hash_table* table, struct alloc_fns alloc) {
   if (table == NULL) {
     return;
   }
 
   // First free allocated keys.
   for (size_t i = 0; i < table->capacity; i++) {
-    fulminate_free((void*)table->entries[i].key);
+    (*alloc.free)((void*)table->entries[i].key);
   }
 
   // Then free entries array and table itself.
-  fulminate_free(table->entries);
-  fulminate_free(table);
+  (*alloc.free)(table->entries);
+  (*alloc.free)(table);
 }
 
 #define FNV_OFFSET 14695981039346656037U
@@ -100,15 +100,19 @@ void* ht_get(hash_table* table, int64_t* key) {
   return NULL;
 }
 
-int64_t* duplicate_key(int64_t* key) {
-  int64_t* new_key = fulminate_malloc(sizeof(int64_t));
+int64_t* duplicate_key(int64_t* key, struct alloc_fns alloc) {
+  int64_t* new_key = (*alloc.malloc)(sizeof(int64_t));
   *new_key = *key;
   return new_key;
 }
 
 // Internal function to set an entry (without expanding table).
-static int64_t* ht_set_entry(
-    ht_entry* entries, size_t capacity, int64_t* key, void* value, int* plength) {
+static int64_t* ht_set_entry(ht_entry* entries,
+    size_t capacity,
+    int64_t* key,
+    void* value,
+    int* plength,
+    struct alloc_fns alloc) {
   // AND hash with capacity-1 to ensure it's within entries array.
   uint64_t hash = hash_key(key);
   size_t index = (size_t)(hash & (uint64_t)(capacity - 1));
@@ -130,7 +134,7 @@ static int64_t* ht_set_entry(
 
   // Didn't find key, allocate+copy if needed, then insert it.
   if (plength != NULL) {
-    key = duplicate_key(key);
+    key = duplicate_key(key, alloc);
     if (key == NULL) {
       return NULL;
     }
@@ -143,13 +147,13 @@ static int64_t* ht_set_entry(
 
 // Expand hash table to twice its current size. Return true on success,
 // false if out of memory.
-static _Bool ht_expand(hash_table* table) {
+static _Bool ht_expand(hash_table* table, struct alloc_fns alloc) {
   // Allocate new entries array.
   size_t new_capacity = table->capacity * 2;
   if (new_capacity < table->capacity) {
     return 0;  // overflow (capacity would be too big)
   }
-  ht_entry* new_entries = fulminate_calloc(new_capacity, sizeof(ht_entry));
+  ht_entry* new_entries = (*alloc.calloc)(new_capacity, sizeof(ht_entry));
   if (new_entries == NULL) {
     return 0;
   }
@@ -158,18 +162,18 @@ static _Bool ht_expand(hash_table* table) {
   for (size_t i = 0; i < table->capacity; i++) {
     ht_entry entry = table->entries[i];
     if (entry.key != NULL) {
-      ht_set_entry(new_entries, new_capacity, entry.key, entry.value, NULL);
+      ht_set_entry(new_entries, new_capacity, entry.key, entry.value, NULL, alloc);
     }
   }
 
   // Free old entries array and update this table's details.
-  fulminate_free(table->entries);
+  (*alloc.free)(table->entries);
   table->entries = new_entries;
   table->capacity = new_capacity;
   return 1;
 }
 
-int64_t* ht_set(hash_table* table, int64_t* key, void* value) {
+int64_t* ht_set(hash_table* table, int64_t* key, void* value, struct alloc_fns alloc) {
   assert(value != NULL);
   if (value == NULL) {
     return NULL;
@@ -177,13 +181,13 @@ int64_t* ht_set(hash_table* table, int64_t* key, void* value) {
 
   // If length will exceed half of current capacity, expand it.
   if (table->length >= table->capacity / 2) {
-    if (!ht_expand(table)) {
+    if (!ht_expand(table, alloc)) {
       return NULL;
     }
   }
 
   // Set entry and update length.
-  return ht_set_entry(table->entries, table->capacity, key, value, &table->length);
+  return ht_set_entry(table->entries, table->capacity, key, value, &table->length, alloc);
 }
 
 int ht_size(hash_table* table) {
