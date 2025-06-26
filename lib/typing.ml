@@ -15,7 +15,6 @@ type s =
     past_models : (Solver.model_with_q * Context.t) list;
     found_equalities : EqTable.table;
     movable_indices : (Req.name * IT.t) list;
-    unfold_resources_required : bool;
     log : Explain.log
   }
 
@@ -26,7 +25,6 @@ let empty_s (c : Context.t) =
     past_models = [];
     found_equalities = EqTable.empty;
     movable_indices = [];
-    unfold_resources_required = false;
     log = []
   }
 
@@ -393,10 +391,6 @@ let remove_as = iterM remove_a
 
 (* similar but less boring functions, where components interact *)
 
-let set_unfold_resources () =
-  modify (fun s -> { s with unfold_resources_required = true })
-
-
 let add_l_value sym value info =
   let@ () = modify_typing_context (fun s -> Context.add_l_value sym value info s) in
   add_sym_eqs [ (sym, value) ]
@@ -443,32 +437,6 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   in
   let@ () = set_typing_context (Context.add_r loc (r, O oargs) s) in
   iterM (fun x -> add_c_internal (LC.T x)) pointer_facts
-
-
-let add_movable_index _loc (pred, ix) =
-  let@ ixs = get_movable_indices () in
-  let@ () = set_movable_indices ((pred, ix) :: ixs) in
-  set_unfold_resources ()
-
-
-let add_r loc re =
-  let@ () = add_r_internal loc re in
-  set_unfold_resources ()
-
-
-let add_rs loc rs =
-  let@ () = iterM (add_r_internal loc) rs in
-  set_unfold_resources ()
-
-
-let add_c _loc c =
-  let@ () = add_c_internal c in
-  set_unfold_resources ()
-
-
-let add_cs _loc cs =
-  let@ () = iterM add_c_internal cs in
-  set_unfold_resources ()
 
 
 (* functions to do with satisfying models *)
@@ -595,26 +563,6 @@ let bind_logical_return_internal loc =
     | _ -> assert false
   in
   fun members lrt -> aux members lrt
-
-
-let bind_logical_return loc members lrt =
-  let@ () = bind_logical_return_internal loc members lrt in
-  set_unfold_resources ()
-
-
-(* Same for return types *)
-let bind_return loc members (rt : ReturnTypes.t) =
-  match (members, rt) with
-  | member :: members, Computational ((s, bt), _, lrt) ->
-    let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in
-    let@ () =
-      bind_logical_return
-        loc
-        members
-        (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    in
-    return member
-  | _ -> assert false
 
 
 (* functions for resource inference *)
@@ -752,7 +700,6 @@ let do_unfold_resources loc =
   in
   let@ c = get_typing_context () in
   let@ changed = aux [] in
-  let@ () = modify (fun s -> { s with unfold_resources_required = false }) in
   match changed with
   | [] -> return ()
   | _ ->
@@ -762,56 +709,78 @@ let do_unfold_resources loc =
     return ()
 
 
-let sync_unfold_resources loc =
-  let@ needed = inspect (fun s -> s.unfold_resources_required) in
-  if not needed then
-    return ()
-  else
-    do_unfold_resources loc
+let provable loc = provable_internal loc
+
+let add_movable_index loc (pred, ix) =
+  let@ ixs = get_movable_indices () in
+  let@ () = set_movable_indices ((pred, ix) :: ixs) in
+  do_unfold_resources loc
 
 
-(* functions exposed outside this module that may need to apply resource unfolding using
-   sync_unfold_resources *)
-
-let provable loc =
-  let@ () = sync_unfold_resources loc in
-  provable_internal loc
+let bind_logical_return loc members lrt =
+  let@ () = bind_logical_return_internal loc members lrt in
+  do_unfold_resources loc
 
 
-let all_resources_tagged loc =
-  let@ () = sync_unfold_resources loc in
+(* Same for return types *)
+let bind_return loc members (rt : ReturnTypes.t) =
+  match (members, rt) with
+  | member :: members, Computational ((s, bt), _, lrt) ->
+    let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in
+    let@ () =
+      bind_logical_return
+        loc
+        members
+        (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
+    in
+    return member
+  | _ -> assert false
+
+
+let add_r loc re =
+  let@ () = add_r_internal loc re in
+  do_unfold_resources loc
+
+
+let add_rs loc rs =
+  let@ () = iterM (add_r_internal loc) rs in
+  do_unfold_resources loc
+
+
+let add_c loc c =
+  let@ () = add_c_internal c in
+  do_unfold_resources loc
+
+
+let add_cs loc cs =
+  let@ () = iterM add_c_internal cs in
+  do_unfold_resources loc
+
+
+let all_resources_tagged _loc =
   let@ s = get_typing_context () in
   return s.resources
 
 
-let all_resources loc =
-  let@ () = sync_unfold_resources loc in
+let all_resources _loc =
   let@ s = get_typing_context () in
   return (Context.get_rs s)
 
 
-let res_history loc i =
-  let@ () = sync_unfold_resources loc in
+let res_history _loc i =
   let@ s = get_typing_context () in
   return (Context.res_history s i)
 
 
-let map_and_fold_resources loc f acc =
-  let@ () = sync_unfold_resources loc in
-  map_and_fold_resources_internal loc f acc
+let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 
-
-let prev_models_with loc prop =
-  let@ () = sync_unfold_resources loc in
+let prev_models_with _loc prop =
   let@ ms = get_just_models () in
   let@ has_prop = model_has_prop () in
   return (List.filter (has_prop prop) ms)
 
 
-let _model_with loc prop =
-  let@ () = sync_unfold_resources loc in
-  model_with_internal loc prop
-
+let _model_with loc prop = model_with_internal loc prop
 
 (* auxiliary functions for diagnostics *)
 
