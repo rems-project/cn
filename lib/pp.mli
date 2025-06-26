@@ -240,12 +240,6 @@ val times : (out_channel * string * int) option ref
 
 val wrap : string -> string
 
-val write_time_log_start : string -> string -> unit
-
-val write_time_log_end : float option -> unit
-
-val write_time_log_final : unit -> unit
-
 val maybe_open_times_channel : (string * String.t) option -> unit
 
 val maybe_close_times_channel : unit -> unit
@@ -316,15 +310,9 @@ val debug : int -> document Lazy.t -> unit
 
 val warn_noloc : Cerb_pp_prelude.P.document -> unit
 
-val time_f_elapsed : ('a -> 'b) -> 'a -> float * 'b
-
-val time_f_debug : int -> string -> ('a -> 'b) -> 'a -> 'b
-
 val time_log_start : string -> string -> float
 
 val time_log_end : float -> unit
-
-val time_f_logs : Locations.t -> int -> string -> ('a -> 'b) -> 'a -> 'b
 
 val error : Locations.t -> document -> document list -> unit
 

@@ -222,22 +222,6 @@ let debug l pp =
 
 let warn_noloc pp = print stderr (format [ Bold; Yellow ] "Warning:" ^^^ pp)
 
-let time_f_elapsed f x =
-  let start = Unix.gettimeofday () in
-  let y = f x in
-  let fin = Unix.gettimeofday () in
-  let d = fin -. start in
-  (d, y)
-
-
-let time_f_debug level msg f x =
-  if !print_level >= level then (
-    let d, y = time_f_elapsed f x in
-    debug level (lazy (format [] (msg ^ ": elapsed: " ^ Float.to_string d)));
-    y)
-  else
-    f x
-
 
 let time_log_start kind detail =
   match !times with
@@ -254,22 +238,6 @@ let time_log_end prev_time =
     let d = fin_time -. prev_time in
     write_time_log_end (Some d)
   | _ -> ()
-
-
-let time_f_logs (loc : Locations.t) level msg f x =
-  match !times with
-  | Some (channel, style, _) ->
-    let _ = time_log_start msg "" in
-    let d, y = time_f_elapsed f x in
-    (match (Locations.line_numbers loc, style) with
-     | Some (l1, l2), "csv" -> Printf.fprintf channel "%d, %d, %f\n" l1 l2 d
-     | _, "csv" -> Printf.fprintf channel "None, None, %f\n" d
-     | _, "log" -> write_time_log_end (Some d)
-     | _ -> ());
-    flush channel;
-    debug level (lazy (format [] (msg ^ ": elapsed: " ^ Float.to_string d)));
-    y
-  | _ -> time_f_debug level msg f x
 
 
 (* stealing some logic from pp_errors *)
