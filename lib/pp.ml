@@ -222,7 +222,6 @@ let debug l pp =
 
 let warn_noloc pp = print stderr (format [ Bold; Yellow ] "Warning:" ^^^ pp)
 
-
 let time_log_start kind detail =
   match !times with
   | Some (_channel, "log", _) ->
