@@ -156,7 +156,7 @@ void bennet_failure_set_allocation_needed(size_t sz) {
   failure.body.allocation.allocate_more_than = sz;
 }
 
-size_t bennet_failure_get_allocation_needed() {
+size_t bennet_failure_get_allocation_needed(void) {
   assert(failure.type == BENNET_BACKTRACK_ALLOC);
   return failure.body.allocation.allocate_more_than;
 }

@@ -359,7 +359,7 @@ uint64_t bennet_rand(void) {
   }
 }
 
-uint64_t bennet_rand_retry() {
+uint64_t bennet_rand_retry(void) {
   uint64_t choice = genrand();
 
   struct choice_list* next = (choice_history != 0) ? choice_history->next : 0;

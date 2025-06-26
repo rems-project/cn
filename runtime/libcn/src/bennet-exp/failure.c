@@ -163,7 +163,7 @@ void bennet_failure_set_offset_bounds(void* p_alloc, void* p, size_t bytes) {
   failure.body.allocation.is_null = false;
 }
 
-void bennet_failure_set_should_be_null() {
+void bennet_failure_set_should_be_null(void) {
   failure.type = BENNET_BACKTRACK_ALLOC;
   failure.body.allocation.lower_offset_bound = 0;
   failure.body.allocation.upper_offset_bound = 0;

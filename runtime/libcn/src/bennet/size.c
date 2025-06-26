@@ -23,11 +23,11 @@ void bennet_set_max_size(size_t sz) {
 static uint16_t stack_depth = 0;
 static uint16_t max_stack_depth = UINT8_MAX;
 
-uint16_t bennet_depth() {
+uint16_t bennet_depth(void) {
   return stack_depth;
 }
 
-uint16_t bennet_max_depth() {
+uint16_t bennet_max_depth(void) {
   return max_stack_depth;
 }
 
@@ -35,11 +35,11 @@ void bennet_set_max_depth(uint16_t msd) {
   max_stack_depth = msd;
 }
 
-void bennet_increment_depth() {
+void bennet_increment_depth(void) {
   stack_depth++;
 }
 
-void bennet_decrement_depth() {
+void bennet_decrement_depth(void) {
   stack_depth--;
 }
 
@@ -49,7 +49,7 @@ void bennet_set_size_split_backtracks_allowed(uint16_t allowed) {
   size_split_backtracks_allowed = allowed;
 }
 
-uint16_t bennet_get_size_split_backtracks_allowed() {
+uint16_t bennet_get_size_split_backtracks_allowed(void) {
   return size_split_backtracks_allowed;
 }
 

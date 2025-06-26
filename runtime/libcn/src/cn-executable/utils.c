@@ -301,7 +301,7 @@ void ownership_ghost_state_remove(int64_t* address_key) {
   ownership_ghost_state_set(address_key, -1);
 }
 
-void dump_ownership_state() {
+void dump_ownership_state(void) {
   hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
   // cn_printf(CN_LOGGING_INFO, "BEGIN ownership state\n");
   while (ht_next(&it)) {
@@ -599,17 +599,17 @@ void initialise_error_msg_info_(
       make_error_message_info_entry(function_name, file_name, line_number, 0, NULL);
 }
 
-void reset_error_msg_info() {
+void reset_error_msg_info(void) {
   error_msg_info = NULL;
 }
 
-void free_error_msg_info() {
+void free_error_msg_info(void) {
   while (error_msg_info != NULL) {
     cn_pop_msg_info();
   }
 }
 
-void cn_pop_msg_info() {
+void cn_pop_msg_info(void) {
   struct cn_error_message_info* old = error_msg_info;
   error_msg_info = old->parent;
   if (error_msg_info) {
