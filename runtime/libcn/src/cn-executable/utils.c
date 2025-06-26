@@ -49,6 +49,7 @@ void cn_failure_default(enum cn_failure_mode failure_mode, enum spec_mode spec_m
   switch (failure_mode) {
     case CN_FAILURE_ALLOC:
       printf("Out of memory!");
+      fallthrough;
     case CN_FAILURE_ASSERT:
     case CN_FAILURE_CHECK_OWNERSHIP:
     case CN_FAILURE_OWNERSHIP_LEAK:
@@ -359,20 +360,17 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
   nr_owned_predicates++;
   if (!is_wildcard(generic_c_ptr, (int)size)) {
     switch (spec_mode) {
-      case PRE: {
+      case PRE:
         cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
         break;
-      }
-      case POST: {
+      case POST:
         cn_put_ownership(generic_c_ptr, size);
         break;
-      }
-      case LOOP: {
+      case LOOP:
         cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
-      }
-      default: {
+        fallthrough;
+      default:
         break;
-      }
     }
   }
 }

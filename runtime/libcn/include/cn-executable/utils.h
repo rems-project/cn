@@ -7,6 +7,8 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 
+#define fallthrough __attribute__((__fallthrough__))
+
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
     printf(__VA_ARGS__);                                                                 \
