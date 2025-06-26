@@ -20,7 +20,7 @@ signed long nr_owned_predicates;
 
 static signed long WILDCARD_DEPTH = INT_MAX - 1;
 
-static struct alloc_fns bump_alloc = (struct alloc_fns){
+static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
 
 void reset_fulminate(void) {
@@ -194,7 +194,7 @@ cn_map* map_create(void) {
 
 void initialise_ownership_ghost_state(void) {
   nr_owned_predicates = 0;
-  cn_ownership_global_ghost_state = ht_create(&fulminate_internal_alloc);
+  cn_ownership_global_ghost_state = ht_create(&fulm_default_alloc);
 }
 
 void free_ownership_ghost_state(void) {
@@ -291,7 +291,7 @@ int ownership_ghost_state_get(int64_t* address_key) {
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
   int* new_depth = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
   if (!new_depth) {
-    new_depth = (*fulminate_internal_alloc.malloc)(sizeof(int));
+    new_depth = fulm_malloc(sizeof(int), &fulm_default_alloc);
   }
   *new_depth = stack_depth_val;
   ht_set(cn_ownership_global_ghost_state, address_key, new_depth);
@@ -573,8 +573,7 @@ struct cn_error_message_info* make_error_message_info_entry(const char* function
     char* cn_source_loc,
     struct cn_error_message_info* parent) {
   struct cn_error_message_info* entry =
-      (struct cn_error_message_info*)(*fulminate_internal_alloc.malloc)(
-          sizeof(struct cn_error_message_info));
+      fulm_malloc(sizeof(struct cn_error_message_info), &fulm_default_alloc);
   entry->function_name = function_name;
   entry->file_name = file_name;
   entry->line_number = line_number;
@@ -616,7 +615,7 @@ void cn_pop_msg_info() {
   if (error_msg_info) {
     error_msg_info->child = NULL;
   }
-  (*fulminate_internal_alloc.free)(old);
+  fulm_free(old, &fulm_default_alloc);
 }
 
 static uint32_t cn_fls(uint32_t x) {

@@ -209,8 +209,8 @@ CN_REPLICATE_BITS(u64);
 
 void cn_replica_alloc_reset(void) {
   // First pass
-  alloc_sizes = ht_create(&fulminate_internal_alloc);
+  alloc_sizes = ht_create(&fulm_default_alloc);
 
   // Second pass
-  allocated = ht_create(&fulminate_internal_alloc);
+  allocated = ht_create(&fulm_default_alloc);
 }

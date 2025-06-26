@@ -445,10 +445,10 @@ cn_bool *default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
-    int64_t *key_ptr = (*fulminate_internal_alloc.malloc)(sizeof(int64_t));              \
+    int64_t *key_ptr = fulm_malloc(sizeof(int64_t), &fulm_default_alloc);                \
     *key_ptr = key->val;                                                                 \
     void *res = ht_get(m, key_ptr);                                                      \
-    (*fulminate_internal_alloc.free)(key_ptr);                                           \
+    fulm_free(key_ptr, &fulm_default_alloc);                                             \
     if (!res) {                                                                          \
       return (void *)default_##CNTYPE();                                                 \
     }                                                                                    \
