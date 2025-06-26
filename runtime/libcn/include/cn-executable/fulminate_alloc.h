@@ -11,13 +11,17 @@ extern "C" {
 
 #include "rts_deps.h"
 
-struct alloc_fns {
+typedef struct allocator {
   void *(*malloc)(size_t size);
   void *(*calloc)(size_t count, size_t size);
   void (*free)(void *p);
-};
+} allocator;
 
-extern struct alloc_fns fulminate_internal_alloc;
+extern allocator flm_default_alloc;
+
+void *flm_malloc(size_t size, allocator *alloc);
+void *flm_calloc(size_t count, size_t size, allocator *alloc);
+void flm_free(void *p, allocator *alloc);
 
 #ifdef __cplusplus
 }

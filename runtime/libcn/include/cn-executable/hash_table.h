@@ -42,15 +42,15 @@ typedef struct {
 
 // Hash table structure: create with ht_create, free with ht_destroy.
 struct hash_table {
-  ht_entry* entries;        // hash slots
-  int capacity;             // size of _entries array
-  int length;               // number of items in hash table
-  struct alloc_fns *alloc;  // the allocator
+  ht_entry* entries;  // hash slots
+  int capacity;       // size of _entries array
+  int length;         // number of items in hash table
+  allocator* alloc;   // the allocator
 };
 
 typedef struct hash_table hash_table;
 
-hash_table* ht_create(struct alloc_fns*);
+hash_table* ht_create(allocator*);
 
 void ht_destroy(hash_table* table);
 
