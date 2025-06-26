@@ -12,9 +12,13 @@ void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info) {
   timing_events_t *timings = bennet_info_timing_get_last();
 
   // Build timing JSON object by iterating over the hashtable
-  char timing_json[4096] = "";
+  const size_t timing_json_size = 2048;
+  char *timing_json = malloc(timing_json_size);
+  assert(timing_json);
+
+  timing_json[0] = '\0';
   char *timing_ptr = timing_json;
-  size_t timing_remaining = sizeof(timing_json);
+  size_t timing_remaining = timing_json_size;
   bool first = true;
 
   if (timings) {
