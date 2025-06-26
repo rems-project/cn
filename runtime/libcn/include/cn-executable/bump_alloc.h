@@ -19,7 +19,7 @@ void* cn_bump_malloc(size_t nbytes);
 
 void* cn_bump_calloc(size_t count, size_t size);
 
-void cn_bump_free_all();
+void cn_bump_free_all(void);
 
 typedef struct {
   uint16_t block;
@@ -32,7 +32,7 @@ void cn_bump_free_after(cn_bump_frame_id frame_id);
 
 void cn_bump_free(void*);
 
-void cn_bump_print();
+void cn_bump_print(void);
 
 void cn_bump_set_max_blocks(size_t max);
 
