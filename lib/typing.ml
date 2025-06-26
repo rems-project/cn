@@ -391,9 +391,6 @@ let remove_as = iterM remove_a
 
 (* similar but less boring functions, where components interact *)
 
-
-
-
 let add_l_value sym value info =
   let@ () = modify_typing_context (fun s -> Context.add_l_value sym value info s) in
   add_sym_eqs [ (sym, value) ]
@@ -440,9 +437,6 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   in
   let@ () = set_typing_context (Context.add_r loc (r, O oargs) s) in
   iterM (fun x -> add_c_internal (LC.T x)) pointer_facts
-
-
-
 
 
 (* functions to do with satisfying models *)
@@ -569,9 +563,6 @@ let bind_logical_return_internal loc =
     | _ -> assert false
   in
   fun members lrt -> aux members lrt
-
-
-
 
 
 (* functions for resource inference *)
@@ -718,14 +709,7 @@ let do_unfold_resources loc =
     return ()
 
 
-
-
-
-
-
-let provable loc =
-  provable_internal loc
-
+let provable loc = provable_internal loc
 
 let add_movable_index loc (pred, ix) =
   let@ ixs = get_movable_indices () in
@@ -788,9 +772,7 @@ let res_history _loc i =
   return (Context.res_history s i)
 
 
-let map_and_fold_resources loc f acc =
-  map_and_fold_resources_internal loc f acc
-
+let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 
 let prev_models_with _loc prop =
   let@ ms = get_just_models () in
@@ -798,9 +780,7 @@ let prev_models_with _loc prop =
   return (List.filter (has_prop prop) ms)
 
 
-let _model_with loc prop =
-  model_with_internal loc prop
-
+let _model_with loc prop = model_with_internal loc prop
 
 (* auxiliary functions for diagnostics *)
 
