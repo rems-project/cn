@@ -17,12 +17,16 @@ let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * IT.
       else
         let@ gt_rest, it = aux gt_rest in
         return (Term.let_star_ ((x, gt_inner), gt_rest) loc, it)
-    | Assert (T (IT (Binop (EQ, IT (Sym x', _, _), it), _, _)), gt_rest)
+    | Assert (T (IT (Binop (EQ, IT (Sym x', bt, _), it), _, _)), gt_rest)
+    | Assert
+        (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x', bt, _)), _, _), it), _, _)), gt_rest)
       when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
-      return (gt_rest, it)
-    | Assert (T (IT (Binop (EQ, it, IT (Sym x', _, _)), _, _)), gt_rest)
+      return (gt_rest, IT.cast_ bt it (IT.get_loc it))
+    | Assert (T (IT (Binop (EQ, it, IT (Sym x', bt, _)), _, _)), gt_rest)
+    | Assert
+        (T (IT (Binop (EQ, it, IT (Cast (_, IT (Sym x', bt, _)), _, _)), _, _)), gt_rest)
       when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
-      return (gt_rest, it)
+      return (gt_rest, IT.cast_ bt it (IT.get_loc it))
     | Assert (lc, gt_rest) ->
       let@ gt_rest, it = aux gt_rest in
       return (Term.assert_ (lc, gt_rest) loc, it)
