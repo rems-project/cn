@@ -497,7 +497,7 @@ type solver_log =
 type solver_config =
   { exe : string;
     opts : string list;
-    params : (string * string) list;
+    setup : Sexp.t list; (* setup commands *)
     (* (parameter name * setting) list, the name without leading colon *)
     exts : solver_extensions;
     log : solver_log
@@ -821,9 +821,7 @@ let new_solver (cfg : solver_config) : solver =
   in
   ack_command s (set_option ":print-success" "true");
   ack_command s (set_option ":produce-models" "true");
-  List.iter
-    (fun (name, setting) -> ack_command s (set_option (":" ^ name) setting))
-    cfg.params;
+  List.iter (ack_command s) cfg.setup;
   Gc.finalise (fun me -> me.stop ()) s;
   s
 
@@ -902,13 +900,20 @@ let cvc5 : solver_config =
     (* opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_AUFBVDTLIA" ]; *)
     (* NOTE cvc5 1.2.1 renamed --sets-ext to --sets-exp *)
     opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_ALL" ];
-    params = [];
+    setup = [];
     exts = CVC5;
     log = quiet_log
   }
 
 
 let z3 : solver_config =
-  (* let params = [ ("sat.smt", "true") ] in *)
-  let params = [ ("smt.relevancy", "0") ] in
-  { exe = "z3"; opts = [ "-in"; "-smt2" ]; params; exts = Z3; log = quiet_log }
+  let setup = [
+      set_option ":auto_config" "false";
+      set_option ":smt.relevancy" "0";
+      (* set_option ":sat.smt" "true"; *) (* not ready for use just yet -- see Z3 github issue tracker *)
+      (* set_option ":combined_solver.solver2_timeout" "500"; *)
+      (* set_option ":combined_solver.solver2_unknown" "2"; *)
+      (* list [atom "set-simplifier"; simple_command ["then"; "simplify"; "propagate-values"; "solve-eqs";]] *)
+    ]
+  in
+  { exe = "z3"; opts = [ "-in"; "-smt2" ]; setup; exts = Z3; log = quiet_log }
