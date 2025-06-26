@@ -205,7 +205,8 @@ MULT_GEN(64);
 void bennet_shuffle(void* arr, size_t len, size_t size) {
   // byte size is implementation-defined (6.5.3.4, bullet 2)
   // but `sizeof(char) == 1` is guaranteed.
-  char tmp[size];
+  char* tmp = malloc(size);
+  assert(tmp);
 
   for (int i = len - 1; i >= 0; i--) {
     uint8_t j = bennet_range_uint8_t(0, i + 1);
@@ -213,6 +214,8 @@ void bennet_shuffle(void* arr, size_t len, size_t size) {
     memcpy(arr + i * size, arr + j * size, size);
     memcpy(arr + j * size, tmp, size);
   }
+
+  free(tmp);
 }
 
 void bennet_split(size_t n, size_t* arr[], size_t len) {

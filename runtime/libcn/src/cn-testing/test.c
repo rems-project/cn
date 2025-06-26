@@ -386,8 +386,12 @@ int cn_test_main(int argc, char* argv[]) {
   bennet_srand(seed);
   bennet_rand();  // Junk to get something to make a checkpoint from
 
-  struct cn_test_reproduction repros[CN_TEST_MAX_TEST_CASES];
-  enum cn_test_result results[CN_TEST_MAX_TEST_CASES];
+  struct cn_test_reproduction* repros =
+      calloc(CN_TEST_MAX_TEST_CASES, sizeof(struct cn_test_reproduction));
+  assert(repros);
+  enum cn_test_result* results =
+      malloc(CN_TEST_MAX_TEST_CASES * sizeof(enum cn_test_result));
+  assert(results);
   memset(results, CN_TEST_SKIP, CN_TEST_MAX_TEST_CASES * sizeof(enum cn_test_result));
 
   int timediff = 0;
@@ -569,6 +573,9 @@ outside_loop:;
 
     bennet_info_timing_print_info();
   }
+
+  free(repros);
+  free(results);
 
   // Clean up test filter hash table
   bennet_hash_table_free(const_char_ptr, uint8_t)(&test_filter);
