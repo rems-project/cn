@@ -907,10 +907,11 @@ let cvc5 : solver_config =
 
 
 let z3 : solver_config =
-  let setup = [
-      set_option ":auto_config" "false";
-      set_option ":smt.relevancy" "0";
-      (* set_option ":sat.smt" "true"; *) (* not ready for use just yet -- see Z3 github issue tracker *)
+  let setup =
+    [ set_option ":auto_config" "false";
+      set_option ":smt.relevancy" "0"
+      (* set_option ":sat.smt" "true"; *)
+      (* not ready for use just yet -- see Z3 github issue tracker *)
       (* set_option ":combined_solver.solver2_timeout" "500"; *)
       (* set_option ":combined_solver.solver2_unknown" "2"; *)
       (* list [atom "set-simplifier"; simple_command ["then"; "simplify"; "propagate-values"; "solve-eqs";]] *)
