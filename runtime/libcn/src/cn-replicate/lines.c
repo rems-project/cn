@@ -21,7 +21,7 @@ void cn_replica_lines_append(char *line) {
   bennet_vector_push(str)(&lines_vec, line);
 }
 
-void cn_replica_lines_reset() {
+void cn_replica_lines_reset(void) {
   for (size_t i = 0; i < bennet_vector_size(str)(&lines_vec); i++) {
     // free(lines_vec.data[i]); // TODO: free lines
   }
@@ -29,7 +29,7 @@ void cn_replica_lines_reset() {
   bennet_vector_init(str)(&lines_vec);
 }
 
-char *cn_replica_lines_to_str() {
+char *cn_replica_lines_to_str(void) {
   size_t num_lines = bennet_vector_size(str)(&lines_vec);
 
   size_t sz = 0;
@@ -50,7 +50,7 @@ char *cn_replica_lines_to_str() {
   return res;
 }
 
-char *cn_replica_lines_to_json_literal() {
+char *cn_replica_lines_to_json_literal(void) {
   size_t num_lines = bennet_vector_size(str)(&lines_vec);
 
   size_t sz = 0;

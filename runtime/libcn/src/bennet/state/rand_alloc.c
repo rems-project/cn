@@ -31,7 +31,7 @@ static size_t rand_alloc_mem_size = (1024 * 1024 * 32);  // 32 MB default
 static rand_alloc global_rand_alloc;
 
 // Initialize the allocator
-static void bennet_rand_alloc_init() {
+static void bennet_rand_alloc_init(void) {
   if (global_rand_alloc.buffer != NULL) {
     return;
   }

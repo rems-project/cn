@@ -6,9 +6,9 @@ extern "C" {
 #endif
 
 void cn_replica_lines_append(char *line);
-void cn_replica_lines_reset();
-char *cn_replica_lines_to_str();
-char *cn_replica_lines_to_json_literal();
+void cn_replica_lines_reset(void);
+char *cn_replica_lines_to_str(void);
+char *cn_replica_lines_to_json_literal(void);
 
 #ifdef __cplusplus
 }

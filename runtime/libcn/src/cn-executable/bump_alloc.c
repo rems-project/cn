@@ -37,7 +37,7 @@ void cn_bump_fprint(FILE* file) {}
 void cn_bump_print() {}
 #endif
 
-void cn_bump_init() {
+void cn_bump_init(void) {
   if (bump_curr == NULL) {
     // Allocate initial array of block pointers
     bump_blocks_capacity = max_bump_blocks;
@@ -72,7 +72,7 @@ bool bump_can_fit(size_t nbytes) {
   return 1;
 }
 
-bool bump_expand() {
+bool bump_expand(void) {
   // Check if we've reached the maximum number of blocks
   if (bump_curr_block + 1 >= max_bump_blocks) {
     cn_printf(CN_LOGGING_INFO,
