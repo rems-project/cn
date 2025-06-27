@@ -576,37 +576,27 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
   =
   let@ s = get_typing_context () in
   let@ provable_f = provable_internal loc in
-  let resources, orig_ix = s.resources in
-  let orig_hist = s.resource_history in
-  let resources, ix, hist, changed_or_deleted, acc =
+  let resources = s.resources in
+  let resources, acc =
     List.fold_right
-      (fun (re, i) (resources, ix, hist, changed_or_deleted, acc) ->
+      (fun re (resources, acc) ->
          let changed, acc = f re acc in
          match changed with
-         | Deleted ->
-           let ix, hist = Context.res_written loc i "deleted" (ix, hist) in
-           (resources, ix, hist, i :: changed_or_deleted, acc)
-         | Unchanged -> ((re, i) :: resources, ix, hist, changed_or_deleted, acc)
+         | Deleted -> (resources, acc)
+         | Unchanged -> (re :: resources, acc)
          | Changed re ->
-           let ix, hist = Context.res_written loc i "changed" (ix, hist) in
            (match re with
             | Q { q; permission; _ }, _ ->
               let here = Locations.other __LOC__ in
               (match provable_f (LC.forall_ q (IT.not_ permission here)) with
-               | `True -> (resources, ix, hist, i :: changed_or_deleted, acc)
-               | `False ->
-                 let ix, hist = Context.res_written loc ix "changed" (ix, hist) in
-                 ((re, ix) :: resources, ix + 1, hist, i :: changed_or_deleted, acc))
-            | _ ->
-              let ix, hist = Context.res_written loc ix "changed" (ix, hist) in
-              ((re, ix) :: resources, ix + 1, hist, i :: changed_or_deleted, acc)))
+               | `True -> (resources, acc)
+               | `False -> (re :: resources, acc))
+            | _ -> (re :: resources, acc)))
       resources
-      ([], orig_ix, orig_hist, [], acc)
+      ([], acc)
   in
-  let@ () =
-    set_typing_context { s with resources = (resources, ix); resource_history = hist }
-  in
-  return (acc, changed_or_deleted)
+  let@ () = set_typing_context { s with resources } in
+  return acc
 
 
 (* let get_movable_indices () = *)
@@ -619,8 +609,7 @@ let do_unfold_resources loc =
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
     let@ _provable_f = provable_internal (Locations.other __LOC__) in
-    let resources, orig_ix = s.resources in
-    let _orig_hist = s.resource_history in
+    let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
     let here = Locations.other __LOC__ in
     let@ true_m = model_with_internal loc (IT.bool_ true here) in
@@ -630,28 +619,28 @@ let do_unfold_resources loc =
       let@ provable_m, provable_f2 = prove_or_model_with_past_model loc model in
       let keep, unpack, extract =
         List.fold_right
-          (fun (re, i) (keep, unpack, extract) ->
+          (fun re (keep, unpack, extract) ->
              match Pack.unpack loc s.global provable_f2 re with
-             | Some unpackable -> (keep, (i, re, unpackable) :: unpack, extract)
+             | Some unpackable -> (keep, (re, unpackable) :: unpack, extract)
              | None ->
                let re_reduced, extracted =
                  Pack.extractable_multiple provable_m movable_indices re
                in
                let keep' =
                  match extracted with
-                 | [] -> (re_reduced, i) :: keep
+                 | [] -> re_reduced :: keep
                  | _ ->
                    (match Pack.resource_empty provable_f2 re_reduced with
                     | `Empty -> keep
-                    | `NonEmpty _ -> (re_reduced, i) :: keep)
+                    | `NonEmpty _ -> re_reduced :: keep)
                in
                (keep', unpack, extracted @ extract))
           resources
           ([], [], [])
       in
-      let@ () = set_typing_context { s with resources = (keep, orig_ix) } in
+      let@ () = set_typing_context { s with resources = keep } in
       let do_unpack = function
-        | _i, re, `LRT lrt ->
+        | re, `LRT lrt ->
           let pname = Req.get_name (fst re) in
           let@ _, members =
             make_return_record
@@ -662,7 +651,7 @@ let do_unfold_resources loc =
               (LogicalReturnTypes.binders lrt)
           in
           bind_logical_return_internal loc members lrt
-        | _i, re, `RES res ->
+        | re, `RES res ->
           let pname = Req.get_name (fst re) in
           let is_owned = match pname with Owned _ -> true | _ -> false in
           iterM (add_r_internal ~derive_constraints:(not is_owned) loc) res
@@ -677,7 +666,7 @@ let do_unfold_resources loc =
            if Prooflog.is_enabled () then (
              let converted_unpack =
                List.map
-                 (fun (_, re, unpackable) ->
+                 (fun (re, unpackable) ->
                     match unpackable with
                     | `LRT lrt -> (re, UnpackLRT lrt)
                     | `RES res ->
@@ -757,19 +746,9 @@ let add_cs loc cs =
   do_unfold_resources loc
 
 
-let all_resources_tagged _loc =
-  let@ s = get_typing_context () in
-  return s.resources
-
-
 let all_resources _loc =
   let@ s = get_typing_context () in
   return (Context.get_rs s)
-
-
-let res_history _loc i =
-  let@ s = get_typing_context () in
-  return (Context.res_history s i)
 
 
 let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc

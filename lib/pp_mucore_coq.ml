@@ -2190,7 +2190,10 @@ let pp_context (c : Context.t) =
       ( "Context.logical",
         pp_sym_map (pp_pair pp_basetype_or_value pp_context_l_info) c.logical );
       ( "Context.resources",
-        pp_pair (pp_list (pp_pair pp_resource pp_int)) pp_int c.resources );
+        pp_pair
+          (pp_list (pp_pair pp_resource pp_int))
+          pp_int
+          (List.map (fun re -> (re, 0)) c.resources, 0) );
       (*      ("resource_history", pp_map pp_int pp_resource_history c.resource_history); Ignore for now *)
       ( "Context.constraints",
         let l = LogicalConstraints.Set.elements c.constraints in

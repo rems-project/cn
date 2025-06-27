@@ -110,7 +110,7 @@ let argumentTypes i_welltyped i_pp kind loc at : unit Typing.t =
 
 let pure_and_no_initial_resources loc m =
   pure
-    (let@ (), _ = map_and_fold_resources loc (fun _re () -> (Deleted, ())) () in
+    (let@ () = map_and_fold_resources loc (fun _re () -> (Deleted, ())) () in
      m)
 
 

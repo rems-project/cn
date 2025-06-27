@@ -96,7 +96,6 @@ module General = struct
         (uiinfo : uiinfo)
         _original_resources
         ftyp
-        changed_or_deleted
     =
     (* take one step of the "spine" judgement, reducing a function-type by claiming an
        argument resource or otherwise reducing towards an instantiated return-type *)
@@ -128,21 +127,19 @@ module General = struct
               in
               { loc; msg })
           | `True -> assert false)
-       | Some ((re, Resource.O oargs), changed_or_deleted', l) ->
+       | Some ((re, Resource.O oargs), l) ->
          assert (Request.equal re resource);
          let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
-         let changed_or_deleted = changed_or_deleted @ changed_or_deleted' in
-         return
-           (LAT.subst rt_subst (IT.make_subst [ (s, oargs) ]) ftyp, changed_or_deleted, l))
+         return (LAT.subst rt_subst (IT.make_subst [ (s, oargs) ]) ftyp, l))
     | Define ((s, it), _info, ftyp) ->
       let it = Simplify.IndexTerms.simp simp_ctxt it in
-      return (LAT.subst rt_subst (IT.make_subst [ (s, it) ]) ftyp, changed_or_deleted, [])
+      return (LAT.subst rt_subst (IT.make_subst [ (s, it) ]) ftyp, [])
     | Constraint (c, info, ftyp) ->
       let@ provable = provable loc in
       Pp.(debug 9 (lazy (item "checking constraint" (LC.pp c))));
       let res = provable c in
       (match res with
-       | `True -> return (ftyp, changed_or_deleted, [])
+       | `True -> return (ftyp, [])
        | `False ->
          let@ model = model () in
          let@ all_cs = get_cs () in
@@ -156,12 +153,12 @@ module General = struct
                TypeErrors.Unproven_constraint
                  { constr = c; info; requests = snd uiinfo; ctxt; model }
            }))
-    | I _rt -> return (ftyp, changed_or_deleted, [])
+    | I _rt -> return (ftyp, [])
 
 
   (* TODO: check that oargs are in the same order? *)
   let rec predicate_request loc (uiinfo : uiinfo) (requested : Req.Predicate.t)
-    : (Resource.predicate * int list * Prooflog.log) option m
+    : (Resource.predicate * Prooflog.log) option m
     =
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
     let start_timing = Pp.time_log_start __LOC__ "" in
@@ -223,14 +220,14 @@ module General = struct
     in
     let needed = true in
     let here = Locations.other __LOC__ in
-    let@ (needed, oarg), changed_or_deleted =
+    let@ needed, oarg =
       map_and_fold_resources loc resource_scan (needed, O (IT.default_ oarg_bt here))
     in
     let not_str = lazy Pp.(if needed then !^" not " else !^" ") in
     Pp.(debug 9 (Lazy.map (fun x -> !^"resource was" ^^ x ^^ !^"found") not_str));
     let@ res =
       match needed with
-      | false -> return (Some ((requested, oarg), changed_or_deleted, []))
+      | false -> return (Some ((requested, oarg), []))
       | true ->
         (match Pack.packing_ft here global provable (P requested) with
          | Some packing_ft ->
@@ -238,10 +235,8 @@ module General = struct
              lazy (LogicalArgumentTypes.pp (fun _ -> Pp.string "resource") packing_ft)
            in
            Pp.debug 9 (Lazy.map (Pp.item "attempting to pack compound resource") ft_pp);
-           let@ o, changed_or_deleted, log =
-             ftyp_args_request_for_pack loc uiinfo packing_ft
-           in
-           return (Some ((requested, Resource.O o), changed_or_deleted, log))
+           let@ o, log = ftyp_args_request_for_pack loc uiinfo packing_ft in
+           return (Some ((requested, Resource.O o), log))
          | None ->
            let req_pp = lazy (Req.pp (P requested)) in
            Pp.debug 9 (Lazy.map (Pp.item "no pack rule for resource, failing") req_pp);
@@ -257,7 +252,7 @@ module General = struct
     let@ simp_ctxt = simp_ctxt () in
     let needed = requested.permission in
     let step = requested.step in
-    let@ (needed, oarg), rw_time =
+    let@ needed, oarg =
       map_and_fold_resources
         loc
         (fun re (needed, oarg) ->
@@ -343,7 +338,7 @@ module General = struct
                let@ o_re_index = predicate_request loc uiinfo sub_req in
                (match o_re_index with
                 | None -> continue
-                | Some (((_p', O p'_oarg) as rr), _, l') ->
+                | Some (((_p', O p'_oarg) as rr), l') ->
                   let oarg = add_case (One { one_index = index; value = p'_oarg }) oarg in
                   let sym, bt' = requested.q in
                   let needed' =
@@ -366,7 +361,7 @@ module General = struct
     Pp.debug 9 (lazy (Pp.item "checking resource remainder" (LC.pp nothing_more_needed)));
     let holds = provable nothing_more_needed in
     match holds with
-    | `True -> return (Some (oarg, rw_time, l))
+    | `True -> return (Some (oarg, l))
     | `False ->
       let@ model = model () in
       debug_constraint_failure_diagnostics 9 model simp_ctxt nothing_more_needed;
@@ -378,7 +373,7 @@ module General = struct
     let@ oarg_item_bt = WellTyped.oarg_bt_of_pred loc requested.name in
     match o_oarg with
     | None -> return None
-    | Some (oarg, rw_time, l) ->
+    | Some (oarg, l) ->
       let@ oarg = cases_to_map loc uiinfo (snd requested.q) oarg_item_bt oarg in
       let r =
         Req.QPredicate.
@@ -391,18 +386,18 @@ module General = struct
             iargs = requested.iargs
           }
       in
-      return (Some ((r, Resource.O oarg), rw_time, l))
+      return (Some ((r, Resource.O oarg), l))
 
 
   and ftyp_args_request_for_pack loc uiinfo ftyp =
     (* record the resources now, so errors are raised with all the resources present,
        rather than those that remain after some arguments are claimed *)
-    let@ original_resources = all_resources_tagged loc in
-    let rec loop ftyp rw_time l =
+    let@ original_resources = all_resources loc in
+    let rec loop ftyp l =
       match ftyp with
-      | LogicalArgumentTypes.I rt -> return (rt, rw_time, l)
+      | LogicalArgumentTypes.I rt -> return (rt, l)
       | _ ->
-        let@ ftyp, rw_time, l' =
+        let@ ftyp, l' =
           parametric_ftyp_args_request_step
             (resource_request ~simplify_prooflog:true)
             IT.subst
@@ -410,15 +405,14 @@ module General = struct
             uiinfo
             original_resources
             ftyp
-            rw_time
         in
-        loop ftyp rw_time (l @ l')
+        loop ftyp (l @ l')
     in
-    loop ftyp [] []
+    loop ftyp []
 
 
   and resource_request ?(simplify_prooflog = false) loc uiinfo (request : Req.t)
-    : (Resource.t * int list * Prooflog.log) option m
+    : (Resource.t * Prooflog.log) option m
     =
     match request with
     | P request ->
@@ -428,7 +422,7 @@ module General = struct
       let@ simp_ctxt = simp_ctxt () in
       return
         (Option.map
-           (fun ((p, Resource.O o), changed_or_deleted, l) ->
+           (fun ((p, Resource.O o), l) ->
               let hints =
                 if Prooflog.is_enabled () then (
                   let p, o =
@@ -445,23 +439,19 @@ module General = struct
                 else
                   []
               in
-              ((Req.P p, Resource.O o), changed_or_deleted, hints))
+              ((Req.P p, Resource.O o), hints))
            result)
     | Q request ->
       let@ result = qpredicate_request loc uiinfo request in
-      return
-        (Option.map
-           (fun ((q, o), changed_or_deleted, l) -> ((Req.Q q, o), changed_or_deleted, l))
-           result)
+      return (Option.map (fun ((q, o), l) -> ((Req.Q q, o), l)) result)
 
 
-  (* I don't know if we need the rw_time in check.ml? *)
   (*
      This is called directly from check.ml. Maybe it should be in Special, as
      predicate_request?
   *)
   let ftyp_args_request_step rt_subst loc situation original_resources ftyp =
-    let@ rt, _rw_time, l =
+    let@ rt, l =
       parametric_ftyp_args_request_step
         (resource_request ~simplify_prooflog:false)
         rt_subst
@@ -469,7 +459,6 @@ module General = struct
         situation
         original_resources
         ftyp
-        []
     in
     (* We started with top-level call of ftyp_args_request_step, so we need to
        record the resource inference steps for the inner calls. They not nested
@@ -507,14 +496,14 @@ module Special = struct
     let@ c = get_typing_context () in
     let@ result = General.predicate_request loc uiinfo request in
     match result with
-    | Some (r, rw_time, log) ->
+    | Some (r, log) ->
       let@ c' = get_typing_context () in
       if Prooflog.is_enabled () then
         Prooflog.record_resource_inference_step
           (Prooflog.PredicateRequest (c, fst uiinfo, request, r, log, c'))
       else
         ();
-      return (r, rw_time)
+      return r
     | None -> fail_missing_resource loc uiinfo
 
 
@@ -562,7 +551,7 @@ module Special = struct
       in
       (Unchanged, found)
     in
-    let@ found, _ = map_and_fold_resources loc f (return Ans.No_res) in
+    let@ found = map_and_fold_resources loc f (return Ans.No_res) in
     let@ found in
     match found with
     | Ans.Found -> return ()
@@ -593,7 +582,7 @@ module Special = struct
     let uiinfo = (situation, requests) in
     let@ result = General.qpredicate_request loc uiinfo request in
     match result with
-    | Some (r, rw_time, log) ->
+    | Some (r, log) ->
       (* We started with top-level call of qpredicate_request, so we need to
          record the resource inference steps for the inner calls. They not
          nested under anything, so we need to record them separately. *)
@@ -601,6 +590,6 @@ module Special = struct
         List.iter Prooflog.record_resource_inference_step log
       else
         ();
-      return (r, rw_time)
+      return r
     | None -> fail_missing_resource loc uiinfo
 end

@@ -8,6 +8,8 @@ type qpredicate = Request.QPredicate.t * output
 
 type t = Request.t * output
 
+val equal : t -> t -> bool
+
 val pp : Request.t * output -> Pp.document
 
 val json : Request.t * output -> Yojson.Safe.t
