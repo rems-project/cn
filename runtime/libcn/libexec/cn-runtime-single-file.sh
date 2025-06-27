@@ -9,7 +9,6 @@ function echo_and_err() {
 }
 
 QUIET=""
-UBSAN=""
 NO_CHECK_OWNERSHIP=""
 
 while getopts "hnqu" flag; do
@@ -25,8 +24,9 @@ while getopts "hnqu" flag; do
    QUIET=1
    ;;
    u)
+   export ASAN_OPTIONS="allocator_may_return_null=1:detect_leaks=0"
    export UBSAN_OPTIONS=halt_on_error=1
-   UBSAN="-fsanitize=undefined"
+   export CFLAGS="-fsanitize=address,undefined"
    ;;
    \?)
    echo_and_err "${USAGE}"
