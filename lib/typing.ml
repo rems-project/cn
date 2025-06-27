@@ -11,7 +11,6 @@ type s =
   { typing_context : Context.t;
     solver : solver option;
     sym_eqs : IT.t Sym.Map.t;
-    found_equalities : EqTable.table;
     movable_indices : (Req.name * IT.t) list;
     log : Explain.log
   }
@@ -20,7 +19,6 @@ let empty_s (c : Context.t) =
   { typing_context = c;
     solver = None;
     sym_eqs = Sym.Map.empty;
-    found_equalities = EqTable.empty;
     movable_indices = [];
     log = []
   }
@@ -331,15 +329,6 @@ let add_sym_eqs sym_eqs =
     { s with sym_eqs })
 
 
-let get_found_equalities () = inspect (fun s -> s.found_equalities)
-
-let set_found_equalities eqs = modify (fun s -> { s with found_equalities = eqs })
-
-let add_found_equalities lc =
-  let@ eqs = get_found_equalities () in
-  set_found_equalities (EqTable.add_lc_eqs eqs lc)
-
-
 let bound_a sym = inspect_typing_context (fun s -> Context.bound_a sym s)
 
 let bound_l sym = inspect_typing_context (fun s -> Context.bound_l sym s)
@@ -409,7 +398,6 @@ let add_c_internal lc =
   let s = Context.add_c lc s in
   let () = Solver.add_assumption solver s.global lc in
   let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
-  let@ _ = add_found_equalities lc in
   let@ () = set_typing_context s in
   return ()
 
