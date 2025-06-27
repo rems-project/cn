@@ -241,12 +241,22 @@ let generate_c_specs_internal
     else
       empty_cn_spec_inj_info
   in
+  let c_ownership_comment = "\n\t/* C OWNERSHIP */\n\n" in
+  let entry_strs =
+    if List.is_empty stack_local_var_inj_info.entry_ownership_str then
+      []
+    else
+      c_ownership_comment :: stack_local_var_inj_info.entry_ownership_str
+  in
+  let exit_strs =
+    if List.is_empty stack_local_var_inj_info.exit_ownership_str then
+      []
+    else
+      c_ownership_comment :: stack_local_var_inj_info.exit_ownership_str
+  in
   (* NOTE - the nesting pre - entry - exit - post *)
   ( [ ( instrumentation.fn,
-        ( cn_spec_inj_info.pre_str
-          @ ("\n\t/* C OWNERSHIP */\n\n" :: stack_local_var_inj_info.entry_ownership_str),
-          ("\n\t/* C OWNERSHIP */\n\n" :: stack_local_var_inj_info.exit_ownership_str)
-          @ cn_spec_inj_info.post_str ) )
+        (cn_spec_inj_info.pre_str @ entry_strs, exit_strs @ cn_spec_inj_info.post_str) )
     ],
     cn_spec_inj_info.in_stmt_and_loop_inv_injs
     @ stack_local_var_inj_info.block_ownership_stmts,
