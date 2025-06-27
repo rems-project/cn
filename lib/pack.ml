@@ -149,7 +149,7 @@ let unpack loc global provable (ret, O o) =
      | Some packing_ft -> Some (`LRT (Definition.Clause.lrt o packing_ft)))
 
 
-let extractable_one (* global *) prove_or_model (predicate_name, index) (ret, O o) =
+let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
   (* let tmsg hd tail =  *)
   (*   if verb *)
   (*   then Pp.print stdout (Pp.item hd (Request.pp ret ^^ Pp.hardline ^^ *)
@@ -162,7 +162,7 @@ let extractable_one (* global *) prove_or_model (predicate_name, index) (ret, O 
          && BT.equal (IT.get_bt index) (snd ret.q) ->
     let su = IT.make_subst [ (fst ret.q, index) ] in
     let index_permission = IT.subst su ret.permission in
-    (match prove_or_model (LC.T index_permission) with
+    (match provable (LC.T index_permission) with
      | `True ->
        let loc = Cerb_location.other __LOC__ in
        let at_index =
@@ -184,23 +184,8 @@ let extractable_one (* global *) prove_or_model (predicate_name, index) (ret, O 
        in
        (* tmsg "successfully extracted" (lazy (IT.pp index)); *)
        Some ((Q ret_reduced, O o), at_index)
-     | `Counterex _ ->
-       (* let eval_f = Solver.eval global (fst (Lazy.force m)) in *)
-       (* tmsg "could not extract, counterexample" *)
-       (*   (lazy (IndexTerms.pp_with_eval eval_f index_permission)); *)
+     | `False ->
        None)
-  (* | Q qret -> *)
-  (*   if not (Request.equal_name predicate_name qret.name) *)
-  (*   then () *)
-  (*     (\* tmsg "not extracting, predicate name differs" *\) *)
-  (*     (\*   (lazy (Request.pp_predicate_name predicate_name)) *\) *)
-  (*   else if not (BT.equal (IT.get_bt index) (snd qret.q)) *)
-  (*   then  *)
-  (*     () *)
-  (*     (\* tmsg "not extracting, index type differs" *\) *)
-  (*     (\*   (lazy (Pp.typ (BT.pp (IT.get_bt index)) (BT.pp (snd qret.q)))) *\) *)
-  (*   else assert false; *)
-  (*   None *)
   | _ -> None
 
 
