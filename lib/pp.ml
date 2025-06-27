@@ -50,9 +50,6 @@ let rangle () = if !html_escapes then html_rangle else PPrint.rangle
 
 let angles doc = langle () ^^ doc ^^ rangle ()
 
-
-
-
 (* from run_pp *)
 let print channel doc =
   PPrint.ToChannel.pretty 1.0 term_col channel (doc ^^ hardline);
@@ -155,20 +152,15 @@ let debug l pp =
 
 let warn_noloc pp = print stderr (format [ Bold; Yellow ] "Warning:" ^^^ pp)
 
-
 let times = ref (None : (out_channel * string) option)
 
-
-
-let time_start () =
-  Unix.gettimeofday ()
+let time_start () = Unix.gettimeofday ()
 
 let time_end descr start_time =
   let end_time = Unix.gettimeofday () in
   let diff = end_time -. start_time in
   match !times with
-  | Some (channel, "csv") ->
-    Printf.fprintf channel "%s, %.6f\n" descr diff
+  | Some (channel, "csv") -> Printf.fprintf channel "%s, %.6f\n" descr diff
   | _ -> ()
 
 
@@ -189,8 +181,6 @@ let maybe_close_times_channel () =
   | Some (channel, _) ->
     flush channel;
     close_out channel
-
-
 
 
 (* stealing some logic from pp_errors *)

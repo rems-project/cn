@@ -485,15 +485,12 @@ module General = struct
     Pp.time_end "predicate_request" start_time;
     return result
 
+
   let qpredicate_request loc uiinfo requested =
     let start_time = Pp.time_start () in
     let@ result = qpredicate_request loc uiinfo requested in
     Pp.time_end "qpredicate_request" start_time;
     return result
-    
-
-
-
 end
 
 module Special = struct

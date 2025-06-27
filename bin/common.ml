@@ -168,9 +168,7 @@ let with_well_formedness_check
   in
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel
-    (match csv_times with
-     | Some times -> Some (times, "csv")
-     | _ -> None);
+    (match csv_times with Some times -> Some (times, "csv") | _ -> None);
   try
     let result =
       let open Or_TypeError in
