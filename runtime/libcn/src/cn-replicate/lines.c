@@ -24,7 +24,7 @@ void cn_replica_lines_append(char *line) {
   lines[size++] = line;
 }
 
-void cn_replica_lines_reset() {
+void cn_replica_lines_reset(void) {
   for (int i = 0; i < size; i++) {
     // free(lines[i]); // TODO: free lines
   }
@@ -35,7 +35,7 @@ void cn_replica_lines_reset() {
   capacity = 0;
 }
 
-char *cn_replica_lines_to_str() {
+char *cn_replica_lines_to_str(void) {
   size_t sz = 0;
   for (int i = 0; i < size; i++) {
     sz += strlen(lines[i]) + 1;  // +1 for newline
@@ -51,7 +51,7 @@ char *cn_replica_lines_to_str() {
   return res;
 }
 
-char *cn_replica_lines_to_json_literal() {
+char *cn_replica_lines_to_json_literal(void) {
   size_t sz = 0;
   for (int i = 0; i < size; i++) {
     sz += strlen(lines[i]) + 2;  // +2 for newline

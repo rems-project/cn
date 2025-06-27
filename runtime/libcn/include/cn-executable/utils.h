@@ -7,6 +7,8 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 
+#define fallthrough __attribute__((__fallthrough__))
+
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
     printf(__VA_ARGS__);                                                                 \
@@ -72,8 +74,8 @@ void initialise_error_msg_info_(
 #define initialise_error_msg_info()                                                      \
   initialise_error_msg_info_(__func__, __FILE__, __LINE__)
 
-void reset_error_msg_info();
-void free_error_msg_info();
+void reset_error_msg_info(void);
+void free_error_msg_info(void);
 
 /* TODO: Implement */
 /*struct cn_error_messages {
@@ -84,7 +86,7 @@ void free_error_msg_info();
 void update_error_message_info_(
     const char *function_name, char *file_name, int line_number, char *cn_source_loc);
 
-void cn_pop_msg_info();
+void cn_pop_msg_info(void);
 
 #define update_cn_error_message_info(x)                                                  \
   update_error_message_info_(__func__, __FILE__, __LINE__ + 1, x)
@@ -445,10 +447,10 @@ cn_bool *default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
-    int64_t *key_ptr = (*fulminate_internal_alloc.malloc)(sizeof(int64_t));              \
+    int64_t *key_ptr = flm_malloc(sizeof(int64_t), &flm_default_alloc);                  \
     *key_ptr = key->val;                                                                 \
     void *res = ht_get(m, key_ptr);                                                      \
-    (*fulminate_internal_alloc.free)(key_ptr);                                           \
+    flm_free(key_ptr, &flm_default_alloc);                                               \
     if (!res) {                                                                          \
       return (void *)default_##CNTYPE();                                                 \
     }                                                                                    \

@@ -27,18 +27,18 @@ void cn_bump_fprint(FILE* file) {
       bump_curr);
 }
 
-void cn_bump_print() {
+void cn_bump_print(void) {
   cn_bump_fprint(stdout);
 }
 #else
 void cn_bump_fprint(FILE* file) {}
 
-void cn_bump_print() {}
+void cn_bump_print(void) {}
 #endif
 
-void cn_bump_init() {
+void cn_bump_init(void) {
   if (bump_curr == NULL) {
-    bump_blocks[0] = (*fulminate_internal_alloc.malloc)(BUMP_BLOCK_SIZE);
+    bump_blocks[0] = flm_malloc(BUMP_BLOCK_SIZE, &flm_default_alloc);
     bump_curr = bump_blocks[0];
   }
 }
@@ -55,7 +55,7 @@ bool bump_can_fit(size_t nbytes) {
   return 1;
 }
 
-bool bump_expand() {
+bool bump_expand(void) {
   if (bump_curr_block + 1 >= BUMP_BLOCK_COUNT) {
     cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return 0;
@@ -64,7 +64,7 @@ bool bump_expand() {
   bump_curr_block++;
 
   if (bump_blocks[bump_curr_block] == NULL) {
-    bump_blocks[bump_curr_block] = (*fulminate_internal_alloc.malloc)(BUMP_BLOCK_SIZE);
+    bump_blocks[bump_curr_block] = flm_malloc(BUMP_BLOCK_SIZE, &flm_default_alloc);
   }
 
   bump_curr = bump_blocks[bump_curr_block];
@@ -136,7 +136,7 @@ void* cn_bump_calloc(size_t count, size_t size) {
 
 void cn_bump_free_all(void) {
   for (uint16_t i = 0; bump_blocks[i] != NULL; i++) {
-    (*fulminate_internal_alloc.free)(bump_blocks[i]);
+    flm_free(bump_blocks[i], &flm_default_alloc);
     bump_blocks[i] = NULL;
   }
   bump_curr_block = 0;

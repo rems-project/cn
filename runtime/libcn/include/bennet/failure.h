@@ -42,6 +42,6 @@ int bennet_failure_remap_blamed_many(char* from[], char* to[]);
 
 void bennet_failure_set_allocation_needed(size_t sz);
 
-size_t bennet_failure_get_allocation_needed();
+size_t bennet_failure_get_allocation_needed(void);
 
 #endif  // BENNET_FAILURE_H
