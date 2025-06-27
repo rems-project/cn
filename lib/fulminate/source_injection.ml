@@ -245,6 +245,7 @@ let inject st inj =
          ^ indent
          ^ "/* EXECUTABLE CN POSTCONDITION */"
          ^ "\n__cn_epilogue:\n"
+         ^ (if List.is_empty strs then indent ^ ";\n" else "")
          ^ str
          ^
          if CF.AilTypesAux.is_void ret_ty then
