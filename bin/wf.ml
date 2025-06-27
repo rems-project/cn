@@ -12,7 +12,6 @@ let well_formed
       json_trace
       output_dir
       csv_times
-      log_times
       astprints
       no_inherit_loc
       magic_comment_char_dollar
@@ -30,7 +29,6 @@ let well_formed
     ~coq_proof_log:false
     ~coq_check_proof_log:false
     ~csv_times
-    ~log_times
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
@@ -57,7 +55,6 @@ let cmd =
     $ Verify.Flags.json_trace
     $ Verify.Flags.output_dir
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar

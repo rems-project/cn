@@ -236,14 +236,6 @@ val rangle : unit -> document
 
 val angles : document -> document
 
-val times : (out_channel * string * int) option ref
-
-val wrap : string -> string
-
-val maybe_open_times_channel : (string * String.t) option -> unit
-
-val maybe_close_times_channel : unit -> unit
-
 val print : PPrint.ToChannel.channel -> document -> unit
 
 val print_file : string -> document -> unit
@@ -310,9 +302,15 @@ val debug : int -> document Lazy.t -> unit
 
 val warn_noloc : Cerb_pp_prelude.P.document -> unit
 
-val time_log_start : string -> string -> float
+val times : (out_channel * string) option ref
 
-val time_log_end : float -> unit
+val maybe_open_times_channel : (string * String.t) option -> unit
+
+val maybe_close_times_channel : unit -> unit
+
+val time_start : unit -> float
+
+val time_end : string -> float -> unit
 
 val error : Locations.t -> document -> document list -> unit
 

@@ -3,6 +3,17 @@ module LC = LogicalConstraints
 module Req = Request
 open Typing
 
+let provable loc purpose =
+  let@ provable = provable loc in
+  let timed_function lc =
+    let start_time = Pp.time_start () in
+    let result = provable lc in
+    Pp.time_end purpose start_time;
+    result
+  in
+  return timed_function
+
+
 let debug_constraint_failure_diagnostics
       lvl
       (model_with_q : Solver.model_with_q)
@@ -74,7 +85,7 @@ module General = struct
       | [ { many_guard = _; value } ], _ -> return value
       | [], _ | _, BaseTypes.Unit -> return default
       | _many, _ ->
-        let@ provable = provable loc in
+        let@ provable = provable loc "cases_to_map" in
         (match provable (LC.T (IT.bool_ false here)) with
          | `False ->
            let@ model = model () in
@@ -115,7 +126,7 @@ module General = struct
       (match o_re_oarg with
        | None ->
          let here = Locations.other __LOC__ in
-         let@ provable = provable loc in
+         let@ provable = provable loc "spine counter model" in
          (match provable (LC.T (IT.bool_ false here)) with
           | `False ->
             let@ model = model () in
@@ -135,7 +146,7 @@ module General = struct
       let it = Simplify.IndexTerms.simp simp_ctxt it in
       return (LAT.subst rt_subst (IT.make_subst [ (s, it) ]) ftyp, [])
     | Constraint (c, info, ftyp) ->
-      let@ provable = provable loc in
+      let@ provable = provable loc "spine constraint solving" in
       Pp.(debug 9 (lazy (item "checking constraint" (LC.pp c))));
       let res = provable c in
       (match res with
@@ -161,9 +172,8 @@ module General = struct
     : (Resource.predicate * Prooflog.log) option m
     =
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
-    let start_timing = Pp.time_log_start __LOC__ "" in
     let@ oarg_bt = WellTyped.oarg_bt_of_pred loc requested.name in
-    let@ provable = provable loc in
+    let@ provable = provable loc "predicate_request" in
     let@ global = get_global () in
     let@ simp_ctxt = simp_ctxt () in
     let resource_scan re ((needed : bool), oargs) =
@@ -242,13 +252,12 @@ module General = struct
            Pp.debug 9 (Lazy.map (Pp.item "no pack rule for resource, failing") req_pp);
            return None)
     in
-    Pp.time_log_end start_timing;
     return res
 
 
   and qpredicate_request_aux loc uiinfo (requested : Req.QPredicate.t) =
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (Q requested)))));
-    let@ provable = provable loc in
+    let@ provable = provable loc "qpredicate_request_aux" in
     let@ simp_ctxt = simp_ctxt () in
     let needed = requested.permission in
     let step = requested.step in
@@ -468,12 +477,26 @@ module General = struct
     else
       ();
     return rt
+
+
+  let predicate_request loc uiinfo requested =
+    let start_time = Pp.time_start () in
+    let@ result = predicate_request loc uiinfo requested in
+    Pp.time_end "predicate_request" start_time;
+    return result
+
+
+  let qpredicate_request loc uiinfo requested =
+    let start_time = Pp.time_start () in
+    let@ result = qpredicate_request loc uiinfo requested in
+    Pp.time_end "qpredicate_request" start_time;
+    return result
 end
 
 module Special = struct
   let fail_missing_resource loc (situation, requests) =
     let here = Locations.other __LOC__ in
-    let@ provable = provable loc in
+    let@ provable = provable loc "fail_missing_resource" in
     match provable (LC.T (IT.bool_ false here)) with
     | `False ->
       let@ model = model () in
@@ -530,7 +553,7 @@ module Special = struct
       | Ans.Found -> return Ans.Found
       | No_res | Model _ ->
         let constr = IT.(eq_ (allocId_ ptr here, allocId_ res_ptr here) here) in
-        let@ provable = provable loc in
+        let@ provable = provable loc "check_live_alloc" in
         (match provable (LC.T constr) with
          | `True -> return Ans.Found
          | `False ->

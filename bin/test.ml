@@ -12,7 +12,6 @@ let run_tests
       debug_level
       print_level
       csv_times
-      log_times
       astprints
       no_inherit_loc
       magic_comment_char_dollar
@@ -85,7 +84,6 @@ let run_tests
     ~coq_mucore:false
     ~coq_proof_log:false
     ~coq_check_proof_log:false
-    ~log_times
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
@@ -464,7 +462,6 @@ let cmd =
     $ Common.Flags.debug_level
     $ Common.Flags.print_level
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar

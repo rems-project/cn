@@ -136,7 +136,6 @@ let with_well_formedness_check
       ~coq_proof_log
       ~coq_check_proof_log
       ~csv_times
-      ~log_times
       ~astprints
       ~no_inherit_loc
       ~magic_comment_char_dollar
@@ -169,10 +168,7 @@ let with_well_formedness_check
   in
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel
-    (match (csv_times, log_times) with
-     | Some times, _ -> Some (times, "csv")
-     | _, Some times -> Some (times, "log")
-     | _ -> None);
+    (match csv_times with Some times -> Some (times, "csv") | _ -> None);
   try
     let result =
       let open Or_TypeError in
@@ -412,11 +408,6 @@ module Flags = struct
   let csv_times =
     let doc = "file in which to output csv timing information" in
     Arg.(value & opt (some string) None & info [ "times" ] ~docv:"FILE" ~doc)
-
-
-  let log_times =
-    let doc = "file in which to output hierarchical timing information" in
-    Arg.(value & opt (some string) None & info [ "log-times" ] ~docv:"FILE" ~doc)
 
 
   (* copy-pasting from backend/driver/main.ml *)

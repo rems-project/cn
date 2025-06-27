@@ -1500,10 +1500,15 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
 
 (** The main way to query the solver. *)
 let provable ~loc ~solver ~assumptions ~simp_ctxt lc =
-  match provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc with
-  | `True -> `True
-  | `False -> `False
-  | `Unknown -> `False
+  let start_time = Pp.time_start () in
+  let result =
+    match provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc with
+    | `True -> `True
+    | `False -> `False
+    | `Unknown -> `False
+  in
+  Pp.time_end "provable" start_time;
+  result
 
 
 (* ISD: Could these globs be different from the saved ones? *)
