@@ -4,7 +4,6 @@ module Req = Request
 module LC = LogicalConstraints
 module Loc = Locations
 module IT = IndexTerms
-module ITSet = Set.Make (IT)
 
 type solver = Solver.solver
 
@@ -12,8 +11,6 @@ type s =
   { typing_context : Context.t;
     solver : solver option;
     sym_eqs : IT.t Sym.Map.t;
-    past_models : (Solver.model_with_q * Context.t) list;
-    found_equalities : EqTable.table;
     movable_indices : (Req.name * IT.t) list;
     log : Explain.log
   }
@@ -22,8 +19,6 @@ let empty_s (c : Context.t) =
   { typing_context = c;
     solver = None;
     sym_eqs = Sym.Map.empty;
-    past_models = [];
-    found_equalities = EqTable.empty;
     movable_indices = [];
     log = []
   }
@@ -334,21 +329,6 @@ let add_sym_eqs sym_eqs =
     { s with sym_eqs })
 
 
-let get_found_equalities () = inspect (fun s -> s.found_equalities)
-
-let set_found_equalities eqs = modify (fun s -> { s with found_equalities = eqs })
-
-let add_found_equalities lc =
-  let@ eqs = get_found_equalities () in
-  set_found_equalities (EqTable.add_lc_eqs eqs lc)
-
-
-let get_past_models () = inspect (fun s -> s.past_models)
-
-let set_past_models ms = modify (fun s -> { s with past_models = ms })
-
-let drop_past_models () = set_past_models []
-
 let bound_a sym = inspect_typing_context (fun s -> Context.bound_a sym s)
 
 let bound_l sym = inspect_typing_context (fun s -> Context.bound_l sym s)
@@ -411,7 +391,6 @@ let get_movable_indices () = inspect (fun s -> s.movable_indices)
 let set_movable_indices ixs : unit m = modify (fun s -> { s with movable_indices = ixs })
 
 let add_c_internal lc =
-  let@ _ = drop_past_models () in
   let@ s = get_typing_context () in
   let@ solver = get_solver () in
   let@ simp_ctxt = simp_ctxt () in
@@ -419,7 +398,6 @@ let add_c_internal lc =
   let s = Context.add_c lc s in
   let () = Solver.add_assumption solver s.global lc in
   let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
-  let@ _ = add_found_equalities lc in
   let@ () = set_typing_context s in
   return ()
 
@@ -441,90 +419,43 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
 
 (* functions to do with satisfying models *)
 
-let check_models = ref false
-
 let model () =
   let m = Solver.model () in
-  let@ ms = get_past_models () in
-  let@ c = get_typing_context () in
-  let@ () = set_past_models ((m, c) :: ms) in
   return m
 
 
-let get_just_models () =
-  let@ ms = get_past_models () in
-  return (List.map fst ms)
-
-
-let model_has_prop () =
+let _model_has_prop () =
   let is_some_true t = Option.is_some t && IT.is_true (Option.get t) in
   return (fun prop m -> is_some_true (Solver.eval (fst m) prop))
 
 
-let prove_or_model_with_past_model loc m =
-  let@ has_prop = model_has_prop () in
-  let@ p_f = provable_internal loc in
-  let loc = Locations.other __LOC__ in
-  let res lc =
-    match lc with
-    | LC.T t when has_prop (IT.not_ t loc) m -> `Counterex (lazy m)
-    | _ ->
-      (match p_f lc with `True -> `True | `False -> `Counterex (lazy (Solver.model ())))
-  in
-  let res2 lc = match res lc with `Counterex _m -> `False | `True -> `True in
-  return (res, res2)
+(* let prove_or_model_with_past_model loc m = *)
+(*   let@ has_prop = model_has_prop () in *)
+(*   let@ p_f = provable_internal loc in *)
+(*   let loc = Locations.other __LOC__ in *)
+(*   let res lc = *)
+(*     match lc with *)
+(*     | LC.T t when has_prop (IT.not_ t loc) m -> `Counterex (lazy m) *)
+(*     | _ -> *)
+(*       (match p_f lc with `True -> `True | `False -> `Counterex (lazy (Solver.model ()))) *)
+(*   in *)
+(*   let res2 lc = match res lc with `Counterex _m -> `False | `True -> `True in *)
+(*   return (res, res2) *)
 
-
-let do_check_model loc m prop =
-  Pp.warn loc (Pp.string "doing model consistency check");
-  let@ ctxt = get_typing_context () in
-  let vs =
-    Context.(
-      Sym.Map.bindings ctxt.computational @ Sym.Map.bindings ctxt.logical
-      |> List.filter (fun (_, (bt_or_v, _)) -> not (has_value bt_or_v))
-      |> List.map (fun (nm, (bt_or_v, (loc, _))) -> IT.sym_ (nm, bt_of bt_or_v, loc)))
-  in
-  let here = Locations.other __LOC__ in
-  let eqs =
-    List.filter_map
-      (fun v ->
-         match Solver.eval (fst m) v with
-         | None -> None
-         | Some x -> Some (IT.eq_ (v, x) here))
-      vs
-  in
-  let@ prover = provable_internal loc in
-  match prover (LogicalConstraints.T (IT.and_ (prop :: eqs) here)) with
-  | `False -> return ()
-  | `True ->
-    fail (fun _ ->
-      { loc;
-        msg = Generic (Pp.string "Solver model inconsistent") [@alert "-deprecated"]
-      })
-
-
-let cond_check_model loc m prop =
-  if !check_models then
-    do_check_model loc m prop
-  else
-    return ()
-
-
-let model_with_internal loc prop =
-  let@ ms = get_just_models () in
-  let@ has_prop = model_has_prop () in
-  match List.find_opt (has_prop prop) ms with
-  | Some m -> return (Some m)
-  | None ->
-    let@ prover = provable_internal loc in
-    let here = Locations.other __LOC__ in
-    (match prover (LC.T (IT.not_ prop here)) with
-     | `True -> return None
-     | `False ->
-       let@ m = model () in
-       let@ () = cond_check_model loc m prop in
-       return (Some m))
-
+(* let model_with_internal loc prop = *)
+(*   let@ ms = get_just_models () in *)
+(*   let@ has_prop = model_has_prop () in *)
+(*   match List.find_opt (has_prop prop) ms with *)
+(*   | Some m -> return (Some m) *)
+(*   | None -> *)
+(*     let@ prover = provable_internal loc in *)
+(*     let here = Locations.other __LOC__ in *)
+(*     (match prover (LC.T (IT.not_ prop here)) with *)
+(*      | `True -> return None *)
+(*      | `False -> *)
+(*        let@ m = model () in *)
+(*        let@ () = cond_check_model loc m prop in *)
+(*        return (Some m)) *)
 
 (* functions for binding return types and associated auxiliary functions *)
 
@@ -604,33 +535,31 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
 
 (* the main inference loop *)
 let do_unfold_resources loc =
+  let open Prooflog in
+  let here = Locations.other __LOC__ in
   let rec aux changed =
-    let open Prooflog in
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
-    let@ _provable_f = provable_internal (Locations.other __LOC__) in
+    let@ provable_f = provable_internal here in
     let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
-    let here = Locations.other __LOC__ in
-    let@ true_m = model_with_internal loc (IT.bool_ true here) in
-    match true_m with
-    | None -> return changed (* contradictory state *)
-    | Some model ->
-      let@ provable_m, provable_f2 = prove_or_model_with_past_model loc model in
+    match provable_f (LC.T (IT.bool_ false here)) with
+    | `True -> return changed (* contradictory state *)
+    | `False ->
       let keep, unpack, extract =
         List.fold_right
           (fun re (keep, unpack, extract) ->
-             match Pack.unpack loc s.global provable_f2 re with
+             match Pack.unpack loc s.global provable_f re with
              | Some unpackable -> (keep, (re, unpackable) :: unpack, extract)
              | None ->
                let re_reduced, extracted =
-                 Pack.extractable_multiple provable_m movable_indices re
+                 Pack.extractable_multiple provable_f movable_indices re
                in
                let keep' =
                  match extracted with
                  | [] -> re_reduced :: keep
                  | _ ->
-                   (match Pack.resource_empty provable_f2 re_reduced with
+                   (match Pack.resource_empty provable_f re_reduced with
                     | `Empty -> keep
                     | `NonEmpty _ -> re_reduced :: keep)
                in
@@ -753,48 +682,11 @@ let all_resources _loc =
 
 let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 
-let prev_models_with _loc prop =
-  let@ ms = get_just_models () in
-  let@ has_prop = model_has_prop () in
-  return (List.filter (has_prop prop) ms)
+(* let prev_models_with _loc prop = *)
+(*   let@ ms = get_just_models () in *)
+(*   let@ has_prop = model_has_prop () in *)
+(*   return (List.filter (has_prop prop) ms) *)
 
-
-let _model_with loc prop = model_with_internal loc prop
+(* let _model_with loc prop = model_with_internal loc prop *)
 
 (* auxiliary functions for diagnostics *)
-
-let value_eq_group guard x =
-  let@ eqs = get_found_equalities () in
-  return (EqTable.get_eq_vals eqs guard x)
-
-
-let test_value_eqs loc guard x ys =
-  let here = Locations.other __LOC__ in
-  let prop y =
-    match guard with
-    | None -> LC.T (IT.eq_ (x, y) here)
-    | Some t -> LC.T (IT.impl_ (t, IT.eq_ (x, y) here) here)
-  in
-  let@ prover = provable loc in
-  let guard_it = Option.value guard ~default:(IT.bool_ true here) in
-  let rec loop group ms = function
-    | [] -> return ()
-    | y :: ys ->
-      let@ has_prop = model_has_prop () in
-      let counterex = has_prop (IT.not_ (IT.eq_ (x, y) here) here) in
-      if ITSet.mem y group || List.exists counterex ms then
-        loop group ms ys
-      else (
-        match prover (prop y) with
-        | `True ->
-          let@ () = add_found_equalities (prop y) in
-          let@ group = value_eq_group guard x in
-          loop group ms ys
-        | `False ->
-          let@ _ = model () in
-          let@ ms = prev_models_with loc guard_it in
-          loop group ms ys)
-  in
-  let@ group = value_eq_group guard x in
-  let@ ms = prev_models_with loc guard_it in
-  loop group ms ys

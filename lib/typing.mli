@@ -151,14 +151,14 @@ end
 
 (* val set_statement_locs : Locations.loc CStatements.LocMap.t -> (unit) m *)
 
-val value_eq_group : IndexTerms.t option -> IndexTerms.t -> EqTable.ITSet.t m
+(* val value_eq_group : IndexTerms.t option -> IndexTerms.t -> EqTable.ITSet.t m *)
 
-val test_value_eqs
-  :  Locations.t ->
-  IndexTerms.t option ->
-  IndexTerms.t ->
-  IndexTerms.t list ->
-  unit m
+(* val test_value_eqs *)
+(*   :  Locations.t -> *)
+(*   IndexTerms.t option -> *)
+(*   IndexTerms.t -> *)
+(*   IndexTerms.t list -> *)
+(*   unit m *)
 
 val lift : 'a Or_TypeError.t -> 'a m
 
