@@ -537,6 +537,7 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
 let do_unfold_resources loc =
   let open Prooflog in
   let here = Locations.other __LOC__ in
+  let start_time = Pp.time_start () in
   let rec aux changed =
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
@@ -618,6 +619,7 @@ let do_unfold_resources loc =
   in
   let@ c = get_typing_context () in
   let@ changed = aux [] in
+  Pp.time_end "resource unfolding" start_time;
   match changed with
   | [] -> return ()
   | _ ->

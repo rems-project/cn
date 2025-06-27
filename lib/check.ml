@@ -1012,7 +1012,7 @@ module Spine : sig
   val subtype : Locations.t -> LRT.t -> (unit -> unit m) -> unit m
 end = struct
   let spine_l rt_subst rt_pp loc (situation : call_situation) ftyp k =
-    let start_spine = time_log_start "spine_l" "" in
+    let start_spine = time_start () in
     let@ original_resources = all_resources loc in
     let@ rt =
       let rec check ftyp =
@@ -1030,7 +1030,7 @@ end = struct
       check ftyp
     in
     let@ () = return (debug 9 (lazy !^"done")) in
-    time_log_end start_spine;
+    time_end "spine_l" start_spine;
     k rt
 
 

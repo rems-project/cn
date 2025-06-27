@@ -80,7 +80,6 @@ let generate_executable_specs
       skip
       diag
       csv_times
-      log_times
       astprints
       dont_use_vip
       no_use_ity
@@ -134,7 +133,6 @@ let generate_executable_specs
     ~coq_proof_log:false
     ~coq_check_proof_log:false
     ~csv_times
-    ~log_times
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
@@ -284,7 +282,6 @@ let cmd =
     $ Flags.skip
     $ Verify.Flags.diag
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Verify.Flags.dont_use_vip
     $ Common.Flags.no_use_ity
