@@ -5,7 +5,6 @@ module LC = LogicalConstraints
 module Loc = Locations
 module IT = IndexTerms
 
-
 type solver = Solver.solver
 
 type s =
@@ -470,7 +469,6 @@ let _model_has_prop () =
 (*        let@ () = cond_check_model loc m prop in *)
 (*        return (Some m)) *)
 
-
 (* functions for binding return types and associated auxiliary functions *)
 
 let make_return_record loc (record_name : string) record_members =
@@ -701,9 +699,6 @@ let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 (*   let@ has_prop = model_has_prop () in *)
 (*   return (List.filter (has_prop prop) ms) *)
 
-
 (* let _model_with loc prop = model_with_internal loc prop *)
 
 (* auxiliary functions for diagnostics *)
-
-

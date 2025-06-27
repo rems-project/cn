@@ -20,12 +20,9 @@ type opt =
 
 (* let opt_key = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" *)
 
-
-
 (* let value_eq_group guard x = *)
 (*   let@ eqs = get_found_equalities () in *)
 (*   return (EqTable.get_eq_vals eqs guard x) *)
-
 
 (* let test_value_eqs loc guard x ys = *)
 (*   let here = Locations.other __LOC__ in *)
@@ -58,11 +55,6 @@ type opt =
 (*   let@ ms = prev_models_with loc guard_it in *)
 (*   loop group ms ys *)
 
-
-
-
-
-
 (* let continue_with (opts : opt list) cfg = *)
 (*   assert (List.length opts <= String.length opt_key); *)
 (*   let xs = *)
@@ -88,7 +80,6 @@ type opt =
 (*     Pp.print stdout (Pp.string "-- continuing --"); *)
 (*     cont { cfg with arc_index = cfg.arc_index + 1 } *)
 
-
 (* let term_with_model_name nm cfg x = *)
 (*   let open Pp in *)
 (*   match Solver.eval (fst cfg.model) x with *)
@@ -107,7 +98,6 @@ type opt =
 (*     else *)
 (*       return (bold nm ^^ colon ^^^ parens (IT.pp r ^^^ !^"in model") ^^ colon ^^^ IT.pp x) *)
 
-
 (* let bool_subterms1 t = *)
 (*   match IT.get_term t with *)
 (*   | IT.Binop (And, it, it') -> [ it; it' ] *)
@@ -121,10 +111,8 @@ type opt =
 (*       [] *)
 (*   | _ -> [] *)
 
-
 (* let rec bool_subterms_of t = *)
 (*   t :: List.concat (List.map bool_subterms_of (bool_subterms1 t)) *)
-
 
 (* let constraint_ts () = *)
 (*   let@ cs = get_cs () in *)
@@ -133,10 +121,8 @@ type opt =
 (*   in *)
 (*   return ts *)
 
-
 (* let same_pred nm t = *)
 (*   match IT.get_term t with IT.Apply (nm2, _) -> Sym.equal nm nm2 | _ -> false *)
-
 
 (* let pred_args t = match IT.get_term t with IT.Apply (_, args) -> args | _ -> [] *)
 
@@ -151,7 +137,6 @@ type opt =
 (*     let ys = List.sort compare_fst_id ys in *)
 (*     Some (List.map2 (fun (_, x) (_, y) -> (x, y)) xs ys) *)
 (*   | _ -> None *)
-
 
 (* (\* investigate the provability of a term *\) *)
 (* let rec investigate_term cfg t = *)
@@ -202,7 +187,6 @@ type opt =
 (*     (); *)
 (*   continue_with opts cfg *)
 
-
 (* and investigate_eq_side _cfg (side_nm, t, t2) = *)
 (*   let@ eq_group = value_eq_group None t in *)
 (*   let xs = ITSet.elements eq_group |> List.filter (fun x -> not (IT.equal t x)) in *)
@@ -243,7 +227,6 @@ type opt =
 (*   in *)
 (*   return ([ t_opt ] @ clique_opts) *)
 
-
 (* and investigate_trans_eq t cfg = *)
 (*   let@ cs = constraint_ts () in *)
 (*   let eq_xs = *)
@@ -275,7 +258,6 @@ type opt =
 (*     (); *)
 (*   continue_with opts cfg *)
 
-
 (* and get_eqs_then_investigate cfg x y = *)
 (*   let@ cs = constraint_ts () in *)
 (*   let x_set = *)
@@ -294,7 +276,6 @@ type opt =
 (*   let@ () = test_value_eqs here None x opt_xs in *)
 (*   let@ () = test_value_eqs here None y opt_xs in *)
 (*   investigate_term cfg (IT.eq_ (x, y) @@ Locations.other __LOC__) *)
-
 
 (* and investigate_pred cfg nm t = *)
 (*   let@ cs = constraint_ts () in *)
@@ -318,7 +299,6 @@ type opt =
 (*       } *)
 (*   in *)
 (*   ListM.mapM pred_opt ps *)
-
 
 (* and investigate_ite cfg t = *)
 (*   let ites = *)
@@ -356,12 +336,10 @@ type opt =
 (*   let@ xs = ListM.mapM opts ites in *)
 (*   return (List.concat xs) *)
 
-
 (* let investigate_lc cfg lc = *)
 (*   match lc with *)
 (*   | LC.T t -> investigate_term cfg t *)
 (*   | LC.Forall (_q, t) -> investigate_term cfg t *)
-
 
 let diag_string = ref (None : string option)
 
@@ -377,5 +355,4 @@ let get_arc () = !diag_string
 (*     Pp.print stdout (Pp.item "investigating unproven constraint" (LC.pp lc)); *)
 (*     investigate_lc cfg lc *)
 
-let investigate _model _lc =
-  return ()
+let investigate _model _lc = return ()

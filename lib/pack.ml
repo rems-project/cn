@@ -184,8 +184,7 @@ let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
        in
        (* tmsg "successfully extracted" (lazy (IT.pp index)); *)
        Some ((Q ret_reduced, O o), at_index)
-     | `False ->
-       None)
+     | `False -> None)
   | _ -> None
 
 
