@@ -45,18 +45,19 @@ struct hash_table {
   ht_entry* entries;  // hash slots
   int capacity;       // size of _entries array
   int length;         // number of items in hash table
+  allocator* alloc;   // the allocator
 };
 
 typedef struct hash_table hash_table;
 
-hash_table* ht_create(struct alloc_fns*);
+hash_table* ht_create(allocator*);
 
-void ht_destroy(hash_table* table, struct alloc_fns*);
+void ht_destroy(hash_table* table);
 
 void* ht_get(hash_table* table, int64_t* key);
 
 /** Note: the value pointer is stored in the table, but the key's is not */
-int64_t* ht_set(hash_table* table, int64_t* key, void* value, struct alloc_fns*);
+int64_t* ht_set(hash_table* table, int64_t* key, void* value);
 
 int ht_size(hash_table* table);
 
