@@ -1013,7 +1013,7 @@ module Spine : sig
 end = struct
   let spine_l rt_subst rt_pp loc (situation : call_situation) ftyp k =
     let start_spine = time_log_start "spine_l" "" in
-    let@ original_resources = all_resources_tagged loc in
+    let@ original_resources = all_resources loc in
     let@ rt =
       let rec check ftyp =
         let@ () =
@@ -1116,7 +1116,7 @@ end
 
 let filter_empty_resources loc =
   let@ provable = provable loc in
-  let@ filtered, _rw_time =
+  let@ filtered =
     map_and_fold_resources
       loc
       (fun resource xs ->
@@ -1141,86 +1141,10 @@ let all_empty loc _original_resources =
       { loc; msg = Unused_resource { resource; ctxt; model } })
 
 
-let compute_used loc (prev_rs, prev_ix) (post_rs, _) =
-  let module IntSet = Set.Make (Int) in
-  let post_ixs = IntSet.of_list (List.map snd post_rs) in
-  (* restore previous resources that have disappeared from the context, since they
-     might participate in a race *)
-  let all_rs =
-    post_rs @ List.filter (fun (_, i) -> not (IntSet.mem i post_ixs)) prev_rs
-  in
-  ListM.fold_leftM
-    (fun (rs, ws) (r, i) ->
-       let@ h = res_history loc i in
-       if h.last_written_id >= prev_ix then
-         return (rs, (r, h, i) :: ws)
-       else if h.last_read_id >= prev_ix then
-         return ((r, h, i) :: rs, ws)
-       else
-         return (rs, ws))
-    ([], [])
-    all_rs
-
-
-let _check_used_distinct loc used =
-  let module IntMap = Map.Make (Int) in
-  let render_upd h =
-    !^"resource"
-    ^^^ !^(h.Context.reason_written)
-    ^^^ !^"at"
-    ^^^ Locations.pp h.Context.last_written
-  in
-  let render_read h = !^"resource read at " ^^^ Locations.pp h.Context.last_read in
-  let rec check_ws m = function
-    | [] -> return m
-    | (r, h, i) :: ws ->
-      (match IntMap.find_opt i m with
-       | None -> check_ws (IntMap.add i h m) ws
-       | Some h2 ->
-         Pp.debug 3 (lazy (Pp.typ !^"concurrent upds on" (Pp.int i)));
-         fail (fun _ ->
-           { loc;
-             msg =
-               Generic
-                 (Pp.item
-                    "undefined behaviour: concurrent update"
-                    (Resource.pp r
-                     ^^^ break 1
-                     ^^^ render_upd h
-                     ^^^ break 1
-                     ^^^ render_upd h2))
-               [@alert "-deprecated"]
-           }))
-  in
-  let@ w_map = check_ws IntMap.empty (List.concat (List.map snd used)) in
-  let check_rd (r, h, i) =
-    match IntMap.find_opt i w_map with
-    | None -> return ()
-    | Some h2 ->
-      Pp.debug 3 (lazy (Pp.typ !^"concurrent accs on" (Pp.int i)));
-      fail (fun _ ->
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 "undefined behaviour: concurrent read & update"
-                 (Resource.pp r
-                  ^^^ break 1
-                  ^^^ render_read h
-                  ^^^ break 1
-                  ^^^ render_upd h2))
-            [@alert "-deprecated"]
-        })
-  in
-  ListM.iterM check_rd (List.concat (List.map fst used))
-
-
-(*type labels = (AT.lt * label_kind) Sym.Map.t*)
-
 let load loc pointer ct =
   let@ value =
     pure
-      (let@ (_point, O value), _ =
+      (let@ _point, O value =
          RI.Special.predicate_request
            loc
            (Access Load)
@@ -1825,19 +1749,12 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
     let@ () =
       WellTyped.ensure_base_type loc ~expect (Tuple (List.map Mu.bt_of_expr es))
     in
-    let rec aux es vs prev_used =
+    let rec aux es vs =
       match es with
-      | e :: es' ->
-        let@ pre_check = all_resources_tagged loc in
-        check_expr labels e (fun v ->
-          let@ post_check = all_resources_tagged loc in
-          let@ used = compute_used loc pre_check post_check in
-          aux es' (v :: vs) (used :: prev_used))
-      | [] ->
-        (* let@ () = check_used_distinct loc prev_used in *)
-        k (tuple_ (List.rev vs) loc)
+      | e :: es' -> check_expr labels e (fun v -> aux es' (v :: vs))
+      | [] -> k (tuple_ (List.rev vs) loc)
     in
-    aux es [] []
+    aux es []
   | CN_progs (_, cn_progs) ->
     let bytes_pred ct pointer init : Req.Predicate.t =
       { name = Owned (ct, init); pointer; iargs = [] }
@@ -1891,7 +1808,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         let ctxt = match init with Init -> `RW | Uninit -> `W in
         let@ () = WellTyped.err_if_ct_void loc ctxt ct in
         let@ pointer = WellTyped.infer_term pointer in
-        let@ (_, O value), _ =
+        let@ _, O value =
           RI.Special.predicate_request
             loc
             (Access To_bytes)
@@ -1913,7 +1830,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         let@ () = WellTyped.err_if_ct_void loc ctxt ct in
         let@ pointer = WellTyped.infer_term pointer in
         let q_sym = Sym.fresh "from_bytes" in
-        let@ (_, O byte_arr), _ =
+        let@ _, O byte_arr =
           RI.Special.qpredicate_request
             loc
             (Access From_bytes)
@@ -1975,15 +1892,12 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
             return (Request.PName pn)
         in
         let@ it = WellTyped.infer_term it in
-        let@ original_rs, _ = all_resources_tagged loc in
+        let@ original_rs = all_resources loc in
         (* let verbose = List.exists (Id.is_str "verbose") attrs in *)
         let quiet = List.exists (Id.equal_string "quiet") attrs in
         let@ () = add_movable_index loc (predicate_name, it) in
-        let@ upd_rs, _ = all_resources_tagged loc in
-        if
-          List.equal Int.equal (List.map snd original_rs) (List.map snd upd_rs)
-          && not quiet
-        then
+        let@ upd_rs = all_resources loc in
+        if List.equal Resource.equal original_rs upd_rs && not quiet then
           warn loc !^"focus: index added, no effect on existing resources (yet)."
         else
           ();
@@ -2112,7 +2026,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           })
       | Some (lt, lkind, _) -> return (lt, lkind)
     in
-    let@ original_resources = all_resources_tagged loc in
+    let@ original_resources = all_resources loc in
     Spine.calltype_lt loc pes None (lt, lkind) (fun False ->
       let@ () = all_empty loc original_resources in
       return ())
@@ -2125,7 +2039,7 @@ let check_expr_top loc labels rt e =
     match return_bt with
     | Unit ->
       let lrt = LRT.subst (IT.make_subst [ (return_s, lvt) ]) lrt in
-      let@ original_resources = all_resources_tagged loc in
+      let@ original_resources = all_resources loc in
       Spine.subtype loc lrt (fun () ->
         let@ () = all_empty loc original_resources in
         return ())

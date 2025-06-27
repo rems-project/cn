@@ -40,8 +40,6 @@ val simp_ctxt : unit -> Simplify.simp_ctxt m
 
 val all_resources : Locations.t -> Resource.t list m
 
-val all_resources_tagged : Locations.t -> ((Resource.t * int) list * int) m
-
 val provable : Locations.t -> (LogicalConstraints.t -> [> `True | `False ]) m
 
 val model : unit -> Solver.model_with_q m
@@ -82,8 +80,6 @@ val add_r : Locations.t -> Resource.t -> unit m
 
 val add_rs : Locations.t -> Resource.t list -> unit m
 
-val res_history : Locations.t -> int -> Context.resource_history m
-
 type changed =
   | Deleted
   | Unchanged
@@ -93,7 +89,7 @@ val map_and_fold_resources
   :  Locations.t ->
   (Resource.t -> 'acc -> changed * 'acc) ->
   'acc ->
-  ('acc * int list) m
+  'acc m
 
 module Global : sig
   val empty : Global.t

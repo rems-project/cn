@@ -28,7 +28,7 @@ module Special : sig
     :  Locations.t ->
     Error_common.situation ->
     Request.Predicate.t * (Locations.t * string) option ->
-    (Resource.predicate * int list) Typing.m
+    Resource.predicate Typing.m
 
   val has_predicate
     :  Locations.t ->
@@ -40,5 +40,5 @@ module Special : sig
     :  Locations.t ->
     Error_common.situation ->
     Request.QPredicate.t * (Locations.t * string) option ->
-    (Resource.qpredicate * int list) Typing.m
+    Resource.qpredicate Typing.m
 end
