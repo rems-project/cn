@@ -137,7 +137,7 @@ let simp_ctxt () =
 
 let make_provable loc ({ typing_context = s; solver; _ } as c) =
   let simp_ctxt = make_simp_ctxt c in
-  let f ?(purpose="") lc =
+  let f ?(purpose = "") lc =
     Solver.provable
       ~loc
       ~solver:(Option.get solver)
@@ -520,7 +520,11 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
            (match re with
             | Q { q; permission; _ }, _ ->
               let here = Locations.other __LOC__ in
-              (match provable_f ~purpose:"map_and_fold_resources" (LC.forall_ q (IT.not_ permission here)) with
+              (match
+                 provable_f
+                   ~purpose:"map_and_fold_resources"
+                   (LC.forall_ q (IT.not_ permission here))
+               with
                | `True -> (resources, acc)
                | `False -> (re :: resources, acc))
             | _ -> (re :: resources, acc)))

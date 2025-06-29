@@ -1499,7 +1499,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
 
 
 (** The main way to query the solver. *)
-let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose="") lc =
+let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
   let start_time = Pp.time_start () in
   let result =
     match provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc with

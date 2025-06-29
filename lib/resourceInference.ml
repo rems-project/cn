@@ -3,7 +3,6 @@ module LC = LogicalConstraints
 module Req = Request
 open Typing
 
-
 let debug_constraint_failure_diagnostics
       lvl
       (model_with_q : Solver.model_with_q)
