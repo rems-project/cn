@@ -156,11 +156,12 @@ let times = ref (None : (out_channel * string) option)
 
 let time_start () = Unix.gettimeofday ()
 
-let time_end descr start_time =
+let time_end descr ?(info1="") ?(info2=lazy PPrint.empty) start_time =
   let end_time = Unix.gettimeofday () in
   let diff = end_time -. start_time in
   match !times with
-  | Some (channel, "csv") -> Printf.fprintf channel "%s, %.6f\n" descr diff
+  | Some (channel, "csv") ->
+     Printf.fprintf channel "%s; %s; \"%s\"; %.6f\n" descr info1 (plain (Lazy.force info2)) diff
   | _ -> ()
 
 
@@ -170,7 +171,8 @@ let maybe_open_times_channel = function
     let channel = open_out filename in
     times := Some (channel, style);
     if String.equal style "csv" then
-      Printf.fprintf channel "description, time\n"
+      (Printf.fprintf channel "sep=;\n";
+       Printf.fprintf channel "description; information; extra information; time\n")
     else
       warn_noloc !^"unknown time-logging style -- not logging"
 
