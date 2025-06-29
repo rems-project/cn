@@ -137,12 +137,13 @@ let simp_ctxt () =
 
 let make_provable loc ({ typing_context = s; solver; _ } as c) =
   let simp_ctxt = make_simp_ctxt c in
-  let f lc =
+  let f ?(purpose = "") lc =
     Solver.provable
       ~loc
       ~solver:(Option.get solver)
       ~assumptions:s.constraints
       ~simp_ctxt
+      ~purpose
       lc
   in
   f
@@ -519,7 +520,11 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
            (match re with
             | Q { q; permission; _ }, _ ->
               let here = Locations.other __LOC__ in
-              (match provable_f (LC.forall_ q (IT.not_ permission here)) with
+              (match
+                 provable_f
+                   ~purpose:"map_and_fold_resources"
+                   (LC.forall_ q (IT.not_ permission here))
+               with
                | `True -> (resources, acc)
                | `False -> (re :: resources, acc))
             | _ -> (re :: resources, acc)))
@@ -542,6 +547,7 @@ let do_unfold_resources loc =
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
     let@ provable_f = provable_internal here in
+    let provable_f = provable_f ~purpose:"do_unfold_resources" in
     let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
     match provable_f (LC.T (IT.bool_ false here)) with

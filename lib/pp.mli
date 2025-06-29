@@ -310,7 +310,7 @@ val maybe_close_times_channel : unit -> unit
 
 val time_start : unit -> float
 
-val time_end : string -> float -> unit
+val time_end : string -> ?info1:string -> ?info2:document Lazy.t -> float -> unit
 
 val error : Locations.t -> document -> document list -> unit
 

@@ -56,6 +56,7 @@ val provable
   solver:solver ->
   assumptions:LogicalConstraints.Set.t ->
   simp_ctxt:Simplify.simp_ctxt ->
+  ?purpose:string ->
   LogicalConstraints.t ->
   [> `True | `False ]
 

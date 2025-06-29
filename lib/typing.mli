@@ -40,7 +40,9 @@ val simp_ctxt : unit -> Simplify.simp_ctxt m
 
 val all_resources : Locations.t -> Resource.t list m
 
-val provable : Locations.t -> (LogicalConstraints.t -> [> `True | `False ]) m
+val provable
+  :  Locations.t ->
+  (?purpose:string -> LogicalConstraints.t -> [> `True | `False ]) m
 
 val model : unit -> Solver.model_with_q m
 
