@@ -39,7 +39,7 @@ let unfolded_array loc init (ict, olength) pointer =
     }
 
 
-let packing_ft loc global provable ret =
+let packing_ft ~permit_recursive loc global provable ret =
   match ret with
   | P ret ->
     (match ret.name with
@@ -91,10 +91,14 @@ let packing_ft loc global provable ret =
        let at = LAT.of_lrt lrt (LAT.I (IT.struct_ (tag, value) loc)) in
        Some at
      | PName pn ->
-       let def = Sym.Map.find pn global.resource_predicates in
-       (match Predicate.identify_right_clause provable def ret.pointer ret.iargs with
-        | None -> None
-        | Some right_clause -> Some right_clause.packing_ft))
+        let def = Sym.Map.find pn global.resource_predicates in
+        (match def.clauses with
+        | Some (_ :: _ :: _) when (not permit_recursive) ->
+           None
+        | _ ->
+           (match Predicate.identify_right_clause provable def ret.pointer ret.iargs with
+           | None -> None
+           | Some right_clause -> Some right_clause.packing_ft)))
   | Q _ -> None
 
 
@@ -137,14 +141,14 @@ let unpack_owned loc global (ct, init) pointer (O o) =
     Some res
 
 
-let unpack loc global provable (ret, O o) =
+let unpack ~permit_recursive loc global provable (ret, O o) =
   match ret with
   | P { name = Owned (ct, init); pointer; iargs = [] } ->
     (match unpack_owned loc global (ct, init) pointer (O o) with
      | None -> None
      | Some re -> Some (`RES re))
   | _ ->
-    (match packing_ft loc global provable ret with
+    (match packing_ft ~permit_recursive loc global provable ret with
      | None -> None
      | Some packing_ft -> Some (`LRT (Definition.Clause.lrt o packing_ft)))
 

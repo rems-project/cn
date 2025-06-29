@@ -1799,8 +1799,33 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
     let aux loc stmt =
       (* copying bits of code from elsewhere in check.ml *)
       match stmt with
-      | Cnstatement.Pack_unpack (_pack_unpack, _pt) ->
-        warn loc !^"Explicit pack/unpack unsupported.";
+      | Cnstatement.Pack_unpack (Unpack, pred) ->
+         let@ req = WellTyped.request loc (P pred) in
+         let pred = match req with
+           | Req.P pred -> pred
+           | Req.Q _ -> assert false
+         in
+         let@ (req, o) = RI.Special.predicate_request loc Unpacking (pred, None) in
+         let@ provable = provable loc in
+         let@ global = get_global () in
+         (match Pack.unpack ~permit_recursive:true loc global provable (P req, o) with
+         | None ->
+            fail (fun _ ->
+                { loc;
+                  msg = Generic !^"Cannot unpack requested resource." [@alert "-deprecated"]
+              })
+         | Some `LRT lrt ->
+            let@ _, members =
+               make_return_record
+                 loc
+                 "unpack"
+                 (LRT.binders lrt)
+             in
+            bind_logical_return loc members lrt
+         | Some `RES res ->
+            add_rs loc res)
+      | Cnstatement.Pack_unpack (Pack, _pt) ->
+        warn loc !^"Explicit pack unsupported.";
         return ()
       | To_from_bytes ((To | From), { name = PName _; _ }) ->
         fail (fun _ -> { loc; msg = Byte_conv_needs_owned })

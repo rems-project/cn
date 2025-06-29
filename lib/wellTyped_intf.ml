@@ -28,6 +28,8 @@ module type S = sig
 
   val oarg_bt_of_pred : Locations.t -> Request.name -> BaseTypes.t t
 
+  val request : Locations.t -> Request.t -> Request.t t
+
   val logical_constraint : Locations.t -> LogicalConstraints.t -> LogicalConstraints.t t
 
   val function_type
