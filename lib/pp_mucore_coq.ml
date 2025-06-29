@@ -2035,6 +2035,7 @@ let pp_situation (s : Error_common.situation) =
   match s with
   | Error_common.Access a -> pp_constructor "ErrorCommon.Access" [ pp_access a ]
   | Error_common.Call c -> pp_constructor "ErrorCommon.Call" [ pp_call_situation c ]
+  | Error_common.Unpacking -> failwith "todo: pp_situation Unpacking"
 
 
 let pp_init = function

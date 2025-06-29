@@ -25,6 +25,7 @@ let call_situation = function
 let checking_situation = function
   | Access _ -> !^"checking access"
   | Call s -> call_situation s
+  | Unpacking -> !^"unpacking"
 
 
 let for_access = function
@@ -39,6 +40,7 @@ let for_access = function
 
 let for_situation = function
   | Access access -> for_access access
+  | Unpacking -> !^"for unpacking"
   | Call s ->
     (match s with
      | FunctionCall fsym -> !^"for calling function" ^^^ Sym.pp fsym

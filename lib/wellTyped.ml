@@ -2569,6 +2569,8 @@ let logical_constraint = WLC.welltyped
 
 let oarg_bt_of_pred = WRS.oarg_bt_of_pred
 
+let request = WReq.welltyped
+
 let default_quantifier_bt = quantifier_bt
 
 let infer_term = WIT.infer
@@ -2641,6 +2643,8 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
   let function_type = lift3 function_type
 
   let logical_constraint = lift2 logical_constraint
+
+  let request = lift2 request
 
   let oarg_bt_of_pred = lift2 oarg_bt_of_pred
 

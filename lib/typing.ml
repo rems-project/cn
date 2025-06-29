@@ -5,6 +5,8 @@ module LC = LogicalConstraints
 module Loc = Locations
 module IT = IndexTerms
 
+let unfold_rec_preds = ref true
+
 type solver = Solver.solver
 
 type s =
@@ -556,7 +558,9 @@ let do_unfold_resources loc =
       let keep, unpack, extract =
         List.fold_right
           (fun re (keep, unpack, extract) ->
-             match Pack.unpack loc s.global provable_f re with
+             match
+               Pack.unpack ~permit_recursive:!unfold_rec_preds loc s.global provable_f re
+             with
              | Some unpackable -> (keep, (re, unpackable) :: unpack, extract)
              | None ->
                let re_reduced, extracted =
