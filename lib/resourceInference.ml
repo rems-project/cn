@@ -3,16 +3,6 @@ module LC = LogicalConstraints
 module Req = Request
 open Typing
 
-let provable loc purpose =
-  let@ provable = provable loc in
-  let timed_function lc =
-    let start_time = Pp.time_start () in
-    let result = provable lc in
-    Pp.time_end purpose start_time;
-    result
-  in
-  return timed_function
-
 
 let debug_constraint_failure_diagnostics
       lvl
