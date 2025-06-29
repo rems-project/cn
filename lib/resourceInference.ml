@@ -229,7 +229,9 @@ module General = struct
       match needed with
       | false -> return (Some ((requested, oarg), []))
       | true ->
-        (match Pack.packing_ft ~permit_recursive:true here global provable (P requested) with
+        (match
+           Pack.packing_ft ~permit_recursive:true here global provable (P requested)
+         with
          | Some packing_ft ->
            let ft_pp =
              lazy (LogicalArgumentTypes.pp (fun _ -> Pp.string "resource") packing_ft)
