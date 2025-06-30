@@ -36,7 +36,7 @@ function [rec] (IntList) insertList(boolean dups, i32 x, IntList xs) {
   }
 }
 
-predicate IntList ListSegment(pointer from, pointer to) {
+predicate [rec] IntList ListSegment(pointer from, pointer to) {
   if (ptr_eq(from,to)) {
     return Nil {};
   } else {
