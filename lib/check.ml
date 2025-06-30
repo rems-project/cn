@@ -2244,12 +2244,11 @@ let record_and_check_resource_predicates preds =
   let@ () =
     ListM.iterM
       (fun (name, def) ->
-        if def.recursive then
-          let@ simple_def = WellTyped.predicate { def with clauses = None } in
-          Global.add_resource_predicate name simple_def
-        else
-          return ()
-      )
+         if def.recursive then
+           let@ simple_def = WellTyped.predicate { def with clauses = None } in
+           Global.add_resource_predicate name simple_def
+         else
+           return ())
       preds
   in
   let@ () =

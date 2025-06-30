@@ -134,7 +134,7 @@ module Predicate = struct
       iargs : (Sym.t * BaseTypes.t) list;
       oarg : Locations.t * BaseTypes.t;
       clauses : Clause.t list option;
-      recursive : bool;
+      recursive : bool
     }
 
   let pp def =
@@ -203,7 +203,7 @@ let alloc =
       iargs = [];
       oarg = (Locations.other __LOC__, Alloc.History.value_bt);
       clauses = None;
-      recursive = false;
+      recursive = false
     }
 
 

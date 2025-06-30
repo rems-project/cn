@@ -1533,7 +1533,7 @@ let predicate env (def : _ Cn.cn_predicate) =
             iargs = iargs';
             oarg = output;
             clauses;
-            recursive = is_rec;
+            recursive = is_rec
           } )
   | (_, found_bty) :: _ ->
     fail
