@@ -101,7 +101,12 @@ void bennet_rand_restore(bennet_rand_checkpoint checkpoint);
 
 void bennet_rand_replace(bennet_rand_checkpoint checkpoint);
 
+void bennet_rand_skip_to(bennet_rand_checkpoint checkpoint);
+
 char* bennet_rand_to_str(bennet_rand_checkpoint checkpoint);
+
+void bennet_rand_start_injection(void);
+void bennet_rand_end_injection(void);
 
 #ifdef __cplusplus
 }

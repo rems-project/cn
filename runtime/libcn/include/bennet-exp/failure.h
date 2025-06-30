@@ -4,23 +4,31 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <bennet-exp/domain.h>
+
 enum bennet_failure_type {
-  BENNET_BACKTRACK_NONE,
-  BENNET_BACKTRACK_ASSERT,
-  BENNET_BACKTRACK_ALLOC,
-  BENNET_BACKTRACK_DEPTH
+  BENNET_FAILURE_NONE,
+  BENNET_FAILURE_ASSERT,
+  BENNET_FAILURE_ASSIGN,
+  BENNET_FAILURE_DEPTH
 };
+
+// Backwards compatibility with stable runtime
+#define BENNET_BACKTRACK_NONE BENNET_FAILURE_NONE
 
 enum bennet_failure_type bennet_failure_get_failure_type(void);
 void bennet_failure_set_failure_type(enum bennet_failure_type type);
 
 void bennet_failure_reset(void);
 
-void bennet_failure_blame(char* varname);
+void bennet_failure_blame(const void* id);
+void bennet_failure_blame_domain(const void* id, bennet_domain_failure_info* domain);
 
-void bennet_failure_blame_many(char* toAdd[]);
+int bennet_failure_remove_blame(const void* id);
 
-int bennet_failure_is_blamed(char* varname);
+void bennet_failure_blame_many(const void* toAdd[]);
+
+bool bennet_failure_is_blamed(const void* id);
 
 /**
  * @brief Remaps a relevant variable
@@ -29,7 +37,7 @@ int bennet_failure_is_blamed(char* varname);
  * @param to A NULL-terminated variable name to replace `from` with
  * @return int Was the remapping successful?
  */
-int bennet_failure_remap_blamed(char* from, char* to);
+int bennet_failure_remap_blamed(const void* from, const void* to);
 
 /**
  * @brief Remaps multiple relevant variables
@@ -38,14 +46,8 @@ int bennet_failure_remap_blamed(char* from, char* to);
  * @param to A NULL-terminated list of `char*` of the same length as `from`
  * @return int How many remappings were successful?
  */
-int bennet_failure_remap_blamed_many(char* from[], char* to[]);
+int bennet_failure_remap_blamed_many(const char* from[], const char* to[]);
 
-void bennet_failure_set_offset_bounds(void* p_alloc, void* p, size_t bytes);
-
-void bennet_failure_set_should_be_null(void);
-bool bennet_failure_get_should_be_null(void);
-
-size_t bennet_failure_get_lower_offset_bound(void);
-size_t bennet_failure_get_upper_offset_bound(void);
+bennet_domain_failure_info* bennet_failure_get_domain(const void* id);
 
 #endif  // BENNET_EXP_FAILURE_H

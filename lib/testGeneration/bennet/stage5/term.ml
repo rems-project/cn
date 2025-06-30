@@ -20,10 +20,12 @@ type t =
         iargs : (Sym.t * Sym.t) list;
         oarg_bt : BT.t;
         path_vars : Sym.Set.t;
+        last_var : Sym.t;
         sized : (int * Sym.t) option
       }
   | Asgn of
-      { pointer : Sym.t * BT.t;
+      { backtrack_var : Sym.t;
+        pointer : Sym.t * BT.t;
         addr : IT.t;
         sct : Sctypes.t;
         value : IT.t;
@@ -74,9 +76,9 @@ let rec free_vars (tm : t) : Sym.Set.t =
   | Uniform _ | Alloc -> Sym.Set.empty
   | Pick { bt = _; choice_var = _; choices; last_var = _ } ->
     free_vars_list (List.map snd choices)
-  | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; sized = _ } ->
+  | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; last_var = _; sized = _ } ->
     Sym.Set.of_list (List.map snd iargs)
-  | Asgn { pointer = _; addr; sct = _; value; last_var = _; rest } ->
+  | Asgn { backtrack_var = _; pointer = _; addr; sct = _; value; last_var = _; rest } ->
     Sym.Set.union (IT.free_vars_list [ addr; value ]) (free_vars rest)
   | LetStar { x; x_bt = _; value; last_var = _; rest } ->
     Sym.Set.union (free_vars value) (Sym.Set.remove x (free_vars rest))
@@ -120,7 +122,7 @@ let rec pp (tm : t) : Pp.document =
                              parens (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                           choices)))
   | Alloc -> !^"alloc" ^^ parens empty
-  | Call { fsym; iargs; oarg_bt; path_vars; sized } ->
+  | Call { fsym; iargs; oarg_bt; path_vars; last_var; sized } ->
     parens
       (Sym.pp fsym
        ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
@@ -138,15 +140,19 @@ let rec pp (tm : t) : Pp.document =
              ^^^ separate_map
                    (comma ^^ space)
                    Sym.pp
-                   (path_vars |> Sym.Set.to_seq |> List.of_seq)))
-  | Asgn { pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
+                   (path_vars |> Sym.Set.to_seq |> List.of_seq)
+             ^^ !^"and backtracks to"
+             ^^^ Sym.pp last_var))
+  | Asgn { backtrack_var; pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
     Sctypes.pp sct
     ^^^ IT.pp addr
     ^^^ !^":="
     ^^^ IT.pp value
     ^^ semi
     ^^^ c_comment
-          (!^"backtracks to"
+          (!^"backtracks as"
+           ^^^ Sym.pp backtrack_var
+           ^^^ !^"to"
            ^^^ Sym.pp last_var
            ^^ !^" allocs via "
            ^^ Sym.pp p_sym

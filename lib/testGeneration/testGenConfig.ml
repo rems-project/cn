@@ -136,84 +136,88 @@ module Options = struct
       [ Uniform; Quartile; QuickCheck ]
 end
 
-let instance = ref default
+let instance : t option ref = ref Option.None
 
-let initialize (cfg : t) = instance := cfg
+let initialize (cfg : t) = instance := Some cfg
 
-let get_cc () = !instance.cc
+let get_cc () = (Option.get !instance).cc
 
-let is_print_steps () = !instance.print_steps
+let is_print_steps () = (Option.get !instance).print_steps
 
-let is_print_seed () = !instance.print_seed
+let is_print_seed () = (Option.get !instance).print_seed
 
-let get_num_samples () = !instance.num_samples
+let get_num_samples () = (Option.get !instance).num_samples
 
-let get_max_backtracks () = !instance.max_backtracks
+let get_max_backtracks () = (Option.get !instance).max_backtracks
 
-let get_build_tool () = !instance.build_tool
+let get_build_tool () = (Option.get !instance).build_tool
 
-let has_sanitizers () = !instance.sanitizers
+let has_sanitizers () = (Option.get !instance).sanitizers
 
 let is_experimental_struct_asgn_destruction () =
-  !instance.experimental_struct_asgn_destruction
+  (Option.get !instance).experimental_struct_asgn_destruction
 
 
 let is_experimental_product_arg_destruction () =
-  !instance.experimental_product_arg_destruction
+  (Option.get !instance).experimental_product_arg_destruction
 
 
-let is_experimental_runtime () = !instance.experimental_runtime
+let is_experimental_runtime () = (Option.get !instance).experimental_runtime
 
-let has_inline_everything () = !instance.inline_everything
+let has_inline_everything () = (Option.get !instance).inline_everything
 
-let has_input_timeout () = !instance.input_timeout
+let has_input_timeout () = (Option.get !instance).input_timeout
 
-let has_null_in_every () = !instance.null_in_every
+let has_null_in_every () = (Option.get !instance).null_in_every
 
-let has_seed () = !instance.seed
+let has_seed () = (Option.get !instance).seed
 
-let has_logging_level () = !instance.logging_level
+let has_logging_level () = (Option.get !instance).logging_level
 
-let has_logging_level_str () = Option.map string_of_logging_level !instance.logging_level
+let has_logging_level_str () =
+  Option.map string_of_logging_level (Option.get !instance).logging_level
 
-let has_trace_granularity () = !instance.trace_granularity
+
+let has_trace_granularity () = (Option.get !instance).trace_granularity
 
 let has_trace_granularity_str () =
-  Option.map string_of_trace_granularity !instance.trace_granularity
+  Option.map string_of_trace_granularity (Option.get !instance).trace_granularity
 
 
-let has_progress_level () = !instance.progress_level
+let has_progress_level () = (Option.get !instance).progress_level
 
 let has_progress_level_str () =
-  Option.map string_of_progress_level !instance.progress_level
+  Option.map string_of_progress_level (Option.get !instance).progress_level
 
 
-let is_until_timeout () = !instance.until_timeout
+let is_until_timeout () = (Option.get !instance).until_timeout
 
-let is_exit_fast () = !instance.exit_fast
+let is_exit_fast () = (Option.get !instance).exit_fast
 
-let has_max_stack_depth () = !instance.max_stack_depth
+let has_max_stack_depth () = (Option.get !instance).max_stack_depth
 
-let has_max_generator_size () = !instance.max_generator_size
+let has_max_generator_size () = (Option.get !instance).max_generator_size
 
-let has_sizing_strategy () = !instance.sizing_strategy
+let has_sizing_strategy () = (Option.get !instance).sizing_strategy
 
 let has_sizing_strategy_str () =
-  Option.map string_of_sizing_strategy !instance.sizing_strategy
+  Option.map string_of_sizing_strategy (Option.get !instance).sizing_strategy
 
 
-let is_random_size_splits () = !instance.random_size_splits
+let is_random_size_splits () = (Option.get !instance).random_size_splits
 
-let has_allowed_size_split_backtracks () = !instance.allowed_size_split_backtracks
+let has_allowed_size_split_backtracks () =
+  (Option.get !instance).allowed_size_split_backtracks
 
-let is_coverage () = !instance.coverage
 
-let has_pass s = not (List.mem String.equal s !instance.disable_passes)
+let is_coverage () = (Option.get !instance).coverage
 
-let is_trap () = !instance.trap
+let has_pass s = not (List.mem String.equal s (Option.get !instance).disable_passes)
 
-let has_no_replays () = !instance.no_replays
+let is_trap () = (Option.get !instance).trap
 
-let has_no_replicas () = !instance.no_replicas
+let has_no_replays () = (Option.get !instance).no_replays
 
-let get_output_tyche () = !instance.output_tyche
+let has_no_replicas () = (Option.get !instance).no_replicas
+
+let get_output_tyche () = (Option.get !instance).output_tyche

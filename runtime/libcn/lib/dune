@@ -64,6 +64,9 @@
     -rcs
     %{target}
     bennet-exp/alloc.o
+    bennet-exp/arbitrary.o
+    bennet-exp/assign.o
+    bennet-exp/backtrack.o
     bennet-exp/failure.o
     bennet-exp/rand.o
     bennet-exp/size.o

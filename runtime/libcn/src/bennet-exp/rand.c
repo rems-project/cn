@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -331,42 +332,46 @@ static struct choice_list* choice_history = 0;
 void bennet_srand(uint64_t seed) {
   sgenrand(seed);
 
-  while (choice_history != 0) {
+  while (choice_history != NULL) {
     struct choice_list* tmp = choice_history;
     choice_history = choice_history->next;
     free(tmp);
   }
 }
 
-uint64_t bennet_rand(void) {
-  if (choice_history != 0 && choice_history->next != 0) {
-    choice_history = choice_history->next;
-    return choice_history->choice;
-  } else {
-    uint64_t choice = genrand();
+static bool injecting = false;
 
-    struct choice_list* new_node = malloc(sizeof(struct choice_list));
-    *new_node = (struct choice_list){.choice = choice, .next = 0, .prev = choice_history};
-
-    if (choice_history != 0) {
-      assert(choice_history->next == 0);
-      choice_history->next = new_node;
-    }
-
-    choice_history = new_node;
-
-    return choice;
-  }
+void bennet_rand_start_injection(void) {
+  assert(!injecting);
+  injecting = true;
 }
 
-uint64_t bennet_rand_retry() {
+void bennet_rand_end_injection(void) {
+  assert(injecting);
+  injecting = false;
+}
+
+uint64_t bennet_rand(void) {
+  if (!injecting && choice_history != NULL && choice_history->next != NULL) {
+    choice_history = choice_history->next;
+    return choice_history->choice;
+  }
+
   uint64_t choice = genrand();
 
-  struct choice_list* next = (choice_history != 0) ? choice_history->next : 0;
-  struct choice_list* prev = (choice_history != 0) ? choice_history->prev : 0;
-
   struct choice_list* new_node = malloc(sizeof(struct choice_list));
-  *new_node = (struct choice_list){.choice = choice, .next = next, .prev = prev};
+  *new_node =
+      (struct choice_list){.choice = choice, .next = NULL, .prev = choice_history};
+
+  if (choice_history != NULL) {
+    if (choice_history->next != NULL) {
+      assert(injecting);
+      new_node->next = choice_history->next;
+      choice_history->next->prev = new_node;
+    }
+
+    choice_history->next = new_node;
+  }
 
   choice_history = new_node;
 
@@ -374,7 +379,7 @@ uint64_t bennet_rand_retry() {
 }
 
 bennet_rand_checkpoint bennet_rand_save(void) {
-  assert(choice_history != 0);
+  assert(choice_history != NULL);
   return choice_history;
 }
 
@@ -394,6 +399,20 @@ void bennet_rand_replace(bennet_rand_checkpoint checkpoint) {
   bennet_rand_restore(checkpoint);
   free_list(choice_history->next);
   choice_history->next = 0;
+}
+
+void bennet_rand_skip_to(bennet_rand_checkpoint checkpoint) {
+  assert(choice_history != NULL);
+
+  if (checkpoint->prev) {
+    checkpoint->prev->next = NULL;
+  }
+
+  // free_list(choice_history->next);
+  checkpoint->prev = choice_history;
+  choice_history->next = checkpoint;
+
+  choice_history = checkpoint;
 }
 
 char* bennet_rand_to_str(bennet_rand_checkpoint checkpoint) {
