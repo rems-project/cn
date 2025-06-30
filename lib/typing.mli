@@ -1,3 +1,5 @@
+val unfold_rec_preds : bool ref
+
 type 'a t
 
 type 'a m = 'a t
