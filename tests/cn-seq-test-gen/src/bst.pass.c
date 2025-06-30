@@ -210,7 +210,7 @@ type_synonym RangedNode = {
   Interval range
 }
 
-predicate RangedNode RangedNode(pointer root) {
+predicate [rec] RangedNode RangedNode(pointer root) {
    take node = Owned<struct MapNode>(root);
    take smaller = RangedBST(node.smaller);
    take larger  = RangedBST(node.larger);
@@ -221,7 +221,7 @@ predicate RangedNode RangedNode(pointer root) {
 }
 
 // A binary search tree, and the interval for all its keys.
-predicate RangedBST RangedBST(pointer root) {
+predicate [rec] RangedBST RangedBST(pointer root) {
   if (is_null(root)) {
     return { tree: Leaf {}, range: IntervalNone{} };
   } else {
