@@ -3,6 +3,8 @@
 
 #include <stdlib.h>
 
+#include <bennet-exp/domain.h>
+#include <bennet-exp/optional.h>
 #include <cn-executable/utils.h>
 
 #ifdef __cplusplus
@@ -24,6 +26,11 @@ void bennet_ownership_restore(void* ptr);
 
 cn_pointer* bennet_alloc(
     size_t lower_offset_bound, size_t upper_offset_bound, bool is_null);
+
+cn_pointer* bennet_alloc_unsigned(bennet_domain(uintptr_t) * cs);
+cn_pointer* bennet_alloc_signed(bennet_domain(intptr_t) * cs);
+
+cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs);
 
 int bennet_alloc_check(void* p, size_t sz);
 

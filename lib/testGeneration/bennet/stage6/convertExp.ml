@@ -43,6 +43,16 @@ let transform_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC
   CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
 
 
+let string_ident (str : string) : CF.GenTypes.genTypeCategory A.expression_ =
+  AilEident (Sym.fresh str)
+
+
+let string_call (str : string) (es : CF.GenTypes.genTypeCategory A.expression list)
+  : CF.GenTypes.genTypeCategory A.expression_
+  =
+  A.AilEcall (mk_expr (string_ident str), es)
+
+
 let rec transform_term
           (filename : string)
           (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -54,16 +64,19 @@ let rec transform_term
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
   =
-  let loc = Locations.other __LOC__ in
   match tm with
   | Uniform { bt } ->
+    let sign, bits = Option.get (BT.is_bits_bt bt) in
+    let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
     ( [],
       [],
-      A.(
-        mk_expr
-          (AilEcall
-             ( mk_expr (AilEident (Sym.fresh "BENNET_UNIFORM")),
-               List.map mk_expr [ AilEident (Sym.fresh (name_of_bt bt)) ] ))) )
+      mk_expr
+        (string_call
+           ("BENNET_ARBITRARY_" ^ sign_str)
+           [ mk_expr
+               (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
+           ]) )
+  | Alloc -> ([], [], mk_expr (string_call "BENNET_ARBITRARY_POINTER" []))
   | Pick { bt; choice_var; choices; last_var } ->
     let var = Sym.fresh_anon () in
     let bs, ss =
@@ -76,7 +89,7 @@ let rec transform_term
                   [ AilSexpr
                       (mk_expr
                          (AilEcall
-                            ( mk_expr (AilEident (Sym.fresh "BENNET_PICK_CASE_BEGIN")),
+                            ( mk_expr (string_ident "BENNET_PICK_CASE_BEGIN"),
                               List.map
                                 mk_expr
                                 [ AilEconst
@@ -88,7 +101,7 @@ let rec transform_term
                   @ [ AilSexpr
                         (mk_expr
                            (AilEcall
-                              ( mk_expr (AilEident (Sym.fresh "BENNET_PICK_CASE_END")),
+                              ( mk_expr (string_ident "BENNET_PICK_CASE_END"),
                                 [ mk_expr (AilEident var); e ] )))
                     ]) ))
            choices)
@@ -98,7 +111,7 @@ let rec transform_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_PICK_BEGIN")),
+                  ( mk_expr (string_ident "BENNET_PICK_BEGIN"),
                     List.map
                       mk_expr
                       [ AilEident (Sym.fresh (name_of_bt bt));
@@ -124,17 +137,11 @@ let rec transform_term
       @ [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_PICK_END")),
+                  ( mk_expr (string_ident "BENNET_PICK_END"),
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | Alloc ->
-    let alloc_sym = Sym.fresh "BENNET_ALLOC" in
-    let b, s, e =
-      transform_it filename sigma name (IT.num_lit_ Z.zero Memory.size_bt loc)
-    in
-    (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
-  | Call { fsym; iargs; oarg_bt; path_vars; last_var = _; sized } ->
+  | Call { fsym; iargs; oarg_bt; path_vars; last_var; sized } ->
     (match List.assoc_opt Sym.equal fsym ctx with
      | Some _ -> ()
      | None -> failwith (Sym.pp_string fsym));
@@ -146,7 +153,7 @@ let rec transform_term
         | Some (n, _) when n <= 0 -> failwith "Invalid sized call"
         | Some (1, _) ->
           [ AilEbinary
-              ( mk_expr (AilEident (Sym.fresh "bennet_rec_size")),
+              ( mk_expr (string_ident "bennet_rec_size"),
                 Arithmetic Sub,
                 mk_expr (AilEconst (ConstantInteger (IConstant (Z.one, Decimal, None))))
               )
@@ -155,64 +162,55 @@ let rec transform_term
           [ AilEident sym_size ]
         | Some (n, _) ->
           [ AilEbinary
-              ( mk_expr (AilEident (Sym.fresh "bennet_rec_size")),
+              ( mk_expr (string_ident "bennet_rec_size"),
                 Arithmetic Div,
                 mk_expr
                   (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))) )
           ]
         | None when (List.assoc Sym.equal fsym ctx).recursive ->
-          [ AilEcall (mk_expr (AilEident (Sym.fresh "bennet_get_size")), []) ]
+          [ AilEcall (mk_expr (string_ident "bennet_get_size"), []) ]
         | None -> [])
     in
     let es = List.map mk_expr (es @ sized_call) in
-    let x = Sym.fresh_anon () in
-    let b = Utils.create_binding x (bt_to_ctype oarg_bt) in
-    let wrap_to_string (sym : Sym.t) =
-      A.(
-        AilEcast
-          ( C.no_qualifiers,
-            C.pointer_to_char,
-            mk_expr (AilEstr (None, [ (Locations.other __LOC__, [ Sym.pp_string sym ]) ]))
-          ))
-    in
-    let from_vars = iargs |> List.map fst |> List.map wrap_to_string in
-    let to_vars = iargs |> List.map snd |> List.map wrap_to_string in
-    let macro_call name vars =
-      A.AilSexpr
-        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh name)), List.map mk_expr vars)))
-    in
-    ( [ b ],
-      ([ A.AilSdeclaration
-           [ (x, Some (mk_expr (AilEcall (mk_expr (AilEident sym), es)))) ]
-       ]
-       @ (if List.is_empty from_vars then
-            []
-          else
-            [ macro_call "BENNET_CALL_FROM" from_vars;
-              macro_call "BENNET_CALL_TO" to_vars
-            ])
-       @
-       if Sym.Set.is_empty path_vars then
-         []
-       else
-         [ macro_call
-             "BENNET_CALL_PATH_VARS"
-             (path_vars |> Sym.Set.to_seq |> List.of_seq |> List.map wrap_to_string)
-         ]),
-      mk_expr (AilEident x) )
+    ( [],
+      [],
+      mk_expr
+        (AilEgcc_statement
+           ( [],
+             [ mk_stmt
+                 (AilSexpr
+                    (mk_expr
+                       (AilEident
+                          (Sym.fresh
+                             ("const void* path_vars[] = { "
+                              ^ String.concat
+                                  ", "
+                                  (List.map
+                                     (fun x -> Sym.pp_string x)
+                                     (List.of_seq (Sym.Set.to_seq path_vars))
+                                   @ [ "NULL" ])
+                              ^ " }")))));
+               mk_stmt
+                 (AilSexpr
+                    (mk_expr
+                       (AilEcall
+                          ( mk_expr (string_ident "BENNET_CALL"),
+                            [ mk_expr (string_ident (name_of_bt oarg_bt));
+                              mk_expr (AilEident last_var);
+                              mk_expr (AilEcall (mk_expr (AilEident sym), es))
+                            ] ))))
+             ] )) )
   | Asgn { backtrack_var = _; pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
-    let tmp_sym = Sym.fresh_anon () in
-    let b1, s1, e1 = transform_it filename sigma name addr in
-    let b2, s2, AnnotatedExpression (_, _, _, e2_) =
+    let b_addr, s_addr, e_addr = transform_it filename sigma name addr in
+    let b_value, s_value, AnnotatedExpression (_, _, _, e_value_) =
       transform_it filename sigma name value
     in
-    let b3 = [ Utils.create_binding tmp_sym C.(mk_ctype_pointer no_qualifiers void) ] in
-    let s3 =
+    let s_assign =
       A.
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_ASSIGN")),
+                  ( mk_expr (string_ident "BENNET_ASSIGN"),
                     [ mk_expr (AilEident p_sym);
                       mk_expr
                         (let b, s =
@@ -229,98 +227,146 @@ let rec transform_term
                            (b, List.map mk_stmt (s @ [ A.AilSexpr e ]))
                          in
                          A.AilEgcc_statement (b, s));
-                      e1;
+                      e_addr;
                       mk_expr
-                        (AilEident
-                           (Sym.fresh
-                              (CF.Pp_utils.to_plain_string
-                                 CF.Pp_ail.(
-                                   with_executable_spec
-                                     (pp_ctype C.no_qualifiers)
-                                     (Sctypes.to_ctype sct)))));
-                      mk_expr (CtA.wrap_with_convert_from e2_ (IT.get_bt value));
-                      mk_expr (AilEident (Sym.fresh_anon ()));
-                      mk_expr
-                        (AilEcast
-                           ( C.no_qualifiers,
-                             C.pointer_to_char,
-                             mk_expr (AilEstr (None, [ (loc, [ Sym.pp_string name ]) ]))
-                           ));
+                        (string_ident
+                           (CF.Pp_utils.to_plain_string
+                              CF.Pp_ail.(
+                                with_executable_spec
+                                  (pp_ctype C.no_qualifiers)
+                                  (Sctypes.to_ctype sct))));
+                      mk_expr (CtA.wrap_with_convert_from ~sct e_value_ (IT.get_bt value));
                       mk_expr (AilEident last_var)
                     ]
                     @ List.map
-                        (fun x ->
-                           mk_expr
-                             (AilEcast
-                                ( C.no_qualifiers,
-                                  C.pointer_to_char,
-                                  mk_expr
-                                    (AilEstr
-                                       ( None,
-                                         [ (Locations.other __LOC__, [ Sym.pp_string x ])
-                                         ] )) )))
+                        (fun x -> mk_expr (AilEident x))
                         (List.of_seq (Sym.Set.to_seq (IT.free_vars addr)))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b4, s4, e4 = transform_term filename sigma ctx name current_var rest in
-    (b1 @ b2 @ b3 @ b4, s1 @ s2 @ s3 @ s4, e4)
-  | LetStar { x; x_bt; value; last_var; rest } ->
-    let s1 =
+    let b_rest, s_rest, e_rest =
+      transform_term filename sigma ctx name current_var rest
+    in
+    (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
+  | LetStar { x; x_bt; value = Uniform { bt }; last_var; rest } ->
+    let sign, bits = Option.get (BT.is_bits_bt bt) in
+    let func_name =
+      match sign with
+      | Unsigned -> "BENNET_LET_ARBITRARY_UNSIGNED"
+      | Signed -> "BENNET_LET_ARBITRARY_SIGNED"
+    in
+    let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
+    let s_let =
+      [ A.AilSexpr
+          (mk_expr
+             (AilEcall
+                ( mk_expr (string_ident func_name),
+                  List.map
+                    mk_expr
+                    [ AilEconst
+                        (ConstantInteger
+                           (IConstant
+                              ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                Decimal,
+                                None )));
+                      AilEconst
+                        (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
+                      AilEident x;
+                      AilEident last_var
+                    ] )))
+      ]
+    in
+    let b_rest, s_rest, e_rest =
+      transform_term filename sigma ctx name current_var rest
+    in
+    (b_let @ b_rest, s_let @ s_rest, e_rest)
+  | LetStar { x; x_bt; value = Alloc; last_var; rest } ->
+    let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
+    let s_let =
+      [ A.AilSexpr
+          (mk_expr
+             (AilEcall
+                ( mk_expr (string_ident "BENNET_LET_ARBITRARY_POINTER"),
+                  List.map
+                    mk_expr
+                    [ AilEconst
+                        (ConstantInteger
+                           (IConstant
+                              ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                Decimal,
+                                None )));
+                      AilEident x;
+                      AilEident last_var
+                    ] )))
+      ]
+    in
+    let b_rest, s_rest, e_rest =
+      transform_term filename sigma ctx name current_var rest
+    in
+    (b_let @ b_rest, s_let @ s_rest, e_rest)
+  | LetStar { x; x_bt; value = Return { value }; last_var; rest } ->
+    let b_value, s_value, e_value = transform_it filename sigma name value in
+    let s_let =
       A.
         [ AilSexpr
             (mk_expr
-               (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_LET_BEGIN")),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( (if Stage5.Term.is_return value then
-                                     Z.zero
-                                   else
-                                     Z.of_int (TestGenConfig.get_max_backtracks ())),
-                                  Decimal,
-                                  None )));
-                        AilEident x
-                      ] )))
+               (string_call
+                  "BENNET_LET_RETURN"
+                  ([ mk_expr (string_ident (name_of_bt x_bt));
+                     mk_expr (AilEident x);
+                     (* Below might cause issues if it contains a comma *)
+                     e_value;
+                     mk_expr (AilEident last_var)
+                   ]
+                   @ List.map
+                       (fun x -> mk_expr (AilEident x))
+                       (List.of_seq (Sym.Set.to_seq (IT.free_vars value)))
+                   @ [ mk_expr (AilEconst ConstantNull) ])))
         ]
     in
-    let b2, s2, e2 = transform_term filename sigma ctx name x value in
-    let s3 =
-      A.(
+    let b_rest, s_rest, e_rest =
+      transform_term filename sigma ctx name current_var rest
+    in
+    (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
+  | LetStar { x; x_bt; value = Call _ as value; last_var; rest }
+  | LetStar { x; x_bt; value = Map _ as value; last_var; rest }
+  | LetStar { x; x_bt; value = LetStar _ as value; last_var; rest } ->
+    let b_value, s_value, e_value =
+      transform_term filename sigma ctx name current_var value
+    in
+    let s_let =
+      A.
         [ AilSexpr
             (mk_expr
-               (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_LET_BODY")),
-                    List.map
-                      mk_expr
-                      [ AilEident (Sym.fresh (name_of_bt x_bt)); AilEident x ]
-                    @ [ e2 ] )))
+               (string_call
+                  "BENNET_LET"
+                  [ mk_expr
+                      (AilEconst
+                         (ConstantInteger
+                            (IConstant
+                               ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                 Decimal,
+                                 None ))));
+                    mk_expr (string_ident (name_of_bt x_bt));
+                    mk_expr (AilEident x);
+                    mk_expr (AilEident last_var);
+                    e_value
+                  ]))
         ]
-        @ [ AilSexpr
-              (mk_expr
-                 (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh "BENNET_LET_END")),
-                      List.map mk_expr [ AilEident x; AilEident last_var ]
-                      @ List.map
-                          (fun x ->
-                             mk_expr
-                               (AilEcast
-                                  ( C.no_qualifiers,
-                                    C.pointer_to_char,
-                                    mk_expr
-                                      (AilEstr
-                                         ( None,
-                                           [ (Locations.other __LOC__, [ Sym.pp_string x ])
-                                           ] )) )))
-                          (List.of_seq (Sym.Set.to_seq (Stage5.Term.free_vars value)))
-                      @ [ mk_expr (AilEconst ConstantNull) ] )))
-          ])
     in
-    let b4, s4, e4 = transform_term filename sigma ctx name current_var rest in
-    (b2 @ [ Utils.create_binding x (bt_to_ctype x_bt) ] @ b4, s1 @ s2 @ s3 @ s4, e4)
+    let b_rest, s_rest, e_rest =
+      transform_term filename sigma ctx name current_var rest
+    in
+    (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
+  | LetStar { value = Pick _; _ } ->
+    failwith "Should be unreachable due to lifting of `pick`"
+  | LetStar { value = ITE _; _ } ->
+    failwith "Should be unreachable due to lifting of `if-else`"
+  | LetStar { value = Assert _; _ } ->
+    failwith "Should be unreachable due to lifting of `assert`"
+  | LetStar { value = Asgn _; _ } ->
+    failwith "Should be unreachable due to lifting of `assign`"
+  | LetStar { value = SplitSize _; _ } -> failwith "Should be unreachable due to lifting"
   | Return { value } ->
     let b, s, e = transform_it filename sigma name value in
     (b, s, e)
@@ -331,20 +377,11 @@ let rec transform_term
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_ASSERT")),
+                  ( mk_expr (string_ident "BENNET_ASSERT"),
                     [ e1 ]
                     @ [ mk_expr (AilEident last_var) ]
                     @ List.map
-                        (fun x ->
-                           mk_expr
-                             (AilEcast
-                                ( C.no_qualifiers,
-                                  C.pointer_to_char,
-                                  mk_expr
-                                    (AilEstr
-                                       ( None,
-                                         [ (Locations.other __LOC__, [ Sym.pp_string x ])
-                                         ] )) )))
+                        (fun x -> mk_expr (AilEident x))
                         (List.of_seq (Sym.Set.to_seq (LC.free_vars prop)))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
@@ -382,7 +419,7 @@ let rec transform_term
     let e_args =
       [ mk_expr (AilEident sym_map);
         mk_expr (AilEident i);
-        mk_expr (AilEident (Sym.fresh (name_of_bt i_bt)))
+        mk_expr (string_ident (name_of_bt i_bt))
       ]
     in
     let e_perm =
@@ -398,20 +435,11 @@ let rec transform_term
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh "BENNET_MAP_BEGIN")),
+                    ( mk_expr (string_ident "BENNET_MAP_BEGIN"),
                       e_args
                       @ [ e_perm; e_max; mk_expr (AilEident last_var) ]
                       @ List.map
-                          (fun x ->
-                             mk_expr
-                               (AilEcast
-                                  ( C.no_qualifiers,
-                                    C.pointer_to_char,
-                                    mk_expr
-                                      (AilEstr
-                                         ( None,
-                                           [ (Locations.other __LOC__, [ Sym.pp_string x ])
-                                           ] )) )))
+                          (fun x -> mk_expr (AilEident x))
                           (List.of_seq
                              (Sym.Set.to_seq (Sym.Set.remove i (IT.free_vars perm))))
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
@@ -424,8 +452,7 @@ let rec transform_term
         @ [ AilSexpr
               (mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh "BENNET_MAP_END")),
-                      e_args @ [ e_min; e_val ] )))
+                    (mk_expr (string_ident "BENNET_MAP_END"), e_args @ [ e_min; e_val ])))
           ])
     in
     ([ b_map; b_i ] @ b_min @ b_max @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
@@ -440,29 +467,22 @@ let rec transform_term
     let e_syms =
       syms_l |> List.map (fun x -> mk_expr (AilEunary (Address, mk_expr (AilEident x))))
     in
-    let wrap_to_string (sym : Sym.t) =
-      let open A in
-      mk_expr
-        (AilEcast
-           ( C.no_qualifiers,
-             C.pointer_to_char,
-             mk_expr
-               (AilEstr (None, [ (Locations.other __LOC__, [ Sym.pp_string sym ]) ])) ))
-    in
     let s =
       let open A in
       List.map (fun x -> AilSdeclaration [ (x, None) ]) syms_l
       @ [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_SPLIT_BEGIN")),
+                  ( mk_expr (string_ident "BENNET_SPLIT_BEGIN"),
                     [ e_tmp ] @ e_syms @ [ mk_expr (AilEconst ConstantNull) ] )));
           AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (AilEident (Sym.fresh "BENNET_SPLIT_END")),
+                  ( mk_expr (string_ident "BENNET_SPLIT_END"),
                     [ e_tmp; mk_expr (AilEident last_var) ]
-                    @ List.map wrap_to_string (List.of_seq (Sym.Set.to_seq path_vars))
+                    @ List.map
+                        (fun x -> mk_expr (AilEident x))
+                        (List.of_seq (Sym.Set.to_seq path_vars))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
@@ -533,8 +553,7 @@ let transform_gen_def
                       [ AilSexpr
                           (mk_expr
                              (AilEcall
-                                ( mk_expr (AilEident (Sym.fresh "bennet_decrement_depth")),
-                                  [] )))
+                                (mk_expr (string_ident "bennet_decrement_depth"), [])))
                       ]
                   @ A.
                       [ AilSreturn
@@ -597,7 +616,7 @@ let transform (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Stage5.Ctx.t)
   ^^ (!^"#define" ^^^ include_guard_name)
   ^^ twice hardline
   ^^ !^"#include"
-  ^^^ angles !^"bennet/prelude.h"
+  ^^^ angles !^"bennet-exp/prelude.h"
   ^^ twice hardline
   ^^ !^"/* TAG DEFINITIONS */"
   ^^ hardline

@@ -82,30 +82,42 @@ void set_null_in_every(uint8_t n) {
   null_in_every = n;
 }
 
-cn_pointer* bennet_alloc(
-    size_t lower_offset_bound, size_t upper_offset_bound, bool is_null) {
-  if (is_null) {
-    return convert_to_cn_pointer(NULL);
-  }
+#define bennet_alloc(cs)                                                                 \
+  ({                                                                                     \
+    cn_pointer* ret;                                                                     \
+                                                                                         \
+    size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;                      \
+                                                                                         \
+    if (bytes == 0) {                                                                    \
+      uint8_t rnd = bennet_uniform_u8(null_in_every);                                    \
+      if (rnd == 0) {                                                                    \
+        bytes = 0;                                                                       \
+      } else {                                                                           \
+        bytes = sizeof(intmax_t);                                                        \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    if (bytes == 0) {                                                                    \
+      ret = convert_to_cn_pointer(NULL);                                                 \
+    } else {                                                                             \
+      void* p = cn_bump_malloc(bytes);                                                   \
+      update_alloc(p, bytes);                                                            \
+      ret = convert_to_cn_pointer(p + cs->lower_offset_bound);                           \
+    }                                                                                    \
+                                                                                         \
+    ret;                                                                                 \
+  })
 
-  size_t bytes = upper_offset_bound + lower_offset_bound;
+cn_pointer* bennet_alloc_unsigned(bennet_domain(uintptr_t) * cs) {
+  return bennet_alloc(cs);
+}
 
-  if (bytes == 0) {
-    uint64_t rnd = bennet_uniform_u8(null_in_every);
-    if (rnd == 0) {
-      bytes = 0;
-    } else {
-      bytes = sizeof(intmax_t);
-    }
-  }
+cn_pointer* bennet_alloc_signed(bennet_domain(intptr_t) * cs) {
+  return bennet_alloc(cs);
+}
 
-  if (bytes == 0) {
-    return convert_to_cn_pointer(NULL);
-  } else {
-    void* p = cn_bump_malloc(bytes);
-    update_alloc(p, bytes);
-    return convert_to_cn_pointer(p + lower_offset_bound);
-  }
+cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
+  return bennet_alloc_unsigned(cs);
 }
 
 int bennet_alloc_check(void* p, size_t sz) {

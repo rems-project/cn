@@ -46,7 +46,7 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
         }
     | Alloc -> Alloc
     | Call { fsym; iargs; oarg_bt; sized } ->
-      Call { fsym; iargs; oarg_bt; path_vars; sized }
+      Call { fsym; iargs; oarg_bt; path_vars; last_var; sized }
     | Asgn { addr; sct; value; rest } ->
       let rec pointer_of (it : IT.t) : Sym.t * BT.t =
         match it with
@@ -77,8 +77,10 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
             failwith __LOC__);
           Sym.Map.choose pointers
       in
+      let backtrack_var = Sym.fresh_anon () in
       Asgn
-        { pointer = pointer_of addr;
+        { backtrack_var;
+          pointer = pointer_of addr;
           addr;
           sct;
           value;
