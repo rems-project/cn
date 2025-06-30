@@ -212,7 +212,7 @@ let procedure : Loc.t -> _ Mucore.args_and_body -> unit Typing.t =
 
 let predicate pred =
   let module Def = Definition in
-  let Def.Predicate.{ loc; pointer; iargs; oarg = _; clauses } = pred in
+  let Def.Predicate.{ loc; pointer; iargs; oarg = _; clauses; recursive = _ } = pred in
   (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
   pure
     (let@ () = add_l pointer BaseTypes.(Loc ()) (loc, lazy (Pp.string "ptr-var")) in

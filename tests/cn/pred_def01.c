@@ -9,7 +9,7 @@ predicate {integer out1} OtherPred (pointer p) {
   return { out1: 42 } ;
 }
 
-predicate {integer z, integer out2} MyPred (pointer p, integer n) {
+predicate [rec] {integer z, integer out2} MyPred (pointer p, integer n) {
   if ( n == 10 ) {
     take Foo = RW<struct T>(p) ;
     return { z: 42, out2: 55 } ;
@@ -32,7 +32,7 @@ datatype int_list {
   Cons {i32 x, datatype int_list tl}
 }
 
-predicate {datatype int_list v} IntList(pointer l) {
+predicate [rec] {datatype int_list v} IntList(pointer l) {
   if ( is_null(l) ) {
     return { v: Nil {} } ;
   } else {

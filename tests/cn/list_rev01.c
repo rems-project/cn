@@ -6,7 +6,7 @@ struct node {
 };
 
 /*@
-predicate {integer len} List (pointer p) {
+predicate [rec] {integer len} List (pointer p) {
   if ( is_null(p) ) {
     return { len: 0 };
   }

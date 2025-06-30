@@ -133,7 +133,8 @@ module Predicate = struct
       pointer : Sym.t;
       iargs : (Sym.t * BaseTypes.t) list;
       oarg : Locations.t * BaseTypes.t;
-      clauses : Clause.t list option
+      clauses : Clause.t list option;
+      recursive : bool;
     }
 
   let pp def =
@@ -201,7 +202,8 @@ let alloc =
       pointer = Sym.fresh "ptr";
       iargs = [];
       oarg = (Locations.other __LOC__, Alloc.History.value_bt);
-      clauses = None
+      clauses = None;
+      recursive = false;
     }
 
 

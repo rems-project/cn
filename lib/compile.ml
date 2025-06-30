@@ -1513,6 +1513,9 @@ let predicate env (def : _ Cn.cn_predicate) =
   let env' =
     List.fold_left (fun acc (sym, bTy) -> add_logical sym (SBT.inj bTy) acc) env iargs
   in
+  let is_rec =
+    List.exists (fun id -> String.equal (Id.get_string id) "rec") def.cn_pred_attrs
+  in
   let@ clauses =
     match def.cn_pred_clauses with
     | Some clauses ->
@@ -1529,7 +1532,8 @@ let predicate env (def : _ Cn.cn_predicate) =
             pointer = iarg0;
             iargs = iargs';
             oarg = output;
-            clauses
+            clauses;
+            recursive = is_rec;
           } )
   | (_, found_bty) :: _ ->
     fail

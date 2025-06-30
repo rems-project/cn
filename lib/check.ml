@@ -2239,12 +2239,17 @@ let record_and_check_logical_functions funs =
 
 
 let record_and_check_resource_predicates preds =
+  let open Definition.Predicate in
   (* add the names to the context, so recursive preds check *)
   let@ () =
     ListM.iterM
       (fun (name, def) ->
-         let@ simple_def = WellTyped.predicate { def with clauses = None } in
-         Global.add_resource_predicate name simple_def)
+        if def.recursive then
+          let@ simple_def = WellTyped.predicate { def with clauses = None } in
+          Global.add_resource_predicate name simple_def
+        else
+          return ()
+      )
       preds
   in
   let@ () =
@@ -2259,7 +2264,6 @@ let record_and_check_resource_predicates preds =
                  ^ ": "
                  ^ Sym.pp_string name)));
          let@ def = WellTyped.predicate def in
-         (* add simplified def to the context *)
          Global.add_resource_predicate name def)
       preds
   in

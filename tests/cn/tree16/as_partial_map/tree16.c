@@ -41,7 +41,7 @@ function (map<datatype tree_arc, datatype tree_node_option>) construct
 
 function (map<i32, map<datatype tree_arc, datatype tree_node_option> >) default_ns ()
 
-predicate {map<datatype tree_arc, datatype tree_node_option> t,
+predicate [rec] {map<datatype tree_arc, datatype tree_node_option> t,
         i32 v, map<i32, map<datatype tree_arc, datatype tree_node_option> > ns}
   Tree (pointer p)
 {
@@ -59,7 +59,7 @@ predicate {map<datatype tree_arc, datatype tree_node_option> t,
   }
 }
 
-predicate (map <datatype tree_arc, datatype tree_node_option>) Indirect_Tree (pointer p) {
+predicate [rec] (map <datatype tree_arc, datatype tree_node_option>) Indirect_Tree (pointer p) {
   take V = RW<tree>(p);
   take T = Tree(V);
   return T.t;

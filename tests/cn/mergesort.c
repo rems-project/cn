@@ -9,7 +9,7 @@ datatype list {
   Cons {i32 head, list tail}
 }
 
-predicate (list) List(pointer p) {
+predicate [rec] (list) List(pointer p) {
   if (is_null(p)) {
     return Nil {};
   } else {

@@ -20,7 +20,7 @@ function [rec] (datatype seq) append(datatype seq xs, datatype seq ys) {
   }
 }
 
-predicate (datatype seq) IntList(pointer p) {
+predicate [rec] (datatype seq) IntList(pointer p) {
   if (is_null(p)) {
     return Seq_Nil{};
   } else {

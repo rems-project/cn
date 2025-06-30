@@ -6,7 +6,7 @@ datatype seq {
   Cons {i32 head, datatype seq tail}
 }
 
-predicate (datatype seq) IntList(pointer p) {
+predicate [rec] (datatype seq) IntList(pointer p) {
   if (is_null(p)) {
     return Nil{};
   } else {
