@@ -39,6 +39,7 @@ let verify
       allow_split_magic_comments
       disable_resource_derived_constraints
       try_hard
+      unfold_rec_preds
   =
   if json then (
     if debug_level > 0 then
@@ -68,6 +69,7 @@ let verify
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
+  Typing.unfold_rec_preds := unfold_rec_preds;
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
@@ -199,6 +201,10 @@ module Flags = struct
   let disable_resource_derived_constraints =
     let doc = "disable resource-derived constraints" in
     Arg.(value & flag & info [ "disable-resource-derived-constraints" ] ~doc)
+
+  let unfold_rec_preds =
+    let doc = "automatically unfold recursive predicate definitions" in
+    Arg.(value & flag & info [ "unfold-recursive-predicates" ] ~doc)
 end
 
 module Lemma_flags = struct
@@ -270,6 +276,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.allow_split_magic_comments
   $ Flags.disable_resource_derived_constraints
   $ Flags.try_hard
+  $ Flags.unfold_rec_preds
 
 
 let cmd =

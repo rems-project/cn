@@ -5,7 +5,7 @@ module LC = LogicalConstraints
 module Loc = Locations
 module IT = IndexTerms
 
-let unfold_rec_preds = ref true
+let unfold_rec_preds = ref false
 
 type solver = Solver.solver
 
