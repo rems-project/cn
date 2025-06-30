@@ -40,6 +40,7 @@ let verify
       disable_resource_derived_constraints
       try_hard
       disable_unfold_rec_preds
+      check_consistency
   =
   if json then (
     if debug_level > 0 then
@@ -92,7 +93,11 @@ let verify
     ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
       let check (functions, global_var_constraints, lemmas) =
         let open Typing in
-        let@ errors = Check.time_check_c_functions (global_var_constraints, functions) in
+        let@ errors =
+          Check.time_check_c_functions
+            check_consistency
+            (global_var_constraints, functions)
+        in
         if not quiet then
           List.iter
             (fun (fn, err) ->
@@ -206,6 +211,13 @@ module Flags = struct
   let disable_unfold_rec_preds =
     let doc = "disable automatical unfolding of recursive predicate definitions" in
     Arg.(value & flag & info [ "disable-recursive-predicate-unfolding" ] ~doc)
+
+
+  let check_consistency =
+    let doc =
+      "check consistency of predicate definitions, function specifications, and lemmas"
+    in
+    Arg.(value & flag & info [ "check-consistency" ] ~doc)
 end
 
 module Lemma_flags = struct
@@ -278,6 +290,7 @@ let verify_t : unit Term.t =
   $ Flags.disable_resource_derived_constraints
   $ Flags.try_hard
   $ Flags.disable_unfold_rec_preds
+  $ Flags.check_consistency
 
 
 let cmd =
