@@ -397,7 +397,8 @@ static inline int ipow(int base, int exp) {
   convert_to_cn_pointer((char *)((uintptr_t)cn_ptr->ptr + (uintptr_t)(index->val * size)))
 
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
-  convert_to_cn_pointer(&(((struct tag *)cn_ptr->ptr)->member_name))
+  convert_to_cn_pointer(                                                                 \
+      (void *)(((uintptr_t)cn_ptr->ptr) + offsetof(struct tag, member_name)))
 
 #define CN_GEN_INCREMENT(CNTYPE)                                                         \
   static inline CNTYPE *CNTYPE##_increment(CNTYPE *i) {                                  \
