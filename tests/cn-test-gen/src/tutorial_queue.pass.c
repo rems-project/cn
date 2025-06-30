@@ -14,7 +14,7 @@ datatype List {
   Cons {i32 Head, datatype List Tail}
 }
 
-predicate (datatype List) SLList_At(pointer p) {
+predicate [rec] (datatype List) SLList_At(pointer p) {
   if (is_null(p)) {
     return Nil{};
   } else {
@@ -69,12 +69,16 @@ struct queue_cell {
   struct queue_cell* next;
 };
 /*@
-predicate (datatype List) QueuePtr_At (pointer q) {
-  take Q = Owned<struct queue>(q);
-  assert (   (is_null(Q.front)  && is_null(Q.back)) 
-          || (!is_null(Q.front) && !is_null(Q.back)));
-  take L = QueueFB(Q.front, Q.back);
-  return L;
+predicate [rec] (datatype List) QueueAux (pointer f, pointer b) {
+  if (ptr_eq(f,b)) {
+    return Nil{};
+  } else {
+    take F = Owned<struct queue_cell>(f);
+    assert (!is_null(F.next));  
+    assert (ptr_eq(F.next, b) || !addr_eq(F.next, b));
+    take B = QueueAux(F.next, b);
+    return Cons{Head: F.first, Tail: B};
+  }
 }
 @*/
 /*@
@@ -91,16 +95,12 @@ predicate (datatype List) QueueFB (pointer front, pointer back) {
 }
 @*/
 /*@
-predicate (datatype List) QueueAux (pointer f, pointer b) {
-  if (ptr_eq(f,b)) {
-    return Nil{};
-  } else {
-    take F = Owned<struct queue_cell>(f);
-    assert (!is_null(F.next));  
-    assert (ptr_eq(F.next, b) || !addr_eq(F.next, b));
-    take B = QueueAux(F.next, b);
-    return Cons{Head: F.first, Tail: B};
-  }
+predicate (datatype List) QueuePtr_At (pointer q) {
+  take Q = Owned<struct queue>(q);
+  assert (   (is_null(Q.front)  && is_null(Q.back)) 
+          || (!is_null(Q.front) && !is_null(Q.back)));
+  take L = QueueFB(Q.front, Q.back);
+  return L;
 }
 @*/
 

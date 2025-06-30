@@ -7,7 +7,7 @@ struct tree_node {
 };
 
 /*@
-predicate {integer size} Tree (pointer p) {
+predicate [rec] {integer size} Tree (pointer p) {
   if (is_null(p)) {
     return { size: 0 };
   }

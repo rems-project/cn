@@ -9,7 +9,7 @@ datatype IntList {
   Cons { u32 head, IntList tail }
 }
 
-predicate IntList ListSegment(pointer from, pointer to) {
+predicate [rec] IntList ListSegment(pointer from, pointer to) {
   if (ptr_eq(from,to)) {
     return Nil {};
   } else {

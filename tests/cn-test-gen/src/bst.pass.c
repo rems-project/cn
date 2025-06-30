@@ -210,7 +210,7 @@ type_synonym RangedNode = {
   Interval range
 }
 
-predicate RangedNode RangedNode(pointer root) {
+predicate [rec] RangedNode RangedNode(pointer root) {
    take node = Owned<struct MapNode>(root);
    take smaller = RangedBST(node.smaller);
    take larger  = RangedBST(node.larger);
@@ -221,7 +221,7 @@ predicate RangedNode RangedNode(pointer root) {
 }
 
 // A binary search tree, and the interval for all its keys.
-predicate RangedBST RangedBST(pointer root) {
+predicate [rec] RangedBST RangedBST(pointer root) {
   if (is_null(root)) {
     return { tree: Leaf {}, range: IntervalNone{} };
   } else {
@@ -253,22 +253,10 @@ datatype BSTFocus {
   AtNode { BST done, struct MapNode node, BST smaller, BST larger }
 }
 
-predicate BSTFocus BSTFocus(pointer root, pointer child) {
-  if (is_null(child)) {
-    take tree = BST(root);
-    return AtLeaf { tree: tree };
-  } else {
-    take node    = RangedNode(child);
-    take result  = BSTNodeUpTo(root, child, node.node, node.range);
-    return AtNode { done: result.tree, node: node.node,
-                    smaller: node.smaller, larger: node.larger };
-  }
-}
-
 // Consume parts of the tree starting at `p` until we get to `c`.
 // We do not consume `c`.
 // `child` is the node stored at `c`.
-predicate RangedBST BSTNodeUpTo(pointer p, pointer c, struct MapNode child, Interval range) {
+predicate [rec] RangedBST BSTNodeUpTo(pointer p, pointer c, struct MapNode child, Interval range) {
   if (ptr_eq(p,c)) {
     return { tree: Leaf {}, range: IntervalSome { i: range } };
   } else {
@@ -280,7 +268,7 @@ predicate RangedBST BSTNodeUpTo(pointer p, pointer c, struct MapNode child, Inte
 
 // Starting at a parent with data `data` and children `smaller` and `larger`,
 // we go toward `c`, guided by its value, `target`.
-predicate RangedBST
+predicate [rec] RangedBST
   BSTNodeChildUpTo(pointer c, struct MapNode target, Interval range, struct MapNode parent) {
   if (parent.key < target.key) {
     take small = RangedBST(parent.smaller);
@@ -303,6 +291,18 @@ predicate RangedBST
     // We should never get here, but asserting `false` is not allowed
     return { tree: Leaf {}, range: IntervalNone {} };
   }}
+}
+
+predicate BSTFocus BSTFocus(pointer root, pointer child) {
+  if (is_null(child)) {
+    take tree = BST(root);
+    return AtLeaf { tree: tree };
+  } else {
+    take node    = RangedNode(child);
+    take result  = BSTNodeUpTo(root, child, node.node, node.range);
+    return AtNode { done: result.tree, node: node.node,
+                    smaller: node.smaller, larger: node.larger };
+  }
 }
 
 function (BST) unfocus(BSTFocus fcs) {

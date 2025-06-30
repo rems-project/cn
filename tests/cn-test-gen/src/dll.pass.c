@@ -14,7 +14,7 @@ datatype List {
   Cons {i32 Head, datatype List Tail}
 }
 
-predicate (datatype List) SLList_At(pointer p) {
+predicate [rec] (datatype List) SLList_At(pointer p) {
   if (is_null(p)) {
     return Nil{};
   } else {
@@ -137,18 +137,7 @@ function (struct dllist) Node (datatype Dll L) {
     }
 }
 
-predicate (datatype Dll) Dll_at (pointer p) {
-    if (is_null(p)) {
-        return Empty_Dll{};
-    } else {
-        take n = Owned<struct dllist>(p);
-        take L = Own_Backwards(n.prev, p, n);
-        take R = Own_Forwards(n.next, p, n);
-        return Nonempty_Dll{left: L, curr: n, right: R};
-    }
-}
-
-predicate (datatype List) Own_Forwards (pointer p, 
+predicate [rec] (datatype List) Own_Forwards (pointer p, 
                                         pointer prev_pointer, 
                                         struct dllist prev_dllist) {
     if (is_null(p)) {
@@ -162,7 +151,7 @@ predicate (datatype List) Own_Forwards (pointer p,
     }
 }
 
-predicate (datatype List) Own_Backwards (pointer p, 
+predicate [rec] (datatype List) Own_Backwards (pointer p, 
                                          pointer next_pointer, 
                                          struct dllist next_dllist) {
     if (is_null(p)) {
@@ -173,6 +162,17 @@ predicate (datatype List) Own_Backwards (pointer p,
         assert(ptr_eq(next_dllist.prev, p));
         take T = Own_Backwards(P.prev, p, P);
         return Cons{Head: P.data, Tail: T};
+    }
+}
+
+predicate (datatype Dll) Dll_at (pointer p) {
+    if (is_null(p)) {
+        return Empty_Dll{};
+    } else {
+        take n = Owned<struct dllist>(p);
+        take L = Own_Backwards(n.prev, p, n);
+        take R = Own_Forwards(n.next, p, n);
+        return Nonempty_Dll{left: L, curr: n, right: R};
     }
 }
 @*/

@@ -4,7 +4,7 @@ struct int_list_items {
 };
 
 /*@
-predicate {integer len} IntList(pointer l) {
+predicate [rec] {integer len} IntList(pointer l) {
   if ( is_null(l) ) {
     return { len: 0 } ;
   } else {

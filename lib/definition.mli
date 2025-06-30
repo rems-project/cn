@@ -55,7 +55,8 @@ module Predicate : sig
       pointer : Sym.t;
       iargs : (Sym.t * BaseTypes.t) list;
       oarg : Locations.t * BaseTypes.t;
-      clauses : Clause.t list option
+      clauses : Clause.t list option;
+      recursive : bool
     }
 
   val pp : t -> Pp.document

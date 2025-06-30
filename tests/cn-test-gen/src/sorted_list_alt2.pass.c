@@ -35,7 +35,7 @@ function (boolean) isNone(datatype I32Option opt) {
   }
 }
 
-predicate IntList ListSegmentAux(pointer from, pointer to, I32Option prev) {
+predicate [rec] IntList ListSegmentAux(pointer from, pointer to, I32Option prev) {
   if (ptr_eq(from,to)) {
     return Nil {};
   } else {

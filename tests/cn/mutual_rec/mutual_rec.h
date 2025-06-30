@@ -32,7 +32,7 @@ datatype b_tree {
 /* The predicates relating A/B trees to their C encoding. */
 
 /*@
-predicate {datatype a_tree t} A_Tree (pointer p) {
+predicate [rec] {datatype a_tree t} A_Tree (pointer p) {
   if (is_null(p)) {
     return {t: A_Leaf {}};
   }
@@ -46,7 +46,7 @@ predicate {datatype a_tree t} A_Tree (pointer p) {
   }
 }
 
-predicate {datatype b_tree t} B_Tree (pointer p) {
+predicate [rec] {datatype b_tree t} B_Tree (pointer p) {
   if (is_null(p)) {
     return {t: B_Leaf {}};
   }
