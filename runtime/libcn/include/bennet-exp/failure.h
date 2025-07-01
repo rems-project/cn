@@ -16,6 +16,10 @@ enum bennet_failure_type {
 // Backwards compatibility with stable runtime
 #define BENNET_BACKTRACK_NONE BENNET_FAILURE_NONE
 
+bool bennet_failure_is_young(void);
+void bennet_failure_mark_young(void);
+void bennet_failure_mark_old(void);
+
 enum bennet_failure_type bennet_failure_get_failure_type(void);
 void bennet_failure_set_failure_type(enum bennet_failure_type type);
 

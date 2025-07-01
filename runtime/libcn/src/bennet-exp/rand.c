@@ -197,14 +197,30 @@ SIZED_GEN(64);
 
 #define RANGE_GEN(sm)                                                                    \
   uint##sm##_t bennet_range_u##sm(uint##sm##_t min, uint##sm##_t max) {                  \
+    if (min == max) {                                                                    \
+      return min;                                                                        \
+    }                                                                                    \
+    if (min == 0 && max == UINT##sm##_MAX) {                                             \
+      return bennet_uniform_u##sm##_sized(bennet_get_size());                            \
+    }                                                                                    \
+                                                                                         \
     size_t sz = bennet_get_size();                                                       \
-    size_t width = max - min;                                                            \
+    size_t width = max - min + 1;                                                        \
     if (width > sz) {                                                                    \
       width = sz;                                                                        \
     }                                                                                    \
     return bennet_uniform_u##sm##_sized(width) + min;                                    \
   }                                                                                      \
   int##sm##_t bennet_range_i##sm(int##sm##_t min, int##sm##_t max) {                     \
+    if (min == max) {                                                                    \
+      return min;                                                                        \
+    }                                                                                    \
+    if (min == INT##sm##_MIN && max == INT##sm##_MAX) {                                  \
+      return bennet_uniform_i##sm##_sized(bennet_get_size());                            \
+    }                                                                                    \
+                                                                                         \
+    min -= (max == INT##sm##_MAX);                                                       \
+                                                                                         \
     int32_t sz = (int32_t)bennet_get_size();                                             \
                                                                                          \
     /* Shifts the range bounds to be centered around zero, */                            \
@@ -225,7 +241,8 @@ SIZED_GEN(64);
         max = sz + excess;                                                               \
       }                                                                                  \
     }                                                                                    \
-    return bennet_uniform_u##sm##_sized(max - min) + min;                                \
+                                                                                         \
+    return bennet_uniform_u##sm##_sized(max - min) + min + (max == INT##sm##_MAX);       \
   }
 
 RANGE_GEN(8);
@@ -234,23 +251,29 @@ RANGE_GEN(32);
 RANGE_GEN(64);
 
 #define INEQ_GEN(sm)                                                                     \
-  uint##sm##_t bennet_lt_u##sm(uint##sm##_t max) {                                       \
-    return bennet_uniform_u##sm##_sized(max);                                            \
+  uint##sm##_t bennet_le_u##sm(uint##sm##_t max) {                                       \
+    if (max == UINT##sm##_MAX) {                                                         \
+      return bennet_uniform_u##sm##_sized(bennet_get_size());                            \
+    }                                                                                    \
+    return bennet_uniform_u##sm##_sized(max + 1);                                        \
   }                                                                                      \
-  int##sm##_t bennet_lt_i##sm(int##sm##_t max) {                                         \
+  int##sm##_t bennet_le_i##sm(int##sm##_t max) {                                         \
+    if (max == INT##sm##_MAX) {                                                          \
+      return bennet_uniform_i##sm##_sized(bennet_get_size());                            \
+    }                                                                                    \
     return bennet_range_i##sm(INT##sm##_MIN, max);                                       \
   }                                                                                      \
   uint##sm##_t bennet_ge_u##sm(uint##sm##_t min) {                                       \
     if (min == 0) {                                                                      \
       return bennet_uniform_u##sm##_sized(bennet_get_size());                            \
     }                                                                                    \
-    return bennet_range_u##sm(min - 1, UINT##sm##_MAX) + 1;                              \
+    return bennet_range_u##sm(min, UINT##sm##_MAX);                                      \
   }                                                                                      \
   int##sm##_t bennet_ge_i##sm(int##sm##_t min) {                                         \
     if (min == INT##sm##_MIN) {                                                          \
       return bennet_uniform_i##sm##_sized(bennet_get_size());                            \
     }                                                                                    \
-    return bennet_range_i##sm(min - 1, INT##sm##_MAX) + 1;                               \
+    return bennet_range_i##sm(min, INT##sm##_MAX);                                       \
   }
 
 INEQ_GEN(8);
@@ -262,13 +285,24 @@ INEQ_GEN(64);
   uint##sm##_t bennet_mult_range_u##sm(                                                  \
       uint##sm##_t mul, uint##sm##_t min, uint##sm##_t max) {                            \
     assert(mul != 0);                                                                    \
+                                                                                         \
+    if (mul == 1) {                                                                      \
+      return bennet_uniform_u##sm##_sized(bennet_get_size());                            \
+    }                                                                                    \
+                                                                                         \
     uint##sm##_t x = bennet_range_u##sm(min / mul, max / mul + (max % mul != 0));        \
     return x * mul;                                                                      \
   }                                                                                      \
   int##sm##_t bennet_mult_range_i##sm(                                                   \
       int##sm##_t mul, int##sm##_t min, int##sm##_t max) {                               \
     assert(mul != 0);                                                                    \
+                                                                                         \
+    if (mul == 1) {                                                                      \
+      return bennet_uniform_i##sm##_sized(bennet_get_size());                            \
+    }                                                                                    \
+                                                                                         \
     int##sm##_t x = bennet_range_i##sm(min / mul, max / mul + (max % mul != 0));         \
+                                                                                         \
     return x * mul;                                                                      \
   }
 

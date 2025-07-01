@@ -8,6 +8,7 @@
   /** Returns whether this `let` should catch the failure */                             \
   bool bennet_backtrack_arbitrary_##cn_ty(int *backtracks,                               \
       bennet_domain(c_ty) * cs,                                                          \
+      bennet_domain(c_ty) * cs_tmp,                                                      \
       const bennet_checkpoint *cp,                                                       \
       const void *var) {                                                                 \
     assert(bennet_failure_get_failure_type() != BENNET_FAILURE_NONE);                    \
@@ -16,7 +17,8 @@
       return false;                                                                      \
     }                                                                                    \
                                                                                          \
-    switch (bennet_failure_get_failure_type()) {                                         \
+    enum bennet_failure_type ty = bennet_failure_get_failure_type();                     \
+    switch (ty) {                                                                        \
       case BENNET_FAILURE_ASSERT:                                                        \
       case BENNET_FAILURE_ASSIGN:                                                        \
       case BENNET_FAILURE_DEPTH:                                                         \
@@ -25,8 +27,17 @@
           return false;                                                                  \
         }                                                                                \
                                                                                          \
+        bennet_domain_failure_info *new_cs = bennet_failure_get_domain(var);             \
+        bennet_domain_update(c_ty, cs_tmp, new_cs);                                      \
+        if (bennet_domain_is_empty(cs_tmp)) {                                            \
+          return false;                                                                  \
+        }                                                                                \
+        if (ty == BENNET_FAILURE_ASSIGN || bennet_failure_is_young()) {                  \
+          *cs = *cs_tmp;                                                                 \
+        }                                                                                \
+                                                                                         \
         (*backtracks)--;                                                                 \
-        bennet_domain_update(c_ty, var, cs);                                             \
+                                                                                         \
         bennet_checkpoint_restore(cp);                                                   \
         bennet_failure_reset();                                                          \
                                                                                          \
