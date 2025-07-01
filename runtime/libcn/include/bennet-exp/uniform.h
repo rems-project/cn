@@ -17,17 +17,17 @@ cn_bits_i32* bennet_uniform_cn_bits_i32(uint64_t sz);
 cn_bits_u64* bennet_uniform_cn_bits_u64(uint64_t sz);
 cn_bits_i64* bennet_uniform_cn_bits_i64(uint64_t sz);
 
-cn_bits_u8* bennet_lt_cn_bits_u8(cn_bits_u8* max);
-cn_bits_i8* bennet_lt_cn_bits_i8(cn_bits_i8* max);
+cn_bits_u8* bennet_le_cn_bits_u8(cn_bits_u8* max);
+cn_bits_i8* bennet_le_cn_bits_i8(cn_bits_i8* max);
 
-cn_bits_u16* bennet_lt_cn_bits_u16(cn_bits_u16* max);
-cn_bits_i16* bennet_lt_cn_bits_i16(cn_bits_i16* max);
+cn_bits_u16* bennet_le_cn_bits_u16(cn_bits_u16* max);
+cn_bits_i16* bennet_le_cn_bits_i16(cn_bits_i16* max);
 
-cn_bits_u32* bennet_lt_cn_bits_u32(cn_bits_u32* max);
-cn_bits_i32* bennet_lt_cn_bits_i32(cn_bits_i32* max);
+cn_bits_u32* bennet_le_cn_bits_u32(cn_bits_u32* max);
+cn_bits_i32* bennet_le_cn_bits_i32(cn_bits_i32* max);
 
-cn_bits_u64* bennet_lt_cn_bits_u64(cn_bits_u64* max);
-cn_bits_i64* bennet_lt_cn_bits_i64(cn_bits_i64* max);
+cn_bits_u64* bennet_le_cn_bits_u64(cn_bits_u64* max);
+cn_bits_i64* bennet_le_cn_bits_i64(cn_bits_i64* max);
 
 cn_bits_u8* bennet_ge_cn_bits_u8(cn_bits_u8* min);
 cn_bits_i8* bennet_ge_cn_bits_i8(cn_bits_i8* min);

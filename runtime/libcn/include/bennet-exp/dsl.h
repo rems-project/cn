@@ -75,28 +75,39 @@
   bool var##_restore_randomness = false;                                                 \
   int var##_backtracks = backtracks;                                                     \
   bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
   bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
   bennet_domain(c_ty) var##_cs = bennet_domain_default(c_ty);                            \
+  bennet_domain(c_ty) var##_cs_tmp = var##_cs;                                           \
                                                                                          \
   bennet_label_##var##_gen :;                                                            \
-  cn_ty* var = bennet_arbitrary_##cn_ty(&var##_cs);                                      \
+  cn_ty* var = bennet_arbitrary_##cn_ty(&var##_cs_tmp);                                  \
+                                                                                         \
+  var##_cs_tmp = var##_cs;                                                               \
                                                                                          \
   if (var##_restore_randomness) {                                                        \
     bennet_rand_restore(var##_rand_checkpoint_after);                                    \
+    var##_restore_randomness = false;                                                    \
   }                                                                                      \
   var##_rand_checkpoint_after = bennet_rand_save();                                      \
                                                                                          \
   if (0) {                                                                               \
     bennet_label_##var##_backtrack :;                                                    \
     BENNET_CHECK_TIMEOUT();                                                              \
-    var##_restore_randomness =                                                           \
+    bool var##_should_restore_randomness =                                               \
         bennet_failure_get_failure_type() == BENNET_FAILURE_ASSIGN;                      \
+    bool var##_is_young = bennet_failure_is_young();                                     \
     if (bennet_backtrack_arbitrary_##cn_ty(                                              \
-            &var##_backtracks, &var##_cs, &var##_checkpoint, var)) {                     \
+            &var##_backtracks, &var##_cs, &var##_cs_tmp, &var##_checkpoint, var)) {      \
+      var##_restore_randomness = var##_should_restore_randomness;                        \
+      if (!var##_restore_randomness) {                                                   \
+        var##_restore_randomness =                                                       \
+            !var##_is_young && !bennet_domain_equal(c_ty)(&var##_cs, &var##_cs_tmp);     \
+      }                                                                                  \
+                                                                                         \
       goto bennet_label_##var##_gen;                                                     \
     } else {                                                                             \
-      var##_restore_randomness = false;                                                  \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
@@ -117,8 +128,12 @@
     BENNET_CHECK_TIMEOUT();                                                              \
     if (bennet_failure_is_blamed(var)) {                                                 \
       const void* toAdd[] = {__VA_ARGS__};                                               \
+      bool is_young = bennet_failure_is_young();                                         \
       bennet_failure_remove_blame(var);                                                  \
       bennet_failure_blame_many(toAdd);                                                  \
+      if (is_young) {                                                                    \
+        bennet_failure_mark_young();                                                     \
+      }                                                                                  \
     }                                                                                    \
                                                                                          \
     goto bennet_label_##last_var##_backtrack;                                            \
@@ -148,6 +163,115 @@
     bennet_failure_blame_many(vars);                                                     \
     goto bennet_label_##last_var##_backtrack;                                            \
   }
+
+#define BENNET_ASSERT_LE(cn_ty, c_ty, x, upper_bound, last_var, ...)                     \
+  {                                                                                      \
+    if (!convert_from_cn_bool(cn_ty##_le(x, upper_bound))) {                             \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      const void* vars[] = {__VA_ARGS__};                                                \
+      bennet_failure_blame_many(vars);                                                   \
+                                                                                         \
+      bennet_domain_failure_info info = bennet_domain_failure_default();                 \
+      info.upper_bound_inc =                                                             \
+          bennet_optional_some(intmax_t, convert_from_##cn_ty(upper_bound));             \
+      bennet_failure_blame_domain(x, &info);                                             \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+  }
+
+#define BENNET_ASSERT_LE_POINTER(x, expr, last_var, ...)                                 \
+  BENNET_ASSERT_LE(cn_pointer, uintptr_t, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_LE_UNSIGNED(bits, x, expr, last_var, ...)                          \
+  BENNET_ASSERT_LE(cn_bits_u##bits, uint##bits##_t, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_LE_SIGNED(bits, x, expr, last_var, ...)                            \
+  BENNET_ASSERT_LE(cn_bits_i##bits, int##bits##_t, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_LT(cn_ty, c_ty, min, x, upper_bound, last_var, ...)                \
+  {                                                                                      \
+    c_ty upper_bound_raw = convert_from_##cn_ty(upper_bound);                            \
+    if (upper_bound_raw == min) {                                                        \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      const void* vars[] = {__VA_ARGS__};                                                \
+      bennet_failure_blame_many(vars);                                                   \
+                                                                                         \
+      bennet_domain_failure_info info = bennet_domain_failure_default();                 \
+      info.lower_bound_inc = bennet_optional_some(intmax_t, 1);                          \
+      info.upper_bound_inc = bennet_optional_some(intmax_t, 0);                          \
+      bennet_failure_blame_domain(x, &info);                                             \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+    BENNET_ASSERT_LE(                                                                    \
+        cn_ty, c_ty, x, convert_to_##cn_ty(upper_bound_raw - 1), last_var, __VA_ARGS__); \
+  }
+
+#define BENNET_ASSERT_LT_POINTER(x, expr, last_var, ...)                                 \
+  BENNET_ASSERT_LT(cn_pointer, uintptr_t, 0, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_LT_UNSIGNED(bits, x, expr, last_var, ...)                          \
+  BENNET_ASSERT_LT(cn_bits_u##bits, uint##bits##_t, 0, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_LT_SIGNED(bits, x, expr, last_var, ...)                            \
+  BENNET_ASSERT_LT(                                                                      \
+      cn_bits_i##bits, int##bits##_t, INT##bits##_MIN, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_GE(cn_ty, c_ty, x, lower_bound, last_var, ...)                     \
+  {                                                                                      \
+    if (!convert_from_cn_bool(cn_ty##_ge(x, lower_bound))) {                             \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      const void* vars[] = {__VA_ARGS__};                                                \
+      bennet_failure_blame_many(vars);                                                   \
+                                                                                         \
+      bennet_domain_failure_info info = bennet_domain_failure_default();                 \
+      info.lower_bound_inc =                                                             \
+          bennet_optional_some(intmax_t, convert_from_##cn_ty(lower_bound));             \
+      bennet_failure_blame_domain(x, &info);                                             \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+  }
+
+#define BENNET_ASSERT_GE_POINTER(x, expr, last_var, ...)                                 \
+  BENNET_ASSERT_GE(cn_pointer, uintptr_t, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_GE_UNSIGNED(bits, x, expr, last_var, ...)                          \
+  BENNET_ASSERT_GE(cn_bits_u##bits, uint##bits##_t, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_GE_SIGNED(bits, x, expr, last_var, ...)                            \
+  BENNET_ASSERT_GE(cn_bits_i##bits, int##bits##_t, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_GT(cn_ty, c_ty, max, x, lower_bound, last_var, ...)                \
+  {                                                                                      \
+    c_ty lower_bound_raw = convert_from_##cn_ty(lower_bound);                            \
+    if (lower_bound_raw == max) {                                                        \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      const void* vars[] = {__VA_ARGS__};                                                \
+      bennet_failure_blame_many(vars);                                                   \
+                                                                                         \
+      bennet_domain_failure_info info = bennet_domain_failure_default();                 \
+      info.lower_bound_inc = bennet_optional_some(intmax_t, 1);                          \
+      info.upper_bound_inc = bennet_optional_some(intmax_t, 0);                          \
+      bennet_failure_blame_domain(x, &info);                                             \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+    BENNET_ASSERT_GE(                                                                    \
+        cn_ty, c_ty, x, convert_to_##cn_ty(lower_bound_raw + 1), last_var, __VA_ARGS__); \
+  }
+
+#define BENNET_ASSERT_GT_POINTER(x, expr, last_var, ...)                                 \
+  BENNET_ASSERT_GT(cn_pointer, uintptr_t, UINTPTR_MAX, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_GT_UNSIGNED(bits, x, expr, last_var, ...)                          \
+  BENNET_ASSERT_GT(                                                                      \
+      cn_bits_u##bits, uint##bits##_t, UINT##bits##_MAX, x, expr, last_var, __VA_ARGS__)
+
+#define BENNET_ASSERT_GT_SIGNED(bits, x, expr, last_var, ...)                            \
+  BENNET_ASSERT_GT(                                                                      \
+      cn_bits_i##bits, int##bits##_t, INT##bits##_MAX, x, expr, last_var, __VA_ARGS__)
 
 #define BENNET_MAP_BEGIN(map, i, i_ty, perm, max, last_var, ...)                         \
   cn_map* map = map_create();                                                            \
@@ -198,6 +322,7 @@
     cn_bump_free_after(tmp##_checkpoint);                                                \
     bennet_alloc_restore(tmp##_alloc_checkpoint);                                        \
     bennet_ownership_restore(tmp##_ownership_checkpoint);                                \
+    bennet_failure_mark_old();                                                           \
     if ((bennet_failure_get_failure_type() == BENNET_FAILURE_ASSERT ||                   \
             bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH) &&                \
         tmp##_urn->size != 0) {                                                          \

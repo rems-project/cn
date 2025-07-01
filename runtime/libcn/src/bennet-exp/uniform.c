@@ -32,11 +32,11 @@ RANGE_GEN(32);
 RANGE_GEN(64);
 
 #define INEQ_GEN(sm)                                                                     \
-  cn_bits_u##sm* bennet_lt_cn_bits_u##sm(cn_bits_u##sm* max) {                           \
-    return convert_to_cn_bits_u##sm(bennet_lt_u##sm(max->val));                          \
+  cn_bits_u##sm* bennet_le_cn_bits_u##sm(cn_bits_u##sm* max) {                           \
+    return convert_to_cn_bits_u##sm(bennet_le_u##sm(max->val));                          \
   }                                                                                      \
-  cn_bits_i##sm* bennet_lt_cn_bits_i##sm(cn_bits_i##sm* max) {                           \
-    return convert_to_cn_bits_i##sm(bennet_lt_i##sm(max->val));                          \
+  cn_bits_i##sm* bennet_le_cn_bits_i##sm(cn_bits_i##sm* max) {                           \
+    return convert_to_cn_bits_i##sm(bennet_le_i##sm(max->val));                          \
   }                                                                                      \
   cn_bits_u##sm* bennet_ge_cn_bits_u##sm(cn_bits_u##sm* min) {                           \
     return convert_to_cn_bits_u##sm(bennet_ge_u##sm(min->val));                          \

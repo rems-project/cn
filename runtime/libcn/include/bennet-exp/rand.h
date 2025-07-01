@@ -41,15 +41,15 @@ int16_t bennet_range_i16(int16_t, int16_t);
 int32_t bennet_range_i32(int32_t, int32_t);
 int64_t bennet_range_i64(int64_t, int64_t);
 
-uint8_t bennet_lt_u8(uint8_t);
-uint16_t bennet_lt_u16(uint16_t);
-uint32_t bennet_lt_u32(uint32_t);
-uint64_t bennet_lt_u64(uint64_t);
+uint8_t bennet_le_u8(uint8_t);
+uint16_t bennet_le_u16(uint16_t);
+uint32_t bennet_le_u32(uint32_t);
+uint64_t bennet_le_u64(uint64_t);
 
-int8_t bennet_lt_i8(int8_t);
-int16_t bennet_lt_i16(int16_t);
-int32_t bennet_lt_i32(int32_t);
-int64_t bennet_lt_i64(int64_t);
+int8_t bennet_le_i8(int8_t);
+int16_t bennet_le_i16(int16_t);
+int32_t bennet_le_i32(int32_t);
+int64_t bennet_le_i64(int64_t);
 
 uint8_t bennet_ge_u8(uint8_t);
 uint16_t bennet_ge_u16(uint16_t);

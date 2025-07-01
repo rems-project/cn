@@ -12,12 +12,14 @@ struct name_list {
 };
 
 struct bennet_failure {
+  /** Has not backtracked past a blamed value or branch */
+  bool young;  // FIXME: Mark old when backtracking past a path variable
   struct name_list* blamed;
   enum bennet_failure_type type;
 };
 
 static struct bennet_failure failure =
-    (struct bennet_failure){.blamed = NULL, .type = BENNET_FAILURE_NONE};
+    (struct bennet_failure){.young = false, .blamed = NULL, .type = BENNET_FAILURE_NONE};
 
 void bennet_failure_reset(void) {
   failure.type = BENNET_FAILURE_NONE;
@@ -30,12 +32,25 @@ void bennet_failure_reset(void) {
   }
 }
 
+bool bennet_failure_is_young(void) {
+  return failure.young;
+}
+
+void bennet_failure_mark_young(void) {
+  failure.young = true;
+}
+
+void bennet_failure_mark_old(void) {
+  failure.young = false;
+}
+
 enum bennet_failure_type bennet_failure_get_failure_type(void) {
   return failure.type;
 }
 
 void bennet_failure_set_failure_type(enum bennet_failure_type type) {
   failure.type = type;
+  failure.young = true;
 }
 
 void bennet_failure_blame_domain(const void* id, bennet_domain_failure_info* domain) {
@@ -55,24 +70,29 @@ void bennet_failure_blame_domain(const void* id, bennet_domain_failure_info* dom
     return;
   }
 
+  struct name_list* prev = NULL;
   struct name_list* curr = failure.blamed;
-  while (curr->next != NULL) {
+  while (curr != NULL) {
     /* If variable is already in list, free `new_node` and return */
     if (curr->id == id) {
+      if (new_domain != NULL) {
+        if (curr->domain == NULL) {
+          curr->domain = new_domain;
+        } else {
+          bennet_domain_update(intmax_t, curr->domain, new_domain);
+          free(new_domain);
+        }
+      }
+
       free(new_node);
       return;
     }
 
+    prev = curr;
     curr = curr->next;
   }
 
-  /* Check last node */
-  if (curr->id == id) {
-    free(new_node);
-    return;
-  }
-
-  curr->next = new_node;
+  prev->next = new_node;
 }
 
 void bennet_failure_blame(const void* id) {
@@ -80,6 +100,8 @@ void bennet_failure_blame(const void* id) {
 }
 
 int bennet_failure_remove_blame(const void* id) {
+  bennet_failure_mark_old();
+
   struct name_list* prev = NULL;
   struct name_list* curr = failure.blamed;
   while (curr != NULL) {
@@ -177,7 +199,7 @@ int bennet_failure_remap_blamed_many(const char* from[], const char* to[]) {
 }
 
 bennet_domain_failure_info* bennet_failure_get_domain(const void* id) {
-  assert(failure.type == BENNET_FAILURE_ASSERT || failure.type == BENNET_FAILURE_ASSIGN);
+  assert(failure.type != BENNET_FAILURE_NONE);
 
   struct name_list* curr = failure.blamed;
   while (curr != NULL) {
