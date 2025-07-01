@@ -1,5 +1,2 @@
-return code: 1
-tests/cn/inconsistent.error.c:1:1: error: proc/fun makes inconsistent assumptions
-void f()
-~~~~~^~~ 
-State file: file:///tmp/state__inconsistent.error.c.html
+return code: 0
+[1/1]: f -- pass

@@ -2660,7 +2660,9 @@ let check_decls_lemmata_fun_specs (file : unit Mu.file) =
 (** With CSV timing enabled, check the provided functions with
     [check_c_functions]. See that function for more information on the
     semantics of checking. *)
-let time_check_c_functions (global_var_constraints, (checked : c_function list))
+let time_check_c_functions
+      check_consistency
+      (global_var_constraints, (checked : c_function list))
   : (string * TypeErrors.t) list m
   =
   Cerb_debug.begin_csv_timing () (*type checking functions*);
@@ -2669,30 +2671,36 @@ let time_check_c_functions (global_var_constraints, (checked : c_function list))
   let@ () = add_cs here global_var_constraints in
   let@ global = get_global () in
   let@ () =
-    Sym.Map.fold
-      (fun _ def acc ->
-         (* I think this avoids a left-recursion in the monad bind *)
-         let@ () = Consistent.predicate def in
-         acc)
-      global.resource_predicates
-      (return ())
-  in
-  let@ () =
-    Sym.Map.fold
-      (fun _ (loc, def, _) acc ->
-         match def with
-         | None -> acc
-         | Some def ->
-           (* I think this avoids a left-recursion in the monad bind *)
-           let@ () = Consistent.function_type "proc/fun" loc def in
-           acc)
-      global.fun_decls
-      (return ())
-  in
-  let@ () =
-    ListM.iterM
-      (fun (_, (loc, args_and_body)) -> Consistent.procedure loc args_and_body)
-      checked
+    match check_consistency with
+    | true ->
+      let@ () =
+        Sym.Map.fold
+          (fun _ def acc ->
+             (* I think this avoids a left-recursion in the monad bind *)
+             let@ () = Consistent.predicate def in
+             acc)
+          global.resource_predicates
+          (return ())
+      in
+      let@ () =
+        Sym.Map.fold
+          (fun _ (loc, def, _) acc ->
+             match def with
+             | None -> acc
+             | Some def ->
+               (* I think this avoids a left-recursion in the monad bind *)
+               let@ () = Consistent.function_type "proc/fun" loc def in
+               acc)
+          global.fun_decls
+          (return ())
+      in
+      let@ () =
+        ListM.iterM
+          (fun (_, (loc, args_and_body)) -> Consistent.procedure loc args_and_body)
+          checked
+      in
+      return ()
+    | false -> return ()
   in
   let@ errors = check_c_functions checked in
   Cerb_debug.end_csv_timing "type checking functions";
