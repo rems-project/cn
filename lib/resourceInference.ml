@@ -173,49 +173,29 @@ module General = struct
       else (
         match re with
         | Req.P p', p'_oarg when Req.subsumed requested.name p'.name ->
-          let here = Locations.other __LOC__ in
-          let addr_iargs_eqs =
-            IT.(eq_ ((addr_ requested.pointer) here, addr_ p'.pointer here) here)
-            :: List.map2 (fun x y -> IT.eq__ x y here) requested.iargs p'.iargs
-          in
-          let addr_iargs_match = IT.and_ addr_iargs_eqs here in
-          let alloc_id_eq =
-            IT.(eq_ (allocId_ requested.pointer here, allocId_ p'.pointer here) here)
-          in
+           let here = Locations.other __LOC__ in
+           let addr_eq = IT.(eq_ ((addr_ requested.pointer) here, addr_ p'.pointer here) here) in
+           let iargs_eq = List.map2 (fun x y -> IT.eq__ x y here) requested.iargs p'.iargs in
+           let alloc_id_eq =
+             IT.(eq_ (allocId_ requested.pointer here, allocId_ p'.pointer here) here)
+           in
+          let eqs = addr_eq :: alloc_id_eq :: iargs_eq in
           let debug_failure model msg term =
             Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re))));
             debug_constraint_failure_diagnostics 9 model simp_ctxt (LC.T term)
           in
-          (match provable (LC.T addr_iargs_match) with
+          (match provable (LC.T (IT.and_ eqs here)) with
            | `True ->
-             (match provable (LC.T alloc_id_eq) with
-              | `True ->
-                Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
-                (Deleted, (false, p'_oarg))
-              | `False ->
-                debug_failure
-                  (Solver.model ())
-                  "couldn't use resource (matched address but not provenance)"
-                  alloc_id_eq;
-                continue)
+              Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
+              (Deleted, (false, p'_oarg))
            | `False ->
              let model = Solver.model () in
-             (match provable (LC.T alloc_id_eq) with
-              | `True ->
-                debug_failure
-                  model
-                  "couldn't use resource (matched provenance but not address)"
-                  addr_iargs_match;
+             debug_failure
+               model
+               "couldn't use resource (pointer+iargs did not match)"
+               (IT.and_ eqs here);
                 continue
-              | `False ->
-                let patched =
-                  IT.eq_ (requested.pointer, p'.pointer) here :: List.tl addr_iargs_eqs
-                in
-                debug_failure
-                  (Solver.model ())
-                  "couldn't use resource"
-                  IT.(and_ patched here);
-                continue))
+          )
         | _re -> continue)
     in
     let needed = true in
