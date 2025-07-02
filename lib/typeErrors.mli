@@ -37,19 +37,22 @@ type message =
   | Missing_resource of
       { requests : RequestChain.t;
         situation : Error_common.situation;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Merging_multiple_arrays of
       { requests : RequestChain.t;
         situation : Error_common.situation;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Unused_resource of
       { resource : Resource.t;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Illtyped_binary_it of
       { left : IndexTerms.Surface.t;
@@ -62,59 +65,68 @@ type message =
       { ct : Sctypes.t;
         location : IndexTerms.t;
         value : IndexTerms.t;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Int_unrepresentable of
       { value : IndexTerms.t;
         ict : Sctypes.t;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Unproven_constraint of
       { constr : LogicalConstraints.t;
         requests : RequestChain.t;
         info : Locations.info;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Undefined_behaviour of
       { ub : Cerb_frontend.Undefined.undefined_behaviour;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Needs_alloc_id of
       { ptr : IndexTerms.t;
         ub : Cerb_frontend.Undefined.undefined_behaviour;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Alloc_out_of_bounds of
       { term : IndexTerms.t;
         constr : IndexTerms.t;
         ub : Cerb_frontend.Undefined.undefined_behaviour;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Allocation_not_live of
       { reason :
           [ `Copy_alloc_id | `ISO_array_shift | `ISO_member_shift | `Ptr_cmp | `Ptr_diff ];
         ptr : IndexTerms.t;
-        ctxt : Context.t * Explain.log;
-        model_constr : (Solver.model_with_q * IndexTerms.t) option
+        (* ctxt : Context.t * Explain.log; *)
+        (* model_constr : (Solver.model_with_q * IndexTerms.t) option *)
+        maybe_report : Report.report option
       }
   | Unspecified of Cerb_frontend.Ctype.ctype
   | StaticError of
       { err : string; (** TODO replace with an actual type *)
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Generic of Pp.document [@deprecated "Please add a specific constructor"]
   (** TODO delete this *)
   | Generic_with_model of
       { err : Pp.document;
-        model : Solver.model_with_q;
-        ctxt : Context.t * Explain.log
+        (* model : Solver.model_with_q; *)
+        (* ctxt : Context.t * Explain.log *)
+        report : Report.report
       } [@deprecated "Please add a specific constructor"] (** TODO delete this too *)
   | Unsupported of Pp.document (** TODO add source location *)
   | Empty_provenance

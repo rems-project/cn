@@ -81,7 +81,7 @@ let empty_solver_frame () =
   }
 
 
-let copy_solver_frame f = { f with commands = f.commands }
+let _copy_solver_frame f = { f with commands = f.commands }
 
 type solver =
   { smt_solver : SMT.solver; (** The SMT solver connection. *)
@@ -93,6 +93,31 @@ type solver =
        the old numbers, which should be OK, I think? *)
     globals : Global.t
   }
+
+
+(* ---------------------------------------------------------------------------*)
+(* GLOBAL STATE: Models *)
+(* ---------------------------------------------------------------------------*)
+
+type model = IT.t -> IT.t option
+type quantifiers = (Sym.t * BaseTypes.t) list
+type model_with_q = model * quantifiers
+
+type model_state =
+  | No_model
+  | Model of solver * quantifiers  (* the solver that produced the model *)
+
+let model_state = ref No_model
+
+let have_model () =
+  match !model_state with
+  | No_model -> false
+  | Model _ -> true
+
+
+
+
+
 
 module Debug = struct
   let dump_frame (f : solver_frame) =
@@ -155,6 +180,7 @@ let debug_ack_command s cmd =
 
 (** Start a new scope. *)
 let push s =
+  model_state := No_model;
   debug_ack_command s (SMT.push 1);
   s.prev_frames := !(s.cur_frame) :: !(s.prev_frames);
   s.cur_frame := empty_solver_frame ()
@@ -162,6 +188,7 @@ let push s =
 
 (** Return to the previous scope.  Assumes that there is a previous scope. *)
 let pop s n =
+  model_state := No_model;
   if n = 0 then
     ()
   else (
@@ -1091,8 +1118,32 @@ let rec translate_term s iterm =
      | _ -> assert false)
 
 
+
+
+
+let model () =
+  match !model_state with
+  | No_model -> assert false
+  | Model (solver, qs) ->
+     let _defs = SMT.get_model solver.smt_solver in
+     let eval = 
+       fun it ->
+       assert (have_model ());
+       let sexp = translate_term solver it in
+       let res = SMT.get_expr solver.smt_solver sexp in
+       let ctys = get_ctype_table solver in
+       Some (get_ivalue solver.globals ctys (get_bt it) (SMT.no_let res))
+     in
+     (eval, qs)
+
+
+
+
+
+
 (** Add an assertion.  Quantified predicates are ignored. *)
 let add_assumption solver global lc =
+  model_state := No_model;
   let s1 = { solver with globals = global } in
   match lc with
   | LC.T it -> ack_command solver (SMT.assume (translate_term s1 it))
@@ -1289,100 +1340,75 @@ let make globals =
   s
 
 
-(* ---------------------------------------------------------------------------*)
-(* GLOBAL STATE: Models *)
-(* ---------------------------------------------------------------------------*)
+ 
+     
 
-type model = int
-
-type model_fn = IT.t -> IT.t option
-
-type model_with_q = model * (Sym.t * BaseTypes.t) list
-
-type model_table = (model, model_fn) Hashtbl.t
-
-let models_tbl : model_table = Hashtbl.create 1
-
-let empty_model =
-  let model = Option.some in
-  Hashtbl.add models_tbl 0 model;
-  0
-
-
-type model_state =
-  | Model of model_with_q
-  | No_model
-
-let model_state = ref No_model
-
-let model () = match !model_state with No_model -> assert false | Model mo -> mo
-
-(** Evaluate terms in the context of a model computed by the solver. *)
-let model_evaluator, reset_model_evaluator_state =
-  (* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *)
-  let model_evaluator_solver : Simple_smt.solver option ref = ref None in
-  let currently_loaded_model = ref 0 in
-  let model_id = ref 0 in
-  let new_model_id () =
-    (* Start with 1, as 0 is the id of the empty model *)
-    model_id := !model_id + 1;
-    !model_id
-  in
-  let reset_model_evaluator_state () =
-    currently_loaded_model := 0;
-    model_evaluator_solver := None;
-    model_id := 0
-  in
-  let model_evaluator solver mo =
-    match SMT.to_list mo with
-    | None -> failwith "model is an atom"
-    | Some defs ->
-      let scfg = solver.smt_solver.config in
-      let cfg = { scfg with log = Logger.make "model" } in
-      let smt_solver, new_solver =
-        match !model_evaluator_solver with
-        | Some smt_solver -> (smt_solver, false)
-        | None ->
-          let s = SMT.new_solver cfg in
-          model_evaluator_solver := Some s;
-          (s, true)
-      in
-      let model_id = new_model_id () in
-      let gs = solver.globals in
-      let evaluator =
-        { smt_solver;
-          cur_frame = ref (empty_solver_frame ());
-          prev_frames =
-            ref
-              (List.map copy_solver_frame (!(solver.cur_frame) :: !(solver.prev_frames)))
-            (* We keep the prev_frames because things that were declared, would now be
-               defined by the model. Also, we need the infromation about the C type
-               mapping. *);
-          name_seed = solver.name_seed;
-          globals = gs
-        }
-      in
-      if new_solver then (
-        declare_solver_basics evaluator;
-        push evaluator);
-      let model_fn e =
-        if not (!currently_loaded_model = model_id) then (
-          currently_loaded_model := model_id;
-          pop evaluator 1;
-          push evaluator;
-          List.iter (debug_ack_command evaluator) defs);
-        let inp = translate_term evaluator e in
-        match SMT.check smt_solver with
-        | SMT.Sat ->
-          let res = SMT.get_expr smt_solver inp in
-          let ctys = get_ctype_table evaluator in
-          Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
-        | _ -> None
-      in
-      Hashtbl.add models_tbl model_id model_fn;
-      model_id
-  in
-  (model_evaluator, reset_model_evaluator_state)
+(* (\** Evaluate terms in the context of a model computed by the solver. *\) *)
+(* let model_evaluator, reset_model_evaluator_state = *)
+(*   (\* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *\) *)
+(*   let model_evaluator_solver : Simple_smt.solver option ref = ref None in *)
+(*   let currently_loaded_model = ref 0 in *)
+(*   let model_id = ref 0 in *)
+(*   let new_model_id () = *)
+(*     (\* Start with 1, as 0 is the id of the empty model *\) *)
+(*     model_id := !model_id + 1; *)
+(*     !model_id *)
+(*   in *)
+(*   let reset_model_evaluator_state () = *)
+(*     currently_loaded_model := 0; *)
+(*     model_evaluator_solver := None; *)
+(*     model_id := 0 *)
+(*   in *)
+(*   let model_evaluator solver mo = *)
+(*     match SMT.to_list mo with *)
+(*     | None -> failwith "model is an atom" *)
+(*     | Some defs -> *)
+(*       let scfg = solver.smt_solver.config in *)
+(*       let cfg = { scfg with log = Logger.make "model" } in *)
+(*       let smt_solver, new_solver = *)
+(*         match !model_evaluator_solver with *)
+(*         | Some smt_solver -> (smt_solver, false) *)
+(*         | None -> *)
+(*           let s = SMT.new_solver cfg in *)
+(*           model_evaluator_solver := Some s; *)
+(*           (s, true) *)
+(*       in *)
+(*       let model_id = new_model_id () in *)
+(*       let gs = solver.globals in *)
+(*       let evaluator = *)
+(*         { smt_solver; *)
+(*           cur_frame = ref (empty_solver_frame ()); *)
+(*           prev_frames = *)
+(*             ref *)
+(*               (List.map copy_solver_frame (!(solver.cur_frame) :: !(solver.prev_frames))) *)
+(*             (\* We keep the prev_frames because things that were declared, would now be *)
+(*                defined by the model. Also, we need the infromation about the C type *)
+(*                mapping. *\); *)
+(*           name_seed = solver.name_seed; *)
+(*           globals = gs *)
+(*         } *)
+(*       in *)
+(*       if new_solver then ( *)
+(*         declare_solver_basics evaluator; *)
+(*         push evaluator); *)
+(*       let model_fn e = *)
+(*         if not (!currently_loaded_model = model_id) then ( *)
+(*           currently_loaded_model := model_id; *)
+(*           pop evaluator 1; *)
+(*           push evaluator; *)
+(*           List.iter (debug_ack_command evaluator) defs); *)
+(*         let inp = translate_term evaluator e in *)
+(*         match SMT.check smt_solver with *)
+(*         | SMT.Sat -> *)
+(*           let res = SMT.get_expr smt_solver inp in *)
+(*           let ctys = get_ctype_table evaluator in *)
+(*           Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res)) *)
+(*         | _ -> None *)
+(*       in *)
+(*       Hashtbl.add models_tbl model_id model_fn; *)
+(*       model_id *)
+(*   in *)
+(*   (model_evaluator, reset_model_evaluator_state) *)
 
 
 (* ---------------------------------------------------------------------------*)
@@ -1443,11 +1469,7 @@ let try_hard = ref false
 
 let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let _ = loc in
-  let set_model smt_solver qs =
-    let defs = SMT.get_model smt_solver in
-    let model = model_evaluator solver defs in
-    model_state := Model (model, qs)
-  in
+  let set_model (s : solver) qs = model_state := Model (s, qs) in
   match shortcut simp_ctxt lc with
   | `True ->
     model_state := No_model;
@@ -1455,46 +1477,34 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   | `No_shortcut lc ->
     let { expr; qs; extra } = translate_goal solver assumptions lc in
     let nexpr = SMT.bool_not expr in
-    let inc = solver.smt_solver in
-    debug_ack_command solver (SMT.push 1);
-    debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
-    (match SMT.check inc with
+    (match SMT.check_assuming solver.smt_solver (nexpr :: extra) with
      | SMT.Unsat ->
-       debug_ack_command solver (SMT.pop 1);
        model_state := No_model;
        `True
-     | SMT.Sat when !try_hard ->
-       debug_ack_command solver (SMT.pop 1);
-       let assumptions = LC.Set.elements assumptions in
-       let foralls = TryHard.translate_foralls solver assumptions in
-       let functions = TryHard.translate_functions solver in
-       debug_ack_command solver (SMT.push 1);
-       debug_ack_command
-         solver
-         (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
-       Pp.(debug 3 (lazy !^"***** try-hard *****"));
-       (match SMT.check inc with
-        | SMT.Unsat ->
-          debug_ack_command solver (SMT.pop 1);
-          model_state := No_model;
-          Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
-          `True
-        | SMT.Sat ->
-          set_model inc qs;
-          debug_ack_command solver (SMT.pop 1);
-          Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
-          `Unknown (*TODO CHT*)
-        | SMT.Unknown ->
-          set_model inc qs;
-          debug_ack_command solver (SMT.pop 1);
-          Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
-          `False)
      | SMT.Sat ->
-       set_model inc qs;
-       debug_ack_command solver (SMT.pop 1);
-       `False
+        (match !try_hard with
+        | true ->
+          let assumptions = LC.Set.elements assumptions in
+          let foralls = TryHard.translate_foralls solver assumptions in
+          let functions = TryHard.translate_functions solver in
+          Pp.(debug 3 (lazy !^"***** try-hard *****"));
+          (match SMT.check_assuming solver.smt_solver ((nexpr :: foralls) @ functions) with
+          | SMT.Unsat ->
+             model_state := No_model;
+             Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
+             `True
+          | SMT.Sat ->
+             set_model solver qs;
+             Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
+             `False
+          | SMT.Unknown ->
+             set_model solver qs;
+             Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
+             `Unknown)
+        | false ->
+           set_model solver qs;
+           `False)
      | SMT.Unknown ->
-       debug_ack_command solver (SMT.pop 1);
        failwith "Unknown")
 
 
@@ -1511,7 +1521,6 @@ let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
   result
 
 
-(* ISD: Could these globs be different from the saved ones? *)
-let eval mo t =
-  let model_fn = Hashtbl.find models_tbl mo in
-  model_fn t
+(* TODO: remove this *)
+let eval model t =
+  model t

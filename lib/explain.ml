@@ -331,6 +331,8 @@ let state (ctxt : C.t) log model_with_q extras =
       (Rp.add_labeled Rp.lab_uninteresting uninteresting Rp.labeled_empty)
   in
   let invalid_resources =
+    (* temporarily disable these checks *)
+    if true then Rp.labeled_empty else
     let g = ctxt.global in
     let defs = g.resource_predicates in
     let check (rt, o) =
