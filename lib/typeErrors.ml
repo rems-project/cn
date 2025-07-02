@@ -94,19 +94,22 @@ type message =
   | Missing_resource of
       { requests : RequestChain.t;
         situation : situation;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Merging_multiple_arrays of
       { requests : RequestChain.t;
         situation : situation;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Unused_resource of
       { resource : Res.t;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Illtyped_binary_it of
       { left : IT.Surface.t;
@@ -119,60 +122,68 @@ type message =
       { ct : Sctypes.t;
         location : IT.t;
         value : IT.t;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Int_unrepresentable of
       { value : IT.t;
         ict : Sctypes.t;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Unproven_constraint of
       { constr : LC.t;
         requests : RequestChain.t;
         info : Locations.info;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Undefined_behaviour of
       { ub : CF.Undefined.undefined_behaviour;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Needs_alloc_id of
       { ptr : IT.t;
         ub : CF.Undefined.undefined_behaviour;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Alloc_out_of_bounds of
       { term : IT.t;
         constr : IT.t;
         ub : CF.Undefined.undefined_behaviour;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Allocation_not_live of
       { reason :
           [ `Copy_alloc_id | `Ptr_cmp | `Ptr_diff | `ISO_array_shift | `ISO_member_shift ];
         ptr : IT.t;
-        ctxt : Context.t * Explain.log;
-        model_constr : (Solver.model_with_q * IT.t) option
+        (* ctxt : Context.t * Explain.log; *)
+        maybe_report : Report.report option
       }
   (* | Implementation_defined_behaviour of document * state_report *)
   | Unspecified of CF.Ctype.ctype
   | StaticError of
       { err : string;
-        ctxt : Context.t * Explain.log;
-        model : Solver.model_with_q
+        (* ctxt : Context.t * Explain.log; *)
+        (* model : Solver.model_with_q *)
+        report : Report.report
       }
   | Generic of Pp.document [@deprecated "Please add a specific constructor"]
   (** TODO delete this *)
   | Generic_with_model of
       { err : document;
-        model : Solver.model_with_q;
-        ctxt : Context.t * Explain.log
+        (* model : Solver.model_with_q; *)
+        (* ctxt : Context.t * Explain.log *)
+        report : Report.report
       } [@deprecated "Please add a specific constructor"]
   | Unsupported of document
   | Empty_provenance
@@ -445,17 +456,17 @@ let pp_message = function
   | Compile msg -> pp_compile msg
   | Builtins msg -> pp_builtins msg
   | Parse msg -> pp_parse msg
-  | Missing_resource { requests; situation; ctxt; model } ->
+  | Missing_resource { requests; situation; report } ->
     let short = !^"Missing resource" ^^^ for_situation situation in
     let descr = RequestChain.pp requests in
-    let orequest =
-      Option.map
-        (fun (r : RequestChain.elem) -> r.RequestChain.resource)
-        (List.nth_opt (List.rev requests) 0)
-    in
-    let state = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
-    { short; descr; state = Some state }
-  | Merging_multiple_arrays { requests; situation; ctxt; model } ->
+    (* let orequest = *)
+    (*   Option.map *)
+    (*     (fun (r : RequestChain.elem) -> r.RequestChain.resource) *)
+    (*     (List.nth_opt (List.rev requests) 0) *)
+    (* in *)
+    (* let state = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in *)
+    { short; descr; state = Some report }
+  | Merging_multiple_arrays { requests; situation; report } ->
     let short =
       !^"Cannot satisfy request for resource"
       ^^^ for_situation situation
@@ -463,16 +474,12 @@ let pp_message = function
       ^^^ !^"It requires merging multiple arrays."
     in
     let descr = RequestChain.pp requests in
-    let orequest =
-      Option.map (fun r -> r.RequestChain.resource) (List.nth_opt (List.rev requests) 0)
-    in
-    let state = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
-    { short; descr; state = Some state }
-  | Unused_resource { resource; ctxt; model } ->
+    { short; descr; state = Some report }
+  | Unused_resource { resource; report } ->
     let resource = Res.pp resource in
     let short = !^"Left-over unused resource" ^^^ squotes resource in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    { short; descr = None; state = Some state }
+    (* let state = Explain.trace ctxt model Explain.no_ex in *)
+    { short; descr = None; state = Some report }
   | TooBigExponent { it } ->
     let it = IT.pp it in
     let short = !^"Exponent too big" in
@@ -499,26 +506,25 @@ let pp_message = function
       ^^^ !^"Exponent must be non-negative"
     in
     { short; descr = Some descr; state = None }
-  | Write_value_unrepresentable { ct; location; value; ctxt; model } ->
+  | Write_value_unrepresentable { ct; location; value; report } ->
     let short = !^"Write value not representable at type" ^^^ Sctypes.pp ct in
     let location = IT.pp location in
     let value = IT.pp value in
-    let state = Explain.trace ctxt model Explain.no_ex in
+    (* let state = Explain.trace ctxt model Explain.no_ex in *)
     let descr =
       !^"Location" ^^ colon ^^^ location ^^ comma ^^^ !^"value" ^^ colon ^^^ value ^^ dot
     in
-    { short; descr = Some descr; state = Some state }
-  | Int_unrepresentable { value; ict; ctxt; model } ->
+    { short; descr = Some descr; state = Some report }
+  | Int_unrepresentable { value; ict; report } ->
     let short = !^"integer value not representable at type" ^^^ Sctypes.pp ict in
     let value = IT.pp value in
     let descr = !^"Value" ^^ colon ^^^ value in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    { short; descr = Some descr; state = Some state }
-  | Unproven_constraint { constr; requests; info; ctxt; model } ->
+    { short; descr = Some descr; state = Some report }
+  | Unproven_constraint { constr = _; requests; info; report } ->
     let short = !^"Unprovable constraint" in
-    let state =
-      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
-    in
+    (* let state = *)
+    (*   Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr } *)
+    (* in *)
     let descr =
       let spec_loc, odescr = info in
       let head, pos = Locations.head_pos_of_location spec_loc in
@@ -531,40 +537,40 @@ let pp_message = function
       | Some doc2 -> doc ^^ hardline ^^ doc2
       | None -> doc
     in
-    { short; descr = Some descr; state = Some state }
-  | Undefined_behaviour { ub; ctxt; model } ->
+    { short; descr = Some descr; state = Some report }
+  | Undefined_behaviour { ub; report } ->
     let short = !^"Undefined behaviour" in
-    let state = Explain.trace ctxt model Explain.no_ex in
+    (* let state = Explain.trace ctxt model Explain.no_ex in *)
     let descr =
       match CF.Undefined.std_of_undefined_behaviour ub with
       | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
       | None -> !^(CF.Undefined.ub_short_string ub)
     in
-    { short; descr = Some descr; state = Some state }
-  | Needs_alloc_id { ptr; ub; ctxt; model } ->
+    { short; descr = Some descr; state = Some report }
+  | Needs_alloc_id { ptr; ub; report } ->
     let short = !^"Pointer " ^^ bquotes (IT.pp ptr) ^^ !^" needs allocation ID" in
-    let state = Explain.trace ctxt model Explain.no_ex in
+    (* let state = Explain.trace ctxt model Explain.no_ex in *)
     let descr =
       match CF.Undefined.std_of_undefined_behaviour ub with
       | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
       | None -> !^(CF.Undefined.ub_short_string ub)
     in
-    { short; descr = Some descr; state = Some state }
-  | Alloc_out_of_bounds { constr; term; ub; ctxt; model } ->
+    { short; descr = Some descr; state = Some report }
+  | Alloc_out_of_bounds { constr = _; term; ub; report } ->
     let short = bquotes (IT.pp term) ^^ !^" out of bounds" in
-    let state =
-      Explain.trace
-        ctxt
-        model
-        Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }
-    in
+    (* let state = *)
+    (*   Explain.trace *)
+    (*     ctxt *)
+    (*     model *)
+    (*     Explain.{ no_ex with unproven_constraint = Some (LC.T constr) } *)
+    (* in *)
     let descr =
       match CF.Undefined.std_of_undefined_behaviour ub with
       | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
       | None -> !^(CF.Undefined.ub_short_string ub)
     in
-    { short; descr = Some descr; state = Some state }
-  | Allocation_not_live { reason; ptr; ctxt; model_constr } ->
+    { short; descr = Some descr; state = Some report }
+  | Allocation_not_live { reason; ptr; maybe_report } ->
     let adjust = function
       | IT.IT (CopyAllocId { loc; _ }, _, _) -> loc
       | IT.IT (ArrayShift { base; _ }, _, _) -> base
@@ -582,17 +588,17 @@ let pp_message = function
     let short =
       !^"Pointer " ^^ bquotes (IT.pp ptr) ^^^ !^"needs to be live for" ^^^ !^reason
     in
-    let state =
-      Option.map
-        (fun (model, constr) ->
-           Explain.trace
-             ctxt
-             model
-             Explain.{ no_ex with unproven_constraint = Some (LC.T constr) })
-        model_constr
-    in
+    (* let state = *)
+    (*   Option.map *)
+    (*     (fun (model, constr) -> *)
+    (*        Explain.trace *)
+    (*          ctxt *)
+    (*          model *)
+    (*          Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }) *)
+    (*     model_constr *)
+    (* in *)
     let descr = !^"Need an Alloc or RW in context with same allocation id" in
-    { short; descr = Some descr; state }
+    { short; descr = Some descr; state = maybe_report }
   (* | Implementation_defined_behaviour (impl, state) -> *)
   (*    let short = !^"Implementation defined behaviour" in *)
   (*    let descr = impl in *)
@@ -600,18 +606,18 @@ let pp_message = function
   | Unspecified ctype ->
     let short = !^"Unspecified value of C-type" ^^^ CF.Pp_core_ctype.pp_ctype ctype in
     { short; descr = None; state = None }
-  | StaticError { err; ctxt; model } ->
+  | StaticError { err; report } ->
     let short = !^"Static error" in
-    let state = Explain.trace ctxt model Explain.no_ex in
+    (* let state = Explain.trace ctxt model Explain.no_ex in *)
     let descr = !^err in
-    { short; descr = Some descr; state = Some state }
+    { short; descr = Some descr; state = Some report }
   | ((Generic err) [@alert "-deprecated"]) ->
     let short = err in
     { short; descr = None; state = None }
-  | ((Generic_with_model { err; model; ctxt }) [@alert "-deprecated"]) ->
+  | ((Generic_with_model { err; report }) [@alert "-deprecated"]) ->
     let short = err in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    { short; descr = None; state = Some state }
+    (* let state = Explain.trace ctxt model Explain.no_ex in *)
+    { short; descr = None; state = Some report }
   | Unsupported err ->
     let short = err in
     { short; descr = None; state = None }
@@ -619,10 +625,9 @@ let pp_message = function
     let short = !^"Empty provenance" in
     { short; descr = None; state = None }
   | Illtyped_binary_it { left; right; binop } -> pp_illtyped_binary_it ~left ~right binop
-  | Inconsistent_assumptions (kind, ctxt_log) ->
+  | Inconsistent_assumptions (kind, _ctxt_log) ->
     let short = !^kind ^^ !^" makes inconsistent assumptions" in
-    let state = Some (Explain.trace ctxt_log (Solver.empty_model, []) Explain.no_ex) in
-    { short; descr = None; state }
+    { short; descr = None; state = None }
   | Byte_conv_needs_owned ->
     let short = !^"byte conversion only supports W/RW" in
     { short; descr = None; state = None }

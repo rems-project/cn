@@ -79,7 +79,15 @@ module General = struct
          | `False ->
            let@ model = model () in
            let msg ctxt =
-             TypeErrors.Merging_multiple_arrays { requests; situation; ctxt; model }
+             let orequest =
+               Option.map
+                 (fun r -> r.TypeErrors.RequestChain.resource)
+                 (List.nth_opt (List.rev requests) 0)
+             in
+             let report =
+               Explain.trace ctxt model Explain.{ no_ex with request = orequest }
+             in
+             TypeErrors.Merging_multiple_arrays { requests; situation; report }
            in
            fail (fun ctxt -> { loc; msg = msg ctxt })
          | `True -> return default)
@@ -120,10 +128,17 @@ module General = struct
           | `False ->
             let@ model = model () in
             fail (fun ctxt ->
-              (* let ctxt = { ctxt with resources = original_resources } in *)
+              let orequest =
+                Option.map
+                  TypeErrors.RequestChain.(fun (r : elem) -> r.resource)
+                  (List.nth_opt (List.rev request_chain) 0)
+              in
+              let report =
+                Explain.trace ctxt model Explain.{ no_ex with request = orequest }
+              in
               let msg =
                 TypeErrors.Missing_resource
-                  { requests = request_chain; situation; model; ctxt }
+                  { requests = request_chain; situation; report }
               in
               { loc; msg })
           | `True -> assert false)
@@ -142,16 +157,16 @@ module General = struct
        | `True -> return (ftyp, [])
        | `False ->
          let@ model = model () in
-         let@ all_cs = get_cs () in
-         let () = assert (not (LC.Set.mem c all_cs)) in
          debug_constraint_failure_diagnostics 6 model simp_ctxt c;
          let@ () = Diagnostics.investigate model c in
          fail (fun ctxt ->
-           (* let ctxt = { ctxt with resources = original_resources } in *)
+           let report =
+             Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some c }
+           in
            { loc;
              msg =
                TypeErrors.Unproven_constraint
-                 { constr = c; info; requests = snd uiinfo; ctxt; model }
+                 { constr = c; info; requests = snd uiinfo; report }
            }))
     | I _rt -> return (ftyp, [])
 
@@ -477,7 +492,13 @@ module Special = struct
     | `False ->
       let@ model = model () in
       fail (fun ctxt ->
-        let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
+        let orequest =
+          Option.map
+            TypeErrors.RequestChain.(fun (r : elem) -> r.resource)
+            (List.nth_opt (List.rev requests) 0)
+        in
+        let report = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
+        let msg = TypeErrors.Missing_resource { requests; situation; report } in
         { loc; msg })
     | `True -> assert false
 
@@ -555,16 +576,23 @@ module Special = struct
     match found with
     | Ans.Found -> return ()
     | No_res ->
-      fail (fun ctxt ->
+      fail (fun _ctxt ->
         let msg =
-          TypeErrors.Allocation_not_live { reason; ptr; model_constr = None; ctxt }
+          (* probably we want Report.report to work also if no model is
+             available *)
+          TypeErrors.Allocation_not_live { reason; ptr; maybe_report = None }
         in
         { loc; msg })
     | Model (model, constr) ->
       fail (fun ctxt ->
+        let report =
+          Explain.trace
+            ctxt
+            model
+            Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }
+        in
         let msg =
-          TypeErrors.Allocation_not_live
-            { reason; ptr; model_constr = Some (model, constr); ctxt }
+          TypeErrors.Allocation_not_live { reason; ptr; maybe_report = Some report }
         in
         { loc; msg })
 

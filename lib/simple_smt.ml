@@ -544,6 +544,16 @@ let check s =
   | ans -> raise (UnexpectedSolverResponse ans)
 
 
+(** Check if the current set of assumptions, plus the argument, are consistent.
+    Throws {!UnexpectedSolverResponse}. *)
+let check_assuming s lcs =
+  match s.command (list [ atom "check-sat-assuming"; list lcs ]) with
+  | Sexp.Atom "unsat" -> Unsat
+  | Sexp.Atom "sat" -> Sat
+  | Sexp.Atom "unknown" -> Unknown
+  | ans -> raise (UnexpectedSolverResponse ans)
+
+
 (** {2 Decoding Results} *)
 
 (** Get all definitions currently in scope. Only valid after a [Sat] result.
@@ -901,7 +911,7 @@ let cvc5 : solver_config =
   { exe = "cvc5";
     (* opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_AUFBVDTLIA" ]; *)
     (* NOTE cvc5 1.2.1 renamed --sets-ext to --sets-exp *)
-    opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_ALL" ];
+    opts = [ "--incremental"; "--sets-exp"; "--force-logic=QF_ALL" ];
     setup = [];
     exts = CVC5;
     log = quiet_log

@@ -391,7 +391,8 @@ let check_conv_int loc ~expect ct arg =
   let fail_unrepresentable () =
     let@ model = model () in
     fail (fun ctxt ->
-      { loc; msg = Int_unrepresentable { value = arg; ict = ct; ctxt; model } })
+      let report = Explain.trace ctxt model Explain.no_ex in
+      { loc; msg = Int_unrepresentable { value = arg; ict = ct; report } })
   in
   let bt = IT.get_bt arg in
   (* TODO: can we (later) optimise this? *)
@@ -434,7 +435,9 @@ let check_has_alloc_id loc ptr ub_unspec =
     | `False ->
       let@ model = model () in
       let ub = CF.Undefined.(UB_CERB004_unspecified ub_unspec) in
-      fail (fun ctxt -> { loc; msg = Needs_alloc_id { ptr; ub; ctxt; model } })
+      fail (fun ctxt ->
+        let report = Explain.trace ctxt model Explain.no_ex in
+        { loc; msg = Needs_alloc_id { ptr; ub; report } })
   else
     return ()
 
@@ -463,7 +466,9 @@ let check_both_eq_alloc loc arg1 arg2 ub =
   match provable @@ LC.T both_alloc with
   | `False ->
     let@ model = model () in
-    fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } })
+    fail (fun ctxt ->
+      let report = Explain.trace ctxt model Explain.no_ex in
+      { loc; msg = Undefined_behaviour { ub; report } })
   | `True -> return ()
 
 
@@ -485,7 +490,13 @@ let check_live_alloc_bounds ?(skip_live = false) reason loc ub ptrs =
       let@ model = model () in
       fail (fun ctxt ->
         let term = if List.length ptrs = 1 then List.hd ptrs else IT.tuple_ ptrs here in
-        { loc; msg = Alloc_out_of_bounds { constr; term; ub; ctxt; model } })
+        let report =
+          Explain.trace
+            ctxt
+            model
+            Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }
+        in
+        { loc; msg = Alloc_out_of_bounds { constr; term; ub; report } })
   else
     return ()
 
@@ -660,7 +671,9 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
         | `False ->
           let@ model = model () in
           let ub = CF.Undefined.UB045a_division_by_zero in
-          fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+          fail (fun ctxt ->
+            let report = Explain.trace ctxt model Explain.no_ex in
+            { loc; msg = Undefined_behaviour { ub; report } }))
      | OpRem_t ->
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
        let@ () = WellTyped.ensure_bits_type loc expect in
@@ -675,7 +688,9 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
         | `False ->
           let@ model = model () in
           let ub = CF.Undefined.UB045b_modulo_by_zero in
-          fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+          fail (fun ctxt ->
+            let report = Explain.trace ctxt model Explain.no_ex in
+            { loc; msg = Undefined_behaviour { ub; report } }))
      | OpEq ->
        let@ () = WellTyped.ensure_base_type loc ~expect Bool in
        let@ () =
@@ -882,7 +897,9 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
       | `False ->
         let@ model = model () in
         let ub = CF.Undefined.UB036_exceptional_condition in
-        fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } })
+        fail (fun ctxt ->
+          let report = Explain.trace ctxt model Explain.no_ex in
+          { loc; msg = Undefined_behaviour { ub; report } })
     in
     return direct_x
   | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
@@ -915,7 +932,9 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
      | `False ->
        let@ model = model () in
        let ub = CF.Undefined.UB036_exceptional_condition in
-       fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+       fail (fun ctxt ->
+         let report = Explain.trace ctxt model Explain.no_ex in
+         { loc; msg = Undefined_behaviour { ub; report } }))
   | PEis_representable_integer (pe, act) ->
     let@ () = WellTyped.check_ct act.loc act.ct in
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
@@ -972,7 +991,9 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
      | `True -> return (default_ expect loc)
      | `False ->
        let@ model = model () in
-       fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+       fail (fun ctxt ->
+         let report = Explain.trace ctxt model Explain.no_ex in
+         { loc; msg = Undefined_behaviour { ub; report } }))
   | PEerror (err, _pe) ->
     let@ provable = provable loc in
     let here = Locations.other __LOC__ in
@@ -980,7 +1001,9 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
      | `True -> return (default_ expect loc)
      | `False ->
        let@ model = model () in
-       fail (fun ctxt -> { loc; msg = StaticError { err; ctxt; model } }))
+       fail (fun ctxt ->
+         let report = Explain.trace ctxt model Explain.no_ex in
+         { loc; msg = StaticError { err; report } }))
 
 
 module Spine : sig
@@ -1137,8 +1160,8 @@ let all_empty loc _original_resources =
     let@ simp_ctxt = simp_ctxt () in
     RI.debug_constraint_failure_diagnostics 6 model simp_ctxt constr;
     fail (fun ctxt ->
-      (* let ctxt = { ctxt with resources = original_resources } in *)
-      { loc; msg = Unused_resource { resource; ctxt; model } })
+      let report = Explain.trace ctxt model Explain.no_ex in
+      { loc; msg = Unused_resource { resource; report } })
 
 
 let load loc pointer ct =
@@ -1421,7 +1444,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
              let@ model = model () in
              fail (fun ctxt ->
                let ict = act_to.ct in
-               { loc; msg = Int_unrepresentable { value = arg; ict; ctxt; model } })
+               let report = Explain.trace ctxt model Explain.no_ex in
+               { loc; msg = Int_unrepresentable { value = arg; ict; report } })
          in
          k actual_value)
      | PtrFromInt (act_from, act_to, pe) ->
@@ -1622,9 +1646,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
              | `False ->
                let@ model = model () in
                fail (fun ctxt ->
+                 let report = Explain.trace ctxt model Explain.no_ex in
                  let msg =
                    Write_value_unrepresentable
-                     { ct = act.ct; location = parg; value = varg; ctxt; model }
+                     { ct = act.ct; location = parg; value = varg; report }
                  in
                  { loc; msg })
            in
@@ -1964,10 +1989,16 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            RI.debug_constraint_failure_diagnostics 6 model simp_ctxt lc;
            let@ () = Diagnostics.investigate model lc in
            fail (fun ctxt ->
+             let report =
+               Explain.trace
+                 ctxt
+                 model
+                 Explain.{ no_ex with unproven_constraint = Some lc }
+             in
              { loc;
                msg =
                  Unproven_constraint
-                   { constr = lc; info = (loc, None); requests = []; ctxt; model }
+                   { constr = lc; info = (loc, None); requests = []; report }
              }))
       | Inline _nms -> return ()
       | Print it ->

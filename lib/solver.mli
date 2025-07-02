@@ -6,8 +6,6 @@ type model
 (** Model with quantifier instantiations *)
 type model_with_q = model * (Sym.t * BaseTypes.t) list
 
-val empty_model : model
-
 module Logger : sig
   val to_file : bool ref
 
@@ -34,9 +32,6 @@ val pop : solver -> int -> unit
 (** Number of scopes in the solver. Currently only used by [Typing.sandbox],
     but may be unnecessary https://github.com/rems-project/cerberus/issues/752 *)
 val num_scopes : solver -> int
-
-(* Resets internal state for the model evaluator *)
-val reset_model_evaluator_state : unit -> unit
 
 (* Run the solver. Note that we pass the assumptions explicitly even though they are also
    available in the solver context, because CN is going some simplification on its own. *)

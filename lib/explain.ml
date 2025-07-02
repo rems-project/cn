@@ -331,46 +331,51 @@ let state (ctxt : C.t) log model_with_q extras =
       (Rp.add_labeled Rp.lab_uninteresting uninteresting Rp.labeled_empty)
   in
   let invalid_resources =
-    let g = ctxt.global in
-    let defs = g.resource_predicates in
-    let check (rt, o) =
-      match (rt, o) with
-      | Req.Q _, _ -> None
-      | Req.P { name = Owned _; pointer = _; iargs = _ }, _ -> None
-      | Req.P { name = PName s; pointer = _; iargs }, Resource.O it ->
-        (match (Sym.Map.find_opt s defs, evaluate it) with
-         | Some def, Some cand ->
-           let here = Locations.other __LOC__ in
-           let ptr_val = Req.get_pointer rt in
-           let ptr_def = (IT.sym_ (def.pointer, IT.get_bt ptr_val, here), ptr_val) in
-           Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
-         | Some _, None ->
-           Some
-             ( CP.Result.error (!^"Could not locate definition of variable" ^^^ IT.pp it),
-               rt,
-               it )
-         | None, _ ->
-           Some
-             ( CP.Result.error (!^"Could not locate definition of predicate" ^^^ Sym.pp s),
-               rt,
-               it ))
-    in
-    let checked = List.filter_map check (C.get_rs ctxt) in
-    let nos, _ = List.partition (fun (r, _, _) -> CP.Result.is_no r) checked in
-    (* let yeses, unknown = List.partition (fun (r, _, _) -> is_yes r) rest in *)
-    (* Issue #900 *)
-    let pp_checked_res (p, req, cand) =
-      let _ = p in
-      let rslt = Req.pp req ^^^ !^"(" ^^^ IT.pp cand ^^^ !^")" in
-      Rp.
-        { original = rslt;
-          (* !^"Full predicate check output: "
+    (* temporarily disable these checks *)
+    if true then
+      Rp.labeled_empty
+    else (
+      let g = ctxt.global in
+      let defs = g.resource_predicates in
+      let check (rt, o) =
+        match (rt, o) with
+        | Req.Q _, _ -> None
+        | Req.P { name = Owned _; pointer = _; iargs = _ }, _ -> None
+        | Req.P { name = PName s; pointer = _; iargs }, Resource.O it ->
+          (match (Sym.Map.find_opt s defs, evaluate it) with
+           | Some def, Some cand ->
+             let here = Locations.other __LOC__ in
+             let ptr_val = Req.get_pointer rt in
+             let ptr_def = (IT.sym_ (def.pointer, IT.get_bt ptr_val, here), ptr_val) in
+             Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
+           | Some _, None ->
+             Some
+               ( CP.Result.error (!^"Could not locate definition of variable" ^^^ IT.pp it),
+                 rt,
+                 it )
+           | None, _ ->
+             Some
+               ( CP.Result.error
+                   (!^"Could not locate definition of predicate" ^^^ Sym.pp s),
+                 rt,
+                 it ))
+      in
+      let checked = List.filter_map check (C.get_rs ctxt) in
+      let nos, _ = List.partition (fun (r, _, _) -> CP.Result.is_no r) checked in
+      (* let yeses, unknown = List.partition (fun (r, _, _) -> is_yes r) rest in *)
+      (* Issue #900 *)
+      let pp_checked_res (p, req, cand) =
+        let _ = p in
+        let rslt = Req.pp req ^^^ !^"(" ^^^ IT.pp cand ^^^ !^")" in
+        Rp.
+          { original = rslt;
+            (* !^"Full predicate check output: "
             ^^^ CP.Result.pp (Pp.list LC.pp) (fun x -> x) p; *)
-          (* Issue #900 *)
-          simplified = [ rslt ]
-        }
-    in
-    Rp.add_labeled Rp.lab_invalid (List.map pp_checked_res nos) Rp.labeled_empty
+            (* Issue #900 *)
+            simplified = [ rslt ]
+          }
+      in
+      Rp.add_labeled Rp.lab_invalid (List.map pp_checked_res nos) Rp.labeled_empty)
     (* Currently only displays invalid predicates : Issue #900 *)
     (* (Rp.add_labeled
        Rp.lab_unknown
