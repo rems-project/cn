@@ -60,21 +60,9 @@ let get_ownership_global_init_stats () =
     [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ]
 
 
-(* c_map_local_to_stack_depth(&xs, sizeof(struct node * )) *)
-
-let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
-  let local_ident = mk_expr A.(AilEident local_sym) in
-  let arg1 = A.(AilEunary (Address, local_ident)) in
-  let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
-  let arg3 = A.(AilEcall (mk_expr (AilEident get_cn_stack_depth_sym), [])) in
-  mk_expr
-    (AilEcall
-       (mk_expr (AilEident c_add_ownership_fn_sym), List.map mk_expr [ arg1; arg2; arg3 ]))
-
-
 let generate_c_local_cn_addr_var sym =
   (* Hardcoding parts of cn_to_ail_base_type to prevent circular dependency between
-     this module and Cn_internal_to_ail, which includes Ownership already. *)
+      this module and Cn_internal_to_ail, which includes Ownership already. *)
   let cn_addr_sym = generate_sym_with_suffix ~suffix:"_addr_cn" sym in
   let annots = [ CF.Annot.Atypedef (Sym.fresh "cn_pointer") ] in
   (* Ctype_ doesn't matter to pretty-printer when typedef annotations are present *)
@@ -88,9 +76,24 @@ let generate_c_local_cn_addr_var sym =
   (binding, decl)
 
 
+(* c_map_local_to_stack_depth(&xs, sizeof(struct node * )) *)
+
+let generate_c_local_ownership_entry_fcall (local_sym, local_ctype) =
+  let local_ident = mk_expr A.(AilEident local_sym) in
+  let arg1 = A.(AilEunary (Address, local_ident)) in
+  let arg2 = A.(AilEsizeof (C.no_qualifiers, local_ctype)) in
+  let arg3 = A.(AilEcall (mk_expr (AilEident get_cn_stack_depth_sym), [])) in
+  mk_expr
+    (AilEcall
+       (mk_expr (AilEident c_add_ownership_fn_sym), List.map mk_expr [ arg1; arg2; arg3 ]))
+
+
+let generate_c_local_ownership_entry sym_ctype_pair =
+  A.(AilSexpr (generate_c_local_ownership_entry_fcall sym_ctype_pair))
+
+
 let generate_c_local_ownership_entry_bs_and_ss (sym, ctype) =
-  let entry_fcall = generate_c_local_ownership_entry_fcall (sym, ctype) in
-  let entry_fcall_stat = A.(AilSexpr entry_fcall) in
+  let entry_fcall_stat = generate_c_local_ownership_entry (sym, ctype) in
   let addr_cn_binding, addr_cn_decl = generate_c_local_cn_addr_var sym in
   ([ addr_cn_binding ], [ entry_fcall_stat; addr_cn_decl ])
 
@@ -204,7 +207,7 @@ let rec take n = function
       x :: take (n - 1) xs
 
 
-let rec get_c_control_flow_block_unmaps_aux
+let rec get_c_control_flow_ownership_injs_aux
           break_vars
           continue_vars
           return_vars
@@ -220,7 +223,7 @@ let rec get_c_control_flow_block_unmaps_aux
         (fun i s ->
            let ss_ = take (i + 1) ss in
            let visibles = collect_visibles (bs @ bindings) ss_ in
-           get_c_control_flow_block_unmaps_aux
+           get_c_control_flow_ownership_injs_aux
              (visibles @ break_vars)
              (visibles @ continue_vars)
              (visibles @ return_vars)
@@ -231,23 +234,54 @@ let rec get_c_control_flow_block_unmaps_aux
     List.concat injs
   | AilSif (_, s1, s2) ->
     let injs =
-      get_c_control_flow_block_unmaps_aux break_vars continue_vars return_vars bindings s1
+      get_c_control_flow_ownership_injs_aux
+        break_vars
+        continue_vars
+        return_vars
+        bindings
+        s1
     in
     let injs' =
-      get_c_control_flow_block_unmaps_aux break_vars continue_vars return_vars bindings s2
+      get_c_control_flow_ownership_injs_aux
+        break_vars
+        continue_vars
+        return_vars
+        bindings
+        s2
     in
     injs @ injs'
   | AilSwhile (_, s, _) | AilSdo (s, _, _) ->
-    get_c_control_flow_block_unmaps_aux
+    get_c_control_flow_ownership_injs_aux
       []
       []
       return_vars
       bindings
       s (* For while and do-while loops *)
   | AilSswitch (_, s) ->
-    get_c_control_flow_block_unmaps_aux [] continue_vars return_vars bindings s
-  | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _) ->
-    get_c_control_flow_block_unmaps_aux break_vars continue_vars return_vars bindings s
+    get_c_control_flow_ownership_injs_aux [] continue_vars return_vars bindings s
+  | AilSlabel (label_sym, s, _) ->
+    let loc_after_label = get_start_loc ~offset:1 loc in
+    Printf.printf
+      "Location of inj for %s: %s\n"
+      (Sym.pp_string label_sym)
+      (Cerb_location.simple_location loc_after_label);
+    let inj =
+      { loc = loc_after_label;
+        bs_and_ss = ([], List.map generate_c_local_ownership_entry return_vars);
+        injection_kind = NonReturnInj
+      }
+    in
+    let injs =
+      get_c_control_flow_ownership_injs_aux
+        break_vars
+        continue_vars
+        return_vars
+        bindings
+        s
+    in
+    inj :: injs
+  | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s ->
+    get_c_control_flow_ownership_injs_aux break_vars continue_vars return_vars bindings s
   | AilSgoto _ ->
     (match desug_info with
      | Desug_continue ->
@@ -285,11 +319,11 @@ let rec get_c_control_flow_block_unmaps_aux
     []
 
 
-let get_c_control_flow_block_unmaps stat =
-  get_c_control_flow_block_unmaps_aux [] [] [] [] stat
+let get_c_control_flow_ownership_injs stat =
+  get_c_control_flow_ownership_injs_aux [] [] [] [] stat
 
 
-(* Ghost state tracking for block declarations *)
+(* Ghost state tracking for stack-allocated variables in blocks *)
 let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; desug_info; node = s_; _ } =
   let gen_standard_block_injs bs ss =
     let exit_injs =
@@ -364,7 +398,7 @@ let get_c_block_local_ownership_checking_injs
   match fn_block with
   | A.(AilSblock _) ->
     let injs = get_c_block_entry_exit_injs statement in
-    let injs' = get_c_control_flow_block_unmaps statement in
+    let injs' = get_c_control_flow_ownership_injs statement in
     let injs = injs @ injs' in
     let locs = List.map (fun o_inj -> o_inj.loc) injs in
     let locs = remove_duplicates [] locs in
