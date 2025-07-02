@@ -72,52 +72,11 @@ static void update_ownership(void* ptr, size_t sz) {
   ownership_curr = (char*)ownership_curr + sizeof(struct pointer_data);
 }
 
-static uint8_t null_in_every = 5;
-
-uint8_t get_null_in_every(void) {
-  return null_in_every;
-}
-
-void set_null_in_every(uint8_t n) {
-  null_in_every = n;
-}
-
-#define bennet_alloc(cs)                                                                 \
-  ({                                                                                     \
-    cn_pointer* ret;                                                                     \
-                                                                                         \
-    size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;                      \
-                                                                                         \
-    if (bytes == 0) {                                                                    \
-      uint8_t rnd = bennet_uniform_u8(null_in_every);                                    \
-      if (rnd == 0) {                                                                    \
-        bytes = 0;                                                                       \
-      } else {                                                                           \
-        bytes = sizeof(intmax_t);                                                        \
-      }                                                                                  \
-    }                                                                                    \
-                                                                                         \
-    if (bytes == 0) {                                                                    \
-      ret = convert_to_cn_pointer(NULL);                                                 \
-    } else {                                                                             \
-      void* p = cn_bump_malloc(bytes);                                                   \
-      update_alloc(p, bytes);                                                            \
-      ret = convert_to_cn_pointer(p + cs->lower_offset_bound);                           \
-    }                                                                                    \
-                                                                                         \
-    ret;                                                                                 \
-  })
-
-cn_pointer* bennet_alloc_unsigned(bennet_domain(uintptr_t) * cs) {
-  return bennet_alloc(cs);
-}
-
-cn_pointer* bennet_alloc_signed(bennet_domain(intptr_t) * cs) {
-  return bennet_alloc(cs);
-}
-
-cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
-  return bennet_alloc_unsigned(cs);
+cn_pointer* bennet_alloc(bennet_domain(uintptr_t) * cs) {
+  size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;
+  void* p = cn_bump_malloc(bytes);
+  update_alloc(p, bytes);
+  return convert_to_cn_pointer(p + cs->lower_offset_bound);
 }
 
 int bennet_alloc_check(void* p, size_t sz) {

@@ -34,6 +34,7 @@
   (bennet-exp/assign.h as runtime/include/bennet-exp/assign.h)
   (bennet-exp/backtrack.h as runtime/include/bennet-exp/backtrack.h)
   (bennet-exp/checkpoint.h as runtime/include/bennet-exp/checkpoint.h)
+  (bennet-exp/compat.h as runtime/include/bennet-exp/compat.h)
   (bennet-exp/domain.h as runtime/include/bennet-exp/domain.h)
   (bennet-exp/dsl.h as runtime/include/bennet-exp/dsl.h)
   (bennet-exp/failure.h as runtime/include/bennet-exp/failure.h)
