@@ -80,13 +80,15 @@ module General = struct
            let@ model = model () in
            let msg ctxt =
              let orequest =
-               Option.map (fun r -> r.TypeErrors.RequestChain.resource)
+               Option.map
+                 (fun r -> r.TypeErrors.RequestChain.resource)
                  (List.nth_opt (List.rev requests) 0)
              in
-             let report = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
+             let report =
+               Explain.trace ctxt model Explain.{ no_ex with request = orequest }
+             in
              TypeErrors.Merging_multiple_arrays { requests; situation; report }
            in
-
            fail (fun ctxt -> { loc; msg = msg ctxt })
          | `True -> return default)
     in
@@ -131,7 +133,9 @@ module General = struct
                   TypeErrors.RequestChain.(fun (r : elem) -> r.resource)
                   (List.nth_opt (List.rev request_chain) 0)
               in
-              let report = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
+              let report =
+                Explain.trace ctxt model Explain.{ no_ex with request = orequest }
+              in
               let msg =
                 TypeErrors.Missing_resource
                   { requests = request_chain; situation; report }
@@ -156,9 +160,9 @@ module General = struct
          debug_constraint_failure_diagnostics 6 model simp_ctxt c;
          let@ () = Diagnostics.investigate model c in
          fail (fun ctxt ->
-             let report =
-               Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some c }
-             in
+           let report =
+             Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some c }
+           in
            { loc;
              msg =
                TypeErrors.Unproven_constraint
@@ -588,8 +592,7 @@ module Special = struct
             Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }
         in
         let msg =
-          TypeErrors.Allocation_not_live
-            { reason; ptr; maybe_report = Some report }
+          TypeErrors.Allocation_not_live { reason; ptr; maybe_report = Some report }
         in
         { loc; msg })
 

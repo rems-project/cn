@@ -94,30 +94,23 @@ type solver =
     globals : Global.t
   }
 
-
 (* ---------------------------------------------------------------------------*)
 (* GLOBAL STATE: Models *)
 (* ---------------------------------------------------------------------------*)
 
 type model = IT.t -> IT.t option
+
 type quantifiers = (Sym.t * BaseTypes.t) list
+
 type model_with_q = model * quantifiers
 
 type model_state =
   | No_model
-  | Model of solver * quantifiers  (* the solver that produced the model *)
+  | Model of solver * quantifiers (* the solver that produced the model *)
 
 let model_state = ref No_model
 
-let have_model () =
-  match !model_state with
-  | No_model -> false
-  | Model _ -> true
-
-
-
-
-
+let have_model () = match !model_state with No_model -> false | Model _ -> true
 
 module Debug = struct
   let dump_frame (f : solver_frame) =
@@ -1118,27 +1111,20 @@ let rec translate_term s iterm =
      | _ -> assert false)
 
 
-
-
-
 let model () =
   match !model_state with
   | No_model -> assert false
   | Model (solver, qs) ->
-     let _defs = SMT.get_model solver.smt_solver in
-     let eval = 
-       fun it ->
-       assert (have_model ());
-       let sexp = translate_term solver it in
-       let res = SMT.get_expr solver.smt_solver sexp in
-       let ctys = get_ctype_table solver in
-       Some (get_ivalue solver.globals ctys (get_bt it) (SMT.no_let res))
-     in
-     (eval, qs)
-
-
-
-
+    let _defs = SMT.get_model solver.smt_solver in
+    let eval =
+      fun it ->
+      assert (have_model ());
+      let sexp = translate_term solver it in
+      let res = SMT.get_expr solver.smt_solver sexp in
+      let ctys = get_ctype_table solver in
+      Some (get_ivalue solver.globals ctys (get_bt it) (SMT.no_let res))
+    in
+    (eval, qs)
 
 
 (** Add an assertion.  Quantified predicates are ignored. *)
@@ -1340,9 +1326,6 @@ let make globals =
   s
 
 
- 
-     
-
 (* (\** Evaluate terms in the context of a model computed by the solver. *\) *)
 (* let model_evaluator, reset_model_evaluator_state = *)
 (*   (\* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *\) *)
@@ -1409,7 +1392,6 @@ let make globals =
 (*       model_id *)
 (*   in *)
 (*   (model_evaluator, reset_model_evaluator_state) *)
-
 
 (* ---------------------------------------------------------------------------*)
 
@@ -1482,30 +1464,31 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        model_state := No_model;
        `True
      | SMT.Sat ->
-        (match !try_hard with
+       (match !try_hard with
         | true ->
           let assumptions = LC.Set.elements assumptions in
           let foralls = TryHard.translate_foralls solver assumptions in
           let functions = TryHard.translate_functions solver in
           Pp.(debug 3 (lazy !^"***** try-hard *****"));
-          (match SMT.check_assuming solver.smt_solver ((nexpr :: foralls) @ functions) with
-          | SMT.Unsat ->
+          (match
+             SMT.check_assuming solver.smt_solver ((nexpr :: foralls) @ functions)
+           with
+           | SMT.Unsat ->
              model_state := No_model;
              Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
              `True
-          | SMT.Sat ->
+           | SMT.Sat ->
              set_model solver qs;
              Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
              `False
-          | SMT.Unknown ->
+           | SMT.Unknown ->
              set_model solver qs;
              Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
              `Unknown)
         | false ->
-           set_model solver qs;
-           `False)
-     | SMT.Unknown ->
-       failwith "Unknown")
+          set_model solver qs;
+          `False)
+     | SMT.Unknown -> failwith "Unknown")
 
 
 (** The main way to query the solver. *)
@@ -1522,5 +1505,4 @@ let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
 
 
 (* TODO: remove this *)
-let eval model t =
-  model t
+let eval model t = model t

@@ -543,10 +543,11 @@ let check s =
   | Sexp.Atom "unknown" -> Unknown
   | ans -> raise (UnexpectedSolverResponse ans)
 
+
 (** Check if the current set of assumptions, plus the argument, are consistent.
     Throws {!UnexpectedSolverResponse}. *)
 let check_assuming s lcs =
-  match s.command (list [atom "check-sat-assuming"; list lcs]) with
+  match s.command (list [ atom "check-sat-assuming"; list lcs ]) with
   | Sexp.Atom "unsat" -> Unsat
   | Sexp.Atom "sat" -> Sat
   | Sexp.Atom "unknown" -> Unknown

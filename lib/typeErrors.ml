@@ -96,7 +96,7 @@ type message =
         situation : situation;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Merging_multiple_arrays of
       { requests : RequestChain.t;
@@ -109,7 +109,7 @@ type message =
       { resource : Res.t;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Illtyped_binary_it of
       { left : IT.Surface.t;
@@ -124,14 +124,14 @@ type message =
         value : IT.t;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Int_unrepresentable of
       { value : IT.t;
         ict : Sctypes.t;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Unproven_constraint of
       { constr : LC.t;
@@ -139,13 +139,13 @@ type message =
         info : Locations.info;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Undefined_behaviour of
       { ub : CF.Undefined.undefined_behaviour;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Needs_alloc_id of
       { ptr : IT.t;
@@ -160,7 +160,7 @@ type message =
         ub : CF.Undefined.undefined_behaviour;
         (* ctxt : Context.t * Explain.log; *)
         (* model : Solver.model_with_q *)
-        report : Report.report;
+        report : Report.report
       }
   | Allocation_not_live of
       { reason :
