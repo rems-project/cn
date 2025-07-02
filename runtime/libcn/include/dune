@@ -44,6 +44,7 @@
   (bennet-exp/size.h as runtime/include/bennet-exp/size.h)
   (bennet-exp/uniform.h as runtime/include/bennet-exp/uniform.h)
   (bennet-exp/urn.h as runtime/include/bennet-exp/urn.h)
+  (bennet-exp/vector.h as runtime/include/bennet-exp/vector.h)
   ;
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
