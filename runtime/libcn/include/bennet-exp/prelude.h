@@ -6,6 +6,7 @@
 #include <bennet-exp/assign.h>
 #include <bennet-exp/backtrack.h>
 #include <bennet-exp/checkpoint.h>
+#include <bennet-exp/compat.h>
 #include <bennet-exp/domain.h>
 #include <bennet-exp/dsl.h>
 #include <bennet-exp/failure.h>
