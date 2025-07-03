@@ -540,6 +540,8 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
 (* let get_movable_indices () = *)
 (*   inspect (fun s -> List.map (fun (pred, nm, _verb) -> (pred, nm)) s.movable_indices) *)
 
+let consistency_check_threshold = 10
+
 
 (* the main inference loop *)
 let do_unfold_resources loc =
@@ -558,10 +560,10 @@ let do_unfold_resources loc =
       | `True -> false
       | `False -> true
     in
-    match count < 10 || consistent_context () with
+    match count < consistency_check_threshold || consistent_context () with
     | false -> return changed (* contradictory state *)
     | true ->
-      let count = if count < 10 then count else 0 in
+      let count = if count < consistency_check_threshold then count else 0 in
       let keep, unpack, extract =
         List.fold_right
           (fun re (keep, unpack, extract) ->
