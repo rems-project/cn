@@ -43,11 +43,11 @@ OUTPUT=""
 # For each configuration
 for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
   for BUILD_TOOL in "${BUILD_TOOLS[@]}"; do
-    separator
-    OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\""$'\n'
-    separator
-
     FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG --build-tool=$BUILD_TOOL"
+
+    separator
+    OUTPUT="${OUTPUT}Running CI with CLI config \"$FULL_CONFIG\""$'\n'
+    separator
 
     if [[ $TEST == *.pass.c ]]; then
       OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
