@@ -24,6 +24,7 @@ type t =
 let of_instrumentation
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (paused : _ Typing.pause)
       (inst : Fulminate.Extract.instrumentation)
   : t
   =
@@ -64,6 +65,30 @@ let of_instrumentation
          | _ -> false)
       decls
   in
+  let context =
+    Result.get_ok (Typing.run_from_pause (fun _ -> Typing.get_typing_context ()) paused)
+  in
+  let module WellTyped =
+    WellTyped.Lift (struct
+      type 'a t = ('a, WellTyped.error) Result.t
+
+      let return = Result.ok
+
+      let bind = Result.bind
+
+      let get_context () = return context
+
+      let lift x = x
+    end)
+  in
+  let internal =
+    let at = inst.internal |> Option.get in
+    match at |> AT.map fst |> WellTyped.function_type "function" inst.fn_loc with
+    | Ok at' -> at' |> AT.map (fun rt -> (rt, snd (AT.get_return at)))
+    | Error err ->
+      TypeErrors.report_pretty TypeErrors.{ loc = err.loc; msg = WellTyped err.msg };
+      exit 1
+  in
   { filename;
     kind;
     suite;
@@ -72,7 +97,7 @@ let of_instrumentation
     is_trusted = inst.trusted;
     fn = inst.fn;
     fn_loc = inst.fn_loc;
-    internal = Option.get inst.internal
+    internal
   }
 
 

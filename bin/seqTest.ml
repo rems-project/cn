@@ -60,7 +60,7 @@ let run_seq_tests
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       Cerb_colour.without_colour
         (fun () ->
            let _, sigma = ail_prog in
@@ -70,7 +70,8 @@ let run_seq_tests
                   ~with_warning:true
                   cabs_tunit
                   sigma
-                  prog5)
+                  prog5
+                  paused)
            then (
              print_endline "No testable functions, trivially passing";
              exit 0);
