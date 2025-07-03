@@ -193,17 +193,19 @@ module General = struct
             Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re))));
             debug_constraint_failure_diagnostics 9 model simp_ctxt (LC.T term)
           in
-          (match (if fast_path then provable_simp else provable) (LC.T (IT.and_ eqs here)) with
+          (match
+             (if fast_path then provable_simp else provable) (LC.T (IT.and_ eqs here))
+           with
            | `True ->
              Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
              (Deleted, (false, p'_oarg))
            | `False ->
-             if (not fast_path) then
-               (let model = Solver.model () in
-                debug_failure
-                  model
-                  "couldn't use resource (pointer+iargs did not match)"
-                  (IT.and_ eqs here));
+             if not fast_path then (
+               let model = Solver.model () in
+               debug_failure
+                 model
+                 "couldn't use resource (pointer+iargs did not match)"
+                 (IT.and_ eqs here));
              continue)
         | _re -> continue)
     in
