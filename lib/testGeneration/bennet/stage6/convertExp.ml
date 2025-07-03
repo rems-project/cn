@@ -362,7 +362,7 @@ let rec transform_term
     failwith "Should be unreachable due to lifting of `pick`"
   | LetStar { value = ITE _; _ } ->
     failwith "Should be unreachable due to lifting of `if-else`"
-  | LetStar { value = Assert _; _ } ->
+  | LetStar { value = Assert _; _ } | LetStar { value = AssertDomain _; _ } ->
     failwith "Should be unreachable due to lifting of `assert`"
   | LetStar { value = Asgn _; _ } ->
     failwith "Should be unreachable due to lifting of `assign`"
@@ -370,33 +370,8 @@ let rec transform_term
   | Return { value } ->
     let b, s, e = transform_it filename sigma name value in
     (b, s, e)
-  | Assert
-      { prop = T (IT (Binop ((LT as op), IT (Sym x, bt, _), expr), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LTPointer as op), IT (Sym x, bt, _), expr), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LE as op), IT (Sym x, bt, _), expr), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LEPointer as op), IT (Sym x, bt, _), expr), _, _));
-        last_var;
-        rest
-      }
-    when not (Sym.Set.mem x (IT.free_vars expr)) ->
-    let op_str =
-      match op with
-      | LE | LEPointer -> "LE"
-      | LT | LTPointer -> "LT"
-      | _ -> failwith "unreachable @ " ^ __LOC__
-    in
+  | AssertDomain { sym; op; bound = expr; bt; last_var; rest } ->
+    let op_str = match op with `LT -> "LT" | `LE -> "LE" | `GE -> "GE" | `GT -> "GT" in
     let b_expr, s_expr, e_expr = transform_it filename sigma name expr in
     let s_assert =
       A.
@@ -405,60 +380,13 @@ let rec transform_term
                (AilEcall
                   ( mk_expr (string_ident ("BENNET_ASSERT_" ^ op_str)),
                     [ mk_expr (string_ident (name_of_bt bt));
-                      mk_expr (AilEident x);
+                      mk_expr (AilEident sym);
                       e_expr;
                       mk_expr (AilEident last_var)
                     ]
                     @ List.map
                         (fun y -> mk_expr (AilEident y))
-                        (x :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
-                    @ [ mk_expr (AilEconst ConstantNull) ] )))
-        ]
-    in
-    let b2, s2, e2 = transform_term filename sigma ctx name current_var rest in
-    (b_expr @ b2, s_expr @ s_assert @ s2, e2)
-  | Assert
-      { prop = T (IT (Binop ((LT as op), expr, IT (Sym x, bt, _)), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LTPointer as op), expr, IT (Sym x, bt, _)), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LE as op), expr, IT (Sym x, bt, _)), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LEPointer as op), expr, IT (Sym x, bt, _)), _, _));
-        last_var;
-        rest
-      }
-    when not (Sym.Set.mem x (IT.free_vars expr)) ->
-    let op_str =
-      match op with
-      | LE | LEPointer -> "GE"
-      | LT | LTPointer -> "GT"
-      | _ -> failwith "unreachable @ " ^ __LOC__
-    in
-    let b_expr, s_expr, e_expr = transform_it filename sigma name expr in
-    let s_assert =
-      A.
-        [ AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident ("BENNET_ASSERT_" ^ op_str)),
-                    [ mk_expr (string_ident (name_of_bt bt));
-                      mk_expr (AilEident x);
-                      e_expr;
-                      mk_expr (AilEident last_var)
-                    ]
-                    @ List.map
-                        (fun y -> mk_expr (AilEident y))
-                        (x :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
+                        (sym :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in

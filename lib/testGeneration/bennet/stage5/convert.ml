@@ -96,6 +96,74 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
           rest = aux (x :: vars) path_vars rest
         }
     | Return { value } -> Return { value }
+    | Assert
+        { prop =
+            LC.T
+              (IT (Binop (LT, (IT (Sym x, bt, _) as it1), (IT (Sym y, _, _) as it2)), _, _));
+          rest
+        }
+    | Assert
+        { prop =
+            LC.T
+              (IT
+                 ( Binop (LTPointer, (IT (Sym x, bt, _) as it1), (IT (Sym y, _, _) as it2)),
+                   _,
+                   _ ));
+          rest
+        }
+      when not (Sym.equal x y) ->
+      if Sym.equal (List.find (fun z -> Sym.equal z x || Sym.equal z y) vars) x then
+        AssertDomain
+          { sym = x; op = `LT; bound = it2; bt; last_var; rest = aux vars path_vars rest }
+      else
+        AssertDomain
+          { sym = y; op = `GT; bound = it1; bt; last_var; rest = aux vars path_vars rest }
+    | Assert
+        { prop =
+            LC.T
+              (IT (Binop (LE, (IT (Sym x, bt, _) as it1), (IT (Sym y, _, _) as it2)), _, _));
+          rest
+        }
+    | Assert
+        { prop =
+            LC.T
+              (IT
+                 ( Binop (LEPointer, (IT (Sym x, bt, _) as it1), (IT (Sym y, _, _) as it2)),
+                   _,
+                   _ ));
+          rest
+        }
+      when not (Sym.equal x y) ->
+      if Sym.equal (List.find (fun z -> Sym.equal z x || Sym.equal z y) vars) x then
+        AssertDomain
+          { sym = x; op = `LE; bound = it2; bt; last_var; rest = aux vars path_vars rest }
+      else
+        AssertDomain
+          { sym = y; op = `GE; bound = it1; bt; last_var; rest = aux vars path_vars rest }
+    | Assert { prop = LC.T (IT (Binop (LT, IT (Sym x, bt, _), bound), _, _)); rest }
+    | Assert
+        { prop = LC.T (IT (Binop (LTPointer, IT (Sym x, bt, _), bound), _, _)); rest }
+      when not (Sym.Set.mem x (IT.free_vars bound)) ->
+      AssertDomain
+        { sym = x; op = `LT; bound; bt; last_var; rest = aux vars path_vars rest }
+    | Assert { prop = LC.T (IT (Binop (LE, IT (Sym x, bt, _), bound), _, _)); rest }
+    | Assert
+        { prop = LC.T (IT (Binop (LEPointer, IT (Sym x, bt, _), bound), _, _)); rest }
+      when not (Sym.Set.mem x (IT.free_vars bound)) ->
+      AssertDomain
+        { sym = x; op = `LE; bound; bt; last_var; rest = aux vars path_vars rest }
+    | Assert { prop = LC.T (IT (Binop (LE, bound, IT (Sym x, bt, _)), _, _)); rest }
+    | Assert
+        { prop = LC.T (IT (Binop (LEPointer, bound, IT (Sym x, bt, _)), _, _)); rest }
+      when not (Sym.Set.mem x (IT.free_vars bound)) ->
+      AssertDomain
+        { sym = x; op = `GE; bound; bt; last_var; rest = aux vars path_vars rest }
+    | Assert { prop = LC.T (IT (Binop (LT, bound, IT (Sym x, bt, _)), _, _)); rest }
+    | Assert
+        { prop = LC.T (IT (Binop (LTPointer, bound, IT (Sym x, bt, _)), _, _)); rest }
+      when not (Sym.Set.mem x (IT.free_vars bound)) ->
+      AssertDomain
+        { sym = x; op = `GT; bound; bt; last_var; rest = aux vars path_vars rest }
     | Assert { prop; rest } -> Assert { prop; last_var; rest = aux vars path_vars rest }
     | ITE { bt; cond; t; f } ->
       let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
