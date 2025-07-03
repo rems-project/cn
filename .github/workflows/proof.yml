@@ -34,7 +34,7 @@ jobs:
 
     - name: System dependencies (Ubuntu)
       run: |
-        sudo apt-get install build-essential libgmp-dev z3 opam
+        sudo apt-get install build-essential libgmp-dev opam
 
     - name: Restore OPAM cache
       id: cache-opam-restore
@@ -49,7 +49,7 @@ jobs:
         opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam install --deps-only --yes ./cn.opam z3
+        opam install --deps-only --yes ./cn.opam
 
     - name: Save OPAM cache
       uses: actions/cache/save@v4
@@ -58,11 +58,26 @@ jobs:
         path: ~/.opam
         key: ${{ matrix.version }}
 
+    - name: Download z3 release
+      uses: robinraju/release-downloader@v1
+      with:
+        repository: z3prover/z3
+        tag: z3-4.15.2
+        fileName: z3-4.15.2-x64-glibc-2.39.zip
+
+
+    - name: Unzip and install z34
+      run: |
+        unzip z3-4.15.2-x64-glibc-2.39.zip
+        chmod +x z3-4.15.2-x64-glibc-2.39/bin/z3
+        sudo cp z3-4.15.2-x64-glibc-2.39/bin/z3 /usr/local/bin/
+
+
     - name: Download cvc5 release
       uses: robinraju/release-downloader@v1
       with:
         repository: cvc5/cvc5
-        tag: cvc5-1.2.0
+        tag: cvc5-1.3.0
         fileName: cvc5-Linux-x86_64-static.zip
 
     - name: Unzip and install cvc5
