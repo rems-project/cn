@@ -2281,7 +2281,7 @@ end
 module WRPD = struct
   module Def = Definition
 
-  let welltyped Def.Predicate.{ loc; pointer; iargs; oarg; clauses; recursive } =
+  let welltyped Def.Predicate.{ loc; pointer; iargs; oarg; clauses; recursive; attrs } =
     (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
     pure
       (let@ () = add_l pointer BT.(Loc ()) (loc, lazy (Pp.string "ptr-var")) in
@@ -2319,7 +2319,7 @@ module WRPD = struct
            return (Some clauses)
        in
        let oarg = (oarg_loc, oarg_bt) in
-       return Def.Predicate.{ loc; pointer; iargs; oarg; clauses; recursive })
+       return Def.Predicate.{ loc; pointer; iargs; oarg; clauses; recursive; attrs })
 
 
   module G = Graph.Persistent.Digraph.Concrete (Sym)

@@ -56,8 +56,13 @@ module Predicate : sig
       iargs : (Sym.t * BaseTypes.t) list;
       oarg : Locations.t * BaseTypes.t;
       clauses : Clause.t list option;
-      recursive : bool
+      recursive : bool;
+      attrs : Id.t list;
     }
+
+  val is_nounfold : t -> bool
+
+  val is_multiclause : t -> bool
 
   val pp : t -> Pp.document
 

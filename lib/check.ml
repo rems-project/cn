@@ -1805,7 +1805,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         let@ req, o = RI.Special.predicate_request loc Unpacking (pred, None) in
         let@ provable = provable loc in
         let@ global = get_global () in
-        (match Pack.unpack ~multiclause:true loc global provable (P req, o) with
+        (match Pack.unpack ~full:true loc global provable (P req, o) with
          | None ->
            fail (fun _ ->
              { loc;

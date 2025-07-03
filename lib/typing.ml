@@ -540,27 +540,34 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
 (* let get_movable_indices () = *)
 (*   inspect (fun s -> List.map (fun (pred, nm, _verb) -> (pred, nm)) s.movable_indices) *)
 
+
 (* the main inference loop *)
 let do_unfold_resources loc =
   let open Prooflog in
   let here = Locations.other __LOC__ in
   let start_time = Pp.time_start () in
-  let rec aux changed =
+  let rec aux count changed =
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
     let@ provable_f = provable_internal here in
     let provable_f = provable_f ~purpose:"do_unfold_resources" in
     let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
-    match provable_f (LC.T (IT.bool_ false here)) with
-    | `True -> return changed (* contradictory state *)
-    | `False ->
+    let consistent_context () =
+      match provable_f (LC.T (IT.bool_ false here)) with
+      | `True -> false
+      | `False -> true
+    in
+    match count < 10 || consistent_context () with
+    | false -> return changed (* contradictory state *)
+    | true ->
+      let count = if count < 10 then count else 0 in
       let keep, unpack, extract =
         List.fold_right
           (fun re (keep, unpack, extract) ->
              match
                Pack.unpack
-                 ~multiclause:!unfold_multiclause_preds
+                 ~full:!unfold_multiclause_preds
                  loc
                  s.global
                  provable_f
@@ -630,10 +637,19 @@ let do_unfold_resources loc =
            else
              []
          in
-         aux changed')
+         let number_recursive_unfolds =
+           List.fold_left (fun acc (re,_) ->
+               match Req.get_name (fst re) with
+               | PName pn when (Sym.Map.find pn s.global.resource_predicates).recursive -> acc+1
+               | _ -> acc
+             ) 0 unpack
+         in
+         let number_extracted = List.length extract in
+         let count = count + number_recursive_unfolds + number_extracted in
+         aux count changed')
   in
   let@ c = get_typing_context () in
-  let@ changed = aux [] in
+  let@ changed = aux 0 [] in
   Pp.time_end "resource unfolding" start_time;
   match changed with
   | [] -> return ()
