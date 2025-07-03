@@ -161,19 +161,24 @@ module General = struct
     : (Resource.predicate * Prooflog.log) option m
     =
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
+    let here = Locations.other __LOC__ in
     let@ oarg_bt = WellTyped.oarg_bt_of_pred loc requested.name in
     let@ provable = provable loc in
     let provable = provable ~purpose:"predicate_request" in
     let@ global = get_global () in
     let@ simp_ctxt = simp_ctxt () in
-    let resource_scan re ((needed : bool), oargs) =
+    let provable_simp lc =
+      match Simplify.LogicalConstraints.simp simp_ctxt lc with
+      | LC.T t when IT.is_true t -> `True
+      | _ -> `False
+    in
+    let resource_scan fast_path re ((needed : bool), oargs) =
       let continue = (Unchanged, (needed, oargs)) in
       if not needed then
         continue
       else (
         match re with
         | Req.P p', p'_oarg when Req.subsumed requested.name p'.name ->
-          let here = Locations.other __LOC__ in
           let addr_eq =
             IT.(eq_ ((addr_ requested.pointer) here, addr_ p'.pointer here) here)
           in
@@ -188,24 +193,28 @@ module General = struct
             Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re))));
             debug_constraint_failure_diagnostics 9 model simp_ctxt (LC.T term)
           in
-          (match provable (LC.T (IT.and_ eqs here)) with
+          (match
+             (if fast_path then provable_simp else provable) (LC.T (IT.and_ eqs here))
+           with
            | `True ->
              Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
+             (if fast_path then Pp.(debug 9 (lazy !^"syntactic match")));
+             (if not fast_path then
+                Pp.(debug 9 (lazy (item "solver match" (IT.pp (IT.and_ eqs here))))));
              (Deleted, (false, p'_oarg))
            | `False ->
-             let model = Solver.model () in
-             debug_failure
-               model
-               "couldn't use resource (pointer+iargs did not match)"
-               (IT.and_ eqs here);
+             if not fast_path then (
+               let model = Solver.model () in
+               debug_failure
+                 model
+                 "couldn't use resource (pointer+iargs did not match)"
+                 (IT.and_ eqs here));
              continue)
         | _re -> continue)
     in
-    let needed = true in
-    let here = Locations.other __LOC__ in
-    let@ needed, oarg =
-      map_and_fold_resources loc resource_scan (needed, O (IT.default_ oarg_bt here))
-    in
+    let needed, oarg = (true, Resource.O (IT.default_ oarg_bt here)) in
+    let@ needed, oarg = map_and_fold_resources loc (resource_scan true) (needed, oarg) in
+    let@ needed, oarg = map_and_fold_resources loc (resource_scan false) (needed, oarg) in
     let not_str = lazy Pp.(if needed then !^" not " else !^" ") in
     Pp.(debug 9 (Lazy.map (fun x -> !^"resource was" ^^ x ^^ !^"found") not_str));
     let@ res =
