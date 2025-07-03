@@ -20,12 +20,6 @@ enum cn_test_gen_progress {
   CN_TEST_GEN_PROGRESS_ALL = 2
 };
 
-enum bennet_sizing_strategy {
-  BENNET_SIZE_UNIFORM = 0,
-  BENNET_SIZE_QUARTILE = 1,
-  BENNET_SIZE_QUICKCHECK = 2
-};
-
 struct cn_test_input {
   bool replay;
   enum cn_test_gen_progress progress_level;
