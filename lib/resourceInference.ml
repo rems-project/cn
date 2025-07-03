@@ -198,6 +198,9 @@ module General = struct
            with
            | `True ->
              Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
+             (if fast_path then Pp.(debug 9 (lazy !^"syntactic match")));
+             (if not fast_path then
+                Pp.(debug 9 (lazy (item "solver match" (IT.pp (IT.and_ eqs here))))));
              (Deleted, (false, p'_oarg))
            | `False ->
              if not fast_path then (
