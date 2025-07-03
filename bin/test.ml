@@ -91,7 +91,7 @@ let run_tests
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { cc;
           print_steps;
@@ -129,7 +129,12 @@ let run_tests
       let _, sigma = ail_prog in
       if
         List.is_empty
-          (TestGeneration.functions_under_test ~with_warning:true cabs_tunit sigma prog5)
+          (TestGeneration.functions_under_test
+             ~with_warning:true
+             cabs_tunit
+             sigma
+             prog5
+             paused)
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
@@ -161,6 +166,7 @@ let run_tests
                 cabs_tunit
                 sigma
                 prog5
+                paused
             with
             | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
            if not dont_run then (

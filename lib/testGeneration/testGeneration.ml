@@ -412,6 +412,7 @@ let functions_under_test
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
   : Test.t list
   =
   let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
@@ -429,7 +430,7 @@ let functions_under_test
     && Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
     && not (needs_enum_hack ~with_warning sigma inst))
-  |> List.map (Test.of_instrumentation cabs_tunit sigma)
+  |> List.map (Test.of_instrumentation cabs_tunit sigma paused)
 
 
 let run
@@ -440,10 +441,11 @@ let run
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
   : unit
   =
   Cerb_debug.begin_csv_timing ();
-  let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 in
+  let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 paused in
   save_generators ~output_dir ~filename sigma prog5 insts;
   save_tests ~output_dir ~filename ~without_ownership_checking sigma prog5 insts;
   BuildScripts.generate_and_save ~output_dir ~filename build_tool;
