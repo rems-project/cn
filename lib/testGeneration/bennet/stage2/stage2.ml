@@ -2,7 +2,9 @@ module Term = Term
 module Def = Def
 module Ctx = Ctx
 
-let transform (prog5 : unit Mucore.file) (ctx : Stage1.Ctx.t) : Ctx.t =
+let transform (prog5 : unit Mucore.file) (paused : _ Typing.pause) (ctx : Stage1.Ctx.t)
+  : Ctx.t
+  =
   ctx
   |> Convert.transform
   |> SimplifyGen.MemberIndirection.transform
@@ -18,5 +20,10 @@ let transform (prog5 : unit Mucore.file) (ctx : Stage1.Ctx.t) : Ctx.t =
   |> SimplifyGen.transform prog5
   |> Reorder.transform
   |> SpecializeEquality.transform
+  |> SimplifyGen.transform prog5
+  |> (if TestGenConfig.has_smt_pruning () then
+        SmtPruning.transform paused
+      else
+        fun ctx -> ctx)
   |> SimplifyGen.transform prog5
   |> SimplifyNames.transform

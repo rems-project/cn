@@ -1,3 +1,5 @@
+(** This stage generates C code *)
+
 let transform sigma ctx =
   if TestGenConfig.is_experimental_runtime () then
     ConvertExp.transform sigma ctx
