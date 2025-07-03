@@ -2158,7 +2158,22 @@ let generate_datatype_equality_function (filename : string) (cn_datatype : _ cn_
         0,
         empty_attributes,
         param_syms,
-        mk_stmt A.(AilSblock ([], [ mk_stmt tag_if_stmt ])) ) )
+        mk_stmt
+          A.(
+            AilSblock
+              ( [],
+                [ mk_stmt tag_if_stmt;
+                  mk_stmt
+                    (AilSreturn
+                       (mk_expr (* AilEconst ConstantNull *)
+                          (AilEcast
+                             ( C.no_qualifiers,
+                               C.mk_ctype_pointer C.no_qualifiers C.void,
+                               mk_expr
+                                 (AilEconst
+                                    (ConstantInteger (IConstant (Z.zero, Decimal, None))))
+                             ))))
+                ] )) ) )
   in
   [ (decl, def) ]
 
