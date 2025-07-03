@@ -1977,10 +1977,11 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         print stdout (item "printed" (IT.pp it));
         return ()
     in
-    let@ stmts = ListM.mapM (cn_prog_sub_let Cnstatement.subst) cn_progs in
+    (* let@ stmts = ListM.mapM (cn_prog_sub_let Cnstatement.subst) cn_progs in *)
     let rec loop = function
       | [] -> k (unit_ loc)
-      | (loc, cn_statement) :: cn_progs ->
+      | cn_statement :: cn_progs ->
+         let@ (loc, cn_statement) = cn_prog_sub_let Cnstatement.subst cn_statement in
         (match cn_statement with
          | Cnstatement.Split_case lc ->
            Pp.debug 5 (lazy (Pp.headline "checking split_case"));
@@ -2015,7 +2016,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            let@ () = aux loc cn_statement in
            loop cn_progs)
     in
-    loop stmts
+    loop cn_progs
   | Ewseq (p, e1, e2) | Esseq (p, e1, e2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_expr e2) in
     let@ () =
