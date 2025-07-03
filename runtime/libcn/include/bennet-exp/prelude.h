@@ -12,8 +12,11 @@
 #include <bennet-exp/failure.h>
 #include <bennet-exp/optional.h>
 #include <bennet-exp/rand.h>
+#include <bennet-exp/rand_alloc.h>
 #include <bennet-exp/size.h>
 #include <bennet-exp/uniform.h>
 #include <bennet-exp/urn.h>
+
+void bennet_reset(void);
 
 #endif  // BENNET_EXP_PRELUDE_H

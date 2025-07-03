@@ -74,7 +74,14 @@ static void update_ownership(void* ptr, size_t sz) {
 
 cn_pointer* bennet_alloc(bennet_domain(uintptr_t) * cs) {
   size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;
-  void* p = cn_bump_malloc(bytes);
+
+  // TODO: Perform static analysis to use the following when possible:
+  // cn_bump_aligned_alloc(
+  //    bennet_optional_unwrap_or(uintptr_t)
+  //      (&cs->multiple, alignof(max_align_t)), bytes);
+  // Much faster than `bennet_rand_alloc_bounded`
+
+  void* p = bennet_rand_alloc_bounded(cs);
   update_alloc(p, bytes);
   return convert_to_cn_pointer(p + cs->lower_offset_bound);
 }

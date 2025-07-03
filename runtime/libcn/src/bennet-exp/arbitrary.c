@@ -32,8 +32,8 @@
       c_ty mult = bennet_optional_unwrap(cs->multiple);                                  \
       if (bennet_optional_is_some(cs->lower_bound_inc) ||                                \
           bennet_optional_is_some(cs->upper_bound_inc)) {                                \
-        c_ty min = bennet_optional_unwrap_or(cs->lower_bound_inc, int_min);              \
-        c_ty max = bennet_optional_unwrap_or(cs->upper_bound_inc, int_max);              \
+        c_ty min = bennet_optional_unwrap_or(c_ty)(&cs->lower_bound_inc, int_min);       \
+        c_ty max = bennet_optional_unwrap_or(c_ty)(&cs->upper_bound_inc, int_max);       \
         return convert_to_##cn_ty(bennet_mult_range_##c_ty(mult, min, max));             \
       }                                                                                  \
                                                                                          \
@@ -80,14 +80,6 @@ void set_null_in_every(uint8_t n) {
 }
 
 cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
-  // Weight towards `NULL` for pointers
-  // TODO: Figure out general way for generators to learn that this useful
-  // TODO: OR make this unnecessary
-  uint8_t rnd = bennet_uniform_uint8_t(null_in_every);
-  if (rnd == 0) {
-    return convert_to_cn_pointer(NULL);
-  }
-
   // Only allocate
   if (cs->is_owned) {
     return bennet_alloc(cs);
@@ -97,8 +89,9 @@ cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
     uintptr_t mult = bennet_optional_unwrap(cs->multiple);
     if (bennet_optional_is_some(cs->lower_bound_inc) ||
         bennet_optional_is_some(cs->upper_bound_inc)) {
-      uintptr_t min = bennet_optional_unwrap_or(cs->lower_bound_inc, 0);
-      uintptr_t max = bennet_optional_unwrap_or(cs->upper_bound_inc, UINTPTR_MAX);
+      uintptr_t min = bennet_optional_unwrap_or(uintptr_t)(&cs->lower_bound_inc, 0);
+      uintptr_t max =
+          bennet_optional_unwrap_or(uintptr_t)(&cs->upper_bound_inc, UINTPTR_MAX);
       return convert_to_cn_pointer((void*)bennet_mult_range_uint64_t(mult, min, max));
     }
 
@@ -120,6 +113,14 @@ cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
   if (bennet_optional_is_some(cs->upper_bound_inc)) {
     return convert_to_cn_pointer(
         (void*)bennet_le_uint64_t(bennet_optional_unwrap(cs->upper_bound_inc)));
+  }
+
+  // Weight towards `NULL` for pointers
+  // TODO: Figure out general way for generators to learn that this useful
+  // TODO: OR make this unnecessary
+  uint8_t rnd = bennet_uniform_uint8_t(null_in_every);
+  if (rnd == 0) {
+    return convert_to_cn_pointer(NULL);
   }
 
   return convert_to_cn_pointer((void*)bennet_uniform_uint64_t_sized(0));
