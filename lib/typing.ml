@@ -542,7 +542,6 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
 
 let consistency_check_threshold = 10
 
-
 (* the main inference loop *)
 let do_unfold_resources loc =
   let open Prooflog in
@@ -556,9 +555,7 @@ let do_unfold_resources loc =
     let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
     let consistent_context () =
-      match provable_f (LC.T (IT.bool_ false here)) with
-      | `True -> false
-      | `False -> true
+      match provable_f (LC.T (IT.bool_ false here)) with `True -> false | `False -> true
     in
     match count < consistency_check_threshold || consistent_context () with
     | false -> return changed (* contradictory state *)
@@ -568,12 +565,7 @@ let do_unfold_resources loc =
         List.fold_right
           (fun re (keep, unpack, extract) ->
              match
-               Pack.unpack
-                 ~full:!unfold_multiclause_preds
-                 loc
-                 s.global
-                 provable_f
-                 re
+               Pack.unpack ~full:!unfold_multiclause_preds loc s.global provable_f re
              with
              | Some unpackable -> (keep, (re, unpackable) :: unpack, extract)
              | None ->
@@ -640,11 +632,15 @@ let do_unfold_resources loc =
              []
          in
          let number_recursive_unfolds =
-           List.fold_left (fun acc (re,_) ->
-               match Req.get_name (fst re) with
-               | PName pn when (Sym.Map.find pn s.global.resource_predicates).recursive -> acc+1
-               | _ -> acc
-             ) 0 unpack
+           List.fold_left
+             (fun acc (re, _) ->
+                match Req.get_name (fst re) with
+                | PName pn when (Sym.Map.find pn s.global.resource_predicates).recursive
+                  ->
+                  acc + 1
+                | _ -> acc)
+             0
+             unpack
          in
          let number_extracted = List.length extract in
          let count = count + number_recursive_unfolds + number_extracted in

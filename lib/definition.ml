@@ -135,17 +135,17 @@ module Predicate = struct
       oarg : Locations.t * BaseTypes.t;
       clauses : Clause.t list option;
       recursive : bool;
-      attrs : Id.t list;
+      attrs : Id.t list
     }
 
   let is_nounfold def =
     let here = Locations.other __LOC__ in
     List.mem Id.equal (Id.make here "nounfold") def.attrs
 
+
   let is_multiclause def =
-    match def.clauses with
-    | Some (_ :: _ :: _) -> true
-    | _ -> false
+    match def.clauses with Some (_ :: _ :: _) -> true | _ -> false
+
 
   let pp def =
     let open Pp in
@@ -214,7 +214,7 @@ let alloc =
       oarg = (Locations.other __LOC__, Alloc.History.value_bt);
       clauses = None;
       recursive = false;
-      attrs = [];
+      attrs = []
     }
 
 

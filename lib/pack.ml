@@ -92,12 +92,12 @@ let packing_ft ~full loc global provable ret =
        Some at
      | PName pn ->
        let def = Sym.Map.find pn global.resource_predicates in
-       (if (not full && (Predicate.is_multiclause def || Predicate.is_nounfold def)) then
+       if (not full) && (Predicate.is_multiclause def || Predicate.is_nounfold def) then
          None
-        else
-          (match Predicate.identify_right_clause provable def ret.pointer ret.iargs with
-           | None -> None
-           | Some right_clause -> Some right_clause.packing_ft)))
+       else (
+         match Predicate.identify_right_clause provable def ret.pointer ret.iargs with
+         | None -> None
+         | Some right_clause -> Some right_clause.packing_ft))
   | Q _ -> None
 
 

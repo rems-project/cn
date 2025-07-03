@@ -57,7 +57,7 @@ module Predicate : sig
       oarg : Locations.t * BaseTypes.t;
       clauses : Clause.t list option;
       recursive : bool;
-      attrs : Id.t list;
+      attrs : Id.t list
     }
 
   val is_nounfold : t -> bool
