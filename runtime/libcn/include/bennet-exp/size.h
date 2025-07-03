@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+enum bennet_sizing_strategy {
+  BENNET_SIZE_UNIFORM = 0,
+  BENNET_SIZE_QUARTILE = 1,
+  BENNET_SIZE_QUICKCHECK = 2
+};
+
 size_t bennet_get_size(void);
 void bennet_set_size(size_t sz);
 

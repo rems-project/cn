@@ -1,3 +1,7 @@
+#include <assert.h>
+#include <stdbool.h>
+
+#include <bennet-exp/rand.h>
 #include <bennet-exp/size.h>
 
 static size_t global_size = 20;
@@ -116,4 +120,58 @@ uint64_t bennet_get_microseconds(void) {
 
 int64_t timediff_timeval(struct timeval *early, struct timeval *late) {
   return (late->tv_sec - early->tv_sec) * 1000000 + (late->tv_usec - early->tv_usec);
+}
+
+size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
+    int max_tests,
+    size_t max_size,
+    int max_discard_ratio,
+    int successes,
+    int recent_discards) {
+  switch (strategy) {
+    case BENNET_SIZE_QUARTILE:
+      if (successes < max_tests / 4) {
+        max_size /= 4;
+      } else if (successes < max_tests / 2) {
+        max_size /= 2;
+      } else if (successes < 3 * (max_tests / 4)) {
+        max_size /= 4;
+        max_size *= 3;
+      }
+
+    case BENNET_SIZE_UNIFORM:;
+      size_t sz = bennet_uniform_uint16_t(max_size + 1) + 1;
+      return sz;
+
+    case BENNET_SIZE_QUICKCHECK:;
+      size_t discard_divisor;
+      if (max_discard_ratio > 0) {
+        discard_divisor = (successes * max_discard_ratio / 3);
+        if (discard_divisor < 1) {
+          discard_divisor = 1;
+        } else if (discard_divisor > 10) {
+          discard_divisor = 10;
+        }
+      } else {
+        discard_divisor = 1;
+      }
+
+      size_t potential_size;
+      if ((successes / max_size) * max_size + max_size <= max_tests ||
+          successes >= max_tests || max_tests % max_size == 0) {
+        potential_size = (successes % max_tests + recent_discards / discard_divisor);
+      } else {
+        potential_size = (successes % max_size) * max_size / (successes % max_size) +
+                         recent_discards / discard_divisor;
+      }
+
+      if (potential_size < max_size) {
+        return potential_size + 1;
+      }
+
+      return max_size + 1;
+
+    default:
+      assert(false);
+  }
 }
