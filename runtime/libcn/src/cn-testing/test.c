@@ -323,14 +323,10 @@ int cn_test_main(int argc, char* argv[]) {
             cn_printf(CN_LOGGING_ERROR, "\n");
 
             cn_test_reproduce(&repros[i]);
-            struct cn_test_input test_input = {.replay = true,
-                .progress_level = CN_TEST_GEN_PROGRESS_NONE,
-                .sizing_strategy = sizing_strategy,
-                .trap = trap,
-                .replicas = replicas,
-                .output_tyche = output_tyche,
-                .tyche_output_stream = tyche_output_stream,
-                .begin_time = begin_time};
+            test_input.replay = true;
+            test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
+            test_input.trap = trap;
+            test_input.replicas = replicas;
             enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
