@@ -49,7 +49,7 @@ jobs:
         opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam install --deps-only --yes ./cn.opam
+        opam install --deps-only --yes ./cn.opam z3
 
     - name: Save OPAM cache
       uses: actions/cache/save@v4
@@ -58,19 +58,19 @@ jobs:
         path: ~/.opam
         key: ${{ matrix.version }}
 
-    - name: Download z3 release
-      uses: robinraju/release-downloader@v1
-      with:
-        repository: z3prover/z3
-        tag: z3-4.15.2
-        fileName: z3-4.15.2-x64-glibc-2.39.zip
+    # - name: Download z3 release
+    #   uses: robinraju/release-downloader@v1
+    #   with:
+    #     repository: z3prover/z3
+    #     tag: z3-4.15.2
+    #     fileName: z3-4.15.2-x64-glibc-2.39.zip
 
 
-    - name: Unzip and install z34
-      run: |
-        unzip z3-4.15.2-x64-glibc-2.39.zip
-        chmod +x z3-4.15.2-x64-glibc-2.39/bin/z3
-        sudo cp z3-4.15.2-x64-glibc-2.39/bin/z3 /usr/local/bin/
+    # - name: Unzip and install z3
+    #   run: |
+    #     unzip z3-4.15.2-x64-glibc-2.39.zip
+    #     chmod +x z3-4.15.2-x64-glibc-2.39/bin/z3
+    #     sudo cp z3-4.15.2-x64-glibc-2.39/bin/z3 /usr/local/bin/
 
 
     - name: Download cvc5 release
