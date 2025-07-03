@@ -3,6 +3,7 @@
 #include <bennet-exp/backtrack.h>
 #include <bennet-exp/failure.h>
 #include <bennet-exp/rand.h>
+#include <bennet-exp/rand_alloc.h>
 
 #define BENNET_BACKTRACK_ARBITRARY(cn_ty, c_ty)                                          \
   /** Returns whether this `let` should catch the failure */                             \
@@ -17,6 +18,14 @@
       return false;                                                                      \
     }                                                                                    \
                                                                                          \
+    if (cs->is_owned) {                                                                  \
+      uintptr_t ptr = (uintptr_t)convert_from_##cn_ty((cn_ty *)var);                     \
+      if ((uintptr_t)bennet_rand_alloc_min_ptr() <= ptr &&                               \
+          ptr <= (uintptr_t)bennet_rand_alloc_max_ptr()) {                               \
+        bennet_rand_alloc_free((void *)ptr);                                             \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
     enum bennet_failure_type ty = bennet_failure_get_failure_type();                     \
     switch (ty) {                                                                        \
       case BENNET_FAILURE_ASSERT:                                                        \
@@ -29,7 +38,7 @@
                                                                                          \
         bennet_domain_failure_info *new_cs = bennet_failure_get_domain(var);             \
         bennet_domain_update(c_ty, cs_tmp, new_cs);                                      \
-        if (bennet_domain_is_empty(cs_tmp)) {                                            \
+        if (bennet_domain_is_empty(c_ty)(cs_tmp)) {                                      \
           return false;                                                                  \
         }                                                                                \
         if (ty == BENNET_FAILURE_ASSIGN || bennet_failure_is_young()) {                  \

@@ -19,8 +19,6 @@
     (__VA_ARGS__).body;                                                                  \
   })
 
-#define bennet_optional_unwrap_or(o, ...) ((o).is_some) ? (o).body : (__VA_ARGS__)
-
 #define bennet_optional_none(ty)                                                         \
   ((bennet_optional(ty)){.is_some = false, .body = (ty){0}})
 #define bennet_optional_some(ty, ...)                                                    \
@@ -75,5 +73,29 @@ BENNET_OPTIONAL_EQUAL_IMPL(intptr_t);
 BENNET_OPTIONAL_EQUAL_IMPL(uintptr_t);
 BENNET_OPTIONAL_EQUAL_IMPL(intmax_t);
 BENNET_OPTIONAL_EQUAL_IMPL(uintmax_t);
+
+#define bennet_optional_unwrap_or(ty) bennet_optional_unwrap_or_##ty
+
+#define BENNET_OPTIONAL_UNWRAP_OR_IMPL(ty)                                               \
+  static inline ty bennet_optional_unwrap_or(ty)(bennet_optional(ty) * o, ty alt) {      \
+    if (o->is_some) {                                                                    \
+      return o->body;                                                                    \
+    }                                                                                    \
+                                                                                         \
+    return alt;                                                                          \
+  }
+
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(int8_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(uint8_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(int16_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(uint16_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(int32_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(uint32_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(int64_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(uint64_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(intptr_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(uintptr_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(intmax_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(uintmax_t);
 
 #endif  // BENNET_EXP_OPTIONAL_H
