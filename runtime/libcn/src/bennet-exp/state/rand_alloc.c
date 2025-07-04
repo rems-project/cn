@@ -3,10 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <bennet-exp/domain.h>
-#include <bennet-exp/rand.h>
-#include <bennet-exp/rand_alloc.h>
-#include <bennet-exp/vector.h>
+#include <bennet-exp/internals/domain.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/state/rand_alloc.h>
+#include <bennet-exp/utils/vector.h>
 
 // Struct to represent an allocated region
 typedef struct {

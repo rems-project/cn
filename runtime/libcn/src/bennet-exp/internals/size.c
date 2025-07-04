@@ -1,8 +1,8 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#include <bennet-exp/rand.h>
-#include <bennet-exp/size.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/internals/size.h>
 
 static size_t global_size = 20;
 

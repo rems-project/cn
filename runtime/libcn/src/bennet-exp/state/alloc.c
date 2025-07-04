@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <bennet-exp/prelude.h>
+#include <bennet-exp/utils/vector.h>
 #include <cn-executable/utils.h>
 
 // Define the pointer_data structure

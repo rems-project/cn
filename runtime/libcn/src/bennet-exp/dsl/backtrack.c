@@ -1,9 +1,9 @@
 #include <stdbool.h>
 
-#include <bennet-exp/backtrack.h>
-#include <bennet-exp/failure.h>
-#include <bennet-exp/rand.h>
-#include <bennet-exp/rand_alloc.h>
+#include <bennet-exp/dsl/backtrack.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/state/failure.h>
+#include <bennet-exp/state/rand_alloc.h>
 
 #define BENNET_BACKTRACK_ARBITRARY(cn_ty, c_ty)                                          \
   /** Returns whether this `let` should catch the failure */                             \

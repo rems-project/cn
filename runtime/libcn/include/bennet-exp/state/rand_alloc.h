@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <bennet-exp/domain.h>
+#include <bennet-exp/internals/domain.h>
 
 // Opaque struct for the allocator
 struct rand_alloc;

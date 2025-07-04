@@ -1,7 +1,7 @@
 #include <string.h>
 
-#include <bennet-exp/assign.h>
-#include <bennet-exp/failure.h>
+#include <bennet-exp/dsl/assign.h>
+#include <bennet-exp/state/failure.h>
 
 bennet_domain_failure_info bennet_domain_from_assignment(
     const void* p_alloc, const void* p, size_t bytes) {

@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include <bennet-exp/domain.h>
+#include <bennet-exp/internals/domain.h>
 
 enum bennet_failure_type {
   BENNET_FAILURE_NONE,

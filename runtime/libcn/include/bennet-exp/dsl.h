@@ -5,10 +5,12 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include <bennet-exp/assert.h>
-#include <bennet-exp/backtrack.h>
-#include <bennet-exp/checkpoint.h>
-#include <bennet-exp/failure.h>
+#include <bennet-exp/dsl/arbitrary.h>
+#include <bennet-exp/dsl/assert.h>
+#include <bennet-exp/dsl/assign.h>
+#include <bennet-exp/dsl/backtrack.h>
+#include <bennet-exp/state/checkpoint.h>
+#include <bennet-exp/state/failure.h>
 
 #define BENNET_CHECK_TIMEOUT()                                                           \
   if (bennet_get_input_timeout() != 0 &&                                                 \

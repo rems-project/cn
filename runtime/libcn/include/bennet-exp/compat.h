@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#include <bennet-exp/failure.h>
-#include <bennet-exp/rand.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/state/failure.h>
 
 #define BENNET_BACKTRACK_NONE BENNET_FAILURE_NONE
 

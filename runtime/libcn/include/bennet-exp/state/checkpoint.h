@@ -1,8 +1,8 @@
 #ifndef BENNET_EXP_CHECKPOINT_H
 #define BENNET_EXP_CHECKPOINT_H
 
-#include <bennet-exp/alloc.h>
-#include <bennet-exp/rand.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/state/alloc.h>
 #include <cn-executable/bump_alloc.h>
 
 typedef struct {

@@ -1,7 +1,7 @@
 #include <assert.h>
 
-#include <bennet-exp/rand.h>
-#include <bennet-exp/uniform.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/internals/uniform.h>
 #include <cn-executable/utils.h>
 
 #define BITS_GEN(sm)                                                                     \

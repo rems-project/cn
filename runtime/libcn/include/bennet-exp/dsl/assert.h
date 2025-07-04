@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#include <bennet-exp/failure.h>
-#include <bennet-exp/optional.h>
+#include <bennet-exp/state/failure.h>
+#include <bennet-exp/utils/optional.h>
 #include <cn-executable/utils.h>
 
 #define bennet_assert_le(cn_ty) bennet_assert_le_##cn_ty

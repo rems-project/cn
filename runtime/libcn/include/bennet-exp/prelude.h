@@ -1,22 +1,19 @@
 #ifndef BENNET_EXP_PRELUDE_H
 #define BENNET_EXP_PRELUDE_H
 
-#include <bennet-exp/alloc.h>
-#include <bennet-exp/arbitrary.h>
-#include <bennet-exp/assign.h>
-#include <bennet-exp/backtrack.h>
-#include <bennet-exp/checkpoint.h>
 #include <bennet-exp/compat.h>
-#include <bennet-exp/domain.h>
 #include <bennet-exp/dsl.h>
-#include <bennet-exp/failure.h>
-#include <bennet-exp/optional.h>
-#include <bennet-exp/rand.h>
-#include <bennet-exp/rand_alloc.h>
-#include <bennet-exp/size.h>
-#include <bennet-exp/uniform.h>
-#include <bennet-exp/urn.h>
-#include <bennet-exp/vector.h>
+#include <bennet-exp/internals/domain.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/internals/size.h>
+#include <bennet-exp/internals/uniform.h>
+#include <bennet-exp/internals/urn.h>
+#include <bennet-exp/state/alloc.h>
+#include <bennet-exp/state/checkpoint.h>
+#include <bennet-exp/state/failure.h>
+#include <bennet-exp/state/rand_alloc.h>
+#include <bennet-exp/utils/optional.h>
+#include <bennet-exp/utils/vector.h>
 
 void bennet_reset(void);
 

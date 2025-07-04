@@ -10,7 +10,7 @@
 
 (install
  (files
-  ;
+  ; Fulminate
   (cn-executable/bump_alloc.h as runtime/include/cn-executable/bump_alloc.h)
   (cn-executable/fulminate_alloc.h
    as
@@ -19,7 +19,7 @@
   (cn-executable/utils.h as runtime/include/cn-executable/utils.h)
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
-  ;
+  ; Bennet
   (bennet/alloc.h as runtime/include/bennet/alloc.h)
   (bennet/failure.h as runtime/include/bennet/failure.h)
   (bennet/dsl.h as runtime/include/bennet/dsl.h)
@@ -28,30 +28,44 @@
   (bennet/size.h as runtime/include/bennet/size.h)
   (bennet/uniform.h as runtime/include/bennet/uniform.h)
   (bennet/urn.h as runtime/include/bennet/urn.h)
-  ;
-  (bennet-exp/alloc.h as runtime/include/bennet-exp/alloc.h)
-  (bennet-exp/arbitrary.h as runtime/include/bennet-exp/arbitrary.h)
-  (bennet-exp/assert.h as runtime/include/bennet-exp/assert.h)
-  (bennet-exp/assign.h as runtime/include/bennet-exp/assign.h)
-  (bennet-exp/backtrack.h as runtime/include/bennet-exp/backtrack.h)
-  (bennet-exp/checkpoint.h as runtime/include/bennet-exp/checkpoint.h)
+  ; Bennet - Experimental
   (bennet-exp/compat.h as runtime/include/bennet-exp/compat.h)
-  (bennet-exp/domain.h as runtime/include/bennet-exp/domain.h)
-  (bennet-exp/dsl.h as runtime/include/bennet-exp/dsl.h)
-  (bennet-exp/failure.h as runtime/include/bennet-exp/failure.h)
-  (bennet-exp/optional.h as runtime/include/bennet-exp/optional.h)
   (bennet-exp/prelude.h as runtime/include/bennet-exp/prelude.h)
-  (bennet-exp/rand.h as runtime/include/bennet-exp/rand.h)
-  (bennet-exp/rand_alloc.h as runtime/include/bennet-exp/rand_alloc.h)
-  (bennet-exp/size.h as runtime/include/bennet-exp/size.h)
-  (bennet-exp/uniform.h as runtime/include/bennet-exp/uniform.h)
-  (bennet-exp/urn.h as runtime/include/bennet-exp/urn.h)
-  (bennet-exp/vector.h as runtime/include/bennet-exp/vector.h)
-  ;
+  (bennet-exp/dsl/arbitrary.h as runtime/include/bennet-exp/dsl/arbitrary.h)
+  (bennet-exp/dsl/assert.h as runtime/include/bennet-exp/dsl/assert.h)
+  (bennet-exp/dsl/assign.h as runtime/include/bennet-exp/dsl/assign.h)
+  (bennet-exp/dsl/backtrack.h as runtime/include/bennet-exp/dsl/backtrack.h)
+  (bennet-exp/dsl.h as runtime/include/bennet-exp/dsl.h)
+  (bennet-exp/internals/domain.h
+   as
+   runtime/include/bennet-exp/internals/domain.h)
+  (bennet-exp/internals/rand.h
+   as
+   runtime/include/bennet-exp/internals/rand.h)
+  (bennet-exp/internals/size.h
+   as
+   runtime/include/bennet-exp/internals/size.h)
+  (bennet-exp/internals/uniform.h
+   as
+   runtime/include/bennet-exp/internals/uniform.h)
+  (bennet-exp/internals/urn.h as runtime/include/bennet-exp/internals/urn.h)
+  (bennet-exp/state/alloc.h as runtime/include/bennet-exp/state/alloc.h)
+  (bennet-exp/state/checkpoint.h
+   as
+   runtime/include/bennet-exp/state/checkpoint.h)
+  (bennet-exp/state/failure.h as runtime/include/bennet-exp/state/failure.h)
+  (bennet-exp/state/rand_alloc.h
+   as
+   runtime/include/bennet-exp/state/rand_alloc.h)
+  (bennet-exp/utils/optional.h
+   as
+   runtime/include/bennet-exp/utils/optional.h)
+  (bennet-exp/utils/vector.h as runtime/include/bennet-exp/utils/vector.h)
+  ; CN Testing
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
-  ;
+  ; Counterexample program synthesis prototype
   (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h)
   (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h))
  (section lib)
