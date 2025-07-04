@@ -1215,19 +1215,24 @@ module C_vars = struct
       let stmt =
         Pack_unpack
           ( pack_unpack,
-            Predicate { name;
-              pointer = IT.Surface.proj pointer;
-              iargs = List.map IT.Surface.proj iargs
-            } )
+            Predicate
+              { name;
+                pointer = IT.Surface.proj pointer;
+                iargs = List.map IT.Surface.proj iargs
+              } )
       in
       return stmt
     | CN_pack_unpack (pack_unpack, pred, None) ->
-      let@ name = match pred with
-        | Cn.CN_owned _ -> fail { loc; msg = Generic !^"Cannot use `unpack` for RW" [@alert "-deprecated"] }
-        | Cn.CN_block _ -> fail { loc; msg = Generic !^"Cannot use `unpack` for W" [@alert "-deprecated"] }
+      let@ name =
+        match pred with
+        | Cn.CN_owned _ ->
+          fail
+            { loc; msg = Generic !^"Cannot use `unpack` for RW" [@alert "-deprecated"] }
+        | Cn.CN_block _ ->
+          fail { loc; msg = Generic !^"Cannot use `unpack` for W" [@alert "-deprecated"] }
         | Cn.CN_named name -> return (Request.PName name)
       in
-      let stmt = Pack_unpack ( pack_unpack, PredicateName name ) in
+      let stmt = Pack_unpack (pack_unpack, PredicateName name) in
       return stmt
     | CN_to_from_bytes (to_from, pred, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in

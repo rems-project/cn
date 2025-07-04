@@ -156,7 +156,7 @@ module General = struct
     | I _rt -> return (ftyp, [])
 
 
-  let predicate_request_scan loc requested = 
+  let predicate_request_scan loc requested =
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
     let here = Locations.other __LOC__ in
     let@ oarg_bt = WellTyped.oarg_bt_of_pred loc requested.name in
@@ -213,9 +213,7 @@ module General = struct
     let@ needed, oarg = map_and_fold_resources loc (resource_scan false) (needed, oarg) in
     let not_str = lazy Pp.(if needed then !^" not " else !^" ") in
     Pp.(debug 9 (Lazy.map (fun x -> !^"resource was" ^^ x ^^ !^"found") not_str));
-    match needed with
-    | false -> return (Some ((requested, oarg)))
-    | true -> return None
+    match needed with false -> return (Some (requested, oarg)) | true -> return None
 
 
   let rec predicate_request loc (uiinfo : uiinfo) (requested : Req.Predicate.t)
@@ -225,9 +223,9 @@ module General = struct
     match found with
     | Some (requested, oarg) -> return (Some ((requested, oarg), []))
     | None ->
-       let@ global = get_global () in
-       let@ provable = provable loc in
-       let here = Locations.other __LOC__ in
+      let@ global = get_global () in
+      let@ provable = provable loc in
+      let here = Locations.other __LOC__ in
       (match Pack.packing_ft ~full:true here global provable (P requested) with
        | Some packing_ft ->
          let ft_pp =

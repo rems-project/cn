@@ -32,6 +32,7 @@ let subst_predicate_or_predicate_name substitution = function
   | Predicate pt -> Predicate (Req.Predicate.subst substitution pt)
   | PredicateName pn -> PredicateName pn
 
+
 let rec subst substitution = function
   | Pack_unpack (pack_unpack, pt) ->
     Pack_unpack (pack_unpack, subst_predicate_or_predicate_name substitution pt)
@@ -99,7 +100,8 @@ let dtree_of_predicate_or_predicate_name = function
 let dtree =
   let open Cerb_frontend.Pp_ast in
   function
-  | Pack_unpack (Pack, pred) -> Dnode (pp_ctor "Pack", [ dtree_of_predicate_or_predicate_name pred ])
+  | Pack_unpack (Pack, pred) ->
+    Dnode (pp_ctor "Pack", [ dtree_of_predicate_or_predicate_name pred ])
   | Pack_unpack (Unpack, pred) ->
     Dnode (pp_ctor "Unpack", [ dtree_of_predicate_or_predicate_name pred ])
   | To_from_bytes (To, pred) ->

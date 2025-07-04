@@ -1799,16 +1799,16 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
     let do_unpack (req, o) =
       let@ provable = provable loc in
       let@ global = get_global () in
-      (match Pack.unpack ~full:true loc global provable (P req, o) with
-         | None ->
-           fail (fun _ ->
-             { loc;
-               msg = Generic !^"Cannot unpack requested resource." [@alert "-deprecated"]
-             })
-         | Some (`LRT lrt) ->
-           let@ _, members = make_return_record loc "unpack" (LRT.binders lrt) in
-           bind_logical_return loc members lrt
-         | Some (`RES res) -> add_rs loc res)
+      match Pack.unpack ~full:true loc global provable (P req, o) with
+      | None ->
+        fail (fun _ ->
+          { loc;
+            msg = Generic !^"Cannot unpack requested resource." [@alert "-deprecated"]
+          })
+      | Some (`LRT lrt) ->
+        let@ _, members = make_return_record loc "unpack" (LRT.binders lrt) in
+        bind_logical_return loc members lrt
+      | Some (`RES res) -> add_rs loc res
     in
     let aux loc stmt =
       (* copying bits of code from elsewhere in check.ml *)
@@ -1821,26 +1821,30 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           match found with
           | Some (pred, o) -> return (pred, o)
           | None ->
-             let@ model = model () in
-             fail (fun ctxt ->
-                 let requests = [RequestChain.{ resource = req; loc = Some loc; reason = None }] in
-                 let msg = Missing_resource { requests; situation = Unpacking; ctxt; model } in
-                 { loc; msg }
-               )
+            let@ model = model () in
+            fail (fun ctxt ->
+              let requests =
+                [ RequestChain.{ resource = req; loc = Some loc; reason = None } ]
+              in
+              let msg =
+                Missing_resource { requests; situation = Unpacking; ctxt; model }
+              in
+              { loc; msg })
         in
         do_unpack (pred, o)
       | Cnstatement.Pack_unpack (Unpack, PredicateName pn) ->
-        let pn = match pn with | Owned _ -> assert false | PName pn -> pn in
+        let pn = match pn with Owned _ -> assert false | PName pn -> pn in
         let@ _def = Global.get_resource_predicate_def loc pn in
         let@ found =
           let open Request in
-          map_and_fold_resources loc (fun (req,o) found ->
-              match req with
-              | P r when Request.equal_name (get_name (P r)) (PName pn) ->
+          map_and_fold_resources
+            loc
+            (fun (req, o) found ->
+               match req with
+               | P r when Request.equal_name (get_name (P r)) (PName pn) ->
                  (Deleted, (r, o) :: found)
-              | _ ->
-                 (Unchanged, found)
-            ) []
+               | _ -> (Unchanged, found))
+            []
         in
         ListM.iterM do_unpack found
       | Cnstatement.Pack_unpack (Pack, _pt) ->

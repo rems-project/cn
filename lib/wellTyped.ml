@@ -1855,16 +1855,36 @@ module BaseTyping = struct
     | Pack_unpack (pack_unpack, Predicate pt) ->
       let@ p_pt = WReq.welltyped loc (P pt) in
       let[@warning "-8"] (Req.P pt) = p_pt in
-      let@ () = match pt.name with
-        | Owned _ -> fail {loc; msg = Generic !^"Cannot use `unpack` with RW or W" [@alert "-deprecated"] }
+      let@ () =
+        match pt.name with
+        | Owned _ ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with RW or W" [@alert "-deprecated"]
+            }
+        | PName n when Sym.equal n Alloc.Predicate.sym ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with Alloc" [@alert "-deprecated"]
+            }
         | _ -> return ()
       in
       return (Pack_unpack (pack_unpack, Predicate pt))
     | Pack_unpack (pack_unpack, PredicateName pn) ->
-       let@ _def = match pn with
-         | Owned _ -> fail {loc; msg = Generic !^"Cannot use `unpack` with RW or W" [@alert "-deprecated"] }
-         | PName n -> get_resource_predicate_def loc n
-       in
+      let@ _def =
+        match pn with
+        | Owned _ ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with RW or W" [@alert "-deprecated"]
+            }
+        | PName n when Sym.equal n Alloc.Predicate.sym ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with Alloc" [@alert "-deprecated"]
+            }
+        | PName n -> get_resource_predicate_def loc n
+      in
       return (Pack_unpack (pack_unpack, PredicateName pn))
     | To_from_bytes (to_from, pt) ->
       let@ pt = WReq.welltyped loc (P pt) in
