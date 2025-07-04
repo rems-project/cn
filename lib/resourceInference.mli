@@ -15,6 +15,11 @@ module General : sig
     'b ->
     'a LogicalArgumentTypes.t ->
     'a LogicalArgumentTypes.t Typing.m
+
+  val predicate_request_scan
+    :  Locations.t ->
+    Request.Predicate.t ->
+    (Request.Predicate.t * Resource.output) option Typing.m
 end
 
 module Special : sig
