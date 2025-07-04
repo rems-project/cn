@@ -1,3 +1,5 @@
+(** This stage adds sizing *)
+
 module Term = Term
 module Def = Def
 module Ctx = Ctx

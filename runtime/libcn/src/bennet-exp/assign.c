@@ -5,8 +5,21 @@
 
 bennet_domain_failure_info bennet_domain_from_assignment(
     const void* p_alloc, const void* p, size_t bytes) {
-  size_t lower_offset = (p < p_alloc) ? (p_alloc - p) : 0;
-  size_t upper_offset = (p + bytes > p_alloc) ? ((p + bytes) - p_alloc) : 0;
+  // We assume that for any pointer and an allocation,
+  // the offset was the shorter distance.
+  // Ex: p_alloc = 0xffff, p = 0x4 -> we assume it overflowed
+
+  uintptr_t p_raw = (uintptr_t)p;
+  uintptr_t p_bytes_raw = p_raw + bytes;
+  uintptr_t p_alloc_raw = (uintptr_t)p_alloc;
+
+  size_t lower_offset =
+      ((p_alloc_raw - p_raw) <= (p_raw - p_alloc_raw)) ? (p_alloc_raw - p_raw) : 0;
+  size_t upper_offset = ((p_bytes_raw - p_alloc_raw) <= (p_alloc_raw - (p_bytes_raw)))
+                            ? ((p_bytes_raw)-p_alloc_raw)
+                            : 0;
+
+  assert(lower_offset > 0 || upper_offset > 0);
 
   bennet_domain_failure_info domain = bennet_domain_default(intmax_t);
   domain.is_owned = true;
@@ -29,7 +42,8 @@ bool bennet_assign(void* id,
     bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);
 
     domain = bennet_domain_failure_default();
-    domain.upper_offset_bound = (bytes > sizeof(intmax_t)) ? bytes : sizeof(intmax_t);
+    domain.is_owned = true;
+    domain.upper_offset_bound = bytes;
     bennet_failure_blame_domain(id, &domain);
 
     return true;

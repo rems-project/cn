@@ -20,12 +20,6 @@ enum cn_test_gen_progress {
   CN_TEST_GEN_PROGRESS_ALL = 2
 };
 
-enum bennet_sizing_strategy {
-  BENNET_SIZE_UNIFORM = 0,
-  BENNET_SIZE_QUARTILE = 1,
-  BENNET_SIZE_QUICKCHECK = 2
-};
-
 struct cn_test_input {
   bool replay;
   enum cn_test_gen_progress progress_level;
@@ -171,7 +165,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         continue;                                                                        \
       }                                                                                  \
       assume_##FuncName(__VA_ARGS__);                                                    \
-      Init(res);                                                                         \
+      (void)Init(res);                                                                   \
       if (test_input.replicas || test_input.output_tyche) {                              \
         cn_replica_alloc_reset();                                                        \
         cn_replica_lines_reset();                                                        \
@@ -252,10 +246,10 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
 
 int cn_test_main(int argc, char* argv[]);
 
+void bennet_reset(void);
+
 #define CN_TEST_INIT()                                                                   \
   reset_fulminate();                                                                     \
-  bennet_failure_reset();                                                                \
-  bennet_alloc_reset();                                                                  \
-  bennet_ownership_reset();
+  bennet_reset();
 
 #endif  // CN_TEST_H

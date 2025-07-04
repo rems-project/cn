@@ -57,6 +57,7 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_runtime
+      smt_pruning
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -91,7 +92,7 @@ let run_tests
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
         { cc;
           print_steps;
@@ -103,6 +104,7 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_runtime;
+          smt_pruning;
           print_seed;
           input_timeout;
           null_in_every;
@@ -129,50 +131,54 @@ let run_tests
       let _, sigma = ail_prog in
       if
         List.is_empty
-          (TestGeneration.functions_under_test ~with_warning:true cabs_tunit sigma prog5)
+          (TestGeneration.functions_under_test
+             ~with_warning:true
+             cabs_tunit
+             sigma
+             prog5
+             paused)
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
-      Cerb_colour.without_colour
-        (fun () ->
-           Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
-           (try
-              Fulminate.main
-                ~without_ownership_checking
-                ~without_loop_invariants:true
-                ~with_loop_leak_checks:false
-                ~with_testing:true
-                filename
-                cc
-                pp_file
-                out_file
-                output_dir
-                cabs_tunit
-                ail_prog
-                prog5
-            with
-            | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
-           (try
-              TestGeneration.run
-                ~output_dir
-                ~filename
-                ~without_ownership_checking
-                build_tool
-                cabs_tunit
-                sigma
-                prog5
-            with
-            | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
-           if not dont_run then (
-             Cerb_debug.maybe_close_csv_timing_file ();
-             match build_tool with
-             | Bash ->
-               Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
-             | Make ->
-               Unix.chdir output_dir;
-               Unix.execvp "make" (Array.of_list [ "make" ])))
-        ();
-      Or_TypeError.return ())
+      Cerb_colour.do_colour := false;
+      Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
+      (try
+         Fulminate.main
+           ~without_ownership_checking
+           ~without_loop_invariants:true
+           ~with_loop_leak_checks:false
+           ~with_testing:true
+           filename
+           cc
+           pp_file
+           out_file
+           output_dir
+           cabs_tunit
+           ail_prog
+           prog5
+       with
+       | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
+      (try
+         TestGeneration.run
+           ~output_dir
+           ~filename
+           ~without_ownership_checking
+           build_tool
+           cabs_tunit
+           sigma
+           prog5
+           paused
+       with
+       | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
+      if not dont_run then (
+        Cerb_debug.maybe_close_csv_timing_file ();
+        match build_tool with
+        | Bash ->
+          Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
+        | Make ->
+          Unix.chdir output_dir;
+          Unix.execvp "make" (Array.of_list [ "make" ]));
+      Result.ok ())
 
 
 open Cmdliner
@@ -446,6 +452,11 @@ module Flags = struct
   let experimental_runtime =
     let doc = "Use experimental runtime" in
     Arg.(value & flag & info [ "experimental-runtime" ] ~doc)
+
+
+  let smt_pruning =
+    let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
+    Arg.(value & flag & info [ "smt-pruning" ] ~doc)
 end
 
 let cmd =
@@ -502,6 +513,7 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_runtime
+    $ Flags.smt_pruning
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

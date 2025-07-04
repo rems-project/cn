@@ -45,6 +45,14 @@ type t =
         last_var : Sym.t;
         rest : t
       }
+  | AssertDomain of
+      { sym : Sym.t;
+        op : [ `LT | `LE | `GE | `GT ];
+        bound : IT.t;
+        bt : BT.t;
+        last_var : Sym.t;
+        rest : t
+      }
   | ITE of
       { bt : BT.t;
         cond : IT.t;
@@ -85,6 +93,8 @@ let rec free_vars (tm : t) : Sym.Set.t =
   | Return { value } -> IT.free_vars value
   | Assert { prop; last_var = _; rest } ->
     Sym.Set.union (LC.free_vars prop) (free_vars rest)
+  | AssertDomain { sym; op = _; bound; bt = _; last_var = _; rest } ->
+    Sym.Set.union (Sym.Set.add sym (IT.free_vars bound)) (free_vars rest)
   | ITE { bt = _; cond; t; f } ->
     Sym.Set.union (IT.free_vars cond) (free_vars_list [ t; f ])
   | Map { i; bt = _; min; max; perm; inner; last_var = _ } ->
@@ -175,6 +185,32 @@ let rec pp (tm : t) : Pp.document =
   | Assert { prop : LC.t; last_var : Sym.t; rest : t } ->
     !^"assert"
     ^^ parens (nest 2 (break 1 ^^ LC.pp prop) ^^ break 1)
+    ^^ semi
+    ^^^ twice slash
+    ^^^ !^"backtracks to"
+    ^^^ Sym.pp last_var
+    ^/^ pp rest
+  | AssertDomain { sym; op; bound; bt; last_var; rest } ->
+    !^"assert_domain"
+    ^^ brackets (Sym.pp sym)
+    ^^ parens
+         (nest
+            2
+            (break 1
+             ^^ IT.pp
+                  ((match (bt, op) with
+                    | Bits _, `LT -> IT.lt_
+                    | Loc _, `LT -> IT.ltPointer_
+                    | Bits _, `LE -> IT.le_
+                    | Loc _, `LE -> IT.lePointer_
+                    | Bits _, `GE -> IT.ge_
+                    | Loc _, `GE -> IT.gePointer_
+                    | Bits _, `GT -> IT.gt_
+                    | Loc _, `GT -> IT.gtPointer_
+                    | _, _ -> failwith ("unreachable @ " ^ __LOC__))
+                     (IT.sym_ (sym, bt, Locations.other __LOC__), bound)
+                     (Locations.other __LOC__)))
+          ^^ break 1)
     ^^ semi
     ^^^ twice slash
     ^^^ !^"backtracks to"

@@ -26,7 +26,7 @@ uint64_t sample_tree_det(struct bennet_int_tree* tree, uint64_t index) {
 }
 
 uint64_t sample_urn(struct bennet_int_urn* urn) {
-  uint64_t index = bennet_uniform_u64(urn->tree->weight);
+  uint64_t index = bennet_uniform_uint64_t(urn->tree->weight);
   return sample_tree_det(urn->tree, index);
 }
 
@@ -189,7 +189,7 @@ uint64_t remove_urn_det(struct bennet_int_urn* urn, uint64_t index) {
 }
 
 uint64_t urn_remove(struct bennet_int_urn* urn) {
-  uint64_t index = bennet_uniform_u64(urn->tree->weight);
+  uint64_t index = bennet_uniform_uint64_t(urn->tree->weight);
   return remove_urn_det(urn, index);
 }
 

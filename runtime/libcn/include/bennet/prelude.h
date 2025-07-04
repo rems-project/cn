@@ -9,4 +9,6 @@
 #include <bennet/uniform.h>
 #include <bennet/urn.h>
 
+void bennet_reset(void);
+
 #endif  // BENNET_PRELUDE_H

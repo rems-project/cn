@@ -29,12 +29,13 @@ let synthesize
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
       (tests : Test.t list)
   : Pp.document
   =
   let ctx = Stage1.transform filename prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);
-  let ctx = Stage2.transform prog5 ctx in
+  let ctx = Stage2.transform prog5 paused ctx in
   debug_stage "Stage 2" (ctx |> Stage2.Ctx.pp |> Pp.plain ~width:80);
   let ctx = Stage3.transform ctx in
   debug_stage "Stage 3" (ctx |> Stage3.Ctx.pp |> Pp.plain ~width:80);

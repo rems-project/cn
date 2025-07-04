@@ -15,28 +15,16 @@ uint8_t get_null_in_every(void);
 void set_null_in_every(uint8_t n);
 
 void bennet_alloc_reset(void);
-void* bennet_alloc_save(void);
-void bennet_alloc_restore(void* ptr);
+size_t bennet_alloc_save(void);
+void bennet_alloc_restore(size_t size);
+int bennet_alloc_check(void* p, size_t sz);
+cn_pointer* bennet_alloc(bennet_domain(uintptr_t) * cs);
 
 void bennet_ownership_reset(void);
-
-void* bennet_ownership_save(void);
-
-void bennet_ownership_restore(void* ptr);
-
-cn_pointer* bennet_alloc(
-    size_t lower_offset_bound, size_t upper_offset_bound, bool is_null);
-
-cn_pointer* bennet_alloc_unsigned(bennet_domain(uintptr_t) * cs);
-cn_pointer* bennet_alloc_signed(bennet_domain(intptr_t) * cs);
-
-cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs);
-
-int bennet_alloc_check(void* p, size_t sz);
-
-void bennet_ownership_update(void* p, size_t sz);
-
+size_t bennet_ownership_save(void);
+void bennet_ownership_restore(size_t size);
 int bennet_ownership_check(void* p, size_t sz);
+void bennet_ownership_update(void* p, size_t sz);
 
 #ifdef __cplusplus
 }

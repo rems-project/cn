@@ -135,60 +135,6 @@ void cn_trap(void) {
   _cn_trap();
 }
 
-size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
-    int max_tests,
-    size_t max_size,
-    int max_discard_ratio,
-    int successes,
-    int recent_discards) {
-  switch (strategy) {
-    case BENNET_SIZE_QUARTILE:
-      if (successes < max_tests / 4) {
-        max_size /= 4;
-      } else if (successes < max_tests / 2) {
-        max_size /= 2;
-      } else if (successes < 3 * (max_tests / 4)) {
-        max_size /= 4;
-        max_size *= 3;
-      }
-
-    case BENNET_SIZE_UNIFORM:;
-      size_t sz = bennet_uniform_u16(max_size + 1) + 1;
-      return sz;
-
-    case BENNET_SIZE_QUICKCHECK:;
-      size_t discard_divisor;
-      if (max_discard_ratio > 0) {
-        discard_divisor = (successes * max_discard_ratio / 3);
-        if (discard_divisor < 1) {
-          discard_divisor = 1;
-        } else if (discard_divisor > 10) {
-          discard_divisor = 10;
-        }
-      } else {
-        discard_divisor = 1;
-      }
-
-      size_t potential_size;
-      if ((successes / max_size) * max_size + max_size <= max_tests ||
-          successes >= max_tests || max_tests % max_size == 0) {
-        potential_size = (successes % max_tests + recent_discards / discard_divisor);
-      } else {
-        potential_size = (successes % max_size) * max_size / (successes % max_size) +
-                         recent_discards / discard_divisor;
-      }
-
-      if (potential_size < max_size) {
-        return potential_size + 1;
-      }
-
-      return max_size + 1;
-
-    default:
-      assert(false);
-  }
-}
-
 struct cn_test_reproduction {
   size_t size;
   bennet_rand_checkpoint checkpoint;
@@ -377,14 +323,10 @@ int cn_test_main(int argc, char* argv[]) {
             cn_printf(CN_LOGGING_ERROR, "\n");
 
             cn_test_reproduce(&repros[i]);
-            struct cn_test_input test_input = {.replay = true,
-                .progress_level = CN_TEST_GEN_PROGRESS_NONE,
-                .sizing_strategy = sizing_strategy,
-                .trap = trap,
-                .replicas = replicas,
-                .output_tyche = output_tyche,
-                .tyche_output_stream = tyche_output_stream,
-                .begin_time = begin_time};
+            test_input.replay = true;
+            test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
+            test_input.trap = trap;
+            test_input.replicas = replicas;
             enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {

@@ -33,8 +33,8 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
   "--coverage --sizing-strategy=quartile --experimental-runtime"
-  "--random-size-splits"
-  "--random-size-splits --experimental-runtime")
+  "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction"
+  "--random-size-splits --experimental-runtime --smt-pruning")
 
 BUILD_TOOLS=("bash" "make")
 
@@ -43,11 +43,11 @@ OUTPUT=""
 # For each configuration
 for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
   for BUILD_TOOL in "${BUILD_TOOLS[@]}"; do
-    separator
-    OUTPUT="${OUTPUT}Running CI with CLI config \"$ALT_CONFIG\""$'\n'
-    separator
-
     FULL_CONFIG="$BASE_CONFIG $ALT_CONFIG --build-tool=$BUILD_TOOL"
+
+    separator
+    OUTPUT="${OUTPUT}Running CI with CLI config \"$FULL_CONFIG\""$'\n'
+    separator
 
     if [[ $TEST == *.pass.c ]]; then
       OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"

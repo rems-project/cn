@@ -362,7 +362,7 @@ let rec transform_term
     failwith "Should be unreachable due to lifting of `pick`"
   | LetStar { value = ITE _; _ } ->
     failwith "Should be unreachable due to lifting of `if-else`"
-  | LetStar { value = Assert _; _ } ->
+  | LetStar { value = Assert _; _ } | LetStar { value = AssertDomain _; _ } ->
     failwith "Should be unreachable due to lifting of `assert`"
   | LetStar { value = Asgn _; _ } ->
     failwith "Should be unreachable due to lifting of `assign`"
@@ -370,88 +370,28 @@ let rec transform_term
   | Return { value } ->
     let b, s, e = transform_it filename sigma name value in
     (b, s, e)
-  | Assert
-      { prop = T (IT (Binop ((LT as op), IT (Sym x, Bits (sign, bits), _), expr), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LE as op), IT (Sym x, Bits (sign, bits), _), expr), _, _));
-        last_var;
-        rest
-      }
-    when not (Sym.Set.mem x (IT.free_vars expr)) ->
-    let op_str =
-      match op with LE -> "LE" | LT -> "LT" | _ -> failwith "unreachable @ " ^ __LOC__
-    in
-    let sign_str = match sign with Signed -> "SIGNED" | Unsigned -> "UNSIGNED" in
+  | AssertDomain { sym; op; bound = expr; bt; last_var; rest } ->
+    let op_str = match op with `LT -> "LT" | `LE -> "LE" | `GE -> "GE" | `GT -> "GT" in
     let b_expr, s_expr, e_expr = transform_it filename sigma name expr in
-    let upper_bound = Sym.fresh_anon () in
-    let b_upper_bound, s_upper_bound, e_upper_bound =
-      ( [ Utils.create_binding upper_bound (bt_to_ctype (IT.get_bt expr)) ],
-        [ A.AilSdeclaration [ (upper_bound, Some e_expr) ] ],
-        mk_expr (AilEident upper_bound) )
-    in
     let s_assert =
       A.
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (string_ident ("BENNET_ASSERT_" ^ op_str ^ "_" ^ sign_str)),
-                    [ mk_expr (string_ident (string_of_int bits));
-                      mk_expr (AilEident x);
-                      e_upper_bound;
+                  ( mk_expr (string_ident ("BENNET_ASSERT_" ^ op_str)),
+                    [ mk_expr (string_ident (name_of_bt bt));
+                      mk_expr (AilEident sym);
+                      e_expr;
                       mk_expr (AilEident last_var)
                     ]
                     @ List.map
                         (fun y -> mk_expr (AilEident y))
-                        (x :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
+                        (sym :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
     let b2, s2, e2 = transform_term filename sigma ctx name current_var rest in
-    (b_expr @ b_upper_bound @ b2, s_expr @ s_upper_bound @ s_assert @ s2, e2)
-  | Assert
-      { prop = T (IT (Binop ((LT as op), expr, IT (Sym x, Bits (sign, bits), _)), _, _));
-        last_var;
-        rest
-      }
-  | Assert
-      { prop = T (IT (Binop ((LE as op), expr, IT (Sym x, Bits (sign, bits), _)), _, _));
-        last_var;
-        rest
-      }
-    when not (Sym.Set.mem x (IT.free_vars expr)) ->
-    let op_str =
-      match op with LE -> "GE" | LT -> "GT" | _ -> failwith "unreachable @ " ^ __LOC__
-    in
-    let sign_str = match sign with Signed -> "SIGNED" | Unsigned -> "UNSIGNED" in
-    let b_expr, s_expr, e_expr = transform_it filename sigma name expr in
-    let upper_bound = Sym.fresh_anon () in
-    let b_upper_bound, s_upper_bound, e_upper_bound =
-      ( [ Utils.create_binding upper_bound (bt_to_ctype (IT.get_bt expr)) ],
-        [ A.AilSdeclaration [ (upper_bound, Some e_expr) ] ],
-        mk_expr (AilEident upper_bound) )
-    in
-    let s_assert =
-      A.
-        [ AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident ("BENNET_ASSERT_" ^ op_str ^ "_" ^ sign_str)),
-                    [ mk_expr (string_ident (string_of_int bits));
-                      mk_expr (AilEident x);
-                      e_upper_bound;
-                      mk_expr (AilEident last_var)
-                    ]
-                    @ List.map
-                        (fun y -> mk_expr (AilEident y))
-                        (x :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
-                    @ [ mk_expr (AilEconst ConstantNull) ] )))
-        ]
-    in
-    let b2, s2, e2 = transform_term filename sigma ctx name current_var rest in
-    (b_expr @ b_upper_bound @ b2, s_expr @ s_upper_bound @ s_assert @ s2, e2)
+    (b_expr @ b2, s_expr @ s_assert @ s2, e2)
   | Assert { prop; last_var; rest } ->
     let b1, s1, e1 = transform_lc filename sigma prop in
     let s_assert =
