@@ -1,4 +1,4 @@
-val unfold_rec_preds : bool ref
+val unfold_multiclause_preds : bool ref
 
 type 'a t
 
