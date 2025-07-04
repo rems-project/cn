@@ -33,8 +33,8 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
   "--coverage --sizing-strategy=quartile --experimental-runtime"
-  "--random-size-splits"
-  "--random-size-splits --experimental-runtime")
+  "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction"
+  "--random-size-splits --experimental-runtime --smt-pruning")
 
 BUILD_TOOLS=("bash" "make")
 

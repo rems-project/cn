@@ -1,3 +1,5 @@
+(** This stage tags the AST with the last place to backtrack to *)
+
 module Term = Term
 module Def = Def
 module Ctx = Ctx

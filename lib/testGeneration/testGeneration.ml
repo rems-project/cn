@@ -328,6 +328,7 @@ let save_generators
       ~filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
+      (paused : _ Typing.pause)
       (tests : Test.t list)
   : unit
   =
@@ -341,7 +342,7 @@ let save_generators
         separate
           hardline
           ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
-           @ [ Bennet.synthesize filename sigma prog5 tests_for_generators ]))
+           @ [ Bennet.synthesize filename sigma prog5 paused tests_for_generators ]))
     in
     let generators_fn = filename_base ^ ".gen.h" in
     save output_dir generators_fn generators_doc)
@@ -446,7 +447,7 @@ let run
   =
   Cerb_debug.begin_csv_timing ();
   let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 paused in
-  save_generators ~output_dir ~filename sigma prog5 insts;
+  save_generators ~output_dir ~filename sigma prog5 paused insts;
   save_tests ~output_dir ~filename ~without_ownership_checking sigma prog5 insts;
   BuildScripts.generate_and_save ~output_dir ~filename build_tool;
   Cerb_debug.end_csv_timing "specification test generation"
