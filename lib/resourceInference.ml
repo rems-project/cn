@@ -156,16 +156,12 @@ module General = struct
     | I _rt -> return (ftyp, [])
 
 
-  (* TODO: check that oargs are in the same order? *)
-  let rec predicate_request loc (uiinfo : uiinfo) (requested : Req.Predicate.t)
-    : (Resource.predicate * Prooflog.log) option m
-    =
+  let predicate_request_scan loc requested = 
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (P requested)))));
     let here = Locations.other __LOC__ in
     let@ oarg_bt = WellTyped.oarg_bt_of_pred loc requested.name in
     let@ provable = provable loc in
     let provable = provable ~purpose:"predicate_request" in
-    let@ global = get_global () in
     let@ simp_ctxt = simp_ctxt () in
     let provable_simp lc =
       match Simplify.LogicalConstraints.simp simp_ctxt lc with
@@ -217,24 +213,33 @@ module General = struct
     let@ needed, oarg = map_and_fold_resources loc (resource_scan false) (needed, oarg) in
     let not_str = lazy Pp.(if needed then !^" not " else !^" ") in
     Pp.(debug 9 (Lazy.map (fun x -> !^"resource was" ^^ x ^^ !^"found") not_str));
-    let@ res =
-      match needed with
-      | false -> return (Some ((requested, oarg), []))
-      | true ->
-        (match Pack.packing_ft ~full:true here global provable (P requested) with
-         | Some packing_ft ->
-           let ft_pp =
-             lazy (LogicalArgumentTypes.pp (fun _ -> Pp.string "resource") packing_ft)
-           in
-           Pp.debug 9 (Lazy.map (Pp.item "attempting to pack compound resource") ft_pp);
-           let@ o, log = ftyp_args_request_for_pack loc uiinfo packing_ft in
-           return (Some ((requested, Resource.O o), log))
-         | None ->
-           let req_pp = lazy (Req.pp (P requested)) in
-           Pp.debug 9 (Lazy.map (Pp.item "no pack rule for resource, failing") req_pp);
-           return None)
-    in
-    return res
+    match needed with
+    | false -> return (Some ((requested, oarg)))
+    | true -> return None
+
+
+  let rec predicate_request loc (uiinfo : uiinfo) (requested : Req.Predicate.t)
+    : (Resource.predicate * Prooflog.log) option m
+    =
+    let@ found = predicate_request_scan loc requested in
+    match found with
+    | Some (requested, oarg) -> return (Some ((requested, oarg), []))
+    | None ->
+       let@ global = get_global () in
+       let@ provable = provable loc in
+       let here = Locations.other __LOC__ in
+      (match Pack.packing_ft ~full:true here global provable (P requested) with
+       | Some packing_ft ->
+         let ft_pp =
+           lazy (LogicalArgumentTypes.pp (fun _ -> Pp.string "resource") packing_ft)
+         in
+         Pp.debug 9 (Lazy.map (Pp.item "attempting to pack compound resource") ft_pp);
+         let@ o, log = ftyp_args_request_for_pack loc uiinfo packing_ft in
+         return (Some ((requested, Resource.O o), log))
+       | None ->
+         let req_pp = lazy (Req.pp (P requested)) in
+         Pp.debug 9 (Lazy.map (Pp.item "no pack rule for resource, failing") req_pp);
+         return None)
 
 
   and qpredicate_request_aux loc uiinfo (requested : Req.QPredicate.t) =

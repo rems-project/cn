@@ -1209,17 +1209,25 @@ module C_vars = struct
   let cn_statement env (loc, (stmt_ : _ Cn.cn_statement_)) =
     let open Cnstatement in
     match stmt_ with
-    | CN_pack_unpack (pack_unpack, pred, args) ->
+    | CN_pack_unpack (pack_unpack, pred, Some args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let@ name, pointer, iargs, _oargs_ty = cn_res_info ~pred_loc:loc env pred args in
       let stmt =
         Pack_unpack
           ( pack_unpack,
-            { name;
+            Predicate { name;
               pointer = IT.Surface.proj pointer;
               iargs = List.map IT.Surface.proj iargs
             } )
       in
+      return stmt
+    | CN_pack_unpack (pack_unpack, pred, None) ->
+      let@ name = match pred with
+        | Cn.CN_owned _ -> fail { loc; msg = Generic !^"Cannot use `unpack` for RW" [@alert "-deprecated"] }
+        | Cn.CN_block _ -> fail { loc; msg = Generic !^"Cannot use `unpack` for W" [@alert "-deprecated"] }
+        | Cn.CN_named name -> return (Request.PName name)
+      in
+      let stmt = Pack_unpack ( pack_unpack, PredicateName name ) in
       return stmt
     | CN_to_from_bytes (to_from, pred, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in

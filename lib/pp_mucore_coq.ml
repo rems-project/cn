@@ -1712,8 +1712,10 @@ let pp_cnprogs_extract (ids, extract, term) =
 
 
 let pp_cnprog_statement = function
-  | Cnstatement.Pack_unpack (pu, pred) ->
+  | Cnstatement.Pack_unpack (pu, Predicate pred) ->
     pp_constructor "CNProgs.Pack_unpack" [ pp_pack_unpack pu; pp_request_ppredicate pred ]
+  | Cnstatement.Pack_unpack (_pu, PredicateName _) ->
+    failwith "todo"
   | To_from_bytes (tf, pred) ->
     pp_constructor "CNProgs.To_from_bytes" [ pp_to_from tf; pp_request_ppredicate pred ]
   | Have lc -> pp_constructor "CNProgs.Have" [ pp_logical_constraint lc ]
@@ -1754,6 +1756,10 @@ let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
     [ pp_location loc;
       (match stmt with
        | CN_pack_unpack (pu, pred, exprs) ->
+          let exprs = match exprs with
+            | Some exprs -> exprs
+            | None -> failwith "todo"
+          in
          pp_constructor2
            "CN_pack_unpack"
            [ pp_tuple

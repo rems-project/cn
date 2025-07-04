@@ -11,8 +11,12 @@ type have_show =
 
 type extract = Id.t list * (Sym.t, Sctypes.t) CF.Cn.cn_to_extract * IndexTerms.t
 
+type predicate_or_predicate_name =
+  | Predicate of Request.Predicate.t
+  | PredicateName of Request.name
+
 type statement =
-  | Pack_unpack of CF.Cn.pack_unpack * Request.Predicate.t
+  | Pack_unpack of CF.Cn.pack_unpack * predicate_or_predicate_name
   | To_from_bytes of CF.Cn.to_from * Request.Predicate.t
   | Have of LogicalConstraints.t
   | Instantiate of (Sym.t, Sctypes.t) CF.Cn.cn_to_instantiate * IndexTerms.t
@@ -24,9 +28,13 @@ type statement =
   | Inline of Sym.t list
   | Print of IndexTerms.t
 
+let subst_predicate_or_predicate_name substitution = function
+  | Predicate pt -> Predicate (Req.Predicate.subst substitution pt)
+  | PredicateName pn -> PredicateName pn
+
 let rec subst substitution = function
   | Pack_unpack (pack_unpack, pt) ->
-    Pack_unpack (pack_unpack, Req.Predicate.subst substitution pt)
+    Pack_unpack (pack_unpack, subst_predicate_or_predicate_name substitution pt)
   | To_from_bytes (to_from, pt) ->
     To_from_bytes (to_from, Req.Predicate.subst substitution pt)
   | Have lc -> Have (LC.subst substitution lc)
@@ -83,12 +91,17 @@ let dtree_of_to_extract =
     Dnode (pp_ctor "[CN]pred", [ Cerb_frontend.Cn_ocaml.PpAil.dtree_of_cn_pred pred ])
 
 
+let dtree_of_predicate_or_predicate_name = function
+  | Predicate pt -> Request.Predicate.dtree pt
+  | PredicateName pn -> Req.dtree_of_name pn
+
+
 let dtree =
   let open Cerb_frontend.Pp_ast in
   function
-  | Pack_unpack (Pack, pred) -> Dnode (pp_ctor "Pack", [ Request.Predicate.dtree pred ])
+  | Pack_unpack (Pack, pred) -> Dnode (pp_ctor "Pack", [ dtree_of_predicate_or_predicate_name pred ])
   | Pack_unpack (Unpack, pred) ->
-    Dnode (pp_ctor "Unpack", [ Request.Predicate.dtree pred ])
+    Dnode (pp_ctor "Unpack", [ dtree_of_predicate_or_predicate_name pred ])
   | To_from_bytes (To, pred) ->
     Dnode (pp_ctor "To_bytes", [ Request.Predicate.dtree pred ])
   | To_from_bytes (From, pred) ->
