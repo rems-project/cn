@@ -7,8 +7,8 @@
 
 typedef struct {
   cn_bump_frame_id frame_id;
-  void* alloc;
-  void* ownership;
+  size_t alloc;
+  size_t ownership;
 } bennet_checkpoint;
 
 static inline bennet_checkpoint bennet_checkpoint_save(void) {

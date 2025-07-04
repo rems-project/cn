@@ -16,6 +16,7 @@
 #include <bennet-exp/size.h>
 #include <bennet-exp/uniform.h>
 #include <bennet-exp/urn.h>
+#include <bennet-exp/vector.h>
 
 void bennet_reset(void);
 

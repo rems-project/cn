@@ -235,17 +235,13 @@
   }                                                                                      \
   tmp##_num_choices /= 2;                                                                \
   struct bennet_int_urn* tmp##_urn = urn_from_array(tmp##_choices, tmp##_num_choices);   \
-  cn_bump_frame_id tmp##_checkpoint = cn_bump_get_frame_id();                            \
-  void* tmp##_alloc_checkpoint = bennet_alloc_save();                                    \
-  void* tmp##_ownership_checkpoint = bennet_ownership_save();                            \
+  bennet_checkpoint tmp##_checkpoint = bennet_checkpoint_save();                         \
   bennet_label_##tmp##_gen :;                                                            \
   cn_bits_u64* tmp = convert_to_cn_bits_u64(urn_remove(tmp##_urn));                      \
   if (0) {                                                                               \
     bennet_label_##tmp##_backtrack :;                                                    \
     BENNET_CHECK_TIMEOUT();                                                              \
-    cn_bump_free_after(tmp##_checkpoint);                                                \
-    bennet_alloc_restore(tmp##_alloc_checkpoint);                                        \
-    bennet_ownership_restore(tmp##_ownership_checkpoint);                                \
+    bennet_checkpoint_restore(&tmp##_checkpoint);                                        \
     bennet_failure_mark_old();                                                           \
     if ((bennet_failure_get_failure_type() == BENNET_FAILURE_ASSERT ||                   \
             bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH) &&                \
@@ -275,9 +271,7 @@
 #define BENNET_SPLIT_BEGIN(tmp, ...)                                                     \
   void* tmp = malloc(1);                                                                 \
   int tmp##_backtracks = bennet_get_size_split_backtracks_allowed();                     \
-  cn_bump_frame_id tmp##_checkpoint = cn_bump_get_frame_id();                            \
-  void* tmp##_alloc_checkpoint = bennet_alloc_save();                                    \
-  void* tmp##_ownership_checkpoint = bennet_ownership_save();                            \
+  bennet_checkpoint tmp##_checkpoint = bennet_checkpoint_save();                         \
   bennet_label_##tmp##_gen : {                                                           \
     size_t* vars[] = {__VA_ARGS__};                                                      \
     int count = 0;                                                                       \
@@ -301,9 +295,7 @@
     bennet_label_##tmp##_backtrack :;                                                    \
     BENNET_CHECK_TIMEOUT();                                                              \
     if (bennet_failure_is_blamed(tmp)) {                                                 \
-      cn_bump_free_after(tmp##_checkpoint);                                              \
-      bennet_alloc_restore(tmp##_alloc_checkpoint);                                      \
-      bennet_ownership_restore(tmp##_ownership_checkpoint);                              \
+      bennet_checkpoint_restore(&tmp##_checkpoint);                                      \
       bennet_failure_remove_blame(tmp);                                                  \
       free(tmp);                                                                         \
                                                                                          \
