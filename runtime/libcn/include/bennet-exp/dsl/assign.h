@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include <bennet-exp/alloc.h>
+#include <bennet-exp/state/alloc.h>
 #include <cn-executable/utils.h>
 
 bool bennet_assign(void* id,

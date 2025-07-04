@@ -1,6 +1,9 @@
 #ifndef BENNET_EXP_ARBITRARY_H
 #define BENNET_EXP_ARBITRARY_H
 
+#include <bennet-exp/internals/domain.h>
+#include <cn-executable/utils.h>
+
 cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs);
 
 cn_bits_u8* bennet_arbitrary_cn_bits_u8(bennet_domain(uint8_t) * cs);

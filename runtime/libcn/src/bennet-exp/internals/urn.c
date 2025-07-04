@@ -2,8 +2,8 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-#include <bennet-exp/rand.h>
-#include <bennet-exp/urn.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/internals/urn.h>
 
 int is_leaf(struct bennet_int_tree* tree) {
   return tree->left == NULL && tree->right == NULL;

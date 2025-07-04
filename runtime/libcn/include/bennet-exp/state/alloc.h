@@ -3,8 +3,8 @@
 
 #include <stdlib.h>
 
-#include <bennet-exp/domain.h>
-#include <bennet-exp/optional.h>
+#include <bennet-exp/internals/domain.h>
+#include <bennet-exp/utils/optional.h>
 #include <cn-executable/utils.h>
 
 #ifdef __cplusplus

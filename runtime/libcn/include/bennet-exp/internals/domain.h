@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <bennet-exp/optional.h>
+#include <bennet-exp/utils/optional.h>
 
 #define bennet_domain(ty) struct bennet_domain_##ty
 

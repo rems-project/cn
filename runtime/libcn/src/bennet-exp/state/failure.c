@@ -2,8 +2,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#include <bennet-exp/failure.h>
-#include <bennet-exp/size.h>
+#include <bennet-exp/internals/size.h>
+#include <bennet-exp/state/failure.h>
 
 struct name_list {
   const void* id;

@@ -23,9 +23,6 @@
 (rule
  (target libbennet.a)
  (deps
-  (:headers
-   (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/bennet/*.h))
   (:src
    (glob_files ../src/bennet/*.c)))
  (action
@@ -49,11 +46,11 @@
 (rule
  (target libbennet-exp.a)
  (deps
-  (:headers
-   (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/bennet-exp/*.h))
   (:src
-   (glob_files ../src/bennet-exp/*.c)))
+   (glob_files ../src/bennet-exp/*.c)
+   (glob_files ../src/bennet-exp/dsl/*.c)
+   (glob_files ../src/bennet-exp/internals/*.c)
+   (glob_files ../src/bennet-exp/state/*.c)))
  (action
   (progn
    (run mkdir -p bennet-exp)

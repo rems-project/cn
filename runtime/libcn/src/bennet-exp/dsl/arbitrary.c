@@ -1,12 +1,12 @@
 #include <assert.h>
 #include <stdbool.h>
 
-#include <bennet-exp/alloc.h>
-#include <bennet-exp/arbitrary.h>
-#include <bennet-exp/domain.h>
-#include <bennet-exp/failure.h>
-#include <bennet-exp/rand.h>
-#include <bennet-exp/size.h>
+#include <bennet-exp/dsl/arbitrary.h>
+#include <bennet-exp/internals/domain.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/internals/size.h>
+#include <bennet-exp/state/alloc.h>
+#include <bennet-exp/state/failure.h>
 #include <cn-executable/utils.h>
 
 #define BENNET_ARBITRARY_IMPL(cn_ty, c_ty, int_min, int_max)                             \

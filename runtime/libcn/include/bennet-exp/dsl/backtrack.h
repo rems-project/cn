@@ -1,8 +1,8 @@
 #ifndef BENNET_EXP_BACKTRACK_H
 #define BENNET_EXP_BACKTRACK_H
 
-#include <bennet-exp/checkpoint.h>
-#include <bennet-exp/domain.h>
+#include <bennet-exp/internals/domain.h>
+#include <bennet-exp/state/checkpoint.h>
 
 bool bennet_backtrack_arbitrary_cn_pointer(int* backtracks,
     bennet_domain(uintptr_t) * cs,

@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <bennet-exp/rand.h>
-#include <bennet-exp/size.h>
+#include <bennet-exp/internals/rand.h>
+#include <bennet-exp/internals/size.h>
 
 // Mersenne twister from https://doi.org/10.1145/369534.369540
 
