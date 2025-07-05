@@ -34,7 +34,7 @@ jobs:
 
     - name: System dependencies (Ubuntu)
       run: |
-        sudo apt-get install build-essential libgmp-dev opam
+        sudo apt-get install build-essential libgmp-dev opam z3
 
     - name: Restore OPAM cache
       id: cache-opam-restore
@@ -46,10 +46,10 @@ jobs:
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       run: |
-        opam init --yes --shell=sh --compiler=${{ matrix.version }}
+        opam init --no-setup --yes --shell=sh --compiler=${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam install --deps-only --yes ./cn.opam z3
+        opam install --deps-only --yes ./cn.opam
 
     - name: Save OPAM cache
       uses: actions/cache/save@v4
