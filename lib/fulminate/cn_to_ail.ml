@@ -141,12 +141,32 @@ let generate_cn_pop_msg_info =
 let cn_assert_sym = Sym.fresh "cn_assert"
 
 let generate_cn_assert ail_expr spec_mode_opt =
-  let spec_mode_ident = mk_expr A.(AilEident (sym_of_spec_mode_opt spec_mode_opt)) in
-  let assertion_expr_ =
-    A.(AilEcall (mk_expr (AilEident cn_assert_sym), [ ail_expr; spec_mode_ident ]))
+  (* Filter out spurious cn_assert(true, _) statements *)
+  let is_assert_true =
+    match rm_expr ail_expr with
+    | A.(AilEcall (sym_ident, args)) ->
+      let sym =
+        match rm_expr sym_ident with
+        | A.(AilEident sym') -> sym'
+        | _ -> failwith (__FUNCTION__ ^ ": First argument to AilEcall must be AilEident")
+      in
+      if String.equal (Sym.pp_string sym) "convert_to_cn_bool" && List.non_empty args then (
+        match rm_expr (List.hd args) with
+        | A.(AilEconst (ConstantPredefined PConstantTrue)) -> true
+        | _ -> false)
+      else
+        false
+    | _ -> false
   in
-  let assertion_stat = A.(AilSexpr (mk_expr assertion_expr_)) in
-  [ assertion_stat ]
+  if is_assert_true then
+    None
+  else (
+    let spec_mode_ident = mk_expr A.(AilEident (sym_of_spec_mode_opt spec_mode_opt)) in
+    let assertion_expr_ =
+      A.(AilEcall (mk_expr (AilEident cn_assert_sym), [ ail_expr; spec_mode_ident ]))
+    in
+    let assertion_stat = A.(AilSexpr (mk_expr assertion_expr_)) in
+    Some assertion_stat)
 
 
 let rec bt_to_cn_base_type = function
@@ -661,12 +681,20 @@ let dest_with_unit_check
   fun d spec_mode_opt (b, s, e, is_unit) ->
   match d with
   | Assert loc ->
-    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
-    let assert_stmts =
+    let assert_stmt_maybe =
       generate_cn_assert (*~cn_source_loc_opt:(Some loc)*) e spec_mode_opt
     in
-    (b, s @ upd_s @ assert_stmts @ pop_s)
+    let additional_ss =
+      match assert_stmt_maybe with
+      | Some assert_stmt ->
+        let upd_s =
+          generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
+        in
+        let pop_s = generate_cn_pop_msg_info in
+        upd_s @ (assert_stmt :: pop_s)
+      | None -> []
+    in
+    (b, s @ additional_ss)
   | Return ->
     let return_stmt = if is_unit then A.(AilSreturnVoid) else A.(AilSreturn e) in
     (b, s @ [ return_stmt ])
@@ -3375,9 +3403,16 @@ let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = fu
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LAT.Constraint (lc, (loc, _str_opt), lat) ->
     let b1, s, e = cn_to_ail_logical_constraint filename dts globals spec_mode_opt lc in
-    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
-    let ss = upd_s @ s @ generate_cn_assert e spec_mode_opt @ pop_s in
+    let ss =
+      match generate_cn_assert e spec_mode_opt with
+      | Some assert_stmt ->
+        let upd_s =
+          generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
+        in
+        let pop_s = generate_cn_pop_msg_info in
+        upd_s @ s @ (assert_stmt :: pop_s)
+      | None -> s
+    in
     let b2, s2 =
       cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
     in
@@ -3528,14 +3563,16 @@ let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
     let b2, s2 = cn_to_ail_post_aux filename dts globals preds spec_mode_opt new_lrt in
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LRT.Constraint (lc, (loc, _str_opt), t) ->
-    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
     let b1, s, e = cn_to_ail_logical_constraint filename dts globals spec_mode_opt lc in
     let ss =
-      upd_s
-      @ s
-      @ generate_cn_assert (*~cn_source_loc_opt:(Some loc)*) e spec_mode_opt
-      @ pop_s
+      match generate_cn_assert e spec_mode_opt with
+      | Some assert_stmt ->
+        let upd_s =
+          generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
+        in
+        let pop_s = generate_cn_pop_msg_info in
+        upd_s @ s @ (assert_stmt :: pop_s)
+      | None -> s
     in
     let b2, s2 = cn_to_ail_post_aux filename dts globals preds spec_mode_opt t in
     (b1 @ b2, ss @ s2)
@@ -3672,13 +3709,15 @@ let rec cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt = f
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LAT.Constraint (lc, (loc, _str_opt), lat) ->
     let b1, s, e = cn_to_ail_logical_constraint filename dts globals spec_mode_opt lc in
-    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
     let ss =
-      upd_s
-      @ s
-      @ generate_cn_assert (*~cn_source_loc_opt:(Some loc)*) e spec_mode_opt
-      @ pop_s
+      match generate_cn_assert e spec_mode_opt with
+      | Some assert_stmt ->
+        let upd_s =
+          generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
+        in
+        let pop_s = generate_cn_pop_msg_info in
+        upd_s @ s @ (assert_stmt :: pop_s)
+      | None -> s
     in
     let b2, s2 =
       cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt lat
@@ -3875,10 +3914,17 @@ let rec cn_to_ail_lat_2
     prepend_to_precondition ail_executable_spec (b1, upd_s @ s1 @ pop_s)
   | LAT.Constraint (lc, (loc, _str_opt), lat) ->
     let spec_mode_opt = Some Pre in
-    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
-    let pop_s = generate_cn_pop_msg_info in
     let b1, s, e = cn_to_ail_logical_constraint filename dts globals spec_mode_opt lc in
-    let ss = upd_s @ s @ generate_cn_assert e spec_mode_opt @ pop_s in
+    let ss =
+      match generate_cn_assert e spec_mode_opt with
+      | Some assert_stmt ->
+        let upd_s =
+          generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) ()
+        in
+        let pop_s = generate_cn_pop_msg_info in
+        upd_s @ s @ (assert_stmt :: pop_s)
+      | None -> s
+    in
     let ail_executable_spec =
       cn_to_ail_lat_2
         without_ownership_checking

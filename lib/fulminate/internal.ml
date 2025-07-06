@@ -20,15 +20,6 @@ let generate_ail_stat_strs
       ?(with_newline = false)
       (bs, (ail_stats_ : CF.GenTypes.genTypeCategory A.statement_ list))
   =
-  let is_assert_true = function
-    | A.(AilSexpr (AnnotatedExpression (_, _, _, AilEassert expr))) ->
-      (match rm_expr expr with
-       | A.(AilEconst (ConstantPredefined PConstantTrue)) -> true
-       | _ -> false)
-    | _ -> false
-  in
-  (* Filter out unneeded assert(true) statements *)
-  let ail_stats_ = List.filter (fun s -> not (is_assert_true s)) ail_stats_ in
   let doc =
     List.map
       (fun s -> CF.Pp_ail.(with_executable_spec (pp_statement ~bs) (mk_stmt s)))
