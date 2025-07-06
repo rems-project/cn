@@ -323,6 +323,8 @@ type solver_extensions =
   | CVC5
   | Other
 
+let string_of_solver_extension = function Z3 -> "z3" | CVC5 -> "cvc5" | Other -> "other"
+
 (** [t_set t] is the type of sets with elements of type [t]. *)
 let t_set x = app_ "Set" [ x ]
 
