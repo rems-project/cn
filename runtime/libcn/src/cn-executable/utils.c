@@ -278,11 +278,6 @@ void cn_loop_put_back_ownership(void) {
   }
 }
 
-void cn_loop_leak_check_and_put_back_ownership(void) {
-  cn_loop_leak_check();
-  cn_loop_put_back_ownership();
-}
-
 int ownership_ghost_state_get(int64_t* address_key) {
   int* curr_depth_maybe = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
   return curr_depth_maybe ? *curr_depth_maybe : -1;

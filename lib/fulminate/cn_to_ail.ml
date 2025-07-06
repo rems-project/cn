@@ -3810,14 +3810,9 @@ let cn_to_ail_loop_inv
     let cn_stack_depth_incr_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
     in
-    let cn_ownership_put_sym =
-      if with_loop_leak_checks then
-        OE.cn_loop_leak_check_and_put_back_ownership_sym
-      else
-        OE.cn_loop_put_back_ownership_sym
-    in
     let cn_loop_put_call =
-      A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident cn_ownership_put_sym), [])))
+      A.AilSexpr
+        (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_put_back_ownership_sym), [])))
     in
     let cn_stack_depth_decr_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_decr_sym), [])))
@@ -3830,8 +3825,12 @@ let cn_to_ail_loop_inv
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
+    let cn_ownership_leak_check_call =
+      A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
+    in
     let stats =
       (bump_alloc_start_stat_ :: cn_stack_depth_incr_call :: cond_ss)
+      @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
       @ [ cn_loop_put_call;
           cn_stack_depth_decr_call;
           bump_alloc_end_stat_;
