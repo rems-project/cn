@@ -94,7 +94,6 @@ type solver =
     globals : Global.t
   }
 
-
 module Debug = struct
   let dump_frame (f : solver_frame) =
     let to_string = Sexplib.Sexp.to_string_hum in
@@ -1248,32 +1247,33 @@ let solver_type = ref (None : SMT.solver_extensions option)
 
 let solver_flags = ref (None : string list option)
 
-let select_solver_type () = 
+let select_solver_type () =
   let default = SMT.Z3 in
   match !solver_type with
   | Some typ -> typ
   | None ->
-     match !solver_path with
+    (match !solver_path with
      | None -> default
      | Some path ->
-        match Filename.basename path with
+       (match Filename.basename path with
         | "z3" -> SMT.Z3
         | "cvc5" -> SMT.CVC5
-        | _ -> default
+        | _ -> default))
 
 
 (** Make a new solver instance *)
 let make globals =
-  let base_cfg = match select_solver_type () with
+  let base_cfg =
+    match select_solver_type () with
     | Z3 -> SMT.z3
     | CVC5 -> SMT.cvc5
     | Other -> failwith "Unsupported solver type."
   in
-  let cfg = {
-      base_cfg with 
+  let cfg =
+    { base_cfg with
       exe = Option.value ~default:base_cfg.exe !solver_path;
       opts = Option.value ~default:base_cfg.opts !solver_flags;
-      log = Logger.make (SMT.string_of_solver_extension base_cfg.exts);
+      log = Logger.make (SMT.string_of_solver_extension base_cfg.exts)
     }
   in
   let s =
