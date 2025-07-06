@@ -529,7 +529,7 @@ CN_GEN_PTR_CASTS_SIGNED(signed long, cn_integer)
 
 cn_pointer *convert_to_cn_pointer(const void *ptr);
 void *convert_from_cn_pointer(cn_pointer *cn_ptr);
-cn_pointer *cn_pointer_add(cn_pointer *ptr, cn_integer *i);
+cn_pointer *cn_pointer_mod(cn_pointer *ptr, cn_pointer *n);
 cn_pointer *cast_cn_pointer_to_cn_pointer(cn_pointer *p);
 
 CN_GEN_CONVERT(uint8_t, cn_alloc_id)

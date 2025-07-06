@@ -370,28 +370,60 @@ let rec transform_term
   | Return { value } ->
     let b, s, e = transform_it filename sigma name value in
     (b, s, e)
-  | AssertDomain { sym; op; bound = expr; bt; last_var; rest } ->
-    let op_str = match op with `LT -> "LT" | `LE -> "LE" | `GE -> "GE" | `GT -> "GT" in
-    let b_expr, s_expr, e_expr = transform_it filename sigma name expr in
+  | AssertDomain
+      { sym; bt; domain = { lower_bound; upper_bound; multiple }; last_var; rest } ->
+    let get_bound ty =
+      let f : Stage5.bound_type -> string = function
+        | Inclusive -> "I"
+        | Exclusive -> "E"
+      in
+      ty
+      |> Option.map_fst f
+      |> Option.map_snd (transform_it filename sigma name)
+      |> Option.value ~default:("I", ([], [], mk_expr (AilEconst ConstantNull)))
+    in
+    let ty_l, (b_lb, s_lb, e_lb) = get_bound lower_bound in
+    let ty_u, (b_ub, s_ub, e_ub) = get_bound upper_bound in
+    let b_m, s_m, e_m =
+      multiple
+      |> Option.map (transform_it filename sigma name)
+      |> Option.value ~default:([], [], mk_expr (AilEconst ConstantNull))
+    in
+    let macro_str = "BENNET_ASSERT_DOMAIN_" ^ ty_l ^ ty_u in
     let s_assert =
       A.
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (string_ident ("BENNET_ASSERT_" ^ op_str)),
+                  ( mk_expr (string_ident macro_str),
                     [ mk_expr (string_ident (name_of_bt bt));
                       mk_expr (AilEident sym);
-                      e_expr;
+                      e_lb;
+                      e_ub;
+                      e_m;
                       mk_expr (AilEident last_var)
                     ]
                     @ List.map
                         (fun y -> mk_expr (AilEident y))
-                        (sym :: List.of_seq (Sym.Set.to_seq (IT.free_vars expr)))
+                        ([ Option.map snd lower_bound;
+                           Option.map snd upper_bound;
+                           multiple
+                         ]
+                         |> List.map (fun it ->
+                           it
+                           |> Option.map IT.free_vars
+                           |> Option.value ~default:Sym.Set.empty)
+                         |> List.fold_left Sym.Set.union Sym.Set.empty
+                         |> Sym.Set.to_seq
+                         |> List.of_seq
+                         |> List.cons sym)
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b2, s2, e2 = transform_term filename sigma ctx name current_var rest in
-    (b_expr @ b2, s_expr @ s_assert @ s2, e2)
+    let b_rest, s_rest, e_rest =
+      transform_term filename sigma ctx name current_var rest
+    in
+    (b_lb @ b_ub @ b_m @ b_rest, s_lb @ s_ub @ s_m @ s_assert @ s_rest, e_rest)
   | Assert { prop; last_var; rest } ->
     let b1, s1, e1 = transform_lc filename sigma prop in
     let s_assert =

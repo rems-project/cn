@@ -94,6 +94,32 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       else
         OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
       fi
+    elif [[ $TEST == *.exp.c ]]; then
+      if [[ $FULL_CONFIG == *--experimental-runtime* ]]; then
+        OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
+        RET=$?
+        if [[ "$RET" != 0 ]]; then
+          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
+          NUM_FAILED=$(($NUM_FAILED + 1))
+          FAILED="$FAILED ($ALT_CONFIG --build-tool=$BUILD_TOOL)"
+        else
+          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
+        fi
+      else
+        THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
+        RET=$?
+        if [[ "$RET" == 0 ]]; then
+          OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+          NUM_FAILED=$(($NUM_FAILED + 1))
+          FAILED="$FAILED ($ALT_CONFIG)"
+        elif [[ "$BUILD_TOOL" == "bash" && "$RET" != 1 ]]; then
+          OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
+          NUM_FAILED=$(($NUM_FAILED + 1))
+          FAILED="$FAILED ($ALT_CONFIG)"
+        else
+          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
+        fi
+      fi
     fi
 
     separator

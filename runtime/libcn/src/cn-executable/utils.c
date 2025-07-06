@@ -562,6 +562,12 @@ void* convert_from_cn_pointer(cn_pointer* cn_ptr) {
   return cn_ptr->ptr;
 }
 
+cn_pointer* cn_pointer_mod(cn_pointer* ptr, cn_pointer* n) {
+  uintptr_t ptr_raw = (uintptr_t)convert_from_cn_pointer(ptr);
+  uintptr_t n_raw = (uintptr_t)convert_from_cn_pointer(n);
+  return convert_to_cn_pointer((void*)(ptr_raw % n_raw));
+}
+
 struct cn_error_message_info* make_error_message_info_entry(const char* function_name,
     char* file_name,
     int line_number,
