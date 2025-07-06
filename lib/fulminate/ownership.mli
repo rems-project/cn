@@ -25,7 +25,7 @@ val cn_postcondition_leak_check_sym : Sym.t
 
 val cn_loop_put_back_ownership_sym : Sym.t
 
-val cn_loop_leak_check_and_put_back_ownership_sym : Sym.t
+val cn_loop_leak_check_sym : Sym.t
 
 val get_ownership_global_init_stats
   :  unit ->
