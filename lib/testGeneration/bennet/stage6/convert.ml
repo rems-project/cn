@@ -324,31 +324,7 @@ let rec transform_term
   | Return { value } ->
     let b, s, e = transform_it filename sigma name value in
     (b, s, e)
-  | AssertDomain { sym; op; bound; bt; last_var; rest } ->
-    transform_term
-      filename
-      sigma
-      ctx
-      name
-      current_var
-      (Assert
-         { prop =
-             LC.T
-               ((match (bt, op) with
-                 | Bits _, `LT -> IT.lt_
-                 | Loc _, `LT -> IT.ltPointer_
-                 | Bits _, `LE -> IT.le_
-                 | Loc _, `LE -> IT.lePointer_
-                 | Bits _, `GE -> IT.ge_
-                 | Loc _, `GE -> IT.gePointer_
-                 | Bits _, `GT -> IT.gt_
-                 | Loc _, `GT -> IT.gtPointer_
-                 | _, _ -> failwith ("unreachable @ " ^ __LOC__))
-                  (IT.sym_ (sym, bt, Locations.other __LOC__), bound)
-                  (Locations.other __LOC__));
-           last_var;
-           rest
-         })
+  | AssertDomain _ -> failwith ("unreachable @ " ^ __LOC__)
   | Assert { prop; last_var; rest } ->
     let b1, s1, e1 = transform_lc filename sigma prop in
     let s_assert =

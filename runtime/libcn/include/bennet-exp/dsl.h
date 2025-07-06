@@ -159,46 +159,6 @@
     }                                                                                    \
   }
 
-#define BENNET_ASSERT(cond, last_var, ...)                                               \
-  if (!convert_from_cn_bool(cond)) {                                                     \
-    bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                              \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    bennet_failure_blame_many(vars);                                                     \
-    goto bennet_label_##last_var##_backtrack;                                            \
-  }
-
-#define BENNET_ASSERT_LE(cn_ty, x, expr, last_var, ...)                                  \
-  {                                                                                      \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_le(cn_ty)(x, expr, vars)) {                                        \
-      goto bennet_label_##last_var##_backtrack;                                          \
-    }                                                                                    \
-  }
-
-#define BENNET_ASSERT_LT(cn_ty, x, expr, last_var, ...)                                  \
-  {                                                                                      \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_lt(cn_ty)(x, expr, vars)) {                                        \
-      goto bennet_label_##last_var##_backtrack;                                          \
-    }                                                                                    \
-  }
-
-#define BENNET_ASSERT_GE(cn_ty, x, expr, last_var, ...)                                  \
-  {                                                                                      \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_ge(cn_ty)(x, expr, vars)) {                                        \
-      goto bennet_label_##last_var##_backtrack;                                          \
-    }                                                                                    \
-  }
-
-#define BENNET_ASSERT_GT(cn_ty, x, expr, last_var, ...)                                  \
-  {                                                                                      \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_gt(cn_ty)(x, expr, vars)) {                                        \
-      goto bennet_label_##last_var##_backtrack;                                          \
-    }                                                                                    \
-  }
-
 #define BENNET_MAP_BEGIN(map, i, i_ty, perm, max, last_var, ...)                         \
   cn_map* map = map_create();                                                            \
   {                                                                                      \

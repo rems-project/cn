@@ -47,8 +47,7 @@ type t =
       }
   | AssertDomain of
       { sym : Sym.t;
-        op : [ `LT | `LE | `GE | `GT ];
-        bound : IT.t;
+        domain : Abstract.domain;
         bt : BT.t;
         last_var : Sym.t;
         rest : t
@@ -93,8 +92,17 @@ let rec free_vars (tm : t) : Sym.Set.t =
   | Return { value } -> IT.free_vars value
   | Assert { prop; last_var = _; rest } ->
     Sym.Set.union (LC.free_vars prop) (free_vars rest)
-  | AssertDomain { sym; op = _; bound; bt = _; last_var = _; rest } ->
-    Sym.Set.union (Sym.Set.add sym (IT.free_vars bound)) (free_vars rest)
+  | AssertDomain { sym; domain; bt = _; last_var = _; rest } ->
+    let unwrap = function
+      | Some it -> Sym.Set.union (IT.free_vars it)
+      | None -> fun x -> x
+    in
+    Sym.Set.singleton sym
+    |> unwrap (Option.map snd domain.lower_bound)
+    |> unwrap (Option.map snd domain.upper_bound)
+    |> unwrap domain.multiple
+    |> Sym.Set.union (free_vars rest)
+    |> Sym.Set.add sym
   | ITE { bt = _; cond; t; f } ->
     Sym.Set.union (IT.free_vars cond) (free_vars_list [ t; f ])
   | Map { i; bt = _; min; max; perm; inner; last_var = _ } ->
@@ -190,27 +198,10 @@ let rec pp (tm : t) : Pp.document =
     ^^^ !^"backtracks to"
     ^^^ Sym.pp last_var
     ^/^ pp rest
-  | AssertDomain { sym; op; bound; bt; last_var; rest } ->
+  | AssertDomain { sym; domain = _; bt = _; last_var; rest } ->
     !^"assert_domain"
     ^^ brackets (Sym.pp sym)
-    ^^ parens
-         (nest
-            2
-            (break 1
-             ^^ IT.pp
-                  ((match (bt, op) with
-                    | Bits _, `LT -> IT.lt_
-                    | Loc _, `LT -> IT.ltPointer_
-                    | Bits _, `LE -> IT.le_
-                    | Loc _, `LE -> IT.lePointer_
-                    | Bits _, `GE -> IT.ge_
-                    | Loc _, `GE -> IT.gePointer_
-                    | Bits _, `GT -> IT.gt_
-                    | Loc _, `GT -> IT.gtPointer_
-                    | _, _ -> failwith ("unreachable @ " ^ __LOC__))
-                     (IT.sym_ (sym, bt, Locations.other __LOC__), bound)
-                     (Locations.other __LOC__)))
-          ^^ break 1)
+    ^^ parens (nest 2 (break 1 ^^ !^"TODO: `Abstract.pp_domain`") ^^ break 1)
     ^^ semi
     ^^^ twice slash
     ^^^ !^"backtracks to"

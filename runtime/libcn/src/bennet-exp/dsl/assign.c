@@ -38,19 +38,8 @@ bool bennet_assign(void* id,
   bennet_domain_failure_info domain;
 
   void* raw_base_ptr = convert_from_cn_pointer(base_ptr);
-  if (raw_base_ptr == NULL) {
-    bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);
-
-    domain = bennet_domain_failure_default();
-    domain.is_owned = true;
-    domain.upper_offset_bound = bytes;
-    bennet_failure_blame_domain(id, &domain);
-
-    return true;
-  }
-
   void* raw_addr = convert_from_cn_pointer(addr);
-  if (!bennet_alloc_check(raw_addr, bytes)) {
+  if (raw_base_ptr == NULL || !bennet_alloc_check(raw_addr, bytes)) {
     bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);
 
     domain = bennet_domain_from_assignment(raw_base_ptr, raw_addr, bytes);

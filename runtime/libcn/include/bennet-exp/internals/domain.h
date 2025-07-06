@@ -45,6 +45,17 @@ BENNET_DOMAIN_DECL(uintmax_t);
       .lower_offset_bound = 0,                                                           \
       .upper_offset_bound = 0})
 
+#define bennet_domain_empty(ty)                                                          \
+  ((bennet_domain(ty)){/* General inequality constraints */                              \
+      .lower_bound_inc = bennet_optional_none(ty),                                       \
+      .upper_bound_inc = bennet_optional_none(ty),                                       \
+      .multiple = bennet_optional_some(ty, 0), /* Impossible */                          \
+                                                                                         \
+      /* Pointer constraints */                                                          \
+      .is_owned = false,                                                                 \
+      .lower_offset_bound = 0,                                                           \
+      .upper_offset_bound = 0})
+
 #define bennet_domain_cast(ty, cs)                                                       \
   ((bennet_domain(ty)){.lower_bound_inc = bennet_optional_cast(ty, cs->lower_bound_inc), \
       .upper_bound_inc = bennet_optional_cast(ty, cs->upper_bound_inc),                  \
@@ -135,6 +146,7 @@ BENNET_DOMAIN_EQUAL_IMPL(intmax_t)
 typedef bennet_domain(intmax_t) bennet_domain_failure_info;
 
 #define bennet_domain_failure_default() bennet_domain_default(intmax_t)
+#define bennet_domain_failure_empty()   bennet_domain_empty(intmax_t)
 
 #define bennet_domain_update(ty, cs, new_cs)                                             \
   {                                                                                      \
