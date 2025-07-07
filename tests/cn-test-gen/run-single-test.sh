@@ -9,7 +9,13 @@ TEST=$1
 cd "$DIRNAME" || exit
 
 # For stricter CI
-export CPPFLAGS="${CPPFLAGS} -Werror"
+export CPPFLAGS="${CPPFLAGS} \
+  -Werror \
+  -Wall \
+  -Wno-unused-variable \
+  -Wno-unused-but-set-variable \
+  -Wno-unused-label \
+  -Wno-unused-function"
 
 # For sanitizers
 export UBSAN_OPTIONS=halt_on_error=1
