@@ -28,7 +28,12 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
       let@ wgts = loop wgts in
       return (Term.pick_ (List.filter_map (fun x -> x) wgts) bt loc)
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
-      (* TODO: Reason about separation? *)
+      let sym = Sym.fresh_anon () in
+      let it_sym = IT.sym_ (sym, IT.get_bt it_val, loc) in
+      let@ () =
+        add_r loc (P { name = Owned (sct, Init); pointer = it_addr; iargs = [] }, O it_sym)
+      in
+      let@ () = add_c loc (T (IT.eq_ (it_sym, it_val) loc)) in
       let@ gt_rest = aux gt_rest in
       return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc)
     | LetStar ((x, GT (Return it, _, loc_ret)), gt_rest) ->
