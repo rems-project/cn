@@ -98,8 +98,10 @@ let rec free_vars (tm : t) : Sym.Set.t =
       | None -> fun x -> x
     in
     Sym.Set.singleton sym
-    |> unwrap (Option.map snd domain.lower_bound)
-    |> unwrap (Option.map snd domain.upper_bound)
+    |> unwrap domain.lower_bound_inc
+    |> unwrap domain.lower_bound_ex
+    |> unwrap domain.upper_bound_inc
+    |> unwrap domain.upper_bound_ex
     |> unwrap domain.multiple
     |> Sym.Set.union (free_vars rest)
     |> Sym.Set.add sym

@@ -371,42 +371,62 @@ let rec transform_term
     let b, s, e = transform_it filename sigma name value in
     (b, s, e)
   | AssertDomain
-      { sym; bt; domain = { lower_bound; upper_bound; multiple }; last_var; rest } ->
+      { sym;
+        bt;
+        domain =
+          { cast;
+            lower_bound_inc;
+            lower_bound_ex;
+            upper_bound_inc;
+            upper_bound_ex;
+            multiple
+          };
+        last_var;
+        rest
+      } ->
     let get_bound ty =
-      let f : Stage5.bound_type -> string = function
-        | Inclusive -> "I"
-        | Exclusive -> "E"
-      in
       ty
-      |> Option.map_fst f
-      |> Option.map_snd (transform_it filename sigma name)
-      |> Option.value ~default:("I", ([], [], mk_expr (AilEconst ConstantNull)))
+      |> Option.map (transform_it filename sigma name)
+      |> Option.value ~default:([], [], mk_expr (AilEconst ConstantNull))
     in
-    let ty_l, (b_lb, s_lb, e_lb) = get_bound lower_bound in
-    let ty_u, (b_ub, s_ub, e_ub) = get_bound upper_bound in
+    let b_lbi, s_lbi, e_lbi = get_bound lower_bound_inc in
+    let b_lbe, s_lbe, e_lbe = get_bound lower_bound_ex in
+    let b_ubi, s_ubi, e_ubi = get_bound upper_bound_inc in
+    let b_ube, s_ube, e_ube = get_bound upper_bound_ex in
     let b_m, s_m, e_m =
       multiple
       |> Option.map (transform_it filename sigma name)
       |> Option.value ~default:([], [], mk_expr (AilEconst ConstantNull))
     in
-    let macro_str = "BENNET_ASSERT_DOMAIN_" ^ ty_l ^ ty_u in
     let s_assert =
       A.
         [ AilSexpr
             (mk_expr
                (AilEcall
-                  ( mk_expr (string_ident macro_str),
-                    [ mk_expr (string_ident (name_of_bt bt));
-                      mk_expr (AilEident sym);
-                      e_lb;
-                      e_ub;
-                      e_m;
-                      mk_expr (AilEident last_var)
-                    ]
+                  ( mk_expr
+                      (string_ident
+                         (if Option.is_some cast then
+                            "BENNET_ASSERT_DOMAIN_CAST"
+                          else
+                            "BENNET_ASSERT_DOMAIN")),
+                    ((match cast with
+                      | Some cast_bt -> [ mk_expr (string_ident (name_of_bt cast_bt)) ]
+                      | None -> [])
+                     @ [ mk_expr (string_ident (name_of_bt bt));
+                         mk_expr (AilEident sym);
+                         e_lbi;
+                         e_lbe;
+                         e_ubi;
+                         e_ube;
+                         e_m;
+                         mk_expr (AilEident last_var)
+                       ])
                     @ List.map
                         (fun y -> mk_expr (AilEident y))
-                        ([ Option.map snd lower_bound;
-                           Option.map snd upper_bound;
+                        ([ lower_bound_inc;
+                           lower_bound_ex;
+                           upper_bound_inc;
+                           upper_bound_ex;
                            multiple
                          ]
                          |> List.map (fun it ->
@@ -423,7 +443,9 @@ let rec transform_term
     let b_rest, s_rest, e_rest =
       transform_term filename sigma ctx name current_var rest
     in
-    (b_lb @ b_ub @ b_m @ b_rest, s_lb @ s_ub @ s_m @ s_assert @ s_rest, e_rest)
+    ( b_lbi @ b_lbe @ b_ubi @ b_ube @ b_m @ b_rest,
+      s_lbi @ s_lbe @ s_ube @ s_ubi @ s_m @ s_assert @ s_rest,
+      e_rest )
   | Assert { prop; last_var; rest } ->
     let b1, s1, e1 = transform_lc filename sigma prop in
     let s_assert =

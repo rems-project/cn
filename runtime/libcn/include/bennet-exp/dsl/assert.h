@@ -19,32 +19,70 @@
 // Domain //
 ////////////
 
-#define bennet_assert_domain_ii(cn_ty) bennet_assert_domain_ii_##cn_ty
-#define bennet_assert_domain_ie(cn_ty) bennet_assert_domain_ie_##cn_ty
-#define bennet_assert_domain_ei(cn_ty) bennet_assert_domain_ei_##cn_ty
-#define bennet_assert_domain_ee(cn_ty) bennet_assert_domain_ee_##cn_ty
+#define bennet_assert_domain(cn_ty) bennet_assert_domain_##cn_ty
 
 #define BENNET_ASSERT_DOMAIN_IMPL(cn_ty, c_ty, min, max)                                 \
-  static inline bool bennet_assert_domain_ii(cn_ty)(cn_ty * sym,                         \
+  static inline bool bennet_assert_domain(cn_ty)(cn_ty * sym,                            \
       cn_ty * lower_bound_inc,                                                           \
+      cn_ty * lower_bound_ex,                                                            \
       cn_ty * upper_bound_inc,                                                           \
+      cn_ty * upper_bound_ex,                                                            \
       cn_ty * multiple,                                                                  \
       const void* vars[]) {                                                              \
     bool failed = false;                                                                 \
     bennet_domain_failure_info info = bennet_domain_failure_default();                   \
                                                                                          \
-    if (upper_bound_inc != NULL &&                                                       \
-        !convert_from_cn_bool(cn_ty##_le(sym, upper_bound_inc))) {                       \
-      c_ty upper_bound_raw = (c_ty)convert_from_##cn_ty(upper_bound_inc);                \
-      info.upper_bound_inc = bennet_optional_some(intmax_t, upper_bound_raw);            \
+    if (lower_bound_ex != NULL) {                                                        \
+      c_ty lower_bound_raw = (c_ty)convert_from_##cn_ty(lower_bound_ex);                 \
+      if (lower_bound_raw == max) {                                                      \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        bennet_failure_blame_many(vars);                                                 \
+        bennet_failure_remove_blame(sym);                                                \
                                                                                          \
-      failed = true;                                                                     \
+        return true;                                                                     \
+      } else {                                                                           \
+        cn_ty* lower_bound_ex_now_inc =                                                  \
+            cast_cn_bits_u64_to_##cn_ty(convert_to_cn_bits_u64(lower_bound_raw + 1));    \
+        if (lower_bound_inc == NULL) {                                                   \
+          lower_bound_inc = lower_bound_ex_now_inc;                                      \
+        } else {                                                                         \
+          lower_bound_inc = cn_ty##_max(lower_bound_inc, lower_bound_ex_now_inc);        \
+        }                                                                                \
+      }                                                                                  \
     }                                                                                    \
                                                                                          \
     if (lower_bound_inc != NULL &&                                                       \
         !convert_from_cn_bool(cn_ty##_ge(sym, lower_bound_inc))) {                       \
       c_ty lower_bound_raw = (c_ty)convert_from_##cn_ty(lower_bound_inc);                \
       info.lower_bound_inc = bennet_optional_some(intmax_t, lower_bound_raw);            \
+                                                                                         \
+      failed = true;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    if (upper_bound_ex != NULL) {                                                        \
+      c_ty upper_bound_raw = (c_ty)convert_from_##cn_ty(upper_bound_ex);                 \
+      if (upper_bound_raw == min) {                                                      \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        bennet_failure_blame_many(vars);                                                 \
+        bennet_failure_remove_blame(sym);                                                \
+                                                                                         \
+        return true;                                                                     \
+      } else {                                                                           \
+        cn_ty* upper_bound_ex_now_inc =                                                  \
+            cast_cn_bits_u64_to_##cn_ty(convert_to_cn_bits_u64(upper_bound_raw - 1));    \
+                                                                                         \
+        if (upper_bound_inc == NULL) {                                                   \
+          upper_bound_inc = upper_bound_ex_now_inc;                                      \
+        } else {                                                                         \
+          upper_bound_inc = cn_ty##_min(upper_bound_inc, upper_bound_ex_now_inc);        \
+        }                                                                                \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    if (upper_bound_inc != NULL &&                                                       \
+        !convert_from_cn_bool(cn_ty##_le(sym, upper_bound_inc))) {                       \
+      c_ty upper_bound_raw = (c_ty)convert_from_##cn_ty(upper_bound_inc);                \
+      info.upper_bound_inc = bennet_optional_some(intmax_t, upper_bound_raw);            \
                                                                                          \
       failed = true;                                                                     \
     }                                                                                    \
@@ -64,89 +102,6 @@
     }                                                                                    \
                                                                                          \
     return failed;                                                                       \
-  }                                                                                      \
-                                                                                         \
-  static inline bool bennet_assert_domain_ie(cn_ty)(cn_ty * sym,                         \
-      cn_ty * lower_bound_inc,                                                           \
-      cn_ty * upper_bound_ex,                                                            \
-      cn_ty * multiple,                                                                  \
-      const void* vars[]) {                                                              \
-    c_ty upper_bound_raw = (c_ty)convert_from_##cn_ty(upper_bound_ex);                   \
-    if (upper_bound_raw == min) {                                                        \
-      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
-      bennet_failure_blame_many(vars);                                                   \
-                                                                                         \
-      bennet_domain_failure_info info = bennet_domain_failure_empty();                   \
-      bennet_failure_blame_domain(sym, &info);                                           \
-                                                                                         \
-      return true;                                                                       \
-    }                                                                                    \
-                                                                                         \
-    cn_ty* upper_bound_inc =                                                             \
-        cast_cn_bits_u64_to_##cn_ty(convert_to_cn_bits_u64(upper_bound_raw - 1));        \
-                                                                                         \
-    return bennet_assert_domain_ii(cn_ty)(                                               \
-        sym, lower_bound_inc, upper_bound_inc, multiple, vars);                          \
-  }                                                                                      \
-                                                                                         \
-  static inline bool bennet_assert_domain_ei(cn_ty)(cn_ty * sym,                         \
-      cn_ty * lower_bound_ex,                                                            \
-      cn_ty * upper_bound_inc,                                                           \
-      cn_ty * multiple,                                                                  \
-      const void* vars[]) {                                                              \
-    c_ty lower_bound_raw = (c_ty)convert_from_##cn_ty(lower_bound_ex);                   \
-    if (lower_bound_raw == max) {                                                        \
-      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
-      bennet_failure_blame_many(vars);                                                   \
-                                                                                         \
-      bennet_domain_failure_info info = bennet_domain_failure_empty();                   \
-      bennet_failure_blame_domain(sym, &info);                                           \
-                                                                                         \
-      return true;                                                                       \
-    }                                                                                    \
-                                                                                         \
-    cn_ty* lower_bound_inc =                                                             \
-        cast_cn_bits_u64_to_##cn_ty(convert_to_cn_bits_u64(lower_bound_raw + 1));        \
-                                                                                         \
-    return bennet_assert_domain_ii(cn_ty)(                                               \
-        sym, lower_bound_inc, upper_bound_inc, multiple, vars);                          \
-  }                                                                                      \
-                                                                                         \
-  static inline bool bennet_assert_domain_ee(cn_ty)(cn_ty * sym,                         \
-      cn_ty * lower_bound_ex,                                                            \
-      cn_ty * upper_bound_ex,                                                            \
-      cn_ty * multiple,                                                                  \
-      const void* vars[]) {                                                              \
-    c_ty lower_bound_raw = (c_ty)convert_from_##cn_ty(lower_bound_ex);                   \
-    if (lower_bound_raw == max) {                                                        \
-      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
-      bennet_failure_blame_many(vars);                                                   \
-                                                                                         \
-      bennet_domain_failure_info info = bennet_domain_failure_empty();                   \
-      bennet_failure_blame_domain(sym, &info);                                           \
-                                                                                         \
-      return true;                                                                       \
-    }                                                                                    \
-                                                                                         \
-    c_ty upper_bound_raw = (c_ty)convert_from_##cn_ty(upper_bound_ex);                   \
-    if (upper_bound_raw == min) {                                                        \
-      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
-      bennet_failure_blame_many(vars);                                                   \
-                                                                                         \
-      bennet_domain_failure_info info = bennet_domain_failure_empty();                   \
-      bennet_failure_blame_domain(sym, &info);                                           \
-                                                                                         \
-      return true;                                                                       \
-    }                                                                                    \
-                                                                                         \
-    cn_ty* lower_bound_inc =                                                             \
-        cast_cn_bits_u64_to_##cn_ty(convert_to_cn_bits_u64(lower_bound_raw + 1));        \
-                                                                                         \
-    cn_ty* upper_bound_inc =                                                             \
-        cast_cn_bits_u64_to_##cn_ty(convert_to_cn_bits_u64(upper_bound_raw - 1));        \
-                                                                                         \
-    return bennet_assert_domain_ii(cn_ty)(                                               \
-        sym, lower_bound_inc, upper_bound_inc, multiple, vars);                          \
   }
 
 BENNET_ASSERT_DOMAIN_IMPL(cn_pointer, uintptr_t, 0, UINTPTR_MAX)
@@ -163,34 +118,138 @@ BENNET_ASSERT_DOMAIN_IMPL(cn_bits_i32, int32_t, INT32_MIN, INT32_MAX)
 BENNET_ASSERT_DOMAIN_IMPL(cn_bits_u64, uint64_t, 0, UINT64_MAX)
 BENNET_ASSERT_DOMAIN_IMPL(cn_bits_i64, int64_t, INT64_MIN, INT64_MAX)
 
-#define BENNET_ASSERT_DOMAIN_II(cn_ty, sym, lb, ub, m, last_var, ...)                    \
+#define BENNET_ASSERT_DOMAIN(cn_ty, sym, lbi, lbe, ubi, ube, m, last_var, ...)           \
   {                                                                                      \
     const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_domain_ii(cn_ty)(sym, lb, ub, m, vars)) {                          \
+    if (bennet_assert_domain(cn_ty)(sym, lbi, lbe, ubi, ube, m, vars)) {                 \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
 
-#define BENNET_ASSERT_DOMAIN_IE(cn_ty, sym, lb, ub, m, last_var, ...)                    \
-  {                                                                                      \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_domain_ie(cn_ty)(sym, lb, ub, m, vars)) {                          \
-      goto bennet_label_##last_var##_backtrack;                                          \
+#define bennet_assert_domain_cast(cn_ty, cast_cn_ty)                                     \
+  bennet_assert_domain_cast_##cn_ty##_from_##cast_cn_ty
+
+#define BENNET_ASSERT_CAST_IMPL_AUX(cast_cn_ty, cast_c_ty, cn_ty, c_ty, min, max)        \
+  static inline bool bennet_assert_domain_cast(cn_ty, cast_cn_ty)(cn_ty * sym,           \
+      cast_cn_ty * lower_bound_inc,                                                      \
+      cast_cn_ty * lower_bound_ex,                                                       \
+      cast_cn_ty * upper_bound_inc,                                                      \
+      cast_cn_ty * upper_bound_ex,                                                       \
+      cast_cn_ty * multiple,                                                             \
+      const void* vars[]) {                                                              \
+    if (lower_bound_inc) {                                                               \
+      cast_c_ty lower_bound_inc_raw =                                                    \
+          (cast_c_ty)convert_from_##cast_cn_ty(lower_bound_inc);                         \
+      if (lower_bound_inc_raw <= min) {                                                  \
+        lower_bound_inc = NULL;                                                          \
+      } else if (max < lower_bound_inc_raw) {                                            \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        bennet_failure_blame_many(vars);                                                 \
+        bennet_failure_remove_blame(sym);                                                \
+                                                                                         \
+        return true;                                                                     \
+      }                                                                                  \
     }                                                                                    \
+                                                                                         \
+    if (lower_bound_ex) {                                                                \
+      cast_c_ty lower_bound_ex_raw =                                                     \
+          (cast_c_ty)convert_from_##cast_cn_ty(lower_bound_ex);                          \
+      if (lower_bound_ex_raw < min) {                                                    \
+        lower_bound_ex = NULL;                                                           \
+      } else if (max <= lower_bound_ex_raw) {                                            \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        bennet_failure_blame_many(vars);                                                 \
+        bennet_failure_remove_blame(sym);                                                \
+                                                                                         \
+        return true;                                                                     \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    if (upper_bound_inc) {                                                               \
+      cast_c_ty upper_bound_inc_raw =                                                    \
+          (cast_c_ty)convert_from_##cast_cn_ty(upper_bound_inc);                         \
+      if (max <= upper_bound_inc_raw) {                                                  \
+        upper_bound_inc = NULL;                                                          \
+      } else if (upper_bound_inc_raw < min) {                                            \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        bennet_failure_blame_many(vars);                                                 \
+        bennet_failure_remove_blame(sym);                                                \
+                                                                                         \
+        return true;                                                                     \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    if (upper_bound_ex) {                                                                \
+      cast_c_ty upper_bound_ex_raw =                                                     \
+          (cast_c_ty)convert_from_##cast_cn_ty(upper_bound_ex);                          \
+      if (max < upper_bound_ex_raw) {                                                    \
+        upper_bound_ex = NULL;                                                           \
+      } else if (upper_bound_ex_raw <= min) {                                            \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        bennet_failure_blame_many(vars);                                                 \
+        bennet_failure_remove_blame(sym);                                                \
+                                                                                         \
+        return true;                                                                     \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    cn_ty* lower_bound_inc_casted =                                                      \
+        (lower_bound_inc == NULL) ? NULL                                                 \
+                                  : cast_##cast_cn_ty##_to_##cn_ty(lower_bound_inc);     \
+    cn_ty* lower_bound_ex_casted = (lower_bound_ex == NULL)                              \
+                                       ? NULL                                            \
+                                       : cast_##cast_cn_ty##_to_##cn_ty(lower_bound_ex); \
+    cn_ty* upper_bound_inc_casted =                                                      \
+        (upper_bound_inc == NULL) ? NULL                                                 \
+                                  : cast_##cast_cn_ty##_to_##cn_ty(upper_bound_inc);     \
+    cn_ty* upper_bound_ex_casted = (upper_bound_ex == NULL)                              \
+                                       ? NULL                                            \
+                                       : cast_##cast_cn_ty##_to_##cn_ty(upper_bound_ex); \
+    cn_ty* multiple_casted =                                                             \
+        (multiple == NULL) ? NULL : cast_##cast_cn_ty##_to_##cn_ty(multiple);            \
+                                                                                         \
+    return bennet_assert_domain(cn_ty)(sym,                                              \
+        lower_bound_inc_casted,                                                          \
+        lower_bound_ex_casted,                                                           \
+        upper_bound_inc_casted,                                                          \
+        upper_bound_ex_casted,                                                           \
+        multiple_casted,                                                                 \
+        vars);                                                                           \
   }
 
-#define BENNET_ASSERT_DOMAIN_EI(cn_ty, sym, lb, ub, m, last_var, ...)                    \
-  {                                                                                      \
-    const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_domain_ei(cn_ty)(sym, lb, ub, m, vars)) {                          \
-      goto bennet_label_##last_var##_backtrack;                                          \
-    }                                                                                    \
-  }
+#define BENNET_ASSERT_CAST_IMPL(                                                         \
+    cast_cn_ty, cast_c_ty, cast_min, cast_max, cn_ty, c_ty, min, max)                    \
+  BENNET_ASSERT_CAST_IMPL_AUX(cast_cn_ty, cast_c_ty, cn_ty, c_ty, min, max)              \
+  BENNET_ASSERT_CAST_IMPL_AUX(cn_ty, c_ty, cast_cn_ty, cast_c_ty, cast_min, cast_max)
 
-#define BENNET_ASSERT_DOMAIN_EE(cn_ty, sym, lb, ub, m, last_var, ...)                    \
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-constant-out-of-range-compare"
+
+BENNET_ASSERT_CAST_IMPL(
+    cn_bits_u64, uint64_t, 0, UINT64_MAX, cn_pointer, uintptr_t, 0, UINTPTR_MAX)
+
+BENNET_ASSERT_CAST_IMPL(cn_bits_i64,
+    int64_t,
+    INT64_MIN,
+    INT64_MAX,
+    cn_bits_i32,
+    int32_t,
+    INT32_MIN,
+    INT32_MAX)
+BENNET_ASSERT_CAST_IMPL(
+    cn_bits_u64, uint64_t, 0, UINT64_MAX, cn_bits_u32, uint32_t, 0, UINT32_MAX)
+
+#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
+
+#define BENNET_ASSERT_DOMAIN_CAST(                                                       \
+    cast_cn_ty, cn_ty, sym, lbi, lbe, ubi, ube, m, last_var, ...)                        \
   {                                                                                      \
     const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assert_domain_ee(cn_ty)(sym, lb, ub, m, vars)) {                          \
+    if (bennet_assert_domain_cast(cn_ty, cast_cn_ty)(                                    \
+            sym, lbi, lbe, ubi, ube, m, vars)) {                                         \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
