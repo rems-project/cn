@@ -41,9 +41,16 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
       let@ gt_rest = aux gt_rest in
       return (Term.let_star_ ((x, gt_inner), gt_rest) loc)
     | Assert (lc, gt_rest) ->
-      let@ () = add_c loc lc in
+      let@ check = provable loc in
+      let@ redundant =
+        match check lc with
+        | `True -> return true
+        | `False ->
+          let@ () = add_c loc lc in
+          return false
+      in
       let@ gt_rest = aux gt_rest in
-      return (Term.assert_ (lc, gt_rest) loc)
+      return (if redundant then gt_rest else Term.assert_ (lc, gt_rest) loc)
     | ITE (it_if, gt_then, gt_else) ->
       let@ ogt_then =
         pure
