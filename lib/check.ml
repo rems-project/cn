@@ -1,3 +1,4 @@
+module WT = WellTyped
 module CF = Cerb_frontend
 module IT = IndexTerms
 module BT = BaseTypes
@@ -2374,8 +2375,15 @@ let wf_check_and_record_functions funs call_sigs =
             ^ ": "
             ^ Sym.pp_string fsym)))
   in
+  let add_cts fsym =
+    let open Sctypes in
+    let fsig = Pmap.find fsym call_sigs in
+    let add_ct ct = WT.maybe_add_ct (of_ctype ct) in
+    List.iter add_ct (fsig.sig_return_ty :: fsig.sig_arg_tys)
+  in
   PmapM.foldiM
     (fun i fsym def (trusted, checked) ->
+       add_cts fsym;
        match def with
        | Mu.Proc { loc; args_and_body; trusted = tr; _ } ->
          welltyped_ping i fsym;
