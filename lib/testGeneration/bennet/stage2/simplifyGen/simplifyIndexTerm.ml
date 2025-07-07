@@ -68,6 +68,38 @@ module Fixes = struct
             IT (Binop (Sub, it1, IT (Const (Bits (_, n1)), _, _)), _, _) )
         when BT.fits_range (sgn, sz) (Z.sub n1 n2) ->
         IT.add_ (it1, IT.num_lit_ (Z.sub n1 n2) (Bits (sgn, sz)) loc) loc
+      | Cast
+          ( bt1,
+            IT
+              ( Cast (bt2, IT (Cast (bt3, IT (Cast (bt4, it'), _, _)), _, loc_cast2)),
+                _,
+                loc_cast1 ) )
+        when BT.equal bt1 bt3 && BT.equal bt2 bt4 ->
+        IT.cast_ bt1 (IT.cast_ bt2 it' loc_cast2) loc_cast1
+      | Cast
+          ((Bits (sign1, bits1) as bt1), IT (Cast (Bits (sign2, bits2), it_inner), _, _))
+        when BT.equal bt1 (IT.get_bt it_inner)
+             &&
+             let f = BT.fits_range (sign2, bits2) in
+             let min, max = BT.bits_range (sign1, bits1) in
+             f min && f max ->
+        it_inner
+      | Cast ((Loc () as bt1), IT (Cast (Bits (sign2, bits2), it_inner), _, _))
+        when BT.equal bt1 (IT.get_bt it_inner)
+             &&
+             let sign1, bits1 = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+             let f = BT.fits_range (sign2, bits2) in
+             let min, max = BT.bits_range (sign1, bits1) in
+             f min && f max ->
+        it_inner
+      | Cast ((Bits (sign1, bits1) as bt1), IT (Cast (Loc (), it_inner), _, _))
+        when BT.equal bt1 (IT.get_bt it_inner)
+             &&
+             let sign2, bits2 = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+             let f = BT.fits_range (sign2, bits2) in
+             let min, max = BT.bits_range (sign1, bits1) in
+             f min && f max ->
+        it_inner
       | Binop
           ( EQ,
             IT
