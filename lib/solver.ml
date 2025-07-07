@@ -444,12 +444,9 @@ module CN_List = struct
 
   let cons x xs = SMT.app_ cons_name [ x; xs ]
 
-  let head xs orelse =
-    SMT.ite (SMT.is_con cons_name xs) (SMT.app_ head_name [ xs ]) orelse
+  let head xs = SMT.app_ head_name [ xs ]
 
-
-  let tail xs orelse =
-    SMT.ite (SMT.is_con cons_name xs) (SMT.app_ tail_name [ xs ]) orelse
+  let tail xs = SMT.app_ tail_name [ xs ]
 end
 
 (** {1 Type to SMT} *)
@@ -934,12 +931,8 @@ let rec translate_term s iterm =
   (* Lists *)
   | Nil bt -> CN_List.nil (translate_base_type bt)
   | Cons (e1, e2) -> CN_List.cons (translate_term s e1) (translate_term s e2)
-  | Head e1 ->
-    maybe_name (translate_term s e1) (fun xs ->
-      CN_List.head xs (translate_term s (default_ (IT.get_bt iterm) loc)))
-  | Tail e1 ->
-    maybe_name (translate_term s e1) (fun xs ->
-      CN_List.tail xs (translate_term s (default_ (IT.get_bt iterm) loc)))
+  | Head e1 -> CN_List.head (translate_term s e1)
+  | Tail e1 -> CN_List.tail (translate_term s e1)
   | NthList (x, y, z) ->
     let arg x = (translate_base_type (IT.get_bt x), translate_term s x) in
     let arg_ts, args = List.split (List.map arg [ x; y; z ]) in
