@@ -5,6 +5,22 @@ module Loc = Locations
 module IdSet = Set.Make (Id)
 open Pp.Infix
 
+(* Global state: the set of all C-types that might appear as values in Core
+   expressions (and so might make it into the SMT problem). We use this to
+   construct the C-type-to-integer mapping for the SMT solver. This should
+   probably become part of the monadic state of WellTyped instead. *)
+
+module CTS = Set.Make (Sctypes)
+
+let add_ct, get_cts =
+  let cts = ref CTS.empty in
+  let add_ct ct = cts := CTS.add ct !cts in
+  let get_cts () = !cts in
+  (add_ct, get_cts)
+
+
+let maybe_add_ct = function None -> () | Some ct -> add_ct ct
+
 let squotes, warn, dot, string, debug, item, colon, comma =
   Pp.(squotes, warn, dot, string, debug, item, colon, comma)
 
@@ -497,7 +513,10 @@ module WIT = struct
         let@ bt = WBT.is_bt loc bt in
         return (IT (Const (Default bt), bt, loc))
       | Const Null -> return (IT (Const Null, BT.Loc (), loc))
-      | Const (CType_const ct) -> return (IT (Const (CType_const ct), BT.CType, loc))
+      | Const (CType_const ct) ->
+        let@ () = WCT.is_ct loc ct in
+        add_ct ct;
+        return (IT (Const (CType_const ct), BT.CType, loc))
       | Unop (unop, t) ->
         let@ t, ret_bt =
           match unop with
@@ -1550,7 +1569,17 @@ module BaseTyping = struct
       | Mu.Vobject ov ->
         let@ ov = infer_object_value loc ov in
         return (Mu.bt_of_object_value ov, Mu.Vobject ov)
-      | Vctype ct -> return (CType, Mu.Vctype ct)
+      | Vctype ct ->
+        let@ sct =
+          match Sctypes.of_ctype ct with
+          | None ->
+            let err = !^"Unsupported C-type" ^^^ CF.Pp_core_ctype.pp_ctype ct in
+            (fail { loc; msg = Generic err } [@alert "-deprecated"])
+          | Some ct -> return ct
+        in
+        let@ () = WCT.is_ct loc sct in
+        add_ct sct;
+        return (CType, Mu.Vctype ct)
       | Vunit -> return (Unit, Mu.Vunit)
       | Vtrue -> return (Bool, Mu.Vtrue)
       | Vfalse -> return (Bool, Mu.Vfalse)
@@ -2127,6 +2156,7 @@ module BaseTyping = struct
                     [@alert "-deprecated"]
                 }
           in
+          List.iter add_ct (ret_ct :: arg_cts);
           let@ f_pe = check_pexpr (Loc ()) f_pe in
           (* TODO: we'd have to check the arguments against the function type, but we
              can't when f_pe is dynamic *)

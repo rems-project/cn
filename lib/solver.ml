@@ -67,18 +67,12 @@ type solver_frame =
   { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
     mutable uninterpreted : SMT.sexp Sym.Map.t;
       (** Uninterpreted functions and variables that we've declared. *)
-    mutable bt_uninterpreted : SMT.sexp Int_BT_Table.t;
+    mutable bt_uninterpreted : SMT.sexp Int_BT_Table.t
       (** Uninterpreted constants, indexed by base type. *)
-    mutable ctypes : int CTypeMap.t
-      (** Declarations for C types. Each C type is assigned a unique integer. *)
   }
 
 let empty_solver_frame () =
-  { commands = [];
-    uninterpreted = Sym.Map.empty;
-    bt_uninterpreted = Int_BT_Table.empty;
-    ctypes = CTypeMap.empty
-  }
+  { commands = []; uninterpreted = Sym.Map.empty; bt_uninterpreted = Int_BT_Table.empty }
 
 
 let copy_solver_frame f = { f with commands = f.commands }
@@ -91,7 +85,10 @@ type solver =
     name_seed : int ref; (** Used to generate names. *)
     (* ISD: This could, perhaps, go in the frame. Then when we pop frames, we'd go back to
        the old numbers, which should be OK, I think? *)
-    globals : Global.t
+    globals : Global.t;
+    ctypes : int CTypeMap.t
+      (** Declarations for C types. Each C type is assigned a unique integer.
+          Unlike previously, this mapping is fixed (constant) from the start. *)
   }
 
 module Debug = struct
@@ -118,30 +115,12 @@ end
 (** Lookup something in one of the existing frames *)
 let search_frames s f = List.find_map f (!(s.cur_frame) :: !(s.prev_frames))
 
-(** Lookup the `int` corresponding to a C type in the current stack.
-    If it is not found, add it to the current frame, and return the new int. *)
-let find_c_type s ty =
-  let rec search count frames =
-    match frames with
-    | f :: more ->
-      (match CTypeMap.find_opt ty f.ctypes with
-       | Some n -> n
-       | None -> search (CTypeMap.cardinal f.ctypes + count) more)
-    | [] ->
-      let f = !(s.cur_frame) in
-      f.ctypes <- CTypeMap.add ty count f.ctypes;
-      count
-  in
-  search 0 (!(s.cur_frame) :: !(s.prev_frames))
-
-
 (** Compute a table mapping ints to C types.  We use this to map SMT results
     back to terms. *)
 let get_ctype_table s =
   let table = Int_Table.create 50 in
   let add_entry t n = Int_Table.add table n t in
-  let do_frame f = CTypeMap.iter add_entry f.ctypes in
-  List.iter do_frame (!(s.cur_frame) :: !(s.prev_frames));
+  CTypeMap.iter add_entry s.ctypes;
   table
 
 
@@ -538,8 +517,8 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
      | _ -> failwith "Loc")
   | Alloc_id -> Const (Alloc_id (CN_AllocId.from_sexp sexp))
   | CType ->
-    (try Const (CType_const (Int_Table.find ctys (Z.to_int (SMT.to_z sexp)))) with
-     | Not_found -> Const (Default bt))
+    let n = Z.to_int (SMT.to_z sexp) in
+    Const (CType_const (Int_Table.find ctys n))
   | List elT ->
     (match SMT.to_con sexp with
      | con, [] when String.equal con CN_List.nil_name -> Nil elT
@@ -609,7 +588,7 @@ let translate_const s co =
   | Bool b -> SMT.bool_k b
   | Unit -> SMT.atom (CN_Tuple.name 0)
   | Null -> CN_Pointer.con_null
-  | CType_const ct -> SMT.int_k (find_c_type s ct)
+  | CType_const ct -> SMT.int_k (CTypeMap.find ct s.ctypes)
   | Default t ->
     declare_bt_uninterpreted s CN_Constant.default t [] (translate_base_type t)
 
@@ -1276,11 +1255,19 @@ let make globals =
       log = Logger.make (SMT.string_of_solver_extension base_cfg.exts)
     }
   in
+  let _, ctypes =
+    let open WellTyped in
+    CTS.fold
+      (fun ct (i, m) -> (i + 1, CTypeMap.add ct i m))
+      (get_cts ())
+      (0, CTypeMap.empty)
+  in
   let s =
     { smt_solver = SMT.new_solver cfg;
       cur_frame = ref (empty_solver_frame ());
       prev_frames = ref [];
       name_seed = ref 0;
+      ctypes;
       globals
     }
   in
@@ -1355,12 +1342,13 @@ let model_evaluator, reset_model_evaluator_state =
             ref
               (List.map copy_solver_frame (!(solver.cur_frame) :: !(solver.prev_frames)))
             (* We keep the prev_frames because things that were declared, would now be
-               defined by the model. Also, we need the infromation about the C type
-               mapping. *);
+               defined by the model. *);
           name_seed = solver.name_seed;
+          ctypes = solver.ctypes;
           globals = gs
         }
       in
+      let ctys = get_ctype_table evaluator in
       if new_solver then (
         declare_solver_basics evaluator;
         push evaluator);
@@ -1374,7 +1362,6 @@ let model_evaluator, reset_model_evaluator_state =
         match SMT.check smt_solver with
         | SMT.Sat ->
           let res = SMT.get_expr smt_solver inp in
-          let ctys = get_ctype_table evaluator in
           Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
         | _ -> None
       in
