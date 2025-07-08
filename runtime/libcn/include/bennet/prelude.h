@@ -2,6 +2,7 @@
 #define BENNET_PRELUDE_H
 
 #include <bennet/alloc.h>
+#include <bennet/compat.h>
 #include <bennet/dsl.h>
 #include <bennet/failure.h>
 #include <bennet/rand.h>

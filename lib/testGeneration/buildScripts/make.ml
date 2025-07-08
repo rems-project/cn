@@ -94,10 +94,10 @@ let define_test_flags () =
     @ (if Config.is_trap () then [ "--trap" ] else [])
     @ (if Config.has_no_replays () then [ "--no-replays" ] else [])
     @ (if Config.has_no_replicas () then [ "--no-replicas" ] else [])
-    @
-    match Config.get_output_tyche () with
-    | Some file -> [ "--output-tyche"; file ]
-    | None -> []
+    @ (match Config.get_output_tyche () with
+       | Some file -> [ "--output-tyche"; file ]
+       | None -> [])
+    @ if Config.will_print_backtrack_info () then [ "--print-backtrack-info" ] else []
   in
   !^"TEST_FLAGS := " ^^ separate_map space string flags ^^ hardline
 

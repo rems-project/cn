@@ -36,6 +36,7 @@
     -rcs
     %{target}
     bennet/alloc.o
+    bennet/compat.o
     bennet/failure.o
     bennet/prelude.o
     bennet/rand.o
@@ -50,7 +51,8 @@
    (glob_files ../src/bennet-exp/*.c)
    (glob_files ../src/bennet-exp/dsl/*.c)
    (glob_files ../src/bennet-exp/internals/*.c)
-   (glob_files ../src/bennet-exp/state/*.c)))
+   (glob_files ../src/bennet-exp/state/*.c)
+   (glob_files ../src/bennet-exp/info/*.c)))
  (action
   (progn
    (run mkdir -p bennet-exp)
@@ -65,6 +67,7 @@
     bennet-exp/arbitrary.o
     bennet-exp/assign.o
     bennet-exp/backtrack.o
+    bennet-exp/backtracks.o
     bennet-exp/failure.o
     bennet-exp/prelude.o
     bennet-exp/rand.o

@@ -190,10 +190,11 @@ let run () =
             [ "--no-replicas" ]
           else
             [])
-       @
-       match Config.get_output_tyche () with
-       | Some file -> [ "--output-tyche"; file ]
-       | None -> [])
+       @ (match Config.get_output_tyche () with
+          | Some file -> [ "--output-tyche"; file ]
+          | None -> [])
+       @ if Config.will_print_backtrack_info () then [ "--print-backtrack-info" ] else []
+      )
   in
   !^"# Run"
   ^^ hardline

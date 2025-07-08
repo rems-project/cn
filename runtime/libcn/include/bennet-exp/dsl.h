@@ -70,6 +70,7 @@
     addr_ty value_redir = value;                                                         \
     const void* vars[] = {__VA_ARGS__};                                                  \
     if (bennet_assign(id, ptr, addr, &value_redir, sizeof(addr_ty), vars)) {             \
+      bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
