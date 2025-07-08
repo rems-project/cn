@@ -1143,16 +1143,13 @@ let all_empty loc _original_resources =
 
 
 let load loc pointer ct =
-  let@ value =
-    pure
-      (let@ _point, O value =
-         RI.Special.predicate_request
-           loc
-           (Access Load)
-           ({ name = Owned (ct, Init); pointer; iargs = [] }, None)
-       in
-       return value)
+  let@ point, O value =
+    RI.Special.predicate_request
+      loc
+      (Access Load)
+      ({ name = Owned (ct, Init); pointer; iargs = [] }, None)
   in
+  let@ () = add_r loc (P point, O value) in
   let@ () = record_action (Read (pointer, value), loc) in
   return value
 
@@ -2347,20 +2344,13 @@ let record_globals : 'bty. (Sym.t * 'bty Mu.globs) list -> LC.t list m =
 
 
 let register_fun_syms file =
-  let add fsym loc =
-    (* add to context *)
+  let loc = Locations.other __LOC__ in
+  let add fsym _ =
     (* let lc1 = LC.T (ne_ (null_, sym_ (fsym, Loc))) in *)
     (* let lc2 = LC.T (representable_ (Pointer Void, sym_ (fsym, Loc, loc)) loc) in *)
-    let@ () = add_l fsym (Loc ()) (loc, lazy (Pp.item "global fun-ptr" (Sym.pp fsym))) in
-    (* let@ () = add_cs loc [(\* lc1; *\) lc2] in *)
-    return ()
+    add_l fsym (Loc ()) (loc, lazy (Pp.item "global fun-ptr" (Sym.pp fsym)))
   in
-  PmapM.iterM
-    (fun fsym def ->
-       match def with
-       | Mu.Proc { loc; _ } -> add fsym loc
-       | ProcDecl (loc, _) -> add fsym loc)
-    file.Mu.funs
+  PmapM.iterM add file.Mu.call_funinfo
 
 
 let wf_check_and_record_functions funs call_sigs =

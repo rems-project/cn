@@ -175,15 +175,19 @@ let fresh_name s x =
   res
 
 
+let declare_fun s name args_ts res_t =
+  let sname = CN_Names.uninterpreted_name name in
+  ack_command s (SMT.declare_fun sname args_ts res_t)
+
+
 (** Declare an uninterpreted function. *)
 let declare_uninterpreted s name args_ts res_t =
   let check f = Sym.Map.find_opt name f.uninterpreted in
   match search_frames s check with
   | Some e -> e
   | None ->
-    let sname = CN_Names.uninterpreted_name name in
-    ack_command s (SMT.declare_fun sname args_ts res_t);
-    let e = SMT.atom sname in
+    declare_fun s name args_ts res_t;
+    let e = SMT.atom (CN_Names.uninterpreted_name name) in
     let f = !(s.cur_frame) in
     f.uninterpreted <- Sym.Map.add name e f.uninterpreted;
     e
@@ -650,20 +654,6 @@ let bv_ctz result_w =
   count
 
 
-(** Translate a variable to SMT.  Declare if needed. *)
-let translate_var s name bt =
-  let check f = Sym.Map.find_opt name f.uninterpreted in
-  match search_frames s check with
-  | Some e -> e
-  | None ->
-    let sname = CN_Names.var_name name in
-    ack_command s (SMT.declare sname (translate_base_type bt));
-    let e = SMT.atom sname in
-    let f = !(s.cur_frame) in
-    f.uninterpreted <- Sym.Map.add name e f.uninterpreted;
-    e
-
-
 (** Translate a CN term to SMT *)
 let rec translate_term s iterm =
   let loc = IT.get_loc iterm in
@@ -681,7 +671,7 @@ let rec translate_term s iterm =
   in
   match IT.get_term iterm with
   | Const c -> translate_const s c
-  | Sym x -> translate_var s x (IT.get_bt iterm)
+  | Sym x -> SMT.atom (CN_Names.uninterpreted_name x)
   | Unop (op, e1) ->
     (match op with
      | BW_FFS_NoSMT ->
@@ -1071,6 +1061,8 @@ let add_assumption solver global lc =
   | Forall _ -> ()
 
 
+let declare_variable solver sym bt = declare_fun solver sym [] (translate_base_type bt)
+
 (** Goals are translated to this type *)
 type reduction =
   { expr : SMT.sexp; (* translation of `it` *)
@@ -1436,6 +1428,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     let nexpr = SMT.bool_not expr in
     let inc = solver.smt_solver in
     debug_ack_command solver (SMT.push 1);
+    List.iter (fun (s, bt) -> declare_variable solver s bt) qs;
     debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
     (match SMT.check inc with
      | SMT.Unsat ->
@@ -1448,6 +1441,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        let foralls = TryHard.translate_foralls solver assumptions in
        let functions = TryHard.translate_functions solver in
        debug_ack_command solver (SMT.push 1);
+       debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
        debug_ack_command
          solver
          (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
