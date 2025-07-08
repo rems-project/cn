@@ -96,4 +96,5 @@ let transform_gd (paused : _ Typing.pause) (def : Def.t) : Def.t =
 
 
 let transform (paused : _ Typing.pause) (ctx : Ctx.t) : Ctx.t =
+  Cerb_debug.print_debug 2 [] (fun () -> "smt_pruning");
   List.map_snd (transform_gd paused) ctx

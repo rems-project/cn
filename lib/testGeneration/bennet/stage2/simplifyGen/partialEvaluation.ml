@@ -590,7 +590,7 @@ module IndexTerms = struct
       match it with
       | IT (Apply (fsym, _), _, _) ->
         (* If we lazily evaluate every sub-term, all applications will result in a
-           * substitution, diverging. As such, we force strict evaluation of recursive calls
+         * substitution, diverging. As such, we force strict evaluation of recursive calls
         *)
         (match List.assoc_opt Sym.equal fsym prog5.logical_predicates with
          | Some { body = Def _; _ } -> f it

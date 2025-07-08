@@ -21,6 +21,7 @@ let debug_log (str : string) : unit =
 
 
 let debug_stage (stage : string) (str : string) : unit =
+  Cerb_debug.print_debug 2 [] (fun () -> stage);
   debug_log (stage ^ ":\n");
   debug_log (str ^ "\n\n")
 
