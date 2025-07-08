@@ -55,7 +55,8 @@ type t =
     trap : bool;
     no_replays : bool;
     no_replicas : bool;
-    output_tyche : string option
+    output_tyche : string option;
+    print_backtrack_info : bool
   }
 
 val default : t
@@ -143,3 +144,5 @@ val has_no_replays : unit -> bool
 val has_no_replicas : unit -> bool
 
 val get_output_tyche : unit -> string option
+
+val will_print_backtrack_info : unit -> bool

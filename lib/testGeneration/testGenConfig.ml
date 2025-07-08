@@ -55,7 +55,8 @@ type t =
     trap : bool;
     no_replays : bool;
     no_replicas : bool;
-    output_tyche : string option
+    output_tyche : string option;
+    print_backtrack_info : bool
   }
 
 let default =
@@ -89,7 +90,8 @@ let default =
     trap = false;
     no_replays = false;
     no_replicas = false;
-    output_tyche = Option.None
+    output_tyche = Option.None;
+    print_backtrack_info = false
   }
 
 
@@ -225,3 +227,5 @@ let has_no_replays () = (Option.get !instance).no_replays
 let has_no_replicas () = (Option.get !instance).no_replicas
 
 let get_output_tyche () = (Option.get !instance).output_tyche
+
+let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info

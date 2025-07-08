@@ -7,9 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <bennet/alloc.h>
-#include <bennet/rand.h>
-#include <bennet/size.h>
+#include <bennet/prelude.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
 #include <cn-testing/test.h>
@@ -163,6 +161,7 @@ int cn_test_main(int argc, char* argv[]) {
   int print_seed = 0;
   bool output_tyche = false;
   FILE* tyche_output_stream = NULL;
+  bool print_backtrack_info = false;
 
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
@@ -261,6 +260,9 @@ int cn_test_main(int argc, char* argv[]) {
       if (tyche_output_stream != NULL) {
         output_tyche = true;
       }
+    } else if (strcmp("--print-backtrack-info", arg) == 0) {
+      print_backtrack_info = true;
+      bennet_info_backtracks_init();
     }
   }
 
@@ -285,6 +287,10 @@ int cn_test_main(int argc, char* argv[]) {
     for (int i = 0; i < num_test_cases; i++) {
       if (results[i] == CN_TEST_FAIL) {
         continue;
+      }
+
+      if (print_backtrack_info) {
+        bennet_info_backtracks_set_function_under_test(test_cases[i].name);
       }
 
       struct cn_test_case* test_case = &test_cases[i];
@@ -398,6 +404,12 @@ outside_loop:;
       failed,
       errored,
       skipped);
+
+  if (print_backtrack_info) {
+    printf("\n");
+
+    bennet_info_backtracks_print_backtrack_info();
+  }
 
   return !(failed == 0 && errored == 0);
 }

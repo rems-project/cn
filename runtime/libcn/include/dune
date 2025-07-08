@@ -21,6 +21,7 @@
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   ; Bennet
   (bennet/alloc.h as runtime/include/bennet/alloc.h)
+  (bennet/compat.h as runtime/include/bennet/compat.h)
   (bennet/failure.h as runtime/include/bennet/failure.h)
   (bennet/dsl.h as runtime/include/bennet/dsl.h)
   (bennet/prelude.h as runtime/include/bennet/prelude.h)
@@ -36,6 +37,9 @@
   (bennet-exp/dsl/assign.h as runtime/include/bennet-exp/dsl/assign.h)
   (bennet-exp/dsl/backtrack.h as runtime/include/bennet-exp/dsl/backtrack.h)
   (bennet-exp/dsl.h as runtime/include/bennet-exp/dsl.h)
+  (bennet-exp/info/backtracks.h
+   as
+   runtime/include/bennet-exp/info/backtracks.h)
   (bennet-exp/internals/domain.h
    as
    runtime/include/bennet-exp/internals/domain.h)

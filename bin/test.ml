@@ -58,6 +58,7 @@ let run_tests
       experimental_product_arg_destruction
       experimental_runtime
       smt_pruning
+      print_backtrack_info
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -124,7 +125,8 @@ let run_tests
           trap;
           no_replays;
           no_replicas;
-          output_tyche
+          output_tyche;
+          print_backtrack_info
         }
       in
       TestGeneration.set_config config;
@@ -457,6 +459,11 @@ module Flags = struct
   let smt_pruning =
     let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
     Arg.(value & flag & info [ "smt-pruning" ] ~doc)
+
+
+  let print_backtrack_info =
+    let doc = "(Experimental) Print backtracking info" in
+    Arg.(value & flag & info [ "print-backtrack-info" ] ~doc)
 end
 
 let cmd =
@@ -514,6 +521,7 @@ let cmd =
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_runtime
     $ Flags.smt_pruning
+    $ Flags.print_backtrack_info
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
