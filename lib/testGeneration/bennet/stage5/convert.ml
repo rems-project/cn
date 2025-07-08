@@ -98,8 +98,17 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
     | Return { value } -> Return { value }
     | Assert { prop; rest } ->
       (match Abstract.abstract_lc vars prop with
-       | Some ((sym, bt), domain) ->
-         AssertDomain { sym; bt; domain; last_var; rest = aux vars path_vars rest }
+       | Some (equiv, (sym, bt), domain) ->
+         if equiv then
+           AssertDomain { sym; bt; domain; last_var; rest = aux vars path_vars rest }
+         else
+           AssertDomain
+             { sym;
+               bt;
+               domain;
+               last_var;
+               rest = Assert { prop; last_var; rest = aux vars path_vars rest }
+             }
        | None -> Assert { prop; last_var; rest = aux vars path_vars rest })
     | ITE { bt; cond; t; f } ->
       let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
