@@ -412,8 +412,8 @@ let init_solver () =
     | Context.BaseType bt -> maybe_declare_variable_in_solver sym bt
   in
   let@ ctxt = get_typing_context () in
-  let@ () = iterM maybe_declare (Sym.Map.to_list ctxt.computational) in
-  let@ () = iterM maybe_declare (Sym.Map.to_list ctxt.logical) in
+  let@ () = iterM maybe_declare (Sym.Map.bindings ctxt.computational) in
+  let@ () = iterM maybe_declare (Sym.Map.bindings ctxt.logical) in
   return ()
 
 
