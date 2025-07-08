@@ -1456,12 +1456,12 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
           set_model inc qs;
           debug_ack_command solver (SMT.pop 1);
           Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
-          `Unknown (*TODO CHT*)
+          `False
         | SMT.Unknown ->
           set_model inc qs;
           debug_ack_command solver (SMT.pop 1);
           Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
-          `False)
+          `Unknown)
      | SMT.Sat ->
        set_model inc qs;
        debug_ack_command solver (SMT.pop 1);
