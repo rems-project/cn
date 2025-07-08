@@ -399,22 +399,18 @@ let remove_as = iterM remove_a
 let get_solver () : solver t = inspect (fun s -> Option.get s.solver)
 
 let init_solver () =
-  let@ () =
-    modify (fun s ->
-      let c = s.typing_context in
-      let solver = Solver.make c.global in
-      LC.Set.iter (Solver.add_assumption solver c.global) c.constraints;
-      { s with solver = Some solver })
-  in
-  let maybe_declare (sym, (binding, _info)) =
-    match binding with
-    | Context.Value _ -> return () (* no need to declare *)
-    | Context.BaseType bt -> maybe_declare_variable_in_solver sym bt
-  in
-  let@ ctxt = get_typing_context () in
-  let@ () = iterM maybe_declare (Sym.Map.bindings ctxt.computational) in
-  let@ () = iterM maybe_declare (Sym.Map.bindings ctxt.logical) in
-  return ()
+  modify (fun s ->
+    let c = s.typing_context in
+    let solver = Solver.make c.global in
+    let declare sym (binding, _info) =
+      match binding with
+      | Context.Value _ -> () (* no need to declare *)
+      | Context.BaseType bt -> Solver.declare_variable solver sym bt
+    in
+    Sym.Map.iter declare c.computational;
+    Sym.Map.iter declare c.logical;
+    LC.Set.iter (Solver.add_assumption solver c.global) c.constraints;
+    { s with solver = Some solver })
 
 
 let get_movable_indices () = inspect (fun s -> s.movable_indices)
