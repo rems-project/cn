@@ -59,7 +59,6 @@ let transform_iarg (prog5 : unit Mucore.file) (arg : Sym.t * BT.t) : destruct_tr
            pieces
            |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
              member_or_padding)
-           (* |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2) *)
            |> List.map (fun (member, sct) ->
              (member, (get_member_new_name arg_sym member, Memory.bt_of_sct sct)))
            |> List.map_snd aux
@@ -69,7 +68,6 @@ let transform_iarg (prog5 : unit Mucore.file) (arg : Sym.t * BT.t) : destruct_tr
     | BT.Record members ->
       let members =
         members
-        (* |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2) *)
         |> List.map (fun (member, bt) ->
           (member, (get_member_new_name arg_sym member, bt)))
         |> List.map_snd aux
@@ -106,7 +104,6 @@ let transform_it (prog5 : unit Mucore.file) ((it, bt) : IT.t * BT.t) : IT.t list
          pieces
          |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
            member_or_padding)
-         (* |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2) *)
          |> List.map (fun (member, sct) ->
            let loc = Locations.other __LOC__ in
            let member_bt = Memory.bt_of_sct sct in
@@ -116,7 +113,6 @@ let transform_it (prog5 : unit Mucore.file) ((it, bt) : IT.t * BT.t) : IT.t list
        | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found"))
     | BT.Record members ->
       members
-      (* |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2) *)
       |> List.map (fun (member, member_bt) ->
         let loc = Locations.other __LOC__ in
         (IT.recordMember_ ~member_bt (it, member) loc, member_bt))
