@@ -1441,7 +1441,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        let foralls = TryHard.translate_foralls solver assumptions in
        let functions = TryHard.translate_functions solver in
        debug_ack_command solver (SMT.push 1);
-       debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
+       List.iter (fun (s, bt) -> declare_variable solver s bt) qs;
        debug_ack_command
          solver
          (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
