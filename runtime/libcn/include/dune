@@ -57,6 +57,9 @@
   (bennet-exp/state/rand_alloc.h
    as
    runtime/include/bennet-exp/state/rand_alloc.h)
+  (bennet-exp/utils/hash_table.h
+   as
+   runtime/include/bennet-exp/utils/hash_table.h)
   (bennet-exp/utils/optional.h
    as
    runtime/include/bennet-exp/utils/optional.h)
