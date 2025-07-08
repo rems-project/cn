@@ -218,10 +218,7 @@ module IndexTerms = struct
          if not (Sym.equal tag1 tag2) then
            Error "Ill-typed"
          else (
-           let compare (x1, _) (x2, _) = Id.compare x1 x2 in
-           let zipped =
-             List.combine (List.sort compare xits1) (List.sort compare xits2)
-           in
+           let zipped = List.combine xits1 xits2 in
            if List.exists (fun ((x1, _), (x2, _)) -> not (Id.equal x1 x2)) zipped then
              Error "Malformed, different members"
            else
@@ -230,8 +227,7 @@ module IndexTerms = struct
                   (List.map (fun ((_, it1), (_, it2)) -> eq_ (it1, it2) here) zipped)
                   here))
        | IT (Record xits1, _, _), IT (Record xits2, _, _) ->
-         let compare (x1, _) (x2, _) = Id.compare x1 x2 in
-         let zipped = List.combine (List.sort compare xits1) (List.sort compare xits2) in
+         let zipped = List.combine xits1 xits2 in
          if List.exists (fun ((x1, _), (x2, _)) -> not (Id.equal x1 x2)) zipped then
            Error "Malformed, different members"
          else
@@ -244,10 +240,7 @@ module IndexTerms = struct
          if not (Sym.equal constr1 constr2) then
            return @@ IT.bool_ false here
          else (
-           let compare (x1, _) (x2, _) = Id.compare x1 x2 in
-           let zipped =
-             List.combine (List.sort compare xits1) (List.sort compare xits2)
-           in
+           let zipped = List.combine xits1 xits2 in
            if List.exists (fun ((x1, _), (x2, _)) -> not (Id.equal x1 x2)) zipped then
              Error "Malformed, same constructor, different members"
            else
@@ -414,10 +407,7 @@ module IndexTerms = struct
                if not (Sym.equal constr constr') then
                  None
                else (
-                 let compare (x1, _) (x2, _) = Id.compare x1 x2 in
-                 let zipped =
-                   List.combine (List.sort compare xits) (List.sort compare xps)
-                 in
+                 let zipped = List.combine xits xps in
                  Some
                    (List.flatten
                     @@ List.map

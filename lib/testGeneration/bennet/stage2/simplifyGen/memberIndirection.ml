@@ -131,7 +131,6 @@ let transform_gt (gt : Term.t) : Term.t =
                    |> List.map (fun (y, z) ->
                      let it = List.assoc Id.equal y xits in
                      (y, IT.sym_ (z, IT.get_bt it, IT.get_loc it)))
-                   |> List.sort (fun (id1, _) (id2, _) -> Id.compare id1 id2)
                  in
                  match k with
                  | Struct tag -> IT.struct_ (tag, members) loc_it
