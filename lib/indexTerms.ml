@@ -466,6 +466,8 @@ let is_member = function IT (StructMember (it, id), _, _) -> Some (it, id) | _ -
 
 let is_ctype_const = function IT (Const (CType_const ct), _, _) -> Some ct | _ -> None
 
+let is_cast = function IT (Cast (bt, it), _, _) -> Some (bt, it) | _ -> None
+
 (* shorthands *)
 
 let use_vip = ref true
