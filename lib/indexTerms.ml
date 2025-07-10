@@ -34,18 +34,18 @@ let pp_with_typf f it = Pp.typ (pp it) (f (get_bt it))
 
 let pp_with_typ = pp_with_typf BT.pp
 
-let pp_with_eval eval_f =
-  let open Cerb_pp_prelude in
-  let pp_v tm std_pp =
-    match eval_f tm with
-    | None -> !^"/* NO_EVAL */" ^^ std_pp
-    | Some (IT (_, BT.Struct _, _))
-    | Some (IT (_, BT.Record _, _))
-    | Some (IT (_, BT.Map (_, _), _)) ->
-      std_pp
-    | Some v -> !^"/*" ^^^ pp v ^^^ !^"*/" ^^ std_pp
-  in
-  pp ~f:pp_v
+(* let pp_with_eval eval_f = *)
+(*   let open Cerb_pp_prelude in *)
+(*   let pp_v tm std_pp = *)
+(*     match eval_f tm with *)
+(*     | None -> !^"/* NO_EVAL */" ^^ std_pp *)
+(*     | Some (IT (_, BT.Struct _, _)) *)
+(*     | Some (IT (_, BT.Record _, _)) *)
+(*     | Some (IT (_, BT.Map (_, _), _)) -> *)
+(*       std_pp *)
+(*     | Some v -> !^"/*" ^^^ pp v ^^^ !^"*/" ^^ std_pp *)
+(*   in *)
+(*   pp ~f:pp_v *)
 
 
 let rec bound_by_pattern (Pat (pat_, bt, _)) =
