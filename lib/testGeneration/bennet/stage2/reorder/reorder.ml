@@ -14,7 +14,11 @@ let get_variable_ordering
     match stmts with
     | Stmt (LetStar (x, _), _) :: stmts' ->
       SymGraph.add_vertex (consider_equalities stmts') x
-    | Stmt (Assert (T (IT (Binop (EQ, IT (Sym x, _, _), it), _, _))), _) :: stmts' ->
+    | Stmt (Assert (T (IT (Binop (EQ, IT (Sym x, _, _), it), _, _))), _) :: stmts'
+    | Stmt
+        (Assert (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))), _)
+      :: stmts'
+      when not (Sym.Set.mem x (IT.free_vars it)) ->
       let g = consider_equalities stmts' in
       let g' =
         List.fold_left
@@ -27,7 +31,11 @@ let get_variable_ordering
           (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
       in
       g'
-    | Stmt (Assert (T (IT (Binop (EQ, it, IT (Sym x, _, _)), _, _))), _) :: stmts' ->
+    | Stmt (Assert (T (IT (Binop (EQ, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
+    | Stmt
+        (Assert (T (IT (Binop (EQ, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))), _)
+      :: stmts'
+      when not (Sym.Set.mem x (IT.free_vars it)) ->
       let g = consider_equalities stmts' in
       Seq.fold_left
         (fun g' y ->
@@ -40,20 +48,105 @@ let get_variable_ordering
     | _ :: stmts' -> consider_equalities stmts'
     | [] -> SymGraph.empty
   in
+  let rec consider_learnable_constraints (stmts : Stmt.t list) (g : SymGraph.t)
+    : SymGraph.t
+    =
+    match stmts with
+    | Stmt (LetStar (x, _), _) :: stmts' ->
+      consider_learnable_constraints stmts' (SymGraph.add_vertex g x)
+    | Stmt (Assert (T (IT (Binop (LE, IT (Sym x, _, _), it), _, _))), _) :: stmts'
+    | Stmt (Assert (T (IT (Binop (LEPointer, IT (Sym x, _, _), it), _, _))), _) :: stmts'
+    | Stmt (Assert (T (IT (Binop (LT, IT (Sym x, _, _), it), _, _))), _) :: stmts'
+    | Stmt (Assert (T (IT (Binop (LTPointer, IT (Sym x, _, _), it), _, _))), _) :: stmts'
+    | Stmt
+        (Assert (T (IT (Binop (LE, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))), _)
+      :: stmts'
+    | Stmt
+        ( Assert
+            (T (IT (Binop (LEPointer, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
+          _ )
+      :: stmts'
+    | Stmt
+        (Assert (T (IT (Binop (LT, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))), _)
+      :: stmts'
+    | Stmt
+        ( Assert
+            (T (IT (Binop (LTPointer, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
+          _ )
+      :: stmts'
+      when (not (Sym.Set.mem x (IT.free_vars it)))
+           && Option.is_none (IT.is_sym it)
+           && it
+              |> IT.is_cast
+              |> Option.map (fun (_, it') -> IT.is_sym it')
+              |> Option.join
+              |> Option.is_none ->
+      let g' =
+        List.fold_left
+          (fun g' y ->
+             if Sym.equal x y then
+               g'
+             else
+               SymGraph.add_edge_e g' (y, x))
+          g
+          (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
+      in
+      consider_learnable_constraints stmts' g'
+    | Stmt (Assert (T (IT (Binop (LE, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
+    | Stmt (Assert (T (IT (Binop (LEPointer, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
+    | Stmt (Assert (T (IT (Binop (LT, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
+    | Stmt (Assert (T (IT (Binop (LTPointer, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
+    | Stmt
+        (Assert (T (IT (Binop (LE, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))), _)
+      :: stmts'
+    | Stmt
+        ( Assert
+            (T (IT (Binop (LEPointer, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
+          _ )
+      :: stmts'
+    | Stmt
+        (Assert (T (IT (Binop (LT, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))), _)
+      :: stmts'
+    | Stmt
+        ( Assert
+            (T (IT (Binop (LTPointer, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
+          _ )
+      :: stmts'
+      when (not (Sym.Set.mem x (IT.free_vars it)))
+           && Option.is_none (IT.is_sym it)
+           && it
+              |> IT.is_cast
+              |> Option.map (fun (_, it') -> IT.is_sym it')
+              |> Option.join
+              |> Option.is_none ->
+      let g' =
+        List.fold_left
+          (fun g' y ->
+             if Sym.equal x y then
+               g'
+             else
+               SymGraph.add_edge_e g' (y, x))
+          g
+          (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
+      in
+      consider_learnable_constraints stmts' g'
+    | _ :: stmts' -> consider_learnable_constraints stmts' g
+    | [] -> g
+  in
   (* Put calls before local variables they constrain *)
   let rec consider_constrained_calls
             (from_calls : Sym.Set.t)
-            (g : SymGraph.t)
             (stmts : Stmt.t list)
+            (g : SymGraph.t)
     : SymGraph.t
     =
     match stmts with
     | Stmt (LetStar (x, gt), _) :: stmts' when Term.contains_call gt ->
-      consider_constrained_calls (Sym.Set.add x from_calls) g stmts'
+      consider_constrained_calls (Sym.Set.add x from_calls) stmts' g
     | Stmt (Asgn _, _) :: stmts' | Stmt (LetStar _, _) :: stmts' ->
-      consider_constrained_calls from_calls g stmts'
+      consider_constrained_calls from_calls stmts' g
     | Stmt (Assert lc, _) :: stmts' ->
-      let g = consider_constrained_calls from_calls g stmts' in
+      let g = consider_constrained_calls from_calls stmts' g in
       let free_vars = LC.free_vars lc in
       let call_vars = Sym.Set.inter free_vars from_calls in
       let non_call_vars = Sym.Set.diff free_vars from_calls in
@@ -65,12 +158,16 @@ let get_variable_ordering
   in
   (* Describes logical dependencies where [x <- y] means that [x] depends on [y] *)
   let collect_constraints (stmts : Stmt.t list) : SymGraph.t =
-    let g = consider_equalities stmts in
-    let g' = Oper.transitive_closure g in
-    let g'' = consider_constrained_calls Sym.Set.empty g' stmts in
-    let g''' = Oper.transitive_closure g'' in
-    assert (not (SymGraph.fold_edges (fun x y acc -> Sym.equal x y || acc) g''' false));
-    g'''
+    let g =
+      consider_equalities stmts
+      |> Oper.transitive_closure
+      |> consider_learnable_constraints stmts
+      |> Oper.transitive_closure
+      |> consider_constrained_calls Sym.Set.empty stmts
+      |> Oper.transitive_closure
+    in
+    assert (not (SymGraph.fold_edges (fun x y acc -> Sym.equal x y || acc) g false));
+    g
   in
   (* Describes data dependencies where [x <- y] means that [x] depends on [y] *)
   let collect_dependencies (stmts : Stmt.t list) : SymGraph.t =
