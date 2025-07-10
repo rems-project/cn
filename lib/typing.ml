@@ -342,13 +342,35 @@ let get_a sym = inspect_typing_context (fun s -> Context.get_a sym s)
 
 let get_l sym = inspect_typing_context (fun s -> Context.get_l sym s)
 
-let add_a sym bt info = modify_typing_context (fun s -> Context.add_a sym bt info s)
+(* If the solver exists, declare the variable. If not, these variables will be
+   declared when the solver is created (in [init_solver]). *)
+let maybe_declare_variable_in_solver sym bt =
+  let@ s = get () in
+  match s.solver with
+  | None -> return ()
+  | Some solver -> return (Solver.declare_variable solver sym bt)
 
+
+let add_a sym bt info =
+  let@ () = modify_typing_context (fun s -> Context.add_a sym bt info s) in
+  maybe_declare_variable_in_solver sym bt
+
+
+(* Don't need to be declared in solver. *)
 let add_a_value sym value info =
   modify_typing_context (fun s -> Context.add_a_value sym value info s)
 
 
-let add_l sym bt info = modify_typing_context (fun s -> Context.add_l sym bt info s)
+let add_l sym bt info =
+  let@ () = modify_typing_context (fun s -> Context.add_l sym bt info s) in
+  maybe_declare_variable_in_solver sym bt
+
+
+(* Don't need to be declared in solver. *)
+let add_l_value sym value info =
+  let@ () = modify_typing_context (fun s -> Context.add_l_value sym value info s) in
+  add_sym_eqs [ (sym, value) ]
+
 
 let rec add_ls = function
   | [] -> return ()
@@ -374,17 +396,19 @@ let remove_as = iterM remove_a
 
 (* similar but less boring functions, where components interact *)
 
-let add_l_value sym value info =
-  let@ () = modify_typing_context (fun s -> Context.add_l_value sym value info s) in
-  add_sym_eqs [ (sym, value) ]
-
-
 let get_solver () : solver t = inspect (fun s -> Option.get s.solver)
 
 let init_solver () =
   modify (fun s ->
     let c = s.typing_context in
     let solver = Solver.make c.global in
+    let declare sym (binding, _info) =
+      match binding with
+      | Context.Value _ -> () (* no need to declare *)
+      | Context.BaseType bt -> Solver.declare_variable solver sym bt
+    in
+    Sym.Map.iter declare c.computational;
+    Sym.Map.iter declare c.logical;
     LC.Set.iter (Solver.add_assumption solver c.global) c.constraints;
     { s with solver = Some solver })
 

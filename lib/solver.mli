@@ -26,6 +26,8 @@ val make : Global.t -> solver
 (* Incrementally (and imperatively) add an assumption to the solver state *)
 val add_assumption : solver -> Global.t -> LogicalConstraints.t -> unit
 
+val declare_variable : solver -> Sym.t -> BaseTypes.t -> unit
+
 (* Save / restore solver state, to support backtracking *)
 val push : solver -> unit
 
