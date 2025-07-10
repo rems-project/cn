@@ -1701,13 +1701,14 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           pes
           (Some (ghost_loc, its))
           ft
-          (fun (Computational ((_, bt), _, _) as rt) ->
+          (fun (Computational ((s, bt), _, lrt)) ->
              let@ () = WellTyped.ensure_base_type loc ~expect bt in
-             let@ _, members =
-               make_return_record loc (call_prefix (FunctionCall fsym)) (RT.binders rt)
-             in
-             let@ lvt = bind_return loc members rt in
-             k lvt))
+             let prefix = call_prefix (FunctionCall fsym) in
+             let s' = Sym.fresh_make_uniq_kind ~prefix "return" in
+             let@ () = add_l s' bt (loc, lazy (Sym.pp s')) in
+             let su = IT.make_rename ~from:s ~to_:s' in
+             let@ () = bind_logical_return loc prefix (LRT.subst su lrt) in
+             k (IT.sym_ (s', bt, here))))
   | Eif (c_pe, e1, e2) ->
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e1) ~expect (Mu.bt_of_expr e1) in
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e2) ~expect (Mu.bt_of_expr e2) in
@@ -1804,8 +1805,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
             msg = Generic !^"Cannot unpack requested resource." [@alert "-deprecated"]
           })
       | Some (`LRT lrt) ->
-        let@ _, members = make_return_record loc "unpack" (LRT.binders lrt) in
-        bind_logical_return loc members lrt
+        let pname = Req.get_name (P req) in
+        let prefix = "unpack_" ^ Pp.plain (Req.pp_name ~no_nums:true pname) in
+        bind_logical_return loc prefix lrt
       | Some (`RES res) -> add_rs loc res
     in
     let aux loc stmt =
@@ -1975,13 +1977,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           (Some (loc, args))
           lemma_typ
           (fun lrt ->
-             let@ _, members =
-               make_return_record
-                 loc
-                 (call_prefix (LemmaApplication lemma))
-                 (LRT.binders lrt)
-             in
-             let@ () = bind_logical_return loc members lrt in
+             let prefix = call_prefix (LemmaApplication lemma) in
+             let@ () = bind_logical_return loc prefix lrt in
              return ())
       | Assert lc ->
         let@ lc = WellTyped.logical_constraint loc lc in

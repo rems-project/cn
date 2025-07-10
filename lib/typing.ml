@@ -1,4 +1,3 @@
-module BT = BaseTypes
 module Res = Resource
 module Req = Request
 module LC = LogicalConstraints
@@ -486,41 +485,36 @@ let _model_has_prop () =
 
 (* functions for binding return types and associated auxiliary functions *)
 
-let make_return_record loc (record_name : string) record_members =
-  let record_s = Sym.fresh_make_uniq record_name in
-  let record_bt = BT.Record record_members in
-  let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in
-  let record_it = IT.sym_ (record_s, record_bt, loc) in
-  let member_its =
-    List.map
-      (fun (s, member_bt) -> IT.recordMember_ ~member_bt (record_it, s) loc)
-      record_members
-  in
-  return (record_it, member_its)
-
+(* let make_return_record loc (record_name : string) record_members = *)
+(*   let record_s = Sym.fresh_make_uniq record_name in *)
+(*   let record_bt = BT.Record record_members in *)
+(*   let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in *)
+(*   let record_it = IT.sym_ (record_s, record_bt, loc) in *)
+(*   let member_its = *)
+(*     List.map *)
+(*       (fun (s, member_bt) -> IT.recordMember_ ~member_bt (record_it, s) loc) *)
+(*       record_members *)
+(*   in *)
+(*   return (record_it, member_its) *)
 
 (* This essentially pattern-matches a logical return type against a record pattern.
    `record_it` is the index term for the record, `members` the pattern for its members. *)
-let bind_logical_return_internal loc =
-  let rec aux members lrt =
-    match (members, lrt) with
-    | member :: members, LogicalReturnTypes.Define ((s, it), _, lrt) ->
-      let@ () =
-        WellTyped.ensure_base_type loc ~expect:(IT.get_bt it) (IT.get_bt member)
-      in
-      let@ () = add_c_internal (LC.T (IT.eq__ member it loc)) in
-      aux members (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    | member :: members, Resource ((s, (re, bt)), _, lrt) ->
-      let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in
-      let@ () = add_r_internal loc (re, Res.O member) in
-      aux members (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    | members, Constraint (lc, _, lrt) ->
+let bind_logical_return_internal loc prefix =
+  let rec aux lrt =
+    match lrt with
+    | LogicalReturnTypes.Define ((s, it), _, lrt) ->
+      aux (LogicalReturnTypes.subst (IT.make_subst [ (s, it) ]) lrt)
+    | Resource ((s, (re, bt)), _, lrt) ->
+      let s' = Sym.fresh_make_uniq_kind ~prefix (Sym.pp_string s) in
+      let@ () = add_l s' bt (loc, lazy (Sym.pp s')) in
+      let@ () = add_r_internal loc (re, Res.O (IT.sym_ (s', bt, loc))) in
+      aux (LogicalReturnTypes.subst (IT.make_rename ~from:s ~to_:s') lrt)
+    | Constraint (lc, _, lrt) ->
       let@ () = add_c_internal lc in
-      aux members lrt
-    | [], I -> return ()
-    | _ -> assert false
+      aux lrt
+    | I -> return ()
   in
-  fun members lrt -> aux members lrt
+  fun lrt -> aux lrt
 
 
 (* functions for resource inference *)
@@ -612,15 +606,12 @@ let do_unfold_resources loc =
       let do_unpack = function
         | re, `LRT lrt ->
           let pname = Req.get_name (fst re) in
-          let@ _, members =
-            make_return_record
-              loc
-              (* This string ends up as a solver variable (via Typing.make_return_record)
+          let prefix =
+            (* This string ends up as a solver variable (via Typing.make_return_record)
                  hence no "{<num>}" prefix should ever be printed. *)
-              ("unpack_" ^ Pp.plain (Req.pp_name ~no_nums:true pname))
-              (LogicalReturnTypes.binders lrt)
+            "unpack_" ^ Pp.plain (Req.pp_name ~no_nums:true pname)
           in
-          bind_logical_return_internal loc members lrt
+          bind_logical_return_internal loc prefix lrt
         | re, `RES res ->
           let pname = Req.get_name (fst re) in
           let is_owned = match pname with Owned _ -> true | _ -> false in
@@ -690,25 +681,24 @@ let add_movable_index loc (pred, ix) =
   do_unfold_resources loc
 
 
-let bind_logical_return loc members lrt =
-  let@ () = bind_logical_return_internal loc members lrt in
+let bind_logical_return loc prefix lrt =
+  let@ () = bind_logical_return_internal loc prefix lrt in
   do_unfold_resources loc
 
 
 (* Same for return types *)
-let bind_return loc members (rt : ReturnTypes.t) =
-  match (members, rt) with
-  | member :: members, Computational ((s, bt), _, lrt) ->
-    let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in
-    let@ () =
-      bind_logical_return
-        loc
-        members
-        (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    in
-    return member
-  | _ -> assert false
-
+(* let bind_return loc members (rt : ReturnTypes.t) = *)
+(*   match (members, rt) with *)
+(*   | member :: members, Computational ((s, bt), _, lrt) -> *)
+(*     let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in *)
+(*     let@ () = *)
+(*       bind_logical_return *)
+(*         loc *)
+(*         members *)
+(*         (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt) *)
+(*     in *)
+(*     return member *)
+(*   | _ -> assert false *)
 
 let add_r loc re =
   let@ () = add_r_internal loc re in
