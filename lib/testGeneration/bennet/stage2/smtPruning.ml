@@ -33,6 +33,7 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
       let@ () =
         add_r loc (P { name = Owned (sct, Init); pointer = it_addr; iargs = [] }, O it_sym)
       in
+      let@ _lc = WellTyped.logical_constraint loc (T (IT.eq_ (it_sym, it_val) loc)) in
       let@ () = add_c loc (T (IT.eq_ (it_sym, it_val) loc)) in
       let@ gt_rest = aux gt_rest in
       return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc)
@@ -46,6 +47,7 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
       let@ gt_rest = aux gt_rest in
       return (Term.let_star_ ((x, gt_inner), gt_rest) loc)
     | Assert (lc, gt_rest) ->
+      let@ _lc = WellTyped.logical_constraint loc lc in
       let@ check = provable loc in
       let@ redundant =
         match check lc with
@@ -59,7 +61,8 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
     | ITE (it_if, gt_then, gt_else) ->
       let@ ogt_then =
         pure
-          (let@ () = add_c loc (LC.T it_if) in
+          (let@ _lc = WellTyped.logical_constraint loc (LC.T it_if) in
+           let@ () = add_c loc (LC.T it_if) in
            let@ gt_then = aux gt_then in
            let@ check = provable loc in
            return
@@ -69,7 +72,8 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
       in
       let@ ogt_else =
         pure
-          (let@ () = add_c loc (LC.T (IT.not_ it_if here)) in
+          (let@ _lc = WellTyped.logical_constraint loc (LC.T (IT.not_ it_if here)) in
+           let@ () = add_c loc (LC.T (IT.not_ it_if here)) in
            let@ gt_else = aux gt_else in
            let@ provable = provable loc in
            return
@@ -84,16 +88,22 @@ let transform_gt (paused : _ Typing.pause) (tm : Term.t) : Term.t =
          | None, None -> Term.pick_ [] bt loc)
     | Map ((i, i_bt, it_perm), gt_inner) ->
       let@ () = add_l i i_bt (loc, lazy (Sym.pp i)) in
+      let@ _lc = WellTyped.logical_constraint loc (T it_perm) in
       let@ () = add_c loc (LC.T it_perm) in
       let@ gt_inner = aux gt_inner in
       return (Term.map_ ((i, i_bt, it_perm), gt_inner) loc)
   in
-  Result.get_ok
-    (Typing.run_from_pause
-       (fun _ ->
-          let@ () = init_solver () in
-          aux tm)
-       paused)
+  match
+    Typing.run_from_pause
+      (fun _ ->
+         let@ () = init_solver () in
+         aux tm)
+      paused
+  with
+  | Ok result -> result
+  | Error err ->
+    TypeErrors.report_pretty err;
+    exit 1
 
 
 let transform_gd (paused : _ Typing.pause) (def : Def.t) : Def.t =
