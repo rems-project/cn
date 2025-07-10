@@ -166,19 +166,15 @@ end
 
 val lift : 'a Or_TypeError.t -> 'a m
 
-val make_return_record
-  :  Locations.t ->
-  string ->
-  BaseTypes.member_types ->
-  (IndexTerms.t * IndexTerms.t list) m
+(* val make_return_record *)
+(*   :  Locations.t -> *)
+(*   string -> *)
+(*   BaseTypes.member_types -> *)
+(*   (IndexTerms.t * IndexTerms.t list) m *)
 
-val bind_logical_return
-  :  Locations.t ->
-  IndexTerms.t list ->
-  LogicalReturnTypes.t ->
-  unit m
+val bind_logical_return : Locations.t -> string -> LogicalReturnTypes.t -> unit m
 
-val bind_return : Locations.t -> IndexTerms.t list -> ReturnTypes.t -> IndexTerms.t m
+(* val bind_return : Locations.t -> IndexTerms.t list -> ReturnTypes.t -> IndexTerms.t m *)
 
 val add_movable_index
   :  Locations.t ->
