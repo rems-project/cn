@@ -4,3 +4,5 @@ ce8b6186fde296e05532b05783de36e814cbf465
 2a96149dc2a7e1af5c8c488501c9aaafb852f9fc
 # CN: Bump ocamlformat to 0.27.0
 a3cc07c9dce3048429427a1f45a5100e8ebff56f
+# CN: Fix for bad formatting
+8a46609febc22611d66012180eec5edb08f72643
