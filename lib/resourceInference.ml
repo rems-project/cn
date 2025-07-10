@@ -4,37 +4,39 @@ module Req = Request
 open Typing
 
 let debug_constraint_failure_diagnostics
-      lvl
-      (model_with_q : Solver.model_with_q)
-      simp_ctxt
-      c
+      _lvl
+      (_model_with_q : Solver.model_with_q)
+      _simp_ctxt
+      _c
   =
-  let model = fst model_with_q in
-  if !Pp.print_level == 0 then
-    ()
-  else (
-    let pp_f = IT.pp_with_eval (Solver.eval model) in
-    let diag msg c =
-      match (c, model_with_q) with
-      | LC.T tm, _ ->
-        Pp.debug lvl (lazy (Pp.item msg (IT.pp tm)));
-        Pp.debug lvl (lazy (pp_f tm))
-      | LC.Forall ((sym, _bt), tm), (_, [ (sym', _bt') ]) ->
-        let tm' = IT.subst (IT.make_rename ~from:sym ~to_:sym') tm in
-        Pp.debug lvl (lazy (Pp.item ("quantified " ^ msg) (IT.pp tm)));
-        Pp.debug lvl (lazy (pp_f tm'))
-      | _ ->
-        Pp.warn
-          (Locations.other __LOC__)
-          (Pp.bold "unexpected quantifier count with model")
-    in
-    diag "counterexample, expanding" c;
-    let c2 = Simplify.LogicalConstraints.simp simp_ctxt c in
-    if LC.equal c c2 then
-      ()
-    else
-      diag "simplified variant" c2)
+  ()
 
+
+(* let model = fst model_with_q in *)
+(* if !Pp.print_level == 0 then *)
+(*   () *)
+(* else ( *)
+(*   let pp_f = IT.pp_with_eval (Solver.eval model) in *)
+(*   let diag msg c = *)
+(*     match (c, model_with_q) with *)
+(*     | LC.T tm, _ -> *)
+(*       Pp.debug lvl (lazy (Pp.item msg (IT.pp tm))); *)
+(*       Pp.debug lvl (lazy (pp_f tm)) *)
+(*     | LC.Forall ((sym, _bt), tm), (_, [ (sym', _bt') ]) -> *)
+(*       let tm' = IT.subst (IT.make_rename ~from:sym ~to_:sym') tm in *)
+(*       Pp.debug lvl (lazy (Pp.item ("quantified " ^ msg) (IT.pp tm))); *)
+(*       Pp.debug lvl (lazy (pp_f tm')) *)
+(*     | _ -> *)
+(*       Pp.warn *)
+(*         (Locations.other __LOC__) *)
+(*         (Pp.bold "unexpected quantifier count with model") *)
+(*   in *)
+(*   diag "counterexample, expanding" c; *)
+(*   let c2 = Simplify.LogicalConstraints.simp simp_ctxt c in *)
+(*   if LC.equal c c2 then *)
+(*     () *)
+(*   else *)
+(*     diag "simplified variant" c2) *)
 
 module General = struct
   type one =
