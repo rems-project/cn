@@ -47,7 +47,6 @@ let pp_with_typ = pp_with_typf BT.pp
 (*   in *)
 (*   pp ~f:pp_v *)
 
-
 let rec bound_by_pattern (Pat (pat_, bt, _)) =
   match pat_ with
   | PSym s -> [ (s, bt) ]
