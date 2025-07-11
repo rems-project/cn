@@ -456,8 +456,8 @@ module IndexTerms = struct
       (* Shared *)
       | Const _ | Sym _ | Unop _ | Binop _ | ITE _ | EachI _ | NthTuple _ | StructMember _
       | RecordMember _ | MemberShift _ | ArrayShift _ | CopyAllocId _ | HasAllocId _
-      | SizeOf _ | OffsetOf _ | Nil _ | Head _ | Tail _ 
-      | Representable _ | Good _ | Aligned _ | MapGet _ | MapDef _ | Apply _ | Match _ ->
+      | SizeOf _ | OffsetOf _ | Nil _ | Head _ | Tail _ | Representable _ | Good _
+      | Aligned _ | MapGet _ | MapDef _ | Apply _ | Match _ ->
         eval_term_generic eval_aux prog5 it
       (* Strict *)
       | Tuple its ->
@@ -545,8 +545,8 @@ module IndexTerms = struct
       | Const _ | Sym _ | Unop _ | Binop _ | ITE _ | EachI _ | NthTuple _ | StructMember _
       | StructUpdate _ | RecordMember _ | RecordUpdate _ | SizeOf _ | OffsetOf _
       | MemberShift _ | ArrayShift _ | CopyAllocId _ | HasAllocId _ | Nil _ | Head _
-      | Tail _ | Representable _ | Good _ | Aligned _
-      | MapGet _ | MapDef _ | Apply _ | Let _ | Match _ ->
+      | Tail _ | Representable _ | Good _ | Aligned _ | MapGet _ | MapDef _ | Apply _
+      | Let _ | Match _ ->
         eval_term_generic eval_aux prog5 it
       (* Lazy *)
       | Tuple _ | Struct _ | Record _ | Constructor _ | Cons _ | MapConst _ | MapSet _ ->

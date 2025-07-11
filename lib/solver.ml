@@ -53,13 +53,11 @@ end
 
 type solver_frame =
   { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
-    mutable uninterpreted : SMT.sexp Sym.Map.t;
+    mutable uninterpreted : SMT.sexp Sym.Map.t
       (** Uninterpreted functions and variables that we've declared. *)
   }
 
-let empty_solver_frame () =
-  { commands = []; uninterpreted = Sym.Map.empty }
-
+let empty_solver_frame () = { commands = []; uninterpreted = Sym.Map.empty }
 
 let copy_solver_frame f = { f with commands = f.commands }
 
@@ -420,7 +418,6 @@ module CN_List = struct
   let tail xs = SMT.app_ tail_name [ xs ]
 end
 
-
 module CN_Option = struct
   let name = "cn_option"
 
@@ -713,7 +710,8 @@ let rec translate_term s iterm =
     let s1 = translate_term s e1 in
     let s2 = translate_term s e2 in
     (* binary uninterpreted function, same type for arguments and result. *)
-    let uninterp_same_type _k = failwith "Todo: global declaration"
+    let uninterp_same_type _k =
+      failwith "Todo: global declaration"
       (* let bt = IT.get_bt iterm in *)
       (* let smt_t = translate_base_type bt in *)
       (* let f = declare_bt_uninterpreted s k bt [ smt_t; smt_t ] smt_t in *)
