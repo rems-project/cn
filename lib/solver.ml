@@ -46,7 +46,7 @@ end
 
 (** Names for constants that may be uninterpreted.  See [bt_uninterpreted] *)
 module CN_Constant = struct
-  let default = ("default_uf", 0)
+  (* let default = ("default_uf", 0) *)
 
   let mul = ("mul_uf", 1)
 
@@ -453,6 +453,35 @@ module CN_List = struct
   let tail xs = SMT.app_ tail_name [ xs ]
 end
 
+
+module CN_Option = struct
+  let name = "cn_option"
+
+  let none_name = "cn_none"
+
+  let some_name = "cn_some"
+
+  let val_name = "cn_val"
+
+  let t a = SMT.app_ name [ a ]
+
+  let declare s =
+    let a = SMT.atom "a" in
+    ack_command
+      s
+      (SMT.declare_datatype
+         name
+         [ "a" ]
+         [ (none_name, []); (some_name, [ (val_name, a) ]) ])
+
+
+  let none elT = SMT.as_type (SMT.atom none_name) (t elT)
+
+  let _some x = SMT.app_ some_name [ x ]
+
+  let val_ x = SMT.app_ val_name [ x ]
+end
+
 (** {1 Type to SMT} *)
 
 (** Translate a base type to SMT *)
@@ -590,8 +619,7 @@ let translate_const s co =
   | Unit -> SMT.atom (CN_Tuple.name 0)
   | Null -> CN_Pointer.con_null
   | CType_const ct -> SMT.int_k (CTypeMap.find ct s.ctypes)
-  | Default t ->
-    declare_bt_uninterpreted s CN_Constant.default t [] (translate_base_type t)
+  | Default t -> CN_Option.val_ (CN_Option.none (translate_base_type t))
 
 
 (** Casting between bit-vector types *)
@@ -1151,6 +1179,7 @@ let rec declare_struct s done_struct name decl =
 let declare_solver_basics s =
   CN_Tuple.declare s;
   CN_List.declare s;
+  CN_Option.declare s;
   CN_MemByte.declare s;
   CN_Pointer.declare s;
   (* structs may depend only on other structs. datatypes may depend on other datatypes and
