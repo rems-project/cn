@@ -39,8 +39,6 @@ let check_index_ok (m : Sym.t) (i : Sym.t) (it : IT.t) : bool =
     | Let ((_, it1), it2) ->
       aux it1 && aux it2
     | ITE (it1, it2, it3)
-    | NthList (it1, it2, it3)
-    | ArrayToList (it1, it2, it3)
     | MapSet (it1, it2, it3) ->
       aux it1 && aux it2 && aux it3
     | Tuple its | Apply (_, its) -> List.for_all aux its

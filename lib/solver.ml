@@ -3,14 +3,6 @@ module IT = IndexTerms
 open IT
 module LC = LogicalConstraints
 
-module Int_BT_Table = Map.Make (struct
-    type t = int * BT.t
-
-    let compare (int1, bt1) (int2, bt2) =
-      let cmp = Int.compare int1 int2 in
-      if cmp != 0 then cmp else BT.compare bt1 bt2
-  end)
-
 module IntWithHash = struct
   (* For compatability with older ocamls *)
   include Int
@@ -57,22 +49,16 @@ module CN_Constant = struct
   let rem = ("rem_uf", 4)
 
   let mod' = ("mod_uf", 5)
-
-  let nth_list = ("nth_list_uf", 6)
-
-  let array_to_list = ("array_to_list_uf", 7)
 end
 
 type solver_frame =
   { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
     mutable uninterpreted : SMT.sexp Sym.Map.t;
       (** Uninterpreted functions and variables that we've declared. *)
-    mutable bt_uninterpreted : SMT.sexp Int_BT_Table.t
-      (** Uninterpreted constants, indexed by base type. *)
   }
 
 let empty_solver_frame () =
-  { commands = []; uninterpreted = Sym.Map.empty; bt_uninterpreted = Int_BT_Table.empty }
+  { commands = []; uninterpreted = Sym.Map.empty }
 
 
 let copy_solver_frame f = { f with commands = f.commands }
@@ -96,13 +82,8 @@ module Debug = struct
     let to_string = Sexplib.Sexp.to_string_hum in
     let append str doc = doc ^/^ !^str in
     let dump_sym k v rest = rest ^/^ bar ^^^ Sym.pp k ^^^ !^"|->" ^^^ !^(to_string v) in
-    let dump_bts (_, k) v rest =
-      rest ^/^ bar ^^^ BT.pp k ^^^ !^"|->" ^^^ !^(to_string v)
-    in
     !^"# Symbols"
     |> Sym.Map.fold dump_sym f.uninterpreted
-    |> append "# Basetypes "
-    |> Int_BT_Table.fold dump_bts f.bt_uninterpreted
     |> append "+---------------------------------"
 
 
@@ -190,20 +171,6 @@ let declare_uninterpreted s name args_ts res_t =
     let e = SMT.atom (CN_Names.uninterpreted_name name) in
     let f = !(s.cur_frame) in
     f.uninterpreted <- Sym.Map.add name e f.uninterpreted;
-    e
-
-
-(** Declare an uninterpreted function, indexed by a base type. *)
-let declare_bt_uninterpreted s (name, k) bt args_ts res_t =
-  let check f = Int_BT_Table.find_opt (k, bt) f.bt_uninterpreted in
-  match search_frames s check with
-  | Some e -> e
-  | None ->
-    let sname = fresh_name s name in
-    ack_command s (SMT.declare_fun sname args_ts res_t);
-    let e = SMT.atom sname in
-    let top_map = !(s.cur_frame).bt_uninterpreted in
-    !(s.cur_frame).bt_uninterpreted <- Int_BT_Table.add (k, bt) e top_map;
     e
 
 
@@ -746,11 +713,11 @@ let rec translate_term s iterm =
     let s1 = translate_term s e1 in
     let s2 = translate_term s e2 in
     (* binary uninterpreted function, same type for arguments and result. *)
-    let uninterp_same_type k =
-      let bt = IT.get_bt iterm in
-      let smt_t = translate_base_type bt in
-      let f = declare_bt_uninterpreted s k bt [ smt_t; smt_t ] smt_t in
-      SMT.app f [ s1; s2 ]
+    let uninterp_same_type _k = failwith "Todo: global declaration"
+      (* let bt = IT.get_bt iterm in *)
+      (* let smt_t = translate_base_type bt in *)
+      (* let f = declare_bt_uninterpreted s k bt [ smt_t; smt_t ] smt_t in *)
+      (* SMT.app f [ s1; s2 ] *)
     in
     (match op with
      | And -> SMT.bool_and s1 s2
@@ -951,20 +918,6 @@ let rec translate_term s iterm =
   | Cons (e1, e2) -> CN_List.cons (translate_term s e1) (translate_term s e2)
   | Head e1 -> CN_List.head (translate_term s e1)
   | Tail e1 -> CN_List.tail (translate_term s e1)
-  | NthList (x, y, z) ->
-    let arg x = (translate_base_type (IT.get_bt x), translate_term s x) in
-    let arg_ts, args = List.split (List.map arg [ x; y; z ]) in
-    let bt = IT.get_bt iterm in
-    let res_t = translate_base_type bt in
-    let f = declare_bt_uninterpreted s CN_Constant.nth_list bt arg_ts res_t in
-    SMT.app f args
-  | ArrayToList (x, y, z) ->
-    let arg x = (translate_base_type (IT.get_bt x), translate_term s x) in
-    let arg_ts, args = List.split (List.map arg [ x; y; z ]) in
-    let bt = IT.get_bt iterm in
-    let res_t = translate_base_type bt in
-    let f = declare_bt_uninterpreted s CN_Constant.array_to_list bt arg_ts res_t in
-    SMT.app f args
   | SizeOf ct ->
     translate_term s (IT.int_lit_ (Memory.size_of_ctype ct) (IT.get_bt iterm) loc)
   | Representable (ct, t) -> translate_term s (representable struct_decls ct t loc)

@@ -82,8 +82,6 @@ let rec free_vars_bts (it : 'a annot) : BT.t Sym.Map.t =
   | Cons (t1, t2) -> free_vars_bts_list [ t1; t2 ]
   | Head t -> free_vars_bts t
   | Tail t -> free_vars_bts t
-  | NthList (i, xs, d) -> free_vars_bts_list [ i; xs; d ]
-  | ArrayToList (arr, i, len) -> free_vars_bts_list [ arr; i; len ]
   | Representable (_sct, t) -> free_vars_bts t
   | Good (_sct, t) -> free_vars_bts t
   | WrapI (_ity, t) -> free_vars_bts t
@@ -184,8 +182,6 @@ let rec fold_ f binders acc = function
   | Cons (t1, t2) -> fold_list f binders acc [ t1; t2 ]
   | Head t -> fold f binders acc t
   | Tail t -> fold f binders acc t
-  | NthList (i, xs, d) -> fold_list f binders acc [ i; xs; d ]
-  | ArrayToList (arr, i, len) -> fold_list f binders acc [ arr; i; len ]
   | Representable (_sct, t) -> fold f binders acc t
   | Good (_sct, t) -> fold f binders acc t
   | WrapI (_ity, t) -> fold f binders acc t
@@ -318,9 +314,6 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
   | Cons (it1, it2) -> IT (Cons (subst su it1, subst su it2), bt, loc)
   | Head it -> IT (Head (subst su it), bt, loc)
   | Tail it -> IT (Tail (subst su it), bt, loc)
-  | NthList (i, xs, d) -> IT (NthList (subst su i, subst su xs, subst su d), bt, loc)
-  | ArrayToList (arr, i, len) ->
-    IT (ArrayToList (subst su arr, subst su i, subst su len), bt, loc)
   | MapConst (arg_bt, t) -> IT (MapConst (arg_bt, subst su t), bt, loc)
   | MapSet (t1, t2, t3) -> IT (MapSet (subst su t1, subst su t2, subst su t3), bt, loc)
   | MapGet (it, arg) -> IT (MapGet (subst su it, subst su arg), bt, loc)
@@ -789,10 +782,6 @@ let head_ ~item_bt it loc = IT (Head it, item_bt, loc)
 
 let tail_ it loc = IT (Tail it, get_bt it, loc)
 
-let nthList_ (n, it, d) loc = IT (NthList (n, it, d), get_bt d, loc)
-
-let array_to_list_ (arr, i, len) bt loc = IT (ArrayToList (arr, i, len), bt, loc)
-
 let rec dest_list it =
   match get_term it with
   | Nil _bt -> Some []
@@ -1043,21 +1032,7 @@ let promote_to_compare it it' loc =
   (cast it, cast it')
 
 
-let nth_array_to_list_fact n xs d =
-  let here = Locations.other __LOC__ in
-  match get_term xs with
-  | ArrayToList (arr, i, len) ->
-    let lt_n_len = lt_ (promote_to_compare n len here) here in
-    let lhs = nthList_ (n, xs, d) here in
-    let rhs =
-      ite_
-        ( and_ [ le_ (int_lit_ 0 (get_bt n) here, n) here; lt_n_len ] here,
-          map_get_ arr (add_ (i, cast_ (get_bt i) n here) here) here,
-          d )
-        here
-    in
-    Some (eq_ (lhs, rhs) here)
-  | _ -> None
+
 
 
 let rec wrap_bindings_match bs default_v v =
@@ -1083,37 +1058,6 @@ let rec wrap_bindings_match bs default_v v =
                       [ (pat, v2); (Pat (PWild, get_bt match_e, here), default_v) ] ),
                   get_bt v2,
                   here ))))
-
-
-let nth_array_to_list_facts (binders_terms : (t_bindings * t) list) =
-  let here = Locations.other __LOC__ in
-  let nths =
-    List.filter_map
-      (fun (bs, it) ->
-         match get_term it with
-         | NthList (n, xs, d) -> Some (bs, (n, d, get_bt xs))
-         | _ -> None)
-      binders_terms
-  in
-  let arr_lists =
-    List.filter_map
-      (fun (bs, it) ->
-         match get_term it with ArrayToList _ -> Some (bs, (it, get_bt it)) | _ -> None)
-      binders_terms
-  in
-  List.concat_map
-    (fun (bs1, (n, d, bt1)) ->
-       List.filter_map
-         (fun (bs2, (xs, bt2)) ->
-            if BT.equal bt1 bt2 then
-              wrap_bindings_match
-                (bs1 @ bs2)
-                (bool_ true here)
-                (nth_array_to_list_fact n xs d)
-            else
-              None)
-         arr_lists)
-    nths
 
 
 let rec map_term_pre (f : t -> t) (it : t) : t =
@@ -1144,8 +1088,6 @@ let rec map_term_pre (f : t -> t) (it : t) : t =
     | Cons (it_head, it_tail) -> Cons (loop it_head, loop it_tail)
     | Head it' -> Head (loop it')
     | Tail it' -> Tail (loop it')
-    | NthList (i, xs, d) -> NthList (loop i, loop xs, loop d)
-    | ArrayToList (arr, i, len) -> ArrayToList (loop arr, loop i, loop len)
     | Representable (ct, it') -> Representable (ct, loop it')
     | Good (ct, it') -> Good (ct, loop it')
     | Aligned { t; align } -> Aligned { t = loop t; align = loop align }
@@ -1192,8 +1134,6 @@ let rec map_term_post (f : t -> t) (it : t) : t =
     | Cons (it_head, it_tail) -> Cons (loop it_head, loop it_tail)
     | Head it' -> Head (loop it')
     | Tail it' -> Tail (loop it')
-    | NthList (i, xs, d) -> NthList (loop i, loop xs, loop d)
-    | ArrayToList (arr, i, len) -> ArrayToList (loop arr, loop i, loop len)
     | Representable (ct, it') -> Representable (ct, loop it')
     | Good (ct, it') -> Good (ct, loop it')
     | Aligned { t; align } -> Aligned { t = loop t; align = loop align }

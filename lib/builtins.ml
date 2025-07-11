@@ -195,17 +195,6 @@ let rem_def = ("rem", Sym.fresh "rem", mk_arg2 IT.rem_)
 
 let mod_def = ("mod", Sym.fresh "mod", mk_arg2 IT.mod_)
 
-let nth_list_def = ("nth_list", Sym.fresh "nth_list", mk_arg3 IT.nthList_)
-
-let array_to_list_def =
-  ( "array_to_list",
-    Sym.fresh "array_to_list",
-    mk_arg3_err (fun (arr, i, len) loc ->
-      match SBT.is_map_bt (IT.get_bt arr) with
-      | None -> fail { loc; msg = Array_to_list arr }
-      | Some (_, bt) -> return (IT.array_to_list_ (arr, i, len) bt loc)) )
-
-
 let builtin_funs =
   [ mul_uf_def;
     div_uf_def;
@@ -224,8 +213,6 @@ let builtin_funs =
     power_def;
     rem_def;
     mod_def;
-    nth_list_def;
-    array_to_list_def;
     has_alloc_id_def
   ]
 

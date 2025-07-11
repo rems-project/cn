@@ -1428,8 +1428,6 @@ let rec cn_to_ail_expr_aux
     let ail_expr_ = A.(AilEunary (Indirection, e)) in
     dest d spec_mode_opt (b, s, mk_expr ail_expr_)
   | Tail _xs -> failwith (__LOC__ ^ ": TODO Tail")
-  | NthList (_t1, _t2, _t3) -> failwith (__LOC__ ^ ": TODO NthList")
-  | ArrayToList (_t1, _t2, _t3) -> failwith (__LOC__ ^ ": TODO ArrayToList")
   | Representable (_ct, _t) -> failwith (__LOC__ ^ ": TODO Representable")
   | Good (_ct, _t) -> dest d spec_mode_opt ([], [], cn_bool_true_expr)
   | Aligned _t_and_align -> failwith (__LOC__ ^ ": TODO Aligned")

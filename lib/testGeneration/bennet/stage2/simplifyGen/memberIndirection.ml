@@ -49,8 +49,6 @@ let rec replace_memberof_it
     | Cons (it1, it2) -> IT.Cons (repl it1, repl it2)
     | Head it' -> IT.Head (repl it')
     | Tail it' -> IT.Tail (repl it')
-    | NthList (it1, it2, it3) -> IT.NthList (repl it1, repl it2, repl it3)
-    | ArrayToList (it1, it2, it3) -> IT.ArrayToList (repl it1, repl it2, repl it3)
     | Representable (sct, it') -> IT.Representable (sct, repl it')
     | Good (sct, it') -> IT.Good (sct, repl it')
     | Aligned { t; align } -> IT.Aligned { t = repl t; align = repl align }

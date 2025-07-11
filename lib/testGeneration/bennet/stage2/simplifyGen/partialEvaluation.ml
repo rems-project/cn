@@ -313,8 +313,6 @@ module IndexTerms = struct
       (match it' with
        | IT (Cons (_, it_tail), _, _) -> eval_aux it_tail
        | _ -> Error ("Not `Cons` (" ^ __LOC__ ^ ")"))
-    | NthList _ -> Error "todo: NthList"
-    | ArrayToList _ -> Error "todo: ArrayToList"
     | Representable (ty, it') ->
       let struct_decls =
         Pmap.fold
@@ -458,7 +456,7 @@ module IndexTerms = struct
       (* Shared *)
       | Const _ | Sym _ | Unop _ | Binop _ | ITE _ | EachI _ | NthTuple _ | StructMember _
       | RecordMember _ | MemberShift _ | ArrayShift _ | CopyAllocId _ | HasAllocId _
-      | SizeOf _ | OffsetOf _ | Nil _ | Head _ | Tail _ | NthList _ | ArrayToList _
+      | SizeOf _ | OffsetOf _ | Nil _ | Head _ | Tail _ 
       | Representable _ | Good _ | Aligned _ | MapGet _ | MapDef _ | Apply _ | Match _ ->
         eval_term_generic eval_aux prog5 it
       (* Strict *)
@@ -547,7 +545,7 @@ module IndexTerms = struct
       | Const _ | Sym _ | Unop _ | Binop _ | ITE _ | EachI _ | NthTuple _ | StructMember _
       | StructUpdate _ | RecordMember _ | RecordUpdate _ | SizeOf _ | OffsetOf _
       | MemberShift _ | ArrayShift _ | CopyAllocId _ | HasAllocId _ | Nil _ | Head _
-      | Tail _ | NthList _ | ArrayToList _ | Representable _ | Good _ | Aligned _
+      | Tail _ | Representable _ | Good _ | Aligned _
       | MapGet _ | MapDef _ | Apply _ | Let _ | Match _ ->
         eval_term_generic eval_aux prog5 it
       (* Lazy *)
