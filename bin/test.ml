@@ -143,7 +143,6 @@ let run_tests
         print_endline "No testable functions, trivially passing";
         exit 0);
       Cerb_colour.do_colour := false;
-      Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
       (try
          Fulminate.main
            ~without_ownership_checking
