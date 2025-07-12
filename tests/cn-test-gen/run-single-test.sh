@@ -34,7 +34,7 @@ ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
   "--coverage --sizing-strategy=quartile --experimental-runtime"
   "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction"
-  "--random-size-splits --experimental-runtime")
+  "--random-size-splits --experimental-runtime --smt-pruning")
 
 BUILD_TOOLS=("bash" "make")
 
