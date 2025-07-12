@@ -63,6 +63,9 @@ static char* current_function = NULL;
 static bennet_info_backtrack_generators function_to_generators;
 static bennet_info_backtrack_locations generator_to_locations;
 
+static bennet_info_backtrack_generators function_to_generators_tmp;
+static bennet_info_backtrack_locations generator_to_locations_tmp;
+
 // Initialize the global state
 void bennet_info_backtracks_init(void) {
   if (!initialized) {
@@ -83,6 +86,161 @@ void bennet_info_backtracks_set_function_under_test(const char* function_name) {
   current_function = strdup(function_name);
 }
 
+void bennet_info_backtracks_begin_run(void) {
+  if (!initialized) {
+    return;
+  }
+
+  bennet_hash_table_init(const_str, pointer)(
+      &function_to_generators_tmp, string_hash, string_equal);
+  bennet_hash_table_init(const_str, pointer)(
+      &generator_to_locations_tmp, string_hash, string_equal);
+
+  // Insert an empty table into `function_to_generators`
+  // if `current_function` doesn't exist
+  if (current_function && initialized) {
+    bennet_optional(pointer) gen_counter_opt = bennet_hash_table_get(const_str, pointer)(
+        &function_to_generators, current_function);
+
+    if (bennet_optional_is_none(gen_counter_opt)) {
+      // Create new empty counter for this function
+      bennet_info_backtrack_generators_counter* gen_counter =
+          malloc(sizeof(bennet_info_backtrack_generators_counter));
+      bennet_hash_table_init(const_str, uint64_t)(gen_counter, string_hash, string_equal);
+      bennet_hash_table_set(const_str, pointer)(
+          &function_to_generators, current_function, gen_counter);
+    }
+  }
+}
+
+void bennet_info_backtracks_end_run(bool record) {
+  if (!initialized) {
+    return;
+  }
+
+  if (!record) {
+    // Insert empty tables into generator_to_locations for any generators
+    // that were encountered in the temporary table but don't exist in the permanent table
+    for (size_t i = 0; i < generator_to_locations_tmp.capacity; ++i) {
+      if (generator_to_locations_tmp.entries[i].occupied) {
+        const char* generator_name = generator_to_locations_tmp.entries[i].key;
+
+        // Check if this generator already exists in the permanent table
+        bennet_optional(pointer) loc_counter_opt = bennet_hash_table_get(
+            const_str, pointer)(&generator_to_locations, generator_name);
+
+        if (bennet_optional_is_none(loc_counter_opt)) {
+          // Create new empty counter for this generator
+          bennet_info_backtrack_locations_counter* loc_counter =
+              malloc(sizeof(bennet_info_backtrack_locations_counter));
+          bennet_hash_table_init(location_key_t, uint64_t)(
+              loc_counter, location_hash, location_equal);
+          bennet_hash_table_set(const_str, pointer)(
+              &generator_to_locations, generator_name, loc_counter);
+        }
+      }
+    }
+
+    bennet_hash_table_free(const_str, pointer)(&function_to_generators_tmp);
+    bennet_hash_table_free(const_str, pointer)(&generator_to_locations_tmp);
+    return;
+  }
+
+  // Merge function_to_generators_tmp into function_to_generators
+  for (size_t i = 0; i < function_to_generators_tmp.capacity; ++i) {
+    if (function_to_generators_tmp.entries[i].occupied) {
+      const char* function_name = function_to_generators_tmp.entries[i].key;
+      bennet_info_backtrack_generators_counter* tmp_gen_counter =
+          (bennet_info_backtrack_generators_counter*)function_to_generators_tmp.entries[i]
+              .value;
+
+      // Get or create generator counter for this function in the permanent table
+      bennet_optional(pointer) gen_counter_opt = bennet_hash_table_get(
+          const_str, pointer)(&function_to_generators, function_name);
+
+      bennet_info_backtrack_generators_counter* gen_counter;
+      if (bennet_optional_is_none(gen_counter_opt)) {
+        // Create new counter for this function
+        gen_counter = malloc(sizeof(bennet_info_backtrack_generators_counter));
+        bennet_hash_table_init(const_str, uint64_t)(
+            gen_counter, string_hash, string_equal);
+        bennet_hash_table_set(const_str, pointer)(
+            &function_to_generators, function_name, gen_counter);
+      } else {
+        gen_counter = (bennet_info_backtrack_generators_counter*)bennet_optional_unwrap(
+            gen_counter_opt);
+      }
+
+      // Merge generator counts from temporary to permanent
+      for (size_t j = 0; j < tmp_gen_counter->capacity; ++j) {
+        if (tmp_gen_counter->entries[j].occupied) {
+          const char* generator = tmp_gen_counter->entries[j].key;
+          uint64_t tmp_count = tmp_gen_counter->entries[j].value;
+
+          // Get current count in permanent table
+          bennet_optional(uint64_t) count_opt =
+              bennet_hash_table_get(const_str, uint64_t)(gen_counter, generator);
+          uint64_t current_count =
+              bennet_optional_is_some(count_opt) ? bennet_optional_unwrap(count_opt) : 0;
+
+          // Add temporary count to permanent count
+          bennet_hash_table_set(const_str, uint64_t)(
+              gen_counter, generator, current_count + tmp_count);
+        }
+      }
+    }
+  }
+
+  // Merge generator_to_locations_tmp into generator_to_locations
+  for (size_t i = 0; i < generator_to_locations_tmp.capacity; ++i) {
+    if (generator_to_locations_tmp.entries[i].occupied) {
+      const char* generator_name = generator_to_locations_tmp.entries[i].key;
+      bennet_info_backtrack_locations_counter* tmp_loc_counter =
+          (bennet_info_backtrack_locations_counter*)generator_to_locations_tmp.entries[i]
+              .value;
+
+      // Get or create location counter for this generator in the permanent table
+      bennet_optional(pointer) loc_counter_opt = bennet_hash_table_get(
+          const_str, pointer)(&generator_to_locations, generator_name);
+
+      bennet_info_backtrack_locations_counter* loc_counter;
+      if (bennet_optional_is_none(loc_counter_opt)) {
+        // Create new counter for this generator
+        loc_counter = malloc(sizeof(bennet_info_backtrack_locations_counter));
+        bennet_hash_table_init(location_key_t, uint64_t)(
+            loc_counter, location_hash, location_equal);
+        bennet_hash_table_set(const_str, pointer)(
+            &generator_to_locations, generator_name, loc_counter);
+      } else {
+        loc_counter = (bennet_info_backtrack_locations_counter*)bennet_optional_unwrap(
+            loc_counter_opt);
+      }
+
+      // Merge location counts from temporary to permanent
+      for (size_t j = 0; j < tmp_loc_counter->capacity; ++j) {
+        if (tmp_loc_counter->entries[j].occupied) {
+          location_key_t loc_key = tmp_loc_counter->entries[j].key;
+          uint64_t tmp_count = tmp_loc_counter->entries[j].value;
+
+          // Get current count in permanent table
+          bennet_optional(uint64_t) count_opt =
+              bennet_hash_table_get(location_key_t, uint64_t)(loc_counter, loc_key);
+          uint64_t current_count =
+              bennet_optional_is_some(count_opt) ? bennet_optional_unwrap(count_opt) : 0;
+
+          // Add temporary count to permanent count
+          bennet_hash_table_set(location_key_t, uint64_t)(
+              loc_counter, loc_key, current_count + tmp_count);
+        }
+      }
+    }
+  }
+
+  // Free temporary tables
+  bennet_hash_table_free(const_str, pointer)(&function_to_generators_tmp);
+  bennet_hash_table_free(const_str, pointer)(&generator_to_locations_tmp);
+}
+
 void bennet_info_backtracks_log(
     const char* generator, const char* filename, int line_number) {
   if (!initialized) {
@@ -93,7 +251,7 @@ void bennet_info_backtracks_log(
 
   // Get or create generator counter for this function
   bennet_optional(pointer) gen_counter_opt = bennet_hash_table_get(const_str, pointer)(
-      &function_to_generators, current_function);
+      &function_to_generators_tmp, current_function);
 
   bennet_info_backtrack_generators_counter* gen_counter;
   if (bennet_optional_is_none(gen_counter_opt)) {
@@ -101,7 +259,7 @@ void bennet_info_backtracks_log(
     gen_counter = malloc(sizeof(bennet_info_backtrack_generators_counter));
     bennet_hash_table_init(const_str, uint64_t)(gen_counter, string_hash, string_equal);
     bennet_hash_table_set(const_str, pointer)(
-        &function_to_generators, current_function, gen_counter);
+        &function_to_generators_tmp, current_function, gen_counter);
   } else {
     gen_counter = (bennet_info_backtrack_generators_counter*)bennet_optional_unwrap(
         gen_counter_opt);
@@ -116,7 +274,7 @@ void bennet_info_backtracks_log(
 
   // Get or create location counter for this generator
   bennet_optional(pointer) loc_counter_opt =
-      bennet_hash_table_get(const_str, pointer)(&generator_to_locations, generator);
+      bennet_hash_table_get(const_str, pointer)(&generator_to_locations_tmp, generator);
 
   bennet_info_backtrack_locations_counter* loc_counter;
   if (bennet_optional_is_none(loc_counter_opt)) {
@@ -125,7 +283,7 @@ void bennet_info_backtracks_log(
     bennet_hash_table_init(location_key_t, uint64_t)(
         loc_counter, location_hash, location_equal);
     bennet_hash_table_set(const_str, pointer)(
-        &generator_to_locations, generator, loc_counter);
+        &generator_to_locations_tmp, generator, loc_counter);
   } else {
     loc_counter =
         (bennet_info_backtrack_locations_counter*)bennet_optional_unwrap(loc_counter_opt);
@@ -206,6 +364,9 @@ void bennet_info_backtracks_print_backtrack_info(void) {
       }
 
       printf("%s: %" PRIu64 " backtracks\n", function_name, total_backtracks);
+      if (total_backtracks == 0) {
+        continue;
+      }
 
       // Collect generator counts for sorting
       gen_count_entry_t* gen_entries = malloc(gen_count * sizeof(gen_count_entry_t));
@@ -258,7 +419,10 @@ void bennet_info_backtracks_print_backtrack_info(void) {
         }
       }
 
-      printf("%s: %" PRIu64 "\n", generator_name, total_backtracks);
+      printf("%s: %" PRIu64 " backtracks\n", generator_name, total_backtracks);
+      if (total_backtracks == 0) {
+        continue;
+      }
 
       // Collect location counts for sorting
       loc_count_entry_t* loc_entries = malloc(loc_count * sizeof(loc_count_entry_t));
