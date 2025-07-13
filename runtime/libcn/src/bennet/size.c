@@ -27,8 +27,12 @@ void bennet_set_max_size(size_t sz) {
 static uint16_t stack_depth = 0;
 static uint16_t max_stack_depth = UINT8_MAX;
 
-uint16_t bennet_depth() {
+uint16_t bennet_get_depth() {
   return stack_depth;
+}
+
+void bennet_set_depth(uint16_t depth) {
+  stack_depth = depth;
 }
 
 uint16_t bennet_max_depth() {

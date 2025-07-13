@@ -16,7 +16,8 @@ void bennet_set_size(size_t sz);
 size_t bennet_get_max_size(void);
 void bennet_set_max_size(size_t sz);
 
-uint16_t bennet_depth();
+uint16_t bennet_get_depth();
+void bennet_set_depth(uint16_t);
 uint16_t bennet_max_depth();
 void bennet_set_max_depth(uint16_t msd);
 void bennet_increment_depth();
