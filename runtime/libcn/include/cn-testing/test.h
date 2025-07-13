@@ -26,6 +26,7 @@ struct cn_test_input {
   enum bennet_sizing_strategy sizing_strategy;
   bool trap;
   bool replicas;
+  bool log_all_backtracks;
   bool output_tyche;
   FILE* tyche_output_stream;
   uint64_t begin_time;
@@ -129,6 +130,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       case CN_FAILURE_ALLOC:                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
+        bennet_info_backtracks_end_run(true);                                            \
         break;                                                                           \
     }                                                                                    \
     for (; i < Samples; i++) {                                                           \
@@ -157,13 +159,18 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       } else {                                                                           \
         bennet_set_input_timeout(0);                                                     \
       }                                                                                  \
+                                                                                         \
+      bennet_info_backtracks_begin_run();                                                \
       bennet_##FuncName##_record* res = bennet_##FuncName();                             \
       if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                  \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
+        bennet_info_backtracks_end_run(true);                                            \
         continue;                                                                        \
       }                                                                                  \
+      bennet_info_backtracks_end_run(test_input.log_all_backtracks);                     \
+                                                                                         \
       assume_##FuncName(__VA_ARGS__);                                                    \
       (void)Init(res);                                                                   \
       if (test_input.replicas || test_input.output_tyche) {                              \

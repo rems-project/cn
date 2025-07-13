@@ -304,6 +304,7 @@ int cn_test_main(int argc, char* argv[]) {
           .sizing_strategy = sizing_strategy,
           .trap = 0,
           .replicas = 0,
+          .log_all_backtracks = 0,
           .output_tyche = output_tyche,
           .tyche_output_stream = tyche_output_stream,
           .begin_time = begin_time};
