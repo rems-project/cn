@@ -12,7 +12,8 @@
       bennet_domain(c_ty) * cs_tmp,                                                      \
       const bennet_checkpoint *cp,                                                       \
       const void *var) {                                                                 \
-    assert(bennet_failure_get_failure_type() != BENNET_FAILURE_NONE);                    \
+    enum bennet_failure_type ty = bennet_failure_get_failure_type();                     \
+    assert(ty != BENNET_FAILURE_NONE);                                                   \
                                                                                          \
     if (!bennet_failure_is_blamed(var)) {                                                \
       return false;                                                                      \
@@ -26,7 +27,6 @@
       }                                                                                  \
     }                                                                                    \
                                                                                          \
-    enum bennet_failure_type ty = bennet_failure_get_failure_type();                     \
     switch (ty) {                                                                        \
       case BENNET_FAILURE_ASSERT:                                                        \
       case BENNET_FAILURE_ASSIGN:                                                        \
@@ -53,6 +53,7 @@
         return true;                                                                     \
                                                                                          \
       case BENNET_FAILURE_NONE:                                                          \
+      case BENNET_FAILURE_TIMEOUT:                                                       \
         assert(false); /* unreachable */                                                 \
     }                                                                                    \
                                                                                          \
@@ -94,6 +95,7 @@ bool bennet_backtrack(int *backtracks, const bennet_checkpoint *cp, const void *
       return true;
 
     case BENNET_FAILURE_NONE:
+    case BENNET_FAILURE_TIMEOUT:
       assert(false); /* unreachable */
   }
 

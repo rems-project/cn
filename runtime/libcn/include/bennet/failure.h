@@ -8,7 +8,8 @@ enum bennet_failure_type {
   BENNET_BACKTRACK_NONE,
   BENNET_BACKTRACK_ASSERT,
   BENNET_BACKTRACK_ALLOC,
-  BENNET_BACKTRACK_DEPTH
+  BENNET_BACKTRACK_DEPTH,
+  BENNET_BACKTRACK_TIMEOUT
 };
 
 enum bennet_failure_type bennet_failure_get_failure_type(void);

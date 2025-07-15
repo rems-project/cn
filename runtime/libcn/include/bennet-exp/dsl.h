@@ -17,7 +17,7 @@
       bennet_get_milliseconds() - bennet_get_input_timer() >                             \
           bennet_get_input_timeout()) {                                                  \
     bennet_failure_reset();                                                              \
-    bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                              \
+    bennet_failure_set_failure_type(BENNET_FAILURE_TIMEOUT);                             \
     goto bennet_label_bennet_backtrack;                                                  \
   }
 
