@@ -1779,20 +1779,35 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         in
         return (eq_ (lhs, rhs) here)
       | Pointer _ ->
-        (* FIXME this totally ignores provenances *)
         let bt = Memory.uintptr_bt in
-        let lhs = cast_ bt value here in
-        let rhs =
-          let[@ocaml.warning "-8"] (b :: bytes) =
-            List.init Memory.size_of_pointer (fun i ->
-              let index = int_lit_ i WellTyped.default_quantifier_bt here in
-              let casted = cast_ bt (map_get_ byte_arr index here) here in
-              let shift_amt = int_lit_ (i * 8) bt here in
-              IT.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
-          in
-          List.fold_left (fun x y -> IT.add_ (x, y) here) b bytes
+        let value_prov = cast_ BT.Alloc_id value here in
+        let value_addr = cast_ bt value here in
+        let bytes =
+          List.init Memory.size_of_pointer (fun i ->
+            let index = int_lit_ i WellTyped.default_quantifier_bt here in
+            map_get_ byte_arr index here)
         in
-        return (eq_ (lhs, rhs) here)
+        let bytes_addr =
+          let[@ocaml.warning "-8"] (a :: addrs) =
+            List.mapi
+              (fun i byte ->
+                 let casted = cast_ bt byte here in
+                 let shift_amt = int_lit_ (i * 8) bt here in
+                 IT.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
+              bytes
+          in
+          List.fold_left (fun x y -> IT.add_ (x, y) here) a addrs
+        in
+        let bytes_prov_eq =
+          and_
+            (List.map
+               (fun byte ->
+                  let casted = cast_ BT.Alloc_id byte here in
+                  eq_ (casted, value_prov) here)
+               bytes)
+            here
+        in
+        return (and2_ (bytes_prov_eq, eq_ (value_addr, bytes_addr) here) here)
     in
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     let do_unpack (req, o) =

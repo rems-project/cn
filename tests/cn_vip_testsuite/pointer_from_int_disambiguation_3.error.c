@@ -16,6 +16,7 @@ int main()
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
   /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
+  /*CN_VIP*//*@ apply array_bits_eq_8(&p, &q, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
 #ifdef NO_ROUND_TRIP
