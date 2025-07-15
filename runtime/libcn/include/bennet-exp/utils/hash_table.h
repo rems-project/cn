@@ -104,13 +104,29 @@ BENNET_DEFAULT_EQUALITY_IMPL(uint64_t)
         cap *= 2;                                                                        \
       }                                                                                  \
                                                                                          \
-      bennet_hash_entry(kty, vty) *new_entries = (bennet_hash_entry(kty, vty) *)realloc( \
-          table->entries, cap * sizeof(*new_entries));                                   \
+      bennet_hash_entry(kty, vty) *old_entries = table->entries;                         \
+      size_t old_capacity = table->capacity;                                             \
+      bennet_hash_entry(kty, vty) *new_entries =                                         \
+          (bennet_hash_entry(kty, vty) *)calloc(cap, sizeof(*new_entries));              \
       assert(new_entries != NULL);                                                       \
                                                                                          \
-      /* Clear new entries */                                                            \
-      for (size_t i = table->capacity; i < cap; ++i) {                                   \
-        new_entries[i].occupied = false;                                                 \
+      /* Rehash existing entries into new array */                                       \
+      if (old_entries) {                                                                 \
+        for (size_t i = 0; i < old_capacity; ++i) {                                      \
+          if (old_entries[i].occupied) {                                                 \
+            kty key = old_entries[i].key;                                                \
+            vty value = old_entries[i].value;                                            \
+            size_t hash = table->hash_fn(key);                                           \
+            size_t index = hash % cap;                                                   \
+            while (new_entries[index].occupied) {                                        \
+              index = (index + 1) % cap;                                                 \
+            }                                                                            \
+            new_entries[index].key = key;                                                \
+            new_entries[index].value = value;                                            \
+            new_entries[index].occupied = true;                                          \
+          }                                                                              \
+        }                                                                                \
+        free(old_entries);                                                               \
       }                                                                                  \
                                                                                          \
       table->entries = new_entries;                                                      \
