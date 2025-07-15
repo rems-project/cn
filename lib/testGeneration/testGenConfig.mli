@@ -34,6 +34,7 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_runtime : bool;
+    experimental_learning : bool;
     smt_pruning : bool;
     (* Run time *)
     print_seed : bool;
@@ -97,6 +98,8 @@ val is_experimental_struct_asgn_destruction : unit -> bool
 val is_experimental_product_arg_destruction : unit -> bool
 
 val is_experimental_runtime : unit -> bool
+
+val is_experimental_learning : unit -> bool
 
 val has_smt_pruning : unit -> bool
 

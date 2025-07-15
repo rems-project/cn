@@ -34,6 +34,7 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_runtime : bool;
+    experimental_learning : bool;
     smt_pruning : bool;
     (* Run time *)
     print_seed : bool;
@@ -71,6 +72,7 @@ let default =
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
     experimental_runtime = false;
+    experimental_learning = false;
     smt_pruning = false;
     print_seed = false;
     input_timeout = None;
@@ -169,6 +171,8 @@ let is_experimental_product_arg_destruction () =
 
 
 let is_experimental_runtime () = (Option.get !instance).experimental_runtime
+
+let is_experimental_learning () = (Option.get !instance).experimental_learning
 
 let has_smt_pruning () = (Option.get !instance).smt_pruning
 
