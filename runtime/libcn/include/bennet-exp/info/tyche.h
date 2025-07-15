@@ -5,6 +5,7 @@ struct tyche_line_info {
   char *test_suite;
   char *test_name;
   char *status;
+  char *status_reason;
   uint64_t suite_begin_time;
   char *representation;
   int64_t init_time;

@@ -342,6 +342,7 @@ int cn_test_main(int argc, char* argv[]) {
             test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
             test_input.trap = trap;
             test_input.replicas = replicas;
+            test_input.output_tyche = 0;
             enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
