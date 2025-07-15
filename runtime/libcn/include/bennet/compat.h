@@ -8,3 +8,5 @@ void bennet_info_sizes_init(void);
 void bennet_info_sizes_set_function_under_test(const char*);
 void bennet_info_sizes_print_info(void);
 void bennet_info_sizes_log(void);
+
+int is_bennet_experimental(void);

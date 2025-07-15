@@ -10,3 +10,7 @@ void bennet_reset(void) {
   bennet_rand_alloc_free_all();
   bennet_set_depth(0);
 }
+
+int is_bennet_experimental(void) {
+  return 1;
+}

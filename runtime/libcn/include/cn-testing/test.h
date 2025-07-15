@@ -110,7 +110,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
                                                                                          \
-        if (test_input.replicas && test_input.output_tyche) {                            \
+        if (test_input.output_tyche) {                                                   \
           int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \

@@ -36,3 +36,7 @@ void bennet_info_sizes_set_function_under_test(const char* fut) {
 }
 
 void bennet_info_sizes_log(void) {}
+
+int is_bennet_experimental(void) {
+  return 0;
+}

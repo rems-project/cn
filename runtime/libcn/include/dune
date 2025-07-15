@@ -27,6 +27,7 @@
   (bennet/prelude.h as runtime/include/bennet/prelude.h)
   (bennet/rand.h as runtime/include/bennet/rand.h)
   (bennet/size.h as runtime/include/bennet/size.h)
+  (bennet/tyche.h as runtime/include/bennet/tyche.h)
   (bennet/uniform.h as runtime/include/bennet/uniform.h)
   (bennet/urn.h as runtime/include/bennet/urn.h)
   ; Bennet - Experimental
@@ -41,6 +42,7 @@
    as
    runtime/include/bennet-exp/info/backtracks.h)
   (bennet-exp/info/sizes.h as runtime/include/bennet-exp/info/sizes.h)
+  (bennet-exp/info/tyche.h as runtime/include/bennet-exp/info/tyche.h)
   (bennet-exp/internals/domain.h
    as
    runtime/include/bennet-exp/internals/domain.h)
