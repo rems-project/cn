@@ -113,9 +113,37 @@ void bennet_info_backtracks_begin_run(void) {
   }
 }
 
+static uint64_t last_backtrack_counts;
+
+uint64_t bennet_info_backtracks_last_total(void) {
+  return last_backtrack_counts;
+}
+
 void bennet_info_backtracks_end_run(bool record) {
   if (!initialized) {
     return;
+  }
+
+  last_backtrack_counts = 0;
+  for (size_t i = 0; i < function_to_generators_tmp.capacity; ++i) {
+    if (function_to_generators_tmp.entries[i].occupied) {
+      const char* function_name = function_to_generators_tmp.entries[i].key;
+
+      bennet_optional(pointer) gen_counter_opt = bennet_hash_table_get(
+          const_str, pointer)(&function_to_generators_tmp, function_name);
+
+      if (bennet_optional_is_none(gen_counter_opt)) {
+        continue;
+      }
+
+      bennet_info_backtrack_generators_counter* gen_counter =
+          bennet_optional_unwrap(gen_counter_opt);
+      for (size_t j = 0; j < gen_counter->capacity; ++j) {
+        if (gen_counter->entries[j].occupied) {
+          last_backtrack_counts += gen_counter->entries[j].value;
+        }
+      }
+    }
   }
 
   if (!record) {
@@ -346,54 +374,56 @@ void bennet_info_backtracks_print_backtrack_info(void) {
 
   // Iterate through all functions and their generator counters
   for (size_t i = 0; i < function_to_generators.capacity; ++i) {
-    if (function_to_generators.entries[i].occupied) {
-      const char* function_name = function_to_generators.entries[i].key;
-      bennet_info_backtrack_generators_counter* gen_counter =
-          (bennet_info_backtrack_generators_counter*)function_to_generators.entries[i]
-              .value;
+    if (!function_to_generators.entries[i].occupied) {
+      continue;
+    }
 
-      // Calculate total generators and backtracks for this function
-      size_t gen_count = 0;
-      uint64_t total_backtracks = 0;
-      for (size_t j = 0; j < gen_counter->capacity; ++j) {
-        if (gen_counter->entries[j].occupied) {
-          gen_count++;
-          total_backtracks += gen_counter->entries[j].value;
-        }
+    const char* function_name = function_to_generators.entries[i].key;
+    bennet_info_backtrack_generators_counter* gen_counter =
+        (bennet_info_backtrack_generators_counter*)function_to_generators.entries[i]
+            .value;
+
+    // Calculate total generators and backtracks for this function
+    size_t gen_count = 0;
+    uint64_t total_backtracks = 0;
+    for (size_t j = 0; j < gen_counter->capacity; ++j) {
+      if (gen_counter->entries[j].occupied) {
+        gen_count++;
+        total_backtracks += gen_counter->entries[j].value;
       }
+    }
 
-      printf("%s: %" PRIu64 " backtracks\n", function_name, total_backtracks);
-      if (total_backtracks == 0) {
+    printf("%s: %" PRIu64 " backtracks\n", function_name, total_backtracks);
+    if (total_backtracks == 0) {
+      continue;
+    }
+
+    // Collect generator counts for sorting
+    gen_count_entry_t* gen_entries = malloc(gen_count * sizeof(gen_count_entry_t));
+    size_t idx = 0;
+    for (size_t j = 0; j < gen_counter->capacity; ++j) {
+      if (gen_counter->entries[j].occupied) {
+        gen_entries[idx].key = gen_counter->entries[j].key;
+        gen_entries[idx].value = gen_counter->entries[j].value;
+        idx++;
+      }
+    }
+    qsort(gen_entries, gen_count, sizeof(gen_count_entry_t), compare_gen_count_desc);
+
+    // Print sorted generator counts
+    for (size_t j = 0; j < gen_count; ++j) {
+      double percent = (double)gen_entries[j].value / (double)total_backtracks * 100;
+      if (percent < 1) {
         continue;
       }
 
-      // Collect generator counts for sorting
-      gen_count_entry_t* gen_entries = malloc(gen_count * sizeof(gen_count_entry_t));
-      size_t idx = 0;
-      for (size_t j = 0; j < gen_counter->capacity; ++j) {
-        if (gen_counter->entries[j].occupied) {
-          gen_entries[idx].key = gen_counter->entries[j].key;
-          gen_entries[idx].value = gen_counter->entries[j].value;
-          idx++;
-        }
-      }
-      qsort(gen_entries, gen_count, sizeof(gen_count_entry_t), compare_gen_count_desc);
-
-      // Print sorted generator counts
-      for (size_t j = 0; j < gen_count; ++j) {
-        double percent = (double)gen_entries[j].value / (double)total_backtracks * 100;
-        if (percent < 1) {
-          continue;
-        }
-
-        printf("  %s: %.0f%% (%" PRIu64 " backtracks)\n",
-            gen_entries[j].key,
-            percent,
-            gen_entries[j].value);
-      }
-      free(gen_entries);
-      printf("\n");
+      printf("  %s: %.0f%% (%" PRIu64 " backtracks)\n",
+          gen_entries[j].key,
+          percent,
+          gen_entries[j].value);
     }
+    free(gen_entries);
+    printf("\n");
   }
 
   printf("===========\n");
@@ -402,55 +432,56 @@ void bennet_info_backtracks_print_backtrack_info(void) {
 
   // Iterate through all generators and their location counters
   for (size_t i = 0; i < generator_to_locations.capacity; ++i) {
-    if (generator_to_locations.entries[i].occupied) {
-      const char* generator_name = generator_to_locations.entries[i].key;
-      bennet_info_backtrack_locations_counter* loc_counter =
-          (bennet_info_backtrack_locations_counter*)generator_to_locations.entries[i]
-              .value;
+    if (!generator_to_locations.entries[i].occupied) {
+      continue;
+    }
 
-      // Calculate total backtracks for this generator
-      size_t loc_count = 0;
-      uint64_t total_backtracks = 0;
-      for (size_t j = 0; j < loc_counter->capacity; ++j) {
-        if (loc_counter->entries[j].occupied) {
-          loc_count++;
-          total_backtracks += loc_counter->entries[j].value;
-        }
+    const char* generator_name = generator_to_locations.entries[i].key;
+    bennet_info_backtrack_locations_counter* loc_counter =
+        (bennet_info_backtrack_locations_counter*)generator_to_locations.entries[i].value;
+
+    // Calculate total backtracks for this generator
+    size_t loc_count = 0;
+    uint64_t total_backtracks = 0;
+    for (size_t j = 0; j < loc_counter->capacity; ++j) {
+      if (loc_counter->entries[j].occupied) {
+        loc_count++;
+        total_backtracks += loc_counter->entries[j].value;
       }
+    }
 
-      printf("%s: %" PRIu64 " backtracks\n", generator_name, total_backtracks);
-      if (total_backtracks == 0) {
+    printf("%s: %" PRIu64 " backtracks\n", generator_name, total_backtracks);
+    if (total_backtracks == 0) {
+      continue;
+    }
+
+    // Collect location counts for sorting
+    loc_count_entry_t* loc_entries = malloc(loc_count * sizeof(loc_count_entry_t));
+    size_t idx = 0;
+    for (size_t j = 0; j < loc_counter->capacity; ++j) {
+      if (loc_counter->entries[j].occupied) {
+        loc_entries[idx].key = loc_counter->entries[j].key;
+        loc_entries[idx].value = loc_counter->entries[j].value;
+        idx++;
+      }
+    }
+
+    qsort(loc_entries, loc_count, sizeof(loc_count_entry_t), compare_loc_count_desc);
+
+    // Print sorted location counts
+    for (size_t j = 0; j < loc_count; ++j) {
+      double percent = (double)loc_entries[j].value / (double)total_backtracks * 100;
+      if (percent < 1) {
         continue;
       }
 
-      // Collect location counts for sorting
-      loc_count_entry_t* loc_entries = malloc(loc_count * sizeof(loc_count_entry_t));
-      size_t idx = 0;
-      for (size_t j = 0; j < loc_counter->capacity; ++j) {
-        if (loc_counter->entries[j].occupied) {
-          loc_entries[idx].key = loc_counter->entries[j].key;
-          loc_entries[idx].value = loc_counter->entries[j].value;
-          idx++;
-        }
-      }
-
-      qsort(loc_entries, loc_count, sizeof(loc_count_entry_t), compare_loc_count_desc);
-
-      // Print sorted location counts
-      for (size_t j = 0; j < loc_count; ++j) {
-        double percent = (double)loc_entries[j].value / (double)total_backtracks * 100;
-        if (percent < 1) {
-          continue;
-        }
-
-        printf("  %s:%d: %.0f%% (%" PRIu64 " backtracks)\n",
-            loc_entries[j].key.filename,
-            loc_entries[j].key.line_number,
-            percent,
-            loc_entries[j].value);
-      }
-      free(loc_entries);
-      printf("\n");
+      printf("  %s:%d: %.0f%% (%" PRIu64 " backtracks)\n",
+          loc_entries[j].key.filename,
+          loc_entries[j].key.line_number,
+          percent,
+          loc_entries[j].value);
     }
+    free(loc_entries);
+    printf("\n");
   }
 }

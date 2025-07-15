@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <string.h>
 
 #include <bennet-exp/info/backtracks.h>
@@ -43,6 +44,8 @@ void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info) {
       "\"representation\": \"%s\", "
       "\"features\": {"
       "\"Memory Allocated (Bytes)\": %zu, "
+      "\"Backtracks\": %" PRIu64
+      ", "
       "}, "
       "\"timing\": { \"execute:test\": "
       "%.6lf, \"overall:gc\": 0.0, \"generate:n\": %.6lf }, \"coverage\": {} }\n",
@@ -54,6 +57,7 @@ void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info) {
       line_info->status_reason,
       line_info->representation,
       bennet_info_sizes_last_size(),
+      bennet_info_backtracks_last_total(),
       line_info->runtime / 1000000.0,
       line_info->init_time / 1000000.0);
 }

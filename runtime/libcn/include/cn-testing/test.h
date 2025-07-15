@@ -133,12 +133,14 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
         return CN_TEST_FAIL;                                                             \
       case CN_FAILURE_ALLOC:                                                             \
+        gettimeofday(&end_time, NULL);                                                   \
+                                                                                         \
         d++;                                                                             \
         recentDiscards++;                                                                \
+                                                                                         \
         bennet_info_backtracks_end_run(true);                                            \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          gettimeofday(&end_time, NULL);                                                 \
           int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
@@ -187,9 +189,12 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                  \
         gettimeofday(&end_time, NULL);                                                   \
                                                                                          \
+        gettimeofday(&end_time, NULL);                                                   \
+                                                                                         \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
+                                                                                         \
         bennet_info_backtracks_end_run(true);                                            \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
