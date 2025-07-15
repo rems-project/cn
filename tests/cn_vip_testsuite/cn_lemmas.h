@@ -1,6 +1,14 @@
 [[cerb::byte]] typedef unsigned char byte;
 
 /*@
+function [rec] (boolean) array_bits_eq(map<u64, byte> arr1, map<u64, byte> arr2, u64 end) {
+    let end1 = end - 1u64;
+    end == 0u64 ||
+        ((u8) arr1[end1]) == ((u8) arr2[end1]) && array_bits_eq(arr1, arr2, end1)
+}
+@*/
+
+/*@
 lemma byte_arrays_equal(pointer x, pointer y, u64 n)
 
 requires
@@ -31,7 +39,8 @@ ensures
     take SrcR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift(src, i)) };
     take DestR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift(dest, i)) };
     Src == SrcR; Dest == DestR;
-    (return != 0i32 || Src == Dest) && (return == 0i32 || Src != Dest);
+    let bits_eq = array_bits_eq(Src, Dest, n);
+    (return == 0i32 implies bits_eq) && (return != 0i32 implies !bits_eq);
 @*/
 
 /*@
@@ -40,4 +49,19 @@ requires
     true;
 ensures
     x == y;
+@*/
+
+/*@
+lemma array_bits_eq_8(pointer dest, pointer src, u64 n)
+requires
+    n == sizeof<int*>;
+    take Src = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(src, i)) };
+    take Dest = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(dest, i)) };
+ensures
+    take SrcR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(src, i)) };
+    take DestR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(dest, i)) };
+    Src == SrcR; Dest == DestR;
+    let arr_eq = array_bits_eq(Src, Dest, n);
+    let each_eq = each (u64 i: 0,7; (u8) Src[i] == (u8) Dest[i] );
+    (arr_eq implies each_eq) && (each_eq implies arr_eq);
 @*/
