@@ -262,15 +262,27 @@ int cn_test_main(int argc, char* argv[]) {
         output_tyche = true;
       }
     } else if (strcmp("--print-backtrack-info", arg) == 0) {
+      if (!is_bennet_experimental()) {
+        printf("UNSUPPORTED BACKTRACK INFO ON BASE RUNTIME");
+        assert(is_bennet_experimental());
+      }
+
       print_backtrack_info = true;
-      bennet_info_backtracks_init();
     } else if (strcmp("--print-size-info", arg) == 0) {
+      if (!is_bennet_experimental()) {
+        printf("UNSUPPORTED SIZE INFO ON BASE RUNTIME");
+        assert(is_bennet_experimental());
+      }
       print_size_info = true;
     }
   }
 
   if (output_tyche || print_size_info) {
     bennet_info_sizes_init();
+  }
+
+  if (output_tyche || print_backtrack_info) {
+    bennet_info_backtracks_init();
   }
 
   if (timeout != 0) {
@@ -300,7 +312,7 @@ int cn_test_main(int argc, char* argv[]) {
         bennet_info_sizes_set_function_under_test(test_cases[i].name);
       }
 
-      if (print_backtrack_info) {
+      if (output_tyche || print_backtrack_info) {
         bennet_info_backtracks_set_function_under_test(test_cases[i].name);
       }
 

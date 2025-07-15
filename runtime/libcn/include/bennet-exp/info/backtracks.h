@@ -2,6 +2,7 @@
 #define BENNET_EXP_BACKTRACKS_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +47,8 @@ void bennet_info_backtracks_begin_run(void);
  *       proper initialization of temporary data.
  */
 void bennet_info_backtracks_end_run(bool record);
+
+uint64_t bennet_info_backtracks_last_total(void);
 
 /**
  * Logs a backtrack with generator name, filename, and line number
