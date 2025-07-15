@@ -97,6 +97,7 @@ let define_test_flags () =
     @ (match Config.get_output_tyche () with
        | Some file -> [ "--output-tyche"; file ]
        | None -> [])
+    @ (if Config.will_print_size_info () then [ "--print-size-info" ] else [])
     @ if Config.will_print_backtrack_info () then [ "--print-backtrack-info" ] else []
   in
   !^"TEST_FLAGS := " ^^ separate_map space string flags ^^ hardline

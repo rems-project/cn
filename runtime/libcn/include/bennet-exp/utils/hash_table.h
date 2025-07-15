@@ -57,6 +57,7 @@ BENNET_DEFAULT_HASH_IMPL(int32_t)
 BENNET_DEFAULT_HASH_IMPL(uint32_t)
 BENNET_DEFAULT_HASH_IMPL(int64_t)
 BENNET_DEFAULT_HASH_IMPL(uint64_t)
+BENNET_DEFAULT_HASH_IMPL(size_t)
 
 // Default equality functions for common types
 #define BENNET_DEFAULT_EQUALITY_IMPL(kty)                                                \
@@ -72,6 +73,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(int32_t)
 BENNET_DEFAULT_EQUALITY_IMPL(uint32_t)
 BENNET_DEFAULT_EQUALITY_IMPL(int64_t)
 BENNET_DEFAULT_EQUALITY_IMPL(uint64_t)
+BENNET_DEFAULT_EQUALITY_IMPL(size_t)
 
 // Macro to define hash table functions for given key and value types
 #define BENNET_HASH_TABLE_IMPL(kty, vty)                                                 \

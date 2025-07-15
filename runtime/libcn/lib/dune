@@ -73,6 +73,7 @@
     bennet-exp/rand.o
     bennet-exp/rand_alloc.o
     bennet-exp/size.o
+    bennet-exp/sizes.o
     bennet-exp/uniform.o
     bennet-exp/urn.o))))
 

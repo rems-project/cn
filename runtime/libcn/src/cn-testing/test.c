@@ -161,6 +161,7 @@ int cn_test_main(int argc, char* argv[]) {
   int print_seed = 0;
   bool output_tyche = false;
   FILE* tyche_output_stream = NULL;
+  bool print_size_info = false;
   bool print_backtrack_info = false;
 
   for (int i = 0; i < argc; i++) {
@@ -263,6 +264,9 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--print-backtrack-info", arg) == 0) {
       print_backtrack_info = true;
       bennet_info_backtracks_init();
+    } else if (strcmp("--print-size-info", arg) == 0) {
+      print_size_info = true;
+      bennet_info_sizes_init();
     }
   }
 
@@ -287,6 +291,10 @@ int cn_test_main(int argc, char* argv[]) {
     for (int i = 0; i < num_test_cases; i++) {
       if (results[i] == CN_TEST_FAIL) {
         continue;
+      }
+
+      if (print_size_info) {
+        bennet_info_sizes_set_function_under_test(test_cases[i].name);
       }
 
       if (print_backtrack_info) {
@@ -405,6 +413,12 @@ outside_loop:;
       failed,
       errored,
       skipped);
+
+  if (print_size_info) {
+    printf("\n");
+
+    bennet_info_sizes_print_info();
+  }
 
   if (print_backtrack_info) {
     printf("\n");

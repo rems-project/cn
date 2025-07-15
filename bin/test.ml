@@ -58,6 +58,7 @@ let run_tests
       experimental_product_arg_destruction
       experimental_runtime
       smt_pruning
+      print_size_info
       print_backtrack_info
   =
   (* flags *)
@@ -126,6 +127,7 @@ let run_tests
           no_replays;
           no_replicas;
           output_tyche;
+          print_size_info;
           print_backtrack_info
         }
       in
@@ -460,6 +462,11 @@ module Flags = struct
     Arg.(value & flag & info [ "smt-pruning" ] ~doc)
 
 
+  let print_size_info =
+    let doc = "(Experimental) Print size info" in
+    Arg.(value & flag & info [ "print-size-info" ] ~doc)
+
+
   let print_backtrack_info =
     let doc = "(Experimental) Print backtracking info" in
     Arg.(value & flag & info [ "print-backtrack-info" ] ~doc)
@@ -520,6 +527,7 @@ let cmd =
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_runtime
     $ Flags.smt_pruning
+    $ Flags.print_size_info
     $ Flags.print_backtrack_info
   in
   let doc =
