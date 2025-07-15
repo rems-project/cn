@@ -37,7 +37,7 @@ let expr_loc = function AnnotatedExpression (_, _, loc, _) -> loc
 
 (* build a map from expression locations to statement locations *)
 let expr_locs (expr : 'a expression) =
-  let gen_expr = function AilGAtype (_, x) -> x | AilGAdefault x -> x in
+  let gen_expr = function AilGAtype (_, _, x) -> x | AilGAdefault x -> x in
   let rec f ls exprs =
     match exprs with
     | [] -> ls
@@ -53,7 +53,7 @@ let expr_locs (expr : 'a expression) =
        | AilEcast (_, _, x) -> f ls (x :: exprs)
        | AilEcall (f_x, xs) -> f ls ((f_x :: xs) @ exprs)
        | AilEassert x -> f ls (x :: exprs)
-       | AilEgeneric (x, xs) -> f ls ((x :: List.map gen_expr xs) @ exprs)
+       | AilEgeneric (x, _, xs) -> f ls ((x :: List.map gen_expr xs) @ exprs)
        | AilEarray (_, _, xs) -> f ls (List.filter_map (fun x -> x) xs @ exprs)
        | AilEstruct (_, xs) -> f ls (List.filter_map snd xs @ exprs)
        | AilEunion (_, _, opt_x) -> f ls (Option.to_list opt_x @ exprs)
