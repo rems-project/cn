@@ -57,6 +57,7 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_runtime
+      experimental_learning
       smt_pruning
       print_size_info
       print_backtrack_info
@@ -106,6 +107,7 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_runtime;
+          experimental_learning;
           smt_pruning;
           print_seed;
           input_timeout;
@@ -457,6 +459,11 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-runtime" ] ~doc)
 
 
+  let experimental_learning =
+    let doc = "Use experimental domain learning" in
+    Arg.(value & flag & info [ "experimental-learning" ] ~doc)
+
+
   let smt_pruning =
     let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
     Arg.(value & flag & info [ "smt-pruning" ] ~doc)
@@ -526,6 +533,7 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_runtime
+    $ Flags.experimental_learning
     $ Flags.smt_pruning
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
