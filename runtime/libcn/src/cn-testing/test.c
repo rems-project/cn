@@ -266,8 +266,11 @@ int cn_test_main(int argc, char* argv[]) {
       bennet_info_backtracks_init();
     } else if (strcmp("--print-size-info", arg) == 0) {
       print_size_info = true;
-      bennet_info_sizes_init();
     }
+  }
+
+  if (output_tyche || print_size_info) {
+    bennet_info_sizes_init();
   }
 
   if (timeout != 0) {
@@ -293,7 +296,7 @@ int cn_test_main(int argc, char* argv[]) {
         continue;
       }
 
-      if (print_size_info) {
+      if (output_tyche || print_size_info) {
         bennet_info_sizes_set_function_under_test(test_cases[i].name);
       }
 
