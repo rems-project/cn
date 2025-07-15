@@ -1223,9 +1223,9 @@ let bytes_qpred sym size pointer init : Req.QPredicate.t =
   let bt' = WellTyped.default_quantifier_bt in
   { q = (sym, bt');
     q_loc = here;
-    step = Sctypes.uchar_ct;
+    step = Sctypes.byte_ct;
     permission = IT.(lt_ (sym_ (sym, bt', here), size) here);
-    name = Owned (Sctypes.uchar_ct, init);
+    name = Owned (Sctypes.byte_ct, init);
     pointer;
     iargs = []
   }
@@ -1780,12 +1780,12 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         return (eq_ (lhs, rhs) here)
       | Pointer _ ->
         (* FIXME this totally ignores provenances *)
-        let bt = WellTyped.default_quantifier_bt in
+        let bt = Memory.uintptr_bt in
         let lhs = cast_ bt value here in
         let rhs =
           let[@ocaml.warning "-8"] (b :: bytes) =
             List.init Memory.size_of_pointer (fun i ->
-              let index = int_lit_ i bt here in
+              let index = int_lit_ i WellTyped.default_quantifier_bt here in
               let casted = cast_ bt (map_get_ byte_arr index here) here in
               let shift_amt = int_lit_ (i * 8) bt here in
               IT.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
@@ -1864,7 +1864,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         in
         let q_sym = Sym.fresh "to_bytes" in
         let bt = WellTyped.default_quantifier_bt in
-        let map_bt = BT.Map (bt, Memory.bt_of_sct Sctypes.uchar_ct) in
+        let map_bt = BT.Map (bt, MemByte) in
         let byte_sym, byte_arr = IT.fresh_named map_bt "byte_arr" here in
         let@ () = add_a byte_sym map_bt (loc, lazy (Pp.string "byte array")) in
         let@ () = add_r loc (Q (bytes_qpred q_sym ct pointer init), O byte_arr) in
@@ -2560,8 +2560,7 @@ let memcpy_proxy_ft =
   let n_sym, n = IT.fresh_named Memory.size_bt "n" here in
   (* requires *)
   let q_bt = WellTyped.default_quantifier_bt in
-  let uchar_bt = Memory.bt_of_sct Sctypes.uchar_ct in
-  let map_bt = BT.Map (q_bt, uchar_bt) in
+  let map_bt = BT.Map (q_bt, MemByte) in
   let destIn_sym, _ = IT.fresh_named map_bt "destIn" here in
   let srcIn_sym, srcIn = IT.fresh_named map_bt "srcIn" here in
   let destRes str init = Req.Q (bytes_qpred (Sym.fresh str) n dest init) in

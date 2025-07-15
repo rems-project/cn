@@ -15,7 +15,7 @@ int main()
   uintptr_t j = (uintptr_t)q;
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
-  /*CN_VIP*/int result = _memcmp((unsigned char*)&p, (unsigned char*)&q, sizeof(p));
+  /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
 #ifdef NO_ROUND_TRIP
