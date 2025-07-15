@@ -1,1 +1,4 @@
-TIMEOUT
+return code: 2
+tests/cn_vip_testsuite/pointer_copy_user_ctrlflow_bytewise.pass.c:9:11: error: constraint violation: statement requires expression of integer type
+  switch (c) {
+          ^ 
