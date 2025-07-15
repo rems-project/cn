@@ -2,8 +2,9 @@
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
+/*CN_VIP*/ [[cerb::byte]] typedef unsigned char byte;
 int x=1;
-unsigned char control_flow_copy(unsigned char c) {
+byte control_flow_copy(byte c) {
   assert(UCHAR_MAX==255);
   switch (c) {
   case 0: return(0);
@@ -265,8 +266,8 @@ unsigned char control_flow_copy(unsigned char c) {
   }
 }
 
-void user_memcpy2(unsigned char* dest,
-                  unsigned char *src, size_t n) {
+void user_memcpy2(byte* dest,
+                  byte *src, size_t n) {
   while (n > 0)  {
     *dest = control_flow_copy(*src);
     src += 1;
@@ -277,7 +278,7 @@ void user_memcpy2(unsigned char* dest,
 int main() {
   int *p = &x;
   int *q;
-  user_memcpy2((unsigned char*)&q, (unsigned char*)&p,
+  user_memcpy2((byte*)&q, (byte*)&p,
               sizeof(p));
   *q = 11; // does this have undefined behaviour?
   //CN_VIP printf("*p=%d  *q=%d\n",*p,*q);

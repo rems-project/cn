@@ -1,21 +1,23 @@
+[[cerb::byte]] typedef unsigned char byte;
+
 /*@
 lemma byte_arrays_equal(pointer x, pointer y, u64 n)
 
 requires
-    take X = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<unsigned char>(x, i)) };
-    take Y = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<unsigned char>(y, i)) };
+    take X = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(x, i)) };
+    take Y = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(y, i)) };
     each (u64 i; 0u64 <= i && i < n) { X[i] == Y[i] };
 
 ensures
-    take XR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<unsigned char>(x, i)) };
-    take YR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<unsigned char>(y, i)) };
+    take XR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(x, i)) };
+    take YR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(y, i)) };
     X == XR; Y == YR;
     XR == YR;
 @*/
 
 #include <stddef.h>
 
-int _memcmp(unsigned char *dest, unsigned char *src, size_t n);
+int _memcmp(byte *dest, byte *src, size_t n);
 /*@ spec _memcmp(pointer dest, pointer src, u64 n);
 
 requires

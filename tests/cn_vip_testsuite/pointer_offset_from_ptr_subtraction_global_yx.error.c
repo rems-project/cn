@@ -13,7 +13,7 @@ int main()
   int *r = p + offset;
   /*CN_VIP*//*@ to_bytes RW<int*>(&r); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
-  /*CN_VIP*/int result = _memcmp((unsigned char*)&r, (unsigned char*)&q, sizeof(r));
+  /*CN_VIP*/int result = _memcmp((byte*)&r, (byte*)&q, sizeof(r));
   /*CN_VIP*//*@ from_bytes RW<int*>(&r); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
 #ifdef NO_ROUND_TRIP
