@@ -96,6 +96,8 @@ void bennet_info_sizes_set_function_under_test(const char* function_name) {
   }
 }
 
+static size_t last_size;
+
 void bennet_info_sizes_log(void) {
   if (!initialized || !current_function) {
     return;
@@ -106,12 +108,16 @@ void bennet_info_sizes_log(void) {
       bennet_hash_table_get(const_str, pointer)(&function_to_sizes, current_function));
 
   // Increment count for this size
-  size_t size = bennet_ownership_size();
+  last_size = bennet_ownership_size();
   bennet_optional(size_t) count_opt =
-      bennet_hash_table_get(size_t, size_t)(size_table, size);
+      bennet_hash_table_get(size_t, size_t)(size_table, last_size);
 
   size_t current_count = bennet_optional_unwrap_or(size_t)(&count_opt, 0);
-  bennet_hash_table_set(size_t, size_t)(size_table, size, current_count + 1);
+  bennet_hash_table_set(size_t, size_t)(size_table, last_size, current_count + 1);
+}
+
+size_t bennet_info_sizes_last_size(void) {
+  return last_size;
 }
 
 void bennet_info_sizes_print_info(void) {

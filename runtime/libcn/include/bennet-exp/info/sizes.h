@@ -2,6 +2,7 @@
 #define BENNET_EXP_SIZES_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -21,6 +22,11 @@ void bennet_info_sizes_set_function_under_test(const char* function_name);
  * Log an input size for the current function under test.
  */
 void bennet_info_sizes_log(void);
+
+/**
+ * @return size_t Last input size logged
+ */
+size_t bennet_info_sizes_last_size(void);
 
 /**
  * Prints size statistics for all functions under test
