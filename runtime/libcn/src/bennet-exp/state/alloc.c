@@ -138,3 +138,15 @@ int bennet_ownership_check(void* p, size_t sz) {
 
   return 1;
 }
+
+size_t bennet_ownership_size(void) {
+  size_t total = 0;
+
+  for (size_t i = 0; i < bennet_vector_size(pointer_data)(&ownership_vector); i++) {
+    pointer_data* pd = bennet_vector_get(pointer_data)(&ownership_vector, i);
+
+    total += pd->sz;
+  }
+
+  return total;
+}

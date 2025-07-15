@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <bennet/compat.h>
 #include <bennet/uniform.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
@@ -162,6 +163,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
       bennet_info_backtracks_begin_run();                                                \
       bennet_##FuncName##_record* res = bennet_##FuncName();                             \
+      bennet_info_sizes_log();                                                           \
       if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                  \
         i--;                                                                             \
         d++;                                                                             \

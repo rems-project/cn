@@ -40,6 +40,7 @@
   (bennet-exp/info/backtracks.h
    as
    runtime/include/bennet-exp/info/backtracks.h)
+  (bennet-exp/info/sizes.h as runtime/include/bennet-exp/info/sizes.h)
   (bennet-exp/internals/domain.h
    as
    runtime/include/bennet-exp/internals/domain.h)

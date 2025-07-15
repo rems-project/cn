@@ -59,7 +59,7 @@ BENNET_HASH_TABLE_IMPL(location_key_t, uint64_t);
 
 // Global state
 static bool initialized = false;
-static char* current_function = NULL;
+static const char* current_function = NULL;
 static bennet_info_backtrack_generators function_to_generators;
 static bennet_info_backtrack_locations generator_to_locations;
 
@@ -83,7 +83,7 @@ void bennet_info_backtracks_set_function_under_test(const char* function_name) {
   }
 
   assert(function_name);
-  current_function = strdup(function_name);
+  current_function = function_name;
 }
 
 void bennet_info_backtracks_begin_run(void) {
@@ -180,8 +180,7 @@ void bennet_info_backtracks_end_run(bool record) {
           // Get current count in permanent table
           bennet_optional(uint64_t) count_opt =
               bennet_hash_table_get(const_str, uint64_t)(gen_counter, generator);
-          uint64_t current_count =
-              bennet_optional_is_some(count_opt) ? bennet_optional_unwrap(count_opt) : 0;
+          uint64_t current_count = bennet_optional_unwrap_or(uint64_t)(&count_opt, 0);
 
           // Add temporary count to permanent count
           bennet_hash_table_set(const_str, uint64_t)(
