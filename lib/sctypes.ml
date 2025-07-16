@@ -80,6 +80,7 @@ type ctype =
       (qualifiers * ctype)
       * (ctype * (* is_register *) bool) list
       * (* is_variadic *) bool
+  | Byte
 [@@deriving eq, ord]
 
 type t = ctype
@@ -142,6 +143,7 @@ let rec to_ctype (ct_ : ctype) =
     | Array (t, oi) -> Array (to_ctype t, Option.map Z.of_int oi)
     | Pointer t -> Pointer (Ctype.no_qualifiers, to_ctype t)
     | Struct t -> Struct t
+    | Byte -> Byte
     | Function ((ret_q, ret_ct), args, variadic) ->
       let args =
         List.map
@@ -184,6 +186,7 @@ let rec of_ctype (Ctype.Ctype (_, ct_)) =
     return (Pointer t)
   | Ctype.Atomic _ -> None
   | Ctype.Struct s -> return (Struct s)
+  | Byte -> return Byte
   | Union _ -> fail
 
 

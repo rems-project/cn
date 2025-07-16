@@ -691,7 +691,8 @@ let rec pp_ctype (Ctype.Ctype (annots, ct)) =
          pp_constructor "Ctype.Pointer" [ pp_qualifiers quals; pp_ctype ct ]
        | Ctype.Atomic ct -> pp_constructor "Ctype.Atomic" [ pp_ctype ct ]
        | Ctype.Struct sym -> pp_constructor "Ctype.Struct" [ pp_symbol sym ]
-       | Ctype.Union sym -> pp_constructor "Ctype.Union" [ pp_symbol sym ])
+       | Ctype.Union sym -> pp_constructor "Ctype.Union" [ pp_symbol sym ]
+       | Ctype.Byte -> pp_constructor0 "Ctype.Byte")
     ]
 
 
@@ -726,6 +727,7 @@ let rec pp_sctype = function
             pp_bool variadic
           ]
       ]
+  | Sctypes.Byte -> pp_constructor0 "SCtypes.Byte"
 
 
 let rec pp_core_base_type = function

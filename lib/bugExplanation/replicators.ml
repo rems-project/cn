@@ -171,6 +171,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
   let b1, s1 =
     match sct with
     | Void -> failwith __LOC__
+    | Byte -> failwith ("TODO: Byte case for " ^ __FUNCTION__)
     | Integer _ ->
       ( [ Utils.create_binding buf_sym C.pointer_to_char ],
         A.
