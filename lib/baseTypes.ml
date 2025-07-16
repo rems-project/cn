@@ -137,6 +137,7 @@ let rec of_sct loc is_signed size_of = function
     Map (uintptr_bt loc is_signed size_of, of_sct loc is_signed size_of sct)
   | Pointer sct -> Loc (loc sct)
   | Struct tag -> Struct tag
+  | Byte -> MemByte
   | Function _ -> Cerb_debug.error "todo: function types"
 
 

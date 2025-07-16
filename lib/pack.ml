@@ -43,7 +43,7 @@ let packing_ft ~full loc global provable ret =
   match ret with
   | P ret ->
     (match ret.name with
-     | Owned ((Void | Integer _ | Pointer _ | Function _), _init) -> None
+     | Owned ((Void | Integer _ | Pointer _ | Function _ | Byte), _init) -> None
      | Owned ((Array (ict, olength) as ct), init) ->
        let qpred = unfolded_array loc init (ict, olength) ret.pointer in
        let o_s, o = IT.fresh_named (Memory.bt_of_sct ct) "value" loc in
@@ -104,7 +104,7 @@ let packing_ft ~full loc global provable ret =
 let unpack_owned loc global (ct, init) pointer (O o) =
   let open Sctypes in
   match ct with
-  | Void | Integer _ | Pointer _ | Function _ -> None
+  | Void | Integer _ | Pointer _ | Function _ | Byte -> None
   | Array (ict, olength) -> Some [ (unfolded_array loc init (ict, olength) pointer, O o) ]
   | Struct tag ->
     let layout = Sym.Map.find tag global.Global.struct_decls in
