@@ -325,6 +325,7 @@ module WCT = struct
         let@ _struct_decl = get_struct_decl loc tag in
         return ()
       | Function ((_, rct), args, _) -> ListM.iterM aux (rct :: List.map fst args)
+      | Byte -> return ()
     in
     fun ct -> aux ct
 end

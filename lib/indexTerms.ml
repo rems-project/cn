@@ -974,7 +974,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let open Memory in
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
-    | Void -> bool_ true loc
+    | Void | Byte -> bool_ true loc
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->
