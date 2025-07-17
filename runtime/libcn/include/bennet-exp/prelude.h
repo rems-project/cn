@@ -6,6 +6,7 @@
 #include <bennet-exp/info/backtracks.h>
 #include <bennet-exp/info/sizes.h>
 #include <bennet-exp/info/tyche.h>
+#include <bennet-exp/info/unsatisfied.h>
 #include <bennet-exp/internals/domain.h>
 #include <bennet-exp/internals/rand.h>
 #include <bennet-exp/internals/size.h>

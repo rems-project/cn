@@ -58,7 +58,8 @@ type t =
     no_replicas : bool;
     output_tyche : string option;
     print_size_info : bool;
-    print_backtrack_info : bool
+    print_backtrack_info : bool;
+    print_satisfaction_info : bool
   }
 
 let default =
@@ -95,7 +96,8 @@ let default =
     no_replicas = false;
     output_tyche = Option.None;
     print_size_info = false;
-    print_backtrack_info = false
+    print_backtrack_info = false;
+    print_satisfaction_info = false
   }
 
 
@@ -237,3 +239,5 @@ let get_output_tyche () = (Option.get !instance).output_tyche
 let will_print_size_info () = (Option.get !instance).print_size_info
 
 let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
+
+let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info

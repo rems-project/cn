@@ -11,11 +11,15 @@
 #define BENNET_ASSERT(cond, last_var, ...)                                               \
   if (!convert_from_cn_bool(cond)) {                                                     \
     bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                        \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                               \
+                                                                                         \
     bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                              \
     const void* vars[] = {__VA_ARGS__};                                                  \
     bennet_failure_blame_many(vars);                                                     \
     goto bennet_label_##last_var##_backtrack;                                            \
-  }
+  }                                                                                      \
+                                                                                         \
+  bennet_info_unsatisfied_log(__FILE__, __LINE__, false);
 
 ////////////
 // Domain //
@@ -125,8 +129,11 @@ BENNET_ASSERT_DOMAIN_IMPL(cn_bits_i64, int64_t, INT64_MIN, INT64_MAX)
     const void* vars[] = {__VA_ARGS__};                                                  \
     if (bennet_assert_domain(cn_ty)(sym, lbi, lbe, ubi, ube, m, vars)) {                 \
       bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+                                                                                         \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   }
 
 #define bennet_assert_domain_cast(cn_ty, cast_cn_ty)                                     \
@@ -254,8 +261,11 @@ BENNET_ASSERT_CAST_IMPL(
     if (bennet_assert_domain_cast(cn_ty, cast_cn_ty)(                                    \
             sym, lbi, lbe, ubi, ube, m, vars)) {                                         \
       bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+                                                                                         \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   }
 
 #endif  // BENNET_EXP_ASSERT_H

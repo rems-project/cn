@@ -61,6 +61,7 @@ let run_tests
       smt_pruning
       print_size_info
       print_backtrack_info
+      print_satisfaction_info
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -130,7 +131,8 @@ let run_tests
           no_replicas;
           output_tyche;
           print_size_info;
-          print_backtrack_info
+          print_backtrack_info;
+          print_satisfaction_info
         }
       in
       TestGeneration.set_config config;
@@ -477,6 +479,11 @@ module Flags = struct
   let print_backtrack_info =
     let doc = "(Experimental) Print backtracking info" in
     Arg.(value & flag & info [ "print-backtrack-info" ] ~doc)
+
+
+  let print_satisfaction_info =
+    let doc = "(Experimental) Print satisfaction info" in
+    Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
 end
 
 let cmd =
@@ -537,6 +544,7 @@ let cmd =
     $ Flags.smt_pruning
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
+    $ Flags.print_satisfaction_info
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
