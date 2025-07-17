@@ -7,6 +7,8 @@
 
 #include <bennet-exp/utils/hash_table.h>
 
+#define MAX_PRINTED 10
+
 // String hash and equality functions
 static size_t string_hash(const char* str) {
   size_t hash = 5381;
@@ -218,14 +220,30 @@ void bennet_info_unsatisfied_log(
   bennet_hash_table_set(location_key_t, boolean)(loc_table, loc_key, new_value);
 }
 
-// Comparison function for qsort of location_key_t
-static int cmp_locations(const void* a, const void* b) {
-  const location_key_t* la = (const location_key_t*)a;
-  const location_key_t* lb = (const location_key_t*)b;
-  int cmp = strcmp(la->filename, lb->filename);
+// Struct to hold all relevant info for sorting
+typedef struct {
+  location_key_t loc;
+  double sat_percentage;
+  double hit_percentage;
+} loc_info_t;
+
+// Custom comparator for sorting loc_info_t
+static int cmp_loc_info(const void* a, const void* b) {
+  const loc_info_t* la = (const loc_info_t*)a;
+  const loc_info_t* lb = (const loc_info_t*)b;
+  if (la->sat_percentage < lb->sat_percentage)
+    return -1;
+  if (la->sat_percentage > lb->sat_percentage)
+    return 1;
+  if (la->hit_percentage > lb->hit_percentage)
+    return -1;
+  if (la->hit_percentage < lb->hit_percentage)
+    return 1;
+  // If still equal, sort by filename then line number
+  int cmp = strcmp(la->loc.filename, lb->loc.filename);
   if (cmp != 0)
     return cmp;
-  return (la->line_number - lb->line_number);
+  return la->loc.line_number - lb->loc.line_number;
 }
 
 void bennet_info_unsatisfied_print_info(void) {
@@ -250,38 +268,51 @@ void bennet_info_unsatisfied_print_info(void) {
           loc_count++;
         }
       }
-      location_key_t* locs = malloc(loc_count * sizeof(location_key_t));
-      satisfaction_counters_t* counters =
-          malloc(loc_count * sizeof(satisfaction_counters_t));
+
+      loc_info_t* infos = malloc(loc_count * sizeof(loc_info_t));
       size_t idx = 0;
       for (size_t j = 0; j < loc_table->capacity; ++j) {
         if (loc_table->entries[j].occupied) {
-          locs[idx] = loc_table->entries[j].key;
-          counters[idx] = loc_table->entries[j].value;
+          location_key_t loc = loc_table->entries[j].key;
+          satisfaction_counters_t c = loc_table->entries[j].value;
+          uint32_t total = c.unsatisfied + c.satisfied;
+
+          assert(total > 0);
+          double sat_percentage = (double)(c.satisfied * 100) / (double)total;
+
+          assert(entry.run_count > 0);
+          double hit_percentage = (double)(total * 100) / (double)entry.run_count;
+
+          infos[idx].loc = loc;
+          infos[idx].sat_percentage = sat_percentage;
+          infos[idx].hit_percentage = hit_percentage;
+
           idx++;
         }
       }
-      // Sort locations
-      qsort(locs, loc_count, sizeof(location_key_t), cmp_locations);
+      qsort(infos, loc_count, sizeof(loc_info_t), cmp_loc_info);
+
+      if (loc_count > MAX_PRINTED) {
+        loc_count = MAX_PRINTED;
+      }
+
       // Print in sorted order
       for (size_t k = 0; k < loc_count; ++k) {
-        // Find the corresponding counters (since we sorted locs, need to find value)
-        // But since we built counters[] in the same order, we can just look up in the hash table
-        satisfaction_counters_t c = bennet_optional_unwrap(bennet_hash_table_get(
-            location_key_t, satisfaction_counters_t)(loc_table, locs[k]));
-        uint32_t total = c.unsatisfied + c.satisfied;
-        assert(total > 0);
-        double sat_percentage = (double)(c.satisfied * 100) / (double)total;
-        assert(entry.run_count > 0);
-        double hit_percentage = (double)(total * 100) / (double)entry.run_count;
-        printf("  %s::%d: %.1f%% satisfied, %.1f%% hit\n",
-            locs[k].filename,
-            locs[k].line_number,
-            sat_percentage,
-            hit_percentage);
+        if (infos[k].sat_percentage > .5) {
+          continue;
+        }
+
+        if (infos[k].hit_percentage < .1) {
+          continue;
+        }
+
+        printf("  %s:%d: %.1f%% satisfied, %.1f%% hit\n",
+            infos[k].loc.filename,
+            infos[k].loc.line_number,
+            infos[k].sat_percentage,
+            infos[k].hit_percentage);
       }
-      free(locs);
-      free(counters);
+      free(infos);
       printf("\n");
     }
   }
