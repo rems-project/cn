@@ -25,7 +25,7 @@ while getopts "hnqu" flag; do
    ;;
    u)
    export UBSAN_OPTIONS=halt_on_error=1
-   export CFLAGS="-fsanitize=undefined"
+   export CFLAGS="-fsanitize=undefined ${CFLAGS:-}"
    ;;
    \?)
    echo_and_err "${USAGE}"
