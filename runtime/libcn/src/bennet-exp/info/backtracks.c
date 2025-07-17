@@ -6,6 +6,8 @@
 #include <bennet-exp/info/backtracks.h>
 #include <bennet-exp/utils/hash_table.h>
 
+#define MAX_PRINTED 10
+
 // String hash and equality functions
 static size_t string_hash(const char* str) {
   size_t hash = 5381;
@@ -408,7 +410,12 @@ void bennet_info_backtracks_print_backtrack_info(void) {
         idx++;
       }
     }
+
     qsort(gen_entries, gen_count, sizeof(gen_count_entry_t), compare_gen_count_desc);
+
+    if (gen_count > MAX_PRINTED) {
+      gen_count = MAX_PRINTED;
+    }
 
     // Print sorted generator counts
     for (size_t j = 0; j < gen_count; ++j) {
@@ -467,6 +474,10 @@ void bennet_info_backtracks_print_backtrack_info(void) {
     }
 
     qsort(loc_entries, loc_count, sizeof(loc_count_entry_t), compare_loc_count_desc);
+
+    if (loc_count > MAX_PRINTED) {
+      loc_count = MAX_PRINTED;
+    }
 
     // Print sorted location counts
     for (size_t j = 0; j < loc_count; ++j) {

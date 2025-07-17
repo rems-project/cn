@@ -10,6 +10,8 @@
 #include <bennet-exp/utils/hash_table.h>
 #include <bennet-exp/utils/optional.h>
 
+#define MAX_PRINTED 10
+
 // Hash and equality functions for strings
 static size_t string_hash(const char* str) {
   size_t hash = 5381;
@@ -168,6 +170,10 @@ void bennet_info_sizes_print_info(void) {
 
     // Sort descending by count
     qsort(entries, size_count, sizeof(size_count_entry_t), compare_size_count_desc);
+
+    if (size_count > MAX_PRINTED) {
+      size_count = MAX_PRINTED;
+    }
 
     // Print sorted size counts
     for (size_t j = 0; j < size_count; ++j) {
