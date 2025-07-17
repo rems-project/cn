@@ -139,6 +139,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         recentDiscards++;                                                                \
                                                                                          \
         bennet_info_backtracks_end_run(true);                                            \
+        bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
           int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
@@ -184,6 +185,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       }                                                                                  \
                                                                                          \
       bennet_info_backtracks_begin_run();                                                \
+      bennet_info_unsatisfied_begin_run();                                               \
       successful_gen = false;                                                            \
       bennet_##FuncName##_record* res = bennet_##FuncName();                             \
       if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                  \
@@ -196,6 +198,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         recentDiscards++;                                                                \
                                                                                          \
         bennet_info_backtracks_end_run(true);                                            \
+        bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
           int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
@@ -218,6 +221,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       successful_gen = true;                                                             \
       bennet_info_sizes_log();                                                           \
       bennet_info_backtracks_end_run(test_input.log_all_backtracks);                     \
+      bennet_info_unsatisfied_end_run(test_input.log_all_backtracks);                    \
                                                                                          \
       assume_##FuncName(__VA_ARGS__);                                                    \
       (void)Init(res);                                                                   \

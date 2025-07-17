@@ -194,8 +194,15 @@ let run () =
           | Some file -> [ "--output-tyche"; file ]
           | None -> [])
        @ (if Config.will_print_size_info () then [ "--print-size-info" ] else [])
-       @ if Config.will_print_backtrack_info () then [ "--print-backtrack-info" ] else []
-      )
+       @ (if Config.will_print_backtrack_info () then
+            [ "--print-backtrack-info" ]
+          else
+            [])
+       @
+       if Config.will_print_satisfaction_info () then
+         [ "--print-satisfaction-info" ]
+       else
+         [])
   in
   !^"# Run"
   ^^ hardline

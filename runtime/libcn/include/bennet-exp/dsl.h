@@ -71,8 +71,11 @@
     const void* vars[] = {__VA_ARGS__};                                                  \
     if (bennet_assign(id, ptr, addr, &value_redir, sizeof(addr_ty), vars)) {             \
       bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+                                                                                         \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   }
 
 #define BENNET_LET_ARBITRARY(backtracks, cn_ty, c_ty, var, last_var)                     \
