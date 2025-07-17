@@ -22,8 +22,8 @@ let transform (prog5 : unit Mucore.file) (paused : _ Typing.pause) (ctx : Stage1
   |> SpecializeEquality.transform
   |> SimplifyGen.transform prog5
   |> SimplifyNames.transform
-  |> (if TestGenConfig.has_smt_pruning () then
-        SmtPruning.transform paused
-      else
-        fun ctx -> ctx)
+  |> (match TestGenConfig.has_smt_pruning () with
+    | `Fast -> SmtPruning.transform paused true
+    | `Slow -> SmtPruning.transform paused false
+    | `None -> fun ctx -> ctx)
   |> SimplifyGen.transform prog5

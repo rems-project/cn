@@ -35,7 +35,7 @@ type t =
     experimental_product_arg_destruction : bool;
     experimental_runtime : bool;
     experimental_learning : bool;
-    smt_pruning : bool;
+    smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -74,7 +74,7 @@ let default =
     experimental_product_arg_destruction = false;
     experimental_runtime = false;
     experimental_learning = false;
-    smt_pruning = false;
+    smt_pruning = `None;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;

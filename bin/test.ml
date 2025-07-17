@@ -468,7 +468,10 @@ module Flags = struct
 
   let smt_pruning =
     let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
-    Arg.(value & flag & info [ "smt-pruning" ] ~doc)
+    Arg.(
+      value
+      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
+      & info [ "smt-pruning" ] ~doc)
 
 
   let print_size_info =

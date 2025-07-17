@@ -1,7 +1,7 @@
 module IT = IndexTerms
 module LC = LogicalConstraints
 
-let transform_gt (tm : Term.t) : Term.t Typing.t =
+let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
   let open Typing in
   let rec aux (tm : Term.t) : Term.t Typing.t =
     let here = Locations.other __LOC__ in
@@ -28,13 +28,18 @@ let transform_gt (tm : Term.t) : Term.t Typing.t =
       let@ wgts = loop wgts in
       return (Term.pick_ (List.filter_map (fun x -> x) wgts) bt loc)
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
-      let sym = Sym.fresh_anon () in
-      let it_sym = IT.sym_ (sym, IT.get_bt it_val, loc) in
       let@ () =
-        add_l_value sym it_val (loc, lazy Pp.(Sym.pp sym ^^^ !^"=" ^^^ IT.pp it_val))
-      in
-      let@ () =
-        add_r loc (P { name = Owned (sct, Init); pointer = it_addr; iargs = [] }, O it_sym)
+        if fast then
+          add_c loc (LC.T (IT.ne_ (it_addr, IT.null_ loc) loc))
+        else (
+          let sym = Sym.fresh_anon () in
+          let it_sym = IT.sym_ (sym, IT.get_bt it_val, loc) in
+          let@ () =
+            add_l_value sym it_val (loc, lazy Pp.(Sym.pp sym ^^^ !^"=" ^^^ IT.pp it_val))
+          in
+          add_r
+            loc
+            (P { name = Owned (sct, Init); pointer = it_addr; iargs = [] }, O it_sym))
       in
       let@ gt_rest = aux gt_rest in
       return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc)
@@ -96,7 +101,7 @@ let transform_gt (tm : Term.t) : Term.t Typing.t =
   aux tm
 
 
-let transform_gd (paused : _ Typing.pause) (def : Def.t) : Def.t =
+let transform_gd (paused : _ Typing.pause) (fast : bool) (def : Def.t) : Def.t =
   let f () =
     Typing.run_from_pause
       (fun _ ->
@@ -110,7 +115,7 @@ let transform_gd (paused : _ Typing.pause) (def : Def.t) : Def.t =
              (return ())
              def.iargs
          in
-         transform_gt def.body)
+         transform_gt fast def.body)
       paused
   in
   match f () with
@@ -120,6 +125,6 @@ let transform_gd (paused : _ Typing.pause) (def : Def.t) : Def.t =
     exit 1
 
 
-let transform (paused : _ Typing.pause) (ctx : Ctx.t) : Ctx.t =
+let transform (paused : _ Typing.pause) (fast : bool) (ctx : Ctx.t) : Ctx.t =
   Cerb_debug.print_debug 2 [] (fun () -> "smt_pruning");
-  List.map_snd (transform_gd paused) ctx
+  List.map_snd (transform_gd paused fast) ctx
