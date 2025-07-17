@@ -35,7 +35,7 @@ type t =
     experimental_product_arg_destruction : bool;
     experimental_runtime : bool;
     experimental_learning : bool;
-    smt_pruning : bool;
+    smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -102,7 +102,7 @@ val is_experimental_runtime : unit -> bool
 
 val is_experimental_learning : unit -> bool
 
-val has_smt_pruning : unit -> bool
+val has_smt_pruning : unit -> [ `None | `Fast | `Slow ]
 
 val has_input_timeout : unit -> int option
 
