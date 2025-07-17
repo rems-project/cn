@@ -2,51 +2,78 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 
+let add_edge_no_cycle (g : SymGraph.t) ((x, y) : Sym.t * Sym.t) : SymGraph.t =
+  let g' =
+    let module Oper = Graph.Oper.P (SymGraph) in
+    SymGraph.add_edge g x y |> Oper.transitive_closure
+  in
+  if SymGraph.fold_edges (fun x y acc -> Sym.equal x y || acc) g' false then
+    g
+  else
+    g'
+
+
 let get_variable_ordering
       (_rec_fsyms : Sym.Set.t)
       (iargs : Sym.Set.t)
       (stmts : Stmt.t list)
   : Sym.t list
   =
-  let module Oper = Graph.Oper.P (SymGraph) in
+  (* Describes data dependencies where [x <- y] means that [x] depends on [y] *)
+  let rec collect_dependencies (stmts : Stmt.t list) : SymGraph.t =
+    match stmts with
+    | Stmt (LetStar (x, gt), _) :: stmts' ->
+      let g = SymGraph.add_vertex (collect_dependencies stmts') x in
+      Sym.Set.fold
+        (fun y g' ->
+           if Sym.Set.mem y iargs then
+             g'
+           else
+             SymGraph.add_edge g' y x)
+        (Term.free_vars gt)
+        g
+    | _ :: stmts' -> collect_dependencies stmts'
+    | [] -> SymGraph.empty
+  in
   (* Insert edges x <- y_1, ..., y_n when x = f(y_1, ..., y_n) *)
-  let rec consider_equalities (stmts : Stmt.t list) : SymGraph.t =
+  let rec consider_equalities (stmts : Stmt.t list) (g : SymGraph.t) : SymGraph.t =
     match stmts with
     | Stmt (LetStar (x, _), _) :: stmts' ->
-      SymGraph.add_vertex (consider_equalities stmts') x
+      consider_equalities stmts' (SymGraph.add_vertex g x)
     | Stmt (Assert (T (IT (Binop (EQ, IT (Sym x, _, _), it), _, _))), _) :: stmts'
     | Stmt
         (Assert (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))), _)
       :: stmts'
       when not (Sym.Set.mem x (IT.free_vars it)) ->
-      let g = consider_equalities stmts' in
       let g' =
         List.fold_left
           (fun g' y ->
              if Sym.Set.mem y iargs || Sym.equal x y then
                g'
              else
-               SymGraph.add_edge_e g' (y, x))
+               add_edge_no_cycle g' (y, x))
           g
           (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
       in
-      g'
+      consider_equalities stmts' g'
     | Stmt (Assert (T (IT (Binop (EQ, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
     | Stmt
         (Assert (T (IT (Binop (EQ, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))), _)
       :: stmts'
       when not (Sym.Set.mem x (IT.free_vars it)) ->
-      let g = consider_equalities stmts' in
-      Seq.fold_left
-        (fun g' y ->
-           if Sym.Set.mem y iargs || Sym.equal x y then
-             g'
-           else
-             SymGraph.add_edge_e g' (y, x))
-        g
-        (it |> IT.free_vars |> Sym.Set.to_seq)
-    | _ :: stmts' -> consider_equalities stmts'
-    | [] -> SymGraph.empty
+      let g' =
+        Seq.fold_left
+          (fun g' y ->
+             if Sym.Set.mem y iargs || Sym.equal x y then
+               g'
+             else
+               add_edge_no_cycle g' (y, x))
+          g
+          (it |> IT.free_vars |> Sym.Set.to_seq)
+      in
+      consider_equalities stmts' g'
+    | _ :: stmts' -> consider_equalities stmts' g
+    | [] -> g
   in
   let rec consider_learnable_constraints (stmts : Stmt.t list) (g : SymGraph.t)
     : SymGraph.t
@@ -87,7 +114,7 @@ let get_variable_ordering
              if Sym.equal x y then
                g'
              else
-               SymGraph.add_edge_e g' (y, x))
+               add_edge_no_cycle g' (y, x))
           g
           (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
       in
@@ -125,7 +152,7 @@ let get_variable_ordering
              if Sym.equal x y then
                g'
              else
-               SymGraph.add_edge_e g' (y, x))
+               add_edge_no_cycle g' (y, x))
           g
           (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
       in
@@ -134,109 +161,51 @@ let get_variable_ordering
     | [] -> g
   in
   (* Put calls before local variables they constrain *)
-  let rec consider_constrained_calls
-            (from_calls : Sym.Set.t)
-            (stmts : Stmt.t list)
-            (g : SymGraph.t)
-    : SymGraph.t
-    =
-    match stmts with
-    | Stmt (LetStar (x, gt), _) :: stmts' when Term.contains_call gt ->
-      consider_constrained_calls (Sym.Set.add x from_calls) stmts' g
-    | Stmt (Asgn _, _) :: stmts' | Stmt (LetStar _, _) :: stmts' ->
-      consider_constrained_calls from_calls stmts' g
-    | Stmt (Assert lc, _) :: stmts' ->
-      let g = consider_constrained_calls from_calls stmts' g in
-      let free_vars = LC.free_vars lc in
-      let call_vars = Sym.Set.inter free_vars from_calls in
-      let non_call_vars = Sym.Set.diff free_vars from_calls in
-      let add_from_call (x : Sym.t) (g : SymGraph.t) : SymGraph.t =
-        Sym.Set.fold (fun y g' -> SymGraph.add_edge g' y x) call_vars g
-      in
-      Sym.Set.fold add_from_call non_call_vars g
-    | [] -> g
-  in
-  (* Describes logical dependencies where [x <- y] means that [x] depends on [y] *)
-  let collect_constraints (stmts : Stmt.t list) : SymGraph.t =
-    let g =
-      consider_equalities stmts
-      |> Oper.transitive_closure
-      |> consider_learnable_constraints stmts
-      |> Oper.transitive_closure
-      |> consider_constrained_calls Sym.Set.empty stmts
-      |> Oper.transitive_closure
-    in
-    assert (not (SymGraph.fold_edges (fun x y acc -> Sym.equal x y || acc) g false));
-    g
-  in
-  (* Describes data dependencies where [x <- y] means that [x] depends on [y] *)
-  let collect_dependencies (stmts : Stmt.t list) : SymGraph.t =
-    let rec aux (stmts : Stmt.t list) : SymGraph.t =
+  let consider_constrained_calls (stmts : Stmt.t list) (g : SymGraph.t) : SymGraph.t =
+    let rec aux (from_calls : Sym.Set.t) (stmts : Stmt.t list) (g : SymGraph.t)
+      : SymGraph.t
+      =
       match stmts with
-      | Stmt (LetStar (x, gt), _) :: stmts' ->
-        let g = SymGraph.add_vertex (aux stmts') x in
-        Sym.Set.fold
-          (fun y g' ->
-             if Sym.Set.mem y iargs then
-               g'
-             else
-               SymGraph.add_edge g' y x)
-          (Term.free_vars gt)
-          g
-      | _ :: stmts' -> aux stmts'
-      | [] -> SymGraph.empty
+      | Stmt (LetStar (x, gt), _) :: stmts' when Term.contains_call gt ->
+        aux (Sym.Set.add x from_calls) stmts' g
+      | Stmt (Asgn _, _) :: stmts' | Stmt (LetStar _, _) :: stmts' ->
+        aux from_calls stmts' g
+      | Stmt (Assert lc, _) :: stmts' ->
+        let g = aux from_calls stmts' g in
+        let free_vars = LC.free_vars lc in
+        let call_vars = Sym.Set.inter free_vars from_calls in
+        let non_call_vars = Sym.Set.diff free_vars from_calls in
+        let add_from_call (x : Sym.t) (g : SymGraph.t) : SymGraph.t =
+          Sym.Set.fold (fun y g' -> add_edge_no_cycle g' (y, x)) call_vars g
+        in
+        Sym.Set.fold add_from_call non_call_vars g
+      | [] -> g
     in
-    stmts |> aux |> Oper.transitive_closure
+    aux Sym.Set.empty stmts g
   in
-  let g_c = collect_constraints stmts in
-  let g_d = collect_dependencies stmts in
-  let orig_order =
-    List.filter_map (function Stmt.Stmt (LetStar (x, _), _) -> Some x | _ -> None) stmts
-  in
-  (* Get variables that should be generated before [x], in the order they appear *)
-  let get_needs (x : Sym.t) (ys : Sym.t list) : Sym.t list =
-    let syms_c =
-      SymGraph.fold_pred
-        (fun y syms -> if List.mem Sym.equal y ys then syms else Sym.Set.add y syms)
-        g_c
-        x
-        Sym.Set.empty
+  (* Get original ordering of variables *)
+  let consider_original_ordering (stmts : Stmt.t list) (g : SymGraph.t) =
+    let rec aux (defined : Sym.Set.t) (stmts : Stmt.t list) (g : SymGraph.t) : SymGraph.t =
+      match stmts with
+      | Stmt (LetStar (x, _), _) :: stmts' ->
+        let g' = Sym.Set.fold (fun y g' -> add_edge_no_cycle g' (y, x)) defined g in
+        let defined' = Sym.Set.add x defined in
+        aux defined' stmts' g'
+      | Stmt (Asgn _, _) :: stmts' | Stmt (Assert _, _) :: stmts' -> aux defined stmts' g
+      | [] -> g
     in
-    let syms =
-      Sym.Set.fold
-        (fun z acc ->
-           Sym.Set.union
-             acc
-             (SymGraph.fold_pred
-                (fun y syms' ->
-                   if List.mem Sym.equal y ys then syms' else Sym.Set.add y syms')
-                g_d
-                z
-                Sym.Set.empty))
-        syms_c
-        syms_c
-    in
-    orig_order |> List.filter (fun x -> Sym.Set.mem x syms)
+    aux Sym.Set.empty stmts g
   in
-  let new_order : Sym.t list -> Sym.t list =
-    List.fold_left
-      (fun acc y ->
-         if List.mem Sym.equal y acc then
-           acc
-         else (
-           let zs = get_needs y acc in
-           if List.is_empty zs then
-             acc @ [ y ]
-           else
-             acc @ zs @ [ y ]))
-      []
+  let g =
+    collect_dependencies stmts
+    |> consider_equalities stmts
+    |> consider_learnable_constraints stmts
+    |> consider_constrained_calls stmts
+    |> consider_original_ordering stmts
   in
-  let rec loop (ys : Sym.t list) : Sym.t list =
-    let old_ys = ys in
-    let new_ys = new_order ys in
-    if List.equal Sym.equal old_ys new_ys then new_ys else loop new_ys
-  in
-  loop orig_order
+  SymGraph.fold_edges (fun x y () -> assert (not (Sym.equal x y))) g ();
+  let module T = Graph.Topological.Make (SymGraph) in
+  List.rev (T.fold List.cons g [])
 
 
 let get_statement_ordering
