@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet-exp/utils.h>
 #include <bennet-exp/utils/hash_table.h>
 
 #define MAX_PRINTED 10
@@ -194,6 +195,8 @@ void bennet_info_unsatisfied_log(
   if (!initialized || !current_function || !filename) {
     return;
   }
+
+  filename = get_basename(filename);
 
   // Get or create location table for current function in the TMP table
   bennet_optional(pointer) loc_table_opt = bennet_hash_table_get(const_str, pointer)(

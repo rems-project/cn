@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <bennet-exp/info/backtracks.h>
+#include <bennet-exp/utils.h>
 #include <bennet-exp/utils/hash_table.h>
 
 #define MAX_PRINTED 10
@@ -277,6 +278,8 @@ void bennet_info_backtracks_log(
   }
 
   assert(current_function && generator && filename);
+
+  filename = get_basename(filename);
 
   // Get or create generator counter for this function
   bennet_optional(pointer) gen_counter_opt = bennet_hash_table_get(const_str, pointer)(
