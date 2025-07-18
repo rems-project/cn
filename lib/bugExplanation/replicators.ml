@@ -170,7 +170,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
   let buf_sym = Sym.fresh "buf" in
   let b1, s1 =
     match sct with
-    | Void -> failwith __LOC__
+    | Void | Byte -> failwith __LOC__
     | Integer _ ->
       ( [ Utils.create_binding buf_sym C.pointer_to_char ],
         A.

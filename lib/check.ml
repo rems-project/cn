@@ -1762,7 +1762,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
       (* FIXME this hard codes big endianness but this should be switchable *)
       let here = Locations.other __LOC__ in
       match ct with
-      | Sctypes.Void | Array (_, _) | Struct _ | Function (_, _, _) ->
+      | Sctypes.Void | Array (_, _) | Struct _ | Function (_, _, _) | Byte ->
         fail (fun _ -> { loc; msg = Unsupported_byte_conv_ct ct })
       | Integer it ->
         let bt = IT.get_bt value in
