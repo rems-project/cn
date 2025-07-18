@@ -7,24 +7,11 @@
 
 #include <bennet-exp/info/sizes.h>
 #include <bennet-exp/state/alloc.h>
+#include <bennet-exp/utils.h>
 #include <bennet-exp/utils/hash_table.h>
 #include <bennet-exp/utils/optional.h>
 
 #define MAX_PRINTED 10
-
-// Hash and equality functions for strings
-static size_t string_hash(const char* str) {
-  size_t hash = 5381;
-  int c;
-  while ((c = *str++)) {
-    hash = ((hash << 5) + hash) + c;
-  }
-  return hash;
-}
-
-static bool string_equal(const char* a, const char* b) {
-  return strcmp(a, b) == 0;
-}
 
 // Typedefs for hash table macros
 typedef const char* const_str;
