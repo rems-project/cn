@@ -1,6 +1,7 @@
 #ifndef BENNET_EXP_UTILS_H
 #define BENNET_EXP_UTILS_H
 
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,6 +27,26 @@ static inline const char* get_basename(const char* filename) {
 
   // Return the substring after the last separator, or the original string if no separator
   return last_separator ? last_separator + 1 : filename;
+}
+
+// String hash and equality functions
+
+/**
+ * @brief 'djb' string hashing function
+ * 
+ * Source: http://www.cse.yorku.ca/~oz/hash.html
+ */
+static inline size_t string_hash(const char* str) {
+  size_t hash = 5381;
+  int c;
+  while ((c = *str++)) {
+    hash = ((hash << 5) + hash) + c;  // hash * 33 + c
+  }
+  return hash;
+}
+
+static inline bool string_equal(const char* a, const char* b) {
+  return strcmp(a, b) == 0;
 }
 
 #endif  // BENNET_EXP_UTILS_H

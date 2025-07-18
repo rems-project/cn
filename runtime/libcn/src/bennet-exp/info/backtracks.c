@@ -9,20 +9,6 @@
 
 #define MAX_PRINTED 10
 
-// String hash and equality functions
-static size_t string_hash(const char* str) {
-  size_t hash = 5381;
-  int c;
-  while ((c = *str++)) {
-    hash = ((hash << 5) + hash) + c;  // hash * 33 + c
-  }
-  return hash;
-}
-
-static bool string_equal(const char* a, const char* b) {
-  return strcmp(a, b) == 0;
-}
-
 // Structure to represent a location (filename + line number)
 typedef struct {
   const char* filename;
