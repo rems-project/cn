@@ -406,8 +406,7 @@ let init_solver () =
         | Context.Value _ -> acc (* no need to declare *)
         | Context.BaseType bt -> (sym, bt) :: acc
       in
-      Sym.Map.fold add_binding c.logical
-        (Sym.Map.fold add_binding c.computational [])
+      Sym.Map.fold add_binding c.logical (Sym.Map.fold add_binding c.computational [])
     in
     let solver = Solver.make c.global to_declare in
     LC.Set.iter (Solver.add_assumption solver c.global) c.constraints;

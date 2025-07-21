@@ -52,10 +52,9 @@ module CN_Constant = struct
 end
 
 type solver_frame =
-  { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
-  }
+  { mutable commands : SMT.sexp list (** Ack-style SMT commands, most recent first. *) }
 
-let empty_solver_frame () = { commands = []; }
+let empty_solver_frame () = { commands = [] }
 
 type solver =
   { smt_solver : SMT.solver; (** The SMT solver connection. *)
@@ -75,7 +74,7 @@ module Debug = struct
   let dump_frame (f : solver_frame) =
     let to_string = Sexplib.Sexp.to_string_hum in
     let append str doc = doc ^/^ !^str in
-    (Pp.separate_map hardline (fun cmd -> !^(to_string cmd)) f.commands)
+    Pp.separate_map hardline (fun cmd -> !^(to_string cmd)) f.commands
     |> append "+---------------------------------"
 
 
@@ -153,8 +152,6 @@ let fresh_name s x =
 let declare_fun s name args_ts res_t =
   let sname = CN_Names.uninterpreted_name name in
   ack_command s (SMT.declare_fun sname args_ts res_t)
-
-
 
 
 (* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
@@ -927,8 +924,8 @@ let rec translate_term s iterm =
   | MapGet (mp, k) -> SMT.arr_select (translate_term s mp) (translate_term s k)
   | MapDef _ -> failwith "MapDef"
   | Apply (fn, args) ->
-     let sname = CN_Names.uninterpreted_name fn in
-     SMT.(app (atom sname) (List.map (translate_term s) args))
+    let sname = CN_Names.uninterpreted_name fn in
+    SMT.(app (atom sname) (List.map (translate_term s) args))
   | Let ((x, e1), e2) ->
     let se1 = translate_term s e1 in
     let name = CN_Names.var_name x in
@@ -1060,86 +1057,80 @@ let shortcut simp_ctxt lc =
 (** {1 Solver Initialization} *)
 
 module CN_Datatypes = struct
+  (** Declare a group of (possibly) mutually recursive datatypes *)
+  let declare_datatype_group s names =
+    let mk_con_field (l, t) = (CN_Names.datatype_field_name l, translate_base_type t) in
+    let mk_con c =
+      let ci = Sym.Map.find c s.globals.datatype_constrs in
+      (CN_Names.datatype_con_name c, List.map mk_con_field ci.params)
+    in
+    let cons (info : BT.dt_info) = List.map mk_con info.constrs in
+    let to_smt (x : Sym.t) =
+      let info = Sym.Map.find x s.globals.datatypes in
+      (CN_Names.datatype_name x, [], cons info)
+    in
+    ack_command s (SMT.declare_datatypes (List.map to_smt names))
 
-(** Declare a group of (possibly) mutually recursive datatypes *)
-let declare_datatype_group s names =
-  let mk_con_field (l, t) = (CN_Names.datatype_field_name l, translate_base_type t) in
-  let mk_con c =
-    let ci = Sym.Map.find c s.globals.datatype_constrs in
-    (CN_Names.datatype_con_name c, List.map mk_con_field ci.params)
-  in
-  let cons (info : BT.dt_info) = List.map mk_con info.constrs in
-  let to_smt (x : Sym.t) =
-    let info = Sym.Map.find x s.globals.datatypes in
-    (CN_Names.datatype_name x, [], cons info)
-  in
-  ack_command s (SMT.declare_datatypes (List.map to_smt names))
 
-let declare s =
-  List.iter (declare_datatype_group s) (Option.get s.globals.datatype_order)
-
+  let declare s =
+    List.iter (declare_datatype_group s) (Option.get s.globals.datatype_order)
 end
-
 
 (** Declare a struct type and all struct types that it depends on.
     The `done_struct` keeps track of which structs we've already declared. *)
 module CN_Structs = struct
-
-let rec declare_struct s done_struct name decl =
-  let mp = !done_struct in
-  if Sym.Set.mem name mp then
-    ()
-  else (
-    done_struct := Sym.Set.add name mp;
-    let mk_field (l, t) =
-      let rec declare_nested ty =
-        match ty with
-        | BT.Struct name' ->
-          let decl = Sym.Map.find name' s.globals.struct_decls in
-          declare_struct s done_struct name' decl
-        | Map (_, el) -> declare_nested el
-        | _ -> ()
+  let rec declare_struct s done_struct name decl =
+    let mp = !done_struct in
+    if Sym.Set.mem name mp then
+      ()
+    else (
+      done_struct := Sym.Set.add name mp;
+      let mk_field (l, t) =
+        let rec declare_nested ty =
+          match ty with
+          | BT.Struct name' ->
+            let decl = Sym.Map.find name' s.globals.struct_decls in
+            declare_struct s done_struct name' decl
+          | Map (_, el) -> declare_nested el
+          | _ -> ()
+        in
+        let ty = Memory.bt_of_sct t in
+        declare_nested ty;
+        (CN_Names.struct_field_name l, translate_base_type ty)
       in
-      let ty = Memory.bt_of_sct t in
-      declare_nested ty;
-      (CN_Names.struct_field_name l, translate_base_type ty)
-    in
-    let mk_piece (x : Memory.struct_piece) = Option.map mk_field x.member_or_padding in
-    ack_command
-      s
-      (SMT.declare_datatype
-         (CN_Names.struct_name name)
-         []
-         [ (CN_Names.struct_con_name name, List.filter_map mk_piece decl) ]))
+      let mk_piece (x : Memory.struct_piece) = Option.map mk_field x.member_or_padding in
+      ack_command
+        s
+        (SMT.declare_datatype
+           (CN_Names.struct_name name)
+           []
+           [ (CN_Names.struct_con_name name, List.filter_map mk_piece decl) ]))
 
-let declare s =
-  let done_structs = ref Sym.Set.empty in
-  Sym.Map.iter (declare_struct s done_structs) s.globals.struct_decls;
 
+  let declare s =
+    let done_structs = ref Sym.Set.empty in
+    Sym.Map.iter (declare_struct s done_structs) s.globals.struct_decls
 end
 
-
 module CN_Functions = struct
-
   let declare_or_define_function s fn =
     let def = Sym.Map.find fn s.globals.logical_functions in
     let ret_t = translate_base_type def.return_bt in
     match def.body with
-    | (Uninterp | Rec_Def _) ->
-       let arg_ts = List.map (fun (_,bt) -> translate_base_type bt) def.args in
-       declare_fun s fn arg_ts ret_t
+    | Uninterp | Rec_Def _ ->
+      let arg_ts = List.map (fun (_, bt) -> translate_base_type bt) def.args in
+      declare_fun s fn arg_ts ret_t
     | Def body ->
-       let sname = CN_Names.uninterpreted_name fn in
-       let mk_arg (sym,bt) = (CN_Names.uninterpreted_name sym, translate_base_type bt) in
-       let args = List.map mk_arg def.args in
-       ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
+      let sname = CN_Names.uninterpreted_name fn in
+      let mk_arg (sym, bt) = (CN_Names.uninterpreted_name sym, translate_base_type bt) in
+      let args = List.map mk_arg def.args in
+      ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
 
-  let declare_function_group s group =
-    List.iter (declare_or_define_function s) group
+
+  let declare_function_group s group = List.iter (declare_or_define_function s) group
 
   let declare s =
-    List.iter (declare_function_group s) (Option.get s.globals.logical_function_order);
-
+    List.iter (declare_function_group s) (Option.get s.globals.logical_function_order)
 end
 
 (** Declare various types always available to the solver. *)
@@ -1155,8 +1146,6 @@ let declare_solver_basics s variable_bindings =
   CN_Datatypes.declare s;
   List.iter (declare_variable s) variable_bindings;
   CN_Functions.declare s
-
-
 
 
 (* Logging *)
@@ -1299,10 +1288,8 @@ let model_evaluator, reset_model_evaluator_state =
      their model; we drop them instead. *)
   let patch_defs defs =
     let patch_def def =
-      let (fn, args, _rbt, value) = Option.get (SMT.to_define_fun def) in
-      match args with
-      | [] -> Some (SMT.(assume (eq fn value)))
-      | _ :: _ -> None
+      let fn, args, _rbt, value = Option.get (SMT.to_define_fun def) in
+      match args with [] -> Some SMT.(assume (eq fn value)) | _ :: _ -> None
     in
     List.filter_map patch_def defs
   in
@@ -1345,7 +1332,7 @@ let model_evaluator, reset_model_evaluator_state =
       let evaluator =
         { smt_solver;
           cur_frame = ref (empty_solver_frame ());
-          prev_frames = ref [empty_solver_frame ()];
+          prev_frames = ref [ empty_solver_frame () ];
           name_seed = solver.name_seed;
           ctypes = solver.ctypes;
           globals = gs
