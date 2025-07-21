@@ -12,7 +12,7 @@ let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : int StringMap.t) (gt : Term.t) : int StringMap.t * Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc | Call _ | Return _ -> (vars, gt)
+    | Arbitrary | Call _ | Return _ -> (vars, gt)
     | Pick wgts ->
       let vars, wgts =
         List.fold_right

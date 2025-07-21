@@ -5,7 +5,7 @@ module GT = Term
 let rec is_external (gt : GT.t) : bool =
   let (GT (gt_, _, _)) = gt in
   match gt_ with
-  | Uniform | Alloc | Return _ -> false
+  | Arbitrary | Return _ -> false
   | Call _ -> true
   | Pick wgts -> wgts |> List.map snd |> List.exists is_external
   | Asgn (_, _, gt_rest) -> is_external gt_rest
@@ -64,7 +64,7 @@ let transform_gt (gt : GT.t) : GT.t =
   let rec aux (ext : Sym.Set.t) (gt : GT.t) : GT.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc | Call _ | Return _ -> gt
+    | Arbitrary | Call _ | Return _ -> gt
     | Pick wgts -> GT.pick_ (List.map_snd (aux ext) wgts) bt loc
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       GT.asgn_ ((it_addr, sct), it_val, aux ext gt_rest) loc

@@ -270,7 +270,7 @@ let transform_gd (gtx : Ctx.t) (gd : Def.t) : Def.t =
     let rec loop (iargs : Sym.Set.t) (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Uniform | Alloc | Call _ | Return _ -> gt
+      | Arbitrary | Call _ | Return _ -> gt
       | Pick wgts -> Term.pick_ (List.map_snd (aux iargs) wgts) bt loc
       | Asgn ((it_addr, sct), it_val, gt_rest) ->
         Term.asgn_ ((it_addr, sct), it_val, loop iargs gt_rest) loc

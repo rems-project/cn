@@ -56,7 +56,7 @@ let rec transform_term
   =
   let loc = Locations.other __LOC__ in
   match tm with
-  | Uniform { bt } ->
+  | Arbitrary { bt = Bits _ as bt } ->
     ( [],
       [],
       A.(
@@ -64,6 +64,13 @@ let rec transform_term
           (AilEcall
              ( mk_expr (AilEident (Sym.fresh "BENNET_UNIFORM")),
                List.map mk_expr [ AilEident (Sym.fresh (name_of_bt bt)) ] ))) )
+  | Arbitrary { bt = Loc () } ->
+    let alloc_sym = Sym.fresh "BENNET_ALLOC" in
+    let b, s, e =
+      transform_it filename sigma name (IT.num_lit_ Z.zero Memory.size_bt loc)
+    in
+    (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
+  | Arbitrary { bt = _ } -> failwith ("unreachable @ " ^ __LOC__)
   | Pick { bt; choice_var; choices; last_var } ->
     let var = Sym.fresh_anon () in
     let bs, ss =
@@ -128,12 +135,6 @@ let rec transform_term
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | Alloc ->
-    let alloc_sym = Sym.fresh "BENNET_ALLOC" in
-    let b, s, e =
-      transform_it filename sigma name (IT.num_lit_ Z.zero Memory.size_bt loc)
-    in
-    (b, s, mk_expr (AilEcall (mk_expr (AilEident alloc_sym), [ e ])))
   | Call { fsym; iargs; oarg_bt; path_vars; last_var = _; sized } ->
     (match List.assoc_opt Sym.equal fsym ctx with
      | Some _ -> ()

@@ -19,7 +19,7 @@ let stmts_of_gt (gt : GT.t) : annot list * GT.t =
   let rec aux (gt : GT.t) : annot list * GT.t =
     let (GT (gt_, _, loc)) = gt in
     match gt_ with
-    | Uniform | Pick _ | Alloc | Call _ | Return _ | ITE _ | Map _ -> ([], gt)
+    | Arbitrary | Pick _ | Call _ | Return _ | ITE _ | Map _ -> ([], gt)
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       let stmts, gt_last = aux gt_rest in
       (Stmt (Asgn ((it_addr, sct), it_val), loc) :: stmts, gt_last)

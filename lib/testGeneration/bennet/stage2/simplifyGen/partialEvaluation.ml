@@ -621,7 +621,7 @@ module GenTerms = struct
     let rec aux (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Uniform | Alloc -> gt
+      | Arbitrary -> gt
       | Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
       | Call (fsym, xits) -> Term.call_ (fsym, List.map_snd partial_eval_it xits) bt loc
       | Asgn ((it_addr, sct), it_val, gt') ->

@@ -12,7 +12,7 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
   let rec aux (vars : Sym.t list) (path_vars : Sym.Set.t) (gt : Stage4.Term.t) : Term.t =
     let last_var = match vars with v :: _ -> v | [] -> bennet in
     match gt with
-    | Uniform { bt } -> Uniform { bt }
+    | Arbitrary { bt } -> Arbitrary { bt }
     | Pick { bt; choices } ->
       let choice_var = Sym.fresh_anon () in
       Pick
@@ -44,7 +44,6 @@ let transform_gt (gt : Stage4.Term.t) : Term.t =
                choices);
           last_var
         }
-    | Alloc -> Alloc
     | Call { fsym; iargs; oarg_bt; sized } ->
       Call { fsym; iargs; oarg_bt; path_vars; last_var; sized }
     | Asgn { addr; sct; value; rest } ->

@@ -4,11 +4,7 @@ let rec transform_gt (gt : Stage1.Term.t) : Term.t =
   let (GT (gt_, bt, loc)) = gt in
   let gt_ =
     match gt_ with
-    | Arbitrary ->
-      (match bt with
-       | Loc () -> Term.Alloc
-       | Bits _ -> Term.Uniform
-       | _ -> failwith Pp.(plain (BT.pp bt ^^^ at ^^^ !^__LOC__)))
+    | Arbitrary -> Term.Arbitrary
     | Call (fsym, args) -> Call (fsym, args)
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       Asgn ((it_addr, sct), it_val, transform_gt gt_rest)

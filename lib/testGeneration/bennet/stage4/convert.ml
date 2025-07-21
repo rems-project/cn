@@ -9,7 +9,7 @@ module StringMap = Map.Make (String)
 let count_recursive_calls (syms : Sym.Set.t) (gr : Stage3.Term.t) : int =
   let rec aux (gr : Stage3.Term.t) : int =
     match gr with
-    | Uniform _ | Alloc | Return _ -> 0
+    | Arbitrary _ | Return _ -> 0
     | Pick { choices; _ } ->
       choices |> List.map snd |> List.map aux |> List.fold_left max 0
     | Call { fsym; _ } -> if Sym.Set.mem fsym syms then 1 else 0
@@ -27,7 +27,7 @@ let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage3.Term.t)
   =
   let rec aux (gr : Stage3.Term.t) : Term.t * Sym.Set.t =
     match gr with
-    | Uniform { bt } -> (Uniform { bt }, Sym.Set.empty)
+    | Arbitrary { bt } -> (Arbitrary { bt }, Sym.Set.empty)
     | Pick { bt; choices } ->
       let choices, sym_sets =
         choices
@@ -37,7 +37,6 @@ let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage3.Term.t)
         |> List.split
       in
       (Pick { bt; choices }, List.fold_left Sym.Set.union Sym.Set.empty sym_sets)
-    | Alloc -> (Alloc, Sym.Set.empty)
     | Call { fsym; iargs; oarg_bt } ->
       let sized, set =
         if Sym.Set.mem fsym syms then (
@@ -120,7 +119,7 @@ open struct
   let get_calls (gd : Stage3.Def.t) : Sym.Set.t =
     let rec aux (gt : Stage3.Term.t) : Sym.Set.t =
       match gt with
-      | Uniform _ | Alloc | Return _ -> Sym.Set.empty
+      | Arbitrary _ | Return _ -> Sym.Set.empty
       | Pick { choices; _ } ->
         choices
         |> List.map snd

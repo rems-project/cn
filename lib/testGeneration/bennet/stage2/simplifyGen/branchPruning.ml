@@ -21,7 +21,7 @@ module Inconsistent = struct
   let rec contains_false_assertion (gt : Term.t) : bool =
     let (GT (gt_, _, _)) = gt in
     match gt_ with
-    | Uniform | Alloc | Call _ | Return _ -> false
+    | Arbitrary | Call _ | Return _ -> false
     | Pick wgts ->
       List.is_empty wgts
       || List.for_all (fun (_, gt') -> contains_false_assertion gt') wgts

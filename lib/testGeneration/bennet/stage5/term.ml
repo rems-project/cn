@@ -7,14 +7,13 @@ module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
 type t =
-  | Uniform of { bt : BT.t }
+  | Arbitrary of { bt : BT.t }
   | Pick of
       { bt : BT.t;
         choice_var : Sym.t;
         choices : (int * t) list;
         last_var : Sym.t
       }
-  | Alloc
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
@@ -80,7 +79,7 @@ let is_return (tm : t) : bool = match tm with Return _ -> true | _ -> false
 
 let rec free_vars (tm : t) : Sym.Set.t =
   match tm with
-  | Uniform _ | Alloc -> Sym.Set.empty
+  | Arbitrary _ -> Sym.Set.empty
   | Pick { bt = _; choice_var = _; choices; last_var = _ } ->
     free_vars_list (List.map snd choices)
   | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; last_var = _; sized = _ } ->
@@ -122,7 +121,7 @@ and free_vars_list : t list -> Sym.Set.t =
 let rec pp (tm : t) : Pp.document =
   let open Pp in
   match tm with
-  | Uniform { bt } -> !^"uniform" ^^ angles (BT.pp bt) ^^ parens empty
+  | Arbitrary { bt } -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
   | Pick { bt; choice_var; choices; last_var } ->
     !^"pick"
     ^^ parens
@@ -141,7 +140,6 @@ let rec pp (tm : t) : Pp.document =
                           (fun (w, gt) ->
                              parens (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                           choices)))
-  | Alloc -> !^"alloc" ^^ parens empty
   | Call { fsym; iargs; oarg_bt; path_vars; last_var; sized } ->
     parens
       (Sym.pp fsym

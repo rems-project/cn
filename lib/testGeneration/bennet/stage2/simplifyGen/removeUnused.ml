@@ -3,9 +3,8 @@ module IT = IndexTerms
 let rec is_pure (gt : Term.t) : bool =
   let (GT (gt_, _, _)) = gt in
   match gt_ with
-  | Uniform -> true
+  | Arbitrary -> true
   | Pick wgts -> wgts |> List.map snd |> List.for_all is_pure
-  | Alloc -> false
   | Call _ -> false (* Could be less conservative... *)
   | Asgn _ -> false
   | LetStar ((_, gt1), gt2) -> is_pure gt1 && is_pure gt2

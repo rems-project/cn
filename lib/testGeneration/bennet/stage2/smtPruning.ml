@@ -7,7 +7,7 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
     let here = Locations.other __LOC__ in
     let (GT (tm_, bt, loc)) = tm in
     match tm_ with
-    | Uniform | Alloc | Return _ | Call _ -> return tm
+    | Arbitrary | Return _ | Call _ -> return tm
     | Pick wgts ->
       let rec loop wgts =
         match wgts with

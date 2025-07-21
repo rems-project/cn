@@ -6,7 +6,7 @@ module InlineNonRecursive = struct
     let rec aux (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Uniform | Alloc | Return _ -> gt
+      | Arbitrary | Return _ -> gt
       | Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
       | Call (fsym, _) when (List.assoc Sym.equal fsym ctx).recursive -> gt
       | Call (fsym, xits) ->
@@ -46,7 +46,7 @@ module InlineRecursive = struct
     let rec aux (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Uniform | Alloc | Return _ -> gt
+      | Arbitrary | Return _ -> gt
       | Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
       | Call (fsym, _) when Sym.Set.mem fsym dont_unfold -> gt
       | Call (fsym, xits) ->
@@ -78,7 +78,7 @@ module InlineRecursive = struct
       let rec aux (gt : Term.t) : Sym.Set.t =
         let (GT (gt_, _, _)) = gt in
         match gt_ with
-        | Uniform | Alloc | Return _ -> Sym.Set.empty
+        | Arbitrary | Return _ -> Sym.Set.empty
         | Pick wgts ->
           wgts
           |> List.map snd

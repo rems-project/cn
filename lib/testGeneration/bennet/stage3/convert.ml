@@ -6,7 +6,7 @@ let transform_gt (gt : Stage2.Term.t) : Term.t =
   let rec aux (gt : Stage2.Term.t) : Term.t =
     let (GT (gt_, bt, _loc)) = gt in
     match gt_ with
-    | Uniform -> Uniform { bt }
+    | Arbitrary -> Arbitrary { bt }
     | Pick wgts ->
       let choices =
         let wgts =
@@ -29,7 +29,6 @@ let transform_gt (gt : Stage2.Term.t) : Term.t =
         List.map (fun (w, gt) -> (f w, aux gt)) wgts
       in
       Pick { bt; choices }
-    | Alloc -> Alloc
     | Call (fsym, xits) ->
       let (iargs : (Sym.t * Sym.t) list), (gt_lets : Term.t -> Term.t) =
         List.fold_right
