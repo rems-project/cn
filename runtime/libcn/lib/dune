@@ -41,6 +41,7 @@
     bennet/prelude.o
     bennet/rand.o
     bennet/size.o
+    bennet/tyche.o
     bennet/uniform.o
     bennet/urn.o))))
 
@@ -72,7 +73,10 @@
     bennet-exp/prelude.o
     bennet-exp/rand.o
     bennet-exp/rand_alloc.o
+    bennet-exp/unsatisfied.o
     bennet-exp/size.o
+    bennet-exp/sizes.o
+    bennet-exp/tyche.o
     bennet-exp/uniform.o
     bennet-exp/urn.o))))
 

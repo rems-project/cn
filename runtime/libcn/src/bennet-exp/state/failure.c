@@ -134,6 +134,10 @@ void bennet_failure_blame_many(const void* toAdd[]) {
 bool bennet_failure_is_blamed(const void* id) {
   assert(failure.type != BENNET_FAILURE_NONE);
 
+  if (failure.type == BENNET_FAILURE_TIMEOUT) {
+    return false;
+  }
+
   struct name_list* curr = failure.blamed;
   while (curr != NULL) {
     if (curr->id == id) {

@@ -6,10 +6,17 @@ module Make (GT : GenDefinitions.GEN_TERM) = struct
   let empty = []
 
   let pp (ctx : t) : Pp.document =
-    let open Pp in
-    ctx
-    |> List.map snd
-    |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket GD.pp
+    Sym.executable_spec_enabled := false;
+    Sym.print_nums := true;
+    let ret =
+      let open Pp in
+      ctx
+      |> List.map snd
+      |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket GD.pp
+    in
+    Sym.executable_spec_enabled := true;
+    Sym.print_nums := false;
+    ret
 end
 
 module MakeOptional (GT : GenDefinitions.GEN_TERM) = struct

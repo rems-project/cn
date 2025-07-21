@@ -34,7 +34,8 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_runtime : bool;
-    smt_pruning : bool;
+    experimental_learning : bool;
+    smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -56,7 +57,9 @@ type t =
     no_replays : bool;
     no_replicas : bool;
     output_tyche : string option;
-    print_backtrack_info : bool
+    print_size_info : bool;
+    print_backtrack_info : bool;
+    print_satisfaction_info : bool
   }
 
 val default : t
@@ -97,7 +100,9 @@ val is_experimental_product_arg_destruction : unit -> bool
 
 val is_experimental_runtime : unit -> bool
 
-val has_smt_pruning : unit -> bool
+val is_experimental_learning : unit -> bool
+
+val has_smt_pruning : unit -> [ `None | `Fast | `Slow ]
 
 val has_input_timeout : unit -> int option
 
@@ -145,4 +150,8 @@ val has_no_replicas : unit -> bool
 
 val get_output_tyche : unit -> string option
 
+val will_print_size_info : unit -> bool
+
 val will_print_backtrack_info : unit -> bool
+
+val will_print_satisfaction_info : unit -> bool

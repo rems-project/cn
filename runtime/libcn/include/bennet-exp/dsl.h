@@ -17,7 +17,7 @@
       bennet_get_milliseconds() - bennet_get_input_timer() >                             \
           bennet_get_input_timeout()) {                                                  \
     bennet_failure_reset();                                                              \
-    bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                              \
+    bennet_failure_set_failure_type(BENNET_FAILURE_TIMEOUT);                             \
     goto bennet_label_bennet_backtrack;                                                  \
   }
 
@@ -33,7 +33,7 @@
   }                                                                                      \
   BENNET_CHECK_TIMEOUT();                                                                \
   bennet_increment_depth();                                                              \
-  if (bennet_rec_size <= 0 || bennet_depth() == bennet_max_depth()) {                    \
+  if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
     bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
     goto bennet_label_bennet_backtrack;                                                  \
   }
@@ -71,8 +71,11 @@
     const void* vars[] = {__VA_ARGS__};                                                  \
     if (bennet_assign(id, ptr, addr, &value_redir, sizeof(addr_ty), vars)) {             \
       bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+                                                                                         \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   }
 
 #define BENNET_LET_ARBITRARY(backtracks, cn_ty, c_ty, var, last_var)                     \

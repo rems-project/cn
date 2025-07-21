@@ -23,7 +23,11 @@ let default_domain =
 
 
 let abstract_lc (vars : Sym.t list) (lc : LC.t) : (bool * (Sym.t * BT.t) * domain) option =
-  if not (TestGenConfig.is_experimental_runtime ()) then
+  if
+    not
+      (TestGenConfig.is_experimental_runtime ()
+       && TestGenConfig.is_experimental_learning ())
+  then
     None
   else (
     match lc with

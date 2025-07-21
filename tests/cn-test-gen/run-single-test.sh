@@ -32,9 +32,9 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 
 ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
-  "--coverage --sizing-strategy=quartile --experimental-runtime"
+  "--coverage --sizing-strategy=quartile --experimental-runtime --experimental-learning --print-backtrack-info --print-size-info"
   "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction"
-  "--random-size-splits --experimental-runtime")
+  "--random-size-splits --experimental-runtime --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl")
 
 BUILD_TOOLS=("bash" "make")
 
@@ -59,7 +59,7 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       else
         OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
       fi
-    elif [[ $TEST == *.fail.c ]]; then
+    elif [[ $TEST == *.fail.c || $TEST == *.buggy.c ]]; then
       THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
       RET=$?
       if [[ "$RET" == 0 ]]; then

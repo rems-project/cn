@@ -7,6 +7,7 @@
 #include <bennet/failure.h>
 #include <bennet/rand.h>
 #include <bennet/size.h>
+#include <bennet/tyche.h>
 #include <bennet/uniform.h>
 #include <bennet/urn.h>
 

@@ -25,6 +25,7 @@ size_t bennet_ownership_save(void);
 void bennet_ownership_restore(size_t size);
 int bennet_ownership_check(void* p, size_t sz);
 void bennet_ownership_update(void* p, size_t sz);
+size_t bennet_ownership_size(void);
 
 #ifdef __cplusplus
 }

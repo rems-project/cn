@@ -34,7 +34,8 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_runtime : bool;
-    smt_pruning : bool;
+    experimental_learning : bool;
+    smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -56,7 +57,9 @@ type t =
     no_replays : bool;
     no_replicas : bool;
     output_tyche : string option;
-    print_backtrack_info : bool
+    print_size_info : bool;
+    print_backtrack_info : bool;
+    print_satisfaction_info : bool
   }
 
 let default =
@@ -70,7 +73,8 @@ let default =
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
     experimental_runtime = false;
-    smt_pruning = false;
+    experimental_learning = false;
+    smt_pruning = `None;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -91,7 +95,9 @@ let default =
     no_replays = false;
     no_replicas = false;
     output_tyche = Option.None;
-    print_backtrack_info = false
+    print_size_info = false;
+    print_backtrack_info = false;
+    print_satisfaction_info = false
   }
 
 
@@ -168,6 +174,8 @@ let is_experimental_product_arg_destruction () =
 
 let is_experimental_runtime () = (Option.get !instance).experimental_runtime
 
+let is_experimental_learning () = (Option.get !instance).experimental_learning
+
 let has_smt_pruning () = (Option.get !instance).smt_pruning
 
 let has_inline_everything () = (Option.get !instance).inline_everything
@@ -228,4 +236,8 @@ let has_no_replicas () = (Option.get !instance).no_replicas
 
 let get_output_tyche () = (Option.get !instance).output_tyche
 
+let will_print_size_info () = (Option.get !instance).print_size_info
+
 let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
+
+let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info

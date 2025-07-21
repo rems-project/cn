@@ -3,6 +3,8 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
 /////////////////
 // Definitions //
@@ -48,6 +50,7 @@ BENNET_OPTIONAL_DECL(intptr_t);
 BENNET_OPTIONAL_DECL(uintptr_t);
 BENNET_OPTIONAL_DECL(intmax_t);
 BENNET_OPTIONAL_DECL(uintmax_t);
+BENNET_OPTIONAL_DECL(size_t);
 
 #define bennet_optional_equal(ty) bennet_optional_equal_##ty
 
@@ -97,5 +100,6 @@ BENNET_OPTIONAL_UNWRAP_OR_IMPL(intptr_t);
 BENNET_OPTIONAL_UNWRAP_OR_IMPL(uintptr_t);
 BENNET_OPTIONAL_UNWRAP_OR_IMPL(intmax_t);
 BENNET_OPTIONAL_UNWRAP_OR_IMPL(uintmax_t);
+BENNET_OPTIONAL_UNWRAP_OR_IMPL(size_t);
 
 #endif  // BENNET_EXP_OPTIONAL_H

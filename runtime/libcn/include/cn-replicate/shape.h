@@ -58,6 +58,7 @@ char* cn_replicate_owned_cn_bits_u64_aux(cn_pointer* p);
       strcat(buf, mem_buf);                                                              \
       free(mem_buf);                                                                     \
     }                                                                                    \
+    buf = realloc(buf, strlen(buf) + strlen(" }") + 1);                                  \
     strcat(buf, " }");                                                                   \
     buf;                                                                                 \
   })

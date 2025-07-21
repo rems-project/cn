@@ -161,7 +161,9 @@ int cn_test_main(int argc, char* argv[]) {
   int print_seed = 0;
   bool output_tyche = false;
   FILE* tyche_output_stream = NULL;
+  bool print_size_info = false;
   bool print_backtrack_info = false;
+  bool print_satisfaction_info = false;
 
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
@@ -261,9 +263,37 @@ int cn_test_main(int argc, char* argv[]) {
         output_tyche = true;
       }
     } else if (strcmp("--print-backtrack-info", arg) == 0) {
+      if (!is_bennet_experimental()) {
+        printf("UNSUPPORTED BACKTRACK INFO ON BASE RUNTIME");
+        assert(is_bennet_experimental());
+      }
+
       print_backtrack_info = true;
-      bennet_info_backtracks_init();
+    } else if (strcmp("--print-satisfaction-info", arg) == 0) {
+      if (!is_bennet_experimental()) {
+        printf("UNSUPPORTED SATISFACTION INFO ON BASE RUNTIME");
+        assert(is_bennet_experimental());
+      }
+      print_satisfaction_info = true;
+    } else if (strcmp("--print-size-info", arg) == 0) {
+      if (!is_bennet_experimental()) {
+        printf("UNSUPPORTED SIZE INFO ON BASE RUNTIME");
+        assert(is_bennet_experimental());
+      }
+      print_size_info = true;
     }
+  }
+
+  if (output_tyche || print_size_info) {
+    bennet_info_sizes_init();
+  }
+
+  if (output_tyche || print_backtrack_info) {
+    bennet_info_backtracks_init();
+  }
+
+  if (print_satisfaction_info) {
+    bennet_info_unsatisfied_init();
   }
 
   if (timeout != 0) {
@@ -289,8 +319,16 @@ int cn_test_main(int argc, char* argv[]) {
         continue;
       }
 
-      if (print_backtrack_info) {
+      if (output_tyche || print_size_info) {
+        bennet_info_sizes_set_function_under_test(test_cases[i].name);
+      }
+
+      if (output_tyche || print_backtrack_info) {
         bennet_info_backtracks_set_function_under_test(test_cases[i].name);
+      }
+
+      if (output_tyche || print_satisfaction_info) {
+        bennet_info_unsatisfied_set_function_under_test(test_cases[i].name);
       }
 
       struct cn_test_case* test_case = &test_cases[i];
@@ -304,6 +342,7 @@ int cn_test_main(int argc, char* argv[]) {
           .sizing_strategy = sizing_strategy,
           .trap = 0,
           .replicas = 0,
+          .log_all_backtracks = 0,
           .output_tyche = output_tyche,
           .tyche_output_stream = tyche_output_stream,
           .begin_time = begin_time};
@@ -333,6 +372,7 @@ int cn_test_main(int argc, char* argv[]) {
             test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
             test_input.trap = trap;
             test_input.replicas = replicas;
+            test_input.output_tyche = 0;
             enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
@@ -405,10 +445,22 @@ outside_loop:;
       errored,
       skipped);
 
+  if (print_size_info) {
+    printf("\n");
+
+    bennet_info_sizes_print_info();
+  }
+
   if (print_backtrack_info) {
     printf("\n");
 
     bennet_info_backtracks_print_backtrack_info();
+  }
+
+  if (print_satisfaction_info) {
+    printf("\n");
+
+    bennet_info_unsatisfied_print_info();
   }
 
   return !(failed == 0 && errored == 0);

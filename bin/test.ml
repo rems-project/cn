@@ -57,8 +57,11 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_runtime
+      experimental_learning
       smt_pruning
+      print_size_info
       print_backtrack_info
+      print_satisfaction_info
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -105,6 +108,7 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_runtime;
+          experimental_learning;
           smt_pruning;
           print_seed;
           input_timeout;
@@ -126,7 +130,9 @@ let run_tests
           no_replays;
           no_replicas;
           output_tyche;
-          print_backtrack_info
+          print_size_info;
+          print_backtrack_info;
+          print_satisfaction_info
         }
       in
       TestGeneration.set_config config;
@@ -143,7 +149,6 @@ let run_tests
         print_endline "No testable functions, trivially passing";
         exit 0);
       Cerb_colour.do_colour := false;
-      Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
       (try
          Fulminate.main
            ~without_ownership_checking
@@ -456,14 +461,32 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-runtime" ] ~doc)
 
 
+  let experimental_learning =
+    let doc = "Use experimental domain learning" in
+    Arg.(value & flag & info [ "experimental-learning" ] ~doc)
+
+
   let smt_pruning =
     let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
-    Arg.(value & flag & info [ "smt-pruning" ] ~doc)
+    Arg.(
+      value
+      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
+      & info [ "smt-pruning" ] ~doc)
+
+
+  let print_size_info =
+    let doc = "(Experimental) Print size info" in
+    Arg.(value & flag & info [ "print-size-info" ] ~doc)
 
 
   let print_backtrack_info =
     let doc = "(Experimental) Print backtracking info" in
     Arg.(value & flag & info [ "print-backtrack-info" ] ~doc)
+
+
+  let print_satisfaction_info =
+    let doc = "(Experimental) Print satisfaction info" in
+    Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
 end
 
 let cmd =
@@ -520,8 +543,11 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_runtime
+    $ Flags.experimental_learning
     $ Flags.smt_pruning
+    $ Flags.print_size_info
     $ Flags.print_backtrack_info
+    $ Flags.print_satisfaction_info
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
