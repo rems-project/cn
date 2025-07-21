@@ -65,7 +65,7 @@ let rec transform_term
     * CF.GenTypes.genTypeCategory A.expression
   =
   match tm with
-  | Uniform { bt } ->
+  | Arbitrary { bt } ->
     let sign, bits = Option.get (BT.is_bits_bt bt) in
     let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
     ( [],
@@ -76,7 +76,6 @@ let rec transform_term
            [ mk_expr
                (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
            ]) )
-  | Alloc -> ([], [], mk_expr (string_call "BENNET_ARBITRARY_POINTER" []))
   | Pick { bt; choice_var; choices; last_var } ->
     let var = Sym.fresh_anon () in
     let bs, ss =
@@ -248,8 +247,7 @@ let rec transform_term
       transform_term filename sigma ctx name current_var rest
     in
     (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
-  | LetStar { x; x_bt; value = Uniform { bt }; last_var; rest } ->
-    let sign, bits = Option.get (BT.is_bits_bt bt) in
+  | LetStar { x; x_bt; value = Arbitrary { bt = Bits (sign, bits) }; last_var; rest } ->
     let func_name =
       match sign with
       | Unsigned -> "BENNET_LET_ARBITRARY_UNSIGNED"
@@ -280,7 +278,7 @@ let rec transform_term
       transform_term filename sigma ctx name current_var rest
     in
     (b_let @ b_rest, s_let @ s_rest, e_rest)
-  | LetStar { x; x_bt; value = Alloc; last_var; rest } ->
+  | LetStar { x; x_bt; value = Arbitrary { bt = Loc () }; last_var; rest } ->
     let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
     let s_let =
       [ A.AilSexpr
@@ -304,6 +302,7 @@ let rec transform_term
       transform_term filename sigma ctx name current_var rest
     in
     (b_let @ b_rest, s_let @ s_rest, e_rest)
+  | LetStar { value = Arbitrary { bt = _ }; _ } -> failwith ("unreachable @ " ^ __LOC__)
   | LetStar { x; x_bt; value = Return { value }; last_var; rest } ->
     let b_value, s_value, e_value = transform_it filename sigma name value in
     let s_let =

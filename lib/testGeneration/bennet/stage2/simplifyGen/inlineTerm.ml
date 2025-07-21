@@ -33,7 +33,7 @@ module SingleUse = struct
   let rec transform_aux (gt : Term.t) : Term.t * bool Sym.Map.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc -> (gt, Sym.Map.empty)
+    | Arbitrary -> (gt, Sym.Map.empty)
     | Pick wgts ->
       let wgts, only_ret =
         wgts

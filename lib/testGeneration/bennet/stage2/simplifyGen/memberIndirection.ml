@@ -77,7 +77,6 @@ let replace_memberof_gt
     let (GT (gt_, bt, loc)) = gt in
     let gt_ =
       match gt_ with
-      | Alloc -> Term.Alloc
       | Call (fsym, xits) -> Term.Call (fsym, List.map_snd repl xits)
       | Asgn ((it_addr, sct), it_val, gt') ->
         Term.Asgn ((repl it_addr, sct), repl it_val, gt')

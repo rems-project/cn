@@ -5,7 +5,7 @@ let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * IT.
     let open Option in
     let (GT (gt_, _, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc | Pick _ | Call _ | Return _ | ITE _ | Map _ -> None
+    | Arbitrary | Pick _ | Call _ | Return _ | ITE _ | Map _ -> None
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       let@ gt_rest, it = aux gt_rest in
       return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc, it)
@@ -38,12 +38,11 @@ let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc | Call _ | Return _ -> gt
+    | Arbitrary | Call _ | Return _ -> gt
     | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) bt loc
     | Asgn ((it_addr, sct), it_val, gt_rest) ->
       Term.asgn_ ((it_addr, sct), it_val, aux vars gt_rest) loc
-    | LetStar ((x, (GT (Uniform, _, loc) as gt_inner)), gt_rest)
-    | LetStar ((x, (GT (Alloc, _, loc) as gt_inner)), gt_rest) ->
+    | LetStar ((x, (GT (Arbitrary, _, loc) as gt_inner)), gt_rest) ->
       let gt_rest, gt_res =
         match find_constraint vars x gt_rest with
         | Some (gt_rest, it) -> (gt_rest, Term.return_ it loc)

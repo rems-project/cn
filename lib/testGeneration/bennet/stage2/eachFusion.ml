@@ -60,7 +60,7 @@ let collect_constraints
   let rec aux (delete : bool) (gt : Term.t) : Term.t * IT.t =
     let (GT (gt_, _, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc | Call _ | Return _ | Map _ -> (gt, it_true)
+    | Arbitrary | Call _ | Return _ | Map _ -> (gt, it_true)
     | Pick wgts ->
       let _, constraints =
         wgts |> List.map snd |> List.map (aux false) |> List.map_snd simp |> List.split
@@ -142,7 +142,7 @@ let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Uniform | Alloc | Call _ | Return _ -> gt
+    | Arbitrary | Call _ | Return _ -> gt
     | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) bt loc
     | Asgn ((it_addr, sct), it_val, gt') ->
       Term.asgn_ ((it_addr, sct), it_val, aux vars gt') loc
