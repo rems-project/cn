@@ -1,4 +1,4 @@
-(** This stage adds sizing *)
+(** This stage tags the AST with backtracking information *)
 
 module Term = Term
 module Def = Def

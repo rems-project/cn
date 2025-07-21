@@ -15,7 +15,8 @@ type t =
   | Call of
       { fsym : Sym.t;
         iargs : (Sym.t * Sym.t) list;
-        oarg_bt : BT.t
+        oarg_bt : BT.t;
+        sized : (int * Sym.t) option
       }
   | Asgn of
       { addr : IT.t;
@@ -46,6 +47,10 @@ type t =
         perm : IT.t;
         inner : t
       }
+  | SplitSize of
+      { syms : Sym.Set.t;
+        rest : t
+      }
 [@@deriving eq, ord]
 
 let is_return (tm : t) : bool = match tm with Return _ -> true | _ -> false
@@ -54,7 +59,8 @@ let rec free_vars (tm : t) : Sym.Set.t =
   match tm with
   | Arbitrary _ -> Sym.Set.empty
   | Pick { bt = _; choices } -> free_vars_list (List.map snd choices)
-  | Call { fsym = _; iargs; oarg_bt = _ } -> Sym.Set.of_list (List.map snd iargs)
+  | Call { fsym = _; iargs; oarg_bt = _; sized = _ } ->
+    Sym.Set.of_list (List.map snd iargs)
   | Asgn { addr; sct = _; value; rest } ->
     Sym.Set.union (IT.free_vars_list [ addr; value ]) (free_vars rest)
   | LetStar { x; x_bt = _; value; rest } ->
@@ -65,6 +71,7 @@ let rec free_vars (tm : t) : Sym.Set.t =
     Sym.Set.union (IT.free_vars cond) (free_vars_list [ t; f ])
   | Map { i; bt = _; perm; inner } ->
     Sym.Set.remove i (Sym.Set.union (IT.free_vars_list [ perm ]) (free_vars inner))
+  | SplitSize { syms = _; rest } -> free_vars rest
 
 
 and free_vars_list : t list -> Sym.Set.t =
@@ -88,9 +95,10 @@ let rec pp (tm : t) : Pp.document =
                       (fun (w, gt) ->
                          parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                       choices)))
-  | Call { fsym; iargs; oarg_bt } ->
+  | Call { fsym; iargs; oarg_bt; sized } ->
     parens
       (Sym.pp fsym
+       ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
        ^^ parens
             (nest
                2
@@ -125,3 +133,9 @@ let rec pp (tm : t) : Pp.document =
     !^"map"
     ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ IT.pp perm)
     ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp inner) ^^ break 1)
+  | SplitSize { syms; rest } ->
+    !^"split_size"
+    ^^ parens
+         (separate_map (comma ^^ space) Sym.pp (syms |> Sym.Set.to_seq |> List.of_seq))
+    ^^ semi
+    ^/^ pp rest

@@ -1,7 +1,3 @@
-(** This stage tags the AST with backtracking information *)
+(** This stage generates C code *)
 
-module Term = Term
-module Def = Def
-module Ctx = Ctx
-
-let transform (ctx : Stage4.Ctx.t) : Ctx.t = Convert.transform ctx
+let transform sigma ctx = Convert.transform sigma ctx
