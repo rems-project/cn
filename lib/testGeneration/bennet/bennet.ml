@@ -42,6 +42,4 @@ let synthesize
   debug_stage "Stage 3" (ctx |> Stage3.Ctx.pp |> Pp.plain ~width:80);
   let ctx = Stage4.transform ctx in
   debug_stage "Stage 4" (ctx |> Stage4.Ctx.pp |> Pp.plain ~width:80);
-  let ctx = Stage5.transform ctx in
-  debug_stage "Stage 5" (ctx |> Stage5.Ctx.pp |> Pp.plain ~width:80);
-  Stage6.transform sigma ctx
+  Stage5.transform sigma ctx
