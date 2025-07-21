@@ -263,23 +263,10 @@ int cn_test_main(int argc, char* argv[]) {
         output_tyche = true;
       }
     } else if (strcmp("--print-backtrack-info", arg) == 0) {
-      if (!is_bennet_experimental()) {
-        printf("UNSUPPORTED BACKTRACK INFO ON BASE RUNTIME");
-        assert(is_bennet_experimental());
-      }
-
       print_backtrack_info = true;
     } else if (strcmp("--print-satisfaction-info", arg) == 0) {
-      if (!is_bennet_experimental()) {
-        printf("UNSUPPORTED SATISFACTION INFO ON BASE RUNTIME");
-        assert(is_bennet_experimental());
-      }
       print_satisfaction_info = true;
     } else if (strcmp("--print-size-info", arg) == 0) {
-      if (!is_bennet_experimental()) {
-        printf("UNSUPPORTED SIZE INFO ON BASE RUNTIME");
-        assert(is_bennet_experimental());
-      }
       print_size_info = true;
     }
   }

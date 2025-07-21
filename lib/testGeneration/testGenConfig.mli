@@ -33,7 +33,6 @@ type t =
     inline_everything : bool;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
-    experimental_runtime : bool;
     experimental_learning : bool;
     smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
@@ -97,8 +96,6 @@ val has_inline_everything : unit -> bool
 val is_experimental_struct_asgn_destruction : unit -> bool
 
 val is_experimental_product_arg_destruction : unit -> bool
-
-val is_experimental_runtime : unit -> bool
 
 val is_experimental_learning : unit -> bool
 

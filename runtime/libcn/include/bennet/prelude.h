@@ -1,15 +1,23 @@
 #ifndef BENNET_PRELUDE_H
 #define BENNET_PRELUDE_H
 
-#include <bennet/alloc.h>
 #include <bennet/compat.h>
 #include <bennet/dsl.h>
-#include <bennet/failure.h>
-#include <bennet/rand.h>
-#include <bennet/size.h>
-#include <bennet/tyche.h>
-#include <bennet/uniform.h>
-#include <bennet/urn.h>
+#include <bennet/info/backtracks.h>
+#include <bennet/info/sizes.h>
+#include <bennet/info/tyche.h>
+#include <bennet/info/unsatisfied.h>
+#include <bennet/internals/domain.h>
+#include <bennet/internals/rand.h>
+#include <bennet/internals/size.h>
+#include <bennet/internals/uniform.h>
+#include <bennet/internals/urn.h>
+#include <bennet/state/alloc.h>
+#include <bennet/state/checkpoint.h>
+#include <bennet/state/failure.h>
+#include <bennet/state/rand_alloc.h>
+#include <bennet/utils/optional.h>
+#include <bennet/utils/vector.h>
 
 void bennet_reset(void);
 

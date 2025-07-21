@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <bennet-exp/utils/vector.h>
+#include <bennet/utils/vector.h>
 
 // Define a typedef for char *
 typedef char *str;
