@@ -56,7 +56,6 @@ let run_tests
       inline_everything
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
-      experimental_runtime
       experimental_learning
       smt_pruning
       print_size_info
@@ -107,7 +106,6 @@ let run_tests
           inline_everything;
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
-          experimental_runtime;
           experimental_learning;
           smt_pruning;
           print_seed;
@@ -456,11 +454,6 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-product-arg-destruction" ] ~doc)
 
 
-  let experimental_runtime =
-    let doc = "Use experimental runtime" in
-    Arg.(value & flag & info [ "experimental-runtime" ] ~doc)
-
-
   let experimental_learning =
     let doc = "Use experimental domain learning" in
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
@@ -542,7 +535,6 @@ let cmd =
     $ Flags.inline_everything
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
-    $ Flags.experimental_runtime
     $ Flags.experimental_learning
     $ Flags.smt_pruning
     $ Flags.print_size_info

@@ -32,9 +32,9 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 
 ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
-  "--coverage --sizing-strategy=quartile --experimental-runtime --experimental-learning --print-backtrack-info --print-size-info"
+  "--coverage --sizing-strategy=quartile --experimental-learning --print-backtrack-info --print-size-info"
   "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction"
-  "--random-size-splits --experimental-runtime --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl")
+  "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl")
 
 BUILD_TOOLS=("bash" "make")
 
@@ -94,8 +94,8 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
       else
         OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
       fi
-    elif [[ $TEST == *.exp.c ]]; then
-      if [[ $FULL_CONFIG == *--experimental-runtime* ]]; then
+    elif [[ $TEST == *.only.exp.c ]]; then
+      if [[ $FULL_CONFIG == *--experimental-learning* ]]; then
         OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
         RET=$?
         if [[ "$RET" != 0 ]]; then
@@ -118,6 +118,18 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
           FAILED="$FAILED ($ALT_CONFIG)"
         else
           OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
+        fi
+      fi
+    elif [[ $TEST == *.exp.c ]]; then
+      if [[ $FULL_CONFIG == *--experimental-learning* ]]; then
+        OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
+        RET=$?
+        if [[ "$RET" != 0 ]]; then
+          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
+          NUM_FAILED=$(($NUM_FAILED + 1))
+          FAILED="$FAILED ($ALT_CONFIG --build-tool=$BUILD_TOOL)"
+        else
+          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
         fi
       fi
     fi

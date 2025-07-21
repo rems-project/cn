@@ -133,12 +133,7 @@ let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.docum
 let compile_includes ~filename ~generators =
   let open Pp in
   !^"#include "
-  ^^ angles
-       !^((if Config.is_experimental_runtime () then
-             "bennet-exp"
-           else
-             "bennet")
-          ^ "/prelude.h")
+  ^^ angles !^"bennet/prelude.h"
   ^^ hardline
   ^^ !^"#include "
   ^^ angles !^"cn-testing/prelude.h"
