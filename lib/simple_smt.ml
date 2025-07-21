@@ -15,6 +15,18 @@ let is_atom (f : sexp) = match f with Sexp.Atom _ -> true | Sexp.List _ -> false
 
 let to_list (f : sexp) = match f with Sexp.Atom _ -> None | Sexp.List xs -> Some xs
 
+let to_assert = function
+  | Sexp.(List [Atom "assert"; e]) -> Some e
+  | _ -> None
+
+let to_define_fun = function
+  | Sexp.List [Atom "define-fun"; fn; List args; rbt; value] ->
+     Some (fn, args, rbt, value)
+  | _ ->
+     None
+
+
+
 (** Apply a function to some arguments. *)
 let app f args = if List.is_empty args then f else list (f :: args)
 

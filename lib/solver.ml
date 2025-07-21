@@ -53,13 +53,9 @@ end
 
 type solver_frame =
   { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
-    mutable uninterpreted : SMT.sexp Sym.Map.t
-      (** Uninterpreted functions and variables that we've declared. *)
   }
 
-let empty_solver_frame () = { commands = []; uninterpreted = Sym.Map.empty }
-
-let copy_solver_frame f = { f with commands = f.commands }
+let empty_solver_frame () = { commands = []; }
 
 type solver =
   { smt_solver : SMT.solver; (** The SMT solver connection. *)
@@ -79,9 +75,7 @@ module Debug = struct
   let dump_frame (f : solver_frame) =
     let to_string = Sexplib.Sexp.to_string_hum in
     let append str doc = doc ^/^ !^str in
-    let dump_sym k v rest = rest ^/^ bar ^^^ Sym.pp k ^^^ !^"|->" ^^^ !^(to_string v) in
-    !^"# Symbols"
-    |> Sym.Map.fold dump_sym f.uninterpreted
+    (Pp.separate_map hardline (fun cmd -> !^(to_string cmd)) f.commands)
     |> append "+---------------------------------"
 
 
@@ -91,9 +85,6 @@ module Debug = struct
     ^/^ !^"|~~~~~~ End Solver Dump ~~~~~~~~~|"
 end
 
-(** Lookup something in one of the existing frames *)
-let search_frames s f = List.find_map f (!(s.cur_frame) :: !(s.prev_frames))
-
 (** Compute a table mapping ints to C types.  We use this to map SMT results
     back to terms. *)
 let get_ctype_table s =
@@ -101,6 +92,11 @@ let get_ctype_table s =
   let add_entry t n = Int_Table.add table n t in
   CTypeMap.iter add_entry s.ctypes;
   table
+
+
+let get_commands s =
+  let frames = !(s.cur_frame) :: !(s.prev_frames) in
+  List.concat_map (fun f -> f.commands) frames
 
 
 let debug_ack_command s cmd =
@@ -159,17 +155,6 @@ let declare_fun s name args_ts res_t =
   ack_command s (SMT.declare_fun sname args_ts res_t)
 
 
-(** Declare an uninterpreted function. *)
-let declare_uninterpreted s name args_ts res_t =
-  let check f = Sym.Map.find_opt name f.uninterpreted in
-  match search_frames s check with
-  | Some e -> e
-  | None ->
-    declare_fun s name args_ts res_t;
-    let e = SMT.atom (CN_Names.uninterpreted_name name) in
-    let f = !(s.cur_frame) in
-    f.uninterpreted <- Sym.Map.add name e f.uninterpreted;
-    e
 
 
 (* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
@@ -941,16 +926,9 @@ let rec translate_term s iterm =
     SMT.arr_store (translate_term s mp) (translate_term s k) (translate_term s v)
   | MapGet (mp, k) -> SMT.arr_select (translate_term s mp) (translate_term s k)
   | MapDef _ -> failwith "MapDef"
-  | Apply (name, args) ->
-    let def = Option.get (get_logical_function_def s.globals name) in
-    (match def.body with
-     | Def body -> translate_term s (Definition.Function.open_ def.args body args)
-     | _ ->
-       let do_arg arg = translate_base_type (IT.get_bt arg) in
-       let args_ts = List.map do_arg args in
-       let res_t = translate_base_type def.return_bt in
-       let fu = declare_uninterpreted s name args_ts res_t in
-       SMT.app fu (List.map (translate_term s) args))
+  | Apply (fn, args) ->
+     let sname = CN_Names.uninterpreted_name fn in
+     SMT.(app (atom sname) (List.map (translate_term s) args))
   | Let ((x, e1), e2) ->
     let se1 = translate_term s e1 in
     let name = CN_Names.var_name x in
@@ -1040,7 +1018,7 @@ let add_assumption solver global lc =
   | Forall _ -> ()
 
 
-let declare_variable solver sym bt = declare_fun solver sym [] (translate_base_type bt)
+let declare_variable solver (sym, bt) = declare_fun solver sym [] (translate_base_type bt)
 
 (** Goals are translated to this type *)
 type reduction =
@@ -1081,6 +1059,8 @@ let shortcut simp_ctxt lc =
 
 (** {1 Solver Initialization} *)
 
+module CN_Datatypes = struct
+
 (** Declare a group of (possibly) mutually recursive datatypes *)
 let declare_datatype_group s names =
   let mk_con_field (l, t) = (CN_Names.datatype_field_name l, translate_base_type t) in
@@ -1095,9 +1075,16 @@ let declare_datatype_group s names =
   in
   ack_command s (SMT.declare_datatypes (List.map to_smt names))
 
+let declare s =
+  List.iter (declare_datatype_group s) (Option.get s.globals.datatype_order)
+
+end
+
 
 (** Declare a struct type and all struct types that it depends on.
     The `done_struct` keeps track of which structs we've already declared. *)
+module CN_Structs = struct
+
 let rec declare_struct s done_struct name decl =
   let mp = !done_struct in
   if Sym.Set.mem name mp then
@@ -1125,9 +1112,38 @@ let rec declare_struct s done_struct name decl =
          []
          [ (CN_Names.struct_con_name name, List.filter_map mk_piece decl) ]))
 
+let declare s =
+  let done_structs = ref Sym.Set.empty in
+  Sym.Map.iter (declare_struct s done_structs) s.globals.struct_decls;
+
+end
+
+
+module CN_Functions = struct
+
+  let declare_or_define_function s fn =
+    let def = Sym.Map.find fn s.globals.logical_functions in
+    let ret_t = translate_base_type def.return_bt in
+    match def.body with
+    | (Uninterp | Rec_Def _) ->
+       let arg_ts = List.map (fun (_,bt) -> translate_base_type bt) def.args in
+       declare_fun s fn arg_ts ret_t
+    | Def body ->
+       let sname = CN_Names.uninterpreted_name fn in
+       let mk_arg (sym,bt) = (CN_Names.uninterpreted_name sym, translate_base_type bt) in
+       let args = List.map mk_arg def.args in
+       ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
+
+  let declare_function_group s group =
+    List.iter (declare_or_define_function s) group
+
+  let declare s =
+    List.iter (declare_function_group s) (Option.get s.globals.logical_function_order);
+
+end
 
 (** Declare various types always available to the solver. *)
-let declare_solver_basics s =
+let declare_solver_basics s variable_bindings =
   CN_Tuple.declare s;
   CN_List.declare s;
   CN_Option.declare s;
@@ -1135,9 +1151,12 @@ let declare_solver_basics s =
   CN_Pointer.declare s;
   (* structs may depend only on other structs. datatypes may depend on other datatypes and
      structs. *)
-  let done_structs = ref Sym.Set.empty in
-  Sym.Map.iter (declare_struct s done_structs) s.globals.struct_decls;
-  List.iter (declare_datatype_group s) (Option.get s.globals.datatype_order)
+  CN_Structs.declare s;
+  CN_Datatypes.declare s;
+  List.iter (declare_variable s) variable_bindings;
+  CN_Functions.declare s
+
+
 
 
 (* Logging *)
@@ -1206,7 +1225,7 @@ let select_solver_type () =
 
 
 (** Make a new solver instance *)
-let make globals =
+let make globals variable_bindings =
   let base_cfg =
     match select_solver_type () with
     | Z3 -> SMT.z3
@@ -1236,7 +1255,7 @@ let make globals =
       globals
     }
   in
-  declare_solver_basics s;
+  declare_solver_basics s variable_bindings;
   s
 
 
@@ -1270,6 +1289,27 @@ let model () = match !model_state with No_model -> assert false | Model mo -> mo
 
 (** Evaluate terms in the context of a model computed by the solver. *)
 let model_evaluator, reset_model_evaluator_state =
+  (* The argument [mo] of [model_evaluator] is the result of running `get-model`
+     in the SMT solver. The `get-model` output normally includes `define-fun`
+     entries for constants and functions that CN has already declared in the SMT
+     solver, leading to solver errors. [patch_model] removes them: for
+     constants, replace `define-fun` with an equality assertion; for function
+     definitions we could do the same, which would require quantifiers, but
+     since those are always user-defined functions, there is no need to get
+     their model; we drop them instead. *)
+  let patch_defs defs =
+    let patch_def def =
+      let (fn, args, _rbt, value) = Option.get (SMT.to_define_fun def) in
+      match args with
+      | [] -> Some (SMT.(assume (eq fn value)))
+      | _ :: _ -> None
+    in
+    List.filter_map patch_def defs
+  in
+  let decls_of_solver s =
+    let not_assert cmd = not (Option.is_some (SMT.to_assert cmd)) in
+    List.rev (List.filter not_assert (get_commands s))
+  in
   (* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *)
   let model_evaluator_solver : Simple_smt.solver option ref = ref None in
   let currently_loaded_model = ref 0 in
@@ -1288,6 +1328,8 @@ let model_evaluator, reset_model_evaluator_state =
     match SMT.to_list mo with
     | None -> failwith "model is an atom"
     | Some defs ->
+      let decls = decls_of_solver solver in
+      let defs = patch_defs defs in
       let scfg = solver.smt_solver.config in
       let cfg = { scfg with log = Logger.make "model" } in
       let smt_solver, new_solver =
@@ -1303,25 +1345,21 @@ let model_evaluator, reset_model_evaluator_state =
       let evaluator =
         { smt_solver;
           cur_frame = ref (empty_solver_frame ());
-          prev_frames =
-            ref
-              (List.map copy_solver_frame (!(solver.cur_frame) :: !(solver.prev_frames)))
-            (* We keep the prev_frames because things that were declared, would now be
-               defined by the model. *);
+          prev_frames = ref [empty_solver_frame ()];
           name_seed = solver.name_seed;
           ctypes = solver.ctypes;
           globals = gs
         }
       in
       let ctys = get_ctype_table evaluator in
-      if new_solver then (
-        declare_solver_basics evaluator;
-        push evaluator);
+      if new_solver then
+        push evaluator;
       let model_fn e =
         if not (!currently_loaded_model = model_id) then (
           currently_loaded_model := model_id;
           pop evaluator 1;
           push evaluator;
+          List.iter (debug_ack_command evaluator) decls;
           List.iter (debug_ack_command evaluator) defs);
         let inp = translate_term evaluator e in
         match SMT.check smt_solver with
@@ -1408,7 +1446,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     let nexpr = SMT.bool_not expr in
     let inc = solver.smt_solver in
     debug_ack_command solver (SMT.push 1);
-    List.iter (fun (s, bt) -> declare_variable solver s bt) qs;
+    List.iter (declare_variable solver) qs;
     debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
     (match SMT.check inc with
      | SMT.Unsat ->
@@ -1421,7 +1459,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        let foralls = TryHard.translate_foralls solver assumptions in
        let functions = TryHard.translate_functions solver in
        debug_ack_command solver (SMT.push 1);
-       List.iter (fun (s, bt) -> declare_variable solver s bt) qs;
+       List.iter (declare_variable solver) qs;
        debug_ack_command
          solver
          (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
