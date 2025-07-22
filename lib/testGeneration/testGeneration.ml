@@ -41,7 +41,7 @@ let compile_assumes
            filename
            prog5.resource_predicates
            sigma.cn_datatypes
-           []
+           (CtA.extract_global_variables prog5.globs)
            prog5.resource_predicates
        @ ESpecInternal.generate_c_assume_pres_internal filename insts sigma prog5)
   in
@@ -208,10 +208,10 @@ let compile_test_file
   let open ESpecInternal in
   let c_datatype_defs = generate_c_datatypes sigma in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename sigma prog5.logical_predicates
+    generate_c_functions filename prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename sigma prog5.resource_predicates
+    generate_c_predicates filename prog5 sigma
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigma

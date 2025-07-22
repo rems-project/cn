@@ -52,14 +52,14 @@ val generate_cn_versions_of_structs : AilSyntax.sigma_tag_definition list -> str
 
 val generate_c_functions
   :  string ->
+  _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
-  (AilSyntax.ail_identifier * Definition.Function.t) list ->
   string * string * Cerb_location.t list
 
 val generate_c_predicates
   :  string ->
+  _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
-  (Sym.t * Definition.Predicate.t) list ->
   string * string * Cerb_location.t list
 
 val generate_c_lemmas
