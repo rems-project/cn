@@ -77,16 +77,16 @@ let replace_memberof_gt
     let (GT (gt_, bt, loc)) = gt in
     let gt_ =
       match gt_ with
-      | Call (fsym, xits) -> Term.Call (fsym, List.map_snd repl xits)
-      | Asgn ((it_addr, sct), it_val, gt') ->
-        Term.Asgn ((repl it_addr, sct), repl it_val, gt')
-      | Return it -> Term.Return (repl it)
-      | Assert (T it, gt') -> Term.Assert (LC.T (repl it), gt')
-      | Assert (Forall ((i_sym, i_bt), it), gt') ->
-        Term.Assert (LC.Forall ((i_sym, i_bt), repl it), gt')
-      | ITE (it_if, gt_then, gt_else) -> Term.ITE (repl it_if, gt_then, gt_else)
-      | Map ((i_sym, i_bt, it_perm), gt_inner) ->
-        Term.Map ((i_sym, i_bt, repl it_perm), gt_inner)
+      | `Call (fsym, xits) -> `Call (fsym, List.map_snd repl xits)
+      | `Asgn ((it_addr, sct), it_val, gt') ->
+        `Asgn ((repl it_addr, sct), repl it_val, gt')
+      | `Return it -> `Return (repl it)
+      | `Assert (T it, gt') -> `Assert (LC.T (repl it), gt')
+      | `Assert (Forall ((i_sym, i_bt), it), gt') ->
+        `Assert (LC.Forall ((i_sym, i_bt), repl it), gt')
+      | `ITE (it_if, gt_then, gt_else) -> `ITE (repl it_if, gt_then, gt_else)
+      | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
+        `Map ((i_sym, i_bt, repl it_perm), gt_inner)
       | _ -> gt_
     in
     GT (gt_, bt, loc)
@@ -99,11 +99,11 @@ let transform_gt (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
     match gt with
     | GT
-        ( LetStar ((x, GT (Return (IT (Struct (_, xits), bt, loc_it)), _, loc_ret)), gt'),
+        ( `LetStar ((x, GT (`Return (IT (Struct (_, xits), bt, loc_it)), _, loc_ret)), gt'),
           _,
           loc )
     | GT
-        ( LetStar ((x, GT (Return (IT (Record xits, bt, loc_it)), _, loc_ret)), gt'),
+        ( `LetStar ((x, GT (`Return (IT (Record xits, bt, loc_it)), _, loc_ret)), gt'),
           _,
           loc ) ->
       let k =

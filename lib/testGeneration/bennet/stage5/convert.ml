@@ -64,8 +64,9 @@ let rec transform_term
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
   =
-  match tm with
-  | Arbitrary { bt } ->
+  let (GT (tm_, bt, (path_vars, last_var), _)) = tm in
+  match tm_ with
+  | `Arbitrary ->
     let sign, bits = Option.get (BT.is_bits_bt bt) in
     let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
     ( [],
@@ -76,7 +77,7 @@ let rec transform_term
            [ mk_expr
                (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
            ]) )
-  | Pick { bt; choice_var; choices; last_var } ->
+  | `Pick (choice_var, wgts) ->
     let var = Sym.fresh_anon () in
     let bs, ss =
       List.split
@@ -103,7 +104,7 @@ let rec transform_term
                               ( mk_expr (string_ident "BENNET_PICK_CASE_END"),
                                 [ mk_expr (AilEident var); e ] )))
                     ]) ))
-           choices)
+           wgts)
     in
     ( List.flatten bs,
       A.
@@ -124,13 +125,12 @@ let rec transform_term
                               List.map
                                 mk_expr
                                 [ AilEconst
-                                    (ConstantInteger
-                                       (IConstant (Z.of_int w, Decimal, None)));
+                                    (ConstantInteger (IConstant (w, Decimal, None)));
                                   AilEconst
                                     (ConstantInteger
                                        (IConstant (Z.of_int i, Decimal, None)))
                                 ])
-                           choices) )))
+                           wgts) )))
         ]
       @ List.flatten ss
       @ [ AilSexpr
@@ -140,12 +140,21 @@ let rec transform_term
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | Call { fsym; iargs; oarg_bt; path_vars; last_var; sized } ->
+  | `Call (fsym, iargs, sized) ->
     (match List.assoc_opt Sym.equal fsym ctx with
      | Some _ -> ()
      | None -> failwith (Sym.pp_string fsym));
     let sym = GenUtils.get_mangled_name fsym in
-    let es = iargs |> List.map snd |> List.map (fun x -> A.(AilEident x)) in
+    let bs, ss, es =
+      iargs
+      |> List.map snd
+      |> List.map (fun x ->
+        let bs, ss, e = transform_it filename sigma name x in
+        (bs, ss, e))
+      |> List.fold_left
+           (fun (bs, ss, es) (b, s, e) -> (bs @ b, ss @ s, es @ [ e ]))
+           ([], [], [])
+    in
     let sized_call =
       A.(
         match sized with
@@ -170,9 +179,9 @@ let rec transform_term
           [ AilEcall (mk_expr (string_ident "bennet_get_size"), []) ]
         | None -> [])
     in
-    let es = List.map mk_expr (es @ sized_call) in
-    ( [],
-      [],
+    let es = es @ List.map mk_expr sized_call in
+    ( bs,
+      ss,
       mk_expr
         (AilEgcc_statement
            ( [],
@@ -194,15 +203,15 @@ let rec transform_term
                     (mk_expr
                        (AilEcall
                           ( mk_expr (string_ident "BENNET_CALL"),
-                            [ mk_expr (string_ident (name_of_bt oarg_bt));
+                            [ mk_expr (string_ident (name_of_bt bt));
                               mk_expr (AilEident last_var);
                               mk_expr (AilEcall (mk_expr (AilEident sym), es))
                             ] ))))
              ] )) )
-  | Asgn { backtrack_var = _; pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
-    let b_addr, s_addr, e_addr = transform_it filename sigma name addr in
+  | `Asgn (((_, (p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
+    let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
     let b_value, s_value, AnnotatedExpression (_, _, _, e_value_) =
-      transform_it filename sigma name value
+      transform_it filename sigma name it_val
     in
     let s_assign =
       A.
@@ -234,20 +243,21 @@ let rec transform_term
                                 with_executable_spec
                                   (pp_ctype C.no_qualifiers)
                                   (Sctypes.to_ctype sct))));
-                      mk_expr (CtA.wrap_with_convert_from ~sct e_value_ (IT.get_bt value));
+                      mk_expr
+                        (CtA.wrap_with_convert_from ~sct e_value_ (IT.get_bt it_val));
                       mk_expr (AilEident last_var)
                     ]
                     @ List.map
                         (fun x -> mk_expr (AilEident x))
-                        (List.of_seq (Sym.Set.to_seq (IT.free_vars addr)))
+                        (List.of_seq (Sym.Set.to_seq (IT.free_vars it_addr)))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
     let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var rest
+      transform_term filename sigma ctx name current_var gt_rest
     in
     (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
-  | LetStar { x; x_bt; value = Arbitrary { bt = Bits (sign, bits) }; last_var; rest } ->
+  | `LetStar ((x, GT (`Arbitrary, (Bits (sign, bits) as x_bt), _, _)), gt_rest) ->
     let func_name =
       match sign with
       | Unsigned -> "BENNET_LET_ARBITRARY_UNSIGNED"
@@ -275,10 +285,10 @@ let rec transform_term
       ]
     in
     let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var rest
+      transform_term filename sigma ctx name current_var gt_rest
     in
     (b_let @ b_rest, s_let @ s_rest, e_rest)
-  | LetStar { x; x_bt; value = Arbitrary { bt = Loc () }; last_var; rest } ->
+  | `LetStar ((x, GT (`Arbitrary, (Loc () as x_bt), _, _)), gt_rest) ->
     let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
     let s_let =
       [ A.AilSexpr
@@ -299,12 +309,12 @@ let rec transform_term
       ]
     in
     let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var rest
+      transform_term filename sigma ctx name current_var gt_rest
     in
     (b_let @ b_rest, s_let @ s_rest, e_rest)
-  | LetStar { value = Arbitrary { bt = _ }; _ } -> failwith ("unreachable @ " ^ __LOC__)
-  | LetStar { x; x_bt; value = Return { value }; last_var; rest } ->
-    let b_value, s_value, e_value = transform_it filename sigma name value in
+  | `LetStar ((_, GT (`Arbitrary, _, _, _)), _) -> failwith ("unreachable @ " ^ __LOC__)
+  | `LetStar ((x, GT (`Return it, x_bt, _, _)), gt_rest) ->
+    let b_value, s_value, e_value = transform_it filename sigma name it in
     let s_let =
       A.
         [ AilSexpr
@@ -319,19 +329,19 @@ let rec transform_term
                    ]
                    @ List.map
                        (fun x -> mk_expr (AilEident x))
-                       (List.of_seq (Sym.Set.to_seq (IT.free_vars value)))
+                       (List.of_seq (Sym.Set.to_seq (IT.free_vars it)))
                    @ [ mk_expr (AilEconst ConstantNull) ])))
         ]
     in
     let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var rest
+      transform_term filename sigma ctx name current_var gt_rest
     in
     (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
-  | LetStar { x; x_bt; value = Call _ as value; last_var; rest }
-  | LetStar { x; x_bt; value = Map _ as value; last_var; rest }
-  | LetStar { x; x_bt; value = LetStar _ as value; last_var; rest } ->
+  | `LetStar ((x, (GT (`Call _, x_bt, _, _) as gt_inner)), gt_rest)
+  | `LetStar ((x, (GT (`Map _, x_bt, _, _) as gt_inner)), gt_rest)
+  | `LetStar ((x, (GT (`LetStar _, x_bt, _, _) as gt_inner)), gt_rest) ->
     let b_value, s_value, e_value =
-      transform_term filename sigma ctx name current_var value
+      transform_term filename sigma ctx name current_var gt_inner
     in
     let s_let =
       A.
@@ -354,35 +364,34 @@ let rec transform_term
         ]
     in
     let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var rest
+      transform_term filename sigma ctx name current_var gt_rest
     in
     (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
-  | LetStar { value = Pick _; _ } ->
+  | `LetStar ((_, GT (`Pick _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `pick`"
-  | LetStar { value = ITE _; _ } ->
+  | `LetStar ((_, GT (`ITE _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `if-else`"
-  | LetStar { value = Assert _; _ } | LetStar { value = AssertDomain _; _ } ->
+  | `LetStar ((_, GT (`Assert _, _, _, _)), _)
+  | `LetStar ((_, GT (`AssertDomain _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `assert`"
-  | LetStar { value = Asgn _; _ } ->
+  | `LetStar ((_, GT (`Asgn _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `assign`"
-  | LetStar { value = SplitSize _; _ } -> failwith "Should be unreachable due to lifting"
-  | Return { value } ->
-    let b, s, e = transform_it filename sigma name value in
+  | `LetStar ((_, GT (`SplitSize _, _, _, _)), _) ->
+    failwith "Should be unreachable due to lifting"
+  | `Return it ->
+    let b, s, e = transform_it filename sigma name it in
     (b, s, e)
-  | AssertDomain
-      { sym;
-        bt;
-        domain =
-          { cast;
-            lower_bound_inc;
-            lower_bound_ex;
-            upper_bound_inc;
-            upper_bound_ex;
-            multiple
-          };
-        last_var;
-        rest
-      } ->
+  | `AssertDomain
+      ( sym,
+        bt,
+        { cast;
+          lower_bound_inc;
+          lower_bound_ex;
+          upper_bound_inc;
+          upper_bound_ex;
+          multiple
+        },
+        gt_rest ) ->
     let get_bound ty =
       ty
       |> Option.map (transform_it filename sigma name)
@@ -440,13 +449,13 @@ let rec transform_term
         ]
     in
     let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var rest
+      transform_term filename sigma ctx name current_var gt_rest
     in
     ( b_lbi @ b_lbe @ b_ubi @ b_ube @ b_m @ b_rest,
       s_lbi @ s_lbe @ s_ube @ s_ubi @ s_m @ s_assert @ s_rest,
       e_rest )
-  | Assert { prop; last_var; rest } ->
-    let b1, s1, e1 = transform_lc filename sigma prop in
+  | `Assert (lc, gt_rest) ->
+    let b1, s1, e1 = transform_lc filename sigma lc in
     let s_assert =
       A.
         [ AilSexpr
@@ -457,16 +466,20 @@ let rec transform_term
                     @ [ mk_expr (AilEident last_var) ]
                     @ List.map
                         (fun x -> mk_expr (AilEident x))
-                        (List.of_seq (Sym.Set.to_seq (LC.free_vars prop)))
+                        (List.of_seq (Sym.Set.to_seq (LC.free_vars lc)))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b2, s2, e2 = transform_term filename sigma ctx name current_var rest in
+    let b2, s2, e2 = transform_term filename sigma ctx name current_var gt_rest in
     (b1 @ b2, s1 @ s_assert @ s2, e2)
-  | ITE { bt; cond; t; f } ->
-    let b_if, s_if, e_if = transform_it filename sigma name cond in
-    let b_then, s_then, e_then = transform_term filename sigma ctx name current_var t in
-    let b_else, s_else, e_else = transform_term filename sigma ctx name current_var f in
+  | `ITE (it_if, gt_then, gt_else) ->
+    let b_if, s_if, e_if = transform_it filename sigma name it_if in
+    let b_then, s_then, e_then =
+      transform_term filename sigma ctx name current_var gt_then
+    in
+    let b_else, s_else, e_else =
+      transform_term filename sigma ctx name current_var gt_else
+    in
     let res_sym = Sym.fresh_anon () in
     let res_expr = mk_expr (AilEident res_sym) in
     let res_binding = Utils.create_binding res_sym (bt_to_ctype bt) in
@@ -484,13 +497,13 @@ let rec transform_term
                )
            ]),
       res_expr )
-  | Map { i; bt; min; max; perm; inner; last_var } ->
+  | `Map ((i, bt, (it_min, it_max), it_perm), gt_inner) ->
     let sym_map = Sym.fresh_anon () in
     let b_map = Utils.create_binding sym_map (bt_to_ctype bt) in
     let i_bt, _ = BT.map_bt bt in
     let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
-    let b_min, s_min, e_min = transform_it filename sigma name min in
-    let b_max, s_max, e_max = transform_it filename sigma name max in
+    let b_min, s_min, e_min = transform_it filename sigma name it_min in
+    let b_max, s_max, e_max = transform_it filename sigma name it_max in
     let e_args =
       [ mk_expr (AilEident sym_map);
         mk_expr (AilEident i);
@@ -498,7 +511,7 @@ let rec transform_term
       ]
     in
     let e_perm =
-      let b_perm, s_perm, e_perm = transform_it filename sigma name perm in
+      let b_perm, s_perm, e_perm = transform_it filename sigma name it_perm in
       A.(
         mk_expr
           (AilEgcc_statement (b_perm, List.map mk_stmt (s_perm @ [ AilSexpr e_perm ]))))
@@ -516,11 +529,13 @@ let rec transform_term
                       @ List.map
                           (fun x -> mk_expr (AilEident x))
                           (List.of_seq
-                             (Sym.Set.to_seq (Sym.Set.remove i (IT.free_vars perm))))
+                             (Sym.Set.to_seq (Sym.Set.remove i (IT.free_vars it_perm))))
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
-    let b_val, s_val, e_val = transform_term filename sigma ctx name current_var inner in
+    let b_val, s_val, e_val =
+      transform_term filename sigma ctx name current_var gt_inner
+    in
     let s_end =
       A.(
         s_val
@@ -531,9 +546,9 @@ let rec transform_term
           ])
     in
     ([ b_map; b_i ] @ b_min @ b_max @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
-  | SplitSize { rest; _ } when not (TestGenConfig.is_random_size_splits ()) ->
-    transform_term filename sigma ctx name current_var rest
-  | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
+  | `SplitSize (_, _, gt_rest) when not (TestGenConfig.is_random_size_splits ()) ->
+    transform_term filename sigma ctx name current_var gt_rest
+  | `SplitSize (marker_var, syms, gt_rest) ->
     let e_tmp = mk_expr (AilEident marker_var) in
     let syms_l = syms |> Sym.Set.to_seq |> List.of_seq in
     let b =
@@ -561,7 +576,7 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b', s', e' = transform_term filename sigma ctx name current_var rest in
+    let b', s', e' = transform_term filename sigma ctx name current_var gt_rest in
     (b @ b', s @ s', e')
 
 

@@ -1,7 +1,7 @@
 let transform_gt (tm : Term.t) : Term.t =
   let aux (tm : Term.t) : Term.t =
     match tm with
-    | GT (Pick wgts, bt, loc) ->
+    | GT (`Pick wgts, bt, loc) ->
       let wgts =
         let gcd =
           List.fold_left

@@ -12,8 +12,8 @@ let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : int StringMap.t) (gt : Term.t) : int StringMap.t * Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Arbitrary | Call _ | Return _ -> (vars, gt)
-    | Pick wgts ->
+    | `Arbitrary | `Call _ | `Return _ -> (vars, gt)
+    | `Pick wgts ->
       let vars, wgts =
         List.fold_right
           (fun (w, gr') (vars', choices') ->
@@ -23,10 +23,10 @@ let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
           (vars, [])
       in
       (vars, Term.pick_ wgts bt loc)
-    | Asgn ((it_addr, sct), it_val, gt') ->
+    | `Asgn ((it_addr, sct), it_val, gt') ->
       let vars', gt' = aux vars gt' in
       (vars', Term.asgn_ ((it_addr, sct), it_val, gt') loc)
-    | LetStar ((x, gt_inner), gt') ->
+    | `LetStar ((x, gt_inner), gt') ->
       let vars, gt_inner = aux vars gt_inner in
       let name = basename x in
       let vars, x, gt' =
@@ -43,14 +43,14 @@ let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
       in
       let vars, gt' = aux vars gt' in
       (vars, Term.let_star_ ((x, gt_inner), gt') loc)
-    | Assert (lc, gt') ->
+    | `Assert (lc, gt') ->
       let vars, gt' = aux vars gt' in
       (vars, Term.assert_ (lc, gt') loc)
-    | ITE (it_if, gt_then, gt_else) ->
+    | `ITE (it_if, gt_then, gt_else) ->
       let vars, gt_then = aux vars gt_then in
       let vars, gt_else = aux vars gt_else in
       (vars, Term.ite_ (it_if, gt_then, gt_else) loc)
-    | Map ((i_sym, i_bt, it_perm), gt_inner) ->
+    | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
       let vars, gt_inner = aux vars gt_inner in
       let name = basename i_sym in
       let vars, i_sym, it_perm, gt_inner =

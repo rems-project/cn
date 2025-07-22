@@ -5,14 +5,14 @@ module GT = Term
 let rec is_external (gt : GT.t) : bool =
   let (GT (gt_, _, _)) = gt in
   match gt_ with
-  | Arbitrary | Return _ -> false
-  | Call _ -> true
-  | Pick wgts -> wgts |> List.map snd |> List.exists is_external
-  | Asgn (_, _, gt_rest) -> is_external gt_rest
-  | LetStar ((_, gt_inner), gt_rest) -> is_external gt_inner || is_external gt_rest
-  | Assert (_, gt_rest) -> is_external gt_rest
-  | ITE (_, gt_then, gt_else) -> is_external gt_then || is_external gt_else
-  | Map (_, gt_inner) -> is_external gt_inner
+  | `Arbitrary | `Return _ -> false
+  | `Call _ -> true
+  | `Pick wgts -> wgts |> List.map snd |> List.exists is_external
+  | `Asgn (_, _, gt_rest) -> is_external gt_rest
+  | `LetStar ((_, gt_inner), gt_rest) -> is_external gt_inner || is_external gt_rest
+  | `Assert (_, gt_rest) -> is_external gt_rest
+  | `ITE (_, gt_then, gt_else) -> is_external gt_then || is_external gt_else
+  | `Map (_, gt_inner) -> is_external gt_inner
 
 
 let rec dnf_ (e : BT.t IT.term) : BT.t IT.term =
@@ -64,15 +64,15 @@ let transform_gt (gt : GT.t) : GT.t =
   let rec aux (ext : Sym.Set.t) (gt : GT.t) : GT.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Arbitrary | Call _ | Return _ -> gt
-    | Pick wgts -> GT.pick_ (List.map_snd (aux ext) wgts) bt loc
-    | Asgn ((it_addr, sct), it_val, gt_rest) ->
+    | `Arbitrary | `Call _ | `Return _ -> gt
+    | `Pick wgts -> GT.pick_ (List.map_snd (aux ext) wgts) bt loc
+    | `Asgn ((it_addr, sct), it_val, gt_rest) ->
       GT.asgn_ ((it_addr, sct), it_val, aux ext gt_rest) loc
-    | LetStar ((x, gt_inner), gt_rest) ->
+    | `LetStar ((x, gt_inner), gt_rest) ->
       let gt_inner = aux ext gt_inner in
       let ext = if is_external gt_inner then Sym.Set.add x ext else ext in
       GT.let_star_ ((x, gt_inner), aux ext gt_rest) loc
-    | Assert (T it, gt') ->
+    | `Assert (T it, gt') ->
       let it = dnf it in
       let gt' = aux ext gt' in
       (match it with
@@ -108,10 +108,10 @@ let transform_gt (gt : GT.t) : GT.t =
            in
            GT.pick_ cases bt loc)
        | _ -> GT.assert_ (T it, gt') loc)
-    | Assert ((Forall _ as lc), gt_rest) -> GT.assert_ (lc, aux ext gt_rest) loc
-    | ITE (it_if, gt_then, gt_else) ->
+    | `Assert ((Forall _ as lc), gt_rest) -> GT.assert_ (lc, aux ext gt_rest) loc
+    | `ITE (it_if, gt_then, gt_else) ->
       GT.ite_ (it_if, aux ext gt_then, aux ext gt_else) loc
-    | Map ((i, i_bt, it_perm), gt_inner) ->
+    | `Map ((i, i_bt, it_perm), gt_inner) ->
       GT.map_ ((i, i_bt, it_perm), aux ext gt_inner) loc
   in
   aux Sym.Set.empty gt

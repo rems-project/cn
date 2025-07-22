@@ -270,17 +270,17 @@ let transform_gd (gtx : Ctx.t) (gd : Def.t) : Def.t =
     let rec loop (iargs : Sym.Set.t) (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Arbitrary | Call _ | Return _ -> gt
-      | Pick wgts -> Term.pick_ (List.map_snd (aux iargs) wgts) bt loc
-      | Asgn ((it_addr, sct), it_val, gt_rest) ->
+      | `Arbitrary | `Call _ | `Return _ -> gt
+      | `Pick wgts -> Term.pick_ (List.map_snd (aux iargs) wgts) bt loc
+      | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         Term.asgn_ ((it_addr, sct), it_val, loop iargs gt_rest) loc
-      | LetStar ((x, gt'), gt_rest) ->
+      | `LetStar ((x, gt'), gt_rest) ->
         let iargs = Sym.Set.add x iargs in
         Term.let_star_ ((x, (aux iargs) gt'), loop iargs gt_rest) loc
-      | Assert (lc, gt_rest) -> Term.assert_ (lc, loop iargs gt_rest) loc
-      | ITE (it_if, gt_then, gt_else) ->
+      | `Assert (lc, gt_rest) -> Term.assert_ (lc, loop iargs gt_rest) loc
+      | `ITE (it_if, gt_then, gt_else) ->
         Term.ite_ (it_if, aux iargs gt_then, aux iargs gt_else) loc
-      | Map ((i_sym, i_bt, it_perm), gt_inner) ->
+      | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
         Term.map_ ((i_sym, i_bt, it_perm), aux (Sym.Set.add i_sym iargs) gt_inner) loc
     in
     gt |> reorder rec_fsyms iargs |> loop iargs
