@@ -921,6 +921,7 @@ let cvc5 : solver_config =
 let z3 : solver_config =
   let setup =
     [ set_option ":auto_config" "false";
+      set_option ":model.completion" "true";
       set_option ":smt.relevancy" "0"
       (* set_option ":sat.smt" "true"; *)
       (* not ready for use just yet -- see Z3 github issue tracker *)

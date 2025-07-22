@@ -1278,25 +1278,6 @@ let model () = match !model_state with No_model -> assert false | Model mo -> mo
 
 (** Evaluate terms in the context of a model computed by the solver. *)
 let model_evaluator, reset_model_evaluator_state =
-  (* The argument [mo] of [model_evaluator] is the result of running `get-model`
-     in the SMT solver. The `get-model` output normally includes `define-fun`
-     entries for constants and functions that CN has already declared in the SMT
-     solver, leading to solver errors. [patch_model] removes them: for
-     constants, replace `define-fun` with an equality assertion; for function
-     definitions we could do the same, which would require quantifiers, but
-     since those are always user-defined functions, there is no need to get
-     their model; we drop them instead. *)
-  let patch_defs defs =
-    let patch_def def =
-      let fn, args, _rbt, value = Option.get (SMT.to_define_fun def) in
-      match args with [] -> Some SMT.(assume (eq fn value)) | _ :: _ -> None
-    in
-    List.filter_map patch_def defs
-  in
-  let decls_of_solver s =
-    let not_assert cmd = not (Option.is_some (SMT.to_assert cmd)) in
-    List.rev (List.filter not_assert (get_commands s))
-  in
   (* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *)
   let model_evaluator_solver : Simple_smt.solver option ref = ref None in
   let currently_loaded_model = ref 0 in
@@ -1311,14 +1292,9 @@ let model_evaluator, reset_model_evaluator_state =
     model_evaluator_solver := None;
     model_id := 0
   in
-  let model_evaluator solver mo =
-    match SMT.to_list mo with
-    | None -> failwith "model is an atom"
-    | Some defs ->
-      let decls = decls_of_solver solver in
-      let defs = patch_defs defs in
-      let scfg = solver.smt_solver.config in
-      let cfg = { scfg with log = Logger.make "model" } in
+  let model_evaluator solver =
+      let cmds = List.rev (get_commands solver) in
+      let cfg = { solver.smt_solver.config with log = Logger.make "model" } in
       let smt_solver, new_solver =
         match !model_evaluator_solver with
         | Some smt_solver -> (smt_solver, false)
@@ -1346,14 +1322,14 @@ let model_evaluator, reset_model_evaluator_state =
           currently_loaded_model := model_id;
           pop evaluator 1;
           push evaluator;
-          List.iter (debug_ack_command evaluator) decls;
-          List.iter (debug_ack_command evaluator) defs);
+          List.iter (debug_ack_command evaluator) cmds;
+          match SMT.check smt_solver with
+          | SMT.Sat -> ()
+          | _ -> failwith "not actually sat";
+        );
         let inp = translate_term evaluator e in
-        match SMT.check smt_solver with
-        | SMT.Sat ->
-          let res = SMT.get_expr smt_solver inp in
-          Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
-        | _ -> None
+        let res = SMT.get_expr smt_solver inp in
+        Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
       in
       Hashtbl.add models_tbl model_id model_fn;
       model_id
@@ -1419,11 +1395,7 @@ let try_hard = ref false
 
 let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let _ = loc in
-  let set_model smt_solver qs =
-    let defs = SMT.get_model smt_solver in
-    let model = model_evaluator solver defs in
-    model_state := Model (model, qs)
-  in
+  let set_model qs = model_state := Model (model_evaluator solver, qs) in
   match shortcut simp_ctxt lc with
   | `True ->
     model_state := No_model;
@@ -1434,6 +1406,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     let inc = solver.smt_solver in
     debug_ack_command solver (SMT.push 1);
     List.iter (declare_variable solver) qs;
+    (* TODO: iterate instead of bool_ands *)
     debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
     (match SMT.check inc with
      | SMT.Unsat ->
@@ -1458,17 +1431,17 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
           Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
           `True
         | SMT.Sat ->
-          set_model inc qs;
+          set_model qs;
           debug_ack_command solver (SMT.pop 1);
           Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
           `False
         | SMT.Unknown ->
-          set_model inc qs;
+          set_model qs;
           debug_ack_command solver (SMT.pop 1);
           Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
           `Unknown)
      | SMT.Sat ->
-       set_model inc qs;
+       set_model qs;
        debug_ack_command solver (SMT.pop 1);
        `False
      | SMT.Unknown ->
