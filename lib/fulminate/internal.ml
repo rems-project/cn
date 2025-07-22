@@ -35,15 +35,6 @@ let generate_ail_stat_strs
   List.map doc_to_pretty_string doc
 
 
-let rec extract_global_variables = function
-  | [] -> []
-  | (sym, globs) :: ds ->
-    (match globs with
-     | Mucore.GlobalDef (ctype, _) ->
-       (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds
-     | GlobalDecl ctype -> (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds)
-
-
 type stack_local_var_inj_info =
   { entry_ownership_str : string list;
     exit_ownership_str : string list;
@@ -169,7 +160,7 @@ let generate_c_specs_from_cn_internal
     | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
-  let globals = extract_global_variables prog5.globs in
+  let globals = Cn_to_ail.extract_global_variables prog5.globs in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -271,7 +262,7 @@ let generate_c_assume_pres_internal
         List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
-    let globals = extract_global_variables prog5.globs in
+    let globals = Cn_to_ail.extract_global_variables prog5.globs in
     let fsym =
       if is_static then
         Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
@@ -398,14 +389,19 @@ let generate_fun_def_and_decl_docs funs =
 
 let generate_c_functions
       filename
+      (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
-      (logical_predicates : (Sym.t * Definition.Function.t) list)
   =
   let ail_funs_and_records =
     List.map
       (fun cn_f ->
-         Cn_to_ail.cn_to_ail_function filename cn_f sigm.cn_datatypes sigm.cn_functions)
-      logical_predicates
+         Cn_to_ail.cn_to_ail_function
+           filename
+           cn_f
+           prog5
+           sigm.cn_datatypes
+           sigm.cn_functions)
+      prog5.logical_predicates
   in
   let ail_funs, _ = List.split ail_funs_and_records in
   let locs_and_decls, defs = List.split ail_funs in
@@ -427,15 +423,15 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 
 let generate_c_predicates
       filename
+      (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
-      (resource_predicates : (Sym.t * Definition.Predicate.t) list)
   =
   let ail_funs, _ =
     Cn_to_ail.cn_to_ail_predicates
-      resource_predicates
+      prog5.resource_predicates
       filename
       sigm.cn_datatypes
-      []
+      (Cn_to_ail.extract_global_variables prog5.globs)
       sigm.cn_predicates
   in
   let locs_and_decls, defs = List.split ail_funs in
@@ -451,7 +447,7 @@ let generate_c_lemmas
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = extract_global_variables prog5.globs in
+  let globals = Cn_to_ail.extract_global_variables prog5.globs in
   let ail_funs =
     Cn_to_ail.cn_to_ail_lemmas
       filename
@@ -551,7 +547,7 @@ let generate_ownership_global_assignments
   match get_main sigm with
   | [] -> []
   | (main_sym, _) :: _ ->
-    let globals = extract_global_variables prog5.globs in
+    let globals = Cn_to_ail.extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let assignments = OE.get_ownership_global_init_stats () in

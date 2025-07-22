@@ -57,6 +57,10 @@ type ail_executable_spec =
         list
   }
 
+val extract_global_variables
+  :  ('a * 'b Mucore.globs) list ->
+  ('a * Cerb_frontend.Ctype.ctype) list
+
 val generate_get_or_put_ownership_function
   :  without_ownership_checking:bool ->
   Ctype.ctype ->
@@ -180,6 +184,7 @@ val cn_to_ail_records
 val cn_to_ail_function
   :  string ->
   Sym.t * Definition.Function.t ->
+  _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
   ((Locations.t * AilSyntax.sigma_declaration)

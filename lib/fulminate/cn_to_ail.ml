@@ -3272,10 +3272,20 @@ let rec generate_record_opt pred_sym bt =
   | _ -> None
 
 
+let rec extract_global_variables = function
+  | [] -> []
+  | (sym, globs) :: ds ->
+    (match globs with
+     | Mucore.GlobalDef (ctype, _) ->
+       (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds
+     | GlobalDecl ctype -> (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds)
+
+
 (* TODO: Finish with rest of function - maybe header file with A.Decl_function (cn.h?) *)
 let cn_to_ail_function
       (filename : string)
       (fn_sym, (lf_def : Definition.Function.t))
+      (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
   : ((Locations.t * A.sigma_declaration)
@@ -3291,7 +3301,7 @@ let cn_to_ail_function
           filename
           (Some fn_sym)
           cn_datatypes
-          []
+          (extract_global_variables prog5.globs)
           None
           it
           Return

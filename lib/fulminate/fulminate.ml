@@ -229,10 +229,10 @@ let main
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename sigm prog5.logical_predicates
+    generate_c_functions filename prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename sigm prog5.resource_predicates
+    generate_c_predicates filename prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls = generate_c_lemmas filename sigm prog5 in
   let conversion_function_defs, conversion_function_decls =
