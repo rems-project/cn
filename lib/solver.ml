@@ -1293,46 +1293,43 @@ let model_evaluator, reset_model_evaluator_state =
     model_id := 0
   in
   let model_evaluator solver =
-      let cmds = List.rev (get_commands solver) in
-      let cfg = { solver.smt_solver.config with log = Logger.make "model" } in
-      let smt_solver, new_solver =
-        match !model_evaluator_solver with
-        | Some smt_solver -> (smt_solver, false)
-        | None ->
-          let s = SMT.new_solver cfg in
-          model_evaluator_solver := Some s;
-          (s, true)
-      in
-      let model_id = new_model_id () in
-      let gs = solver.globals in
-      let evaluator =
-        { smt_solver;
-          cur_frame = ref (empty_solver_frame ());
-          prev_frames = ref [ empty_solver_frame () ];
-          name_seed = solver.name_seed;
-          ctypes = solver.ctypes;
-          globals = gs
-        }
-      in
-      let ctys = get_ctype_table evaluator in
-      if new_solver then
+    let cmds = List.rev (get_commands solver) in
+    let cfg = { solver.smt_solver.config with log = Logger.make "model" } in
+    let smt_solver, new_solver =
+      match !model_evaluator_solver with
+      | Some smt_solver -> (smt_solver, false)
+      | None ->
+        let s = SMT.new_solver cfg in
+        model_evaluator_solver := Some s;
+        (s, true)
+    in
+    let model_id = new_model_id () in
+    let gs = solver.globals in
+    let evaluator =
+      { smt_solver;
+        cur_frame = ref (empty_solver_frame ());
+        prev_frames = ref [ empty_solver_frame () ];
+        name_seed = solver.name_seed;
+        ctypes = solver.ctypes;
+        globals = gs
+      }
+    in
+    let ctys = get_ctype_table evaluator in
+    if new_solver then
+      push evaluator;
+    let model_fn e =
+      if not (!currently_loaded_model = model_id) then (
+        currently_loaded_model := model_id;
+        pop evaluator 1;
         push evaluator;
-      let model_fn e =
-        if not (!currently_loaded_model = model_id) then (
-          currently_loaded_model := model_id;
-          pop evaluator 1;
-          push evaluator;
-          List.iter (debug_ack_command evaluator) cmds;
-          match SMT.check smt_solver with
-          | SMT.Sat -> ()
-          | _ -> failwith "not actually sat";
-        );
-        let inp = translate_term evaluator e in
-        let res = SMT.get_expr smt_solver inp in
-        Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
-      in
-      Hashtbl.add models_tbl model_id model_fn;
-      model_id
+        List.iter (debug_ack_command evaluator) cmds;
+        match SMT.check smt_solver with SMT.Sat -> () | _ -> failwith "not actually sat");
+      let inp = translate_term evaluator e in
+      let res = SMT.get_expr smt_solver inp in
+      Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
+    in
+    Hashtbl.add models_tbl model_id model_fn;
+    model_id
   in
   (model_evaluator, reset_model_evaluator_state)
 
