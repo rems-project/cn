@@ -138,7 +138,7 @@ let transform_gt (prog5 : unit Mucore.file) (ctx : Ctx.t) (gt : Term.t) : Term.t
   let aux (gt : Term.t) : Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Call (fsym, xits) ->
+    | `Call (fsym, xits) ->
       let gd = List.assoc Sym.equal fsym ctx in
       let xs =
         gd.iargs

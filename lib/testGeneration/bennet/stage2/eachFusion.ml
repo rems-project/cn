@@ -60,8 +60,8 @@ let collect_constraints
   let rec aux (delete : bool) (gt : Term.t) : Term.t * IT.t =
     let (GT (gt_, _, loc)) = gt in
     match gt_ with
-    | Arbitrary | Call _ | Return _ | Map _ -> (gt, it_true)
-    | Pick wgts ->
+    | `Arbitrary | `Call _ | `Return _ | `Map _ -> (gt, it_true)
+    | `Pick wgts ->
       let _, constraints =
         wgts |> List.map snd |> List.map (aux false) |> List.map_snd simp |> List.split
       in
@@ -73,15 +73,15 @@ let collect_constraints
             (fun a b -> IT.or2_ (a, b) (Locations.other __LOC__))
             (List.hd constraints)
             (List.tl constraints) )
-    | Asgn ((it_addr, sct), it_val, gt') ->
+    | `Asgn ((it_addr, sct), it_val, gt') ->
       let gt', res = aux delete gt' in
       (Term.asgn_ ((it_addr, sct), it_val, gt') loc, res)
-    | LetStar ((y, _), _) when Sym.equal x y -> (gt, it_true)
-    | LetStar ((y, gt_inner), gt_rest) ->
+    | `LetStar ((y, _), _) when Sym.equal x y -> (gt, it_true)
+    | `LetStar ((y, gt_inner), gt_rest) ->
       let gt_inner, res = aux delete gt_inner in
       let gt_rest, res' = aux delete gt_rest in
       (Term.let_star_ ((y, gt_inner), gt_rest) loc, it_and res res')
-    | Assert
+    | `Assert
         ( Forall
             ((i, i_bt), (IT (Binop (Implies, it_perm, it_body), _, loc_implies) as it)),
           gt' )
@@ -106,10 +106,10 @@ let collect_constraints
           (Term.assert_ (Forall ((i, i_bt), it), gt') loc, res'))
       else
         (Term.assert_ (Forall ((i, i_bt), it), gt') loc, res)
-    | Assert (lc, gt') ->
+    | `Assert (lc, gt') ->
       let gt', res = aux delete gt' in
       (Term.assert_ (lc, gt') loc, res)
-    | ITE (it_if, gt_then, gt_else) ->
+    | `ITE (it_if, gt_then, gt_else) ->
       let delete' = Sym.Set.subset (IT.free_vars it_if) vars in
       let gt_then', then_constraints = aux delete' gt_then in
       let gt_else', else_constraints = aux delete' gt_else in
@@ -142,11 +142,11 @@ let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
   let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | Arbitrary | Call _ | Return _ -> gt
-    | Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) bt loc
-    | Asgn ((it_addr, sct), it_val, gt') ->
+    | `Arbitrary | `Call _ | `Return _ -> gt
+    | `Pick wgts -> Term.pick_ (List.map_snd (aux vars) wgts) bt loc
+    | `Asgn ((it_addr, sct), it_val, gt') ->
       Term.asgn_ ((it_addr, sct), it_val, aux vars gt') loc
-    | LetStar ((x, GT (Map ((i, i_bt, it_perm), gt_inner), _, loc_map)), gt_rest) ->
+    | `LetStar ((x, GT (`Map ((i, i_bt, it_perm), gt_inner), _, loc_map)), gt_rest) ->
       let its_bounds = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
       let gt_inner = aux (Sym.Set.add i vars) gt_inner in
       let gt_rest, constraints =
@@ -174,12 +174,12 @@ let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =
           ( (x, Term.map_ ((i, i_bt, it_perm), gt_inner) loc_map),
             aux (Sym.Set.add x vars) gt_rest )
           loc)
-    | LetStar ((x, gt_inner), gt_rest) ->
+    | `LetStar ((x, gt_inner), gt_rest) ->
       Term.let_star_ ((x, aux vars gt_inner), aux (Sym.Set.add x vars) gt_rest) loc
-    | Assert (lc, gt') -> Term.assert_ (lc, aux vars gt') loc
-    | ITE (it_if, gt_then, gt_else) ->
+    | `Assert (lc, gt') -> Term.assert_ (lc, aux vars gt') loc
+    | `ITE (it_if, gt_then, gt_else) ->
       Term.ite_ (it_if, aux vars gt_then, aux vars gt_else) loc
-    | Map ((i, i_bt, it_perm), gt_inner) ->
+    | `Map ((i, i_bt, it_perm), gt_inner) ->
       Term.map_ ((i, i_bt, it_perm), aux (Sym.Set.add i vars) gt_inner) loc
   in
   aux vars gt

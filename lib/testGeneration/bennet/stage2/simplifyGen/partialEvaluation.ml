@@ -621,18 +621,18 @@ module GenTerms = struct
     let rec aux (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | Arbitrary -> gt
-      | Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
-      | Call (fsym, xits) -> Term.call_ (fsym, List.map_snd partial_eval_it xits) bt loc
-      | Asgn ((it_addr, sct), it_val, gt') ->
+      | `Arbitrary -> gt
+      | `Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
+      | `Call (fsym, xits) -> Term.call_ (fsym, List.map_snd partial_eval_it xits) bt loc
+      | `Asgn ((it_addr, sct), it_val, gt') ->
         Term.asgn_ ((partial_eval_it it_addr, sct), partial_eval_it it_val, aux gt') loc
-      | LetStar ((x, gt_inner), gt_rest) ->
+      | `LetStar ((x, gt_inner), gt_rest) ->
         Term.let_star_ ((x, aux gt_inner), aux gt_rest) loc
-      | Return it -> Term.return_ (partial_eval_it it) loc
-      | Assert (lc, gt') -> Term.assert_ (partial_eval_lc lc, aux gt') loc
-      | ITE (it_if, gt_then, gt_else) ->
+      | `Return it -> Term.return_ (partial_eval_it it) loc
+      | `Assert (lc, gt') -> Term.assert_ (partial_eval_lc lc, aux gt') loc
+      | `ITE (it_if, gt_then, gt_else) ->
         Term.ite_ (partial_eval_it it_if, aux gt_then, aux gt_else) loc
-      | Map ((i, i_bt, it_perm), gt_inner) ->
+      | `Map ((i, i_bt, it_perm), gt_inner) ->
         Term.map_ ((i, i_bt, partial_eval_it it_perm), aux gt_inner) loc
     in
     aux gt

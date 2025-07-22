@@ -6,72 +6,51 @@ module LC = LogicalConstraints
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
-type t =
-  | Arbitrary of { bt : BT.t }
-  | Pick of
-      { bt : BT.t;
-        choices : (Z.t * t) list
-      }
-  | Call of
-      { fsym : Sym.t;
-        iargs : (Sym.t * Sym.t) list;
-        oarg_bt : BT.t;
-        sized : (int * Sym.t) option
-      }
-  | Asgn of
-      { addr : IT.t;
-        sct : Sctypes.t;
-        value : IT.t;
-        rest : t
-      }
-  | LetStar of
-      { x : Sym.t;
-        x_bt : BT.t;
-        value : t;
-        rest : t
-      }
-  | Return of { value : IT.t }
-  | Assert of
-      { prop : LC.t;
-        rest : t
-      }
-  | ITE of
-      { bt : BT.t;
-        cond : IT.t;
-        t : t;
-        f : t
-      }
-  | Map of
-      { i : Sym.t;
-        bt : BT.t;
-        perm : IT.t;
-        inner : t
-      }
-  | SplitSize of
-      { syms : Sym.Set.t;
-        rest : t
-      }
+type t_ =
+  [ `Arbitrary (** Generate arbitrary values *)
+  | `Pick of (Z.t * t) list
+    (** Pick among a list of options, weighted by the provided [Z.t]s *)
+  | `Call of Sym.t * (Sym.t * IT.t) list * (int * Sym.t) option
+    (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
+  | `Asgn of (IT.t * Sctypes.t) * IT.t * t
+    (** Claim ownership and assign a value to a memory location *)
+  | `LetStar of (Sym.t * t) * t (** Backtrack point *)
+  | `Return of IT.t (** Monadic return *)
+  | `Assert of LC.t * t (** Assert some [LC.t] are true, backtracking otherwise *)
+  | `ITE of IT.t * t * t (** If-then-else *)
+  | `Map of (Sym.t * BT.t * IT.t) * t
+  | `SplitSize of Sym.Set.t * t
+  ]
 [@@deriving eq, ord]
 
-let is_return (tm : t) : bool = match tm with Return _ -> true | _ -> false
+and t = GT of t_ * BT.t * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
+[@@deriving eq, ord]
+
+let basetype (GT (_, bt, _) : t) = bt
+
+let is_return (tm : t) : bool = match tm with GT (`Return _, _, _) -> true | _ -> false
 
 let rec free_vars (tm : t) : Sym.Set.t =
-  match tm with
-  | Arbitrary _ -> Sym.Set.empty
-  | Pick { bt = _; choices } -> free_vars_list (List.map snd choices)
-  | Call { fsym = _; iargs; oarg_bt = _; sized = _ } ->
-    Sym.Set.of_list (List.map snd iargs)
-  | Asgn { addr; sct = _; value; rest } ->
-    Sym.Set.union (IT.free_vars_list [ addr; value ]) (free_vars rest)
-  | LetStar { x; x_bt = _; value; rest } ->
-    Sym.Set.union (free_vars value) (Sym.Set.remove x (free_vars rest))
-  | Return { value } -> IT.free_vars value
-  | Assert { prop; rest } -> Sym.Set.union (LC.free_vars prop) (free_vars rest)
-  | ITE { bt = _; cond; t; f } ->
-    Sym.Set.union (IT.free_vars cond) (free_vars_list [ t; f ])
-  | Map { i; bt = _; perm; inner } ->
-    Sym.Set.remove i (Sym.Set.union (IT.free_vars_list [ perm ]) (free_vars inner))
-  | SplitSize { syms = _; rest } -> free_vars rest
+  let (GT (tm_, _, _)) = tm in
+  match tm_ with
+  | `Arbitrary -> Sym.Set.empty
+  | `Pick choices -> free_vars_list (List.map snd choices)
+  | `Call (_, iargs, _) ->
+    iargs
+    |> List.map snd
+    |> List.map IT.free_vars
+    |> List.fold_left Sym.Set.union Sym.Set.empty
+  | `Asgn ((it_addr, _sct), it_val, gt_rest) ->
+    Sym.Set.union (IT.free_vars_list [ it_addr; it_val ]) (free_vars gt_rest)
+  | `LetStar ((x, gt_inner), gt_rest) ->
+    Sym.Set.union (free_vars gt_inner) (Sym.Set.remove x (free_vars gt_rest))
+  | `Return it -> IT.free_vars it
+  | `Assert (lc, gt_rest) -> Sym.Set.union (LC.free_vars lc) (free_vars gt_rest)
+  | `ITE (it_if, gt_then, gt_else) ->
+    Sym.Set.union (IT.free_vars it_if) (free_vars_list [ gt_then; gt_else ])
+  | `Map ((i, _bt, it_perm), gt_inner) ->
+    Sym.Set.remove i (Sym.Set.union (IT.free_vars_list [ it_perm ]) (free_vars gt_inner))
+  | `SplitSize (_syms, gt_rest) -> free_vars gt_rest
 
 
 and free_vars_list : t list -> Sym.Set.t =
@@ -80,9 +59,10 @@ and free_vars_list : t list -> Sym.Set.t =
 
 let rec pp (tm : t) : Pp.document =
   let open Pp in
-  match tm with
-  | Arbitrary { bt } -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
-  | Pick { bt; choices } ->
+  let (GT (tm_, bt, _)) = tm in
+  match tm_ with
+  | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
+  | `Pick wgts ->
     !^"pick"
     ^^ parens
          (brackets
@@ -94,8 +74,8 @@ let rec pp (tm : t) : Pp.document =
                       (semi ^^ break 1)
                       (fun (w, gt) ->
                          parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
-                      choices)))
-  | Call { fsym; iargs; oarg_bt; sized } ->
+                      wgts)))
+  | `Call (fsym, iargs, sized) ->
     parens
       (Sym.pp fsym
        ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
@@ -104,38 +84,38 @@ let rec pp (tm : t) : Pp.document =
                2
                (separate_map
                   (comma ^^ break 1)
-                  (fun (x, y) -> Sym.pp x ^^ colon ^^^ Sym.pp y)
+                  (fun (x, y) -> Sym.pp x ^^ colon ^^^ IT.pp y)
                   iargs))
        ^^^ colon
-       ^^^ BT.pp oarg_bt)
-  | Asgn { addr; sct; value; rest } ->
-    Sctypes.pp sct ^^^ IT.pp addr ^^^ !^":=" ^^^ IT.pp value ^^ semi ^/^ pp rest
-  | LetStar { x : Sym.t; x_bt : BT.t; value : t; rest : t } ->
+       ^^^ BT.pp bt)
+  | `Asgn ((it_addr, sct), it_val, gt_rest) ->
+    Sctypes.pp sct ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val ^^ semi ^/^ pp gt_rest
+  | `LetStar ((x, gt_inner), gt_rest) ->
     !^"let*"
     ^^^ Sym.pp x
     ^^^ colon
-    ^^^ BT.pp x_bt
+    ^^^ BT.pp (basetype gt_inner)
     ^^^ equals
-    ^^ nest 2 (break 1 ^^ pp value)
+    ^^ nest 2 (break 1 ^^ pp gt_inner)
     ^^ semi
-    ^/^ pp rest
-  | Return { value : IT.t } -> !^"return" ^^^ IT.pp value
-  | Assert { prop : LC.t; rest : t } ->
-    !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp prop) ^^ break 1) ^^ semi ^/^ pp rest
-  | ITE { bt : BT.t; cond : IT.t; t : t; f : t } ->
+    ^/^ pp gt_rest
+  | `Return it -> !^"return" ^^^ IT.pp it
+  | `Assert (lc, gt_rest) ->
+    !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1) ^^ semi ^/^ pp gt_rest
+  | `ITE (it_if, gt_then, gt_else) ->
     !^"if"
-    ^^^ parens (IT.pp cond)
-    ^^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^/^ pp t) ^^ break 1)
+    ^^^ parens (IT.pp it_if)
+    ^^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^/^ pp gt_then) ^^ break 1)
     ^^^ !^"else"
-    ^^^ braces (nest 2 (break 1 ^^ pp f) ^^ break 1)
-  | Map { i; bt; perm; inner } ->
+    ^^^ braces (nest 2 (break 1 ^^ pp gt_else) ^^ break 1)
+  | `Map ((i, _bt, it_perm), gt_inner) ->
     let i_bt, _ = BT.map_bt bt in
     !^"map"
-    ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ IT.pp perm)
-    ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp inner) ^^ break 1)
-  | SplitSize { syms; rest } ->
+    ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ IT.pp it_perm)
+    ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp gt_inner) ^^ break 1)
+  | `SplitSize (syms, gt_rest) ->
     !^"split_size"
     ^^ parens
          (separate_map (comma ^^ space) Sym.pp (syms |> Sym.Set.to_seq |> List.of_seq))
     ^^ semi
-    ^/^ pp rest
+    ^/^ pp gt_rest

@@ -6,112 +6,74 @@ module LC = LogicalConstraints
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
-type t =
-  | Arbitrary of { bt : BT.t }
-  | Pick of
-      { bt : BT.t;
-        choice_var : Sym.t;
-        choices : (int * t) list;
-        last_var : Sym.t
-      }
-  | Call of
-      { fsym : Sym.t;
-        iargs : (Sym.t * Sym.t) list;
-        oarg_bt : BT.t;
-        path_vars : Sym.Set.t;
-        last_var : Sym.t;
-        sized : (int * Sym.t) option
-      }
-  | Asgn of
-      { backtrack_var : Sym.t;
-        pointer : Sym.t * BT.t;
-        addr : IT.t;
-        sct : Sctypes.t;
-        value : IT.t;
-        last_var : Sym.t;
-        rest : t
-      }
-  | LetStar of
-      { x : Sym.t;
-        x_bt : BT.t;
-        value : t;
-        last_var : Sym.t;
-        rest : t
-      }
-  | Return of { value : IT.t }
-  | Assert of
-      { prop : LC.t;
-        last_var : Sym.t;
-        rest : t
-      }
-  | AssertDomain of
-      { sym : Sym.t;
-        domain : Abstract.domain;
-        bt : BT.t;
-        last_var : Sym.t;
-        rest : t
-      }
-  | ITE of
-      { bt : BT.t;
-        cond : IT.t;
-        t : t;
-        f : t
-      }
-  | Map of
-      { i : Sym.t;
-        bt : BT.t;
-        min : IT.t;
-        max : IT.t;
-        perm : IT.t;
-        inner : t;
-        last_var : Sym.t
-      }
-  | SplitSize of
-      { marker_var : Sym.t;
-        syms : Sym.Set.t;
-        path_vars : Sym.Set.t;
-        last_var : Sym.t;
-        rest : t
-      }
+type t_ =
+  [ `Arbitrary (** Generate arbitrary values *)
+  | `Pick of Sym.t * (Z.t * t) list
+    (** Pick among a list of options, weighted by the provided [Z.t]s *)
+  | `Call of Sym.t * (Sym.t * IT.t) list * (int * Sym.t) option
+    (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
+  | `Asgn of ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t
+    (** Claim ownership and assign a value to a memory location *)
+  | `LetStar of (Sym.t * t) * t (** Backtrack point *)
+  | `Return of IT.t (** Monadic return *)
+  | `Assert of LC.t * t (** Assert some [LC.t] are true, backtracking otherwise *)
+  | `AssertDomain of Sym.t * BT.t * Abstract.domain * t (** Domain assertion *)
+  | `ITE of IT.t * t * t (** If-then-else *)
+  | `Map of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t
+  | `SplitSize of Sym.t * Sym.Set.t * t
+  ]
 [@@deriving eq, ord]
 
-let is_return (tm : t) : bool = match tm with Return _ -> true | _ -> false
+and t =
+  | GT of
+      t_
+      * BT.t
+      * (Sym.Set.t * Sym.t)
+      * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
+[@@deriving eq, ord]
+
+let basetype (GT (_, bt, _, _) : t) = bt
+
+let is_return (GT (tm_, _, _, _) : t) : bool =
+  match tm_ with `Return _ -> true | _ -> false
+
 
 let rec free_vars (tm : t) : Sym.Set.t =
-  match tm with
-  | Arbitrary _ -> Sym.Set.empty
-  | Pick { bt = _; choice_var = _; choices; last_var = _ } ->
-    free_vars_list (List.map snd choices)
-  | Call { fsym = _; iargs; oarg_bt = _; path_vars = _; last_var = _; sized = _ } ->
-    Sym.Set.of_list (List.map snd iargs)
-  | Asgn { backtrack_var = _; pointer = _; addr; sct = _; value; last_var = _; rest } ->
-    Sym.Set.union (IT.free_vars_list [ addr; value ]) (free_vars rest)
-  | LetStar { x; x_bt = _; value; last_var = _; rest } ->
-    Sym.Set.union (free_vars value) (Sym.Set.remove x (free_vars rest))
-  | Return { value } -> IT.free_vars value
-  | Assert { prop; last_var = _; rest } ->
-    Sym.Set.union (LC.free_vars prop) (free_vars rest)
-  | AssertDomain { sym; domain; bt = _; last_var = _; rest } ->
+  let (GT (tm_, _, _, _)) = tm in
+  match tm_ with
+  | `Arbitrary -> Sym.Set.empty
+  | `Pick (_, wgts) -> free_vars_list (List.map snd wgts)
+  | `Call (_, iargs, _) ->
+    iargs
+    |> List.map snd
+    |> List.map IT.free_vars
+    |> List.fold_left Sym.Set.union Sym.Set.empty
+  | `Asgn (((_backtrack_var, _pointer, it_addr), _sct), it_val, gt_rest) ->
+    Sym.Set.union (IT.free_vars_list [ it_addr; it_val ]) (free_vars gt_rest)
+  | `LetStar ((x, gt_inner), gt_rest) ->
+    Sym.Set.union (free_vars gt_inner) (Sym.Set.remove x (free_vars gt_rest))
+  | `Return it -> IT.free_vars it
+  | `Assert (lc, gt_rest) -> Sym.Set.union (LC.free_vars lc) (free_vars gt_rest)
+  | `AssertDomain (x, _x_bt, domain, gt_rest) ->
     let unwrap = function
       | Some it -> Sym.Set.union (IT.free_vars it)
-      | None -> fun x -> x
+      | None -> fun y -> y
     in
-    Sym.Set.singleton sym
+    Sym.Set.singleton x
     |> unwrap domain.lower_bound_inc
     |> unwrap domain.lower_bound_ex
     |> unwrap domain.upper_bound_inc
     |> unwrap domain.upper_bound_ex
     |> unwrap domain.multiple
-    |> Sym.Set.union (free_vars rest)
-    |> Sym.Set.add sym
-  | ITE { bt = _; cond; t; f } ->
-    Sym.Set.union (IT.free_vars cond) (free_vars_list [ t; f ])
-  | Map { i; bt = _; min; max; perm; inner; last_var = _ } ->
+    |> Sym.Set.union (free_vars gt_rest)
+    |> Sym.Set.add x
+  | `ITE (it_if, gt_then, gt_else) ->
+    Sym.Set.union (IT.free_vars it_if) (free_vars_list [ gt_then; gt_else ])
+  | `Map ((i, _bt, (it_min, it_max), it_perm), gt_inner) ->
     Sym.Set.remove
       i
-      (Sym.Set.union (IT.free_vars_list [ min; max; perm ]) (free_vars inner))
-  | SplitSize { marker_var = _; syms = _; path_vars = _; last_var = _; rest } ->
-    free_vars rest
+      (Sym.Set.union (IT.free_vars_list [ it_min; it_max; it_perm ]) (free_vars gt_inner))
+  | `SplitSize (_, _syms, gt_rest) -> free_vars gt_rest
 
 
 and free_vars_list : t list -> Sym.Set.t =
@@ -120,9 +82,10 @@ and free_vars_list : t list -> Sym.Set.t =
 
 let rec pp (tm : t) : Pp.document =
   let open Pp in
-  match tm with
-  | Arbitrary { bt } -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
-  | Pick { bt; choice_var; choices; last_var } ->
+  let (GT (tm_, bt, (path_vars, last_var), _)) = tm in
+  match tm_ with
+  | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
+  | `Pick (choice_var, wgts) ->
     !^"pick"
     ^^ parens
          (c_comment (!^"chosen by " ^^ Sym.pp choice_var)
@@ -138,9 +101,9 @@ let rec pp (tm : t) : Pp.document =
                     ^/^ separate_map
                           (semi ^^ break 1)
                           (fun (w, gt) ->
-                             parens (int w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
-                          choices)))
-  | Call { fsym; iargs; oarg_bt; path_vars; last_var; sized } ->
+                             parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
+                          wgts)))
+  | `Call (fsym, iargs, sized) ->
     parens
       (Sym.pp fsym
        ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
@@ -149,10 +112,10 @@ let rec pp (tm : t) : Pp.document =
                2
                (separate_map
                   (comma ^^ break 1)
-                  (fun (x, y) -> Sym.pp x ^^ colon ^^^ Sym.pp y)
+                  (fun (x, y) -> Sym.pp x ^^ colon ^^^ IT.pp y)
                   iargs))
        ^^^ colon
-       ^^^ BT.pp oarg_bt
+       ^^^ BT.pp bt
        ^^ c_comment
             (!^"path affected by"
              ^^^ separate_map
@@ -161,11 +124,11 @@ let rec pp (tm : t) : Pp.document =
                    (path_vars |> Sym.Set.to_seq |> List.of_seq)
              ^^ !^"and backtracks to"
              ^^^ Sym.pp last_var))
-  | Asgn { backtrack_var; pointer = p_sym, p_bt; addr; sct; value; last_var; rest } ->
+  | `Asgn (((backtrack_var, (p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
     Sctypes.pp sct
-    ^^^ IT.pp addr
+    ^^^ IT.pp it_addr
     ^^^ !^":="
-    ^^^ IT.pp value
+    ^^^ IT.pp it_val
     ^^ semi
     ^^^ c_comment
           (!^"backtracks as"
@@ -176,55 +139,55 @@ let rec pp (tm : t) : Pp.document =
            ^^ Sym.pp p_sym
            ^^^ colon
            ^^^ BT.pp p_bt)
-    ^/^ pp rest
-  | LetStar { x : Sym.t; x_bt : BT.t; value : t; last_var : Sym.t; rest : t } ->
+    ^/^ pp gt_rest
+  | `LetStar ((x, gt_inner), gt_rest) ->
     !^"let*"
     ^^^ Sym.pp x
     ^^^ colon
-    ^^^ BT.pp x_bt
+    ^^^ BT.pp (basetype gt_inner)
     ^^^ equals
-    ^^ nest 2 (break 1 ^^ pp value)
+    ^^ nest 2 (break 1 ^^ pp gt_inner)
     ^^ semi
     ^^^ twice slash
     ^^^ !^"backtracks to"
     ^^^ Sym.pp last_var
-    ^/^ pp rest
-  | Return { value : IT.t } -> !^"return" ^^^ IT.pp value
-  | Assert { prop : LC.t; last_var : Sym.t; rest : t } ->
+    ^/^ pp gt_rest
+  | `Return it -> !^"return" ^^^ IT.pp it
+  | `Assert (lc, gt_rest) ->
     !^"assert"
-    ^^ parens (nest 2 (break 1 ^^ LC.pp prop) ^^ break 1)
+    ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1)
     ^^ semi
     ^^^ twice slash
     ^^^ !^"backtracks to"
     ^^^ Sym.pp last_var
-    ^/^ pp rest
-  | AssertDomain { sym; domain = _; bt = _; last_var; rest } ->
+    ^/^ pp gt_rest
+  | `AssertDomain (x, _x_bt, _domain, gt_rest) ->
     !^"assert_domain"
-    ^^ brackets (Sym.pp sym)
+    ^^ brackets (Sym.pp x)
     ^^ parens (nest 2 (break 1 ^^ !^"TODO: `Abstract.pp_domain`") ^^ break 1)
     ^^ semi
     ^^^ twice slash
     ^^^ !^"backtracks to"
     ^^^ Sym.pp last_var
-    ^/^ pp rest
-  | ITE { bt : BT.t; cond : IT.t; t : t; f : t } ->
+    ^/^ pp gt_rest
+  | `ITE (it_if, gt_then, gt_else) ->
     !^"if"
-    ^^^ parens (IT.pp cond)
-    ^^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^/^ pp t) ^^ break 1)
+    ^^^ parens (IT.pp it_if)
+    ^^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^/^ pp gt_then) ^^ break 1)
     ^^^ !^"else"
-    ^^^ braces (nest 2 (break 1 ^^ pp f) ^^ break 1)
-  | Map { i; bt; min; max; perm; inner; last_var } ->
+    ^^^ braces (nest 2 (break 1 ^^ pp gt_else) ^^ break 1)
+  | `Map ((i, _bt, (it_min, it_max), it_perm), gt_inner) ->
     let i_bt, _ = BT.map_bt bt in
     !^"map"
     ^^^ parens
           (BT.pp i_bt
            ^^^ Sym.pp i
            ^^ semi
-           ^^^ IT.pp perm
-           ^^ c_comment (IT.pp min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ IT.pp max)
+           ^^^ IT.pp it_perm
+           ^^ c_comment (IT.pp it_min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ IT.pp it_max)
            ^^ c_comment (!^"backtracks to" ^^^ Sym.pp last_var))
-    ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp inner) ^^ break 1)
-  | SplitSize { marker_var; syms; path_vars; last_var; rest } ->
+    ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp gt_inner) ^^ break 1)
+  | `SplitSize (marker_var, syms, gt_rest) ->
     !^"split_size"
     ^^ brackets (Sym.pp marker_var)
     ^^ parens
@@ -239,4 +202,4 @@ let rec pp (tm : t) : Pp.document =
                  Sym.pp
                  (path_vars |> Sym.Set.to_seq |> List.of_seq))
     ^^ semi
-    ^/^ pp rest
+    ^/^ pp gt_rest

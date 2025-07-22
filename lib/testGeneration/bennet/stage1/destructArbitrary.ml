@@ -24,7 +24,7 @@ let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
     match gt with
     (* This case is for when nested in a `map` due to needing an arbitrary array*)
-    | GT (Arbitrary, Struct tag, loc_arb) ->
+    | GT (`Arbitrary, Struct tag, loc_arb) ->
       (* Generate fresh vars for each member *)
       let members =
         match Pmap.find tag prog5.tagDefs with
@@ -56,9 +56,9 @@ let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
         gt_struct
         members
     | GT
-        ( LetStar
-            ( (x, GT (Arbitrary, Struct tag, loc_arb)),
-              GT (Asgn ((it_addr, Struct tag'), IT (Sym x', _, _), gt_rest), _, _) ),
+        ( `LetStar
+            ( (x, GT (`Arbitrary, Struct tag, loc_arb)),
+              GT (`Asgn ((it_addr, Struct tag'), IT (Sym x', _, _), gt_rest), _, _) ),
           _,
           _ )
       when TestGenConfig.is_experimental_struct_asgn_destruction () ->

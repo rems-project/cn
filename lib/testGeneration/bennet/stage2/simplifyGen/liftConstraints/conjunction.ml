@@ -51,12 +51,12 @@ let transform_gt (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
     let (GT (gt_, _bt, loc)) = gt in
     match gt_ with
-    | Assert (T it, gt') ->
+    | `Assert (T it, gt') ->
       it
       |> cnf
       |> listify_constraints
       |> List.fold_left (fun gt_rest it' -> Term.assert_ (LC.T it', gt_rest) loc) gt'
-    | Assert (Forall ((i_sym, i_bt), it), gt') ->
+    | `Assert (Forall ((i_sym, i_bt), it), gt') ->
       let its_in, its_out =
         it
         |> cnf
