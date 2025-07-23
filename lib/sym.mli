@@ -24,6 +24,8 @@ val pp_debug : t -> PPrint.document
 
 val num : t -> int
 
+val fresh_int : unit -> int
+
 val fresh_anon : unit -> t
 
 val fresh : string -> t

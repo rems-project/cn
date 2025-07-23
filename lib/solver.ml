@@ -17,11 +17,9 @@ open Pp
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
-  let var_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let named_expr_name = "_cn_named"
-
-  let uninterpreted_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
@@ -34,10 +32,7 @@ module CN_Names = struct
   let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let datatype_field_name x = Id.get_string x ^ "_data_fld"
-end
 
-(** Names for constants that may be uninterpreted.  See [bt_uninterpreted] *)
-module CN_Constant = struct
   let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
 
   let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
@@ -59,9 +54,6 @@ type solver =
     cur_frame : solver_frame ref;
     prev_frames : solver_frame list ref;
       (** Push/pop model. Current frame, and previous frames. *)
-    name_seed : int ref; (** Used to generate names. *)
-    (* ISD: This could, perhaps, go in the frame. Then when we pop frames, we'd go back to
-       the old numbers, which should be OK, I think? *)
     globals : Global.t;
     ctypes : int CTypeMap.t
       (** Declarations for C types. Each C type is assigned a unique integer.
@@ -140,17 +132,7 @@ let ack_command s cmd =
 
 
 (** Generate a fersh name *)
-let fresh_name s x =
-  let n = !(s.name_seed) in
-  s.name_seed := n + 1;
-  let res = x ^ "_" ^ string_of_int n in
-  res
-
-
-let declare_fun s name args_ts res_t =
-  let sname = CN_Names.uninterpreted_name name in
-  ack_command s (SMT.declare_fun sname args_ts res_t)
-
+let fresh_name x = x ^ "_" ^ string_of_int (Sym.fresh_int ())
 
 (* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
    declaring a fixed number of tuples ahead of time, we could declare the types on demand
@@ -634,7 +616,7 @@ let rec translate_term s iterm =
     if SMT.is_atom e then
       k e
     else (
-      let x = fresh_name s CN_Names.named_expr_name in
+      let x = fresh_name CN_Names.named_expr_name in
       SMT.let_ [ (x, e) ] (k (SMT.atom x)))
   in
   let default bt =
@@ -643,7 +625,7 @@ let rec translate_term s iterm =
   in
   match IT.get_term iterm with
   | Const c -> translate_const s c
-  | Sym x -> SMT.atom (CN_Names.uninterpreted_name x)
+  | Sym x -> SMT.atom (CN_Names.fn_name x)
   | Unop (op, e1) ->
     (match op with
      | BW_FFS_NoSMT ->
@@ -713,34 +695,34 @@ let rec translate_term s iterm =
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Integer | BT.Real -> SMT.num_mul s1 s2
         | _ -> failwith "Mul")
-     | MulNoSMT -> uninterp_same_type CN_Constant.mul
+     | MulNoSMT -> uninterp_same_type CN_Names.mul
      | Div ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
         | BT.Integer | BT.Real -> SMT.num_div s1 s2
         | _ -> failwith "Div")
-     | DivNoSMT -> uninterp_same_type CN_Constant.div
+     | DivNoSMT -> uninterp_same_type CN_Names.div
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (IT.get_bt e1) loc)
         | _, _ -> failwith "Exp")
-     | ExpNoSMT -> uninterp_same_type CN_Constant.exp
+     | ExpNoSMT -> uninterp_same_type CN_Names.exp
      | Rem ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_rem s1 s2 (* CVC5 ?? *)
         | _ -> failwith "Rem")
-     | RemNoSMT -> uninterp_same_type CN_Constant.rem
+     | RemNoSMT -> uninterp_same_type CN_Names.rem
      | Mod ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_mod s1 s2
         | _ -> failwith "Mod")
-     | ModNoSMT -> uninterp_same_type CN_Constant.mod'
+     | ModNoSMT -> uninterp_same_type CN_Names.mod'
      | BW_Xor ->
        (match IT.get_bt iterm with
         | BT.Bits _ -> SMT.bv_xor s1 s2
@@ -919,13 +901,11 @@ let rec translate_term s iterm =
   | MapGet (mp, k) -> SMT.arr_select (translate_term s mp) (translate_term s k)
   | MapDef _ -> failwith "MapDef"
   | Apply (fn, args) ->
-    let sname = CN_Names.uninterpreted_name fn in
-    SMT.(app (atom sname) (List.map (translate_term s) args))
+    SMT.(app (atom (CN_Names.fn_name fn)) (List.map (translate_term s) args))
   | Let ((x, e1), e2) ->
     let se1 = translate_term s e1 in
-    let name = CN_Names.var_name x in
     let se2 = translate_term s e2 in
-    SMT.let_ [ (name, se1) ] se2
+    SMT.let_ [ (CN_Names.fn_name x, se1) ] se2
   (* Datatypes *)
   (* Assumes the fields are in the correct order *)
   | Constructor (c, fields) ->
@@ -937,7 +917,7 @@ let rec translate_term s iterm =
   | Match (e1, alts) ->
     let rec match_pat v (Pat (pat, _, _)) =
       match pat with
-      | PSym x -> (None, [ (CN_Names.var_name x, v) ])
+      | PSym x -> (None, [ (CN_Names.fn_name x, v) ])
       | PWild -> (None, [])
       | PConstructor (c, fs) ->
         let field (f, nested) =
@@ -958,7 +938,7 @@ let rec translate_term s iterm =
         let k = SMT.let_ binds (translate_term s rhs) in
         (match mb_cond with Some cond -> SMT.ite cond k (do_alts v more) | None -> k)
     in
-    let x = fresh_name s "match" in
+    let x = fresh_name "match" in
     SMT.let_ [ (x, translate_term s e1) ] (do_alts (SMT.atom x) alts)
   (* Casts *)
   | WrapI (ity, arg) ->
@@ -1010,7 +990,22 @@ let add_assumption solver global lc =
   | Forall _ -> ()
 
 
-let declare_variable solver (sym, bt) = declare_fun solver sym [] (translate_base_type bt)
+let declare_fun s name args_bts res_bt =
+  let sname = CN_Names.fn_name name in
+  let args_ts = List.map translate_base_type args_bts in
+  let res_t = translate_base_type res_bt in
+  ack_command s (SMT.declare_fun sname args_ts res_t)
+
+
+let define_fun s name arg_binders res_bt body =
+  let sname = CN_Names.fn_name name in
+  let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
+  let args = List.map mk_arg arg_binders in
+  let ret_t = translate_base_type res_bt in
+  ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
+
+
+let declare_variable solver (sym, bt) = declare_fun solver sym [] bt
 
 (** Goals are translated to this type *)
 type reduction =
@@ -1119,21 +1114,14 @@ module CN_Functions = struct
       ack_command s (SMT.declare_fun (fn bt) [ t; t ] t)
     in
     let declare fn = List.iter (declare_per_bt fn) bts in
-    List.iter declare CN_Constant.[ mul; div; exp; rem; mod' ]
+    List.iter declare CN_Names.[ mul; div; exp; rem; mod' ]
 
 
   let declare_or_define_function s fn =
     let def = Sym.Map.find fn s.globals.logical_functions in
-    let ret_t = translate_base_type def.return_bt in
     match def.body with
-    | Uninterp | Rec_Def _ ->
-      let arg_ts = List.map (fun (_, bt) -> translate_base_type bt) def.args in
-      declare_fun s fn arg_ts ret_t
-    | Def body ->
-      let sname = CN_Names.uninterpreted_name fn in
-      let mk_arg (sym, bt) = (CN_Names.uninterpreted_name sym, translate_base_type bt) in
-      let args = List.map mk_arg def.args in
-      ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
+    | Uninterp | Rec_Def _ -> declare_fun s fn (List.map snd def.args) def.return_bt
+    | Def body -> define_fun s fn def.args def.return_bt body
 
 
   let declare_function_group s group = List.iter (declare_or_define_function s) group
@@ -1249,7 +1237,6 @@ let make globals variable_bindings =
     { smt_solver = SMT.new_solver cfg;
       cur_frame = ref (empty_solver_frame ());
       prev_frames = ref [];
-      name_seed = ref 0;
       ctypes;
       globals
     }
@@ -1319,7 +1306,6 @@ let model_evaluator, reset_model_evaluator_state =
       { smt_solver;
         cur_frame = ref (empty_solver_frame ());
         prev_frames = ref [ empty_solver_frame () ];
-        name_seed = solver.name_seed;
         ctypes = solver.ctypes;
         globals = gs
       }
@@ -1360,7 +1346,7 @@ module TryHard = struct
     let qs_ =
       List.map
         (fun (s, bt) ->
-           let name = CN_Names.var_name s in
+           let name = CN_Names.fn_name s in
            let sort = translate_base_type bt in
            (SMT.atom name, sort))
         qs
