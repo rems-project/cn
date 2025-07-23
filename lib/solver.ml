@@ -34,10 +34,7 @@ module CN_Names = struct
   let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let datatype_field_name x = Id.get_string x ^ "_data_fld"
-end
 
-(** Names for constants that may be uninterpreted.  See [bt_uninterpreted] *)
-module CN_Constant = struct
   let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
 
   let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
@@ -713,34 +710,34 @@ let rec translate_term s iterm =
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Integer | BT.Real -> SMT.num_mul s1 s2
         | _ -> failwith "Mul")
-     | MulNoSMT -> uninterp_same_type CN_Constant.mul
+     | MulNoSMT -> uninterp_same_type CN_Names.mul
      | Div ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
         | BT.Integer | BT.Real -> SMT.num_div s1 s2
         | _ -> failwith "Div")
-     | DivNoSMT -> uninterp_same_type CN_Constant.div
+     | DivNoSMT -> uninterp_same_type CN_Names.div
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (IT.get_bt e1) loc)
         | _, _ -> failwith "Exp")
-     | ExpNoSMT -> uninterp_same_type CN_Constant.exp
+     | ExpNoSMT -> uninterp_same_type CN_Names.exp
      | Rem ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_rem s1 s2 (* CVC5 ?? *)
         | _ -> failwith "Rem")
-     | RemNoSMT -> uninterp_same_type CN_Constant.rem
+     | RemNoSMT -> uninterp_same_type CN_Names.rem
      | Mod ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_mod s1 s2
         | _ -> failwith "Mod")
-     | ModNoSMT -> uninterp_same_type CN_Constant.mod'
+     | ModNoSMT -> uninterp_same_type CN_Names.mod'
      | BW_Xor ->
        (match IT.get_bt iterm with
         | BT.Bits _ -> SMT.bv_xor s1 s2
@@ -1119,7 +1116,7 @@ module CN_Functions = struct
       ack_command s (SMT.declare_fun (fn bt) [ t; t ] t)
     in
     let declare fn = List.iter (declare_per_bt fn) bts in
-    List.iter declare CN_Constant.[ mul; div; exp; rem; mod' ]
+    List.iter declare CN_Names.[ mul; div; exp; rem; mod' ]
 
 
   let declare_or_define_function s fn =
