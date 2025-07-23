@@ -21,7 +21,7 @@ module Builtin = struct
     let aux (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map_snd simp_it iargs) bt loc
+      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map simp_it iargs) bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
         Term.asgn_ ((simp_it it_addr, sct), simp_it it_val, gt') loc
       | `Return it -> Term.return_ (simp_it it) loc
@@ -201,7 +201,7 @@ module Fixes = struct
     let aux (gt : Term.t) : Term.t =
       let (GT (gt_, bt, loc)) = gt in
       match gt_ with
-      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map_snd simplify_it iargs) bt loc
+      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map simplify_it iargs) bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
         Term.asgn_ ((simplify_it it_addr, sct), simplify_it it_val, gt') loc
       | `Return it -> Term.return_ (simplify_it it) loc

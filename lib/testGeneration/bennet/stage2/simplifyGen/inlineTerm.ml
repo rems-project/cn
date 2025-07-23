@@ -42,10 +42,9 @@ module SingleUse = struct
         |> List.split
       in
       (Term.pick_ wgts bt loc, List.fold_left union Sym.Map.empty only_ret)
-    | `Call (_fsym, xits) ->
+    | `Call (_fsym, iargs) ->
       ( gt,
-        xits
-        |> List.map snd
+        iargs
         |> List.map IT.free_vars
         |> List.map of_symset
         |> List.fold_left union Sym.Map.empty )

@@ -7,7 +7,7 @@ type t_ =
   [ `Arbitrary (** Generate arbitrary values *)
   | `Pick of (Z.t * t) list
     (** Pick among a list of options, weighted by the provided [Z.t]s *)
-  | `Call of Sym.t * (Sym.t * IT.t) list
+  | `Call of Sym.t * IT.t list
     (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
   | `Asgn of (IT.t * Sctypes.t) * IT.t * t
     (** Claim ownership and assign a value to a memory location *)
@@ -148,15 +148,8 @@ let rec pp (gt : t) : Pp.document =
                (fun (w, gt) ->
                   parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
                wgts))
-  | GT (`Call (fsym, xits), _bt, _here) ->
-    Sym.pp fsym
-    ^^ parens
-         (nest
-            2
-            (separate_map
-               (comma ^^ break 1)
-               (fun (x, it) -> Sym.pp x ^^ colon ^^^ IT.pp it)
-               xits))
+  | GT (`Call (fsym, iargs), _bt, _here) ->
+    Sym.pp fsym ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
   | GT (`Asgn ((it_addr, ty), it_val, gt'), _bt, _here) ->
     Sctypes.pp ty ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val ^^ semi ^/^ pp gt'
   | GT (`LetStar ((x, gt1), gt2), _bt, _here) ->
@@ -187,7 +180,7 @@ let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : 
   match gt_ with
   | `Arbitrary -> `Arbitrary
   | `Pick wgts -> `Pick (List.map_snd (subst su) wgts)
-  | `Call (fsym, xits) -> `Call (fsym, List.map_snd (IT.subst su) xits)
+  | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
   | `Asgn ((it_addr, bt), it_val, g') ->
     `Asgn ((IT.subst su it_addr, bt), IT.subst su it_val, subst su g')
   | `LetStar ((x, gt1), gt2) ->
@@ -225,7 +218,7 @@ let rec free_vars_bts_ (gt_ : t_) : BT.t Sym.Map.t =
   match gt_ with
   | `Arbitrary -> Sym.Map.empty
   | `Pick wgts -> free_vars_bts_list (List.map snd wgts)
-  | `Call (_, xits) -> IT.free_vars_bts_list (List.map snd xits)
+  | `Call (_, iargs) -> IT.free_vars_bts_list iargs
   | `Asgn ((it_addr, _), it_val, gt') ->
     free_vars_bts_list [ return_ it_addr loc; return_ it_val loc; gt' ]
   | `LetStar ((x, gt_inner), gt_rest) ->

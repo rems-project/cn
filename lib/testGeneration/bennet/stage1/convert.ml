@@ -176,12 +176,9 @@ let rec transform_it_lat
       (* Add request *)
       let@ () = add_request recursive preds fsym in
       (* Get arguments *)
-      let pred = List.assoc Sym.equal fsym preds in
-      let arg_syms = pred.pointer :: fst (List.split pred.iargs) in
-      let arg_its = pointer :: args_its' in
-      let args = List.combine arg_syms arg_its in
+      let iargs = pointer :: args_its' in
       (* Build [Term.t] *)
-      let gt_call = Term.call_ (fsym, args) ret_bt loc in
+      let gt_call = Term.call_ (fsym, iargs) ret_bt loc in
       let gt_let = Term.let_star_ ((x, gt_call), gt') loc in
       return gt_let
     | Resource
@@ -235,12 +232,9 @@ let rec transform_it_lat
       (* Add request *)
       let@ () = add_request recursive preds fsym in
       (* Get arguments *)
-      let pred = List.assoc Sym.equal fsym preds in
-      let arg_syms = pred.pointer :: fst (List.split pred.iargs) in
       let it_q = IT.sym_ (q_sym, q_bt, q_loc) in
       let it_p = IT.arrayShift_ ~base:pointer ~index:it_q step loc in
-      let arg_its = it_p :: iargs in
-      let args = List.combine arg_syms arg_its in
+      let iargs = it_p :: iargs in
       (* Build [Term.t] *)
       let _, v_bt = BT.map_bt bt in
       let gt_body =
@@ -253,7 +247,7 @@ let rec transform_it_lat
         let y = Sym.fresh_anon () in
         if BT.equal (BT.Record []) ret_bt then
           Term.let_star_
-            ( (y, Term.call_ (fsym, args) ret_bt loc),
+            ( (y, Term.call_ (fsym, iargs) ret_bt loc),
               Term.return_ (IT.sym_ (y, ret_bt, loc)) loc )
             loc
         else (
@@ -264,7 +258,7 @@ let rec transform_it_lat
               loc
           in
           Term.let_star_
-            ((y, Term.call_ (fsym, args) ret_bt loc), Term.return_ it_ret loc)
+            ((y, Term.call_ (fsym, iargs) ret_bt loc), Term.return_ it_ret loc)
             loc)
       in
       let gt_map = Term.map_ ((q_sym, q_bt, permission), gt_body) loc in
