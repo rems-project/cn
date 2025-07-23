@@ -37,6 +37,8 @@ let pp_debug sym = Pp.string (S.show_raw_less sym)
 
 let num = S.symbol_num
 
+let fresh_int = Cerb_fresh.int
+
 let fresh_anon () = S.fresh ()
 
 let fresh = S.fresh_cn

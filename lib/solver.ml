@@ -56,9 +56,6 @@ type solver =
     cur_frame : solver_frame ref;
     prev_frames : solver_frame list ref;
       (** Push/pop model. Current frame, and previous frames. *)
-    name_seed : int ref; (** Used to generate names. *)
-    (* ISD: This could, perhaps, go in the frame. Then when we pop frames, we'd go back to
-       the old numbers, which should be OK, I think? *)
     globals : Global.t;
     ctypes : int CTypeMap.t
       (** Declarations for C types. Each C type is assigned a unique integer.
@@ -137,11 +134,8 @@ let ack_command s cmd =
 
 
 (** Generate a fersh name *)
-let fresh_name s x =
-  let n = !(s.name_seed) in
-  s.name_seed := n + 1;
-  let res = x ^ "_" ^ string_of_int n in
-  res
+let fresh_name x =
+  x ^ "_" ^ string_of_int (Sym.fresh_int ())
 
 
 let declare_fun s name args_ts res_t =
@@ -631,7 +625,7 @@ let rec translate_term s iterm =
     if SMT.is_atom e then
       k e
     else (
-      let x = fresh_name s CN_Names.named_expr_name in
+      let x = fresh_name CN_Names.named_expr_name in
       SMT.let_ [ (x, e) ] (k (SMT.atom x)))
   in
   let default bt =
@@ -955,7 +949,7 @@ let rec translate_term s iterm =
         let k = SMT.let_ binds (translate_term s rhs) in
         (match mb_cond with Some cond -> SMT.ite cond k (do_alts v more) | None -> k)
     in
-    let x = fresh_name s "match" in
+    let x = fresh_name "match" in
     SMT.let_ [ (x, translate_term s e1) ] (do_alts (SMT.atom x) alts)
   (* Casts *)
   | WrapI (ity, arg) ->
@@ -1246,7 +1240,6 @@ let make globals variable_bindings =
     { smt_solver = SMT.new_solver cfg;
       cur_frame = ref (empty_solver_frame ());
       prev_frames = ref [];
-      name_seed = ref 0;
       ctypes;
       globals
     }
@@ -1316,7 +1309,6 @@ let model_evaluator, reset_model_evaluator_state =
       { smt_solver;
         cur_frame = ref (empty_solver_frame ());
         prev_frames = ref [ empty_solver_frame () ];
-        name_seed = solver.name_seed;
         ctypes = solver.ctypes;
         globals = gs
       }
