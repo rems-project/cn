@@ -2,7 +2,6 @@ module SMT = Simple_smt
 module IT = IndexTerms
 open IT
 module LC = LogicalConstraints
-
 module CTypeMap = Map.Make (Sctypes)
 module IntMap = Map.Make (Int)
 open Global
@@ -52,7 +51,7 @@ type solver =
     ctypes_rev : Sctypes.t IntMap.t;
       (** Declarations for C types. Each C type is assigned a unique integer.
           Unlike previously, this mapping is fixed (constant) from the start. *)
-    model_smt_solver : SMT.solver; (* The SMT solver used for model evaluation. *)
+    model_smt_solver : SMT.solver (* The SMT solver used for model evaluation. *)
   }
 
 module Debug = struct
@@ -68,9 +67,6 @@ module Debug = struct
     ^/^ separate_map hardline dump_frame (!(solver.cur_frame) :: !(solver.prev_frames))
     ^/^ !^"|~~~~~~ End Solver Dump ~~~~~~~~~|"
 end
-
-
-
 
 let get_commands s =
   let frames = !(s.cur_frame) :: !(s.prev_frames) in
@@ -1218,8 +1214,7 @@ let make globals variable_bindings =
   let _, ctypes, ctypes_rev =
     let open WellTyped in
     CTS.fold
-      (fun ct (i, m, m_rev) -> 
-        (i + 1, CTypeMap.add ct i m, IntMap.add i ct m_rev))
+      (fun ct (i, m, m_rev) -> (i + 1, CTypeMap.add ct i m, IntMap.add i ct m_rev))
       (get_cts ())
       (0, CTypeMap.empty, IntMap.empty)
   in
@@ -1230,11 +1225,11 @@ let make globals variable_bindings =
       ctypes;
       ctypes_rev;
       globals;
-      model_smt_solver = SMT.new_solver model_cfg;
+      model_smt_solver = SMT.new_solver model_cfg
     }
   in
   declare_solver_basics s variable_bindings;
-  SMT.ack_command s.model_smt_solver (SMT.push 1); 
+  SMT.ack_command s.model_smt_solver (SMT.push 1);
   (* "empty model loaded" using 'push' *)
   s
 
@@ -1280,7 +1275,7 @@ let record_model =
     let model_id = new_model_id () in
     let cmds = List.rev (get_commands solver) in
     let msmt = solver.model_smt_solver in
-    let load () = 
+    let load () =
       loaded_model := model_id;
       SMT.ack_command msmt (SMT.pop 1);
       SMT.ack_command msmt (SMT.push 1);
