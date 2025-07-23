@@ -136,9 +136,7 @@ let fresh_name x =
   x ^ "_" ^ string_of_int (Sym.fresh_int ())
 
 
-let declare_fun s name args_ts res_t =
-  let sname = CN_Names.fn_name name in
-  ack_command s (SMT.declare_fun sname args_ts res_t)
+
 
 
 (* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
@@ -997,7 +995,21 @@ let add_assumption solver global lc =
   | Forall _ -> ()
 
 
-let declare_variable solver (sym, bt) = declare_fun solver sym [] (translate_base_type bt)
+let declare_fun s name args_bts res_bt =
+  let sname = CN_Names.fn_name name in
+  let args_ts = List.map translate_base_type args_bts in
+  let res_t = translate_base_type res_bt in
+  ack_command s (SMT.declare_fun sname args_ts res_t)
+
+let define_fun s name arg_binders res_bt body =
+  let sname = CN_Names.fn_name name in
+  let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
+  let args = List.map mk_arg arg_binders in
+  let ret_t = translate_base_type res_bt in
+  ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
+  
+
+let declare_variable solver (sym, bt) = declare_fun solver sym [] bt
 
 (** Goals are translated to this type *)
 type reduction =
@@ -1111,16 +1123,12 @@ module CN_Functions = struct
 
   let declare_or_define_function s fn =
     let def = Sym.Map.find fn s.globals.logical_functions in
-    let ret_t = translate_base_type def.return_bt in
     match def.body with
     | Uninterp | Rec_Def _ ->
-      let arg_ts = List.map (fun (_, bt) -> translate_base_type bt) def.args in
-      declare_fun s fn arg_ts ret_t
+      declare_fun s fn (List.map snd def.args) def.return_bt
     | Def body ->
-      let sname = CN_Names.fn_name fn in
-      let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
-      let args = List.map mk_arg def.args in
-      ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
+      define_fun s fn def.args def.return_bt body
+
 
 
   let declare_function_group s group = List.iter (declare_or_define_function s) group
