@@ -10,7 +10,7 @@ type t_ =
   [ `Arbitrary (** Generate arbitrary values *)
   | `Pick of Sym.t * (Z.t * t) list
     (** Pick among a list of options, weighted by the provided [Z.t]s *)
-  | `Call of Sym.t * (Sym.t * IT.t) list * (int * Sym.t) option
+  | `Call of Sym.t * IT.t list * (int * Sym.t) option
     (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
   | `Asgn of ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t
     (** Claim ownership and assign a value to a memory location *)
@@ -44,10 +44,7 @@ let rec free_vars (tm : t) : Sym.Set.t =
   | `Arbitrary -> Sym.Set.empty
   | `Pick (_, wgts) -> free_vars_list (List.map snd wgts)
   | `Call (_, iargs, _) ->
-    iargs
-    |> List.map snd
-    |> List.map IT.free_vars
-    |> List.fold_left Sym.Set.union Sym.Set.empty
+    iargs |> List.map IT.free_vars |> List.fold_left Sym.Set.union Sym.Set.empty
   | `Asgn (((_backtrack_var, _pointer, it_addr), _sct), it_val, gt_rest) ->
     Sym.Set.union (IT.free_vars_list [ it_addr; it_val ]) (free_vars gt_rest)
   | `LetStar ((x, gt_inner), gt_rest) ->
@@ -107,13 +104,7 @@ let rec pp (tm : t) : Pp.document =
     parens
       (Sym.pp fsym
        ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
-       ^^ parens
-            (nest
-               2
-               (separate_map
-                  (comma ^^ break 1)
-                  (fun (x, y) -> Sym.pp x ^^ colon ^^^ IT.pp y)
-                  iargs))
+       ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
        ^^^ colon
        ^^^ BT.pp bt
        ^^ c_comment

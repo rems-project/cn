@@ -138,24 +138,12 @@ let transform_gt (prog5 : unit Mucore.file) (ctx : Ctx.t) (gt : Term.t) : Term.t
   let aux (gt : Term.t) : Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | `Call (fsym, xits) ->
+    | `Call (fsym, iargs) ->
       let gd = List.assoc Sym.equal fsym ctx in
-      let xs =
-        gd.iargs
-        |> transform_iargs prog5
-        |> List.map snd
-        |> List.map flatten_tree
-        |> List.flatten
-        |> List.map fst
+      let iargs' =
+        gd.iargs |> List.map snd |> List.combine iargs |> transform_its prog5
       in
-      let its =
-        gd.iargs
-        |> List.map snd
-        |> List.combine (List.map snd xits)
-        |> transform_its prog5
-      in
-      let xits' = List.combine xs its in
-      Term.call_ (fsym, xits') bt loc
+      Term.call_ (fsym, iargs') bt loc
     | _ -> gt
   in
   Term.map_gen_pre aux gt

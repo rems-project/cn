@@ -49,7 +49,7 @@ let transform_gt (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
     let (GT (gt_, bt, loc)) = gt in
     match gt_ with
-    | `Call (fsym, iargs) -> Term.call_ (fsym, List.map_snd transform_it iargs) bt loc
+    | `Call (fsym, iargs) -> Term.call_ (fsym, List.map transform_it iargs) bt loc
     | `Asgn ((it_addr, sct), it_val, gt') ->
       Term.asgn_ ((transform_it it_addr, sct), transform_it it_val, gt') loc
     | `Return it -> Term.return_ (transform_it it) loc

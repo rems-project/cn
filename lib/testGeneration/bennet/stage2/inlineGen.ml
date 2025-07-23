@@ -9,9 +9,12 @@ module InlineNonRecursive = struct
       | `Arbitrary | `Return _ -> gt
       | `Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
       | `Call (fsym, _) when (List.assoc Sym.equal fsym ctx).recursive -> gt
-      | `Call (fsym, xits) ->
+      | `Call (fsym, iargs) ->
         let gd = ctx |> List.assoc Sym.equal fsym in
-        aux (Term.subst (IT.make_subst xits) gd.body)
+        aux
+          (Term.subst
+             (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+             gd.body)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let gt_rest = aux gt_rest in
         Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc
@@ -49,9 +52,12 @@ module InlineRecursive = struct
       | `Arbitrary | `Return _ -> gt
       | `Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
       | `Call (fsym, _) when Sym.Set.mem fsym dont_unfold -> gt
-      | `Call (fsym, xits) ->
+      | `Call (fsym, iargs) ->
         let gd = ctx |> List.assoc Sym.equal fsym in
-        aux (Term.subst (IT.make_subst xits) gd.body)
+        aux
+          (Term.subst
+             (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+             gd.body)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let gt_rest = aux gt_rest in
         Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc

@@ -147,7 +147,6 @@ let rec transform_term
     let sym = GenUtils.get_mangled_name fsym in
     let bs, ss, es =
       iargs
-      |> List.map snd
       |> List.map (fun x ->
         let bs, ss, e = transform_it filename sigma name x in
         (bs, ss, e))
