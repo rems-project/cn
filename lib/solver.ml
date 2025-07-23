@@ -1274,7 +1274,7 @@ let model_state = ref No_model
 let model () = match !model_state with No_model -> assert false | Model mo -> mo
 
 (** Evaluate terms in the context of a model computed by the solver. *)
-let model_evaluator, reset_model_evaluator_state =
+let model_evaluator =
   (* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *)
   let model_evaluator_solver : Simple_smt.solver option ref = ref None in
   let currently_loaded_model = ref 0 in
@@ -1283,11 +1283,6 @@ let model_evaluator, reset_model_evaluator_state =
     (* Start with 1, as 0 is the id of the empty model *)
     model_id := !model_id + 1;
     !model_id
-  in
-  let reset_model_evaluator_state () =
-    currently_loaded_model := 0;
-    model_evaluator_solver := None;
-    model_id := 0
   in
   let model_evaluator solver =
     let cmds = List.rev (get_commands solver) in
@@ -1327,7 +1322,7 @@ let model_evaluator, reset_model_evaluator_state =
     Hashtbl.add models_tbl model_id model_fn;
     model_id
   in
-  (model_evaluator, reset_model_evaluator_state)
+  model_evaluator
 
 
 (* ---------------------------------------------------------------------------*)
