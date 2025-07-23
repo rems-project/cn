@@ -1411,48 +1411,48 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     let { expr; qs; extra } = translate_goal solver assumptions lc in
     let nexpr = SMT.bool_not expr in
     let inc = solver.smt_solver in
-    debug_ack_command solver (SMT.push 1);
+    push solver;
     List.iter (declare_variable solver) qs;
     (* TODO: iterate instead of bool_ands *)
-    debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
+    ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
     (match SMT.check inc with
      | SMT.Unsat ->
-       debug_ack_command solver (SMT.pop 1);
+       pop solver 1;
        model_state := No_model;
        `True
      | SMT.Sat when !try_hard ->
-       debug_ack_command solver (SMT.pop 1);
+       pop solver 1;
        let assumptions = LC.Set.elements assumptions in
        let foralls = TryHard.translate_foralls solver assumptions in
        let functions = TryHard.translate_functions solver in
-       debug_ack_command solver (SMT.push 1);
+       push solver;
        List.iter (declare_variable solver) qs;
-       debug_ack_command
+       ack_command
          solver
          (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
        Pp.(debug 3 (lazy !^"***** try-hard *****"));
        (match SMT.check inc with
         | SMT.Unsat ->
-          debug_ack_command solver (SMT.pop 1);
+          pop solver 1;
           model_state := No_model;
           Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
           `True
         | SMT.Sat ->
           set_model qs;
-          debug_ack_command solver (SMT.pop 1);
+          pop solver 1;
           Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
           `False
         | SMT.Unknown ->
           set_model qs;
-          debug_ack_command solver (SMT.pop 1);
+          pop solver 1;
           Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
           `Unknown)
      | SMT.Sat ->
        set_model qs;
-       debug_ack_command solver (SMT.pop 1);
+       pop solver 1;
        `False
      | SMT.Unknown ->
-       debug_ack_command solver (SMT.pop 1);
+       pop solver 1;
        failwith "Unknown")
 
 
