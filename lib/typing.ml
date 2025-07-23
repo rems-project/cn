@@ -347,7 +347,7 @@ let maybe_declare_variable_in_solver sym bt =
   let@ s = get () in
   match s.solver with
   | None -> return ()
-  | Some solver -> return (Solver.declare_variable solver sym bt)
+  | Some solver -> return (Solver.declare_variable solver (sym, bt))
 
 
 let add_a sym bt info =
@@ -400,14 +400,15 @@ let get_solver () : solver t = inspect (fun s -> Option.get s.solver)
 let init_solver () =
   modify (fun s ->
     let c = s.typing_context in
-    let solver = Solver.make c.global in
-    let declare sym (binding, _info) =
-      match binding with
-      | Context.Value _ -> () (* no need to declare *)
-      | Context.BaseType bt -> Solver.declare_variable solver sym bt
+    let to_declare =
+      let add_binding sym (binding, _info) acc =
+        match binding with
+        | Context.Value _ -> acc (* no need to declare *)
+        | Context.BaseType bt -> (sym, bt) :: acc
+      in
+      Sym.Map.fold add_binding c.logical (Sym.Map.fold add_binding c.computational [])
     in
-    Sym.Map.iter declare c.computational;
-    Sym.Map.iter declare c.logical;
+    let solver = Solver.make c.global to_declare in
     LC.Set.iter (Solver.add_assumption solver c.global) c.constraints;
     { s with solver = Some solver })
 

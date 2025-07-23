@@ -36,8 +36,6 @@ let rec add_records_to_map_from_it it =
   | Cons (t1, t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]
   | Head t -> add_records_to_map_from_it t
   | Tail t -> add_records_to_map_from_it t
-  | NthList (i, xs, d) -> List.iter add_records_to_map_from_it [ i; xs; d ]
-  | ArrayToList (arr, i, len) -> List.iter add_records_to_map_from_it [ arr; i; len ]
   | Representable (_sct, t) -> add_records_to_map_from_it t
   | Good (_sct, t) -> add_records_to_map_from_it t
   | WrapI (_ity, t) -> add_records_to_map_from_it t

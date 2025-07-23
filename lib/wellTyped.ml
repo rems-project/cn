@@ -947,34 +947,6 @@ module WIT = struct
         let@ t = infer t in
         let@ bt = ensure_list_type t ~reason:loc in
         return (IT (Tail t, BT.List bt, loc))
-      | NthList (i, xs, d) ->
-        let@ i = infer i in
-        let@ () = ensure_bits_type loc (IT.get_bt i) in
-        let@ xs = infer xs in
-        let@ bt = ensure_list_type xs ~reason:loc in
-        let@ d = check (IT.get_loc xs) bt d in
-        return (IT (NthList (i, xs, d), bt, loc))
-      | ArrayToList (arr, i, len) ->
-        let@ i = infer i in
-        let@ () = ensure_bits_type loc (IT.get_bt i) in
-        let@ len = check (IT.get_loc i) (IT.get_bt i) len in
-        let@ arr = infer arr in
-        let@ ix_bt, bt = ensure_map_type ~reason:loc arr in
-        let@ () =
-          if BT.equal ix_bt (IT.get_bt i) then
-            return ()
-          else
-            fail
-              { loc;
-                msg =
-                  Generic
-                    (Pp.item
-                       "array_to_list: index type disagreement"
-                       (Pp.list IT.pp_with_typ [ i; arr ]))
-                  [@alert "-deprecated"]
-              }
-        in
-        return (IT (ArrayToList (arr, i, len), BT.List bt, loc))
       | MapConst (index_bt, t) ->
         let@ index_bt = WBT.is_bt loc index_bt in
         let@ t = infer t in

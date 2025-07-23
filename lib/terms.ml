@@ -110,8 +110,6 @@ type 'bt term =
   | Cons of 'bt annot * 'bt annot
   | Head of 'bt annot
   | Tail of 'bt annot
-  | NthList of 'bt annot * 'bt annot * 'bt annot
-  | ArrayToList of 'bt annot * 'bt annot * 'bt annot
   | Representable of Sctypes.t * 'bt annot
   | Good of Sctypes.t * 'bt annot
   | Aligned of
@@ -326,9 +324,6 @@ let pp
     | Tail o1 -> c_app !^"tl" [ aux 0 o1 ]
     | Nil bt -> !^"nil" ^^ angles (BaseTypes.pp bt)
     | Cons (t1, t2) -> c_app !^"cons" [ aux 0 t1; aux 0 t2 ]
-    | NthList (n, xs, d) -> c_app !^"nth_list" [ aux 0 n; aux 0 xs; aux 0 d ]
-    | ArrayToList (arr, i, len) ->
-      c_app !^"array_to_list" [ aux 0 arr; aux 0 i; aux 0 len ]
     | MapConst (_bt, t) -> c_app !^"const" [ aux 0 t ]
     | MapGet (t1, t2) -> wrap_after 15 (aux 15 t1 ^^ brackets (aux 0 t2))
     | MapSet (t1, t2, t3) ->
@@ -465,9 +460,6 @@ let rec dtree (IT (it_, bt, loc)) =
     | Cons (t1, t2) -> Dnode (pp_ctor "Cons", [ dtree t1; dtree t2 ])
     | Head t -> Dnode (pp_ctor "Head", [ dtree t ])
     | Tail t -> Dnode (pp_ctor "Tail", [ dtree t ])
-    | NthList (t1, t2, t3) -> Dnode (pp_ctor "NthList", [ dtree t1; dtree t2; dtree t3 ])
-    | ArrayToList (t1, t2, t3) ->
-      Dnode (pp_ctor "ArrayToList", [ dtree t1; dtree t2; dtree t3 ])
     | WrapI (it, t) ->
       Dnode (pp_ctor "WrapI", [ Dleaf (Sctypes.pp (Integer it)); dtree t ])
     | SizeOf ct -> Dnode (pp_ctor "SizeOf", [ Dleaf (Sctypes.pp ct) ])

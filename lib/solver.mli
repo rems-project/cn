@@ -21,12 +21,12 @@ val solver_flags : string list option ref
 val solver_type : Simple_smt.solver_extensions option ref
 
 (* Create a solver *)
-val make : Global.t -> solver
+val make : Global.t -> (Sym.t * BaseTypes.t) list -> solver
 
 (* Incrementally (and imperatively) add an assumption to the solver state *)
 val add_assumption : solver -> Global.t -> LogicalConstraints.t -> unit
 
-val declare_variable : solver -> Sym.t -> BaseTypes.t -> unit
+val declare_variable : solver -> Sym.t * BaseTypes.t -> unit
 
 (* Save / restore solver state, to support backtracking *)
 val push : solver -> unit

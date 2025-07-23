@@ -1204,12 +1204,6 @@ and pp_index_term_content = function
   | Cons (t1, t2) -> pp_constructor1 "Cons" [ pp_index_term t1; pp_index_term t2 ]
   | Head t -> pp_constructor1 "Head" [ pp_index_term t ]
   | Tail t -> pp_constructor1 "Tail" [ pp_index_term t ]
-  | NthList (i, xs, d) ->
-    pp_constructor1 "NthList" [ pp_index_term i; pp_index_term xs; pp_index_term d ]
-  | ArrayToList (arr, i, len) ->
-    pp_constructor1
-      "ArrayToList"
-      [ pp_index_term arr; pp_index_term i; pp_index_term len ]
   | Representable (ct, t) ->
     pp_constructor1 "Representable" [ pp_sctype ct; pp_index_term t ]
   | Good (ct, t) -> pp_constructor1 "Good" [ pp_sctype ct; pp_index_term t ]
