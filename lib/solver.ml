@@ -1427,9 +1427,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        let functions = TryHard.translate_functions solver in
        push solver;
        List.iter (declare_variable solver) qs;
-       ack_command
-         solver
-         (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
+       ack_command solver (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
        Pp.(debug 3 (lazy !^"***** try-hard *****"));
        (match SMT.check inc with
         | SMT.Unsat ->
