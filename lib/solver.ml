@@ -132,12 +132,7 @@ let ack_command s cmd =
 
 
 (** Generate a fersh name *)
-let fresh_name x =
-  x ^ "_" ^ string_of_int (Sym.fresh_int ())
-
-
-
-
+let fresh_name x = x ^ "_" ^ string_of_int (Sym.fresh_int ())
 
 (* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
    declaring a fixed number of tuples ahead of time, we could declare the types on demand
@@ -1001,13 +996,14 @@ let declare_fun s name args_bts res_bt =
   let res_t = translate_base_type res_bt in
   ack_command s (SMT.declare_fun sname args_ts res_t)
 
+
 let define_fun s name arg_binders res_bt body =
   let sname = CN_Names.fn_name name in
   let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
   let args = List.map mk_arg arg_binders in
   let ret_t = translate_base_type res_bt in
   ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
-  
+
 
 let declare_variable solver (sym, bt) = declare_fun solver sym [] bt
 
@@ -1124,11 +1120,8 @@ module CN_Functions = struct
   let declare_or_define_function s fn =
     let def = Sym.Map.find fn s.globals.logical_functions in
     match def.body with
-    | Uninterp | Rec_Def _ ->
-      declare_fun s fn (List.map snd def.args) def.return_bt
-    | Def body ->
-      define_fun s fn def.args def.return_bt body
-
+    | Uninterp | Rec_Def _ -> declare_fun s fn (List.map snd def.args) def.return_bt
+    | Def body -> define_fun s fn def.args def.return_bt body
 
 
   let declare_function_group s group = List.iter (declare_or_define_function s) group
