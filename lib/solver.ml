@@ -38,17 +38,15 @@ end
 
 (** Names for constants that may be uninterpreted.  See [bt_uninterpreted] *)
 module CN_Constant = struct
-  (* let default = ("default_uf", 0) *)
+  let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
 
-  let mul = ("mul_uf", 1)
+  let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
 
-  let div = ("div_uf", 2)
+  let exp bt = "exp_uf_" ^ Pp.plain (BT.pp bt)
 
-  let exp = ("exp_uf", 3)
+  let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
 
-  let rem = ("rem_uf", 4)
-
-  let mod' = ("mod_uf", 5)
+  let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
 end
 
 type solver_frame =
@@ -692,12 +690,9 @@ let rec translate_term s iterm =
     let s1 = translate_term s e1 in
     let s2 = translate_term s e2 in
     (* binary uninterpreted function, same type for arguments and result. *)
-    let uninterp_same_type _k =
-      failwith "Todo: global declaration"
-      (* let bt = IT.get_bt iterm in *)
-      (* let smt_t = translate_base_type bt in *)
-      (* let f = declare_bt_uninterpreted s k bt [ smt_t; smt_t ] smt_t in *)
-      (* SMT.app f [ s1; s2 ] *)
+    let uninterp_same_type k =
+      let bt = IT.get_bt iterm in
+      SMT.app (Atom (k bt)) [ s1; s2 ]
     in
     (match op with
      | And -> SMT.bool_and s1 s2
@@ -1113,6 +1108,20 @@ module CN_Structs = struct
 end
 
 module CN_Functions = struct
+  let declare_arith_uf_functions s =
+    let bit_bts_of_size sz = BT.[ Bits (Signed, sz); Bits (Unsigned, sz) ] in
+    let sizes = [ 8; 16; 32; 64; 128 ] in
+    (* as currently supported in the CN parser *)
+    let bit_bts = List.concat_map bit_bts_of_size sizes in
+    let bts = BT.Integer :: bit_bts in
+    let declare_per_bt fn bt =
+      let t = translate_base_type bt in
+      ack_command s (SMT.declare_fun (fn bt) [ t; t ] t)
+    in
+    let declare fn = List.iter (declare_per_bt fn) bts in
+    List.iter declare CN_Constant.[ mul; div; exp; rem; mod' ]
+
+
   let declare_or_define_function s fn =
     let def = Sym.Map.find fn s.globals.logical_functions in
     let ret_t = translate_base_type def.return_bt in
@@ -1130,6 +1139,7 @@ module CN_Functions = struct
   let declare_function_group s group = List.iter (declare_or_define_function s) group
 
   let declare s =
+    declare_arith_uf_functions s;
     List.iter (declare_function_group s) (Option.get s.globals.logical_function_order)
 end
 
