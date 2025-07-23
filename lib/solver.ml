@@ -17,11 +17,9 @@ open Pp
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
-  let var_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let named_expr_name = "_cn_named"
-
-  let uninterpreted_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
@@ -139,7 +137,7 @@ let fresh_name x =
 
 
 let declare_fun s name args_ts res_t =
-  let sname = CN_Names.uninterpreted_name name in
+  let sname = CN_Names.fn_name name in
   ack_command s (SMT.declare_fun sname args_ts res_t)
 
 
@@ -634,7 +632,7 @@ let rec translate_term s iterm =
   in
   match IT.get_term iterm with
   | Const c -> translate_const s c
-  | Sym x -> SMT.atom (CN_Names.uninterpreted_name x)
+  | Sym x -> SMT.atom (CN_Names.fn_name x)
   | Unop (op, e1) ->
     (match op with
      | BW_FFS_NoSMT ->
@@ -910,13 +908,11 @@ let rec translate_term s iterm =
   | MapGet (mp, k) -> SMT.arr_select (translate_term s mp) (translate_term s k)
   | MapDef _ -> failwith "MapDef"
   | Apply (fn, args) ->
-    let sname = CN_Names.uninterpreted_name fn in
-    SMT.(app (atom sname) (List.map (translate_term s) args))
+    SMT.(app (atom (CN_Names.fn_name fn)) (List.map (translate_term s) args))
   | Let ((x, e1), e2) ->
     let se1 = translate_term s e1 in
-    let name = CN_Names.var_name x in
     let se2 = translate_term s e2 in
-    SMT.let_ [ (name, se1) ] se2
+    SMT.let_ [ (CN_Names.fn_name x, se1) ] se2
   (* Datatypes *)
   (* Assumes the fields are in the correct order *)
   | Constructor (c, fields) ->
@@ -928,7 +924,7 @@ let rec translate_term s iterm =
   | Match (e1, alts) ->
     let rec match_pat v (Pat (pat, _, _)) =
       match pat with
-      | PSym x -> (None, [ (CN_Names.var_name x, v) ])
+      | PSym x -> (None, [ (CN_Names.fn_name x, v) ])
       | PWild -> (None, [])
       | PConstructor (c, fs) ->
         let field (f, nested) =
@@ -1121,8 +1117,8 @@ module CN_Functions = struct
       let arg_ts = List.map (fun (_, bt) -> translate_base_type bt) def.args in
       declare_fun s fn arg_ts ret_t
     | Def body ->
-      let sname = CN_Names.uninterpreted_name fn in
-      let mk_arg (sym, bt) = (CN_Names.uninterpreted_name sym, translate_base_type bt) in
+      let sname = CN_Names.fn_name fn in
+      let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
       let args = List.map mk_arg def.args in
       ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
 
@@ -1349,7 +1345,7 @@ module TryHard = struct
     let qs_ =
       List.map
         (fun (s, bt) ->
-           let name = CN_Names.var_name s in
+           let name = CN_Names.fn_name s in
            let sort = translate_base_type bt in
            (SMT.atom name, sort))
         qs
