@@ -278,7 +278,7 @@ let ask_solver g lcs =
     Simplify.{ global = g; values = Sym.Map.empty; simp_hook = (fun _ -> None) }
   in
   let s = Solver.make g [] in
-  List.fold_right (fun lc _ -> Solver.add_assumption s g lc) lcs ();
+  List.fold_right (fun lc _ -> Solver.add_assumption s lc) lcs ();
   let solver_res =
     Solver.provableWithUnknown
       ~loc:here

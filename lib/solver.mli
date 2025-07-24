@@ -24,7 +24,7 @@ val solver_type : Simple_smt.solver_extensions option ref
 val make : Global.t -> (Sym.t * BaseTypes.t) list -> solver
 
 (* Incrementally (and imperatively) add an assumption to the solver state *)
-val add_assumption : solver -> Global.t -> LogicalConstraints.t -> unit
+val add_assumption : solver -> LogicalConstraints.t -> unit
 
 val declare_variable : solver -> Sym.t * BaseTypes.t -> unit
 
