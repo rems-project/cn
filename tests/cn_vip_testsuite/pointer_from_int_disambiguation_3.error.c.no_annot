@@ -6,9 +6,8 @@ tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:20:17: warning:
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:35:5: error: Missing resource for writing
+tests/cn_vip_testsuite/pointer_from_int_disambiguation_3.error.c:28:5: error: Missing resource for writing
     *r=11;  // CN VIP UB if ¬ANNOT
     ~~^~~ 
-Resource needed: W<signed int>(copy_alloc_id((u64)intToPtr
-    , copy_alloc_id((u64)value, &x)))
+Resource needed: W<signed int>(intToPtr)
 State file: file:///tmp/state__pointer_from_int_disambiguation_3.error.c__main.html
