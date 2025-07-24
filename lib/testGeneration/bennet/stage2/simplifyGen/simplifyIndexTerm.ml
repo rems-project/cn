@@ -19,15 +19,17 @@ module Builtin = struct
         lc
     in
     let aux (gt : Term.t) : Term.t =
-      let (GT (gt_, bt, loc)) = gt in
+      let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map simp_it iargs) bt loc
+      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map simp_it iargs) () bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
-        Term.asgn_ ((simp_it it_addr, sct), simp_it it_val, gt') loc
-      | `Return it -> Term.return_ (simp_it it) loc
-      | `Assert (lc, gt') -> Term.assert_ (simp_lc lc, gt') loc
-      | `ITE (it_if, gt_then, gt_else) -> Term.ite_ (simp_it it_if, gt_then, gt_else) loc
-      | `Map ((i, i_bt, it_perm), gt') -> Term.map_ ((i, i_bt, simp_it it_perm), gt') loc
+        Term.asgn_ ((simp_it it_addr, sct), simp_it it_val, gt') () loc
+      | `Return it -> Term.return_ (simp_it it) () loc
+      | `Assert (lc, gt') -> Term.assert_ (simp_lc lc, gt') () loc
+      | `ITE (it_if, gt_then, gt_else) ->
+        Term.ite_ (simp_it it_if, gt_then, gt_else) () loc
+      | `Map ((i, i_bt, it_perm), gt') ->
+        Term.map_ ((i, i_bt, simp_it it_perm), gt') () loc
       | _ -> gt
     in
     Term.map_gen_pre aux gt
@@ -199,17 +201,17 @@ module Fixes = struct
 
   let transform_gt (gt : Term.t) : Term.t =
     let aux (gt : Term.t) : Term.t =
-      let (GT (gt_, bt, loc)) = gt in
+      let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map simplify_it iargs) bt loc
+      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map simplify_it iargs) () bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
-        Term.asgn_ ((simplify_it it_addr, sct), simplify_it it_val, gt') loc
-      | `Return it -> Term.return_ (simplify_it it) loc
-      | `Assert (lc, gt') -> Term.assert_ (simplify_lc lc, gt') loc
+        Term.asgn_ ((simplify_it it_addr, sct), simplify_it it_val, gt') () loc
+      | `Return it -> Term.return_ (simplify_it it) () loc
+      | `Assert (lc, gt') -> Term.assert_ (simplify_lc lc, gt') () loc
       | `ITE (it_if, gt_then, gt_else) ->
-        Term.ite_ (simplify_it it_if, gt_then, gt_else) loc
+        Term.ite_ (simplify_it it_if, gt_then, gt_else) () loc
       | `Map ((i, i_bt, it_perm), gt') ->
-        Term.map_ ((i, i_bt, simplify_it it_perm), gt') loc
+        Term.map_ ((i, i_bt, simplify_it it_perm), gt') () loc
       | _ -> gt
     in
     Term.map_gen_post aux gt

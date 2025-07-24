@@ -3,31 +3,35 @@ module IT = IndexTerms
 let pull_out_inner_generators (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
     match gt with
-    | GT (`LetStar ((x, gt1), gt2), _, loc_let) ->
+    | Annot (`LetStar ((x, gt1), gt2), (), _, loc_let) ->
       (match gt1 with
-       | GT (`Asgn ((it_addr, sct), it_val, gt3), _, loc_asgn) ->
+       | Annot (`Asgn ((it_addr, sct), it_val, gt3), (), _, loc_asgn) ->
          Term.asgn_
-           ((it_addr, sct), it_val, Term.let_star_ ((x, gt3), gt2) loc_let)
+           ((it_addr, sct), it_val, Term.let_star_ ((x, gt3), gt2) () loc_let)
+           ()
            loc_asgn
-       | GT (`LetStar ((y, gt3), gt4), _, loc_let') ->
+       | Annot (`LetStar ((y, gt3), gt4), (), _, loc_let') ->
          let z = Sym.fresh_anon () in
          let gt4 =
            Term.subst
-             (IT.make_subst [ (y, IT.sym_ (z, Term.bt gt3, Locations.other __LOC__)) ])
+             (IT.make_subst
+                [ (y, IT.sym_ (z, Term.basetype gt3, Locations.other __LOC__)) ])
              gt4
          in
-         Term.let_star_ ((z, gt3), Term.let_star_ ((x, gt4), gt2) loc_let) loc_let'
-       | GT (`Assert (lc, gt3), _, loc_assert) ->
-         Term.assert_ (lc, Term.let_star_ ((x, gt3), gt2) loc_let) loc_assert
-       | GT (`ITE (it_if, gt_then, gt_else), _, loc_ite) ->
+         Term.let_star_ ((z, gt3), Term.let_star_ ((x, gt4), gt2) () loc_let) () loc_let'
+       | Annot (`Assert (lc, gt3), (), _, loc_assert) ->
+         Term.assert_ (lc, Term.let_star_ ((x, gt3), gt2) () loc_let) () loc_assert
+       | Annot (`ITE (it_if, gt_then, gt_else), (), _, loc_ite) ->
          Term.ite_
            ( it_if,
-             Term.let_star_ ((x, gt_then), gt2) loc_let,
-             Term.let_star_ ((x, gt_else), gt2) loc_let )
+             Term.let_star_ ((x, gt_then), gt2) () loc_let,
+             Term.let_star_ ((x, gt_else), gt2) () loc_let )
+           ()
            loc_ite
-       | GT (`Pick wgts, bt, loc_pick) ->
+       | Annot (`Pick wgts, (), bt, loc_pick) ->
          Term.pick_
-           (List.map_snd (fun gt' -> Term.let_star_ ((x, gt'), gt2) loc_let) wgts)
+           (List.map (fun gt' -> Term.let_star_ ((x, gt'), gt2) () loc_let) wgts)
+           ()
            bt
            loc_pick
        | _ -> gt)
@@ -38,34 +42,35 @@ let pull_out_inner_generators (gt : Term.t) : Term.t =
 
 let push_in_outer_generators (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
-    match gt with
-    | GT (`Asgn ((it_addr, sct), it_val, GT (`Pick wgts, _, loc_pick)), bt, loc_asgn) ->
+    let (Annot (gt_, (), bt, loc)) = gt in
+    match gt_ with
+    | `Asgn ((it_addr, sct), it_val, Annot (`Pick gts, (), _, loc_pick)) ->
       Term.pick_
-        (List.map_snd (fun gt' -> Term.asgn_ ((it_addr, sct), it_val, gt') loc_asgn) wgts)
+        (List.map (fun gt' -> Term.asgn_ ((it_addr, sct), it_val, gt') () loc) gts)
+        ()
         bt
         loc_pick
-    | GT (`LetStar ((x, gt_inner), GT (`Pick wgts, _, loc_pick)), bt, loc_let) ->
+    | `LetStar ((x, gt_inner), Annot (`Pick gts, (), _, loc_pick)) ->
       Term.pick_
-        (List.map_snd (fun gt' -> Term.let_star_ ((x, gt_inner), gt') loc_let) wgts)
+        (List.map (fun gt' -> Term.let_star_ ((x, gt_inner), gt') () loc) gts)
+        ()
         bt
         loc_pick
-    | GT (`LetStar ((x, GT (`Pick wgts, _, loc_pick)), gt_rest), bt, loc_let) ->
+    | `LetStar ((x, Annot (`Pick wgts, (), _, loc_pick)), gt_rest) ->
       Term.pick_
-        (List.map_snd (fun gt' -> Term.let_star_ ((x, gt'), gt_rest) loc_let) wgts)
+        (List.map (fun gt' -> Term.let_star_ ((x, gt'), gt_rest) () loc) wgts)
+        ()
         bt
         loc_pick
-    | GT (`LetStar ((x, GT (`ITE (it_if, gt_then, gt_else), _, loc_ite)), gt2), _, loc_let)
-      ->
+    | `LetStar ((x, Annot (`ITE (it_if, gt_then, gt_else), (), _, loc_ite)), gt2) ->
       Term.ite_
         ( it_if,
-          Term.let_star_ ((x, gt_then), gt2) loc_let,
-          Term.let_star_ ((x, gt_else), gt2) loc_let )
+          Term.let_star_ ((x, gt_then), gt2) () loc,
+          Term.let_star_ ((x, gt_else), gt2) () loc )
+        ()
         loc_ite
-    | GT (`Assert (lc, GT (`Pick wgts, _, loc_pick)), bt, loc_assert) ->
-      Term.pick_
-        (List.map_snd (fun gt' -> Term.assert_ (lc, gt') loc_assert) wgts)
-        bt
-        loc_pick
+    | `Assert (lc, Annot (`Pick wgts, (), _, loc_pick)) ->
+      Term.pick_ (List.map (fun gt' -> Term.assert_ (lc, gt') () loc) wgts) () bt loc_pick
     | _ -> gt
   in
   Term.map_gen_pre aux gt

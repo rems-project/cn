@@ -74,7 +74,7 @@ let replace_memberof_gt
   =
   let repl = replace_memberof_it k sym dict in
   let aux (gt : Term.t) : Term.t =
-    let (GT (gt_, bt, loc)) = gt in
+    let (Annot (gt_, (), bt, loc)) = gt in
     let gt_ =
       match gt_ with
       | `Call (fsym, iargs) -> `Call (fsym, List.map repl iargs)
@@ -89,7 +89,7 @@ let replace_memberof_gt
         `Map ((i_sym, i_bt, repl it_perm), gt_inner)
       | _ -> gt_
     in
-    GT (gt_, bt, loc)
+    Annot (gt_, (), bt, loc)
   in
   Term.map_gen_pre aux gt
 
@@ -97,15 +97,12 @@ let replace_memberof_gt
 let transform_gt (gt : Term.t) : Term.t =
   Cerb_debug.print_debug 2 [] (fun () -> "member_indirection");
   let aux (gt : Term.t) : Term.t =
-    match gt with
-    | GT
-        ( `LetStar ((x, GT (`Return (IT (Struct (_, xits), bt, loc_it)), _, loc_ret)), gt'),
-          _,
-          loc )
-    | GT
-        ( `LetStar ((x, GT (`Return (IT (Record xits, bt, loc_it)), _, loc_ret)), gt'),
-          _,
-          loc ) ->
+    let (Annot (gt_, (), _, loc)) = gt in
+    match gt_ with
+    | `LetStar
+        ((x, Annot (`Return (IT (Struct (_, xits), bt, loc_it)), (), _, loc_ret)), gt')
+    | `LetStar ((x, Annot (`Return (IT (Record xits, bt, loc_it)), (), _, loc_ret)), gt')
+      ->
       let k =
         match bt with
         | Struct tag -> Struct tag
@@ -132,8 +129,10 @@ let transform_gt (gt : Term.t) : Term.t =
                  match k with
                  | Struct tag -> IT.struct_ (tag, members) loc_it
                  | Record -> IT.record_ members loc_it)
+                ()
                 loc_ret ),
             replace_memberof_gt k x indirect_map gt' )
+          ()
           loc
       in
       let here = Locations.other __LOC__ in
@@ -141,7 +140,8 @@ let transform_gt (gt : Term.t) : Term.t =
       |> List.fold_left
            (fun gt'' (y, it) ->
               Term.let_star_
-                ((List.assoc Id.equal y indirect_map, Term.return_ it here), gt'')
+                ((List.assoc Id.equal y indirect_map, Term.return_ it () here), gt'')
+                ()
                 here)
            gt_main
     | _ -> gt

@@ -5,13 +5,13 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
   let open Typing in
   let rec aux (tm : Term.t) : Term.t Typing.t =
     let here = Locations.other __LOC__ in
-    let (GT (tm_, bt, loc)) = tm in
+    let (Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
     | `Arbitrary | `Return _ | `Call _ -> return tm
-    | `Pick wgts ->
-      let rec loop wgts =
-        match wgts with
-        | (w, tm) :: wgts' ->
+    | `Pick gts ->
+      let rec loop gts =
+        match gts with
+        | tm :: wgts' ->
           let@ otm =
             pure
               (let@ tm' = aux tm in
@@ -19,14 +19,14 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
                return
                  (match provable (LC.T (IT.bool_ false here)) with
                   | `True -> None
-                  | `False -> Some (w, tm')))
+                  | `False -> Some tm'))
           in
           let@ wgts' = loop wgts' in
           return (otm :: wgts')
         | [] -> return []
       in
-      let@ wgts = loop wgts in
-      return (Term.pick_ (List.filter_map (fun x -> x) wgts) bt loc)
+      let@ gts = loop gts in
+      return (Term.pick_ (List.filter_map (fun x -> x) gts) () bt loc)
     | `Asgn ((it_addr, sct), it_val, gt_rest) ->
       let@ () =
         if fast then
@@ -42,16 +42,16 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
             (P { name = Owned (sct, Init); pointer = it_addr; iargs = [] }, O it_sym))
       in
       let@ gt_rest = aux gt_rest in
-      return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) loc)
-    | `LetStar ((x, GT (`Return it, _, loc_ret)), gt_rest) ->
+      return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) () loc)
+    | `LetStar ((x, Annot (`Return it, (), _, loc_ret)), gt_rest) ->
       let@ () = add_l_value x it (loc, lazy (Sym.pp x)) in
       let@ gt_rest = aux gt_rest in
-      return (Term.let_star_ ((x, Term.return_ it loc_ret), gt_rest) loc)
+      return (Term.let_star_ ((x, Term.return_ it () loc_ret), gt_rest) () loc)
     | `LetStar ((x, gt_inner), gt_rest) ->
       let@ gt_inner = aux gt_inner in
-      let@ () = add_l x (Term.bt gt_inner) (loc, lazy (Sym.pp x)) in
+      let@ () = add_l x (Term.basetype gt_inner) (loc, lazy (Sym.pp x)) in
       let@ gt_rest = aux gt_rest in
-      return (Term.let_star_ ((x, gt_inner), gt_rest) loc)
+      return (Term.let_star_ ((x, gt_inner), gt_rest) () loc)
     | `Assert (lc, gt_rest) ->
       let@ check = provable loc in
       let@ redundant =
@@ -62,7 +62,7 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
           return false
       in
       let@ gt_rest = aux gt_rest in
-      return (if redundant then gt_rest else Term.assert_ (lc, gt_rest) loc)
+      return (if redundant then gt_rest else Term.assert_ (lc, gt_rest) () loc)
     | `ITE (it_if, gt_then, gt_else) ->
       let@ ogt_then =
         pure
@@ -86,9 +86,9 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
       in
       return
         (match (ogt_then, ogt_else) with
-         | Some gt_then, Some gt_else -> Term.ite_ (it_if, gt_then, gt_else) loc
+         | Some gt_then, Some gt_else -> Term.ite_ (it_if, gt_then, gt_else) () loc
          | Some gt, None | None, Some gt -> gt
-         | None, None -> Term.pick_ [] bt loc)
+         | None, None -> Term.pick_ [] () bt loc)
     | `Map ((i, i_bt, it_perm), gt_inner) ->
       let@ gt_inner =
         pure
@@ -96,7 +96,7 @@ let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
            let@ () = add_c loc (LC.T it_perm) in
            aux gt_inner)
       in
-      return (Term.map_ ((i, i_bt, it_perm), gt_inner) loc)
+      return (Term.map_ ((i, i_bt, it_perm), gt_inner) () loc)
   in
   aux tm
 

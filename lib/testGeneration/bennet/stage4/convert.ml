@@ -11,10 +11,10 @@ let bennet = Sym.fresh "bennet"
 let transform_gt (gt : Stage3.Term.t) : Term.t =
   let rec aux (vars : Sym.t list) (path_vars : Sym.Set.t) (gt : Stage3.Term.t) : Term.t =
     let last_var = match vars with v :: _ -> v | [] -> bennet in
-    let (GT (gt_, bt, loc)) = gt in
+    let (GenTerms.Annot (gt_, (), bt, loc)) = gt in
     match gt_ with
-    | `Arbitrary -> GT (`Arbitrary, bt, (path_vars, last_var), loc)
-    | `Pick wgts ->
+    | `Arbitrary -> GenTerms.Annot (`Arbitrary, (path_vars, last_var), bt, loc)
+    | `PickSized wgts ->
       let choice_var = Sym.fresh_anon () in
       let wgts =
         let wgts =
@@ -39,9 +39,11 @@ let transform_gt (gt : Stage3.Term.t) : Term.t =
              (f w, aux (choice_var :: vars) (Sym.Set.add choice_var path_vars) gt))
           wgts
       in
-      GT (`Pick (choice_var, wgts), bt, (path_vars, last_var), loc)
-    | `Call (fsym, iargs, sized) ->
-      GT (`Call (fsym, iargs, sized), bt, (path_vars, last_var), loc)
+      GenTerms.Annot (`PickSizedElab (choice_var, wgts), (path_vars, last_var), bt, loc)
+    | `Call (fsym, iargs) ->
+      GenTerms.Annot (`Call (fsym, iargs), (path_vars, last_var), bt, loc)
+    | `CallSized (fsym, iargs, sized) ->
+      GenTerms.Annot (`CallSized (fsym, iargs, sized), (path_vars, last_var), bt, loc)
     | `Asgn ((it_addr, sct), it_val, gt_rest) ->
       let rec pointer_of (it : IT.t) : Sym.t * BT.t =
         match it with
@@ -75,46 +77,47 @@ let transform_gt (gt : Stage3.Term.t) : Term.t =
       let backtrack_var = Sym.fresh_anon () in
       let pointer = pointer_of it_addr in
       let gt_rest = aux vars path_vars gt_rest in
-      GT
-        ( `Asgn (((backtrack_var, pointer, it_addr), sct), it_val, gt_rest),
-          bt,
+      GenTerms.Annot
+        ( `AsgnElab (((backtrack_var, pointer, it_addr), sct), it_val, gt_rest),
           (path_vars, last_var),
+          bt,
           loc )
     | `LetStar ((x, gt_inner), gt_rest) ->
       let gt_inner = aux vars path_vars gt_inner in
       let gt_rest = aux (x :: vars) path_vars gt_rest in
-      GT (`LetStar ((x, gt_inner), gt_rest), bt, (path_vars, last_var), loc)
-    | `Return it -> GT (`Return it, bt, (path_vars, last_var), loc)
+      GenTerms.Annot (`LetStar ((x, gt_inner), gt_rest), (path_vars, last_var), bt, loc)
+    | `Return it -> GenTerms.Annot (`Return it, (path_vars, last_var), bt, loc)
     | `Assert (lc, gt_rest) ->
       let gt_rest = aux vars path_vars gt_rest in
       (match Abstract.abstract_lc vars lc with
        | Some (equiv, (sym, sym_bt), domain) ->
          if equiv then
-           GT
-             (`AssertDomain (sym, sym_bt, domain, gt_rest), bt, (path_vars, last_var), loc)
+           GenTerms.Annot
+             (`AssertDomain (sym, sym_bt, domain, gt_rest), (path_vars, last_var), bt, loc)
          else
-           GT
+           GenTerms.Annot
              ( `AssertDomain
                  ( sym,
                    sym_bt,
                    domain,
-                   GT (`Assert (lc, gt_rest), bt, (path_vars, last_var), loc) ),
-               bt,
+                   GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc)
+                 ),
                (path_vars, last_var),
+               bt,
                loc )
-       | None -> GT (`Assert (lc, gt_rest), bt, (path_vars, last_var), loc))
+       | None -> GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc))
     | `ITE (it_if, gt_then, gt_else) ->
       let path_vars = Sym.Set.union path_vars (IT.free_vars it_if) in
       let gt_then = aux vars path_vars gt_then in
       let gt_else = aux vars path_vars gt_else in
-      GT (`ITE (it_if, gt_then, gt_else), bt, (path_vars, last_var), loc)
+      Annot (`ITE (it_if, gt_then, gt_else), (path_vars, last_var), bt, loc)
     | `Map ((i, i_bt, it_perm), gt_inner) ->
       let it_min, it_max = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
       let gt_inner = aux (i :: vars) path_vars gt_inner in
-      GT
-        ( `Map ((i, bt, (it_min, it_max), it_perm), gt_inner),
-          bt,
+      Annot
+        ( `MapElab ((i, bt, (it_min, it_max), it_perm), gt_inner),
           (path_vars, last_var),
+          bt,
           loc )
     | `SplitSize (syms, gt_rest) ->
       let marker_var = Sym.fresh_anon () in
@@ -125,7 +128,7 @@ let transform_gt (gt : Stage3.Term.t) : Term.t =
           path_vars
       in
       let gt_rest = aux vars path_vars gt_rest in
-      GT (`SplitSize (marker_var, syms, gt_rest), bt, (path_vars, last_var), loc)
+      Annot (`SplitSizeElab (marker_var, syms, gt_rest), (path_vars, last_var), bt, loc)
   in
   aux [] Sym.Set.empty gt
 

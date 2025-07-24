@@ -619,21 +619,24 @@ module GenTerms = struct
     let partial_eval_it = IndexTerms.partial_eval ~mode ~prog5 in
     let partial_eval_lc = LogicalConstraints.partial_eval ~mode ~prog5 in
     let rec aux (gt : Term.t) : Term.t =
-      let (GT (gt_, bt, loc)) = gt in
+      let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
       | `Arbitrary -> gt
-      | `Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
-      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map partial_eval_it iargs) bt loc
+      | `Pick gts -> Term.pick_ (List.map aux gts) () bt loc
+      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map partial_eval_it iargs) () bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
-        Term.asgn_ ((partial_eval_it it_addr, sct), partial_eval_it it_val, aux gt') loc
+        Term.asgn_
+          ((partial_eval_it it_addr, sct), partial_eval_it it_val, aux gt')
+          ()
+          loc
       | `LetStar ((x, gt_inner), gt_rest) ->
-        Term.let_star_ ((x, aux gt_inner), aux gt_rest) loc
-      | `Return it -> Term.return_ (partial_eval_it it) loc
-      | `Assert (lc, gt') -> Term.assert_ (partial_eval_lc lc, aux gt') loc
+        Term.let_star_ ((x, aux gt_inner), aux gt_rest) () loc
+      | `Return it -> Term.return_ (partial_eval_it it) () loc
+      | `Assert (lc, gt') -> Term.assert_ (partial_eval_lc lc, aux gt') () loc
       | `ITE (it_if, gt_then, gt_else) ->
-        Term.ite_ (partial_eval_it it_if, aux gt_then, aux gt_else) loc
+        Term.ite_ (partial_eval_it it_if, aux gt_then, aux gt_else) () loc
       | `Map ((i, i_bt, it_perm), gt_inner) ->
-        Term.map_ ((i, i_bt, partial_eval_it it_perm), aux gt_inner) loc
+        Term.map_ ((i, i_bt, partial_eval_it it_perm), aux gt_inner) () loc
     in
     aux gt
 end

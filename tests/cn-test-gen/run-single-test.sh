@@ -34,7 +34,8 @@ ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
   "--coverage --sizing-strategy=quartile --experimental-learning --print-backtrack-info --print-size-info"
   "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction"
-  "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl")
+  "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
+  )
 
 BUILD_TOOLS=("bash" "make")
 

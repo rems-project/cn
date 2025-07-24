@@ -8,10 +8,10 @@ module StringMap = Map.Make (String)
 
 let count_recursive_calls (syms : Sym.Set.t) (gr : Stage2.Term.t) : int =
   let rec aux (gr : Stage2.Term.t) : int =
-    let (GT (gr_, _, _)) = gr in
+    let (Annot (gr_, (), _, _)) = gr in
     match gr_ with
     | `Arbitrary | `Return _ -> 0
-    | `Pick choices -> choices |> List.map snd |> List.map aux |> List.fold_left max 0
+    | `Pick choices -> choices |> List.map aux |> List.fold_left max 0
     | `Call (fsym, _) -> if Sym.Set.mem fsym syms then 1 else 0
     | `Asgn (_, _, rest) -> aux rest
     | `LetStar ((_, value), rest) -> aux value + aux rest
@@ -26,62 +26,63 @@ let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage2.Term.t)
   : Term.t * Sym.Set.t
   =
   let rec aux (gr : Stage2.Term.t) : Term.t * Sym.Set.t =
-    let (GT (gr_, bt, loc)) = gr in
+    let (Annot (gr_, (), bt, loc)) = gr in
     match gr_ with
-    | `Arbitrary -> (GT (`Arbitrary, bt, loc), Sym.Set.empty)
+    | `Arbitrary -> (GenTerms.Annot (`Arbitrary, (), bt, loc), Sym.Set.empty)
     | `Pick wgts ->
       let wgts, sym_sets =
         wgts
+        |> List.map (fun gt -> (Z.one, gt))
         |> List.map (fun (w, gr) ->
           let gr, syms = aux gr in
           ((w, gr), syms))
         |> List.split
       in
-      (GT (`Pick wgts, bt, loc), List.fold_left Sym.Set.union Sym.Set.empty sym_sets)
+      ( GenTerms.Annot (`PickSized wgts, (), bt, loc),
+        List.fold_left Sym.Set.union Sym.Set.empty sym_sets )
+    | `Call (fsym, xits) when Sym.Set.mem fsym syms ->
+      let sym = Sym.fresh_anon () in
+      ( GenTerms.Annot (`CallSized (fsym, xits, (size, sym)), (), bt, loc),
+        Sym.Set.singleton sym )
     | `Call (fsym, xits) ->
-      let sized, set =
-        if Sym.Set.mem fsym syms then (
-          let sym = Sym.fresh_anon () in
-          (Some (size, sym), Sym.Set.singleton sym))
-        else
-          (None, Sym.Set.empty)
-      in
-      (GT (`Call (fsym, xits, sized), bt, loc), set)
-    | `Return it -> (GT (`Return it, bt, loc), Sym.Set.empty)
+      (GenTerms.Annot (`Call (fsym, xits), (), bt, loc), Sym.Set.empty)
+    | `Return it -> (GenTerms.Annot (`Return it, (), bt, loc), Sym.Set.empty)
     | `Asgn ((addr, sct), value, rest) ->
       let rest, syms = aux rest in
-      (GT (`Asgn ((addr, sct), value, rest), bt, loc), syms)
+      (GenTerms.Annot (`Asgn ((addr, sct), value, rest), (), bt, loc), syms)
     | `LetStar ((x, value), rest) ->
       let value, syms = aux value in
       let rest, syms' = aux rest in
-      (GT (`LetStar ((x, value), rest), bt, loc), Sym.Set.union syms syms')
+      (GenTerms.Annot (`LetStar ((x, value), rest), (), bt, loc), Sym.Set.union syms syms')
     | `Assert (lc, rest) ->
       let rest, syms = aux rest in
-      (GT (`Assert (lc, rest), bt, loc), syms)
+      (GenTerms.Annot (`Assert (lc, rest), (), bt, loc), syms)
     | `ITE (cond, t, f) ->
       let t, syms = aux t in
       let f, syms' = aux f in
-      (GT (`ITE (cond, t, f), bt, loc), Sym.Set.union syms syms')
+      (GenTerms.Annot (`ITE (cond, t, f), (), bt, loc), Sym.Set.union syms syms')
     | `Map ((i, i_bt, perm), inner) ->
       let inner, syms = aux inner in
-      (GT (`Map ((i, i_bt, perm), inner), bt, loc), syms)
+      (GenTerms.Annot (`Map ((i, i_bt, perm), inner), (), bt, loc), syms)
   in
   aux gr
 
 
 let transform_gt (syms : Sym.Set.t) (gr : Stage2.Term.t) : Term.t =
   let rec aux (path_vars : Sym.Set.t) (gr : Stage2.Term.t) : Term.t =
-    let (GT (gr_, bt, loc)) = gr in
+    let (Annot (gr_, (), bt, loc)) = gr in
     match gr_ with
     | `ITE (cond, t, f) ->
       let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
-      GT (`ITE (cond, aux path_vars t, aux path_vars f), bt, loc)
-    | `Pick wgts -> GT (`Pick (List.map_snd (aux path_vars) wgts), bt, loc)
+      GenTerms.Annot (`ITE (cond, aux path_vars t, aux path_vars f), (), bt, loc)
+    | `Pick gts ->
+      GenTerms.Annot
+        (`PickSized (List.map (fun gt -> (Z.one, aux path_vars gt)) gts), (), bt, loc)
     | _ ->
       let count = count_recursive_calls syms gr in
       let gr, sz_syms = size_recursive_calls syms count gr in
       if count > 1 then
-        GT (`SplitSize (sz_syms, gr), bt, loc)
+        GenTerms.Annot (`SplitSize (sz_syms, gr), (), bt, loc)
       else
         gr
   in
@@ -120,14 +121,11 @@ let transform_gd
 open struct
   let get_calls (gd : Stage2.Def.t) : Sym.Set.t =
     let rec aux (gt : Stage2.Term.t) : Sym.Set.t =
-      let (GT (gt_, _, _)) = gt in
+      let (Annot (gt_, (), _, _)) = gt in
       match gt_ with
       | `Arbitrary | `Return _ -> Sym.Set.empty
       | `Pick choices ->
-        choices
-        |> List.map snd
-        |> List.map aux
-        |> List.fold_left Sym.Set.union Sym.Set.empty
+        choices |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
       | `Call (fsym, _) -> Sym.Set.singleton fsym
       | `Asgn (_, _, gt') | `Assert (_, gt') | `Map (_, gt') -> aux gt'
       | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) -> Sym.Set.union (aux gt1) (aux gt2)
