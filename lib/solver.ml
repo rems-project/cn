@@ -1235,63 +1235,46 @@ let make globals variable_bindings =
 
 
 (* ---------------------------------------------------------------------------*)
-(* GLOBAL STATE: Models *)
+(* Models *)
 (* ---------------------------------------------------------------------------*)
 
-type model = int
-
-type model_fn = IT.t -> IT.t option
+type model = IT.t -> IT.t option
 
 type model_with_q = model * (Sym.t * BaseTypes.t) list
 
-type model_table = (model, model_fn) Hashtbl.t
+let empty_model = fun _it -> None
 
-let models_tbl : model_table = Hashtbl.create 1
+let model_state = ref (None : model_with_q option)
 
-let empty_model =
-  let model = Option.some in
-  Hashtbl.add models_tbl 0 model;
-  0
+let model () = Option.get !model_state
 
+(** Load a model into the model solver, by running [cmds], followed by
+    `check-sat`. *)
+let load_model solver cmds =
+  let msmt = solver.model_smt_solver in
+  SMT.ack_command msmt (SMT.pop 1);
+  SMT.ack_command msmt (SMT.push 1);
+  List.iter (SMT.ack_command msmt) cmds;
+  match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually SAT"
 
-type model_state =
-  | Model of model_with_q
-  | No_model
-
-let model_state = ref No_model
-
-let model () = match !model_state with No_model -> assert false | Model mo -> mo
-
-(** Evaluate terms in the context of a model computed by the solver. *)
+(** Models are `IT.t -> IT.t option` [evaluator] functions, each assigned a
+    unique ID. An evaluator checks, using the ID, if the model is currently
+    loaded; if not it loads the model into the model solver by running the
+    [cmds] extracted from the regular solver. *)
 let record_model =
-  let loaded_model = ref 0 in
-  let model_id = ref 0 in
-  let new_model_id () =
-    (* Start with 1, as 0 is the id of the empty model *)
-    model_id := !model_id + 1;
-    !model_id
+  let loaded_id = ref (None : int option) in
+  fun solver ->
+  let id = Sym.fresh_int () in
+  let cmds = List.rev (get_commands solver) in
+  let evaluator e =
+    if not (Option.equal (=) !loaded_id (Some id)) then 
+      (loaded_id := Some id; load_model solver cmds);
+    let res = SMT.get_expr solver.model_smt_solver (translate_term solver e) in
+    let res = SMT.no_let res in
+    Some (get_ivalue solver.globals solver.ctypes_rev (get_bt e) res)
   in
-  let record_model solver =
-    let model_id = new_model_id () in
-    let cmds = List.rev (get_commands solver) in
-    let msmt = solver.model_smt_solver in
-    let load () =
-      loaded_model := model_id;
-      SMT.ack_command msmt (SMT.pop 1);
-      SMT.ack_command msmt (SMT.push 1);
-      List.iter (SMT.ack_command msmt) cmds;
-      match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually sat"
-    in
-    let model_fn e =
-      if !loaded_model <> model_id then load ();
-      let res = SMT.get_expr msmt (translate_term solver e) in
-      let res = SMT.no_let res in
-      Some (get_ivalue solver.globals solver.ctypes_rev (get_bt e) res)
-    in
-    Hashtbl.add models_tbl model_id model_fn;
-    model_id
-  in
-  record_model
+  evaluator
+
 
 
 (* ---------------------------------------------------------------------------*)
@@ -1352,10 +1335,10 @@ let try_hard = ref false
 
 let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let _ = loc in
-  let set_model qs = model_state := Model (record_model solver, qs) in
+  let set_model qs = model_state := Some (record_model solver, qs) in
   match shortcut simp_ctxt lc with
   | `True ->
-    model_state := No_model;
+    model_state := None;
     `True
   | `No_shortcut lc ->
     let { expr; qs; extra } = translate_goal solver assumptions lc in
@@ -1368,7 +1351,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     (match SMT.check inc with
      | SMT.Unsat ->
        pop solver 1;
-       model_state := No_model;
+       model_state := None;
        `True
      | SMT.Sat when !try_hard ->
        pop solver 1;
@@ -1382,7 +1365,7 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        (match SMT.check inc with
         | SMT.Unsat ->
           pop solver 1;
-          model_state := No_model;
+          model_state := None;
           Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
           `True
         | SMT.Sat ->
@@ -1417,7 +1400,4 @@ let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
   result
 
 
-(* ISD: Could these globs be different from the saved ones? *)
-let eval mo t =
-  let model_fn = Hashtbl.find models_tbl mo in
-  model_fn t
+let eval mo t = mo t
