@@ -1257,6 +1257,7 @@ let load_model solver cmds =
   List.iter (SMT.ack_command msmt) cmds;
   match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually SAT"
 
+
 (** Models are `IT.t -> IT.t option` [evaluator] functions, each assigned a
     unique ID. An evaluator checks, using the ID, if the model is currently
     loaded; if not it loads the model into the model solver by running the
@@ -1264,17 +1265,17 @@ let load_model solver cmds =
 let record_model =
   let loaded_id = ref (None : int option) in
   fun solver ->
-  let id = Sym.fresh_int () in
-  let cmds = List.rev (get_commands solver) in
-  let evaluator e =
-    if not (Option.equal (=) !loaded_id (Some id)) then 
-      (loaded_id := Some id; load_model solver cmds);
-    let res = SMT.get_expr solver.model_smt_solver (translate_term solver e) in
-    let res = SMT.no_let res in
-    Some (get_ivalue solver.globals solver.ctypes_rev (get_bt e) res)
-  in
-  evaluator
-
+    let id = Sym.fresh_int () in
+    let cmds = List.rev (get_commands solver) in
+    let evaluator e =
+      if not (Option.equal ( = ) !loaded_id (Some id)) then (
+        loaded_id := Some id;
+        load_model solver cmds);
+      let res = SMT.get_expr solver.model_smt_solver (translate_term solver e) in
+      let res = SMT.no_let res in
+      Some (get_ivalue solver.globals solver.ctypes_rev (get_bt e) res)
+    in
+    evaluator
 
 
 (* ---------------------------------------------------------------------------*)
