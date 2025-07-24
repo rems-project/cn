@@ -1230,6 +1230,7 @@ let make globals variable_bindings =
   in
   declare_solver_basics s variable_bindings;
   SMT.ack_command s.model_smt_solver (SMT.push 1);
+  SMT.ack_command s.smt_solver (SMT.timeout cfg 200);
   (* "empty model loaded" using 'push' *)
   s
 
@@ -1334,6 +1335,8 @@ end
 
 let try_hard = ref false
 
+let _unused_try_hard = (TryHard.translate_functions, TryHard.translate_foralls)
+
 let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
   let _ = loc in
   let set_model qs = model_state := Some (record_model solver, qs) in
@@ -1354,38 +1357,30 @@ let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
        pop solver 1;
        model_state := None;
        `True
-     | SMT.Sat when !try_hard ->
-       pop solver 1;
-       let assumptions = LC.Set.elements assumptions in
-       let foralls = TryHard.translate_foralls solver assumptions in
-       let functions = TryHard.translate_functions solver in
-       push solver;
-       List.iter (declare_variable solver) qs;
-       ack_command solver (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
-       Pp.(debug 3 (lazy !^"***** try-hard *****"));
-       (match SMT.check inc with
-        | SMT.Unsat ->
-          pop solver 1;
-          model_state := None;
-          Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
-          `True
-        | SMT.Sat ->
-          set_model qs;
-          pop solver 1;
-          Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
-          `False
-        | SMT.Unknown ->
-          set_model qs;
-          pop solver 1;
-          Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
-          `Unknown)
      | SMT.Sat ->
        set_model qs;
        pop solver 1;
        `False
      | SMT.Unknown ->
+       let result =
+         let nonincremental = SMT.new_solver inc.config in
+         let cmds = List.rev (get_commands solver) in
+         List.iter (SMT.ack_command nonincremental) cmds;
+         let result =
+           match SMT.check nonincremental with
+           | SMT.Unsat ->
+             model_state := None;
+             `True
+           | SMT.Sat ->
+             set_model qs;
+             `False
+           | SMT.Unknown -> failwith "Unknown"
+         in
+         nonincremental.stop ();
+         result
+       in
        pop solver 1;
-       failwith "Unknown")
+       result)
 
 
 (** The main way to query the solver. *)

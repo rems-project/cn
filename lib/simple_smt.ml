@@ -931,3 +931,10 @@ let z3 : solver_config =
     ]
   in
   { exe = "z3"; opts = [ "-in"; "-smt2" ]; setup; exts = Z3; log = quiet_log }
+
+
+let timeout cfg n =
+  match cfg.exts with
+  | Z3 -> set_option ":timeout" (string_of_int n)
+  | CVC5 -> set_option ":tlimit-per" (string_of_int n)
+  | Other -> assert false
