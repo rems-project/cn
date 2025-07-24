@@ -834,7 +834,7 @@ let new_solver (cfg : solver_config) : solver =
   ack_command s (set_option ":print-success" "true");
   ack_command s (set_option ":produce-models" "true");
   List.iter (ack_command s) cfg.setup;
-  Gc.finalise (fun me -> me.stop ()) s;
+  (* Gc.finalise (fun me -> me.stop ()) s; *)
   s
 
 
