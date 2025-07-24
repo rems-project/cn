@@ -1,7 +1,7 @@
-let transform_gt (tm : Term.t) : Term.t =
+(* let transform_gt (tm : Term.t) : Term.t =
   let aux (tm : Term.t) : Term.t =
     match tm with
-    | GT (`Pick wgts, bt, loc) ->
+    | Annot (`Pick wgts, (), bt, loc) ->
       let wgts =
         let gcd =
           List.fold_left
@@ -19,7 +19,7 @@ let transform_gt (tm : Term.t) : Term.t =
         else
           fun w -> Z.max Z.one (Z.div w (Z.div (Z.add w_sum (Z.pred max_int)) max_int))
       in
-      Term.pick_ (List.map (fun (w, gt) -> (f w, gt)) wgts) bt loc
+      Term.pick_ (List.map (fun (w, gt) -> (f w, gt)) wgts) () bt loc
     | gt -> gt
   in
   Term.map_gen_pre aux tm
@@ -29,4 +29,4 @@ let transform_gd (gd : Def.t) : Def.t = { gd with body = transform_gt gd.body }
 
 let transform (ctx : Ctx.t) : Ctx.t =
   Cerb_debug.print_debug 2 [] (fun () -> "minimize_pick_weights");
-  List.map_snd transform_gd ctx
+  List.map_snd transform_gd ctx *)

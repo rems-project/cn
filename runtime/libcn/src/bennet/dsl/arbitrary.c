@@ -116,7 +116,7 @@ cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
   }
 
   // Weight towards `NULL` for pointers
-  // TODO: Figure out general way for generators to learn that this useful
+  // TODO: Figure out general way for generators to learn that this is useful
   // TODO: OR make this unnecessary
   uint8_t rnd = bennet_uniform_uint8_t(null_in_every);
   if (rnd == 0) {

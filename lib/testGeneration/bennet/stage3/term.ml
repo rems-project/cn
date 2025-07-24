@@ -5,108 +5,112 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
+include GenTerms.Make ()
 
-type t_ =
+type 'ast annot = (unit, 'ast) GenTerms.annot [@@deriving eq, ord]
+
+type 'recur ast =
   [ `Arbitrary (** Generate arbitrary values *)
-  | `Pick of (Z.t * t) list
+  | `PickSized of (Z.t * 'recur annot) list
     (** Pick among a list of options, weighted by the provided [Z.t]s *)
-  | `Call of Sym.t * IT.t list * (int * Sym.t) option
+  | `Call of Sym.t * IT.t list
     (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-  | `Asgn of (IT.t * Sctypes.t) * IT.t * t
+  | `CallSized of Sym.t * IT.t list * (int * Sym.t)
+    (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
+  | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
     (** Claim ownership and assign a value to a memory location *)
-  | `LetStar of (Sym.t * t) * t (** Backtrack point *)
+  | `LetStar of (Sym.t * 'recur annot) * 'recur annot (** Backtrack point *)
   | `Return of IT.t (** Monadic return *)
-  | `Assert of LC.t * t (** Assert some [LC.t] are true, backtracking otherwise *)
-  | `ITE of IT.t * t * t (** If-then-else *)
-  | `Map of (Sym.t * BT.t * IT.t) * t
-  | `SplitSize of Sym.Set.t * t
+  | `Assert of LC.t * 'recur annot
+    (** Assert some [LC.t] are true, backtracking otherwise *)
+  | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
+  | `Map of (Sym.t * BT.t * IT.t) * 'recur annot
+  | `SplitSize of Sym.Set.t * 'recur annot
   ]
 [@@deriving eq, ord]
 
-and t = GT of t_ * BT.t * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
-[@@deriving eq, ord]
+type t_ = t_ ast [@@deriving eq, ord]
 
-let basetype (GT (_, bt, _) : t) = bt
+type t = t_ annot [@@deriving eq, ord]
 
-let is_return (tm : t) : bool = match tm with GT (`Return _, _, _) -> true | _ -> false
-
-let rec free_vars (tm : t) : Sym.Set.t =
-  let (GT (tm_, _, _)) = tm in
-  match tm_ with
-  | `Arbitrary -> Sym.Set.empty
-  | `Pick choices -> free_vars_list (List.map snd choices)
-  | `Call (_, iargs, _) ->
-    iargs |> List.map IT.free_vars |> List.fold_left Sym.Set.union Sym.Set.empty
-  | `Asgn ((it_addr, _sct), it_val, gt_rest) ->
-    Sym.Set.union (IT.free_vars_list [ it_addr; it_val ]) (free_vars gt_rest)
-  | `LetStar ((x, gt_inner), gt_rest) ->
-    Sym.Set.union (free_vars gt_inner) (Sym.Set.remove x (free_vars gt_rest))
-  | `Return it -> IT.free_vars it
-  | `Assert (lc, gt_rest) -> Sym.Set.union (LC.free_vars lc) (free_vars gt_rest)
-  | `ITE (it_if, gt_then, gt_else) ->
-    Sym.Set.union (IT.free_vars it_if) (free_vars_list [ gt_then; gt_else ])
-  | `Map ((i, _bt, it_perm), gt_inner) ->
-    Sym.Set.remove i (Sym.Set.union (IT.free_vars_list [ it_perm ]) (free_vars gt_inner))
-  | `SplitSize (_syms, gt_rest) -> free_vars gt_rest
-
-
-and free_vars_list : t list -> Sym.Set.t =
-  fun xs -> List.fold_left (fun ss t -> Sym.Set.union ss (free_vars t)) Sym.Set.empty xs
+let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
+  match gt_ with
+  | `Arbitrary -> `Arbitrary
+  | `PickSized choices -> `PickSized (List.map (fun (w, g) -> (w, subst su g)) choices)
+  | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
+  | `CallSized (fsym, iargs, sz) -> `CallSized (fsym, List.map (IT.subst su) iargs, sz)
+  | `Asgn ((it_addr, bt), it_val, g') ->
+    `Asgn ((IT.subst su it_addr, bt), IT.subst su it_val, subst su g')
+  | `LetStar ((x, gt1), gt2) ->
+    let x, gt2 = suitably_alpha_rename_gen su.relevant x gt2 in
+    `LetStar ((x, subst su gt1), subst su gt2)
+  | `Return it -> `Return (IT.subst su it)
+  | `Assert (lc, gt') -> `Assert (LC.subst su lc, subst su gt')
+  | `ITE (it, gt_then, gt_else) ->
+    `ITE (IT.subst su it, subst su gt_then, subst su gt_else)
+  | `Map ((i, bt, it_perm), gt') ->
+    let i', it_perm = IT.suitably_alpha_rename su.relevant i it_perm in
+    let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
+    `Map ((i', bt, IT.subst su it_perm), subst su gt')
+  | `SplitSize (syms, gt') -> `SplitSize (syms, subst su gt')
 
 
-let rec pp (tm : t) : Pp.document =
-  let open Pp in
-  let (GT (tm_, bt, _)) = tm in
-  match tm_ with
-  | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
-  | `Pick wgts ->
-    !^"pick"
-    ^^ parens
-         (brackets
-            (nest
-               2
-               (break 1
-                ^^ c_comment (BT.pp bt)
-                ^/^ separate_map
-                      (semi ^^ break 1)
-                      (fun (w, gt) ->
-                         parens (z w ^^ comma ^^ braces (nest 2 (break 1 ^^ pp gt))))
-                      wgts)))
-  | `Call (fsym, iargs, sized) ->
-    parens
-      (Sym.pp fsym
-       ^^ optional (fun (n, sym) -> brackets (int n ^^ comma ^^^ Sym.pp sym)) sized
-       ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
-       ^^^ colon
-       ^^^ BT.pp bt)
-  | `Asgn ((it_addr, sct), it_val, gt_rest) ->
-    Sctypes.pp sct ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val ^^ semi ^/^ pp gt_rest
-  | `LetStar ((x, gt_inner), gt_rest) ->
-    !^"let*"
-    ^^^ Sym.pp x
-    ^^^ colon
-    ^^^ BT.pp (basetype gt_inner)
-    ^^^ equals
-    ^^ nest 2 (break 1 ^^ pp gt_inner)
-    ^^ semi
-    ^/^ pp gt_rest
-  | `Return it -> !^"return" ^^^ IT.pp it
-  | `Assert (lc, gt_rest) ->
-    !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1) ^^ semi ^/^ pp gt_rest
-  | `ITE (it_if, gt_then, gt_else) ->
-    !^"if"
-    ^^^ parens (IT.pp it_if)
-    ^^^ braces (nest 2 (break 1 ^^ c_comment (BT.pp bt) ^/^ pp gt_then) ^^ break 1)
-    ^^^ !^"else"
-    ^^^ braces (nest 2 (break 1 ^^ pp gt_else) ^^ break 1)
-  | `Map ((i, _bt, it_perm), gt_inner) ->
-    let i_bt, _ = BT.map_bt bt in
-    !^"map"
-    ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ IT.pp it_perm)
-    ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp gt_inner) ^^ break 1)
-  | `SplitSize (syms, gt_rest) ->
-    !^"split_size"
-    ^^ parens
-         (separate_map (comma ^^ space) Sym.pp (syms |> Sym.Set.to_seq |> List.of_seq))
-    ^^ semi
-    ^/^ pp gt_rest
+and subst (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt : t) : t =
+  let (Annot (gt_, (), bt, here)) = gt in
+  Annot (subst_ su gt_, (), bt, here)
+
+
+and alpha_rename_gen x gt =
+  let x' = Sym.fresh_same x in
+  (x', subst (IT.make_rename ~from:x ~to_:x') gt)
+
+
+and suitably_alpha_rename_gen syms x gt =
+  if Sym.Set.mem x syms then
+    alpha_rename_gen x gt
+  else
+    (x, gt)
+
+
+let rec map_gen_pre (f : t -> t) (g : t) : t =
+  let (Annot (gt_, (), bt, here)) = f g in
+  let gt_ =
+    match gt_ with
+    | `Arbitrary -> `Arbitrary
+    | `PickSized choices ->
+      `PickSized (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
+    | `Call (fsym, its) -> `Call (fsym, its)
+    | `CallSized (fsym, its, sz) -> `CallSized (fsym, its, sz)
+    | `Asgn ((it_addr, sct), it_val, gt') ->
+      `Asgn ((it_addr, sct), it_val, map_gen_pre f gt')
+    | `LetStar ((x, gt), gt') -> `LetStar ((x, map_gen_pre f gt), map_gen_pre f gt')
+    | `Return it -> `Return it
+    | `Assert (lcs, gt') -> `Assert (lcs, map_gen_pre f gt')
+    | `ITE (it, gt_then, gt_else) ->
+      `ITE (it, map_gen_pre f gt_then, map_gen_pre f gt_else)
+    | `Map ((i, bt, it_perm), gt') -> `Map ((i, bt, it_perm), map_gen_pre f gt')
+    | `SplitSize (syms, gt') -> `SplitSize (syms, map_gen_pre f gt')
+  in
+  Annot (gt_, (), bt, here)
+
+
+let rec map_gen_post (f : t -> t) (g : t) : t =
+  let (Annot (gt_, (), bt, here)) = g in
+  let gt_ =
+    match gt_ with
+    | `Arbitrary -> `Arbitrary
+    | `PickSized choices ->
+      `PickSized (List.map (fun (w, g) -> (w, map_gen_post f g)) choices)
+    | `Call (fsym, its) -> `Call (fsym, its)
+    | `CallSized (fsym, its, sz) -> `CallSized (fsym, its, sz)
+    | `Asgn ((it_addr, sct), it_val, gt') ->
+      `Asgn ((it_addr, sct), it_val, map_gen_post f gt')
+    | `LetStar ((x, gt), gt') -> `LetStar ((x, map_gen_post f gt), map_gen_post f gt')
+    | `Return it -> `Return it
+    | `Assert (lcs, gt') -> `Assert (lcs, map_gen_post f gt')
+    | `ITE (it, gt_then, gt_else) ->
+      `ITE (it, map_gen_post f gt_then, map_gen_post f gt_else)
+    | `Map ((i, bt, it_perm), gt') -> `Map ((i, bt, it_perm), map_gen_post f gt')
+    | `SplitSize (syms, gt') -> `SplitSize (syms, map_gen_post f gt')
+  in
+  f (Annot (gt_, (), bt, here))

@@ -82,10 +82,10 @@ let transform_vars
     match xbts with
     | (x, bt) :: xbts' ->
       let here = Locations.other __FUNCTION__ in
-      let gt_gen = Term.arbitrary_ bt here in
+      let gt_gen = Term.arbitrary_ () bt here in
       fun (gt : Term.t) ->
         let gt' = aux xbts' gt in
-        Term.let_star_ ((x, gt_gen), gt') here
+        Term.let_star_ ((x, gt_gen), gt') () here
     | [] -> fun gt -> gt
   in
   let xs, xbts =
@@ -133,16 +133,16 @@ let rec transform_it_lat
     match lat with
     | Define ((x, it), (loc, _), lat') ->
       let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
-      return (Term.let_star_ ((x, Term.return_ it (IT.get_loc it)), gt') loc)
+      return (Term.let_star_ ((x, Term.return_ it () (IT.get_loc it)), gt') () loc)
     | Resource ((x, (P { name = Owned (ct, _); pointer; iargs = _ }, bt)), (loc, _), lat')
       ->
       let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
-      let gt_asgn = Term.asgn_ ((pointer, ct), IT.sym_ (x, bt, loc), gt') loc in
+      let gt_asgn = Term.asgn_ ((pointer, ct), IT.sym_ (x, bt, loc), gt') () loc in
       let gt_val =
         if Sym.Set.mem x generated then
           gt_asgn
         else
-          Term.let_star_ ((x, Term.arbitrary_ bt loc), gt_asgn) loc
+          Term.let_star_ ((x, Term.arbitrary_ () bt loc), gt_asgn) () loc
       in
       return gt_val
     | Resource
@@ -178,8 +178,8 @@ let rec transform_it_lat
       (* Get arguments *)
       let iargs = pointer :: args_its' in
       (* Build [Term.t] *)
-      let gt_call = Term.call_ (fsym, iargs) ret_bt loc in
-      let gt_let = Term.let_star_ ((x, gt_call), gt') loc in
+      let gt_call = Term.call_ (fsym, iargs) () ret_bt loc in
+      let gt_let = Term.let_star_ ((x, gt_call), gt') () loc in
       return gt_let
     | Resource
         ( ( x,
@@ -205,13 +205,14 @@ let rec transform_it_lat
           Term.asgn_
             ( (it_p, ct),
               IT.sym_ (sym_val, v_bt, loc),
-              Term.return_ (IT.sym_ (sym_val, v_bt, loc)) loc )
+              Term.return_ (IT.sym_ (sym_val, v_bt, loc)) () loc )
+            ()
             loc
         in
-        Term.let_star_ ((sym_val, Term.arbitrary_ v_bt loc), gt_asgn) loc
+        Term.let_star_ ((sym_val, Term.arbitrary_ () v_bt loc), gt_asgn) () loc
       in
-      let gt_map = Term.map_ ((q_sym, k_bt, permission), gt_body) loc in
-      let gt_let = Term.let_star_ ((x, gt_map), gt') loc in
+      let gt_map = Term.map_ ((q_sym, k_bt, permission), gt_body) () loc in
+      let gt_let = Term.let_star_ ((x, gt_map), gt') () loc in
       return gt_let
     | Resource
         ( ( x,
@@ -247,8 +248,9 @@ let rec transform_it_lat
         let y = Sym.fresh_anon () in
         if BT.equal (BT.Record []) ret_bt then
           Term.let_star_
-            ( (y, Term.call_ (fsym, iargs) ret_bt loc),
-              Term.return_ (IT.sym_ (y, ret_bt, loc)) loc )
+            ( (y, Term.call_ (fsym, iargs) () ret_bt loc),
+              Term.return_ (IT.sym_ (y, ret_bt, loc)) () loc )
+            ()
             loc
         else (
           let it_ret =
@@ -258,15 +260,16 @@ let rec transform_it_lat
               loc
           in
           Term.let_star_
-            ((y, Term.call_ (fsym, iargs) ret_bt loc), Term.return_ it_ret loc)
+            ((y, Term.call_ (fsym, iargs) () ret_bt loc), Term.return_ it_ret () loc)
+            ()
             loc)
       in
-      let gt_map = Term.map_ ((q_sym, q_bt, permission), gt_body) loc in
-      let gt_let = Term.let_star_ ((x, gt_map), gt') loc in
+      let gt_map = Term.map_ ((q_sym, q_bt, permission), gt_body) () loc in
+      let gt_let = Term.let_star_ ((x, gt_map), gt') () loc in
       return gt_let
     | Constraint (lc, (loc, _), lat') ->
       let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
-      return (Term.assert_ (lc, gt') loc)
+      return (Term.assert_ (lc, gt') () loc)
     | I it ->
       let here = Locations.other __LOC__ in
       let conv_fn = List.map (fun (x, bt) -> (x, IT.sym_ (x, bt, here))) in
@@ -281,7 +284,7 @@ let rec transform_it_lat
           (List.map_fst (fun sym -> Id.make here (Sym.pp_string sym)) it_oargs)
           here
       in
-      return (Term.return_ it_ret (IT.get_loc it))
+      return (Term.return_ it_ret () (IT.get_loc it))
   in
   return (f_gt_init gt)
 
@@ -306,7 +309,7 @@ let rec transform_clauses
       transform_it_lat filename recursive preds name iargs oargs cl.packing_ft
     in
     let@ gt_else = transform_clauses filename recursive preds name iargs oargs cls' in
-    return (Term.ite_ (it_if, gt_then, gt_else) cl.loc)
+    return (Term.ite_ (it_if, gt_then, gt_else) () cl.loc)
   | [] -> failwith ("unreachable @ " ^ __LOC__)
 
 

@@ -27,4 +27,4 @@ let transform (prog5 : unit Mucore.file) (paused : _ Typing.pause) (ctx : Stage1
     | `Slow -> SmtPruning.transform paused false
     | `None -> fun ctx -> ctx)
   |> SimplifyGen.transform prog5
-  |> MinimizePickWeights.transform
+(* |> MinimizePickWeights.transform *)

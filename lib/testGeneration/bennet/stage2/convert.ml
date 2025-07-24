@@ -1,7 +1,7 @@
 module BT = BaseTypes
 
 let rec transform_gt (gt : Stage1.Term.t) : Term.t =
-  let (GT (gt_, bt, loc)) = gt in
+  let (Annot (gt_, (), bt, loc)) = gt in
   let gt_ =
     match gt_ with
     | `Arbitrary -> `Arbitrary
@@ -17,7 +17,7 @@ let rec transform_gt (gt : Stage1.Term.t) : Term.t =
     | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
       `Map ((i_sym, i_bt, it_perm), transform_gt gt_inner)
   in
-  GT (gt_, bt, loc)
+  Annot (gt_, (), bt, loc)
 
 
 let transform_gd ({ filename; recursive; spec; name; iargs; oargs; body } : Stage1.Def.t)

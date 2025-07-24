@@ -58,13 +58,12 @@ let rec transform_term
           (sigma : CF.GenTypes.genTypeCategory A.sigma)
           (ctx : Stage4.Ctx.t)
           (name : Sym.t)
-          (current_var : Sym.t)
           (tm : Stage4.Term.t)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
   =
-  let (GT (tm_, bt, (path_vars, last_var), _)) = tm in
+  let (Annot (tm_, (path_vars, last_var), bt, _)) = tm in
   match tm_ with
   | `Arbitrary ->
     let sign, bits = Option.get (BT.is_bits_bt bt) in
@@ -77,13 +76,13 @@ let rec transform_term
            [ mk_expr
                (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
            ]) )
-  | `Pick (choice_var, wgts) ->
+  | `PickSizedElab (choice_var, wgts) ->
     let var = Sym.fresh_anon () in
     let bs, ss =
       List.split
         (List.mapi
            (fun i (_, gr) ->
-              let bs, ss, e = transform_term filename sigma ctx name current_var gr in
+              let bs, ss, e = transform_term filename sigma ctx name gr in
               ( bs,
                 A.(
                   [ AilSexpr
@@ -140,7 +139,7 @@ let rec transform_term
                     [ mk_expr (AilEident choice_var) ] )))
         ],
       A.(mk_expr (AilEident var)) )
-  | `Call (fsym, iargs, sized) ->
+  | `Call (fsym, iargs) ->
     (match List.assoc_opt Sym.equal fsym ctx with
      | Some _ -> ()
      | None -> failwith (Sym.pp_string fsym));
@@ -156,27 +155,10 @@ let rec transform_term
     in
     let sized_call =
       A.(
-        match sized with
-        | Some (n, _) when n <= 0 -> failwith "Invalid sized call"
-        | Some (1, _) ->
-          [ AilEbinary
-              ( mk_expr (string_ident "bennet_rec_size"),
-                Arithmetic Sub,
-                mk_expr (AilEconst (ConstantInteger (IConstant (Z.one, Decimal, None))))
-              )
-          ]
-        | Some (_, sym_size) when TestGenConfig.is_random_size_splits () ->
-          [ AilEident sym_size ]
-        | Some (n, _) ->
-          [ AilEbinary
-              ( mk_expr (string_ident "bennet_rec_size"),
-                Arithmetic Div,
-                mk_expr
-                  (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))) )
-          ]
-        | None when (List.assoc Sym.equal fsym ctx).recursive ->
+        if (List.assoc Sym.equal fsym ctx).recursive then
           [ AilEcall (mk_expr (string_ident "bennet_get_size"), []) ]
-        | None -> [])
+        else
+          [])
     in
     let es = es @ List.map mk_expr sized_call in
     ( bs,
@@ -190,12 +172,7 @@ let rec transform_term
                        (AilEident
                           (Sym.fresh
                              ("const void* path_vars[] = { "
-                              ^ String.concat
-                                  ", "
-                                  (List.map
-                                     (fun x -> Sym.pp_string x)
-                                     (List.of_seq (Sym.Set.to_seq path_vars))
-                                   @ [ "NULL" ])
+                              ^ String.concat ", " [ "NULL" ]
                               ^ " }")))));
                mk_stmt
                  (AilSexpr
@@ -207,7 +184,66 @@ let rec transform_term
                               mk_expr (AilEcall (mk_expr (AilEident sym), es))
                             ] ))))
              ] )) )
-  | `Asgn (((_, (p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
+  | `CallSized (fsym, iargs, (n, sym_size)) ->
+    (match List.assoc_opt Sym.equal fsym ctx with
+     | Some _ -> ()
+     | None -> failwith (Sym.pp_string fsym));
+    let sym = GenUtils.get_mangled_name fsym in
+    let bs, ss, es =
+      iargs
+      |> List.map (fun x ->
+        let bs, ss, e = transform_it filename sigma name x in
+        (bs, ss, e))
+      |> List.fold_left
+           (fun (bs, ss, es) (b, s, e) -> (bs @ b, ss @ s, es @ [ e ]))
+           ([], [], [])
+    in
+    let sized_call =
+      A.(
+        if n <= 0 then
+          failwith "Invalid sized call"
+        else if n = 1 then
+          [ AilEbinary
+              ( mk_expr (string_ident "bennet_rec_size"),
+                Arithmetic Sub,
+                mk_expr (AilEconst (ConstantInteger (IConstant (Z.one, Decimal, None))))
+              )
+          ]
+        else if TestGenConfig.is_random_size_splits () then
+          [ AilEident sym_size ]
+        else
+          [ AilEbinary
+              ( mk_expr (string_ident "bennet_rec_size"),
+                Arithmetic Div,
+                mk_expr
+                  (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None)))) )
+          ])
+    in
+    let es = es @ List.map mk_expr sized_call in
+    ( bs,
+      ss,
+      mk_expr
+        (AilEgcc_statement
+           ( [],
+             [ mk_stmt
+                 (AilSexpr
+                    (mk_expr
+                       (AilEident
+                          (Sym.fresh
+                             ("const void* path_vars[] = { "
+                              ^ String.concat ", " [ "NULL" ]
+                              ^ " }")))));
+               mk_stmt
+                 (AilSexpr
+                    (mk_expr
+                       (AilEcall
+                          ( mk_expr (string_ident "BENNET_CALL"),
+                            [ mk_expr (string_ident (name_of_bt bt));
+                              mk_expr (AilEident last_var);
+                              mk_expr (AilEcall (mk_expr (AilEident sym), es))
+                            ] ))))
+             ] )) )
+  | `AsgnElab (((_, (p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
     let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
     let b_value, s_value, AnnotatedExpression (_, _, _, e_value_) =
       transform_it filename sigma name it_val
@@ -252,11 +288,10 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var gt_rest
-    in
+    let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
     (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
-  | `LetStar ((x, GT (`Arbitrary, (Bits (sign, bits) as x_bt), _, _)), gt_rest) ->
+  | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Bits (sign, bits) as x_bt), _)), gt_rest)
+    ->
     let func_name =
       match sign with
       | Unsigned -> "BENNET_LET_ARBITRARY_UNSIGNED"
@@ -283,11 +318,9 @@ let rec transform_term
                     ] )))
       ]
     in
-    let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var gt_rest
-    in
+    let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
     (b_let @ b_rest, s_let @ s_rest, e_rest)
-  | `LetStar ((x, GT (`Arbitrary, (Loc () as x_bt), _, _)), gt_rest) ->
+  | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Loc () as x_bt), _)), gt_rest) ->
     let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
     let s_let =
       [ A.AilSexpr
@@ -307,12 +340,11 @@ let rec transform_term
                     ] )))
       ]
     in
-    let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var gt_rest
-    in
+    let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
     (b_let @ b_rest, s_let @ s_rest, e_rest)
-  | `LetStar ((_, GT (`Arbitrary, _, _, _)), _) -> failwith ("unreachable @ " ^ __LOC__)
-  | `LetStar ((x, GT (`Return it, x_bt, _, _)), gt_rest) ->
+  | `LetStar ((_, GenTerms.Annot (`Arbitrary, _, _, _)), _) ->
+    failwith ("unreachable @ " ^ __LOC__)
+  | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
     let b_value, s_value, e_value = transform_it filename sigma name it in
     let s_let =
       A.
@@ -332,16 +364,13 @@ let rec transform_term
                    @ [ mk_expr (AilEconst ConstantNull) ])))
         ]
     in
-    let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var gt_rest
-    in
+    let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
     (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
-  | `LetStar ((x, (GT (`Call _, x_bt, _, _) as gt_inner)), gt_rest)
-  | `LetStar ((x, (GT (`Map _, x_bt, _, _) as gt_inner)), gt_rest)
-  | `LetStar ((x, (GT (`LetStar _, x_bt, _, _) as gt_inner)), gt_rest) ->
-    let b_value, s_value, e_value =
-      transform_term filename sigma ctx name current_var gt_inner
-    in
+  | `LetStar ((x, (GenTerms.Annot (`Call _, _, x_bt, _) as gt_inner)), gt_rest)
+  | `LetStar ((x, (GenTerms.Annot (`CallSized _, _, x_bt, _) as gt_inner)), gt_rest)
+  | `LetStar ((x, (GenTerms.Annot (`MapElab _, _, x_bt, _) as gt_inner)), gt_rest)
+  | `LetStar ((x, (GenTerms.Annot (`LetStar _, _, x_bt, _) as gt_inner)), gt_rest) ->
+    let b_value, s_value, e_value = transform_term filename sigma ctx name gt_inner in
     let s_let =
       A.
         [ AilSexpr
@@ -362,20 +391,18 @@ let rec transform_term
                   ]))
         ]
     in
-    let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var gt_rest
-    in
+    let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
     (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)
-  | `LetStar ((_, GT (`Pick _, _, _, _)), _) ->
+  | `LetStar ((_, GenTerms.Annot (`PickSizedElab _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `pick`"
-  | `LetStar ((_, GT (`ITE _, _, _, _)), _) ->
+  | `LetStar ((_, GenTerms.Annot (`ITE _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `if-else`"
-  | `LetStar ((_, GT (`Assert _, _, _, _)), _)
-  | `LetStar ((_, GT (`AssertDomain _, _, _, _)), _) ->
+  | `LetStar ((_, GenTerms.Annot (`Assert _, _, _, _)), _)
+  | `LetStar ((_, GenTerms.Annot (`AssertDomain _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `assert`"
-  | `LetStar ((_, GT (`Asgn _, _, _, _)), _) ->
+  | `LetStar ((_, GenTerms.Annot (`AsgnElab _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting of `assign`"
-  | `LetStar ((_, GT (`SplitSize _, _, _, _)), _) ->
+  | `LetStar ((_, GenTerms.Annot (`SplitSizeElab _, _, _, _)), _) ->
     failwith "Should be unreachable due to lifting"
   | `Return it ->
     let b, s, e = transform_it filename sigma name it in
@@ -447,9 +474,7 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b_rest, s_rest, e_rest =
-      transform_term filename sigma ctx name current_var gt_rest
-    in
+    let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
     ( b_lbi @ b_lbe @ b_ubi @ b_ube @ b_m @ b_rest,
       s_lbi @ s_lbe @ s_ube @ s_ubi @ s_m @ s_assert @ s_rest,
       e_rest )
@@ -469,16 +494,12 @@ let rec transform_term
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b2, s2, e2 = transform_term filename sigma ctx name current_var gt_rest in
+    let b2, s2, e2 = transform_term filename sigma ctx name gt_rest in
     (b1 @ b2, s1 @ s_assert @ s2, e2)
   | `ITE (it_if, gt_then, gt_else) ->
     let b_if, s_if, e_if = transform_it filename sigma name it_if in
-    let b_then, s_then, e_then =
-      transform_term filename sigma ctx name current_var gt_then
-    in
-    let b_else, s_else, e_else =
-      transform_term filename sigma ctx name current_var gt_else
-    in
+    let b_then, s_then, e_then = transform_term filename sigma ctx name gt_then in
+    let b_else, s_else, e_else = transform_term filename sigma ctx name gt_else in
     let res_sym = Sym.fresh_anon () in
     let res_expr = mk_expr (AilEident res_sym) in
     let res_binding = Utils.create_binding res_sym (bt_to_ctype bt) in
@@ -496,7 +517,7 @@ let rec transform_term
                )
            ]),
       res_expr )
-  | `Map ((i, bt, (it_min, it_max), it_perm), gt_inner) ->
+  | `MapElab ((i, bt, (it_min, it_max), it_perm), gt_inner) ->
     let sym_map = Sym.fresh_anon () in
     let b_map = Utils.create_binding sym_map (bt_to_ctype bt) in
     let i_bt, _ = BT.map_bt bt in
@@ -532,9 +553,7 @@ let rec transform_term
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ])
     in
-    let b_val, s_val, e_val =
-      transform_term filename sigma ctx name current_var gt_inner
-    in
+    let b_val, s_val, e_val = transform_term filename sigma ctx name gt_inner in
     let s_end =
       A.(
         s_val
@@ -545,9 +564,9 @@ let rec transform_term
           ])
     in
     ([ b_map; b_i ] @ b_min @ b_max @ b_val, s_begin @ s_end, mk_expr (AilEident sym_map))
-  | `SplitSize (_, _, gt_rest) when not (TestGenConfig.is_random_size_splits ()) ->
-    transform_term filename sigma ctx name current_var gt_rest
-  | `SplitSize (marker_var, syms, gt_rest) ->
+  | `SplitSizeElab (_, _, gt_rest) when not (TestGenConfig.is_random_size_splits ()) ->
+    transform_term filename sigma ctx name gt_rest
+  | `SplitSizeElab (marker_var, syms, gt_rest) ->
     let e_tmp = mk_expr (AilEident marker_var) in
     let syms_l = syms |> Sym.Set.to_seq |> List.of_seq in
     let b =
@@ -571,11 +590,11 @@ let rec transform_term
                     [ e_tmp; mk_expr (AilEident last_var) ]
                     @ List.map
                         (fun x -> mk_expr (AilEident x))
-                        (List.of_seq (Sym.Set.to_seq path_vars))
+                        (List.of_seq (Sym.Set.to_seq Sym.Set.empty))
                     @ [ mk_expr (AilEconst ConstantNull) ] )))
         ]
     in
-    let b', s', e' = transform_term filename sigma ctx name current_var gt_rest in
+    let b', s', e' = transform_term filename sigma ctx name gt_rest in
     (b @ b', s @ s', e')
 
 
@@ -617,9 +636,7 @@ let transform_gen_def
                         (if gr.recursive then "BENNET_INIT_SIZED" else "BENNET_INIT"))),
                 [] ))))
   in
-  let b2, s2, e2 =
-    transform_term gr.filename sigma ctx name (Sym.fresh "bennet") gr.body
-  in
+  let b2, s2, e2 = transform_term gr.filename sigma ctx name gr.body in
   let sigma_def : CF.GenTypes.genTypeCategory A.sigma_function_definition =
     ( name,
       ( loc,
