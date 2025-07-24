@@ -176,6 +176,34 @@ module CN_AllocId = struct
   let to_sexp s = if !use_vip then SMT.int_zk s else CN_Tuple.con []
 end
 
+module CN_Option = struct
+  let name = "cn_option"
+
+  let none_name = "cn_none"
+
+  let some_name = "cn_some"
+
+  let val_name = "cn_val"
+
+  let t a = SMT.app_ name [ a ]
+
+  let declare s =
+    let a = SMT.atom "a" in
+    ack_command
+      s
+      (SMT.declare_datatype
+         name
+         [ "a" ]
+         [ (none_name, []); (some_name, [ (val_name, a) ]) ])
+
+
+  let none elT = SMT.as_type (SMT.atom none_name) (t elT)
+
+  let _some x = SMT.app_ some_name [ x ]
+
+  let val_ x = SMT.app_ val_name [ x ]
+end
+
 module CN_MemByte = struct
   let name = "mem_byte"
 
@@ -201,7 +229,9 @@ module CN_MemByte = struct
          name
          []
          [ ( alloc_id_value_name,
-             [ (alloc_id_name, CN_AllocId.t ()); (value_name, SMT.t_bits width) ] )
+             [ (alloc_id_name, CN_Option.t (CN_AllocId.t ()));
+               (value_name, SMT.t_bits width)
+             ] )
          ])
 end
 
@@ -365,34 +395,6 @@ module CN_List = struct
   let tail xs = SMT.app_ tail_name [ xs ]
 end
 
-module CN_Option = struct
-  let name = "cn_option"
-
-  let none_name = "cn_none"
-
-  let some_name = "cn_some"
-
-  let val_name = "cn_val"
-
-  let t a = SMT.app_ name [ a ]
-
-  let declare s =
-    let a = SMT.atom "a" in
-    ack_command
-      s
-      (SMT.declare_datatype
-         name
-         [ "a" ]
-         [ (none_name, []); (some_name, [ (val_name, a) ]) ])
-
-
-  let none elT = SMT.as_type (SMT.atom none_name) (t elT)
-
-  let _some x = SMT.app_ some_name [ x ]
-
-  let val_ x = SMT.app_ val_name [ x ]
-end
-
 (** {1 Type to SMT} *)
 
 (** Translate a base type to SMT *)
@@ -412,6 +414,7 @@ let rec translate_base_type = function
   | Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
   | Struct tag -> SMT.atom (CN_Names.struct_name tag)
   | Datatype tag -> SMT.atom (CN_Names.datatype_name tag)
+  | Option bt -> CN_Option.t (translate_base_type bt)
   | Record members ->
     let get_val (_, v) = v in
     translate_base_type (Tuple (List.map get_val members))
@@ -507,6 +510,13 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     let _con, vals = SMT.to_con sexp in
     let mk_field (l, bt) e = (l, get_ivalue gs ctys bt e) in
     Record (List.map2 mk_field members vals)
+  | Option _bt ->
+    (match SMT.to_con sexp with
+     | con, [ _ssome; _value ] when String.equal con CN_Option.some_name ->
+       (* get_value gs ctys bt svalue *)
+       failwith "Option.Some"
+     | con, [ _snone ] when String.equal con CN_Option.none_name -> failwith "Option.None"
+     | _ -> failwith "Missing constructor")
 
 
 (** {1 Term to SMT} *)

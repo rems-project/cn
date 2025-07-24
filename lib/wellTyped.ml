@@ -296,6 +296,9 @@ module WBT = struct
       | Set bt ->
         let@ bt = aux bt in
         return (Set bt)
+      | Option bt ->
+        let@ bt = aux bt in
+        return (Option bt)
     in
     fun bt -> aux bt
 
@@ -394,7 +397,8 @@ module WIT = struct
         match bt with
         | Unit | Bool | Integer | Bits _ | Real | Alloc_id
         | Loc ()
-        | MemByte | CType | Struct _ | Record _ | Map _ | List _ | Tuple _ | Set _ ->
+        | MemByte | CType | Struct _ | Record _ | Map _ | List _ | Tuple _ | Set _
+        | Option _ ->
           failwith "revisit for extended pattern language"
         | Datatype s ->
           let@ dt_info = get_datatype loc s in
