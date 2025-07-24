@@ -1242,7 +1242,7 @@ type model = IT.t -> IT.t option
 
 type model_with_q = model * (Sym.t * BaseTypes.t) list
 
-let empty_model = fun _it -> None
+let empty_model = fun it -> Some it
 
 let model_state = ref (None : model_with_q option)
 
