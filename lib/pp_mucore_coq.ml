@@ -573,6 +573,8 @@ let rec pp_basetype pp_loc = function
     pp_constructor "BaseTypes.Tuple" [ !^"unit"; pp_list (pp_basetype pp_loc) ts ]
   | BaseTypes.Set t -> pp_constructor "BaseTypes.Set" [ !^"unit"; pp_basetype pp_loc t ]
   | BaseTypes.Loc x -> pp_constructor "BaseTypes.Loc" [ !^"unit"; pp_unit x ]
+  | BaseTypes.Option t ->
+    pp_constructor "BaseTypes.Set" [ !^"unit"; pp_basetype pp_loc t ]
 
 
 let pp_integer_base_type = function

@@ -20,6 +20,7 @@ type 'a t_gen =
   | List of 'a t_gen
   | Tuple of 'a t_gen list
   | Set of 'a t_gen
+  | Option of 'a t_gen
 [@@deriving eq, ord, map]
 
 and 'a member_types_gen = (Id.t * 'a t_gen) list
@@ -60,6 +61,7 @@ let rec pp pp_loc =
   | List bt -> !^"cn_list" ^^ angles (pp pp_loc bt)
   | Tuple nbts -> !^"cn_tuple" ^^ angles (flow_map comma (pp pp_loc) nbts)
   | Set t -> !^"cn_set" ^^ angles (pp pp_loc t)
+  | Option t -> !^"cn_option" ^^ angles (pp pp_loc t)
 
 
 (* | Option t -> !^"option" ^^ angles (pp t) *)
@@ -85,6 +87,7 @@ let rec contained =
   | List bt -> bt :: contained bt
   | Tuple bts -> bts @ containeds bts
   | Set bt -> bt :: contained bt
+  | Option bt -> bt :: contained bt
 
 
 let json pp_loc bt = `String (Pp.plain (pp pp_loc bt))
@@ -169,6 +172,7 @@ let rec hash = function
   | Map (abt, rbt) -> 2000 + hash abt + hash rbt
   | Bits (Signed, n) -> 5000 + n
   | Bits (Unsigned, n) -> 6000 + n
+  | Option bt -> 7000 + hash bt
 
 
 (* checking/coercing numeric literals into bits range *)
