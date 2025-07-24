@@ -6,7 +6,7 @@ tests/cn_vip_testsuite/pointer_from_int_disambiguation_1.annot.c:20:17: warning:
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/pointer_from_int_disambiguation_1.annot.c:31:5: error: Missing resource for writing
+tests/cn_vip_testsuite/pointer_from_int_disambiguation_1.annot.c:28:5: error: Missing resource for writing
     *r=11;  // is this free of UB?
     ~~^~~ 
 Resource needed: W<signed int>(intToPtr)

@@ -19,21 +19,14 @@ int main()
   /*CN_VIP*//*@ apply array_bits_eq_8(&p, &q, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
-#ifdef NO_ROUND_TRIP
-  /*CN_VIP*/p = copy_alloc_id((uintptr_t)p, &x);
-  /*CN_VIP*/q = copy_alloc_id((uintptr_t)q, &y);
-#endif
   if (result == 0) {
 #ifdef ANNOT
-    int *r = copy_alloc_id(i, q); // CN VIP UB if ¬NO_ROUND_TRIP & ANNOT
+    int *r = copy_alloc_id(i, q);
 # else
     int *r = (int *)i;
-#ifdef NO_ROUND_TRIP
-    /*CN_VIP*/r = copy_alloc_id((uintptr_t)r, p);
-#endif
 #endif
     *r=11;  // CN VIP UB if ¬ANNOT
-    r=r-1;  // CN VIP UB if NO_ROUND TRIP && ANNOT
+    r=r-1;  // CN VIP UB if  ANNOT
     *r=12;
     //CN_VIP printf("x=%d y=%d *q=%d *r=%d\n",x,y,*q,*r);
   }
