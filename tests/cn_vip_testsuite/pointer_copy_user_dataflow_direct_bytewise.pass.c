@@ -50,10 +50,6 @@ int main()
   /*CN_VIP*//*@ apply byte_arrays_equal(&q, &p, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
-#ifdef NO_ROUND_TRIP
-  /*CN_VIP*/q = __cerbvar_copy_alloc_id((uintptr_t)q, &x);
-  /*CN_VIP*/p = __cerbvar_copy_alloc_id((uintptr_t)p, &x);
-#endif
   *q = 11; // is this free of undefined behaviour?
   //CN_VIP printf("*p=%d  *q=%d\n",*p,*q);
   /*CN_VIP*//*@ assert(*q == 11i32 && *p == 11i32); @*/

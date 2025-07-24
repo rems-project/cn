@@ -6,7 +6,7 @@ tests/cn_vip_testsuite/provenance_basic_using_uintptr_t_auto_yx.annot.c:28:17: w
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/provenance_basic_using_uintptr_t_auto_yx.annot.c:37:5: error: Missing resource for writing
+tests/cn_vip_testsuite/provenance_basic_using_uintptr_t_auto_yx.annot.c:31:5: error: Missing resource for writing
     *p = 11; // CN VIP UB (no annot)
     ~~~^~~~ 
 Resource needed: W<signed int>(value)

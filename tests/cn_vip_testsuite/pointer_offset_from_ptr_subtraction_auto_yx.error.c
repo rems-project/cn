@@ -14,9 +14,6 @@ int main() {
   /*CN_VIP*/int result = _memcmp((byte*)&r, (byte*)&q, sizeof(r));
   /*CN_VIP*//*@ from_bytes RW<int*>(&r); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
-#ifdef NO_ROUND_TRIP
-  /*CN_VIP*/r = __cerbvar_copy_alloc_id((uintptr_t)r, &x);
-#endif
   if (result == 0) {
     *r = 11;
     //CN_VIP printf("y=%d *q=%d *r=%d\n",y,*q,*r);

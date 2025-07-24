@@ -21,7 +21,6 @@ int main()
   if (result == 0) {
 #ifdef NO_ROUND_TRIP
     /*CN_VIP*/int *r = __cerbvar_copy_alloc_id(i, &x);
-    /*CN_VIP*/q = __cerbvar_copy_alloc_id((uintptr_t)q, &y); // for *q in assertion
 #else
     int *r = (int *)i;
 #endif

@@ -19,9 +19,6 @@ int main()
   /*CN_VIP*//*@ apply array_bits_eq_8(&p, &q, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
-#ifdef NO_ROUND_TRIP
-  q = copy_alloc_id(j, &y);
-#endif
   if (result == 0) {
 #ifdef ANNOT
     int *r = copy_alloc_id(i, q);

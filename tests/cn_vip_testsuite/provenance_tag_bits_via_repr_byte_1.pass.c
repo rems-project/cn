@@ -31,9 +31,6 @@ requires
   *(byte*)&p = (*(byte*)&p) & ~((byte)3u);
   // are p and q now equivalent?
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
-#ifdef NO_ROUND_TRIP
-  /*CN_VIP*/p = __cerbvar_copy_alloc_id((uintptr_t)p, &x);
-#endif
   *p = 11;          // does this have defined behaviour?
   _Bool b = (p==q); // is this true?
   //CN_VIP printf("x=%i *p=%i (p==q)=%s\n",x,*p,b?"true":"false");
