@@ -1348,20 +1348,20 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     List.iter (declare_variable solver) qs;
     List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
     let cmds = List.rev (get_commands solver) in
-    let answer = match SMT.check solver.smt_solver with
+    let answer =
+      match SMT.check solver.smt_solver with
       | Unknown -> check_new_solver solver.smt_solver.config cmds
       | a -> a
     in
     pop solver 1;
-    match answer with
-    | Unsat -> `True
-    | Sat ->
+    (match answer with
+     | Unsat -> `True
+     | Sat ->
        record_model solver cmds qs;
        `False
-    | Unknown ->
+     | Unknown ->
        record_model solver cmds qs;
-       `Unknown
-
+       `Unknown)
 
 
 (** The main way to query the solver. *)

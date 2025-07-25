@@ -933,14 +933,15 @@ let z3 : solver_config =
   { exe = "z3"; opts = [ "-in"; "-smt2" ]; setup; exts = Z3; log = quiet_log }
 
 
-let incremental cfg = 
+let incremental cfg =
   match cfg.exts with
   | Z3 -> []
-  | CVC5 -> [set_option ":incremental" "true"]
+  | CVC5 -> [ set_option ":incremental" "true" ]
   | Other -> assert false
+
 
 let timeout cfg n =
   match cfg.exts with
-  | Z3 -> [set_option ":timeout" (string_of_int n)]
-  | CVC5 -> [set_option ":tlimit-per" (string_of_int n)]
+  | Z3 -> [ set_option ":timeout" (string_of_int n) ]
+  | CVC5 -> [ set_option ":tlimit-per" (string_of_int n) ]
   | Other -> assert false
