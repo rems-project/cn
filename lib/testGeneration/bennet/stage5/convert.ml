@@ -172,7 +172,13 @@ let rec transform_term
                        (AilEident
                           (Sym.fresh
                              ("const void* path_vars[] = { "
-                              ^ String.concat ", " [ "NULL" ]
+                              ^ String.concat
+                                  ", "
+                                  ((path_vars
+                                    |> Sym.Set.to_seq
+                                    |> List.of_seq
+                                    |> List.map Sym.pp_string)
+                                   @ [ "NULL" ])
                               ^ " }")))));
                mk_stmt
                  (AilSexpr
@@ -231,7 +237,13 @@ let rec transform_term
                        (AilEident
                           (Sym.fresh
                              ("const void* path_vars[] = { "
-                              ^ String.concat ", " [ "NULL" ]
+                              ^ String.concat
+                                  ", "
+                                  ((path_vars
+                                    |> Sym.Set.to_seq
+                                    |> List.of_seq
+                                    |> List.map Sym.pp_string)
+                                   @ [ "NULL" ])
                               ^ " }")))));
                mk_stmt
                  (AilSexpr
