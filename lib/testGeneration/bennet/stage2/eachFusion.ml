@@ -10,7 +10,7 @@ let check_index_ok (m : Sym.t) (i : Sym.t) (it : IT.t) : bool =
     match it_ with
     | MapGet (IT (Sym x, _, _), it_key) when Sym.equal m x ->
       (match IT.is_sym it_key with Some (j, _) -> Sym.equal i j | _ -> false)
-    | Const _ | SizeOf _ | OffsetOf _ | Nil _ -> true
+    | Const _ | SizeOf _ | OffsetOf _ | Nil _ | CN_None _ -> true
     | Sym x -> not (Sym.equal x m)
     | Unop (_, it')
     | EachI ((_, _, _), it')
@@ -26,7 +26,10 @@ let check_index_ok (m : Sym.t) (i : Sym.t) (it : IT.t) : bool =
     | Good (_, it')
     | WrapI (_, it')
     | MapConst (_, it')
-    | MapDef (_, it') ->
+    | MapDef (_, it')
+    | CN_Some it'
+    | IsSome it'
+    | GetOpt it' ->
       aux it'
     | Binop (_, it1, it2)
     | StructUpdate ((it1, _), it2)
