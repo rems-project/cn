@@ -911,7 +911,7 @@ let cvc5 : solver_config =
   { exe = "cvc5";
     (* opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_AUFBVDTLIA" ]; *)
     (* NOTE cvc5 1.2.1 renamed --sets-ext to --sets-exp *)
-    opts = [ "--sets-ext"; "--force-logic=QF_ALL" ];
+    opts = [ "--sets-exp"; "--force-logic=QF_ALL" ];
     setup = [];
     exts = CVC5;
     log = quiet_log
