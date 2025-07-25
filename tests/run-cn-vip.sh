@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail -o noclobber
+set -x
 
 for file in "$(dirname "$0")"/cn_vip_testsuite/*.json
 do

@@ -10,7 +10,7 @@ int main()
   int *q;
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes W<int*>(&q); @*/
-  memcpy((unsigned char*)&q, (unsigned char*)&p, sizeof p);
+  memcpy((byte*)&q, (byte*)&p, sizeof p);
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
 #ifdef NO_ROUND_TRIP
