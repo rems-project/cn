@@ -1184,11 +1184,11 @@ let make globals variable_bindings =
       model_smt_solver = SMT.new_solver model_cfg
     }
   in
-  declare_solver_basics s variable_bindings;
   List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental cfg);
   SMT.ack_command s.model_smt_solver (SMT.push 1);
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
   List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg 200);
+  declare_solver_basics s variable_bindings;
   (* "empty model loaded" using 'push' *)
   s
 
