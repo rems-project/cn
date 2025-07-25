@@ -253,7 +253,7 @@ void cn_loop_leak_check(void) {
     int64_t* key = it.key;
     int* depth = it.value;
     /* Everything mapped to the function stack depth should have been bumped up by calls to Owned in invariant */
-    if (*depth == cn_stack_depth - 1) {
+    if (*depth != WILDCARD_DEPTH && *depth == cn_stack_depth) {
       print_error_msg_info(error_msg_info);
       // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
@@ -272,8 +272,8 @@ void cn_loop_put_back_ownership(void) {
     int64_t* key = it.key;
     int* depth = it.value;
     /* Bump down everything that was bumped up in loop invariant */
-    if (*depth == cn_stack_depth) {
-      ownership_ghost_state_set(key, cn_stack_depth - 1);
+    if (*depth == cn_stack_depth - 1) {
+      ownership_ghost_state_set(key, cn_stack_depth);
     }
   }
 }
@@ -296,16 +296,6 @@ void ownership_ghost_state_remove(int64_t* address_key) {
   ownership_ghost_state_set(address_key, -1);
 }
 
-void dump_ownership_state() {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-  // cn_printf(CN_LOGGING_INFO, "BEGIN ownership state\n");
-  while (ht_next(&it)) {
-    // int depth = it.value ? *(int*)it.value : -1;
-    // cn_printf(CN_LOGGING_INFO, "[%#lx] => depth: %d\n", *it.key, depth);
-  }
-  // cn_printf(CN_LOGGING_INFO, "END\n");
-}
-
 _Bool is_wildcard(void* generic_c_ptr, int offset) {
   int64_t address_key = 0;
   // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
@@ -319,10 +309,15 @@ _Bool is_wildcard(void* generic_c_ptr, int offset) {
   return 1;
 }
 
-void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg) {
+void cn_get_ownership(void* generic_c_ptr, size_t size) {
   /* Used for precondition and loop invariant taking/getting of ownership */
-  c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1);
+  c_ownership_check("Precondition ownership check", generic_c_ptr, (int)size, cn_stack_depth - 1);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
+}
+
+void cn_loop_get_ownership(void *generic_c_ptr, size_t size) {
+  c_ownership_check("Loop invariant ownership check", generic_c_ptr, (int)size, cn_stack_depth);
+  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
 }
 
 void cn_put_ownership(void* generic_c_ptr, size_t size) {
@@ -355,7 +350,7 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
   if (!is_wildcard(generic_c_ptr, (int)size)) {
     switch (spec_mode) {
       case PRE: {
-        cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
+        cn_get_ownership(generic_c_ptr, size);
         break;
       }
       case POST: {
@@ -363,7 +358,7 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
         break;
       }
       case LOOP: {
-        cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
+        cn_loop_get_ownership(generic_c_ptr, size);
       }
       default: {
         break;
@@ -424,28 +419,30 @@ void c_ownership_check(char* access_kind,
   // cn_printf(CN_LOGGING_INFO, "\n");
 }
 
+// TODO: Reimplement for new ownership ghost state data structure
 void dump_ownership_ghost_state(int stack_depth) {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-  cn_printf(CN_LOGGING_INFO, "ADDRESS \t\t\tCN STACK DEPTH\n")
-      cn_printf(CN_LOGGING_INFO, "====================\n") while (ht_next(&it)) {
-    int64_t* key = it.key;
-    int* depth = it.value;
-    if (*depth == stack_depth) {
-      cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
-    }
-  }
+  // hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+  // cn_printf(CN_LOGGING_INFO, "ADDRESS \t\t\tCN STACK DEPTH\n")
+  //     cn_printf(CN_LOGGING_INFO, "====================\n") while (ht_next(&it)) {
+  //   int64_t* key = it.key;
+  //   int* depth = it.value;
+  //   if (*depth == stack_depth) {
+  //     cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
+  //   }
+  // }
 }
 
+// TODO: Reimplement for new ownership ghost state data structure
 _Bool is_mapped(void* ptr) {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-  while (ht_next(&it)) {
-    int64_t* key = it.key;
-    if (*key == (int64_t)ptr) {
-      int* depth = it.value;
-      cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
-      return true;
-    }
-  }
+  // hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+  // while (ht_next(&it)) {
+  //   int64_t* key = it.key;
+  //   if (*key == (int64_t)ptr) {
+  //     int* depth = it.value;
+  //     cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
+  //     return true;
+  //   }
+  // }
   return false;
 }
 

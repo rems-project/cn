@@ -3820,16 +3820,16 @@ let cn_to_ail_loop_inv
     let (_, (cond_bs, cond_ss)), (_, loop_bs_and_ss) =
       cn_to_ail_loop_inv_aux filename dts globals preds (Some Loop) loop
     in
-    let cn_stack_depth_incr_call =
+    (* let cn_stack_depth_incr_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
-    in
+    in *)
     let cn_loop_put_call =
       A.AilSexpr
         (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_put_back_ownership_sym), [])))
     in
-    let cn_stack_depth_decr_call =
+    (* let cn_stack_depth_decr_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_decr_sym), [])))
-    in
+    in *)
     let dummy_expr_as_stat =
       A.(
         AilSexpr
@@ -3842,10 +3842,10 @@ let cn_to_ail_loop_inv
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
     let stats =
-      (bump_alloc_start_stat_ :: cn_stack_depth_incr_call :: cond_ss)
+      (bump_alloc_start_stat_ :: (* cn_stack_depth_incr_call :: *) cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
       @ [ cn_loop_put_call;
-          cn_stack_depth_decr_call;
+          (* cn_stack_depth_decr_call; *)
           bump_alloc_end_stat_;
           dummy_expr_as_stat
         ]

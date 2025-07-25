@@ -547,8 +547,6 @@ void ownership_ghost_state_set(int64_t *address_key, int stack_depth_val);
 void ownership_ghost_state_remove(int64_t *address_key);
 
 /* CN ownership checking */
-void cn_get_ownership(void *generic_c_ptr, size_t size, char *check_msg);
-void cn_put_ownership(void *generic_c_ptr, size_t size);
 void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
 void cn_get_or_put_ownership(enum spec_mode spec_mode, void *generic_c_ptr, size_t size);
 
