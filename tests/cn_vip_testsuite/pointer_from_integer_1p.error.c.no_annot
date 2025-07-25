@@ -1,8 +1,8 @@
 return code: 1
 [1/2]: f -- fail
 [2/2]: main -- pass
-tests/cn_vip_testsuite/pointer_from_integer_1p.error.c:6:3: error: Missing resource for writing
+tests/cn_vip_testsuite/pointer_from_integer_1p.error.c:6:3: error: Undefined behaviour
   *p=7;
-  ~~^~ 
-Resource needed: W<signed int>(p)
+  ^~ 
+the operand of the unary '*' operator has an invalid value (§6.5.3.2#4, sentence 4)
 State file: file:///tmp/state__pointer_from_integer_1p.error.c__f.html

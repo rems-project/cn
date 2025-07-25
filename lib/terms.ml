@@ -16,8 +16,9 @@ type const =
   | Null
   | CType_const of Sctypes.ctype
   | Default of BaseTypes.t
-(* Default bt: equivalent to a unique variable of base type bt, that we know nothing about
-   other than Default bt = Default bt *)
+  (** Default bt: equivalent to a unique variable of
+                               base type bt, that we know nothing about other
+                               than Default bt = Default bt *)
 [@@deriving eq, ord]
 
 type unop =
@@ -125,6 +126,10 @@ type 'bt term =
   | Let of (Sym.t * 'bt annot) * 'bt annot
   | Match of 'bt annot * ('bt pattern * 'bt annot) list
   | Cast of BaseTypes.t * 'bt annot
+  | CN_None of BaseTypes.t
+  | CN_Some of 'bt annot
+  | IsSome of 'bt annot
+  | GetOpt of 'bt annot
 
 and 'bt annot =
   | IT of 'bt term * 'bt * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
@@ -351,6 +356,10 @@ let pp
                (comma ^^ space)
                (fun (id, e) -> Id.pp id ^^ colon ^^^ aux 0 e)
                args)
+    | CN_None bt -> c_app !^"None" [ BaseTypes.pp bt ]
+    | CN_Some t -> c_app !^"Some" [ aux 0 t ]
+    | IsSome t -> c_app !^"is_some" [ aux 0 t ]
+    | GetOpt t -> c_app !^"get_opt" [ aux 0 t ]
   in
   fun (it : 'bt annot) -> aux prec it
 
@@ -377,19 +386,21 @@ let rec dtree (IT (it_, bt, loc)) =
   let dtree =
     match it_ with
     | Sym s -> Dleaf (Sym.pp s)
-    | Const (Z z) -> Dleaf !^(Z.to_string z)
-    | Const (Bits _) -> Dleaf (pp (IT (it_, bt, loc)))
-    | Const (Q q) -> Dleaf !^(Q.to_string q)
-    | Const (MemByte { alloc_id = id; value }) ->
-      Dnode (pp_ctor "mem_byte", [ alloc_id id; Dleaf !^(Z.to_string value) ])
-    | Const (Pointer { alloc_id = id; addr }) ->
-      Dnode (pp_ctor "pointer", [ alloc_id id; Dleaf !^(Z.to_string addr) ])
-    | Const (Bool b) -> Dleaf !^(if b then "true" else "false")
-    | Const Unit -> Dleaf !^"unit"
-    | Const (Default _) -> Dleaf !^"default"
-    | Const Null -> Dleaf !^"null"
-    | Const (Alloc_id z) -> alloc_id z
-    | Const (CType_const ct) -> Dleaf (Sctypes.pp ct)
+    | Const const ->
+      (match const with
+       | Z z -> Dleaf !^(Z.to_string z)
+       | Bits _ -> Dleaf (pp (IT (it_, bt, loc)))
+       | Q q -> Dleaf !^(Q.to_string q)
+       | MemByte { alloc_id = id; value } ->
+         Dnode (pp_ctor "mem_byte", [ alloc_id id; Dleaf !^(Z.to_string value) ])
+       | Pointer { alloc_id = id; addr } ->
+         Dnode (pp_ctor "pointer", [ alloc_id id; Dleaf !^(Z.to_string addr) ])
+       | Bool b -> Dleaf !^(if b then "true" else "false")
+       | Unit -> Dleaf !^"unit"
+       | Default _ -> Dleaf !^"default"
+       | Null -> Dleaf !^"null"
+       | Alloc_id z -> alloc_id z
+       | CType_const ct -> Dleaf (Sctypes.pp ct))
     | Unop (op, t1) -> Dnode (pp_ctor (show_unop op), [ dtree t1 ])
     | Binop (op, t1, t2) -> Dnode (pp_ctor (show_binop op), [ dtree t1; dtree t2 ])
     | ITE (t1, t2, t3) -> Dnode (pp_ctor "Implies", [ dtree t1; dtree t2; dtree t3 ])
@@ -466,6 +477,10 @@ let rec dtree (IT (it_, bt, loc)) =
     | OffsetOf (tag, member) ->
       Dnode (pp_ctor "OffsetOf", [ Dleaf (Sym.pp tag); Dleaf (Id.pp member) ])
     | Let ((s, t1), t2) -> Dnode (pp_ctor "Let", [ Dleaf (Sym.pp s); dtree t1; dtree t2 ])
+    | CN_None _ -> Dleaf !^"None"
+    | CN_Some it -> Dnode (pp_ctor "Some", [ dtree it ])
+    | IsSome it -> Dnode (pp_ctor "IsSome", [ dtree it ])
+    | GetOpt it -> Dnode (pp_ctor "GetOpt", [ dtree it ])
   in
   let loc_doc = Pp.parens !^(Locations.to_string loc) in
   match dtree with

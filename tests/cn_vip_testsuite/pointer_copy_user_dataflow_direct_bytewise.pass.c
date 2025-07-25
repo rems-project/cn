@@ -4,12 +4,11 @@
 #include <inttypes.h>
 #include "cn_lemmas.h"
 int  x=1;
-void user_memcpy(unsigned char *dest,
-                 unsigned char *src, size_t n)
+void user_memcpy(byte *dest, byte *src, size_t n)
 /*@
 requires
     take Src = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift(src, i)) };
-    take Dest = each (u64 i; 0u64 <= i && i < n ) { W<unsigned char>(array_shift(dest, i)) };
+    take Dest = each (u64 i; 0u64 <= i && i < n ) { W(array_shift(dest, i)) };
 
 ensures
     take SrcR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift(src, i)) };
@@ -29,13 +28,13 @@ ensures
     dest == array_shift<unsigned char>(dest_start, n_start - n);
     take S = each (u64 i; 0u64 <= i && i < n_start ) { RW(array_shift(src_start, i)) };
     Src == S;
-    take D1 = each (u64 i; n_start - n <= i && i < n_start ) { W<unsigned char>(array_shift(dest_start, i)) };
+    take D1 = each (u64 i; n_start - n <= i && i < n_start ) { W(array_shift(dest_start, i)) };
     take D2 = each (u64 i; 0u64 <= i && i < n_start - n ) { RW(array_shift(dest_start, i)) };
     each (u64 i; 0u64 <= i && i < n_start - n ) { S[i] == D2[i] };
   @*/
   {
-    /*@ focus RW<unsigned char>, n_start - n; @*/
-    /*@ focus W<unsigned char>, n_start - n; @*/
+    /*@ focus RW<byte>, n_start - n; @*/
+    /*@ focus W<byte>, n_start - n; @*/
     *dest = *src;
     src += 1; dest += 1; n -= 1u;
   }
@@ -47,14 +46,10 @@ int main()
   int *q;
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes W<int*>(&q); @*/
-  user_memcpy((unsigned char*)&q, (unsigned char*)&p, sizeof(int *));
+  user_memcpy((byte*)&q, (byte*)&p, sizeof(int *));
   /*CN_VIP*//*@ apply byte_arrays_equal(&q, &p, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
-#ifdef NO_ROUND_TRIP
-  /*CN_VIP*/q = __cerbvar_copy_alloc_id((uintptr_t)q, &x);
-  /*CN_VIP*/p = __cerbvar_copy_alloc_id((uintptr_t)p, &x);
-#endif
   *q = 11; // is this free of undefined behaviour?
   //CN_VIP printf("*p=%d  *q=%d\n",*p,*q);
   /*CN_VIP*//*@ assert(*q == 11i32 && *p == 11i32); @*/

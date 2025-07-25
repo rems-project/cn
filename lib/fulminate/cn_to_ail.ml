@@ -189,6 +189,7 @@ let rec bt_to_cn_base_type = function
   | List bt -> CN_list (bt_to_cn_base_type bt)
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
+  | Option _ -> failwith (__LOC__ ^ ": TODO Option")
 
 
 let str_of_cn_bitvector_type sign size =
@@ -1830,6 +1831,10 @@ let rec cn_to_ail_expr_aux
         (ail_expr_, b, s)
     in
     dest d spec_mode_opt (b, s, mk_expr ail_expr_)
+  | CN_None _bt -> failwith (__LOC__ ^ ": TODO CN_None")
+  | CN_Some _ -> failwith (__LOC__ ^ ": TODO CN_Some")
+  | IsSome _ -> failwith (__LOC__ ^ ": TODO IsSome")
+  | GetOpt _ -> failwith (__LOC__ ^ ": TODO GetOpt")
 
 
 let cn_to_ail_expr

@@ -135,6 +135,8 @@ let char_ct = Integer Char
 
 let uchar_ct = Integer (Unsigned Ichar)
 
+let byte_ct = Byte
+
 let rec to_ctype (ct_ : ctype) =
   let ct_ =
     match ct_ with
