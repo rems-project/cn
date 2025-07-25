@@ -409,7 +409,7 @@ let init_solver () =
       Sym.Map.fold add_binding c.logical (Sym.Map.fold add_binding c.computational [])
     in
     let solver = Solver.make c.global to_declare in
-    LC.Set.iter (Solver.add_assumption solver) c.constraints;
+    LC.Set.iter (Solver.assume solver) c.constraints;
     { s with solver = Some solver })
 
 
@@ -423,7 +423,7 @@ let add_c_internal lc =
   let@ simp_ctxt = simp_ctxt () in
   let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
   let s = Context.add_c lc s in
-  let () = Solver.add_assumption solver lc in
+  let () = Solver.assume solver lc in
   let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
   let@ () = set_typing_context s in
   return ()
