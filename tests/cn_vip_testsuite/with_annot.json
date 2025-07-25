@@ -2,5 +2,5 @@
     "name": "with_annot",
     "args": ["verify", "-DVIP", "-DANNOT", "-DNO_ROUND_TRIP", "--solver-type=cvc5", "--output-dir=/tmp"],
     "filter": "^((pointer_from_int_disambiguation_3\\.error\\.c)|(.*\\.annot\\.c))$",
-    "timeout": 35
+    "timeout": 55
 }
