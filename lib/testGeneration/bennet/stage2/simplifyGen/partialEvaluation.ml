@@ -444,6 +444,10 @@ module IndexTerms = struct
     | Cast _ -> Error "todo: Cast"
     | Tuple _ | Struct _ | Record _ | Constructor _ | Cons _ | MapConst _ | MapSet _ ->
       failwith "unreachable, specific to evaluation mode"
+    | CN_None _ -> Error "todo: CN_Some"
+    | CN_Some _ -> Error "todo: CN_Some"
+    | IsSome _ -> Error "todo: IsSome"
+    | GetOpt _ -> Error "todo: GetOpt"
 
 
   let eval_term_strictly (prog5 : unit Mucore.file) (it : IT.t) : (IT.t, string) result =
@@ -533,6 +537,10 @@ module IndexTerms = struct
         let@ it_v = eval_aux it_v in
         return @@ map_set_ it_m (it_k, it_v) here
       | Cast _ -> Error "todo: Cast"
+      | CN_None _ -> Error "todo: CN_None"
+      | CN_Some _ -> Error "todo: CN_Some"
+      | IsSome _ -> Error "todo: IsSome"
+      | GetOpt _ -> Error "todo: GetOpt"
     in
     eval_aux it
 
@@ -553,6 +561,10 @@ module IndexTerms = struct
         Ok it
       | WrapI _ -> Error "todo: WrapI"
       | Cast _ -> Error "todo: Cast"
+      | CN_None _ -> Error "todo: CN_None"
+      | CN_Some _ -> Error "todo: CN_Some"
+      | IsSome _ -> Error "todo: IsSome"
+      | GetOpt _ -> Error "todo: GetOpt"
     in
     eval_aux it
 

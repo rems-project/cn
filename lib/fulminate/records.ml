@@ -48,6 +48,10 @@ let rec add_records_to_map_from_it it =
   | Let ((_, t1), t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]
   | Match (e, cases) -> List.iter add_records_to_map_from_it (e :: List.map snd cases)
   | Constructor (_sym, args) -> List.iter add_records_to_map_from_it (List.map snd args)
+  | CN_None _ -> ()
+  | CN_Some it -> add_records_to_map_from_it it
+  | IsSome it -> add_records_to_map_from_it it
+  | GetOpt it -> add_records_to_map_from_it it
 
 
 let add_records_to_map_from_resource = function

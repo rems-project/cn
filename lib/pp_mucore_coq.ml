@@ -1230,6 +1230,10 @@ and pp_index_term_content = function
       "TMatch"
       [ pp_index_term t; pp_list (pp_pair pp_terms_pattern pp_index_term) cases ]
   | Cast (bt, t) -> pp_constructor1 "Cast" [ pp_basetype pp_unit bt; pp_index_term t ]
+  | CN_None bt -> pp_constructor "CN_None" [ pp_basetype pp_unit bt ]
+  | CN_Some t -> pp_constructor1 "CN_Some" [ pp_index_term t ]
+  | IsSome t -> pp_constructor1 "IsSome" [ pp_index_term t ]
+  | GetOpt t -> pp_constructor1 "GetOpt" [ pp_index_term t ]
 
 
 let pp_request_init = function
