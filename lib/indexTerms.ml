@@ -117,6 +117,10 @@ let rec free_vars_bts (it : 'a annot) : BT.t Sym.Map.t =
     in
     aux (free_vars_bts e) cases
   | Constructor (_s, args) -> free_vars_bts_list (List.map snd args)
+  | CN_None _ -> Sym.Map.empty
+  | CN_Some t -> free_vars_bts t
+  | IsSome t -> free_vars_bts t
+  | GetOpt t -> free_vars_bts t
 
 
 and free_vars_bts_list : 'a annot list -> BT.t Sym.Map.t =
@@ -210,6 +214,10 @@ let rec fold_ f binders acc = function
     in
     aux acc' cases
   | Constructor (_sym, args) -> fold_list f binders acc (List.map snd args)
+  | CN_None _ -> acc
+  | CN_Some t -> fold f binders acc t
+  | IsSome t -> fold f binders acc t
+  | GetOpt t -> fold f binders acc t
 
 
 and fold f binders acc (IT (term_, _bt, loc)) =
@@ -335,6 +343,10 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
   | Constructor (s, args) ->
     let args = List.map (fun (id, e) -> (id, subst su e)) args in
     IT (Constructor (s, args), bt, loc)
+  | CN_None bt -> IT (CN_None bt, bt, loc)
+  | CN_Some it -> IT (CN_Some (subst su it), bt, loc)
+  | IsSome it -> IT (IsSome (subst su it), bt, loc)
+  | GetOpt it -> IT (GetOpt (subst su it), bt, loc)
 
 
 and alpha_rename s body =
@@ -377,9 +389,12 @@ let substitute_lets =
   subst { (make_subst []) with flags }
 
 
-let is_const = function IT (Const const, bt, _loc) -> Some (const, bt) | _ -> None
+let is_const = function
+  | IT (Const const, bt, _loc) -> Option.Some (const, bt)
+  | _ -> None
 
-let is_z = function IT (Const (Z z), _bt, _loc) -> Some z | _ -> None
+
+let is_z = function IT (Const (Z z), _bt, _loc) -> Option.Some z | _ -> None
 
 let is_z_ it = Option.is_some (is_z it)
 
@@ -784,7 +799,7 @@ let tail_ it loc = IT (Tail it, get_bt it, loc)
 
 let rec dest_list it =
   match get_term it with
-  | Nil _bt -> Some []
+  | Nil _bt -> Option.Some []
   | Cons (x, xs) -> Option.map (fun ys -> x :: ys) (dest_list xs)
   (* TODO: maybe include Tail, if we ever actually use it? *)
   | _ -> None
@@ -1098,6 +1113,10 @@ let rec map_term_pre (f : t -> t) (it : t) : t =
     | Match (it', pits) -> Match (loop it', List.map_snd loop pits)
     | Cast (bt', it') -> Cast (bt', loop it')
     | HasAllocId it' -> HasAllocId (loop it')
+    | CN_None bt' -> CN_None bt'
+    | CN_Some it' -> CN_Some (loop it')
+    | IsSome it' -> IsSome (loop it')
+    | GetOpt it' -> GetOpt (loop it')
   in
   IT (it_, bt, here)
 
@@ -1143,6 +1162,10 @@ let rec map_term_post (f : t -> t) (it : t) : t =
     | Let ((x, it_v), it_rest) -> Let ((x, loop it_v), loop it_rest)
     | Match (it', pits) -> Match (loop it', List.map_snd loop pits)
     | Cast (bt', it') -> Cast (bt', loop it')
+    | CN_None bt' -> CN_None bt'
+    | CN_Some it' -> CN_Some (loop it')
+    | IsSome it' -> IsSome (loop it')
+    | GetOpt it' -> GetOpt (loop it')
   in
   f (IT (it_, bt, here))
 

@@ -199,7 +199,7 @@ module CN_Option = struct
 
   let none elT = SMT.as_type (SMT.atom none_name) (t elT)
 
-  let _some x = SMT.app_ some_name [ x ]
+  let some x = SMT.app_ some_name [ x ]
 
   let val_ x = SMT.app_ val_name [ x ]
 end
@@ -229,9 +229,7 @@ module CN_MemByte = struct
          name
          []
          [ ( alloc_id_value_name,
-             [ (alloc_id_name, CN_Option.t (CN_AllocId.t ()));
-               (value_name, SMT.t_bits width)
-             ] )
+             [ (alloc_id_name, CN_AllocId.t ()); (value_name, SMT.t_bits width) ] )
          ])
 end
 
@@ -975,6 +973,10 @@ let rec translate_term s iterm =
      | Integer, Real -> SMT.int_to_real smt_term
      | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term
      | _ -> assert false)
+  | CN_None t -> CN_Option.none (translate_base_type t)
+  | CN_Some t -> CN_Option.some (translate_term s t)
+  | IsSome t -> SMT.is_con CN_Option.some_name (translate_term s t)
+  | GetOpt t -> CN_Option.val_ (translate_term s t)
 
 
 (** Add an assertion.  Quantified predicates are ignored. *)

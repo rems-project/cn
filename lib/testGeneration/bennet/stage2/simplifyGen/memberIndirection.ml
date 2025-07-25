@@ -61,6 +61,10 @@ let rec replace_memberof_it
     | Let ((x, it1), it2) -> IT.Let ((x, repl it1), it2)
     | Match (it', pits) -> IT.Match (repl it', List.map_snd repl pits)
     | Cast (bt, it') -> IT.Cast (bt, repl it')
+    | CN_None bt -> IT.CN_None bt
+    | CN_Some it' -> IT.CN_Some (repl it')
+    | IsSome it' -> IT.IsSome (repl it')
+    | GetOpt it' -> IT.GetOpt (repl it')
   in
   IT (it_, bt, loc)
 

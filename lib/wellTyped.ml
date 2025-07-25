@@ -209,6 +209,21 @@ let ensure_map_type ~reason it =
          ~reason:(Either.Left reason))
 
 
+let ensure_option_type ~reason it =
+  let open BT in
+  match IT.get_bt it with
+  | Option bt -> return bt
+  | _ ->
+    let expected = "option" in
+    fail
+      (illtyped_index_term
+         (IT.get_loc it)
+         it
+         (IT.get_bt it)
+         ~expected
+         ~reason:(Either.Left reason))
+
+
 let ensure_same_argument_number loc type_ has ~expect =
   if has = expect then
     return ()
@@ -1029,6 +1044,20 @@ module WIT = struct
           | Some rbt -> return rbt
         in
         return (IT (Match (e, cases), rbt, loc))
+      | CN_None bt ->
+        let@ bt = WBT.is_bt loc bt in
+        return (IT (CN_None bt, bt, loc))
+      | CN_Some t ->
+        let@ t = infer t in
+        let bt = IT.get_bt t in
+        return (IT (CN_Some t, Option bt, loc))
+      | IsSome t ->
+        let@ t = infer t in
+        return (IT (IsSome t, Bool, loc))
+      | GetOpt t ->
+        let@ t = infer t in
+        let@ bt = ensure_option_type ~reason:loc t in
+        return (IT (GetOpt t, bt, loc))
     in
     Pp.debug 22 (lazy (Pp.item "Welltyped.WIT.infer: inferred" (IT.pp_with_typ result)));
     return result
