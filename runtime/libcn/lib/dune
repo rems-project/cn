@@ -23,6 +23,9 @@
 (rule
  (target libbennet.a)
  (deps
+  (:headers
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/bennet/*.h))
   (:src
    (glob_files ../src/bennet/*.c)
    (glob_files ../src/bennet/dsl/*.c)

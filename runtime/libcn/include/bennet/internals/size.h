@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum bennet_sizing_strategy {
   BENNET_SIZE_UNIFORM = 0,
   BENNET_SIZE_QUARTILE = 1,
@@ -36,5 +40,9 @@ uint64_t bennet_get_milliseconds(void);
 uint64_t bennet_get_microseconds(void);
 
 int64_t timediff_timeval(struct timeval *early, struct timeval *late);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // BENNET_SIZE_H

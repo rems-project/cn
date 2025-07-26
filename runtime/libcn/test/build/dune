@@ -1,0 +1,23 @@
+(rule
+ (target Makefile)
+ (deps
+  (file ../CMakeLists.txt))
+ (action
+  (run cmake ..)))
+
+(rule
+ (target libcn_tests)
+ (deps
+  (file Makefile)
+  (glob_files ../bennet/*.hpp)
+  (glob_files ../bennet/*.cpp))
+ (action
+  (run make)))
+
+(rule
+ (alias runtest)
+ (deps
+  (package cn)
+  (file libcn_tests))
+ (action
+  (run ./libcn_tests)))
