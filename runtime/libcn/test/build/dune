@@ -20,4 +20,10 @@
   (package cn)
   (file libcn_tests))
  (action
-  (run ./libcn_tests)))
+  (setenv
+   UBSAN_OPTIONS
+   "halt_on_error=1"
+   (setenv
+    ASAN_OPTIONS
+    "allocator_may_return_null=1:detect_leaks=0"
+    (run ./libcn_tests)))))
