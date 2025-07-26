@@ -49,7 +49,8 @@
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
   ; Counterexample program synthesis prototype
-  (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h)
-  (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h))
+  (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
+  (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)
+  (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h))
  (section lib)
  (package cn))

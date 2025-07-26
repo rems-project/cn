@@ -110,6 +110,10 @@ jobs:
         run: |
           find runtime/libcn/ -iname '*.c' -exec ${{ matrix.compiler }} -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
 
+      - name: Check C++ compatibility
+        run: |
+          ${{ matrix.compiler }} -std=c++17 -Iruntime/libcn/include/ runtime/libcn/check_compat.cpp
+
   shellcheck:
     name: ShellCheck
 
