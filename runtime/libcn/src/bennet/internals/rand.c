@@ -226,7 +226,7 @@ INEQ_GEN(64);
     assert(mul != 0);                                                                    \
                                                                                          \
     if (mul == 1) {                                                                      \
-      return bennet_uniform_uint##sm##_t_sized(bennet_get_size());                       \
+      return bennet_range_uint##sm##_t(min, max);                                        \
     }                                                                                    \
                                                                                          \
     uint##sm##_t x = bennet_range_uint##sm##_t(min / mul, max / mul + (max % mul != 0)); \
@@ -238,7 +238,7 @@ INEQ_GEN(64);
     assert(mul != 0);                                                                    \
                                                                                          \
     if (mul == 1) {                                                                      \
-      return bennet_uniform_int##sm##_t_sized(bennet_get_size());                        \
+      return bennet_range_int##sm##_t(min, max);                                         \
     }                                                                                    \
                                                                                          \
     int##sm##_t x = bennet_range_int##sm##_t(min / mul, max / mul + (max % mul != 0));   \
