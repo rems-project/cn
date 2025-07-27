@@ -19,6 +19,14 @@
 #include <bennet/utils/optional.h>
 #include <bennet/utils/vector.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void bennet_reset(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // BENNET_PRELUDE_H
