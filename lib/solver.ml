@@ -441,8 +441,8 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
      | con, [ salloc_id; svalue ] when String.equal con CN_MemByte.alloc_id_value_name ->
        let alloc_id =
          match get_value gs ctys (Option Alloc_id) salloc_id with
-         | CN_None _ -> Z.minus_one
-         | CN_Some (IT (Const (Alloc_id z), _, _)) -> z
+         | CN_None _ -> None
+         | CN_Some (IT (Const (Alloc_id z), _, _)) -> Some z
          | _ -> failwith "Memory byte alloc ID is not bits option"
        in
        let value =
@@ -519,9 +519,10 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     (match SMT.to_con sexp with
      | con, [ svalue ] when String.equal con CN_Option.some_name ->
        CN_Some (get_ivalue gs ctys bt svalue)
+     | con, [] when String.equal con CN_Option.none_name -> CN_None bt
      | "as", [ Sexplib.Sexp.Atom con; _ ] when String.equal con CN_Option.none_name ->
        CN_None bt
-     | _ -> failwith (Sexplib.Sexp.to_string_hum sexp ^ "Option is not some or none"))
+     | _ -> failwith (Sexplib.Sexp.to_string_hum sexp ^ " -- option is not some or none"))
 
 
 (** {1 Term to SMT} *)
@@ -533,9 +534,12 @@ let translate_const s co =
   | Bits ((_, w), z) -> SMT.bv_k w z
   | Q q -> SMT.real_k q
   | MemByte b ->
-    CN_MemByte.con
-      ~alloc_id:(CN_AllocId.to_sexp b.alloc_id)
-      ~value:(SMT.bv_k CN_MemByte.width b.value)
+    let alloc_id =
+      match b.alloc_id with
+      | None -> CN_Option.none (CN_AllocId.t ())
+      | Some z -> CN_Option.some (CN_AllocId.to_sexp z)
+    in
+    CN_MemByte.con ~alloc_id ~value:(SMT.bv_k CN_MemByte.width b.value)
   | Pointer p ->
     CN_Pointer.con_aia
       ~alloc_id:(CN_AllocId.to_sexp p.alloc_id)

@@ -1136,7 +1136,7 @@ let pp_const = function
     pp_constructor "Terms.Bits" [ pp_pair (pp_pair pp_sign pp_nat) pp_Z (x, z) ]
   | Terms.Q q -> pp_constructor "Terms.Q" [ pp_Q q ]
   | Terms.MemByte { alloc_id; value } ->
-    pp_constructor "Terms.MemByte" [ pp_Z alloc_id; pp_Z value ]
+    pp_constructor "Terms.MemByte" [ pp_option pp_Z alloc_id; pp_Z value ]
   | Terms.Pointer { alloc_id; addr } ->
     pp_constructor "Terms.Pointer" [ pp_Z alloc_id; pp_Z addr ]
   | Terms.Alloc_id z -> pp_constructor "Terms.Alloc_id" [ pp_Z z ]
