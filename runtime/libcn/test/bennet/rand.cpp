@@ -70,3 +70,17 @@ TEST_F(LibBennet, RangeI64) {
     EXPECT_GE(val, -12);
   }
 }
+
+TEST_F(LibBennet, OverflowRangeU64) {
+  for (int i = 0; i < 1000; i++) {
+    uint64_t val = bennet_range_uint64_t(UINT64_MAX - 100, 53);
+    EXPECT_FALSE(53 < val && val < UINT64_MAX - 100);
+  }
+}
+
+TEST_F(LibBennet, OverflowRangeI64) {
+  for (int i = 0; i < 1000; i++) {
+    int64_t val = bennet_range_int64_t(INT64_MAX - 100, 53);
+    EXPECT_FALSE(53 < val && val < INT64_MAX - 100);
+  }
+}
