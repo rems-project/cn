@@ -17,7 +17,8 @@ Inductive ctype : Type :=
   | Array : ctype * option nat -> ctype
   | Pointer : ctype -> ctype
   | Struct : sym -> ctype
-  | SCFunction : (qualifiers * ctype) * (list (ctype * bool)) * bool -> ctype.
+  | SCFunction : (qualifiers * ctype) * (list (ctype * bool)) * bool -> ctype
+  | Byte : ctype.
 Set Elimination Schemes.
 
 (* We define a custom induction principle for [ctype] because the
@@ -32,10 +33,11 @@ Theorem ctype_ind_set (P : ctype -> Type):
   (forall p : qualifiers * ctype * list (ctype * bool) * bool,
     P (snd (fst (fst p))) ->
     Forall_type (fun '(x, _) => P x) (snd (fst p)) -> 
-    P (SCFunction p))
+    P (SCFunction p)) ->
+  P Byte
   -> forall t : ctype, P t.
 Proof.
-  intros HVoid HInteger HArray HPointer HStruct HSCFunction.
+  intros HVoid HInteger HArray HPointer HStruct HSCFunction HByte.
   fix IH 1.
   intros t.
   destruct t.
@@ -50,6 +52,7 @@ Proof.
       induction l as [| [c' b'] l IHl].
       * constructor.
       * constructor; auto.
+  - apply HByte.
 Defined.
 
 Definition t := ctype.
@@ -166,5 +169,8 @@ Module SCtypes_as_MiniDecidableType <: MiniDecidableType.
         destruct (IHl l') as [E | NE]; try (right; congruence).
         inversion E; subst.
         left; reflexivity.
+    - intros y.
+      destruct y; try (right; discriminate).
+      left; reflexivity.
   Defined.
 End SCtypes_as_MiniDecidableType.

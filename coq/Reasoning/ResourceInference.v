@@ -52,6 +52,7 @@ Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
   bt_of_sct_rel (SCtypes.Pointer sct) (BaseTypes.Loc unit tt)
 | bt_of_sct_struct : forall tag,
   bt_of_sct_rel (SCtypes.Struct tag) (BaseTypes.Struct _ tag)
+| bt_of_sct_byte : bt_of_sct_rel SCtypes.Byte (BaseTypes.MemByte unit)
 (* TODO function types *).
 
 Definition bool_of_sum {P : Prop} (dec : sumbool P (~ P)) : bool :=
@@ -91,6 +92,11 @@ Fixpoint bt_of_sct_fun (sct : SCtypes.t) (bt : BaseTypes.t): bool :=
     | BaseTypes.Struct _ tag2 => 
       if Sym_t_as_MiniDecidableType.eq_dec tag1 tag2
       then true else false
+    | _ => false
+    end
+  | SCtypes.Byte =>
+    match bt with
+    | BaseTypes.MemByte _ => true
     | _ => false
     end
   | _ => false
@@ -155,6 +161,9 @@ Proof.
       constructor.
     + intros ? ? ? ? H.
       inversion H.
+    + intros bt H.
+      destruct bt; try discriminate.
+      constructor.
 Qed.
 
 Lemma bt_of_sct_rel_functional : forall sct bt1 bt2,
@@ -171,6 +180,7 @@ Proof.
   - rewrite IHbt_of_sct_rel with (bt2 := bt0).
     + reflexivity.
     + assumption.
+  - reflexivity.
   - reflexivity.
   - reflexivity.
 Qed.
