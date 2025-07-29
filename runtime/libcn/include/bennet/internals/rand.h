@@ -21,16 +21,6 @@ int16_t bennet_uniform_int16_t(uint16_t);
 int32_t bennet_uniform_int32_t(uint32_t);
 int64_t bennet_uniform_int64_t(uint64_t);
 
-uint8_t bennet_uniform_uint8_t_sized(uint8_t);
-uint16_t bennet_uniform_uint16_t_sized(uint16_t);
-uint32_t bennet_uniform_uint32_t_sized(uint32_t);
-uint64_t bennet_uniform_uint64_t_sized(uint64_t);
-
-int8_t bennet_uniform_int8_t_sized(uint8_t);
-int16_t bennet_uniform_int16_t_sized(uint16_t);
-int32_t bennet_uniform_int32_t_sized(uint32_t);
-int64_t bennet_uniform_int64_t_sized(uint64_t);
-
 uint8_t bennet_range_uint8_t(uint8_t, uint8_t);
 uint16_t bennet_range_uint16_t(uint16_t, uint16_t);
 uint32_t bennet_range_uint32_t(uint32_t, uint32_t);

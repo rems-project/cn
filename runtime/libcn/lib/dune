@@ -55,7 +55,6 @@
     bennet/size.o
     bennet/sizes.o
     bennet/tyche.o
-    bennet/uniform.o
     bennet/urn.o))))
 
 (rule

@@ -6,6 +6,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /////////////////
 // Definitions //
 /////////////////
@@ -101,5 +105,9 @@ BENNET_OPTIONAL_UNWRAP_OR_IMPL(uintptr_t);
 BENNET_OPTIONAL_UNWRAP_OR_IMPL(intmax_t);
 BENNET_OPTIONAL_UNWRAP_OR_IMPL(uintmax_t);
 BENNET_OPTIONAL_UNWRAP_OR_IMPL(size_t);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // BENNET_OPTIONAL_H

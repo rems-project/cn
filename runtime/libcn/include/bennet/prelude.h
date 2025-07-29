@@ -10,7 +10,6 @@
 #include <bennet/internals/domain.h>
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
-#include <bennet/internals/uniform.h>
 #include <bennet/internals/urn.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/checkpoint.h>
