@@ -229,7 +229,9 @@ module CN_MemByte = struct
          name
          []
          [ ( alloc_id_value_name,
-             [ (alloc_id_name, CN_AllocId.t ()); (value_name, SMT.t_bits width) ] )
+             [ (alloc_id_name, CN_Option.t (CN_AllocId.t ()));
+               (value_name, SMT.t_bits width)
+             ] )
          ])
 end
 
@@ -437,7 +439,12 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
   | MemByte ->
     (match SMT.to_con sexp with
      | con, [ salloc_id; svalue ] when String.equal con CN_MemByte.alloc_id_value_name ->
-       let alloc_id = CN_AllocId.from_sexp salloc_id in
+       let alloc_id =
+         match get_value gs ctys (Option Alloc_id) salloc_id with
+         | CN_None _ -> Z.minus_one
+         | CN_Some (IT (Const (Alloc_id z), _, _)) -> z
+         | _ -> failwith "Memory byte alloc ID is not bits option"
+       in
        let value =
          match get_value gs ctys (BT.Bits (Unsigned, CN_MemByte.width)) svalue with
          | Const (Bits (_, z)) -> z
@@ -508,13 +515,13 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     let _con, vals = SMT.to_con sexp in
     let mk_field (l, bt) e = (l, get_ivalue gs ctys bt e) in
     Record (List.map2 mk_field members vals)
-  | Option _bt ->
+  | Option bt ->
     (match SMT.to_con sexp with
-     | con, [ _ssome; _value ] when String.equal con CN_Option.some_name ->
-       (* get_value gs ctys bt svalue *)
-       failwith "Option.Some"
-     | con, [ _snone ] when String.equal con CN_Option.none_name -> failwith "Option.None"
-     | _ -> failwith "Missing constructor")
+     | con, [ svalue ] when String.equal con CN_Option.some_name ->
+       CN_Some (get_ivalue gs ctys bt svalue)
+     | "as", [ Sexplib.Sexp.Atom con; _ ] when String.equal con CN_Option.none_name ->
+       CN_None bt
+     | _ -> failwith (Sexplib.Sexp.to_string_hum sexp ^ "Option is not some or none"))
 
 
 (** {1 Term to SMT} *)
