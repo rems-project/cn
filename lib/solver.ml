@@ -979,7 +979,7 @@ let rec translate_term s iterm =
            bv_cast ~to_:cbt ~from:(BT.Bits (Unsigned, 8)) x
        in
        maybe_cast (SMT.app_ CN_MemByte.value_name [ smt_term ])
-     | MemByte, Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
+     | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term
      | Integer, Real -> SMT.int_to_real smt_term
      | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term

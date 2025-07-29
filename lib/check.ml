@@ -1802,8 +1802,11 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           and_
             (List.map
                (fun byte ->
-                  let casted = cast_ BT.Alloc_id byte here in
-                  eq_ (casted, value_prov) here)
+                  let casted = cast_ BT.(Option Alloc_id) byte here in
+                  (* This relies on the slightly fragile property that
+                   * the unconstrained provenance, is represented as
+                   * Default Alloc_id, which is GetOption CN_None *)
+                  eq_ (IT.getOpt_ casted here, value_prov) here)
                bytes)
             here
         in

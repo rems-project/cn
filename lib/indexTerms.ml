@@ -854,6 +854,12 @@ let map_def_ (s, abt) body loc =
   IT (MapDef ((s, abt), body), BT.Map (abt, get_bt body), loc)
 
 
+let getOpt_ t loc =
+  match get_bt t with
+  | BT.Option bt -> IT (GetOpt t, bt, loc)
+  | _ -> Cerb_debug.error "illtyped index term"
+
+
 let make_array_ ~index_bt ~item_bt items (* assumed all of item_bt *) loc =
   let base_value = const_map_ index_bt (default_ item_bt loc) loc in
   let _, value =
