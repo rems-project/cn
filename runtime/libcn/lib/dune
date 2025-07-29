@@ -57,7 +57,8 @@
     bennet/sizes.o
     bennet/sized.o
     bennet/tyche.o
-    bennet/urn.o))))
+    bennet/urn.o
+    bennet/wint.o))))
 
 (rule
  (target libcn_test.a)

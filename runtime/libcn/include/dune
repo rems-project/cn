@@ -34,6 +34,9 @@
   (bennet/internals/domains/sized.h
    as
    runtime/include/bennet/internals/domains/sized.h)
+  (bennet/internals/domains/wint.h
+   as
+   runtime/include/bennet/internals/domains/wint.h)
   (bennet/internals/domain.h as runtime/include/bennet/internals/domain.h)
   (bennet/internals/rand.h as runtime/include/bennet/internals/rand.h)
   (bennet/internals/size.h as runtime/include/bennet/internals/size.h)
