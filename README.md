@@ -98,6 +98,25 @@ and its dependencies.
    `cerberus-lib` to stay in sync, by re-running the `opam install`
    step above.)
 
+   If you want to run the Rocq test script locally:
+   ```
+   # Setup opam
+   opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+   opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
+   opam install --deps-only --yes ./cn.opam
+
+   # Install CN with Coq
+   opam pin --yes --no-action add cn .
+   opam pin --yes --no-action add cn-coq .
+   opam install --yes cn cn-coq
+
+   # Run test script
+   ./tests/run-cn-coq.sh
+
+   # Run on a file
+   ./tests/run-cn-coq.sh -f file-path
+   ```
+
 ## Contributing
 
 Please see our [contributing
