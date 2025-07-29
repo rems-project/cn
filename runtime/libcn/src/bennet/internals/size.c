@@ -4,16 +4,6 @@
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
 
-static size_t global_size = 20;
-
-size_t bennet_get_size(void) {
-  return global_size;
-}
-
-void bennet_set_size(size_t sz) {
-  global_size = sz;
-}
-
 static size_t global_max_size = 25;
 
 size_t bennet_get_max_size(void) {
@@ -21,7 +11,20 @@ size_t bennet_get_max_size(void) {
 }
 
 void bennet_set_max_size(size_t sz) {
+  assert(sz != 0);
+
   global_max_size = sz;
+}
+
+static size_t global_size = 20;
+
+size_t bennet_get_size(void) {
+  return global_size;
+}
+
+void bennet_set_size(size_t sz) {
+  assert(sz != 0 && sz <= global_max_size);
+  global_size = sz;
 }
 
 static uint16_t stack_depth = 0;
