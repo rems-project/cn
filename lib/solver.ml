@@ -7,7 +7,7 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
-let inc_solver_time = 250
+let inc_timeout = ref 100
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
@@ -1201,7 +1201,7 @@ let make globals variable_bindings =
   List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental cfg);
   SMT.ack_command s.model_smt_solver (SMT.push 1);
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
-  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg inc_solver_time);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg !inc_timeout);
   declare_solver_basics s variable_bindings;
   (* "empty model loaded" using 'push' *)
   s

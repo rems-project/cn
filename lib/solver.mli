@@ -20,6 +20,8 @@ val solver_flags : string list option ref
 
 val solver_type : Simple_smt.solver_extensions option ref
 
+val inc_timeout : int ref
+
 (* Create a solver *)
 val make : Global.t -> (Sym.t * BaseTypes.t) list -> solver
 

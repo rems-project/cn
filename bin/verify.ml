@@ -29,6 +29,7 @@ let verify
       solver_flags
       solver_path
       solver_type
+      solver_inc_timeout
       astprints
       dont_use_vip
       no_use_ity
@@ -62,6 +63,7 @@ let verify
   Solver.solver_type := solver_type;
   Solver.solver_flags := solver_flags;
   Solver.try_hard := try_hard;
+  Solver.inc_timeout := solver_inc_timeout;
   Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
@@ -165,6 +167,11 @@ module Flags = struct
       value
       & opt (some (enum [ ("z3", Simple_smt.Z3); ("cvc5", Simple_smt.CVC5) ])) None
       & info [ "solver-type" ] ~docv:"z3|cvc5" ~doc)
+
+
+  let solver_inc_timeout =
+    let doc = "Timeout before non-incremental SMT solver replaces incremental solver" in
+    Arg.(value & opt int 100 & info [ "incremental-solver-timeout" ] ~docv:"FILE" ~doc)
 
 
   let try_hard =
@@ -281,6 +288,7 @@ let verify_t : unit Term.t =
   $ Flags.solver_flags
   $ Flags.solver_path
   $ Flags.solver_type
+  $ Flags.solver_inc_timeout
   $ Common.Flags.astprints
   $ Flags.dont_use_vip
   $ Common.Flags.no_use_ity
