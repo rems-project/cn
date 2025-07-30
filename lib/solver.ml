@@ -517,7 +517,6 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
      | _ -> failwith "Missing constructor")
 
 
-
 (** {1 Term to SMT} *)
 
 (** Translate a constant to SMT *)
