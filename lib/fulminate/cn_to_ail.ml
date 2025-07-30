@@ -456,6 +456,21 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
   wrap_with_convert ?sct ~convert_from:false ail_expr_ bt
 
 
+let load_from_ghost_array_fn_str = "load_from_ghost_array"
+
+let wrap_with_load_from_ghost_array cn_ctype ghost_debruijn =
+  A.AilEcast
+    ( C.no_qualifiers,
+      cn_ctype,
+      mk_expr
+        (AilEcall
+           ( mk_expr (AilEident (Sym.fresh load_from_ghost_array_fn_str)),
+             [ mk_expr
+                 (AilEconst
+                    (ConstantInteger (IConstant (Z.of_int ghost_debruijn, Decimal, None))))
+             ] )) )
+
+
 let get_equality_fn_call bt e1 e2 =
   match bt with
   | BT.Map (_, val_bt) ->
@@ -3861,7 +3876,17 @@ let rec cn_to_ail_loop_inv_aux
         subst_loop
     in
     ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
-  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
+  | AT.Ghost ((sym, bt), _, at') ->
+    let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+    let subst_loop =
+      ESE.loop_subst
+        (ESE.sym_subst (sym, bt, cn_sym))
+        (contains_user_spec, cond_loc, loop_loc, at')
+    in
+    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+      cn_to_ail_loop_inv_aux filename dts globals preds spec_mode_opt subst_loop
+    in
+    ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
   | L lat ->
     let rec modify_decls_for_loop decls modified_stats =
       let rec collect_initialised_syms_and_exprs = function
@@ -4167,15 +4192,24 @@ let translate_computational_at (sym, bt) =
   (cn_sym, (binding, decl))
 
 
+let translate_ghost_at (sym, bt) ghost_debruijn =
+  let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+  let cn_ctype = bt_to_ail_ctype bt in
+  let binding = create_binding cn_sym cn_ctype in
+  let rhs = wrap_with_load_from_ghost_array cn_ctype ghost_debruijn in
+  let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+  (cn_sym, (binding, decl))
+
+
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
-          is_lemma
           filename
           dts
           preds
           globals
           c_return_type
+          ghost_debruijn
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
@@ -4184,46 +4218,56 @@ let rec cn_to_ail_pre_post_aux
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
-        is_lemma
         filename
         dts
         preds
         globals
         c_return_type
+        ghost_debruijn
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
-  | AT.Ghost (_bound, _info, at) ->
-    (* is_lemma argument can be deleted when ghost arguments are fully supported at runtime *)
-    if is_lemma then
+  | AT.Ghost ((sym, bt), _info, at) ->
+    let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_debruijn in
+    let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
+    let ail_executable_spec =
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
-        is_lemma
         filename
         dts
         preds
         globals
         c_return_type
-        at
-    else
-      failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
+        (ghost_debruijn + 1)
+        subst_at
+    in
+    prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
   | AT.L lat ->
-    cn_to_ail_lat_2
-      without_ownership_checking
-      with_loop_leak_checks
-      filename
-      dts
-      globals
-      preds
-      c_return_type
-      lat
+    let ail_executable_spec =
+      cn_to_ail_lat_2
+        without_ownership_checking
+        with_loop_leak_checks
+        filename
+        dts
+        globals
+        preds
+        c_return_type
+        lat
+    in
+    let clear_ghost_array_fn_str = "clear_ghost_array" in
+    let decl =
+      A.(
+        AilSexpr
+          (mk_expr
+             (AilEcall (mk_expr (AilEident (Sym.fresh clear_ghost_array_fn_str)), []))))
+    in
+    prepend_to_precondition ail_executable_spec ([], [ decl ])
 
 
 let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
-      ~is_lemma
       filename
       dts
       preds
@@ -4235,12 +4279,12 @@ let cn_to_ail_pre_post
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
-        is_lemma
         filename
         dts
         preds
         globals
         c_return_type
+        0
         internal
     in
     let ownership_stats_ =
@@ -4282,7 +4326,6 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
     cn_to_ail_pre_post
       ~without_ownership_checking:false
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
-      ~is_lemma:true
       filename
       dts
       preds
