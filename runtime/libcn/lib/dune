@@ -57,6 +57,7 @@
     bennet/sizes.o
     bennet/sized.o
     bennet/tnum.o
+    bennet/trivial.o
     bennet/tyche.o
     bennet/urn.o
     bennet/wint.o))))
