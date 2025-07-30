@@ -278,6 +278,31 @@ void cn_loop_put_back_ownership(void) {
   }
 }
 
+struct loop_ownership* initialise_loop_ownership_state(void) {
+  struct loop_ownership* loop_ownership =
+      bump_alloc.malloc(sizeof(struct loop_ownership));
+  loop_ownership->owned_loop_addrs = bump_alloc.malloc(1000 * sizeof(uintptr_t));
+  loop_ownership->arr_size = 0;
+  return loop_ownership;
+}
+
+void cn_add_to_loop_ownership_state(
+    void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
+  for (int i = 0; i < size; i++) {
+    loop_ownership->owned_loop_addrs[loop_ownership->arr_size] =
+        (uintptr_t)generic_c_ptr + i;
+    loop_ownership->arr_size++;
+  }
+}
+
+void cn_loop_put_back_ownership_new(struct loop_ownership* loop_ownership) {
+  for (int i = 0; i < loop_ownership->arr_size; i++) {
+    int64_t address_key = loop_ownership->owned_loop_addrs[i];
+    ownership_ghost_state_set(&address_key, cn_stack_depth);
+  }
+  loop_ownership->arr_size = 0;
+}
+
 int ownership_ghost_state_get(int64_t* address_key) {
   int* curr_depth_maybe = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
   return curr_depth_maybe ? *curr_depth_maybe : -1;
@@ -311,13 +336,17 @@ _Bool is_wildcard(void* generic_c_ptr, int offset) {
 
 void cn_get_ownership(void* generic_c_ptr, size_t size) {
   /* Used for precondition and loop invariant taking/getting of ownership */
-  c_ownership_check("Precondition ownership check", generic_c_ptr, (int)size, cn_stack_depth - 1);
+  c_ownership_check(
+      "Precondition ownership check", generic_c_ptr, (int)size, cn_stack_depth - 1);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
 }
 
-void cn_loop_get_ownership(void *generic_c_ptr, size_t size) {
-  c_ownership_check("Loop invariant ownership check", generic_c_ptr, (int)size, cn_stack_depth);
+void cn_loop_get_ownership(
+    void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
+  c_ownership_check(
+      "Loop invariant ownership check", generic_c_ptr, (int)size, cn_stack_depth);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
+  cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
 }
 
 void cn_put_ownership(void* generic_c_ptr, size_t size) {
@@ -345,7 +374,10 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
   fulminate_assume_ownership(generic_c_ptr, size, fun, false);
 }
 
-void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size_t size) {
+void cn_get_or_put_ownership(enum spec_mode spec_mode,
+    void* generic_c_ptr,
+    size_t size,
+    struct loop_ownership* loop_ownership) {
   nr_owned_predicates++;
   if (!is_wildcard(generic_c_ptr, (int)size)) {
     switch (spec_mode) {
@@ -358,7 +390,7 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
         break;
       }
       case LOOP: {
-        cn_loop_get_ownership(generic_c_ptr, size);
+        cn_loop_get_ownership(generic_c_ptr, size, loop_ownership);
       }
       default: {
         break;

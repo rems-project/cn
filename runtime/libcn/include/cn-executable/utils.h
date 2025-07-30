@@ -148,6 +148,11 @@ typedef struct cn_alloc_id {
 
 typedef hash_table cn_map;
 
+struct loop_ownership {
+  uintptr_t *owned_loop_addrs;
+  signed long arr_size;
+};
+
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
@@ -157,6 +162,9 @@ void ghost_stack_depth_decr(void);
 void cn_postcondition_leak_check(void);
 void cn_loop_put_back_ownership(void);
 void cn_loop_leak_check(void);
+
+struct loop_ownership *initialise_loop_ownership_state(void);
+void cn_loop_put_back_ownership_new(struct loop_ownership *loop_ownership);
 
 /* malloc, free */
 void *cn_aligned_alloc(size_t align, size_t size);
@@ -548,7 +556,10 @@ void ownership_ghost_state_remove(int64_t *address_key);
 
 /* CN ownership checking */
 void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
-void cn_get_or_put_ownership(enum spec_mode spec_mode, void *generic_c_ptr, size_t size);
+void cn_get_or_put_ownership(enum spec_mode spec_mode,
+    void *generic_c_ptr,
+    size_t size,
+    struct loop_ownership *loop_ownership);
 
 /* C ownership checking */
 void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth);
