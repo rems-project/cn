@@ -7,6 +7,35 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
+(** Functions that pick names for things. *)
+module CN_Names = struct
+  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let named_expr_name = "_cn_named"
+
+  let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let struct_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let struct_field_name x = Id.get_string x ^ "_struct_fld"
+
+  let datatype_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let datatype_field_name x = Id.get_string x ^ "_data_fld"
+
+  let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
+
+  let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
+
+  let exp bt = "exp_uf_" ^ Pp.plain (BT.pp bt)
+
+  let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
+
+  let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
+end
+
 type solver_frame =
   { mutable commands : SMT.sexp list (** Ack-style SMT commands, most recent first. *) }
 
@@ -89,35 +118,6 @@ let ack_command s cmd =
 
 (** Generate a fersh name *)
 let fresh_name x = x ^ "_" ^ string_of_int (Sym.fresh_int ())
-
-(** Functions that pick names for things. *)
-module CN_Names = struct
-  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let named_expr_name = "_cn_named"
-
-  let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let struct_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let struct_field_name x = Id.get_string x ^ "_struct_fld"
-
-  let datatype_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let datatype_field_name x = Id.get_string x ^ "_data_fld"
-
-  let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
-
-  let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
-
-  let exp bt = "exp_uf_" ^ Pp.plain (BT.pp bt)
-
-  let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
-
-  let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
-end
 
 (* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
    declaring a fixed number of tuples ahead of time, we could declare the types on demand
