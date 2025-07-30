@@ -7,6 +7,8 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
+let inc_solver_time = 250
+
 (** Functions that pick names for things. *)
 module CN_Names = struct
   let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
@@ -1199,7 +1201,7 @@ let make globals variable_bindings =
   List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental cfg);
   SMT.ack_command s.model_smt_solver (SMT.push 1);
   List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
-  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg 200);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.timeout cfg inc_solver_time);
   declare_solver_basics s variable_bindings;
   (* "empty model loaded" using 'push' *)
   s
