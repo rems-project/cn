@@ -23,7 +23,9 @@ size_t bennet_get_size(void) {
 }
 
 void bennet_set_size(size_t sz) {
-  assert(sz != 0 && sz <= global_max_size);
+  assert(sz != 0);
+  assert(sz <= global_max_size);
+
   global_size = sz;
 }
 
@@ -131,10 +133,11 @@ int64_t timediff_timeval(struct timeval *early, struct timeval *late) {
 
 size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
     int max_tests,
-    size_t max_size,
     int max_discard_ratio,
     int successes,
     int recent_discards) {
+  size_t max_size = bennet_get_max_size();
+
   switch (strategy) {
     case BENNET_SIZE_QUARTILE:
       if (successes < max_tests / 4) {
@@ -147,7 +150,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       }
 
     case BENNET_SIZE_UNIFORM:;
-      size_t sz = bennet_uniform_uint16_t(max_size + 1) + 1;
+      size_t sz = bennet_uniform_uint16_t(max_size) + 1;
       return sz;
 
     case BENNET_SIZE_QUICKCHECK:;
@@ -176,7 +179,11 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         return potential_size + 1;
       }
 
-      return max_size + 1;
+      if (max_size > global_max_size) {
+        return global_max_size;
+      }
+
+      return max_size;
 
     default:
       assert(false);

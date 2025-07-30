@@ -43,7 +43,6 @@ void cn_trap(void);
 
 size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
     int max_tests,
-    size_t max_size,
     int max_discard_ratio,
     int successes,
     int recent_discards);
@@ -168,12 +167,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         return CN_TEST_GEN_FAIL;                                                         \
       }                                                                                  \
       if (!test_input.replay) {                                                          \
-        bennet_set_size(bennet_compute_size(test_input.sizing_strategy,                  \
-            Samples,                                                                     \
-            bennet_get_max_size(),                                                       \
-            10,                                                                          \
-            i,                                                                           \
-            recentDiscards));                                                            \
+        bennet_set_size(bennet_compute_size(                                             \
+            test_input.sizing_strategy, Samples, 10, i, recentDiscards));                \
         bennet_rand_replace(checkpoint);                                                 \
       }                                                                                  \
       CN_TEST_INIT();                                                                    \
