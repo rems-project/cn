@@ -176,6 +176,34 @@ module CN_AllocId = struct
   let to_sexp s = if !use_vip then SMT.int_zk s else CN_Tuple.con []
 end
 
+module CN_Option = struct
+  let name = "cn_option"
+
+  let none_name = "cn_none"
+
+  let some_name = "cn_some"
+
+  let val_name = "cn_val"
+
+  let t a = SMT.app_ name [ a ]
+
+  let declare s =
+    let a = SMT.atom "a" in
+    ack_command
+      s
+      (SMT.declare_datatype
+         name
+         [ "a" ]
+         [ (none_name, []); (some_name, [ (val_name, a) ]) ])
+
+
+  let none elT = SMT.as_type (SMT.atom none_name) (t elT)
+
+  let some x = SMT.app_ some_name [ x ]
+
+  let val_ x = SMT.app_ val_name [ x ]
+end
+
 module CN_MemByte = struct
   let name = "mem_byte"
 
@@ -365,33 +393,30 @@ module CN_List = struct
   let tail xs = SMT.app_ tail_name [ xs ]
 end
 
-module CN_Option = struct
-  let name = "cn_option"
+(** {1 Type to SMT} *)
 
-  let none_name = "cn_none"
+(** Translate a base type to SMT *)
+let rec translate_base_type = function
+  | BT.Unit -> CN_Tuple.t []
+  | Bool -> SMT.t_bool
+  | Integer -> SMT.t_int
+  | MemByte -> CN_MemByte.t
+  | Bits (_, n) -> SMT.t_bits n
+  | Real -> SMT.t_real
+  | Loc () -> CN_Pointer.t
+  | Alloc_id -> CN_AllocId.t ()
+  | CType -> SMT.t_int
+  | List bt -> CN_List.t (translate_base_type bt)
+  | Set bt -> SMT.t_set (translate_base_type bt)
+  | Map (k, v) -> SMT.t_array (translate_base_type k) (translate_base_type v)
+  | Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
+  | Struct tag -> SMT.atom (CN_Names.struct_name tag)
+  | Datatype tag -> SMT.atom (CN_Names.datatype_name tag)
+  | Option bt -> CN_Option.t (translate_base_type bt)
+  | Record members ->
+    let get_val (_, v) = v in
+    translate_base_type (Tuple (List.map get_val members))
 
-  let some_name = "cn_some"
-
-  let val_name = "cn_val"
-
-  let t a = SMT.app_ name [ a ]
-
-  let declare s =
-    let a = SMT.atom "a" in
-    ack_command
-      s
-      (SMT.declare_datatype
-         name
-         [ "a" ]
-         [ (none_name, []); (some_name, [ (val_name, a) ]) ])
-
-
-  let none elT = SMT.as_type (SMT.atom none_name) (t elT)
-
-  let _some x = SMT.app_ some_name [ x ]
-
-  let val_ x = SMT.app_ val_name [ x ]
-end
 
 (** {1 SMT to Term} *)
 
@@ -483,30 +508,14 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     let _con, vals = SMT.to_con sexp in
     let mk_field (l, bt) e = (l, get_ivalue gs ctys bt e) in
     Record (List.map2 mk_field members vals)
+  | Option _bt ->
+    (match SMT.to_con sexp with
+     | con, [ _ssome; _value ] when String.equal con CN_Option.some_name ->
+       (* get_value gs ctys bt svalue *)
+       failwith "Option.Some"
+     | con, [ _snone ] when String.equal con CN_Option.none_name -> failwith "Option.None"
+     | _ -> failwith "Missing constructor")
 
-
-(** {1 Type to SMT} *)
-
-(** Translate a base type to SMT *)
-let rec translate_base_type = function
-  | BT.Unit -> CN_Tuple.t []
-  | Bool -> SMT.t_bool
-  | Integer -> SMT.t_int
-  | MemByte -> CN_MemByte.t
-  | Bits (_, n) -> SMT.t_bits n
-  | Real -> SMT.t_real
-  | Loc () -> CN_Pointer.t
-  | Alloc_id -> CN_AllocId.t ()
-  | CType -> SMT.t_int
-  | List bt -> CN_List.t (translate_base_type bt)
-  | Set bt -> SMT.t_set (translate_base_type bt)
-  | Map (k, v) -> SMT.t_array (translate_base_type k) (translate_base_type v)
-  | Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
-  | Struct tag -> SMT.atom (CN_Names.struct_name tag)
-  | Datatype tag -> SMT.atom (CN_Names.datatype_name tag)
-  | Record members ->
-    let get_val (_, v) = v in
-    translate_base_type (Tuple (List.map get_val members))
 
 
 (** {1 Term to SMT} *)
@@ -965,6 +974,10 @@ let rec translate_term s iterm =
      | Integer, Real -> SMT.int_to_real smt_term
      | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term
      | _ -> assert false)
+  | CN_None t -> CN_Option.none (translate_base_type t)
+  | CN_Some t -> CN_Option.some (translate_term s t)
+  | IsSome t -> SMT.is_con CN_Option.some_name (translate_term s t)
+  | GetOpt t -> CN_Option.val_ (translate_term s t)
 
 
 let declare_fun s name args_bts res_bt =

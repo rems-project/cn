@@ -23,8 +23,15 @@
 (rule
  (target libbennet.a)
  (deps
+  (:headers
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/bennet/*.h))
   (:src
-   (glob_files ../src/bennet/*.c)))
+   (glob_files ../src/bennet/*.c)
+   (glob_files ../src/bennet/dsl/*.c)
+   (glob_files ../src/bennet/internals/*.c)
+   (glob_files ../src/bennet/state/*.c)
+   (glob_files ../src/bennet/info/*.c)))
  (action
   (progn
    (run mkdir -p bennet)
@@ -36,49 +43,20 @@
     -rcs
     %{target}
     bennet/alloc.o
-    bennet/compat.o
+    bennet/arbitrary.o
+    bennet/assign.o
+    bennet/backtrack.o
+    bennet/backtracks.o
     bennet/failure.o
     bennet/prelude.o
     bennet/rand.o
+    bennet/rand_alloc.o
+    bennet/unsatisfied.o
     bennet/size.o
+    bennet/sizes.o
     bennet/tyche.o
     bennet/uniform.o
     bennet/urn.o))))
-
-(rule
- (target libbennet-exp.a)
- (deps
-  (:src
-   (glob_files ../src/bennet-exp/*.c)
-   (glob_files ../src/bennet-exp/dsl/*.c)
-   (glob_files ../src/bennet-exp/internals/*.c)
-   (glob_files ../src/bennet-exp/state/*.c)
-   (glob_files ../src/bennet-exp/info/*.c)))
- (action
-  (progn
-   (run mkdir -p bennet-exp)
-   (chdir
-    bennet-exp
-    (run ../compile.sh %{src}))
-   (run
-    ar
-    -rcs
-    %{target}
-    bennet-exp/alloc.o
-    bennet-exp/arbitrary.o
-    bennet-exp/assign.o
-    bennet-exp/backtrack.o
-    bennet-exp/backtracks.o
-    bennet-exp/failure.o
-    bennet-exp/prelude.o
-    bennet-exp/rand.o
-    bennet-exp/rand_alloc.o
-    bennet-exp/unsatisfied.o
-    bennet-exp/size.o
-    bennet-exp/sizes.o
-    bennet-exp/tyche.o
-    bennet-exp/uniform.o
-    bennet-exp/urn.o))))
 
 (rule
  (target libcn_test.a)
@@ -116,7 +94,6 @@
  (files
   (libcn_exec.a as runtime/libcn_exec.a)
   (libbennet.a as runtime/libbennet.a)
-  (libbennet-exp.a as runtime/libbennet-exp.a)
   (libcn_test.a as runtime/libcn_test.a)
   (libcn_replica.a as runtime/libcn_replica.a))
  (section lib)

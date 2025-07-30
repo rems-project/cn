@@ -74,6 +74,13 @@ jobs:
         opam pin --yes --no-action add cn .
         opam install --yes cn
 
+    - name: Run LibCN unit tests
+      run: |
+        alias cc=${{ matrix.compiler }}
+        opam switch ${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }})
+        dune test runtime/libcn
+
     - name: Run CN-runtime CI tests (Cerberus)
       run: |
         alias cc=${{ matrix.compiler }}

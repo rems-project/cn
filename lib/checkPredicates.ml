@@ -245,6 +245,10 @@ let rec get_var_cands (exp : IT.t) (candidate : IT.t)
   | Let _, _ -> default
   | Match _, _ -> default
   | Cast _, _ -> default
+  | CN_None _, _ -> default
+  | CN_Some _, _ -> default
+  | IsSome _, _ -> default
+  | GetOpt _, _ -> default
 
 
 let rec organize_lines_aux

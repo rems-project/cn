@@ -49,14 +49,14 @@ let listify_constraints (it : IT.t) : IT.t list =
 
 let transform_gt (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
-    let (GT (gt_, _bt, loc)) = gt in
+    let (Annot (gt_, (), _bt, loc)) = gt in
     match gt_ with
-    | Assert (T it, gt') ->
+    | `Assert (T it, gt') ->
       it
       |> cnf
       |> listify_constraints
-      |> List.fold_left (fun gt_rest it' -> Term.assert_ (LC.T it', gt_rest) loc) gt'
-    | Assert (Forall ((i_sym, i_bt), it), gt') ->
+      |> List.fold_left (fun gt_rest it' -> Term.assert_ (LC.T it', gt_rest) () loc) gt'
+    | `Assert (Forall ((i_sym, i_bt), it), gt') ->
       let its_in, its_out =
         it
         |> cnf
@@ -64,10 +64,10 @@ let transform_gt (gt : Term.t) : Term.t =
         |> List.partition (fun it' -> Sym.Set.mem i_sym (IT.free_vars it'))
       in
       let gt_forall =
-        Term.assert_ (LC.Forall ((i_sym, i_bt), IT.and_ its_in loc), gt') loc
+        Term.assert_ (LC.Forall ((i_sym, i_bt), IT.and_ its_in loc), gt') () loc
       in
       List.fold_left
-        (fun gt_rest it' -> Term.assert_ (LC.T it', gt_rest) loc)
+        (fun gt_rest it' -> Term.assert_ (LC.T it', gt_rest) () loc)
         gt_forall
         its_out
     | _ -> gt

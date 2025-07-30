@@ -15,12 +15,10 @@ int main()
   uintptr_t j = (uintptr_t)q;
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
-  /*CN_VIP*/int result = _memcmp((unsigned char*)&p, (unsigned char*)&q, sizeof(p));
+  /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
+  /*CN_VIP*//*@ apply array_bits_eq_8(&p, &q, sizeof<int*>); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
-#ifdef NO_ROUND_TRIP
-  q = copy_alloc_id(j, &y);
-#endif
   if (result == 0) {
 #ifdef ANNOT
     int *r = copy_alloc_id(i, q);
@@ -32,3 +30,4 @@ int main()
     //CN_VIP printf("x=%d y=%d *q=%d *r=%d\n",x,y,*q,*r);
   }
 }
+

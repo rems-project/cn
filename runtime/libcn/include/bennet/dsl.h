@@ -2,17 +2,23 @@
 #define BENNET_DSL_H
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
-#include <bennet/failure.h>
+#include <bennet/dsl/arbitrary.h>
+#include <bennet/dsl/assert.h>
+#include <bennet/dsl/assign.h>
+#include <bennet/dsl/backtrack.h>
+#include <bennet/state/checkpoint.h>
+#include <bennet/state/failure.h>
 
 #define BENNET_CHECK_TIMEOUT()                                                           \
   if (bennet_get_input_timeout() != 0 &&                                                 \
       bennet_get_milliseconds() - bennet_get_input_timer() >                             \
           bennet_get_input_timeout()) {                                                  \
     bennet_failure_reset();                                                              \
-    bennet_failure_set_failure_type(BENNET_BACKTRACK_TIMEOUT);                           \
-    goto cn_label_bennet_backtrack;                                                      \
+    bennet_failure_set_failure_type(BENNET_FAILURE_TIMEOUT);                             \
+    goto bennet_label_bennet_backtrack;                                                  \
   }
 
 #define BENNET_INIT()                                                                    \
@@ -21,157 +27,160 @@
 
 #define BENNET_INIT_SIZED()                                                              \
   if (0) {                                                                               \
-  cn_label_bennet_backtrack:                                                             \
+  bennet_label_bennet_backtrack:                                                         \
     bennet_decrement_depth();                                                            \
     return NULL;                                                                         \
   }                                                                                      \
   BENNET_CHECK_TIMEOUT();                                                                \
   bennet_increment_depth();                                                              \
   if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
-    bennet_failure_set_failure_type(BENNET_BACKTRACK_DEPTH);                             \
-    goto cn_label_bennet_backtrack;                                                      \
+    bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
+    goto bennet_label_bennet_backtrack;                                                  \
   }
 
-#define BENNET_UNIFORM(ty)                                                               \
+#define BENNET_ARBITRARY(cn_ty, c_ty)                                                    \
   ({                                                                                     \
-    ty* result;                                                                          \
-    if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {                   \
-      result = cast_cn_pointer_to_##ty(BENNET_ALLOC(convert_to_cn_bits_u64(0)));         \
-    } else {                                                                             \
-      result = bennet_uniform_##ty(0);                                                   \
-    }                                                                                    \
-    result;                                                                              \
+    bennet_domain(c_ty) domain = bennet_domain_default(c_ty);                            \
+    bennet_arbitrary_##cn_ty(&domain);                                                   \
   })
 
-#define BENNET_ALLOC(sz)                                                                 \
+#define BENNET_ARBITRARY_POINTER() BENNET_ARBITRARY(cn_pointer, uintptr_t)
+
+#define BENNET_ARBITRARY_UNSIGNED(bits) BENNET_ARBITRARY(cn_bits_u##bits, uint##bits##_t)
+
+#define BENNET_ARBITRARY_SIGNED(bits) BENNET_ARBITRARY(cn_bits_i##bits, int##bits##_t)
+
+#define BENNET_CALL(ty, last_var, ...)                                                   \
   ({                                                                                     \
-    cn_pointer* ptr;                                                                     \
-    if (sz != 0) {                                                                       \
-      ptr = bennet_alloc(sz);                                                            \
-    } else {                                                                             \
-      uint8_t null_in_every = get_null_in_every();                                       \
-      if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_ALLOC &&                 \
-          bennet_rec_size <= 1) {                                                        \
-        ptr = convert_to_cn_pointer(NULL);                                               \
-      } else {                                                                           \
-        ptr = bennet_alloc(sz);                                                          \
+    ty* var = __VA_ARGS__;                                                               \
+    if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                      \
+      BENNET_CHECK_TIMEOUT();                                                            \
+                                                                                         \
+      if (bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH) {                   \
+        bennet_failure_blame_many(path_vars);                                            \
       }                                                                                  \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
-    ptr;                                                                                 \
+    var;                                                                                 \
   })
 
-#define BENNET_CALL_FROM(...)                                                            \
+#define BENNET_ASSIGN(id, ptr, addr, addr_ty, value, last_var, ...)                      \
   {                                                                                      \
-    char* from[] = {__VA_ARGS__, NULL};
-
-#define BENNET_CALL_TO(...)                                                              \
-  char* to[] = {__VA_ARGS__, NULL};                                                      \
-  bennet_failure_remap_blamed_many(from, to);                                            \
-  }
-
-#define BENNET_CALL_PATH_VARS(...)                                                       \
-  if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_DEPTH) {                     \
-    char* toAdd[] = {__VA_ARGS__, NULL};                                                 \
-    bennet_failure_blame_many(toAdd);                                                    \
-  }
-
-#define BENNET_ASSIGN(                                                                   \
-    pointer, pointer_val, addr, addr_ty, value, tmp, gen_name, last_var, ...)            \
-  if (convert_from_cn_pointer(pointer_val) == 0) {                                       \
-    bennet_failure_blame((char*)#pointer);                                               \
-    if (sizeof(addr_ty) > sizeof(intmax_t)) {                                            \
-      bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                           \
-      bennet_failure_set_allocation_needed(sizeof(addr_ty));                             \
-    } else {                                                                             \
-      bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                           \
-      bennet_failure_set_allocation_needed(sizeof(intmax_t));                            \
+    addr_ty value_redir = value;                                                         \
+    const void* vars[] = {__VA_ARGS__};                                                  \
+    if (bennet_assign(id, ptr, addr, &value_redir, sizeof(addr_ty), vars)) {             \
+      bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
+      goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
-    goto cn_label_##last_var##_backtrack;                                                \
-  }                                                                                      \
-  void* tmp##_ptr = convert_from_cn_pointer(addr);                                       \
-  if (!bennet_alloc_check(tmp##_ptr, sizeof(addr_ty))) {                                 \
-    bennet_failure_blame((char*)#pointer);                                               \
-    size_t tmp##_size = (uintptr_t)tmp##_ptr + sizeof(addr_ty) -                         \
-                        (uintptr_t)convert_from_cn_pointer(pointer_val);                 \
-    bennet_failure_set_failure_type(BENNET_BACKTRACK_ALLOC);                             \
-    bennet_failure_set_allocation_needed(tmp##_size);                                    \
-    goto cn_label_##last_var##_backtrack;                                                \
-  }                                                                                      \
-  if (!bennet_ownership_check(tmp##_ptr, sizeof(addr_ty))) {                             \
-    bennet_failure_set_failure_type(BENNET_BACKTRACK_ASSERT);                            \
-    char* toAdd[] = {__VA_ARGS__};                                                       \
-    bennet_failure_blame_many(toAdd);                                                    \
-    goto cn_label_##last_var##_backtrack;                                                \
-  }                                                                                      \
-  *(addr_ty*)tmp##_ptr = value;                                                          \
-  bennet_ownership_update(tmp##_ptr, sizeof(addr_ty));
+                                                                                         \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
+  }
 
-#define BENNET_LET_BEGIN(backtracks, var)                                                \
+#define BENNET_LET_ARBITRARY(backtracks, cn_ty, c_ty, var, last_var)                     \
+  bool var##_restore_randomness = false;                                                 \
   int var##_backtracks = backtracks;                                                     \
-  cn_bump_frame_id var##_checkpoint = cn_bump_get_frame_id();                            \
-  void* var##_alloc_checkpoint = bennet_alloc_save();                                    \
-  void* var##_ownership_checkpoint = bennet_ownership_save();                            \
-  cn_label_##var##_gen :;
-
-#define BENNET_LET_BODY(ty, var, gen)                                                    \
+  bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
-  ty* var = gen;                                                                         \
-  bennet_rand_checkpoint var##_rand_checkpoint_after = bennet_rand_save();
-
-#define BENNET_LET_END(var, last_var, ...)                                               \
-  if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                      \
-    cn_label_##var##_backtrack : BENNET_CHECK_TIMEOUT();                                 \
-    cn_bump_free_after(var##_checkpoint);                                                \
-    bennet_alloc_restore(var##_alloc_checkpoint);                                        \
-    bennet_ownership_restore(var##_ownership_checkpoint);                                \
-    if (bennet_failure_is_blamed((char*)#var)) {                                         \
-      char* toAdd[] = {__VA_ARGS__};                                                     \
-      bennet_failure_blame_many(toAdd);                                                  \
-      if (var##_backtracks <= 0) {                                                       \
-        goto cn_label_##last_var##_backtrack;                                            \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
+                                                                                         \
+  bennet_domain(c_ty) var##_cs = bennet_domain_default(c_ty);                            \
+  bennet_domain(c_ty) var##_cs_tmp = var##_cs;                                           \
+                                                                                         \
+  bennet_label_##var##_gen :;                                                            \
+  cn_ty* var = bennet_arbitrary_##cn_ty(&var##_cs_tmp);                                  \
+                                                                                         \
+  var##_cs_tmp = var##_cs;                                                               \
+                                                                                         \
+  if (var##_restore_randomness) {                                                        \
+    bennet_rand_restore(var##_rand_checkpoint_after);                                    \
+    var##_restore_randomness = false;                                                    \
+  }                                                                                      \
+  var##_rand_checkpoint_after = bennet_rand_save();                                      \
+                                                                                         \
+  if (0) {                                                                               \
+    bennet_label_##var##_backtrack :;                                                    \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    bool var##_should_restore_randomness =                                               \
+        bennet_failure_get_failure_type() == BENNET_FAILURE_ASSIGN;                      \
+    bool var##_is_young = bennet_failure_is_young();                                     \
+    if (bennet_backtrack_arbitrary_##cn_ty(                                              \
+            &var##_backtracks, &var##_cs, &var##_cs_tmp, &var##_checkpoint, var)) {      \
+      var##_restore_randomness = var##_should_restore_randomness;                        \
+      if (!var##_restore_randomness) {                                                   \
+        var##_restore_randomness =                                                       \
+            !var##_is_young && !bennet_domain_equal(c_ty)(&var##_cs, &var##_cs_tmp);     \
       }                                                                                  \
-      if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ASSERT ||                \
-          bennet_failure_get_failure_type() == BENNET_BACKTRACK_DEPTH) {                 \
-        var##_backtracks--;                                                              \
-        bennet_failure_reset();                                                          \
-      } else if (bennet_failure_get_failure_type() == BENNET_BACKTRACK_ALLOC) {          \
-        if (toAdd[0] != NULL) {                                                          \
-          goto cn_label_##last_var##_backtrack;                                          \
-        }                                                                                \
-        if (bennet_failure_get_allocation_needed() > 0) {                                \
-          bennet_rand_restore(var##_rand_checkpoint_after);                              \
-        }                                                                                \
-      }                                                                                  \
-      goto cn_label_##var##_gen;                                                         \
+                                                                                         \
+      goto bennet_label_##var##_gen;                                                     \
     } else {                                                                             \
-      goto cn_label_##last_var##_backtrack;                                              \
+      goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
 
-#define BENNET_ASSERT(cond, last_var, ...)                                               \
-  if (!convert_from_cn_bool(cond)) {                                                     \
-    bennet_failure_set_failure_type(BENNET_BACKTRACK_ASSERT);                            \
-    char* toAdd[] = {__VA_ARGS__};                                                       \
-    bennet_failure_blame_many(toAdd);                                                    \
-    goto cn_label_##last_var##_backtrack;                                                \
+#define BENNET_LET_ARBITRARY_POINTER(backtracks, var, last_var)                          \
+  BENNET_LET_ARBITRARY(backtracks, cn_pointer, uintptr_t, var, last_var)
+
+#define BENNET_LET_ARBITRARY_UNSIGNED(backtracks, bits, var, last_var)                   \
+  BENNET_LET_ARBITRARY(backtracks, cn_bits_u##bits, uint##bits##_t, var, last_var)
+
+#define BENNET_LET_ARBITRARY_SIGNED(backtracks, bits, var, last_var)                     \
+  BENNET_LET_ARBITRARY(backtracks, cn_bits_i##bits, int##bits##_t, var, last_var)
+
+#define BENNET_LET_RETURN(ty, var, expr, last_var, ...)                                  \
+  ty* var = expr;                                                                        \
+  if (0) {                                                                               \
+    bennet_label_##var##_backtrack :;                                                    \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    if (bennet_failure_is_blamed(var)) {                                                 \
+      const void* toAdd[] = {__VA_ARGS__};                                               \
+      bool is_young = bennet_failure_is_young();                                         \
+      bennet_failure_remove_blame(var);                                                  \
+      bennet_failure_blame_many(toAdd);                                                  \
+      if (is_young) {                                                                    \
+        bennet_failure_mark_young();                                                     \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    goto bennet_label_##last_var##_backtrack;                                            \
+  }
+
+#define BENNET_LET(backtracks, cn_ty, var, last_var, ...)                                \
+  int var##_backtracks = backtracks;                                                     \
+  bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_label_##var##_gen :;                                                            \
+  cn_ty* var = __VA_ARGS__;                                                              \
+                                                                                         \
+  if (0) {                                                                               \
+    bennet_label_##var##_backtrack :;                                                    \
+    BENNET_CHECK_TIMEOUT();                                                              \
+                                                                                         \
+    if (bennet_backtrack(&var##_backtracks, &var##_checkpoint, var)) {                   \
+      goto bennet_label_##var##_gen;                                                     \
+    } else {                                                                             \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
   }
 
 #define BENNET_MAP_BEGIN(map, i, i_ty, perm, max, last_var, ...)                         \
   cn_map* map = map_create();                                                            \
   {                                                                                      \
+    i_ty* i = max;                                                                       \
+                                                                                         \
     if (0) {                                                                             \
-      cn_label_##i##_backtrack : BENNET_CHECK_TIMEOUT();                                 \
-      if (bennet_failure_is_blamed((char*)#i)) {                                         \
-        char* toAdd[] = {__VA_ARGS__};                                                   \
+      bennet_label_##i##_backtrack :;                                                    \
+      BENNET_CHECK_TIMEOUT();                                                            \
+      if (bennet_failure_is_blamed(i)) {                                                 \
+        const void* toAdd[] = {__VA_ARGS__};                                             \
+        bennet_failure_remove_blame(i);                                                  \
         bennet_failure_blame_many(toAdd);                                                \
       }                                                                                  \
-      goto cn_label_##last_var##_backtrack;                                              \
+      goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
                                                                                          \
-    i_ty* i = max;                                                                       \
     while (convert_from_cn_bool(perm)) {                                                 \
     /* Generate each item */
-
 #define BENNET_MAP_END(map, i, i_ty, min, val)                                           \
   cn_map_set(map, cast_##i_ty##_to_cn_integer(i), val);                                  \
                                                                                          \
@@ -192,26 +201,24 @@
   }                                                                                      \
   tmp##_num_choices /= 2;                                                                \
   struct bennet_int_urn* tmp##_urn = urn_from_array(tmp##_choices, tmp##_num_choices);   \
-  cn_bump_frame_id tmp##_checkpoint = cn_bump_get_frame_id();                            \
-  void* tmp##_alloc_checkpoint = bennet_alloc_save();                                    \
-  void* tmp##_ownership_checkpoint = bennet_ownership_save();                            \
-  cn_label_##tmp##_gen :;                                                                \
-  uint64_t tmp = urn_remove(tmp##_urn);                                                  \
+  bennet_checkpoint tmp##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_label_##tmp##_gen :;                                                            \
+  cn_bits_u64* tmp = convert_to_cn_bits_u64(urn_remove(tmp##_urn));                      \
   if (0) {                                                                               \
-    cn_label_##tmp##_backtrack : BENNET_CHECK_TIMEOUT();                                 \
-    cn_bump_free_after(tmp##_checkpoint);                                                \
-    bennet_alloc_restore(tmp##_alloc_checkpoint);                                        \
-    bennet_ownership_restore(tmp##_ownership_checkpoint);                                \
-    if ((bennet_failure_get_failure_type() == BENNET_BACKTRACK_ASSERT ||                 \
-            bennet_failure_get_failure_type() == BENNET_BACKTRACK_DEPTH) &&              \
+    bennet_label_##tmp##_backtrack :;                                                    \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    bennet_checkpoint_restore(&tmp##_checkpoint);                                        \
+    bennet_failure_mark_old();                                                           \
+    if ((bennet_failure_get_failure_type() == BENNET_FAILURE_ASSERT ||                   \
+            bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH) &&                \
         tmp##_urn->size != 0) {                                                          \
       bennet_failure_reset();                                                            \
-      goto cn_label_##tmp##_gen;                                                         \
+      goto bennet_label_##tmp##_gen;                                                     \
     } else {                                                                             \
-      goto cn_label_##last_var##_backtrack;                                              \
+      goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }                                                                                      \
-  switch (tmp) {                                                                         \
+  switch (convert_from_cn_bits_u64(tmp)) {                                               \
   /* Case per choice */
 
 #define BENNET_PICK_CASE_BEGIN(index) case index:
@@ -228,11 +235,10 @@
     urn_free(tmp##_urn);
 
 #define BENNET_SPLIT_BEGIN(tmp, ...)                                                     \
+  void* tmp = malloc(1);                                                                 \
   int tmp##_backtracks = bennet_get_size_split_backtracks_allowed();                     \
-  cn_bump_frame_id tmp##_checkpoint = cn_bump_get_frame_id();                            \
-  void* tmp##_alloc_checkpoint = bennet_alloc_save();                                    \
-  void* tmp##_ownership_checkpoint = bennet_ownership_save();                            \
-  cn_label_##tmp##_gen : {                                                               \
+  bennet_checkpoint tmp##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_label_##tmp##_gen : {                                                           \
     size_t* vars[] = {__VA_ARGS__};                                                      \
     int count = 0;                                                                       \
     for (int i = 0; vars[i] != NULL; i++) {                                              \
@@ -241,10 +247,10 @@
 
 #define BENNET_SPLIT_END(tmp, last_var, ...)                                             \
   if (count >= bennet_rec_size) {                                                        \
-    bennet_failure_set_failure_type(BENNET_BACKTRACK_DEPTH);                             \
-    char* toAdd[] = {__VA_ARGS__};                                                       \
+    bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
+    const void* toAdd[] = {__VA_ARGS__};                                                 \
     bennet_failure_blame_many(toAdd);                                                    \
-    goto cn_label_##last_var##_backtrack;                                                \
+    goto bennet_label_##last_var##_backtrack;                                            \
   }                                                                                      \
   bennet_split(bennet_rec_size - count - 1, vars, count);                                \
   for (int i = 0; i < count; i++) {                                                      \
@@ -252,21 +258,23 @@
   }                                                                                      \
   }                                                                                      \
   if (0) {                                                                               \
-    cn_label_##tmp##_backtrack : BENNET_CHECK_TIMEOUT();                                 \
-    cn_bump_free_after(tmp##_checkpoint);                                                \
-    bennet_alloc_restore(tmp##_alloc_checkpoint);                                        \
-    bennet_ownership_restore(tmp##_ownership_checkpoint);                                \
-    if (bennet_failure_is_blamed(#tmp)) {                                                \
-      char* toAdd[] = {__VA_ARGS__};                                                     \
+    bennet_label_##tmp##_backtrack :;                                                    \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    if (bennet_failure_is_blamed(tmp)) {                                                 \
+      bennet_checkpoint_restore(&tmp##_checkpoint);                                      \
+      bennet_failure_remove_blame(tmp);                                                  \
+      free(tmp);                                                                         \
+                                                                                         \
+      const void* toAdd[] = {__VA_ARGS__};                                               \
       bennet_failure_blame_many(toAdd);                                                  \
       if (tmp##_backtracks <= 0) {                                                       \
-        goto cn_label_##last_var##_backtrack;                                            \
+        goto bennet_label_##last_var##_backtrack;                                        \
       }                                                                                  \
       tmp##_backtracks--;                                                                \
       bennet_failure_reset();                                                            \
-      goto cn_label_##tmp##_gen;                                                         \
+      goto bennet_label_##tmp##_gen;                                                     \
     } else {                                                                             \
-      goto cn_label_##last_var##_backtrack;                                              \
+      goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
 

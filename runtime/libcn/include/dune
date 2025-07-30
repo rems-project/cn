@@ -20,67 +20,37 @@
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   ; Bennet
-  (bennet/alloc.h as runtime/include/bennet/alloc.h)
   (bennet/compat.h as runtime/include/bennet/compat.h)
-  (bennet/failure.h as runtime/include/bennet/failure.h)
-  (bennet/dsl.h as runtime/include/bennet/dsl.h)
   (bennet/prelude.h as runtime/include/bennet/prelude.h)
-  (bennet/rand.h as runtime/include/bennet/rand.h)
-  (bennet/size.h as runtime/include/bennet/size.h)
-  (bennet/tyche.h as runtime/include/bennet/tyche.h)
-  (bennet/uniform.h as runtime/include/bennet/uniform.h)
-  (bennet/urn.h as runtime/include/bennet/urn.h)
-  ; Bennet - Experimental
-  (bennet-exp/compat.h as runtime/include/bennet-exp/compat.h)
-  (bennet-exp/prelude.h as runtime/include/bennet-exp/prelude.h)
-  (bennet-exp/dsl/arbitrary.h as runtime/include/bennet-exp/dsl/arbitrary.h)
-  (bennet-exp/dsl/assert.h as runtime/include/bennet-exp/dsl/assert.h)
-  (bennet-exp/dsl/assign.h as runtime/include/bennet-exp/dsl/assign.h)
-  (bennet-exp/dsl/backtrack.h as runtime/include/bennet-exp/dsl/backtrack.h)
-  (bennet-exp/dsl.h as runtime/include/bennet-exp/dsl.h)
-  (bennet-exp/info/backtracks.h
-   as
-   runtime/include/bennet-exp/info/backtracks.h)
-  (bennet-exp/info/unsatisfied.h
-   as
-   runtime/include/bennet-exp/info/unsatisfied.h)
-  (bennet-exp/info/sizes.h as runtime/include/bennet-exp/info/sizes.h)
-  (bennet-exp/info/tyche.h as runtime/include/bennet-exp/info/tyche.h)
-  (bennet-exp/internals/domain.h
-   as
-   runtime/include/bennet-exp/internals/domain.h)
-  (bennet-exp/internals/rand.h
-   as
-   runtime/include/bennet-exp/internals/rand.h)
-  (bennet-exp/internals/size.h
-   as
-   runtime/include/bennet-exp/internals/size.h)
-  (bennet-exp/internals/uniform.h
-   as
-   runtime/include/bennet-exp/internals/uniform.h)
-  (bennet-exp/internals/urn.h as runtime/include/bennet-exp/internals/urn.h)
-  (bennet-exp/state/alloc.h as runtime/include/bennet-exp/state/alloc.h)
-  (bennet-exp/state/checkpoint.h
-   as
-   runtime/include/bennet-exp/state/checkpoint.h)
-  (bennet-exp/state/failure.h as runtime/include/bennet-exp/state/failure.h)
-  (bennet-exp/state/rand_alloc.h
-   as
-   runtime/include/bennet-exp/state/rand_alloc.h)
-  (bennet-exp/utils.h as runtime/include/bennet-exp/utils.h)
-  (bennet-exp/utils/hash_table.h
-   as
-   runtime/include/bennet-exp/utils/hash_table.h)
-  (bennet-exp/utils/optional.h
-   as
-   runtime/include/bennet-exp/utils/optional.h)
-  (bennet-exp/utils/vector.h as runtime/include/bennet-exp/utils/vector.h)
+  (bennet/dsl/arbitrary.h as runtime/include/bennet/dsl/arbitrary.h)
+  (bennet/dsl/assert.h as runtime/include/bennet/dsl/assert.h)
+  (bennet/dsl/assign.h as runtime/include/bennet/dsl/assign.h)
+  (bennet/dsl/backtrack.h as runtime/include/bennet/dsl/backtrack.h)
+  (bennet/dsl.h as runtime/include/bennet/dsl.h)
+  (bennet/info/backtracks.h as runtime/include/bennet/info/backtracks.h)
+  (bennet/info/unsatisfied.h as runtime/include/bennet/info/unsatisfied.h)
+  (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
+  (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
+  (bennet/internals/domain.h as runtime/include/bennet/internals/domain.h)
+  (bennet/internals/rand.h as runtime/include/bennet/internals/rand.h)
+  (bennet/internals/size.h as runtime/include/bennet/internals/size.h)
+  (bennet/internals/uniform.h as runtime/include/bennet/internals/uniform.h)
+  (bennet/internals/urn.h as runtime/include/bennet/internals/urn.h)
+  (bennet/state/alloc.h as runtime/include/bennet/state/alloc.h)
+  (bennet/state/checkpoint.h as runtime/include/bennet/state/checkpoint.h)
+  (bennet/state/failure.h as runtime/include/bennet/state/failure.h)
+  (bennet/state/rand_alloc.h as runtime/include/bennet/state/rand_alloc.h)
+  (bennet/utils.h as runtime/include/bennet/utils.h)
+  (bennet/utils/hash_table.h as runtime/include/bennet/utils/hash_table.h)
+  (bennet/utils/optional.h as runtime/include/bennet/utils/optional.h)
+  (bennet/utils/vector.h as runtime/include/bennet/utils/vector.h)
   ; CN Testing
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
   ; Counterexample program synthesis prototype
-  (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h)
-  (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h))
+  (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
+  (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)
+  (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h))
  (section lib)
  (package cn))

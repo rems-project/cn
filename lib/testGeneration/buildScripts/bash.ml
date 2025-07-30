@@ -101,10 +101,7 @@ let link ~filename_base =
              "\"./tests.out\"";
              filename_base ^ ".test.o " ^ filename_base ^ ".exec.o";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
-             (if Config.is_experimental_runtime () then
-                "\"${RUNTIME_PREFIX}/libbennet-exp.a\""
-              else
-                "\"${RUNTIME_PREFIX}/libbennet.a\"");
+             "\"${RUNTIME_PREFIX}/libbennet.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\"";
              "\"${RUNTIME_PREFIX}/libcn_exec.a\""
            ]

@@ -1,65 +1,96 @@
+module CF = Cerb_frontend
+module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
+module LC = LogicalConstraints
+module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
-let transform_gt (gt : Stage2.Term.t) : Term.t =
-  let rec aux (gt : Stage2.Term.t) : Term.t =
-    let (GT (gt_, bt, _loc)) = gt in
-    match gt_ with
-    | Uniform -> Uniform { bt }
-    | Pick wgts ->
-      let choices =
-        let wgts =
-          let gcd =
-            List.fold_left
-              (fun x y -> Z.gcd x y)
-              (fst (List.hd wgts))
-              (List.map fst (List.tl wgts))
-          in
-          List.map_fst (fun x -> Z.div x gcd) wgts
-        in
-        let w_sum = List.fold_left Z.add Z.zero (List.map fst wgts) in
-        let max_int = Z.of_int Int.max_int in
-        let f =
-          if Z.leq w_sum max_int then
-            fun w -> w
-          else
-            fun w -> Z.max Z.one (Z.div w (Z.div (Z.add w_sum (Z.pred max_int)) max_int))
-        in
-        List.map (fun (w, gt) -> (f w, aux gt)) wgts
-      in
-      Pick { bt; choices }
-    | Alloc -> Alloc
-    | Call (fsym, xits) ->
-      let (iargs : (Sym.t * Sym.t) list), (gt_lets : Term.t -> Term.t) =
-        List.fold_right
-          (fun (y, it) (yzs, f) ->
-             let (IT.IT (it_, z_bt, _here)) = it in
-             match it_ with
-             | Sym z -> ((y, z) :: yzs, f)
-             | _ ->
-               let z = Sym.fresh_anon () in
-               ( (y, z) :: yzs,
-                 fun gr ->
-                   Term.LetStar
-                     { x = z; x_bt = z_bt; value = Return { value = it }; rest = f gr } ))
-          xits
-          ([], fun gr -> gr)
-      in
-      gt_lets (Call { fsym; iargs; oarg_bt = bt })
-    | Asgn ((addr, sct), value, rest) -> Asgn { addr; sct; value; rest = aux rest }
-    | LetStar ((x, gt1), gt2) ->
-      LetStar { x; x_bt = Stage2.Term.bt gt1; value = aux gt1; rest = aux gt2 }
-    | Return value -> Return { value }
-    | Assert (prop, rest) -> Assert { prop; rest = aux rest }
-    | ITE (cond, gt_then, gt_else) -> ITE { bt; cond; t = aux gt_then; f = aux gt_else }
-    | Map ((i, i_bt, perm), inner) ->
-      Map { i; bt = Map (i_bt, Stage2.Term.bt inner); perm; inner = aux inner }
+let count_recursive_calls (syms : Sym.Set.t) (gr : Stage2.Term.t) : int =
+  let rec aux (gr : Stage2.Term.t) : int =
+    let (Annot (gr_, (), _, _)) = gr in
+    match gr_ with
+    | `Arbitrary | `Return _ -> 0
+    | `Pick choices -> choices |> List.map aux |> List.fold_left max 0
+    | `Call (fsym, _) -> if Sym.Set.mem fsym syms then 1 else 0
+    | `Asgn (_, _, rest) -> aux rest
+    | `LetStar ((_, value), rest) -> aux value + aux rest
+    | `Assert (_, rest) -> aux rest
+    | `ITE (_, t, f) -> max (aux t) (aux f)
+    | `Map (_, inner) -> aux inner
   in
-  aux gt
+  aux gr
+
+
+let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage2.Term.t)
+  : Term.t * Sym.Set.t
+  =
+  let rec aux (gr : Stage2.Term.t) : Term.t * Sym.Set.t =
+    let (Annot (gr_, (), bt, loc)) = gr in
+    match gr_ with
+    | `Arbitrary -> (GenTerms.Annot (`Arbitrary, (), bt, loc), Sym.Set.empty)
+    | `Pick wgts ->
+      let wgts, sym_sets =
+        wgts
+        |> List.map (fun gt -> (Z.one, gt))
+        |> List.map (fun (w, gr) ->
+          let gr, syms = aux gr in
+          ((w, gr), syms))
+        |> List.split
+      in
+      ( GenTerms.Annot (`PickSized wgts, (), bt, loc),
+        List.fold_left Sym.Set.union Sym.Set.empty sym_sets )
+    | `Call (fsym, xits) when Sym.Set.mem fsym syms ->
+      let sym = Sym.fresh_anon () in
+      ( GenTerms.Annot (`CallSized (fsym, xits, (size, sym)), (), bt, loc),
+        Sym.Set.singleton sym )
+    | `Call (fsym, xits) ->
+      (GenTerms.Annot (`Call (fsym, xits), (), bt, loc), Sym.Set.empty)
+    | `Return it -> (GenTerms.Annot (`Return it, (), bt, loc), Sym.Set.empty)
+    | `Asgn ((addr, sct), value, rest) ->
+      let rest, syms = aux rest in
+      (GenTerms.Annot (`Asgn ((addr, sct), value, rest), (), bt, loc), syms)
+    | `LetStar ((x, value), rest) ->
+      let value, syms = aux value in
+      let rest, syms' = aux rest in
+      (GenTerms.Annot (`LetStar ((x, value), rest), (), bt, loc), Sym.Set.union syms syms')
+    | `Assert (lc, rest) ->
+      let rest, syms = aux rest in
+      (GenTerms.Annot (`Assert (lc, rest), (), bt, loc), syms)
+    | `ITE (cond, t, f) ->
+      let t, syms = aux t in
+      let f, syms' = aux f in
+      (GenTerms.Annot (`ITE (cond, t, f), (), bt, loc), Sym.Set.union syms syms')
+    | `Map ((i, i_bt, perm), inner) ->
+      let inner, syms = aux inner in
+      (GenTerms.Annot (`Map ((i, i_bt, perm), inner), (), bt, loc), syms)
+  in
+  aux gr
+
+
+let transform_gt (syms : Sym.Set.t) (gr : Stage2.Term.t) : Term.t =
+  let rec aux (path_vars : Sym.Set.t) (gr : Stage2.Term.t) : Term.t =
+    let (Annot (gr_, (), bt, loc)) = gr in
+    match gr_ with
+    | `ITE (cond, t, f) ->
+      let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
+      GenTerms.Annot (`ITE (cond, aux path_vars t, aux path_vars f), (), bt, loc)
+    | `Pick gts ->
+      GenTerms.Annot
+        (`PickSized (List.map (fun gt -> (Z.one, aux path_vars gt)) gts), (), bt, loc)
+    | _ ->
+      let count = count_recursive_calls syms gr in
+      let gr, sz_syms = size_recursive_calls syms count gr in
+      if count > 1 then
+        GenTerms.Annot (`SplitSize (sz_syms, gr), (), bt, loc)
+      else
+        gr
+  in
+  aux Sym.Set.empty gr
 
 
 let transform_gd
+      (cg : SymGraph.t)
       ({ filename : string;
          recursive : bool;
          spec;
@@ -71,7 +102,50 @@ let transform_gd
         Stage2.Def.t)
   : Def.t
   =
-  { filename; recursive; spec; name; iargs; oargs; body = transform_gt body }
+  let recursive_syms =
+    if recursive then
+      SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty
+    else
+      Sym.Set.empty
+  in
+  { filename;
+    recursive;
+    spec;
+    name;
+    iargs;
+    oargs;
+    body = transform_gt recursive_syms body
+  }
 
 
-let transform (ctx : Stage2.Ctx.t) : Ctx.t = List.map_snd transform_gd ctx
+open struct
+  let get_calls (gd : Stage2.Def.t) : Sym.Set.t =
+    let rec aux (gt : Stage2.Term.t) : Sym.Set.t =
+      let (Annot (gt_, (), _, _)) = gt in
+      match gt_ with
+      | `Arbitrary | `Return _ -> Sym.Set.empty
+      | `Pick choices ->
+        choices |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
+      | `Call (fsym, _) -> Sym.Set.singleton fsym
+      | `Asgn (_, _, gt') | `Assert (_, gt') | `Map (_, gt') -> aux gt'
+      | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) -> Sym.Set.union (aux gt1) (aux gt2)
+    in
+    aux gd.body
+
+
+  module Oper = Graph.Oper.P (SymGraph)
+end
+
+let get_call_graph (ctx : Stage2.Ctx.t) : SymGraph.t =
+  ctx
+  |> List.map_snd get_calls
+  |> List.fold_left
+       (fun cg (fsym, calls) ->
+          Sym.Set.fold (fun fsym' cg' -> SymGraph.add_edge cg' fsym fsym') calls cg)
+       SymGraph.empty
+  |> Oper.transitive_closure
+
+
+let transform (ctx : Stage2.Ctx.t) : Ctx.t =
+  let cg = get_call_graph ctx in
+  List.map_snd (transform_gd cg) ctx

@@ -139,7 +139,7 @@ typedef struct cn_pointer {
 } cn_pointer;
 
 typedef struct cn_bool {
-  _Bool val;
+  bool val;
 } cn_bool;
 
 typedef struct cn_alloc_id {
@@ -170,7 +170,7 @@ void cn_free_sized(void *, size_t len);
 void cn_print_nr_u64(int i, unsigned long u);
 void cn_print_u64(const char *str, unsigned long u);
 void dump_ownership_ghost_state(int stack_depth);
-_Bool is_mapped(void *ptr);
+bool is_mapped(void *ptr);
 
 /* cn_failure callbacks */
 enum cn_failure_mode {
@@ -187,8 +187,8 @@ void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 /* Conversion functions */
 
-cn_bool *convert_to_cn_bool(_Bool b);
-_Bool convert_from_cn_bool(cn_bool *b);
+cn_bool *convert_to_cn_bool(bool b);
+bool convert_from_cn_bool(cn_bool *b);
 void cn_assert(cn_bool *cn_b, enum spec_mode spec_mode);
 cn_bool *cn_bool_and(cn_bool *b1, cn_bool *b2);
 cn_bool *cn_bool_or(cn_bool *b1, cn_bool *b2);
@@ -446,7 +446,7 @@ cn_bool *default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
   static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
-    int64_t *key_ptr = fulm_malloc(sizeof(int64_t), &fulm_default_alloc);                \
+    int64_t *key_ptr = (int64_t *)fulm_malloc(sizeof(int64_t), &fulm_default_alloc);     \
     *key_ptr = key->val;                                                                 \
     void *res = ht_get(m, key_ptr);                                                      \
     fulm_free(key_ptr, &fulm_default_alloc);                                             \

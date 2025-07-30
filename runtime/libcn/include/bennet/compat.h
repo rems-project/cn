@@ -1,18 +1,13 @@
-void bennet_info_backtracks_init(void);
-void bennet_info_backtracks_print_backtrack_info(void);
-void bennet_info_backtracks_set_function_under_test(const char*);
-void bennet_info_backtracks_begin_run(void);
-void bennet_info_backtracks_end_run(bool);
+#ifndef BENNET_COMPAT_H
+#define BENNET_COMPAT_H
 
-void bennet_info_sizes_init(void);
-void bennet_info_sizes_set_function_under_test(const char*);
-void bennet_info_sizes_print_info(void);
-void bennet_info_sizes_log(void);
+#include <stdint.h>
 
-void bennet_info_unsatisfied_init(void);
-void bennet_info_unsatisfied_set_function_under_test(const char* function_name);
-void bennet_info_unsatisfied_print_info(void);
-void bennet_info_unsatisfied_begin_run(void);
-void bennet_info_unsatisfied_end_run(bool);
+#include <bennet/internals/rand.h>
+#include <bennet/state/failure.h>
 
-int is_bennet_experimental(void);
+#define BENNET_BACKTRACK_NONE BENNET_FAILURE_NONE
+
+#define BENNET_BACKTRACK_TIMEOUT BENNET_FAILURE_TIMEOUT
+
+#endif  // BENNET_COMPAT_H

@@ -24,15 +24,9 @@ int main() {
          "\n",(void*)&x,(void*)p,(unsigned long)uy);
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
-  /*CN_VIP*/int result = _memcmp((unsigned char*)&p, (unsigned char*)&q, sizeof(p));
+  /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
-#ifdef NO_ROUND_TRIP
-#ifdef ANNOT
-  /*CN_VIP*/p = copy_alloc_id((uintptr_t)p, &y);
-#endif
-  /*CN_VIP*/q = copy_alloc_id((uintptr_t)q, &y); // for *q in assertion
-#endif
   if (result == 0) {
     *p = 11; // CN VIP UB (no annot)
     //CN_VIP printf("x=%d  y=%d  *p=%d  *q=%d\n",x,y,*p,*q);

@@ -8,8 +8,7 @@
 #include <stdio.h>
 #include <time.h>
 
-#include <bennet/compat.h>
-#include <bennet/uniform.h>
+#include <bennet/prelude.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
 #include <cn-replicate/lines.h>

@@ -61,6 +61,10 @@ let rec replace_memberof_it
     | Let ((x, it1), it2) -> IT.Let ((x, repl it1), it2)
     | Match (it', pits) -> IT.Match (repl it', List.map_snd repl pits)
     | Cast (bt, it') -> IT.Cast (bt, repl it')
+    | CN_None bt -> IT.CN_None bt
+    | CN_Some it' -> IT.CN_Some (repl it')
+    | IsSome it' -> IT.IsSome (repl it')
+    | GetOpt it' -> IT.GetOpt (repl it')
   in
   IT (it_, bt, loc)
 
@@ -74,23 +78,22 @@ let replace_memberof_gt
   =
   let repl = replace_memberof_it k sym dict in
   let aux (gt : Term.t) : Term.t =
-    let (GT (gt_, bt, loc)) = gt in
+    let (Annot (gt_, (), bt, loc)) = gt in
     let gt_ =
       match gt_ with
-      | Alloc -> Term.Alloc
-      | Call (fsym, xits) -> Term.Call (fsym, List.map_snd repl xits)
-      | Asgn ((it_addr, sct), it_val, gt') ->
-        Term.Asgn ((repl it_addr, sct), repl it_val, gt')
-      | Return it -> Term.Return (repl it)
-      | Assert (T it, gt') -> Term.Assert (LC.T (repl it), gt')
-      | Assert (Forall ((i_sym, i_bt), it), gt') ->
-        Term.Assert (LC.Forall ((i_sym, i_bt), repl it), gt')
-      | ITE (it_if, gt_then, gt_else) -> Term.ITE (repl it_if, gt_then, gt_else)
-      | Map ((i_sym, i_bt, it_perm), gt_inner) ->
-        Term.Map ((i_sym, i_bt, repl it_perm), gt_inner)
+      | `Call (fsym, iargs) -> `Call (fsym, List.map repl iargs)
+      | `Asgn ((it_addr, sct), it_val, gt') ->
+        `Asgn ((repl it_addr, sct), repl it_val, gt')
+      | `Return it -> `Return (repl it)
+      | `Assert (T it, gt') -> `Assert (LC.T (repl it), gt')
+      | `Assert (Forall ((i_sym, i_bt), it), gt') ->
+        `Assert (LC.Forall ((i_sym, i_bt), repl it), gt')
+      | `ITE (it_if, gt_then, gt_else) -> `ITE (repl it_if, gt_then, gt_else)
+      | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
+        `Map ((i_sym, i_bt, repl it_perm), gt_inner)
       | _ -> gt_
     in
-    GT (gt_, bt, loc)
+    Annot (gt_, (), bt, loc)
   in
   Term.map_gen_pre aux gt
 
@@ -98,15 +101,12 @@ let replace_memberof_gt
 let transform_gt (gt : Term.t) : Term.t =
   Cerb_debug.print_debug 2 [] (fun () -> "member_indirection");
   let aux (gt : Term.t) : Term.t =
-    match gt with
-    | GT
-        ( LetStar ((x, GT (Return (IT (Struct (_, xits), bt, loc_it)), _, loc_ret)), gt'),
-          _,
-          loc )
-    | GT
-        ( LetStar ((x, GT (Return (IT (Record xits, bt, loc_it)), _, loc_ret)), gt'),
-          _,
-          loc ) ->
+    let (Annot (gt_, (), _, loc)) = gt in
+    match gt_ with
+    | `LetStar
+        ((x, Annot (`Return (IT (Struct (_, xits), bt, loc_it)), (), _, loc_ret)), gt')
+    | `LetStar ((x, Annot (`Return (IT (Record xits, bt, loc_it)), (), _, loc_ret)), gt')
+      ->
       let k =
         match bt with
         | Struct tag -> Struct tag
@@ -133,8 +133,10 @@ let transform_gt (gt : Term.t) : Term.t =
                  match k with
                  | Struct tag -> IT.struct_ (tag, members) loc_it
                  | Record -> IT.record_ members loc_it)
+                ()
                 loc_ret ),
             replace_memberof_gt k x indirect_map gt' )
+          ()
           loc
       in
       let here = Locations.other __LOC__ in
@@ -142,7 +144,8 @@ let transform_gt (gt : Term.t) : Term.t =
       |> List.fold_left
            (fun gt'' (y, it) ->
               Term.let_star_
-                ((List.assoc Id.equal y indirect_map, Term.return_ it here), gt'')
+                ((List.assoc Id.equal y indirect_map, Term.return_ it () here), gt'')
+                ()
                 here)
            gt_main
     | _ -> gt

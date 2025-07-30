@@ -444,6 +444,10 @@ module IndexTerms = struct
     | Cast _ -> Error "todo: Cast"
     | Tuple _ | Struct _ | Record _ | Constructor _ | Cons _ | MapConst _ | MapSet _ ->
       failwith "unreachable, specific to evaluation mode"
+    | CN_None _ -> Error "todo: CN_Some"
+    | CN_Some _ -> Error "todo: CN_Some"
+    | IsSome _ -> Error "todo: IsSome"
+    | GetOpt _ -> Error "todo: GetOpt"
 
 
   let eval_term_strictly (prog5 : unit Mucore.file) (it : IT.t) : (IT.t, string) result =
@@ -533,6 +537,10 @@ module IndexTerms = struct
         let@ it_v = eval_aux it_v in
         return @@ map_set_ it_m (it_k, it_v) here
       | Cast _ -> Error "todo: Cast"
+      | CN_None _ -> Error "todo: CN_None"
+      | CN_Some _ -> Error "todo: CN_Some"
+      | IsSome _ -> Error "todo: IsSome"
+      | GetOpt _ -> Error "todo: GetOpt"
     in
     eval_aux it
 
@@ -553,6 +561,10 @@ module IndexTerms = struct
         Ok it
       | WrapI _ -> Error "todo: WrapI"
       | Cast _ -> Error "todo: Cast"
+      | CN_None _ -> Error "todo: CN_None"
+      | CN_Some _ -> Error "todo: CN_Some"
+      | IsSome _ -> Error "todo: IsSome"
+      | GetOpt _ -> Error "todo: GetOpt"
     in
     eval_aux it
 
@@ -619,21 +631,24 @@ module GenTerms = struct
     let partial_eval_it = IndexTerms.partial_eval ~mode ~prog5 in
     let partial_eval_lc = LogicalConstraints.partial_eval ~mode ~prog5 in
     let rec aux (gt : Term.t) : Term.t =
-      let (GT (gt_, bt, loc)) = gt in
+      let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | Uniform | Alloc -> gt
-      | Pick wgts -> Term.pick_ (List.map_snd aux wgts) bt loc
-      | Call (fsym, xits) -> Term.call_ (fsym, List.map_snd partial_eval_it xits) bt loc
-      | Asgn ((it_addr, sct), it_val, gt') ->
-        Term.asgn_ ((partial_eval_it it_addr, sct), partial_eval_it it_val, aux gt') loc
-      | LetStar ((x, gt_inner), gt_rest) ->
-        Term.let_star_ ((x, aux gt_inner), aux gt_rest) loc
-      | Return it -> Term.return_ (partial_eval_it it) loc
-      | Assert (lc, gt') -> Term.assert_ (partial_eval_lc lc, aux gt') loc
-      | ITE (it_if, gt_then, gt_else) ->
-        Term.ite_ (partial_eval_it it_if, aux gt_then, aux gt_else) loc
-      | Map ((i, i_bt, it_perm), gt_inner) ->
-        Term.map_ ((i, i_bt, partial_eval_it it_perm), aux gt_inner) loc
+      | `Arbitrary -> gt
+      | `Pick gts -> Term.pick_ (List.map aux gts) () bt loc
+      | `Call (fsym, iargs) -> Term.call_ (fsym, List.map partial_eval_it iargs) () bt loc
+      | `Asgn ((it_addr, sct), it_val, gt') ->
+        Term.asgn_
+          ((partial_eval_it it_addr, sct), partial_eval_it it_val, aux gt')
+          ()
+          loc
+      | `LetStar ((x, gt_inner), gt_rest) ->
+        Term.let_star_ ((x, aux gt_inner), aux gt_rest) () loc
+      | `Return it -> Term.return_ (partial_eval_it it) () loc
+      | `Assert (lc, gt') -> Term.assert_ (partial_eval_lc lc, aux gt') () loc
+      | `ITE (it_if, gt_then, gt_else) ->
+        Term.ite_ (partial_eval_it it_if, aux gt_then, aux gt_else) () loc
+      | `Map ((i, i_bt, it_perm), gt_inner) ->
+        Term.map_ ((i, i_bt, partial_eval_it it_perm), aux gt_inner) () loc
     in
     aux gt
 end

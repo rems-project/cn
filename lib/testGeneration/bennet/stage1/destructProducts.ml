@@ -136,26 +136,14 @@ let transform_its (prog5 : unit Mucore.file) (its : (IT.t * BT.t) list) : IT.t l
 
 let transform_gt (prog5 : unit Mucore.file) (ctx : Ctx.t) (gt : Term.t) : Term.t =
   let aux (gt : Term.t) : Term.t =
-    let (GT (gt_, bt, loc)) = gt in
+    let (Annot (gt_, (), bt, loc)) = gt in
     match gt_ with
-    | Call (fsym, xits) ->
+    | `Call (fsym, iargs) ->
       let gd = List.assoc Sym.equal fsym ctx in
-      let xs =
-        gd.iargs
-        |> transform_iargs prog5
-        |> List.map snd
-        |> List.map flatten_tree
-        |> List.flatten
-        |> List.map fst
+      let iargs' =
+        gd.iargs |> List.map snd |> List.combine iargs |> transform_its prog5
       in
-      let its =
-        gd.iargs
-        |> List.map snd
-        |> List.combine (List.map snd xits)
-        |> transform_its prog5
-      in
-      let xits' = List.combine xs its in
-      Term.call_ (fsym, xits') bt loc
+      Term.call_ (fsym, iargs') () bt loc
     | _ -> gt
   in
   Term.map_gen_pre aux gt
@@ -177,7 +165,8 @@ let transform_gd (prog5 : unit Mucore.file) (ctx : Ctx.t) (gd : Def.t) : Def.t =
     List.fold_left
       (fun gt_rest (sym, t) ->
          Term.let_star_
-           ((sym, Term.return_ (assemble_product t) (Locations.other __LOC__)), gt_rest)
+           ((sym, Term.return_ (assemble_product t) () (Locations.other __LOC__)), gt_rest)
+           ()
            (Locations.other __LOC__))
       (transform_gt prog5 ctx gd.body)
       t
