@@ -37,6 +37,9 @@
   (bennet/internals/domains/tnum.h
    as
    runtime/include/bennet/internals/domains/tnum.h)
+  (bennet/internals/domains/trivial.h
+   as
+   runtime/include/bennet/internals/domains/trivial.h)
   (bennet/internals/domains/wint.h
    as
    runtime/include/bennet/internals/domains/wint.h)
