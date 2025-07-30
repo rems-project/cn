@@ -24,6 +24,7 @@ include_directories($ENV{OPAM_SWITCH_PREFIX}/lib/cn/runtime/include)
 add_executable(libcn_tests
     bennet/harness.cpp
     bennet/rand.cpp
+    bennet/tnum.cpp
     bennet/wint.cpp
 )
 

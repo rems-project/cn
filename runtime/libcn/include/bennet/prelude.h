@@ -9,6 +9,7 @@
 #include <bennet/info/unsatisfied.h>
 #include <bennet/internals/domain.h>
 #include <bennet/internals/domains/sized.h>
+#include <bennet/internals/domains/tnum.h>
 #include <bennet/internals/domains/wint.h>
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
