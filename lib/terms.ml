@@ -3,7 +3,7 @@ type const =
   | Bits of (BaseTypes.sign * int) * Z.t
   | Q of Q.t
   | MemByte of
-      { alloc_id : Z.t;
+      { alloc_id : Z.t option;
         value : Z.t
       }
   | Pointer of
@@ -191,6 +191,7 @@ let pp
     let wrap_after tgt doc = if prec > tgt then parens doc else doc in
     let break_op x = break 1 ^^ x ^^ space in
     let alloc_id i = !^("@" ^ Z.to_string i) in
+    let opt_alloc_id i = Option.fold ~none:!^"@empty" ~some:alloc_id i in
     match it with
     | Const const ->
       (match const with
@@ -210,7 +211,7 @@ let pp
            ^^^ !^"*/"
        | Q q -> !^(Q.to_string q)
        | MemByte { alloc_id = id; value } ->
-         braces (alloc_id id ^^ semi ^^ space ^^ !^("0x" ^ Z.format "%x" value))
+         braces (opt_alloc_id id ^^ semi ^^ space ^^ !^("0x" ^ Z.format "%x" value))
        | Pointer { alloc_id = id; addr } ->
          braces (alloc_id id ^^ semi ^^ space ^^ !^("0x" ^ Z.format "%x" addr))
        | Alloc_id i -> !^("@" ^ Z.to_string i)
@@ -383,6 +384,10 @@ let rec dtree (IT (it_, bt, loc)) =
   let open Cerb_frontend.Pp_ast in
   let open Pp.Infix in
   let alloc_id z = Dnode (pp_ctor "alloc_id", [ Dleaf !^(Z.to_string z) ]) in
+  let opt_alloc_id z =
+    let none = Dnode (pp_ctor "alloc_id", [ Dleaf !^"Empty" ]) in
+    Option.fold ~none ~some:alloc_id z
+  in
   let dtree =
     match it_ with
     | Sym s -> Dleaf (Sym.pp s)
@@ -392,7 +397,7 @@ let rec dtree (IT (it_, bt, loc)) =
        | Bits _ -> Dleaf (pp (IT (it_, bt, loc)))
        | Q q -> Dleaf !^(Q.to_string q)
        | MemByte { alloc_id = id; value } ->
-         Dnode (pp_ctor "mem_byte", [ alloc_id id; Dleaf !^(Z.to_string value) ])
+         Dnode (pp_ctor "mem_byte", [ opt_alloc_id id; Dleaf !^(Z.to_string value) ])
        | Pointer { alloc_id = id; addr } ->
          Dnode (pp_ctor "pointer", [ alloc_id id; Dleaf !^(Z.to_string addr) ])
        | Bool b -> Dleaf !^(if b then "true" else "false")

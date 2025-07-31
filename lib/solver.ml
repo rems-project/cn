@@ -201,6 +201,8 @@ module CN_Option = struct
 
   let some x = SMT.app_ some_name [ x ]
 
+  let is_some x = SMT.app_ ("is-" ^ some_name) [ x ]
+
   let val_ x = SMT.app_ val_name [ x ]
 end
 
@@ -229,7 +231,9 @@ module CN_MemByte = struct
          name
          []
          [ ( alloc_id_value_name,
-             [ (alloc_id_name, CN_AllocId.t ()); (value_name, SMT.t_bits width) ] )
+             [ (alloc_id_name, CN_Option.t (CN_AllocId.t ()));
+               (value_name, SMT.t_bits width)
+             ] )
          ])
 end
 
@@ -437,7 +441,12 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
   | MemByte ->
     (match SMT.to_con sexp with
      | con, [ salloc_id; svalue ] when String.equal con CN_MemByte.alloc_id_value_name ->
-       let alloc_id = CN_AllocId.from_sexp salloc_id in
+       let alloc_id =
+         match get_value gs ctys (Option Alloc_id) salloc_id with
+         | CN_None _ -> None
+         | CN_Some (IT (Const (Alloc_id z), _, _)) -> Some z
+         | _ -> failwith "Memory byte alloc ID is not bits option"
+       in
        let value =
          match get_value gs ctys (BT.Bits (Unsigned, CN_MemByte.width)) svalue with
          | Const (Bits (_, z)) -> z
@@ -508,13 +517,14 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     let _con, vals = SMT.to_con sexp in
     let mk_field (l, bt) e = (l, get_ivalue gs ctys bt e) in
     Record (List.map2 mk_field members vals)
-  | Option _bt ->
+  | Option bt ->
     (match SMT.to_con sexp with
-     | con, [ _ssome; _value ] when String.equal con CN_Option.some_name ->
-       (* get_value gs ctys bt svalue *)
-       failwith "Option.Some"
-     | con, [ _snone ] when String.equal con CN_Option.none_name -> failwith "Option.None"
-     | _ -> failwith "Missing constructor")
+     | con, [ svalue ] when String.equal con CN_Option.some_name ->
+       CN_Some (get_ivalue gs ctys bt svalue)
+     | con, [] when String.equal con CN_Option.none_name -> CN_None bt
+     | "as", [ Sexplib.Sexp.Atom con; _ ] when String.equal con CN_Option.none_name ->
+       CN_None bt
+     | _ -> failwith (Sexplib.Sexp.to_string_hum sexp ^ " -- option is not some or none"))
 
 
 (** {1 Term to SMT} *)
@@ -526,9 +536,12 @@ let translate_const s co =
   | Bits ((_, w), z) -> SMT.bv_k w z
   | Q q -> SMT.real_k q
   | MemByte b ->
-    CN_MemByte.con
-      ~alloc_id:(CN_AllocId.to_sexp b.alloc_id)
-      ~value:(SMT.bv_k CN_MemByte.width b.value)
+    let alloc_id =
+      match b.alloc_id with
+      | None -> CN_Option.none (CN_AllocId.t ())
+      | Some z -> CN_Option.some (CN_AllocId.to_sexp z)
+    in
+    CN_MemByte.con ~alloc_id ~value:(SMT.bv_k CN_MemByte.width b.value)
   | Pointer p ->
     CN_Pointer.con_aia
       ~alloc_id:(CN_AllocId.to_sexp p.alloc_id)
@@ -968,14 +981,14 @@ let rec translate_term s iterm =
            bv_cast ~to_:cbt ~from:(BT.Bits (Unsigned, 8)) x
        in
        maybe_cast (SMT.app_ CN_MemByte.value_name [ smt_term ])
-     | MemByte, Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
+     | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term
      | Integer, Real -> SMT.int_to_real smt_term
      | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term
      | _ -> assert false)
   | CN_None t -> CN_Option.none (translate_base_type t)
   | CN_Some t -> CN_Option.some (translate_term s t)
-  | IsSome t -> SMT.is_con CN_Option.some_name (translate_term s t)
+  | IsSome t -> CN_Option.is_some (translate_term s t)
   | GetOpt t -> CN_Option.val_ (translate_term s t)
 
 
