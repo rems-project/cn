@@ -7,7 +7,7 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
-let inc_timeout = ref 200
+let inc_timeout = ref 1000
 
 (** Functions that pick names for things. *)
 module CN_Names = struct
