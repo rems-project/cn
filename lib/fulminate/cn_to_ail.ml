@@ -29,11 +29,15 @@ let spec_mode_to_str = function
   | Statement -> "STATEMENT"
 
 
-let spec_mode_str = "spec_mode"
+let spec_mode_sym = Sym.fresh "spec_mode"
 
-let spec_mode_sym = Sym.fresh spec_mode_str
+let spec_mode_enum_type = mk_ctype C.(Basic (Integer (Enum spec_mode_sym)))
 
-let spec_mode_enum_type = mk_ctype C.(Basic (Integer (Enum (Sym.fresh spec_mode_str))))
+let loop_ownership_sym = Sym.fresh "loop_ownership"
+
+let loop_ownership_struct_ptr_ctype =
+  mk_ctype C.(Pointer (no_qualifiers, mk_ctype (Struct loop_ownership_sym)))
+
 
 let sym_of_spec_mode_opt = function
   | Some spec_mode ->
@@ -3805,7 +3809,24 @@ let rec cn_to_ail_loop_inv_aux
       cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt lat
     in
     let decls, modified_stats = modify_decls_for_loop [] [] ss in
-    ((cond_loc, (bs, modified_stats)), (loop_loc, (bs, decls)))
+    let loop_local_ownership_sym = Sym.fresh_anon () in
+    let loop_ownership_binding =
+      create_binding loop_local_ownership_sym loop_ownership_struct_ptr_ctype
+    in
+    let loop_ownership_init_fn_call =
+      A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_loop_ownership_state")), []))
+    in
+    let loop_ownership_decl = A.(AilSdeclaration [ (loop_local_ownership_sym, None) ]) in
+    let loop_ownership_assign =
+      A.(
+        AilSexpr
+          (mk_expr
+             (AilEassign
+                ( mk_expr (AilEident loop_local_ownership_sym),
+                  mk_expr loop_ownership_init_fn_call ))))
+    in
+    ( (cond_loc, (loop_ownership_binding :: bs, loop_ownership_assign :: modified_stats)),
+      (loop_loc, (loop_ownership_binding :: bs, loop_ownership_decl :: decls)) )
 
 
 let cn_to_ail_loop_inv
@@ -3820,16 +3841,10 @@ let cn_to_ail_loop_inv
     let (_, (cond_bs, cond_ss)), (_, loop_bs_and_ss) =
       cn_to_ail_loop_inv_aux filename dts globals preds (Some Loop) loop
     in
-    (* let cn_stack_depth_incr_call =
-      A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
-    in *)
     let cn_loop_put_call =
       A.AilSexpr
         (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_put_back_ownership_sym), [])))
     in
-    (* let cn_stack_depth_decr_call =
-      A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_decr_sym), [])))
-    in *)
     let dummy_expr_as_stat =
       A.(
         AilSexpr
@@ -3842,13 +3857,9 @@ let cn_to_ail_loop_inv
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
     let stats =
-      (bump_alloc_start_stat_ :: (* cn_stack_depth_incr_call :: *) cond_ss)
+      (bump_alloc_start_stat_ :: cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
-      @ [ cn_loop_put_call;
-          (* cn_stack_depth_decr_call; *)
-          bump_alloc_end_stat_;
-          dummy_expr_as_stat
-        ]
+      @ [ cn_loop_put_call; bump_alloc_end_stat_; dummy_expr_as_stat ]
     in
     let ail_gcc_stat_as_expr =
       A.(AilEgcc_statement ([ bump_alloc_binding ], List.map mk_stmt stats))
