@@ -3,8 +3,11 @@
 /*@
 function [rec] (boolean) array_bits_eq(map<u64, byte> arr1, map<u64, byte> arr2, u64 end) {
     let end1 = end - 1u64;
+    let b1 = arr1[end1];
+    let b2 = arr2[end1];
     end == 0u64 ||
-        ((u8) arr1[end1]) == ((u8) arr2[end1]) && array_bits_eq(arr1, arr2, end1)
+        is_some(b1) && is_some(b1) &&
+        ((u8) get_opt(b1)) == ((u8) get_opt(b2)) && array_bits_eq(arr1, arr2, end1)
 }
 @*/
 
@@ -62,6 +65,8 @@ ensures
     take DestR = each (u64 i; 0u64 <= i && i < n ) { RW(array_shift<byte>(dest, i)) };
     Src == SrcR; Dest == DestR;
     let arr_eq = array_bits_eq(Src, Dest, n);
-    let each_eq = each (u64 i: 0,7; (u8) Src[i] == (u8) Dest[i] );
+    let each_eq = each (u64 i: 0,7;
+        is_some(Src[i]) && is_some(Dest[i]) &&
+        (u8) get_opt(Src[i]) == (u8) get_opt(Dest[i]) );
     (arr_eq implies each_eq) && (each_eq implies arr_eq);
 @*/

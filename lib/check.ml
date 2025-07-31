@@ -1773,17 +1773,27 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
       | Integer it ->
         let bt = IT.get_bt value in
         let lhs = value in
-        let rhs =
-          let[@ocaml.warning "-8"] (b :: bytes) =
-            List.init (Memory.size_of_integer_type it) (fun i ->
-              let index = int_lit_ i WellTyped.default_quantifier_bt here in
-              let casted = cast_ bt (map_get_ byte_arr index here) here in
-              let shift_amt = int_lit_ (i * 8) bt here in
-              IT.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
-          in
-          List.fold_left (fun x y -> IT.add_ (x, y) here) b bytes
+        let bytes =
+          List.init (Memory.size_of_integer_type it) (fun i ->
+            let index = int_lit_ i WellTyped.default_quantifier_bt here in
+            map_get_ byte_arr index here)
         in
-        return (eq_ (lhs, rhs) here)
+        let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
+        let rhs =
+          let shifted =
+            List.mapi
+              (fun i byte ->
+                 let casted = cast_ bt (getOpt_ byte here) here in
+                 let shift_amt = int_lit_ (i * 8) bt here in
+                 IT.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
+              bytes
+          in
+          List.fold_left
+            (fun x y -> IT.add_ (x, y) here)
+            (List.hd shifted)
+            (List.tl shifted)
+        in
+        return (and2_ (all_some, eq_ (lhs, rhs) here) here)
       | Pointer _ ->
         let bt = Memory.uintptr_bt in
         let value_prov = cast_ BT.Alloc_id value here in
@@ -1794,48 +1804,52 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
             map_get_ byte_arr index here)
         in
         let bytes_addr =
-          let[@ocaml.warning "-8"] (a :: addrs) =
+          let shifted =
             List.mapi
               (fun i byte ->
-                 let casted = cast_ bt byte here in
+                 let casted = cast_ bt (getOpt_ byte here) here in
                  let shift_amt = int_lit_ (i * 8) bt here in
                  IT.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
               bytes
           in
-          List.fold_left (fun x y -> IT.add_ (x, y) here) a addrs
+          List.fold_left
+            (fun x y -> IT.add_ (x, y) here)
+            (List.hd shifted)
+            (List.tl shifted)
         in
+        let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
         let bytes_prov =
-          List.map (fun byte -> cast_ (BT.Option Alloc_id) byte here) bytes
+          List.map (fun byte -> cast_ (BT.Option Alloc_id) (getOpt_ byte here) here) bytes
         in
         (match to_from with
          | From ->
            (* if two byte provenances are not CN_None, they should be equal *)
            let bytes_prov_eq =
-             let rec slide = function
-               | [] | [ _ ] -> []
-               | prov1 :: prov2 :: rest ->
-                 or_
-                   [ isNone_ prov1 here;
-                     isNone_ prov2 here;
-                     eq_ (getOpt_ prov1 here, getOpt_ prov2 here) here
-                   ]
-                   here
-                 :: slide (prov2 :: rest)
+             let _, pairwise_opt_eq =
+               List.fold_right
+                 (fun prov1 (prov2, rest) ->
+                    ( prov1,
+                      or_
+                        [ isNone_ prov1 here;
+                          isNone_ prov2 here;
+                          eq_ (getOpt_ prov1 here, getOpt_ prov2 here) here
+                        ]
+                        here
+                      :: rest ))
+                 bytes_prov
+                 (none_ Alloc_id here, [])
              in
-             and_ (slide bytes_prov) here
+             and_ pairwise_opt_eq here
            in
            let combined_prov_sym, combined_prov =
              IT.fresh_named (BT.Option Alloc_id) "combined_prov" here
            in
            (* evaluate to the first non-CN_None provenance... *)
            let first_some_prov =
-             let rec loop = function
-               | [] -> assert false
-               | [ prov ] -> prov
-               | prov1 :: prov2 :: rest ->
-                 ite_ (isSome_ prov1 here, prov1, loop (prov2 :: rest)) here
-             in
-             loop bytes_prov
+             List.fold_right
+               (fun rest prov -> ite_ (isSome_ prov here, prov, rest) here)
+               bytes_prov
+               (none_ Alloc_id here)
            in
            (* ...and name it for easy reference *)
            let@ () =
@@ -1852,18 +1866,17 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                  eq_ (value_prov, getOpt_ combined_prov here) here )
                here
            in
-           return (and2_ (prov_constr, eq_ (value_addr, bytes_addr) here) here)
+           return (and_ [ all_some; prov_constr; eq_ (value_addr, bytes_addr) here ] here)
          | To ->
            let bytes_prov_eq =
              and_
                (List.map
-                  (fun byte ->
-                     let casted = cast_ BT.(Option Alloc_id) byte here in
-                     eq_ (casted, some_ value_prov here) here)
-                  bytes)
+                  (fun byte_prov -> eq_ (byte_prov, some_ value_prov here) here)
+                  bytes_prov)
                here
            in
-           return (and2_ (bytes_prov_eq, eq_ (value_addr, bytes_addr) here) here))
+           return
+             (and_ [ all_some; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ] here))
     in
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     let do_unpack (req, o) =
@@ -1935,7 +1948,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         in
         let q_sym = Sym.fresh "to_bytes" in
         let bt = WellTyped.default_quantifier_bt in
-        let map_bt = BT.Map (bt, MemByte) in
+        let map_bt = BT.Map (bt, Option MemByte) in
         let byte_sym, byte_arr = IT.fresh_named map_bt "byte_arr" here in
         let@ () = add_a byte_sym map_bt (loc, lazy (Pp.string "byte array")) in
         let@ () = add_r loc (Q (bytes_qpred q_sym ct pointer init), O byte_arr) in
@@ -2631,7 +2644,7 @@ let memcpy_proxy_ft =
   let n_sym, n = IT.fresh_named Memory.size_bt "n" here in
   (* requires *)
   let q_bt = WellTyped.default_quantifier_bt in
-  let map_bt = BT.Map (q_bt, MemByte) in
+  let map_bt = BT.Map (q_bt, Option MemByte) in
   let destIn_sym, _ = IT.fresh_named map_bt "destIn" here in
   let srcIn_sym, srcIn = IT.fresh_named map_bt "srcIn" here in
   let destRes str init = Req.Q (bytes_qpred (Sym.fresh str) n dest init) in

@@ -1046,7 +1046,7 @@ module WIT = struct
         return (IT (Match (e, cases), rbt, loc))
       | CN_None bt ->
         let@ bt = WBT.is_bt loc bt in
-        return (IT (CN_None bt, bt, loc))
+        return (IT (CN_None bt, Option bt, loc))
       | CN_Some t ->
         let@ t = infer t in
         let bt = IT.get_bt t in
