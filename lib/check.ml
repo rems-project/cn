@@ -1758,7 +1758,13 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
     let bytes_pred ct pointer init : Req.Predicate.t =
       { name = Owned (ct, init); pointer; iargs = [] }
     in
-    let bytes_constraints ~(value : IT.t) ~(byte_arr : IT.t) (ct : Sctypes.t) =
+    let bytes_constraints
+          (to_from : CF.Cn.to_from)
+          ~(value : IT.t)
+          ~(byte_arr : IT.t)
+          (ct : Sctypes.t)
+      : IT.t t
+      =
       (* FIXME this hard codes big endianness but this should be switchable *)
       let here = Locations.other __LOC__ in
       match ct with
@@ -1798,16 +1804,66 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           in
           List.fold_left (fun x y -> IT.add_ (x, y) here) a addrs
         in
-        let bytes_prov_eq =
-          and_
-            (List.map
-               (fun byte ->
-                  let casted = cast_ BT.Alloc_id byte here in
-                  eq_ (casted, value_prov) here)
-               bytes)
-            here
+        let bytes_prov =
+          List.map (fun byte -> cast_ (BT.Option Alloc_id) byte here) bytes
         in
-        return (and2_ (bytes_prov_eq, eq_ (value_addr, bytes_addr) here) here)
+        (match to_from with
+         | From ->
+           (* if two byte provenances are not CN_None, they should be equal *)
+           let bytes_prov_eq =
+             let rec slide = function
+               | [] | [ _ ] -> []
+               | prov1 :: prov2 :: rest ->
+                 or_
+                   [ isNone_ prov1 here;
+                     isNone_ prov2 here;
+                     eq_ (getOpt_ prov1 here, getOpt_ prov2 here) here
+                   ]
+                   here
+                 :: slide (prov2 :: rest)
+             in
+             and_ (slide bytes_prov) here
+           in
+           let combined_prov_sym, combined_prov =
+             IT.fresh_named (BT.Option Alloc_id) "combined_prov" here
+           in
+           (* evaluate to the first non-CN_None provenance... *)
+           let first_some_prov =
+             let rec loop = function
+               | [] -> assert false
+               | [ prov ] -> prov
+               | prov1 :: prov2 :: rest ->
+                 ite_ (isSome_ prov1 here, prov1, loop (prov2 :: rest)) here
+             in
+             loop bytes_prov
+           in
+           (* ...and name it for easy reference *)
+           let@ () =
+             add_a
+               combined_prov_sym
+               (BT.Option Alloc_id)
+               (here, lazy (Pp.string "combined provenance"))
+           in
+           let@ () = add_c here (LC.T (IT.eq_ (combined_prov, first_some_prov) here)) in
+           (* this constraint implements the combine_provenance function *)
+           let prov_constr =
+             impl_
+               ( and2_ (bytes_prov_eq, isSome_ combined_prov here) here,
+                 eq_ (value_prov, getOpt_ combined_prov here) here )
+               here
+           in
+           return (and2_ (prov_constr, eq_ (value_addr, bytes_addr) here) here)
+         | To ->
+           let bytes_prov_eq =
+             and_
+               (List.map
+                  (fun byte ->
+                     let casted = cast_ BT.(Option Alloc_id) byte here in
+                     eq_ (casted, some_ value_prov here) here)
+                  bytes)
+               here
+           in
+           return (and2_ (bytes_prov_eq, eq_ (value_addr, bytes_addr) here) here))
     in
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     let do_unpack (req, o) =
@@ -1886,7 +1942,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         (match init with
          | Uninit -> add_c loc (LC.T (IT.eq_ (byte_arr, default_ map_bt here) here))
          | Init ->
-           let@ constr = bytes_constraints ~value ~byte_arr ct in
+           let@ constr = bytes_constraints To ~value ~byte_arr ct in
            add_c loc (LC.T constr))
       | To_from_bytes (From, { name = Owned (ct, init); pointer; _ }) ->
         let ctxt = match init with Init -> `RW | Uninit -> `W in
@@ -1910,7 +1966,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         (match init with
          | Uninit -> add_c loc (LC.T (IT.eq_ (value, default_ value_bt here) here))
          | Init ->
-           let@ constr = bytes_constraints ~value ~byte_arr ct in
+           let@ constr = bytes_constraints From ~value ~byte_arr ct in
            add_c loc (LC.T constr))
       | Have lc ->
         let@ _lc = WellTyped.logical_constraint loc lc in

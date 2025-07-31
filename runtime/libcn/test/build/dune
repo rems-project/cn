@@ -8,6 +8,8 @@
 (rule
  (target libcn_tests)
  (deps
+  (package cn)
+  (alias_rec ../../install)
   (file Makefile)
   (glob_files ../bennet/*.hpp)
   (glob_files ../bennet/*.cpp))
@@ -17,7 +19,6 @@
 (rule
  (alias runtest)
  (deps
-  (package cn)
   (file libcn_tests))
  (action
   (setenv

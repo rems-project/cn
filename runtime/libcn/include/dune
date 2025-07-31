@@ -31,10 +31,18 @@
   (bennet/info/unsatisfied.h as runtime/include/bennet/info/unsatisfied.h)
   (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
   (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
+  (bennet/internals/domains/sized.h
+   as
+   runtime/include/bennet/internals/domains/sized.h)
+  (bennet/internals/domains/tnum.h
+   as
+   runtime/include/bennet/internals/domains/tnum.h)
+  (bennet/internals/domains/wint.h
+   as
+   runtime/include/bennet/internals/domains/wint.h)
   (bennet/internals/domain.h as runtime/include/bennet/internals/domain.h)
   (bennet/internals/rand.h as runtime/include/bennet/internals/rand.h)
   (bennet/internals/size.h as runtime/include/bennet/internals/size.h)
-  (bennet/internals/uniform.h as runtime/include/bennet/internals/uniform.h)
   (bennet/internals/urn.h as runtime/include/bennet/internals/urn.h)
   (bennet/state/alloc.h as runtime/include/bennet/state/alloc.h)
   (bennet/state/checkpoint.h as runtime/include/bennet/state/checkpoint.h)

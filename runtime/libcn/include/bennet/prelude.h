@@ -8,9 +8,11 @@
 #include <bennet/info/tyche.h>
 #include <bennet/info/unsatisfied.h>
 #include <bennet/internals/domain.h>
+#include <bennet/internals/domains/sized.h>
+#include <bennet/internals/domains/tnum.h>
+#include <bennet/internals/domains/wint.h>
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
-#include <bennet/internals/uniform.h>
 #include <bennet/internals/urn.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/checkpoint.h>

@@ -859,7 +859,7 @@ module WIT = struct
           | Bits _, Loc () -> return ()
           | Loc (), Bits _ -> return ()
           | MemByte, Bits _ -> return ()
-          | MemByte, Alloc_id -> return ()
+          | MemByte, Option Alloc_id -> return ()
           | source, target ->
             let msg =
               !^"Unsupported cast from"

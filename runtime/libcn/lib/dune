@@ -30,6 +30,7 @@
    (glob_files ../src/bennet/*.c)
    (glob_files ../src/bennet/dsl/*.c)
    (glob_files ../src/bennet/internals/*.c)
+   (glob_files ../src/bennet/internals/domains/*.c)
    (glob_files ../src/bennet/state/*.c)
    (glob_files ../src/bennet/info/*.c)))
  (action
@@ -54,9 +55,11 @@
     bennet/unsatisfied.o
     bennet/size.o
     bennet/sizes.o
+    bennet/sized.o
+    bennet/tnum.o
     bennet/tyche.o
-    bennet/uniform.o
-    bennet/urn.o))))
+    bennet/urn.o
+    bennet/wint.o))))
 
 (rule
  (target libcn_test.a)

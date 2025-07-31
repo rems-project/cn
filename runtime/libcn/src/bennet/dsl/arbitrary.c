@@ -3,11 +3,97 @@
 
 #include <bennet/dsl/arbitrary.h>
 #include <bennet/internals/domain.h>
+#include <bennet/internals/domains/sized.h>
+#include <bennet/internals/domains/wint.h>
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/failure.h>
 #include <cn-executable/utils.h>
+
+#define INEQ_GEN(sm)                                                                     \
+  uint##sm##_t bennet_le_uint##sm##_t_sized(uint##sm##_t max) {                          \
+    if (max == UINT##sm##_MAX) {                                                         \
+      return bennet_arbitrary_sized_top(uint##sm##_t);                                   \
+    }                                                                                    \
+                                                                                         \
+    return bennet_arbitrary_sized(uint##sm##_t, max + 1);                                \
+  }                                                                                      \
+                                                                                         \
+  int##sm##_t bennet_le_int##sm##_t_sized(int##sm##_t max) {                             \
+    if (max == INT##sm##_MAX) {                                                          \
+      return bennet_arbitrary_sized_top(int##sm##_t);                                    \
+    }                                                                                    \
+                                                                                         \
+    return bennet_arbitrary_wint(int##sm##_t, INT##sm##_MIN, max);                       \
+  }                                                                                      \
+                                                                                         \
+  uint##sm##_t bennet_ge_uint##sm##_t_sized(uint##sm##_t min) {                          \
+    if (min == 0) {                                                                      \
+      return bennet_arbitrary_sized_top(uint##sm##_t);                                   \
+    }                                                                                    \
+                                                                                         \
+    return bennet_arbitrary_wint(uint##sm##_t, min, UINT##sm##_MAX);                     \
+  }                                                                                      \
+                                                                                         \
+  int##sm##_t bennet_ge_int##sm##_t_sized(int##sm##_t min) {                             \
+    if (min == INT##sm##_MIN) {                                                          \
+      return bennet_arbitrary_sized_top(int##sm##_t);                                    \
+    }                                                                                    \
+                                                                                         \
+    return bennet_arbitrary_wint(int##sm##_t, min, INT##sm##_MAX);                       \
+  }
+
+INEQ_GEN(8);
+INEQ_GEN(16);
+INEQ_GEN(32);
+INEQ_GEN(64);
+
+#define MULT_RANGE_GEN(sm)                                                               \
+  uint##sm##_t bennet_mult_range_uint##sm##_t_sized(                                     \
+      uint##sm##_t mul, uint##sm##_t min, uint##sm##_t max) {                            \
+    assert(mul != 0);                                                                    \
+                                                                                         \
+    if (mul == 1) {                                                                      \
+      return bennet_arbitrary_wint(uint##sm##_t, min, max);                              \
+    }                                                                                    \
+                                                                                         \
+    uint##sm##_t x =                                                                     \
+        bennet_arbitrary_wint(uint##sm##_t, min / mul, max / mul + (max % mul != 0));    \
+    return x * mul;                                                                      \
+  }                                                                                      \
+                                                                                         \
+  int##sm##_t bennet_mult_range_int##sm##_t_sized(                                       \
+      int##sm##_t mul, int##sm##_t min, int##sm##_t max) {                               \
+    assert(mul != 0);                                                                    \
+                                                                                         \
+    if (mul == 1) {                                                                      \
+      return bennet_arbitrary_wint(int##sm##_t, min, max);                               \
+    }                                                                                    \
+                                                                                         \
+    int##sm##_t x =                                                                      \
+        bennet_arbitrary_wint(int##sm##_t, min / mul, max / mul + (max % mul != 0));     \
+                                                                                         \
+    return x * mul;                                                                      \
+  }
+
+MULT_RANGE_GEN(8);
+MULT_RANGE_GEN(16);
+MULT_RANGE_GEN(32);
+MULT_RANGE_GEN(64);
+
+#define MULT_GEN(sm)                                                                     \
+  uint##sm##_t bennet_mult_uint##sm##_t_sized(uint##sm##_t mul) {                        \
+    return bennet_mult_range_uint##sm##_t_sized(mul, 0, UINT##sm##_MAX);                 \
+  }                                                                                      \
+  int##sm##_t bennet_mult_int##sm##_t_sized(int##sm##_t mul) {                           \
+    return bennet_mult_range_int##sm##_t_sized(mul, INT##sm##_MIN, INT##sm##_MAX);       \
+  }
+
+MULT_GEN(8);
+MULT_GEN(16);
+MULT_GEN(32);
+MULT_GEN(64);
 
 #define BENNET_ARBITRARY_IMPL(cn_ty, c_ty, int_min, int_max)                             \
   cn_ty* bennet_arbitrary_##cn_ty(bennet_domain(c_ty) * cs) {                            \
@@ -34,30 +120,30 @@
           bennet_optional_is_some(cs->upper_bound_inc)) {                                \
         c_ty min = bennet_optional_unwrap_or(c_ty)(&cs->lower_bound_inc, int_min);       \
         c_ty max = bennet_optional_unwrap_or(c_ty)(&cs->upper_bound_inc, int_max);       \
-        return convert_to_##cn_ty(bennet_mult_range_##c_ty(mult, min, max));             \
+        return convert_to_##cn_ty(bennet_mult_range_##c_ty##_sized(mult, min, max));     \
       }                                                                                  \
                                                                                          \
-      return convert_to_##cn_ty(bennet_mult_##c_ty(mult));                               \
+      return convert_to_##cn_ty(bennet_mult_##c_ty##_sized(mult));                       \
     }                                                                                    \
                                                                                          \
     if (bennet_optional_is_some(cs->lower_bound_inc) &&                                  \
         bennet_optional_is_some(cs->upper_bound_inc)) {                                  \
-      return convert_to_##cn_ty(                                                         \
-          bennet_range_##c_ty(bennet_optional_unwrap(cs->lower_bound_inc),               \
-              bennet_optional_unwrap(cs->upper_bound_inc)));                             \
+      return convert_to_##cn_ty(bennet_arbitrary_wint(c_ty,                              \
+          bennet_optional_unwrap(cs->lower_bound_inc),                                   \
+          bennet_optional_unwrap(cs->upper_bound_inc)));                                 \
     }                                                                                    \
                                                                                          \
     if (bennet_optional_is_some(cs->lower_bound_inc)) {                                  \
       return convert_to_##cn_ty(                                                         \
-          bennet_ge_##c_ty(bennet_optional_unwrap(cs->lower_bound_inc)));                \
+          bennet_ge_##c_ty##_sized(bennet_optional_unwrap(cs->lower_bound_inc)));        \
     }                                                                                    \
                                                                                          \
     if (bennet_optional_is_some(cs->upper_bound_inc)) {                                  \
       return convert_to_##cn_ty(                                                         \
-          bennet_le_##c_ty(bennet_optional_unwrap(cs->upper_bound_inc)));                \
+          bennet_le_##c_ty##_sized(bennet_optional_unwrap(cs->upper_bound_inc)));        \
     }                                                                                    \
                                                                                          \
-    return convert_to_##cn_ty(bennet_uniform_##c_ty##_sized(0));                         \
+    return convert_to_##cn_ty(bennet_arbitrary_sized_top(c_ty));                         \
   }
 
 #define BENNET_ARBITRARY_IMPL_BV(sz)                                                     \
@@ -92,27 +178,28 @@ cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
       uintptr_t min = bennet_optional_unwrap_or(uintptr_t)(&cs->lower_bound_inc, 0);
       uintptr_t max =
           bennet_optional_unwrap_or(uintptr_t)(&cs->upper_bound_inc, UINTPTR_MAX);
-      return convert_to_cn_pointer((void*)bennet_mult_range_uint64_t(mult, min, max));
+      return convert_to_cn_pointer(
+          (void*)bennet_mult_range_uint64_t_sized(mult, min, max));
     }
 
-    return convert_to_cn_pointer((void*)bennet_mult_uint64_t(mult));
+    return convert_to_cn_pointer((void*)bennet_mult_uint64_t_sized(mult));
   }
 
   if (bennet_optional_is_some(cs->lower_bound_inc) &&
       bennet_optional_is_some(cs->upper_bound_inc)) {
-    return convert_to_cn_pointer(
-        (void*)bennet_range_uint64_t(bennet_optional_unwrap(cs->lower_bound_inc),
-            bennet_optional_unwrap(cs->upper_bound_inc)));
+    return convert_to_cn_pointer((void*)bennet_arbitrary_wint(uint64_t,
+        bennet_optional_unwrap(cs->lower_bound_inc),
+        bennet_optional_unwrap(cs->upper_bound_inc)));
   }
 
   if (bennet_optional_is_some(cs->lower_bound_inc)) {
     return convert_to_cn_pointer(
-        (void*)bennet_ge_uint64_t(bennet_optional_unwrap(cs->lower_bound_inc)));
+        (void*)bennet_ge_uint64_t_sized(bennet_optional_unwrap(cs->lower_bound_inc)));
   }
 
   if (bennet_optional_is_some(cs->upper_bound_inc)) {
     return convert_to_cn_pointer(
-        (void*)bennet_le_uint64_t(bennet_optional_unwrap(cs->upper_bound_inc)));
+        (void*)bennet_le_uint64_t_sized(bennet_optional_unwrap(cs->upper_bound_inc)));
   }
 
   // Weight towards `NULL` for pointers
@@ -123,5 +210,5 @@ cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs) {
     return convert_to_cn_pointer(NULL);
   }
 
-  return convert_to_cn_pointer((void*)bennet_uniform_uint64_t_sized(0));
+  return convert_to_cn_pointer((void*)bennet_arbitrary_sized_top(uint64_t));
 }
