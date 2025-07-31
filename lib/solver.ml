@@ -201,6 +201,8 @@ module CN_Option = struct
 
   let some x = SMT.app_ some_name [ x ]
 
+  let is_some x = SMT.app_ ("is-" ^ some_name) [ x ]
+
   let val_ x = SMT.app_ val_name [ x ]
 end
 
@@ -986,7 +988,7 @@ let rec translate_term s iterm =
      | _ -> assert false)
   | CN_None t -> CN_Option.none (translate_base_type t)
   | CN_Some t -> CN_Option.some (translate_term s t)
-  | IsSome t -> SMT.is_con CN_Option.some_name (translate_term s t)
+  | IsSome t -> CN_Option.is_some (translate_term s t)
   | GetOpt t -> CN_Option.val_ (translate_term s t)
 
 

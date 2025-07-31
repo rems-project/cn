@@ -854,6 +854,20 @@ let map_def_ (s, abt) body loc =
   IT (MapDef ((s, abt), body), BT.Map (abt, get_bt body), loc)
 
 
+let some_ t loc = IT (CN_Some t, BT.Option (get_bt t), loc)
+
+let isNone_ t loc =
+  match get_bt t with
+  | BT.Option _ -> IT (Unop (Not, IT (IsSome t, Bool, loc)), Bool, loc)
+  | _ -> Cerb_debug.error "illtyped index term"
+
+
+let isSome_ t loc =
+  match get_bt t with
+  | BT.Option _ -> IT (IsSome t, Bool, loc)
+  | _ -> Cerb_debug.error "illtyped index term"
+
+
 let getOpt_ t loc =
   match get_bt t with
   | BT.Option bt -> IT (GetOpt t, bt, loc)
