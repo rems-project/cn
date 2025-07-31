@@ -946,6 +946,5 @@ let timeout cfg n =
   | CVC5 -> [ set_option ":tlimit-per" (string_of_int n) ]
   | Other -> assert false
 
-let otimeout cfg = function
-  | None -> []
-  | Some n -> timeout cfg n
+
+let otimeout cfg = function None -> [] | Some n -> timeout cfg n

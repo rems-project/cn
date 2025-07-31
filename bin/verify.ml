@@ -170,8 +170,13 @@ module Flags = struct
 
 
   let solver_inc_timeout =
-    let doc = "Timeout after which a non-incremental SMT solver replaces the incremental solver" in
-    Arg.(value & opt (some int) !Solver.inc_timeout & info [ "incremental-solver-timeout" ] ~doc)
+    let doc =
+      "Timeout after which a non-incremental SMT solver replaces the incremental solver"
+    in
+    Arg.(
+      value
+      & opt (some int) !Solver.inc_timeout
+      & info [ "incremental-solver-timeout" ] ~doc)
 
 
   let try_hard =
