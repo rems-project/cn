@@ -20,11 +20,13 @@ val solver_flags : string list option ref
 
 val solver_type : Simple_smt.solver_extensions option ref
 
+val inc_timeout : int option ref
+
 (* Create a solver *)
 val make : Global.t -> (Sym.t * BaseTypes.t) list -> solver
 
 (* Incrementally (and imperatively) add an assumption to the solver state *)
-val add_assumption : solver -> LogicalConstraints.t -> unit
+val assume : solver -> LogicalConstraints.t -> unit
 
 val declare_variable : solver -> Sym.t * BaseTypes.t -> unit
 
@@ -39,7 +41,7 @@ val num_scopes : solver -> int
 
 (* Run the solver. Note that we pass the assumptions explicitly even though they are also
    available in the solver context, because CN is going some simplification on its own. *)
-val provableWithUnknown
+val provable_or_unknown
   :  loc:Locations.t ->
   solver:solver ->
   assumptions:LogicalConstraints.Set.t ->

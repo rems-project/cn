@@ -834,7 +834,7 @@ let new_solver (cfg : solver_config) : solver =
   ack_command s (set_option ":print-success" "true");
   ack_command s (set_option ":produce-models" "true");
   List.iter (ack_command s) cfg.setup;
-  Gc.finalise (fun me -> me.stop ()) s;
+  (* Gc.finalise (fun me -> me.stop ()) s; *)
   s
 
 
@@ -911,7 +911,7 @@ let cvc5 : solver_config =
   { exe = "cvc5";
     (* opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_AUFBVDTLIA" ]; *)
     (* NOTE cvc5 1.2.1 renamed --sets-ext to --sets-exp *)
-    opts = [ "--incremental"; "--sets-exp"; "--force-logic=QF_ALL" ];
+    opts = [ "--sets-exp"; "--force-logic=QF_ALL" ];
     setup = [];
     exts = CVC5;
     log = quiet_log
@@ -931,3 +931,20 @@ let z3 : solver_config =
     ]
   in
   { exe = "z3"; opts = [ "-in"; "-smt2" ]; setup; exts = Z3; log = quiet_log }
+
+
+let incremental cfg =
+  match cfg.exts with
+  | Z3 -> []
+  | CVC5 -> [ set_option ":incremental" "true" ]
+  | Other -> assert false
+
+
+let timeout cfg n =
+  match cfg.exts with
+  | Z3 -> [ set_option ":timeout" (string_of_int n) ]
+  | CVC5 -> [ set_option ":tlimit-per" (string_of_int n) ]
+  | Other -> assert false
+
+
+let otimeout cfg = function None -> [] | Some n -> timeout cfg n
