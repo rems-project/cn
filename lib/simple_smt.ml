@@ -945,3 +945,7 @@ let timeout cfg n =
   | Z3 -> [ set_option ":timeout" (string_of_int n) ]
   | CVC5 -> [ set_option ":tlimit-per" (string_of_int n) ]
   | Other -> assert false
+
+let otimeout cfg = function
+  | None -> []
+  | Some n -> timeout cfg n
