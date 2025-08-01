@@ -5,7 +5,7 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
-include GenTerms.Make ()
+include GenTerms.Make (Unit)
 
 type 'ast annot = (unit, 'ast) GenTerms.annot [@@deriving eq, ord]
 

@@ -2,7 +2,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 module CF = Cerb_frontend
-include GenTerms.Make ()
+include GenTerms.Make (Unit)
 
 type 'ast annot = (unit, 'ast) GenTerms.annot [@@deriving eq, ord]
 

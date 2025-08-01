@@ -7,7 +7,7 @@ type ('tag, 'ast) annot =
       ('ast * 'tag * BT.t * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0]))
 [@@deriving eq, ord]
 
-module Make () = struct
+module [@warning "-60"] Make (AD : sig end) = struct
   open struct
     type ('tag, 'recur) ast =
       [ `Arbitrary (** Generate arbitrary values *)
