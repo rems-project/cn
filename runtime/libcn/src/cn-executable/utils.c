@@ -1,5 +1,3 @@
-#include <_inttypes.h>
-
 #include <inttypes.h>
 #include <limits.h>
 #include <signal.h>  // for SIGABRT
