@@ -37,7 +37,8 @@ Inductive t_gen (A:Type) : Type :=
   | Map : t_gen A -> t_gen A -> t_gen A
   | List : t_gen A -> t_gen A
   | Tuple : list (t_gen A) -> t_gen A
-  | TSet : t_gen A -> t_gen A.
+  | TSet : t_gen A -> t_gen A
+  | Option : t_gen A -> t_gen A.
 Set Elimination Schemes.
 
 Inductive Forall_type {A : Type} (P : A -> Type) : list A -> Type :=
@@ -65,11 +66,12 @@ Theorem t_gen_ind_set (A : Type) (P : t_gen A -> Type):
   (forall t : t_gen A, P t -> forall t0 : t_gen A, P t0 -> P (Map A t t0)) ->
   (forall t : t_gen A, P t -> P (List A t)) ->
   (forall l : list (t_gen A), (Forall_type P l) -> P (Tuple A l))  ->
-  (forall t : t_gen A, P t -> P (TSet A t))
+  (forall t : t_gen A, P t -> P (TSet A t)) ->
+  (forall t : t_gen A, P t -> P (Option A t))
 
   -> forall t : t_gen A, P t.
 Proof.
-  intros HUnit HBool HInteger HMemByte HBits HReal HAlloc HLoc HCType HStruct HDatatype HTRecord HMap HList HTuple HTSet.
+  intros HUnit HBool HInteger HMemByte HBits HReal HAlloc HLoc HCType HStruct HDatatype HTRecord HMap HList HTuple HTSet HOption.
   fix IH 1.
   intros t.
   destruct t; simpl.
@@ -114,6 +116,8 @@ Proof.
     + constructor; auto.
   - (* TSet *)
     apply HTSet; apply IH.
+  - (* Option *)
+    apply HOption; apply IH.
 Defined.
 
 
@@ -297,6 +301,15 @@ Module BasetTypes_t_as_MiniDecidableType <: MiniDecidableType.
             intros C.
             inversion C.
             congruence.
+    -
+      specialize (H y).
+      destruct H.
+      + subst. left. reflexivity.
+      +
+        right.
+        intros C.
+        inversion C.
+        congruence.
     -
       specialize (H y).
       destruct H.
