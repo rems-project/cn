@@ -2436,7 +2436,11 @@ let record_tagdefs tagDefs =
   PmapM.iterM
     (fun tag def ->
        match def with
-       | Mu.UnionDef -> unsupported (Loc.other __LOC__) !^"todo: union types"
+       | Mu.UnionDef ->
+         if !Sym.executable_spec_enabled then
+           return ()
+         else
+           unsupported (Loc.other __LOC__) !^"todo: union types"
        | StructDef layout -> Global.add_struct_decl tag layout)
     tagDefs
 
@@ -2446,7 +2450,11 @@ let check_tagdefs tagDefs =
     (fun _tag def ->
        let open Memory in
        match def with
-       | Mu.UnionDef -> unsupported (Loc.other __LOC__) !^"todo: union types"
+       | Mu.UnionDef ->
+         if !Sym.executable_spec_enabled then
+           return ()
+         else
+           unsupported (Loc.other __LOC__) !^"todo: union types"
        | StructDef layout ->
          let@ _ =
            ListM.fold_rightM

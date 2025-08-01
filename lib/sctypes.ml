@@ -189,7 +189,7 @@ let rec of_ctype (Ctype.Ctype (_, ct_)) =
   | Ctype.Atomic _ -> None
   | Ctype.Struct s -> return (Struct s)
   | Byte -> return Byte
-  | Union _ -> fail
+  | Union _ -> if !Sym.executable_spec_enabled then return (Array (Byte, None)) else fail
 
 
 let of_ctype_unsafe loc ct =
