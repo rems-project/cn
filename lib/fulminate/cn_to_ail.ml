@@ -3751,6 +3751,54 @@ let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
   (bs, ss)
 
 
+let rec _cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = function
+  | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
+    let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
+    let cn_ptr_deref_sym = Sym.fresh "cn_pointer_deref" in
+    let ctype_sym =
+      Sym.fresh
+        (Pp.plain
+           CF.Pp_ail.(
+             with_executable_spec (pp_ctype C.no_qualifiers) (Sctypes.to_ctype ct)))
+    in
+    let cn_ptr_deref_fcall =
+      A.(
+        AilEcall
+          (mk_expr (AilEident cn_ptr_deref_sym), [ e; mk_expr (AilEident ctype_sym) ]))
+    in
+    let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type ct in
+    let ctype = bt_to_ail_ctype bt in
+    let binding = create_binding name ctype in
+    let ail_stat_ =
+      A.(
+        AilSdeclaration
+          [ (name, Some (mk_expr (wrap_with_convert_to cn_ptr_deref_fcall bt))) ])
+    in
+    let b2, ss = _cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i prog in
+    (b1 @ (binding :: b2), s @ (ail_stat_ :: ss))
+  | Pure (loc, ghost_it) ->
+    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
+    let pop_s = generate_cn_pop_msg_info in
+    let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
+    let add_to_ghost_array_fn_str = "add_to_ghost_array" in
+    let add_to_ghost_array_call =
+      mk_expr
+        (AilEcall
+           ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
+             [ mk_expr
+                 (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
+               e
+             ] ))
+    in
+    (bs, upd_s @ ss @ [ A.AilSexpr add_to_ghost_array_call ] @ pop_s)
+
+
+let _cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
+  List.mapi
+    (fun i arg -> _cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i arg)
+    ghost_args
+
+
 let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =
   let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
   let pop_s = generate_cn_pop_msg_info in
