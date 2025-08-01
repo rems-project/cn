@@ -346,7 +346,12 @@ void cn_loop_get_ownership(
   c_ownership_check(
       "Loop invariant ownership check", generic_c_ptr, (int)size, cn_stack_depth);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
-  cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
+  if (loop_ownership) {
+    cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
+  } else {
+    // TODO: Change to error
+    printf("No loop ownership state found\n");
+  }
 }
 
 void cn_put_ownership(void* generic_c_ptr, size_t size) {
