@@ -29,11 +29,15 @@ let spec_mode_to_str = function
   | Statement -> "STATEMENT"
 
 
-let spec_mode_str = "spec_mode"
+let spec_mode_sym = Sym.fresh "spec_mode"
 
-let spec_mode_sym = Sym.fresh spec_mode_str
+let spec_mode_enum_type = mk_ctype C.(Basic (Integer (Enum spec_mode_sym)))
 
-let spec_mode_enum_type = mk_ctype C.(Basic (Integer (Enum (Sym.fresh spec_mode_str))))
+let loop_ownership_sym = Sym.fresh "loop_ownership"
+
+let loop_ownership_struct_ptr_ctype =
+  mk_ctype C.(Pointer (no_qualifiers, mk_ctype (Struct loop_ownership_sym)))
+
 
 let sym_of_spec_mode_opt = function
   | Some spec_mode ->
@@ -770,9 +774,11 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
       ([ generic_c_ptr_binding ], [ generic_c_ptr_assign_stat_ ]))
   in
   let param2_sym = spec_mode_sym in
+  let param3_sym = loop_ownership_sym in
   let param1 = (param1_sym, bt_to_ail_ctype BT.(Loc ())) in
   let param2 = (param2_sym, spec_mode_enum_type) in
-  let param_syms, param_types = List.split [ param1; param2 ] in
+  let param3 = (param3_sym, loop_ownership_struct_ptr_ctype) in
+  let param_syms, param_types = List.split [ param1; param2; param3 ] in
   let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   let ownership_fcall_maybe =
     if without_ownership_checking then
@@ -783,7 +789,8 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
         A.
           [ AilEident param2_sym;
             AilEident generic_c_ptr_sym;
-            AilEsizeof (C.no_qualifiers, ctype)
+            AilEsizeof (C.no_qualifiers, ctype);
+            AilEident param3_sym
           ]
       in
       [ A.(
@@ -2895,6 +2902,7 @@ let cn_to_ail_resource
       dts
       globals
       (preds : (Sym.t * Definition.Predicate.t) list)
+      loop_ownership_sym_opt
       spec_mode_opt
         (* used to check whether spec_mode enum should be pretty-printed or whether it's an inner call with the spec_mode enum parameter *)
       loc
@@ -2950,6 +2958,10 @@ let cn_to_ail_resource
     "owned_" ^ ct_str
   in
   let enum_sym = sym_of_spec_mode_opt spec_mode_opt in
+  let it_zero_const = IT.(IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown)) in
+  let ail_zero_const_expr_ =
+    A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
+  in
   function
   | Request.P p ->
     let ctype, bt = calculate_resource_return_type preds loc p.name in
@@ -2961,9 +2973,16 @@ let cn_to_ail_resource
         let owned_fn_name = generate_owned_fn_name sct in
         (* Hack with enum as sym *)
         let enum_val_get = IT.(IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
+        let loop_ownership_arg =
+          match loop_ownership_sym_opt with
+          | Some loop_ownership_sym ->
+            IT.(IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown))
+          | None -> it_zero_const
+        in
         let fn_call_it =
           IT.IT
-            ( Apply (Sym.fresh owned_fn_name, [ p.pointer; enum_val_get ]),
+            ( Apply
+                (Sym.fresh owned_fn_name, [ p.pointer; enum_val_get; loop_ownership_arg ]),
               BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
               Cerb_location.unknown )
         in
@@ -2979,10 +2998,17 @@ let cn_to_ail_resource
                (fun it -> cn_to_ail_expr filename dts globals spec_mode_opt it PassBack)
                p.iargs)
         in
+        let loop_ownership_expr_ =
+          match loop_ownership_sym_opt with
+          | Some loop_ownership_sym -> A.AilEident loop_ownership_sym
+          | None -> ail_zero_const_expr_
+        in
         let fcall =
           A.(
             AilEcall
-              (mk_expr (AilEident pname), (e :: es) @ [ mk_expr (AilEident enum_sym) ]))
+              ( mk_expr (AilEident pname),
+                (e :: es) @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ]
+              ))
         in
         let binding = create_binding sym (bt_to_ail_ctype ~pred_sym:(Some pname) bt) in
         (mk_expr fcall, binding :: List.concat bs, List.concat ss)
@@ -3056,9 +3082,16 @@ let cn_to_ail_resource
         let ptr_add_it = IT.(IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
         (* Hack with enum as sym *)
         let enum_val_get = IT.(IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
+        let loop_ownership_arg =
+          match loop_ownership_sym_opt with
+          | Some loop_ownership_sym ->
+            IT.(IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown))
+          | None -> it_zero_const
+        in
         let fn_call_it =
           IT.IT
-            ( Apply (Sym.fresh owned_fn_name, [ ptr_add_it; enum_val_get ]),
+            ( Apply
+                (Sym.fresh owned_fn_name, [ ptr_add_it; enum_val_get; loop_ownership_arg ]),
               BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
               Cerb_location.unknown )
         in
@@ -3073,12 +3106,17 @@ let cn_to_ail_resource
                (fun it -> cn_to_ail_expr filename dts globals spec_mode_opt it PassBack)
                q.iargs)
         in
+        let loop_ownership_expr_ =
+          match loop_ownership_sym_opt with
+          | Some loop_ownership_sym -> A.AilEident loop_ownership_sym
+          | None -> ail_zero_const_expr_
+        in
         let fcall =
           A.(
             AilEcall
               ( mk_expr (AilEident pname),
-                (mk_expr (AilEident ptr_add_sym) :: es) @ [ mk_expr (AilEident enum_sym) ]
-              ))
+                (mk_expr (AilEident ptr_add_sym) :: es)
+                @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ] ))
         in
         (mk_expr fcall, List.concat bs, List.concat ss)
     in
@@ -3408,7 +3446,16 @@ let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = fu
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let b1, s1 =
-      cn_to_ail_resource filename name dts globals preds spec_mode_opt loc ret
+      cn_to_ail_resource
+        filename
+        name
+        dts
+        globals
+        preds
+        (Some loop_ownership_sym)
+        spec_mode_opt
+        loc
+        ret
     in
     let b2, s2 =
       cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
@@ -3498,8 +3545,9 @@ let cn_to_ail_predicate
       (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
       ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
   in
-  let enum_param_sym = spec_mode_sym in
-  let params = params @ [ (enum_param_sym, spec_mode_enum_type) ] in
+  let enum_param = (spec_mode_sym, spec_mode_enum_type) in
+  let loop_ownership_param = (loop_ownership_sym, loop_ownership_struct_ptr_ctype) in
+  let params = params @ [ enum_param; loop_ownership_param ] in
   let param_syms, param_types = List.split params in
   let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   (* Generating function declaration *)
@@ -3570,7 +3618,7 @@ let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let b1, s1 =
-      cn_to_ail_resource filename new_name dts globals preds spec_mode_opt loc re
+      cn_to_ail_resource filename new_name dts globals preds None spec_mode_opt loc re
     in
     let new_lrt = LogicalReturnTypes.subst (ESE.sym_subst (name, bt, new_name)) t in
     let b2, s2 = cn_to_ail_post_aux filename dts globals preds spec_mode_opt new_lrt in
@@ -3700,24 +3748,54 @@ let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =
   (loc, (List.concat bs, upd_s @ List.concat ss @ pop_s))
 
 
-let rec cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt = function
+let rec cn_to_ail_lat_internal_loop
+          filename
+          dts
+          globals
+          preds
+          loop_ownership_sym
+          spec_mode_opt
+  = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (IT.get_bt it) in
     let binding = create_binding name ctype in
     let decl = A.(AilSdeclaration [ (name, None) ]) in
     let b1, s1 = cn_to_ail_expr filename dts globals spec_mode_opt it (AssignVar name) in
     let b2, s2 =
-      cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt lat
+      cn_to_ail_lat_internal_loop
+        filename
+        dts
+        globals
+        preds
+        loop_ownership_sym
+        spec_mode_opt
+        lat
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let b1, s1 =
-      cn_to_ail_resource filename name dts globals preds spec_mode_opt loc ret
+      cn_to_ail_resource
+        filename
+        name
+        dts
+        globals
+        preds
+        (Some loop_ownership_sym)
+        spec_mode_opt
+        loc
+        ret
     in
     let b2, s2 =
-      cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt lat
+      cn_to_ail_lat_internal_loop
+        filename
+        dts
+        globals
+        preds
+        loop_ownership_sym
+        spec_mode_opt
+        lat
     in
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LAT.Constraint (lc, (loc, _str_opt), lat) ->
@@ -3733,7 +3811,14 @@ let rec cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt = f
       | None -> s
     in
     let b2, s2 =
-      cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt lat
+      cn_to_ail_lat_internal_loop
+        filename
+        dts
+        globals
+        preds
+        loop_ownership_sym
+        spec_mode_opt
+        lat
     in
     (b1 @ b2, ss @ s2)
   | LAT.I ss ->
@@ -3753,6 +3838,7 @@ let rec cn_to_ail_loop_inv_aux
           dts
           globals
           preds
+          loop_ownership_sym
           spec_mode_opt
           (contains_user_spec, cond_loc, loop_loc, at)
   =
@@ -3765,7 +3851,14 @@ let rec cn_to_ail_loop_inv_aux
         (contains_user_spec, cond_loc, loop_loc, at')
     in
     let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
-      cn_to_ail_loop_inv_aux filename dts globals preds spec_mode_opt subst_loop
+      cn_to_ail_loop_inv_aux
+        filename
+        dts
+        globals
+        preds
+        loop_ownership_sym
+        spec_mode_opt
+        subst_loop
     in
     ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
   | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
@@ -3802,10 +3895,48 @@ let rec cn_to_ail_loop_inv_aux
          | _ -> modify_decls_for_loop decls (modified_stats @ [ s ]) ss)
     in
     let bs, ss =
-      cn_to_ail_lat_internal_loop filename dts globals preds spec_mode_opt lat
+      cn_to_ail_lat_internal_loop
+        filename
+        dts
+        globals
+        preds
+        loop_ownership_sym
+        spec_mode_opt
+        lat
     in
     let decls, modified_stats = modify_decls_for_loop [] [] ss in
     ((cond_loc, (bs, modified_stats)), (loop_loc, (bs, decls)))
+
+
+type loop_ownership =
+  { sym : Sym.t;
+    binding : A.bindings;
+    decl : CF.GenTypes.genTypeCategory A.statement_;
+    assign : CF.GenTypes.genTypeCategory A.statement_
+  }
+
+let get_loop_ownership_bs_and_ss () =
+  let loop_local_ownership_sym = Sym.fresh_anon () in
+  let loop_ownership_binding =
+    create_binding loop_local_ownership_sym loop_ownership_struct_ptr_ctype
+  in
+  let loop_ownership_init_fn_call =
+    A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_loop_ownership_state")), []))
+  in
+  let loop_ownership_decl = A.(AilSdeclaration [ (loop_local_ownership_sym, None) ]) in
+  let loop_ownership_assign =
+    A.(
+      AilSexpr
+        (mk_expr
+           (AilEassign
+              ( mk_expr (AilEident loop_local_ownership_sym),
+                mk_expr loop_ownership_init_fn_call ))))
+  in
+  { sym = loop_local_ownership_sym;
+    binding = [ loop_ownership_binding ];
+    decl = loop_ownership_decl;
+    assign = loop_ownership_assign
+  }
 
 
 let cn_to_ail_loop_inv
@@ -3817,18 +3948,23 @@ let cn_to_ail_loop_inv
       ((contains_user_spec, cond_loc, loop_loc, _) as loop)
   =
   if contains_user_spec then (
-    let (_, (cond_bs, cond_ss)), (_, loop_bs_and_ss) =
-      cn_to_ail_loop_inv_aux filename dts globals preds (Some Loop) loop
-    in
-    let cn_stack_depth_incr_call =
-      A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
+    let loop_ownership_state = get_loop_ownership_bs_and_ss () in
+    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+      cn_to_ail_loop_inv_aux
+        filename
+        dts
+        globals
+        preds
+        loop_ownership_state.sym
+        (Some Loop)
+        loop
     in
     let cn_loop_put_call =
       A.AilSexpr
-        (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_put_back_ownership_sym), [])))
-    in
-    let cn_stack_depth_decr_call =
-      A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_decr_sym), [])))
+        (mk_expr
+           (AilEcall
+              ( mk_expr (AilEident OE.cn_loop_put_back_ownership_sym),
+                [ mk_expr (AilEident loop_ownership_state.sym) ] )))
     in
     let dummy_expr_as_stat =
       A.(
@@ -3842,19 +3978,19 @@ let cn_to_ail_loop_inv
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
     let stats =
-      (bump_alloc_start_stat_ :: cn_stack_depth_incr_call :: cond_ss)
+      (bump_alloc_start_stat_ :: loop_ownership_state.assign :: cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
-      @ [ cn_loop_put_call;
-          cn_stack_depth_decr_call;
-          bump_alloc_end_stat_;
-          dummy_expr_as_stat
-        ]
+      @ [ cn_loop_put_call; bump_alloc_end_stat_; dummy_expr_as_stat ]
     in
     let ail_gcc_stat_as_expr =
       A.(AilEgcc_statement ([ bump_alloc_binding ], List.map mk_stmt stats))
     in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
-    Some ((cond_loc, (cond_bs, [ ail_stat_as_expr_stat ])), (loop_loc, loop_bs_and_ss)))
+    Some
+      ( (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ])),
+        ( loop_loc,
+          (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss)
+        ) ))
   else
     (* Produce no runtime loop invariant statements if the user has not written any spec for this loop*)
     None
@@ -3909,7 +4045,7 @@ let rec cn_to_ail_lat_2
     let pop_s = generate_cn_pop_msg_info in
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let b1, s1 =
-      cn_to_ail_resource filename new_name dts globals preds spec_mode_opt loc ret
+      cn_to_ail_resource filename new_name dts globals preds None spec_mode_opt loc ret
     in
     let new_lat = ESE.fn_largs_and_body_subst (ESE.sym_subst (name, bt, new_name)) lat in
     let ail_executable_spec =
