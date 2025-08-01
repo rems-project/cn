@@ -20,6 +20,8 @@ signed long nr_owned_predicates;
 
 static signed long WILDCARD_DEPTH = INT_MAX - 1;
 
+static signed long UNMAPPED_VAL = INT_MIN + 1;
+
 static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
 
@@ -145,16 +147,6 @@ void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode) {
     cn_failure(CN_FAILURE_ASSERT, spec_mode);
   }
 }
-
-/* void c_ghost_assert(cn_bool *cn_b) { */
-/*     if (!(cn_b->val)) { */
-/*         cn_printf(CN_LOGGING_ERROR, "C memory access failed: function %s, file %s, line %d\n", error_msg_info.function_name, error_msg_info.file_name, error_msg_info.line_number); */
-/*         if (error_msg_info.cn_source_loc) { */
-/*             cn_printf(CN_LOGGING_ERROR, "CN source location: \n%s\n", error_msg_info.cn_source_loc); */
-/*         } */
-/*         cn_exit(); */
-/*     } */
-/* } */
 
 cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2) {
   cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
@@ -292,7 +284,7 @@ void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
 
 int ownership_ghost_state_get(int64_t* address_key) {
   int* curr_depth_maybe = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
-  return curr_depth_maybe ? *curr_depth_maybe : -1;
+  return curr_depth_maybe ? *curr_depth_maybe : UNMAPPED_VAL;
 }
 
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
@@ -305,7 +297,7 @@ void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
 }
 
 void ownership_ghost_state_remove(int64_t* address_key) {
-  ownership_ghost_state_set(address_key, -1);
+  ownership_ghost_state_set(address_key, UNMAPPED_VAL);
 }
 
 _Bool is_wildcard(void* generic_c_ptr, int offset) {
@@ -336,8 +328,11 @@ void cn_loop_get_ownership(
   if (loop_ownership) {
     cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
   } else {
-    // TODO: Change to error
-    printf("No loop ownership state found\n");
+    // Should never be triggered if Fulminate implementation is correct
+    cn_printf(CN_LOGGING_ERROR, "******** FULMINATE ERROR *********\n");
+    cn_printf(CN_LOGGING_ERROR, "No loop ownership state found.\n");
+    cn_printf(CN_LOGGING_ERROR,
+        "Please open a pull request at https://github.com/rems-project/cn\n") exit(1);
   }
 }
 
@@ -421,7 +416,7 @@ void c_ownership_check(char* access_kind,
     if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
       print_error_msg_info(error_msg_info);
       cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
-      if (curr_depth == -1) {
+      if (curr_depth == UNMAPPED_VAL) {
         cn_printf(CN_LOGGING_ERROR,
             "  ==> " FMT_PTR "[%d] (" FMT_PTR ") not owned\n",
             (uintptr_t)generic_c_ptr,
