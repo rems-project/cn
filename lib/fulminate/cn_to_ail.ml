@@ -2958,6 +2958,10 @@ let cn_to_ail_resource
     "owned_" ^ ct_str
   in
   let enum_sym = sym_of_spec_mode_opt spec_mode_opt in
+  let it_zero_const = IT.(IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown)) in
+  let ail_zero_const_expr_ =
+    A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
+  in
   function
   | Request.P p ->
     let ctype, bt = calculate_resource_return_type preds loc p.name in
@@ -2973,7 +2977,7 @@ let cn_to_ail_resource
           match loop_ownership_sym_opt with
           | Some loop_ownership_sym ->
             IT.(IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown))
-          | None -> IT.(IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown))
+          | None -> it_zero_const
         in
         let fn_call_it =
           IT.IT
@@ -2994,10 +2998,17 @@ let cn_to_ail_resource
                (fun it -> cn_to_ail_expr filename dts globals spec_mode_opt it PassBack)
                p.iargs)
         in
+        let loop_ownership_expr_ =
+          match loop_ownership_sym_opt with
+          | Some loop_ownership_sym -> A.AilEident loop_ownership_sym
+          | None -> ail_zero_const_expr_
+        in
         let fcall =
           A.(
             AilEcall
-              (mk_expr (AilEident pname), (e :: es) @ [ mk_expr (AilEident enum_sym) ]))
+              ( mk_expr (AilEident pname),
+                (e :: es) @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ]
+              ))
         in
         let binding = create_binding sym (bt_to_ail_ctype ~pred_sym:(Some pname) bt) in
         (mk_expr fcall, binding :: List.concat bs, List.concat ss)
@@ -3075,7 +3086,7 @@ let cn_to_ail_resource
           match loop_ownership_sym_opt with
           | Some loop_ownership_sym ->
             IT.(IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown))
-          | None -> IT.(IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown))
+          | None -> it_zero_const
         in
         let fn_call_it =
           IT.IT
@@ -3095,12 +3106,17 @@ let cn_to_ail_resource
                (fun it -> cn_to_ail_expr filename dts globals spec_mode_opt it PassBack)
                q.iargs)
         in
+        let loop_ownership_expr_ =
+          match loop_ownership_sym_opt with
+          | Some loop_ownership_sym -> A.AilEident loop_ownership_sym
+          | None -> ail_zero_const_expr_
+        in
         let fcall =
           A.(
             AilEcall
               ( mk_expr (AilEident pname),
-                (mk_expr (AilEident ptr_add_sym) :: es) @ [ mk_expr (AilEident enum_sym) ]
-              ))
+                (mk_expr (AilEident ptr_add_sym) :: es)
+                @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ] ))
         in
         (mk_expr fcall, List.concat bs, List.concat ss)
     in
@@ -3430,7 +3446,16 @@ let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = fu
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let b1, s1 =
-      cn_to_ail_resource filename name dts globals preds None spec_mode_opt loc ret
+      cn_to_ail_resource
+        filename
+        name
+        dts
+        globals
+        preds
+        (Some loop_ownership_sym)
+        spec_mode_opt
+        loc
+        ret
     in
     let b2, s2 =
       cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
@@ -3520,8 +3545,9 @@ let cn_to_ail_predicate
       (fun (sym, bt) -> (sym, bt_to_ail_ctype bt))
       ((rp_def.pointer, BT.(Loc ())) :: rp_def.iargs)
   in
-  let enum_param_sym = spec_mode_sym in
-  let params = params @ [ (enum_param_sym, spec_mode_enum_type) ] in
+  let enum_param = (spec_mode_sym, spec_mode_enum_type) in
+  let loop_ownership_param = (loop_ownership_sym, loop_ownership_struct_ptr_ctype) in
+  let params = params @ [ enum_param; loop_ownership_param ] in
   let param_syms, param_types = List.split params in
   let param_types = List.map (fun t -> (C.no_qualifiers, t, false)) param_types in
   (* Generating function declaration *)

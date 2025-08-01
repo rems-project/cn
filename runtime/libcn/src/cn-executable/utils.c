@@ -265,19 +265,6 @@ void cn_loop_leak_check(void) {
   }
 }
 
-void cn_loop_put_back_ownership(void) {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-
-  while (ht_next(&it)) {
-    int64_t* key = it.key;
-    int* depth = it.value;
-    /* Bump down everything that was bumped up in loop invariant */
-    if (*depth == cn_stack_depth - 1) {
-      ownership_ghost_state_set(key, cn_stack_depth);
-    }
-  }
-}
-
 struct loop_ownership* initialise_loop_ownership_state(void) {
   struct loop_ownership* loop_ownership =
       bump_alloc.malloc(sizeof(struct loop_ownership));
@@ -295,7 +282,7 @@ void cn_add_to_loop_ownership_state(
   }
 }
 
-void cn_loop_put_back_ownership_new(struct loop_ownership* loop_ownership) {
+void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
   for (int i = 0; i < loop_ownership->arr_size; i++) {
     int64_t address_key = loop_ownership->owned_loop_addrs[i];
     ownership_ghost_state_set(&address_key, cn_stack_depth);

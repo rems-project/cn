@@ -30,7 +30,7 @@ let cn_stack_depth_decr_sym = Sym.fresh "ghost_stack_depth_decr"
 
 let cn_postcondition_leak_check_sym = Sym.fresh "cn_postcondition_leak_check"
 
-let cn_loop_put_back_ownership_sym = Sym.fresh "cn_loop_put_back_ownership_new"
+let cn_loop_put_back_ownership_sym = Sym.fresh "cn_loop_put_back_ownership"
 
 let cn_loop_leak_check_sym = Sym.fresh "cn_loop_leak_check"
 

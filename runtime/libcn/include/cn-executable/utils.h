@@ -160,11 +160,10 @@ signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
 void ghost_stack_depth_decr(void);
 void cn_postcondition_leak_check(void);
-void cn_loop_put_back_ownership(void);
-void cn_loop_leak_check(void);
 
 struct loop_ownership *initialise_loop_ownership_state(void);
-void cn_loop_put_back_ownership_new(struct loop_ownership *loop_ownership);
+void cn_loop_leak_check(void);
+void cn_loop_put_back_ownership(struct loop_ownership *loop_ownership);
 
 /* malloc, free */
 void *cn_aligned_alloc(size_t align, size_t size);
