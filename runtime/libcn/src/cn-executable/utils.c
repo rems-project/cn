@@ -1,3 +1,5 @@
+#include <_inttypes.h>
+
 #include <inttypes.h>
 #include <limits.h>
 #include <signal.h>  // for SIGABRT
@@ -18,9 +20,8 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
-static signed long WILDCARD_DEPTH = INT_MAX - 1;
-
 static signed long UNMAPPED_VAL = INT_MIN + 1;
+static signed long WILDCARD_DEPTH = INT_MIN + 2;
 
 static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
@@ -219,6 +220,37 @@ void ghost_stack_depth_decr(void) {
   // cn_printf(CN_LOGGING_INFO, "\n");
 }
 
+/* TODO: DAVID
+1. Uncomment + add max value lookups to first 2 functions
+2. Delete the 2 functions after that (old implementations)
+*/
+
+// void cn_postcondition_leak_check(void) {
+//   signed long max_depth_in_ghost_state =
+//       /* get_max_value(cn_ownership_global_ghost_state) */ INT_MAX - 1;  // TODO: Change
+//   if (max_depth_in_ghost_state > cn_stack_depth) {
+//     print_error_msg_info(error_msg_info);
+//     // XXX: This appears to print the *hashed* pointer?
+//     cn_printf(CN_LOGGING_ERROR,
+//         "Postcondition leak check failed, ownership leaked for pointer " FMT_PTR "\n",
+//         (uintptr_t)*key);
+//     cn_failure(CN_FAILURE_OWNERSHIP_LEAK, POST);
+//   }
+// }
+//
+// void cn_loop_leak_check(void) {
+//   signed long max_depth_in_ghost_state =
+//       /* get_max_value(cn_ownership_global_ghost_state) */ INT_MAX - 1;  // TODO: Change
+//   if (max_depth_in_ghost_state == cn_stack_depth) {
+//     print_error_msg_info(error_msg_info);
+//     // XXX: This appears to print the *hashed* pointer?
+//     cn_printf(CN_LOGGING_ERROR,
+//         "Loop invariant leak check failed, ownership leaked for pointer " FMT_PTR "\n",
+//         (uintptr_t)*key);
+//     cn_failure(CN_FAILURE_OWNERSHIP_LEAK, LOOP);
+//   }
+// }
+
 void cn_postcondition_leak_check(void) {
   // leak checking
   hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
@@ -256,6 +288,8 @@ void cn_loop_leak_check(void) {
     }
   }
 }
+
+/* / TODO: DAVID */
 
 struct loop_ownership* initialise_loop_ownership_state(void) {
   struct loop_ownership* loop_ownership =
