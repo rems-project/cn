@@ -529,10 +529,9 @@ let rec transform_term
                )
            ]),
       res_expr )
-  | `MapElab ((i, bt, (it_min, it_max), it_perm), gt_inner) ->
+  | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner) ->
     let sym_map = Sym.fresh_anon () in
     let b_map = Utils.create_binding sym_map (bt_to_ctype bt) in
-    let i_bt, _ = BT.map_bt bt in
     let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
     let b_min, s_min, e_min = transform_it filename sigma name it_min in
     let b_max, s_max, e_max = transform_it filename sigma name it_max in

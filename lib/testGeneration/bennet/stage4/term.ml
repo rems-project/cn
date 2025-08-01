@@ -53,13 +53,13 @@ let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : 
   | `AssertDomain (x, x_bt, domain, gt') -> `AssertDomain (x, x_bt, domain, subst su gt')
   | `ITE (it, gt_then, gt_else) ->
     `ITE (IT.subst su it, subst su gt_then, subst su gt_else)
-  | `MapElab ((i, bt, (it_min, it_max), it_perm), gt') ->
+  | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
     let i', it_min = IT.suitably_alpha_rename su.relevant i it_min in
     let it_max = IT.subst (IT.make_rename ~from:i ~to_:i') it_max in
     let it_perm = IT.subst (IT.make_rename ~from:i ~to_:i') it_perm in
     let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
     `MapElab
-      ( (i', bt, (IT.subst su it_min, IT.subst su it_max), IT.subst su it_perm),
+      ( (i', i_bt, (IT.subst su it_min, IT.subst su it_max), IT.subst su it_perm),
         subst su gt' )
   | `SplitSizeElab (split_var, syms, gt') -> `SplitSizeElab (split_var, syms, subst su gt')
 
@@ -99,8 +99,8 @@ let rec map_gen_pre (f : t -> t) (g : t) : t =
       `AssertDomain (x, x_bt, domain, map_gen_pre f gt')
     | `ITE (it, gt_then, gt_else) ->
       `ITE (it, map_gen_pre f gt_then, map_gen_pre f gt_else)
-    | `MapElab ((i, bt, range, it_perm), gt') ->
-      `MapElab ((i, bt, range, it_perm), map_gen_pre f gt')
+    | `MapElab ((i, i_bt, range, it_perm), gt') ->
+      `MapElab ((i, i_bt, range, it_perm), map_gen_pre f gt')
     | `SplitSizeElab (split_var, syms, gt') ->
       `SplitSizeElab (split_var, syms, map_gen_pre f gt')
   in
@@ -125,8 +125,8 @@ let rec map_gen_post (f : t -> t) (g : t) : t =
       `AssertDomain (x, x_bt, domain, map_gen_post f gt')
     | `ITE (it, gt_then, gt_else) ->
       `ITE (it, map_gen_post f gt_then, map_gen_post f gt_else)
-    | `MapElab ((i, bt, range, it_perm), gt') ->
-      `MapElab ((i, bt, range, it_perm), map_gen_post f gt')
+    | `MapElab ((i, i_bt, range, it_perm), gt') ->
+      `MapElab ((i, i_bt, range, it_perm), map_gen_post f gt')
     | `SplitSizeElab (split_var, syms, gt') ->
       `SplitSizeElab (split_var, syms, map_gen_post f gt')
   in
