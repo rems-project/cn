@@ -15,17 +15,17 @@ let transform_gt (gt : Stage3.Term.t) : Term.t =
     match gt_ with
     | `Arbitrary -> GenTerms.Annot (`Arbitrary, (path_vars, last_var), bt, loc)
     | `PickSized wgts ->
-      let choice_var = Sym.fresh_anon () in
+      let (`PickSizedElab (choice_var, wgts)) = Term.elaborate_pick_ (`PickSized wgts) in
       let wgts =
-        let wgts =
-          let gcd =
-            List.fold_left
-              (fun x y -> Z.gcd x y)
-              (fst (List.hd wgts))
-              (List.map fst (List.tl wgts))
-          in
-          List.map_fst (fun x -> Z.div x gcd) wgts
+        let gcd =
+          List.fold_left
+            (fun x y -> Z.gcd x y)
+            (fst (List.hd wgts))
+            (List.map fst (List.tl wgts))
         in
+        List.map_fst (fun x -> Z.div x gcd) wgts
+      in
+      let wgts =
         let w_sum = List.fold_left Z.add Z.zero (List.map fst wgts) in
         let max_int = Z.of_int Int.max_int in
         let f =
@@ -45,43 +45,10 @@ let transform_gt (gt : Stage3.Term.t) : Term.t =
     | `CallSized (fsym, iargs, sized) ->
       GenTerms.Annot (`CallSized (fsym, iargs, sized), (path_vars, last_var), bt, loc)
     | `Asgn ((it_addr, sct), it_val, gt_rest) ->
-      let rec pointer_of (it : IT.t) : Sym.t * BT.t =
-        match it with
-        | IT (CopyAllocId { loc = ptr; _ }, _, _)
-        | IT (ArrayShift { base = ptr; _ }, _, _)
-        | IT (MemberShift (ptr, _, _), _, _) ->
-          pointer_of ptr
-        | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
-        | _ ->
-          let pointers =
-            it_addr
-            |> IT.free_vars_bts
-            |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
-          in
-          if not (Sym.Map.cardinal pointers == 1) then
-            Cerb_debug.print_debug 2 [] (fun () ->
-              Pp.(
-                plain
-                  (braces
-                     (separate_map
-                        (comma ^^ space)
-                        (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
-                        (List.of_seq (Sym.Map.to_seq pointers)))
-                   ^^^ !^" in "
-                   ^^ IT.pp it_addr)));
-          if Sym.Map.is_empty pointers then (
-            print_endline (Pp.plain (IT.pp it));
-            failwith __LOC__);
-          Sym.Map.choose pointers
+      let gt_ =
+        Term.elaborate_asgn_ (`Asgn ((it_addr, sct), it_val, aux vars path_vars gt_rest))
       in
-      let backtrack_var = Sym.fresh_anon () in
-      let pointer = pointer_of it_addr in
-      let gt_rest = aux vars path_vars gt_rest in
-      GenTerms.Annot
-        ( `AsgnElab (((backtrack_var, pointer, it_addr), sct), it_val, gt_rest),
-          (path_vars, last_var),
-          bt,
-          loc )
+      GenTerms.Annot (gt_, (path_vars, last_var), bt, loc)
     | `LetStar ((x, gt_inner), gt_rest) ->
       let gt_inner = aux vars path_vars gt_inner in
       let gt_rest = aux (x :: vars) path_vars gt_rest in
@@ -112,15 +79,13 @@ let transform_gt (gt : Stage3.Term.t) : Term.t =
       let gt_else = aux vars path_vars gt_else in
       Annot (`ITE (it_if, gt_then, gt_else), (path_vars, last_var), bt, loc)
     | `Map ((i, i_bt, it_perm), gt_inner) ->
-      let it_min, it_max = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
       let gt_inner = aux (i :: vars) path_vars gt_inner in
-      Annot
-        ( `MapElab ((i, bt, (it_min, it_max), it_perm), gt_inner),
-          (path_vars, last_var),
-          bt,
-          loc )
+      Term.elaborate_map
+        (Annot (`Map ((i, i_bt, it_perm), gt_inner), (path_vars, last_var), bt, loc))
     | `SplitSize (syms, gt_rest) ->
-      let marker_var = Sym.fresh_anon () in
+      let (`SplitSizeElab (marker_var, syms, gt_rest)) =
+        Term.elaborate_split_size_ (`SplitSize (syms, gt_rest))
+      in
       let path_vars =
         if TestGenConfig.is_random_size_splits () then
           Sym.Set.add marker_var path_vars

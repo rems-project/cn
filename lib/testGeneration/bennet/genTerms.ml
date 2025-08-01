@@ -29,11 +29,11 @@ module [@warning "-60"] Make (AD : sig end) = struct
       | `SplitSize of Sym.Set.t * ('tag, 'recur) annot
       | `AssertDomain of Sym.t * BT.t * Abstract.domain * ('tag, 'recur) annot
         (** Domain assertion *)
+      | `AsgnElab of
+          ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
       | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * ('tag, 'recur) annot
       | `PickSizedElab of Sym.t * (Z.t * ('tag, 'recur) annot) list
       | `SplitSizeElab of Sym.t * Sym.Set.t * ('tag, 'recur) annot
-      | `AsgnElab of
-          ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
       ]
     [@@deriving eq, ord]
   end
@@ -258,7 +258,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
       ^^^ IT.pp it_val
       ^^ semi
       ^^^ c_comment
-            (!^"backtracks as"
+            (!^"can be backtracked to as"
              ^^^ Sym.pp backtrack_var
              ^^ !^" allocs via "
              ^^ Sym.pp p_sym
@@ -354,4 +354,73 @@ module [@warning "-60"] Make (AD : sig end) = struct
     | `Pick gts -> List.exists contains_constraint gts
     | `PickSized wgts | `PickSizedElab (_, wgts) ->
       List.exists (fun (_, g) -> contains_constraint g) wgts
+
+
+  (* Elaboration *)
+  let elaborate_asgn_ (`Asgn ((it_addr, sct), it_value, gt_rest))
+    : [> `AsgnElab of
+           ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
+      ]
+    =
+    let rec pointer_of (it : IT.t) : Sym.t * BT.t =
+      match it with
+      | IT (CopyAllocId { loc = ptr; _ }, _, _)
+      | IT (ArrayShift { base = ptr; _ }, _, _)
+      | IT (MemberShift (ptr, _, _), _, _) ->
+        pointer_of ptr
+      | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
+      | _ ->
+        let pointers =
+          it_addr
+          |> IT.free_vars_bts
+          |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
+        in
+        if not (Sym.Map.cardinal pointers == 1) then
+          Cerb_debug.print_debug 2 [] (fun () ->
+            Pp.(
+              plain
+                (braces
+                   (separate_map
+                      (comma ^^ space)
+                      (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
+                      (List.of_seq (Sym.Map.to_seq pointers)))
+                 ^^^ !^" in "
+                 ^^ IT.pp it_addr)));
+        if Sym.Map.is_empty pointers then (
+          print_endline (Pp.plain (IT.pp it));
+          failwith __LOC__);
+        Sym.Map.choose pointers
+    in
+    let backtrack_var = Sym.fresh_anon () in
+    let pointer = pointer_of it_addr in
+    `AsgnElab (((backtrack_var, pointer, it_addr), sct), it_value, gt_rest)
+
+
+  let elaborate_asgn (Annot (gt_, tag, bt, loc)) =
+    Annot (elaborate_asgn_ gt_, tag, bt, loc)
+
+
+  let elaborate_map_ (`Map ((i, i_bt, it_perm), gt_inner)) =
+    let it_min, it_max = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
+    `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner)
+
+
+  let elaborate_map (Annot (gt_, tag, bt, loc)) = Annot (elaborate_map_ gt_, tag, bt, loc)
+
+  let elaborate_pick_ (`PickSized wgts) =
+    let choice_var = Sym.fresh_anon () in
+    `PickSizedElab (choice_var, wgts)
+
+
+  let elaborate_pick (Annot (gt_, tag, bt, loc)) =
+    Annot (elaborate_pick_ gt_, tag, bt, loc)
+
+
+  let elaborate_split_size_ (`SplitSize (syms, gt_rest)) =
+    let marker_var = Sym.fresh_anon () in
+    `SplitSizeElab (marker_var, syms, gt_rest)
+
+
+  let elaborate_split_size (Annot (gt_, tag, bt, loc)) =
+    Annot (elaborate_split_size_ gt_, tag, bt, loc)
 end
