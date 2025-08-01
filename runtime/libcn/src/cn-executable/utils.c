@@ -20,8 +20,8 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
-static signed long UNMAPPED_VAL = INT_MIN + 1;
-static signed long WILDCARD_DEPTH = INT_MIN + 2;
+static signed long UNMAPPED_VAL = -1;
+static signed long WILDCARD_DEPTH = INT_MIN + 1;
 
 static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
