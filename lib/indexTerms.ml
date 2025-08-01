@@ -854,6 +854,8 @@ let map_def_ (s, abt) body loc =
   IT (MapDef ((s, abt), body), BT.Map (abt, get_bt body), loc)
 
 
+let none_ bt loc = IT (CN_None bt, BT.Option bt, loc)
+
 let some_ t loc = IT (CN_Some t, BT.Option (get_bt t), loc)
 
 let isNone_ t loc =
