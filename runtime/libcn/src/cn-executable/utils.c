@@ -364,7 +364,8 @@ void cn_loop_get_ownership(
     cn_printf(CN_LOGGING_ERROR, "******** FULMINATE ERROR *********\n");
     cn_printf(CN_LOGGING_ERROR, "No loop ownership state found.\n");
     cn_printf(CN_LOGGING_ERROR,
-        "Please open a pull request at https://github.com/rems-project/cn\n") exit(1);
+        "Please open a pull request at https://github.com/rems-project/cn\n");
+    exit(1);
   }
 }
 
