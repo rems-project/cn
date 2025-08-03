@@ -214,6 +214,8 @@ val term_col : int
 
 val int : int -> document
 
+val int64 : int64 -> document
+
 val z : Z.t -> document
 
 val bool : bool -> document

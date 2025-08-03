@@ -1,3 +1,5 @@
+let name = "trivial"
+
 type t = unit [@@deriving eq, ord]
 
 let bottom = ()
@@ -15,3 +17,7 @@ let rename ~from:_ ~to_:_ _ = ()
 let remove _ _ = ()
 
 let pp _ = Pp.string "()"
+
+module Interpreter = struct
+  let abs_stmt _ _ (d : t) : t = d
+end
