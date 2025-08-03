@@ -431,6 +431,8 @@ module Domain = struct
   let ret_sym = Sym.fresh "return"
 
   module type T = sig
+    val name : string
+
     type t [@@deriving eq, ord]
 
     (** The bottom element of the domain *)

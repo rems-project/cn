@@ -27,7 +27,13 @@ let debug_stage (stage : string) (str : string) : unit =
 
 
 let parse_domain (s : string) : (module GenTerms.Domain.T) =
-  match s with _ -> (module AbstractDomains.Trivial)
+  match s with
+  | _ when String.equal s AbstractDomains.Ownership.name ->
+    (module AbstractDomains.Ownership)
+  | _ when String.equal s AbstractDomains.Trivial.name -> (module AbstractDomains.Trivial)
+  | _ ->
+    Pp.warn Cerb_location.unknown Pp.(!^"Unknown abstract domain," ^^^ squotes !^s);
+    (module AbstractDomains.Trivial)
 
 
 let synthesize

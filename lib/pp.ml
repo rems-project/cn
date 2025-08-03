@@ -28,6 +28,8 @@ let loc_pp = ref Dec
 
 let int i = string (string_of_int i)
 
+let int64 i = string (Int64.to_string i)
+
 let z i = string (Z.to_string i)
 
 let bool b = if b then string "true" else string "false"
