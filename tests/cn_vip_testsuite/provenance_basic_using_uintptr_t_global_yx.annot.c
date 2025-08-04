@@ -24,6 +24,7 @@ int main()
          "\n",(void*)&x,(void*)p,(unsigned long)uy);
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
+  /*CN_VIP*//*@ apply byte_array_init_8(&p, &q, sizeof<int*>); @*/
   /*CN_VIP*/int result = _memcmp((byte*)&p, (byte*)&q, sizeof(p));
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ from_bytes RW<int*>(&q); @*/
