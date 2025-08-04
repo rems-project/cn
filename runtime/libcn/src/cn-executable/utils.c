@@ -18,7 +18,8 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
-static signed long WILDCARD_DEPTH = INT_MAX - 1;
+static signed long UNMAPPED_VAL = -1;
+static signed long WILDCARD_DEPTH = INT_MIN + 1;
 
 static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
@@ -146,16 +147,6 @@ void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode) {
   }
 }
 
-/* void c_ghost_assert(cn_bool *cn_b) { */
-/*     if (!(cn_b->val)) { */
-/*         cn_printf(CN_LOGGING_ERROR, "C memory access failed: function %s, file %s, line %d\n", error_msg_info.function_name, error_msg_info.file_name, error_msg_info.line_number); */
-/*         if (error_msg_info.cn_source_loc) { */
-/*             cn_printf(CN_LOGGING_ERROR, "CN source location: \n%s\n", error_msg_info.cn_source_loc); */
-/*         } */
-/*         cn_exit(); */
-/*     } */
-/* } */
-
 cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2) {
   cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
   res->val = b1->val && b2->val;
@@ -227,6 +218,37 @@ void ghost_stack_depth_decr(void) {
   // cn_printf(CN_LOGGING_INFO, "\n");
 }
 
+/* TODO: DAVID
+1. Uncomment + add max value lookups to first 2 functions
+2. Delete the 2 functions after that (old implementations)
+*/
+
+// void cn_postcondition_leak_check(void) {
+//   signed long max_depth_in_ghost_state =
+//       /* get_max_value(cn_ownership_global_ghost_state) */ INT_MAX - 1;  // TODO: Change
+//   if (max_depth_in_ghost_state > cn_stack_depth) {
+//     print_error_msg_info(error_msg_info);
+//     // XXX: This appears to print the *hashed* pointer?
+//     cn_printf(CN_LOGGING_ERROR,
+//         "Postcondition leak check failed, ownership leaked for pointer " FMT_PTR "\n",
+//         (uintptr_t)*key);
+//     cn_failure(CN_FAILURE_OWNERSHIP_LEAK, POST);
+//   }
+// }
+//
+// void cn_loop_leak_check(void) {
+//   signed long max_depth_in_ghost_state =
+//       /* get_max_value(cn_ownership_global_ghost_state) */ INT_MAX - 1;  // TODO: Change
+//   if (max_depth_in_ghost_state == cn_stack_depth) {
+//     print_error_msg_info(error_msg_info);
+//     // XXX: This appears to print the *hashed* pointer?
+//     cn_printf(CN_LOGGING_ERROR,
+//         "Loop invariant leak check failed, ownership leaked for pointer " FMT_PTR "\n",
+//         (uintptr_t)*key);
+//     cn_failure(CN_FAILURE_OWNERSHIP_LEAK, LOOP);
+//   }
+// }
+
 void cn_postcondition_leak_check(void) {
   // leak checking
   hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
@@ -253,7 +275,7 @@ void cn_loop_leak_check(void) {
     int64_t* key = it.key;
     int* depth = it.value;
     /* Everything mapped to the function stack depth should have been bumped up by calls to Owned in invariant */
-    if (*depth == cn_stack_depth - 1) {
+    if (*depth != WILDCARD_DEPTH && *depth == cn_stack_depth) {
       print_error_msg_info(error_msg_info);
       // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
@@ -265,22 +287,36 @@ void cn_loop_leak_check(void) {
   }
 }
 
-void cn_loop_put_back_ownership(void) {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+/* / TODO: DAVID */
 
-  while (ht_next(&it)) {
-    int64_t* key = it.key;
-    int* depth = it.value;
-    /* Bump down everything that was bumped up in loop invariant */
-    if (*depth == cn_stack_depth) {
-      ownership_ghost_state_set(key, cn_stack_depth - 1);
-    }
+struct loop_ownership* initialise_loop_ownership_state(void) {
+  struct loop_ownership* loop_ownership =
+      bump_alloc.malloc(sizeof(struct loop_ownership));
+  loop_ownership->owned_loop_addrs = bump_alloc.malloc(1000 * sizeof(uintptr_t));
+  loop_ownership->arr_size = 0;
+  return loop_ownership;
+}
+
+void cn_add_to_loop_ownership_state(
+    void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
+  for (int i = 0; i < size; i++) {
+    loop_ownership->owned_loop_addrs[loop_ownership->arr_size] =
+        (uintptr_t)generic_c_ptr + i;
+    loop_ownership->arr_size++;
   }
+}
+
+void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
+  for (int i = 0; i < loop_ownership->arr_size; i++) {
+    int64_t address_key = loop_ownership->owned_loop_addrs[i];
+    ownership_ghost_state_set(&address_key, cn_stack_depth);
+  }
+  loop_ownership->arr_size = 0;
 }
 
 int ownership_ghost_state_get(int64_t* address_key) {
   int* curr_depth_maybe = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
-  return curr_depth_maybe ? *curr_depth_maybe : -1;
+  return curr_depth_maybe ? *curr_depth_maybe : UNMAPPED_VAL;
 }
 
 void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
@@ -293,17 +329,7 @@ void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
 }
 
 void ownership_ghost_state_remove(int64_t* address_key) {
-  ownership_ghost_state_set(address_key, -1);
-}
-
-void dump_ownership_state() {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-  // cn_printf(CN_LOGGING_INFO, "BEGIN ownership state\n");
-  while (ht_next(&it)) {
-    // int depth = it.value ? *(int*)it.value : -1;
-    // cn_printf(CN_LOGGING_INFO, "[%#lx] => depth: %d\n", *it.key, depth);
-  }
-  // cn_printf(CN_LOGGING_INFO, "END\n");
+  ownership_ghost_state_set(address_key, UNMAPPED_VAL);
 }
 
 _Bool is_wildcard(void* generic_c_ptr, int offset) {
@@ -319,10 +345,28 @@ _Bool is_wildcard(void* generic_c_ptr, int offset) {
   return 1;
 }
 
-void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg) {
+void cn_get_ownership(void* generic_c_ptr, size_t size) {
   /* Used for precondition and loop invariant taking/getting of ownership */
-  c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1);
+  c_ownership_check(
+      "Precondition ownership check", generic_c_ptr, (int)size, cn_stack_depth - 1);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
+}
+
+void cn_loop_get_ownership(
+    void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
+  c_ownership_check(
+      "Loop invariant ownership check", generic_c_ptr, (int)size, cn_stack_depth);
+  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
+  if (loop_ownership) {
+    cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
+  } else {
+    // Should never be triggered if Fulminate implementation is correct
+    cn_printf(CN_LOGGING_ERROR, "******** FULMINATE ERROR *********\n");
+    cn_printf(CN_LOGGING_ERROR, "No loop ownership state found.\n");
+    cn_printf(CN_LOGGING_ERROR,
+        "Please open a pull request at https://github.com/rems-project/cn\n");
+    exit(1);
+  }
 }
 
 void cn_put_ownership(void* generic_c_ptr, size_t size) {
@@ -350,12 +394,15 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
   fulminate_assume_ownership(generic_c_ptr, size, fun, false);
 }
 
-void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size_t size) {
+void cn_get_or_put_ownership(enum spec_mode spec_mode,
+    void* generic_c_ptr,
+    size_t size,
+    struct loop_ownership* loop_ownership) {
   nr_owned_predicates++;
   if (!is_wildcard(generic_c_ptr, (int)size)) {
     switch (spec_mode) {
       case PRE: {
-        cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
+        cn_get_ownership(generic_c_ptr, size);
         break;
       }
       case POST: {
@@ -363,7 +410,7 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
         break;
       }
       case LOOP: {
-        cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
+        cn_loop_get_ownership(generic_c_ptr, size, loop_ownership);
       }
       default: {
         break;
@@ -402,7 +449,7 @@ void c_ownership_check(char* access_kind,
     if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
       print_error_msg_info(error_msg_info);
       cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
-      if (curr_depth == -1) {
+      if (curr_depth == UNMAPPED_VAL) {
         cn_printf(CN_LOGGING_ERROR,
             "  ==> " FMT_PTR "[%d] (" FMT_PTR ") not owned\n",
             (uintptr_t)generic_c_ptr,
@@ -424,28 +471,30 @@ void c_ownership_check(char* access_kind,
   // cn_printf(CN_LOGGING_INFO, "\n");
 }
 
+// TODO: Reimplement for new ownership ghost state data structure
 void dump_ownership_ghost_state(int stack_depth) {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-  cn_printf(CN_LOGGING_INFO, "ADDRESS \t\t\tCN STACK DEPTH\n")
-      cn_printf(CN_LOGGING_INFO, "====================\n") while (ht_next(&it)) {
-    int64_t* key = it.key;
-    int* depth = it.value;
-    if (*depth == stack_depth) {
-      cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
-    }
-  }
+  // hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+  // cn_printf(CN_LOGGING_INFO, "ADDRESS \t\t\tCN STACK DEPTH\n")
+  //     cn_printf(CN_LOGGING_INFO, "====================\n") while (ht_next(&it)) {
+  //   int64_t* key = it.key;
+  //   int* depth = it.value;
+  //   if (*depth == stack_depth) {
+  //     cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
+  //   }
+  // }
 }
 
+// TODO: Reimplement for new ownership ghost state data structure
 _Bool is_mapped(void* ptr) {
-  hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
-  while (ht_next(&it)) {
-    int64_t* key = it.key;
-    if (*key == (int64_t)ptr) {
-      int* depth = it.value;
-      cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
-      return true;
-    }
-  }
+  // hash_table_iterator it = ht_iterator(cn_ownership_global_ghost_state);
+  // while (ht_next(&it)) {
+  //   int64_t* key = it.key;
+  //   if (*key == (int64_t)ptr) {
+  //     int* depth = it.value;
+  //     cn_printf(CN_LOGGING_INFO, "[%p] => depth: %d\n", (void*)*key, *depth);
+  //     return true;
+  //   }
+  // }
   return false;
 }
 
