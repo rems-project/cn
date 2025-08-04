@@ -26,6 +26,10 @@ let debug_stage (stage : string) (str : string) : unit =
   debug_log (str ^ "\n\n")
 
 
+let parse_domain (s : string) : (module GenTerms.Domain.T) =
+  match s with _ -> (module AbstractDomains.Trivial)
+
+
 let synthesize
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -34,12 +38,18 @@ let synthesize
       (tests : Test.t list)
   : Pp.document
   =
+  let module AD = (val parse_domain "ownership") in
+  let module Stage1 = Stage1.Make (AD) in
   let ctx = Stage1.transform filename prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);
+  let module Stage2 = Stage2.Make (AD) in
   let ctx = Stage2.transform prog5 paused ctx in
   debug_stage "Stage 2" (ctx |> Stage2.Ctx.pp |> Pp.plain ~width:80);
+  let module Stage3 = Stage3.Make (AD) in
   let ctx = Stage3.transform ctx in
   debug_stage "Stage 3" (ctx |> Stage3.Ctx.pp |> Pp.plain ~width:80);
+  let module Stage4 = Stage4.Make (AD) in
   let ctx = Stage4.transform ctx in
   debug_stage "Stage 4" (ctx |> Stage4.Ctx.pp |> Pp.plain ~width:80);
+  let module Stage5 = Stage5.Make (AD) in
   Stage5.transform sigma ctx

@@ -1,4 +1,4 @@
-module Make (GT : GenDefinitions.GEN_TERM) = struct
+module Make (GT : GenTerms.T) = struct
   module GD = GenDefinitions.Make (GT)
 
   type t = (Sym.t * GD.t) list [@@deriving eq, ord]
@@ -19,7 +19,7 @@ module Make (GT : GenDefinitions.GEN_TERM) = struct
     ret
 end
 
-module MakeOptional (GT : GenDefinitions.GEN_TERM) = struct
+module MakeOptional (GT : GenTerms.T) = struct
   module GD = GenDefinitions.MakeOptional (GT)
 
   type t = (Sym.t * GD.t) list [@@deriving eq, ord]

@@ -8,7 +8,7 @@ type ('tag, 'ast) annot =
 [@@deriving eq, ord]
 
 module [@warning "-60"] Make (AD : sig end) = struct
-  open struct
+  module Inner = struct
     type ('tag, 'recur) ast =
       [ `Arbitrary (** Generate arbitrary values *)
       | `Call of Sym.t * IT.t list
@@ -30,13 +30,15 @@ module [@warning "-60"] Make (AD : sig end) = struct
       | `AssertDomain of Sym.t * BT.t * Abstract.domain * ('tag, 'recur) annot
         (** Domain assertion *)
       | `AsgnElab of
-          ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
+          Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
       | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * ('tag, 'recur) annot
       | `PickSizedElab of Sym.t * (Z.t * ('tag, 'recur) annot) list
       | `SplitSizeElab of Sym.t * Sym.Set.t * ('tag, 'recur) annot
       ]
     [@@deriving eq, ord]
   end
+
+  open Inner
 
   let basetype (Annot (_, _, bt, _) : ('tag, 'ast) annot) : BT.t = bt
 
@@ -251,7 +253,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
            (separate_map (comma ^^ space) Sym.pp (syms |> Sym.Set.to_seq |> List.of_seq))
       ^^ semi
       ^/^ pp gt_rest
-    | `AsgnElab (((backtrack_var, (p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
+    | `AsgnElab (backtrack_var, (((p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
       Sctypes.pp sct
       ^^^ IT.pp it_addr
       ^^^ !^":="
@@ -359,7 +361,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
   (* Elaboration *)
   let elaborate_asgn_ (`Asgn ((it_addr, sct), it_value, gt_rest))
     : [> `AsgnElab of
-           ((Sym.t * (Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
+           Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
       ]
     =
     let rec pointer_of (it : IT.t) : Sym.t * BT.t =
@@ -393,7 +395,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
     in
     let backtrack_var = Sym.fresh_anon () in
     let pointer = pointer_of it_addr in
-    `AsgnElab (((backtrack_var, pointer, it_addr), sct), it_value, gt_rest)
+    `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_value, gt_rest)
 
 
   let elaborate_asgn (Annot (gt_, tag, bt, loc)) =
@@ -423,4 +425,70 @@ module [@warning "-60"] Make (AD : sig end) = struct
 
   let elaborate_split_size (Annot (gt_, tag, bt, loc)) =
     Annot (elaborate_split_size_ gt_, tag, bt, loc)
+end
+
+type ('tag, 'recur) s =
+  [ `A
+  | `B of 'recur
+  ]
+
+module type S = sig
+  type 'tag t = private [< ('tag, 'recur) s ] as 'recur
+end
+
+module Domain = struct
+  let ret_sym = Sym.fresh "return"
+
+  module type T = sig
+    type t [@@deriving eq, ord]
+
+    (** The bottom element of the domain *)
+    val bottom : t
+
+    (** The top element of the domain *)
+    val top : t
+
+    (** Partial order: [leq x y] holds if x ≤ y in the lattice *)
+    val leq : t -> t -> bool
+
+    (** Least upper bound (join) *)
+    val join : t -> t -> t
+
+    (** Greatest lower bound (meet) *)
+    val meet : t -> t -> t
+
+    (* (** Widening operation to ensure fixpoint convergence.
+      [widen ~prev ~next] returns an over-approximation of the union
+      of [prev] and [next]. *)
+  val widen : prev:t -> next:t -> t *)
+
+    (* (** Narrowing operation to refine after widening.
+      [narrow ~prev ~next] returns a refined approximation of the intersection
+      of [prev] and [next]. *)
+  val narrow : prev:t -> next:t -> t *)
+
+    (** Rename a variable *)
+    val rename : from:Sym.t -> to_:Sym.t -> t -> t
+
+    (** Remove a variable *)
+    val remove : Sym.t -> t -> t
+
+    val pp : t -> Pp.document
+  end
+end
+
+module type T = sig
+  module AD : Domain.T
+
+  type tag_t
+
+  type t_ = private [< (tag_t, 'recur) Make(AD).Inner.ast ] as 'recur
+
+  type t = (tag_t, t_) annot
+
+  val equal : t -> t -> bool
+
+  val compare : t -> t -> int
+
+  val pp : t -> Pp.document
 end
