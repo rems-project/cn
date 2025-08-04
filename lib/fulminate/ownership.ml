@@ -290,8 +290,13 @@ let rec get_c_control_flow_ownership_injs_aux
        ]
      | _ ->
        (* In this case, we are dealing with a for-real C goto *)
-       []
-       (* TODO *))
+       (* Unmap addresses of all in-scope variables *)
+       let loc_before_goto = get_start_loc loc in
+       [ { loc = loc_before_goto;
+           bs_and_ss = ([], List.map generate_c_local_ownership_exit return_vars);
+           injection_kind = NonReturnInj
+         }
+       ])
   | AilSreturnVoid ->
     [ { loc;
         bs_and_ss = ([], List.map generate_c_local_ownership_exit return_vars);
