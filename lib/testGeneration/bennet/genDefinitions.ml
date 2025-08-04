@@ -1,16 +1,6 @@
 module BT = BaseTypes
 
-module type GEN_TERM = sig
-  type t
-
-  val equal : t -> t -> bool
-
-  val compare : t -> t -> int
-
-  val pp : t -> Pp.document
-end
-
-module Make (GT : GEN_TERM) = struct
+module Make (GT : GenTerms.T) = struct
   type t =
     { filename : string;
       recursive : bool;
@@ -43,7 +33,7 @@ module Make (GT : GEN_TERM) = struct
        ^/^ rbrace)
 end
 
-module MakeOptional (GT : GEN_TERM) = struct
+module MakeOptional (GT : GenTerms.T) = struct
   type t =
     { filename : string;
       recursive : bool;

@@ -1,7 +1,13 @@
 (** This stage tags the AST with backtracking information *)
 
-module Term = Term
-module Def = Def
-module Ctx = Ctx
+module Make (AD : GenTerms.Domain.T) = struct
+  open struct
+    module Convert = Convert.Make (AD)
+  end
 
-let transform (ctx : Stage3.Ctx.t) : Ctx.t = Convert.transform ctx
+  module Term = Term.Make (AD)
+  module Def = Def.Make (AD)
+  module Ctx = Ctx.Make (AD)
+
+  let transform (ctx : Stage3.Make(AD).Ctx.t) : Ctx.t = Convert.transform ctx
+end

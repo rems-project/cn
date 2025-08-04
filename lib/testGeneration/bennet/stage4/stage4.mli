@@ -1,5 +1,9 @@
-module Term = Term
-module Def = Def
-module Ctx = Ctx
+module Make (AD : GenTerms.Domain.T) : sig
+  module Term : module type of Term.Make (AD)
 
-val transform : Stage3.Ctx.t -> Ctx.t
+  module Def : module type of Def.Make (AD)
+
+  module Ctx : module type of Ctx.Make (AD)
+
+  val transform : Stage3.Make(AD).Ctx.t -> Ctx.t
+end
