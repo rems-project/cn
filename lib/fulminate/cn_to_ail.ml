@@ -3924,17 +3924,8 @@ let rec cn_to_ail_loop_inv_aux
         subst_loop
     in
     ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
-  | AT.Ghost ((sym, bt), _, at') ->
-    let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
-    let subst_loop =
-      ESE.loop_subst
-        (ESE.sym_subst (sym, bt, cn_sym))
-        (contains_user_spec, cond_loc, loop_loc, at')
-    in
-    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
-      cn_to_ail_loop_inv_aux filename dts globals preds spec_mode_opt subst_loop
-    in
-    ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
+  | AT.Ghost _ ->
+    failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
   | L lat ->
     let rec modify_decls_for_loop decls modified_stats =
       let rec collect_initialised_syms_and_exprs = function
