@@ -260,11 +260,8 @@ let rec get_c_control_flow_ownership_injs_aux
   | AilSswitch (_, s) ->
     get_c_control_flow_ownership_injs_aux [] continue_vars return_vars bindings s
   | AilSlabel (label_sym, s, _) ->
-    let loc_after_label = get_start_loc ~offset:1 loc in
-    Printf.printf
-      "Location of inj for %s: %s\n"
-      (Sym.pp_string label_sym)
-      (Cerb_location.simple_location loc_after_label);
+    let offset = String.length (Sym.pp_string label_sym) + 1 in
+    let loc_after_label = get_start_loc ~offset loc in
     let inj =
       { loc = loc_after_label;
         bs_and_ss = ([], List.map generate_c_local_ownership_entry return_vars);
