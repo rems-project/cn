@@ -192,11 +192,9 @@ let[@warning "-32" (* unused-value-declaration *)] create_declaration sym decl =
 
 let get_start_loc ?(offset = 0) = function
   | Cerb_location.Loc_region (start_pos, _, _) ->
-    Printf.printf "Loc_region case\n";
     let new_start_pos = Cerb_position.change_cnum start_pos offset in
     Cerb_location.point new_start_pos
   | Loc_regions (pos_list, _) ->
-    Printf.printf "Loc_regions case\n";
     (match pos_list with
      | (start_pos, _) :: _ ->
        let new_start_pos = Cerb_position.change_cnum start_pos offset in
@@ -204,9 +202,7 @@ let get_start_loc ?(offset = 0) = function
      | [] ->
        failwith
          "get_start_loc: Loc_regions has empty list of positions (should be non-empty)")
-  | Loc_point pos ->
-    Printf.printf "Loc_point case\n";
-    Cerb_location.point (Cerb_position.change_cnum pos offset)
+  | Loc_point pos -> Cerb_location.point (Cerb_position.change_cnum pos offset)
   | Loc_unknown | Loc_other _ ->
     failwith "get_start_loc: Location should be Loc_region, Loc_regions or Loc_point"
 
