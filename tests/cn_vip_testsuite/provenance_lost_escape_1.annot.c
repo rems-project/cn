@@ -23,6 +23,7 @@ int main()
   //CN_VIP printf("Addresses: p=%p\n",(void*)p);
   /*CN_VIP*//*@ to_bytes RW<uintptr_t>(&i1); @*/
   /*CN_VIP*//*@ to_bytes RW<uintptr_t>(&i4); @*/
+  /*CN_VIP*//*@ apply byte_array_init_8(&i1, &i4, sizeof<int*>); @*/
   /*CN_VIP*/int result = _memcmp((byte*)&i1, (byte*)&i4, sizeof(i1));
   /*CN_VIP*//*@ from_bytes RW<uintptr_t>(&i1); @*/
   /*CN_VIP*//*@ from_bytes RW<uintptr_t>(&i4); @*/
