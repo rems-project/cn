@@ -3,7 +3,6 @@ module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 module StringMap = Map.Make (String)
 
 module Make (AD : GenTerms.Domain.T) = struct
@@ -97,7 +96,7 @@ module Make (AD : GenTerms.Domain.T) = struct
 
 
   let transform_gd
-        (cg : SymGraph.t)
+        (cg : Sym.Digraph.t)
         ({ filename : string;
            recursive : bool;
            spec;
@@ -111,7 +110,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     =
     let recursive_syms =
       if recursive then
-        SymGraph.fold_pred Sym.Set.add cg name Sym.Set.empty
+        Sym.Digraph.fold_pred Sym.Set.add cg name Sym.Set.empty
       else
         Sym.Set.empty
     in
@@ -141,16 +140,16 @@ module Make (AD : GenTerms.Domain.T) = struct
       aux gd.body
 
 
-    module Oper = Graph.Oper.P (SymGraph)
+    module Oper = Graph.Oper.P (Sym.Digraph)
   end
 
-  let get_call_graph (ctx : Stage2.Ctx.t) : SymGraph.t =
+  let get_call_graph (ctx : Stage2.Ctx.t) : Sym.Digraph.t =
     ctx
     |> List.map_snd get_calls
     |> List.fold_left
          (fun cg (fsym, calls) ->
-            Sym.Set.fold (fun fsym' cg' -> SymGraph.add_edge cg' fsym fsym') calls cg)
-         SymGraph.empty
+            Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg)
+         Sym.Digraph.empty
     |> Oper.transitive_closure
 
 

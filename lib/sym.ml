@@ -7,15 +7,17 @@ let executable_spec_enabled = ref false
 module Ord = struct
   type t = S.sym
 
+  let equal = S.symbolEquality
+
   let compare = S.symbol_compare
+
+  let hash = S.symbol_num
 end
 
 include Ord
-
-let equal = S.symbolEquality
-
 module Set = Set.Make (Ord)
 module Map = Map.Make (Ord)
+module Digraph = Graph.Persistent.Digraph.Concrete (Ord)
 
 let description = S.symbol_description
 
@@ -74,5 +76,3 @@ let fresh_make_uniq name = fresh (make_uniq name)
 let fresh_make_uniq_kind ~prefix name = fresh (make_uniq prefix ^ "_" ^ name)
 
 let json sym = `String (pp_string sym)
-
-let hash = num

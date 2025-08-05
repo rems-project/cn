@@ -1,6 +1,5 @@
 module IT = IndexTerms
 module LC = LogicalConstraints
-module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 
 module Make (AD : GenTerms.Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -8,12 +7,12 @@ module Make (AD : GenTerms.Domain.T) = struct
   module Term = Term.Make (AD)
   module Stmt = Stmt.Make (AD)
 
-  let add_edge_no_cycle (g : SymGraph.t) ((x, y) : Sym.t * Sym.t) : SymGraph.t =
+  let add_edge_no_cycle (g : Sym.Digraph.t) ((x, y) : Sym.t * Sym.t) : Sym.Digraph.t =
     let g' =
-      let module Oper = Graph.Oper.P (SymGraph) in
-      SymGraph.add_edge g x y |> Oper.transitive_closure
+      let module Oper = Graph.Oper.P (Sym.Digraph) in
+      Sym.Digraph.add_edge g x y |> Oper.transitive_closure
     in
-    if SymGraph.fold_edges (fun x y acc -> Sym.equal x y || acc) g' false then
+    if Sym.Digraph.fold_edges (fun x y acc -> Sym.equal x y || acc) g' false then
       g
     else
       g'
@@ -26,26 +25,26 @@ module Make (AD : GenTerms.Domain.T) = struct
     : Sym.t list
     =
     (* Describes data dependencies where [x <- y] means that [x] depends on [y] *)
-    let rec collect_dependencies (stmts : Stmt.t list) : SymGraph.t =
+    let rec collect_dependencies (stmts : Stmt.t list) : Sym.Digraph.t =
       match stmts with
       | Stmt (LetStar (x, gt), _) :: stmts' ->
-        let g = SymGraph.add_vertex (collect_dependencies stmts') x in
+        let g = Sym.Digraph.add_vertex (collect_dependencies stmts') x in
         Sym.Set.fold
           (fun y g' ->
              if Sym.Set.mem y iargs then
                g'
              else
-               SymGraph.add_edge g' y x)
+               Sym.Digraph.add_edge g' y x)
           (Term.free_vars gt)
           g
       | _ :: stmts' -> collect_dependencies stmts'
-      | [] -> SymGraph.empty
+      | [] -> Sym.Digraph.empty
     in
     (* Insert edges x <- y_1, ..., y_n when x = f(y_1, ..., y_n) *)
-    let rec consider_equalities (stmts : Stmt.t list) (g : SymGraph.t) : SymGraph.t =
+    let rec consider_equalities (stmts : Stmt.t list) (g : Sym.Digraph.t) : Sym.Digraph.t =
       match stmts with
       | Stmt (LetStar (x, _), _) :: stmts' ->
-        consider_equalities stmts' (SymGraph.add_vertex g x)
+        consider_equalities stmts' (Sym.Digraph.add_vertex g x)
       | Stmt (Assert (T (IT (Binop (EQ, IT (Sym x, _, _), it), _, _))), _) :: stmts'
       | Stmt
           ( Assert (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
@@ -83,12 +82,12 @@ module Make (AD : GenTerms.Domain.T) = struct
       | _ :: stmts' -> consider_equalities stmts' g
       | [] -> g
     in
-    let rec consider_learnable_constraints (stmts : Stmt.t list) (g : SymGraph.t)
-      : SymGraph.t
+    let rec consider_learnable_constraints (stmts : Stmt.t list) (g : Sym.Digraph.t)
+      : Sym.Digraph.t
       =
       match stmts with
       | Stmt (LetStar (x, _), _) :: stmts' ->
-        consider_learnable_constraints stmts' (SymGraph.add_vertex g x)
+        consider_learnable_constraints stmts' (Sym.Digraph.add_vertex g x)
       | Stmt (Assert (T (IT (Binop (LE, IT (Sym x, _, _), it), _, _))), _) :: stmts'
       | Stmt (Assert (T (IT (Binop (LEPointer, IT (Sym x, _, _), it), _, _))), _)
         :: stmts'
@@ -177,9 +176,11 @@ module Make (AD : GenTerms.Domain.T) = struct
       | [] -> g
     in
     (* Put calls before local variables they constrain *)
-    let consider_constrained_calls (stmts : Stmt.t list) (g : SymGraph.t) : SymGraph.t =
-      let rec aux (from_calls : Sym.Set.t) (stmts : Stmt.t list) (g : SymGraph.t)
-        : SymGraph.t
+    let consider_constrained_calls (stmts : Stmt.t list) (g : Sym.Digraph.t)
+      : Sym.Digraph.t
+      =
+      let rec aux (from_calls : Sym.Set.t) (stmts : Stmt.t list) (g : Sym.Digraph.t)
+        : Sym.Digraph.t
         =
         match stmts with
         | Stmt (LetStar (x, gt), _) :: stmts' when Term.contains_call gt ->
@@ -191,7 +192,7 @@ module Make (AD : GenTerms.Domain.T) = struct
           let free_vars = LC.free_vars lc in
           let call_vars = Sym.Set.inter free_vars from_calls in
           let non_call_vars = Sym.Set.diff free_vars from_calls in
-          let add_from_call (x : Sym.t) (g : SymGraph.t) : SymGraph.t =
+          let add_from_call (x : Sym.t) (g : Sym.Digraph.t) : Sym.Digraph.t =
             Sym.Set.fold (fun y g' -> add_edge_no_cycle g' (y, x)) call_vars g
           in
           Sym.Set.fold add_from_call non_call_vars g
@@ -200,9 +201,9 @@ module Make (AD : GenTerms.Domain.T) = struct
       aux Sym.Set.empty stmts g
     in
     (* Get original ordering of variables *)
-    let consider_original_ordering (stmts : Stmt.t list) (g : SymGraph.t) =
-      let rec aux (defined : Sym.Set.t) (stmts : Stmt.t list) (g : SymGraph.t)
-        : SymGraph.t
+    let consider_original_ordering (stmts : Stmt.t list) (g : Sym.Digraph.t) =
+      let rec aux (defined : Sym.Set.t) (stmts : Stmt.t list) (g : Sym.Digraph.t)
+        : Sym.Digraph.t
         =
         match stmts with
         | Stmt (LetStar (x, _), _) :: stmts' ->
@@ -222,8 +223,8 @@ module Make (AD : GenTerms.Domain.T) = struct
       |> consider_constrained_calls stmts
       |> consider_original_ordering stmts
     in
-    SymGraph.fold_edges (fun x y () -> assert (not (Sym.equal x y))) g ();
-    let module T = Graph.Topological.Make (SymGraph) in
+    Sym.Digraph.fold_edges (fun x y () -> assert (not (Sym.equal x y))) g ();
+    let module T = Graph.Topological.Make (Sym.Digraph) in
     List.rev (T.fold List.cons g [])
 
 
