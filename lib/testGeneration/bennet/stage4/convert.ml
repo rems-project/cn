@@ -65,26 +65,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       | `Return it -> GenTerms.Annot (`Return it, (path_vars, last_var), bt, loc)
       | `Assert (lc, gt_rest) ->
         let gt_rest = aux vars path_vars gt_rest in
-        (match Abstract.abstract_lc vars lc with
-         | Some (equiv, (sym, sym_bt), domain) ->
-           if equiv then
-             GenTerms.Annot
-               ( `AssertDomain (sym, sym_bt, domain, gt_rest),
-                 (path_vars, last_var),
-                 bt,
-                 loc )
-           else
-             GenTerms.Annot
-               ( `AssertDomain
-                   ( sym,
-                     sym_bt,
-                     domain,
-                     GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc)
-                   ),
-                 (path_vars, last_var),
-                 bt,
-                 loc )
-         | None -> GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc))
+        GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc)
       | `ITE (it_if, gt_then, gt_else) ->
         let path_vars = Sym.Set.union path_vars (IT.free_vars it_if) in
         let gt_then = aux vars path_vars gt_then in

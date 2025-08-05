@@ -27,8 +27,6 @@ module [@warning "-60"] Make (AD : sig end) = struct
       | `PickSized of (Z.t * ('tag, 'recur) annot) list
         (** Pick among a list of options, weighted by the provided [Z.t]s *)
       | `SplitSize of Sym.Set.t * ('tag, 'recur) annot
-      | `AssertDomain of Sym.t * BT.t * Abstract.domain * ('tag, 'recur) annot
-        (** Domain assertion *)
       | `AsgnElab of
           Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
       | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * ('tag, 'recur) annot
@@ -220,12 +218,6 @@ module [@warning "-60"] Make (AD : sig end) = struct
            (separate_map (comma ^^ space) Sym.pp (syms |> Sym.Set.to_seq |> List.of_seq))
       ^^ semi
       ^/^ pp gt_rest
-    | `AssertDomain (x, _x_bt, _domain, gt_rest) ->
-      !^"assert_domain"
-      ^^ brackets (Sym.pp x)
-      ^^ parens (nest 2 (break 1 ^^ !^"TODO: `Abstract.pp_domain`") ^^ break 1)
-      ^^ semi
-      ^/^ pp gt_rest
     | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner) ->
       !^"map"
       ^^^ parens
@@ -329,7 +321,6 @@ module [@warning "-60"] Make (AD : sig end) = struct
     | `Asgn (_, _, gt')
     | `AsgnElab (_, _, gt')
     | `Assert (_, gt')
-    | `AssertDomain (_, _, _, gt')
     | `Map (_, gt')
     | `MapElab (_, gt')
     | `SplitSize (_, gt')
@@ -346,7 +337,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
     | `Arbitrary | `Return _ -> false
-    | `Asgn _ | `AsgnElab _ | `Assert _ | `AssertDomain _ -> true
+    | `Asgn _ | `AsgnElab _ | `Assert _ -> true
     | `Call _ | `CallSized _ -> true (* Could be less conservative... *)
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
       contains_constraint gt1 || contains_constraint gt2

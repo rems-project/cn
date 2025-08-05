@@ -28,7 +28,6 @@ module Make (GT : GenTerms.T) (I : Domain.Interpreter with module AD = GT.AD) = 
       | `Asgn (_, _, gt')
       | `AsgnElab (_, _, _, gt')
       | `Assert (_, gt')
-      | `AssertDomain (_, _, _, gt')
       | `SplitSize (_, gt')
       | `SplitSizeElab (_, _, gt') ->
         let d' = I.abs_stmt ctx tm d in

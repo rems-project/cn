@@ -26,8 +26,6 @@ module Make (AD : GenTerms.Domain.T) = struct
     | `Return of IT.t (** Monadic return *)
     | `Assert of LC.t * 'recur annot
       (** Assert some [LC.t] are true, backtracking otherwise *)
-    | `AssertDomain of Sym.t * BT.t * Abstract.domain * 'recur annot
-      (** Domain assertion *)
     | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
     | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * 'recur annot
     | `SplitSizeElab of Sym.t * Sym.Set.t * 'recur annot
@@ -56,7 +54,6 @@ module Make (AD : GenTerms.Domain.T) = struct
       `LetStar ((x, subst su gt1), subst su gt2)
     | `Return it -> `Return (IT.subst su it)
     | `Assert (lc, gt') -> `Assert (LC.subst su lc, subst su gt')
-    | `AssertDomain (x, x_bt, domain, gt') -> `AssertDomain (x, x_bt, domain, subst su gt')
     | `ITE (it, gt_then, gt_else) ->
       `ITE (IT.subst su it, subst su gt_then, subst su gt_else)
     | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
@@ -102,8 +99,6 @@ module Make (AD : GenTerms.Domain.T) = struct
       | `LetStar ((x, gt), gt') -> `LetStar ((x, map_gen_pre f gt), map_gen_pre f gt')
       | `Return it -> `Return it
       | `Assert (lcs, gt') -> `Assert (lcs, map_gen_pre f gt')
-      | `AssertDomain (x, x_bt, domain, gt') ->
-        `AssertDomain (x, x_bt, domain, map_gen_pre f gt')
       | `ITE (it, gt_then, gt_else) ->
         `ITE (it, map_gen_pre f gt_then, map_gen_pre f gt_else)
       | `MapElab ((i, i_bt, range, it_perm), gt') ->
@@ -128,8 +123,6 @@ module Make (AD : GenTerms.Domain.T) = struct
       | `LetStar ((x, gt), gt') -> `LetStar ((x, map_gen_post f gt), map_gen_post f gt')
       | `Return it -> `Return it
       | `Assert (lcs, gt') -> `Assert (lcs, map_gen_post f gt')
-      | `AssertDomain (x, x_bt, domain, gt') ->
-        `AssertDomain (x, x_bt, domain, map_gen_post f gt')
       | `ITE (it, gt_then, gt_else) ->
         `ITE (it, map_gen_post f gt_then, map_gen_post f gt_else)
       | `MapElab ((i, i_bt, range, it_perm), gt') ->

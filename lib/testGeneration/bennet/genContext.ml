@@ -35,7 +35,6 @@ module Make (GT : GenTerms.T) = struct
         | `Asgn (_, _, gt')
         | `AsgnElab (_, _, _, gt')
         | `Assert (_, gt')
-        | `AssertDomain (_, _, _, gt')
         | `Map (_, gt')
         | `MapElab (_, gt')
         | `SplitSize (_, gt')
