@@ -556,3 +556,25 @@ let generate_ownership_global_assignments
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
+
+
+let generate_fn_call_ghost_args_injs
+      filename
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let dts = sigm.cn_datatypes in
+  List.map
+    (fun (loc, ghost_args) ->
+       ( loc,
+         List.flatten
+           (List.map
+              generate_ail_stat_strs
+              (Cn_to_ail.cn_to_ail_cnprog_ghost_args
+                 filename
+                 dts
+                 globals
+                 (Some Statement)
+                 ghost_args)) ))
+    (Mucore.ghost_args_and_their_call_locs prog5)

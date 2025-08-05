@@ -248,3 +248,11 @@ val cn_to_ail_assume_pre
   'a LogicalArgumentTypes.t ->
   AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
+
+val cn_to_ail_cnprog_ghost_args
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Ctype.ctype) list ->
+  spec_mode option ->
+  IndexTerms.t Cnprog.t list ->
+  (AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list) list

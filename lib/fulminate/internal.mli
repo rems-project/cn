@@ -81,3 +81,9 @@ val generate_ownership_global_assignments
   :  GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (Sym.t * (string list * string list)) list
+
+val generate_fn_call_ghost_args_injs
+  :  string ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  unit Mucore.file ->
+  (Cerb_location.t * string list) list
