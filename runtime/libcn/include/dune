@@ -31,6 +31,9 @@
   (bennet/info/unsatisfied.h as runtime/include/bennet/info/unsatisfied.h)
   (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
   (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
+  (bennet/internals/domains/ownership.h
+   as
+   runtime/include/bennet/internals/domains/ownership.h)
   (bennet/internals/domains/sized.h
    as
    runtime/include/bennet/internals/domains/sized.h)

@@ -63,6 +63,11 @@ void bennet_ownership_restore(size_t size) {
   exit(1);
 }
 
+void bennet_alloc_record(void* p, size_t sz) {
+  pointer_data data = {.ptr = p, .sz = sz};
+  bennet_vector_push(pointer_data)(&alloc_vector, data);
+}
+
 cn_pointer* bennet_alloc(bennet_domain(uintptr_t) * cs) {
   size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;
 
@@ -74,8 +79,7 @@ cn_pointer* bennet_alloc(bennet_domain(uintptr_t) * cs) {
 
   void* p = bennet_rand_alloc_bounded(cs);
 
-  pointer_data data = {.ptr = p, .sz = bytes};
-  bennet_vector_push(pointer_data)(&alloc_vector, data);
+  bennet_alloc_record(p, bytes);
 
   return convert_to_cn_pointer(p + cs->lower_offset_bound);
 }
