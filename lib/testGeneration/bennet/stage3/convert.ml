@@ -124,36 +124,8 @@ module Make (AD : GenTerms.Domain.T) = struct
     }
 
 
-  open struct
-    let get_calls (gd : Stage2.Def.t) : Sym.Set.t =
-      let rec aux (gt : Stage2.Term.t) : Sym.Set.t =
-        let (Annot (gt_, (), _, _)) = gt in
-        match gt_ with
-        | `Arbitrary | `Return _ -> Sym.Set.empty
-        | `Pick choices ->
-          choices |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
-        | `Call (fsym, _) -> Sym.Set.singleton fsym
-        | `Asgn (_, _, gt') | `Assert (_, gt') | `Map (_, gt') -> aux gt'
-        | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
-          Sym.Set.union (aux gt1) (aux gt2)
-      in
-      aux gd.body
-
-
-    module Oper = Graph.Oper.P (Sym.Digraph)
-  end
-
-  let get_call_graph (ctx : Stage2.Ctx.t) : Sym.Digraph.t =
-    ctx
-    |> List.map_snd get_calls
-    |> List.fold_left
-         (fun cg (fsym, calls) ->
-            Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg)
-         Sym.Digraph.empty
-    |> Oper.transitive_closure
-
-
   let transform (ctx : Stage2.Ctx.t) : Ctx.t =
-    let cg = get_call_graph ctx in
+    let module Oper = Graph.Oper.P (Sym.Digraph) in
+    let cg = Oper.transitive_closure (Stage2.Ctx.get_call_graph ctx) in
     List.map_snd (transform_gd cg) ctx
 end

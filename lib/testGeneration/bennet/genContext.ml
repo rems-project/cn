@@ -17,6 +17,43 @@ module Make (GT : GenTerms.T) = struct
     Sym.executable_spec_enabled := true;
     Sym.print_nums := false;
     ret
+
+
+  open struct
+    let get_calls (gd : GD.t) : Sym.Set.t =
+      let rec aux (gt : GT.t) : Sym.Set.t =
+        let (Annot (gt_, _, _, _)) = gt in
+        match gt_ with
+        | `Arbitrary | `Return _ -> Sym.Set.empty
+        | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
+        | `PickSized wgts | `PickSizedElab (_, wgts) ->
+          wgts
+          |> List.map snd
+          |> List.map aux
+          |> List.fold_left Sym.Set.union Sym.Set.empty
+        | `Call (fsym, _) | `CallSized (fsym, _, _) -> Sym.Set.singleton fsym
+        | `Asgn (_, _, gt')
+        | `AsgnElab (_, _, _, gt')
+        | `Assert (_, gt')
+        | `AssertDomain (_, _, _, gt')
+        | `Map (_, gt')
+        | `MapElab (_, gt')
+        | `SplitSize (_, gt')
+        | `SplitSizeElab (_, _, gt') ->
+          aux gt'
+        | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
+          Sym.Set.union (aux gt1) (aux gt2)
+      in
+      aux gd.body
+  end
+
+  let get_call_graph (ctx : t) : Sym.Digraph.t =
+    ctx
+    |> List.map_snd get_calls
+    |> List.fold_left
+         (fun cg (fsym, calls) ->
+            Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg)
+         Sym.Digraph.empty
 end
 
 module MakeOptional (GT : GenTerms.T) = struct
@@ -55,4 +92,9 @@ module MakeOptional (GT : GenTerms.T) = struct
            Some (name, GD'.{ filename; recursive; spec; name; iargs; oargs; body })
          | None -> None)
       ctx
+
+
+  let get_call_graph (ctx : t) =
+    let module GC' = Make (GT) in
+    ctx |> drop_nones |> GC'.get_call_graph
 end

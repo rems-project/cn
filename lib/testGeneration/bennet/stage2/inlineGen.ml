@@ -83,30 +83,6 @@ module Make (AD : GenTerms.Domain.T) = struct
       aux gt
 
 
-    open struct
-      let get_calls (gd : Def.t) : Sym.Set.t =
-        let rec aux (gt : Term.t) : Sym.Set.t =
-          let (Annot (gt_, (), _, _)) = gt in
-          match gt_ with
-          | `Arbitrary | `Return _ -> Sym.Set.empty
-          | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
-          | `Call (fsym, _) -> Sym.Set.singleton fsym
-          | `Asgn (_, _, gt') | `Assert (_, gt') | `Map (_, gt') -> aux gt'
-          | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
-            Sym.Set.union (aux gt1) (aux gt2)
-        in
-        aux gd.body
-    end
-
-    let get_call_graph (ctx : Ctx.t) : Sym.Digraph.t =
-      ctx
-      |> List.map_snd get_calls
-      |> List.fold_left
-           (fun cg (fsym, calls) ->
-              Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg)
-           Sym.Digraph.empty
-
-
     let transform_gd (ctx : Ctx.t) (gd : Def.t) : Def.t =
       let recursive_fsyms =
         ctx
@@ -121,7 +97,7 @@ module Make (AD : GenTerms.Domain.T) = struct
 
 
     let transform (ctx : Ctx.t) =
-      let cg = get_call_graph ctx in
+      let cg = Ctx.get_call_graph ctx in
       ctx
       |> List.filter (fun ((_, gd) : _ * Def.t) ->
         gd.spec
