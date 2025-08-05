@@ -4,13 +4,17 @@ val executable_spec_enabled : bool ref
 
 type t = Cerb_frontend.Symbol.sym
 
+val equal : t -> t -> bool
+
 val compare : t -> t -> int
 
-val equal : t -> t -> bool
+val hash : t -> int
 
 module Set : Set.S with type elt = t
 
 module Map : Map.S with type key = t
+
+module Digraph : Graph.Sig.P with type V.t = t
 
 val description : t -> Cerb_frontend.Symbol.symbol_description
 
@@ -43,5 +47,3 @@ val fresh_make_uniq : string -> t
 val fresh_make_uniq_kind : prefix:string -> string -> t
 
 val json : t -> Yojson.Safe.t
-
-val hash : t -> int

@@ -1,5 +1,4 @@
 module IT = IndexTerms
-module SymGraph = Graph.Persistent.Digraph.Concrete (Sym)
 
 module Make (AD : GenTerms.Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -99,13 +98,13 @@ module Make (AD : GenTerms.Domain.T) = struct
         aux gd.body
     end
 
-    let get_call_graph (ctx : Ctx.t) : SymGraph.t =
+    let get_call_graph (ctx : Ctx.t) : Sym.Digraph.t =
       ctx
       |> List.map_snd get_calls
       |> List.fold_left
            (fun cg (fsym, calls) ->
-              Sym.Set.fold (fun fsym' cg' -> SymGraph.add_edge cg' fsym fsym') calls cg)
-           SymGraph.empty
+              Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg)
+           Sym.Digraph.empty
 
 
     let transform_gd (ctx : Ctx.t) (gd : Def.t) : Def.t =
@@ -129,7 +128,7 @@ module Make (AD : GenTerms.Domain.T) = struct
         || (gd.recursive
             && List.exists
                  (fun pred_fsym -> (List.assoc Sym.equal pred_fsym ctx).spec)
-                 (SymGraph.pred cg gd.name)))
+                 (Sym.Digraph.pred cg gd.name)))
       |> List.map_snd (transform_gd ctx)
   end
 
