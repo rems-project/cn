@@ -42,6 +42,8 @@ BENNET_DOMAIN_SIZED_DECL(int16_t)
 BENNET_DOMAIN_SIZED_DECL(int32_t)
 BENNET_DOMAIN_SIZED_DECL(int64_t)
 
+BENNET_DOMAIN_SIZED_DECL(uintptr_t)
+
 #ifdef __cplusplus
 }
 #endif

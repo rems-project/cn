@@ -49,16 +49,17 @@
     bennet/backtrack.o
     bennet/backtracks.o
     bennet/failure.o
+    bennet/ownership.o
     bennet/prelude.o
     bennet/rand.o
     bennet/rand_alloc.o
-    bennet/unsatisfied.o
     bennet/size.o
     bennet/sizes.o
     bennet/sized.o
     bennet/tnum.o
     bennet/trivial.o
     bennet/tyche.o
+    bennet/unsatisfied.o
     bennet/urn.o
     bennet/wint.o))))
 

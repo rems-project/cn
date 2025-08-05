@@ -4,6 +4,9 @@
 #include <bennet/internals/domain.h>
 #include <cn-executable/utils.h>
 
+uint8_t get_null_in_every(void);
+void set_null_in_every(uint8_t n);
+
 cn_pointer* bennet_arbitrary_cn_pointer(bennet_domain(uintptr_t) * cs);
 
 cn_bits_u8* bennet_arbitrary_cn_bits_u8(bennet_domain(uint8_t) * cs);
