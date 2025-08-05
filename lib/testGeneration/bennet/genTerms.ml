@@ -427,15 +427,6 @@ module [@warning "-60"] Make (AD : sig end) = struct
     Annot (elaborate_split_size_ gt_, tag, bt, loc)
 end
 
-type ('tag, 'recur) s =
-  [ `A
-  | `B of 'recur
-  ]
-
-module type S = sig
-  type 'tag t = private [< ('tag, 'recur) s ] as 'recur
-end
-
 module Domain = struct
   let ret_sym = Sym.fresh "return"
 
