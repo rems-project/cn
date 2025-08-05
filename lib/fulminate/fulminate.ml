@@ -379,6 +379,7 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
+  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -454,7 +455,11 @@ let main
       struct_locs
   in
   let in_stmt_injs =
-    executable_spec.in_stmt @ accesses_stmt_injs @ toplevel_injections @ struct_injs
+    executable_spec.in_stmt
+    @ accesses_stmt_injs
+    @ toplevel_injections
+    @ struct_injs
+    @ fn_call_ghost_args_injs
   in
   let pre_post_pairs =
     if with_testing || without_ownership_checking then
