@@ -139,8 +139,7 @@ module Interpreter : Domain.Interpreter = struct
     let (GenTerms.Annot (tm_, _tag, _bt, _loc)) = tm in
     match tm_ with
     | `Arbitrary | `LetStar _ | `Return _ | `Assert _ | `ITE _ | `Map _ | `Pick _
-    | `PickSized _ | `SplitSize _ | `AssertDomain _ | `MapElab _ | `PickSizedElab _
-    | `SplitSizeElab _ ->
+    | `PickSized _ | `SplitSize _ | `MapElab _ | `PickSizedElab _ | `SplitSizeElab _ ->
       d
     | `Call (fsym, _) | `CallSized (fsym, _, _) ->
       (match Sym.Map.find_opt fsym ctx with Some d' -> meet d d' | None -> d)

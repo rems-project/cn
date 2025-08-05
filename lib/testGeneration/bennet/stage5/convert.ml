@@ -413,8 +413,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       failwith "Should be unreachable due to lifting of `pick`"
     | `LetStar ((_, GenTerms.Annot (`ITE _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `if-else`"
-    | `LetStar ((_, GenTerms.Annot (`Assert _, _, _, _)), _)
-    | `LetStar ((_, GenTerms.Annot (`AssertDomain _, _, _, _)), _) ->
+    | `LetStar ((_, GenTerms.Annot (`Assert _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `assert`"
     | `LetStar ((_, GenTerms.Annot (`AsgnElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `assign`"
@@ -423,77 +422,6 @@ module Make (AD : GenTerms.Domain.T) = struct
     | `Return it ->
       let b, s, e = transform_it filename sigma name it in
       (b, s, e)
-    | `AssertDomain
-        ( sym,
-          bt,
-          { cast;
-            lower_bound_inc;
-            lower_bound_ex;
-            upper_bound_inc;
-            upper_bound_ex;
-            multiple
-          },
-          gt_rest ) ->
-      let get_bound ty =
-        ty
-        |> Option.map (transform_it filename sigma name)
-        |> Option.value ~default:([], [], mk_expr (AilEconst ConstantNull))
-      in
-      let b_lbi, s_lbi, e_lbi = get_bound lower_bound_inc in
-      let b_lbe, s_lbe, e_lbe = get_bound lower_bound_ex in
-      let b_ubi, s_ubi, e_ubi = get_bound upper_bound_inc in
-      let b_ube, s_ube, e_ube = get_bound upper_bound_ex in
-      let b_m, s_m, e_m =
-        multiple
-        |> Option.map (transform_it filename sigma name)
-        |> Option.value ~default:([], [], mk_expr (AilEconst ConstantNull))
-      in
-      let s_assert =
-        A.
-          [ AilSexpr
-              (mk_expr
-                 (AilEcall
-                    ( mk_expr
-                        (string_ident
-                           (if Option.is_some cast then
-                              "BENNET_ASSERT_DOMAIN_CAST"
-                            else
-                              "BENNET_ASSERT_DOMAIN")),
-                      ((match cast with
-                        | Some cast_bt -> [ mk_expr (string_ident (name_of_bt cast_bt)) ]
-                        | None -> [])
-                       @ [ mk_expr (string_ident (name_of_bt bt));
-                           mk_expr (AilEident sym);
-                           e_lbi;
-                           e_lbe;
-                           e_ubi;
-                           e_ube;
-                           e_m;
-                           mk_expr (AilEident last_var)
-                         ])
-                      @ List.map
-                          (fun y -> mk_expr (AilEident y))
-                          ([ lower_bound_inc;
-                             lower_bound_ex;
-                             upper_bound_inc;
-                             upper_bound_ex;
-                             multiple
-                           ]
-                           |> List.map (fun it ->
-                             it
-                             |> Option.map IT.free_vars
-                             |> Option.value ~default:Sym.Set.empty)
-                           |> List.fold_left Sym.Set.union Sym.Set.empty
-                           |> Sym.Set.to_seq
-                           |> List.of_seq
-                           |> List.cons sym)
-                      @ [ mk_expr (AilEconst ConstantNull) ] )))
-          ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      ( b_lbi @ b_lbe @ b_ubi @ b_ube @ b_m @ b_rest,
-        s_lbi @ s_lbe @ s_ube @ s_ubi @ s_m @ s_assert @ s_rest,
-        e_rest )
     | `Assert (lc, gt_rest) ->
       let b1, s1, e1 = transform_lc filename sigma lc in
       let s_assert =
