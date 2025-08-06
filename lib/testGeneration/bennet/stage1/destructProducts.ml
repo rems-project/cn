@@ -146,7 +146,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
       | `Call (fsym, iargs) ->
-        let gd = List.assoc Sym.equal fsym ctx in
+        let gd = Ctx.find fsym ctx in
         let iargs' =
           gd.iargs |> List.map snd |> List.combine iargs |> transform_its prog5
         in

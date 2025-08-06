@@ -143,7 +143,7 @@ module Make (AD : GenTerms.Domain.T) = struct
           ],
         A.(mk_expr (AilEident var)) )
     | `Call (fsym, iargs) ->
-      (match List.assoc_opt Sym.equal fsym ctx with
+      (match Stage4.Ctx.find_opt fsym ctx with
        | Some _ -> ()
        | None -> failwith (Sym.pp_string fsym));
       let sym = GenUtils.get_mangled_name fsym in
@@ -158,7 +158,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       in
       let sized_call =
         A.(
-          if (List.assoc Sym.equal fsym ctx).recursive then
+          if (Stage4.Ctx.find fsym ctx).recursive then
             [ AilEcall (mk_expr (string_ident "bennet_get_size"), []) ]
           else
             [])
@@ -194,7 +194,7 @@ module Make (AD : GenTerms.Domain.T) = struct
                               ] ))))
                ] )) )
     | `CallSized (fsym, iargs, (n, sym_size)) ->
-      (match List.assoc_opt Sym.equal fsym ctx with
+      (match Stage4.Ctx.find_opt fsym ctx with
        | Some _ -> ()
        | None -> failwith (Sym.pp_string fsym));
       let sym = GenUtils.get_mangled_name fsym in

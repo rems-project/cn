@@ -5,6 +5,10 @@ module Make (GT : GenTerms.T) = struct
 
   let empty = []
 
+  let find (sym : Sym.t) (ctx : t) = List.assoc Sym.equal sym ctx
+
+  let find_opt (sym : Sym.t) (ctx : t) = List.assoc_opt Sym.equal sym ctx
+
   let pp (ctx : t) : Pp.document =
     Sym.executable_spec_enabled := false;
     Sym.print_nums := true;
@@ -62,6 +66,10 @@ module MakeOptional (GT : GenTerms.T) = struct
 
   let empty = []
 
+  let find (sym : Sym.t) (ctx : t) : GD.t = List.assoc Sym.equal sym ctx
+
+  let find_opt (sym : Sym.t) (ctx : t) : GD.t option = List.assoc_opt Sym.equal sym ctx
+
   let pp (ctx : t) : Pp.document =
     let open Pp in
     ctx
@@ -93,7 +101,7 @@ module MakeOptional (GT : GenTerms.T) = struct
       ctx
 
 
-  let get_call_graph (ctx : t) =
+  let get_call_graph (ctx : t) : Sym.Digraph.t =
     let module GC' = Make (GT) in
     ctx |> drop_nones |> GC'.get_call_graph
 end
