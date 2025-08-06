@@ -37,6 +37,88 @@ module Make (AD : GenTerms.Domain.T) = struct
 
   type t = t_ annot [@@deriving eq, ord]
 
+  let arbitrary_ (d : AD.t) (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+    Annot (`Arbitrary d, tag, bt, loc)
+
+
+  let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =
+    Annot (`Call (fsym, its), tag, bt, loc)
+
+
+  let asgn_
+        (((it_addr, ct), it_val, gt') : (IT.t * Sctypes.t) * IT.t * t)
+        (tag : tag_t)
+        (loc : Locations.t)
+    : t
+    =
+    Annot (`Asgn ((it_addr, ct), it_val, gt'), tag, basetype gt', loc)
+
+
+  let let_star_ (((x, gt1), gt2) : (Sym.t * t) * t) (tag : tag_t) (loc : Locations.t) : t =
+    Annot (`LetStar ((x, gt1), gt2), tag, basetype gt2, loc)
+
+
+  let return_ (it : IT.t) (tag : tag_t) (loc : Locations.t) : t =
+    Annot (`Return it, tag, IT.get_bt it, loc)
+
+
+  let assert_ ((lc, gt') : LC.t * t) (tag : tag_t) (loc : Locations.t) : t =
+    Annot (`Assert (lc, gt'), tag, basetype gt', loc)
+
+
+  let ite_ ((it_if, gt_then, gt_else) : IT.t * t * t) (tag : tag_t) loc : t =
+    let bt = basetype gt_then in
+    assert (BT.equal bt (basetype gt_else));
+    Annot (`ITE (it_if, gt_then, gt_else), tag, bt, loc)
+
+
+  let map_ (((i, i_bt, it_perm), gt_inner) : (Sym.t * BT.t * IT.t) * t) (tag : tag_t) loc
+    : t
+    =
+    Annot
+      ( `Map ((i, i_bt, it_perm), gt_inner),
+        tag,
+        BT.make_map_bt i_bt (basetype gt_inner),
+        loc )
+
+
+  let pick_ (_ : t list) (_ : tag_t) (_ : BT.t) (_ : Locations.t) : t =
+    failwith "pick_ not supported in Stage 3 DSL"
+
+
+  let pick_sized_ (wgts : (Z.t * t) list) (tag : tag_t) bt (loc : Locations.t) : t =
+    let bt =
+      List.fold_left
+        (fun bt (_, gt) ->
+           assert (BT.equal bt (basetype gt));
+           bt)
+        bt
+        wgts
+    in
+    Annot (`PickSized wgts, tag, bt, loc)
+
+
+  let pick_sized_elab_ (_ : (Z.t * t) list) (_ : tag_t) (_ : BT.t) (_ : Locations.t) : t =
+    failwith "pick_sized_elab_ not supported in Stage 3 DSL"
+
+
+  let asgn_elab_
+        (_ : Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t)
+        (_ : tag_t)
+        (_ : Locations.t)
+    : t
+    =
+    failwith "asgn_elab_ not supported in Stage 3 DSL"
+
+
+  let split_size_ ((syms, gt') : Sym.Set.t * t) (tag : tag_t) (loc : Locations.t) : t =
+    Annot (`SplitSize (syms, gt'), tag, basetype gt', loc)
+
+
+  let split_size_elab_ (_ : Sym.t * Sym.Set.t * t) (_ : tag_t) (_ : Locations.t) : t =
+    failwith "split_size_elab_ not supported in Stage 3 DSL"
+
+
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
     | `Arbitrary d -> `Arbitrary d
