@@ -10,7 +10,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let rec aux (gt : Term.t) : Term.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Call _ | `Return _ -> gt
+      | `Arbitrary _ | `Call _ | `Return _ -> gt
       | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
       | `ITE (it_if, gt_then, gt_else) ->
         let gt_then, gt_else = (aux gt_then, aux gt_else) in

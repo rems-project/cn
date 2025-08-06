@@ -4,7 +4,7 @@ module LC = LogicalConstraints
 module CF = Cerb_frontend
 
 module Make (AD : GenTerms.Domain.T) = struct
-  include GenTerms.Make (Unit)
+  include GenTerms.Make (AD)
   module AD = AD
 
   type tag_t = unit
@@ -12,7 +12,7 @@ module Make (AD : GenTerms.Domain.T) = struct
   type 'ast annot = (unit, 'ast) GenTerms.annot [@@deriving eq, ord]
 
   type 'recur ast =
-    [ `Arbitrary (** Generate arbitrary values *)
+    [ `Arbitrary of AD.t (** Generate arbitrary values *)
     | `Call of Sym.t * IT.t list
       (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
     | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
@@ -33,7 +33,7 @@ module Make (AD : GenTerms.Domain.T) = struct
 
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
-    | `Arbitrary -> `Arbitrary
+    | `Arbitrary d -> `Arbitrary d
     | `Pick gts -> `Pick (List.map (subst su) gts)
     | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
     | `Asgn ((it_addr, bt), it_val, g') ->
@@ -72,7 +72,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let (Annot (gt_, (), bt, here)) = f g in
     let gt_ =
       match gt_ with
-      | `Arbitrary -> `Arbitrary
+      | `Arbitrary d -> `Arbitrary d
       | `Pick gts -> `Pick (List.map (map_gen_pre f) gts)
       | `Call (fsym, its) -> `Call (fsym, its)
       | `Asgn ((it_addr, sct), it_val, gt') ->
@@ -91,7 +91,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let (Annot (gt_, (), bt, here)) = g in
     let gt_ =
       match gt_ with
-      | `Arbitrary -> `Arbitrary
+      | `Arbitrary d -> `Arbitrary d
       | `Pick gts -> `Pick (List.map (map_gen_post f) gts)
       | `Call (fsym, its) -> `Call (fsym, its)
       | `Asgn ((it_addr, sct), it_val, gt') ->

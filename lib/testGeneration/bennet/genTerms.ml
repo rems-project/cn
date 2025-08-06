@@ -7,10 +7,56 @@ type ('tag, 'ast) annot =
       ('ast * 'tag * BT.t * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0]))
 [@@deriving eq, ord]
 
-module [@warning "-60"] Make (AD : sig end) = struct
+module Domain = struct
+  let ret_sym = Sym.fresh "return"
+
+  module type T = sig
+    val name : string
+
+    type t [@@deriving eq, ord]
+
+    (** The bottom element of the domain *)
+    val bottom : t
+
+    (** The top element of the domain *)
+    val top : t
+
+    (** Partial order: [leq x y] holds if x ≤ y in the lattice *)
+    val leq : t -> t -> bool
+
+    (** Least upper bound (join) *)
+    val join : t -> t -> t
+
+    (** Greatest lower bound (meet) *)
+    val meet : t -> t -> t
+
+    (* (** Widening operation to ensure fixpoint convergence.
+      [widen ~prev ~next] returns an over-approximation of the union
+      of [prev] and [next]. *)
+  val widen : prev:t -> next:t -> t *)
+
+    (* (** Narrowing operation to refine after widening.
+      [narrow ~prev ~next] returns a refined approximation of the intersection
+      of [prev] and [next]. *)
+  val narrow : prev:t -> next:t -> t *)
+
+    (** Rename a variable *)
+    val rename : from:Sym.t -> to_:Sym.t -> t -> t
+
+    (** Remove a variable *)
+    val remove : Sym.t -> t -> t
+
+    (** Retain only the provided variables *)
+    val retain : Sym.Set.t -> t -> t
+
+    val pp : t -> Pp.document
+  end
+end
+
+module [@warning "-60"] Make (AD : Domain.T) = struct
   module Inner = struct
     type ('tag, 'recur) ast =
-      [ `Arbitrary (** Generate arbitrary values *)
+      [ `Arbitrary of AD.t (** Generate arbitrary values *)
       | `Call of Sym.t * IT.t list
         (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
       | `Asgn of (IT.t * Sctypes.t) * IT.t * ('tag, 'recur) annot
@@ -43,8 +89,9 @@ module [@warning "-60"] Make (AD : sig end) = struct
   let loc (Annot (_, _, _, loc) : ('tag, 'ast) annot) : Locations.t = loc
 
   (* Smart constructors *)
-  let arbitrary_ (tag : 'tag) (bt : BT.t) (loc : Locations.t) : ('tag, _) annot =
-    Annot (`Arbitrary, tag, bt, loc)
+  let arbitrary_ (d : AD.t) (tag : 'tag) (bt : BT.t) (loc : Locations.t) : ('tag, _) annot
+    =
+    Annot (`Arbitrary d, tag, bt, loc)
 
 
   let call_ (fsym, xits) (tag : 'tag) (bt : BT.t) loc : ('tag, _) annot =
@@ -118,11 +165,11 @@ module [@warning "-60"] Make (AD : sig end) = struct
 
   (* Constructor-checking functions *)
 
-  let is_arbitrary_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : unit option =
-    match gt_ with `Arbitrary -> Some () | _ -> None
+  let is_arbitrary_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : AD.t option =
+    match gt_ with `Arbitrary d -> Some d | _ -> None
 
 
-  let is_arbitrary (gt : ('tag, [< `Arbitrary ]) annot) : unit option =
+  let is_arbitrary (gt : ('tag, [< `Arbitrary of AD.t ]) annot) : AD.t option =
     let (Annot (gt_, _, _, _)) = gt in
     is_arbitrary_ gt_
 
@@ -164,7 +211,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
     let open Pp in
     let (Annot (tm_, _, bt, _)) = tm in
     match tm_ with
-    | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
+    | `Arbitrary d -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens (AD.pp d)
     | `Call (fsym, iargs) ->
       Sym.pp fsym ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
     | `Asgn ((it_addr, ty), it_val, gt') ->
@@ -264,7 +311,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
   let rec free_vars_bts_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : BT.t Sym.Map.t =
     let loc = Locations.other __LOC__ in
     match gt_ with
-    | `Arbitrary -> Sym.Map.empty
+    | `Arbitrary _ -> Sym.Map.empty
     | `Call (_, iargs) -> IT.free_vars_bts_list iargs
     | `Asgn ((it_addr, _), it_val, gt') ->
       free_vars_bts_list [ return_ it_addr () loc; return_ it_val () loc; gt' ]
@@ -314,7 +361,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
   let rec contains_call (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) : bool =
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `Return _ -> false
+    | `Arbitrary _ | `Return _ -> false
     | `Call _ | `CallSized _ -> true
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
       contains_call gt1 || contains_call gt2
@@ -336,7 +383,7 @@ module [@warning "-60"] Make (AD : sig end) = struct
     =
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `Return _ -> false
+    | `Arbitrary _ | `Return _ -> false
     | `Asgn _ | `AsgnElab _ | `Assert _ -> true
     | `Call _ | `CallSized _ -> true (* Could be less conservative... *)
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
@@ -416,49 +463,6 @@ module [@warning "-60"] Make (AD : sig end) = struct
 
   let elaborate_split_size (Annot (gt_, tag, bt, loc)) =
     Annot (elaborate_split_size_ gt_, tag, bt, loc)
-end
-
-module Domain = struct
-  let ret_sym = Sym.fresh "return"
-
-  module type T = sig
-    val name : string
-
-    type t [@@deriving eq, ord]
-
-    (** The bottom element of the domain *)
-    val bottom : t
-
-    (** The top element of the domain *)
-    val top : t
-
-    (** Partial order: [leq x y] holds if x ≤ y in the lattice *)
-    val leq : t -> t -> bool
-
-    (** Least upper bound (join) *)
-    val join : t -> t -> t
-
-    (** Greatest lower bound (meet) *)
-    val meet : t -> t -> t
-
-    (* (** Widening operation to ensure fixpoint convergence.
-      [widen ~prev ~next] returns an over-approximation of the union
-      of [prev] and [next]. *)
-  val widen : prev:t -> next:t -> t *)
-
-    (* (** Narrowing operation to refine after widening.
-      [narrow ~prev ~next] returns a refined approximation of the intersection
-      of [prev] and [next]. *)
-  val narrow : prev:t -> next:t -> t *)
-
-    (** Rename a variable *)
-    val rename : from:Sym.t -> to_:Sym.t -> t -> t
-
-    (** Remove a variable *)
-    val remove : Sym.t -> t -> t
-
-    val pp : t -> Pp.document
-  end
 end
 
 module type T = sig

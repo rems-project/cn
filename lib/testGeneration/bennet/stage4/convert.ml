@@ -18,7 +18,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       let last_var = match vars with v :: _ -> v | [] -> bennet in
       let (GenTerms.Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary -> GenTerms.Annot (`Arbitrary, (path_vars, last_var), bt, loc)
+      | `Arbitrary d -> GenTerms.Annot (`Arbitrary d, (path_vars, last_var), bt, loc)
       | `PickSized wgts ->
         let (`PickSizedElab (choice_var, wgts)) =
           Term.elaborate_pick_ (`PickSized wgts)

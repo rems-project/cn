@@ -1,29 +1,18 @@
 module Make (GT : GenTerms.T) (I : Domain.Interpreter with module AD = GT.AD) = struct
   open struct
     module AD = GT.AD
+    module Def = GenDefinitions.Make (GT)
+    module Ctx = GenContext.Make (GT)
   end
 
-  let interpret
-        (ctx : AD.t Sym.Map.t)
-        (tm :
-          ( 'tag,
-              ([< ('tag, 'recur) GenTerms.Make(AD).Inner.ast ] as 'recur) )
-            GenTerms.annot)
-    : AD.t
-    =
-    let rec interp
-              (ctx : AD.t Sym.Map.t)
-              (tm :
-                ( 'tag,
-                    ([< ('tag, 'recur) GenTerms.Make(AD).Inner.ast ] as 'recur) )
-                  GenTerms.annot)
-              (d : AD.t)
-      : AD.t
-      =
-      let (GenTerms.Annot (tm_, tag, bt, loc)) = tm in
+  let interpret_gd (ctx : AD.t Sym.Map.t) (gd : Def.t) : AD.t =
+    let rec interp (ctx : AD.t Sym.Map.t) (tm : GT.t) (d : AD.t) : AD.t =
+      let (GenTerms.Annot (tm_, _tag, _bt, _loc)) = tm in
       match tm_ with
-      | `Arbitrary | `Return _ | `Call (_, _) | `CallSized (_, _, _) | `Map _ | `MapElab _
-        ->
+      | `Arbitrary _ | `Return _
+      | `Call (_, _)
+      | `CallSized (_, _, _)
+      | `Map _ | `MapElab _ ->
         I.abs_stmt ctx tm d
       | `Asgn (_, _, gt')
       | `AsgnElab (_, _, _, gt')
@@ -51,11 +40,46 @@ module Make (GT : GenTerms.T) (I : Domain.Interpreter with module AD = GT.AD) = 
              (interp ctx gt d)
              gts')
       | `PickSized wgts | `PickSizedElab (_, wgts) ->
-        interp ctx (Annot (`Pick (List.map snd wgts), tag, bt, loc)) d
+        (match wgts with
+         | [] -> AD.bottom
+         | (_, gt) :: wgts' ->
+           List.fold_left
+             (fun acc (_, gt) ->
+                let d' = interp ctx gt d in
+                AD.join acc d')
+             (interp ctx gt d)
+             wgts')
     in
     let rec loop d =
-      let d' = interp ctx tm d in
+      let d' = interp ctx gd.body d in
       if AD.equal d d' then d else loop d'
     in
-    loop AD.top
+    loop (Option.value ~default:AD.top (Sym.Map.find_opt gd.name ctx))
+
+
+  let interpret (ctx : Ctx.t) : AD.t Sym.Map.t =
+    let cg = Ctx.get_call_graph ctx in
+    let cg_order =
+      let module T = Graph.Topological.Make (Sym.Digraph) in
+      T.fold List.cons cg []
+    in
+    let rec loop (worklist : Sym.t list) (abs_ctx : AD.t Sym.Map.t) : AD.t Sym.Map.t =
+      match worklist with
+      | fsym :: worklist' ->
+        let existing_d = Option.value ~default:AD.top (Sym.Map.find_opt fsym abs_ctx) in
+        let d = interpret_gd abs_ctx (Ctx.find fsym ctx) in
+        let worklist'' =
+          if AD.equal existing_d d then
+            worklist'
+          else (
+            let successors =
+              Sym.Digraph.fold_succ List.cons cg fsym []
+              |> List.filter (fun x -> not (List.mem Sym.equal x worklist'))
+            in
+            List.filter (fun x -> List.mem Sym.equal x successors) cg_order @ worklist')
+        in
+        loop worklist'' (Sym.Map.add fsym d abs_ctx)
+      | [] -> Sym.Map.empty
+    in
+    loop cg_order Sym.Map.empty
 end

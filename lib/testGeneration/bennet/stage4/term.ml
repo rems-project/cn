@@ -6,7 +6,7 @@ module LC = LogicalConstraints
 module StringMap = Map.Make (String)
 
 module Make (AD : GenTerms.Domain.T) = struct
-  include GenTerms.Make (Unit)
+  include GenTerms.Make (AD)
   module AD = AD
 
   type tag_t = Sym.Set.t * Sym.t
@@ -14,7 +14,7 @@ module Make (AD : GenTerms.Domain.T) = struct
   type 'ast annot = (Sym.Set.t * Sym.t, 'ast) GenTerms.annot [@@deriving eq, ord]
 
   type 'recur ast =
-    [ `Arbitrary (** Generate arbitrary values *)
+    [ `Arbitrary of AD.t (** Generate arbitrary values *)
     | `PickSizedElab of Sym.t * (Z.t * 'recur annot) list
       (** Pick among a list of options, weighted by the provided [Z.t]s *)
     | `Call of Sym.t * IT.t list
@@ -38,7 +38,7 @@ module Make (AD : GenTerms.Domain.T) = struct
 
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
-    | `Arbitrary -> `Arbitrary
+    | `Arbitrary d -> `Arbitrary d
     | `PickSizedElab (pick_var, choices) ->
       `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, subst su g)) choices)
     | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
@@ -89,7 +89,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let (Annot (gt_, tag, bt, here)) = f g in
     let gt_ =
       match gt_ with
-      | `Arbitrary -> `Arbitrary
+      | `Arbitrary d -> `Arbitrary d
       | `PickSizedElab (pick_var, choices) ->
         `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
       | `Call (fsym, its) -> `Call (fsym, its)
@@ -113,7 +113,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let (Annot (gt_, tag, bt, here)) = g in
     let gt_ =
       match gt_ with
-      | `Arbitrary -> `Arbitrary
+      | `Arbitrary d -> `Arbitrary d
       | `PickSizedElab (pick_var, choices) ->
         `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, map_gen_post f g)) choices)
       | `Call (fsym, its) -> `Call (fsym, its)

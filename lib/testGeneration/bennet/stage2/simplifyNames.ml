@@ -17,7 +17,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let rec aux (vars : int StringMap.t) (gt : Term.t) : int StringMap.t * Term.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Call _ | `Return _ -> (vars, gt)
+      | `Arbitrary _ | `Call _ | `Return _ -> (vars, gt)
       | `Pick gts ->
         let vars, gts =
           List.fold_right

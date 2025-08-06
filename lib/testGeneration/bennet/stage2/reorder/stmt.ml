@@ -24,7 +24,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let rec aux (gt : Term.t) : annot list * Term.t =
       let (Annot (gt_, (), _, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Pick _ | `Call _ | `Return _ | `ITE _ | `Map _ -> ([], gt)
+      | `Arbitrary _ | `Pick _ | `Call _ | `Return _ | `ITE _ | `Map _ -> ([], gt)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let stmts, gt_last = aux gt_rest in
         (Stmt (Asgn ((it_addr, sct), it_val), loc) :: stmts, gt_last)

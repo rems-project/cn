@@ -10,7 +10,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     let (Annot (gt_, (), bt, loc)) = gt in
     let gt_ =
       match gt_ with
-      | `Arbitrary -> `Arbitrary
+      | `Arbitrary d -> `Arbitrary d
       | `Call (fsym, args) -> `Call (fsym, args)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         `Asgn ((it_addr, sct), it_val, transform_gt gt_rest)

@@ -68,7 +68,7 @@ module Make (AD : GenTerms.Domain.T) = struct
     =
     let (Annot (tm_, (path_vars, last_var), bt, _)) = tm in
     match tm_ with
-    | `Arbitrary ->
+    | `Arbitrary _ ->
       let sign, bits = Option.get (BT.is_bits_bt bt) in
       let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
       ( [],
@@ -307,7 +307,8 @@ module Make (AD : GenTerms.Domain.T) = struct
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
     | `LetStar
-        ((x, GenTerms.Annot (`Arbitrary, _, (Bits (sign, bits) as x_bt), _)), gt_rest) ->
+        ((x, GenTerms.Annot (`Arbitrary _, _, (Bits (sign, bits) as x_bt), _)), gt_rest)
+      ->
       let func_name =
         match sign with
         | Unsigned -> "BENNET_LET_ARBITRARY_UNSIGNED"
@@ -336,7 +337,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
-    | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Loc () as x_bt), _)), gt_rest) ->
+    | `LetStar ((x, GenTerms.Annot (`Arbitrary _, _, (Loc () as x_bt), _)), gt_rest) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
       let s_let =
         [ A.AilSexpr
@@ -358,7 +359,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
-    | `LetStar ((_, GenTerms.Annot (`Arbitrary, _, _, _)), _) ->
+    | `LetStar ((_, GenTerms.Annot (`Arbitrary _, _, _, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__)
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
       let b_value, s_value, e_value = transform_it filename sigma name it in
