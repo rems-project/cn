@@ -59,7 +59,7 @@ let get_ownership_global_init_stats n =
     mk_expr
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh "initialise_ghost_arg_array")),
+          ( mk_expr (AilEident (Sym.fresh "initialise_ghost_array")),
             [ mk_expr
                 (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None))))
             ] ))
