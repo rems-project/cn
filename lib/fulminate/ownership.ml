@@ -261,7 +261,10 @@ let rec get_c_control_flow_ownership_injs_aux
     get_c_control_flow_ownership_injs_aux [] continue_vars return_vars bindings s
   | AilSlabel (label_sym, s, label_annot_opt) ->
     let inj =
-      (* Check that label is an actual label from the source, and not one introduced in the Cerberus pipeline *)
+      (* Check that label is an actual label from the source, and not one introduced in the Cerberus pipeline.
+      See here: https://github.com/rems-project/cerberus/blob/master/frontend/model/cabs_to_ail.lem#L3715
+      and here: https://github.com/rems-project/cerberus/blob/master/frontend/model/translation.lem#L3896
+      *)
       match label_annot_opt with
       | None ->
         let offset = String.length (Sym.pp_string label_sym) + 1 in
