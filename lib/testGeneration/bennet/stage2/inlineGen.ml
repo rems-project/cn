@@ -10,7 +10,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       let rec aux (gt : Term.t) : Term.t =
         let (Annot (gt_, (), bt, loc)) = gt in
         match gt_ with
-        | `Arbitrary | `Return _ -> gt
+        | `Arbitrary _ | `Return _ -> gt
         | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
         | `Call (fsym, _) when (Ctx.find fsym ctx).recursive -> gt
         | `Call (fsym, iargs) ->
@@ -53,7 +53,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       let rec aux (gt : Term.t) : Term.t =
         let (Annot (gt_, (), bt, loc)) = gt in
         match gt_ with
-        | `Arbitrary | `Return _ -> gt
+        | `Arbitrary _ | `Return _ -> gt
         | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
         | `Call (fsym, _) when Sym.Set.mem fsym dont_unfold -> gt
         | `Call (fsym, iargs) ->

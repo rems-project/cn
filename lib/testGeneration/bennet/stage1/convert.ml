@@ -84,7 +84,7 @@ module Make (AD : GenTerms.Domain.T) = struct
       match xbts with
       | (x, bt) :: xbts' ->
         let here = Locations.other __FUNCTION__ in
-        let gt_gen = Tm.arbitrary_ () bt here in
+        let gt_gen = Tm.arbitrary_ AD.top () bt here in
         fun (gt : Tm.t) ->
           let gt' = aux xbts' gt in
           Tm.let_star_ ((x, gt_gen), gt') () here
@@ -150,7 +150,7 @@ module Make (AD : GenTerms.Domain.T) = struct
           if Sym.Set.mem x generated then
             gt_asgn
           else
-            Tm.let_star_ ((x, Tm.arbitrary_ () bt loc), gt_asgn) () loc
+            Tm.let_star_ ((x, Tm.arbitrary_ AD.top () bt loc), gt_asgn) () loc
         in
         return gt_val
       | Resource
@@ -218,7 +218,7 @@ module Make (AD : GenTerms.Domain.T) = struct
               ()
               loc
           in
-          Tm.let_star_ ((sym_val, Tm.arbitrary_ () v_bt loc), gt_asgn) () loc
+          Tm.let_star_ ((sym_val, Tm.arbitrary_ AD.top () v_bt loc), gt_asgn) () loc
         in
         let gt_map = Tm.map_ ((q_sym, k_bt, permission), gt_body) () loc in
         let gt_let = Tm.let_star_ ((x, gt_map), gt') () loc in

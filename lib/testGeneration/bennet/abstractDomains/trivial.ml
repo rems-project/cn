@@ -16,6 +16,8 @@ let rename ~from:_ ~to_:_ _ = ()
 
 let remove _ _ = ()
 
+let retain _ _ = ()
+
 let pp _ = Pp.string "()"
 
 module Interpreter = struct
