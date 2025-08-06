@@ -558,6 +558,70 @@ let generate_ownership_global_assignments
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
 
 
+let opt_proc_param_of_fun_map_decl fmd =
+  match fmd with Mucore.Proc proc -> Some proc.args_and_body | ProcDecl _ -> None
+
+
+let rec param_of_args_and_body = function
+  | Mucore.Computational (_, _, args) -> param_of_args_and_body args
+  | Ghost (_, _, args) -> param_of_args_and_body args
+  | L args ->
+    let rec aux = function
+      | Mucore.Define (_, _, args) -> aux args
+      | Resource (_, _, args) -> aux args
+      | Constraint (_, _, args) -> aux args
+      | I expr -> expr
+    in
+    aux args
+
+
+let exprs_of_mucore_file mucore_file =
+  let fns = mucore_file.Mucore.funs in
+  let opt_args_and_bodies =
+    Pmap.fold (fun _ fmd acc -> opt_proc_param_of_fun_map_decl fmd :: acc) fns []
+  in
+  let args_and_bodies = List.filter_map Fun.id opt_args_and_bodies in
+  let exprs =
+    List.map
+      (fun aab ->
+         let expr, _, _ = param_of_args_and_body aab in
+         expr)
+      args_and_bodies
+  in
+  exprs
+
+
+let ghost_args_and_their_call_locs mucore_file =
+  let exprs = exprs_of_mucore_file mucore_file in
+  let acc = ref [] in
+  let rec aux_expr (Mucore.Expr (loc, _, _, e_)) =
+    match e_ with
+    | Epure _ -> ()
+    | Ememop _ -> ()
+    | Eaction _ -> ()
+    | Eskip -> ()
+    | Eccall (_, _, _, Some (_, ghost_args)) -> acc := (loc, ghost_args) :: !acc
+    | Eccall (_, _, _, None) -> ()
+    | Elet (_, _, e) -> aux_expr e
+    | Eunseq es -> List.iter aux_expr es
+    | Ewseq (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Esseq (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Eif (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Ebound e -> aux_expr e
+    | End es -> List.iter aux_expr es
+    | Erun (_, _) -> ()
+    | CN_progs (_, _) -> ()
+  in
+  List.iter aux_expr exprs;
+  !acc
+
+
 let generate_fn_call_ghost_args_injs
       filename
       (sigm : _ CF.AilSyntax.sigma)
@@ -577,4 +641,4 @@ let generate_fn_call_ghost_args_injs
                  globals
                  (Some Statement)
                  ghost_args)) ))
-    (Mucore.ghost_args_and_their_call_locs prog5)
+    (ghost_args_and_their_call_locs prog5)
