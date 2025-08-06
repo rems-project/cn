@@ -210,7 +210,7 @@ let rec take n = function
 let rec get_c_control_flow_ownership_injs_aux
           break_vars
           continue_vars
-          return_vars
+          in_scope_vars
           bindings
           A.{ loc; desug_info; attrs = _; node = s_ }
   : ownership_injection list
@@ -226,7 +226,7 @@ let rec get_c_control_flow_ownership_injs_aux
            get_c_control_flow_ownership_injs_aux
              (visibles @ break_vars)
              (visibles @ continue_vars)
-             (visibles @ return_vars)
+             (visibles @ in_scope_vars)
              (bs @ bindings)
              s)
         ss
@@ -237,7 +237,7 @@ let rec get_c_control_flow_ownership_injs_aux
       get_c_control_flow_ownership_injs_aux
         break_vars
         continue_vars
-        return_vars
+        in_scope_vars
         bindings
         s1
     in
@@ -245,7 +245,7 @@ let rec get_c_control_flow_ownership_injs_aux
       get_c_control_flow_ownership_injs_aux
         break_vars
         continue_vars
-        return_vars
+        in_scope_vars
         bindings
         s2
     in
@@ -254,11 +254,11 @@ let rec get_c_control_flow_ownership_injs_aux
     get_c_control_flow_ownership_injs_aux
       []
       []
-      return_vars
+      in_scope_vars
       bindings
       s (* For while and do-while loops *)
   | AilSswitch (_, s) ->
-    get_c_control_flow_ownership_injs_aux [] continue_vars return_vars bindings s
+    get_c_control_flow_ownership_injs_aux [] continue_vars in_scope_vars bindings s
   | AilSlabel (label_sym, s, label_annot_opt) ->
     let inj =
       (* Check that label is an actual label from the source, and not one introduced in the Cerberus pipeline.
@@ -270,7 +270,7 @@ let rec get_c_control_flow_ownership_injs_aux
         let offset = String.length (Sym.pp_string label_sym) + 1 in
         let loc_after_label = get_start_loc ~offset loc in
         [ { loc = loc_after_label;
-            bs_and_ss = ([], List.map generate_c_local_ownership_entry return_vars);
+            bs_and_ss = ([], List.map generate_c_local_ownership_entry in_scope_vars);
             injection_kind = NonReturnInj
           }
         ]
@@ -280,13 +280,18 @@ let rec get_c_control_flow_ownership_injs_aux
       get_c_control_flow_ownership_injs_aux
         break_vars
         continue_vars
-        return_vars
+        in_scope_vars
         bindings
         s
     in
     inj @ injs
   | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s ->
-    get_c_control_flow_ownership_injs_aux break_vars continue_vars return_vars bindings s
+    get_c_control_flow_ownership_injs_aux
+      break_vars
+      continue_vars
+      in_scope_vars
+      bindings
+      s
   | AilSgoto _ ->
     (match desug_info with
      | Desug_continue ->
@@ -301,19 +306,19 @@ let rec get_c_control_flow_ownership_injs_aux
        (* Unmap addresses of all in-scope variables *)
        let loc_before_goto = get_start_loc loc in
        [ { loc = loc_before_goto;
-           bs_and_ss = ([], List.map generate_c_local_ownership_exit return_vars);
+           bs_and_ss = ([], List.map generate_c_local_ownership_exit in_scope_vars);
            injection_kind = NonReturnInj
          }
        ])
   | AilSreturnVoid ->
     [ { loc;
-        bs_and_ss = ([], List.map generate_c_local_ownership_exit return_vars);
+        bs_and_ss = ([], List.map generate_c_local_ownership_exit in_scope_vars);
         injection_kind = ReturnInj ReturnVoid
       }
     ]
   | AilSreturn e ->
     [ { loc;
-        bs_and_ss = ([], List.map generate_c_local_ownership_exit return_vars);
+        bs_and_ss = ([], List.map generate_c_local_ownership_exit in_scope_vars);
         injection_kind = ReturnInj (ReturnExpr e)
       }
     ]
