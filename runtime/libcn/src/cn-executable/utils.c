@@ -788,7 +788,7 @@ void cn_print_nr_u64(int i, unsigned long u) {
 // ghost arguments
 void** ghost_arg_array;
 
-void initialise_ghost_arg_array (int max_num_ghost_args) {
+void initialise_ghost_array (int max_num_ghost_args) {
   ghost_arg_array = fulm_malloc(max_num_ghost_args * sizeof(void*), &fulm_default_alloc);
 }
 
