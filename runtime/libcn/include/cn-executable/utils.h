@@ -562,10 +562,10 @@ void c_ownership_check(
     char *access_kind, void *generic_c_ptr, int offset, signed long expected_stack_depth);
 
 /* Ghost arguments */
-void initialise_ghost_array (int max_num_ghost_args);
-void add_to_ghost_array (int i, void *ptr_to_ghost_arg);
-void clear_ghost_array (int max_num_ghost_args);
-void* load_from_ghost_array (int i);
+void initialise_ghost_array(int max_num_ghost_args);
+void add_to_ghost_array(int i, void *ptr_to_ghost_arg);
+void clear_ghost_array(int max_num_ghost_args);
+void *load_from_ghost_array(int i);
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \
