@@ -78,7 +78,7 @@ let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =
 
 let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
   match label_def with
-  | Return _ -> None
+  | Other _ | Return _ -> None
   | Label
       ( _loc,
         label_args_and_body,

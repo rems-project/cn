@@ -83,7 +83,12 @@ let frontend
   CF.Tags.set_tagDefs prog0.CF.Core.tagDefs;
   let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
   let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
-  let prog3 = CF.Milicore_label_inline.rewrite_file prog2 in
+  let prog3 =
+    if !Sym.executable_spec_enabled then
+      prog2
+    else
+      CF.Milicore_label_inline.rewrite_file prog2
+  in
   let statement_locs = CStatements.search (snd ail_prog) in
   print_log_file ("original", `CORE prog0);
   print_log_file ("without_unspec", `CORE prog1);

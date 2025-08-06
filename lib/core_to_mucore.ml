@@ -1286,75 +1286,94 @@ let normalise_label
       (accesses, (loop_attributes : CF.Annot.loop_attributes))
       (env : Translate.env)
       st
-      _label_name
+      label_name
       label
   =
   match label with
   | CF.Milicore.Mi_Return loc -> return (Mu.Return loc)
   | Mi_Label (loc, lt, label_args, label_body, annots) ->
     (match CF.Annot.get_label_annot annots with
-     | Some (LAloop loop_id) ->
-       let@ desugared_inv, cn_desugaring_state, loop_info =
-         match Pmap.lookup loop_id loop_attributes with
-         | Some { marker_id; attributes = attrs; loc_condition; loc_loop } ->
-           let@ inv = Parse.loop_spec attrs in
-           let contains_user_spec = List.non_empty inv in
-           let d_st =
-             CAE.
-               { markers_env;
-                 inner =
-                   { (Pmap.find marker_id markers_env) with
-                     cn_state = precondition_cn_desugaring_state
-                   }
-               }
+     | None -> assert_error loc !^"label without annotation"
+     | Some label_annot ->
+       let handle_loop_label loc error_msg =
+         if !Sym.executable_spec_enabled then
+           let@ label_args =
+             make_label_args
+               (fun _ _ -> return ())
+               loc
+               env
+               st
+               (List.combine lt label_args)
+               ([], [])
            in
-           let@ inv, d_st = desugar_conds d_st inv in
-           return (inv, d_st.inner.cn_state, (loc_condition, loc_loop, contains_user_spec))
-         | None -> assert false
-         (* return ([], precondition_cn_desugaring_state) *)
+           return (Mu.Other (loc, label_name, label_annot, label_args))
+         else
+           assert_error loc error_msg
        in
-       debug 6 (lazy (!^"invariant in function" ^^^ Sym.pp fsym));
-       debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_inv desugared_inv)));
-       let@ label_args_and_body =
-         make_label_args
-           (fun env st ->
-              n_expr
-                ~inherit_loc
-                loc
-                ( (env, Translate.C_vars.get_old_scopes st),
-                  (markers_env, cn_desugaring_state) )
-                (global_types, visible_objects_env)
-                label_body)
-           loc
-           env
-           st
-           (List.combine lt label_args)
-           (accesses, desugared_inv)
-       in
-       (* let lt =  *)
-       (*   at_of_arguments (fun _body -> *)
-       (*       False.False *)
-       (*     ) label_args_and_body  *)
-       (* in *)
-       return
-         (Mu.Label
-            ( loc,
-              label_args_and_body,
-              annots,
-              { label_spec = desugared_inv },
-              `Loop loop_info ))
-     (* | Some (LAloop_body _loop_id) -> *)
-     (*    assert_error loc !^"body label has not been inlined" *)
-     | Some (LAloop_continue _loop_id) ->
-       assert_error loc !^"continue label has not been inlined"
-     | Some (LAloop_break _loop_id) ->
-       assert_error loc !^"break label has not been inlined"
-     | Some LAreturn -> assert_error loc !^"return label has not been inlined"
-     | Some LAswitch -> assert_error loc !^"switch labels"
-     | Some LAcase -> assert_error loc !^"case label has not been inlined"
-     | Some LAdefault -> assert_error loc !^"default label has not been inlined"
-     | Some LAactual_label -> failwith "todo: associate invariant with label or inline"
-     | None -> assert_error loc !^"non-loop labels")
+       (match label_annot with
+        | LAloop loop_id ->
+          let@ desugared_inv, cn_desugaring_state, loop_info =
+            match Pmap.lookup loop_id loop_attributes with
+            | Some { marker_id; attributes = attrs; loc_condition; loc_loop } ->
+              let@ inv = Parse.loop_spec attrs in
+              let contains_user_spec = List.non_empty inv in
+              let d_st =
+                CAE.
+                  { markers_env;
+                    inner =
+                      { (Pmap.find marker_id markers_env) with
+                        cn_state = precondition_cn_desugaring_state
+                      }
+                  }
+              in
+              let@ inv, d_st = desugar_conds d_st inv in
+              return
+                (inv, d_st.inner.cn_state, (loc_condition, loc_loop, contains_user_spec))
+            | None -> assert false
+            (* return ([], precondition_cn_desugaring_state) *)
+          in
+          debug 6 (lazy (!^"invariant in function" ^^^ Sym.pp fsym));
+          debug 6 (lazy (CF.Pp_ast.pp_doc_tree (dtree_of_inv desugared_inv)));
+          let@ label_args_and_body =
+            make_label_args
+              (fun env st ->
+                 n_expr
+                   ~inherit_loc
+                   loc
+                   ( (env, Translate.C_vars.get_old_scopes st),
+                     (markers_env, cn_desugaring_state) )
+                   (global_types, visible_objects_env)
+                   label_body)
+              loc
+              env
+              st
+              (List.combine lt label_args)
+              (accesses, desugared_inv)
+          in
+          (* let lt =  *)
+          (*   at_of_arguments (fun _body -> *)
+          (*       False.False *)
+          (*     ) label_args_and_body  *)
+          (* in *)
+          return
+            (Mu.Label
+               ( loc,
+                 label_args_and_body,
+                 annots,
+                 { label_spec = desugared_inv },
+                 `Loop loop_info ))
+        (* | Some (LAloop_body _loop_id) -> *)
+        (*    assert_error loc !^"body label has not been inlined" *)
+        | LAloop_continue _loop_id ->
+          handle_loop_label loc !^"continue label has not been inlined"
+        | LAloop_break _loop_id ->
+          handle_loop_label loc !^"break label has not been inlined"
+        | LAreturn -> handle_loop_label loc !^"return label has not been inlined"
+        | LAswitch -> handle_loop_label loc !^"switch labels"
+        | LAcase -> handle_loop_label loc !^"case label has not been inlined"
+        | LAdefault -> handle_loop_label loc !^"default label has not been inlined"
+        | LAactual_label ->
+          handle_loop_label loc !^"todo: associate invariant with label or inline"))
 
 
 module Spec = struct

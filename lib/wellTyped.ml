@@ -2233,6 +2233,7 @@ module BaseTyping = struct
               fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
             in
             let rec check_args acc_pes lt pes =
+              Pp.debug 1 (lazy (Pp.item __FUNCTION__ (AT.pp (fun _ -> Pp.empty) lt)));
               match (lt, pes) with
               | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
                 let@ pe = check_pexpr bt pe in
@@ -2295,6 +2296,7 @@ module WProc = struct
       (fun sym def label_context ->
          let lt, kind, loc =
            match def with
+           | Other (loc, _name, label_annot, args) -> (WLabel.typ args, label_annot, loc)
            | Return loc ->
              (AT.of_rt function_rt (LAT.I False.False), CF.Annot.LAreturn, loc)
            | Label (loc, label_args_and_body, annots, _parsed_spec, _loop_info) ->
@@ -2321,6 +2323,8 @@ module WProc = struct
            PmapM.mapM
              (fun _sym def ->
                 match def with
+                | Other (loc, name, annot, args) ->
+                  return (Other (loc, name, annot, args))
                 | Return loc -> return (Return loc)
                 | Label (loc, label_args_and_body, annots, parsed_spec, loop_info) ->
                   let@ label_args_and_body =

@@ -2273,7 +2273,7 @@ let check_procedure
          (fun (lsym, def) ->
             pure
               (match def with
-               | Mu.Return _loc -> return ()
+               | Mu.Other _ | Return _ -> return ()
                | Label (loc, label_args_and_body, _annots, _, _loop_info) ->
                  debug
                    2
