@@ -42,7 +42,6 @@ int f(int flag)
   }
   
 int main(void) 
-/*@ trusted; @*/
 {
     f(1);
     return 0;
