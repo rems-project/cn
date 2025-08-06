@@ -12,9 +12,9 @@ module Make (AD : GenTerms.Domain.T) = struct
         match gt_ with
         | `Arbitrary | `Return _ -> gt
         | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
-        | `Call (fsym, _) when (List.assoc Sym.equal fsym ctx).recursive -> gt
+        | `Call (fsym, _) when (Ctx.find fsym ctx).recursive -> gt
         | `Call (fsym, iargs) ->
-          let gd = ctx |> List.assoc Sym.equal fsym in
+          let gd = Ctx.find fsym ctx in
           aux
             (Term.subst
                (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
@@ -57,7 +57,7 @@ module Make (AD : GenTerms.Domain.T) = struct
         | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
         | `Call (fsym, _) when Sym.Set.mem fsym dont_unfold -> gt
         | `Call (fsym, iargs) ->
-          let gd = ctx |> List.assoc Sym.equal fsym in
+          let gd = Ctx.find fsym ctx in
           aux
             (Term.subst
                (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
