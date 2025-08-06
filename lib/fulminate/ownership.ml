@@ -259,14 +259,19 @@ let rec get_c_control_flow_ownership_injs_aux
       s (* For while and do-while loops *)
   | AilSswitch (_, s) ->
     get_c_control_flow_ownership_injs_aux [] continue_vars return_vars bindings s
-  | AilSlabel (label_sym, s, _) ->
-    let offset = String.length (Sym.pp_string label_sym) + 1 in
-    let loc_after_label = get_start_loc ~offset loc in
+  | AilSlabel (label_sym, s, label_annot_opt) ->
     let inj =
-      { loc = loc_after_label;
-        bs_and_ss = ([], List.map generate_c_local_ownership_entry return_vars);
-        injection_kind = NonReturnInj
-      }
+      (* Check that label is an actual label from the source, and not one introduced in the Cerberus pipeline *)
+      match label_annot_opt with
+      | None ->
+        let offset = String.length (Sym.pp_string label_sym) + 1 in
+        let loc_after_label = get_start_loc ~offset loc in
+        [ { loc = loc_after_label;
+            bs_and_ss = ([], List.map generate_c_local_ownership_entry return_vars);
+            injection_kind = NonReturnInj
+          }
+        ]
+      | _ -> []
     in
     let injs =
       get_c_control_flow_ownership_injs_aux
@@ -276,7 +281,7 @@ let rec get_c_control_flow_ownership_injs_aux
         bindings
         s
     in
-    inj :: injs
+    inj @ injs
   | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s ->
     get_c_control_flow_ownership_injs_aux break_vars continue_vars return_vars bindings s
   | AilSgoto _ ->
