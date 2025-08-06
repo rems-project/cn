@@ -4249,7 +4249,7 @@ let rec cn_to_ail_pre_post_aux
           globals
           c_return_type
           ghost_debruijn
-          max_num_ghost_args
+          max_num_ghost_args_opt
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
@@ -4264,27 +4264,41 @@ let rec cn_to_ail_pre_post_aux
         globals
         c_return_type
         ghost_debruijn
-        max_num_ghost_args
+        max_num_ghost_args_opt
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
   | AT.Ghost ((sym, bt), _info, at) ->
-    let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_debruijn in
-    let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
-    let ail_executable_spec =
-      cn_to_ail_pre_post_aux
-        without_ownership_checking
-        with_loop_leak_checks
-        filename
-        dts
-        preds
-        globals
-        c_return_type
-        (ghost_debruijn + 1)
-        max_num_ghost_args
-        subst_at
-    in
-    prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
+    (match max_num_ghost_args_opt with
+     | None ->
+       cn_to_ail_pre_post_aux
+         without_ownership_checking
+         with_loop_leak_checks
+         filename
+         dts
+         preds
+         globals
+         c_return_type
+         ghost_debruijn
+         max_num_ghost_args_opt
+         at
+     | Some _ ->
+       let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_debruijn in
+       let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
+       let ail_executable_spec =
+         cn_to_ail_pre_post_aux
+           without_ownership_checking
+           with_loop_leak_checks
+           filename
+           dts
+           preds
+           globals
+           c_return_type
+           (ghost_debruijn + 1)
+           max_num_ghost_args_opt
+           subst_at
+       in
+       prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.L lat ->
     let ail_executable_spec =
       cn_to_ail_lat_2
@@ -4307,7 +4321,10 @@ let rec cn_to_ail_pre_post_aux
                   [ mk_expr
                       (AilEconst
                          (ConstantInteger
-                            (IConstant (Z.of_int max_num_ghost_args, Decimal, None))))
+                            (IConstant
+                               ( Z.of_int (Option.value max_num_ghost_args_opt ~default:0),
+                                 Decimal,
+                                 None ))))
                   ] ))))
     in
     prepend_to_precondition ail_executable_spec ([], [ decl ])
@@ -4359,7 +4376,7 @@ let cn_to_ail_pre_post
   | None -> empty_ail_executable_spec
 
 
-let cn_to_ail_lemma filename dts preds globals max_num_ghost_args (sym, (loc, lemmat)) =
+let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
   let ret_type = mk_ctype C.Void in
   let param_syms, param_bts = List.split (AT.get_ghost lemmat) in
   let param_types = List.map (fun bt -> bt_to_ail_ctype bt) param_bts in
@@ -4381,7 +4398,7 @@ let cn_to_ail_lemma filename dts preds globals max_num_ghost_args (sym, (loc, le
       preds
       globals
       ret_type
-      max_num_ghost_args
+      None
       (Some transformed_lemmat)
   in
   let pre_bs, pre_ss = ail_executable_spec.pre in
@@ -4407,10 +4424,10 @@ let cn_to_ail_lemma filename dts preds globals max_num_ghost_args (sym, (loc, le
   (decl, def)
 
 
-let cn_to_ail_lemmas filename dts preds globals lemmata max_num_ghost_args
+let cn_to_ail_lemmas filename dts preds globals lemmata
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
-  List.map (cn_to_ail_lemma filename dts preds globals max_num_ghost_args) lemmata
+  List.map (cn_to_ail_lemma filename dts preds globals) lemmata
 
 
 let has_cn_spec (instrumentation : Extract.instrumentation) =

@@ -238,7 +238,7 @@ let max_num_of_ghost_args prog5 =
   let nums_of_call_ghost_args =
     List.map (fun (_, args) -> List.length args) (ghost_args_and_their_call_locs prog5)
   in
-  List.fold_left max min_int (nums_of_spec_ghost_args @ nums_of_call_ghost_args)
+  List.fold_left max 0 (nums_of_spec_ghost_args @ nums_of_call_ghost_args)
 
 
 type cn_spec_inj_info =
@@ -278,7 +278,7 @@ let generate_c_specs_from_cn_internal
       preds
       globals
       c_return_type
-      (max_num_of_ghost_args prog5)
+      (Some (max_num_of_ghost_args prog5))
       instrumentation.internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
@@ -563,7 +563,6 @@ let generate_c_lemmas
       prog5.resource_predicates
       globals
       prog5.lemmata
-      (max_num_of_ghost_args prog5)
   in
   let decls, defs = List.split ail_funs in
   let defs_doc, decls_doc = generate_fun_def_and_decl_docs (List.combine decls defs) in
