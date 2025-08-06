@@ -88,81 +88,6 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
 
   let loc (Annot (_, _, _, loc) : ('tag, 'ast) annot) : Locations.t = loc
 
-  (* Smart constructors *)
-  let arbitrary_ (d : AD.t) (tag : 'tag) (bt : BT.t) (loc : Locations.t) : ('tag, _) annot
-    =
-    Annot (`Arbitrary d, tag, bt, loc)
-
-
-  let call_ (fsym, xits) (tag : 'tag) (bt : BT.t) loc : ('tag, _) annot =
-    Annot (`Call (fsym, xits), tag, bt, loc)
-
-
-  let asgn_ ((it_addr, ct), it_val, gt') (tag : 'tag) loc =
-    Annot (`Asgn ((it_addr, ct), it_val, gt'), tag, basetype gt', loc)
-
-
-  let let_star_
-        (((x, gt1), gt2) : (Sym.t * ('tag, 'ast) annot) * ('tag, 'ast) annot)
-        (tag : 'tag)
-        (loc : Locations.t)
-    : ('tag, 'ast) annot
-    =
-    Annot (`LetStar ((x, gt1), gt2), tag, basetype gt2, loc)
-
-
-  let return_ (it : IT.t) (tag : 'tag) (loc : Locations.t) : ('tag, _) annot =
-    Annot (`Return it, tag, IT.get_bt it, loc)
-
-
-  let assert_ ((lc, gt') : LC.t * ('tag, 'ast) annot) (tag : 'tag) (loc : Locations.t)
-    : ('tag, 'ast) annot
-    =
-    Annot (`Assert (lc, gt'), tag, basetype gt', loc)
-
-
-  let ite_
-        ((it_if, gt_then, gt_else) : IT.t * ('tag, 'ast) annot * ('tag, 'ast) annot)
-        (tag : 'tag)
-        loc
-    : ('tag, _) annot
-    =
-    let bt = basetype gt_then in
-    assert (BT.equal bt (basetype gt_else));
-    Annot (`ITE (it_if, gt_then, gt_else), tag, bt, loc)
-
-
-  let map_
-        (((i, i_bt, it_perm), gt_inner) : (Sym.t * BT.t * IT.t) * ('tag, 'ast) annot)
-        (tag : 'tag)
-        loc
-    : ('tag, 'ast) annot
-    =
-    Annot
-      ( `Map ((i, i_bt, it_perm), gt_inner),
-        tag,
-        BT.make_map_bt i_bt (basetype gt_inner),
-        loc )
-
-
-  let pick_ (gts : ('tag, 'ast) annot list) (tag : 'tag) (bt : BT.t) (loc : Locations.t)
-    : ('tag, 'ast) annot
-    =
-    match gts with
-    | gt :: gts' ->
-      let bt =
-        List.fold_left
-          (fun bt gt ->
-             assert (BT.equal bt (basetype gt));
-             bt)
-          (basetype gt)
-          gts'
-      in
-      Annot (`Pick gts, tag, bt, loc)
-    | [] ->
-      assert_ (LC.T (IT.bool_ false loc), return_ (IT.default_ bt loc) tag loc) tag loc
-
-
   (* Constructor-checking functions *)
 
   let is_arbitrary_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : AD.t option =
@@ -309,12 +234,16 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
 
 
   let rec free_vars_bts_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : BT.t Sym.Map.t =
-    let loc = Locations.other __LOC__ in
     match gt_ with
     | `Arbitrary _ -> Sym.Map.empty
     | `Call (_, iargs) -> IT.free_vars_bts_list iargs
     | `Asgn ((it_addr, _), it_val, gt') ->
-      free_vars_bts_list [ return_ it_addr () loc; return_ it_val () loc; gt' ]
+      Sym.Map.union
+        (fun _ bt1 bt2 ->
+           assert (BT.equal bt1 bt2);
+           Some bt1)
+        (IT.free_vars_bts_list [ it_addr; it_val ])
+        (free_vars_bts gt')
     | `LetStar ((x, gt_inner), gt_rest) ->
       Sym.Map.union
         (fun _ bt1 bt2 ->
@@ -330,9 +259,21 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
         (free_vars_bts gt')
         (LC.free_vars_bts lc)
     | `ITE (it_if, gt_then, gt_else) ->
-      free_vars_bts_list [ return_ it_if () loc; gt_then; gt_else ]
+      Sym.Map.union
+        (fun _ bt1 bt2 ->
+           assert (BT.equal bt1 bt2);
+           Some bt1)
+        (IT.free_vars_bts it_if)
+        (free_vars_bts_list [ gt_then; gt_else ])
     | `Map ((i, _bt, it_perm), gt') ->
-      Sym.Map.remove i (free_vars_bts_list [ return_ it_perm () loc; gt' ])
+      Sym.Map.remove
+        i
+        (Sym.Map.union
+           (fun _ bt1 bt2 ->
+              assert (BT.equal bt1 bt2);
+              Some bt1)
+           (IT.free_vars_bts it_perm)
+           (free_vars_bts gt'))
     | `Pick gts -> free_vars_bts_list gts
 
 
@@ -441,7 +382,7 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
 
 
   let elaborate_map_ (`Map ((i, i_bt, it_perm), gt_inner)) =
-    let it_min, it_max = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
+    let it_min, it_max = IT.Bounds.get_bounds (i, i_bt) it_perm in
     `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner)
 
 
@@ -479,4 +420,36 @@ module type T = sig
   val compare : t -> t -> int
 
   val pp : t -> Pp.document
+
+  val arbitrary_ : AD.t -> tag_t -> BT.t -> Locations.t -> t
+
+  val call_ : Sym.t * IT.t list -> tag_t -> BT.t -> Locations.t -> t
+
+  val asgn_ : (IT.t * Sctypes.t) * IT.t * t -> tag_t -> Locations.t -> t
+
+  val let_star_ : (Sym.t * t) * t -> tag_t -> Locations.t -> t
+
+  val return_ : IT.t -> tag_t -> Locations.t -> t
+
+  val assert_ : LC.t * t -> tag_t -> Locations.t -> t
+
+  val ite_ : IT.t * t * t -> tag_t -> Locations.t -> t
+
+  val map_ : (Sym.t * BT.t * IT.t) * t -> tag_t -> Locations.t -> t
+
+  val pick_ : t list -> tag_t -> BT.t -> Locations.t -> t
+
+  val pick_sized_ : (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
+
+  val pick_sized_elab_ : (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
+
+  val asgn_elab_
+    :  Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t ->
+    tag_t ->
+    Locations.t ->
+    t
+
+  val split_size_ : Sym.Set.t * t -> tag_t -> Locations.t -> t
+
+  val split_size_elab_ : Sym.t * Sym.Set.t * t -> tag_t -> Locations.t -> t
 end
