@@ -4249,6 +4249,7 @@ let rec cn_to_ail_pre_post_aux
           globals
           c_return_type
           ghost_debruijn
+          max_num_ghost_args
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
@@ -4263,6 +4264,7 @@ let rec cn_to_ail_pre_post_aux
         globals
         c_return_type
         ghost_debruijn
+        max_num_ghost_args
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
@@ -4279,6 +4281,7 @@ let rec cn_to_ail_pre_post_aux
         globals
         c_return_type
         (ghost_debruijn + 1)
+        max_num_ghost_args
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
@@ -4299,7 +4302,13 @@ let rec cn_to_ail_pre_post_aux
       A.(
         AilSexpr
           (mk_expr
-             (AilEcall (mk_expr (AilEident (Sym.fresh clear_ghost_array_fn_str)), []))))
+             (AilEcall
+                ( mk_expr (AilEident (Sym.fresh clear_ghost_array_fn_str)),
+                  [ mk_expr
+                      (AilEconst
+                         (ConstantInteger
+                            (IConstant (Z.of_int max_num_ghost_args, Decimal, None))))
+                  ] ))))
     in
     prepend_to_precondition ail_executable_spec ([], [ decl ])
 
@@ -4312,6 +4321,7 @@ let cn_to_ail_pre_post
       preds
       globals
       c_return_type
+      max_num_ghost_args
   = function
   | Some internal ->
     let ail_executable_spec =
@@ -4324,6 +4334,7 @@ let cn_to_ail_pre_post
         globals
         c_return_type
         0
+        max_num_ghost_args
         internal
     in
     let ownership_stats_ =
@@ -4348,7 +4359,7 @@ let cn_to_ail_pre_post
   | None -> empty_ail_executable_spec
 
 
-let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
+let cn_to_ail_lemma filename dts preds globals max_num_ghost_args (sym, (loc, lemmat)) =
   let ret_type = mk_ctype C.Void in
   let param_syms, param_bts = List.split (AT.get_ghost lemmat) in
   let param_types = List.map (fun bt -> bt_to_ail_ctype bt) param_bts in
@@ -4370,6 +4381,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       preds
       globals
       ret_type
+      max_num_ghost_args
       (Some transformed_lemmat)
   in
   let pre_bs, pre_ss = ail_executable_spec.pre in
@@ -4395,10 +4407,10 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
   (decl, def)
 
 
-let cn_to_ail_lemmas filename dts preds globals lemmata
+let cn_to_ail_lemmas filename dts preds globals lemmata max_num_ghost_args
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
-  List.map (cn_to_ail_lemma filename dts preds globals) lemmata
+  List.map (cn_to_ail_lemma filename dts preds globals max_num_ghost_args) lemmata
 
 
 let has_cn_spec (instrumentation : Extract.instrumentation) =

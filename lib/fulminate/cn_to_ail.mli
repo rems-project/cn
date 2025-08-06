@@ -211,6 +211,7 @@ val cn_to_ail_lemmas
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
   (Sym.t * (Cerb_location.t * ArgumentTypes.lemmat)) list ->
+  int ->
   (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
@@ -223,6 +224,7 @@ val cn_to_ail_pre_post
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
   Ctype.ctype ->
+  int ->
   Extract.fn_args_and_body option ->
   ail_executable_spec
 
