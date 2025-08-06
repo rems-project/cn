@@ -339,7 +339,3 @@ type 'TY file =
   }
 
 val empty_file : 'TY file
-
-val ghost_args_and_their_call_locs
-  :  'TY file ->
-  (Cerb_location.t * IndexTerms.t Cnprog.t list) list
