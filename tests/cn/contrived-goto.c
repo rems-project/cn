@@ -1,5 +1,6 @@
 /* A contrived example with labels and gotos, for making sure Fulminate's C control-flow machinery works */
-int f(int flag) {
+int f(int flag)
+{
     int a = 'h';
     if (flag) {
       goto L1;
@@ -40,8 +41,9 @@ int f(int flag) {
     return 0;
   }
   
-  int main(void) {
+int main(void) 
+/*@ trusted; @*/
+{
     f(1);
     return 0;
   }
-  
