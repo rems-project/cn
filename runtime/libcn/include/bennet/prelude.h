@@ -1,7 +1,6 @@
 #ifndef BENNET_PRELUDE_H
 #define BENNET_PRELUDE_H
 
-#include <bennet/compat.h>
 #include <bennet/dsl.h>
 #include <bennet/info/backtracks.h>
 #include <bennet/info/sizes.h>

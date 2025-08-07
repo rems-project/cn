@@ -20,7 +20,6 @@
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   ; Bennet
-  (bennet/compat.h as runtime/include/bennet/compat.h)
   (bennet/prelude.h as runtime/include/bennet/prelude.h)
   (bennet/dsl/arbitrary.h as runtime/include/bennet/dsl/arbitrary.h)
   (bennet/dsl/assert.h as runtime/include/bennet/dsl/assert.h)
