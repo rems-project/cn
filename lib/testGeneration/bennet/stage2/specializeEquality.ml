@@ -1,6 +1,6 @@
 module IT = IndexTerms
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)

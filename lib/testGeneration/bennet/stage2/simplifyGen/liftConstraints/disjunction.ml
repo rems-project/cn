@@ -1,7 +1,7 @@
 module BT = BaseTypes
 module IT = IndexTerms
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
   let rec is_external (gt : Term.t) : bool =

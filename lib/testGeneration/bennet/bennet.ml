@@ -26,7 +26,7 @@ let debug_stage (stage : string) (str : string) : unit =
   debug_log (str ^ "\n\n")
 
 
-let parse_domain (s : string) : (module GenTerms.Domain.T) =
+let parse_domain (s : string) : (module Domain.T) =
   match s with
   | _ when String.equal s AbstractDomains.Ownership.name ->
     (module AbstractDomains.Ownership)
@@ -34,6 +34,18 @@ let parse_domain (s : string) : (module GenTerms.Domain.T) =
   | _ ->
     Pp.warn Cerb_location.unknown Pp.(!^"Unknown abstract domain," ^^^ squotes !^s);
     (module AbstractDomains.Trivial)
+
+
+let test_setup () : Pp.document =
+  let domain = "ownership" in
+  let open Pp in
+  let module AD = (val parse_domain domain) in
+  let module CG = Domain.CodeGen (AD.CInt) in
+  !^"#include <bennet/internals/domain.h>"
+  ^^ hardline
+  ^^ !^"#include <bennet/internals/domains/ownership.h>"
+  ^/^ hardline
+  ^^ CG.setup ()
 
 
 let synthesize

@@ -40,8 +40,8 @@
 
 #define BENNET_ARBITRARY(cn_ty, c_ty)                                                    \
   ({                                                                                     \
-    bennet_domain(c_ty) domain = bennet_domain_default(c_ty);                            \
-    bennet_arbitrary_##cn_ty(&domain);                                                   \
+    bennet_domain(c_ty)* domain = bennet_domain_top(c_ty);                               \
+    bennet_arbitrary_##cn_ty(domain);                                                    \
   })
 
 #define BENNET_ARBITRARY_POINTER() BENNET_ARBITRARY(cn_pointer, uintptr_t)
@@ -65,11 +65,11 @@
     var;                                                                                 \
   })
 
-#define BENNET_ASSIGN(id, ptr, addr, addr_ty, value, last_var, ...)                      \
+#define BENNET_ASSIGN(id, ptr, ptr_ty, addr, val_ty, value, last_var, ...)               \
   {                                                                                      \
-    addr_ty value_redir = value;                                                         \
+    val_ty value_redir = value;                                                          \
     const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assign(id, ptr, addr, &value_redir, sizeof(addr_ty), vars)) {             \
+    if (bennet_assign(ptr_ty, id, ptr, addr, &value_redir, sizeof(val_ty), vars)) {      \
       bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
       bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \
@@ -85,11 +85,11 @@
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
   bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
-  bennet_domain(c_ty) var##_cs = bennet_domain_default(c_ty);                            \
-  bennet_domain(c_ty) var##_cs_tmp = var##_cs;                                           \
+  bennet_domain(c_ty)* var##_cs = bennet_domain_top(c_ty);                               \
+  bennet_domain(c_ty)* var##_cs_tmp = var##_cs;                                          \
                                                                                          \
   bennet_label_##var##_gen :;                                                            \
-  cn_ty* var = bennet_arbitrary_##cn_ty(&var##_cs_tmp);                                  \
+  cn_ty* var = bennet_arbitrary_##cn_ty(var##_cs_tmp);                                   \
                                                                                          \
   var##_cs_tmp = var##_cs;                                                               \
                                                                                          \
@@ -110,7 +110,7 @@
       var##_restore_randomness = var##_should_restore_randomness;                        \
       if (!var##_restore_randomness) {                                                   \
         var##_restore_randomness =                                                       \
-            !var##_is_young && !bennet_domain_equal(c_ty)(&var##_cs, &var##_cs_tmp);     \
+            !var##_is_young && !bennet_domain_equal(c_ty, var##_cs, var##_cs_tmp);       \
       }                                                                                  \
                                                                                          \
       goto bennet_label_##var##_gen;                                                     \

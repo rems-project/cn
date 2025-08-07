@@ -32,7 +32,8 @@ void bennet_alloc_restore(size_t size) {
   if (size <= bennet_vector_size(pointer_data)(&alloc_vector)) {
     // Truncate the vector to the saved size
     while (bennet_vector_size(pointer_data)(&alloc_vector) > size) {
-      bennet_vector_pop(pointer_data)(&alloc_vector);
+      pointer_data removed = bennet_vector_pop(pointer_data)(&alloc_vector);
+      bennet_rand_alloc_free(removed.ptr);
     }
     return;
   }
@@ -66,22 +67,6 @@ void bennet_ownership_restore(size_t size) {
 void bennet_alloc_record(void* p, size_t sz) {
   pointer_data data = {.ptr = p, .sz = sz};
   bennet_vector_push(pointer_data)(&alloc_vector, data);
-}
-
-cn_pointer* bennet_alloc(bennet_domain(uintptr_t) * cs) {
-  size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;
-
-  // TODO: Perform static analysis to use the following when possible:
-  // cn_bump_aligned_alloc(
-  //    bennet_optional_unwrap_or(uintptr_t)
-  //      (&cs->multiple, alignof(max_align_t)), bytes);
-  // Much faster than `bennet_rand_alloc_bounded`
-
-  void* p = bennet_rand_alloc_bounded(cs);
-
-  bennet_alloc_record(p, bytes);
-
-  return convert_to_cn_pointer(p + cs->lower_offset_bound);
 }
 
 int bennet_alloc_check(void* p, size_t sz) {

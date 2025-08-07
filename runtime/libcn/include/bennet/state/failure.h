@@ -24,7 +24,23 @@ void bennet_failure_set_failure_type(enum bennet_failure_type type);
 void bennet_failure_reset(void);
 
 void bennet_failure_blame(const void* id);
-void bennet_failure_blame_domain(const void* id, bennet_domain_failure_info* domain);
+
+#define bennet_failure_blame_domain(ty, id, cs) (bennet_failure_blame_domain_##ty(id, cs))
+#define bennet_failure_get_domain(ty, id)       (bennet_failure_get_domain_##ty(id))
+
+#define BENNET_DOMAIN_FAILURE_DECL(ty)                                                   \
+  void bennet_failure_blame_domain_##ty(const void* id, bennet_domain(ty) * domain);     \
+  bennet_domain(ty) * bennet_failure_get_domain_##ty(const void* id);
+
+BENNET_DOMAIN_FAILURE_DECL(int8_t)
+BENNET_DOMAIN_FAILURE_DECL(uint8_t)
+BENNET_DOMAIN_FAILURE_DECL(int16_t)
+BENNET_DOMAIN_FAILURE_DECL(uint16_t)
+BENNET_DOMAIN_FAILURE_DECL(int32_t)
+BENNET_DOMAIN_FAILURE_DECL(uint32_t)
+BENNET_DOMAIN_FAILURE_DECL(int64_t)
+BENNET_DOMAIN_FAILURE_DECL(uint64_t)
+BENNET_DOMAIN_FAILURE_DECL(uintptr_t)
 
 int bennet_failure_remove_blame(const void* id);
 
@@ -49,7 +65,5 @@ int bennet_failure_remap_blamed(const void* from, const void* to);
  * @return int How many remappings were successful?
  */
 int bennet_failure_remap_blamed_many(const char* from[], const char* to[]);
-
-bennet_domain_failure_info* bennet_failure_get_domain(const void* id);
 
 #endif  // BENNET_FAILURE_H

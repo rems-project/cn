@@ -1,6 +1,6 @@
 module BT = BaseTypes
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module Stage1 = Stage1.Make (AD)
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)

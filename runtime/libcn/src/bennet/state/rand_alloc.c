@@ -53,20 +53,31 @@ static bool overlaps(size_t offset, size_t length) {
 }
 
 // Allocate a random, non-overlapping region
-void *bennet_rand_alloc(size_t length) {
+void *bennet_rand_alloc(size_t bytes) {
   bennet_rand_alloc_init();
 
-  if (length == 0 || length > global_rand_alloc.buffer_len) {
+  if (bytes == 0 || bytes > global_rand_alloc.buffer_len) {
     return NULL;
   }
+
   const int max_attempts = 100;
   for (int attempt = 0; attempt < max_attempts; ++attempt) {
-    size_t max_offset = global_rand_alloc.buffer_len - length;
-    size_t offset = (size_t)(bennet_uniform_uint64_t(max_offset + 1));
-    if (!overlaps(offset, length)) {
-      rand_alloc_region region = {offset, length};
+    size_t max_offset = global_rand_alloc.buffer_len - bytes;
+    size_t raw_offset = (size_t)(bennet_uniform_uint64_t(max_offset + 1));
+
+    size_t aligned_offset =
+        (raw_offset + (alignof(max_align_t) - 1)) & ~(alignof(max_align_t) - 1);
+
+    // Check if aligned_offset is still within bounds
+    if (aligned_offset < 0 || max_offset < aligned_offset ||
+        max_offset < (aligned_offset + bytes - 1)) {
+      continue;
+    }
+
+    if (!overlaps(aligned_offset, bytes)) {
+      rand_alloc_region region = {aligned_offset, bytes};
       bennet_vector_push(rand_alloc_region)(&global_rand_alloc.regions, region);
-      return global_rand_alloc.buffer + offset;
+      return global_rand_alloc.buffer + aligned_offset;
     }
   }
 
@@ -95,20 +106,17 @@ void *bennet_rand_alloc_max_ptr(void) {
 }
 
 // Allocate a random, non-overlapping region of the given length within [lower, upper] (inclusive bounds)
-void *bennet_rand_alloc_bounded(bennet_domain(uintptr_t) * cs) {
+void *bennet_rand_alloc_bounded(
+    size_t bytes, uintptr_t lower_bound, uintptr_t upper_bound) {
   bennet_rand_alloc_init();
-
-  size_t bytes = cs->lower_offset_bound + cs->upper_offset_bound;
 
   assert(bytes != 0);
 
   char *buf_start = global_rand_alloc.buffer;
   char *buf_end = global_rand_alloc.buffer + global_rand_alloc.buffer_len - 1;
 
-  char *low = (char *)bennet_optional_unwrap_or(uintptr_t)(
-      &cs->lower_bound_inc, (uintptr_t)buf_start);
-  char *high = (char *)bennet_optional_unwrap_or(uintptr_t)(
-      &cs->upper_bound_inc, (uintptr_t)buf_end);
+  char *low = (char *)lower_bound < buf_start ? buf_start : (char *)lower_bound;
+  char *high = (char *)upper_bound > buf_end ? buf_end : (char *)upper_bound;
   assert(low <= high);
 
   size_t min_offset = (size_t)(low - buf_start);
@@ -122,23 +130,17 @@ void *bennet_rand_alloc_bounded(bennet_domain(uintptr_t) * cs) {
   size_t range = available_bytes - bytes + 1;  // Exclusive
   const int max_attempts = 100;
   for (int attempt = 0; attempt < max_attempts; ++attempt) {
-    size_t raw_offset = min_offset + (size_t)(bennet_uniform_uint32_t(range));
-
-    // Align the offset
-    size_t alignment =
-        bennet_optional_unwrap_or(uintptr_t)(&cs->multiple, alignof(max_align_t));
-    size_t aligned_offset = (raw_offset + (alignment - 1)) & ~(alignment - 1);
+    size_t offset = min_offset + (size_t)(bennet_uniform_uint32_t(range));
 
     // Check if aligned_offset is still within bounds
-    if (aligned_offset < min_offset || max_offset < aligned_offset ||
-        max_offset < (aligned_offset + bytes - 1)) {
+    if (offset < min_offset || max_offset < offset || max_offset < (offset + bytes - 1)) {
       continue;
     }
 
-    if (!overlaps(aligned_offset, bytes)) {
-      rand_alloc_region region = {aligned_offset, bytes};
+    if (!overlaps(offset, bytes)) {
+      rand_alloc_region region = {offset, bytes};
       bennet_vector_push(rand_alloc_region)(&global_rand_alloc.regions, region);
-      return global_rand_alloc.buffer + aligned_offset;
+      return global_rand_alloc.buffer + offset;
     }
   }
 

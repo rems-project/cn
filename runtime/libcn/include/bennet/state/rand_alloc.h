@@ -10,10 +10,11 @@
 struct rand_alloc;
 
 // Allocate a random, non-overlapping region of the given length
-void *bennet_rand_alloc(size_t length);
+void *bennet_rand_alloc(size_t bytes);
 
 // Allocate a random, non-overlapping region of the given domain
-void *bennet_rand_alloc_bounded(bennet_domain(uintptr_t) * cs);
+void *bennet_rand_alloc_bounded(
+    size_t length, uintptr_t lower_bound, uintptr_t upper_bound);
 
 // Free the allocator and its resources
 void bennet_rand_alloc_free_all(void);

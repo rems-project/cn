@@ -8,12 +8,64 @@
 #include <bennet/state/alloc.h>
 #include <bennet/state/rand_alloc.h>
 
+#define OWNERSHIP_FROM_ASSIGN(cty, min, max)                                             \
+  bennet_domain_ownership(cty) * bennet_domain_ownership_from_assignment_##cty(          \
+                                     void* base_ptr, void* addr, size_t bytes) {         \
+    assert(min <= (uintptr_t)bennet_rand_alloc_max_ptr());                               \
+    assert((uintptr_t)bennet_rand_alloc_min_ptr() <= max);                               \
+                                                                                         \
+    /* We assume that for any pointer and an allocation, */                              \
+    /* the offset was the shorter distance. */                                           \
+    /* Ex: base_ptr = 0xffff, addr = 0x4 -> we assume it overflowed */                   \
+                                                                                         \
+    uintptr_t p_raw = (uintptr_t)addr;                                                   \
+    uintptr_t p_bytes_raw = p_raw + bytes;                                               \
+    uintptr_t base_ptr_raw = (uintptr_t)base_ptr;                                        \
+                                                                                         \
+    size_t lower_offset =                                                                \
+        ((base_ptr_raw - p_raw) <= (p_raw - base_ptr_raw)) ? (base_ptr_raw - p_raw) : 0; \
+    size_t upper_offset =                                                                \
+        ((p_bytes_raw - base_ptr_raw) <= (base_ptr_raw - (p_bytes_raw)))                 \
+            ? ((p_bytes_raw) - base_ptr_raw)                                             \
+            : 0;                                                                         \
+                                                                                         \
+    assert(lower_offset > 0 || upper_offset > 0);                                        \
+                                                                                         \
+    bennet_domain_ownership(cty)* d =                                                    \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
+    d->bottom = 0;                                                                       \
+    d->before = lower_offset;                                                            \
+    d->after = upper_offset;                                                             \
+    return d;                                                                            \
+  }
+
+#define OWNERSHIP_FROM_ASSIGN_BV(bits)                                                   \
+  OWNERSHIP_FROM_ASSIGN(int##bits##_t, INT##bits##_MIN, INT##bits##_MAX)                 \
+  OWNERSHIP_FROM_ASSIGN(uint##bits##_t, 0, UINT##bits##_MAX)
+
+OWNERSHIP_FROM_ASSIGN_BV(8)
+OWNERSHIP_FROM_ASSIGN_BV(16)
+OWNERSHIP_FROM_ASSIGN_BV(32)
+OWNERSHIP_FROM_ASSIGN_BV(64)
+
+OWNERSHIP_FROM_ASSIGN(uintptr_t, 0, UINTPTR_MAX)
+
 #define OWNERSHIP_GEN(cty)                                                               \
-  cty bennet_arbitrary_ownership_##cty(bennet_domain_ownership(cty) * d) {               \
+  cty bennet_domain_ownership_arbitrary_##cty(bennet_domain_ownership(cty) * d) {        \
     assert(!d->bottom);                                                                  \
                                                                                          \
     if (d->before != 0 && d->after != 0) {                                               \
-      void* p = bennet_rand_alloc(d->before + d->after);                                 \
+      size_t bytes = d->before + d->after;                                               \
+      if (bytes < d->before || bytes < d->after) {                                       \
+        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);                                          \
+      }                                                                                  \
+                                                                                         \
+      void* p = bennet_rand_alloc(bytes);                                                \
+      if (!p) {                                                                          \
+        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);                                          \
+      }                                                                                  \
+      bennet_alloc_record(p, bytes);                                                     \
+                                                                                         \
       return (cty)((uintptr_t)p + d->before);                                            \
     }                                                                                    \
                                                                                          \
@@ -30,12 +82,21 @@ OWNERSHIP_GEN(int16_t);
 OWNERSHIP_GEN(int32_t);
 OWNERSHIP_GEN(int64_t);
 
-uintptr_t bennet_arbitrary_ownership_uintptr_t(bennet_domain_ownership(uintptr_t) * d) {
+uintptr_t bennet_domain_ownership_arbitrary_uintptr_t(
+    bennet_domain_ownership(uintptr_t) * d) {
   assert(!d->bottom);
 
-  if (d->before != 0 && d->after != 0) {
+  if (d->before != 0 || d->after != 0) {
     size_t bytes = d->before + d->after;
+    if (bytes < d->before || bytes < d->after) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    }
+
     void* p = bennet_rand_alloc(bytes);
+    if (!p) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    }
+
     bennet_alloc_record(p, bytes);
 
     return (uintptr_t)((uintptr_t)p + d->before);
@@ -54,7 +115,7 @@ uintptr_t bennet_arbitrary_ownership_uintptr_t(bennet_domain_ownership(uintptr_t
 
 #define OWNERSHIP_GEN_CN(cn_ty, c_ty)                                                    \
   cn_ty* bennet_arbitrary_ownership_##cn_ty(bennet_domain_ownership(c_ty) * d) {         \
-    return convert_to_##cn_ty(bennet_arbitrary_ownership_##c_ty(d));                     \
+    return convert_to_##cn_ty(bennet_domain_ownership_arbitrary_##c_ty(d));              \
   }
 
 OWNERSHIP_GEN_CN(cn_bits_i8, int8_t)
@@ -69,5 +130,5 @@ OWNERSHIP_GEN_CN(cn_bits_u64, uint64_t)
 
 cn_pointer* bennet_arbitrary_ownership_cn_pointer(
     bennet_domain_ownership(uintptr_t) * d) {
-  return convert_to_cn_pointer((void*)bennet_arbitrary_ownership_uintptr_t(d));
+  return convert_to_cn_pointer((void*)bennet_domain_ownership_arbitrary_uintptr_t(d));
 }

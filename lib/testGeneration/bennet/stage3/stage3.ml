@@ -1,6 +1,6 @@
 (** This stage adds sizing *)
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   open struct
     module Convert = Convert.Make (AD)
   end

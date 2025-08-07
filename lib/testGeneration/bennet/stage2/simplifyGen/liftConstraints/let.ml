@@ -1,7 +1,7 @@
 module IT = IndexTerms
 module LC = LogicalConstraints
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
   let transform_gt (gt : Term.t) : Term.t =

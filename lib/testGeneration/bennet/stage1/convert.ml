@@ -5,7 +5,7 @@ module LC = LogicalConstraints
 module LAT = LogicalArgumentTypes
 module Config = TestGenConfig
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module OptCtx = GenContext.MakeOptional (Term.Make (AD))
   module OptDef = GenDefinitions.MakeOptional (Term.Make (AD))
   module Tm = Term.Make (AD)

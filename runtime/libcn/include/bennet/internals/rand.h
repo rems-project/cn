@@ -21,6 +21,8 @@ int16_t bennet_uniform_int16_t(uint16_t);
 int32_t bennet_uniform_int32_t(uint32_t);
 int64_t bennet_uniform_int64_t(uint64_t);
 
+uintptr_t bennet_uniform_uintptr_t(uintptr_t);
+
 uint8_t bennet_range_uint8_t(uint8_t, uint8_t);
 uint16_t bennet_range_uint16_t(uint16_t, uint16_t);
 uint32_t bennet_range_uint32_t(uint32_t, uint32_t);

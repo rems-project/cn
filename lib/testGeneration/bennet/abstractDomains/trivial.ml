@@ -1,5 +1,13 @@
 let name = "trivial"
 
+module CInt : Domain.C_INTERFACE = struct
+  open Pp
+
+  let name = !^name
+
+  let definitions () = empty
+end
+
 type t = unit [@@deriving eq, ord]
 
 let bottom = ()
