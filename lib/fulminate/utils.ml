@@ -195,11 +195,11 @@ let get_start_loc ?(offset = 0) = function
     let new_start_pos = Cerb_position.change_cnum start_pos offset in
     Cerb_location.point new_start_pos
   | Loc_regions (pos_list, _) ->
-    (match List.last pos_list with
-     | Some (_, start_pos) ->
+    (match pos_list with
+     | (start_pos, _) :: _ ->
        let new_start_pos = Cerb_position.change_cnum start_pos offset in
        Cerb_location.point new_start_pos
-     | None ->
+     | [] ->
        failwith
          "get_start_loc: Loc_regions has empty list of positions (should be non-empty)")
   | Loc_point pos -> Cerb_location.point (Cerb_position.change_cnum pos offset)
