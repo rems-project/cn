@@ -182,7 +182,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       bennet_info_unsatisfied_begin_run();                                               \
       successful_gen = false;                                                            \
       bennet_##FuncName##_record* res = bennet_##FuncName();                             \
-      if (bennet_failure_get_failure_type() != BENNET_BACKTRACK_NONE) {                  \
+      if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
         gettimeofday(&end_time, NULL);                                                   \
                                                                                          \
         gettimeofday(&end_time, NULL);                                                   \
@@ -200,7 +200,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
               .test_name = #Name,                                                        \
               .status = "gave_up",                                                       \
               .status_reason =                                                           \
-                  (bennet_failure_get_failure_type() == BENNET_BACKTRACK_TIMEOUT)        \
+                  (bennet_failure_get_failure_type() == BENNET_FAILURE_TIMEOUT)          \
                       ? "Generation timed out"                                           \
                       : "Generation backtracked all the way to the top",                 \
               .suite_begin_time = test_input.begin_time,                                 \
