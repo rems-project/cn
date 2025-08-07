@@ -1,6 +1,6 @@
 #!/bin/bash
 
-FLAGS="-O2 -Werror=shadow "
+FLAGS=" -Werror=shadow "
 if [[ -n "${GITHUB_ACTIONS+isset}" ]]; then
     FLAGS+="-Werror -Wall"
 fi

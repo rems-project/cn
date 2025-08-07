@@ -3,61 +3,70 @@
 #include <bennet/dsl/assign.h>
 #include <bennet/state/failure.h>
 
-bennet_domain_failure_info bennet_domain_from_assignment(
-    const void* p_alloc, const void* p, size_t bytes) {
-  // We assume that for any pointer and an allocation,
-  // the offset was the shorter distance.
-  // Ex: p_alloc = 0xffff, p = 0x4 -> we assume it overflowed
+#define BENNET_ASSIGN_IMPL(pointer_ty)                                                   \
+  bool bennet_assign_##pointer_ty(void* id,                                              \
+      cn_pointer* base_ptr,                                                              \
+      cn_pointer* addr,                                                                  \
+      void* value,                                                                       \
+      size_t bytes,                                                                      \
+      const void* vars[]) {                                                              \
+    bennet_domain(pointer_ty) * domain;                                                  \
+                                                                                         \
+    void* raw_base_ptr = convert_from_cn_pointer(base_ptr);                              \
+    void* raw_addr = convert_from_cn_pointer(addr);                                      \
+    if (raw_base_ptr == NULL || !bennet_alloc_check(raw_addr, bytes)) {                  \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);                            \
+                                                                                         \
+      domain =                                                                           \
+          bennet_domain_from_assignment_##pointer_ty(raw_base_ptr, raw_addr, bytes);     \
+      bennet_failure_blame_domain(pointer_ty, id, domain);                               \
+                                                                                         \
+      return true;                                                                       \
+    }                                                                                    \
+                                                                                         \
+    if (!bennet_ownership_check(raw_addr, bytes)) {                                      \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+                                                                                         \
+      bennet_failure_blame_many(vars);                                                   \
+                                                                                         \
+      return true;                                                                       \
+    }                                                                                    \
+                                                                                         \
+    memcpy(raw_addr, value, bytes);                                                      \
+    bennet_ownership_update(raw_addr, bytes);                                            \
+                                                                                         \
+    return false;                                                                        \
+  }
 
-  uintptr_t p_raw = (uintptr_t)p;
-  uintptr_t p_bytes_raw = p_raw + bytes;
-  uintptr_t p_alloc_raw = (uintptr_t)p_alloc;
-
-  size_t lower_offset =
-      ((p_alloc_raw - p_raw) <= (p_raw - p_alloc_raw)) ? (p_alloc_raw - p_raw) : 0;
-  size_t upper_offset = ((p_bytes_raw - p_alloc_raw) <= (p_alloc_raw - (p_bytes_raw)))
-                            ? ((p_bytes_raw)-p_alloc_raw)
-                            : 0;
-
-  assert(lower_offset > 0 || upper_offset > 0);
-
-  bennet_domain_failure_info domain = bennet_domain_default(intmax_t);
-  domain.is_owned = true;
-  domain.lower_offset_bound = lower_offset;
-  domain.upper_offset_bound = upper_offset;
-
-  return domain;
-}
-
-bool bennet_assign(void* id,
+BENNET_ASSIGN_IMPL(int8_t)
+BENNET_ASSIGN_IMPL(uint8_t)
+BENNET_ASSIGN_IMPL(int16_t)
+BENNET_ASSIGN_IMPL(uint16_t)
+BENNET_ASSIGN_IMPL(int32_t)
+BENNET_ASSIGN_IMPL(uint32_t)
+BENNET_ASSIGN_IMPL(int64_t)
+BENNET_ASSIGN_IMPL(uint64_t)
+bool bennet_assign_uintptr_t(void* id,
     cn_pointer* base_ptr,
     cn_pointer* addr,
     void* value,
     size_t bytes,
     const void* vars[]) {
-  bennet_domain_failure_info domain;
-
+  struct bennet_domain_uintptr_t* domain;
   void* raw_base_ptr = convert_from_cn_pointer(base_ptr);
   void* raw_addr = convert_from_cn_pointer(addr);
-  if (raw_base_ptr == NULL || !bennet_alloc_check(raw_addr, bytes)) {
+  if (raw_base_ptr == ((void*)0) || !bennet_alloc_check(raw_addr, bytes)) {
     bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);
-
-    domain = bennet_domain_from_assignment(raw_base_ptr, raw_addr, bytes);
-    bennet_failure_blame_domain(id, &domain);
-
-    return true;
+    domain = bennet_domain_from_assignment_uintptr_t(raw_base_ptr, raw_addr, bytes);
+    (bennet_failure_blame_domain_uintptr_t(id, domain));
+    return 1;
   }
-
   if (!bennet_ownership_check(raw_addr, bytes)) {
     bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);
-
     bennet_failure_blame_many(vars);
-
-    return true;
+    return 1;
   }
-
-  memcpy(raw_addr, value, bytes);
+  __builtin___memcpy_chk(raw_addr, value, bytes, __builtin_object_size(raw_addr, 0));
   bennet_ownership_update(raw_addr, bytes);
-
-  return false;
+  return 0;
 }

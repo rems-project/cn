@@ -1,4 +1,4 @@
-module Make (AD : GenTerms.Domain.T) : sig
+module Make (AD : Domain.T) : sig
   module Term : module type of Term.Make (AD)
 
   module Def : module type of Def.Make (AD)

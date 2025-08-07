@@ -55,3 +55,21 @@ SIZED_GEN(8);
 SIZED_GEN(16);
 SIZED_GEN(32);
 SIZED_GEN(64);
+
+uintptr_t bennet_arbitrary_sized_uintptr_t(bennet_domain_sized(uintptr_t) * d) {
+  uintptr_t s = d->size;
+  size_t sz = bennet_get_size();
+  if (s != 0 && s < sz) {
+    sz = s;
+  }
+
+  /* FIXME: Unsound, should move elsewhere */
+  if (sz <= 8 * sizeof(size_t)) {
+    size_t extremes_likelihood = 1 << (sz / 2 + 1);
+    if (!bennet_uniform_uint64_t(extremes_likelihood)) {
+      return (s == 0) ? UINTPTR_MAX : (s - 1);
+    }
+  }
+
+  return bennet_uniform_uintptr_t(sz);
+}

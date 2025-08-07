@@ -1,3 +1,3 @@
-module Trivial : GenTerms.Domain.T
+module Trivial : Domain.T
 
-module Ownership : GenTerms.Domain.T
+module Ownership : Domain.T

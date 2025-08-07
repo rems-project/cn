@@ -282,3 +282,7 @@ let string str =
     string str)
   else
     string str
+
+
+let escape_lines doc =
+  separate hardline (List.map (fun l -> l ^^ backslash) (lines (plain doc)))

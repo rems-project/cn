@@ -7,7 +7,7 @@
 
 struct name_list {
   const void* id;
-  bennet_domain_failure_info* domain;
+  void* domain;
   struct name_list* next;
 };
 
@@ -53,50 +53,74 @@ void bennet_failure_set_failure_type(enum bennet_failure_type type) {
   failure.young = true;
 }
 
-void bennet_failure_blame_domain(const void* id, bennet_domain_failure_info* domain) {
-  bennet_domain_failure_info* new_domain = NULL;
-  if (domain != NULL) {
-    assert(
-        failure.type == BENNET_FAILURE_ASSERT || failure.type == BENNET_FAILURE_ASSIGN);
-    new_domain = (bennet_domain_failure_info*)malloc(sizeof(bennet_domain_failure_info));
-    memcpy(new_domain, domain, sizeof(bennet_domain_failure_info));
+#define DOMAIN_FAILURE(ty)                                                               \
+  void bennet_failure_blame_domain_##ty(const void* id, bennet_domain(ty) * domain) {    \
+    bennet_domain(ty)* new_domain = bennet_domain_top(ty);                               \
+    if (domain != NULL) {                                                                \
+      assert(failure.type == BENNET_FAILURE_ASSERT ||                                    \
+             failure.type == BENNET_FAILURE_ASSIGN);                                     \
+      new_domain = bennet_domain_copy(ty, domain);                                       \
+    }                                                                                    \
+                                                                                         \
+    struct name_list* new_node = (struct name_list*)malloc(sizeof(struct name_list));    \
+    *new_node = (struct name_list){.id = id, .domain = new_domain, .next = 0};           \
+                                                                                         \
+    if (failure.blamed == NULL) {                                                        \
+      failure.blamed = new_node;                                                         \
+      return;                                                                            \
+    }                                                                                    \
+                                                                                         \
+    struct name_list* prev = NULL;                                                       \
+    struct name_list* curr = failure.blamed;                                             \
+    while (curr != NULL) {                                                               \
+      /* If variable is already in list, free `new_node` and return */                   \
+      if (curr->id == id) {                                                              \
+        if (new_domain != NULL) {                                                        \
+          if (curr->domain == NULL) {                                                    \
+            curr->domain = new_domain;                                                   \
+          } else {                                                                       \
+            curr->domain = bennet_domain_meet(ty, curr->domain, new_domain);             \
+            free(new_domain);                                                            \
+          }                                                                              \
+        }                                                                                \
+        free(new_node);                                                                  \
+        return;                                                                          \
+      }                                                                                  \
+                                                                                         \
+      prev = curr;                                                                       \
+      curr = curr->next;                                                                 \
+    }                                                                                    \
+                                                                                         \
+    prev->next = new_node;                                                               \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain(ty) * bennet_failure_get_domain_##ty(const void* id) {                   \
+    assert(failure.type != BENNET_FAILURE_NONE);                                         \
+                                                                                         \
+    struct name_list* curr = failure.blamed;                                             \
+    while (curr != NULL) {                                                               \
+      if (curr->id == id) {                                                              \
+        return (bennet_domain(ty)*)curr->domain;                                         \
+      }                                                                                  \
+                                                                                         \
+      curr = curr->next;                                                                 \
+    }                                                                                    \
+                                                                                         \
+    return NULL;                                                                         \
   }
 
-  struct name_list* new_node = (struct name_list*)malloc(sizeof(struct name_list));
-  *new_node = (struct name_list){.id = id, .domain = new_domain, .next = 0};
-
-  if (failure.blamed == NULL) {
-    failure.blamed = new_node;
-    return;
-  }
-
-  struct name_list* prev = NULL;
-  struct name_list* curr = failure.blamed;
-  while (curr != NULL) {
-    /* If variable is already in list, free `new_node` and return */
-    if (curr->id == id) {
-      if (new_domain != NULL) {
-        if (curr->domain == NULL) {
-          curr->domain = new_domain;
-        } else {
-          bennet_domain_update(intmax_t, curr->domain, new_domain);
-          free(new_domain);
-        }
-      }
-
-      free(new_node);
-      return;
-    }
-
-    prev = curr;
-    curr = curr->next;
-  }
-
-  prev->next = new_node;
-}
+DOMAIN_FAILURE(int8_t)
+DOMAIN_FAILURE(uint8_t)
+DOMAIN_FAILURE(int16_t)
+DOMAIN_FAILURE(uint16_t)
+DOMAIN_FAILURE(int32_t)
+DOMAIN_FAILURE(uint32_t)
+DOMAIN_FAILURE(int64_t)
+DOMAIN_FAILURE(uint64_t)
+DOMAIN_FAILURE(uintptr_t)
 
 void bennet_failure_blame(const void* id) {
-  bennet_failure_blame_domain(id, NULL);
+  bennet_failure_blame_domain(int8_t, id, NULL);
 }
 
 int bennet_failure_remove_blame(const void* id) {
@@ -200,19 +224,4 @@ int bennet_failure_remap_blamed_many(const char* from[], const char* to[]) {
   free(toUnique);
 
   return successes;
-}
-
-bennet_domain_failure_info* bennet_failure_get_domain(const void* id) {
-  assert(failure.type != BENNET_FAILURE_NONE);
-
-  struct name_list* curr = failure.blamed;
-  while (curr != NULL) {
-    if (curr->id == id) {
-      return curr->domain;
-    }
-
-    curr = curr->next;
-  }
-
-  return NULL;
 }

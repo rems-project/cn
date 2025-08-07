@@ -7,52 +7,6 @@ type ('tag, 'ast) annot =
       ('ast * 'tag * BT.t * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0]))
 [@@deriving eq, ord]
 
-module Domain = struct
-  let ret_sym = Sym.fresh "return"
-
-  module type T = sig
-    val name : string
-
-    type t [@@deriving eq, ord]
-
-    (** The bottom element of the domain *)
-    val bottom : t
-
-    (** The top element of the domain *)
-    val top : t
-
-    (** Partial order: [leq x y] holds if x ≤ y in the lattice *)
-    val leq : t -> t -> bool
-
-    (** Least upper bound (join) *)
-    val join : t -> t -> t
-
-    (** Greatest lower bound (meet) *)
-    val meet : t -> t -> t
-
-    (* (** Widening operation to ensure fixpoint convergence.
-      [widen ~prev ~next] returns an over-approximation of the union
-      of [prev] and [next]. *)
-  val widen : prev:t -> next:t -> t *)
-
-    (* (** Narrowing operation to refine after widening.
-      [narrow ~prev ~next] returns a refined approximation of the intersection
-      of [prev] and [next]. *)
-  val narrow : prev:t -> next:t -> t *)
-
-    (** Rename a variable *)
-    val rename : from:Sym.t -> to_:Sym.t -> t -> t
-
-    (** Remove a variable *)
-    val remove : Sym.t -> t -> t
-
-    (** Retain only the provided variables *)
-    val retain : Sym.Set.t -> t -> t
-
-    val pp : t -> Pp.document
-  end
-end
-
 module [@warning "-60"] Make (AD : Domain.T) = struct
   module Inner = struct
     type ('tag, 'recur) ast =

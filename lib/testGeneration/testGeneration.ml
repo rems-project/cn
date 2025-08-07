@@ -353,7 +353,10 @@ let save_tests
   : unit
   =
   let tests_doc =
-    compile_test_file ~without_ownership_checking ~filename sigma prog5 tests
+    let open Pp in
+    Bennet.test_setup ()
+    ^/^ hardline
+    ^^ compile_test_file ~without_ownership_checking ~filename sigma prog5 tests
   in
   save output_dir (filename_base filename ^ ".test.c") tests_doc
 

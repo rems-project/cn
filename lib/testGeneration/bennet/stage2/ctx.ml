@@ -1,3 +1,3 @@
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   include GenContext.Make (Term.Make (AD))
 end

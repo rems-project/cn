@@ -1,3 +1,5 @@
+val test_setup : unit -> Pp.document
+
 val synthesize
   :  string ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->

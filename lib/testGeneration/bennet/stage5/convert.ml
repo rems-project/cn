@@ -8,7 +8,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module Stage4 = Stage4.Make (AD)
 
   let mk_expr = Utils.mk_expr
@@ -264,6 +264,13 @@ module Make (AD : GenTerms.Domain.T) = struct
       let b_value, s_value, AnnotatedExpression (_, _, _, e_value_) =
         transform_it filename sigma name it_val
       in
+      let ptr_ty =
+        match p_bt with
+        | Loc () -> "uintptr_t"
+        | Bits (Unsigned, sz) -> "uint" ^ string_of_int sz ^ "_t"
+        | Bits (Signed, sz) -> "int" ^ string_of_int sz ^ "_t"
+        | _ -> failwith ("Unsupported pointer type @ " ^ __LOC__)
+      in
       let s_assign =
         A.
           [ AilSexpr
@@ -286,6 +293,7 @@ module Make (AD : GenTerms.Domain.T) = struct
                              (b, List.map mk_stmt (s @ [ A.AilSexpr e ]))
                            in
                            A.AilEgcc_statement (b, s));
+                        mk_expr (AilEident (Sym.fresh ptr_ty));
                         e_addr;
                         mk_expr
                           (string_ident

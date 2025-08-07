@@ -1,4 +1,4 @@
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   open struct
     module LiftConstraints = LiftConstraints.Make (AD)
     module BranchPruning = BranchPruning.Make (AD)

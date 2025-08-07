@@ -2,7 +2,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
   let rec cnf_ (e : BT.t IT.term) : BT.t IT.term =

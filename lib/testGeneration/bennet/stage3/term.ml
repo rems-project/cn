@@ -5,7 +5,7 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module StringMap = Map.Make (String)
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   include GenTerms.Make (AD)
   module AD = AD
 

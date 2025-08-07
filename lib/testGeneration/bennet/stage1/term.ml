@@ -3,7 +3,7 @@ module IT = IndexTerms
 module LC = LogicalConstraints
 module CF = Cerb_frontend
 
-module Make (AD : GenTerms.Domain.T) = struct
+module Make (AD : Domain.T) = struct
   module AD = AD
   include GenTerms.Make (AD)
 
