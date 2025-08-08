@@ -210,7 +210,7 @@ let generate_fn_call_ghost_args_injs
   let dts = sigm.cn_datatypes in
   List.map
     (fun (loc, ghost_args) ->
-       ( loc,
+       ( get_start_loc loc,
          List.flatten
            (List.map
               generate_ail_stat_strs
