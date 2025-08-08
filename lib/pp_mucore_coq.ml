@@ -1876,14 +1876,14 @@ let pp_parse_ast_label_spec (s : parse_ast_label_spec) =
 
 
 let pp_label_def pp_type = function
-  | Other (loc, name, annot, args) ->
+  | Non_inlined (loc, name, annot, args) ->
     pp_constructor1
-      "Other"
+      "Non_inlined"
       [ pp_location loc; pp_symbol name; pp_label_annot annot; pp_arguments pp_unit args ]
   | Return loc -> pp_constructor1 "Return" [ pp_location loc ]
-  | Label (loc, args, annots, spec, `Loop (cond_loc, loop_loc, _)) ->
+  | Loop (loc, args, annots, spec, `Loop (cond_loc, loop_loc, _)) ->
     pp_constructor1
-      "Label"
+      "Loop"
       [ pp_location loc;
         pp_arguments (pp_expr pp_type) args;
         pp_list pp_annot_t annots;

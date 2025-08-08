@@ -2273,8 +2273,8 @@ let check_procedure
          (fun (lsym, def) ->
             pure
               (match def with
-               | Mu.Other _ | Return _ -> return ()
-               | Label (loc, label_args_and_body, _annots, _, _loop_info) ->
+               | Mu.Non_inlined _ | Return _ -> return ()
+               | Loop (loc, label_args_and_body, _annots, _, _loop_info) ->
                  debug
                    2
                    (lazy

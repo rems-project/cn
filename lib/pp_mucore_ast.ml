@@ -242,14 +242,14 @@ module PP = struct
 
   let dtree_of_label l def =
     match def with
-    | Other (loc, name, annot, args) ->
+    | Non_inlined (loc, name, annot, args) ->
       Dnode
         ( pp_symbol name ^^^ Cerb_location.pp_location ~clever:false loc,
           [ Dleaf !^(Pp_mucore.Basic.pp_str_label annot);
             dtree_of_arguments (fun _ -> Dleaf P.empty) args
           ] )
     | Return loc -> Dleaf (!^"return" ^^^ Cerb_location.pp_location ~clever:false loc)
-    | Label (loc, args_and_body, _, _, _) ->
+    | Loop (loc, args_and_body, _, _, _) ->
       Dnode
         ( pp_symbol l ^^^ Cerb_location.pp_location ~clever:false loc,
           [ dtree_of_arguments dtree_of_expr args_and_body ] )

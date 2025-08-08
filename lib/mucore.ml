@@ -376,9 +376,9 @@ type parse_ast_label_spec =
   { label_spec : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list }
 
 type 'TY label_def =
-  | Other of Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit arguments
+  | Non_inlined of Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit arguments
   | Return of Locations.t
-  | Label of
+  | Loop of
       Locations.t
       * 'TY expr arguments
       * Cerb_frontend.Annot.annot list

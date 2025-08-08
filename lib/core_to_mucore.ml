@@ -1306,7 +1306,7 @@ let normalise_label
                (List.combine lt label_args)
                ([], [])
            in
-           return (Mu.Other (loc, label_name, label_annot, label_args))
+           return (Mu.Non_inlined (loc, label_name, label_annot, label_args))
          else
            assert_error loc error_msg
        in
@@ -1356,7 +1356,7 @@ let normalise_label
           (*     ) label_args_and_body  *)
           (* in *)
           return
-            (Mu.Label
+            (Mu.Loop
                ( loc,
                  label_args_and_body,
                  annots,

@@ -94,6 +94,7 @@ let run_tests
     ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
+    ~skip_label_inlining:true
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
