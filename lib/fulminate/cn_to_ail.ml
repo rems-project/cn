@@ -4271,6 +4271,10 @@ let rec cn_to_ail_pre_post_aux
   | AT.Ghost ((sym, bt), _info, at) ->
     (match max_num_ghost_args_opt with
      | None ->
+       (* For lemmas,
+          ghost parameters are already translated specially
+          in cn_to_ail_lemma using AT.get_ghost,
+          so we may skip them here *)
        cn_to_ail_pre_post_aux
          without_ownership_checking
          with_loop_leak_checks
