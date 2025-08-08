@@ -456,6 +456,21 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
   wrap_with_convert ?sct ~convert_from:false ail_expr_ bt
 
 
+let load_from_ghost_array_fn_str = "load_from_ghost_array"
+
+let wrap_with_load_from_ghost_array cn_ctype ghost_debruijn =
+  A.AilEcast
+    ( C.no_qualifiers,
+      cn_ctype,
+      mk_expr
+        (AilEcall
+           ( mk_expr (AilEident (Sym.fresh load_from_ghost_array_fn_str)),
+             [ mk_expr
+                 (AilEconst
+                    (ConstantInteger (IConstant (Z.of_int ghost_debruijn, Decimal, None))))
+             ] )) )
+
+
 let get_equality_fn_call bt e1 e2 =
   match bt with
   | BT.Map (_, val_bt) ->
@@ -3736,6 +3751,54 @@ let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
   (bs, ss)
 
 
+let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = function
+  | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
+    let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
+    let cn_ptr_deref_sym = Sym.fresh "cn_pointer_deref" in
+    let ctype_sym =
+      Sym.fresh
+        (Pp.plain
+           CF.Pp_ail.(
+             with_executable_spec (pp_ctype C.no_qualifiers) (Sctypes.to_ctype ct)))
+    in
+    let cn_ptr_deref_fcall =
+      A.(
+        AilEcall
+          (mk_expr (AilEident cn_ptr_deref_sym), [ e; mk_expr (AilEident ctype_sym) ]))
+    in
+    let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type ct in
+    let ctype = bt_to_ail_ctype bt in
+    let binding = create_binding name ctype in
+    let ail_stat_ =
+      A.(
+        AilSdeclaration
+          [ (name, Some (mk_expr (wrap_with_convert_to cn_ptr_deref_fcall bt))) ])
+    in
+    let b2, ss = cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i prog in
+    (b1 @ (binding :: b2), s @ (ail_stat_ :: ss))
+  | Pure (loc, ghost_it) ->
+    let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
+    let pop_s = generate_cn_pop_msg_info in
+    let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
+    let add_to_ghost_array_fn_str = "add_to_ghost_array" in
+    let add_to_ghost_array_call =
+      mk_expr
+        (AilEcall
+           ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
+             [ mk_expr
+                 (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
+               e
+             ] ))
+    in
+    (bs, upd_s @ ss @ [ A.AilSexpr add_to_ghost_array_call ] @ pop_s)
+
+
+let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
+  List.mapi
+    (fun i arg -> cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i arg)
+    ghost_args
+
+
 let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =
   let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
   let pop_s = generate_cn_pop_msg_info in
@@ -3861,7 +3924,8 @@ let rec cn_to_ail_loop_inv_aux
         subst_loop
     in
     ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
-  | AT.Ghost _ -> failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
+  | AT.Ghost _ ->
+    failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
   | L lat ->
     let rec modify_decls_for_loop decls modified_stats =
       let rec collect_initialised_syms_and_exprs = function
@@ -4167,15 +4231,25 @@ let translate_computational_at (sym, bt) =
   (cn_sym, (binding, decl))
 
 
+let translate_ghost_at (sym, bt) ghost_debruijn =
+  let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+  let cn_ctype = bt_to_ail_ctype bt in
+  let binding = create_binding cn_sym cn_ctype in
+  let rhs = wrap_with_load_from_ghost_array cn_ctype ghost_debruijn in
+  let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+  (cn_sym, (binding, decl))
+
+
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
-          is_lemma
           filename
           dts
           preds
           globals
           c_return_type
+          ghost_debruijn
+          max_num_ghost_args_opt (* None case for lemmas *)
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
@@ -4184,63 +4258,104 @@ let rec cn_to_ail_pre_post_aux
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
-        is_lemma
         filename
         dts
         preds
         globals
         c_return_type
+        ghost_debruijn
+        max_num_ghost_args_opt
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
-  | AT.Ghost (_bound, _info, at) ->
-    (* is_lemma argument can be deleted when ghost arguments are fully supported at runtime *)
-    if is_lemma then
-      cn_to_ail_pre_post_aux
+  | AT.Ghost ((sym, bt), _info, at) ->
+    (match max_num_ghost_args_opt with
+     | None ->
+       (* For lemmas,
+          ghost parameters are already translated specially
+          in cn_to_ail_lemma using AT.get_ghost,
+          so we may skip them here *)
+       cn_to_ail_pre_post_aux
+         without_ownership_checking
+         with_loop_leak_checks
+         filename
+         dts
+         preds
+         globals
+         c_return_type
+         ghost_debruijn
+         max_num_ghost_args_opt
+         at
+     | Some _ ->
+       let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_debruijn in
+       let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
+       let ail_executable_spec =
+         cn_to_ail_pre_post_aux
+           without_ownership_checking
+           with_loop_leak_checks
+           filename
+           dts
+           preds
+           globals
+           c_return_type
+           (ghost_debruijn + 1)
+           max_num_ghost_args_opt
+           subst_at
+       in
+       prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
+  | AT.L lat ->
+    let ail_executable_spec =
+      cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
-        is_lemma
         filename
         dts
-        preds
         globals
+        preds
         c_return_type
-        at
-    else
-      failwith "TODO Fulminate: Ghost arguments not yet supported at runtime"
-  | AT.L lat ->
-    cn_to_ail_lat_2
-      without_ownership_checking
-      with_loop_leak_checks
-      filename
-      dts
-      globals
-      preds
-      c_return_type
-      lat
+        lat
+    in
+    let clear_ghost_array_fn_str = "clear_ghost_array" in
+    let decl =
+      A.(
+        AilSexpr
+          (mk_expr
+             (AilEcall
+                ( mk_expr (AilEident (Sym.fresh clear_ghost_array_fn_str)),
+                  [ mk_expr
+                      (AilEconst
+                         (ConstantInteger
+                            (IConstant
+                               ( Z.of_int (Option.value max_num_ghost_args_opt ~default:0),
+                                 Decimal,
+                                 None ))))
+                  ] ))))
+    in
+    prepend_to_precondition ail_executable_spec ([], [ decl ])
 
 
 let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
-      ~is_lemma
       filename
       dts
       preds
       globals
       c_return_type
+      max_num_ghost_args
   = function
   | Some internal ->
     let ail_executable_spec =
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
-        is_lemma
         filename
         dts
         preds
         globals
         c_return_type
+        0
+        max_num_ghost_args
         internal
     in
     let ownership_stats_ =
@@ -4282,12 +4397,12 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
     cn_to_ail_pre_post
       ~without_ownership_checking:false
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
-      ~is_lemma:true
       filename
       dts
       preds
       globals
       ret_type
+      None
       (Some transformed_lemmat)
   in
   let pre_bs, pre_ss = ail_executable_spec.pre in
