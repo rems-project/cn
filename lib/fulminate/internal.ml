@@ -659,7 +659,9 @@ let generate_ownership_global_assignments
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let assignments =
-      OE.get_ownership_global_init_stats ~n:(max_num_of_ghost_args prog5) ()
+      OE.get_ownership_global_init_stats
+        ~max_num_ghost_args:(max_num_of_ghost_args prog5)
+        ()
     in
     let init_and_global_mapping_str =
       generate_ail_stat_strs ([], assignments @ global_map_stmts_)

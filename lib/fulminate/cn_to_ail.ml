@@ -4249,7 +4249,7 @@ let rec cn_to_ail_pre_post_aux
           globals
           c_return_type
           ghost_debruijn
-          max_num_ghost_args_opt
+          max_num_ghost_args_opt (* None case for lemmas *)
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
