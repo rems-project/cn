@@ -91,6 +91,7 @@ let verify
     ~allow_split_magic_comments
     ~save_cpp:None
     ~disable_linemarkers:false
+    ~skip_label_inlining:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
     ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
       let check (functions, global_var_constraints, lemmas) =
