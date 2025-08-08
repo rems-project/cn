@@ -21,6 +21,139 @@ let rec group_toplevel_defs new_list = function
       group_toplevel_defs (loc :: non_matching_elems) ls)
 
 
+type 'a memory_access =
+  | Load of
+      { loc : Cerb_location.t;
+        lvalue : 'a CF.AilSyntax.expression
+      }
+  | Store of
+      { loc : Cerb_location.t;
+        lvalue : 'a CF.AilSyntax.expression;
+        expr : 'a CF.AilSyntax.expression
+      }
+  | StoreOp of
+      { loc : Cerb_location.t;
+        aop : CF.AilSyntax.arithmeticOperator;
+        lvalue : 'a CF.AilSyntax.expression;
+        expr : 'a CF.AilSyntax.expression
+      }
+  | Postfix of
+      { loc : Cerb_location.t;
+        op : [ `Incr | `Decr ];
+        lvalue : 'a CF.AilSyntax.expression
+      }
+
+let collect_memory_accesses (_, sigm) =
+  let open CF.AilSyntax in
+  let acc = ref [] in
+  (* list of scoped variables *)
+  let rec aux_expr (AnnotatedExpression (_, _, loc, expr_)) env =
+    match expr_ with
+    | AilErvalue lvalue ->
+      acc := (Load { loc; lvalue }, env) :: !acc;
+      aux_expr lvalue env
+    | AilEassign (lvalue, expr) ->
+      acc := (Store { loc; lvalue; expr }, env) :: !acc;
+      aux_expr lvalue env;
+      aux_expr expr env
+    | AilEcompoundAssign (lvalue, aop, expr) ->
+      acc := (StoreOp { loc; lvalue; aop; expr }, env) :: !acc;
+      aux_expr lvalue env;
+      aux_expr expr env
+    | AilEunary (PostfixIncr, lvalue) ->
+      acc := (Postfix { loc; op = `Incr; lvalue }, env) :: !acc;
+      aux_expr lvalue env
+    | AilEunary (PostfixDecr, lvalue) ->
+      acc := (Postfix { loc; op = `Decr; lvalue }, env) :: !acc;
+      aux_expr lvalue env
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    (* TODO(vla): if the type is a VLA, the size expression is evaluated *)
+    | AilEsizeof _
+    (* the sub-expr is not evaluated; TODO(vla): except if it is possible
+           to have an expression with VLA type here (?) *)
+    | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      ()
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEcompound (_, _, e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e env
+    | AilEbinary (e1, _, e2) | AilEcond (e1, None, e2) | AilEva_copy (e1, e2) ->
+      aux_expr e1 env;
+      aux_expr e2 env
+    | AilEcond (e1, Some e2, e3) ->
+      aux_expr e1 env;
+      aux_expr e2 env;
+      aux_expr e3 env
+    | AilEcall (e, es) ->
+      aux_expr e env;
+      List.iter (fun e -> aux_expr e env) es
+    | AilEgeneric (e, _, gas) ->
+      aux_expr e env;
+      List.iter (function AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e env) gas
+    | AilEarray (_, _, xs) ->
+      List.iter (function None -> () | Some e -> aux_expr e env) xs
+    | AilEstruct (_, xs) ->
+      List.iter (function _, None -> () | _, Some e -> aux_expr e env) xs
+    | AilEgcc_statement (_, ss) -> List.iter (fun s -> aux_stmt s env) ss
+  and aux_stmt stmt env =
+    match stmt.node with
+    | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ -> ()
+    | AilSexpr e | AilSreturn e | AilSreg_store (_, e) -> aux_expr e env
+    | AilSblock (bs, ss) ->
+      let lookup_ty sym = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+      let env_cell = ref env in
+      List.iter
+        (fun s ->
+           match s.node with
+           (* Update the environment when variables are declared *)
+           | AilSdeclaration xs ->
+             List.iter
+               (function
+                 | sym, None ->
+                   env_cell := lookup_ty sym :: !env_cell;
+                   ()
+                 | sym, Some e ->
+                   env_cell := lookup_ty sym :: !env_cell;
+                   aux_expr e !env_cell)
+               xs
+           | _ -> aux_stmt s !env_cell)
+        ss
+    | AilSpar ss -> List.iter (fun s -> aux_stmt s env) ss
+    | AilSif (e, s1, s2) ->
+      aux_expr e env;
+      aux_stmt s1 env;
+      aux_stmt s2 env
+    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+      aux_expr e env;
+      aux_stmt s env
+    | AilScase (_, s)
+    | AilScase_rangeGNU (_, _, s)
+    | AilSdefault s
+    | AilSlabel (_, s, _)
+    | AilSmarker (_, s) ->
+      aux_stmt s env
+    | AilSdeclaration _ ->
+      (* AilSdeclaration must be handled in `AilSblock` *)
+      failwith "unreachable"
+  in
+  List.iter (fun (_, (_, _, _, _, stmt)) -> aux_stmt stmt []) sigm.function_definitions;
+  !acc
+
+
 let memory_accesses_injections ail_prog =
   let open Cerb_frontend in
   let open Cerb_location in
@@ -44,11 +177,12 @@ let memory_accesses_injections ail_prog =
     match bbox [ loc ] with `Other _ -> assert false | `Bbox (b, e) -> (b, e)
   in
   let acc = ref [] in
-  let xs = Ail_analysis.collect_memory_accesses ail_prog in
+  let xs = collect_memory_accesses ail_prog in
   List.iter
-    (fun access ->
+    (* HK: Currently, `env` is ignored. It will be used in future patches. *)
+    (fun (access, _env) ->
        match access with
-       | Ail_analysis.Load { loc; _ } ->
+       | Load { loc; _ } ->
          let b, e = pos_bbox loc in
          acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
