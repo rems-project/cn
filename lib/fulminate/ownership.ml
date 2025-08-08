@@ -45,7 +45,8 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
    let c_declare_init_and_map_local_sym = Sym.fresh "c_declare_init_and_map_local"
 *)
 
-let get_ownership_global_init_stats n =
+let get_ownership_global_init_stats ?(n = 100) () =
+  (* When no maximum number n of ghost arguments is supplied, default to 100 *)
   let cn_ghost_state_init_fcall =
     mk_expr
       A.(
