@@ -5,5 +5,5 @@ module Make (AD : Domain.T) : sig
 
   module Ctx : module type of Ctx.Make (AD)
 
-  val transform : Stage2.Make(AD).Ctx.t -> Ctx.t
+  val transform : _ Typing.pause -> Stage2.Make(AD).Ctx.t -> Ctx.t
 end

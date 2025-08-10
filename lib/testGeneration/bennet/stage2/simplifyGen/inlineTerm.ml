@@ -4,7 +4,7 @@ module LC = LogicalConstraints
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
-  (** This pass inlines generators that just return a constant or symbol *)
+  (** This pass inlines generators that return a pure term *)
   module Returns = struct
     let transform_gt (gt : Term.t) : Term.t =
       let aux (gt : Term.t) : Term.t =
@@ -38,7 +38,7 @@ module Make (AD : Domain.T) = struct
     let rec transform_aux (gt : Term.t) : Term.t * bool Sym.Map.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary _ -> (gt, Sym.Map.empty)
+      | `Arbitrary -> (gt, Sym.Map.empty)
       | `Pick gts ->
         let gts, only_ret = gts |> List.map transform_aux |> List.split in
         (Term.pick_ gts () bt loc, List.fold_left union Sym.Map.empty only_ret)

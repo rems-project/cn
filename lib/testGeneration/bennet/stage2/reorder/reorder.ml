@@ -292,7 +292,7 @@ module Make (AD : Domain.T) = struct
       let rec loop (iargs : Sym.Set.t) (gt : Term.t) : Term.t =
         let (Annot (gt_, (), bt, loc)) = gt in
         match gt_ with
-        | `Arbitrary _ | `Call _ | `Return _ -> gt
+        | `Arbitrary | `Call _ | `Return _ -> gt
         | `Pick gts -> Term.pick_ (List.map (aux iargs) gts) () bt loc
         | `Asgn ((it_addr, sct), it_val, gt_rest) ->
           Term.asgn_ ((it_addr, sct), it_val, loop iargs gt_rest) () loc

@@ -12,7 +12,7 @@ module Make (AD : Domain.T) = struct
   type 'ast annot = (unit, 'ast) GenTerms.annot [@@deriving eq, ord]
 
   type 'recur ast =
-    [ `Arbitrary of AD.t (** Generate arbitrary values *)
+    [ `Arbitrary (** Generate arbitrary values *)
     | `Call of Sym.t * IT.t list
       (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
     | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
@@ -31,8 +31,12 @@ module Make (AD : Domain.T) = struct
 
   type t = t_ annot [@@deriving eq, ord]
 
-  let arbitrary_ (d : AD.t) (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
-    Annot (`Arbitrary d, tag, bt, loc)
+  let arbitrary_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+    Annot (`Arbitrary, tag, bt, loc)
+
+
+  let arbitrary_domain_ _ _ _ _ : t =
+    failwith "arbitrary_domain_ not supported in Stage 2 DSL"
 
 
   let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =
@@ -59,6 +63,8 @@ module Make (AD : Domain.T) = struct
   let assert_ ((lc, gt') : LC.t * t) (tag : tag_t) (loc : Locations.t) : t =
     Annot (`Assert (lc, gt'), tag, basetype gt', loc)
 
+
+  let assert_domain_ _ _ _ : t = failwith "assert_domain_ not supported in Stage 2 DSL"
 
   let ite_ ((it_if, gt_then, gt_else) : IT.t * t * t) (tag : tag_t) loc : t =
     let bt = basetype gt_then in
@@ -113,9 +119,18 @@ module Make (AD : Domain.T) = struct
     failwith "split_size_elab_ not supported in Stage 2 DSL"
 
 
+  let map_elab_
+        (_ : (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t)
+        (_ : tag_t)
+        (_ : Locations.t)
+    : t
+    =
+    failwith "map_elab_ not supported in Stage 2 DSL"
+
+
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
-    | `Arbitrary d -> `Arbitrary d
+    | `Arbitrary -> `Arbitrary
     | `Pick gts -> `Pick (List.map (subst su) gts)
     | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
     | `Asgn ((it_addr, bt), it_val, g') ->
@@ -154,7 +169,7 @@ module Make (AD : Domain.T) = struct
     let (Annot (gt_, (), bt, here)) = f g in
     let gt_ =
       match gt_ with
-      | `Arbitrary d -> `Arbitrary d
+      | `Arbitrary -> `Arbitrary
       | `Pick gts -> `Pick (List.map (map_gen_pre f) gts)
       | `Call (fsym, its) -> `Call (fsym, its)
       | `Asgn ((it_addr, sct), it_val, gt') ->
@@ -173,7 +188,7 @@ module Make (AD : Domain.T) = struct
     let (Annot (gt_, (), bt, here)) = g in
     let gt_ =
       match gt_ with
-      | `Arbitrary d -> `Arbitrary d
+      | `Arbitrary -> `Arbitrary
       | `Pick gts -> `Pick (List.map (map_gen_post f) gts)
       | `Call (fsym, its) -> `Call (fsym, its)
       | `Asgn ((it_addr, sct), it_val, gt') ->

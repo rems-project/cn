@@ -9,20 +9,19 @@ module Make (AD : Domain.T) = struct
   include GenTerms.Make (AD)
   module AD = AD
 
-  type tag_t = unit
+  type tag_t = Sym.Set.t * Sym.t
 
-  type 'ast annot = (unit, 'ast) GenTerms.annot [@@deriving eq, ord]
+  type 'ast annot = (Sym.Set.t * Sym.t, 'ast) GenTerms.annot [@@deriving eq, ord]
 
   type 'recur ast =
     [ `Arbitrary (** Generate arbitrary values *)
     | `ArbitraryDomain of AD.Relative.t (** Generate arbitrary values from domain *)
-    | `PickSized of (Z.t * 'recur annot) list
+    | `PickSizedElab of Sym.t * (Z.t * 'recur annot) list
       (** Pick among a list of options, weighted by the provided [Z.t]s *)
     | `Call of Sym.t * IT.t list
       (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
     | `CallSized of Sym.t * IT.t list * (int * Sym.t)
-      (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-    | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
+    | `AsgnElab of Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * 'recur annot
       (** Claim ownership and assign a value to a memory location *)
     | `LetStar of (Sym.t * 'recur annot) * 'recur annot (** Backtrack point *)
     | `Return of IT.t (** Monadic return *)
@@ -30,8 +29,8 @@ module Make (AD : Domain.T) = struct
       (** Assert some [LC.t] are true, backtracking otherwise *)
     | `AssertDomain of AD.t * 'recur annot (** Assert domain constraints *)
     | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
-    | `Map of (Sym.t * BT.t * IT.t) * 'recur annot
-    | `SplitSize of Sym.Set.t * 'recur annot
+    | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * 'recur annot
+    | `SplitSizeElab of Sym.t * Sym.Set.t * 'recur annot
     ]
   [@@deriving eq, ord]
 
@@ -53,14 +52,7 @@ module Make (AD : Domain.T) = struct
     Annot (`Call (fsym, its), tag, bt, loc)
 
 
-  let asgn_
-        (((it_addr, ct), it_val, gt') : (IT.t * Sctypes.t) * IT.t * t)
-        (tag : tag_t)
-        (loc : Locations.t)
-    : t
-    =
-    Annot (`Asgn ((it_addr, ct), it_val, gt'), tag, basetype gt', loc)
-
+  let asgn_ _ _ _ : t = failwith "asgn_ not supported in Stage 4 DSL"
 
   let let_star_ (((x, gt1), gt2) : (Sym.t * t) * t) (tag : tag_t) (loc : Locations.t) : t =
     Annot (`LetStar ((x, gt1), gt2), tag, basetype gt2, loc)
@@ -84,21 +76,19 @@ module Make (AD : Domain.T) = struct
     Annot (`ITE (it_if, gt_then, gt_else), tag, bt, loc)
 
 
-  let map_ (((i, i_bt, it_perm), gt_inner) : (Sym.t * BT.t * IT.t) * t) (tag : tag_t) loc
-    : t
-    =
-    Annot
-      ( `Map ((i, i_bt, it_perm), gt_inner),
-        tag,
-        BT.make_map_bt i_bt (basetype gt_inner),
-        loc )
+  let map_ (_ : (Sym.t * BT.t * IT.t) * t) (_ : tag_t) (_ : Locations.t) : t =
+    failwith "map_ not supported in Stage 4 DSL"
 
 
   let pick_ (_ : t list) (_ : tag_t) (_ : BT.t) (_ : Locations.t) : t =
-    failwith "pick_ not supported in Stage 3 DSL"
+    failwith "pick_ not supported in Stage 4 DSL"
 
 
-  let pick_sized_ (wgts : (Z.t * t) list) (tag : tag_t) bt (loc : Locations.t) : t =
+  let pick_sized_ (_ : (Z.t * t) list) (_ : tag_t) (_ : BT.t) (_ : Locations.t) : t =
+    failwith "pick_sized_ not supported in Stage 4 DSL"
+
+
+  let pick_sized_elab_ (wgts : (Z.t * t) list) (tag : tag_t) bt (loc : Locations.t) : t =
     let bt =
       List.fold_left
         (fun bt (_, gt) ->
@@ -107,48 +97,61 @@ module Make (AD : Domain.T) = struct
         bt
         wgts
     in
-    Annot (`PickSized wgts, tag, bt, loc)
-
-
-  let pick_sized_elab_ (_ : (Z.t * t) list) (_ : tag_t) (_ : BT.t) (_ : Locations.t) : t =
-    failwith "pick_sized_elab_ not supported in Stage 3 DSL"
+    let choice_var = Sym.fresh_anon () in
+    Annot (`PickSizedElab (choice_var, wgts), tag, bt, loc)
 
 
   let asgn_elab_
-        (_ : Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t)
-        (_ : tag_t)
-        (_ : Locations.t)
+        ((backtrack_var, pointer_info, it_val, gt') :
+          Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t)
+        (tag : tag_t)
+        (loc : Locations.t)
     : t
     =
-    failwith "asgn_elab_ not supported in Stage 3 DSL"
+    Annot (`AsgnElab (backtrack_var, pointer_info, it_val, gt'), tag, basetype gt', loc)
 
 
-  let split_size_ ((syms, gt') : Sym.Set.t * t) (tag : tag_t) (loc : Locations.t) : t =
-    Annot (`SplitSize (syms, gt'), tag, basetype gt', loc)
+  let split_size_ (_ : Sym.Set.t * t) (_ : tag_t) (_ : Locations.t) : t =
+    failwith "split_size_ not supported in Stage 4 DSL"
 
 
-  let split_size_elab_ (_ : Sym.t * Sym.Set.t * t) (_ : tag_t) (_ : Locations.t) : t =
-    failwith "split_size_elab_ not supported in Stage 3 DSL"
+  let split_size_elab_
+        ((split_var, syms, gt') : Sym.t * Sym.Set.t * t)
+        (tag : tag_t)
+        (loc : Locations.t)
+    : t
+    =
+    Annot (`SplitSizeElab (split_var, syms, gt'), tag, basetype gt', loc)
 
 
   let map_elab_
-        (_ : (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t)
-        (_ : tag_t)
-        (_ : Locations.t)
+        (((i, i_bt, (it_min, it_max), it_perm), gt_inner) :
+          (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t)
+        (tag : tag_t)
+        (loc : Locations.t)
     : t
     =
-    failwith "map_elab_ not supported in Stage 3 DSL"
+    Annot
+      ( `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner),
+        tag,
+        BT.make_map_bt i_bt (basetype gt_inner),
+        loc )
 
 
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
     | `Arbitrary -> `Arbitrary
     | `ArbitraryDomain ad -> `ArbitraryDomain ad
-    | `PickSized choices -> `PickSized (List.map (fun (w, g) -> (w, subst su g)) choices)
+    | `PickSizedElab (pick_var, choices) ->
+      `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, subst su g)) choices)
     | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
     | `CallSized (fsym, iargs, sz) -> `CallSized (fsym, List.map (IT.subst su) iargs, sz)
-    | `Asgn ((it_addr, bt), it_val, g') ->
-      `Asgn ((IT.subst su it_addr, bt), IT.subst su it_val, subst su g')
+    | `AsgnElab (backtrack_var, ((pointer, it_addr), bt), it_val, g') ->
+      `AsgnElab
+        ( backtrack_var,
+          ((pointer, IT.subst su it_addr), bt),
+          IT.subst su it_val,
+          subst su g' )
     | `LetStar ((x, gt1), gt2) ->
       let x, gt2 = suitably_alpha_rename_gen su.relevant x gt2 in
       `LetStar ((x, subst su gt1), subst su gt2)
@@ -157,16 +160,21 @@ module Make (AD : Domain.T) = struct
     | `AssertDomain (ad, gt') -> `AssertDomain (ad, subst su gt')
     | `ITE (it, gt_then, gt_else) ->
       `ITE (IT.subst su it, subst su gt_then, subst su gt_else)
-    | `Map ((i, bt, it_perm), gt') ->
-      let i', it_perm = IT.suitably_alpha_rename su.relevant i it_perm in
+    | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
+      let i', it_min = IT.suitably_alpha_rename su.relevant i it_min in
+      let it_max = IT.subst (IT.make_rename ~from:i ~to_:i') it_max in
+      let it_perm = IT.subst (IT.make_rename ~from:i ~to_:i') it_perm in
       let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
-      `Map ((i', bt, IT.subst su it_perm), subst su gt')
-    | `SplitSize (syms, gt') -> `SplitSize (syms, subst su gt')
+      `MapElab
+        ( (i', i_bt, (IT.subst su it_min, IT.subst su it_max), IT.subst su it_perm),
+          subst su gt' )
+    | `SplitSizeElab (split_var, syms, gt') ->
+      `SplitSizeElab (split_var, syms, subst su gt')
 
 
   and subst (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt : t) : t =
-    let (Annot (gt_, (), bt, here)) = gt in
-    Annot (subst_ su gt_, (), bt, here)
+    let (Annot (gt_, tag, bt, here)) = gt in
+    Annot (subst_ su gt_, tag, bt, here)
 
 
   and alpha_rename_gen x gt =
@@ -182,49 +190,53 @@ module Make (AD : Domain.T) = struct
 
 
   let rec map_gen_pre (f : t -> t) (g : t) : t =
-    let (Annot (gt_, (), bt, here)) = f g in
+    let (Annot (gt_, tag, bt, here)) = f g in
     let gt_ =
       match gt_ with
       | `Arbitrary -> `Arbitrary
       | `ArbitraryDomain ad -> `ArbitraryDomain ad
-      | `PickSized choices ->
-        `PickSized (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
+      | `PickSizedElab (pick_var, choices) ->
+        `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
       | `Call (fsym, its) -> `Call (fsym, its)
       | `CallSized (fsym, its, sz) -> `CallSized (fsym, its, sz)
-      | `Asgn ((it_addr, sct), it_val, gt') ->
-        `Asgn ((it_addr, sct), it_val, map_gen_pre f gt')
+      | `AsgnElab (backtrack_var, (backtrack_info, sct), it_val, gt') ->
+        `AsgnElab (backtrack_var, (backtrack_info, sct), it_val, map_gen_pre f gt')
       | `LetStar ((x, gt), gt') -> `LetStar ((x, map_gen_pre f gt), map_gen_pre f gt')
       | `Return it -> `Return it
       | `Assert (lcs, gt') -> `Assert (lcs, map_gen_pre f gt')
       | `AssertDomain (ad, gt') -> `AssertDomain (ad, map_gen_pre f gt')
       | `ITE (it, gt_then, gt_else) ->
         `ITE (it, map_gen_pre f gt_then, map_gen_pre f gt_else)
-      | `Map ((i, bt, it_perm), gt') -> `Map ((i, bt, it_perm), map_gen_pre f gt')
-      | `SplitSize (syms, gt') -> `SplitSize (syms, map_gen_pre f gt')
+      | `MapElab ((i, i_bt, range, it_perm), gt') ->
+        `MapElab ((i, i_bt, range, it_perm), map_gen_pre f gt')
+      | `SplitSizeElab (split_var, syms, gt') ->
+        `SplitSizeElab (split_var, syms, map_gen_pre f gt')
     in
-    Annot (gt_, (), bt, here)
+    Annot (gt_, tag, bt, here)
 
 
   let rec map_gen_post (f : t -> t) (g : t) : t =
-    let (Annot (gt_, (), bt, here)) = g in
+    let (Annot (gt_, tag, bt, here)) = g in
     let gt_ =
       match gt_ with
       | `Arbitrary -> `Arbitrary
       | `ArbitraryDomain ad -> `ArbitraryDomain ad
-      | `PickSized choices ->
-        `PickSized (List.map (fun (w, g) -> (w, map_gen_post f g)) choices)
+      | `PickSizedElab (pick_var, choices) ->
+        `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, map_gen_post f g)) choices)
       | `Call (fsym, its) -> `Call (fsym, its)
       | `CallSized (fsym, its, sz) -> `CallSized (fsym, its, sz)
-      | `Asgn ((it_addr, sct), it_val, gt') ->
-        `Asgn ((it_addr, sct), it_val, map_gen_post f gt')
+      | `AsgnElab (backtrack_var, (backtrack_info, sct), it_val, gt') ->
+        `AsgnElab (backtrack_var, (backtrack_info, sct), it_val, map_gen_post f gt')
       | `LetStar ((x, gt), gt') -> `LetStar ((x, map_gen_post f gt), map_gen_post f gt')
       | `Return it -> `Return it
       | `Assert (lcs, gt') -> `Assert (lcs, map_gen_post f gt')
       | `AssertDomain (ad, gt') -> `AssertDomain (ad, map_gen_post f gt')
       | `ITE (it, gt_then, gt_else) ->
         `ITE (it, map_gen_post f gt_then, map_gen_post f gt_else)
-      | `Map ((i, bt, it_perm), gt') -> `Map ((i, bt, it_perm), map_gen_post f gt')
-      | `SplitSize (syms, gt') -> `SplitSize (syms, map_gen_post f gt')
+      | `MapElab ((i, i_bt, range, it_perm), gt') ->
+        `MapElab ((i, i_bt, range, it_perm), map_gen_post f gt')
+      | `SplitSizeElab (split_var, syms, gt') ->
+        `SplitSizeElab (split_var, syms, map_gen_post f gt')
     in
-    f (Annot (gt_, (), bt, here))
+    f (Annot (gt_, tag, bt, here))
 end

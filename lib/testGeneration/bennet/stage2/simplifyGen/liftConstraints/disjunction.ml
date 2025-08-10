@@ -7,7 +7,7 @@ module Make (AD : Domain.T) = struct
   let rec is_external (gt : Term.t) : bool =
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
-    | `Arbitrary _ | `Return _ -> false
+    | `Arbitrary | `Return _ -> false
     | `Call _ -> true
     | `Pick gts -> gts |> List.exists is_external
     | `Asgn (_, _, gt_rest) -> is_external gt_rest
@@ -68,7 +68,7 @@ module Make (AD : Domain.T) = struct
     let rec aux (ext : Sym.Set.t) (gt : Term.t) : Term.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary _ | `Call _ | `Return _ -> gt
+      | `Arbitrary | `Call _ | `Return _ -> gt
       | `Pick gts -> Term.pick_ (List.map (aux ext) gts) () bt loc
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         Term.asgn_ ((it_addr, sct), it_val, aux ext gt_rest) () loc

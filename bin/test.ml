@@ -57,6 +57,7 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
+      static_absint
       smt_pruning
       print_size_info
       print_backtrack_info
@@ -108,6 +109,7 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
+          static_absint;
           smt_pruning;
           print_seed;
           input_timeout;
@@ -468,6 +470,11 @@ module Flags = struct
       & info [ "smt-pruning" ] ~doc)
 
 
+  let static_absint =
+    let doc = "(Experimental) Use static abstract interpretation" in
+    Arg.(value & flag & info [ "static-absint" ] ~doc)
+
+
   let print_size_info =
     let doc = "(Experimental) Print size info" in
     Arg.(value & flag & info [ "print-size-info" ] ~doc)
@@ -537,6 +544,7 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
+    $ Flags.static_absint
     $ Flags.smt_pruning
     $ Flags.print_size_info
     $ Flags.print_backtrack_info

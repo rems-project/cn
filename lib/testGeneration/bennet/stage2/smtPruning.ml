@@ -12,7 +12,7 @@ module Make (AD : Domain.T) = struct
       let here = Locations.other __LOC__ in
       let (Annot (tm_, (), bt, loc)) = tm in
       match tm_ with
-      | `Arbitrary _ | `Return _ | `Call _ -> return tm
+      | `Arbitrary | `Return _ | `Call _ -> return tm
       | `Pick gts ->
         let rec loop gts =
           match gts with
