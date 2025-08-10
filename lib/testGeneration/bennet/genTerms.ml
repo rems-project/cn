@@ -10,7 +10,8 @@ type ('tag, 'ast) annot =
 module [@warning "-60"] Make (AD : Domain.T) = struct
   module Inner = struct
     type ('tag, 'recur) ast =
-      [ `Arbitrary of AD.t (** Generate arbitrary values *)
+      [ `Arbitrary (** Generate arbitrary values *)
+      | `ArbitraryDomain of AD.Relative.t
       | `Call of Sym.t * IT.t list
         (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
       | `Asgn of (IT.t * Sctypes.t) * IT.t * ('tag, 'recur) annot
@@ -20,6 +21,8 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
       | `Return of IT.t (** Monadic return *)
       | `Assert of LC.t * ('tag, 'recur) annot
         (** Assert some [LC.t] are true, backtracking otherwise *)
+      | `AssertDomain of AD.t * ('tag, 'recur) annot
+        (** Assert domain constraints are satisfied, backtracking otherwise *)
       | `ITE of IT.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
       | `Map of (Sym.t * BT.t * IT.t) * ('tag, 'recur) annot
       | `Pick of ('tag, 'recur) annot list (** Pick among a list of options *)
@@ -44,11 +47,11 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
 
   (* Constructor-checking functions *)
 
-  let is_arbitrary_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : AD.t option =
-    match gt_ with `Arbitrary d -> Some d | _ -> None
+  let is_arbitrary_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : unit option =
+    match gt_ with `Arbitrary -> Some () | _ -> None
 
 
-  let is_arbitrary (gt : ('tag, [< `Arbitrary of AD.t ]) annot) : AD.t option =
+  let is_arbitrary (gt : ('tag, [< `Arbitrary ]) annot) : unit option =
     let (Annot (gt_, _, _, _)) = gt in
     is_arbitrary_ gt_
 
@@ -90,7 +93,9 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
     let open Pp in
     let (Annot (tm_, _, bt, _)) = tm in
     match tm_ with
-    | `Arbitrary d -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens (AD.pp d)
+    | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
+    | `ArbitraryDomain d ->
+      !^"arbitrary_domain" ^^ angles (BT.pp bt) ^^ parens (AD.Relative.pp d)
     | `Call (fsym, iargs) ->
       Sym.pp fsym ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
     | `Asgn ((it_addr, ty), it_val, gt') ->
@@ -107,6 +112,11 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
     | `Return it -> !^"return" ^^^ IT.pp it
     | `Assert (lc, gt') ->
       !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1) ^^ semi ^/^ pp gt'
+    | `AssertDomain (d, gt') ->
+      !^"assert_domain"
+      ^^ parens (nest 2 (break 1 ^^ AD.pp d) ^^ break 1)
+      ^^ semi
+      ^/^ pp gt'
     | `ITE (it_if, gt_then, gt_else) ->
       !^"if"
       ^^^ parens (IT.pp it_if)
@@ -189,7 +199,7 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
 
   let rec free_vars_bts_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : BT.t Sym.Map.t =
     match gt_ with
-    | `Arbitrary _ -> Sym.Map.empty
+    | `Arbitrary -> Sym.Map.empty
     | `Call (_, iargs) -> IT.free_vars_bts_list iargs
     | `Asgn ((it_addr, _), it_val, gt') ->
       Sym.Map.union
@@ -212,6 +222,7 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
          Some bt1))
         (free_vars_bts gt')
         (LC.free_vars_bts lc)
+    | `AssertDomain (_, gt') -> free_vars_bts gt'
     | `ITE (it_if, gt_then, gt_else) ->
       Sym.Map.union
         (fun _ bt1 bt2 ->
@@ -256,13 +267,14 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
   let rec contains_call (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) : bool =
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
-    | `Arbitrary _ | `Return _ -> false
+    | `Arbitrary | `Return _ -> false
     | `Call _ | `CallSized _ -> true
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
       contains_call gt1 || contains_call gt2
     | `Asgn (_, _, gt')
     | `AsgnElab (_, _, gt')
     | `Assert (_, gt')
+    | `AssertDomain (_, gt')
     | `Map (_, gt')
     | `MapElab (_, gt')
     | `SplitSize (_, gt')
@@ -278,8 +290,8 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
     =
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
-    | `Arbitrary _ | `Return _ -> false
-    | `Asgn _ | `AsgnElab _ | `Assert _ -> true
+    | `Arbitrary | `Return _ -> false
+    | `Asgn _ | `AsgnElab _ | `Assert _ | `AssertDomain _ -> true
     | `Call _ | `CallSized _ -> true (* Could be less conservative... *)
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
       contains_constraint gt1 || contains_constraint gt2
@@ -375,7 +387,9 @@ module type T = sig
 
   val pp : t -> Pp.document
 
-  val arbitrary_ : AD.t -> tag_t -> BT.t -> Locations.t -> t
+  val arbitrary_ : tag_t -> BT.t -> Locations.t -> t
+
+  val arbitrary_domain_ : AD.Relative.t -> tag_t -> BT.t -> Locations.t -> t
 
   val call_ : Sym.t * IT.t list -> tag_t -> BT.t -> Locations.t -> t
 
@@ -387,9 +401,13 @@ module type T = sig
 
   val assert_ : LC.t * t -> tag_t -> Locations.t -> t
 
+  val assert_domain_ : AD.t * t -> tag_t -> Locations.t -> t
+
   val ite_ : IT.t * t * t -> tag_t -> Locations.t -> t
 
   val map_ : (Sym.t * BT.t * IT.t) * t -> tag_t -> Locations.t -> t
+
+  val map_elab_ : (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t -> tag_t -> Locations.t -> t
 
   val pick_ : t list -> tag_t -> BT.t -> Locations.t -> t
 

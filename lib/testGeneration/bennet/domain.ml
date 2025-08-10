@@ -7,8 +7,18 @@ module type C_INTERFACE = sig
   val definitions : unit -> Pp.document
 end
 
+module type RELATIVE_VIEW = sig
+  type t [@@deriving eq, ord]
+
+  val pp : t -> Pp.document
+
+  val pp_c : BaseTypes.t -> t -> Pp.document
+end
+
 module type T = sig
   module CInt : C_INTERFACE
+
+  module Relative : RELATIVE_VIEW
 
   val name : string
 
@@ -26,8 +36,12 @@ module type T = sig
   (** Least upper bound (join) *)
   val join : t -> t -> t
 
+  val join_many : t list -> t
+
   (** Greatest lower bound (meet) *)
   val meet : t -> t -> t
+
+  val meet_many : t list -> t
 
   (* (** Widening operation to ensure fixpoint convergence.
       [widen ~prev ~next] returns an over-approximation of the union
@@ -47,6 +61,10 @@ module type T = sig
 
   (** Retain only the provided variables *)
   val retain : Sym.Set.t -> t -> t
+
+  val relative_to : Sym.t -> t -> Relative.t
+
+  val free_vars : t -> Sym.Set.t
 
   val pp : t -> Pp.document
 end

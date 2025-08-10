@@ -5,5 +5,5 @@ module Make (AD : Domain.T) : sig
 
   module Ctx : module type of Ctx.Make (AD)
 
-  val transform : unit Mucore.file -> _ Typing.pause -> Stage1.Make(AD).Ctx.t -> Ctx.t
+  val transform : unit Mucore.file -> Stage1.Make(AD).Ctx.t -> Ctx.t
 end

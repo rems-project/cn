@@ -11,92 +11,127 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let bennet = Sym.fresh "bennet"
-
-  let transform_gt (gt : Stage3.Term.t) : Term.t =
-    let rec aux (vars : Sym.t list) (path_vars : Sym.Set.t) (gt : Stage3.Term.t) : Term.t =
-      let last_var = match vars with v :: _ -> v | [] -> bennet in
-      let (GenTerms.Annot (gt_, (), bt, loc)) = gt in
-      match gt_ with
-      | `Arbitrary d -> GenTerms.Annot (`Arbitrary d, (path_vars, last_var), bt, loc)
-      | `PickSized wgts ->
-        let (`PickSizedElab (choice_var, wgts)) =
-          Term.elaborate_pick_ (`PickSized wgts)
-        in
-        let wgts =
-          let gcd =
-            List.fold_left
-              (fun x y -> Z.gcd x y)
-              (fst (List.hd wgts))
-              (List.map fst (List.tl wgts))
-          in
-          List.map_fst (fun x -> Z.div x gcd) wgts
-        in
-        let wgts =
-          let w_sum = List.fold_left Z.add Z.zero (List.map fst wgts) in
-          let max_int = Z.of_int Int.max_int in
-          let f =
-            if Z.leq w_sum max_int then
-              fun w -> w
-            else
-              fun w ->
-            Z.max Z.one (Z.div w (Z.div (Z.add w_sum (Z.pred max_int)) max_int))
-          in
-          List.map
-            (fun (w, gt) ->
-               (f w, aux (choice_var :: vars) (Sym.Set.add choice_var path_vars) gt))
-            wgts
-        in
-        GenTerms.Annot (`PickSizedElab (choice_var, wgts), (path_vars, last_var), bt, loc)
-      | `Call (fsym, iargs) ->
-        GenTerms.Annot (`Call (fsym, iargs), (path_vars, last_var), bt, loc)
-      | `CallSized (fsym, iargs, sized) ->
-        GenTerms.Annot (`CallSized (fsym, iargs, sized), (path_vars, last_var), bt, loc)
-      | `Asgn ((it_addr, sct), it_val, gt_rest) ->
-        let gt_ =
-          Term.elaborate_asgn_
-            (`Asgn ((it_addr, sct), it_val, aux vars path_vars gt_rest))
-        in
-        GenTerms.Annot (gt_, (path_vars, last_var), bt, loc)
-      | `LetStar ((x, gt_inner), gt_rest) ->
-        let gt_inner = aux vars path_vars gt_inner in
-        let gt_rest = aux (x :: vars) path_vars gt_rest in
-        GenTerms.Annot (`LetStar ((x, gt_inner), gt_rest), (path_vars, last_var), bt, loc)
-      | `Return it -> GenTerms.Annot (`Return it, (path_vars, last_var), bt, loc)
-      | `Assert (lc, gt_rest) ->
-        let gt_rest = aux vars path_vars gt_rest in
-        GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc)
-      | `ITE (it_if, gt_then, gt_else) ->
-        let path_vars = Sym.Set.union path_vars (IT.free_vars it_if) in
-        let gt_then = aux vars path_vars gt_then in
-        let gt_else = aux vars path_vars gt_else in
-        Annot (`ITE (it_if, gt_then, gt_else), (path_vars, last_var), bt, loc)
-      | `Map ((i, i_bt, it_perm), gt_inner) ->
-        let gt_inner = aux (i :: vars) path_vars gt_inner in
-        Term.elaborate_map
-          (Annot (`Map ((i, i_bt, it_perm), gt_inner), (path_vars, last_var), bt, loc))
-      | `SplitSize (syms, gt_rest) ->
-        let (`SplitSizeElab (marker_var, syms, gt_rest)) =
-          Term.elaborate_split_size_ (`SplitSize (syms, gt_rest))
-        in
-        let path_vars =
-          if TestGenConfig.is_random_size_splits () then
-            Sym.Set.add marker_var path_vars
-          else
-            path_vars
-        in
-        let gt_rest = aux vars path_vars gt_rest in
-        Annot (`SplitSizeElab (marker_var, syms, gt_rest), (path_vars, last_var), bt, loc)
+  let count_recursive_calls (syms : Sym.Set.t) (gr : Stage3.Term.t) : int =
+    let rec aux (gr : Stage3.Term.t) : int =
+      let (Annot (gr_, (), _, _)) = gr in
+      match gr_ with
+      | `Arbitrary | `ArbitraryDomain _ | `Return _ -> 0
+      | `Pick choices -> choices |> List.map aux |> List.fold_left max 0
+      | `Call (fsym, _) -> if Sym.Set.mem fsym syms then 1 else 0
+      | `Asgn (_, _, rest) -> aux rest
+      | `LetStar ((_, value), rest) -> aux value + aux rest
+      | `Assert (_, rest) -> aux rest
+      | `AssertDomain (_, rest) -> aux rest
+      | `ITE (_, t, f) -> max (aux t) (aux f)
+      | `Map (_, inner) -> aux inner
     in
-    aux [] Sym.Set.empty gt
+    aux gr
+
+
+  let size_recursive_calls (syms : Sym.Set.t) (size : int) (gr : Stage3.Term.t)
+    : Term.t * Sym.Set.t
+    =
+    let rec aux (gr : Stage3.Term.t) : Term.t * Sym.Set.t =
+      let (Annot (gr_, (), bt, loc)) = gr in
+      match gr_ with
+      | `Arbitrary -> (GenTerms.Annot (`Arbitrary, (), bt, loc), Sym.Set.empty)
+      | `ArbitraryDomain d ->
+        (GenTerms.Annot (`ArbitraryDomain d, (), bt, loc), Sym.Set.empty)
+      | `Pick wgts ->
+        let wgts, sym_sets =
+          wgts
+          |> List.map (fun gt -> (Z.one, gt))
+          |> List.map (fun (w, gr) ->
+            let gr, syms = aux gr in
+            ((w, gr), syms))
+          |> List.split
+        in
+        ( GenTerms.Annot (`PickSized wgts, (), bt, loc),
+          List.fold_left Sym.Set.union Sym.Set.empty sym_sets )
+      | `Call (fsym, xits) when Sym.Set.mem fsym syms ->
+        let sym = Sym.fresh_anon () in
+        ( GenTerms.Annot (`CallSized (fsym, xits, (size, sym)), (), bt, loc),
+          Sym.Set.singleton sym )
+      | `Call (fsym, xits) ->
+        (GenTerms.Annot (`Call (fsym, xits), (), bt, loc), Sym.Set.empty)
+      | `Return it -> (GenTerms.Annot (`Return it, (), bt, loc), Sym.Set.empty)
+      | `Asgn ((addr, sct), value, rest) ->
+        let rest, syms = aux rest in
+        (GenTerms.Annot (`Asgn ((addr, sct), value, rest), (), bt, loc), syms)
+      | `LetStar ((x, value), rest) ->
+        let value, syms = aux value in
+        let rest, syms' = aux rest in
+        ( GenTerms.Annot (`LetStar ((x, value), rest), (), bt, loc),
+          Sym.Set.union syms syms' )
+      | `Assert (lc, rest) ->
+        let rest, syms = aux rest in
+        (GenTerms.Annot (`Assert (lc, rest), (), bt, loc), syms)
+      | `AssertDomain (ad, rest) ->
+        let rest, syms = aux rest in
+        (GenTerms.Annot (`AssertDomain (ad, rest), (), bt, loc), syms)
+      | `ITE (cond, t, f) ->
+        let t, syms = aux t in
+        let f, syms' = aux f in
+        (GenTerms.Annot (`ITE (cond, t, f), (), bt, loc), Sym.Set.union syms syms')
+      | `Map ((i, i_bt, perm), inner) ->
+        let inner, syms = aux inner in
+        (GenTerms.Annot (`Map ((i, i_bt, perm), inner), (), bt, loc), syms)
+    in
+    aux gr
+
+
+  let transform_gt (syms : Sym.Set.t) (gr : Stage3.Term.t) : Term.t =
+    let rec aux (path_vars : Sym.Set.t) (gr : Stage3.Term.t) : Term.t =
+      let (Annot (gr_, (), bt, loc)) = gr in
+      match gr_ with
+      | `ITE (cond, t, f) ->
+        let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
+        GenTerms.Annot (`ITE (cond, aux path_vars t, aux path_vars f), (), bt, loc)
+      | `Pick gts ->
+        GenTerms.Annot
+          (`PickSized (List.map (fun gt -> (Z.one, aux path_vars gt)) gts), (), bt, loc)
+      | _ ->
+        let count = count_recursive_calls syms gr in
+        let gr, sz_syms = size_recursive_calls syms count gr in
+        if count > 1 then
+          GenTerms.Annot (`SplitSize (sz_syms, gr), (), bt, loc)
+        else
+          gr
+    in
+    aux Sym.Set.empty gr
 
 
   let transform_gd
-        ({ filename; recursive; spec; name; iargs; oargs; body } : Stage3.Def.t)
+        (cg : Sym.Digraph.t)
+        ({ filename : string;
+           recursive : bool;
+           spec;
+           name : Sym.Set.elt;
+           iargs : (Sym.Set.elt * BT.t) list;
+           oargs : (Sym.Set.elt * BT.t) list;
+           body : Stage3.Term.t
+         } :
+          Stage3.Def.t)
     : Def.t
     =
-    { filename; recursive; spec; name; iargs; oargs; body = body |> transform_gt }
+    let recursive_syms =
+      if recursive then
+        Sym.Digraph.fold_pred Sym.Set.add cg name Sym.Set.empty
+      else
+        Sym.Set.empty
+    in
+    { filename;
+      recursive;
+      spec;
+      name;
+      iargs;
+      oargs;
+      body = transform_gt recursive_syms body
+    }
 
 
-  let transform (ctx : Stage3.Ctx.t) : Ctx.t = List.map_snd transform_gd ctx
+  let transform (ctx : Stage3.Ctx.t) : Ctx.t =
+    let module Oper = Graph.Oper.P (Sym.Digraph) in
+    let cg = Oper.transitive_closure (Stage3.Ctx.get_call_graph ctx) in
+    List.map_snd (transform_gd cg) ctx
 end

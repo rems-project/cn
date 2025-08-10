@@ -28,7 +28,7 @@ module Make (GT : GenTerms.T) = struct
       let rec aux (gt : GT.t) : Sym.Set.t =
         let (Annot (gt_, _, _, _)) = gt in
         match gt_ with
-        | `Arbitrary _ | `Return _ -> Sym.Set.empty
+        | `Arbitrary | `ArbitraryDomain _ | `Return _ -> Sym.Set.empty
         | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
         | `PickSized wgts | `PickSizedElab (_, wgts) ->
           wgts
@@ -39,6 +39,7 @@ module Make (GT : GenTerms.T) = struct
         | `Asgn (_, _, gt')
         | `AsgnElab (_, _, _, gt')
         | `Assert (_, gt')
+        | `AssertDomain (_, gt')
         | `Map (_, gt')
         | `MapElab (_, gt')
         | `SplitSize (_, gt')
@@ -53,10 +54,11 @@ module Make (GT : GenTerms.T) = struct
   let get_call_graph (ctx : t) : Sym.Digraph.t =
     ctx
     |> List.map_snd get_calls
-    |> List.fold_left
-         (fun cg (fsym, calls) ->
-            Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg)
-         Sym.Digraph.empty
+    |> (ctx
+        |> List.map fst
+        |> List.fold_left Sym.Digraph.add_vertex Sym.Digraph.empty
+        |> List.fold_left (fun cg (fsym, calls) ->
+          Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg))
 end
 
 module MakeOptional (GT : GenTerms.T) = struct

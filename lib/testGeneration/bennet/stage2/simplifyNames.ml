@@ -17,7 +17,7 @@ module Make (AD : Domain.T) = struct
     let rec aux (vars : int StringMap.t) (gt : Term.t) : int StringMap.t * Term.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary _ | `Call _ | `Return _ -> (vars, gt)
+      | `Arbitrary | `Call _ | `Return _ -> (vars, gt)
       | `Pick gts ->
         let vars, gts =
           List.fold_right
@@ -64,7 +64,7 @@ module Make (AD : Domain.T) = struct
           | Some n ->
             let name' = name ^ "_" ^ string_of_int n in
             let j = Sym.fresh name' in
-            let su = IT.make_subst [ (i_sym, IT.sym_ (j, i_bt, loc)) ] in
+            let su = IT.make_rename ~from:i_sym ~to_:j in
             ( StringMap.add name (n + 1) vars,
               j,
               IT.subst su it_perm,

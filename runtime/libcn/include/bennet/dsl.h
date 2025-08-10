@@ -78,14 +78,14 @@
     bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   }
 
-#define BENNET_LET_ARBITRARY(backtracks, cn_ty, c_ty, var, last_var)                     \
+#define BENNET_LET_ARBITRARY_DOMAIN(backtracks, cn_ty, c_ty, var, last_var, ...)         \
   bool var##_restore_randomness = false;                                                 \
   int var##_backtracks = backtracks;                                                     \
   bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
   bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
-  bennet_domain(c_ty)* var##_cs = bennet_domain_top(c_ty);                               \
+  bennet_domain(c_ty)* var##_cs = __VA_ARGS__;                                           \
   bennet_domain(c_ty)* var##_cs_tmp = var##_cs;                                          \
                                                                                          \
   bennet_label_##var##_gen :;                                                            \
@@ -118,6 +118,22 @@
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
+
+#define BENNET_LET_ARBITRARY_DOMAIN_POINTER(backtracks, var, last_var, ...)              \
+  BENNET_LET_ARBITRARY_DOMAIN(                                                           \
+      backtracks, cn_pointer, uintptr_t, var, last_var, __VA_ARGS__)
+
+#define BENNET_LET_ARBITRARY_DOMAIN_UNSIGNED(backtracks, bits, var, last_var, ...)       \
+  BENNET_LET_ARBITRARY_DOMAIN(                                                           \
+      backtracks, cn_bits_u##bits, uint##bits##_t, var, last_var, __VA_ARGS__)
+
+#define BENNET_LET_ARBITRARY_DOMAIN_SIGNED(backtracks, bits, var, last_var, ...)         \
+  BENNET_LET_ARBITRARY_DOMAIN(                                                           \
+      backtracks, cn_bits_i##bits, int##bits##_t, var, last_var, __VA_ARGS__)
+
+#define BENNET_LET_ARBITRARY(backtracks, cn_ty, c_ty, var, last_var)                     \
+  BENNET_LET_ARBITRARY_DOMAIN(                                                           \
+      backtracks, cn_ty, c_ty, var, last_var, bennet_domain_top(c_ty))
 
 #define BENNET_LET_ARBITRARY_POINTER(backtracks, var, last_var)                          \
   BENNET_LET_ARBITRARY(backtracks, cn_pointer, uintptr_t, var, last_var)

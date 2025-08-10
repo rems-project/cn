@@ -8,7 +8,7 @@ module Make (AD : Domain.T) = struct
     module Reorder = Reorder.Make (AD)
     module SpecializeEquality = SpecializeEquality.Make (AD)
     module SimplifyNames = SimplifyNames.Make (AD)
-    module SmtPruning = SmtPruning.Make (AD)
+    (* module SmtPruning = SmtPruning.Make (AD) *)
   end
 
   module Stage1 = Stage1.Make (AD)
@@ -16,9 +16,7 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Ctx = Ctx.Make (AD)
 
-  let transform (prog5 : unit Mucore.file) (paused : _ Typing.pause) (ctx : Stage1.Ctx.t)
-    : Ctx.t
-    =
+  let transform (prog5 : unit Mucore.file) (ctx : Stage1.Ctx.t) : Ctx.t =
     ctx
     |> Convert.transform
     |> SimplifyGen.MemberIndirection.transform
@@ -36,10 +34,4 @@ module Make (AD : Domain.T) = struct
     |> SpecializeEquality.transform
     |> SimplifyGen.transform prog5
     |> SimplifyNames.transform
-    |> (match TestGenConfig.has_smt_pruning () with
-      | `Fast -> SmtPruning.transform paused true
-      | `Slow -> SmtPruning.transform paused false
-      | `None -> fun ctx -> ctx)
-    |> SimplifyGen.transform prog5
-  (* |> MinimizePickWeights.transform *)
 end

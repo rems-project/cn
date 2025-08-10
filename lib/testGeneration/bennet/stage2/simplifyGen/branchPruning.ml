@@ -24,7 +24,7 @@ module Make (AD : Domain.T) = struct
     let rec contains_false_assertion (gt : Term.t) : bool =
       let (Annot (gt_, (), _, _)) = gt in
       match gt_ with
-      | `Arbitrary _ | `Call _ | `Return _ -> false
+      | `Arbitrary | `Call _ | `Return _ -> false
       | `Pick gts ->
         List.is_empty gts || List.for_all (fun gt' -> contains_false_assertion gt') gts
       | `Asgn ((it_addr, _), _, gt') ->

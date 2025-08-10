@@ -1,60 +1,60 @@
-(* module WIntDomain : Domain.T = struct
-  type b =
-    { start : int64;
-      stop : int64
+(* module BT = BaseTypes
+
+module WrappedInterval = struct
+  type t =
+    { bt : BT.t;
+      is_top : bool;
+      is_bot : bool;
+      start : Z.t;
+      stop : Z.t
     }
   [@@deriving eq, ord]
 
-  type t = b Sym.Map.t option [@@deriving eq, ord]
-
-  let top () = Some Sym.Map.empty
-
-  (* let is_top d = match d with Top -> true | _ -> false *)
-
-  (* let is_bot d = match d with Bot -> true | _ -> false *)
-
-  let join = failwith ""
-
-  let meet = failwith ""
-
-  let rec forward_abstract_op (it : IndexTerms.t) (d : t) : b = failwith ""
-
-  let rec backward_abstract_op (it : IndexTerms.t) (inputs : b list) (output : b) : b list
-    =
-    failwith ""
-
-
-  let forward_abstract_it (it : IndexTerms.t) (d : t) : t =
-    let rec aux (it : IndexTerms.t) (d : t) : t =
-      let (IT (it_, _, _)) = it in
-      match it_ with _ -> d
+  let top (bt : BT.t) =
+    let start, stop =
+      BT.bits_range
+        (Option.get
+           (BT.is_bits_bt
+              (match bt with
+               | Loc () -> Memory.uintptr_bt
+               | Bits _ -> bt
+               | _ -> failwith __LOC__)))
     in
-    aux it d
+    { bt; is_top = true; is_bot = false; start; stop }
 
 
-  let backward_abstract_it (it : IndexTerms.t) (d : t) : t =
-    let rec aux (it : IndexTerms.t) (d : t) : t =
-      let (IT (it_, _, _)) = it in
-      match it_ with _ -> d
-    in
-    aux it d
+  let bottom (bt : BT.t) =
+    { bt; is_top = false; is_bot = true; start = Z.zero; stop = Z.zero }
 
 
-  let pp d =
-    let open Pp in
-    !^"wint"
-    ^^ parens
-         (match d with
-          | None -> !^"⊥"
-          | Some d' ->
-            braces
-              (separate_map
-                 (semi ^^ break 1)
-                 (fun (x, { start; stop }) ->
-                    Sym.pp x
-                    ^^^ !^"∈"
-                    ^^^ parens
-                          (assert (not (Int64.equal (Int64.sub start stop) Int64.one));
-                           braces (int64 start ^^ comma ^^^ int64 stop)))
-                 (Sym.Map.bindings d')))
+  let forward_abs_it (it : IndexTerms.t) (rs : t list) : t = failwith ""
+
+  let backward_abs_it (it : IndexTerms.t) (rs : t list) : t = failwith ""
 end *)
+
+(* module Inner (* : Domain.T *) = struct
+  (* C interface for code generation *)
+  module CInt : Domain.C_INTERFACE = struct
+    open Pp
+
+    let name = !^"wint"
+
+    let definitions () = empty
+  end
+
+  let name = "wrapped_interval"
+
+
+  (* Domain maps symbols to wrapped intervals *)
+  type t = b Sym.Map.t  [@@deriving eq, ord]
+
+  let bottom = None
+
+  let top = Some Sym.Map.empty
+
+  let complement d = 
+
+  let leq = failwith ""
+end *)
+
+(* include Inner *)
