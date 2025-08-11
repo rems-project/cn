@@ -175,9 +175,6 @@ SHOULD_FAIL=$(find cn -name '*.error.c' \
   ! -name "before_from_bytes.error.c" \
   ! -name "partial_init_bytes.error.c" \
   ! -name "before_to_bytes.error.c" \
-  ! -name "ghost_arguments_too_many.error.c" \
-  ! -name "ghost_arguments_type_mismatch.error.c" \
-  ! -name "ghost_arguments_too_many_newline.error.c" \
 )
 
 FAILED=""
