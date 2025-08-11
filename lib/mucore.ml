@@ -376,13 +376,14 @@ type parse_ast_label_spec =
   { label_spec : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list }
 
 type 'TY label_def =
+  | Non_inlined of Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit arguments
   | Return of Locations.t
-  | Label of
+  | Loop of
       Locations.t
       * 'TY expr arguments
       * Cerb_frontend.Annot.annot list
       * parse_ast_label_spec
-      * [ `Loop of Locations.t * Locations.t * bool ]
+      * [ `Aux_info of Locations.t * Locations.t * bool ]
 (* first loc is condition, second is whole loop *)
 (* loop condition location, for executable checking *)
 (* bool signifies whether any loop invariant was provided by the user, for executable checking *)
