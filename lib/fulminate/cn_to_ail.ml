@@ -3794,9 +3794,23 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
 
 
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
-  List.mapi
-    (fun i arg -> cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i arg)
-    ghost_args
+  let bs, ss =
+    List.split
+      (List.mapi
+         (fun i arg ->
+            cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i arg)
+         ghost_args)
+  in
+  let dummy_expr_as_stat =
+    A.(
+      AilSexpr
+        (mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))))
+  in
+  let ail_gcc_stmt =
+    A.AilEgcc_statement
+      (List.concat bs, List.map mk_stmt (List.concat ss @ [ dummy_expr_as_stat ]))
+  in
+  ([], [ A.AilSexpr (mk_expr ail_gcc_stmt) ])
 
 
 let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =

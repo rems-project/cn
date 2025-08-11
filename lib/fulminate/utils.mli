@@ -56,3 +56,5 @@ val get_end_loc : ?offset:int -> Cerb_location.t -> Cerb_location.t
 val concat_map_newline : PPrint.document list -> PPrint.document
 
 val static_prefix : string -> string
+
+val remove_last_semicolon : string list -> string list
