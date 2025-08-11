@@ -797,7 +797,7 @@ void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
 
 void clear_ghost_array(int max_num_ghost_args) {
   for (int i = 0; i < max_num_ghost_args; i++) {
-    fulm_free(ghost_arg_array + i*sizeof(void*), &fulm_default_alloc);
+    fulm_free(ghost_arg_array + i * sizeof(void*), &fulm_default_alloc);
   }
 }
 
