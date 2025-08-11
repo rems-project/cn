@@ -1881,7 +1881,7 @@ let pp_label_def pp_type = function
       "Non_inlined"
       [ pp_location loc; pp_symbol name; pp_label_annot annot; pp_arguments pp_unit args ]
   | Return loc -> pp_constructor1 "Return" [ pp_location loc ]
-  | Loop (loc, args, annots, spec, `Loop (cond_loc, loop_loc, _)) ->
+  | Loop (loc, args, annots, spec, `Aux_info (cond_loc, loop_loc, _)) ->
     pp_constructor1
       "Loop"
       [ pp_location loc;

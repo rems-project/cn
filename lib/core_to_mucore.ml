@@ -1361,7 +1361,7 @@ let normalise_label
                  label_args_and_body,
                  annots,
                  { label_spec = desugared_inv },
-                 `Loop loop_info ))
+                 `Aux_info loop_info ))
         (* | Some (LAloop_body _loop_id) -> *)
         (*    assert_error loc !^"body label has not been inlined" *)
         | LAloop_continue _loop_id ->
