@@ -100,25 +100,11 @@ let generate_c_loop_invariants
     let ail_loop_invariants = ail_executable_spec.loops in
     let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
     (* A bit of a hack *)
-    let rec remove_last = function
-      | [] -> []
-      | [ _ ] -> []
-      | x :: xs -> x :: remove_last xs
-    in
-    let rec remove_last_semicolon = function
-      | [] -> []
-      | [ x ] ->
-        let split_x = String.split_on_char ';' x in
-        let without_whitespace_x = remove_last split_x in
-        let res = String.concat ";" without_whitespace_x in
-        [ res ]
-      | x :: xs -> x :: remove_last_semicolon xs
-    in
     let ail_cond_injs =
       List.map
         (fun (loc, bs_and_ss) ->
            ( get_start_loc loc,
-             remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
+             Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
         ail_cond_stats
     in
     let ail_loop_decl_injs =
@@ -211,15 +197,10 @@ let generate_fn_call_ghost_args_injs
   List.map
     (fun (loc, ghost_args) ->
        ( get_start_loc loc,
-         List.flatten
-           (List.map
-              generate_ail_stat_strs
-              (Cn_to_ail.cn_to_ail_cnprog_ghost_args
-                 filename
-                 dts
-                 globals
-                 (Some Statement)
-                 ghost_args)) ))
+         Utils.remove_last_semicolon
+           (generate_ail_stat_strs
+              (Cn_to_ail.cn_to_ail_cnprog_ghost_args filename dts globals None ghost_args))
+         @ [ ", " ] ))
     (ghost_args_and_their_call_locs prog5)
 
 

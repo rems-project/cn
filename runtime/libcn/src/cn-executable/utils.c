@@ -787,7 +787,7 @@ void cn_print_nr_u64(int i, unsigned long u) {
 // ghost arguments
 void** ghost_arg_array;
 
-void initialise_ghost_array(int max_num_ghost_args) {
+void alloc_ghost_array(int max_num_ghost_args) {
   ghost_arg_array = fulm_malloc(max_num_ghost_args * sizeof(void*), &fulm_default_alloc);
 }
 
@@ -797,7 +797,7 @@ void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
 
 void clear_ghost_array(int max_num_ghost_args) {
   for (int i = 0; i < max_num_ghost_args; i++) {
-    fulm_free(ghost_arg_array[i], &fulm_default_alloc);
+    fulm_free(ghost_arg_array + i*sizeof(void*), &fulm_default_alloc);
   }
 }
 

@@ -256,4 +256,4 @@ val cn_to_ail_cnprog_ghost_args
   (Sym.t * Ctype.ctype) list ->
   spec_mode option ->
   IndexTerms.t Cnprog.t list ->
-  (AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list) list
+  AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list

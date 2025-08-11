@@ -60,7 +60,7 @@ let get_ownership_global_init_stats ?(max_num_ghost_args = 100) () =
     mk_expr
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh "initialise_ghost_array")),
+          ( mk_expr (AilEident (Sym.fresh "alloc_ghost_array")),
             [ mk_expr
                 (AilEconst
                    (ConstantInteger
