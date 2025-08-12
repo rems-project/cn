@@ -131,6 +131,16 @@ type message =
         decl : int
       }
   | Not_impl_ghost_args_in_pure_C_function
+  | Unspecified_byte_to_int of
+      { constr : LogicalConstraints.t;
+        ctxt : Context.t * Explain.log;
+        model : Solver.model_with_q
+      }
+  | Converting_from_unspecified_bytes of
+      { constr : LogicalConstraints.t;
+        ctxt : Context.t * Explain.log;
+        model : Solver.model_with_q
+      }
 
 type t =
   { loc : Locations.t;

@@ -628,6 +628,49 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
         check_live_alloc_bounds `ISO_member_shift loc ub [ result ])
     in
     return result
+  | PEmemop (ByteFromInt, pe) ->
+    (* elaboration will ensure that pe is a conv_int for unsigned char, that is
+     * the value is wrapped to fit in a byte appropriately *)
+    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+    let@ vt = check_pexpr pe in
+    let here = Locations.other __LOC__ in
+    let byte_sym, byte = IT.fresh_named (BT.Option MemByte) "byte" here in
+    let@ () =
+      add_a byte_sym (BT.Option MemByte) (here, lazy (Pp.string "byte from integer"))
+    in
+    let uchar_bt = BT.Bits (Unsigned, 8) in
+    let constraints =
+      and_
+        [ (* initialised *)
+          isSome_ byte here;
+          (* provenance is empty *)
+          isNone_ (cast_ (BT.Option Alloc_id) (getOpt_ byte here) here) here;
+          (* bits are equal *)
+          eq_ (cast_ uchar_bt (getOpt_ byte here) here, cast_ uchar_bt vt here) here
+        ]
+        here
+    in
+    let@ () = add_c here (LC.T constraints) in
+    return byte
+  | PEmemop (IntFromByte, pe) ->
+    let@ () =
+      WellTyped.ensure_base_type loc ~expect:(BT.Option MemByte) (Mu.bt_of_pexpr pe)
+    in
+    let@ provable = provable loc in
+    let@ vt = check_pexpr pe in
+    let here = Locations.other __LOC__ in
+    let uchar_bt = BT.Bits (Unsigned, 8) in
+    let lc = LC.T (isSome_ vt here) in
+    (match provable lc with
+     | `True -> return (cast_ uchar_bt (getOpt_ vt here) here)
+     | `False ->
+       let@ model = model () in
+       fail (fun ctxt ->
+         { loc; msg = Unspecified_byte_to_int { constr = lc; ctxt; model } }))
+  | PEmemop (DeriveCap (_, _), _)
+  | PEmemop (CapAssignValue, _)
+  | PEmemop (Ptr_tIntValue, _) ->
+    assert false
   | PEnot pe ->
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
     let@ () = WellTyped.ensure_base_type loc ~expect:Bool (Mu.bt_of_pexpr pe) in
@@ -1303,11 +1346,7 @@ let bytes_constraints
         | `False ->
           let@ model = model () in
           fail (fun ctxt ->
-            { loc;
-              msg =
-                Unproven_constraint
-                  { constr = lc; info = (loc, None); requests = []; ctxt; model }
-            })))
+            { loc; msg = Converting_from_unspecified_bytes { constr = lc; ctxt; model } })))
   | Pointer _ ->
     let bt = Memory.uintptr_bt in
     let value_prov = cast_ BT.Alloc_id value here in
@@ -1340,11 +1379,7 @@ let bytes_constraints
         | `False ->
           let@ model = model () in
           fail (fun ctxt ->
-            { loc;
-              msg =
-                Unproven_constraint
-                  { constr = lc; info = (loc, None); requests = []; ctxt; model }
-            })
+            { loc; msg = Converting_from_unspecified_bytes { constr = lc; ctxt; model } })
         | `True ->
           (* if two byte provenances are not CN_None, they should be equal *)
           let bytes_prov_eq =
@@ -1976,9 +2011,13 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         let map_bt = BT.Map (bt, Option MemByte) in
         let byte_sym, byte_arr = IT.fresh_named map_bt "byte_arr" here in
         let@ () = add_a byte_sym map_bt (loc, lazy (Pp.string "byte array")) in
-        let@ () = add_r loc (Q (bytes_qpred q_sym ct pointer init), O byte_arr) in
+        (* Note the byte array is always initalised *)
+        let@ () = add_r loc (Q (bytes_qpred q_sym ct pointer Init), O byte_arr) in
         (match init with
-         | Uninit -> add_c loc (LC.T (IT.eq_ (byte_arr, default_ map_bt here) here))
+         | Uninit ->
+           add_c
+             loc
+             (LC.T (IT.eq_ (byte_arr, const_map_ bt (none_ MemByte here) here) here))
          | Init ->
            let@ constr = bytes_constraints loc To ~value ~byte_arr ct in
            add_c loc (LC.T constr))

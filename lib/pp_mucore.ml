@@ -104,6 +104,7 @@ module Make (Config : CONFIG) = struct
     | PEop (OpAnd, _, _) -> Some 6
     | PEop (OpOr, _, _) -> Some 7
     | PEval _ | PEconstrained _ | PEsym _ | PEctor _ | PEarray_shift _ | PEmember_shift _
+    | PEmemop (_, _)
     | PEnot _ | PEstruct _ | PEunion _ | PEcfunction _ | PEmemberof _ | PEconv_int _
     | PEconv_loaded_int _ | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
     | PEbitwise_unop (_, _)
@@ -255,6 +256,14 @@ module Make (Config : CONFIG) = struct
 
   let abbreviated = Pp.dot ^^ Pp.dot ^^ Pp.dot
 
+  let pp_pure_memop = function
+    | Mem_common.ByteFromInt -> !^"ByteFromInt"
+    | Mem_common.IntFromByte -> !^"IntFromByte"
+    | Mem_common.DeriveCap (_, _) | Mem_common.CapAssignValue | Mem_common.Ptr_tIntValue
+      ->
+      !^""
+
+
   let rec pp_actype_or_pexpr budget = function
     | Either.Left ct -> pp_actype ct
     | Right sym -> pp_pexpr budget sym
@@ -322,6 +331,9 @@ module Make (Config : CONFIG) = struct
                        ^^ Pp.comma
                        ^^^ Pp.dot
                        ^^ !^memb_ident)
+               | PEmemop (pure_memop, pe) ->
+                 pp_keyword "memop"
+                 ^^ Pp.parens (pp_pure_memop pure_memop ^^ Pp.comma ^^^ pp_pexpr pe)
                | PEnot pe -> pp_keyword "not" ^^ Pp.parens (pp_pexpr pe)
                | PEop (bop, pe1, pe2) -> pp_pexpr pe1 ^^^ pp_binop bop ^^^ pp_pexpr pe2
                | PEapply_fun (f, args) ->

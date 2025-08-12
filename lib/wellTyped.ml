@@ -1756,6 +1756,15 @@ module BaseTyping = struct
         | PEnot pe ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEnot pe)
+        | PEmemop (ByteFromInt, pe) ->
+          let@ pe = infer_pexpr pe in
+          let@ () = ensure_bits_type loc (bt_of_pexpr pe) in
+          return (Option MemByte, PEmemop (ByteFromInt, pe))
+        | PEmemop (IntFromByte, pe) ->
+          let@ pe = infer_pexpr pe in
+          let@ () = ensure_base_type loc ~expect:(Option MemByte) (bt_of_pexpr pe) in
+          return (Bits (Unsigned, 8), PEmemop (IntFromByte, pe))
+        | PEmemop (_, _) -> assert false
         | PEctor (ctor, pes) ->
           let@ pes = ListM.mapM infer_pexpr pes in
           let@ bt =

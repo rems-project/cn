@@ -856,6 +856,13 @@ let pp_mem_value v =
     v
 
 
+let pp_pure_memop = function
+  | Mem_common.ByteFromInt -> !^"ByteFromInt"
+  | Mem_common.IntFromByte -> !^"IntFromByte"
+  | Mem_common.DeriveCap (_, _) | Mem_common.CapAssignValue | Mem_common.Ptr_tIntValue ->
+    !^""
+
+
 let rec pp_mem_constraint = function
   | Mem_common.MC_empty -> pp_constructor0 "MC_empty"
   | Mem_common.MC_eq (x, y) ->
@@ -914,6 +921,8 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEmember_shift"
            [ pp_pexpr pp_type e; pp_symbol sym; pp_identifier id ]
+       | PEmemop (pure_memop, e) ->
+         pp_constructor1 "PEmemop" [ pp_pure_memop pure_memop; pp_pexpr pp_type e ]
        | PEnot e -> pp_constructor1 "PEnot" [ pp_pexpr pp_type e ]
        | PEapply_fun (f, args) ->
          pp_constructor1 "PEapply_fun" [ pp_function f; pp_list (pp_pexpr pp_type) args ]
@@ -1230,7 +1239,7 @@ and pp_index_term_content = function
       "TMatch"
       [ pp_index_term t; pp_list (pp_pair pp_terms_pattern pp_index_term) cases ]
   | Cast (bt, t) -> pp_constructor1 "Cast" [ pp_basetype pp_unit bt; pp_index_term t ]
-  | CN_None bt -> pp_constructor "CN_None" [ pp_basetype pp_unit bt ]
+  | CN_None bt -> pp_constructor1 "CN_None" [ pp_basetype pp_unit bt ]
   | CN_Some t -> pp_constructor1 "CN_Some" [ pp_index_term t ]
   | IsSome t -> pp_constructor1 "IsSome" [ pp_index_term t ]
   | GetOpt t -> pp_constructor1 "GetOpt" [ pp_index_term t ]

@@ -293,7 +293,20 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEmember_shift (e', sym1, id1) ->
     let e' = n_pexpr loc e' in
     annotate (PEmember_shift (e', sym1, id1))
-  | PEmemop (_mop, _pes) ->
+  | PEmemop ((CF.Mem_common.ByteFromInt as pure_memop), [ e ])
+  | PEmemop ((CF.Mem_common.IntFromByte as pure_memop), [ e ]) ->
+    let e' = n_pexpr loc e in
+    annotate (PEmemop (pure_memop, e'))
+  | PEmemop (CF.Mem_common.ByteFromInt, _pes) | PEmemop (CF.Mem_common.IntFromByte, _pes)
+    ->
+    assert_error
+      loc
+      (item
+         "core_to_mucore: pure memop with zero or multiple arguments"
+         (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe))))
+  | PEmemop (CF.Mem_common.DeriveCap (_, _), _pes)
+  | PEmemop (CF.Mem_common.CapAssignValue, _pes)
+  | PEmemop (CF.Mem_common.Ptr_tIntValue, _pes) ->
     (* FIXME(CHERI merge) *)
     (* this construct is currently only used by the CHERI switch *)
     assert_error loc !^"PEmemop (CHERI only)"
