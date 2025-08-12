@@ -60,7 +60,7 @@ void insert_iter_res(uint64_t ptr, uint64_t size, uint64_t nelems, type_sig sig)
 ///  (i) is in a iterated resource
 ///  (ii) is not focused
 /// If (i) and (ii), it needs focus, and returns 1.
-int needs_focus(uint64_t address, uint64_t size, type_sig sig) {
+int needs_focus(uint64_t address, uint64_t size) {
     assert(cn_focus_global_context != NULL);
     // (i) search for iterated resource
     iter_res_set *iter = cn_focus_global_context->iter_ress;
@@ -79,16 +79,12 @@ int needs_focus(uint64_t address, uint64_t size, type_sig sig) {
 
         uint64_t index = offset / cur->res.size;
 
-        if (strcmp(cur->res.sig, sig) != 0) {
-            continue;
-        }
-
         // Case: an appropriate iterated resource is found
         // (ii) search for focus
         focus_set* cur_focus = cn_focus_global_context->indices;
         while (cur_focus) {
             if (cur_focus->info.index == index &&
-                strcmp(cur_focus->info.sig, sig) == 0) {
+                strcmp(cur_focus->info.sig, cur->res.sig) == 0) {
                 return 0;
             }
             cur_focus = cur_focus->next;
