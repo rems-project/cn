@@ -3669,7 +3669,24 @@ let cn_to_ail_cnstatement
   | Have _lc -> failwith "TODO Have"
   | Instantiate (_to_instantiate, _it) -> (default_res_for_dest, true)
   | Split_case _ -> (default_res_for_dest, true)
-  | Extract (_, _, _it) -> (default_res_for_dest, true)
+  | Extract (_, to_extract, it) ->
+    let b, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt it PassBack in
+    (match to_extract with
+     | E_Pred (CN_owned (Some ct)) | E_Pred (CN_block (Some ct)) ->
+       let s = Pp.plain (Sctypes.pp ct) in
+       Pp.(debug 10 (lazy (string s)));
+       let s_expr = mk_expr (A.AilEstr (None, [ (Cerb_location.unknown, [ s ]) ])) in
+       let call_expr =
+         A.AilEcall (mk_expr (A.AilEident (Sym.fresh "insert_focus")), [ e; s_expr ])
+       in
+       let call_stat = A.AilSexpr (mk_expr call_expr) in
+       (prefix d (b, ss @ [ call_stat ]) (empty_for_dest d), false)
+     | E_Everything
+     | E_Pred (CN_owned None)
+     | E_Pred (CN_block None)
+     | E_Pred (CN_named _) ->
+       (* Not supported, or deprecated *)
+       (default_res_for_dest, true))
   | Unfold (_fsym, _args) -> (default_res_for_dest, true) (* fsym is a function symbol *)
   | Apply (fsym, args) ->
     ( cn_to_ail_expr
