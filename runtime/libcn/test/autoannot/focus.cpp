@@ -23,6 +23,22 @@ TEST(LibAutoAnnot, BasicOperations) {
   ASSERT_EQ(needs_focus(0xcafe1000, 8, "u64"), 0)
       << "No appropriate resource, so we don't need focus";
 
+  push_focus_context();
+  insert_iter_res(0xcafe0000, 8, 4, "u64");
+  insert_iter_res(0x10000000, 8, 4, "u64");
+  ASSERT_EQ(needs_focus(0xcafe0008, 8, "u64"), 1) << "No focus in the current level";
+  ASSERT_EQ(needs_focus(0xcafe0000, 8, "u64"), 1) << "No focus in the current level";
+
+  insert_focus(0, "u64");
+  ASSERT_EQ(needs_focus(0xcafe0000, 8, "u64"), 0) << "Just focused";
+  ASSERT_EQ(needs_focus(0x10000000, 8, "u64"), 0) << "Just focused";
+
+  pop_focus_context();
+
+  // Check if it remembers the context
+  ASSERT_EQ(needs_focus(0xcafe0000, 8, "u64"), 1) << "Lack of focus for p[0]";
+  ASSERT_EQ(needs_focus(0xcafe0008, 8, "u64"), 0) << "Focus has already been annotated";
+
   pop_focus_context();
   ASSERT_EQ(needs_focus(0xcafe0000, 8, "u64"), 0) << "No need for focus";
   ASSERT_EQ(needs_focus(0xcafe0008, 8, "u64"), 0) << "No need for focus";
