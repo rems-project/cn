@@ -1,0 +1,17 @@
+return code: 1
+tests/cn/byte_int.error.c:19:7: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
+  /*@ to_bytes W<int>(&x); @*/
+      ^~~~~~~~ 
+tests/cn/byte_int.error.c:21:7: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
+  /*@ from_bytes RW<int>(&x); @*/
+      ^~~~~~~~~~ 
+[1/2]: f -- fail
+[2/2]: main -- fail
+tests/cn/byte_int.error.c:14:5: error: Cannot convert unspecified byte to integer
+    (unsigned char)*p;
+    ^~~~~~~~~~~~~~~~~ 
+State file: file:///tmp/state__byte_int.error.c__f.html
+tests/cn/byte_int.error.c:21:7: error: Cannot convert from unspecified bytes
+  /*@ from_bytes RW<int>(&x); @*/
+      ^~~~~~~~~~~~~~~~~~~~~~~ 
+State file: file:///tmp/state__byte_int.error.c__main.html

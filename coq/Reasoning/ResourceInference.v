@@ -52,7 +52,7 @@ Inductive bt_of_sct_rel : SCtypes.t -> BaseTypes.t -> Prop :=
   bt_of_sct_rel (SCtypes.Pointer sct) (BaseTypes.Loc unit tt)
 | bt_of_sct_struct : forall tag,
   bt_of_sct_rel (SCtypes.Struct tag) (BaseTypes.Struct _ tag)
-| bt_of_sct_byte : bt_of_sct_rel SCtypes.Byte (BaseTypes.MemByte unit)
+| bt_of_sct_byte : bt_of_sct_rel SCtypes.Byte (BaseTypes.Option unit (BaseTypes.MemByte unit))
 (* TODO function types *).
 
 Definition bool_of_sum {P : Prop} (dec : sumbool P (~ P)) : bool :=
@@ -96,7 +96,7 @@ Fixpoint bt_of_sct_fun (sct : SCtypes.t) (bt : BaseTypes.t): bool :=
     end
   | SCtypes.Byte =>
     match bt with
-    | BaseTypes.MemByte _ => true
+    | BaseTypes.Option _ (BaseTypes.MemByte _) => true
     | _ => false
     end
   | _ => false
@@ -162,6 +162,7 @@ Proof.
     + intros ? ? ? ? H.
       inversion H.
     + intros bt H.
+      destruct bt; try discriminate.
       destruct bt; try discriminate.
       constructor.
 Qed.

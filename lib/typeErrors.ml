@@ -35,7 +35,7 @@ let for_access = function
   | Store -> !^"for writing"
   | Free -> !^"for free-ing"
   | To_bytes -> !^"for converting to bytes"
-  | From_bytes -> !^"for convering from bytes"
+  | From_bytes -> !^"for converting from bytes"
 
 
 let for_situation = function
@@ -188,6 +188,16 @@ type message =
         decl : int
       }
   | Not_impl_ghost_args_in_pure_C_function
+  | Unspecified_byte_to_int of
+      { constr : LC.t;
+        ctxt : Context.t * Explain.log;
+        model : Solver.model_with_q
+      }
+  | Converting_from_unspecified_bytes of
+      { constr : LC.t;
+        ctxt : Context.t * Explain.log;
+        model : Solver.model_with_q
+      }
 
 type t =
   { loc : Locations.t;
@@ -651,6 +661,18 @@ let pp_message = function
       !^"Cannot lift a pure C function which uses ghost arguments (not implemented)."
     in
     { short; descr = None; state = None }
+  | Unspecified_byte_to_int { constr; ctxt; model } ->
+    let short = !^"Cannot convert unspecified byte to integer" in
+    let state =
+      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    { short; descr = None; state = Some state }
+  | Converting_from_unspecified_bytes { constr; ctxt; model } ->
+    let short = !^"Cannot convert from unspecified bytes" in
+    let state =
+      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    { short; descr = None; state = Some state }
 
 
 (** Convert a possibly-relative filepath into an absolute one. *)
