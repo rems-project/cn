@@ -171,6 +171,7 @@ type 'TY pexpr_ =
   | Civfromfloat of act * 'TY pexpr
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
+  | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
   | PEapply_fun of mu_function * 'TY pexpr list

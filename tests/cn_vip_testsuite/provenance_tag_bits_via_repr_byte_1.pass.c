@@ -17,18 +17,18 @@ requires
   // read low-order (little endian) representation byte of p
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   byte* p_char = (byte*)&p;
-  /*@ focus RW<unsigned char>, 0u64; @*/
-  byte i = *p_char;
+  /*@ focus RW<byte>, 0u64; @*/
+  unsigned char i = (unsigned char)*p_char;
   // check the bottom two bits of an int* are not usec
   assert(_Alignof(int) >= 4);
   assert((i & 3u) == 0u);
   // set the low-order bit of the byte
   i = i | 1u;
   // write the representation byte back
-  *p_char = i;
+  *p_char = (byte)i;
   // [p might be passed around or copied here]
   // clear the low-order bits again
-  *(byte*)&p = (*(byte*)&p) & ~((byte)3u);
+  *(byte*)&p = (byte)((unsigned char)(*(byte*)&p) & ~3u);
   // are p and q now equivalent?
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
   *p = 11;          // does this have defined behaviour?
