@@ -9,11 +9,21 @@ class LibAutoAnnot : public ::testing::Test {
 TEST(LibAutoAnnot, BasicOperations) {
   initialise_focus_context();
   push_focus_context();
-  insert_focus(100);
 
-  ASSERT_EQ(check_focus(100), 1) << "Focus 100 should be found in current context.";
+  /*
+  let p = 0xcafe000;
+  take X = each(u64 i; i < 4) { RW<u64>(p) };
+  */
+  insert_iter_res(0xcafe0000, 8, 4, "u64");
+  /* focus RW<u64>, 1u64; */
+  insert_focus(1, "u64");
+
+  ASSERT_EQ(needs_focus(0xcafe0000, 8, "u64"), 1) << "Lack of focus for p[0]";
+  ASSERT_EQ(needs_focus(0xcafe0008, 8, "u64"), 0) << "Focus has already been annotated";
+  ASSERT_EQ(needs_focus(0xcafe1000, 8, "u64"), 0)
+      << "No appropriate resource, so we don't need focus";
 
   pop_focus_context();
-
-  ASSERT_EQ(check_focus(100), 0) << "Focus 100 should NOT be found after pop.";
+  ASSERT_EQ(needs_focus(0xcafe0000, 8, "u64"), 0) << "No need for focus";
+  ASSERT_EQ(needs_focus(0xcafe0008, 8, "u64"), 0) << "No need for focus";
 }
