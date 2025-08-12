@@ -41,9 +41,9 @@ struct focus_context {
 void initialise_focus_context(void);
 void push_focus_context(void);
 void pop_focus_context(void);
-void insert_focus(int64_t index, const char *type_sig);
+void insert_focus(int64_t index, type_sig sig);
 void insert_iter_res(uint64_t ptr, uint64_t size, uint64_t nelems, type_sig sig);
-int needs_focus(uint64_t address, uint64_t size, type_sig sig);
+int needs_focus(uint64_t address, uint64_t size);
 
 #ifdef __cplusplus
 }
