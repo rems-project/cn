@@ -628,6 +628,53 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
         check_live_alloc_bounds `ISO_member_shift loc ub [ result ])
     in
     return result
+  | PEmemop (ByteFromInt, pe) ->
+    (* elaboration will ensure that pe is a conv_int for unsigned char, that is
+     * the value is wrapped to fit in a byte appropriately *)
+    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+    let@ vt = check_pexpr pe in
+    let here = Locations.other __LOC__ in
+    let byte_sym, byte = IT.fresh_named (BT.Option MemByte) "byte" here in
+    let@ () =
+      add_a byte_sym (BT.Option MemByte) (here, lazy (Pp.string "byte from integer"))
+    in
+    let uchar_bt = BT.Bits (Unsigned, 8) in
+    let constraints =
+      and_
+        [ (* initialised *)
+          isSome_ byte here;
+          (* provenance is empty *)
+          isNone_ (cast_ (BT.Option Alloc_id) (getOpt_ byte here) here) here;
+          (* bits are equal *)
+          eq_ (cast_ uchar_bt (getOpt_ byte here) here, cast_ uchar_bt vt here) here
+        ]
+        here
+    in
+    let@ () = add_c here (LC.T constraints) in
+    return byte
+  | PEmemop (IntFromByte, pe) ->
+    let@ () =
+      WellTyped.ensure_base_type loc ~expect:(BT.Option MemByte) (Mu.bt_of_pexpr pe)
+    in
+    let@ provable = provable loc in
+    let@ vt = check_pexpr pe in
+    let here = Locations.other __LOC__ in
+    let uchar_bt = BT.Bits (Unsigned, 8) in
+    let lc = LC.T (isSome_ vt here) in
+    (match provable lc with
+     | `True -> return (cast_ uchar_bt (getOpt_ vt here) here)
+     | `False ->
+       let@ model = model () in
+       fail (fun ctxt ->
+         { loc;
+           msg =
+             Unproven_constraint
+               { constr = lc; info = (loc, None); requests = []; ctxt; model }
+         }))
+  | PEmemop (DeriveCap (_, _), _)
+  | PEmemop (CapAssignValue, _)
+  | PEmemop (Ptr_tIntValue, _) ->
+    assert false
   | PEnot pe ->
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
     let@ () = WellTyped.ensure_base_type loc ~expect:Bool (Mu.bt_of_pexpr pe) in
