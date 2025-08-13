@@ -148,11 +148,6 @@ typedef struct cn_alloc_id {
 
 typedef hash_table cn_map;
 
-struct loop_ownership {
-  uintptr_t *owned_loop_addrs;
-  signed long arr_size;
-};
-
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
