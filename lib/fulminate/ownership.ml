@@ -55,9 +55,15 @@ let get_ownership_global_init_stats () =
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
+  let cn_initialise_focus_context_fcall =
+    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_focus_context")), []))
+  in
   List.map
     (fun e -> A.(AilSexpr e))
-    [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ]
+    [ cn_ghost_state_init_fcall;
+      cn_ghost_stack_depth_init_fcall;
+      cn_initialise_focus_context_fcall
+    ]
 
 
 let generate_c_local_cn_addr_var sym =
