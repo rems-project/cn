@@ -289,29 +289,48 @@ void cn_loop_leak_check(void) {
 
 /* / TODO: DAVID */
 
+typedef struct loop_ownership_nd {
+  uintptr_t addr;
+  size_t size;
+  struct loop_ownership_nd* next;
+} loop_ownership_nd;
+
+struct loop_ownership {
+  loop_ownership_nd* head;
+};
+
+// No destructors: expects to be dropped by the bump allocator _in a timely
+// manner_.
 struct loop_ownership* initialise_loop_ownership_state(void) {
   struct loop_ownership* loop_ownership =
       bump_alloc.malloc(sizeof(struct loop_ownership));
-  loop_ownership->owned_loop_addrs = bump_alloc.malloc(1000 * sizeof(uintptr_t));
-  loop_ownership->arr_size = 0;
+  // assert(loop_ownership);
+  *loop_ownership = (struct loop_ownership){.head = NULL};
   return loop_ownership;
 }
 
+// XXX: Compresses explicit ranges. Catches iteratively fed ranges.
+// To improve: coalesce with any known range, rather than just the last.
 void cn_add_to_loop_ownership_state(
     void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
-  for (int i = 0; i < size; i++) {
-    loop_ownership->owned_loop_addrs[loop_ownership->arr_size] =
-        (uintptr_t)generic_c_ptr + i;
-    loop_ownership->arr_size++;
+  uintptr_t addr = (uintptr_t)generic_c_ptr;
+  loop_ownership_nd* hd = loop_ownership->head;
+  if (hd && addr == (hd->addr + hd->size))
+    hd->size += size;
+  else {
+    loop_ownership_nd* newhd = bump_alloc.malloc(sizeof(loop_ownership_nd));
+    *newhd = (loop_ownership_nd){.addr = addr, .size = size, .next = hd};
+    loop_ownership->head = newhd;
   }
 }
 
 void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
-  for (int i = 0; i < loop_ownership->arr_size; i++) {
-    int64_t address_key = loop_ownership->owned_loop_addrs[i];
-    ownership_ghost_state_set(&address_key, cn_stack_depth);
+  for (loop_ownership_nd* nd = loop_ownership->head; nd; nd = nd->next) {
+    for (size_t i = 0; i < nd->size; i++) {
+      int64_t addr = nd->addr + i;
+      ownership_ghost_state_set(&addr, cn_stack_depth);
+    }
   }
-  loop_ownership->arr_size = 0;
 }
 
 int ownership_ghost_state_get(int64_t* address_key) {
