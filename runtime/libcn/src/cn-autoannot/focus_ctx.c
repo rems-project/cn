@@ -46,11 +46,12 @@ void insert_focus(int64_t index, type_sig sig) {
     cn_focus_global_context->indices = new_set;
 }
 
-void insert_iter_res(uint64_t ptr, uint64_t size, uint64_t nelems, type_sig sig) {
+void insert_iter_res(uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig) {
     struct iter_res_set* new = fulm_malloc(sizeof(iter_res_set), &fulm_default_alloc);
     new->res.ptr = ptr;
     new->res.size = size;
-    new->res.nelems = nelems;
+    new->res.start = start;
+    new->res.end = end;
     new->res.sig = sig;
     new->next = cn_focus_global_context->iter_ress;
     cn_focus_global_context->iter_ress = new;
@@ -67,9 +68,9 @@ int needs_focus(uint64_t address, uint64_t size) {
     while (iter) {
         iter_res_set *cur = iter;
         iter = iter->next;
-        uint64_t start = cur->res.ptr;
-        uint64_t end = start + cur->res.size * cur->res.nelems;
-        uint64_t offset = address - start;
+        uint64_t start = cur->res.ptr + cur->res.start * cur->res.size;
+        uint64_t end = cur->res.ptr + (cur->res.end + 1) * cur->res.size;
+        uint64_t offset = address - cur->res.ptr;
         if (address < start || address + size > end) {
             continue;
         }
