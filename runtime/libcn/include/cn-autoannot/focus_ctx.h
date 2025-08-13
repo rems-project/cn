@@ -12,8 +12,12 @@ typedef const char *type_sig;
 // Limitation: we only consider contiguous iter ress.
 struct iter_res {
   uint64_t ptr;
+  // contiguous indices (closed interval)
+  uint64_t start;
+  uint64_t end;
+  // step
   uint64_t size;
-  uint64_t nelems;
+  // type signature
   type_sig sig;
 };
 
@@ -42,8 +46,9 @@ void initialise_focus_context(void);
 void push_focus_context(void);
 void pop_focus_context(void);
 void insert_focus(int64_t index, type_sig sig);
-void insert_iter_res(uint64_t ptr, uint64_t size, uint64_t nelems, type_sig sig);
-int needs_focus(uint64_t address, uint64_t size);
+void insert_iter_res(
+    uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig);
+  int needs_focus(uint64_t address, uint64_t size);
 
 #ifdef __cplusplus
 }
