@@ -9,6 +9,13 @@ extern "C" {
 
 typedef const char *type_sig;
 
+// Wrapper for cn values
+#define CN_INSERT_ITER_RES(base, start, end, size, sig) \
+    insert_iter_res((uint64_t)base->ptr, start->val, end->val, size, sig)
+
+#define CN_INSERT_FOCUS(index, sig) insert_focus(index->val, sig)
+
+
 // Limitation: we only consider contiguous iter ress.
 struct iter_res {
   uint64_t ptr;
