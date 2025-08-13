@@ -544,9 +544,9 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-int ownership_ghost_state_get(int64_t *address_key);
-void ownership_ghost_state_set(int64_t *address_key, int stack_depth_val);
-void ownership_ghost_state_remove(int64_t *address_key);
+int ownership_ghost_state_get(int64_t address);
+void ownership_ghost_state_set(int64_t address, size_t size, int stack_depth_val);
+void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
 void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);

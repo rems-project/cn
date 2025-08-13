@@ -325,30 +325,28 @@ void cn_add_to_loop_ownership_state(
 }
 
 void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
-  for (loop_ownership_nd* nd = loop_ownership->head; nd; nd = nd->next) {
-    for (size_t i = 0; i < nd->size; i++) {
-      int64_t addr = nd->addr + i;
-      ownership_ghost_state_set(&addr, cn_stack_depth);
-    }
-  }
+  for (loop_ownership_nd* nd = loop_ownership->head; nd; nd = nd->next)
+    ownership_ghost_state_set(nd->addr, nd->size, cn_stack_depth);
 }
 
-int ownership_ghost_state_get(int64_t* address_key) {
-  int* curr_depth_maybe = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
+int ownership_ghost_state_get(int64_t address) {
+  int* curr_depth_maybe = (int*)ht_get(cn_ownership_global_ghost_state, &address);
   return curr_depth_maybe ? *curr_depth_maybe : UNMAPPED_VAL;
 }
 
-void ownership_ghost_state_set(int64_t* address_key, int stack_depth_val) {
-  int* new_depth = (int*)ht_get(cn_ownership_global_ghost_state, address_key);
-  if (!new_depth) {
-    new_depth = fulm_malloc(sizeof(int), &fulm_default_alloc);
+void ownership_ghost_state_set(int64_t address, size_t size, int stack_depth_val) {
+  for (int64_t k = address; k < address + size; k++) {
+    int* new_depth = (int*)ht_get(cn_ownership_global_ghost_state, &k);
+    if (!new_depth) {
+      new_depth = fulm_malloc(sizeof(int), &fulm_default_alloc);
+    }
+    *new_depth = stack_depth_val;
+    ht_set(cn_ownership_global_ghost_state, &k, new_depth);
   }
-  *new_depth = stack_depth_val;
-  ht_set(cn_ownership_global_ghost_state, address_key, new_depth);
 }
 
-void ownership_ghost_state_remove(int64_t* address_key) {
-  ownership_ghost_state_set(address_key, UNMAPPED_VAL);
+void ownership_ghost_state_remove(int64_t address, size_t size) {
+  ownership_ghost_state_set(address, size, UNMAPPED_VAL);
 }
 
 _Bool is_wildcard(void* generic_c_ptr, int offset) {
@@ -356,7 +354,7 @@ _Bool is_wildcard(void* generic_c_ptr, int offset) {
   // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
   for (int i = 0; i < offset; i++) {
     address_key = (uintptr_t)generic_c_ptr + i;
-    int depth = ownership_ghost_state_get(&address_key);
+    int depth = ownership_ghost_state_get(address_key);
     if (depth != WILDCARD_DEPTH) {
       return 0;
     }
@@ -398,13 +396,10 @@ void cn_put_ownership(void* generic_c_ptr, size_t size) {
 
 void fulminate_assume_ownership(
     void* generic_c_ptr, unsigned long size, char* fun, _Bool wildcard) {
-  for (int i = 0; i < size; i++) {
-    int64_t address_key = (uintptr_t)generic_c_ptr + i;
-    /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
-    /*        ((uintptr_t) generic_c_ptr) + i, fun); */
-    signed long depth = wildcard ? WILDCARD_DEPTH : cn_stack_depth;
-    ownership_ghost_state_set(&address_key, depth);
-  }
+  signed long depth = wildcard ? WILDCARD_DEPTH : cn_stack_depth;
+  ownership_ghost_state_set((uintptr_t)generic_c_ptr, size, depth);
+  /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
+  /*        ((uintptr_t) generic_c_ptr) + i, fun); */
 }
 
 void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
@@ -440,31 +435,21 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
 
 void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] add local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
-  for (int i = 0; i < size; i++) {
-    int64_t address_key = (uintptr_t)ptr_to_local + i;
-    /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
-    ownership_ghost_state_set(&address_key, stack_depth);
-  }
+  ownership_ghost_state_set((uintptr_t)ptr_to_local, size, stack_depth);
 }
 
 void c_remove_from_ghost_state(void* ptr_to_local, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] remove local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
-  for (int i = 0; i < size; i++) {
-    int64_t address_key = (uintptr_t)ptr_to_local + i;
-    /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
-    ownership_ghost_state_remove(&address_key);
-  }
+  ownership_ghost_state_remove((uintptr_t)ptr_to_local, size);
 }
 
 void c_ownership_check(char* access_kind,
     void* generic_c_ptr,
     int offset,
     signed long expected_stack_depth) {
-  int64_t address_key = 0;
   // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
   for (int i = 0; i < offset; i++) {
-    address_key = (uintptr_t)generic_c_ptr + i;
-    int curr_depth = ownership_ghost_state_get(&address_key);
+    int curr_depth = ownership_ghost_state_get((uintptr_t)generic_c_ptr + i);
     if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
       print_error_msg_info(error_msg_info);
       cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
