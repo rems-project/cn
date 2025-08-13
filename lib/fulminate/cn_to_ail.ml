@@ -3230,7 +3230,9 @@ let cn_to_ail_resource
         in
         let stmts = [ start_assign; while_loop ] in
         let stmts =
-          match itere_res_call_stmt_opt with Some stmt -> stmt :: stmts | None -> stmts
+          match (itere_res_call_stmt_opt, spec_mode_opt) with
+          | Some stmt, Some Pre -> stmt :: stmts
+          | _ -> stmts
         in
         let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
         ([], [ ail_block ])
@@ -3288,7 +3290,9 @@ let cn_to_ail_resource
         in
         let stmts = [ start_assign; while_loop ] in
         let stmts =
-          match itere_res_call_stmt_opt with Some stmt -> stmt :: stmts | None -> stmts
+          match (itere_res_call_stmt_opt, spec_mode_opt) with
+          | Some stmt, Some Pre -> stmt :: stmts
+          | _ -> stmts
         in
         let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
         ([ sym_binding ], [ sym_decl; ail_block ])
