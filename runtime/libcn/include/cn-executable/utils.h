@@ -618,6 +618,13 @@ static inline void cn_postfix(void* ptr, size_t size) {
     *__tmp;                                                                              \
   })
 
+#define CN_LOAD_ANNOT(LV)                                                                               \
+  ({                                                                                                    \
+    typeof(LV) *__tmp = &(LV);                                                                          \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)))) cn_printf(CN_LOGGING_ERROR, "needs focus\n");                \
+    CN_LOAD(LV);                                                                                        \
+  })
+
 #define CN_STORE_OP(LV, op, X)                                                           \
   ({                                                                                     \
     typeof(LV)* __tmp;                                                                   \
@@ -629,6 +636,17 @@ static inline void cn_postfix(void* ptr, size_t size) {
   })
 
 #define CN_STORE(LV, X) CN_STORE_OP(LV, , X)
+
+#define CN_STORE_OP_ANNOT(LV, op, X)                                                     \
+  ({                                                                                     \
+    typeof(LV) *__tmp;                                                                   \
+    __tmp = &(LV);                                                                       \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV))))                                \
+      cn_printf(CN_LOGGING_ERROR, "needs focus\n");                                      \
+    CN_STORE_OP(LV, op, X);                                                              \
+  })
+
+#define CN_STORE_ANNOT(LV, X) CN_STORE_OP_ANNOT(LV, , X)
 
 #define CN_POSTFIX(LV, OP)                                                               \
   ({                                                                                     \

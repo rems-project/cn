@@ -184,7 +184,7 @@ let memory_accesses_injections ail_prog =
        match access with
        | Load { loc; _ } ->
          let b, e = pos_bbox loc in
-         acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
+         acc := (point b, [ "CN_LOAD_ANNOT(" ]) :: (point e, [ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
@@ -192,7 +192,7 @@ let memory_accesses_injections ail_prog =
          let b, pos1 = pos_bbox (loc_of_expr lvalue) in
          let pos2, e = pos_bbox (loc_of_expr expr) in
          acc
-         := (point b, [ "CN_STORE(" ])
+         := (point b, [ "CN_STORE_ANNOT(" ])
             :: (region (pos1, pos2) NoCursor, [ ", " ])
             :: (point e, [ ")" ])
             :: !acc
@@ -208,7 +208,7 @@ let memory_accesses_injections ail_prog =
             acc
             := (region (sstart, b) NoCursor, [ "" ])
                :: ( point b,
-                    [ "CN_STORE_OP("
+                    [ "CN_STORE_OP_ANNOT("
                       ^ pp_expr lvalue
                       ^ ","
                       ^ string_of_aop aop
@@ -222,7 +222,7 @@ let memory_accesses_injections ail_prog =
             let b, pos1 = pos_bbox (loc_of_expr lvalue) in
             let pos2, e = pos_bbox (loc_of_expr expr) in
             acc
-            := (point b, [ "CN_STORE_OP(" ])
+            := (point b, [ "CN_STORE_OP_ANNOT(" ])
                :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
                :: (point e, [ ")" ])
                :: !acc)
@@ -481,7 +481,7 @@ let main
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
   output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
-  output_to_oc oc [ "#include <cn-autoannot/focus_ctx.h>\n" ];
+  output_to_oc oc [ "#include <cn-autoannot/focus_ctx.h>\n"; "#include <stdio.h>\n" ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc
