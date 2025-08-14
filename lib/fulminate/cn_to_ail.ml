@@ -4339,7 +4339,11 @@ let rec cn_to_ail_lat_2
         List.map
           (fun fn_sym ->
              mk_stmt (A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))))
-          OE.[ cn_stack_depth_decr_sym; cn_postcondition_leak_check_sym ]
+          OE.
+            [ cn_stack_depth_decr_sym;
+              cn_postcondition_leak_check_sym;
+              Sym.fresh "pop_focus_context"
+            ]
     in
     let block =
       A.(
@@ -4561,7 +4565,12 @@ let cn_to_ail_pre_post
           A.AilSexpr
             (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
         in
-        [ cn_stack_depth_incr_stat_ ])
+        let push_focus_context =
+          A.AilSexpr
+            (mk_expr
+               (AilEcall (mk_expr (AilEident (Sym.fresh "push_focus_context")), [])))
+        in
+        [ cn_stack_depth_incr_stat_; push_focus_context ])
     in
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()

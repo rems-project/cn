@@ -246,16 +246,14 @@ let memory_accesses_injections ail_prog =
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, env) ->
+       let fmt, args = gen_env_fmt_printer env in
+       let fmt = "[auto annot (focus)]: " ^ fmt ^ "\\n" in
+       let args = List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args in
+       let args = ", \"" ^ fmt ^ "\"" ^ args in
        match access with
        | Load { loc; _ } ->
          let b, e = pos_bbox loc in
-         let fmt, args = gen_env_fmt_printer env in
-         let fmt = "[auto annot (focus)]: " ^ fmt ^ "\\n" in
-         let args = List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args in
-         acc
-         := (point b, [ "CN_LOAD_ANNOT(" ])
-            :: (point e, [ ", \"" ^ fmt ^ "\"" ^ args ^ ")" ])
-            :: !acc
+         acc := (point b, [ "CN_LOAD_ANNOT(" ]) :: (point e, [ args ^ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
@@ -265,7 +263,7 @@ let memory_accesses_injections ail_prog =
          acc
          := (point b, [ "CN_STORE_ANNOT(" ])
             :: (region (pos1, pos2) NoCursor, [ ", " ])
-            :: (point e, [ ")" ])
+            :: (point e, [ args ^ ")" ])
             :: !acc
        | StoreOp { lvalue; aop; expr; loc } ->
          (match bbox [ loc_of_expr expr ] with
