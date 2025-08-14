@@ -114,7 +114,10 @@ let collect_memory_accesses (_, sigm) =
     | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ -> ()
     | AilSexpr e | AilSreturn e | AilSreg_store (_, e) -> aux_expr e env
     | AilSblock (bs, ss) ->
-      let lookup_ty sym = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+      let lookup_ty sym =
+        let _, (_, _, _, ty) = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+        (sym, ty)
+      in
       let env_cell = ref env in
       List.iter
         (fun s ->
@@ -150,8 +153,70 @@ let collect_memory_accesses (_, sigm) =
       (* AilSdeclaration must be handled in `AilSblock` *)
       failwith "unreachable"
   in
-  List.iter (fun (_, (_, _, _, _, stmt)) -> aux_stmt stmt []) sigm.function_definitions;
+  sigm.function_definitions
+  |> List.iter (fun (f, body) ->
+    match List.assoc Sym.equal f sigm.declarations with
+    | _, _, Decl_function (_, _, types, _, _, _) ->
+      let _, _, _, args, stmt = body in
+      let env = List.map2 (fun arg (_, ct, _) -> (arg, ct)) args types in
+      aux_stmt stmt env
+    | _ -> failwith "ill-formed program");
   !acc
+
+
+let gen_fmt_for_integer_type =
+  let open CF.Ctype in
+  (* Ignore IntN_t and its friends *)
+  let usable = function Ichar | Short | Int_ | Long | LongLong -> true | _ -> false in
+  function
+  | Char -> Some "%c"
+  | Bool -> Some "%d"
+  | Signed i when usable i ->
+    (match (CF.Ocaml_implementation.get ()).sizeof_ity (Signed i) with
+     | Some 1 -> Some "%c"
+     | Some 2 -> Some "%hd"
+     | Some 4 -> Some "%d"
+     | Some 8 -> Some "%lld"
+     | _ -> failwith "unimplemented")
+  | Unsigned u when usable u ->
+    (match (CF.Ocaml_implementation.get ()).sizeof_ity (Unsigned u) with
+     | Some 1 -> Some "%c"
+     | Some 2 -> Some "%hu"
+     | Some 4 -> Some "%u"
+     | Some 8 -> Some "%llu"
+     | _ -> failwith "unimplemented")
+  | _ -> None
+
+
+let get_symbol = function
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_Id s)
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_ObjectAddress s) ->
+    Some s
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_FunArg _) -> failwith "funarg"
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_FunArgValue _) -> failwith "var"
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_CN_Id _) -> failwith "cn id"
+  | _ -> None
+
+
+let rec gen_env_fmt_printer = function
+  | [] -> ("", [])
+  | (sym, ty) :: xs ->
+    let fmt, args = gen_env_fmt_printer xs in
+    let open CF.Ctype in
+    Pp.(debug 10 (lazy (item "gen_env_fmt" (string (CF.Symbol.show_symbol sym)))));
+    let (Ctype (_, ty)) = ty in
+    (match ty with
+     | Basic (Integer b) ->
+       (match (gen_fmt_for_integer_type b, get_symbol sym) with
+        | Some f, Some sym ->
+          let f = Printf.sprintf "%s=%s, " sym f in
+          (f ^ fmt, sym :: args)
+        | _ -> (fmt, args))
+     | Struct _ -> failwith "unimplemented"
+     | Basic (Floating _)
+     | Array _ | Function _ | Void | FunctionNoParams _ | Pointer _ | Atomic _ | Union _
+     | Byte ->
+       (fmt, args))
 
 
 let memory_accesses_injections ail_prog =
@@ -180,11 +245,17 @@ let memory_accesses_injections ail_prog =
   let xs = collect_memory_accesses ail_prog in
   List.iter
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
-    (fun (access, _env) ->
+    (fun (access, env) ->
        match access with
        | Load { loc; _ } ->
          let b, e = pos_bbox loc in
-         acc := (point b, [ "CN_LOAD_ANNOT(" ]) :: (point e, [ ")" ]) :: !acc
+         let fmt, args = gen_env_fmt_printer env in
+         let fmt = "[auto annot (focus)]: " ^ fmt ^ "\\n" in
+         let args = List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args in
+         acc
+         := (point b, [ "CN_LOAD_ANNOT(" ])
+            :: (point e, [ ", \"" ^ fmt ^ "\"" ^ args ^ ")" ])
+            :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
