@@ -34,7 +34,7 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
-    static_absint : bool;
+    static_absint : string option;
     smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
     print_seed : bool;
@@ -73,7 +73,7 @@ let default =
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
     experimental_learning = false;
-    static_absint = false;
+    static_absint = None;
     smt_pruning = `None;
     print_seed = false;
     input_timeout = None;
@@ -174,7 +174,9 @@ let is_experimental_product_arg_destruction () =
 
 let is_experimental_learning () = (Option.get !instance).experimental_learning
 
-let has_static_absint () = (Option.get !instance).static_absint
+let has_static_absint () = Option.is_some (Option.get !instance).static_absint
+
+let get_static_absint_domain () = (Option.get !instance).static_absint
 
 let has_smt_pruning () = (Option.get !instance).smt_pruning
 

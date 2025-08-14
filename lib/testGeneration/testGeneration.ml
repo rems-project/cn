@@ -9,6 +9,10 @@ module Config = TestGenConfig
 module Options = Config.Options
 module Cn_to_ail = Fulminate.Cn_to_ail
 
+module Private = struct
+  module Bennet = Bennet
+end
+
 type config = Config.t
 
 let default_cfg : config = Config.default

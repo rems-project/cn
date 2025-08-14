@@ -34,7 +34,7 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
-    static_absint : bool;
+    static_absint : string option;
     smt_pruning : [ `None | `Fast | `Slow ];
     (* Run time *)
     print_seed : bool;
@@ -101,6 +101,8 @@ val is_experimental_product_arg_destruction : unit -> bool
 val is_experimental_learning : unit -> bool
 
 val has_static_absint : unit -> bool
+
+val get_static_absint_domain : unit -> string option
 
 val has_smt_pruning : unit -> [ `None | `Fast | `Slow ]
 

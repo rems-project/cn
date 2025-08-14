@@ -70,7 +70,10 @@ let test_bounds_simple_le _ =
   assert_bool "LE constraint should have upper bound" (Option.is_some upper);
   assert_bool "LE constraint should not have lower bound" (Option.is_none lower);
   match upper with
-  | Some u -> assert_equal ~msg:"Upper bound should be 10" (is_z u) (Some (Z.of_int 10))
+  | Some u ->
+    (match is_bits_const u with
+     | Some (_, z) -> assert_equal ~msg:"Upper bound should be 10" z (Z.of_int 10)
+     | _ -> assert_failure "Upper bound should be a constant")
   | None -> assert_failure "Upper bound should be present for LE"
 
 
@@ -81,7 +84,10 @@ let test_bounds_simple_ge _ =
   assert_bool "GE constraint should have lower bound" (Option.is_some lower);
   assert_bool "GE constraint should not have upper bound" (Option.is_none upper);
   match lower with
-  | Some l -> assert_equal ~msg:"Lower bound should be 3" (is_z l) (Some (Z.of_int 3))
+  | Some l ->
+    (match is_bits_const l with
+     | Some (_, z) -> assert_equal ~msg:"Lower bound should be 3" z (Z.of_int 3)
+     | _ -> assert_failure "Lower bound should be a constant")
   | None -> assert_failure "Lower bound should be present for GE"
 
 
@@ -96,8 +102,20 @@ let test_bounds_conjunction _ =
     (Option.is_some lower && Option.is_some upper);
   match (lower, upper) with
   | Some l, Some u ->
-    assert_equal ~msg:"Lower bound should be 3" (is_z l) (Some (Z.of_int 3));
-    assert_equal ~msg:"Upper bound should be 10" (is_z u) (Some (Z.of_int 10))
+    (match is_bits_const l with
+     | Some (_, z) -> assert_equal ~msg:"Lower bound should be 3" z (Z.of_int 3)
+     | _ ->
+       assert_failure
+         (Printf.sprintf
+            "Lower bound should be a constant instead of %s"
+            (Cn.Pp.plain (Cn.IndexTerms.pp l))));
+    (match is_bits_const u with
+     | Some (_, z) -> assert_equal ~msg:"Upper bound should be 10" z (Z.of_int 10)
+     | _ ->
+       assert_failure
+         (Printf.sprintf
+            "Upper bound should be a constant instead of %s"
+            (Cn.Pp.plain (Cn.IndexTerms.pp u))))
   | _ -> assert_failure "Both bounds should be present for conjunction"
 
 
@@ -113,8 +131,24 @@ let test_bounds_conjunction_tighter _ =
   match (lower, upper) with
   | Some l, Some u ->
     (* Should take max of lower bounds (5) and min of upper bounds (8) *)
-    assert_equal ~msg:"Lower bound should be max(3,5) = 5" (is_z l) (Some (Z.of_int 5));
-    assert_equal ~msg:"Upper bound should be min(10,8) = 8" (is_z u) (Some (Z.of_int 8))
+    let l = Cn.Simplify.IndexTerms.simp (Cn.Simplify.default Cn.Global.empty) l in
+    let u = Cn.Simplify.IndexTerms.simp (Cn.Simplify.default Cn.Global.empty) u in
+    (match is_bits_const l with
+     | Some (_, z) ->
+       assert_equal ~msg:"Lower bound should be max(3,5) = 5" z (Z.of_int 5)
+     | _ ->
+       assert_failure
+         (Printf.sprintf
+            "Lower bound should be a constant instead of %s"
+            (Cn.Pp.plain (Cn.IndexTerms.pp l))));
+    (match is_bits_const u with
+     | Some (_, z) ->
+       assert_equal ~msg:"Upper bound should be min(10,8) = 8" z (Z.of_int 8)
+     | _ ->
+       assert_failure
+         (Printf.sprintf
+            "Upper bound should be a constant instead of %s"
+            (Cn.Pp.plain (Cn.IndexTerms.pp u))))
   | _ -> assert_failure "Both bounds should be present for tighter conjunction"
 
 
@@ -237,6 +271,11 @@ let random_conjunction_bounds_prop =
 let unit_tests =
   "IndexTerms.Bounds Unit Tests"
   >::: [ "basic bounds functionality" >:: test_bounds_simple_eq;
+         "simple LE constraint" >:: test_bounds_simple_le;
+         "simple GE constraint" >:: test_bounds_simple_ge;
+         "conjunction constraint" >:: test_bounds_conjunction;
+         "tighter conjunction" >:: test_bounds_conjunction_tighter;
+         "disjunction constraint" >:: test_bounds_disjunction;
          "irrelevant variable bounds" >:: test_bounds_irrelevant_variable
        ]
 

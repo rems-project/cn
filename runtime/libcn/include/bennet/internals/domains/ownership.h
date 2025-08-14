@@ -141,6 +141,8 @@ extern "C" {
                                                                                          \
   cty bennet_domain_ownership_arbitrary_##cty(bennet_domain_ownership(cty) *);           \
                                                                                          \
+  bool bennet_domain_ownership_check_##cty(cty, bennet_domain_ownership(cty) *);         \
+                                                                                         \
   static inline cty bennet_arbitrary_ownership_##cty##_top(void) {                       \
     bennet_domain_ownership(cty) *d = bennet_domain_ownership_top(cty);                  \
     return bennet_domain_ownership_arbitrary_##cty(d);                                   \
@@ -156,7 +158,9 @@ extern "C" {
 #define bennet_arbitrary_ownership_bottom(cty)                                           \
   (bennet_arbitrary_ownership_##cty##_bottom())
 
-#define bennet_arbitrary_ownership(cty, before, after)                                   \
+#define bennet_arbitrary_ownership(cty, d) (bennet_arbitrary_ownership_##cty##(d))
+
+#define bennet_arbitrary_ownership_of(cty, before, after)                                \
   ({                                                                                     \
     bennet_domain_ownership(cty) bennet_arbitrary_ownership_tmp =                        \
         (bennet_domain_ownership(cty)){.before = before, .after = after};                \

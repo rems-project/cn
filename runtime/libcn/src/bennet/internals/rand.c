@@ -70,7 +70,7 @@ uint64_t bennet_uniform_uint64_t(uint64_t s) {
 }
 
 uintptr_t bennet_uniform_uintptr_t(uintptr_t s) {
-  assert(sizeof(uintptr_t) < 64);
+  assert(sizeof(uintptr_t) == sizeof(uint64_t));
 
   return bennet_uniform_uint64_t(s);
 }

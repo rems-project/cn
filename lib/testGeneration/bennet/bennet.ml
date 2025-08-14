@@ -1,6 +1,10 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 
+module Private = struct
+  module AbstractDomains = AbstractDomains
+end
+
 let debug_log_file : out_channel option ref = ref None
 
 let init_debug () =
@@ -26,25 +30,47 @@ let debug_stage (stage : string) (str : string) : unit =
   debug_log (str ^ "\n\n")
 
 
-let parse_domain (s : string) : (module Domain.T) =
-  match s with
-  | _ when String.equal s AbstractDomains.Ownership.name ->
+let parse_domain (s : string option) : (module Domain.T) =
+  let s = Option.value ~default:"" s in
+  (* Split by comma and trim whitespace *)
+  let domain_names =
+    String.split_on_char ',' s
+    |> List.map String.trim
+    |> List.filter (fun x -> String.length x > 0)
+    |> List.sort_uniq String.compare
+  in
+  (* Parse individual domain names *)
+  let parse_single_domain (name : string) : (module Domain.T) option =
+    match name with
+    | _ when String.equal name AbstractDomains.Ownership.name ->
+      Pp.(warn_noloc !^"Ownership abstract domain is always included");
+      None
+    | _ when String.equal name AbstractDomains.Interval.name ->
+      Some (module AbstractDomains.Interval)
+    | _ ->
+      Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
+      None
+  in
+  match domain_names with
+  | [] ->
+    (* No domains specified - return ownership domain *)
     (module AbstractDomains.Ownership)
-  | _ ->
-    Pp.warn Cerb_location.unknown Pp.(!^"Unknown abstract domain," ^^^ squotes !^s);
-    (module AbstractDomains.Ownership)
+  | additional_domains ->
+    (* Parse additional domains and filter out ownership if already specified *)
+    let parsed_additional = List.filter_map parse_single_domain additional_domains in
+    let ownership_module = (module AbstractDomains.Ownership : Domain.T) in
+    (* Check if ownership is already in the list *)
+    let all_domains = ownership_module :: parsed_additional in
+    (match all_domains with
+     | [ single ] -> single (* If only ownership, return it directly *)
+     | multiple -> AbstractDomains.product_domains multiple)
 
 
 let test_setup () : Pp.document =
-  let domain = "ownership" in
   let open Pp in
-  let module AD = (val parse_domain domain) in
+  let module AD = (val parse_domain (TestGenConfig.get_static_absint_domain ())) in
   let module CG = Domain.CodeGen (AD.CInt) in
-  !^"#include <bennet/internals/domain.h>"
-  ^^ hardline
-  ^^ !^"#include <bennet/internals/domains/ownership.h>"
-  ^/^ hardline
-  ^^ CG.setup ()
+  !^"#include <bennet/prelude.h>" ^^ hardline ^^ CG.setup ()
 
 
 let synthesize
@@ -55,7 +81,7 @@ let synthesize
       (tests : Test.t list)
   : Pp.document
   =
-  let module AD = (val parse_domain "ownership") in
+  let module AD = (val parse_domain (TestGenConfig.get_static_absint_domain ())) in
   let module Stage1 = Stage1.Make (AD) in
   let ctx = Stage1.transform filename prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);

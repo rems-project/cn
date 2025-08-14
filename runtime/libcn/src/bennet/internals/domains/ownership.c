@@ -132,3 +132,28 @@ cn_pointer* bennet_arbitrary_ownership_cn_pointer(
     bennet_domain_ownership(uintptr_t) * d) {
   return convert_to_cn_pointer((void*)bennet_domain_ownership_arbitrary_uintptr_t(d));
 }
+
+#define OWNERSHIP_CHECK_IMPL(cty)                                                        \
+  bool bennet_domain_ownership_check_##cty(cty v, bennet_domain_ownership(cty) * d) {    \
+    if (d->bottom) {                                                                     \
+      return false;                                                                      \
+    }                                                                                    \
+                                                                                         \
+    if (d->before == 0 && d->after == 0) {                                               \
+      return true;                                                                       \
+    }                                                                                    \
+                                                                                         \
+    return bennet_alloc_check((void*)((uintptr_t)v - d->before), d->after);              \
+  }
+
+OWNERSHIP_CHECK_IMPL(int8_t)
+OWNERSHIP_CHECK_IMPL(int16_t)
+OWNERSHIP_CHECK_IMPL(int32_t)
+OWNERSHIP_CHECK_IMPL(int64_t)
+
+OWNERSHIP_CHECK_IMPL(uint8_t)
+OWNERSHIP_CHECK_IMPL(uint16_t)
+OWNERSHIP_CHECK_IMPL(uint32_t)
+OWNERSHIP_CHECK_IMPL(uint64_t)
+
+OWNERSHIP_CHECK_IMPL(uintptr_t)

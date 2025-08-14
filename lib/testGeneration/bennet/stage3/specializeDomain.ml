@@ -21,7 +21,11 @@ module Make (AD : Domain.T) = struct
         let gt_rest, d = aux vars' gt_rest in
         let d = AD.retain vars' d in
         let gt_inner =
-          Term.arbitrary_domain_ (AD.relative_to x d) tag_inner bt_inner loc_inner
+          Term.arbitrary_domain_
+            (AD.relative_to x bt_inner d)
+            tag_inner
+            bt_inner
+            loc_inner
         in
         let gt' = Term.let_star_ ((x, gt_inner), gt_rest) tag loc in
         let d_remove_x = AD.remove x d in
