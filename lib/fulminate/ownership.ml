@@ -45,7 +45,7 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
    let c_declare_init_and_map_local_sym = Sym.fresh "c_declare_init_and_map_local"
 *)
 
-let get_ownership_global_init_stats ?(max_num_ghost_args = 100) () =
+let get_ownership_global_init_stats ?(ghost_array_size = 100) () =
   (* When no maximum number ghost arguments is supplied, default to 100 *)
   let cn_ghost_state_init_fcall =
     mk_expr
@@ -56,22 +56,21 @@ let get_ownership_global_init_stats ?(max_num_ghost_args = 100) () =
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
-  let cn_ghost_arg_array_init_fcall =
+  let cn_ghost_arg_array_alloc_fcall =
     mk_expr
       A.(
         AilEcall
           ( mk_expr (AilEident (Sym.fresh "alloc_ghost_array")),
             [ mk_expr
                 (AilEconst
-                   (ConstantInteger
-                      (IConstant (Z.of_int max_num_ghost_args, Decimal, None))))
+                   (ConstantInteger (IConstant (Z.of_int ghost_array_size, Decimal, None))))
             ] ))
   in
   List.map
     (fun e -> A.(AilSexpr e))
     [ cn_ghost_state_init_fcall;
       cn_ghost_stack_depth_init_fcall;
-      cn_ghost_arg_array_init_fcall
+      cn_ghost_arg_array_alloc_fcall
     ]
 
 

@@ -144,6 +144,12 @@ let rec param_of_args_and_body = function
     aux args
 
 
+let rec bts_of_args_and_body = function
+  | Mucore.Computational (_, _, args) -> bts_of_args_and_body args
+  | Ghost ((_, bt), _, args) -> bt :: bts_of_args_and_body args
+  | L _ -> []
+
+
 let exprs_of_mucore prog5 =
   let args_and_bodies = args_and_bodies_of_mucore prog5 in
   let exprs =
@@ -250,6 +256,8 @@ let generate_c_specs_from_cn_internal
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
   let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let max_num_ghost_args = max_num_of_ghost_args prog5 in
+  let ghost_array_size = if max_num_ghost_args = 0 then 0 else max_num_ghost_args + 1 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -259,7 +267,7 @@ let generate_c_specs_from_cn_internal
       preds
       globals
       c_return_type
-      (Some (max_num_of_ghost_args prog5))
+      (Some ghost_array_size)
       instrumentation.internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
@@ -446,6 +454,15 @@ let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       ail_datatypes
   in
   locs_and_struct_strs
+
+
+let generate_ghost_enum prog5 =
+  let args_and_bodies = args_and_bodies_of_mucore prog5 in
+  let bts = List.map bts_of_args_and_body args_and_bodies in
+  let _, ghost_argss = List.split (ghost_args_and_their_call_locs prog5) in
+  let ail_ghost_enum = Cn_to_ail.cn_to_ail_ghost_enum bts ghost_argss in
+  let doc = generate_doc_from_ail_struct ail_ghost_enum in
+  doc_to_pretty_string doc
 
 
 let generate_c_struct_strs c_structs =
@@ -639,11 +656,9 @@ let generate_ownership_global_assignments
     let globals = Cn_to_ail.extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
-    let assignments =
-      OE.get_ownership_global_init_stats
-        ~max_num_ghost_args:(max_num_of_ghost_args prog5)
-        ()
-    in
+    let max_num_ghost_args = max_num_of_ghost_args prog5 in
+    let ghost_array_size = if max_num_ghost_args = 0 then 0 else max_num_ghost_args + 1 in
+    let assignments = OE.get_ownership_global_init_stats ~ghost_array_size () in
     let init_and_global_mapping_str =
       generate_ail_stat_strs ([], assignments @ global_map_stmts_)
     in
