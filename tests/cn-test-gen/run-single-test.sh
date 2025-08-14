@@ -33,7 +33,7 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 ALT_CONFIGS=(
   "--coverage --sizing-strategy=quickcheck"
   "--coverage --sizing-strategy=quartile --experimental-learning --print-backtrack-info --print-size-info"
-  "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint"
+  "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint=interval"
   "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
   )
 

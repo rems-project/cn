@@ -55,7 +55,7 @@ void bennet_failure_set_failure_type(enum bennet_failure_type type) {
 
 #define DOMAIN_FAILURE(ty)                                                               \
   void bennet_failure_blame_domain_##ty(const void* id, bennet_domain(ty) * domain) {    \
-    bennet_domain(ty)* new_domain = bennet_domain_top(ty);                               \
+    bennet_domain(ty)* new_domain = NULL;                                                \
     if (domain != NULL) {                                                                \
       assert(failure.type == BENNET_FAILURE_ASSERT ||                                    \
              failure.type == BENNET_FAILURE_ASSIGN);                                     \

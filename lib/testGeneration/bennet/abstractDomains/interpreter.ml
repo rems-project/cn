@@ -1,15 +1,7 @@
 module IT = IndexTerms
 module LC = LogicalConstraints
 
-module type Part = sig
-  module AD : Domain.T
-
-  val abs_assert : LC.t -> AD.t -> AD.t
-
-  val abs_assign : (IT.t * Sctypes.t) * IT.t -> AD.t -> AD.t
-end
-
-module Make (GT : GenTerms.T) (I : Part with type AD.t = GT.AD.t) = struct
+module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
   open struct
     module AD = GT.AD
     module Def = GenDefinitions.Make (GT)
@@ -38,11 +30,11 @@ module Make (GT : GenTerms.T) (I : Part with type AD.t = GT.AD.t) = struct
         let tm' = if should_assert then GT.assert_domain_ (d', tm) tag loc else tm in
         (tm', d')
       | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
-        let d' = I.abs_assert (T it_perm) d in
+        let d' = I.abs_assert (LC.T it_perm) d in
         let gt_inner, d'' = aux ctx gt_inner d' should_assert in
         (GT.map_ ((i_sym, i_bt, it_perm), gt_inner) tag loc, AD.remove i_sym d'')
       | `MapElab ((i_sym, i_bt, it_bounds, it_perm), gt_inner) ->
-        let d' = I.abs_assert (T it_perm) d in
+        let d' = I.abs_assert (LC.T it_perm) d in
         let gt_inner, d'' = aux ctx gt_inner d' should_assert in
         ( GT.map_elab_ ((i_sym, i_bt, it_bounds, it_perm), gt_inner) tag loc,
           AD.remove i_sym d'' )
@@ -75,12 +67,12 @@ module Make (GT : GenTerms.T) (I : Part with type AD.t = GT.AD.t) = struct
         (GT.let_star_ ((x, gt1), gt2) tag loc, AD.remove x d'')
       | `ITE (it_if, gt_then, gt_else) ->
         let gt_then, d_then =
-          let d' = I.abs_assert (T it_if) d in
+          let d' = I.abs_assert (LC.T it_if) d in
           aux ctx gt_then d' should_assert
         in
         let not_it_if = IT.not_ it_if (IT.get_loc it_if) in
         let gt_else, d_else =
-          let d' = I.abs_assert (T not_it_if) d in
+          let d' = I.abs_assert (LC.T not_it_if) d in
           aux ctx gt_else d' should_assert
         in
         if AD.equal d_then AD.bottom then

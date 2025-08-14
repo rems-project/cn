@@ -29,12 +29,14 @@
         }                                                                                \
                                                                                          \
         bennet_domain(c_ty) *new_cs = bennet_failure_get_domain(c_ty, var);              \
-        *cs_tmp = bennet_domain_meet(c_ty, *cs_tmp, new_cs);                             \
-        if (bennet_domain_is_bottom(c_ty, *cs_tmp)) {                                    \
-          return false;                                                                  \
-        }                                                                                \
-        if (ty == BENNET_FAILURE_ASSIGN || bennet_failure_is_young()) {                  \
-          *cs = *cs_tmp;                                                                 \
+        if (new_cs != NULL) {                                                            \
+          *cs_tmp = bennet_domain_meet(c_ty, *cs_tmp, new_cs);                           \
+          if (bennet_domain_is_bottom(c_ty, *cs_tmp)) {                                  \
+            return false;                                                                \
+          }                                                                              \
+          if (ty == BENNET_FAILURE_ASSIGN || bennet_failure_is_young()) {                \
+            *cs = *cs_tmp;                                                               \
+          }                                                                              \
         }                                                                                \
                                                                                          \
         (*backtracks)--;                                                                 \

@@ -9,13 +9,16 @@
    - Some map tracks specific ownership bounds per symbol
 *)
 
+module IT = IndexTerms
+module LC = LogicalConstraints
+
 module Inner = struct
   let name = "ownership"
 
   module CInt : Domain.C_INTERFACE = struct
-    open Pp
+    let name = name
 
-    let name = !^name
+    open Pp
 
     let definitions () = empty
   end
@@ -23,29 +26,27 @@ module Inner = struct
   module Relative = struct
     type t = (int * int) option [@@deriving eq, ord]
 
+    let name = name
+
+    let is_top oo =
+      match oo with Some (before, after) -> before == 0 && after == 0 | None -> false
+
+
+    let is_bottom oo = Option.is_none oo
+
     let pp ob =
       let open Pp in
       match ob with
+      | Some (0, 0) -> !^"⊤"
       | Some (front, back) ->
         !^"owns" ^^^ int front ^^^ !^"bytes in front and" ^^^ int back ^^^ !^"bytes after"
       | None -> !^"⊥"
 
 
-    let pp_c (bt : BaseTypes.t) (ob : t) : Pp.document =
-      let open Pp in
-      let cty =
-        match bt with
-        | Loc () -> "uintptr_t"
-        | Bits (Signed, sz) -> Printf.sprintf "int%d_t" sz
-        | Bits (Unsigned, sz) -> Printf.sprintf "uint%d_t" sz
-        | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
-      in
-      match ob with
-      | Some (front, back) when front = 0 && back = 0 ->
-        !^(Printf.sprintf "bennet_domain_ownership_top(%s)" cty)
-      | Some (front, back) ->
-        !^(Printf.sprintf "bennet_domain_ownership_of(%s, %d, %d)" cty front back)
-      | None -> !^(Printf.sprintf "bennet_domain_ownership_bottom(%s)" cty)
+    let pp_args oo =
+      (* Should only be called on non-top/bottom *)
+      let before, after = Option.get oo in
+      string_of_int before ^ ", " ^ string_of_int after
   end
 
   (* Type represents ownership information as optional map from symbols to (front, back) byte counts *)
@@ -134,7 +135,7 @@ module Inner = struct
     return (Sym.Map.filter (fun x _ -> Sym.Set.mem x xs) d)
 
 
-  let relative_to (x : Sym.t) (d : t) : Relative.t =
+  let relative_to (x : Sym.t) (_ : BaseTypes.t) (d : t) : Relative.t =
     let open Option in
     let@ d = d in
     return (Option.value ~default:(0, 0) (Sym.Map.find_opt x d))
@@ -164,17 +165,11 @@ module Inner = struct
            (fun (_, (front, back)) -> not (front = 0 && back = 0))
            (Sym.Map.bindings d))
     | None -> !^"⊥"
-end
 
-module IT = IndexTerms
-module LC = LogicalConstraints
 
-module Interpreter : Interpreter.Part with type AD.t = Inner.t = struct
-  module AD = Inner
+  let abs_assert _ d : t = d
 
-  let abs_assert _ d : AD.t = d
-
-  let abs_assign (((it_addr, sct), _) : (IT.t * Sctypes.t) * IT.t) (d : AD.t) : AD.t =
+  let abs_assign (((it_addr, sct), _) : (IT.t * Sctypes.t) * IT.t) (d : t) : t =
     let rec pointer_and_offset (it : IT.t) : ((Sym.t * BaseTypes.t) * int) option =
       let open Option in
       match it with
@@ -205,16 +200,13 @@ module Interpreter : Interpreter.Part with type AD.t = Inner.t = struct
       let end_offset = start_offset + Memory.size_of_ctype sct in
       if start_offset < 0 then
         (* If [start_offset] is negative, [end_offset] might be negative *)
-        Inner.meet (Some (Sym.Map.singleton p (-start_offset, max 0 end_offset))) d
+        meet (Some (Sym.Map.singleton p (-start_offset, max 0 end_offset))) d
       else (* If [start_offset] is positive, [end_offset] must be positive *)
-        Inner.meet (Some (Sym.Map.singleton p (0, end_offset))) d
+        meet (Some (Sym.Map.singleton p (0, end_offset))) d
     | None -> d
-end
 
-module C : Domain.C_INTERFACE = struct
-  open Pp
 
-  let name = !^"ownership"
+  let pp_params () = "size_t before, size_t after"
 
-  let definitions () = empty
+  let pp_args () = "before, after"
 end

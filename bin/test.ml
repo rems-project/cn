@@ -471,8 +471,11 @@ module Flags = struct
 
 
   let static_absint =
-    let doc = "(Experimental) Use static abstract interpretation" in
-    Arg.(value & flag & info [ "static-absint" ] ~doc)
+    let doc =
+      "(Experimental) Use static abstract interpretation with specified domain (or a \
+       comma-separated list). (e.g., 'interval')"
+    in
+    Arg.(value & opt (some string) None & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
 
 
   let print_size_info =

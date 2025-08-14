@@ -56,6 +56,27 @@ module Make (AD : Domain.T) = struct
     A.AilEcall (mk_expr (string_ident str), es)
 
 
+  let pp_relative (bt : BT.t) (r : AD.Relative.t) =
+    let open Pp in
+    let cty =
+      match bt with
+      | Loc () -> "uintptr_t"
+      | Bits (Signed, sz) -> Printf.sprintf "int%d_t" sz
+      | Bits (Unsigned, sz) -> Printf.sprintf "uint%d_t" sz
+      | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
+    in
+    if AD.Relative.is_top r then
+      !^(Printf.sprintf "bennet_domain_%s_top(%s)" AD.CInt.name cty)
+    else if AD.Relative.is_bottom r then
+      !^(Printf.sprintf "bennet_domain_%s_bottom(%s)" AD.CInt.name cty)
+    else
+      !^(Printf.sprintf
+           "bennet_domain_%s_of(%s, %s)"
+           AD.CInt.name
+           cty
+           (AD.Relative.pp_args r))
+
+
   let rec transform_term
             (filename : string)
             (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -395,7 +416,7 @@ module Make (AD : Domain.T) = struct
                               "(bennet_domain("
                               ^ cty
                               ^ ")*)"
-                              ^ Pp.plain (AD.Relative.pp_c x_bt d)))
+                              ^ Pp.plain (pp_relative x_bt d)))
                       ] )))
         ]
       in
@@ -444,7 +465,7 @@ module Make (AD : Domain.T) = struct
                         AilEident
                           (Sym.fresh
                              ("(bennet_domain(uintptr_t)*)"
-                              ^ Pp.plain (AD.Relative.pp_c x_bt d)))
+                              ^ Pp.plain (pp_relative x_bt d)))
                       ] )))
         ]
       in

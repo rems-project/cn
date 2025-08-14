@@ -1,3 +1,7 @@
+module Private : sig
+  module Bennet = Bennet
+end
+
 type config = TestGenConfig.t
 
 val default_cfg : config

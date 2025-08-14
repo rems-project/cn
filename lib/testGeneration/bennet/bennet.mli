@@ -1,3 +1,7 @@
+module Private : sig
+  module AbstractDomains = AbstractDomains
+end
+
 val test_setup : unit -> Pp.document
 
 val synthesize

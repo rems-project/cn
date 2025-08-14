@@ -28,6 +28,7 @@ extern "C" {
   bennet_domain(ty) * bennet_domain_copy_##ty(bennet_domain(ty) *);                      \
                                                                                          \
   ty bennet_domain_arbitrary_##ty(bennet_domain(ty) *);                                  \
+  bool bennet_domain_check_##ty(ty, bennet_domain(ty) *);                                \
                                                                                          \
   bennet_domain(ty) *                                                                    \
       bennet_domain_from_assignment_##ty(void *base_ptr, void *addr, size_t bytes);
@@ -59,6 +60,7 @@ BENNET_DOMAIN_DECL(uintptr_t);
 #define bennet_domain_copy(ty, cs) (bennet_domain_copy_##ty(cs))
 
 #define bennet_domain_arbitrary(ty, cs) (bennet_domain_arbitrary_##ty(cs))
+#define bennet_domain_check(ty, cs)     (bennet_domain_check_##ty(cs))
 
 #define BENNET_DOMAIN_CAST_DECL(from_ty, to_ty)                                          \
   bennet_domain(to_ty) *                                                                 \

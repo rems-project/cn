@@ -1,8 +1,11 @@
+module IT = IndexTerms
+module LC = LogicalConstraints
+
 let ret_sym = Sym.fresh "return"
 
 (** Domain interface for C code generation *)
 module type C_INTERFACE = sig
-  val name : Pp.document
+  val name : string
 
   val definitions : unit -> Pp.document
 end
@@ -10,9 +13,15 @@ end
 module type RELATIVE_VIEW = sig
   type t [@@deriving eq, ord]
 
+  val name : string
+
+  val is_top : t -> bool
+
+  val is_bottom : t -> bool
+
   val pp : t -> Pp.document
 
-  val pp_c : BaseTypes.t -> t -> Pp.document
+  val pp_args : t -> string
 end
 
 module type T = sig
@@ -62,11 +71,20 @@ module type T = sig
   (** Retain only the provided variables *)
   val retain : Sym.Set.t -> t -> t
 
-  val relative_to : Sym.t -> t -> Relative.t
+  val relative_to : Sym.t -> BaseTypes.t -> t -> Relative.t
 
   val free_vars : t -> Sym.Set.t
 
   val pp : t -> Pp.document
+
+  val pp_params : unit -> string
+
+  val pp_args : unit -> string
+
+  (** Abstract interpretation operations *)
+  val abs_assert : LC.t -> t -> t
+
+  val abs_assign : (IT.t * Sctypes.t) * IT.t -> t -> t
 end
 
 module CodeGen (CInt : C_INTERFACE) = struct
@@ -78,66 +96,70 @@ module CodeGen (CInt : C_INTERFACE) = struct
     ^^ escape_lines
          (!^"#define BENNET_DOMAIN_INDIRECTION(ty)"
           ^/^ !^"bennet_domain(ty)"
-          ^^^ braces (!^"bennet_domain_" ^^ CInt.name ^^ parens !^"ty" ^^^ !^"car" ^^ semi)
+          ^^^ braces
+                (!^"bennet_domain_" ^^ !^CInt.name ^^ parens !^"ty" ^^^ !^"car" ^^ semi)
           ^^ semi
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_top_##ty(void)"
           ^^^ braces
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_top(ty);")
           ^/^ !^"bool bennet_domain_is_top_##ty(bennet_domain(ty)* cs)"
-          ^^^ braces (!^"return bennet_domain_" ^^ CInt.name ^^ !^"_is_top(ty, &cs->car);")
+          ^^^ braces
+                (!^"return bennet_domain_" ^^ !^CInt.name ^^ !^"_is_top(ty, &cs->car);")
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_bottom_##ty(void)"
           ^^^ braces
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_bottom(ty);")
           ^/^ !^"bool bennet_domain_is_bottom_##ty(bennet_domain(ty)* cs)"
           ^^^ braces
-                (!^"return bennet_domain_" ^^ CInt.name ^^ !^"_is_bottom(ty, &cs->car);")
+                (!^"return bennet_domain_" ^^ !^CInt.name ^^ !^"_is_bottom(ty, &cs->car);")
           ^/^ hardline
           ^^ !^"bool bennet_domain_leq_##ty(bennet_domain(ty)* cs1, bennet_domain(ty)* \
                 cs2)"
           ^^^ braces
                 (!^"return bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_leq_##ty(&cs1->car, &cs2->car);")
           ^/^ !^"bool bennet_domain_equal_##ty(bennet_domain(ty)* cs1, \
                  bennet_domain(ty)* cs2)"
           ^^^ braces
                 (!^"return bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_equal_##ty(&cs1->car, &cs2->car);")
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_join_##ty(bennet_domain(ty)* cs1, \
                 bennet_domain(ty)* cs2)"
           ^^^ braces
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_join_##ty(&cs1->car, &cs2->car);")
           ^/^ !^"bennet_domain(ty)* bennet_domain_meet_##ty(bennet_domain(ty)* cs1, \
                  bennet_domain(ty)* cs2)"
           ^^^ braces
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_meet_##ty(&cs1->car, &cs2->car);")
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_copy_##ty(bennet_domain(ty)* cs)"
           ^^^ braces
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_copy_##ty(&cs->car);")
           ^/^ !^"ty bennet_domain_arbitrary_##ty(bennet_domain(ty)* cs)"
           ^^^ braces
-                (!^"return bennet_domain_" ^^ CInt.name ^^ !^"_arbitrary_##ty(&cs->car);")
+                (!^"return bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_arbitrary_##ty(&cs->car);")
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_from_assignment_##ty(void *base_ptr, \
                 void *addr, size_t bytes)"
           ^^^ braces
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
-                 ^^ CInt.name
+                 ^^ !^CInt.name
                  ^^ !^"_from_assignment_##ty(base_ptr, addr, bytes);")
           ^/^ empty)
     ^/^ hardline
