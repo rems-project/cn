@@ -34,8 +34,22 @@ void initialise_focus_context(void) {
 }
 
 void pop_focus_context(void) {
-    // Free is automatic, no?
+    struct focus_context *old_context = cn_focus_global_context;
     cn_focus_global_context = cn_focus_global_context->prev;
+    // free
+    focus_set *cur_focus = old_context->indices;
+    while (cur_focus) {
+        focus_set *next = cur_focus->next;
+        fulm_free(cur_focus, &fulm_default_alloc);
+        cur_focus = next;
+    }
+
+    iter_res_set *cur_iter_res = old_context->iter_ress;
+    while (cur_iter_res) {
+        iter_res_set *next = cur_iter_res->next;
+        fulm_free(cur_iter_res, &fulm_default_alloc);
+        cur_iter_res = next;
+    }
 }
 
 void insert_focus(int64_t index, type_sig sig) {
