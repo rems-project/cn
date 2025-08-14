@@ -618,11 +618,12 @@ static inline void cn_postfix(void* ptr, size_t size) {
     *__tmp;                                                                              \
   })
 
-#define CN_LOAD_ANNOT(LV)                                                                               \
-  ({                                                                                                    \
-    typeof(LV) *__tmp = &(LV);                                                                          \
-    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)))) cn_printf(CN_LOGGING_ERROR, "needs focus\n");                \
-    CN_LOAD(LV);                                                                                        \
+#define CN_LOAD_ANNOT(LV, FMT, ...)                                                      \
+  ({                                                                                     \
+    typeof(LV) *__tmp = &(LV);                                                           \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV))))                                \
+      cn_printf(CN_LOGGING_ERROR, FMT, ##__VA_ARGS__);                                   \
+    CN_LOAD(LV);                                                                         \
   })
 
 #define CN_STORE_OP(LV, op, X)                                                           \
