@@ -36,6 +36,8 @@ val generate_c_datatypes
   :  GenTypes.genTypeCategory AilSyntax.sigma ->
   (Cerb_location.t * string) list
 
+val generate_ghost_enum : _ Mucore.file -> string
+
 val generate_c_struct_strs
   :  (AilSyntax.ail_identifier
      * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))

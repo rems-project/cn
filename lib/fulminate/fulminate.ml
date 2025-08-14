@@ -380,6 +380,7 @@ let main
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
   let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
+  let cn_ghost_enum = generate_ghost_enum prog5 in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -417,7 +418,8 @@ let main
           c_function_decls;
           "\n";
           c_predicate_decls;
-          c_lemma_decls
+          c_lemma_decls;
+          cn_ghost_enum
         ]
       ]
   in

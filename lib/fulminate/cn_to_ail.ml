@@ -458,7 +458,7 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
 
 let load_from_ghost_array_fn_str = "load_from_ghost_array"
 
-let wrap_with_load_from_ghost_array cn_ctype ghost_debruijn =
+let wrap_with_load_from_ghost_array cn_ctype ghost_idx =
   A.AilEcast
     ( C.no_qualifiers,
       cn_ctype,
@@ -467,7 +467,7 @@ let wrap_with_load_from_ghost_array cn_ctype ghost_debruijn =
            ( mk_expr (AilEident (Sym.fresh load_from_ghost_array_fn_str)),
              [ mk_expr
                  (AilEconst
-                    (ConstantInteger (IConstant (Z.of_int ghost_debruijn, Decimal, None))))
+                    (ConstantInteger (IConstant (Z.of_int ghost_idx, Decimal, None))))
              ] )) )
 
 
@@ -2011,15 +2011,15 @@ let cn_to_ail_datatype ?(first = false) (cn_datatype : _ cn_datatype)
     let str = String.uppercase_ascii str in
     Id.make here str
   in
-  let enum_member_syms = List.map generate_enum_member constructor_syms in
+  let enum_member_ids = List.map generate_enum_member constructor_syms in
   let attr : CF.Annot.attribute =
     { attr_ns = None; attr_id = Id.make here "enum"; attr_args = [] }
   in
   let attrs = CF.Annot.Attrs [ attr ] in
   let enum_members =
     List.map
-      (fun sym -> (sym, (empty_attributes, None, C.no_qualifiers, mk_ctype C.Void)))
-      enum_member_syms
+      (fun id -> (id, (empty_attributes, None, C.no_qualifiers, mk_ctype C.Void)))
+      enum_member_ids
   in
   let enum_tag_definition = C.(UnionDef enum_members) in
   let enum = (enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition)) in
@@ -3751,6 +3751,8 @@ let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
   (bs, ss)
 
 
+let add_to_ghost_array_fn_str = "add_to_ghost_array"
+
 let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = function
   | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
@@ -3780,20 +3782,76 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
-    let add_to_ghost_array_fn_str = "add_to_ghost_array" in
     let add_to_ghost_array_call =
       mk_expr
         (AilEcall
            ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
              [ mk_expr
-                 (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
+                 (AilEconst
+                    (ConstantInteger (IConstant (Z.of_int (i + 1), Decimal, None))));
                e
              ] ))
     in
     (bs, upd_s @ ss @ [ A.AilSexpr add_to_ghost_array_call ] @ pop_s)
 
 
+let ghost_enum_member_id bts =
+  let here = Locations.other __LOC__ in
+  if List.length bts = 0 then
+    Id.make here "EMPTY"
+  else (
+    let triple_underscore = Pp.(underscore ^^ underscore ^^ underscore) in
+    let bts_doc = Pp.(flow_map triple_underscore BT.(with_executable_spec pp) bts) in
+    let bts_str = String.uppercase_ascii (CF.Pp_utils.to_plain_string bts_doc) in
+    Id.make here bts_str)
+
+
+let ghost_enum_member_id_ghost_args ghost_args =
+  let bts = List.map Cnprog.get_bt ghost_args in
+  ghost_enum_member_id bts
+
+
+let ail_of_enum_member_id enum_id =
+  let str = Id.get_string enum_id in
+  let sym = Sym.fresh str in
+  mk_expr A.(AilEident sym)
+
+
+let cn_to_ail_ghost_enum spec_bts ghost_argss =
+  let enum_sym = Sym.fresh "CN_GHOST_ENUM" in
+  let here = Locations.other __LOC__ in
+  let empty_enum_member_id = Id.make here "EMPTY" in
+  let ghost_spec_enum_member_ids = List.map ghost_enum_member_id spec_bts in
+  let ghost_argss_enum_member_ids =
+    List.map ghost_enum_member_id_ghost_args ghost_argss
+  in
+  let enum_member_ids_with_duplicates =
+    [ empty_enum_member_id ] @ ghost_spec_enum_member_ids @ ghost_argss_enum_member_ids
+  in
+  let module IdSet = Set.Make (Id) in
+  let enum_member_ids = IdSet.to_list (IdSet.of_list enum_member_ids_with_duplicates) in
+  let attr : CF.Annot.attribute =
+    { attr_ns = None; attr_id = Id.make here "enum"; attr_args = [] }
+  in
+  let attrs = CF.Annot.Attrs [ attr ] in
+  let enum_members =
+    List.map
+      (fun id -> (id, (empty_attributes, None, C.no_qualifiers, mk_ctype C.Void)))
+      enum_member_ids
+  in
+  let enum_tag_definition = C.(UnionDef enum_members) in
+  (enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition))
+
+
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
+  let add_to_ghost_array_call =
+    mk_expr
+      (AilEcall
+         ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
+           [ mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))));
+             ail_of_enum_member_id (ghost_enum_member_id_ghost_args ghost_args)
+           ] ))
+  in
   let bs, ss =
     List.split
       (List.mapi
@@ -3808,7 +3866,12 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
   in
   let ail_gcc_stmt =
     A.AilEgcc_statement
-      (List.concat bs, List.map mk_stmt (List.concat ss @ [ dummy_expr_as_stat ]))
+      ( List.concat bs,
+        List.map
+          mk_stmt
+          ([ A.AilSexpr add_to_ghost_array_call ]
+           @ List.concat ss
+           @ [ dummy_expr_as_stat ]) )
   in
   ([], [ A.AilSexpr (mk_expr ail_gcc_stmt) ])
 
@@ -4245,11 +4308,11 @@ let translate_computational_at (sym, bt) =
   (cn_sym, (binding, decl))
 
 
-let translate_ghost_at (sym, bt) ghost_debruijn =
+let translate_ghost_at (sym, bt) ghost_idx =
   let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
   let cn_ctype = bt_to_ail_ctype bt in
   let binding = create_binding cn_sym cn_ctype in
-  let rhs = wrap_with_load_from_ghost_array cn_ctype ghost_debruijn in
+  let rhs = wrap_with_load_from_ghost_array cn_ctype ghost_idx in
   let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
   (cn_sym, (binding, decl))
 
@@ -4262,8 +4325,8 @@ let rec cn_to_ail_pre_post_aux
           preds
           globals
           c_return_type
-          ghost_debruijn
-          max_num_ghost_args_opt (* None case for lemmas *)
+          ghost_idx
+          ghost_array_size_opt (* None case for lemmas *)
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
@@ -4277,13 +4340,13 @@ let rec cn_to_ail_pre_post_aux
         preds
         globals
         c_return_type
-        ghost_debruijn
-        max_num_ghost_args_opt
+        ghost_idx
+        ghost_array_size_opt
         subst_at
     in
     prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
   | AT.Ghost ((sym, bt), _info, at) ->
-    (match max_num_ghost_args_opt with
+    (match ghost_array_size_opt with
      | None ->
        (* For lemmas,
           ghost parameters are already translated specially
@@ -4297,11 +4360,11 @@ let rec cn_to_ail_pre_post_aux
          preds
          globals
          c_return_type
-         ghost_debruijn
-         max_num_ghost_args_opt
+         ghost_idx
+         ghost_array_size_opt
          at
      | Some _ ->
-       let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_debruijn in
+       let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_idx in
        let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
        let ail_executable_spec =
          cn_to_ail_pre_post_aux
@@ -4312,8 +4375,8 @@ let rec cn_to_ail_pre_post_aux
            preds
            globals
            c_return_type
-           (ghost_debruijn + 1)
-           max_num_ghost_args_opt
+           (ghost_idx + 1)
+           ghost_array_size_opt
            subst_at
        in
        prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
@@ -4340,7 +4403,7 @@ let rec cn_to_ail_pre_post_aux
                       (AilEconst
                          (ConstantInteger
                             (IConstant
-                               ( Z.of_int (Option.value max_num_ghost_args_opt ~default:0),
+                               ( Z.of_int (Option.value ghost_array_size_opt ~default:0),
                                  Decimal,
                                  None ))))
                   ] ))))
@@ -4356,7 +4419,7 @@ let cn_to_ail_pre_post
       preds
       globals
       c_return_type
-      max_num_ghost_args
+      ghost_array_size_opt
   = function
   | Some internal ->
     let ail_executable_spec =
@@ -4368,8 +4431,8 @@ let cn_to_ail_pre_post
         preds
         globals
         c_return_type
-        0
-        max_num_ghost_args
+        1
+        ghost_array_size_opt
         internal
     in
     let ownership_stats_ =
