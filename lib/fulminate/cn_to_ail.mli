@@ -250,6 +250,11 @@ val cn_to_ail_assume_pre
   AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
+val cn_to_ail_ghost_enum
+  :  unit BaseTypes.t_gen list list ->
+  IndexTerms.t Cnprog.t list list ->
+  AilSyntax.sigma_tag_definition
+
 val cn_to_ail_cnprog_ghost_args
   :  string ->
   AilSyntax.sigma_cn_datatype list ->
