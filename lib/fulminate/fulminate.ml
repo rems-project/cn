@@ -247,12 +247,15 @@ let memory_accesses_injections ail_prog =
     (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, env) ->
        let fmt, args = gen_env_fmt_printer env in
-       let fmt = "[auto annot (focus)]: " ^ fmt ^ "\\n" in
+       let fmt = fmt ^ "\\n" in
        let args = List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args in
-       let args = ", \"" ^ fmt ^ "\"" ^ args in
        match access with
        | Load { loc; _ } ->
          let b, e = pos_bbox loc in
+         let pos_info = Cerb_location.location_to_string loc in
+         let args =
+           ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+         in
          acc := (point b, [ "CN_LOAD_ANNOT(" ]) :: (point e, [ args ^ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
@@ -260,6 +263,10 @@ let memory_accesses_injections ail_prog =
            the parens, which will break the CN_STORE macro call *)
          let b, pos1 = pos_bbox (loc_of_expr lvalue) in
          let pos2, e = pos_bbox (loc_of_expr expr) in
+         let pos_info = Cerb_location.location_to_string (loc_of_expr lvalue) in
+         let args =
+           ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+         in
          acc
          := (point b, [ "CN_STORE_ANNOT(" ])
             :: (region (pos1, pos2) NoCursor, [ ", " ])
