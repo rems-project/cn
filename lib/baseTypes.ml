@@ -40,6 +40,18 @@ module Datatype = struct
     }
 end
 
+let executable_spec = ref false
+
+let with_executable_spec f x =
+  let espec = !executable_spec in
+  executable_spec := true;
+  let r = f x in
+  executable_spec := espec;
+  r
+
+
+let underscores x = Pp.(enclose underscore underscore x)
+
 let rec pp pp_loc =
   let open Pp in
   function
@@ -56,12 +68,45 @@ let rec pp pp_loc =
   | Struct sym -> !^"struct" ^^^ Sym.pp sym
   | Datatype sym -> !^"datatype" ^^^ Sym.pp sym
   | Record members ->
-    braces (flow_map comma (fun (s, bt) -> pp pp_loc bt ^^^ Id.pp s) members)
-  | Map (abt, rbt) -> !^"map" ^^ angles (pp pp_loc abt ^^ comma ^^^ pp pp_loc rbt)
-  | List bt -> !^"cn_list" ^^ angles (pp pp_loc bt)
-  | Tuple nbts -> !^"cn_tuple" ^^ angles (flow_map comma (pp pp_loc) nbts)
-  | Set t -> !^"cn_set" ^^ angles (pp pp_loc t)
-  | Option t -> !^"cn_option" ^^ angles (pp pp_loc t)
+    if !executable_spec then
+      flow_map underscore (fun (s, bt) -> pp pp_loc bt ^^ underscore ^^ Id.pp s) members
+    else
+      braces (flow_map comma (fun (s, bt) -> pp pp_loc bt ^^^ Id.pp s) members)
+  | Map (abt, rbt) ->
+    !^"map"
+    ^^
+    if !executable_spec then
+      underscores (pp pp_loc abt ^^ underscore ^^^ pp pp_loc rbt)
+    else
+      angles (pp pp_loc abt ^^ comma ^^^ pp pp_loc rbt)
+  | List bt ->
+    !^"cn_list"
+    ^^
+    if !executable_spec then
+      underscores (pp pp_loc bt)
+    else
+      angles (pp pp_loc bt)
+  | Tuple nbts ->
+    !^"cn_tuple"
+    ^^
+    if !executable_spec then
+      underscores (flow_map underscore (pp pp_loc) nbts)
+    else
+      angles (flow_map underscore (pp pp_loc) nbts)
+  | Set t ->
+    !^"cn_set"
+    ^^
+    if !executable_spec then
+      underscores (pp pp_loc t)
+    else
+      angles (pp pp_loc t)
+  | Option t ->
+    !^"cn_option"
+    ^^
+    if !executable_spec then
+      underscores (pp pp_loc t)
+    else
+      angles (pp pp_loc t)
 
 
 (* | Option t -> !^"option" ^^ angles (pp t) *)

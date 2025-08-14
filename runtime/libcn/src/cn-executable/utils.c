@@ -779,3 +779,24 @@ void cn_print_u64(const char* str, unsigned long u) {
 void cn_print_nr_u64(int i, unsigned long u) {
   // cn_printf(CN_LOGGING_INFO, "\n\nprint %d: %20lx,  %20lu\n", i, u, u);
 }
+
+// ghost arguments
+void** ghost_arg_array;
+
+void alloc_ghost_array(int ghost_array_size) {
+  ghost_arg_array = fulm_malloc(ghost_array_size * sizeof(void*), &fulm_default_alloc);
+}
+
+void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
+  ghost_arg_array[i] = ptr_to_ghost_arg;
+}
+
+void clear_ghost_array(int ghost_array_size) {
+  for (int i = 0; i < ghost_array_size; i++) {
+    fulm_free(ghost_arg_array + i * sizeof(void*), &fulm_default_alloc);
+  }
+}
+
+void* load_from_ghost_array(int i) {
+  return ghost_arg_array[i];
+}
