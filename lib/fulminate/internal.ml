@@ -114,7 +114,9 @@ let generate_c_loop_invariants
         ail_loop_decls
     in
     let ail_loop_close_block_injs =
-      List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
+      List.map
+        (fun (loc, _) -> (get_end_loc loc, [ "} \nclear_focus ();" ]))
+        ail_loop_decls
     in
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
 

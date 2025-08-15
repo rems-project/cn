@@ -4172,8 +4172,21 @@ let cn_to_ail_loop_inv
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
+    (* reset the current focus context *)
+    let pop_focus_context_fn_call =
+      A.AilSexpr
+        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "push_focus_context")), [])))
+    in
+    let push_focus_context_fn_call =
+      A.AilSexpr
+        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "push_focus_context")), [])))
+    in
     let stats =
-      (bump_alloc_start_stat_ :: loop_ownership_state.assign :: cond_ss)
+      (bump_alloc_start_stat_
+       :: loop_ownership_state.assign
+       :: pop_focus_context_fn_call
+       :: push_focus_context_fn_call
+       :: cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
       @ [ cn_loop_put_call; bump_alloc_end_stat_; dummy_expr_as_stat ]
     in
