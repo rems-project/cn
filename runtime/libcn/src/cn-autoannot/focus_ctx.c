@@ -60,6 +60,16 @@ void insert_focus(int64_t index, type_sig sig) {
     cn_focus_global_context->indices = new_set;
 }
 
+void clear_focus() {
+    focus_set *cur_focus = cn_focus_global_context->indices;
+    while (cur_focus) {
+        focus_set *next = cur_focus->next;
+        fulm_free(cur_focus, &fulm_default_alloc);
+        cur_focus = next;
+    }
+    cn_focus_global_context->indices = NULL;
+}
+
 void insert_iter_res(uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig) {
     struct iter_res_set* new = fulm_malloc(sizeof(iter_res_set), &fulm_default_alloc);
     new->res.ptr = ptr;
