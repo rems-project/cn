@@ -333,15 +333,33 @@ module IndexTerms = struct
         let b = aux b in
         if IT.equal a b then
           a
-        else
-          IT (Binop (Min, a, b), the_bt, the_loc)
+        else (
+          match (a, b, IT.get_num_z a, IT.get_num_z b) with
+          | _, _, Some i1, Some i2 -> IT.num_lit_ (Z.min i1 i2) the_bt the_loc
+          | IT (Const (Q q1), _, _), IT (Const (Q q2), _, _), _, _ ->
+            IT (Const (Q (Q.min q1 q2)), the_bt, the_loc)
+          | ( IT (Binop (Min, c, IT (Const (Z i1), _, _)), _, _),
+              IT (Const (Z i2), _, _),
+              _,
+              _ ) ->
+            min_ (c, z_ (Z.min i1 i2) the_loc) the_loc
+          | _, _, _, _ -> IT (Binop (Min, a, b), the_bt, the_loc))
       | Binop (Max, a, b) ->
         let a = aux a in
         let b = aux b in
         if IT.equal a b then
           a
-        else
-          IT (Binop (Max, a, b), the_bt, the_loc)
+        else (
+          match (a, b, IT.get_num_z a, IT.get_num_z b) with
+          | _, _, Some i1, Some i2 -> IT.num_lit_ (Z.max i1 i2) the_bt the_loc
+          | IT (Const (Q q1), _, _), IT (Const (Q q2), _, _), _, _ ->
+            IT (Const (Q (Q.max q1 q2)), the_bt, the_loc)
+          | ( IT (Binop (Max, c, IT (Const (Z i1), _, _)), _, _),
+              IT (Const (Z i2), _, _),
+              _,
+              _ ) ->
+            max_ (c, z_ (Z.max i1 i2) the_loc) the_loc
+          | _, _, _, _ -> IT (Binop (Max, a, b), the_bt, the_loc))
       | Binop (And, it1, it2) ->
         let it1 = aux it1 in
         let it2 = aux it2 in
