@@ -256,7 +256,7 @@ let memory_accesses_injections ail_prog =
          let args =
            ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
          in
-         acc := (point b, [ "CN_LOAD_ANNOT(" ]) :: (point e, [ args ^ ")" ]) :: !acc
+         acc := (point b, [ "CN_LOAD_ANNOT  (" ]) :: (point e, [ args ^ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
@@ -280,6 +280,10 @@ let memory_accesses_injections ail_prog =
                      simple literals *)
             let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
             let sstart, ssend = pos_bbox loc in
+            let pos_info = Cerb_location.location_to_string loc in
+            let args =
+              ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+            in
             let b, _ = pos_bbox (loc_of_expr lvalue) in
             acc
             := (region (sstart, b) NoCursor, [ "" ])
@@ -290,6 +294,7 @@ let memory_accesses_injections ail_prog =
                       ^ string_of_aop aop
                       ^ ","
                       ^ pp_expr expr
+                      ^ args
                       ^ ")"
                     ] )
                :: (region (b, ssend) NoCursor, [ "" ])
@@ -297,10 +302,14 @@ let memory_accesses_injections ail_prog =
           | `Bbox _ ->
             let b, pos1 = pos_bbox (loc_of_expr lvalue) in
             let pos2, e = pos_bbox (loc_of_expr expr) in
+            let pos_info = Cerb_location.location_to_string (loc_of_expr lvalue) in
+            let args =
+              ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+            in
             acc
             := (point b, [ "CN_STORE_OP_ANNOT(" ])
                :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
-               :: (point e, [ ")" ])
+               :: (point e, [ args ^ ")" ])
                :: !acc)
        | Postfix { loc; op; lvalue } ->
          let op_str = match op with `Incr -> "++" | `Decr -> "--" in
