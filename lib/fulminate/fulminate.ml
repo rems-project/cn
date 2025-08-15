@@ -265,7 +265,7 @@ let memory_accesses_injections ail_prog =
            ^ autoannot_fmt_args
          in
          acc
-         := (point b, [ "CN_LOAD_ANNOT  (" ])
+         := (point b, [ "CN_LOAD_ANNOT(" ])
             :: (point e, [ autoannot_fmt_args ^ ")" ])
             :: !acc
        | Store { lvalue; expr; _ } ->
