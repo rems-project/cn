@@ -123,7 +123,18 @@ let generate_c_loop_invariants
            [ cond_inj; decl_inj; end_internal_inj; end_external_inj ])
         ail_loop_invariants
     in
-    List.concat injs)
+    let ail_loop_decl_injs =
+      List.map
+        (fun (loc, bs_and_ss) ->
+           (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
+        ail_loop_decls
+    in
+    let ail_loop_close_block_injs =
+      List.map
+        (fun (loc, _) -> (get_end_loc loc, [ "} \nclear_focus ();" ]))
+        ail_loop_decls
+    in
+    ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
 
 
 let generate_fn_call_ghost_args_injs
