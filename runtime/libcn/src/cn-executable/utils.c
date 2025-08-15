@@ -9,20 +9,14 @@
 
 typedef hash_table ownership_ghost_state;
 
-/* Ownership globals */
 ownership_ghost_state* cn_ownership_global_ghost_state;
 
 struct cn_error_message_info* error_msg_info;
 
-struct error_message_node {
-  struct cn_error_message_info *error_message_info;
-  struct error_message_node *next;
-};
-
-typedef struct error_message_stack {
-  struct error_message_node* top;
-} error_message_stack;
-
+// struct ownership_ghost_state_info {
+//   int stack_depth;
+//   stack source_loc_stack;
+// }
 
 signed long cn_stack_depth;
 
