@@ -14,6 +14,16 @@ ownership_ghost_state* cn_ownership_global_ghost_state;
 
 struct cn_error_message_info* error_msg_info;
 
+struct error_message_node {
+  struct cn_error_message_info *error_message_info;
+  struct error_message_node *next;
+};
+
+typedef struct error_message_stack {
+  struct error_message_node* top;
+} error_message_stack;
+
+
 signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
@@ -412,7 +422,8 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
 void cn_get_or_put_ownership(enum spec_mode spec_mode,
     void* generic_c_ptr,
     size_t size,
-    struct loop_ownership* loop_ownership) {
+    struct loop_ownership* loop_ownership,
+    struct cn_error_message_info* error_message_info) {
   nr_owned_predicates++;
   if (!is_wildcard(generic_c_ptr, (int)size)) {
     switch (spec_mode) {
