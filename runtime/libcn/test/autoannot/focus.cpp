@@ -23,6 +23,12 @@ TEST(LibAutoAnnot, BasicOperations) {
   ASSERT_EQ(needs_focus(0xcafe1000, 8), 0)
       << "No appropriate resource, so we don't need focus";
 
+  clear_focus();
+  ASSERT_EQ(needs_focus(0xcafe0008, 8), 1) << "Cleared";
+
+  insert_focus(1, "unsigned long");
+  ASSERT_EQ(needs_focus(0xcafe0008, 8), 0) << "Focused";
+
   push_focus_context();
   insert_iter_res(0xcafe0000, 0, 4, 8, "unsigned long");
   insert_iter_res(0x10000000, 1, 4, 8, "unsigned long");

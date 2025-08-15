@@ -52,6 +52,7 @@ struct focus_context {
 void initialise_focus_context(void);
 void push_focus_context(void);
 void pop_focus_context(void);
+void clear_focus(void);
 void insert_focus(int64_t index, type_sig sig);
 void insert_iter_res(
     uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig);
