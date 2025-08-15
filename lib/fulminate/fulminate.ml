@@ -244,19 +244,30 @@ let memory_accesses_injections ail_prog =
   let acc = ref [] in
   let xs = collect_memory_accesses ail_prog in
   List.iter
-    (* HK: Currently, `env` is ignored. It will be used in future patches. *)
     (fun (access, env) ->
+       (* autoannot things *)
        let fmt, args = gen_env_fmt_printer env in
-       let fmt = fmt ^ "\\n" in
-       let args = List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args in
+       let autoannot_fmt = fmt ^ "\\n" in
+       let autoannot_fmt_args =
+         List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args
+       in
        match access with
        | Load { loc; _ } ->
          let b, e = pos_bbox loc in
          let pos_info = Cerb_location.location_to_string loc in
-         let args =
-           ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+         let autoannot_fmt_args =
+           ", \""
+           ^ "[auto annot (focus)]"
+           ^ pos_info
+           ^ ", "
+           ^ autoannot_fmt
+           ^ "\""
+           ^ autoannot_fmt_args
          in
-         acc := (point b, [ "CN_LOAD_ANNOT  (" ]) :: (point e, [ args ^ ")" ]) :: !acc
+         acc
+         := (point b, [ "CN_LOAD_ANNOT  (" ])
+            :: (point e, [ autoannot_fmt_args ^ ")" ])
+            :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
@@ -264,13 +275,19 @@ let memory_accesses_injections ail_prog =
          let b, pos1 = pos_bbox (loc_of_expr lvalue) in
          let pos2, e = pos_bbox (loc_of_expr expr) in
          let pos_info = Cerb_location.location_to_string (loc_of_expr lvalue) in
-         let args =
-           ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+         let autoannot_fmt_args =
+           ", \""
+           ^ "[auto annot (focus)]"
+           ^ pos_info
+           ^ ", "
+           ^ autoannot_fmt
+           ^ "\""
+           ^ autoannot_fmt_args
          in
          acc
          := (point b, [ "CN_STORE_ANNOT(" ])
             :: (region (pos1, pos2) NoCursor, [ ", " ])
-            :: (point e, [ args ^ ")" ])
+            :: (point e, [ autoannot_fmt_args ^ ")" ])
             :: !acc
        | StoreOp { lvalue; aop; expr; loc } ->
          (match bbox [ loc_of_expr expr ] with
@@ -281,8 +298,14 @@ let memory_accesses_injections ail_prog =
             let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
             let sstart, ssend = pos_bbox loc in
             let pos_info = Cerb_location.location_to_string loc in
-            let args =
-              ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+            let autoannot_fmt_args =
+              ", \""
+              ^ "[auto annot (focus)]"
+              ^ pos_info
+              ^ ", "
+              ^ autoannot_fmt
+              ^ "\""
+              ^ autoannot_fmt_args
             in
             let b, _ = pos_bbox (loc_of_expr lvalue) in
             acc
@@ -294,7 +317,7 @@ let memory_accesses_injections ail_prog =
                       ^ string_of_aop aop
                       ^ ","
                       ^ pp_expr expr
-                      ^ args
+                      ^ autoannot_fmt_args
                       ^ ")"
                     ] )
                :: (region (b, ssend) NoCursor, [ "" ])
@@ -303,13 +326,19 @@ let memory_accesses_injections ail_prog =
             let b, pos1 = pos_bbox (loc_of_expr lvalue) in
             let pos2, e = pos_bbox (loc_of_expr expr) in
             let pos_info = Cerb_location.location_to_string (loc_of_expr lvalue) in
-            let args =
-              ", \"" ^ "[auto annot (focus)]" ^ pos_info ^ ", " ^ fmt ^ "\"" ^ args
+            let autoannot_fmt_args =
+              ", \""
+              ^ "[auto annot (focus)]"
+              ^ pos_info
+              ^ ", "
+              ^ autoannot_fmt
+              ^ "\""
+              ^ autoannot_fmt_args
             in
             acc
             := (point b, [ "CN_STORE_OP_ANNOT(" ])
                :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
-               :: (point e, [ args ^ ")" ])
+               :: (point e, [ autoannot_fmt_args ^ ")" ])
                :: !acc)
        | Postfix { loc; op; lvalue } ->
          let op_str = match op with `Incr -> "++" | `Decr -> "--" in
