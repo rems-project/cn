@@ -3188,7 +3188,8 @@ let cn_to_ail_resource
         let stmts = [ start_assign; while_loop ] in
         let stmts =
           match (iter_res_call_stmt_opt, spec_mode_opt) with
-          | Some stmt, Some Pre when !Config.with_auto_annot -> stmt :: stmts
+          | (Some stmt, Some Pre | Some stmt, Some Loop) when !Config.with_auto_annot ->
+            stmt :: stmts
           | _ -> stmts
         in
         let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
@@ -3248,7 +3249,8 @@ let cn_to_ail_resource
         let stmts = [ start_assign; while_loop ] in
         let stmts =
           match (iter_res_call_stmt_opt, spec_mode_opt) with
-          | Some stmt, Some Pre when !Config.with_auto_annot -> stmt :: stmts
+          | (Some stmt, Some Pre | Some stmt, Some Loop) when !Config.with_auto_annot ->
+            stmt :: stmts
           | _ -> stmts
         in
         let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
@@ -4176,7 +4178,7 @@ let cn_to_ail_loop_inv
     (* reset the current focus context *)
     let pop_focus_context_fn_call =
       A.AilSexpr
-        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "push_focus_context")), [])))
+        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "pop_focus_context")), [])))
     in
     let push_focus_context_fn_call =
       A.AilSexpr
