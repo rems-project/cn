@@ -86,9 +86,9 @@ let run_auto_annot
   (try
      if Sys.file_exists log_file then (
        let oc = open_out_gen [ Open_wronly; Open_creat; Open_trunc ] 0o644 log_file in
-       close_out oc
-     )
-   with _ -> ());
+       close_out oc)
+   with
+   | _ -> ());
   AutoAnnot.log_filename := log_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
@@ -194,12 +194,33 @@ let run_auto_annot
        | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
       if not dont_run then (
         Cerb_debug.maybe_close_csv_timing_file ();
-        match build_tool with
-        | Bash ->
-          Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
-        | Make ->
-          Unix.chdir output_dir;
-          Unix.execvp "make" (Array.of_list [ "make" ]));
+        Pp.(debug 10 (lazy (item "wait for auto-annotation" (string log_file))));
+        (* Run tests as a child process and wait, so we can continue afterwards *)
+        let status =
+          match build_tool with
+          | Bash ->
+            let prog = Filename.concat output_dir "run_tests.sh" in
+            let pid =
+              Unix.create_process prog [| prog |] Unix.stdin Unix.stdout Unix.stderr
+            in
+            snd (Unix.waitpid [] pid)
+          | Make ->
+            let pid =
+              Unix.create_process
+                "make"
+                [| "make"; "-C"; output_dir |]
+                Unix.stdin
+                Unix.stdout
+                Unix.stderr
+            in
+            snd (Unix.waitpid [] pid)
+        in
+        match status with
+        | Unix.WEXITED 0 -> ()
+        | Unix.WEXITED n -> Pp.(debug 5 (lazy (item "Test runner exit code" (int n))))
+        | Unix.WSIGNALED n -> Pp.(debug 5 (lazy (item "Test runner signaled" (int n))))
+        | Unix.WSTOPPED n -> Pp.(debug 5 (lazy (item "Test runner stopped" (int n)))));
+      AutoAnnot.run_autoannot (Filename.concat output_dir log_file);
       Result.ok ())
 
 
