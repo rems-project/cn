@@ -34,6 +34,78 @@ type focus =
 
 type annot = Focus of focus
 
+let generate_focus_annot_aux filename line assignments_list : unit =
+  Pp.(
+    debug
+      10
+      (lazy
+        (item
+           "Generating annotations"
+           (string filename ^^ string ":" ^^ (line |> string_of_int |> string)))));
+  match assignments_list with
+  | [] -> ()
+  | first :: rest ->
+    let variables =
+      first
+      |> List.map (fun (a : assignment) -> a.accessor)
+      |> List.sort_uniq String.compare
+    in
+    (* Sanity check: all occurrences have the same variable set *)
+    let env_vars (env : assignment list) =
+      env
+      |> List.map (fun (a : assignment) -> a.accessor)
+      |> List.sort_uniq String.compare
+    in
+    let all_same_vars =
+      List.for_all
+        (fun env -> List.for_all2 (fun x y -> String.equal x y) (env_vars env) variables)
+        rest
+    in
+    if not all_same_vars then
+      Pp.(
+        debug
+          5
+          (lazy
+            (item
+               "AutoAnnot: inconsistent environments"
+               (string (filename ^ ":" ^ string_of_int line)))))
+    else (
+      (* Build values per variable across occurrences *)
+      let tbl : (string, int list) Hashtbl.t = Hashtbl.create (List.length variables) in
+      List.iter (fun v -> Hashtbl.replace tbl v []) variables;
+      let add_value v n =
+        let prev = match Hashtbl.find_opt tbl v with Some xs -> xs | None -> [] in
+        Hashtbl.replace tbl v (prev @ [ n ])
+      in
+      let lookup_value v (env : assignment list) =
+        match List.find_opt (fun (a : assignment) -> String.equal a.accessor v) env with
+        | Some a -> Some a.value
+        | None -> None
+      in
+      List.iter
+        (fun env ->
+           List.iter
+             (fun v ->
+                match lookup_value v env with Some n -> add_value v n | None -> ())
+             variables)
+        assignments_list)
+
+
+let generate_focus_annot (annots : focus list) : unit =
+  let tbl : (string * int, assignment list list) Hashtbl.t = Hashtbl.create 16 in
+  let add filename line assigns =
+    let key = (filename, line) in
+    let prev = match Hashtbl.find_opt tbl key with Some xs -> xs | None -> [] in
+    Hashtbl.replace tbl key (prev @ [ assigns ])
+  in
+  List.iter
+    (function { filename; line; assignments } -> add filename line assignments)
+    annots;
+  Hashtbl.iter
+    (fun (filename, line) assigns -> generate_focus_annot_aux filename line assigns)
+    tbl
+
+
 let parse (log_file : string) : annot list =
   (* Open the file *)
   let ic = open_in log_file in
@@ -86,5 +158,7 @@ let parse (log_file : string) : annot list =
 
 
 let run_autoannot (log_file : string) : unit =
-  let _data = parse log_file in
-  ()
+  Pp.(debug 10 (lazy (item "Running auto-annotation" (string log_file))));
+  let data = parse log_file in
+  let focus_annots = data |> List.filter_map (function Focus f -> Some f) in
+  generate_focus_annot focus_annots
