@@ -3817,8 +3817,9 @@ let ail_of_enum_member_id enum_id =
   mk_expr A.(AilEident sym)
 
 
+let cn_ghost_enum_sym = Sym.fresh "CN_GHOST_ENUM"
+
 let cn_to_ail_ghost_enum spec_bts ghost_argss =
-  let enum_sym = Sym.fresh "CN_GHOST_ENUM" in
   let here = Locations.other __LOC__ in
   let empty_enum_member_id = Id.make here "EMPTY" in
   let ghost_spec_enum_member_ids = List.map ghost_enum_member_id spec_bts in
@@ -3840,7 +3841,7 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
       enum_member_ids
   in
   let enum_tag_definition = C.(UnionDef enum_members) in
-  (enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition))
+  (cn_ghost_enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition))
 
 
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
@@ -3849,7 +3850,12 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
       (AilEcall
          ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
            [ mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))));
-             ail_of_enum_member_id (ghost_enum_member_id_ghost_args ghost_args)
+             mk_expr
+               (AilEcast
+                  ( C.no_qualifiers,
+                    C.mk_ctype_pointer C.no_qualifiers (mk_ctype C.Void),
+                    ail_of_enum_member_id (ghost_enum_member_id_ghost_args ghost_args) ))
+             (* TODO: check this cast is okay *)
            ] ))
   in
   let bs, ss =
@@ -4331,7 +4337,7 @@ let rec cn_to_ail_pre_post_aux
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
-    let ail_executable_spec =
+    let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
@@ -4344,7 +4350,7 @@ let rec cn_to_ail_pre_post_aux
         ghost_array_size_opt
         subst_at
     in
-    prepend_to_precondition ail_executable_spec ([ binding ], [ decl ])
+    (ghost_bts, prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.Ghost ((sym, bt), _info, at) ->
     (match ghost_array_size_opt with
      | None ->
@@ -4366,7 +4372,7 @@ let rec cn_to_ail_pre_post_aux
      | Some _ ->
        let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_idx in
        let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
-       let ail_executable_spec =
+       let ghost_bts, ail_executable_spec =
          cn_to_ail_pre_post_aux
            without_ownership_checking
            with_loop_leak_checks
@@ -4379,7 +4385,8 @@ let rec cn_to_ail_pre_post_aux
            ghost_array_size_opt
            subst_at
        in
-       prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
+       ( bt :: ghost_bts,
+         prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]) ))
   | AT.L lat ->
     let ail_executable_spec =
       cn_to_ail_lat_2
@@ -4408,7 +4415,7 @@ let rec cn_to_ail_pre_post_aux
                                  None ))))
                   ] ))))
     in
-    prepend_to_precondition ail_executable_spec ([], [ decl ])
+    ([], prepend_to_precondition ail_executable_spec ([], [ decl ]))
 
 
 let cn_to_ail_pre_post
@@ -4422,7 +4429,7 @@ let cn_to_ail_pre_post
       ghost_array_size_opt
   = function
   | Some internal ->
-    let ail_executable_spec =
+    let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
@@ -4434,6 +4441,52 @@ let cn_to_ail_pre_post
         1
         ghost_array_size_opt
         internal
+    in
+    let ghost_call_site_sym = Sym.fresh "ghost_call_site" in
+    let ghost_spec_sym = Sym.fresh "ghost_spec" in
+    let ghost_type_checking_stat =
+      A.AilSif
+        ( mk_expr
+            (A.AilEbinary
+               ( mk_expr (A.AilEident ghost_spec_sym),
+                 A.Ne,
+                 mk_expr (A.AilEident ghost_call_site_sym) )),
+          mk_stmt
+            (A.AilSexpr
+               (mk_expr
+                  (A.AilEcall
+                     ( mk_expr (A.AilEident (Sym.fresh "exit")),
+                       [ mk_expr
+                           (AilEconst
+                              (ConstantInteger (IConstant (Z.of_int 1, Decimal, None))))
+                       ] )))),
+          mk_stmt A.AilSskip )
+    in
+    let ail_executable_spec =
+      prepend_to_precondition ail_executable_spec ([], [ ghost_type_checking_stat ])
+    in
+    let ghost_enum_type = mk_ctype C.(Basic (Integer (Enum cn_ghost_enum_sym))) in
+    let ghost_call_site_binding = create_binding ghost_call_site_sym ghost_enum_type in
+    let ghost_call_site_rhs = wrap_with_load_from_ghost_array ghost_enum_type 0 in
+    let ghost_call_site_decl =
+      A.(AilSdeclaration [ (ghost_call_site_sym, Some (mk_expr ghost_call_site_rhs)) ])
+    in
+    let ail_executable_spec =
+      prepend_to_precondition
+        ail_executable_spec
+        ([ ghost_call_site_binding ], [ ghost_call_site_decl ])
+    in
+    let ghost_spec_binding = create_binding ghost_spec_sym ghost_enum_type in
+    let (AnnotatedExpression (_, _, _, ghost_spec_rhs)) =
+      ail_of_enum_member_id (ghost_enum_member_id ghost_bts)
+    in
+    let ghost_spec_decl =
+      A.(AilSdeclaration [ (ghost_spec_sym, Some (mk_expr ghost_spec_rhs)) ])
+    in
+    let ail_executable_spec =
+      prepend_to_precondition
+        ail_executable_spec
+        ([ ghost_spec_binding ], [ ghost_spec_decl ])
     in
     let ownership_stats_ =
       if without_ownership_checking then
