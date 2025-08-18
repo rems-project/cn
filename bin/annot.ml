@@ -82,6 +82,13 @@ let run_auto_annot
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
   let log_file = AutoAnnot.get_log_filename basefile in
+  (* Clear the log file if it already exists *)
+  (try
+     if Sys.file_exists log_file then (
+       let oc = open_out_gen [ Open_wronly; Open_creat; Open_trunc ] 0o644 log_file in
+       close_out oc
+     )
+   with _ -> ());
   AutoAnnot.log_filename := log_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
