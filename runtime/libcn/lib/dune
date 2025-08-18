@@ -29,7 +29,8 @@
    (glob_files ../include/cn-autoannot/*.h))
   (:src
    (glob_files ../src/cn-executable/*.c)
-   (file ../src/cn-autoannot/focus_ctx.c)))
+   (file ../src/cn-autoannot/focus_ctx.c)
+   (file ../src/cn-autoannot/auto_annot.c)))
  (action
   (progn
    (run mkdir -p cn-executable)
@@ -45,7 +46,8 @@
     cn-executable/hash_table.o
     cn-executable/rmap.o
     cn-executable/utils.o
-    cn-executable/focus_ctx.o))))
+    cn-executable/focus_ctx.o
+    cn-executable/auto_annot.o))))
 
 (rule
  (target libbennet.a)
