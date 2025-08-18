@@ -29,6 +29,10 @@ IncludeCategories:
     Priority: 3
     SortPriority: 6
     CaseSensitive: true
+  - Regex: "<(cn-smt)/"
+    Priority: 3
+    SortPriority: 7
+    CaseSensitive: true
   - Regex: "<[[:alnum:].]+>"
     Priority: 2
   - Regex: ".*"

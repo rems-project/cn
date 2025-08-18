@@ -27,7 +27,7 @@ let run_tests
       dont_run
       num_samples
       max_backtracks
-      _max_unfolds
+      max_unfolds
       _max_array_length
       build_tool
       sanitizers
@@ -59,6 +59,8 @@ let run_tests
       experimental_learning
       static_absint
       smt_pruning
+      symbolic
+      symbolic_timeout
       print_size_info
       print_backtrack_info
       print_satisfaction_info
@@ -111,6 +113,9 @@ let run_tests
           experimental_learning;
           static_absint;
           smt_pruning;
+          symbolic;
+          symbolic_timeout;
+          max_unfolds;
           print_seed;
           input_timeout;
           null_in_every;
@@ -237,9 +242,10 @@ module Flags = struct
 
 
   let gen_max_unfolds =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after June 31." in
-    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~deprecated ~doc)
+    let doc =
+      "Maximum number of times to inline function calls in symbolic mode (default: 10)"
+    in
+    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~doc)
 
 
   let max_array_length =
@@ -497,6 +503,24 @@ module Flags = struct
   let print_satisfaction_info =
     let doc = "(Experimental) Print satisfaction info" in
     Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
+
+
+  let symbolic =
+    let doc =
+      "(Experimental) Use symbolic execution for test generation instead of concrete \
+       value generation."
+    in
+    Arg.(value & flag & info [ "symbolic" ] ~doc)
+
+
+  let symbolic_timeout =
+    let doc = "Set timeout for SMT solver in symbolic mode (seconds)" in
+    Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
+
+
+  let max_path_length =
+    let doc = "Set maximum symbolic path length for exploration" in
+    Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
 end
 
 let cmd =
@@ -555,6 +579,8 @@ let cmd =
     $ Flags.experimental_learning
     $ Flags.static_absint
     $ Flags.smt_pruning
+    $ Flags.symbolic
+    $ Flags.symbolic_timeout
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info

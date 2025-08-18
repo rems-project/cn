@@ -2,6 +2,10 @@ type build_tool =
   | Bash
   | Make
 
+type generation_mode =
+  | Concrete (* Existing arbitrary/guided fuzzing *)
+  | Symbolic (* New symbolic constraint-based generation *)
+
 type logging_level =
   | None
   | Error
@@ -36,6 +40,9 @@ type t =
     experimental_learning : bool;
     static_absint : string list;
     smt_pruning : [ `None | `Fast | `Slow ];
+    symbolic : bool;
+    symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
+    max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -155,3 +162,9 @@ val will_print_size_info : unit -> bool
 val will_print_backtrack_info : unit -> bool
 
 val will_print_satisfaction_info : unit -> bool
+
+val is_symbolic_enabled : unit -> bool
+
+val has_symbolic_timeout : unit -> int option
+
+val get_max_unfolds : unit -> int option

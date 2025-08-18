@@ -28,6 +28,9 @@ val lookup_records_map_with_default : ?cn_sym:Sym.t -> BaseTypes.t -> Sym.t
 
 val bt_to_ail_ctype : ?pred_sym:Sym.t option -> BaseTypes.t -> Ctype.ctype
 
+(** FIXME: Should use [wrap_with_convert_from] instead *)
+val get_conversion_from_fn_str : BaseTypes.t -> string option
+
 val wrap_with_convert_from
   :  ?sct:Sctypes.t ->
   GenTypes.genTypeCategory AilSyntax.expression_ ->

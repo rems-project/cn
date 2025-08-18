@@ -9,14 +9,16 @@ module Make (AD : Domain.T) = struct
     let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t * AD.t =
       let (Annot (gt_, tag, bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `ArbitraryDomain _ | `Call _ | `Return _ -> (gt, AD.top)
+      | `Arbitrary | `Symbolic | `ArbitraryDomain _ | `Call _ | `Return _ -> (gt, AD.top)
       | `Pick gts ->
         let gts, ds = List.split (List.map (aux vars) gts) in
         (Term.pick_ gts tag bt loc, AD.join_many ds)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let gt_rest, d = aux vars gt_rest in
         (Term.asgn_ ((it_addr, sct), it_val, gt_rest) tag loc, d)
-      | `LetStar ((x, Annot (`Arbitrary, tag_inner, bt_inner, loc_inner)), gt_rest) ->
+      | `LetStar
+          ((x, Annot ((`Arbitrary | `Symbolic), tag_inner, bt_inner, loc_inner)), gt_rest)
+        ->
         let vars' = Sym.Set.add x vars in
         let gt_rest, d = aux vars' gt_rest in
         let d = AD.retain vars' d in

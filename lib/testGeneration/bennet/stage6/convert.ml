@@ -100,6 +100,7 @@ module Make (AD : Domain.T) = struct
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
              ]) )
+    | `Symbolic -> failwith "TODO"
     | `ArbitraryDomain _ ->
       let sign, bits = Option.get (BT.is_bits_bt bt) in
       let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
@@ -376,6 +377,8 @@ module Make (AD : Domain.T) = struct
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
+    | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Bits (_, _), _)), _) ->
+      failwith "TODO: LetStar Symbolic"
     | `LetStar
         ( (x, GenTerms.Annot (`ArbitraryDomain d, _, (Bits (sign, bits) as x_bt), _)),
           gt_rest ) ->
@@ -422,6 +425,8 @@ module Make (AD : Domain.T) = struct
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
+    | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Loc (), _)), _) ->
+      failwith "TODO: LetStar Symbolic Loc"
     | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Loc () as x_bt), _)), gt_rest) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
       let s_let =
@@ -472,6 +477,8 @@ module Make (AD : Domain.T) = struct
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Arbitrary, _, bt, _)), _) ->
+      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
+    | `LetStar ((_, GenTerms.Annot (`Symbolic, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((_, GenTerms.Annot (`ArbitraryDomain _, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))

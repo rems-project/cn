@@ -61,21 +61,9 @@ let run_seq_tests
     ~disable_linemarkers:true
     ~skip_label_inlining:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
+    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
         (fun () ->
-           let _, sigma = ail_prog in
-           if
-             List.is_empty
-               (TestGeneration.functions_under_test
-                  ~with_warning:true
-                  cabs_tunit
-                  sigma
-                  prog5
-                  paused)
-           then (
-             print_endline "No testable functions, trivially passing";
-             exit 0);
            let _, sigma = ail_prog in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            Fulminate.main

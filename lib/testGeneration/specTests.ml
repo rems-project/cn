@@ -113,7 +113,12 @@ let compile_random_test_case
        ())
    ^^ hardline)
   ^^ (if List.is_empty globals then
-        !^(if is_static then
+        !^(if TestGenConfig.is_symbolic_enabled () then
+             if is_static then
+               "CN_STATIC_SYMBOLIC_TEST_CASE"
+             else
+               "CN_EXTERN_SYMBOLIC_TEST_CASE"
+           else if is_static then
              "CN_STATIC_RANDOM_TEST_CASE"
            else
              "CN_EXTERN_RANDOM_TEST_CASE")

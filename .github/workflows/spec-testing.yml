@@ -103,12 +103,20 @@ jobs:
         cd cn-tutorial; ./runtime-test.sh 
         cd ..
 
-    - name: Run CN-Test-Gen CI tests
+    - name: Run Bennet CI tests
       run: |
         alias cc=${{ matrix.compiler }}
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         cd tests; ./run-cn-test-gen.sh
+
+
+    - name: Run CN-SMT-Testing CI tests
+      run: |
+        alias cc=${{ matrix.compiler }}
+        opam switch ${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }})
+        cd tests; ./run-cn-test-gen-smt.sh
 
     - name: Run CN-Seq-Test-Gen CI tests
       run: |

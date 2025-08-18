@@ -3,6 +3,22 @@
 CN=$OPAM_SWITCH_PREFIX/bin/cn
 
 DIRNAME=$(dirname "$0")
+
+# Parse options
+SYMBOLIC=false
+while getopts "s" opt; do
+  case $opt in
+    s)
+      SYMBOLIC=true
+      ;;
+    \?)
+      echo "Invalid option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+shift $((OPTIND-1))
 TEST=$1
 
 # Clean directory
@@ -30,12 +46,17 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
   --allow-split-magic-comments \
   --print-seed"
 
-ALT_CONFIGS=(
-  "--coverage --sizing-strategy=quickcheck"
-  "--coverage --sizing-strategy=quartile --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval"
-  "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint=interval"
-  "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
-  )
+# Set ALT_CONFIGS based on symbolic option
+if [ "$SYMBOLIC" = true ]; then
+  ALT_CONFIGS=("--symbolic --coverage")
+else
+  ALT_CONFIGS=(
+    "--coverage --sizing-strategy=quickcheck"
+    "--coverage --sizing-strategy=quartile --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval"
+    "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint=interval"
+    "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
+    )
+fi
 
 BUILD_TOOLS=("bash" "make")
 

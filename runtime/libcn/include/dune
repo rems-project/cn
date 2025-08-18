@@ -64,6 +64,18 @@
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
+  ; CN SMT
+  (cn-smt/context.h as runtime/include/cn-smt/context.h)
+  (cn-smt/concretize.h as runtime/include/cn-smt/concretize.h)
+  (cn-smt/eval.h as runtime/include/cn-smt/eval.h)
+  (cn-smt/to_smt.h as runtime/include/cn-smt/to_smt.h)
+  (cn-smt/from_smt.h as runtime/include/cn-smt/from_smt.h)
+  (cn-smt/prelude.h as runtime/include/cn-smt/prelude.h)
+  (cn-smt/subst.h as runtime/include/cn-smt/subst.h)
+  (cn-smt/gather.h as runtime/include/cn-smt/gather.h)
+  (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
+  (cn-smt/sexp.h as runtime/include/cn-smt/sexp.h)
+  (cn-smt/solver.h as runtime/include/cn-smt/solver.h)
   ; Counterexample program synthesis prototype
   (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
   (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)

@@ -19,6 +19,7 @@ module Make (AD : Domain.T) = struct
       let (GenTerms.Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
       | `Arbitrary -> GenTerms.Annot (`Arbitrary, (path_vars, last_var), bt, loc)
+      | `Symbolic -> GenTerms.Annot (`Symbolic, (path_vars, last_var), bt, loc)
       | `ArbitraryDomain d ->
         GenTerms.Annot (`ArbitraryDomain d, (path_vars, last_var), bt, loc)
       | `PickSized wgts ->

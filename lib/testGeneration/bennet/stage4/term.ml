@@ -15,6 +15,7 @@ module Make (AD : Domain.T) = struct
 
   type 'recur ast =
     [ `Arbitrary (** Generate arbitrary values *)
+    | `Symbolic (** Generate symbolic values *)
     | `ArbitraryDomain of AD.Relative.t (** Generate arbitrary values from domain *)
     | `PickSized of (Z.t * 'recur annot) list
       (** Pick among a list of options, weighted by the provided [Z.t]s *)
@@ -41,6 +42,10 @@ module Make (AD : Domain.T) = struct
 
   let arbitrary_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
     Annot (`Arbitrary, tag, bt, loc)
+
+
+  let symbolic_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+    Annot (`Symbolic, tag, bt, loc)
 
 
   let arbitrary_domain_ (d : AD.Relative.t) (tag : tag_t) (bt : BT.t) (loc : Locations.t)
@@ -143,6 +148,7 @@ module Make (AD : Domain.T) = struct
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
     | `Arbitrary -> `Arbitrary
+    | `Symbolic -> `Symbolic
     | `ArbitraryDomain ad -> `ArbitraryDomain ad
     | `PickSized choices -> `PickSized (List.map (fun (w, g) -> (w, subst su g)) choices)
     | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
@@ -186,6 +192,7 @@ module Make (AD : Domain.T) = struct
     let gt_ =
       match gt_ with
       | `Arbitrary -> `Arbitrary
+      | `Symbolic -> `Symbolic
       | `ArbitraryDomain ad -> `ArbitraryDomain ad
       | `PickSized choices ->
         `PickSized (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
@@ -210,6 +217,7 @@ module Make (AD : Domain.T) = struct
     let gt_ =
       match gt_ with
       | `Arbitrary -> `Arbitrary
+      | `Symbolic -> `Symbolic
       | `ArbitraryDomain ad -> `ArbitraryDomain ad
       | `PickSized choices ->
         `PickSized (List.map (fun (w, g) -> (w, map_gen_post f g)) choices)

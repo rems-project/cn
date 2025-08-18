@@ -68,7 +68,7 @@ module Make (AD : Domain.T) = struct
     let rec aux (delete : bool) (gt : Term.t) : Term.t * IT.t =
       let (Annot (gt_, (), _, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Call _ | `Return _ | `Map _ -> (gt, it_true)
+      | `Arbitrary | `Symbolic | `Call _ | `Return _ | `Map _ -> (gt, it_true)
       | `Pick gts ->
         let _, constraints =
           gts |> List.map (aux false) |> List.map_snd simp |> List.split
@@ -152,7 +152,7 @@ module Make (AD : Domain.T) = struct
     let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Call _ | `Return _ -> gt
+      | `Arbitrary | `Symbolic | `Call _ | `Return _ -> gt
       | `Pick gts -> Term.pick_ (List.map (aux vars) gts) () bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
         Term.asgn_ ((it_addr, sct), it_val, aux vars gt') () loc

@@ -6,7 +6,8 @@ module AT = ArgumentTypes
 
 type kind =
   | Constant (* Run function without arguments nor `accesses` once *)
-  | Generator (* Run function with random inputs satisfying the precondition *)
+  | RandomGenerator (* Run function with random inputs satisfying the precondition *)
+  | SymbolicGenerator (* Run function with symbolic inputs satisfying the precondition *)
 [@@deriving eq]
 
 type t =
@@ -39,7 +40,8 @@ let of_instrumentation
                    (fun _ -> Sym.Set.empty)
                    (AT.get_lat (Option.get inst.internal))) ->
       Constant
-    | Decl_function _ -> Generator
+    | Decl_function _ ->
+      if TestGenConfig.is_symbolic_enabled () then SymbolicGenerator else RandomGenerator
     | Decl_object _ -> failwith __LOC__
   in
   let suite = filename |> Filename.basename |> String.split_on_char '.' |> List.hd in

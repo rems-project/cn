@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +27,11 @@ extern "C" {
   })
 
 #define bennet_optional_none(ty)                                                         \
-  ((bennet_optional(ty)){.is_some = false, .body = (ty){0}})
+  ({                                                                                     \
+    bennet_optional(ty) _temp = {.is_some = false};                                      \
+    memset(&_temp.body, 0, sizeof(ty));                                                  \
+    _temp;                                                                               \
+  })
 #define bennet_optional_some(ty, ...)                                                    \
   ((bennet_optional(ty)){.is_some = true, .body = __VA_ARGS__})
 

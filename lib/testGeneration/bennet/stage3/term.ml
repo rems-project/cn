@@ -13,6 +13,7 @@ module Make (AD : Domain.T) = struct
 
   type 'recur ast =
     [ `Arbitrary (** Generate arbitrary values *)
+    | `Symbolic (** Generate symbolic values *)
     | `ArbitraryDomain of AD.Relative.t
     | `Call of Sym.t * IT.t list
       (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
@@ -35,6 +36,10 @@ module Make (AD : Domain.T) = struct
 
   let arbitrary_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
     Annot (`Arbitrary, tag, bt, loc)
+
+
+  let symbolic_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+    Annot (`Symbolic, tag, bt, loc)
 
 
   let arbitrary_domain_ (d : AD.Relative.t) (tag : tag_t) (bt : BT.t) (loc : Locations.t)
@@ -137,6 +142,7 @@ module Make (AD : Domain.T) = struct
   let rec subst_ (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt_ : t_) : t_ =
     match gt_ with
     | `Arbitrary -> `Arbitrary
+    | `Symbolic -> `Symbolic
     | `ArbitraryDomain ad -> `ArbitraryDomain ad
     | `Pick gts -> `Pick (List.map (subst su) gts)
     | `Call (fsym, iargs) -> `Call (fsym, List.map (IT.subst su) iargs)
@@ -178,6 +184,7 @@ module Make (AD : Domain.T) = struct
     let gt_ =
       match gt_ with
       | `Arbitrary -> `Arbitrary
+      | `Symbolic -> `Symbolic
       | `ArbitraryDomain ad -> `ArbitraryDomain ad
       | `Pick gts -> `Pick (List.map (map_gen_pre f) gts)
       | `Call (fsym, its) -> `Call (fsym, its)
@@ -199,6 +206,7 @@ module Make (AD : Domain.T) = struct
     let gt_ =
       match gt_ with
       | `Arbitrary -> `Arbitrary
+      | `Symbolic -> `Symbolic
       | `ArbitraryDomain ad -> `ArbitraryDomain ad
       | `Pick gts -> `Pick (List.map (map_gen_post f) gts)
       | `Call (fsym, its) -> `Call (fsym, its)
