@@ -265,9 +265,12 @@ let memory_accesses_injections ail_prog =
            ^ autoannot_fmt_args
          in
          acc
-         := (point b, [ "CN_LOAD_ANNOT(" ])
-            :: (point e, [ autoannot_fmt_args ^ ")" ])
-            :: !acc
+         := if !Config.with_auto_annot then
+              (point b, [ "CN_LOAD_ANNOT(" ])
+              :: (point e, [ autoannot_fmt_args ^ ")" ])
+              :: !acc
+            else
+              (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
@@ -285,10 +288,16 @@ let memory_accesses_injections ail_prog =
            ^ autoannot_fmt_args
          in
          acc
-         := (point b, [ "CN_STORE_ANNOT(" ])
-            :: (region (pos1, pos2) NoCursor, [ ", " ])
-            :: (point e, [ autoannot_fmt_args ^ ")" ])
-            :: !acc
+         := if !Config.with_auto_annot then
+              (point b, [ "CN_STORE_ANNOT(" ])
+              :: (region (pos1, pos2) NoCursor, [ ", " ])
+              :: (point e, [ autoannot_fmt_args ^ ")" ])
+              :: !acc
+            else
+              (point b, [ "CN_STORE(" ])
+              :: (region (pos1, pos2) NoCursor, [ ", " ])
+              :: (point e, [ ")" ])
+              :: !acc
        | StoreOp { lvalue; aop; expr; loc } ->
          (match bbox [ loc_of_expr expr ] with
           | `Other _ ->
@@ -310,16 +319,27 @@ let memory_accesses_injections ail_prog =
             let b, _ = pos_bbox (loc_of_expr lvalue) in
             acc
             := (region (sstart, b) NoCursor, [ "" ])
-               :: ( point b,
-                    [ "CN_STORE_OP_ANNOT("
-                      ^ pp_expr lvalue
-                      ^ ","
-                      ^ string_of_aop aop
-                      ^ ","
-                      ^ pp_expr expr
-                      ^ autoannot_fmt_args
-                      ^ ")"
-                    ] )
+               :: (if !Config.with_auto_annot then
+                     ( point b,
+                       [ "CN_STORE_OP_ANNOT("
+                         ^ pp_expr lvalue
+                         ^ ","
+                         ^ string_of_aop aop
+                         ^ ","
+                         ^ pp_expr expr
+                         ^ autoannot_fmt_args
+                         ^ ")"
+                       ] )
+                   else
+                     ( point b,
+                       [ "CN_STORE_OP("
+                         ^ pp_expr lvalue
+                         ^ ","
+                         ^ string_of_aop aop
+                         ^ ","
+                         ^ pp_expr expr
+                         ^ ")"
+                       ] ))
                :: (region (b, ssend) NoCursor, [ "" ])
                :: !acc
           | `Bbox _ ->
@@ -336,10 +356,16 @@ let memory_accesses_injections ail_prog =
               ^ autoannot_fmt_args
             in
             acc
-            := (point b, [ "CN_STORE_OP_ANNOT(" ])
-               :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
-               :: (point e, [ autoannot_fmt_args ^ ")" ])
-               :: !acc)
+            := if !Config.with_auto_annot then
+                 (point b, [ "CN_STORE_OP_ANNOT(" ])
+                 :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
+                 :: (point e, [ autoannot_fmt_args ^ ")" ])
+                 :: !acc
+               else
+                 (point b, [ "CN_STORE_OP(" ])
+                 :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
+                 :: (point e, [ ")" ])
+                 :: !acc)
        | Postfix { loc; op; lvalue } ->
          let op_str = match op with `Incr -> "++" | `Decr -> "--" in
          let b, e = pos_bbox loc in
