@@ -6,6 +6,7 @@ module Internal = Internal
 module Records = Records
 module Ownership = Ownership
 module Utils = Utils
+module Config = Config
 
 let rec group_toplevel_defs new_list = function
   | [] -> new_list
@@ -203,7 +204,6 @@ let rec gen_env_fmt_printer = function
   | (sym, ty) :: xs ->
     let fmt, args = gen_env_fmt_printer xs in
     let open CF.Ctype in
-    Pp.(debug 10 (lazy (item "gen_env_fmt" (string (CF.Symbol.show_symbol sym)))));
     let (Ctype (_, ty)) = ty in
     (match ty with
      | Basic (Integer b) ->
@@ -621,7 +621,9 @@ let main
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
   output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
-  output_to_oc oc [ "#include <cn-autoannot/focus_ctx.h>\n"; "#include <stdio.h>\n" ];
+  if !Config.with_auto_annot then
+    output_to_oc oc [ "#include <cn-autoannot/focus_ctx.h>\n" ];
+  output_to_oc oc [ "#include <stdio.h>\n" ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc
