@@ -56,7 +56,7 @@ let get_ownership_global_init_stats () =
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
   let log_filename =
-    mk_expr (A.AilEstr (None, [ (Cerb_location.unknown, [ !Autoannot.log_filename ]) ]))
+    mk_expr (A.AilEstr (None, [ (Cerb_location.unknown, [ !AutoAnnot.log_filename ]) ]))
   in
   let cn_initialize_auto_annot_fcall =
     mk_expr

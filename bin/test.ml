@@ -131,7 +131,8 @@ let run_tests
           output_tyche;
           print_size_info;
           print_backtrack_info;
-          print_satisfaction_info
+          print_satisfaction_info;
+          with_auto_annot = false
         }
       in
       TestGeneration.set_config config;

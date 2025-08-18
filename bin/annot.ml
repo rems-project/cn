@@ -81,6 +81,8 @@ let run_auto_annot
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
+  let log_file = AutoAnnot.get_log_filename basefile in
+  AutoAnnot.log_filename := log_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~cc
@@ -135,7 +137,8 @@ let run_auto_annot
           output_tyche;
           print_size_info;
           print_backtrack_info;
-          print_satisfaction_info
+          print_satisfaction_info;
+          with_auto_annot = true
         }
       in
       TestGeneration.set_config config;
@@ -157,8 +160,8 @@ let run_auto_annot
       (try
          Fulminate.main
            ~without_ownership_checking
-           ~without_loop_invariants:true
-           ~with_loop_leak_checks:false
+           ~without_loop_invariants:false
+           ~with_loop_leak_checks:true
            ~with_testing:true
            filename
            cc
