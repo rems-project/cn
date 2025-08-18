@@ -6,6 +6,7 @@
 #include "fulminate_alloc.h"
 #include "hash_table.h"
 #include "rts_deps.h"
+#include "stack.h"
 
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
@@ -74,6 +75,8 @@ void initialise_error_msg_info_(
 
 void reset_error_msg_info();
 void free_error_msg_info();
+
+GEN_ALL_STACK(cn_source_location, char *);
 
 /* TODO: Implement */
 /*struct cn_error_messages {
