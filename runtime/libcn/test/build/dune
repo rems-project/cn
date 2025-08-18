@@ -1,6 +1,8 @@
 (rule
  (target Makefile)
  (deps
+  (package cn)
+  (alias_rec ../../install)
   (file ../CMakeLists.txt))
  (action
   (run cmake ..)))
@@ -12,7 +14,8 @@
   (alias_rec ../../install)
   (file Makefile)
   (glob_files ../bennet/*.hpp)
-  (glob_files ../bennet/*.cpp))
+  (glob_files ../bennet/*.cpp)
+  (glob_files ../cn-smt/*.cpp))
  (action
   (run make)))
 

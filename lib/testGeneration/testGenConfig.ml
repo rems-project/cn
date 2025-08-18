@@ -2,6 +2,10 @@ type build_tool =
   | Bash
   | Make
 
+type generation_mode =
+  | Concrete (* Backtracking random search *)
+  | Symbolic (* Symbolic constraint-based generation *)
+
 type logging_level =
   | None
   | Error
@@ -36,6 +40,9 @@ type t =
     experimental_learning : bool;
     static_absint : string list;
     smt_pruning : [ `None | `Fast | `Slow ];
+    symbolic : bool;
+    symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
+    max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -75,6 +82,9 @@ let default =
     experimental_learning = false;
     static_absint = [];
     smt_pruning = `None;
+    symbolic = false;
+    symbolic_timeout = None;
+    max_unfolds = None;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -241,3 +251,9 @@ let will_print_size_info () = (Option.get !instance).print_size_info
 let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
 
 let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info
+
+let is_symbolic_enabled () = (Option.get !instance).symbolic
+
+let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
+
+let get_max_unfolds () = (Option.get !instance).max_unfolds

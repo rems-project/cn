@@ -646,7 +646,7 @@ module Make (AD : Domain.T) = struct
       let rec aux (gt : Term.t) : Term.t =
         let (Annot (gt_, (), bt, loc)) = gt in
         match gt_ with
-        | `Arbitrary -> gt
+        | `Arbitrary | `Symbolic -> gt
         | `Pick gts -> Term.pick_ (List.map aux gts) () bt loc
         | `Call (fsym, iargs) ->
           Term.call_ (fsym, List.map partial_eval_it iargs) () bt loc

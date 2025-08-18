@@ -189,6 +189,7 @@ let rules ~filename_base =
             "$^";
             "$(RUNTIME_PREFIX)/libcn_test.a";
             "$(RUNTIME_PREFIX)/libbennet.a";
+            "\"${RUNTIME_PREFIX}/libcn_smt.a\"";
             "$(RUNTIME_PREFIX)/libcn_replica.a";
             "$(RUNTIME_PREFIX)/libcn_exec.a";
             "$(CFLAGS_TEST)"

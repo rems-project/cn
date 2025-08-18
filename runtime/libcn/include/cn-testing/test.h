@@ -298,6 +298,21 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
 #define CN_REGISTER_STATIC_RANDOM_TEST_CASE(Suite, Name, File)                           \
   cn_register_test_case(#Suite, #Name, &CN_STATIC_RANDOM_TEST_NAME(Name, File));
 
+#define CN_RANDOM_TEST_CASE(Suite, Name, FuncName, Samples, ...)                         \
+  CN_RANDOM_TEST_CASE_WITH_CUSTOM_INIT(Suite, Name, FuncName, Samples, , __VA_ARGS__)
+
+#define CN_EXTERN_SYMBOLIC_TEST_CASE(Suite, Name, Samples, ...)                          \
+  CN_RANDOM_TEST_CASE(Suite, Name, Name, Samples, __VA_ARGS__)
+
+#define CN_STATIC_SYMBOLIC_TEST_CASE(Suite, Name, File, Samples, ...)                    \
+  CN_RANDOM_TEST_CASE(Suite, Name, File##_##Name, Samples, __VA_ARGS__)
+
+#define CN_REGISTER_EXTERN_SYMBOLIC_TEST_CASE(Suite, Name)                               \
+  cn_register_test_case(#Suite, #Name, &CN_EXTERN_RANDOM_TEST_NAME(Name));
+
+#define CN_REGISTER_STATIC_SYMBOLIC_TEST_CASE(Suite, Name, File)                         \
+  cn_register_test_case(#Suite, #Name, &CN_STATIC_RANDOM_TEST_NAME(Name, File));
+
 int cn_test_main(int argc, char* argv[]);
 
 void bennet_reset(void);

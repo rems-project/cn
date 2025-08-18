@@ -1,6 +1,8 @@
 #ifndef BENNET_SIZE_H
 #define BENNET_SIZE_H
 
+#include <sys/time.h>
+
 #include <stdint.h>
 #include <stdlib.h>
 

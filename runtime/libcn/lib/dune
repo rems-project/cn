@@ -69,7 +69,8 @@
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/cn-testing/*.h))
+   (glob_files ../include/cn-testing/*.h)
+   (glob_files ../include/bennet/internals/*.h))
   (:src
    (glob_files ../src/cn-testing/*.c)))
  (action
@@ -101,6 +102,36 @@
   (libcn_exec.a as runtime/libcn_exec.a)
   (libbennet.a as runtime/libbennet.a)
   (libcn_test.a as runtime/libcn_test.a)
-  (libcn_replica.a as runtime/libcn_replica.a))
+  (libcn_replica.a as runtime/libcn_replica.a)
+  (libcn_smt.a as runtime/libcn_smt.a))
  (section lib)
  (package cn))
+
+(rule
+ (target libcn_smt.a)
+ (deps
+  (:headers
+   (glob_files ../include/cn-smt/*.h)
+   (glob_files ../include/bennet/utils/*.h))
+  (:src
+   (glob_files ../src/cn-smt/*.c)))
+ (action
+  (progn
+   (run mkdir -p cn-smt)
+   (chdir
+    cn-smt
+    (run ../compile.sh %{src}))
+   (run
+    ar
+    -rcs
+    %{target}
+    cn-smt/context.o
+    cn-smt/concretize.o
+    cn-smt/eval.o
+    cn-smt/from_smt.o
+    cn-smt/subst.o
+    cn-smt/gather.o
+    cn-smt/terms.o
+    cn-smt/sexp.o
+    cn-smt/solver.o
+    cn-smt/to_smt.o))))

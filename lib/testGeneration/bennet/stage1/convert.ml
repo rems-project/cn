@@ -372,11 +372,9 @@ module Make (AD : Domain.T) = struct
       subst lat
     in
     let here = Locations.other __FUNCTION__ in
-    let oargs =
-      let oargs' =
-        lat |> LAT.free_vars_bts (fun _ -> Sym.Map.empty) |> Sym.Map.bindings
-      in
-      oargs'
+    let vars =
+      let vars' = lat |> LAT.free_vars_bts (fun _ -> Sym.Map.empty) |> Sym.Map.bindings in
+      vars'
       @ (at
          |> AT.get_computational
          |> List.map_fst rename
@@ -385,7 +383,14 @@ module Make (AD : Domain.T) = struct
              (List.mem_assoc
                 (fun x y -> String.equal (Sym.pp_string x) (Sym.pp_string y))
                 x
-                oargs')))
+                vars')))
+    in
+    let iargs, oargs =
+      if Config.is_symbolic_enabled () then
+        (* Symbolic mode: take arguments as inputs, return unit *)
+        (vars, [])
+      else (* Concrete mode: no inputs, return arguments as outputs *)
+        ([], vars)
     in
     let@ gt =
       transform_it_lat
@@ -393,19 +398,12 @@ module Make (AD : Domain.T) = struct
         recursive
         preds
         name
-        Sym.Set.empty
+        (Sym.Set.of_list (List.map fst iargs))
         oargs
         (LAT.map (fun _ -> IT.unit_ here) lat)
     in
     let gd : OptDef.t =
-      { filename;
-        recursive = false;
-        spec = true;
-        name;
-        iargs = [];
-        oargs;
-        body = Some gt
-      }
+      { filename; recursive = false; spec = true; name; iargs; oargs; body = Some gt }
     in
     modify (OptCtx.add gd)
 

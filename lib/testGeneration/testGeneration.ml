@@ -165,11 +165,16 @@ let compile_test (test : Test.t) =
        !^"CN_REGISTER_STATIC_UNIT_TEST_CASE"
      else
        !^"CN_REGISTER_EXTERN_UNIT_TEST_CASE"
-   | Test.Generator ->
+   | Test.RandomGenerator ->
      if test.is_static then
        !^"CN_REGISTER_STATIC_RANDOM_TEST_CASE"
      else
-       !^"CN_REGISTER_EXTERN_RANDOM_TEST_CASE")
+       !^"CN_REGISTER_EXTERN_RANDOM_TEST_CASE"
+   | Test.SymbolicGenerator ->
+     if test.is_static then
+       !^"CN_REGISTER_STATIC_SYMBOLIC_TEST_CASE"
+     else
+       !^"CN_REGISTER_EXTERN_SYMBOLIC_TEST_CASE")
   ^^ parens
        (string test.suite
         ^^ comma
@@ -333,7 +338,11 @@ let save_generators
   =
   let filename_base = filename |> Filename.basename |> Filename.remove_extension in
   let tests_for_generators =
-    List.filter (fun (test : Test.t) -> Test.equal_kind test.kind Test.Generator) tests
+    List.filter
+      (fun (test : Test.t) ->
+         Test.equal_kind test.kind Test.RandomGenerator
+         || Test.equal_kind test.kind Test.SymbolicGenerator)
+      tests
   in
   if List.non_empty tests_for_generators then (
     let generators_doc =

@@ -3,6 +3,7 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module DestructArbitrary = DestructArbitrary.Make (AD)
     module DestructProducts = DestructProducts.Make (AD)
+    module Unfold = Unfold.Make (AD)
   end
 
   module Term = Term.Make (AD)
@@ -13,9 +14,12 @@ module Make (AD : Domain.T) = struct
     tests
     |> Convert.transform filename prog5.resource_predicates
     |> DestructArbitrary.transform prog5
+    |> (if TestGenConfig.is_experimental_product_arg_destruction () then
+          DestructProducts.transform prog5
+        else
+          fun ctx -> ctx)
     |>
-    if TestGenConfig.is_experimental_product_arg_destruction () then
-      DestructProducts.transform prog5
-    else
-      fun ctx -> ctx
+    match TestGenConfig.get_max_unfolds () with
+    | Some max -> Unfold.unfold max
+    | None -> fun ctx -> ctx
 end

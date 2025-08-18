@@ -27,6 +27,13 @@ add_executable(libcn_tests
     bennet/rand.cpp
     bennet/tnum.cpp
     bennet/wint.cpp
+    cn-smt/ast.cpp
+    cn-smt/context.cpp
+    cn-smt/eval.cpp
+    cn-smt/from_smt.cpp
+    cn-smt/subst.cpp
+    cn-smt/sexp.cpp
+    cn-smt/solver.cpp
 )
 
 # Disable narrowing warnings
@@ -50,6 +57,7 @@ target_link_libraries(libcn_tests
     $ENV{OPAM_SWITCH_PREFIX}/lib/cn/runtime/libbennet.a
     $ENV{OPAM_SWITCH_PREFIX}/lib/cn/runtime/libcn_replica.a
     $ENV{OPAM_SWITCH_PREFIX}/lib/cn/runtime/libcn_exec.a
+    $ENV{OPAM_SWITCH_PREFIX}/lib/cn/runtime/libcn_smt.a
 )
 
 # Add tests

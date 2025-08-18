@@ -102,6 +102,7 @@ let link ~filename_base =
              filename_base ^ ".test.o " ^ filename_base ^ ".exec.o";
              "\"${RUNTIME_PREFIX}/libcn_test.a\"";
              "\"${RUNTIME_PREFIX}/libbennet.a\"";
+             "\"${RUNTIME_PREFIX}/libcn_smt.a\"";
              "\"${RUNTIME_PREFIX}/libcn_replica.a\"";
              "\"${RUNTIME_PREFIX}/libcn_exec.a\""
            ]
