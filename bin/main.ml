@@ -1,6 +1,8 @@
 open Cmdliner
 
-let subcommands = [ Wf.cmd; Verify.cmd; Test.cmd; Instrument.cmd; SeqTest.cmd ]
+let subcommands =
+  [ Wf.cmd; Verify.cmd; Test.cmd; Instrument.cmd; SeqTest.cmd; AutoAnnot.cmd ]
+
 
 let () =
   let version_str = Cn_version.git_version ^ " [" ^ Cn_version.git_version_date ^ "]" in

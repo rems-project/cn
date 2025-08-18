@@ -105,6 +105,7 @@ let generate_executable_specs
       print_steps
       max_bump_blocks
       bump_block_size
+      with_auto_annot
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -117,6 +118,7 @@ let generate_executable_specs
   Diagnostics.diag_string := diag;
   Sym.executable_spec_enabled := true;
   Sym.experimental_unions := experimental_unions;
+  Fulminate.Config.with_auto_annot := with_auto_annot;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
@@ -359,6 +361,11 @@ module Flags = struct
   let experimental_curly_braces =
     let doc = "(experimental) Insert curly braces for single-statement control flow" in
     Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
+
+
+  let with_auto_annot =
+    let doc = "Instrument additional information for auto-annot (for debugging)" in
+    Arg.(value & flag & info [ "with-auto-annot" ] ~doc)
 end
 
 let cmd =
@@ -405,6 +412,7 @@ let cmd =
     $ Flags.print_steps
     $ Flags.max_bump_blocks
     $ Flags.bump_block_size
+    $ Flags.with_auto_annot
   in
   let doc =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \
