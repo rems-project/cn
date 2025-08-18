@@ -69,7 +69,8 @@ type t =
     print_size_info : bool;
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
-    print_discard_info : bool
+    print_discard_info : bool;
+    with_auto_annot : bool
   }
 
 let default =
@@ -114,7 +115,8 @@ let default =
     print_size_info = false;
     print_backtrack_info = false;
     print_satisfaction_info = false;
-    print_discard_info = false
+    print_discard_info = false;
+    with_auto_annot = false
   }
 
 
@@ -269,3 +271,5 @@ let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
 let get_max_unfolds () = (Option.get !instance).max_unfolds
 
 let get_max_array_length () = (Option.get !instance).max_array_length
+
+let with_auto_annot () = (Option.get !instance).with_auto_annot

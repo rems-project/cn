@@ -69,7 +69,8 @@ type t =
     print_size_info : bool;
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
-    print_discard_info : bool
+    print_discard_info : bool;
+    with_auto_annot : bool
   }
 
 val default : t
@@ -179,3 +180,5 @@ val has_symbolic_timeout : unit -> int option
 val get_max_unfolds : unit -> int option
 
 val get_max_array_length : unit -> int
+
+val with_auto_annot : unit -> bool

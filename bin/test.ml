@@ -146,6 +146,7 @@ let run_tests
           print_backtrack_info;
           print_satisfaction_info;
           print_discard_info
+          with_auto_annot = false
         }
       in
       TestGeneration.set_config config;
