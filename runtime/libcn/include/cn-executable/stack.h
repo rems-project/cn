@@ -13,12 +13,13 @@
 #define NODE_DEF(NAME, CTYPE)                                                            \
   typedef struct NAME##_node {                                                           \
     CTYPE NAME;                                                                          \
-    NAME##_node *next;                                                                   \
+    struct NAME##_node *next;                                                                   \
   } NAME##_node;
 
 #define STACK_DEF(NAME)                                                                  \
   typedef struct NAME##_stack {                                                          \
     NAME##_node *top;                                                                    \
+    int size; \
   } NAME##_stack;
 
 #define STACK_INIT(NAME)                                                                 \
@@ -42,7 +43,7 @@
   }
 
 #define STACK_POP(NAME, CTYPE)                                                           \
-  static inline CTYPE pop(NAME##_stack s, allocator *allocator) {                        \
+  static inline CTYPE pop(NAME##_stack *s, allocator *allocator) {                        \
     if (s->top) {                                                                        \
       CTYPE elem = s->top->NAME;                                                         \
       NAME##_node *old_top = s->top;                                                     \
