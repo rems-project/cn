@@ -3098,7 +3098,7 @@ let cn_to_ail_resource
     let _, _, e_pointer =
       cn_to_ail_expr filename dts globals spec_mode_opt q.pointer PassBack
     in
-    let itere_res_call_stmt_opt =
+    let iter_res_call_stmt_opt =
       match q.name with
       | Owned (sct, _) ->
         let type_str = Pp.plain (Sctypes.pp sct) in
@@ -3230,8 +3230,8 @@ let cn_to_ail_resource
         in
         let stmts = [ start_assign; while_loop ] in
         let stmts =
-          match (itere_res_call_stmt_opt, spec_mode_opt) with
-          | Some stmt, Some Pre -> stmt :: stmts
+          match (iter_res_call_stmt_opt, spec_mode_opt) with
+          | Some stmt, Some Pre when !Config.with_auto_annot -> stmt :: stmts
           | _ -> stmts
         in
         let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
@@ -3290,8 +3290,8 @@ let cn_to_ail_resource
         in
         let stmts = [ start_assign; while_loop ] in
         let stmts =
-          match (itere_res_call_stmt_opt, spec_mode_opt) with
-          | Some stmt, Some Pre -> stmt :: stmts
+          match (iter_res_call_stmt_opt, spec_mode_opt) with
+          | Some stmt, Some Pre when !Config.with_auto_annot -> stmt :: stmts
           | _ -> stmts
         in
         let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
@@ -3809,6 +3809,7 @@ let cn_to_ail_cnstatement
   | Have _lc -> failwith "TODO Have"
   | Instantiate (_to_instantiate, _it) -> (default_res_for_dest, true)
   | Split_case _ -> (default_res_for_dest, true)
+  | Extract (_, _, _) when not !Config.with_auto_annot -> (default_res_for_dest, true)
   | Extract (_, to_extract, it) ->
     let b, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt it PassBack in
     (match to_extract with
@@ -4349,9 +4350,11 @@ let cn_to_ail_loop_inv
     let stats =
       (bump_alloc_assign
        :: loop_ownership_state.assign
-       :: pop_focus_context_fn_call
-       :: push_focus_context_fn_call
-       :: cond_ss)
+       ::
+       (if !Config.with_auto_annot then
+          pop_focus_context_fn_call :: push_focus_context_fn_call :: cond_ss
+        else
+          cond_ss))
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
       @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
