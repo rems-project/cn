@@ -1,4 +1,4 @@
-#include <cn-autoannot/focus_ctx.h>
+#include <cn-autoannot/auto_annot.h>
 
 #include <inttypes.h>
 #include <limits.h>
@@ -11,7 +11,7 @@
 
 #include <cn-executable/fulminate_alloc.h>
 #include <cn-executable/utils.h>
-#include <cn-autoannot/focus_ctx.h>
+#include <cn-autoannot/auto_annot.h>
 
 // Note(HK):
 // we don't have to care about the difference between Owned/Block here
@@ -29,7 +29,7 @@ void push_focus_context(void) {
     cn_focus_global_context = new_context;
 }
 
-void initialise_focus_context(void) {
+void initialise_focus_context() {
     push_focus_context();
 }
 

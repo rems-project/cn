@@ -66,15 +66,21 @@ let get_ownership_global_init_stats ?(ghost_array_size = 100) () =
                    (ConstantInteger (IConstant (Z.of_int ghost_array_size, Decimal, None))))
             ] ))
   in
-  let cn_initialise_focus_context_fcall =
-    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_focus_context")), []))
+  let log_filename =
+    mk_expr (A.AilEstr (None, [ (Cerb_location.unknown, [ !Autoannot.log_filename ]) ]))
+  in
+  let cn_initialize_auto_annot_fcall =
+    mk_expr
+      A.(
+        AilEcall
+          (mk_expr (AilEident (Sym.fresh "initialize_auto_annot")), [ log_filename ]))
   in
   let fns =
     if !Config.with_auto_annot then
       [ cn_ghost_state_init_fcall;
         cn_ghost_stack_depth_init_fcall;
         cn_ghost_arg_array_alloc_fcall;
-        cn_initialise_focus_context_fcall
+        cn_initialize_auto_annot_fcall
       ]
     else
       [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ]

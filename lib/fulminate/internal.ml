@@ -572,6 +572,13 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
   List.non_empty (get_main sigm)
 
 
+let finalize_auto_annot () =
+  let cn_finalize_auto_annot_fcall =
+    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "finalize_auto_annot")), []))
+  in
+  A.(AilSexpr cn_finalize_auto_annot_fcall)
+
+
 let generate_global_assignments
       ?(experimental_ownership_stack_mode = false)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -609,5 +616,12 @@ let generate_global_assignments
              :: global_map_stmts_) )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
+    let global_unmapping_stmts_ =
+      if !Config.with_auto_annot then (
+        let finalize_stmt = finalize_auto_annot () in
+        finalize_stmt :: global_unmapping_stmts_)
+      else
+        global_unmapping_stmts_
+    in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
