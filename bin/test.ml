@@ -190,7 +190,8 @@ let run_tests
           max_input_alloc;
           smt_skew_pointer_order;
           dsl_log_dir;
-          lazy_gen
+          lazy_gen;
+          with_auto_annot = false
         }
       in
       TestGeneration.set_config config;

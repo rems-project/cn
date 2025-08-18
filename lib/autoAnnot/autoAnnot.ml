@@ -3,6 +3,10 @@ module A = CF.AilSyntax
 
 let log_filename = ref "cn_auto_annot.log"
 
+let get_log_filename filename =
+  Filename.(remove_extension (basename filename)) ^ ".autoannot.log"
+
+
 let run_autoannot
       ~_output_dir
       ~_filename
