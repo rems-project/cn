@@ -20,7 +20,7 @@
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   ; AutoAnnot
-  (cn-autoannot/focus_ctx.h as runtime/include/cn-autoannot/focus_ctx.h)
+  (cn-autoannot/auto_annot.h as runtime/include/cn-autoannot/auto_annot.h)
   ; Bennet
   (bennet/compat.h as runtime/include/bennet/compat.h)
   (bennet/prelude.h as runtime/include/bennet/prelude.h)

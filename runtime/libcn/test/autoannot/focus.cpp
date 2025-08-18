@@ -1,4 +1,4 @@
-#include <cn-autoannot/focus_ctx.h>
+#include <cn-autoannot/auto_annot.h>
 #include <gtest/gtest.h>
 
 class LibAutoAnnot : public ::testing::Test {
