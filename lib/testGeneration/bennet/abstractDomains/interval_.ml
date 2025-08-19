@@ -80,6 +80,18 @@ module IntervalBasis = struct
     { bt = bt1; is_bottom = b1 || b2 || Z.lt stop start; start; stop }
 
 
+  let join_many intervals =
+    match intervals with
+    | [] -> failwith "join_many requires a non-empty list"
+    | h :: t -> List.fold_left join h t
+
+
+  let meet_many intervals =
+    match intervals with
+    | [] -> failwith "meet_many requires a non-empty list"
+    | h :: t -> List.fold_left meet h t
+
+
   let handle_overflow bt start stop =
     let min, max = get_extrema bt in
     let stop = if Z.lt start min then max else stop in
@@ -93,11 +105,11 @@ module IntervalBasis = struct
     { bt; is_bottom; start; stop }
 
 
-  let pp ({ bt; is_bottom; start; stop } as b) =
+  let pp ({ bt = _; is_bottom; start; stop } as b) =
     let open Pp in
     if is_bottom then
       !^"⊥"
-    else if equal b (top bt) then
+    else if is_top b then
       !^"⊤"
     else if Z.equal start stop then
       !^(Z.to_string start)
@@ -133,7 +145,143 @@ module IntervalBasis = struct
         let stop = List.fold_left Z.max (List.hd mults) (List.tl mults) in
         let start, stop = handle_overflow b1.bt start stop in
         Some { bt = b1.bt; is_bottom = false; start; stop }
+      | Div ->
+        (* Division - handle division by zero *)
+        if Z.equal b2.start Z.zero && Z.equal b2.stop Z.zero then
+          (* Division by zero interval [0,0] -> bottom *)
+          Some (bottom b1.bt)
+        else if Z.equal b1.start Z.zero && Z.equal b1.stop Z.zero then
+          (* Zero divided by anything (non-zero) -> zero *)
+          Some { bt = b1.bt; is_bottom = false; start = Z.zero; stop = Z.zero }
+        else if Z.leq b2.start Z.zero && Z.geq b2.stop Z.zero then
+          (* Divisor contains zero but is not exactly [0,0] -> conservative: top *)
+          Some (top b1.bt)
+        else (
+          (* Safe division - compute all combinations *)
+          let divs =
+            [ Z.div b1.start b2.start;
+              Z.div b1.start b2.stop;
+              Z.div b1.stop b2.start;
+              Z.div b1.stop b2.stop
+            ]
+          in
+          let start = List.fold_left Z.min (List.hd divs) (List.tl divs) in
+          let stop = List.fold_left Z.max (List.hd divs) (List.tl divs) in
+          let start, stop = handle_overflow b1.bt start stop in
+          Some { bt = b1.bt; is_bottom = false; start; stop })
+      | Mod ->
+        (* Modulo/remainder operation *)
+        if Z.equal b2.start Z.zero && Z.equal b2.stop Z.zero then
+          (* Modulo by zero -> bottom *)
+          Some (bottom b1.bt)
+        else if Z.equal b1.start Z.zero && Z.equal b1.stop Z.zero then
+          (* Zero modulo anything (non-zero) -> zero *)
+          Some { bt = b1.bt; is_bottom = false; start = Z.zero; stop = Z.zero }
+        else if Z.leq b2.start Z.zero && Z.geq b2.stop Z.zero then
+          (* Divisor contains zero but is not exactly [0,0] -> conservative: top *)
+          Some (top b1.bt)
+        else (
+          (* For modulo, result is bounded by |divisor| - 1 *)
+          let max_divisor = Z.max (Z.abs b2.start) (Z.abs b2.stop) in
+          let bound = Z.sub max_divisor Z.one in
+          let start = Z.neg bound in
+          let stop = bound in
+          let start, stop = handle_overflow b1.bt start stop in
+          Some { bt = b1.bt; is_bottom = false; start; stop })
+      | BW_And ->
+        (* Bitwise AND - conservative approximation *)
+        (* For AND, result is bounded by min of the operands *)
+        let start = Z.min (Z.min b1.start b2.start) Z.zero in
+        let stop = Z.min b1.stop b2.stop in
+        let start, stop = handle_overflow b1.bt start stop in
+        Some { bt = b1.bt; is_bottom = false; start; stop }
+      | BW_Or ->
+        (* Bitwise OR - conservative approximation *)
+        (* For OR, result is bounded by max of the operands *)
+        let start = Z.max b1.start b2.start in
+        let stop = Z.max b1.stop b2.stop in
+        let start, stop = handle_overflow b1.bt start stop in
+        Some { bt = b1.bt; is_bottom = false; start; stop }
+      | BW_Xor ->
+        (* Bitwise XOR - very conservative approximation *)
+        (* XOR can produce any value between 0 and max of operands *)
+        let max_val =
+          Z.max
+            (Z.max (Z.abs b1.start) (Z.abs b1.stop))
+            (Z.max (Z.abs b2.start) (Z.abs b2.stop))
+        in
+        let start = Z.neg max_val in
+        let stop = max_val in
+        let start, stop = handle_overflow b1.bt start stop in
+        Some { bt = b1.bt; is_bottom = false; start; stop }
+      | ShiftLeft ->
+        (* Left shift: x << y *)
+        if Z.lt b2.start Z.zero then (* Negative shift -> top *)
+          Some (top b1.bt)
+        else if Z.equal b1.start Z.zero && Z.equal b1.stop Z.zero then
+          (* 0 << anything = 0 *)
+          Some { bt = b1.bt; is_bottom = false; start = Z.zero; stop = Z.zero }
+        else (
+          (* Conservative: multiply by 2^shift_amount *)
+          let min_shift = Z.max b2.start Z.zero in
+          let max_shift = Z.max b2.stop Z.zero in
+          let min_mult = Z.pow (Z.of_int 2) (Z.to_int min_shift) in
+          let max_mult = Z.pow (Z.of_int 2) (Z.to_int max_shift) in
+          let shifts =
+            [ Z.mul b1.start min_mult;
+              Z.mul b1.start max_mult;
+              Z.mul b1.stop min_mult;
+              Z.mul b1.stop max_mult
+            ]
+          in
+          let start = List.fold_left Z.min (List.hd shifts) (List.tl shifts) in
+          let stop = List.fold_left Z.max (List.hd shifts) (List.tl shifts) in
+          let start, stop = handle_overflow b1.bt start stop in
+          Some { bt = b1.bt; is_bottom = false; start; stop })
+      | ShiftRight ->
+        (* Right shift: x >> y *)
+        if Z.lt b2.start Z.zero then (* Negative shift -> top *)
+          Some (top b1.bt)
+        else if Z.equal b1.start Z.zero && Z.equal b1.stop Z.zero then
+          (* 0 >> anything = 0 *)
+          Some { bt = b1.bt; is_bottom = false; start = Z.zero; stop = Z.zero }
+        else (
+          (* Conservative: divide by 2^shift_amount *)
+          let min_shift = Z.max b2.start Z.zero in
+          let max_shift = Z.max b2.stop Z.zero in
+          let min_div = Z.pow (Z.of_int 2) (Z.to_int min_shift) in
+          let max_div = Z.pow (Z.of_int 2) (Z.to_int max_shift) in
+          let shifts =
+            [ Z.div b1.start min_div;
+              Z.div b1.start max_div;
+              Z.div b1.stop min_div;
+              Z.div b1.stop max_div
+            ]
+          in
+          let start = List.fold_left Z.min (List.hd shifts) (List.tl shifts) in
+          let stop = List.fold_left Z.max (List.hd shifts) (List.tl shifts) in
+          let start, stop = handle_overflow b1.bt start stop in
+          Some { bt = b1.bt; is_bottom = false; start; stop })
       | _ -> None)
+
+
+  let cast (interval : t) (target_bt : BT.t) : t =
+    if is_bottom interval then
+      bottom target_bt
+    else if not (supported target_bt) then
+      top target_bt
+    else (
+      let target_min, target_max = get_extrema target_bt in
+      let clamped_start = Z.max target_min (Z.min target_max interval.start) in
+      let clamped_stop = Z.max target_min (Z.min target_max interval.stop) in
+      (* Check for overflow: if the original interval extends beyond target range *)
+      let has_overflow =
+        Z.lt interval.start target_min || Z.gt interval.stop target_max
+      in
+      if has_overflow then
+        top target_bt
+      else
+        { bt = target_bt; is_bottom = false; start = clamped_start; stop = clamped_stop })
 
 
   let forward_abs_it (it : IT.t) (b_args : t list) : t option =
@@ -157,6 +305,13 @@ module IntervalBasis = struct
                ^^ parens (BT.pp b2.bt)));
         failwith __LOC__);
       forward_abs_binop op b1 b2
+    | Cast (_, _) ->
+      let source_interval =
+        match b_args with
+        | [ interval ] -> interval
+        | _ -> failwith "Cast requires exactly one argument"
+      in
+      Some (cast source_interval bt)
     | _ -> None
 
 

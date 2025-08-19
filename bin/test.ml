@@ -473,9 +473,15 @@ module Flags = struct
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
-       comma-separated list). (e.g., 'interval')"
+       comma-separated list). (e.g., 'interval', 'wrapped_interval')"
     in
-    Arg.(value & opt (some string) None & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+    Arg.(
+      value
+      & opt
+          (list
+             (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
+          []
+      & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
 
 
   let print_size_info =

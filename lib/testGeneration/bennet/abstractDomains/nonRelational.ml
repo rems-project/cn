@@ -25,6 +25,10 @@ module type BASIS = sig
 
   val meet : t -> t -> t
 
+  val join_many : t list -> t
+
+  val meet_many : t list -> t
+
   val of_interval : BT.t -> Z.t -> Z.t -> t
 
   val forward_abs_it : IT.t -> t list -> t option

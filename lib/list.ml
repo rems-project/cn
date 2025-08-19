@@ -79,3 +79,11 @@ let find_index pred xs =
     | x :: xs -> if pred x then Some idx else aux (idx + 1) xs
   in
   aux 0 xs
+
+
+let take n l =
+  let[@tail_mod_cons] rec aux n l =
+    match (n, l) with 0, _ | _, [] -> [] | n, x :: l -> x :: aux (n - 1) l
+  in
+  if n < 0 then invalid_arg "List.take";
+  aux n l

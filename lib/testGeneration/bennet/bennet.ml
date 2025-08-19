@@ -30,13 +30,9 @@ let debug_stage (stage : string) (str : string) : unit =
   debug_log (str ^ "\n\n")
 
 
-let parse_domain (s : string option) : (module Domain.T) =
-  let s = Option.value ~default:"" s in
-  (* Split by comma and trim whitespace *)
+let parse_domain (s : string list) : (module Domain.T) =
   let domain_names =
-    String.split_on_char ',' s
-    |> List.map String.trim
-    |> List.filter (fun x -> String.length x > 0)
+    s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
   in
   (* Parse individual domain names *)
   let parse_single_domain (name : string) : (module Domain.T) option =
@@ -46,6 +42,8 @@ let parse_domain (s : string option) : (module Domain.T) =
       None
     | _ when String.equal name AbstractDomains.Interval.name ->
       Some (module AbstractDomains.Interval)
+    | _ when String.equal name AbstractDomains.WrappedInterval.name ->
+      Some (module AbstractDomains.WrappedInterval)
     | _ ->
       Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
       None
@@ -67,7 +65,7 @@ let parse_domain (s : string option) : (module Domain.T) =
 
 let test_setup () : Pp.document =
   let open Pp in
-  let module AD = (val parse_domain (TestGenConfig.get_static_absint_domain ())) in
+  let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
   let module CG = Domain.CodeGen (AD.CInt) in
   !^"#include <bennet/prelude.h>" ^^ hardline ^^ CG.setup ()
 
@@ -80,7 +78,7 @@ let synthesize
       (tests : Test.t list)
   : Pp.document
   =
-  let module AD = (val parse_domain (TestGenConfig.get_static_absint_domain ())) in
+  let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
   let module Stage1 = Stage1.Make (AD) in
   let ctx = Stage1.transform filename prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);

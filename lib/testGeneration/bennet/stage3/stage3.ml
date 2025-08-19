@@ -14,7 +14,7 @@ module Make (AD : Domain.T) = struct
     ctx
     |> Convert.transform
     |>
-    if TestGenConfig.has_static_absint () then
+    if List.non_empty (TestGenConfig.has_static_absint ()) then
       fun ctx -> ctx |> AI.annotate |> SpecializeDomain.transform
     else
       fun ctx -> ctx
