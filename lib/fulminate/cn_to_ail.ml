@@ -3787,8 +3787,7 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
         (AilEcall
            ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
              [ mk_expr
-                 (AilEconst
-                    (ConstantInteger (IConstant (Z.of_int (i + 1), Decimal, None))));
+                 (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
                e
              ] ))
     in
@@ -3817,17 +3816,31 @@ let ail_of_enum_member_id enum_id =
   mk_expr A.(AilEident sym)
 
 
+let ghost_call_site_sym = Sym.fresh "ghost_call_site"
+
 let cn_ghost_enum_sym = Sym.fresh "CN_GHOST_ENUM"
+
+let ghost_enum_type = mk_ctype C.(Basic (Integer (Enum cn_ghost_enum_sym)))
+
+let cleared_enum_member_id loc = Id.make loc "CLEARED"
+
+let ghost_call_site_global_decl =
+  let ghost_call_site_binding = create_binding ghost_call_site_sym ghost_enum_type in
+  ([ ghost_call_site_binding ], [ A.(AilSdeclaration [ (ghost_call_site_sym, None) ]) ])
+
 
 let cn_to_ail_ghost_enum spec_bts ghost_argss =
   let here = Locations.other __LOC__ in
+  let cleared_enum_member_id = cleared_enum_member_id here in
   let empty_enum_member_id = Id.make here "EMPTY" in
   let ghost_spec_enum_member_ids = List.map ghost_enum_member_id spec_bts in
   let ghost_argss_enum_member_ids =
     List.map ghost_enum_member_id_ghost_args ghost_argss
   in
   let enum_member_ids_with_duplicates =
-    [ empty_enum_member_id ] @ ghost_spec_enum_member_ids @ ghost_argss_enum_member_ids
+    [ cleared_enum_member_id; empty_enum_member_id ]
+    @ ghost_spec_enum_member_ids
+    @ ghost_argss_enum_member_ids
   in
   let enum_member_ids = List.sort_uniq Id.compare enum_member_ids_with_duplicates in
   let attr : CF.Annot.attribute =
@@ -3844,18 +3857,13 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
 
 
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
-  let add_to_ghost_array_call =
-    mk_expr
-      (AilEcall
-         ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
-           [ mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))));
-             mk_expr
-               (AilEcast
-                  ( C.no_qualifiers,
-                    C.mk_ctype_pointer C.no_qualifiers (mk_ctype C.Void),
-                    ail_of_enum_member_id (ghost_enum_member_id_ghost_args ghost_args) ))
-             (* TODO: check this cast is okay *)
-           ] ))
+  let ghost_call_site_rhs =
+    ail_of_enum_member_id (ghost_enum_member_id_ghost_args ghost_args)
+  in
+  let ghost_call_site_decl =
+    A.AilSexpr
+      (mk_expr
+         (A.AilEassign (mk_expr (A.AilEident ghost_call_site_sym), ghost_call_site_rhs)))
   in
   let bs, ss =
     List.split
@@ -3874,9 +3882,7 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
       ( List.concat bs,
         List.map
           mk_stmt
-          ([ A.AilSexpr add_to_ghost_array_call ]
-           @ List.concat ss
-           @ [ dummy_expr_as_stat ]) )
+          ([ ghost_call_site_decl ] @ List.concat ss @ [ dummy_expr_as_stat ]) )
   in
   ([], [ A.AilSexpr (mk_expr ail_gcc_stmt) ])
 
@@ -4398,8 +4404,24 @@ let rec cn_to_ail_pre_post_aux
         c_return_type
         lat
     in
+    let clear_ghost_call_site_binding =
+      create_binding ghost_call_site_sym ghost_enum_type
+    in
+    let here = Locations.other __LOC__ in
+    let clear_ghost_call_site_rhs = ail_of_enum_member_id (cleared_enum_member_id here) in
+    let clear_ghost_call_site_decl =
+      A.AilSexpr
+        (mk_expr
+           (A.AilEassign
+              (mk_expr (A.AilEident ghost_call_site_sym), clear_ghost_call_site_rhs)))
+    in
+    let ail_executable_spec =
+      prepend_to_precondition
+        ail_executable_spec
+        ([ clear_ghost_call_site_binding ], [ clear_ghost_call_site_decl ])
+    in
     let clear_ghost_array_fn_str = "clear_ghost_array" in
-    let decl =
+    let clear_ghost_array_decl =
       A.(
         AilSexpr
           (mk_expr
@@ -4414,7 +4436,7 @@ let rec cn_to_ail_pre_post_aux
                                  None ))))
                   ] ))))
     in
-    ([], prepend_to_precondition ail_executable_spec ([], [ decl ]))
+    ([], prepend_to_precondition ail_executable_spec ([], [ clear_ghost_array_decl ]))
 
 
 let cn_to_ail_pre_post
@@ -4437,11 +4459,10 @@ let cn_to_ail_pre_post
         preds
         globals
         c_return_type
-        1
+        0
         ghost_array_size_opt
         internal
     in
-    let ghost_call_site_sym = Sym.fresh "ghost_call_site" in
     let ghost_spec_sym = Sym.fresh "ghost_spec" in
     let ghost_type_checking_stat =
       A.AilSif
@@ -4459,17 +4480,6 @@ let cn_to_ail_pre_post
     in
     let ail_executable_spec =
       prepend_to_precondition ail_executable_spec ([], [ ghost_type_checking_stat ])
-    in
-    let ghost_enum_type = mk_ctype C.(Basic (Integer (Enum cn_ghost_enum_sym))) in
-    let ghost_call_site_binding = create_binding ghost_call_site_sym ghost_enum_type in
-    let ghost_call_site_rhs = wrap_with_load_from_ghost_array ghost_enum_type 0 in
-    let ghost_call_site_decl =
-      A.(AilSdeclaration [ (ghost_call_site_sym, Some (mk_expr ghost_call_site_rhs)) ])
-    in
-    let ail_executable_spec =
-      prepend_to_precondition
-        ail_executable_spec
-        ([ ghost_call_site_binding ], [ ghost_call_site_decl ])
     in
     let ghost_spec_binding = create_binding ghost_spec_sym ghost_enum_type in
     let (AnnotatedExpression (_, _, _, ghost_spec_rhs)) =

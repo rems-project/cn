@@ -250,6 +250,9 @@ val cn_to_ail_assume_pre
   AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
 
+val ghost_call_site_global_decl
+  : AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
+
 val cn_to_ail_ghost_enum
   :  unit BaseTypes.t_gen list list ->
   IndexTerms.t Cnprog.t list list ->
