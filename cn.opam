@@ -21,6 +21,7 @@ depends: [
   "cmdliner"
   "ocamlgraph"
   "zarith" {>= "1.13"}
+  "z3"
 ]
 pin-depends: [
   ["cerberus-lib.dev" "git+https://github.com/rems-project/cerberus.git#9f8f2d375"]

@@ -34,20 +34,94 @@ let generate_focus_annot_aux filename line assignments_list : unit =
     |> List.map (fun (a : assignment) -> a.accessor)
     |> List.sort_uniq String.compare
   in
-  (* Sanity check: all occurrences have the same variable set *)
+  (* Sanity: all occurrences have the same variable set *)
   let all_unique =
-    List.for_all (fun x -> not (List.exists (String.equal x) variables)) variables
+    List.for_all
+      (fun x ->
+         List.fold_left
+           (fun acc y -> if String.equal x y then acc + 1 else acc)
+           0
+           variables
+         = 1)
+      variables
   in
   if not all_unique then
-    failwith "AutoAnnot: inconsistent environments";
-  (* Build values per variable across occurrences *)
-  let tbl : (string, int list) Hashtbl.t = Hashtbl.create (List.length variables) in
-  List.iter (fun v -> Hashtbl.replace tbl v []) variables;
-  let add_value v n = Hashtbl.replace tbl v (n :: Hashtbl.find tbl v) in
-  let lookup_value v env = (List.find (fun a -> String.equal a.accessor v) env).value in
-  List.iter
-    (fun env -> List.iter (fun v -> lookup_value v env |> add_value v) variables)
-    assignments_list
+    failwith "AutoAnnot: inconsistent environment";
+  (* Create a template *)
+  (* like ax + by + c = 0, and try to find a, b, and c *)
+  (* For [[x = 1; y = 2]; [ x = 2; y = 4]] *)
+  (* generate a * 1 + b * 2 + c = 0 /\ a * 2 + b * 4 + c = 0 *)
+  (* and find a, b, and c that satisfy the above using Z3 Optimize *)
+  let open Z3 in
+  let ctx = Z3.mk_context [ ("model", "true") ] in
+  let opt = Optimize.mk_opt ctx in
+  let i_k n = Arithmetic.Integer.mk_numeral_i ctx n in
+  let mk_int name = Arithmetic.Integer.mk_const_s ctx name in
+  let zero = i_k 0 in
+  let add = Arithmetic.mk_add ctx in
+  let mul x y = Arithmetic.mk_mul ctx [ x; y ] in
+  let neg x = Arithmetic.mk_unary_minus ctx x in
+  let ge = Arithmetic.mk_ge ctx in
+  let eq = Boolean.mk_eq ctx in
+  (* constant *)
+  let w0 = mk_int "w0" in
+  (* coefficients *)
+  let coeffs = List.map (fun v -> (v, mk_int ("w_" ^ v))) variables in
+  (* For each sample env, assert: w0 + sum(w_v * val_v) = 0 *)
+  let value_of v (env : assignment list) =
+    (List.find (fun a -> String.equal a.accessor v) env).value
+  in
+  let sum_terms env =
+    let terms = List.map (fun (v, wv) -> mul wv (i_k (value_of v env))) coeffs in
+    add (w0 :: terms)
+  in
+  List.iter (fun env -> Optimize.add opt [ eq (sum_terms env) zero ]) assignments_list;
+  (* L1 norm: minimize t_v where t_v >= w_v and t_v >= -w_v*)
+  let ts =
+    List.map
+      (fun (v, wv) ->
+         let tv = mk_int ("t_" ^ v) in
+         Optimize.add opt [ ge tv wv; ge tv (neg wv) ];
+         tv)
+      coeffs
+  in
+  let objective = add ts in
+  ignore (Optimize.minimize opt objective : Optimize.handle);
+  (* Solve and read model *)
+  match Optimize.check opt with
+  | Solver.SATISFIABLE ->
+    let m = Optimize.get_model opt in
+    let get_int e =
+      let m = match m with Some m -> m | None -> failwith "No model found" in
+      match Model.eval m e true with
+      | None -> 0
+      | Some v -> int_of_string (Expr.to_string v)
+    in
+    let w0_v = get_int w0 in
+    let coeff_vals = List.map (fun (v, wv) -> (v, get_int wv)) coeffs in
+    Pp.(
+      debug
+        10
+        (lazy
+          (item
+             "AutoAnnot: inferred relation"
+             (string
+                ("0 = "
+                 ^ string_of_int w0_v
+                 ^ String.concat
+                     ""
+                     (List.map
+                        (fun (v, c) -> " + (" ^ string_of_int c ^ " * " ^ v ^ ")")
+                        coeff_vals))))));
+    ()
+  | Solver.UNSATISFIABLE | Solver.UNKNOWN ->
+    Pp.(
+      debug
+        5
+        (lazy
+          (item
+             "AutoAnnot: no relation found"
+             (string (filename ^ ":" ^ string_of_int line)))))
 
 
 let generate_focus_annot (annots : focus list) : unit =
