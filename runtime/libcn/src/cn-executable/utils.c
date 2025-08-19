@@ -333,7 +333,7 @@ void cn_add_to_loop_ownership_state(
 
 void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
   for (loop_ownership_nd* nd = loop_ownership->head; nd; nd = nd->next)
-    ownership_ghost_state_set_depth(nd->addr, nd->size, cn_stack_depth);
+    ownership_ghost_state_set(nd->addr, nd->size, cn_stack_depth, 0);
 }
 
 int ownership_ghost_state_get_depth(int64_t address) {
@@ -342,20 +342,29 @@ int ownership_ghost_state_get_depth(int64_t address) {
   return entry_maybe ? entry_maybe->depth : UNMAPPED_VAL;
 }
 
-void ownership_ghost_state_set_depth(int64_t address, size_t size, int stack_depth_val) {
+void ownership_ghost_state_set(int64_t address,
+    size_t size,
+    int stack_depth_val,
+    struct cn_error_message_info* error_message_info) {
   for (int64_t k = address; k < address + size; k++) {
     ownership_ghost_state_info* new_entry =
         (ownership_ghost_state_info*)ht_get(cn_ownership_global_ghost_state, &k);
     if (!new_entry) {
       new_entry = fulm_malloc(sizeof(ownership_ghost_state_info), &fulm_default_alloc);
+      new_entry->source_loc_stack = cn_source_location_stack_init(&fulm_default_alloc);
     }
     new_entry->depth = stack_depth_val;
+    if (error_message_info) {
+      cn_source_location_stack_push(new_entry->source_loc_stack,
+          error_message_info->cn_source_loc,
+          &fulm_default_alloc);
+    }
     ht_set(cn_ownership_global_ghost_state, &k, new_entry);
   }
 }
 
 void ownership_ghost_state_remove(int64_t address, size_t size) {
-  ownership_ghost_state_set_depth(address, size, UNMAPPED_VAL);
+  ownership_ghost_state_set(address, size, UNMAPPED_VAL, 0);
 }
 
 _Bool is_wildcard(void* generic_c_ptr, int offset) {
@@ -371,18 +380,21 @@ _Bool is_wildcard(void* generic_c_ptr, int offset) {
   return 1;
 }
 
-void cn_get_ownership(void* generic_c_ptr, size_t size) {
+void cn_get_ownership(
+    void* generic_c_ptr, size_t size, struct cn_error_message_info* error_message_info) {
   /* Used for precondition and loop invariant taking/getting of ownership */
   c_ownership_check(
       "Precondition ownership check", generic_c_ptr, (int)size, cn_stack_depth - 1);
-  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
+  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth, error_message_info);
 }
 
-void cn_loop_get_ownership(
-    void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
+void cn_loop_get_ownership(void* generic_c_ptr,
+    size_t size,
+    struct loop_ownership* loop_ownership,
+    struct cn_error_message_info* error_message_info) {
   c_ownership_check(
       "Loop invariant ownership check", generic_c_ptr, (int)size, cn_stack_depth);
-  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
+  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1, error_message_info);
   if (loop_ownership) {
     cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
   } else {
@@ -400,13 +412,13 @@ void cn_put_ownership(void* generic_c_ptr, size_t size) {
   //// print_error_msg_info();
   c_ownership_check(
       "Postcondition ownership check", generic_c_ptr, (int)size, cn_stack_depth);
-  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
+  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1, 0);
 }
 
 void fulminate_assume_ownership(
     void* generic_c_ptr, unsigned long size, char* fun, _Bool wildcard) {
   signed long depth = wildcard ? WILDCARD_DEPTH : cn_stack_depth;
-  ownership_ghost_state_set_depth((uintptr_t)generic_c_ptr, size, depth);
+  ownership_ghost_state_set((uintptr_t)generic_c_ptr, size, depth, 0);
   /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
   /*        ((uintptr_t) generic_c_ptr) + i, fun); */
 }
@@ -420,14 +432,13 @@ void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
 void cn_get_or_put_ownership(enum spec_mode spec_mode,
     void* generic_c_ptr,
     size_t size,
-    struct loop_ownership* loop_ownership
-    // struct cn_error_message_info* error_message_info
-) {
+    struct loop_ownership* loop_ownership,
+    struct cn_error_message_info* error_message_info) {
   nr_owned_predicates++;
   if (!is_wildcard(generic_c_ptr, (int)size)) {
     switch (spec_mode) {
       case PRE: {
-        cn_get_ownership(generic_c_ptr, size);
+        cn_get_ownership(generic_c_ptr, size, error_message_info);
         break;
       }
       case POST: {
@@ -435,7 +446,7 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
         break;
       }
       case LOOP: {
-        cn_loop_get_ownership(generic_c_ptr, size, loop_ownership);
+        cn_loop_get_ownership(generic_c_ptr, size, loop_ownership, error_message_info);
       }
       default: {
         break;
@@ -444,9 +455,13 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
   }
 }
 
-void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth) {
+void c_add_to_ghost_state(void* ptr_to_local,
+    size_t size,
+    signed long stack_depth,
+    struct cn_error_message_info* error_message_info) {
   // cn_printf(CN_LOGGING_INFO, "[C access checking] add local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
-  ownership_ghost_state_set_depth((uintptr_t)ptr_to_local, size, stack_depth);
+  ownership_ghost_state_set(
+      (uintptr_t)ptr_to_local, size, stack_depth, error_message_info);
 }
 
 void c_remove_from_ghost_state(void* ptr_to_local, size_t size) {
