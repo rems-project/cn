@@ -56,6 +56,7 @@
 
 #define BV_C(cty, const)                                                                 \
   _Generic((cty)0,                                                                       \
+      uintptr_t: UINTPTR_C(const),                                                       \
       uint8_t: UINT8_C(const),                                                           \
       uint16_t: UINT16_C(const),                                                         \
       uint32_t: UINT32_C(const),                                                         \
