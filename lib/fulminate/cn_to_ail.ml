@@ -4454,11 +4454,7 @@ let cn_to_ail_pre_post
             (A.AilSexpr
                (mk_expr
                   (A.AilEcall
-                     ( mk_expr (A.AilEident (Sym.fresh "exit")),
-                       [ mk_expr
-                           (AilEconst
-                              (ConstantInteger (IConstant (Z.of_int 1, Decimal, None))))
-                       ] )))),
+                     (mk_expr (A.AilEident (Sym.fresh "cn_ghost_arg_failure")), [])))),
           mk_stmt A.AilSskip )
     in
     let ail_executable_spec =
