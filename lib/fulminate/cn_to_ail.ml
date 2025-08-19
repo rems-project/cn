@@ -254,7 +254,7 @@ let rec cn_to_ail_base_type ?pred_sym:(_ = None) cn_typ =
     | Some typedef_str -> [ CF.Annot.Atypedef (Sym.fresh typedef_str) ]
     | None -> []
   in
-  (* TODO: What is the optional second pair element for? Have just put None for now *)
+  (* TODO: What is the optional second pair element for? Have just put None for now. *)
   let generate_ail_array bt = C.(Array (cn_to_ail_base_type bt, None)) in
   let typ =
     match cn_typ with
