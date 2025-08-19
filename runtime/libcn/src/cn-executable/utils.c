@@ -53,6 +53,7 @@ void cn_failure_default(enum cn_failure_mode failure_mode, enum spec_mode spec_m
     case CN_FAILURE_ASSERT:
     case CN_FAILURE_CHECK_OWNERSHIP:
     case CN_FAILURE_OWNERSHIP_LEAK:
+    case CN_FAILURE_GHOST_ARGS:
       exit(exit_code);
   }
 }
@@ -803,4 +804,12 @@ void clear_ghost_array(int ghost_array_size) {
 
 void* load_from_ghost_array(int i) {
   return ghost_arg_array[i];
+}
+
+void cn_ghost_arg_failure(void) {
+  cn_printf(CN_LOGGING_ERROR, "Runtime typechecking of ghost arguments failed\n")
+      cn_printf(CN_LOGGING_ERROR,
+          "************************************************************\n")
+          print_error_msg_info(error_msg_info);
+  cn_failure(CN_FAILURE_GHOST_ARGS, PRE);
 }
