@@ -3829,8 +3829,7 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
   let enum_member_ids_with_duplicates =
     [ empty_enum_member_id ] @ ghost_spec_enum_member_ids @ ghost_argss_enum_member_ids
   in
-  let module IdSet = Set.Make (Id) in
-  let enum_member_ids = IdSet.to_list (IdSet.of_list enum_member_ids_with_duplicates) in
+  let enum_member_ids = List.sort_uniq Id.compare enum_member_ids_with_duplicates in
   let attr : CF.Annot.attribute =
     { attr_ns = None; attr_id = Id.make here "enum"; attr_args = [] }
   in
