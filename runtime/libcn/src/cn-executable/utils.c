@@ -516,6 +516,7 @@ void c_ownership_check(char* access_kind,
         ownership_ghost_state_get((uintptr_t)generic_c_ptr + i);
     int curr_depth = entry_maybe ? entry_maybe->depth : UNMAPPED_VAL;
     if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
+      cn_printf(CN_LOGGING_ERROR, "entering owned locations stack printer\n");
       if (entry_maybe && entry_maybe->source_loc_stack) {
         print_owned_calls_stack(entry_maybe->source_loc_stack);
       }
