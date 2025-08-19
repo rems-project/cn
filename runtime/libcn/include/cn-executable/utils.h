@@ -577,14 +577,10 @@ void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
 void cn_get_or_put_ownership(enum spec_mode spec_mode,
     void *generic_c_ptr,
     size_t size,
-    struct loop_ownership *loop_ownership,
-    struct cn_error_message_info *error_message_info);
+    struct loop_ownership *loop_ownership);
 
 /* C ownership checking */
-void c_add_to_ghost_state(void *ptr_to_local,
-    size_t size,
-    signed long stack_depth,
-    struct cn_error_message_info *error_message_info);
+void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth);
 void c_remove_from_ghost_state(void *ptr_to_local, size_t size);
 void c_ownership_check(
     char *access_kind, void *generic_c_ptr, int offset, signed long expected_stack_depth);
