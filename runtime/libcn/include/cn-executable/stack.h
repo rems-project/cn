@@ -20,7 +20,8 @@
   }
 
 #define STACK_PUSH(NAME, CTYPE)                                                          \
-  static inline void push(NAME##_stack *s, CTYPE elem, allocator *allocator) {           \
+  static inline void NAME##_stack_push(                                                  \
+      NAME##_stack *s, CTYPE elem, allocator *allocator) {                               \
     NAME##_node *node = (NAME##_node *)allocator->malloc(sizeof(NAME##_node));           \
     node->NAME = elem;                                                                   \
     if (!s->top) {                                                                       \
@@ -33,7 +34,7 @@
   }
 
 #define STACK_POP(NAME, CTYPE)                                                           \
-  static inline CTYPE pop(NAME##_stack *s, allocator *allocator) {                       \
+  static inline CTYPE NAME##_stack_pop(NAME##_stack *s, allocator *allocator) {          \
     if (s->top) {                                                                        \
       CTYPE elem = s->top->NAME;                                                         \
       NAME##_node *old_top = s->top;                                                     \
@@ -46,7 +47,7 @@
   }
 
 #define STACK_SIZE(NAME)                                                                 \
-  static inline int size(NAME##_stack *s) {                                              \
+  static inline int NAME##_stack_size(NAME##_stack *s) {                                 \
     return s->size;                                                                      \
   }
 
