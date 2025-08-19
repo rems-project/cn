@@ -76,14 +76,6 @@ void initialise_error_msg_info_(
 void reset_error_msg_info();
 void free_error_msg_info();
 
-GEN_ALL_STACK(cn_source_location, char *);
-
-/* TODO: Implement */
-/*struct cn_error_messages {
-    struct cn_error_message_info *top_level_error_msg_info;
-    struct cn_error_message_info *nested_error_msg_info;
-};*/
-
 void update_error_message_info_(
     const char *function_name, char *file_name, int line_number, char *cn_source_loc);
 
@@ -94,6 +86,23 @@ void cn_pop_msg_info();
 
 #define update_cn_error_message_info_access_check(x)                                     \
   update_error_message_info_(__func__, __FILE__, __LINE__, x)
+
+// typedef struct cn_source_location_node {
+//     char *cn_source_location;
+//     cn_source_location_node *next;
+// } cn_source_location_node;
+
+// typedef struct cn_source_location_stack {
+//     struct cn_source_location_node *top;
+//     int size;
+// } cn_source_location_stack;
+
+GEN_ALL_STACK(cn_source_location, char *);
+
+typedef struct ownership_ghost_state_info {
+  int depth;
+  // cn_source_location_stack *source_loc_stack;
+} ownership_ghost_state_info;
 
 /* Wrappers for C types */
 
@@ -549,8 +558,8 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-int ownership_ghost_state_get(int64_t address);
-void ownership_ghost_state_set(int64_t address, size_t size, int stack_depth_val);
+int ownership_ghost_state_get_depth(int64_t address);
+void ownership_ghost_state_set_depth(int64_t address, size_t size, int stack_depth_val);
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
@@ -558,8 +567,9 @@ void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
 void cn_get_or_put_ownership(enum spec_mode spec_mode,
     void *generic_c_ptr,
     size_t size,
-    struct loop_ownership *loop_ownership,
-    struct cn_error_message_info *error_message_info);
+    struct loop_ownership *loop_ownership
+    // struct cn_error_message_info *error_message_info
+);
 
 /* C ownership checking */
 void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth);

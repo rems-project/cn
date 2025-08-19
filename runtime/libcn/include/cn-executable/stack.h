@@ -1,25 +1,15 @@
 #include "fulminate_alloc.h"
 
-// typedef struct cn_source_location_node {
-//     char *cn_source_location;
-//     cn_source_location_node *next;
-// }cn_source_location_node;
-
-// typedef struct cn_source_location_stack {
-//     cn_source_location_node *top;
-//     int size;
-// } cn_source_location_stack;
-
 #define NODE_DEF(NAME, CTYPE)                                                            \
   typedef struct NAME##_node {                                                           \
     CTYPE NAME;                                                                          \
-    struct NAME##_node *next;                                                                   \
+    struct NAME##_node *next;                                                            \
   } NAME##_node;
 
 #define STACK_DEF(NAME)                                                                  \
   typedef struct NAME##_stack {                                                          \
     NAME##_node *top;                                                                    \
-    int size; \
+    int size;                                                                            \
   } NAME##_stack;
 
 #define STACK_INIT(NAME)                                                                 \
@@ -43,7 +33,7 @@
   }
 
 #define STACK_POP(NAME, CTYPE)                                                           \
-  static inline CTYPE pop(NAME##_stack *s, allocator *allocator) {                        \
+  static inline CTYPE pop(NAME##_stack *s, allocator *allocator) {                       \
     if (s->top) {                                                                        \
       CTYPE elem = s->top->NAME;                                                         \
       NAME##_node *old_top = s->top;                                                     \
