@@ -87,23 +87,6 @@ void cn_pop_msg_info();
 #define update_cn_error_message_info_access_check(x)                                     \
   update_error_message_info_(__func__, __FILE__, __LINE__, x)
 
-// typedef struct cn_source_location_node {
-//     char *cn_source_location;
-//     cn_source_location_node *next;
-// } cn_source_location_node;
-
-// typedef struct cn_source_location_stack {
-//     struct cn_source_location_node *top;
-//     int size;
-// } cn_source_location_stack;
-
-GEN_ALL_STACK(cn_source_location, char *);
-
-typedef struct ownership_ghost_state_info {
-  int depth;
-  cn_source_location_stack *source_loc_stack;
-} ownership_ghost_state_info;
-
 /* Wrappers for C types */
 
 /* Signed bitvectors */
@@ -558,11 +541,35 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
+// typedef struct cn_source_location_node {
+//     char *cn_source_location;
+//     cn_source_location_node *next;
+// } cn_source_location_node;
+
+// typedef struct cn_source_location_stack {
+//     struct cn_source_location_node *top;
+//     int size;
+// } cn_source_location_stack;
+
+GEN_ALL_STACK(cn_source_location, char *);
+
+typedef struct ownership_ghost_state_info {
+  int depth;
+  cn_source_location_stack *source_loc_stack;
+} ownership_ghost_state_info;
+
+enum STACK_OP {
+  PUSH,
+  POP,
+  NO_OP
+};
+
 int ownership_ghost_state_get_depth(int64_t address);
 void ownership_ghost_state_set(int64_t address,
     size_t size,
     int stack_depth_val,
-    struct cn_error_message_info *error_message_info);
+    struct cn_error_message_info *error_msg_info,
+    enum STACK_OP op);
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
