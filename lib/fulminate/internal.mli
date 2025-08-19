@@ -38,6 +38,8 @@ val generate_c_datatypes
 
 val generate_ghost_enum : _ Mucore.file -> string
 
+val generate_ghost_call_site_glob : unit -> string list
+
 val generate_c_struct_strs
   :  (AilSyntax.ail_identifier
      * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))

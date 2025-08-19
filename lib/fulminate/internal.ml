@@ -172,7 +172,7 @@ let ghost_args_and_their_call_locs prog5 =
     | Eaction _ -> ()
     | Eskip -> ()
     | Eccall (_, _, _, Some (_, ghost_args)) -> acc := (loc, ghost_args) :: !acc
-    | Eccall (_, _, _, None) -> ()
+    | Eccall (_, _, _, None) -> acc := (loc, []) :: !acc
     | Elet (_, _, e) -> aux_expr e
     | Eunseq es -> List.iter aux_expr es
     | Ewseq (_, e1, e2) ->
@@ -256,8 +256,7 @@ let generate_c_specs_from_cn_internal
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
   let globals = Cn_to_ail.extract_global_variables prog5.globs in
-  let max_num_ghost_args = max_num_of_ghost_args prog5 in
-  let ghost_array_size = if max_num_ghost_args = 0 then 0 else max_num_ghost_args + 1 in
+  let ghost_array_size = max_num_of_ghost_args prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -465,6 +464,10 @@ let generate_ghost_enum prog5 =
   doc_to_pretty_string doc
 
 
+let generate_ghost_call_site_glob () =
+  generate_ail_stat_strs Cn_to_ail.ghost_call_site_global_decl
+
+
 let generate_c_struct_strs c_structs =
   "\n/* ORIGINAL C STRUCTS */\n\n" ^ generate_str_from_ail_structs c_structs
 
@@ -656,8 +659,7 @@ let generate_ownership_global_assignments
     let globals = Cn_to_ail.extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
-    let max_num_ghost_args = max_num_of_ghost_args prog5 in
-    let ghost_array_size = if max_num_ghost_args = 0 then 0 else max_num_ghost_args + 1 in
+    let ghost_array_size = max_num_of_ghost_args prog5 in
     let assignments = OE.get_ownership_global_init_stats ~ghost_array_size () in
     let init_and_global_mapping_str =
       generate_ail_stat_strs ([], assignments @ global_map_stmts_)
