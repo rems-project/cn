@@ -7,20 +7,6 @@ let get_log_filename filename =
   Filename.(remove_extension (basename filename)) ^ ".autoannot.log"
 
 
-let trim (s : string) : string =
-  let is_space = function ' ' | '\t' | '\r' | '\n' -> true | _ -> false in
-  let len = String.length s in
-  let i = ref 0 in
-  let j = ref (len - 1) in
-  while !i < len && is_space s.[!i] do
-    incr i
-  done;
-  while !j >= !i && is_space s.[!j] do
-    decr j
-  done;
-  if !i > !j then "" else String.sub s !i (!j - !i + 1)
-
-
 type assignment =
   { accessor : string;
     value : int
@@ -42,53 +28,26 @@ let generate_focus_annot_aux filename line assignments_list : unit =
         (item
            "Generating annotations"
            (string filename ^^ string ":" ^^ (line |> string_of_int |> string)))));
-  match assignments_list with
-  | [] -> ()
-  | first :: rest ->
-    let variables =
-      first
-      |> List.map (fun (a : assignment) -> a.accessor)
-      |> List.sort_uniq String.compare
-    in
-    (* Sanity check: all occurrences have the same variable set *)
-    let env_vars (env : assignment list) =
-      env
-      |> List.map (fun (a : assignment) -> a.accessor)
-      |> List.sort_uniq String.compare
-    in
-    let all_same_vars =
-      List.for_all
-        (fun env -> List.for_all2 (fun x y -> String.equal x y) (env_vars env) variables)
-        rest
-    in
-    if not all_same_vars then
-      Pp.(
-        debug
-          5
-          (lazy
-            (item
-               "AutoAnnot: inconsistent environments"
-               (string (filename ^ ":" ^ string_of_int line)))))
-    else (
-      (* Build values per variable across occurrences *)
-      let tbl : (string, int list) Hashtbl.t = Hashtbl.create (List.length variables) in
-      List.iter (fun v -> Hashtbl.replace tbl v []) variables;
-      let add_value v n =
-        let prev = match Hashtbl.find_opt tbl v with Some xs -> xs | None -> [] in
-        Hashtbl.replace tbl v (prev @ [ n ])
-      in
-      let lookup_value v (env : assignment list) =
-        match List.find_opt (fun (a : assignment) -> String.equal a.accessor v) env with
-        | Some a -> Some a.value
-        | None -> None
-      in
-      List.iter
-        (fun env ->
-           List.iter
-             (fun v ->
-                match lookup_value v env with Some n -> add_value v n | None -> ())
-             variables)
-        assignments_list)
+  let first = List.hd assignments_list in
+  let variables =
+    first
+    |> List.map (fun (a : assignment) -> a.accessor)
+    |> List.sort_uniq String.compare
+  in
+  (* Sanity check: all occurrences have the same variable set *)
+  let all_unique =
+    List.for_all (fun x -> not (List.exists (String.equal x) variables)) variables
+  in
+  if not all_unique then
+    failwith "AutoAnnot: inconsistent environments";
+  (* Build values per variable across occurrences *)
+  let tbl : (string, int list) Hashtbl.t = Hashtbl.create (List.length variables) in
+  List.iter (fun v -> Hashtbl.replace tbl v []) variables;
+  let add_value v n = Hashtbl.replace tbl v (n :: Hashtbl.find tbl v) in
+  let lookup_value v env = (List.find (fun a -> String.equal a.accessor v) env).value in
+  List.iter
+    (fun env -> List.iter (fun v -> lookup_value v env |> add_value v) variables)
+    assignments_list
 
 
 let generate_focus_annot (annots : focus list) : unit =
@@ -110,14 +69,14 @@ let parse (log_file : string) : annot list =
   (* Open the file *)
   let ic = open_in log_file in
   let prefix = "[auto annot (focus)]" in
-  let split_and_trim ch s = String.split_on_char ch s |> List.map trim in
+  let split_and_trim ch s = String.split_on_char ch s |> List.map String.trim in
   let parse_line (line : string) : annot option =
     if not (String.starts_with ~prefix line) then
       None
     else (
       let rest =
         String.sub line (String.length prefix) (String.length line - String.length prefix)
-        |> trim
+        |> String.trim
       in
       match split_and_trim ',' rest |> List.filter (fun s -> not (String.equal s "")) with
       | [] -> None
@@ -130,7 +89,7 @@ let parse (log_file : string) : annot list =
               let assignments =
                 assigns_parts
                 |> List.filter_map (fun p ->
-                  match String.split_on_char '=' p |> List.map trim with
+                  match String.split_on_char '=' p |> List.map String.trim with
                   | [ key; vstr ] when not (String.equal key "") ->
                     (match int_of_string_opt vstr with
                      | Some v -> Some { accessor = key; value = v }
