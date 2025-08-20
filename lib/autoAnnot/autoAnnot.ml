@@ -22,6 +22,23 @@ type focus =
 
 type annot = Focus of focus
 
+let print_focus_suggestion filename line w0 coeffs =
+  let pos = filename ^ ":" ^ string_of_int line in
+  let body =
+    List.filter_map
+      (fun (v, c) ->
+         match c with 0 -> None | 1 -> Some v | c -> Some (string_of_int c ^ " * " ^ v))
+      coeffs
+  in
+  let elems = if w0 = 0 then body else string_of_int w0 :: body in
+  let sum = String.concat " + " elems in
+  Pp.(
+    debug
+      10
+      (lazy
+        (item "AutoAnnot: suggested annotation" (string pos ^^ string ": " ^^ string sum))))
+
+
 let generate_focus_annot_aux
       filename
       line
@@ -105,20 +122,7 @@ let generate_focus_annot_aux
     in
     let w0_v = get_int w0 in
     let coeff_vals = List.map (fun (v, wv) -> (v, get_int wv)) coeffs in
-    Pp.(
-      debug
-        10
-        (lazy
-          (item
-             "AutoAnnot: inferred relation"
-             (string
-                (string_of_int w0_v
-                 ^ String.concat
-                     ""
-                     (List.map
-                        (fun (v, c) -> " + (" ^ string_of_int c ^ " * " ^ v ^ ")")
-                        coeff_vals))))));
-    ()
+    print_focus_suggestion filename line w0_v coeff_vals
   | Solver.UNSATISFIABLE | Solver.UNKNOWN ->
     Pp.(
       debug
