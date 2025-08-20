@@ -199,24 +199,29 @@ let get_symbol = function
   | _ -> None
 
 
-let rec gen_env_fmt_printer = function
-  | [] -> ("", [])
-  | (sym, ty) :: xs ->
-    let fmt, args = gen_env_fmt_printer xs in
-    let open CF.Ctype in
-    let (Ctype (_, ty)) = ty in
-    (match ty with
-     | Basic (Integer b) ->
-       (match (gen_fmt_for_integer_type b, get_symbol sym) with
-        | Some f, Some sym ->
-          let f = Printf.sprintf "%s=%s, " sym f in
-          (f ^ fmt, sym :: args)
-        | _ -> (fmt, args))
-     | Struct _ -> failwith "unimplemented"
-     | Basic (Floating _)
-     | Array _ | Function _ | Void | FunctionNoParams _ | Pointer _ | Atomic _ | Union _
-     | Byte ->
-       (fmt, args))
+let gen_env_fmt_printer x =
+  let rec aux = function
+    | [] -> ("", [])
+    | (sym, ty) :: xs ->
+      let fmt, args = aux xs in
+      let open CF.Ctype in
+      let (Ctype (_, ty)) = ty in
+      (match ty with
+       | Basic (Integer b) ->
+         (match (gen_fmt_for_integer_type b, get_symbol sym) with
+          | Some f, Some sym ->
+            let f = Printf.sprintf "%s=%s, " sym f in
+            (f ^ fmt, sym :: args)
+          | _ -> (fmt, args))
+       | Struct _ -> failwith "unimplemented"
+       | Basic (Floating _)
+       | Array _ | Function _ | Void | FunctionNoParams _ | Pointer _ | Atomic _ | Union _
+       | Byte ->
+         (fmt, args))
+  in
+  let fmt, args = aux x in
+  (* The first element is for the target index, which will be filled in CN_XXX_ANNOT macros *)
+  ("!index=%%lld, " ^ fmt, args)
 
 
 let memory_accesses_injections ail_prog =
