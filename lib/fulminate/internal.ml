@@ -200,14 +200,23 @@ let generate_fn_call_ghost_args_injs
   =
   let globals = Cn_to_ail.extract_global_variables prog5.globs in
   let dts = sigm.cn_datatypes in
-  List.map
-    (fun (loc, ghost_args) ->
-       ( get_start_loc loc,
-         Utils.remove_last_semicolon
-           (generate_ail_stat_strs
-              (Cn_to_ail.cn_to_ail_cnprog_ghost_args filename dts globals None ghost_args))
-         @ [ ", " ] ))
-    (ghost_args_and_their_call_locs prog5)
+  List.concat
+    (List.map
+       (fun (loc, ghost_args) ->
+          [ ( get_start_loc loc,
+              [ "(" ]
+              @ Utils.remove_last_semicolon
+                  (generate_ail_stat_strs
+                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args
+                        filename
+                        dts
+                        globals
+                        None
+                        ghost_args))
+              @ [ ", " ] );
+            (get_end_loc loc, [ ")" ])
+          ])
+       (ghost_args_and_their_call_locs prog5))
 
 
 let count_spec_ghost_args args =
