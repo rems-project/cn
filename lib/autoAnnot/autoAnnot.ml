@@ -112,8 +112,7 @@ let generate_focus_annot_aux
           (item
              "AutoAnnot: inferred relation"
              (string
-                ("0 = "
-                 ^ string_of_int w0_v
+                (string_of_int w0_v
                  ^ String.concat
                      ""
                      (List.map
@@ -172,9 +171,8 @@ let parse (log_file : string) : annot list =
                 |> List.map (fun p ->
                   match String.split_on_char '=' p |> List.map String.trim with
                   | [ key; vstr ] ->
-                    (match int_of_string_opt vstr with
-                     | Some v -> { accessor = key; value = v }
-                     | None -> failwith "Invalid assignment value")
+                    let v = int_of_string vstr in
+                    { accessor = key; value = v }
                   | _ -> failwith "ill-formed")
               in
               (* assignments must be non-empty; as the first element is the target*)

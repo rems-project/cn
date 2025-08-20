@@ -221,7 +221,7 @@ let gen_env_fmt_printer x =
   in
   let fmt, args = aux x in
   (* The first element is for the target index, which will be filled in CN_XXX_ANNOT macros *)
-  ("!index=%%lld, " ^ fmt, args)
+  ("!index=%lld, " ^ fmt, args)
 
 
 let memory_accesses_injections ail_prog =
