@@ -15,12 +15,19 @@ type assignment =
 type focus =
   { filename : string;
     line : int;
+    (* TODO: should be int64 *)
+    target : int;
     assignments : assignment list
   }
 
 type annot = Focus of focus
 
-let generate_focus_annot_aux filename line assignments_list : unit =
+let generate_focus_annot_aux
+      filename
+      line
+      (assignments_list : (int * assignment list) list)
+  : unit
+  =
   Pp.(
     debug
       10
@@ -28,11 +35,9 @@ let generate_focus_annot_aux filename line assignments_list : unit =
         (item
            "Generating annotations"
            (string filename ^^ string ":" ^^ (line |> string_of_int |> string)))));
-  let first = List.hd assignments_list in
+  let _, first = List.hd assignments_list in
   let variables =
-    first
-    |> List.map (fun (a : assignment) -> a.accessor)
-    |> List.sort_uniq String.compare
+    first |> List.map (fun a -> a.accessor) |> List.sort_uniq String.compare
   in
   (* Sanity: all occurrences have the same variable set *)
   let all_unique =
@@ -57,7 +62,6 @@ let generate_focus_annot_aux filename line assignments_list : unit =
   let opt = Optimize.mk_opt ctx in
   let i_k n = Arithmetic.Integer.mk_numeral_i ctx n in
   let mk_int name = Arithmetic.Integer.mk_const_s ctx name in
-  let zero = i_k 0 in
   let add = Arithmetic.mk_add ctx in
   let mul x y = Arithmetic.mk_mul ctx [ x; y ] in
   let neg x = Arithmetic.mk_unary_minus ctx x in
@@ -75,7 +79,9 @@ let generate_focus_annot_aux filename line assignments_list : unit =
     let terms = List.map (fun (v, wv) -> mul wv (i_k (value_of v env))) coeffs in
     add (w0 :: terms)
   in
-  List.iter (fun env -> Optimize.add opt [ eq (sum_terms env) zero ]) assignments_list;
+  List.iter
+    (fun (target, env) -> Optimize.add opt [ eq (sum_terms env) (i_k target) ])
+    assignments_list;
   (* L1 norm: minimize t_v where t_v >= w_v and t_v >= -w_v*)
   let ts =
     List.map
@@ -125,14 +131,15 @@ let generate_focus_annot_aux filename line assignments_list : unit =
 
 
 let generate_focus_annot (annots : focus list) : unit =
-  let tbl : (string * int, assignment list list) Hashtbl.t = Hashtbl.create 16 in
+  let tbl : (string * int, (int * assignment list) list) Hashtbl.t = Hashtbl.create 16 in
   let add filename line assigns =
     let key = (filename, line) in
     let prev = match Hashtbl.find_opt tbl key with Some xs -> xs | None -> [] in
     Hashtbl.replace tbl key (prev @ [ assigns ])
   in
   List.iter
-    (function { filename; line; assignments } -> add filename line assignments)
+    (function
+      | { filename; line; assignments; target } -> add filename line (target, assignments))
     annots;
   Hashtbl.iter
     (fun (filename, line) assigns -> generate_focus_annot_aux filename line assigns)
@@ -162,15 +169,19 @@ let parse (log_file : string) : annot list =
             | Some line ->
               let assignments =
                 assigns_parts
-                |> List.filter_map (fun p ->
+                |> List.map (fun p ->
                   match String.split_on_char '=' p |> List.map String.trim with
-                  | [ key; vstr ] when not (String.equal key "") ->
+                  | [ key; vstr ] ->
                     (match int_of_string_opt vstr with
-                     | Some v -> Some { accessor = key; value = v }
-                     | None -> None)
-                  | _ -> None)
+                     | Some v -> { accessor = key; value = v }
+                     | None -> failwith "Invalid assignment value")
+                  | _ -> failwith "ill-formed")
               in
-              Some (Focus { filename; line; assignments }))
+              (* assignments must be non-empty; as the first element is the target*)
+              let fst = List.hd assignments in
+              assert (String.equal fst.accessor "!index");
+              let assignments = List.tl assignments in
+              Some (Focus { filename; line; assignments; target = fst.value }))
          | _ -> None))
   in
   let rec loop res =

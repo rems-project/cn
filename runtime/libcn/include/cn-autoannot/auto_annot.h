@@ -27,8 +27,9 @@ extern FILE *auto_annot_log_file;
 #define CN_LOAD_ANNOT(LV, FMT, ...)                                                      \
   ({                                                                                     \
     typeof(LV) *__tmp = &(LV);                                                           \
-    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV))))                                \
-      cn_auto_annot_printf(FMT, ##__VA_ARGS__);                        \
+    int64_t index;                                                                       \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index))                        \
+      cn_auto_annot_printf(FMT, index, ##__VA_ARGS__);                                          \
     CN_LOAD(LV);                                                                         \
   })
 
@@ -36,8 +37,9 @@ extern FILE *auto_annot_log_file;
   ({                                                                                     \
     typeof(LV) *__tmp;                                                                   \
     __tmp = &(LV);                                                                       \
-    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV))))                                \
-      cn_auto_annot_printf(FMT, ##__VA_ARGS__);                        \
+    int64_t index;                                                                       \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index))                        \
+      cn_auto_annot_printf(FMT, index, ##__VA_ARGS__);                                          \
     CN_STORE_OP(LV, op, X);                                                              \
   })
 
@@ -86,7 +88,7 @@ void clear_focus(void);
 void insert_focus(int64_t index, type_sig sig);
 void insert_iter_res(
     uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig);
-  int needs_focus(uint64_t address, uint64_t size);
+int needs_focus(uint64_t address, uint64_t size, int64_t *index_out);
 
 #ifdef __cplusplus
 }
