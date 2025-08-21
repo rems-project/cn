@@ -251,10 +251,12 @@ let memory_accesses_injections ail_prog =
   List.iter
     (fun (access, env) ->
        (* autoannot things *)
-       let fmt, args = gen_env_fmt_printer env in
-       let autoannot_fmt = fmt ^ "\\n" in
-       let autoannot_fmt_args =
-         List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args
+       let autoannot_fmt, autoannot_fmt_args =
+         if !Config.with_auto_annot then (
+           let fmt, args = gen_env_fmt_printer env in
+           (fmt ^ "\\n", List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args))
+         else
+           ("", "")
        in
        match access with
        | Load { loc; _ } ->
