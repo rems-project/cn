@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,12 +14,11 @@ typedef const char *type_sig;
 // Defined in cn-autoannot/auto_annot.c
 extern FILE *auto_annot_log_file;
 
-#define cn_auto_annot_printf(...)                                                            \
-    fprintf(auto_annot_log_file, __VA_ARGS__)
+#define cn_auto_annot_printf(...) fprintf(auto_annot_log_file, __VA_ARGS__)
 
 // Wrapper for cn values
-#define CN_INSERT_ITER_RES(base, start, end, size, sig) \
-    insert_iter_res((uint64_t)base->ptr, start->val, end->val, size, sig)
+#define CN_INSERT_ITER_RES(base, start, end, size, sig)                                  \
+  insert_iter_res((uint64_t)base->ptr, start->val, end->val, size, sig)
 
 #define CN_INSERT_FOCUS(index, sig) insert_focus(index->val, sig)
 
@@ -29,19 +27,19 @@ extern FILE *auto_annot_log_file;
     typeof(LV) *__tmp = &(LV);                                                           \
     int64_t index;                                                                       \
     type_sig sig;                                                                        \
-    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index, &sig))                        \
-      cn_auto_annot_printf(FMT, "RW", sig, index, ##__VA_ARGS__);                                          \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index, &sig))                  \
+      cn_auto_annot_printf(FMT, "RW", sig, index, ##__VA_ARGS__);                        \
     CN_LOAD(LV);                                                                         \
   })
 
-#define CN_STORE_OP_ANNOT(LV, op, X, FMT, ...)                               \
+#define CN_STORE_OP_ANNOT(LV, op, X, FMT, ...)                                           \
   ({                                                                                     \
     typeof(LV) *__tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     int64_t index;                                                                       \
     type_sig sig;                                                                        \
     if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index, &sig))                  \
-      cn_auto_annot_printf(FMT, "RW", sig, index, ##__VA_ARGS__);                      \
+      cn_auto_annot_printf(FMT, "RW", sig, index, ##__VA_ARGS__);                        \
     CN_STORE_OP(LV, op, X);                                                              \
   })
 
