@@ -15,6 +15,8 @@ type assignment =
 type focus =
   { filename : string;
     line : int;
+    kind : string;
+    ty : string;
     (* TODO: should be int64 *)
     target : int;
     assignments : assignment list
@@ -22,7 +24,7 @@ type focus =
 
 type annot = Focus of focus
 
-let print_focus_suggestion filename line w0 coeffs =
+let print_focus_suggestion filename line kind ty w0 coeffs =
   let pos = filename ^ ":" ^ string_of_int line in
   let body =
     List.filter_map
@@ -30,21 +32,20 @@ let print_focus_suggestion filename line w0 coeffs =
          match c with 0 -> None | 1 -> Some v | c -> Some (string_of_int c ^ " * " ^ v))
       coeffs
   in
+  let signature = Printf.sprintf "focus %s<%s>, " kind ty in
   let elems = if w0 = 0 then body else string_of_int w0 :: body in
   let sum = String.concat " + " elems in
+  let annotation = signature ^ sum in
   Pp.(
     debug
       10
       (lazy
-        (item "AutoAnnot: suggested annotation" (string pos ^^ string ": " ^^ string sum))))
+        (item
+           "AutoAnnot: suggested annotation"
+           (string pos ^^ string ": " ^^ string annotation))))
 
 
-let generate_focus_annot_aux
-      filename
-      line
-      (assignments_list : (int * assignment list) list)
-  : unit
-  =
+let generate_focus_annot_aux filename line (kind, ty, assignments_list) : unit =
   Pp.(
     debug
       10
@@ -122,7 +123,7 @@ let generate_focus_annot_aux
     in
     let w0_v = get_int w0 in
     let coeff_vals = List.map (fun (v, wv) -> (v, get_int wv)) coeffs in
-    print_focus_suggestion filename line w0_v coeff_vals
+    print_focus_suggestion filename line kind ty w0_v coeff_vals
   | Solver.UNSATISFIABLE | Solver.UNKNOWN ->
     Pp.(
       debug
@@ -134,15 +135,23 @@ let generate_focus_annot_aux
 
 
 let generate_focus_annot (annots : focus list) : unit =
-  let tbl : (string * int, (int * assignment list) list) Hashtbl.t = Hashtbl.create 16 in
-  let add filename line assigns =
+  let tbl : (string * int, string * string * (int * assignment list) list) Hashtbl.t =
+    Hashtbl.create 16
+  in
+  let add filename line assigns kind ty =
     let key = (filename, line) in
-    let prev = match Hashtbl.find_opt tbl key with Some xs -> xs | None -> [] in
-    Hashtbl.replace tbl key (prev @ [ assigns ])
+    let prev =
+      match Hashtbl.find_opt tbl key with
+      | Some (kind2, ty2, xs) when String.equal kind kind2 && String.equal ty ty2 -> xs
+      | Some _ -> failwith "inconsistent focus types"
+      | None -> []
+    in
+    Hashtbl.replace tbl key (kind, ty, prev @ [ assigns ])
   in
   List.iter
     (function
-      | { filename; line; assignments; target } -> add filename line (target, assignments))
+      | { filename; line; assignments; target; kind; ty } ->
+        add filename line (target, assignments) kind ty)
     annots;
   Hashtbl.iter
     (fun (filename, line) assigns -> generate_focus_annot_aux filename line assigns)
@@ -154,42 +163,42 @@ let parse (log_file : string) : annot list =
   let ic = open_in log_file in
   let prefix = "[auto annot (focus)]" in
   let split_and_trim ch s = String.split_on_char ch s |> List.map String.trim in
-  let parse_line (line : string) : annot option =
+  let parse_line (line : string) : annot =
     if not (String.starts_with ~prefix line) then
-      None
-    else (
-      let rest =
-        String.sub line (String.length prefix) (String.length line - String.length prefix)
-        |> String.trim
-      in
-      match split_and_trim ',' rest |> List.filter (fun s -> not (String.equal s "")) with
-      | [] -> None
-      | loc :: assigns_parts ->
-        (match split_and_trim ':' loc with
-         | filename :: line_str :: _ ->
-           (match int_of_string_opt line_str with
-            | None -> None
-            | Some line ->
-              let assignments =
-                assigns_parts
-                |> List.map (fun p ->
-                  match String.split_on_char '=' p |> List.map String.trim with
-                  | [ key; vstr ] ->
-                    let v = int_of_string vstr in
-                    { accessor = key; value = v }
-                  | _ -> failwith "ill-formed")
-              in
-              (* assignments must be non-empty; as the first element is the target*)
-              let fst = List.hd assignments in
-              assert (String.equal fst.accessor "!index");
-              let assignments = List.tl assignments in
-              Some (Focus { filename; line; assignments; target = fst.value }))
-         | _ -> None))
+      failwith "ill-formed auto annot line";
+    let rest =
+      String.sub line (String.length prefix) (String.length line - String.length prefix)
+      |> String.trim
+    in
+    match split_and_trim ',' rest |> List.filter (fun s -> not (String.equal s "")) with
+    | [] -> failwith "ill-formed focus annotation"
+    | loc :: assigns_parts ->
+      (match split_and_trim ':' loc with
+       (* ex: itres.c:46:12-16:RW:signed int *)
+       | [ filename; line_str; _; kind; ty ] ->
+         (match int_of_string_opt line_str with
+          | None -> failwith "ill-formed line number"
+          | Some line ->
+            let assignments =
+              assigns_parts
+              |> List.map (fun p ->
+                match String.split_on_char '=' p |> List.map String.trim with
+                | [ key; vstr ] ->
+                  let v = int_of_string vstr in
+                  { accessor = key; value = v }
+                | _ -> failwith "ill-formed")
+            in
+            (* assignments must be non-empty; as the first element is the target*)
+            let fst = List.hd assignments in
+            assert (String.equal fst.accessor "!index");
+            let assignments = List.tl assignments in
+            Focus { filename; line; kind; ty; assignments; target = fst.value })
+       | _ -> failwith "ill-formed line")
   in
   let rec loop res =
     match input_line ic with
     | line ->
-      let res = match parse_line line with None -> res | Some f -> f :: res in
+      let res = parse_line line :: res in
       loop res
     | exception End_of_file -> res
   in

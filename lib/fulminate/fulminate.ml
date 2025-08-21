@@ -286,6 +286,8 @@ let memory_accesses_injections ail_prog =
            ", \""
            ^ "[auto annot (focus)]"
            ^ pos_info
+           (* The fmt for type. Filled by CN_XXX_ANNOT *)
+           ^ ":%s:%s"
            ^ ", "
            ^ autoannot_fmt
            ^ "\""
@@ -309,6 +311,8 @@ let memory_accesses_injections ail_prog =
            ", \""
            ^ "[auto annot (focus)]"
            ^ pos_info
+           (* The fmt for type. Filled by CN_XXX_ANNOT *)
+           ^ ":%s:%s"
            ^ ", "
            ^ autoannot_fmt
            ^ "\""
@@ -338,6 +342,8 @@ let memory_accesses_injections ail_prog =
               ", \""
               ^ "[auto annot (focus)]"
               ^ pos_info
+              (* The fmt for type. Filled by CN_XXX_ANNOT *)
+              ^ ":%s:%s"
               ^ ", "
               ^ autoannot_fmt
               ^ "\""
@@ -377,6 +383,8 @@ let memory_accesses_injections ail_prog =
               ", \""
               ^ "[auto annot (focus)]"
               ^ pos_info
+              (* The fmt for type. Filled by CN_XXX_ANNOT *)
+              ^ ":%s:%s"
               ^ ", "
               ^ autoannot_fmt
               ^ "\""

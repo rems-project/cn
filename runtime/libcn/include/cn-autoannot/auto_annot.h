@@ -28,18 +28,20 @@ extern FILE *auto_annot_log_file;
   ({                                                                                     \
     typeof(LV) *__tmp = &(LV);                                                           \
     int64_t index;                                                                       \
-    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index))                        \
-      cn_auto_annot_printf(FMT, index, ##__VA_ARGS__);                                          \
+    type_sig sig;                                                                        \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index, &sig))                        \
+      cn_auto_annot_printf(FMT, "RW", sig, index, ##__VA_ARGS__);                                          \
     CN_LOAD(LV);                                                                         \
   })
 
-#define CN_STORE_OP_ANNOT(LV, op, X, FMT, ...)                                           \
+#define CN_STORE_OP_ANNOT(LV, op, X, FMT, ...)                               \
   ({                                                                                     \
     typeof(LV) *__tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     int64_t index;                                                                       \
-    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index))                        \
-      cn_auto_annot_printf(FMT, index, ##__VA_ARGS__);                                          \
+    type_sig sig;                                                                        \
+    if (needs_focus((uint64_t)__tmp, sizeof(typeof(LV)), &index, &sig))                  \
+      cn_auto_annot_printf(FMT, "RW", sig, index, ##__VA_ARGS__);                      \
     CN_STORE_OP(LV, op, X);                                                              \
   })
 
@@ -88,7 +90,7 @@ void clear_focus(void);
 void insert_focus(int64_t index, type_sig sig);
 void insert_iter_res(
     uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig);
-int needs_focus(uint64_t address, uint64_t size, int64_t *index_out);
+int needs_focus(uint64_t address, uint64_t size, int64_t *index_out, type_sig *sig_out);
 
 #ifdef __cplusplus
 }

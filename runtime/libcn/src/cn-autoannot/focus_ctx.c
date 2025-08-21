@@ -85,7 +85,7 @@ void insert_iter_res(uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, 
 ///  (i) is in a iterated resource
 ///  (ii) is not focused
 /// If (i) and (ii), it needs focus, and returns 1.
-int needs_focus(uint64_t address, uint64_t size, int64_t *index_out) {
+int needs_focus(uint64_t address, uint64_t size, int64_t *index_out, type_sig* sig_out) {
     assert(cn_focus_global_context != NULL);
     // (i) search for iterated resource
     iter_res_set *iter = cn_focus_global_context->iter_ress;
@@ -116,6 +116,7 @@ int needs_focus(uint64_t address, uint64_t size, int64_t *index_out) {
         }
         // The index is not focused
         *index_out = index;
+        *sig_out = cur->res.sig;
         return 1;
     }
     // We didn't find any appropriate iterated resource
