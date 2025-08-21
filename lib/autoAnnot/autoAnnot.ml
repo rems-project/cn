@@ -36,13 +36,7 @@ let print_focus_suggestion filename line kind ty w0 coeffs =
   let elems = if w0 = 0 then body else string_of_int w0 :: body in
   let sum = String.concat " + " elems in
   let annotation = signature ^ sum in
-  Pp.(
-    debug
-      10
-      (lazy
-        (item
-           "AutoAnnot: suggested annotation"
-           (string pos ^^ string ": " ^^ string annotation))))
+  Pp.progress_simple pos annotation
 
 
 let generate_focus_annot_aux filename line (kind, ty, assignments_list) : unit =
@@ -213,7 +207,7 @@ let parse (log_file : string) : annot list =
 
 
 let run_autoannot (log_file : string) : unit =
-  Pp.(debug 10 (lazy (item "Running auto-annotation" (string log_file))));
+  Pp.print stdout (Pp.string "[Result of auto-annotation]");
   let data = parse log_file in
   let focus_annots = data |> List.filter_map (function Focus f -> Some f) in
   generate_focus_annot focus_annots
