@@ -4463,35 +4463,35 @@ let cn_to_ail_pre_post
         ghost_array_size_opt
         internal
     in
-    let ghost_spec_sym = Sym.fresh "ghost_spec" in
-    let ghost_type_checking_stat =
-      A.AilSif
-        ( mk_expr
-            (A.AilEbinary
-               ( mk_expr (A.AilEident ghost_spec_sym),
-                 A.Ne,
-                 mk_expr (A.AilEident ghost_call_site_sym) )),
-          mk_stmt
-            (A.AilSexpr
-               (mk_expr
-                  (A.AilEcall
-                     (mk_expr (A.AilEident (Sym.fresh "cn_ghost_arg_failure")), [])))),
-          mk_stmt A.AilSskip )
-    in
     let ail_executable_spec =
-      prepend_to_precondition ail_executable_spec ([], [ ghost_type_checking_stat ])
-    in
-    let ghost_spec_binding = create_binding ghost_spec_sym ghost_enum_type in
-    let (AnnotatedExpression (_, _, _, ghost_spec_rhs)) =
-      ail_of_enum_member_id (ghost_enum_member_id ghost_bts)
-    in
-    let ghost_spec_decl =
-      A.(AilSdeclaration [ (ghost_spec_sym, Some (mk_expr ghost_spec_rhs)) ])
-    in
-    let ail_executable_spec =
-      prepend_to_precondition
-        ail_executable_spec
-        ([ ghost_spec_binding ], [ ghost_spec_decl ])
+      match ghost_array_size_opt with
+      | None -> ail_executable_spec
+      | Some _ ->
+        let ghost_spec_sym = Sym.fresh "ghost_spec" in
+        let ghost_type_checking_stat =
+          A.AilSif
+            ( mk_expr
+                (A.AilEbinary
+                   ( mk_expr (A.AilEident ghost_spec_sym),
+                     A.Ne,
+                     mk_expr (A.AilEident ghost_call_site_sym) )),
+              mk_stmt
+                (A.AilSexpr
+                   (mk_expr
+                      (A.AilEcall
+                         (mk_expr (A.AilEident (Sym.fresh "cn_ghost_arg_failure")), [])))),
+              mk_stmt A.AilSskip )
+        in
+        let ghost_spec_binding = create_binding ghost_spec_sym ghost_enum_type in
+        let (AnnotatedExpression (_, _, _, ghost_spec_rhs)) =
+          ail_of_enum_member_id (ghost_enum_member_id ghost_bts)
+        in
+        let ghost_spec_decl =
+          A.(AilSdeclaration [ (ghost_spec_sym, Some (mk_expr ghost_spec_rhs)) ])
+        in
+        prepend_to_precondition
+          (prepend_to_precondition ail_executable_spec ([], [ ghost_type_checking_stat ]))
+          ([ ghost_spec_binding ], [ ghost_spec_decl ])
     in
     let ownership_stats_ =
       if without_ownership_checking then
