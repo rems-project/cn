@@ -58,7 +58,8 @@ type t =
     output_tyche : string option;
     print_size_info : bool;
     print_backtrack_info : bool;
-    print_satisfaction_info : bool
+    print_satisfaction_info : bool;
+    with_auto_annot : bool
   }
 
 let default =
@@ -95,7 +96,8 @@ let default =
     output_tyche = Option.None;
     print_size_info = false;
     print_backtrack_info = false;
-    print_satisfaction_info = false
+    print_satisfaction_info = false;
+    with_auto_annot = false
   }
 
 
@@ -237,3 +239,5 @@ let will_print_size_info () = (Option.get !instance).print_size_info
 let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
 
 let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info
+
+let with_auto_annot () = (Option.get !instance).with_auto_annot

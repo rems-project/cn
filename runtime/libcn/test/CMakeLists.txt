@@ -26,6 +26,7 @@ add_executable(libcn_tests
     bennet/rand.cpp
     bennet/tnum.cpp
     bennet/wint.cpp
+    autoannot/focus.cpp
 )
 
 # Disable narrowing warnings

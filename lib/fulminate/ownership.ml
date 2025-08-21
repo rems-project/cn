@@ -55,9 +55,25 @@ let get_ownership_global_init_stats () =
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
-  List.map
-    (fun e -> A.(AilSexpr e))
-    [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ]
+  let log_filename =
+    mk_expr (A.AilEstr (None, [ (Cerb_location.unknown, [ !AutoAnnot.log_filename ]) ]))
+  in
+  let cn_initialize_auto_annot_fcall =
+    mk_expr
+      A.(
+        AilEcall
+          (mk_expr (AilEident (Sym.fresh "initialize_auto_annot")), [ log_filename ]))
+  in
+  let fns =
+    if !Config.with_auto_annot then
+      [ cn_ghost_state_init_fcall;
+        cn_ghost_stack_depth_init_fcall;
+        cn_initialize_auto_annot_fcall
+      ]
+    else
+      [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ]
+  in
+  List.map (fun e -> A.(AilSexpr e)) fns
 
 
 let generate_c_local_cn_addr_var sym =
