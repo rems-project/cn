@@ -158,7 +158,7 @@ let move_to ?(print = true) ?(no_ident = false) st pos =
 (* Various kinds of edits we can perform *)
 type injection_kind =
   (* Inject a statement in a function *)
-  | InStmt of int * string
+  | InStmt of int * int * string
   (* | Return of (Pos.t * Pos.t) option *)
   (* | Return of Pos.t option *)
 
@@ -196,7 +196,7 @@ let inject st inj =
   let st, _ = move_to st inj.footprint.start_pos in
   let st =
     match inj.kind with
-    | InStmt (_, str) ->
+    | InStmt (_, _, str) ->
       let st, _ = move_to ~no_ident:true ~print:false st inj.footprint.end_pos in
       do_output st str
     | Pre (strs, ret_ty, is_main) ->
@@ -320,8 +320,14 @@ let inject st inj =
 let sort_injects xs =
   let cmp inj1 inj2 =
     let c = Pos.compare inj1.footprint.start_pos inj2.footprint.start_pos in
+    let d = Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos in
+    let p =
+      match (inj1.kind, inj2.kind) with
+      | InStmt (n1, _, _), InStmt (n2, _, _) -> Stdlib.compare n1 n2
+      | _ -> 0
+    in
     if c = 0 then
-      Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos
+      if d = 0 then p else d
     else
       c
   in
@@ -372,7 +378,7 @@ let _posOf_stmt stmt =
 
 let in_stmt_injs xs num_headers =
   mapM
-    (fun (loc, strs) ->
+    (fun (precedence, (loc, strs)) ->
        let* start_pos, end_pos = Pos.of_location loc in
        let num_headers = if num_headers != 0 then num_headers + 1 else num_headers in
        (* Printf.fprintf stderr "IN_STMT_INJS[%s], start: %s -- end: %s ---> [%s]\n"
@@ -384,7 +390,7 @@ let in_stmt_injs xs num_headers =
              { start_pos = Pos.increment_line start_pos num_headers;
                end_pos = Pos.v (end_pos.line + num_headers) end_pos.col
              };
-           kind = InStmt (List.length strs, String.concat "\n" strs)
+           kind = InStmt (precedence, List.length strs, String.concat "\n" strs)
          })
     xs
 
@@ -433,7 +439,9 @@ let return_injs xs =
                ({ footprint = { start_pos; end_pos };
                   kind =
                     InStmt
-                      (1, String.concat "" ("{ " :: inj_strs) ^ "goto __cn_epilogue; }\n")
+                      ( 0,
+                        1,
+                        String.concat "" ("{ " :: inj_strs) ^ "goto __cn_epilogue; }\n" )
                 }
                 :: acc)
            | Some e ->
@@ -441,12 +449,12 @@ let return_injs xs =
              let* e_start_pos, e_end_pos = Pos.of_location loc in
              Ok
                ({ footprint = { start_pos; end_pos = e_start_pos };
-                  kind = InStmt (1, "{ __cn_ret = ")
+                  kind = InStmt (0, 1, "{ __cn_ret = ")
                 }
                 :: { footprint = { start_pos = e_end_pos; end_pos };
                      kind =
                        InStmt
-                         (1, "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }")
+                         (0, 1, "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }")
                    }
                 :: acc)
          in
@@ -487,7 +495,7 @@ type 'a cn_injection =
     program : 'a A.ail_program;
     static_funcs : Sym.Set.t;
     pre_post : (Sym.t * (string list * string list)) list;
-    in_stmt : (Cerb_location.t * string list) list;
+    in_stmt : (int * (Cerb_location.t * string list)) list;
     returns : (Cerb_location.t * ('a A.expression option * string list)) list;
     inject_in_preproc : bool;
     with_testing : bool

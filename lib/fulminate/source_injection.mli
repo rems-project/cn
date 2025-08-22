@@ -10,7 +10,7 @@ type 'a cn_injection =
     pre_post : (Sym.t * (string list * string list)) list;
       (** Pre- and post-condition checks to inject for the given symbols.
         The locations of the symbols are found by consulting [program]. *)
-    in_stmt : (Cerb_location.t * string list) list;
+    in_stmt : (int * (Cerb_location.t * string list)) list;
       (** Additional statement injections to insert at the given locations. *)
     returns : (Cerb_location.t * ('a AilSyntax.expression option * string list)) list;
       (** Injections to add when a function returns. *)
