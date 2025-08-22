@@ -47,3 +47,9 @@ let rec dtree f =
           dtree f prog
         ] )
   | Pure (_loc, x) -> f x
+
+
+let rec get_bt (cnprog_it : IT.t t) =
+  match cnprog_it with
+  | Let (_, _, cnprog_it) -> get_bt cnprog_it
+  | Pure (_, it) -> IT.get_bt it

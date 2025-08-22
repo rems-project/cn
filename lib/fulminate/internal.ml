@@ -100,25 +100,11 @@ let generate_c_loop_invariants
     let ail_loop_invariants = ail_executable_spec.loops in
     let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
     (* A bit of a hack *)
-    let rec remove_last = function
-      | [] -> []
-      | [ _ ] -> []
-      | x :: xs -> x :: remove_last xs
-    in
-    let rec remove_last_semicolon = function
-      | [] -> []
-      | [ x ] ->
-        let split_x = String.split_on_char ';' x in
-        let without_whitespace_x = remove_last split_x in
-        let res = String.concat ";" without_whitespace_x in
-        [ res ]
-      | x :: xs -> x :: remove_last_semicolon xs
-    in
     let ail_cond_injs =
       List.map
         (fun (loc, bs_and_ss) ->
            ( get_start_loc loc,
-             remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
+             Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
         ail_cond_stats
     in
     let ail_loop_decl_injs =
@@ -131,6 +117,124 @@ let generate_c_loop_invariants
       List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
     in
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
+
+
+let opt_proc_param_of_fun_map_decl fmd =
+  match fmd with Mucore.Proc proc -> Some proc.args_and_body | ProcDecl _ -> None
+
+
+let args_and_bodies_of_mucore prog5 =
+  let fns = prog5.Mucore.funs in
+  let opt_args_and_bodies =
+    Pmap.fold (fun _ fmd acc -> opt_proc_param_of_fun_map_decl fmd :: acc) fns []
+  in
+  List.filter_map Fun.id opt_args_and_bodies
+
+
+let rec param_of_args_and_body = function
+  | Mucore.Computational (_, _, args) -> param_of_args_and_body args
+  | Ghost (_, _, args) -> param_of_args_and_body args
+  | L args ->
+    let rec aux = function
+      | Mucore.Define (_, _, args) -> aux args
+      | Resource (_, _, args) -> aux args
+      | Constraint (_, _, args) -> aux args
+      | I expr -> expr
+    in
+    aux args
+
+
+let rec bts_of_args_and_body = function
+  | Mucore.Computational (_, _, args) -> bts_of_args_and_body args
+  | Ghost ((_, bt), _, args) -> bt :: bts_of_args_and_body args
+  | L _ -> []
+
+
+let exprs_of_mucore prog5 =
+  let args_and_bodies = args_and_bodies_of_mucore prog5 in
+  let exprs =
+    List.map
+      (fun aab ->
+         let expr, _, _ = param_of_args_and_body aab in
+         expr)
+      args_and_bodies
+  in
+  exprs
+
+
+let ghost_args_and_their_call_locs prog5 =
+  let exprs = exprs_of_mucore prog5 in
+  let acc = ref [] in
+  let rec aux_expr (Mucore.Expr (loc, _, _, e_)) =
+    match e_ with
+    | Epure _ -> ()
+    | Ememop _ -> ()
+    | Eaction _ -> ()
+    | Eskip -> ()
+    | Eccall (_, _, _, Some (_, ghost_args)) -> acc := (loc, ghost_args) :: !acc
+    | Eccall (_, _, _, None) -> acc := (loc, []) :: !acc
+    | Elet (_, _, e) -> aux_expr e
+    | Eunseq es -> List.iter aux_expr es
+    | Ewseq (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Esseq (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Eif (_, e1, e2) ->
+      aux_expr e1;
+      aux_expr e2
+    | Ebound e -> aux_expr e
+    | End es -> List.iter aux_expr es
+    | Erun (_, _) -> ()
+    | CN_progs (_, _) -> ()
+  in
+  List.iter aux_expr exprs;
+  !acc
+
+
+let generate_fn_call_ghost_args_injs
+      filename
+      (sigm : _ CF.AilSyntax.sigma)
+      (prog5 : unit Mucore.file)
+  =
+  let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let dts = sigm.cn_datatypes in
+  List.concat
+    (List.map
+       (fun (loc, ghost_args) ->
+          [ ( get_start_loc loc,
+              [ "(" ]
+              @ Utils.remove_last_semicolon
+                  (generate_ail_stat_strs
+                     (Cn_to_ail.cn_to_ail_cnprog_ghost_args
+                        filename
+                        dts
+                        globals
+                        None
+                        ghost_args))
+              @ [ ", " ] );
+            (get_end_loc loc, [ ")" ])
+          ])
+       (ghost_args_and_their_call_locs prog5))
+
+
+let count_spec_ghost_args args =
+  let rec aux n = function
+    | Mucore.Computational (_, _, args) -> aux n args
+    | Ghost (_, _, args) -> aux (n + 1) args
+    | L _ -> n
+  in
+  aux 0 args
+
+
+let max_num_of_ghost_args prog5 =
+  let args_and_bodies = args_and_bodies_of_mucore prog5 in
+  let nums_of_spec_ghost_args = List.map count_spec_ghost_args args_and_bodies in
+  let nums_of_call_ghost_args =
+    List.map (fun (_, args) -> List.length args) (ghost_args_and_their_call_locs prog5)
+  in
+  List.fold_left max 0 (nums_of_spec_ghost_args @ nums_of_call_ghost_args)
 
 
 type cn_spec_inj_info =
@@ -161,16 +265,17 @@ let generate_c_specs_from_cn_internal
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
   let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let ghost_array_size = max_num_of_ghost_args prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
-      ~is_lemma:false
       filename
       dts
       preds
       globals
       c_return_type
+      (Some ghost_array_size)
       instrumentation.internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
@@ -357,6 +462,19 @@ let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       ail_datatypes
   in
   locs_and_struct_strs
+
+
+let generate_ghost_enum prog5 =
+  let args_and_bodies = args_and_bodies_of_mucore prog5 in
+  let bts = List.map bts_of_args_and_body args_and_bodies in
+  let _, ghost_argss = List.split (ghost_args_and_their_call_locs prog5) in
+  let ail_ghost_enum = Cn_to_ail.cn_to_ail_ghost_enum bts ghost_argss in
+  let doc = generate_doc_from_ail_struct ail_ghost_enum in
+  doc_to_pretty_string doc
+
+
+let generate_ghost_call_site_glob () =
+  generate_ail_stat_strs Cn_to_ail.ghost_call_site_global_decl
 
 
 let generate_c_struct_strs c_structs =
@@ -550,7 +668,8 @@ let generate_ownership_global_assignments
     let globals = Cn_to_ail.extract_global_variables prog5.globs in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
-    let assignments = OE.get_ownership_global_init_stats () in
+    let ghost_array_size = max_num_of_ghost_args prog5 in
+    let assignments = OE.get_ownership_global_init_stats ~ghost_array_size () in
     let init_and_global_mapping_str =
       generate_ail_stat_strs ([], assignments @ global_map_stmts_)
     in
