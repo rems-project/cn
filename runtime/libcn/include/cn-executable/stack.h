@@ -13,16 +13,16 @@
   } NAME##_stack;
 
 #define STACK_INIT(NAME)                                                                 \
-  static inline NAME##_stack *NAME##_stack_init(allocator *allocator) {                  \
-    NAME##_stack *s = (NAME##_stack *)allocator->malloc(sizeof(NAME##_stack));           \
+  static inline NAME##_stack *NAME##_stack_init(allocator *alloc) {                  \
+    NAME##_stack *s = (NAME##_stack *)alloc->malloc(sizeof(NAME##_stack));           \
     s->size = 0;                                                                         \
     return s;                                                                            \
   }
 
 #define STACK_PUSH(NAME, CTYPE)                                                          \
   static inline void NAME##_stack_push(                                                  \
-      NAME##_stack *s, CTYPE elem, allocator *allocator) {                               \
-    NAME##_node *node = (NAME##_node *)allocator->malloc(sizeof(NAME##_node));           \
+      NAME##_stack *s, CTYPE elem, allocator *alloc) {                               \
+    NAME##_node *node = (NAME##_node *)alloc->malloc(sizeof(NAME##_node));           \
     node->NAME = elem;                                                                   \
     if (!s->top) {                                                                       \
       s->top = node;                                                                     \
@@ -34,12 +34,12 @@
   }
 
 #define STACK_POP(NAME, CTYPE)                                                           \
-  static inline CTYPE NAME##_stack_pop(NAME##_stack *s, allocator *allocator) {          \
+  static inline CTYPE NAME##_stack_pop(NAME##_stack *s, allocator *alloc) {          \
     if (s->top) {                                                                        \
       CTYPE elem = s->top->NAME;                                                         \
       NAME##_node *old_top = s->top;                                                     \
       s->top = s->top->next;                                                             \
-      allocator->free(old_top);                                                          \
+      alloc->free(old_top);                                                          \
       s->size--;                                                                         \
       return elem;                                                                       \
     }                                                                                    \
@@ -58,4 +58,3 @@
   STACK_PUSH(NAME, CTYPE)                                                                \
   STACK_POP(NAME, CTYPE)                                                                 \
   STACK_SIZE(NAME)
-\
