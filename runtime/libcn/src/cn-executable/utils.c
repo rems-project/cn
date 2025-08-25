@@ -129,6 +129,18 @@ void print_error_msg_info(struct cn_error_message_info* info) {
   }
 }
 
+void print_owned_calls_stack(ownership_ghost_state_info* entry_maybe) {
+  if (entry_maybe && entry_maybe->source_loc_stack) {
+    cn_printf(CN_LOGGING_ERROR, "Owned locations stack:\n");
+    char* popped_elem = cn_source_location_stack_pop(entry_maybe->source_loc_stack, &fulm_default_alloc);
+    while (popped_elem) {
+      cn_printf(CN_LOGGING_ERROR, "%s\n", popped_elem);
+      cn_printf(CN_LOGGING_ERROR, "==========================\n");
+      popped_elem = cn_source_location_stack_pop(entry_maybe->source_loc_stack, &fulm_default_alloc);
+    }
+  }
+}
+
 ownership_ghost_state_info* create_ownership_ghost_state_entry(int depth) {
   ownership_ghost_state_info* ghost_state_entry =
       fulm_malloc(sizeof(ownership_ghost_state_info), &fulm_default_alloc);
@@ -496,15 +508,6 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
   }
 }
 
-void print_owned_calls_stack(cn_source_location_stack* s) {
-  cn_printf(CN_LOGGING_ERROR, "Owned locations stack:\n");
-  char* popped_elem = cn_source_location_stack_pop(s, &fulm_default_alloc);
-  while (popped_elem) {
-    cn_printf(CN_LOGGING_ERROR, "%s\n", popped_elem);
-    cn_printf(CN_LOGGING_ERROR, "==========================\n");
-    popped_elem = cn_source_location_stack_pop(s, &fulm_default_alloc);
-  }
-}
 
 void c_ownership_check(char* access_kind,
     void* generic_c_ptr,
@@ -517,9 +520,7 @@ void c_ownership_check(char* access_kind,
     int curr_depth = entry_maybe ? entry_maybe->depth : UNMAPPED_VAL;
     if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
       cn_printf(CN_LOGGING_ERROR, "entering owned locations stack printer\n");
-      if (entry_maybe && entry_maybe->source_loc_stack) {
-        print_owned_calls_stack(entry_maybe->source_loc_stack);
-      }
+      print_owned_calls_stack(entry_maybe);
       print_error_msg_info(global_error_msg_info);
       cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
       if (curr_depth == UNMAPPED_VAL) {
