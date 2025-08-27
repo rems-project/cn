@@ -30,7 +30,6 @@ void reset_fulminate(void) {
   reset_error_msg_info();
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
-  alloc_ghost_array(0);
 }
 
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;
