@@ -36,10 +36,11 @@
 #define STACK_POP(NAME, CTYPE)                                                           \
   static inline CTYPE NAME##_stack_pop(NAME##_stack *s, allocator *alloc) {          \
     if (s->top) {                                                                        \
-      CTYPE elem = s->top->NAME;                                                         \
       NAME##_node *old_top = s->top;                                                     \
+      CTYPE elem = old_top->NAME;                                                         \
       s->top = s->top->next;                                                             \
-      alloc->free(old_top);                                                          \
+      /* TODO: fix \
+      alloc->free(old_top); */                                                          \
       s->size--;                                                                         \
       return elem;                                                                       \
     }                                                                                    \
