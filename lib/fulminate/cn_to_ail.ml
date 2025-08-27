@@ -4466,6 +4466,7 @@ let cn_to_ail_pre_post
     let ail_executable_spec =
       match ghost_array_size_opt with
       | None -> ail_executable_spec
+      | Some 0 -> ail_executable_spec
       | Some _ ->
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
         let ghost_type_checking_stat =
