@@ -319,17 +319,17 @@ let inject st inj =
 
 let sort_injects xs =
   let cmp inj1 inj2 =
-    let c = Pos.compare inj1.footprint.start_pos inj2.footprint.start_pos in
-    let d = Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos in
-    let p =
+    let c_start = Pos.compare inj1.footprint.start_pos inj2.footprint.start_pos in
+    let c_end = Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos in
+    let c_precedence =
       match (inj1.kind, inj2.kind) with
       | InStmt (n1, _, _), InStmt (n2, _, _) -> Stdlib.compare n1 n2
       | _ -> 0
     in
-    if c = 0 then
-      if d = 0 then p else d
+    if c_start = 0 then
+      if c_end = 0 then c_precedence else c_end
     else
-      c
+      c_start
   in
   let xs = List.sort cmp xs in
   (* List.iteri (fun i inj -> Printf.fprintf stderr "\x1b[35m[%d] -> %s @ %s\x1b[0\n" i

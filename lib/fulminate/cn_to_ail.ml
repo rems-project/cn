@@ -3830,6 +3830,7 @@ let ghost_call_site_global_decl =
 
 
 let cn_to_ail_ghost_enum spec_bts ghost_argss =
+  (* cf. cn_to_ail_datatype *)
   let here = Locations.other __LOC__ in
   let cleared_enum_member_id = cleared_enum_member_id here in
   let empty_enum_member_id = Id.make here "EMPTY" in
@@ -4466,7 +4467,9 @@ let cn_to_ail_pre_post
     let ail_executable_spec =
       match ghost_array_size_opt with
       | None -> ail_executable_spec
-      | Some 0 -> ail_executable_spec
+      | Some 0 ->
+        (* This case should be removed when Bennet supports ghost arguments *)
+        ail_executable_spec
       | Some _ ->
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
         let ghost_type_checking_stat =
@@ -4490,8 +4493,11 @@ let cn_to_ail_pre_post
         let ghost_spec_decl =
           A.(AilSdeclaration [ (ghost_spec_sym, Some (mk_expr ghost_spec_rhs)) ])
         in
+        let ail_executable_spec =
+          prepend_to_precondition ail_executable_spec ([], [ ghost_type_checking_stat ])
+        in
         prepend_to_precondition
-          (prepend_to_precondition ail_executable_spec ([], [ ghost_type_checking_stat ]))
+          ail_executable_spec
           ([ ghost_spec_binding ], [ ghost_spec_decl ])
     in
     let ownership_stats_ =
