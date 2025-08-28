@@ -29,6 +29,7 @@ let verify
       solver_flags
       solver_path
       solver_type
+      solver_inc_enabled
       solver_inc_timeout
       astprints
       dont_use_vip
@@ -63,6 +64,7 @@ let verify
   Solver.solver_type := solver_type;
   Solver.solver_flags := solver_flags;
   Solver.try_hard := try_hard;
+  Solver.inc_enabled := solver_inc_enabled;
   Solver.inc_timeout := solver_inc_timeout;
   Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
@@ -169,6 +171,15 @@ module Flags = struct
       & opt (some (enum [ ("z3", Simple_smt.Z3); ("cvc5", Simple_smt.CVC5) ])) None
       & info [ "solver-type" ] ~docv:"z3|cvc5" ~doc)
 
+
+  let solver_inc_enabled =
+    let doc =
+      "Enable or disable incremental SMT solving."
+    in
+    Arg.(
+      value
+      & opt bool !Solver.inc_enabled
+      & info [ "incremental-solving" ] ~doc)
 
   let solver_inc_timeout =
     let doc =
@@ -294,6 +305,7 @@ let verify_t : unit Term.t =
   $ Flags.solver_flags
   $ Flags.solver_path
   $ Flags.solver_type
+  $ Flags.solver_inc_enabled
   $ Flags.solver_inc_timeout
   $ Common.Flags.astprints
   $ Flags.dont_use_vip
