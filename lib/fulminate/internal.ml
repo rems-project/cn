@@ -119,11 +119,10 @@ let generate_c_loop_invariants
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
 
 
-let opt_proc_param_of_fun_map_decl fmd =
-  match fmd with Mucore.Proc proc -> Some proc.args_and_body | ProcDecl _ -> None
-
-
 let args_and_bodies_of_mucore prog5 =
+  let opt_proc_param_of_fun_map_decl fmd =
+    match fmd with Mucore.Proc proc -> Some proc.args_and_body | ProcDecl _ -> None
+  in
   let fns = prog5.Mucore.funs in
   let opt_args_and_bodies =
     Pmap.fold (fun _ fmd acc -> opt_proc_param_of_fun_map_decl fmd :: acc) fns []
@@ -131,38 +130,30 @@ let args_and_bodies_of_mucore prog5 =
   List.filter_map Fun.id opt_args_and_bodies
 
 
-let rec param_of_args_and_body = function
-  | Mucore.Computational (_, _, args) -> param_of_args_and_body args
-  | Ghost (_, _, args) -> param_of_args_and_body args
-  | L args ->
-    let rec aux = function
-      | Mucore.Define (_, _, args) -> aux args
-      | Resource (_, _, args) -> aux args
-      | Constraint (_, _, args) -> aux args
-      | I expr -> expr
-    in
-    aux args
-
-
-let rec bts_of_args_and_body = function
-  | Mucore.Computational (_, _, args) -> bts_of_args_and_body args
-  | Ghost ((_, bt), _, args) -> bt :: bts_of_args_and_body args
-  | L _ -> []
-
-
-let exprs_of_mucore prog5 =
-  let args_and_bodies = args_and_bodies_of_mucore prog5 in
-  let exprs =
-    List.map
-      (fun aab ->
-         let expr, _, _ = param_of_args_and_body aab in
-         expr)
-      args_and_bodies
-  in
-  exprs
-
-
 let ghost_args_and_their_call_locs prog5 =
+  let exprs_of_mucore prog5 =
+    let rec param_of_args_and_body = function
+      | Mucore.Computational (_, _, args) -> param_of_args_and_body args
+      | Ghost (_, _, args) -> param_of_args_and_body args
+      | L args ->
+        let rec aux = function
+          | Mucore.Define (_, _, args) -> aux args
+          | Resource (_, _, args) -> aux args
+          | Constraint (_, _, args) -> aux args
+          | I expr -> expr
+        in
+        aux args
+    in
+    let args_and_bodies = args_and_bodies_of_mucore prog5 in
+    let exprs =
+      List.map
+        (fun aab ->
+           let expr, _, _ = param_of_args_and_body aab in
+           expr)
+        args_and_bodies
+    in
+    exprs
+  in
   let exprs = exprs_of_mucore prog5 in
   let acc = ref [] in
   let rec aux_expr (Mucore.Expr (loc, _, _, e_)) =
@@ -219,16 +210,15 @@ let generate_fn_call_ghost_args_injs
        (ghost_args_and_their_call_locs prog5))
 
 
-let count_spec_ghost_args args =
-  let rec aux n = function
-    | Mucore.Computational (_, _, args) -> aux n args
-    | Ghost (_, _, args) -> aux (n + 1) args
-    | L _ -> n
-  in
-  aux 0 args
-
-
 let max_num_of_ghost_args prog5 =
+  let count_spec_ghost_args args =
+    let rec aux n = function
+      | Mucore.Computational (_, _, args) -> aux n args
+      | Ghost (_, _, args) -> aux (n + 1) args
+      | L _ -> n
+    in
+    aux 0 args
+  in
   let args_and_bodies = args_and_bodies_of_mucore prog5 in
   let nums_of_spec_ghost_args = List.map count_spec_ghost_args args_and_bodies in
   let nums_of_call_ghost_args =
@@ -466,6 +456,11 @@ let generate_c_datatypes (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
 
 let generate_ghost_enum prog5 =
   let args_and_bodies = args_and_bodies_of_mucore prog5 in
+  let rec bts_of_args_and_body = function
+    | Mucore.Computational (_, _, args) -> bts_of_args_and_body args
+    | Ghost ((_, bt), _, args) -> bt :: bts_of_args_and_body args
+    | L _ -> []
+  in
   let bts = List.map bts_of_args_and_body args_and_bodies in
   let _, ghost_argss = List.split (ghost_args_and_their_call_locs prog5) in
   let ail_ghost_enum = Cn_to_ail.cn_to_ail_ghost_enum bts ghost_argss in

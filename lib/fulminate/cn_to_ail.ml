@@ -456,21 +456,6 @@ let wrap_with_convert_to ?sct ail_expr_ bt =
   wrap_with_convert ?sct ~convert_from:false ail_expr_ bt
 
 
-let load_from_ghost_array_fn_str = "load_from_ghost_array"
-
-let wrap_with_load_from_ghost_array cn_ctype ghost_idx =
-  A.AilEcast
-    ( C.no_qualifiers,
-      cn_ctype,
-      mk_expr
-        (AilEcall
-           ( mk_expr (AilEident (Sym.fresh load_from_ghost_array_fn_str)),
-             [ mk_expr
-                 (AilEconst
-                    (ConstantInteger (IConstant (Z.of_int ghost_idx, Decimal, None))))
-             ] )) )
-
-
 let get_equality_fn_call bt e1 e2 =
   match bt with
   | BT.Map (_, val_bt) ->
@@ -3751,8 +3736,6 @@ let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
   (bs, ss)
 
 
-let add_to_ghost_array_fn_str = "add_to_ghost_array"
-
 let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = function
   | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
@@ -3785,7 +3768,7 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     let add_to_ghost_array_call =
       mk_expr
         (AilEcall
-           ( mk_expr (AilEident (Sym.fresh add_to_ghost_array_fn_str)),
+           ( mk_expr (AilEident (Sym.fresh "add_to_ghost_array")),
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
                e
@@ -3806,7 +3789,12 @@ let ghost_enum_member_id bts =
 
 
 let ghost_enum_member_id_ghost_args ghost_args =
-  let bts = List.map Cnprog.get_bt ghost_args in
+  let rec get_bt (cnprog_it : IT.t Cnprog.t) =
+    match cnprog_it with
+    | Let (_, _, cnprog_it) -> get_bt cnprog_it
+    | Pure (_, it) -> IT.get_bt it
+  in
+  let bts = List.map get_bt ghost_args in
   ghost_enum_member_id bts
 
 
@@ -4311,24 +4299,6 @@ let rec cn_to_ail_lat_2
     }
 
 
-let translate_computational_at (sym, bt) =
-  let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
-  let cn_ctype = bt_to_ail_ctype bt in
-  let binding = create_binding cn_sym cn_ctype in
-  let rhs = wrap_with_convert_to A.(AilEident sym) bt in
-  let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
-  (cn_sym, (binding, decl))
-
-
-let translate_ghost_at (sym, bt) ghost_idx =
-  let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
-  let cn_ctype = bt_to_ail_ctype bt in
-  let binding = create_binding cn_sym cn_ctype in
-  let rhs = wrap_with_load_from_ghost_array cn_ctype ghost_idx in
-  let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
-  (cn_sym, (binding, decl))
-
-
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
@@ -4341,6 +4311,14 @@ let rec cn_to_ail_pre_post_aux
           ghost_array_size_opt (* None case for lemmas *)
   = function
   | AT.Computational ((sym, bt), _info, at) ->
+    let translate_computational_at (sym, bt) =
+      let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+      let cn_ctype = bt_to_ail_ctype bt in
+      let binding = create_binding cn_sym cn_ctype in
+      let rhs = wrap_with_convert_to A.(AilEident sym) bt in
+      let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+      (cn_sym, (binding, decl))
+    in
     let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ghost_bts, ail_executable_spec =
@@ -4376,6 +4354,27 @@ let rec cn_to_ail_pre_post_aux
          ghost_array_size_opt
          at
      | Some _ ->
+       let translate_ghost_at (sym, bt) ghost_idx =
+         let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+         let cn_ctype = bt_to_ail_ctype bt in
+         let binding = create_binding cn_sym cn_ctype in
+         let gen_load_from_ghost_array cn_ctype ghost_idx =
+           A.AilEcast
+             ( C.no_qualifiers,
+               cn_ctype,
+               mk_expr
+                 (AilEcall
+                    ( mk_expr (AilEident (Sym.fresh "load_from_ghost_array")),
+                      [ mk_expr
+                          (AilEconst
+                             (ConstantInteger
+                                (IConstant (Z.of_int ghost_idx, Decimal, None))))
+                      ] )) )
+         in
+         let rhs = gen_load_from_ghost_array cn_ctype ghost_idx in
+         let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+         (cn_sym, (binding, decl))
+       in
        let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_idx in
        let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
        let ghost_bts, ail_executable_spec =
