@@ -8,6 +8,7 @@ open Global
 open Pp
 
 let inc_enabled = ref true
+
 let inc_timeout = ref None
 
 (** Functions that pick names for things. *)

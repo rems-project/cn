@@ -173,13 +173,9 @@ module Flags = struct
 
 
   let solver_inc_enabled =
-    let doc =
-      "Enable or disable incremental SMT solving."
-    in
-    Arg.(
-      value
-      & opt bool !Solver.inc_enabled
-      & info [ "incremental-solving" ] ~doc)
+    let doc = "Enable or disable incremental SMT solving." in
+    Arg.(value & opt bool !Solver.inc_enabled & info [ "incremental-solving" ] ~doc)
+
 
   let solver_inc_timeout =
     let doc =
