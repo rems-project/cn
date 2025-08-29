@@ -179,7 +179,8 @@ enum cn_failure_mode {
   CN_FAILURE_ASSERT = 1,
   CN_FAILURE_CHECK_OWNERSHIP,
   CN_FAILURE_OWNERSHIP_LEAK,
-  CN_FAILURE_ALLOC
+  CN_FAILURE_ALLOC,
+  CN_FAILURE_GHOST_ARGS
 };
 
 typedef void (*cn_failure_callback)(enum cn_failure_mode, enum spec_mode);
@@ -560,6 +561,13 @@ void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_dep
 void c_remove_from_ghost_state(void *ptr_to_local, size_t size);
 void c_ownership_check(
     char *access_kind, void *generic_c_ptr, int offset, signed long expected_stack_depth);
+
+/* Ghost arguments */
+void alloc_ghost_array(int ghost_array_size);
+void add_to_ghost_array(int i, void *ptr_to_ghost_arg);
+void clear_ghost_array(int ghost_array_size);
+void *load_from_ghost_array(int i);
+void cn_ghost_arg_failure(void);
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \

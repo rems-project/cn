@@ -104,6 +104,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       case CN_FAILURE_ASSERT:                                                            \
       case CN_FAILURE_CHECK_OWNERSHIP:                                                   \
       case CN_FAILURE_OWNERSHIP_LEAK:                                                    \
+      case CN_FAILURE_GHOST_ARGS:                                                        \
         gettimeofday(&end_time, NULL);                                                   \
                                                                                          \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
