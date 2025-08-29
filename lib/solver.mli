@@ -20,6 +20,8 @@ val solver_flags : string list option ref
 
 val solver_type : Simple_smt.solver_extensions option ref
 
+val inc_enabled : bool ref
+
 val inc_timeout : int option ref
 
 (* Create a solver *)

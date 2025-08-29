@@ -7,6 +7,8 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
+let inc_enabled = ref true
+
 let inc_timeout = ref None
 
 (** Functions that pick names for things. *)
@@ -1374,7 +1376,7 @@ let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
     List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
     let cmds = List.rev (get_commands solver) in
     let answer =
-      match SMT.check solver.smt_solver with
+      match if !inc_enabled then SMT.check solver.smt_solver else Unknown with
       | Unknown -> check_new_solver solver.smt_solver.config cmds
       | a -> a
     in
