@@ -3736,6 +3736,7 @@ let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
   (bs, ss)
 
 
+(* GHOST ARGUMENTS *)
 let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = function
   | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
@@ -3777,7 +3778,7 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     (bs, upd_s @ ss @ [ A.AilSexpr add_to_ghost_array_call ] @ pop_s)
 
 
-let ghost_enum_member_id bts =
+let gen_ghost_enum_member_id bts =
   let here = Locations.other __LOC__ in
   if List.length bts = 0 then
     Id.make here "EMPTY"
@@ -3788,14 +3789,9 @@ let ghost_enum_member_id bts =
     Id.make here bts_str)
 
 
-let ghost_enum_member_id_ghost_args ghost_args =
-  let rec get_bt (cnprog_it : IT.t Cnprog.t) =
-    match cnprog_it with
-    | Let (_, _, cnprog_it) -> get_bt cnprog_it
-    | Pure (_, it) -> IT.get_bt it
-  in
-  let bts = List.map get_bt ghost_args in
-  ghost_enum_member_id bts
+let gen_ghost_enum_member_id_ghost_args ghost_args =
+  let bts = List.map Cnprog.get_bt ghost_args in
+  gen_ghost_enum_member_id bts
 
 
 let ail_of_enum_member_id enum_id =
@@ -3812,7 +3808,7 @@ let ghost_enum_type = mk_ctype C.(Basic (Integer (Enum cn_ghost_enum_sym)))
 
 let cleared_enum_member_id loc = Id.make loc "CLEARED"
 
-let ghost_call_site_global_decl =
+let gen_ghost_call_site_global_decl =
   let ghost_call_site_binding = create_binding ghost_call_site_sym ghost_enum_type in
   ([ ghost_call_site_binding ], [ A.(AilSdeclaration [ (ghost_call_site_sym, None) ]) ])
 
@@ -3822,9 +3818,9 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
   let here = Locations.other __LOC__ in
   let cleared_enum_member_id = cleared_enum_member_id here in
   let empty_enum_member_id = Id.make here "EMPTY" in
-  let ghost_spec_enum_member_ids = List.map ghost_enum_member_id spec_bts in
+  let ghost_spec_enum_member_ids = List.map gen_ghost_enum_member_id spec_bts in
   let ghost_argss_enum_member_ids =
-    List.map ghost_enum_member_id_ghost_args ghost_argss
+    List.map gen_ghost_enum_member_id_ghost_args ghost_argss
   in
   let enum_member_ids_with_duplicates =
     [ cleared_enum_member_id; empty_enum_member_id ]
@@ -3845,9 +3841,10 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
   (cn_ghost_enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition))
 
 
+(* GHOST ARGUMENTS *)
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
   let ghost_call_site_rhs =
-    ail_of_enum_member_id (ghost_enum_member_id_ghost_args ghost_args)
+    ail_of_enum_member_id (gen_ghost_enum_member_id_ghost_args ghost_args)
   in
   let ghost_call_site_decl =
     A.AilSexpr
@@ -4311,7 +4308,7 @@ let rec cn_to_ail_pre_post_aux
           ghost_array_size_opt (* None case for lemmas *)
   = function
   | AT.Computational ((sym, bt), _info, at) ->
-    let translate_computational_at (sym, bt) =
+    let cn_to_ail_computational_at (sym, bt) =
       let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
       let cn_ctype = bt_to_ail_ctype bt in
       let binding = create_binding cn_sym cn_ctype in
@@ -4319,7 +4316,7 @@ let rec cn_to_ail_pre_post_aux
       let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
       (cn_sym, (binding, decl))
     in
-    let cn_sym, (binding, decl) = translate_computational_at (sym, bt) in
+    let cn_sym, (binding, decl) = cn_to_ail_computational_at (sym, bt) in
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
@@ -4354,7 +4351,7 @@ let rec cn_to_ail_pre_post_aux
          ghost_array_size_opt
          at
      | Some _ ->
-       let translate_ghost_at (sym, bt) ghost_idx =
+       let cn_to_ail_ghost_at (sym, bt) ghost_idx =
          let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
          let cn_ctype = bt_to_ail_ctype bt in
          let binding = create_binding cn_sym cn_ctype in
@@ -4375,7 +4372,7 @@ let rec cn_to_ail_pre_post_aux
          let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
          (cn_sym, (binding, decl))
        in
-       let cn_sym, (binding, decl) = translate_ghost_at (sym, bt) ghost_idx in
+       let cn_sym, (binding, decl) = cn_to_ail_ghost_at (sym, bt) ghost_idx in
        let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
        let ghost_bts, ail_executable_spec =
          cn_to_ail_pre_post_aux
@@ -4467,7 +4464,7 @@ let cn_to_ail_pre_post
       match ghost_array_size_opt with
       | None -> ail_executable_spec
       | Some 0 ->
-        (* This case should be removed when Bennet supports ghost arguments *)
+        (* TODO: This case should be removed when Bennet supports ghost arguments *)
         ail_executable_spec
       | Some _ ->
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
@@ -4487,7 +4484,7 @@ let cn_to_ail_pre_post
         in
         let ghost_spec_binding = create_binding ghost_spec_sym ghost_enum_type in
         let (AnnotatedExpression (_, _, _, ghost_spec_rhs)) =
-          ail_of_enum_member_id (ghost_enum_member_id ghost_bts)
+          ail_of_enum_member_id (gen_ghost_enum_member_id ghost_bts)
         in
         let ghost_spec_decl =
           A.(AilSdeclaration [ (ghost_spec_sym, Some (mk_expr ghost_spec_rhs)) ])

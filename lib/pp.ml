@@ -286,3 +286,7 @@ let string str =
 
 let escape_lines doc =
   separate hardline (List.map (fun l -> l ^^ backslash) (lines (plain doc)))
+
+
+(* underscores is used for enum member generation for runtime checking of ghost arguments: *)
+let underscores x = enclose underscore underscore x

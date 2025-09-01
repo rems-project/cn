@@ -458,13 +458,13 @@ let main
       (fun (i, loc) -> (loc, [ "struct " ^ Pp.plain (CF.Pp_ail.pp_id i) ]))
       struct_locs
   in
-  let give_precedence n = fun x -> (n, x) in
+  let give_precedence_map n = List.map (fun x -> (n, x)) in
   let in_stmt_injs =
-    List.map (give_precedence 0) executable_spec.in_stmt
-    @ List.map (give_precedence 1) accesses_stmt_injs
-    @ List.map (give_precedence 0) toplevel_injections
-    @ List.map (give_precedence 0) struct_injs
-    @ List.map (give_precedence 0) fn_call_ghost_args_injs
+    give_precedence_map 0 executable_spec.in_stmt
+    @ give_precedence_map 1 accesses_stmt_injs
+    @ give_precedence_map 0 toplevel_injections
+    @ give_precedence_map 0 struct_injs
+    @ give_precedence_map 0 fn_call_ghost_args_injs
   in
   let pre_post_pairs =
     if with_testing || without_ownership_checking then

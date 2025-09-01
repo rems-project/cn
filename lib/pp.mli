@@ -341,3 +341,5 @@ val document_to_yojson : document -> Yojson.Safe.t
 val document_of_yojson : Yojson.Safe.t -> (document, string) Result.t
 
 val escape_lines : document -> document
+
+val underscores : document -> document

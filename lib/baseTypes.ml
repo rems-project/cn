@@ -50,8 +50,6 @@ let with_executable_spec f x =
   r
 
 
-let underscores x = Pp.(enclose underscore underscore x)
-
 let rec pp pp_loc =
   let open Pp in
   function
