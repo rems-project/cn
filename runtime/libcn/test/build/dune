@@ -12,7 +12,8 @@
   (alias_rec ../../install)
   (file Makefile)
   (glob_files ../bennet/*.hpp)
-  (glob_files ../bennet/*.cpp))
+  (glob_files ../bennet/*.cpp)
+  (glob_files ../autoannot/*.cpp))
  (action
   (run make)))
 

@@ -2,9 +2,12 @@
  (target libcn_exec.a)
  (deps
   (:headers
-   (glob_files ../include/cn-executable/*.h))
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/cn-autoannot/*.h))
   (:src
-   (glob_files ../src/cn-executable/*.c)))
+   (glob_files ../src/cn-executable/*.c)
+   (file ../src/cn-autoannot/focus_ctx.c)
+   (file ../src/cn-autoannot/auto_annot.c)))
  (action
   (progn
    (run mkdir -p cn-executable)
@@ -18,7 +21,9 @@
     cn-executable/fulminate_alloc.o
     cn-executable/bump_alloc.o
     cn-executable/hash_table.o
-    cn-executable/utils.o))))
+    cn-executable/utils.o
+    cn-executable/focus_ctx.o
+    cn-executable/auto_annot.o))))
 
 (rule
  (target libbennet.a)

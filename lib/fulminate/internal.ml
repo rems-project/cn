@@ -128,7 +128,8 @@ let generate_c_loop_invariants
         ail_loop_decls
     in
     let ail_loop_close_block_injs =
-      List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
+      let close_token = if !Config.with_auto_annot then "}\nclear_focus ();" else "}" in
+      List.map (fun (loc, _) -> (get_end_loc loc, [ close_token ])) ail_loop_decls
     in
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
 
@@ -540,6 +541,13 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
   List.non_empty (get_main sigm)
 
 
+let finalize_auto_annot () =
+  let cn_finalize_auto_annot_fcall =
+    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "finalize_auto_annot")), []))
+  in
+  A.(AilSexpr cn_finalize_auto_annot_fcall)
+
+
 let generate_ownership_global_assignments
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -555,5 +563,12 @@ let generate_ownership_global_assignments
       generate_ail_stat_strs ([], assignments @ global_map_stmts_)
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
+    let global_unmapping_stmts_ =
+      if !Config.with_auto_annot then (
+        let finalize_stmt = finalize_auto_annot () in
+        finalize_stmt :: global_unmapping_stmts_)
+      else
+        global_unmapping_stmts_
+    in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
