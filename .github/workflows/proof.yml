@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}
+        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
   
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -56,7 +56,7 @@ jobs:
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}
+        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
 
     # - name: Download z3 release
     #   uses: robinraju/release-downloader@v1
