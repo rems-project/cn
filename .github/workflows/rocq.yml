@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq
+        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
   
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -58,7 +58,7 @@ jobs:
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq
+        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
 
     - name: Install CN (with Coq)
       run: |
