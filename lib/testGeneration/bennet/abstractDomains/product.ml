@@ -1,6 +1,8 @@
 module IT = IndexTerms
 module LC = LogicalConstraints
 module Sym = Sym
+module StringSet = Set.Make (String)
+module StringSetSet = Set.Make (StringSet)
 
 (** Use a GADT to safely store a domain and its state. *)
 type domain_component =
@@ -9,6 +11,11 @@ type domain_component =
 type relative_component =
   | RPack : (module Domain.RELATIVE_VIEW with type t = 'a) * 'a -> relative_component
 
+let specialized =
+  StringSetSet.of_list
+    [ StringSet.of_list [ Ownership.Inner.CInt.name; Interval_.Inner.CInt.name ] ]
+
+
 let product_domains (domains : (module Domain.T) list) =
   match domains with
   | [] -> failwith "Cannot create product of empty domain list"
@@ -16,7 +23,7 @@ let product_domains (domains : (module Domain.T) list) =
     let domains =
       List.sort_uniq
         (fun (module D1 : Domain.T) (module D2 : Domain.T) ->
-           String.compare D1.name D2.name)
+           String.compare D1.CInt.name D2.CInt.name)
         domains
     in
     let name =
@@ -163,49 +170,110 @@ let product_domains (domains : (module Domain.T) list) =
 
 
         let generate_arbitrary_function =
+          let domain_index (module D : Domain.T) =
+            Option.get
+              (List.find_index
+                 (fun (module D' : Domain.T) -> String.equal D.CInt.name D'.CInt.name)
+                 domains)
+          in
+          let domain_index' (name : string) =
+            Option.get
+              (List.find_index
+                 (fun (module D : Domain.T) -> String.equal name D.CInt.name)
+                 domains)
+          in
+          let arb_funcs =
+            domains
+            |> List.map (fun (module D : Domain.T) ->
+              let res =
+                StringSetSet.fold
+                  (fun g acc ->
+                     if StringSet.mem D.CInt.name g then (
+                       match StringSetSet.elements acc with
+                       | h :: _ when StringSet.cardinal h = StringSet.cardinal g ->
+                         StringSetSet.add g acc
+                       | h :: _ when StringSet.cardinal h < StringSet.cardinal g ->
+                         StringSetSet.singleton g
+                       | _ :: _ -> acc
+                       | [] -> StringSetSet.singleton g)
+                     else
+                       acc)
+                  specialized
+                  StringSetSet.empty
+              in
+              if StringSetSet.is_empty res then
+                StringSetSet.singleton (StringSet.singleton D.CInt.name)
+              else
+                res)
+            |> List.fold_left StringSetSet.union StringSetSet.empty
+          in
           !^"static inline ty"
           ^^^ !^func_prefix
           ^^ !^"arbitrary_##ty"
           ^^ parens (!^struct_type ^^ !^"* ptr")
           ^^ braces
-               (!^"int which = bennet_uniform_uint8_t("
-                ^^ int (List.length domains)
-                ^^ !^"); for (int attempt = 0; attempt < 100; attempt++)"
+               (!^"int which = 0;"
+                ^/^ !^"for (int attempt = 0; attempt < 10; attempt++)"
                 ^/^ braces
-                      (!^"ty res; switch(which)"
+                      (!^"ty res;"
+                       ^/^ !^"switch(which)"
                        ^^ braces
                             (separate
                                hardline
-                               (List.mapi
-                                  (fun i (module D : Domain.T) ->
-                                     !^(Printf.sprintf
-                                          "case %d:; res = \
-                                           bennet_domain_%s_arbitrary_##ty(&ptr->element_%d);"
-                                          i
-                                          D.CInt.name
-                                          i)
-                                     ^^ !^"if("
-                                     ^/^ separate
-                                           !^"&&"
-                                           (List.map
-                                              (fun (j, (module D' : Domain.T)) ->
-                                                 !^(Printf.sprintf
-                                                      "bennet_domain_%s_check_##ty(res, \
-                                                       &ptr->element_%d)"
-                                                      D'.CInt.name
-                                                      j))
-                                              (List.filter
-                                                 (fun (_, (module D' : Domain.T)) ->
-                                                    not (String.equal D.name D'.name))
-                                                 (List.mapi
-                                                    (fun i (module D' : Domain.T) ->
-                                                       (i, (module D' : Domain.T)))
-                                                    domains)))
-                                     ^^ !^") { return res; } else { which = (which + 1) \
-                                           % "
-                                     ^^ int (List.length domains)
-                                     ^^ !^"; continue; }")
-                                  domains)))
+                               (arb_funcs
+                                |> StringSetSet.elements
+                                |> List.mapi (fun i dset ->
+                                  let supported_domains =
+                                    dset
+                                    |> StringSet.elements
+                                    |> List.fast_sort String.compare
+                                  in
+                                  let combined_name =
+                                    String.concat "_" supported_domains
+                                  in
+                                  let args =
+                                    supported_domains
+                                    |> List.map (fun name ->
+                                      Printf.sprintf
+                                        "&ptr->element_%d"
+                                        (domain_index' name))
+                                    |> String.concat ", "
+                                  in
+                                  let checks =
+                                    List.map
+                                      (fun (module D' : Domain.T) ->
+                                         !^(Printf.sprintf
+                                              "bennet_domain_%s_check_##ty(res, \
+                                               &ptr->element_%d)"
+                                              D'.CInt.name
+                                              (domain_index (module D'))))
+                                      (List.filter
+                                         (fun (module D' : Domain.T) ->
+                                            not (StringSet.mem D'.CInt.name dset))
+                                         domains)
+                                  in
+                                  let checks =
+                                    if List.is_empty checks then
+                                      !^"return res;"
+                                    else
+                                      !^"if"
+                                      ^/^ parens (separate !^"&&" checks)
+                                      ^^^ braces !^"return res;"
+                                      ^^^ !^"else"
+                                      ^^^ braces
+                                            (!^(Printf.sprintf
+                                                  "which = (which + 1) %% %d;"
+                                                  (StringSetSet.cardinal arb_funcs))
+                                             ^/^ !^"continue;")
+                                  in
+                                  !^(Printf.sprintf
+                                       "case %d:; res = \
+                                        bennet_domain_%s_arbitrary_##ty(%s);"
+                                       i
+                                       combined_name
+                                       args)
+                                  ^^ checks))
+                             ^^ !^"default: assert(false); break;"))
                 ^^ !^"assert(false); return 0;")
 
 

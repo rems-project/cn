@@ -158,7 +158,7 @@ extern "C" {
 #define bennet_arbitrary_ownership_bottom(cty)                                           \
   (bennet_arbitrary_ownership_##cty##_bottom())
 
-#define bennet_arbitrary_ownership(cty, d) (bennet_arbitrary_ownership_##cty##(d))
+#define bennet_arbitrary_ownership(cty, d) (bennet_arbitrary_ownership_##cty(d))
 
 #define bennet_arbitrary_ownership_of(cty, before, after)                                \
   ({                                                                                     \

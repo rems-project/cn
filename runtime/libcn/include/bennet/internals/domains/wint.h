@@ -51,7 +51,7 @@ extern "C" {
 
 #define bennet_arbitrary_wint_top(cty) bennet_arbitrary_wint_##cty##_top()
 
-#define bennet_arbitrary_wint(cty, d) (bennet_arbitrary_wint_##cty##(d))
+#define bennet_arbitrary_wint(cty, d) (bennet_arbitrary_wint_##cty(d))
 
 #define bennet_domain_wint_of(cty, start, end) bennet_domain_wint_of_##cty(start, end)
 

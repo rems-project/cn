@@ -8,6 +8,7 @@
 #include <bennet/info/unsatisfied.h>
 #include <bennet/internals/domain.h>
 #include <bennet/internals/domains/ownership.h>
+#include <bennet/internals/domains/products.h>
 #include <bennet/internals/domains/sized.h>
 #include <bennet/internals/domains/tnum.h>
 #include <bennet/internals/domains/wint.h>

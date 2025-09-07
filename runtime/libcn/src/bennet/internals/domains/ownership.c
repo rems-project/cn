@@ -86,6 +86,7 @@ uintptr_t bennet_domain_ownership_arbitrary_uintptr_t(
     bennet_domain_ownership(uintptr_t) * d) {
   assert(!d->bottom);
 
+  /* Only allocate */
   if (d->before != 0 || d->after != 0) {
     size_t bytes = d->before + d->after;
     if (bytes < d->before || bytes < d->after) {
@@ -112,26 +113,6 @@ uintptr_t bennet_domain_ownership_arbitrary_uintptr_t(
 
   return bennet_arbitrary_sized(uintptr_t, 0);
 };
-
-#define OWNERSHIP_GEN_CN(cn_ty, c_ty)                                                    \
-  cn_ty* bennet_arbitrary_ownership_##cn_ty(bennet_domain_ownership(c_ty) * d) {         \
-    return convert_to_##cn_ty(bennet_domain_ownership_arbitrary_##c_ty(d));              \
-  }
-
-OWNERSHIP_GEN_CN(cn_bits_i8, int8_t)
-OWNERSHIP_GEN_CN(cn_bits_i16, int16_t)
-OWNERSHIP_GEN_CN(cn_bits_i32, int32_t)
-OWNERSHIP_GEN_CN(cn_bits_i64, int64_t)
-
-OWNERSHIP_GEN_CN(cn_bits_u8, uint8_t)
-OWNERSHIP_GEN_CN(cn_bits_u16, uint16_t)
-OWNERSHIP_GEN_CN(cn_bits_u32, uint32_t)
-OWNERSHIP_GEN_CN(cn_bits_u64, uint64_t)
-
-cn_pointer* bennet_arbitrary_ownership_cn_pointer(
-    bennet_domain_ownership(uintptr_t) * d) {
-  return convert_to_cn_pointer((void*)bennet_domain_ownership_arbitrary_uintptr_t(d));
-}
 
 #define OWNERSHIP_CHECK_IMPL(cty)                                                        \
   bool bennet_domain_ownership_check_##cty(cty v, bennet_domain_ownership(cty) * d) {    \
