@@ -1,0 +1,61 @@
+# General testing
+name: General
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  ounit-tests:
+    strategy:
+      matrix:
+        version: [4.14.1]
+
+    name: OUnit and QCheck tests
+
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout CN
+      uses: actions/checkout@v4
+
+    - name: System dependencies (Ubuntu)
+      run: |
+        sudo apt-get install build-essential libgmp-dev z3 opam
+
+    - name: Restore OPAM cache
+      id: cache-opam-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.opam
+        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+  
+    - name: Setup OPAM
+      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+      run: |
+        opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }})
+        opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+        opam install --deps-only --with-test --yes ./cn.opam z3
+
+    - name: Save OPAM cache
+      uses: actions/cache/save@v4
+      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+      with:
+        path: ~/.opam
+        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+
+    - name: Install CN
+      run: |
+        opam switch ${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }})
+        opam pin --yes --no-action add cn .
+        opam install --yes cn
+
+    - name: Run OUnit/QCheck tests
+      run: |
+        opam switch ${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }})
+        dune test tests/ounit
