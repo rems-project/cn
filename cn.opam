@@ -21,6 +21,9 @@ depends: [
   "cmdliner"
   "ocamlgraph"
   "zarith" {>= "1.13"}
+  "ounit2" {with-test}
+  "qcheck" {with-test}
+  "qcheck-ounit" {with-test}
 ]
 pin-depends: [
   ["cerberus-lib.dev" "git+https://github.com/rems-project/cerberus.git#9eb2ce2"]

@@ -1297,6 +1297,10 @@ module Bounds = struct
     |> Option.value ~default:(num_lit_ max bt Cerb_location.unknown)
 
 
+  let get_bounds_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option * t option =
+    (get_lower_bound_opt (x, bt) it, get_upper_bound_opt (x, bt) it)
+
+
   let get_bounds ((x, bt) : Sym.t * BT.t) (it : t) : t * t =
     (get_lower_bound (x, bt) it, get_upper_bound (x, bt) it)
 end

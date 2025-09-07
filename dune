@@ -6,4 +6,4 @@
  (release
   (flags :standard -w +26+27+60 -open Monomorphic.Int)))
 
-(dirs lib bin coq tools runtime)
+(dirs lib bin coq tools runtime tests)
