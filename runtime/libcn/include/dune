@@ -33,6 +33,9 @@
   (bennet/internals/domains/ownership.h
    as
    runtime/include/bennet/internals/domains/ownership.h)
+  (bennet/internals/domains/products.h
+   as
+   runtime/include/bennet/internals/domains/products.h)
   (bennet/internals/domains/sized.h
    as
    runtime/include/bennet/internals/domains/sized.h)

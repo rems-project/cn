@@ -37,7 +37,6 @@ let parse_domain (s : string option) : (module Domain.T) =
     String.split_on_char ',' s
     |> List.map String.trim
     |> List.filter (fun x -> String.length x > 0)
-    |> List.sort_uniq String.compare
   in
   (* Parse individual domain names *)
   let parse_single_domain (name : string) : (module Domain.T) option =

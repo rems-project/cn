@@ -605,6 +605,7 @@ module Make (B : BASIS) = struct
       else (
         let t = forward_abs_it it d in
         let d' = backward_abs_it it t in
+        let d' = meet d d' in
         if equal d d' then d' else aux d' (fuel - 1))
     in
     aux d 10

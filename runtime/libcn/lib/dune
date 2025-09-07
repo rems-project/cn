@@ -51,6 +51,7 @@
     bennet/failure.o
     bennet/ownership.o
     bennet/prelude.o
+    bennet/products.o
     bennet/rand.o
     bennet/rand_alloc.o
     bennet/size.o
