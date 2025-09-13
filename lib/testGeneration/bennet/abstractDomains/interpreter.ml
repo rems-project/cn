@@ -113,7 +113,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let wgts, d_meets = List.split branch_results in
         let d' = AD.join_many d_meets in
         (GT.pick_sized_ wgts tag bt loc, [ d' ])
-      | `PickSizedElab (_, wgts) ->
+      | `PickSizedElab (choice_var, wgts) ->
         let branch_results =
           wgts
           |> List.filter_map (fun (w, gt) ->
@@ -124,7 +124,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         in
         let wgts, d_meets = List.split branch_results in
         let d' = AD.join_many d_meets in
-        (GT.pick_sized_elab_ wgts tag bt loc, [ d' ])
+        (GT.pick_sized_elab_ choice_var wgts tag bt loc, [ d' ])
     in
     let rec loop d =
       let gt, d_list = aux ctx gd.body d true in
