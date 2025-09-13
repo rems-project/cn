@@ -938,7 +938,7 @@ let prop_meet_many_minimizes =
     let fold_meet =
       wints
       |> permutations
-      |> List.map (List.fold_left Basis.meet (Basis.bottom test_bt_u8))
+      |> List.map (List.fold_left Basis.meet (Basis.top test_bt_u8))
       |> List.sort (fun x y -> Z.compare (Basis.cardinality x) (Basis.cardinality y))
       |> List.hd
     in
@@ -1486,7 +1486,7 @@ let property_tests =
          QCheck_ounit.to_ounit2_test prop_leq_reflexive;
          QCheck_ounit.to_ounit2_test prop_join_many_monotonic;
          QCheck_ounit.to_ounit2_test prop_join_many_minimizes;
-         (* QCheck_ounit.to_ounit2_test prop_meet_many_minimizes; *)
+         QCheck_ounit.to_ounit2_test prop_meet_many_minimizes;
          QCheck_ounit.to_ounit2_test prop_join_idempotent;
          QCheck_ounit.to_ounit2_test prop_meet_idempotent;
          QCheck_ounit.to_ounit2_test prop_left_shift_zero_identity;
