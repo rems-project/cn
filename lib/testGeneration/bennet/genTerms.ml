@@ -7,40 +7,97 @@ type ('tag, 'ast) annot =
       ('ast * 'tag * BT.t * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0]))
 [@@deriving eq, ord]
 
-module [@warning "-60"] Make (AD : Domain.T) = struct
-  module Inner = struct
-    type ('tag, 'recur) ast =
-      [ `Arbitrary (** Generate arbitrary values *)
-      | `Symbolic (** Generate symbolic values *)
-      | `ArbitraryDomain of AD.Relative.t
-      | `Call of Sym.t * IT.t list
-        (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-      | `Asgn of (IT.t * Sctypes.t) * IT.t * ('tag, 'recur) annot
-        (** Claim ownership and assign a value to a memory location *)
-      | `LetStar of (Sym.t * ('tag, 'recur) annot) * ('tag, 'recur) annot
-        (** Backtrack point *)
-      | `Return of IT.t (** Monadic return *)
-      | `Assert of LC.t * ('tag, 'recur) annot
-        (** Assert some [LC.t] are true, backtracking otherwise *)
-      | `AssertDomain of AD.t * ('tag, 'recur) annot
-        (** Assert domain constraints are satisfied, backtracking otherwise *)
-      | `ITE of IT.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
-      | `Map of (Sym.t * BT.t * IT.t) * ('tag, 'recur) annot
-      | `Pick of ('tag, 'recur) annot list (** Pick among a list of options *)
-      | `CallSized of Sym.t * IT.t list * (int * Sym.t)
-      | `PickSized of (Z.t * ('tag, 'recur) annot) list
-        (** Pick among a list of options, weighted by the provided [Z.t]s *)
-      | `SplitSize of Sym.Set.t * ('tag, 'recur) annot
-      | `AsgnElab of
-          Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
-      | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * ('tag, 'recur) annot
-      | `PickSizedElab of Sym.t * (Z.t * ('tag, 'recur) annot) list
-      | `SplitSizeElab of Sym.t * Sym.Set.t * ('tag, 'recur) annot
-      ]
-    [@@deriving eq, ord]
-  end
+module Base (AD : Domain.T) = struct
+  type ('tag, 'recur) ast =
+    [ `Arbitrary (** Generate arbitrary values *)
+    | `Symbolic (** Generate symbolic values *)
+    | `ArbitraryDomain of AD.Relative.t
+    | `Call of Sym.t * IT.t list
+      (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
+    | `Asgn of (IT.t * Sctypes.t) * IT.t * ('tag, 'recur) annot
+      (** Claim ownership and assign a value to a memory location *)
+    | `LetStar of (Sym.t * ('tag, 'recur) annot) * ('tag, 'recur) annot
+      (** Backtrack point *)
+    | `Return of IT.t (** Monadic return *)
+    | `Assert of LC.t * ('tag, 'recur) annot
+      (** Assert some [LC.t] are true, backtracking otherwise *)
+    | `AssertDomain of AD.t * ('tag, 'recur) annot
+      (** Assert domain constraints are satisfied, backtracking otherwise *)
+    | `ITE of IT.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
+    | `Map of (Sym.t * BT.t * IT.t) * ('tag, 'recur) annot
+    | `Pick of ('tag, 'recur) annot list (** Pick among a list of options *)
+    | `CallSized of Sym.t * IT.t list * (int * Sym.t)
+    | `PickSized of (Z.t * ('tag, 'recur) annot) list
+      (** Pick among a list of options, weighted by the provided [Z.t]s *)
+    | `SplitSize of Sym.Set.t * ('tag, 'recur) annot
+    | `AsgnElab of
+        Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
+    | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * ('tag, 'recur) annot
+    | `PickSizedElab of Sym.t * (Z.t * ('tag, 'recur) annot) list
+    | `SplitSizeElab of Sym.t * Sym.Set.t * ('tag, 'recur) annot
+    ]
+  [@@deriving eq, ord]
+end
 
-  open Inner
+module type T = sig
+  module AD : Domain.T
+
+  type tag_t
+
+  type t_ = private [< (tag_t, 'recur) Base(AD).ast ] as 'recur
+
+  type t = (tag_t, t_) annot
+
+  val equal : t -> t -> bool
+
+  val compare : t -> t -> int
+
+  val arbitrary_ : tag_t -> BT.t -> Locations.t -> t
+
+  val symbolic_ : tag_t -> BT.t -> Locations.t -> t
+
+  val arbitrary_domain_ : AD.Relative.t -> tag_t -> BT.t -> Locations.t -> t
+
+  val call_ : Sym.t * IT.t list -> tag_t -> BT.t -> Locations.t -> t
+
+  val asgn_ : (IT.t * Sctypes.t) * IT.t * t -> tag_t -> Locations.t -> t
+
+  val let_star_ : (Sym.t * t) * t -> tag_t -> Locations.t -> t
+
+  val return_ : IT.t -> tag_t -> Locations.t -> t
+
+  val assert_ : LC.t * t -> tag_t -> Locations.t -> t
+
+  val assert_domain_ : AD.t * t -> tag_t -> Locations.t -> t
+
+  val ite_ : IT.t * t * t -> tag_t -> Locations.t -> t
+
+  val map_ : (Sym.t * BT.t * IT.t) * t -> tag_t -> Locations.t -> t
+
+  val map_elab_ : (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t -> tag_t -> Locations.t -> t
+
+  val pick_ : t list -> tag_t -> BT.t -> Locations.t -> t
+
+  val pick_sized_ : (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
+
+  val pick_sized_elab_ : Sym.t -> (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
+
+  val call_sized_ : Sym.t * IT.t list * (int * Sym.t) -> tag_t -> BT.t -> Locations.t -> t
+
+  val asgn_elab_
+    :  Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t ->
+    tag_t ->
+    Locations.t ->
+    t
+
+  val split_size_ : Sym.Set.t * t -> tag_t -> Locations.t -> t
+
+  val split_size_elab_ : Sym.t * Sym.Set.t * t -> tag_t -> Locations.t -> t
+end
+
+module Make (GT : T) = struct
+  include Base (GT.AD)
+  include GT
 
   let basetype (Annot (_, _, bt, _) : ('tag, 'ast) annot) : BT.t = bt
 
@@ -48,49 +105,45 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
 
   (* Constructor-checking functions *)
 
-  let is_arbitrary_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : unit option =
+  let is_arbitrary_ (gt_ : GT.t_) : unit option =
     match gt_ with `Arbitrary -> Some () | _ -> None
 
 
-  let is_arbitrary (gt : ('tag, [< `Arbitrary ]) annot) : unit option =
+  let is_arbitrary (gt : GT.t) : unit option =
     let (Annot (gt_, _, _, _)) = gt in
     is_arbitrary_ gt_
 
 
-  let is_call_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : (Sym.t * IT.t list) option =
+  let is_call_ (gt_ : GT.t_) : (Sym.t * IT.t list) option =
     match gt_ with `Call x -> Some x | _ -> None
 
 
-  let is_call (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) =
+  let is_call (gt : GT.t) =
     let (Annot (gt_, _, _, _)) = gt in
     is_call_ gt_
 
 
-  let is_asgn_ (gt_ : [< ('tag, 'recur) ast ] as 'recur)
-    : ((IT.t * Sctypes.ctype) * IT.t * ('tag, 'recur) annot) option
-    =
+  let is_asgn_ (gt_ : GT.t_) : ((IT.t * Sctypes.ctype) * IT.t * GT.t) option =
     match gt_ with `Asgn x -> Some x | _ -> None
 
 
-  let is_asgn (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) =
+  let is_asgn (gt : GT.t) =
     let (Annot (gt_, _, _, _)) = gt in
     is_asgn_ gt_
 
 
-  let is_let_star_ (gt_ : [< ('tag, 'recur) ast ] as 'recur)
-    : ((Sym.t * ('tag, 'recur) annot) * ('tag, 'recur) annot) option
-    =
+  let is_let_star_ (gt_ : GT.t_) : ((Sym.t * GT.t) * GT.t) option =
     match gt_ with `LetStar x -> Some x | _ -> None
 
 
-  let is_let_star (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) =
+  let is_let_star (gt : GT.t) =
     let (Annot (gt_, _, _, _)) = gt in
     is_let_star_ gt_
 
 
   (* Other utility functions *)
 
-  let rec pp (tm : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) : Pp.document =
+  let rec pp (tm : GT.t) : Pp.document =
     let open Pp in
     let (Annot (tm_, _, bt, _)) = tm in
     match tm_ with
@@ -199,9 +252,9 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
       ^/^ pp gt_rest
 
 
-  let rec free_vars_bts_ (gt_ : [< ('tag, 'recur) ast ] as 'recur) : BT.t Sym.Map.t =
+  let rec free_vars_bts_ (gt_ : GT.t_) : BT.t Sym.Map.t =
     match gt_ with
-    | `Arbitrary | `Symbolic -> Sym.Map.empty
+    | `Arbitrary | `ArbitraryDomain _ | `Symbolic -> Sym.Map.empty
     | `Call (_, iargs) -> IT.free_vars_bts_list iargs
     | `Asgn ((it_addr, _), it_val, gt') ->
       Sym.Map.union
@@ -242,13 +295,12 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
            (IT.free_vars_bts it_perm)
            (free_vars_bts gt'))
     | `Pick gts -> free_vars_bts_list gts
+    | _ -> failwith ("TODO @ " ^ __LOC__)
 
 
-  and free_vars_bts (Annot (gt_, _, _, _) : ('tag, 'ast) annot) : BT.t Sym.Map.t =
-    free_vars_bts_ gt_
+  and free_vars_bts (Annot (gt_, _, _, _) : GT.t) : BT.t Sym.Map.t = free_vars_bts_ gt_
 
-
-  and free_vars_bts_list : ('tag, 'ast) annot list -> BT.t Sym.Map.t =
+  and free_vars_bts_list : GT.t list -> BT.t Sym.Map.t =
     fun xs ->
     List.fold_left
       (fun ss t ->
@@ -266,15 +318,15 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
     gt |> free_vars_bts |> Sym.Map.bindings |> List.map fst |> Sym.Set.of_list
 
 
-  let rec contains_call (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot) : bool =
-    let (Annot (gt_, (), _, _)) = gt in
+  let rec contains_call (gt : GT.t) : bool =
+    let (Annot (gt_, _, _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `Symbolic | `Return _ -> false
+    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ -> false
     | `Call _ | `CallSized _ -> true
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
       contains_call gt1 || contains_call gt2
     | `Asgn (_, _, gt')
-    | `AsgnElab (_, _, gt')
+    | `AsgnElab (_, _, _, gt')
     | `Assert (_, gt')
     | `AssertDomain (_, gt')
     | `Map (_, gt')
@@ -287,12 +339,10 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
       List.exists (fun (_, g) -> contains_call g) wgts
 
 
-  let rec contains_constraint (gt : ('tag, ([< ('tag, 'recur) ast ] as 'recur)) annot)
-    : bool
-    =
-    let (Annot (gt_, (), _, _)) = gt in
+  let rec contains_constraint (gt : GT.t) : bool =
+    let (Annot (gt_, _, _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `Symbolic | `Return _ -> false
+    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ -> false
     | `Asgn _ | `AsgnElab _ | `Assert _ | `AssertDomain _ -> true
     | `Call _ | `CallSized _ -> true (* Could be less conservative... *)
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
@@ -305,11 +355,165 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
       List.exists (fun (_, g) -> contains_constraint g) wgts
 
 
+  let rec subst (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt : t) : t =
+    let (Annot (gt_, tag, bt, loc)) = gt in
+    match gt_ with
+    | `Arbitrary -> arbitrary_ tag bt loc
+    | `Symbolic -> symbolic_ tag bt loc
+    | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+    | `Call (fsym, iargs) -> call_ (fsym, List.map (IT.subst su) iargs) tag bt loc
+    | `CallSized (fsym, iargs, sz) ->
+      call_sized_ (fsym, List.map (IT.subst su) iargs, sz) tag bt loc
+    | `Asgn ((it_addr, sct), it_val, g') ->
+      asgn_ ((IT.subst su it_addr, sct), IT.subst su it_val, subst su g') tag loc
+    | `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_val, g') ->
+      asgn_elab_
+        ( backtrack_var,
+          ((pointer, IT.subst su it_addr), sct),
+          IT.subst su it_val,
+          subst su g' )
+        tag
+        loc
+    | `LetStar ((x, gt1), gt2) ->
+      let x, gt2 = suitably_alpha_rename_gen su.relevant x gt2 in
+      let_star_ ((x, subst su gt1), subst su gt2) tag loc
+    | `Return it -> return_ (IT.subst su it) tag loc
+    | `Assert (lc, gt') -> assert_ (LC.subst su lc, subst su gt') tag loc
+    | `AssertDomain (ad, gt') -> assert_domain_ (ad, subst su gt') tag loc
+    | `ITE (it, gt_then, gt_else) ->
+      ite_ (IT.subst su it, subst su gt_then, subst su gt_else) tag loc
+    | `Map ((i, i_bt, it_perm), gt') ->
+      let i', it_perm = IT.suitably_alpha_rename su.relevant i it_perm in
+      let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
+      map_ ((i', i_bt, IT.subst su it_perm), subst su gt') tag loc
+    | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
+      let i', it_min = IT.suitably_alpha_rename su.relevant i it_min in
+      let it_max = IT.subst (IT.make_rename ~from:i ~to_:i') it_max in
+      let it_perm = IT.subst (IT.make_rename ~from:i ~to_:i') it_perm in
+      let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
+      map_elab_
+        ( (i', i_bt, (IT.subst su it_min, IT.subst su it_max), IT.subst su it_perm),
+          subst su gt' )
+        tag
+        loc
+    | `Pick gts -> pick_ (List.map (subst su) gts) tag bt loc
+    | `PickSized choices ->
+      pick_sized_ (List.map (fun (w, g) -> (w, subst su g)) choices) tag bt loc
+    | `PickSizedElab (pick_var, choices) ->
+      pick_sized_elab_
+        pick_var
+        (List.map (fun (w, g) -> (w, subst su g)) choices)
+        tag
+        bt
+        loc
+    | `SplitSize (syms, gt') -> split_size_ (syms, subst su gt') tag loc
+    | `SplitSizeElab (split_var, syms, gt') ->
+      split_size_elab_ (split_var, syms, subst su gt') tag loc
+
+
+  and alpha_rename_gen x gt =
+    let x' = Sym.fresh_same x in
+    (x', subst (IT.make_rename ~from:x ~to_:x') gt)
+
+
+  and suitably_alpha_rename_gen syms x gt =
+    if Sym.Set.mem x syms then
+      alpha_rename_gen x gt
+    else
+      (x, gt)
+
+
+  let rec map_gen_pre (f : t -> t) (g : t) : t =
+    let (Annot (gt_, tag, bt, loc)) = f g in
+    match gt_ with
+    | `Arbitrary -> arbitrary_ tag bt loc
+    | `Symbolic -> symbolic_ tag bt loc
+    | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+    | `Call (fsym, its) -> call_ (fsym, its) tag bt loc
+    | `CallSized (fsym, its, sz) -> call_sized_ (fsym, its, sz) tag bt loc
+    | `Asgn ((it_addr, sct), it_val, gt') ->
+      asgn_ ((it_addr, sct), it_val, map_gen_pre f gt') tag loc
+    | `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_val, gt') ->
+      asgn_elab_
+        (backtrack_var, ((pointer, it_addr), sct), it_val, map_gen_pre f gt')
+        tag
+        loc
+    | `LetStar ((x, gt1), gt2) ->
+      let_star_ ((x, map_gen_pre f gt1), map_gen_pre f gt2) tag loc
+    | `Return it -> return_ it tag loc
+    | `Assert (lc, gt') -> assert_ (lc, map_gen_pre f gt') tag loc
+    | `AssertDomain (ad, gt') -> assert_domain_ (ad, map_gen_pre f gt') tag loc
+    | `ITE (it, gt_then, gt_else) ->
+      ite_ (it, map_gen_pre f gt_then, map_gen_pre f gt_else) tag loc
+    | `Map ((i, i_bt, it_perm), gt') ->
+      map_ ((i, i_bt, it_perm), map_gen_pre f gt') tag loc
+    | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
+      map_elab_ ((i, i_bt, (it_min, it_max), it_perm), map_gen_pre f gt') tag loc
+    | `Pick gts -> pick_ (List.map (map_gen_pre f) gts) tag bt loc
+    | `PickSized choices ->
+      pick_sized_ (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices) tag bt loc
+    | `PickSizedElab (pick_var, choices) ->
+      pick_sized_elab_
+        pick_var
+        (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
+        tag
+        bt
+        loc
+    | `SplitSize (syms, gt') -> split_size_ (syms, map_gen_pre f gt') tag loc
+    | `SplitSizeElab (split_var, syms, gt') ->
+      split_size_elab_ (split_var, syms, map_gen_pre f gt') tag loc
+
+
+  let rec map_gen_post (f : t -> t) (g : t) : t =
+    let (Annot (gt_, tag, bt, loc)) = g in
+    let result =
+      match gt_ with
+      | `Arbitrary -> arbitrary_ tag bt loc
+      | `Symbolic -> symbolic_ tag bt loc
+      | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+      | `Call (fsym, its) -> call_ (fsym, its) tag bt loc
+      | `CallSized (fsym, its, sz) -> call_sized_ (fsym, its, sz) tag bt loc
+      | `Asgn ((it_addr, sct), it_val, gt') ->
+        asgn_ ((it_addr, sct), it_val, map_gen_post f gt') tag loc
+      | `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_val, gt') ->
+        asgn_elab_
+          (backtrack_var, ((pointer, it_addr), sct), it_val, map_gen_post f gt')
+          tag
+          loc
+      | `LetStar ((x, gt1), gt2) ->
+        let_star_ ((x, map_gen_post f gt1), map_gen_post f gt2) tag loc
+      | `Return it -> return_ it tag loc
+      | `Assert (lc, gt') -> assert_ (lc, map_gen_post f gt') tag loc
+      | `AssertDomain (ad, gt') -> assert_domain_ (ad, map_gen_post f gt') tag loc
+      | `ITE (it, gt_then, gt_else) ->
+        ite_ (it, map_gen_post f gt_then, map_gen_post f gt_else) tag loc
+      | `Map ((i, i_bt, it_perm), gt') ->
+        map_ ((i, i_bt, it_perm), map_gen_post f gt') tag loc
+      | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
+        map_elab_ ((i, i_bt, (it_min, it_max), it_perm), map_gen_post f gt') tag loc
+      | `Pick gts -> pick_ (List.map (map_gen_post f) gts) tag bt loc
+      | `PickSized choices ->
+        pick_sized_ (List.map (fun (w, g) -> (w, map_gen_post f g)) choices) tag bt loc
+      | `PickSizedElab (pick_var, choices) ->
+        pick_sized_elab_
+          pick_var
+          (List.map (fun (w, g) -> (w, map_gen_post f g)) choices)
+          tag
+          bt
+          loc
+      | `SplitSize (syms, gt') -> split_size_ (syms, map_gen_post f gt') tag loc
+      | `SplitSizeElab (split_var, syms, gt') ->
+        split_size_elab_ (split_var, syms, map_gen_post f gt') tag loc
+    in
+    f result
+
+
+  (***************)
   (* Elaboration *)
+  (***************)
+
   let elaborate_asgn_ (`Asgn ((it_addr, sct), it_value, gt_rest))
-    : [> `AsgnElab of
-           Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
-      ]
+    : [> `AsgnElab of Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * GT.t ]
     =
     let rec pointer_of (it : IT.t) : Sym.t * BT.t =
       match it with
@@ -374,58 +578,34 @@ module [@warning "-60"] Make (AD : Domain.T) = struct
     Annot (elaborate_split_size_ gt_, tag, bt, loc)
 end
 
-module type T = sig
-  module AD : Domain.T
+(** Module providing default implementations for unsupported stage constructors *)
+module Defaults (StageName : sig
+    val name : string
+  end) =
+struct
+  let unsupported name = failwith (name ^ " not supported in " ^ StageName.name ^ " DSL")
 
-  type tag_t
+  let arbitrary_domain_ _ _ _ _ = unsupported "arbitrary_domain_"
 
-  type t_ = private [< (tag_t, 'recur) Make(AD).Inner.ast ] as 'recur
+  let pick_ _ _ _ _ = unsupported "pick_"
 
-  type t = (tag_t, t_) annot
+  let pick_sized_ _ _ _ _ = unsupported "pick_sized_"
 
-  val equal : t -> t -> bool
+  let pick_sized_elab_ _ _ _ _ _ = unsupported "pick_sized_elab_"
 
-  val compare : t -> t -> int
+  let asgn_elab_ _ _ _ = unsupported "asgn_elab_"
 
-  val pp : t -> Pp.document
+  let split_size_ _ _ _ = unsupported "split_size_"
 
-  val arbitrary_ : tag_t -> BT.t -> Locations.t -> t
+  let split_size_elab_ _ _ _ = unsupported "split_size_elab_"
 
-  val symbolic_ : tag_t -> BT.t -> Locations.t -> t
+  let map_elab_ _ _ _ = unsupported "map_elab_"
 
-  val arbitrary_domain_ : AD.Relative.t -> tag_t -> BT.t -> Locations.t -> t
+  let call_sized_ _ _ _ _ = unsupported "call_sized_"
 
-  val call_ : Sym.t * IT.t list -> tag_t -> BT.t -> Locations.t -> t
+  let assert_domain_ _ _ _ = unsupported "assert_domain_"
 
-  val asgn_ : (IT.t * Sctypes.t) * IT.t * t -> tag_t -> Locations.t -> t
+  let map_ _ _ _ = unsupported "map_"
 
-  val let_star_ : (Sym.t * t) * t -> tag_t -> Locations.t -> t
-
-  val return_ : IT.t -> tag_t -> Locations.t -> t
-
-  val assert_ : LC.t * t -> tag_t -> Locations.t -> t
-
-  val assert_domain_ : AD.t * t -> tag_t -> Locations.t -> t
-
-  val ite_ : IT.t * t * t -> tag_t -> Locations.t -> t
-
-  val map_ : (Sym.t * BT.t * IT.t) * t -> tag_t -> Locations.t -> t
-
-  val map_elab_ : (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t -> tag_t -> Locations.t -> t
-
-  val pick_ : t list -> tag_t -> BT.t -> Locations.t -> t
-
-  val pick_sized_ : (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
-
-  val pick_sized_elab_ : (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
-
-  val asgn_elab_
-    :  Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t ->
-    tag_t ->
-    Locations.t ->
-    t
-
-  val split_size_ : Sym.Set.t * t -> tag_t -> Locations.t -> t
-
-  val split_size_elab_ : Sym.t * Sym.Set.t * t -> tag_t -> Locations.t -> t
+  let asgn_ _ _ _ = unsupported "asgn_"
 end

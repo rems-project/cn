@@ -1,6 +1,8 @@
 module BT = BaseTypes
 
 module Make (GT : GenTerms.T) = struct
+  module GT' = GenTerms.Make (GT)
+
   type t =
     { filename : string;
       recursive : bool;
@@ -29,11 +31,13 @@ module Make (GT : GenTerms.T) = struct
                gd.iargs)
        ^^ space
        ^^ lbrace
-       ^^ nest 2 (break 1 ^^ GT.pp gd.body)
+       ^^ nest 2 (break 1 ^^ GT'.pp gd.body)
        ^/^ rbrace)
 end
 
 module MakeOptional (GT : GenTerms.T) = struct
+  module GT' = GenTerms.Make (GT)
+
   type t =
     { filename : string;
       recursive : bool;
@@ -62,6 +66,6 @@ module MakeOptional (GT : GenTerms.T) = struct
                gd.iargs)
        ^^
        match gd.body with
-       | Some body -> space ^^ lbrace ^^ nest 2 (break 1 ^^ GT.pp body) ^/^ rbrace
+       | Some body -> space ^^ lbrace ^^ nest 2 (break 1 ^^ GT'.pp body) ^/^ rbrace
        | None -> semi)
 end
