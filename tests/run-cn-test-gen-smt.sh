@@ -17,6 +17,8 @@ TO_TEST=(
   "member_shift.pass.c"
   "neg100.pass.c"
   "neq.pass.c"
+  "non_access_global.pass.c"
+  "smt_pruning.pass.c"
   "test_macro.fail.c"
 )
 

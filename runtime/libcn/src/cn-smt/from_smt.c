@@ -15,7 +15,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, sexp_ptr)
 // Helper function to report unexpected solver responses
 static void unexpected_solver_response(sexp_t* response, const char* context) {
   fprintf(stderr,
-      "Unexpected solver response in %s: %s\n",
+      "\nUnexpected solver response in %s: %s\n",
       context,
       sexp_to_string(response));
   assert(false);

@@ -295,6 +295,9 @@ enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver) 
 
   // Check satisfiability
   enum cn_smt_solver_result result = check(smt_solver);
+  if (result != CN_SOLVER_SAT) {
+    stop_solver(smt_solver);
+  }
 
   return result;
 }
