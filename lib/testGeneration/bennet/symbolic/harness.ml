@@ -17,17 +17,20 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("bennet_" ^ generator_name ^ "_record") in
-    (* Generate C function parameters from arguments - spec generators take no parameters *)
-    let params = !^"void" in
+    let vars_decl =
+      !^"struct cn_smt_solver* smt_solver;"
+      ^/^ !^"bennet_rand_checkpoint checkpoint;"
+      ^/^ !^"enum cn_smt_solver_result result;"
+    in
     (* Initialize symbolic execution context *)
-    let context_init = !^"  CN_SMT_GATHER_INIT();" in
+    let context_init = !^"cn_smt_gather_init();" in
     (* Generate symbolic variable declarations for each argument *)
     let symbolic_vars =
       def.iargs
       |> List.map (fun (sym, bt) ->
         let var_name = Sym.pp_string sym in
         let var_type = Smt.convert_basetype bt in
-        !^"  cn_term* "
+        !^"cn_term* "
         ^^ Sym.pp sym
         ^^ !^"_var"
         ^^^ equals
@@ -48,23 +51,25 @@ module Make (AD : Domain.T) = struct
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_var"))
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
-      !^"  cn_smt_gather_" ^^ !^generator_name ^^ Pp.parens smt_args ^^ !^";"
-    in
-    let build_solver =
-      !^"  struct cn_smt_solver* smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      !^"checkpoint = bennet_rand_save();"
+      ^^^ !^"cn_smt_gather_"
+      ^^ !^generator_name
+      ^^ Pp.parens smt_args
+      ^^ !^";"
     in
     let check_sat =
-      !^"enum cn_smt_solver_result result = cn_smt_gather_model(smt_solver);"
+      !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      ^/^ !^"result = cn_smt_gather_model(smt_solver);"
     in
     (* Initialize concretization context *)
-    let conc_context_init = !^"  CN_SMT_CONCRETIZE_INIT();" in
+    let conc_context_init = !^"cn_smt_concretize_init();" in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
       def.iargs
       |> List.map (fun (sym, bt) ->
         let var_name = Sym.pp_string sym in
         let var_type = Smt.convert_basetype bt in
-        !^"  cn_term* "
+        !^"cn_term* "
         ^^ Sym.pp sym
         ^^ !^"_val"
         ^^^ equals
@@ -84,7 +89,8 @@ module Make (AD : Domain.T) = struct
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_val"))
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
-      !^"  cn_smt_concretize_"
+      !^"bennet_rand_restore(checkpoint);"
+      ^^^ !^"cn_smt_concretize_"
       ^^ !^generator_name
       ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ conc_args)
       ^^ !^";"
@@ -93,8 +99,7 @@ module Make (AD : Domain.T) = struct
     let struct_fields =
       def.iargs
       |> List.map (fun (sym, bt) ->
-        !^"  "
-        ^^ dot
+        dot
         ^^ Sym.pp sym
         ^^^ equals
         ^^^ parens
@@ -107,28 +112,26 @@ module Make (AD : Domain.T) = struct
     in
     let stop_solver = !^"stop_solver(smt_solver);" in
     let struct_return =
-      record_type
-      ^^^ !^"* result_struct = malloc(sizeof("
-      ^^ record_type
-      ^^ !^"));"
-      ^/^ !^"*result_struct = ("
-      ^^ record_type
-      ^^ !^") {"
-      ^/^ struct_fields
-      ^/^ !^"  };"
-      ^/^ !^"  return result_struct;"
+      (record_type ^^ star)
+      ^^^ !^"result_struct"
+      ^^^ equals
+      ^^^ (!^"malloc" ^^ parens (!^"sizeof" ^^ parens record_type))
+      ^^ semi
+      ^/^ !^"*result_struct"
+      ^^^ equals
+      ^^^ parens record_type
+      ^/^ braces struct_fields
+      ^^ semi
+      ^/^ !^"return result_struct;"
     in
     (* Combine everything into the function *)
-    record_type
-    ^^^ !^"*"
-    ^^^ !^("bennet_" ^ generator_name)
-    ^^ Pp.parens params
+    (record_type ^^ !^"*")
+    ^^^ (!^("bennet_" ^ generator_name) ^^ Pp.parens !^"void")
     ^^^ !^"{"
-    ^/^ context_init
-    ^/^ symbolic_vars
-    ^/^ collect_constraints
-    ^/^ build_solver
-    ^/^ check_sat
+    ^/^ vars_decl
+    ^/^ !^"do"
+    ^^^ braces (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
+    ^^^ !^"while (result != CN_SOLVER_SAT);"
     ^/^ conc_context_init
     ^/^ concrete_vars
     ^/^ concretize_model

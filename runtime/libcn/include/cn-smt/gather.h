@@ -38,7 +38,22 @@ cn_term* cn_smt_gather_call_function(
 uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
 
 // Initialize gather context
-#define CN_SMT_GATHER_INIT() cn_smt_gather_init()
+#define CN_SMT_GATHER_INIT()                                                             \
+  size_t bennet_rec_size = bennet_get_size();                                            \
+  CN_SMT_GATHER_INIT_SIZED();
+
+#define CN_SMT_GATHER_INIT_SIZED()                                                       \
+  if (0) {                                                                               \
+  bennet_label_bennet_backtrack:                                                         \
+    bennet_decrement_depth();                                                            \
+    return NULL;                                                                         \
+  }                                                                                      \
+                                                                                         \
+  bennet_increment_depth();                                                              \
+  if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
+    bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
+    goto bennet_label_bennet_backtrack;                                                  \
+  }
 
 // Assert macro - adds logical constraint to context
 #define CN_SMT_GATHER_ASSERT(cond)                                                       \
@@ -64,34 +79,59 @@ uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
   cn_smt_gather_create_symbolic_var("_sym", base_type)
 
 // Function calls
-#define CN_SMT_GATHER_CALL(function_symbol, ...)                                         \
-  cn_smt_gather_##function_symbol(__VA_ARGS__)
+#define CN_SMT_GATHER_CALL(last_var, function_symbol, ...)                               \
+  ({                                                                                     \
+    cn_term* var = cn_smt_gather_##function_symbol(__VA_ARGS__);                         \
+    if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                      \
+      assert(bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+    var;                                                                                 \
+  })
 
 // Return values
 #define CN_SMT_GATHER_RETURN(value) return (value);
 
 // Weighted choice selection
-#define CN_SMT_GATHER_PICK_BEGIN(result_var, tmp_var, ...)                               \
-  cn_term* result_var = NULL;                                                            \
-  uint64_t tmp_var##_choices[] = {__VA_ARGS__, UINT64_MAX};                              \
-  uint8_t tmp_var##_num_choices = 0;                                                     \
-  while (tmp_var##_choices[tmp_var##_num_choices] != UINT64_MAX) {                       \
-    tmp_var##_num_choices += 2;                                                          \
+#define CN_SMT_GATHER_PICK_BEGIN(var, tmp, last_var, ...)                                \
+  cn_term* var = NULL;                                                                   \
+  uint64_t tmp##_choices[] = {__VA_ARGS__, UINT64_MAX};                                  \
+  uint8_t tmp##_num_choices = 0;                                                         \
+  while (tmp##_choices[tmp##_num_choices] != UINT64_MAX) {                               \
+    tmp##_num_choices += 2;                                                              \
   }                                                                                      \
-  tmp_var##_num_choices /= 2;                                                            \
-  uint64_t tmp_var =                                                                     \
-      cn_smt_gather_weighted_choice(tmp_var##_choices, tmp_var##_num_choices);           \
-  switch (tmp_var) {
+  tmp##_num_choices /= 2;                                                                \
+  struct bennet_int_urn* tmp##_urn = urn_from_array(tmp##_choices, tmp##_num_choices);   \
+  bennet_checkpoint tmp##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_label_##tmp##_gen :;                                                            \
+  cn_bits_u64* tmp = convert_to_cn_bits_u64(urn_remove(tmp##_urn));                      \
+  if (0) {                                                                               \
+    bennet_label_##tmp##_backtrack :;                                                    \
+    bennet_checkpoint_restore(&tmp##_checkpoint);                                        \
+    if (tmp##_urn->size != 0) {                                                          \
+      assert(bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
+      bennet_failure_reset();                                                            \
+      goto bennet_label_##tmp##_gen;                                                     \
+    } else {                                                                             \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+  }                                                                                      \
+  switch (convert_from_cn_bits_u64(tmp)) {                                               \
+  /* Case per choice */
+
 #define CN_SMT_GATHER_PICK_CASE_BEGIN(index) case index:;
 
-#define CN_SMT_GATHER_PICK_CASE_END(result_var, expr)                                    \
-  result_var = expr;                                                                     \
+#define CN_SMT_GATHER_PICK_CASE_END(var, e)                                              \
+  var = e;                                                                               \
   break;
 
-#define CN_SMT_GATHER_PICK_END()                                                         \
+#define CN_SMT_GATHER_PICK_END(tmp)                                                      \
   default:                                                                               \
+    printf("Invalid generated value");                                                   \
     assert(false);                                                                       \
-    }
+    }                                                                                    \
+    urn_free(tmp##_urn);
 
 enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver);
 
