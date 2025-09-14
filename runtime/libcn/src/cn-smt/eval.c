@@ -633,7 +633,15 @@ void* cn_eval_term(cn_term* term) {
 
       // If source and target types are the same, no cast needed
       if (source_type.tag == target_type.tag) {
-        return value_val;
+        // For CN_BASE_BITS, also check sign and width are equal
+        if (source_type.tag == CN_BASE_BITS) {
+          if (source_type.data.bits.is_signed == target_type.data.bits.is_signed &&
+              source_type.data.bits.size_bits == target_type.data.bits.size_bits) {
+            return value_val;
+          }
+        } else {
+          return value_val;
+        }
       }
 
       // Handle pointer casts
@@ -713,9 +721,222 @@ void* cn_eval_term(cn_term* term) {
       // Handle bitvector to bitvector casts
       if (cn_base_type_is(source_type, CN_BASE_BITS) &&
           cn_base_type_is(target_type, CN_BASE_BITS)) {
-        // For bitvector-to-bitvector casts, we'll implement same-size casts
-        // and return the value unchanged (reinterpret cast)
-        return value_val;  // For now, just return the same value (no size/sign conversion)
+        cn_bits_info source_bits = get_bits_info(term->data.cast.value);
+        cn_bits_info target_bits = cn_base_type_get_bits_info(target_type);
+
+        // For signed source types
+        if (source_bits.is_signed) {
+          switch (source_bits.size_bits) {
+            case 8:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return value_val;  // i8 to i8
+                  case 16:
+                    return cast_cn_bits_i8_to_cn_bits_i16((cn_bits_i8*)value_val);
+                  case 32:
+                    return cast_cn_bits_i8_to_cn_bits_i32((cn_bits_i8*)value_val);
+                  case 64:
+                    return cast_cn_bits_i8_to_cn_bits_i64((cn_bits_i8*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i8_to_cn_bits_u8((cn_bits_i8*)value_val);
+                  case 16:
+                    return cast_cn_bits_i8_to_cn_bits_u16((cn_bits_i8*)value_val);
+                  case 32:
+                    return cast_cn_bits_i8_to_cn_bits_u32((cn_bits_i8*)value_val);
+                  case 64:
+                    return cast_cn_bits_i8_to_cn_bits_u64((cn_bits_i8*)value_val);
+                }
+              }
+              break;
+            case 16:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i16_to_cn_bits_i8((cn_bits_i16*)value_val);
+                  case 16:
+                    return value_val;  // i16 to i16
+                  case 32:
+                    return cast_cn_bits_i16_to_cn_bits_i32((cn_bits_i16*)value_val);
+                  case 64:
+                    return cast_cn_bits_i16_to_cn_bits_i64((cn_bits_i16*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i16_to_cn_bits_u8((cn_bits_i16*)value_val);
+                  case 16:
+                    return cast_cn_bits_i16_to_cn_bits_u16((cn_bits_i16*)value_val);
+                  case 32:
+                    return cast_cn_bits_i16_to_cn_bits_u32((cn_bits_i16*)value_val);
+                  case 64:
+                    return cast_cn_bits_i16_to_cn_bits_u64((cn_bits_i16*)value_val);
+                }
+              }
+              break;
+            case 32:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i32_to_cn_bits_i8((cn_bits_i32*)value_val);
+                  case 16:
+                    return cast_cn_bits_i32_to_cn_bits_i16((cn_bits_i32*)value_val);
+                  case 32:
+                    return value_val;  // i32 to i32
+                  case 64:
+                    return cast_cn_bits_i32_to_cn_bits_i64((cn_bits_i32*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i32_to_cn_bits_u8((cn_bits_i32*)value_val);
+                  case 16:
+                    return cast_cn_bits_i32_to_cn_bits_u16((cn_bits_i32*)value_val);
+                  case 32:
+                    return cast_cn_bits_i32_to_cn_bits_u32((cn_bits_i32*)value_val);
+                  case 64:
+                    return cast_cn_bits_i32_to_cn_bits_u64((cn_bits_i32*)value_val);
+                }
+              }
+              break;
+            case 64:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i64_to_cn_bits_i8((cn_bits_i64*)value_val);
+                  case 16:
+                    return cast_cn_bits_i64_to_cn_bits_i16((cn_bits_i64*)value_val);
+                  case 32:
+                    return cast_cn_bits_i64_to_cn_bits_i32((cn_bits_i64*)value_val);
+                  case 64:
+                    return value_val;  // i64 to i64
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_i64_to_cn_bits_u8((cn_bits_i64*)value_val);
+                  case 16:
+                    return cast_cn_bits_i64_to_cn_bits_u16((cn_bits_i64*)value_val);
+                  case 32:
+                    return cast_cn_bits_i64_to_cn_bits_u32((cn_bits_i64*)value_val);
+                  case 64:
+                    return cast_cn_bits_i64_to_cn_bits_u64((cn_bits_i64*)value_val);
+                }
+              }
+              break;
+          }
+        } else {
+          // For unsigned source types
+          switch (source_bits.size_bits) {
+            case 8:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u8_to_cn_bits_i8((cn_bits_u8*)value_val);
+                  case 16:
+                    return cast_cn_bits_u8_to_cn_bits_i16((cn_bits_u8*)value_val);
+                  case 32:
+                    return cast_cn_bits_u8_to_cn_bits_i32((cn_bits_u8*)value_val);
+                  case 64:
+                    return cast_cn_bits_u8_to_cn_bits_i64((cn_bits_u8*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return value_val;  // u8 to u8
+                  case 16:
+                    return cast_cn_bits_u8_to_cn_bits_u16((cn_bits_u8*)value_val);
+                  case 32:
+                    return cast_cn_bits_u8_to_cn_bits_u32((cn_bits_u8*)value_val);
+                  case 64:
+                    return cast_cn_bits_u8_to_cn_bits_u64((cn_bits_u8*)value_val);
+                }
+              }
+              break;
+            case 16:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u16_to_cn_bits_i8((cn_bits_u16*)value_val);
+                  case 16:
+                    return cast_cn_bits_u16_to_cn_bits_i16((cn_bits_u16*)value_val);
+                  case 32:
+                    return cast_cn_bits_u16_to_cn_bits_i32((cn_bits_u16*)value_val);
+                  case 64:
+                    return cast_cn_bits_u16_to_cn_bits_i64((cn_bits_u16*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u16_to_cn_bits_u8((cn_bits_u16*)value_val);
+                  case 16:
+                    return value_val;  // u16 to u16
+                  case 32:
+                    return cast_cn_bits_u16_to_cn_bits_u32((cn_bits_u16*)value_val);
+                  case 64:
+                    return cast_cn_bits_u16_to_cn_bits_u64((cn_bits_u16*)value_val);
+                }
+              }
+              break;
+            case 32:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u32_to_cn_bits_i8((cn_bits_u32*)value_val);
+                  case 16:
+                    return cast_cn_bits_u32_to_cn_bits_i16((cn_bits_u32*)value_val);
+                  case 32:
+                    return cast_cn_bits_u32_to_cn_bits_i32((cn_bits_u32*)value_val);
+                  case 64:
+                    return cast_cn_bits_u32_to_cn_bits_i64((cn_bits_u32*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u32_to_cn_bits_u8((cn_bits_u32*)value_val);
+                  case 16:
+                    return cast_cn_bits_u32_to_cn_bits_u16((cn_bits_u32*)value_val);
+                  case 32:
+                    return value_val;  // u32 to u32
+                  case 64:
+                    return cast_cn_bits_u32_to_cn_bits_u64((cn_bits_u32*)value_val);
+                }
+              }
+              break;
+            case 64:
+              if (target_bits.is_signed) {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u64_to_cn_bits_i8((cn_bits_u64*)value_val);
+                  case 16:
+                    return cast_cn_bits_u64_to_cn_bits_i16((cn_bits_u64*)value_val);
+                  case 32:
+                    return cast_cn_bits_u64_to_cn_bits_i32((cn_bits_u64*)value_val);
+                  case 64:
+                    return cast_cn_bits_u64_to_cn_bits_i64((cn_bits_u64*)value_val);
+                }
+              } else {
+                switch (target_bits.size_bits) {
+                  case 8:
+                    return cast_cn_bits_u64_to_cn_bits_u8((cn_bits_u64*)value_val);
+                  case 16:
+                    return cast_cn_bits_u64_to_cn_bits_u16((cn_bits_u64*)value_val);
+                  case 32:
+                    return cast_cn_bits_u64_to_cn_bits_u32((cn_bits_u64*)value_val);
+                  case 64:
+                    return value_val;  // u64 to u64
+                }
+              }
+              break;
+          }
+        }
+
+        // Fallback for unsupported combinations
+        assert(false);
+        return NULL;
       }
 
       // Handle bitvector to integer casts
