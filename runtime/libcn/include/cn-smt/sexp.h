@@ -129,6 +129,7 @@ sexp_t *bv_shl(sexp_t *x, sexp_t *y);
 sexp_t *bv_lshr(sexp_t *x, sexp_t *y);
 sexp_t *bv_ashr(sexp_t *x, sexp_t *y);
 
+sexp_t *t_loc(void);
 sexp_t *loc_k(uintptr_t ptr);
 
 // Array functions

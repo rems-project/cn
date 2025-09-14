@@ -330,6 +330,10 @@ int64_t to_bits(int w, bool signed_val, sexp_t* exp) {
   return result;
 }
 
+uintptr_t to_loc(sexp_t* exp) {
+  return to_bits(CHAR_BIT * sizeof(uintptr_t), false, exp);
+}
+
 /** Try to decode an s-expression as an integer.
     Throws {!UnexpectedSolverResponse}. */
 int64_t to_z(sexp_t* exp) {
@@ -640,10 +644,7 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
       return cn_smt_rational(to_q(sexp));
 
     case CN_BASE_LOC: {
-      bool is_signed = false;
-      int width = CHAR_BIT * sizeof(uintptr_t);
-      uintptr_t value = to_bits(width, is_signed, sexp);
-      return cn_smt_pointer(value);
+      return cn_smt_pointer(to_loc(sexp));
     }
 
     case CN_BASE_LIST: {

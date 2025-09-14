@@ -986,10 +986,6 @@ sexp_t *bv_k(int w, long long v) {
   }
 }
 
-sexp_t *loc_k(uintptr_t ptr) {
-  return bv_k(CHAR_BIT * sizeof(uintptr_t), ptr);
-}
-
 /** Unsigned less-than on bit-vectors. */
 sexp_t *bv_ult(sexp_t *x, sexp_t *y) {
   if (!x || !y) {
@@ -1238,6 +1234,18 @@ sexp_t *bv_ashr(sexp_t *x, sexp_t *y) {
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvashr", args, 2);
+}
+
+//////////////
+/* Pointers */
+//////////////
+
+sexp_t *t_loc(void) {
+  return t_bits(CHAR_BIT * sizeof(uintptr_t));
+}
+
+sexp_t *loc_k(uintptr_t ptr) {
+  return bv_k(CHAR_BIT * sizeof(uintptr_t), ptr);
 }
 
 ////////////
