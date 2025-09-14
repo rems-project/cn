@@ -348,7 +348,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
     }
 
     case CN_BASE_LOC: {
-      return t_bits(CHAR_BIT * sizeof(uintptr_t));
+      return t_loc();
     }
 
     case CN_BASE_CTYPE: {
