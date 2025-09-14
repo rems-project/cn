@@ -12,7 +12,7 @@ module Make (AD : Domain.T) = struct
       let here = Locations.other __LOC__ in
       let (Annot (tm_, (), bt, loc)) = tm in
       match tm_ with
-      | `Arbitrary | `Symbolic | `Return _ | `Call _ -> return tm
+      | `Arbitrary | `Symbolic | `ArbitraryDomain _ | `Return _ | `Call _ -> return tm
       | `Pick gts ->
         let rec loop gts =
           match gts with
@@ -53,7 +53,7 @@ module Make (AD : Domain.T) = struct
         let@ gt_rest = aux gt_rest in
         return (Term.let_star_ ((x, Term.return_ it () loc_ret), gt_rest) () loc)
       | `LetStar ((x, gt_inner), gt_rest) ->
-        let@ gt_inner = aux gt_inner in
+        let@ gt_inner = pure (aux gt_inner) in
         let@ () = add_l x (Term.basetype gt_inner) (loc, lazy (Sym.pp x)) in
         let@ gt_rest = aux gt_rest in
         return (Term.let_star_ ((x, gt_inner), gt_rest) () loc)
@@ -68,26 +68,28 @@ module Make (AD : Domain.T) = struct
         in
         let@ gt_rest = aux gt_rest in
         return (if redundant then gt_rest else Term.assert_ (lc, gt_rest) () loc)
+      | `AssertDomain (domain, gt_rest) ->
+        let@ gt_rest = aux gt_rest in
+        return (Term.assert_domain_ (domain, gt_rest) () loc)
       | `ITE (it_if, gt_then, gt_else) ->
+        let@ check = provable loc in
         let@ ogt_then =
-          pure
-            (let@ () = add_c loc (LC.T it_if) in
-             let@ gt_then = aux gt_then in
-             let@ check = provable loc in
-             return
-               (match check (LC.T (IT.bool_ false here)) with
-                | `True -> None
-                | `False -> Some gt_then))
+          match check (LC.T (IT.not_ it_if here)) with
+          | `False ->
+            pure
+              (let@ () = add_c loc (LC.T it_if) in
+               let@ gt_then = aux gt_then in
+               return (Some gt_then))
+          | `True -> return None
         in
         let@ ogt_else =
-          pure
-            (let@ () = add_c loc (LC.T (IT.not_ it_if here)) in
-             let@ gt_else = aux gt_else in
-             let@ provable = provable loc in
-             return
-               (match provable (LC.T (IT.bool_ false here)) with
-                | `True -> None
-                | `False -> Some gt_else))
+          match check (LC.T it_if) with
+          | `False ->
+            pure
+              (let@ () = add_c loc (LC.T (IT.not_ it_if here)) in
+               let@ gt_else = aux gt_else in
+               return (Some gt_else))
+          | `True -> return None
         in
         return
           (match (ogt_then, ogt_else) with

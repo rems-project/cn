@@ -39,7 +39,8 @@ type t =
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
     static_absint : string list;
-    smt_pruning : [ `None | `Fast | `Slow ];
+    smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
     symbolic : bool;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
@@ -81,7 +82,8 @@ let default =
     experimental_product_arg_destruction = false;
     experimental_learning = false;
     static_absint = [];
-    smt_pruning = `None;
+    smt_pruning_before_absinst = `None;
+    smt_pruning_after_absinst = `None;
     symbolic = false;
     symbolic_timeout = None;
     max_unfolds = None;
@@ -186,7 +188,9 @@ let is_experimental_learning () = (Option.get !instance).experimental_learning
 
 let has_static_absint () = (Option.get !instance).static_absint
 
-let has_smt_pruning () = (Option.get !instance).smt_pruning
+let has_smt_pruning_before_absinst () = (Option.get !instance).smt_pruning_before_absinst
+
+let has_smt_pruning_after_absinst () = (Option.get !instance).smt_pruning_after_absinst
 
 let has_inline_everything () = (Option.get !instance).inline_everything
 
