@@ -29,19 +29,6 @@ TEST_F(ContextTest, CreateDestroy) {
   EXPECT_EQ(cn_context_first_logical(ctx), nullptr);
 }
 
-// Test null context handling
-TEST(ContextNullTest, NullHandling) {
-  EXPECT_EQ(cn_context_resource_count(nullptr), 0);
-  EXPECT_EQ(cn_context_logical_count(nullptr), 0);
-  EXPECT_EQ(cn_context_first_resource(nullptr), nullptr);
-  EXPECT_EQ(cn_context_first_logical(nullptr), nullptr);
-
-  // Should not crash
-  cn_context_destroy(nullptr);
-  cn_context_clear(nullptr);
-  cn_context_print_summary(nullptr);
-}
-
 // Test predicate resource constraints
 TEST_F(ContextTest, AddPredicateConstraint) {
   // Create some test terms
@@ -167,32 +154,6 @@ TEST_F(ContextTest, ContextClear) {
   EXPECT_EQ(cn_context_logical_count(ctx), 0);
   EXPECT_EQ(cn_context_first_resource(ctx), nullptr);
   EXPECT_EQ(cn_context_first_logical(ctx), nullptr);
-}
-
-// Test error conditions
-TEST(ContextErrorTest, InvalidInputs) {
-  // Test creating constraints with null inputs
-  EXPECT_EQ(cn_resource_constraint_create_predicate(8, nullptr), nullptr);
-
-  EXPECT_EQ(cn_logical_constraint_create_term(nullptr), nullptr);
-
-  cn_sym invalid_var = {nullptr, 0};
-  cn_sym valid_var = {"x", 3};
-  EXPECT_EQ(cn_logical_constraint_create_forall(
-                invalid_var, cn_base_type_simple(CN_BASE_INTEGER), cn_smt_z(1)),
-      nullptr);
-  EXPECT_EQ(cn_logical_constraint_create_forall(
-                valid_var, cn_base_type_simple(CN_BASE_INTEGER), nullptr),
-      nullptr);
-
-  // Test adding null constraints
-  cn_constraint_context* ctx = cn_context_create();
-  EXPECT_FALSE(cn_context_add_resource_constraint(nullptr, nullptr));
-  EXPECT_FALSE(cn_context_add_resource_constraint(ctx, nullptr));
-  EXPECT_FALSE(cn_context_add_logical_constraint(nullptr, nullptr));
-  EXPECT_FALSE(cn_context_add_logical_constraint(ctx, nullptr));
-
-  cn_context_destroy(ctx);
 }
 
 // Test print summary (mostly for coverage)

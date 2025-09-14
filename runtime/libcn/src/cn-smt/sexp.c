@@ -1178,9 +1178,7 @@ sexp_t *bv_udiv(sexp_t *x, sexp_t *y) {
 
 /** Bit vector unsigned remainder. */
 sexp_t *bv_urem(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvurem", args, 2);
@@ -1198,9 +1196,7 @@ sexp_t *bv_sdiv(sexp_t *x, sexp_t *y) {
 
 /** Bit vector signed remainder. */
 sexp_t *bv_srem(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvsrem", args, 2);
@@ -1208,9 +1204,7 @@ sexp_t *bv_srem(sexp_t *x, sexp_t *y) {
 
 /** Bit vector signed modulus. Nonstandard? */
 sexp_t *bv_smod(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvsmod", args, 2);

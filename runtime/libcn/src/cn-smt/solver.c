@@ -15,6 +15,9 @@ void send_string(struct cn_smt_solver *solver, const char *str) {
 
   fprintf(solver->log_file, "\nStart Write:\n%s\nEnd Write\n", str);
   fflush(solver->log_file);
+
+  fclose(solver->log_file);
+  solver->log_file = fopen("smt.log", "a");
 }
 
 char *read_output(struct cn_smt_solver *solver) {

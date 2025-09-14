@@ -351,10 +351,17 @@ module Make (AD : Domain.T) = struct
   and convert_arrayshift (base : IT.t) (ct : Sctypes.t) (index : IT.t) : Pp.document =
     let base_smt = convert_indexterm base in
     let index_smt = convert_indexterm index in
-    let ctype_str = Pp.plain (Sctypes.pp ct) in
+    let ctype_str =
+      Pp.plain (CF.Pp_ail.pp_ctype_human C.no_qualifiers (Sctypes.to_ctype ct))
+    in
     Pp.(
       !^"cn_smt_array_shift"
-      ^^ parens (base_smt ^^ comma ^^^ dquotes !^ctype_str ^^ comma ^^^ index_smt))
+      ^^ parens
+           (base_smt
+            ^^ comma
+            ^^^ (!^"sizeof" ^^ parens !^ctype_str)
+            ^^ comma
+            ^^^ index_smt))
 
 
   and convert_copyallocid (addr : IT.t) (loc : IT.t) : Pp.document =
