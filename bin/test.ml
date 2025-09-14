@@ -58,7 +58,8 @@ let run_tests
       experimental_product_arg_destruction
       experimental_learning
       static_absint
-      smt_pruning
+      smt_pruning_before_absinst
+      smt_pruning_after_absinst
       symbolic
       symbolic_timeout
       print_size_info
@@ -112,7 +113,8 @@ let run_tests
           experimental_product_arg_destruction;
           experimental_learning;
           static_absint;
-          smt_pruning;
+          smt_pruning_before_absinst;
+          smt_pruning_after_absinst;
           symbolic;
           symbolic_timeout;
           max_unfolds;
@@ -468,12 +470,26 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
 
 
-  let smt_pruning =
-    let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
+  let smt_pruning_before_absinst =
+    let doc =
+      "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
+       interpretation"
+    in
     Arg.(
       value
       & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
-      & info [ "smt-pruning" ] ~doc)
+      & info [ "smt-pruning-before-absint" ] ~doc)
+
+
+  let smt_pruning_after_absinst =
+    let doc =
+      "(Experimental) Use SMT solver to prune unsatisfiable branches after abstract \
+       interpretation"
+    in
+    Arg.(
+      value
+      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
+      & info [ "smt-pruning-after-absint" ] ~doc)
 
 
   let static_absint =
@@ -578,7 +594,8 @@ let cmd =
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
     $ Flags.static_absint
-    $ Flags.smt_pruning
+    $ Flags.smt_pruning_before_absinst
+    $ Flags.smt_pruning_after_absinst
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.print_size_info
