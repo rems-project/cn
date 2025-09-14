@@ -14,9 +14,7 @@ static cn_bits_info get_bits_info(cn_term* term);
 #define EVAL(term) cn_eval_term(term)
 
 void* cn_eval_term(cn_term* term) {
-  if (!term) {
-    return NULL;
-  }
+  assert(term);
 
   switch (term->type) {
     case CN_TERM_CONST: {
@@ -89,8 +87,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_UNOP: {
       void* operand_val = EVAL(term->data.unop.operand);
-      if (!operand_val)
-        return NULL;
+      assert(operand_val);
 
       switch (term->data.unop.op) {
         case CN_UNOP_NOT:
@@ -188,8 +185,7 @@ void* cn_eval_term(cn_term* term) {
     case CN_TERM_BINOP: {
       void* left_val = EVAL(term->data.binop.left);
       void* right_val = EVAL(term->data.binop.right);
-      if (!left_val || !right_val)
-        return NULL;
+      assert(left_val && right_val);
 
       if (cn_base_type_is(term->data.binop.left->base_type, CN_BASE_BITS)) {
         cn_bits_info info = get_bits_info(term->data.binop.left);
@@ -613,8 +609,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_ITE: {
       cn_bool* cond_val = (cn_bool*)EVAL(term->data.ite.cond);
-      if (!cond_val)
-        return NULL;
+      assert(cond_val);
 
       if (convert_from_cn_bool(cond_val)) {
         return EVAL(term->data.ite.then_term);
@@ -625,8 +620,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_CAST: {
       void* value_val = EVAL(term->data.cast.value);
-      if (!value_val)
-        return NULL;
+      assert(value_val);
 
       cn_base_type source_type = term->data.cast.value->base_type;
       cn_base_type target_type = term->data.cast.target_type;
@@ -1012,8 +1006,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_MEMBER_SHIFT: {
       void* base_val = EVAL(term->data.member_shift.base);
-      if (!base_val)
-        return NULL;
+      assert(base_val);
 
       cn_pointer* base_ptr = (cn_pointer*)base_val;
       size_t offset = term->data.member_shift.offset;
@@ -1026,8 +1019,7 @@ void* cn_eval_term(cn_term* term) {
     case CN_TERM_ARRAY_SHIFT: {
       void* base_val = EVAL(term->data.array_shift.base);
       void* index_val = EVAL(term->data.array_shift.index);
-      if (!base_val || !index_val)
-        return NULL;
+      assert(base_val && index_val);
 
       cn_pointer* base_ptr = (cn_pointer*)base_val;
       size_t element_size = term->data.array_shift.element_size;
@@ -1059,7 +1051,7 @@ void* cn_eval_term(cn_term* term) {
                 return cn_array_shift(base_ptr, element_size, index);
               }
               default:
-                return NULL;
+                assert(false);
             }
           } else {
             switch (info.size_bits) {
@@ -1080,26 +1072,24 @@ void* cn_eval_term(cn_term* term) {
                 return cn_array_shift(base_ptr, element_size, index);
               }
               default:
-                return NULL;
+                assert(false);
             }
           }
           break;
         }
         default:
-          return NULL;
+          assert(false);
       }
 
       // Unreachable
       assert(false);
-      return NULL;
     }
 
     case CN_TERM_MAP_SET: {
       void* map_val = EVAL(term->data.map_set.map);
       void* key_val = EVAL(term->data.map_set.key);
       void* value_val = EVAL(term->data.map_set.value);
-      if (!map_val || !key_val || !value_val)
-        return NULL;
+      assert(map_val && key_val && value_val);
 
       cn_map* map = (cn_map*)map_val;
       cn_integer* key = (cn_integer*)key_val;
@@ -1112,8 +1102,7 @@ void* cn_eval_term(cn_term* term) {
     case CN_TERM_MAP_GET: {
       void* map_val = EVAL(term->data.map_get.map);
       void* key_val = EVAL(term->data.map_get.key);
-      if (!map_val || !key_val)
-        return NULL;
+      assert(map_val && key_val);
 
       // Use appropriate map get function based on result type
       // For now, assume we're getting a generic pointer
@@ -1122,8 +1111,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_WRAPI: {
       void* value_val = EVAL(term->data.wrapi.value);
-      if (!value_val)
-        return NULL;
+      assert(value_val);
 
       // Wrap integer to given integer type
       // For now, just return the value unchanged
@@ -1149,8 +1137,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_STRUCT_MEMBER: {
       void* struct_val = EVAL(term->data.struct_member.struct_term);
-      if (!struct_val)
-        return NULL;
+      assert(struct_val);
 
       // Extract struct member
       assert(false);
@@ -1159,8 +1146,7 @@ void* cn_eval_term(cn_term* term) {
     case CN_TERM_STRUCT_UPDATE: {
       void* struct_val = EVAL(term->data.struct_update.struct_term);
       void* new_val = EVAL(term->data.struct_update.new_value);
-      if (!struct_val || !new_val)
-        return NULL;
+      assert(struct_val && new_val);
 
       // Update struct member
       assert(false);
@@ -1173,8 +1159,7 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_RECORD_MEMBER: {
       void* record_val = EVAL(term->data.record_member.record_term);
-      if (!record_val)
-        return NULL;
+      assert(record_val);
 
       // Extract record member
       assert(false);

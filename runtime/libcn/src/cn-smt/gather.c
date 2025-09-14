@@ -225,72 +225,83 @@ enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver) 
   // Handle resource constraints
   const cn_resource_constraint* resource_constraint =
       cn_context_first_resource(cn_gather_context);
-  while (resource_constraint != NULL) {
-    // Get min and max pointer bounds
-    void* min_ptr = bennet_rand_alloc_min_ptr();
-    void* max_ptr = bennet_rand_alloc_max_ptr();
 
-    // Convert pointers to SMT terms
-    sexp_t* pointer_smt = translate_term(smt_solver, resource_constraint->pointer);
-    sexp_t* min_ptr_smt = loc_k((uintptr_t)min_ptr);
-    sexp_t* max_ptr_smt = loc_k((uintptr_t)max_ptr);
+  // Setup resource bounds
+  if (resource_constraint != NULL) {
+    sexp_t* define_min_ptr = define_const(
+        "bennet_min_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_min_ptr()));
+    ack_command(smt_solver, define_min_ptr);
+    sexp_free(define_min_ptr);
 
-    // Create assertion: `min_ptr <= pointer`
-    sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, pointer_smt);
-    sexp_t* min_bound_assert = assume(min_bound_expr);
-    ack_command(smt_solver, min_bound_assert);
-    sexp_free(min_bound_assert);
+    sexp_t* define_max_ptr = define_const(
+        "bennet_max_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_max_ptr()));
+    ack_command(smt_solver, define_max_ptr);
+    sexp_free(define_max_ptr);
 
-    // Create assertion: `pointer + bytes <= max_ptr`
-    sexp_t* bytes_smt = loc_k(resource_constraint->bytes);
-    sexp_t* pointer_plus_bytes = bv_add(pointer_smt, bytes_smt);
-    sexp_t* max_bound_expr = bv_uleq(pointer_plus_bytes, max_ptr_smt);
-    sexp_t* max_bound_assert = assume(max_bound_expr);
-    ack_command(smt_solver, max_bound_assert);
-    sexp_free(max_bound_assert);
+    sexp_t* min_ptr_smt = sexp_atom("bennet_min_ptr");
+    sexp_t* max_ptr_smt = sexp_atom("bennet_max_ptr");
 
-    // No overflow on `pointer + bytes`
-    sexp_t* no_overflow_expr = bv_uleq(pointer_smt, pointer_plus_bytes);
-    sexp_t* no_overflow_assert = assume(no_overflow_expr);
-    ack_command(smt_solver, no_overflow_assert);
-    sexp_free(no_overflow_assert);
+    while (resource_constraint != NULL) {
+      // Convert pointers to SMT terms
+      sexp_t* pointer_smt = translate_term(smt_solver, resource_constraint->pointer);
 
-    // Ensure exclusive ownership (non-overlapping)
-    // For each other resource constraint, assert they don't overlap
-    const cn_resource_constraint* other_resource =
-        cn_context_first_resource(cn_gather_context);
-    while (other_resource != NULL) {
-      // Skip comparison with itself
-      if (other_resource == resource_constraint) {
+      // Create assertion: `min_ptr <= pointer`
+      sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, pointer_smt);
+      sexp_t* min_bound_assert = assume(min_bound_expr);
+      ack_command(smt_solver, min_bound_assert);
+      sexp_free(min_bound_assert);
+
+      // Create assertion: `pointer + bytes <= max_ptr`
+      sexp_t* bytes_smt = loc_k(resource_constraint->bytes);
+      sexp_t* pointer_plus_bytes = bv_add(pointer_smt, bytes_smt);
+      sexp_t* max_bound_expr = bv_uleq(pointer_plus_bytes, max_ptr_smt);
+      sexp_t* max_bound_assert = assume(max_bound_expr);
+      ack_command(smt_solver, max_bound_assert);
+      sexp_free(max_bound_assert);
+
+      // No overflow on `pointer + bytes`
+      sexp_t* no_overflow_expr = bv_uleq(pointer_smt, pointer_plus_bytes);
+      sexp_t* no_overflow_assert = assume(no_overflow_expr);
+      ack_command(smt_solver, no_overflow_assert);
+      sexp_free(no_overflow_assert);
+
+      // Ensure exclusive ownership (non-overlapping)
+      // For each other resource constraint, assert they don't overlap
+      const cn_resource_constraint* other_resource =
+          cn_context_first_resource(cn_gather_context);
+      while (other_resource != NULL) {
+        // Skip comparison with itself
+        if (other_resource == resource_constraint) {
+          other_resource = other_resource->next;
+          continue;
+        }
+
+        {
+          // For two resources (pointer_a, bytes_a) and (pointer_b, bytes_b),
+          // assert: pointer_a + bytes_a <= pointer_b || pointer_b + bytes_b <= pointer_a
+
+          sexp_t* other_pointer_smt = translate_term(smt_solver, other_resource->pointer);
+          sexp_t* other_bytes_smt = loc_k(other_resource->bytes);
+          sexp_t* other_pointer_plus_bytes = bv_add(other_pointer_smt, other_bytes_smt);
+
+          // Condition 1: current_pointer + current_bytes <= other_pointer
+          sexp_t* cond1 = bv_uleq(pointer_plus_bytes, other_pointer_smt);
+
+          // Condition 2: other_pointer + other_bytes <= current_pointer
+          sexp_t* cond2 = bv_uleq(other_pointer_plus_bytes, pointer_smt);
+
+          // Non-overlap constraint: cond1 || cond2
+          sexp_t* non_overlap_expr = bool_or(cond1, cond2);
+          sexp_t* non_overlap_assert = assume(non_overlap_expr);
+          ack_command(smt_solver, non_overlap_assert);
+          sexp_free(non_overlap_assert);
+        }
+
         other_resource = other_resource->next;
-        continue;
       }
 
-      {
-        // For two resources (pointer_a, bytes_a) and (pointer_b, bytes_b),
-        // assert: pointer_a + bytes_a <= pointer_b || pointer_b + bytes_b <= pointer_a
-
-        sexp_t* other_pointer_smt = translate_term(smt_solver, other_resource->pointer);
-        sexp_t* other_bytes_smt = loc_k(other_resource->bytes);
-        sexp_t* other_pointer_plus_bytes = bv_add(other_pointer_smt, other_bytes_smt);
-
-        // Condition 1: current_pointer + current_bytes <= other_pointer
-        sexp_t* cond1 = bv_uleq(pointer_plus_bytes, other_pointer_smt);
-
-        // Condition 2: other_pointer + other_bytes <= current_pointer
-        sexp_t* cond2 = bv_uleq(other_pointer_plus_bytes, pointer_smt);
-
-        // Non-overlap constraint: cond1 || cond2
-        sexp_t* non_overlap_expr = bool_or(cond1, cond2);
-        sexp_t* non_overlap_assert = assume(non_overlap_expr);
-        ack_command(smt_solver, non_overlap_assert);
-        sexp_free(non_overlap_assert);
-      }
-
-      other_resource = other_resource->next;
+      resource_constraint = resource_constraint->next;
     }
-
-    resource_constraint = resource_constraint->next;
   }
 
   // Check satisfiability
