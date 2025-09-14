@@ -9,6 +9,7 @@ cd "$SCRIPT_DIR/cn-test-gen" || exit 1
 TO_TEST=(
   "abs_mem.pass.c"
   "abs.pass.c"
+  "array_shift.pass.c"
   "cast_equality.pass.c"
   "counter.pass.c"
   "delete_main.pass.c"

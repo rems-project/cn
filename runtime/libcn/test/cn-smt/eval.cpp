@@ -533,3 +533,211 @@ TEST_F(CnSmtEvalTest, EvalMemberShift) {
   uintptr_t expected = 0x2000 + sizeof(int);  // y is at offset sizeof(int)
   EXPECT_EQ((uintptr_t)ptr_res->ptr, expected);
 }
+
+// ========== COMPREHENSIVE BITS-TO-BITS CASTING TESTS ==========
+
+// Test identity casts (same size and signedness)
+TEST_F(CnSmtEvalTest, EvalCastI8ToI8) {
+  cn_term* source = cn_smt_bits(true, 8, 42);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i8* res = (cn_bits_i8*)result;
+  EXPECT_EQ(res->val, 42);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU32ToU32) {
+  cn_term* source = cn_smt_bits(false, 32, 0xDEADBEEF);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u32* res = (cn_bits_u32*)result;
+  EXPECT_EQ(res->val, 0xDEADBEEF);
+}
+
+// Test size extension (signed)
+TEST_F(CnSmtEvalTest, EvalCastI8ToI16) {
+  cn_term* source = cn_smt_bits(true, 8, -42);  // Negative value to test sign extension
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 16), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i16* res = (cn_bits_i16*)result;
+  EXPECT_EQ(res->val, -42);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastI16ToI32) {
+  cn_term* source = cn_smt_bits(true, 16, 12345);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i32* res = (cn_bits_i32*)result;
+  EXPECT_EQ(res->val, 12345);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastI32ToI64) {
+  cn_term* source = cn_smt_bits(true, 32, -987654321);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 64), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i64* res = (cn_bits_i64*)result;
+  EXPECT_EQ(res->val, -987654321);
+}
+
+// Test size extension (unsigned)
+TEST_F(CnSmtEvalTest, EvalCastU8ToU16) {
+  cn_term* source = cn_smt_bits(false, 8, 255);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 16), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u16* res = (cn_bits_u16*)result;
+  EXPECT_EQ(res->val, 255);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU16ToU32) {
+  cn_term* source = cn_smt_bits(false, 16, 65535);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u32* res = (cn_bits_u32*)result;
+  EXPECT_EQ(res->val, 65535);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU32ToU64) {
+  cn_term* source = cn_smt_bits(false, 32, 0xFFFFFFFF);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 64), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u64* res = (cn_bits_u64*)result;
+  EXPECT_EQ(res->val, 0xFFFFFFFF);
+}
+
+// Test size truncation (signed)
+TEST_F(CnSmtEvalTest, EvalCastI64ToI32) {
+  cn_term* source = cn_smt_bits(true, 64, 0x123456789ABCDEF0);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i32* res = (cn_bits_i32*)result;
+  EXPECT_EQ((uint32_t)res->val, 0x9ABCDEF0);  // Lower 32 bits
+}
+
+TEST_F(CnSmtEvalTest, EvalCastI32ToI16) {
+  cn_term* source = cn_smt_bits(true, 32, 0x12345678);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 16), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i16* res = (cn_bits_i16*)result;
+  EXPECT_EQ((uint16_t)res->val, 0x5678);  // Lower 16 bits
+}
+
+TEST_F(CnSmtEvalTest, EvalCastI16ToI8) {
+  cn_term* source = cn_smt_bits(true, 16, 0x1234);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i8* res = (cn_bits_i8*)result;
+  EXPECT_EQ((uint8_t)res->val, 0x34);  // Lower 8 bits
+}
+
+// Test size truncation (unsigned)
+TEST_F(CnSmtEvalTest, EvalCastU64ToU32) {
+  cn_term* source = cn_smt_bits(false, 64, 0xFEDCBA9876543210);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u32* res = (cn_bits_u32*)result;
+  EXPECT_EQ(res->val, 0x76543210);  // Lower 32 bits
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU32ToU16) {
+  cn_term* source = cn_smt_bits(false, 32, 0xDEADBEEF);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 16), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u16* res = (cn_bits_u16*)result;
+  EXPECT_EQ(res->val, 0xBEEF);  // Lower 16 bits
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU16ToU8) {
+  cn_term* source = cn_smt_bits(false, 16, 0xABCD);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u8* res = (cn_bits_u8*)result;
+  EXPECT_EQ(res->val, 0xCD);  // Lower 8 bits
+}
+
+// Test sign changes (same size)
+TEST_F(CnSmtEvalTest, EvalCastI32ToU32) {
+  cn_term* source = cn_smt_bits(true, 32, -1);  // 0xFFFFFFFF as signed
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u32* res = (cn_bits_u32*)result;
+  EXPECT_EQ(res->val, 0xFFFFFFFF);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU32ToI32) {
+  cn_term* source = cn_smt_bits(false, 32, 0x80000000);  // Large unsigned value
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 32), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i32* res = (cn_bits_i32*)result;
+  EXPECT_EQ((uint32_t)res->val, 0x80000000);  // Same bit pattern
+}
+
+TEST_F(CnSmtEvalTest, EvalCastI8ToU8) {
+  cn_term* source = cn_smt_bits(true, 8, -128);  // 0x80 as signed
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u8* res = (cn_bits_u8*)result;
+  EXPECT_EQ(res->val, 128);  // 0x80 as unsigned
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU8ToI8) {
+  cn_term* source = cn_smt_bits(false, 8, 200);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i8* res = (cn_bits_i8*)result;
+  EXPECT_EQ((uint8_t)res->val, 200);  // Same bit pattern
+}
+
+// Test complex conversions (sign change + size change)
+TEST_F(CnSmtEvalTest, EvalCastI8ToU16) {
+  cn_term* source = cn_smt_bits(true, 8, -1);  // 0xFF as signed 8-bit
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 16), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u16* res = (cn_bits_u16*)result;
+  // Sign extension of -1 (0xFF) to 16 bits gives 0xFFFF, then reinterpreted as unsigned
+  EXPECT_EQ(res->val, 0xFFFF);
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU16ToI8) {
+  cn_term* source = cn_smt_bits(false, 16, 0x1234);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i8* res = (cn_bits_i8*)result;
+  EXPECT_EQ((uint8_t)res->val, 0x34);  // Truncated to lower 8 bits
+}
+
+TEST_F(CnSmtEvalTest, EvalCastI64ToU8) {
+  cn_term* source = cn_smt_bits(true, 64, 0x123456789ABCDEF0);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(false, 8), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_u8* res = (cn_bits_u8*)result;
+  EXPECT_EQ(res->val, 0xF0);  // Lower 8 bits
+}
+
+TEST_F(CnSmtEvalTest, EvalCastU8ToI64) {
+  cn_term* source = cn_smt_bits(false, 8, 255);
+  cn_term* term = cn_smt_cast(cn_base_type_bits(true, 64), source);
+  void* result = cn_eval_term(term);
+  ASSERT_NE(result, nullptr);
+  cn_bits_i64* res = (cn_bits_i64*)result;
+  EXPECT_EQ(res->val, 255);  // Zero-extended
+}
