@@ -808,9 +808,7 @@ static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
 
 /** Translate a CN term to SMT */
 sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
-  if (!iterm) {
-    return NULL;
-  }
+  assert(iterm);
 
   // Get location (placeholder - would need actual location from term)
   // cn_location loc = cn_term_get_loc(iterm);
@@ -1279,25 +1277,17 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_MEMBER_SHIFT: {
-      // MemberShift (t, tag, member) ->
-      //   CN_Pointer.ptr_shift ~ptr:(translate_term s t)
-      //     ~null_case:(default (Loc ()))
-      //     ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt, loc)))
       sexp_t* ptr_smt = translate_term(s, iterm->data.member_shift.base);
-      // For now, using NULL for null_case and offset - would need proper implementation
-      // This is a simplified placeholder
-      return ptr_smt;  // TODO: Implement proper ptr_shift
+
+      return bv_add(ptr_smt, loc_k(iterm->data.member_shift.offset));
     }
 
     case CN_TERM_ARRAY_SHIFT: {
-      // ArrayShift { base; ct; index } ->
-      //   CN_Pointer.ptr_shift ~ptr:(translate_term s base)
-      //     ~null_case:(default (Loc ()))
-      //     ~offset:(let el_size = int_lit_ (Memory.size_of_ctype ct) Memory.uintptr_bt loc in
-      //              translate_term s (mul_ (el_size, index) loc))
       sexp_t* base_smt = translate_term(s, iterm->data.array_shift.base);
-      // For now, using simplified version - would need proper implementation
-      return base_smt;  // TODO: Implement proper ptr_shift with offset calculation
+      sexp_t* offset_smt = bv_mul(loc_k(iterm->data.array_shift.element_size),
+          translate_term(s, iterm->data.array_shift.index));
+
+      return bv_add(base_smt, offset_smt);
     }
 
     case CN_TERM_CAST: {

@@ -15,6 +15,7 @@ TO_TEST=(
   "enum1.pass.c"
   "enum2.pass.c"
   "member_shift.pass.c"
+  "mps_1.pass.c"
   "neg100.pass.c"
   "neq.pass.c"
   "non_access_global.pass.c"
