@@ -21,8 +21,6 @@ module Make (AD : Domain.T) = struct
 
     val return : 'a -> 'a m
 
-    val runState : 'a m -> s -> 'a * s
-
     val execState : 'a m -> s -> s
   end = struct
     type s = OptCtx.t
@@ -40,8 +38,6 @@ module Make (AD : Domain.T) = struct
 
 
     let return (x : 'a) : 'a m = fun s -> (x, s)
-
-    let runState f s = f s
 
     let execState f s = snd (f s)
   end
@@ -354,30 +350,13 @@ module Make (AD : Domain.T) = struct
         (at : 'a AT.t)
     : unit m
     =
-    (* Necessary to avoid triggering special-cased logic in [CtA] w.r.t globals *)
-    let rename x =
-      match Sym.description x with SD_ObjectAddress x' -> Sym.fresh x' | _ -> x
-    in
-    let lat =
-      let lat = AT.get_lat at in
-      let subst =
-        let loc = Locations.other __LOC__ in
-        lat
-        |> LAT.free_vars_bts (fun _ -> Sym.Map.empty)
-        |> Sym.Map.bindings
-        |> List.map (fun (x, bt) -> (x, IT.sym_ (rename x, bt, loc)))
-        |> IT.make_subst
-        |> LAT.subst (fun _ x -> x)
-      in
-      subst lat
-    in
+    let lat = AT.get_lat at in
     let here = Locations.other __FUNCTION__ in
     let vars =
       let vars' = lat |> LAT.free_vars_bts (fun _ -> Sym.Map.empty) |> Sym.Map.bindings in
       vars'
       @ (at
          |> AT.get_computational
-         |> List.map_fst rename
          |> List.filter (fun (x, _) ->
            not
              (List.mem_assoc
@@ -440,24 +419,48 @@ module Make (AD : Domain.T) = struct
 
   let transform
         filename
+        (globals : Sym.t list)
         (preds : (Sym.t * Definition.Predicate.t) list)
         (tests : Test.t list)
     : GenContext.Make(Term.Make(AD)).t
     =
+    (* Necessary to avoid triggering special-cased logic in [CtA] w.r.t globals *)
+    let globals_subst =
+      globals
+      |> List.fold_left
+           (fun acc x ->
+              match Sym.description x with
+              | SD_ObjectAddress x' -> (x, `Rename (Sym.fresh x')) :: acc
+              | _ -> acc)
+           []
+      |> Subst.make IT.free_vars_with_rename
+    in
+    let preds =
+      List.map_snd
+        (fun ({ clauses; _ } as pred : Definition.Predicate.t) ->
+           { pred with
+             clauses =
+               (let open Option in
+                let@ clauses = clauses in
+                return (List.map (Definition.Clause.subst globals_subst) clauses))
+           })
+        preds
+    in
     let recursive_preds = get_recursive_preds preds in
     let context_specs =
       tests
       |> List.map (fun (test : Test.t) ->
-        transform_spec
-          (Option.get (Cerb_location.get_filename test.fn_loc))
-          recursive_preds
-          preds
-          (if test.is_static then
-             Sym.fresh
-               (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn)
-           else
-             test.fn)
-          test.internal)
+        test.internal
+        |> AT.subst (fun _ x -> x) globals_subst
+        |> transform_spec
+             (Option.get (Cerb_location.get_filename test.fn_loc))
+             recursive_preds
+             preds
+             (if test.is_static then
+                Sym.fresh
+                  (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn)
+              else
+                test.fn))
       |> List.fold_left (fun ctx f -> execState f ctx) OptCtx.empty
     in
     let context_preds (ctx : OptCtx.t) : OptCtx.t =
