@@ -5,13 +5,60 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/utils/hash_table.h>
+#include <bennet/utils/optional.h>
 #include <cn-executable/utils.h>
 #include <cn-smt/eval.h>
+
+// Hash table and optional implementations (types declared in eval.h)
+
+// Hash and equality functions for void_ptr (pointer comparison)
+static inline size_t bennet_hash_void_ptr(void_ptr ptr) {
+  return (size_t)ptr;
+}
+
+static inline bool bennet_eq_void_ptr(void_ptr a, void_ptr b) {
+  return a == b;
+}
+
+// String hash and equality functions are already defined in terms.h
+// We need to implement the hash table functions
+BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_struct_handler)
+
+// Global registry of struct handlers
+static bennet_hash_table(const_char_ptr, cn_struct_handler) g_struct_handlers;
+static bool g_struct_handlers_initialized = false;
+
+// Initialize the global struct handler registry
+static void init_struct_handlers(void) {
+  if (!g_struct_handlers_initialized) {
+    bennet_hash_table_init(const_char_ptr, cn_struct_handler)(
+        &g_struct_handlers, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+    g_struct_handlers_initialized = true;
+  }
+}
+
+// Register a struct handler for a given struct type name
+void cn_register_struct_handler(const char* struct_name, cn_struct_handler handler) {
+  init_struct_handlers();
+  bennet_hash_table_set(const_char_ptr, cn_struct_handler)(
+      &g_struct_handlers, struct_name, handler);
+}
+
+// Get a struct handler for a given struct type name
+static bool get_struct_handler(const char* struct_name, cn_struct_handler* out_handler) {
+  init_struct_handlers();
+  bennet_optional(cn_struct_handler) opt = bennet_hash_table_get(
+      const_char_ptr, cn_struct_handler)(&g_struct_handlers, struct_name);
+  if (bennet_optional_is_some(opt)) {
+    *out_handler = bennet_optional_unwrap(opt);
+    return true;
+  }
+  return false;
+}
+
 // Forward declarations
 static cn_bits_info get_bits_info(cn_term* term);
-
-// Helper function to cast void* to specific cn_* types
-#define EVAL(term) cn_eval_term(term)
 
 void* cn_eval_term(cn_term* term) {
   assert(term);
@@ -86,7 +133,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_UNOP: {
-      void* operand_val = EVAL(term->data.unop.operand);
+      void* operand_val = cn_eval_term(term->data.unop.operand);
       assert(operand_val);
 
       switch (term->data.unop.op) {
@@ -183,8 +230,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_BINOP: {
-      void* left_val = EVAL(term->data.binop.left);
-      void* right_val = EVAL(term->data.binop.right);
+      void* left_val = cn_eval_term(term->data.binop.left);
+      void* right_val = cn_eval_term(term->data.binop.right);
       assert(left_val && right_val);
 
       if (cn_base_type_is(term->data.binop.left->base_type, CN_BASE_BITS)) {
@@ -608,18 +655,18 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_ITE: {
-      cn_bool* cond_val = (cn_bool*)EVAL(term->data.ite.cond);
+      cn_bool* cond_val = (cn_bool*)cn_eval_term(term->data.ite.cond);
       assert(cond_val);
 
       if (convert_from_cn_bool(cond_val)) {
-        return EVAL(term->data.ite.then_term);
+        return cn_eval_term(term->data.ite.then_term);
       } else {
-        return EVAL(term->data.ite.else_term);
+        return cn_eval_term(term->data.ite.else_term);
       }
     }
 
     case CN_TERM_CAST: {
-      void* value_val = EVAL(term->data.cast.value);
+      void* value_val = cn_eval_term(term->data.cast.value);
       assert(value_val);
 
       cn_base_type source_type = term->data.cast.value->base_type;
@@ -1005,7 +1052,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MEMBER_SHIFT: {
-      void* base_val = EVAL(term->data.member_shift.base);
+      void* base_val = cn_eval_term(term->data.member_shift.base);
       assert(base_val);
 
       cn_pointer* base_ptr = (cn_pointer*)base_val;
@@ -1017,8 +1064,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_ARRAY_SHIFT: {
-      void* base_val = EVAL(term->data.array_shift.base);
-      void* index_val = EVAL(term->data.array_shift.index);
+      void* base_val = cn_eval_term(term->data.array_shift.base);
+      void* index_val = cn_eval_term(term->data.array_shift.index);
       assert(base_val && index_val);
 
       cn_pointer* base_ptr = (cn_pointer*)base_val;
@@ -1086,9 +1133,9 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MAP_SET: {
-      void* map_val = EVAL(term->data.map_set.map);
-      void* key_val = EVAL(term->data.map_set.key);
-      void* value_val = EVAL(term->data.map_set.value);
+      void* map_val = cn_eval_term(term->data.map_set.map);
+      void* key_val = cn_eval_term(term->data.map_set.key);
+      void* value_val = cn_eval_term(term->data.map_set.value);
       assert(map_val && key_val && value_val);
 
       cn_map* map = (cn_map*)map_val;
@@ -1100,8 +1147,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MAP_GET: {
-      void* map_val = EVAL(term->data.map_get.map);
-      void* key_val = EVAL(term->data.map_get.key);
+      void* map_val = cn_eval_term(term->data.map_get.map);
+      void* key_val = cn_eval_term(term->data.map_get.key);
       assert(map_val && key_val);
 
       // Use appropriate map get function based on result type
@@ -1110,7 +1157,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_WRAPI: {
-      void* value_val = EVAL(term->data.wrapi.value);
+      void* value_val = cn_eval_term(term->data.wrapi.value);
       assert(value_val);
 
       // Wrap integer to given integer type
@@ -1131,25 +1178,72 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_STRUCT: {
-      // Create struct from members
-      assert(false);
+      // Create struct from members using registered handler
+      const char* struct_tag = term->data.struct_val.tag;
+      cn_struct_handler handler;
+      assert(get_struct_handler(struct_tag, &handler));
+
+      // Convert cn_term_ptr hash table to void_ptr hash table for member values
+      bennet_hash_table(const_char_ptr, void_ptr) member_values;
+      bennet_hash_table_init(const_char_ptr, void_ptr)(
+          &member_values, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+
+      // Evaluate all member terms and store in the void_ptr hash table
+      bennet_hash_table(const_char_ptr, cn_term_ptr)* members =
+          &term->data.struct_val.members;
+      for (size_t i = 0; i < members->capacity; i++) {
+        if (members->entries[i].occupied) {
+          const char* member_name = members->entries[i].key;
+          cn_term* member_term = members->entries[i].value;
+          void* member_val = cn_eval_term(member_term);
+          assert(member_val);
+          bennet_hash_table_set(const_char_ptr, void_ptr)(
+              &member_values, member_name, member_val);
+        }
+      }
+
+      // Call the registered struct creation function
+      void* result = handler.create_struct(&member_values);
+
+      // Cleanup temporary hash table
+      bennet_hash_table_free(const_char_ptr, void_ptr)(&member_values);
+
+      return result;
     }
 
     case CN_TERM_STRUCT_MEMBER: {
-      void* struct_val = EVAL(term->data.struct_member.struct_term);
+      void* struct_val = cn_eval_term(term->data.struct_member.struct_term);
       assert(struct_val);
 
-      // Extract struct member
-      assert(false);
+      // Extract struct member using registered handler
+      // We need to get the struct type name from the base type
+      cn_term* struct_term = term->data.struct_member.struct_term;
+      assert(cn_base_type_is(struct_term->base_type, CN_BASE_STRUCT));
+
+      const char* struct_tag = struct_term->base_type.data.struct_tag.tag;
+      cn_struct_handler handler;
+      assert(get_struct_handler(struct_tag, &handler));
+
+      const char* member_name = term->data.struct_member.member_name;
+      return handler.get_member(struct_val, member_name);
     }
 
     case CN_TERM_STRUCT_UPDATE: {
-      void* struct_val = EVAL(term->data.struct_update.struct_term);
-      void* new_val = EVAL(term->data.struct_update.new_value);
+      void* struct_val = cn_eval_term(term->data.struct_update.struct_term);
+      void* new_val = cn_eval_term(term->data.struct_update.new_value);
       assert(struct_val && new_val);
 
-      // Update struct member
-      assert(false);
+      // Update struct member using registered handler
+      // We need to get the struct type name from the base type
+      cn_term* struct_term = term->data.struct_update.struct_term;
+      assert(cn_base_type_is(struct_term->base_type, CN_BASE_STRUCT));
+
+      const char* struct_tag = struct_term->base_type.data.struct_tag.tag;
+      cn_struct_handler handler;
+      assert(get_struct_handler(struct_tag, &handler));
+
+      const char* member_name = term->data.struct_update.member_name;
+      return handler.update_member(struct_val, member_name, new_val);
     }
 
     case CN_TERM_RECORD: {
@@ -1158,7 +1252,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_RECORD_MEMBER: {
-      void* record_val = EVAL(term->data.record_member.record_term);
+      void* record_val = cn_eval_term(term->data.record_member.record_term);
       assert(record_val);
 
       // Extract record member
@@ -1210,9 +1304,7 @@ static cn_bits_info get_bits_info(cn_term* term) {
 }
 
 bool cn_eval_context(cn_constraint_context* ctx) {
-  if (!ctx) {
-    return false;
-  }
+  assert(ctx);
 
   // Evaluate all logical constraints
   const cn_logical_constraint* logical = cn_context_first_logical(ctx);

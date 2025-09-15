@@ -242,17 +242,23 @@ module Make (AD : Domain.T) = struct
 
 
   and convert_struct (tag : Sym.t) (members : (Id.t * IT.t) list) : Pp.document =
+    let open Pp in
     let tag_name = Sym.pp tag in
     let member_count = List.length members in
-    let member_names = List.map (fun (id, _) -> Pp.dquotes (Id.pp id)) members in
-    let member_values = List.map (fun (_, term) -> convert_indexterm term) members in
-    let names_array =
-      Pp.(braces (separate_map (comma ^^ Pp.space) (fun x -> x) member_names))
-    in
-    let values_array =
-      Pp.(braces (separate_map (comma ^^ Pp.space) (fun x -> x) member_values))
-    in
-    Pp.(
+    if member_count = 0 then
+      !^"cn_smt_struct" ^^ parens (dquotes tag_name ^^ comma ^^^ !^"0, NULL, NULL")
+    else (
+      let member_names = List.map (fun (id, _) -> dquotes (Id.pp id)) members in
+      let member_values = List.map (fun (_, term) -> convert_indexterm term) members in
+      (* Use compound literals for the arrays *)
+      let names_array =
+        parens !^"const char*[]"
+        ^^ braces (separate_map (comma ^^ space) (fun x -> x) member_names)
+      in
+      let values_array =
+        parens !^"cn_term*[]"
+        ^^ braces (separate_map (comma ^^ space) (fun x -> x) member_values)
+      in
       !^"cn_smt_struct"
       ^^ parens
            (dquotes tag_name

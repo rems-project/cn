@@ -58,47 +58,49 @@ size_t cn_smt_gather_logical_count(void) {
 }
 
 // Add constraints using the function interface (alternative to macros)
-bool cn_smt_gather_add_logical_term(cn_term* term) {
+void cn_smt_gather_add_logical_term(cn_term* term) {
+  assert(term);
   if (!cn_gather_context) {
     cn_smt_gather_init();
   }
   cn_logical_constraint* constraint = cn_logical_constraint_create_term(term);
-  if (constraint) {
-    return cn_context_add_logical_constraint(cn_gather_context, constraint);
-  }
-  return false;
+  assert(constraint);
+
+  cn_context_add_logical_constraint(cn_gather_context, constraint);
 }
 
-bool cn_smt_gather_add_logical_forall(
+void cn_smt_gather_add_logical_forall(
     cn_sym var_name, cn_base_type var_type, cn_term* body) {
+  assert(body);
   if (!cn_gather_context) {
     cn_smt_gather_init();
   }
   cn_logical_constraint* constraint =
       cn_logical_constraint_create_forall(var_name, var_type, body);
-  if (constraint) {
-    return cn_context_add_logical_constraint(cn_gather_context, constraint);
-  }
-  return false;
+  assert(constraint);
+
+  cn_context_add_logical_constraint(cn_gather_context, constraint);
 }
 
-bool cn_smt_gather_add_assignment(size_t bytes, cn_term* pointer, cn_term* value) {
+void cn_smt_gather_add_assignment(size_t bytes, cn_term* pointer, cn_term* value) {
+  assert(pointer);
   if (!cn_gather_context) {
     cn_smt_gather_init();
   }
   cn_resource_constraint* constraint =
       cn_resource_constraint_create_predicate(bytes, pointer);
-  if (constraint) {
-    return cn_context_add_resource_constraint(cn_gather_context, constraint);
-  }
-  return false;
+  assert(constraint);
+
+  cn_context_add_resource_constraint(cn_gather_context, constraint);
 }
 
 // Create a fresh symbolic variable of the given type
 cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type) {
+  assert(name);
   if (!cn_gather_context) {
     cn_smt_gather_init();
   }
+
   // Increment the counter in the context
   cn_gather_context->counter++;
 

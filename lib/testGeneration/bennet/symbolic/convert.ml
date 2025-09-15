@@ -11,7 +11,7 @@ module Make (AD : Domain.T) = struct
   module Def = Stage2.Def
 
   (** Convert Stage 1 context with multiple definitions to a C source file *)
-  let transform (ctx : Ctx.t) : Pp.document =
+  let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) : Pp.document =
     let open Pp in
     let typedef_docs =
       let defs =
@@ -63,6 +63,7 @@ module Make (AD : Domain.T) = struct
     ^^ hardline
     ^^ separate hardline typedef_docs
     ^^ !^"/* FUNCTION DECLARATIONS */"
-    ^^ hardline
-    ^^ separate (hardline ^^ hardline) functions
+    ^^ twice hardline
+    ^^ Eval.generate_handlers_and_init prog5
+    ^^ separate (twice hardline) functions
 end

@@ -468,8 +468,7 @@ static inline cn_sym cn_sym_from_string(const char* name) {
 
 // Convenience function for tests
 static inline cn_term* cn_smt_sym_string(const char* name, cn_base_type type) {
-  if (!name)
-    return NULL;
+  assert(name);
   return cn_smt_sym(cn_sym_from_string(name), type);
 }
 cn_term* cn_smt_null(void);
@@ -532,6 +531,15 @@ cn_term* cn_smt_apply(const char* function_name,
 
 // Let binding
 cn_term* cn_smt_let(const char* var_name, cn_term* value, cn_term* body);
+
+// Struct operations
+cn_term* cn_smt_struct(const char* tag,
+    size_t member_count,
+    const char** member_names,
+    cn_term** member_values);
+cn_term* cn_smt_struct_member(cn_term* struct_term, const char* member_name);
+cn_term* cn_smt_struct_update(
+    cn_term* struct_term, const char* member_name, cn_term* new_value);
 
 // Record operations
 cn_term* cn_smt_record(

@@ -18,7 +18,8 @@ module Make (AD : Domain.T) = struct
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("bennet_" ^ generator_name ^ "_record") in
     let vars_decl =
-      !^"struct cn_smt_solver* smt_solver;"
+      !^"cn_smt_handlers_init();"
+      ^/^ !^"struct cn_smt_solver* smt_solver;"
       ^/^ !^"bennet_rand_checkpoint checkpoint;"
       ^/^ !^"enum cn_smt_solver_result result;"
     in

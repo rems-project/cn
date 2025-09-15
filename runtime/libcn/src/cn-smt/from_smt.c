@@ -603,6 +603,7 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp);
 
 /** Translate an SMT value to a CN term */
 cn_term* get_ivalue(cn_base_type bt, sexp_t* sexp) {
+  assert(sexp);
   // In CN, IT wraps the value with base type and location info
   // For C implementation, we just return the term directly since cn_term already has base_type
   return get_value_impl(bt, sexp);
@@ -610,6 +611,7 @@ cn_term* get_ivalue(cn_base_type bt, sexp_t* sexp) {
 
 /** Get the value from an SMT s-expression based on base type */
 cn_term* get_value(cn_base_type bt, sexp_t* sexp) {
+  assert(sexp);
   return get_value_impl(bt, sexp);
 }
 

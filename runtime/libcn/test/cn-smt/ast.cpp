@@ -368,30 +368,6 @@ TEST_F(CnSmtTest, LetBinding) {
   EXPECT_EQ(let_term->data.let.body, body);
 }
 
-// Test error handling with null inputs
-TEST_F(CnSmtTest, ErrorHandling) {
-  // Null operand tests
-  EXPECT_EQ(cn_smt_not(nullptr), nullptr);
-  EXPECT_EQ(cn_smt_and(nullptr, cn_smt_bool(true)), nullptr);
-  EXPECT_EQ(cn_smt_and(cn_smt_bool(true), nullptr), nullptr);
-  EXPECT_EQ(cn_smt_add(nullptr, cn_smt_z(5)), nullptr);
-  EXPECT_EQ(cn_smt_add(cn_smt_z(5), nullptr), nullptr);
-
-  // Null string tests
-  EXPECT_EQ(cn_smt_sym_string(nullptr, cn_base_type_simple(CN_BASE_INTEGER)), nullptr);
-
-  // Null arguments for apply
-  cn_term* arg = cn_smt_z(1);
-  bennet_vector(cn_term_ptr) args;
-  bennet_vector_init(cn_term_ptr)(&args);
-  bennet_vector_push(cn_term_ptr)(&args, arg);
-
-  EXPECT_EQ(cn_smt_apply("func", cn_base_type_simple(CN_BASE_INTEGER), nullptr), nullptr);
-  EXPECT_EQ(cn_smt_apply(nullptr, cn_base_type_simple(CN_BASE_INTEGER), &args), nullptr);
-
-  bennet_vector_free(cn_term_ptr)(&args);
-}
-
 // Test complex expression building
 TEST_F(CnSmtTest, ComplexExpressions) {
   // Build: (x + y) > (z * 2)

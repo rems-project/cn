@@ -67,7 +67,7 @@ void cn_context_destroy(cn_constraint_context* ctx);
 void cn_context_clear(cn_constraint_context* ctx);
 
 // Variable context management
-bool cn_context_add_variable(cn_constraint_context* ctx, cn_sym var, cn_base_type type);
+void cn_context_add_variable(cn_constraint_context* ctx, cn_sym var, cn_base_type type);
 bennet_optional(cn_base_type)
     cn_context_get_variable_type(const cn_constraint_context* ctx, cn_sym var);
 bool cn_context_has_variable(const cn_constraint_context* ctx, cn_sym var);
@@ -77,7 +77,7 @@ size_t cn_context_variable_count(const cn_constraint_context* ctx);
 cn_resource_constraint* cn_resource_constraint_create_predicate(
     size_t bytes, cn_term* pointer);
 
-bool cn_context_add_resource_constraint(
+void cn_context_add_resource_constraint(
     cn_constraint_context* ctx, cn_resource_constraint* constraint);
 
 void cn_resource_constraint_destroy(cn_resource_constraint* constraint);
@@ -88,7 +88,7 @@ cn_logical_constraint* cn_logical_constraint_create_term(cn_term* term);
 cn_logical_constraint* cn_logical_constraint_create_forall(
     cn_sym var_name, cn_base_type var_type, cn_term* body);
 
-bool cn_context_add_logical_constraint(
+void cn_context_add_logical_constraint(
     cn_constraint_context* ctx, cn_logical_constraint* constraint);
 
 void cn_logical_constraint_destroy(cn_logical_constraint* constraint);

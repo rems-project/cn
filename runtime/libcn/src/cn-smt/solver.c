@@ -10,6 +10,7 @@
 #include <cn-smt/solver.h>
 
 void send_string(struct cn_smt_solver *solver, const char *str) {
+  assert(solver && str);
   fprintf(solver->write_input, "%s\n", str);
   fflush(solver->write_input);
 
@@ -21,6 +22,7 @@ void send_string(struct cn_smt_solver *solver, const char *str) {
 }
 
 char *read_output(struct cn_smt_solver *solver) {
+  assert(solver);
   size_t buffer_size = 128;
   char *buffer = malloc(buffer_size);
   if (!buffer) {
@@ -77,10 +79,12 @@ sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp) {
 }
 
 void stop_solver(struct cn_smt_solver *solver) {
+  assert(solver);
   send_string(solver, "(exit)");
 }
 
 void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
+  assert(solver && cmd);
   sexp_t *res = send_command(solver, cmd);
 
   if (!sexp_is_atom(res)) {

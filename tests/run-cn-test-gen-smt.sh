@@ -15,6 +15,8 @@ TO_TEST=(
   "delete_main.pass.c"
   "enum1.pass.c"
   "enum2.pass.c"
+  "learn_equality.pass.c"
+  "learn_multiple.special.c"
   "member_shift.pass.c"
   "mps_1.pass.c"
   "neg100.pass.c"
@@ -22,6 +24,7 @@ TO_TEST=(
   "non_access_global.pass.c"
   "smt_pruning.pass.c"
   "test_macro.fail.c"
+  "void_pred.pass.c"
 )
 
 # Run each test with the SMT solver

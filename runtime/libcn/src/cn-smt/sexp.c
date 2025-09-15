@@ -249,9 +249,7 @@ static const char *parse_sexp_impl(const char *input, sexp_t **result) {
 
 // Parsing
 sexp_t *sexp_parse(const char *input) {
-  if (!input) {
-    return NULL;
-  }
+  assert(input);
 
   sexp_t *result;
   const char *end = parse_sexp_impl(input, &result);
@@ -266,9 +264,7 @@ sexp_t *sexp_parse(const char *input) {
 
 /** Apply a function to some arguments. */
 sexp_t *sexp_app(sexp_t *f, sexp_t **args, size_t arg_count) {
-  if (!f) {
-    return NULL;
-  }
+  assert(f);
 
   if (arg_count == 0) {
     // If no args, return a copy of f
@@ -331,9 +327,7 @@ sexp_t *sexp_app(sexp_t *f, sexp_t **args, size_t arg_count) {
 /** Apply a function to some arguments */
 sexp_t *sexp_app_str(const char *f, sexp_t **args, size_t arg_count) {
   sexp_t *f_atom = sexp_atom(f);
-  if (!f_atom) {
-    return NULL;
-  }
+  assert(f_atom);
 
   sexp_t *result = sexp_app(f_atom, args, arg_count);
   sexp_free(f_atom);
@@ -342,9 +336,7 @@ sexp_t *sexp_app_str(const char *f, sexp_t **args, size_t arg_count) {
 
 /** Type annotation */
 sexp_t *sexp_as_type(sexp_t *x, sexp_t *t) {
-  if (!x || !t) {
-    return NULL;
-  }
+  assert(x && t);
 
   sexp_t *args[] = {x, t};
   return sexp_app_str("as", args, 2);
@@ -352,9 +344,7 @@ sexp_t *sexp_as_type(sexp_t *x, sexp_t *t) {
 
 /** Let expression */
 sexp_t *sexp_let(sexp_t **bindings, size_t binding_count, sexp_t *e) {
-  if (!e) {
-    return NULL;
-  }
+  assert(e);
 
   if (binding_count == 0) {
     // Return a copy of e
@@ -382,9 +372,7 @@ sexp_t *sexp_nat_k(int x) {
 
 /** Indexed family */
 sexp_t *sexp_fam(const char *f, sexp_t **indices, size_t index_count) {
-  if (!f) {
-    return NULL;
-  }
+  assert(f);
 
   // Create list: (_ f indices...)
   sexp_t **elements = malloc(sizeof(sexp_t *) * (index_count + 2));
@@ -416,9 +404,7 @@ sexp_t *sexp_fam(const char *f, sexp_t **indices, size_t index_count) {
 
 /** Int-indexed family */
 sexp_t *sexp_ifam(const char *f, int *indices, size_t index_count) {
-  if (!f) {
-    return NULL;
-  }
+  assert(f);
 
   // Convert int indices to sexp atoms
   sexp_t **sexp_indices = malloc(sizeof(sexp_t *) * index_count);
@@ -450,9 +436,7 @@ sexp_t *sexp_ifam(const char *f, int *indices, size_t index_count) {
 
 /** Attribute */
 sexp_t *sexp_named(const char *name, sexp_t *e) {
-  if (!name || !e) {
-    return NULL;
-  }
+  assert(name && e);
 
   sexp_t *name_atom = sexp_atom(name);
   if (!name_atom) {
@@ -500,9 +484,7 @@ bool is_simple_symbol(const char *s) {
 
 /** Quote a symbol if needed for SMTLIB */
 char *quote_symbol(const char *s) {
-  if (!s) {
-    return NULL;
-  }
+  assert(s);
 
   if (is_simple_symbol(s)) {
     // Return a copy of the original string
@@ -532,9 +514,7 @@ char *quote_symbol(const char *s) {
 /** Make an SMT name, quoting if needed. Note that even with quoting
     the name should not contain pipe (|) or backslash (\) */
 sexp_t *symbol(const char *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   char *quoted = quote_symbol(x);
   if (!quoted) {
@@ -562,9 +542,7 @@ sexp_t *bool_k(bool b) {
 
 /** If-then-else. This is polymorphic and can be used to construct any term. */
 sexp_t *ite(sexp_t *x, sexp_t *y, sexp_t *z) {
-  if (!x || !y || !z) {
-    return NULL;
-  }
+  assert(x && y && z);
 
   sexp_t *args[] = {x, y, z};
   return sexp_app_str("ite", args, 3);
@@ -572,9 +550,7 @@ sexp_t *ite(sexp_t *x, sexp_t *y, sexp_t *z) {
 
 /** Arguments are equal. */
 sexp_t *eq(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("=", args, 2);
@@ -591,9 +567,7 @@ sexp_t *distinct(sexp_t **xs, size_t count) {
 
 /** Logical negation. */
 sexp_t *bool_not(sexp_t *p) {
-  if (!p) {
-    return NULL;
-  }
+  assert(p);
 
   sexp_t *args[] = {p};
   return sexp_app_str("not", args, 1);
@@ -601,9 +575,7 @@ sexp_t *bool_not(sexp_t *p) {
 
 /** Conjunction. */
 sexp_t *bool_and(sexp_t *p, sexp_t *q) {
-  if (!p || !q) {
-    return NULL;
-  }
+  assert(p && q);
 
   sexp_t *args[] = {p, q};
   return sexp_app_str("and", args, 2);
@@ -620,9 +592,7 @@ sexp_t *bool_ands(sexp_t **ps, size_t count) {
 
 /** Disjunction. */
 sexp_t *bool_or(sexp_t *p, sexp_t *q) {
-  if (!p || !q) {
-    return NULL;
-  }
+  assert(p && q);
 
   sexp_t *args[] = {p, q};
   return sexp_app_str("or", args, 2);
@@ -639,9 +609,7 @@ sexp_t *bool_ors(sexp_t **ps, size_t count) {
 
 /** Exclusive-or. */
 sexp_t *bool_xor(sexp_t *p, sexp_t *q) {
-  if (!p || !q) {
-    return NULL;
-  }
+  assert(p && q);
 
   sexp_t *args[] = {p, q};
   return sexp_app_str("xor", args, 2);
@@ -649,9 +617,7 @@ sexp_t *bool_xor(sexp_t *p, sexp_t *q) {
 
 /** Implication. */
 sexp_t *bool_implies(sexp_t *p, sexp_t *q) {
-  if (!p || !q) {
-    return NULL;
-  }
+  assert(p && q);
 
   sexp_t *args[] = {p, q};
   return sexp_app_str("=>", args, 2);
@@ -669,9 +635,7 @@ sexp_t *t_real(void) {
 
 /** Numeric negation. */
 sexp_t *num_neg(sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   sexp_t *args[] = {x};
   return sexp_app_str("-", args, 1);
@@ -688,9 +652,7 @@ sexp_t *int_k(int x) {
 
 /** Division of real numbers. */
 sexp_t *real_div(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("/", args, 2);
@@ -698,9 +660,7 @@ sexp_t *real_div(sexp_t *x, sexp_t *y) {
 
 /** Greater-then for numbers. */
 sexp_t *num_gt(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str(">", args, 2);
@@ -708,9 +668,7 @@ sexp_t *num_gt(sexp_t *x, sexp_t *y) {
 
 /** Less-then for numbers. */
 sexp_t *num_lt(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("<", args, 2);
@@ -718,9 +676,7 @@ sexp_t *num_lt(sexp_t *x, sexp_t *y) {
 
 /** Greater-than-or-equal-to for numbers. */
 sexp_t *num_geq(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str(">=", args, 2);
@@ -728,9 +684,7 @@ sexp_t *num_geq(sexp_t *x, sexp_t *y) {
 
 /** Less-than-or-equal-to for numbers. */
 sexp_t *num_leq(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("<=", args, 2);
@@ -738,9 +692,7 @@ sexp_t *num_leq(sexp_t *x, sexp_t *y) {
 
 /** Numeric addition. */
 sexp_t *num_add(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("+", args, 2);
@@ -748,9 +700,7 @@ sexp_t *num_add(sexp_t *x, sexp_t *y) {
 
 /** Numeric subtraction. */
 sexp_t *num_sub(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("-", args, 2);
@@ -758,9 +708,7 @@ sexp_t *num_sub(sexp_t *x, sexp_t *y) {
 
 /** Numeric multiplication. */
 sexp_t *num_mul(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("*", args, 2);
@@ -768,9 +716,7 @@ sexp_t *num_mul(sexp_t *x, sexp_t *y) {
 
 /** Numeric absolute value. */
 sexp_t *num_abs(sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   sexp_t *args[] = {x};
   return sexp_app_str("abs", args, 1);
@@ -778,9 +724,7 @@ sexp_t *num_abs(sexp_t *x) {
 
 /** Numeric division. */
 sexp_t *num_div(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("div", args, 2);
@@ -788,9 +732,7 @@ sexp_t *num_div(sexp_t *x, sexp_t *y) {
 
 /** Numeric modulus. */
 sexp_t *num_mod(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("mod", args, 2);
@@ -798,9 +740,7 @@ sexp_t *num_mod(sexp_t *x, sexp_t *y) {
 
 /** Numeric reminder. Nonstandard. */
 sexp_t *num_rem(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("rem", args, 2);
@@ -808,9 +748,7 @@ sexp_t *num_rem(sexp_t *x, sexp_t *y) {
 
 /** Is the number divisible by the given constant? */
 sexp_t *num_divisible(sexp_t *x, int n) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   int indices[] = {n};
   sexp_t *divisible_indexed = sexp_ifam("divisible", indices, 1);
@@ -826,9 +764,7 @@ sexp_t *num_divisible(sexp_t *x, int n) {
 
 /** Satisfies [real_to_int x <= x] (i.e., this is like [floor]) */
 sexp_t *real_to_int(sexp_t *e) {
-  if (!e) {
-    return NULL;
-  }
+  assert(e);
 
   sexp_t *args[] = {e};
   return sexp_app_str("to_int", args, 1);
@@ -836,9 +772,7 @@ sexp_t *real_to_int(sexp_t *e) {
 
 /** Promote an integer to a real. */
 sexp_t *int_to_real(sexp_t *e) {
-  if (!e) {
-    return NULL;
-  }
+  assert(e);
 
   sexp_t *args[] = {e};
   return sexp_app_str("to_real", args, 1);
@@ -923,9 +857,7 @@ sexp_t *bv_nat_hex(int w, long long v) {
 
 /** Bit vector arithmetic negation. */
 sexp_t *bv_neg(sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   sexp_t *args[] = {x};
   return sexp_app_str("bvneg", args, 1);
@@ -933,9 +865,7 @@ sexp_t *bv_neg(sexp_t *x) {
 
 /** Bit vector bitwise complement. */
 sexp_t *bv_compl(sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   sexp_t *args[] = {x};
   return sexp_app_str("bvnot", args, 1);
@@ -988,9 +918,7 @@ sexp_t *bv_k(int w, long long v) {
 
 /** Unsigned less-than on bit-vectors. */
 sexp_t *bv_ult(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvult", args, 2);
@@ -998,9 +926,7 @@ sexp_t *bv_ult(sexp_t *x, sexp_t *y) {
 
 /** Unsigned less-than-or-equal on bit-vectors. */
 sexp_t *bv_uleq(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvule", args, 2);
@@ -1008,9 +934,7 @@ sexp_t *bv_uleq(sexp_t *x, sexp_t *y) {
 
 /** Signed less-than on bit-vectors. */
 sexp_t *bv_slt(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvslt", args, 2);
@@ -1018,9 +942,7 @@ sexp_t *bv_slt(sexp_t *x, sexp_t *y) {
 
 /** Signed less-than-or-equal on bit-vectors. */
 sexp_t *bv_sleq(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvsle", args, 2);
@@ -1028,9 +950,7 @@ sexp_t *bv_sleq(sexp_t *x, sexp_t *y) {
 
 /** Bit vector concatenation. */
 sexp_t *bv_concat(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("concat", args, 2);
@@ -1038,9 +958,7 @@ sexp_t *bv_concat(sexp_t *x, sexp_t *y) {
 
 /** Extend to the signed equivalent bitvector by the given number of bits. */
 sexp_t *bv_sign_extend(int i, sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   int indices[] = {i};
   sexp_t *sign_extend_indexed = sexp_ifam("sign_extend", indices, 1);
@@ -1056,9 +974,7 @@ sexp_t *bv_sign_extend(int i, sexp_t *x) {
 
 /** Zero extend by the given number of bits. */
 sexp_t *bv_zero_extend(int i, sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   int indices[] = {i};
   sexp_t *zero_extend_indexed = sexp_ifam("zero_extend", indices, 1);
@@ -1076,9 +992,7 @@ sexp_t *bv_zero_extend(int i, sexp_t *x) {
     [last_ix] is the larger bit index, [first_ix] is the smaller one, and indexing
     is inclusive. */
 sexp_t *bv_extract(int last_ix, int first_ix, sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   int indices[] = {last_ix, first_ix};
   sexp_t *extract_indexed = sexp_ifam("extract", indices, 2);
@@ -1094,9 +1008,7 @@ sexp_t *bv_extract(int last_ix, int first_ix, sexp_t *x) {
 
 /** Bitwise negation. */
 sexp_t *bv_not(sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   sexp_t *args[] = {x};
   return sexp_app_str("bvnot", args, 1);
@@ -1104,9 +1016,7 @@ sexp_t *bv_not(sexp_t *x) {
 
 /** Bitwise conjunction. */
 sexp_t *bv_and(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvand", args, 2);
@@ -1114,9 +1024,7 @@ sexp_t *bv_and(sexp_t *x, sexp_t *y) {
 
 /** Bitwise disjunction. */
 sexp_t *bv_or(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvor", args, 2);
@@ -1124,9 +1032,7 @@ sexp_t *bv_or(sexp_t *x, sexp_t *y) {
 
 /** Bitwise exclusive or. */
 sexp_t *bv_xor(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvxor", args, 2);
@@ -1134,9 +1040,7 @@ sexp_t *bv_xor(sexp_t *x, sexp_t *y) {
 
 /** Addition of bit vectors. */
 sexp_t *bv_add(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvadd", args, 2);
@@ -1144,9 +1048,7 @@ sexp_t *bv_add(sexp_t *x, sexp_t *y) {
 
 /** Subtraction of bit vectors. */
 sexp_t *bv_sub(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvsub", args, 2);
@@ -1154,9 +1056,7 @@ sexp_t *bv_sub(sexp_t *x, sexp_t *y) {
 
 /** Multiplication of bit vectors. */
 sexp_t *bv_mul(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvmul", args, 2);
@@ -1164,9 +1064,7 @@ sexp_t *bv_mul(sexp_t *x, sexp_t *y) {
 
 /** Bit vector unsigned division. */
 sexp_t *bv_udiv(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvudiv", args, 2);
@@ -1182,9 +1080,7 @@ sexp_t *bv_urem(sexp_t *x, sexp_t *y) {
 
 /** Bit vector signed division. */
 sexp_t *bv_sdiv(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvsdiv", args, 2);
@@ -1208,9 +1104,7 @@ sexp_t *bv_smod(sexp_t *x, sexp_t *y) {
 
 /** Shift left. */
 sexp_t *bv_shl(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvshl", args, 2);
@@ -1218,9 +1112,7 @@ sexp_t *bv_shl(sexp_t *x, sexp_t *y) {
 
 /** Logical shift right. */
 sexp_t *bv_lshr(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvlshr", args, 2);
@@ -1228,9 +1120,7 @@ sexp_t *bv_lshr(sexp_t *x, sexp_t *y) {
 
 /** Arithmetic shift right (copies most significant bit). */
 sexp_t *bv_ashr(sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   sexp_t *args[] = {x, y};
   return sexp_app_str("bvashr", args, 2);
@@ -1254,9 +1144,7 @@ sexp_t *loc_k(uintptr_t ptr) {
 
 /** The type of arrays with keys kt and values vt */
 sexp_t *t_array(sexp_t *kt, sexp_t *vt) {
-  if (!kt || !vt) {
-    return NULL;
-  }
+  assert(kt && vt);
 
   sexp_t *args[] = {kt, vt};
   return sexp_app_str("Array", args, 2);
@@ -1265,9 +1153,7 @@ sexp_t *t_array(sexp_t *kt, sexp_t *vt) {
 /** An array of type Array kt vt where all elements are v.
     v should be of type vt. */
 sexp_t *arr_const(sexp_t *kt, sexp_t *vt, sexp_t *v) {
-  if (!kt || !vt || !v) {
-    return NULL;
-  }
+  assert(kt && vt && v);
 
   sexp_t *const_atom = sexp_atom("const");
   if (!const_atom) {
@@ -1295,9 +1181,7 @@ sexp_t *arr_const(sexp_t *kt, sexp_t *vt, sexp_t *v) {
 
 /** The element stored at index i of arr. */
 sexp_t *arr_select(sexp_t *arr, sexp_t *i) {
-  if (!arr || !i) {
-    return NULL;
-  }
+  assert(arr && i);
 
   sexp_t *args[] = {arr, i};
   return sexp_app_str("select", args, 2);
@@ -1305,9 +1189,7 @@ sexp_t *arr_select(sexp_t *arr, sexp_t *i) {
 
 /** An array that is the same as arr, except at index i it has v */
 sexp_t *arr_store(sexp_t *arr, sexp_t *i, sexp_t *v) {
-  if (!arr || !i || !v) {
-    return NULL;
-  }
+  assert(arr && i && v);
 
   sexp_t *args[] = {arr, i, v};
   return sexp_app_str("store", args, 3);
@@ -1319,9 +1201,7 @@ sexp_t *arr_store(sexp_t *arr, sexp_t *i, sexp_t *v) {
 
 /** The type of sets with elements of type t */
 sexp_t *t_set(sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   sexp_t *args[] = {x};
   return sexp_app_str("Set", args, 1);
@@ -1329,9 +1209,7 @@ sexp_t *t_set(sexp_t *x) {
 
 /** The empty set with elements of type t */
 sexp_t *set_empty(solver_extensions_t ext, sexp_t *t) {
-  if (!t) {
-    return NULL;
-  }
+  assert(t);
 
   if (ext == SOLVER_CVC5) {
     sexp_t *empty_atom = sexp_atom("set.empty");
@@ -1386,9 +1264,7 @@ sexp_t *set_empty(solver_extensions_t ext, sexp_t *t) {
 
 /** The universal set with elements of type t */
 sexp_t *set_universe(solver_extensions_t ext, sexp_t *t) {
-  if (!t) {
-    return NULL;
-  }
+  assert(t);
 
   if (ext == SOLVER_CVC5) {
     sexp_t *universe_atom = sexp_atom("set.universe");
@@ -1443,9 +1319,7 @@ sexp_t *set_universe(solver_extensions_t ext, sexp_t *t) {
 
 /** A set that has all elements of xs and also x */
 sexp_t *set_insert(solver_extensions_t ext, sexp_t *x, sexp_t *xs) {
-  if (!x || !xs) {
-    return NULL;
-  }
+  assert(x && xs);
 
   if (ext == SOLVER_CVC5) {
     sexp_t *args[] = {x, xs};
@@ -1464,9 +1338,7 @@ sexp_t *set_insert(solver_extensions_t ext, sexp_t *x, sexp_t *xs) {
 
 /** A set that has all elements from x and also from y */
 sexp_t *set_union(solver_extensions_t ext, sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   const char *nm = (ext == SOLVER_CVC5) ? "set.union" : "union";
   sexp_t *args[] = {x, y};
@@ -1475,9 +1347,7 @@ sexp_t *set_union(solver_extensions_t ext, sexp_t *x, sexp_t *y) {
 
 /** A set that has the elements that are in both x and y */
 sexp_t *set_intersection(solver_extensions_t ext, sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   const char *nm = (ext == SOLVER_CVC5) ? "set.inter" : "intersection";
   sexp_t *args[] = {x, y};
@@ -1486,9 +1356,7 @@ sexp_t *set_intersection(solver_extensions_t ext, sexp_t *x, sexp_t *y) {
 
 /** A set that has the elements of x that are not in y */
 sexp_t *set_difference(solver_extensions_t ext, sexp_t *x, sexp_t *y) {
-  if (!x || !y) {
-    return NULL;
-  }
+  assert(x && y);
 
   const char *nm = (ext == SOLVER_CVC5) ? "set.minus" : "setminus";
   sexp_t *args[] = {x, y};
@@ -1497,9 +1365,7 @@ sexp_t *set_difference(solver_extensions_t ext, sexp_t *x, sexp_t *y) {
 
 /** A set that has all elements that are not in x */
 sexp_t *set_complement(solver_extensions_t ext, sexp_t *x) {
-  if (!x) {
-    return NULL;
-  }
+  assert(x);
 
   const char *nm = (ext == SOLVER_CVC5) ? "set.complement" : "complement";
   sexp_t *args[] = {x};
@@ -1508,9 +1374,7 @@ sexp_t *set_complement(solver_extensions_t ext, sexp_t *x) {
 
 /** True if x is a member of xs */
 sexp_t *set_member(solver_extensions_t ext, sexp_t *x, sexp_t *xs) {
-  if (!x || !xs) {
-    return NULL;
-  }
+  assert(x && xs);
 
   if (ext == SOLVER_CVC5) {
     sexp_t *args[] = {x, xs};
@@ -1522,9 +1386,7 @@ sexp_t *set_member(solver_extensions_t ext, sexp_t *x, sexp_t *xs) {
 
 /** True if all elements of xs are also in ys */
 sexp_t *set_subset(solver_extensions_t ext, sexp_t *xs, sexp_t *ys) {
-  if (!xs || !ys) {
-    return NULL;
-  }
+  assert(xs && ys);
 
   const char *nm = (ext == SOLVER_CVC5) ? "set.subset" : "subset";
   sexp_t *args[] = {xs, ys};
@@ -1537,9 +1399,7 @@ sexp_t *set_subset(solver_extensions_t ext, sexp_t *xs, sexp_t *ys) {
 
 /** Universal quantification over the given variable bindings. */
 sexp_t *forall(sexp_t **bindings, size_t binding_count, sexp_t *p) {
-  if (!p) {
-    return NULL;
-  }
+  assert(p);
 
   if (binding_count == 0) {
     // Return a copy of p if no bindings
@@ -1564,9 +1424,7 @@ sexp_t *forall(sexp_t **bindings, size_t binding_count, sexp_t *p) {
 
 /** A command made out of just atoms. */
 sexp_t *simple_command(const char **strs, size_t count) {
-  if (!strs) {
-    return NULL;
-  }
+  assert(strs);
 
   sexp_t **atoms = malloc(sizeof(sexp_t *) * count);
   if (!atoms) {
@@ -1640,9 +1498,7 @@ sexp_t *declare_sort(const char *name, int arity) {
 /** Declares a function with given parameter types and result type. */
 sexp_t *declare_fun(
     const char *name, sexp_t **param_types, size_t param_count, sexp_t *result_type) {
-  if (!name || !result_type) {
-    return NULL;
-  }
+  assert(name && result_type);
 
   sexp_t *name_atom = sexp_atom(name);
   if (!name_atom) {
@@ -1673,9 +1529,7 @@ sexp_t *define_fun(const char *name,
     size_t param_count,
     sexp_t *result_type,
     sexp_t *definition) {
-  if (!name || !result_type || !definition) {
-    return NULL;
-  }
+  assert(name && result_type && definition);
 
   sexp_t *name_atom = sexp_atom(name);
   if (!name_atom) {
@@ -1708,9 +1562,7 @@ sexp_t *declare_datatype(const char *name,
     size_t type_param_count,
     constructor_t *constructors,
     size_t constructor_count) {
-  if (!name || !constructors) {
-    return NULL;
-  }
+  assert(name && constructors);
 
   sexp_t *name_atom = sexp_atom(name);
   if (!name_atom) {
@@ -1856,9 +1708,7 @@ sexp_t *declare_datatype(const char *name,
 
 /** Match datatype expression. */
 sexp_t *match_datatype(sexp_t *expr, match_alt_t *alts, size_t alt_count) {
-  if (!expr || !alts) {
-    return NULL;
-  }
+  assert(expr && alts);
 
   sexp_t **alt_exprs = malloc(sizeof(sexp_t *) * alt_count);
   if (!alt_exprs) {
@@ -1945,9 +1795,7 @@ sexp_t *match_datatype(sexp_t *expr, match_alt_t *alts, size_t alt_count) {
 
 /** Test if expression is constructed with given constructor. */
 sexp_t *is_con(const char *constructor, sexp_t *expr) {
-  if (!constructor || !expr) {
-    return NULL;
-  }
+  assert(constructor && expr);
 
   sexp_t *con_atom = sexp_atom(constructor);
   if (!con_atom) {
@@ -1969,9 +1817,7 @@ sexp_t *is_con(const char *constructor, sexp_t *expr) {
 
 /** Add an assertion to the current scope. */
 sexp_t *assume(sexp_t *expr) {
-  if (!expr) {
-    return NULL;
-  }
+  assert(expr);
 
   sexp_t *args[] = {expr};
   return sexp_app_str("assert", args, 1);
