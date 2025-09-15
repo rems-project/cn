@@ -26,7 +26,8 @@ size_t cn_smt_gather_logical_count(void);
 void cn_smt_gather_add_logical_term(cn_term* term);
 void cn_smt_gather_add_logical_forall(
     cn_sym var_name, cn_base_type var_type, cn_term* body);
-void cn_smt_gather_add_assignment(size_t bytes, cn_term* pointer, cn_term* value);
+void cn_smt_gather_add_assignment(
+    cn_term* pointer, cn_term* value, size_t bytes, size_t alignment);
 bool cn_smt_gather_add_substitution(uint64_t symbol_id, cn_term* term);
 cn_term* cn_smt_gather_apply_substitutions(cn_term* term);
 
@@ -62,9 +63,9 @@ uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
   } while (0);
 
 // Assign macros - add assignment constraints to context
-#define CN_SMT_GATHER_ASSIGN(bytes, pointer_expr, value_term)                            \
+#define CN_SMT_GATHER_ASSIGN(ty, pointer_expr, value_term)                               \
   do {                                                                                   \
-    cn_smt_gather_add_assignment(bytes, pointer_expr, value_term);                       \
+    cn_smt_gather_add_assignment(pointer_expr, value_term, sizeof(ty), alignof(ty));     \
   } while (0);
 
 // Let symbolic variable creation (nicer names)
