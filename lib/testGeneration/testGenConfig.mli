@@ -23,7 +23,6 @@ type progress_level =
 
 type sizing_strategy =
   | Uniform
-  | Quartile
   | QuickCheck
 
 type t =

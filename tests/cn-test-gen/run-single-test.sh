@@ -52,7 +52,7 @@ if [ "$SYMBOLIC" = true ]; then
 else
   ALT_CONFIGS=(
     "--coverage --sizing-strategy=quickcheck"
-    "--coverage --sizing-strategy=quartile --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow"
+    "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow"
     "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint=interval --smt-pruning-before-absint=fast"
     "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
     )

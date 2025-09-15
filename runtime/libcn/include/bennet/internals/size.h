@@ -12,7 +12,6 @@ extern "C" {
 
 enum bennet_sizing_strategy {
   BENNET_SIZE_UNIFORM = 0,
-  BENNET_SIZE_QUARTILE = 1,
   BENNET_SIZE_QUICKCHECK = 2
 };
 
