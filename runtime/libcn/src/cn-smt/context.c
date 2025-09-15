@@ -98,13 +98,14 @@ void cn_context_clear(cn_constraint_context* ctx) {
 
 // Resource constraint management
 cn_resource_constraint* cn_resource_constraint_create_predicate(
-    size_t bytes, cn_term* pointer) {
+    cn_term* pointer, size_t bytes, size_t alignment) {
   assert(pointer);
 
   cn_resource_constraint* constraint = malloc(sizeof(cn_resource_constraint));
   assert(constraint);
 
   constraint->bytes = bytes;
+  constraint->alignment = alignment;
   constraint->pointer = pointer;
   constraint->next = NULL;
 

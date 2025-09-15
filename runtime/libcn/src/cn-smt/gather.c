@@ -82,13 +82,16 @@ void cn_smt_gather_add_logical_forall(
   cn_context_add_logical_constraint(cn_gather_context, constraint);
 }
 
-void cn_smt_gather_add_assignment(size_t bytes, cn_term* pointer, cn_term* value) {
+void cn_smt_gather_add_assignment(
+    cn_term* pointer, cn_term* value, size_t bytes, size_t alignment) {
   assert(pointer);
+  assert(alignment);
+
   if (!cn_gather_context) {
     cn_smt_gather_init();
   }
   cn_resource_constraint* constraint =
-      cn_resource_constraint_create_predicate(bytes, pointer);
+      cn_resource_constraint_create_predicate(pointer, bytes, alignment);
   assert(constraint);
 
   cn_context_add_resource_constraint(cn_gather_context, constraint);
@@ -266,6 +269,20 @@ enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver) 
       sexp_t* no_overflow_assert = assume(no_overflow_expr);
       ack_command(smt_solver, no_overflow_assert);
       sexp_free(no_overflow_assert);
+
+      // Alignment
+      if (resource_constraint->alignment > 1) {
+        sexp_t* alignment_smt = loc_k(resource_constraint->alignment);
+        sexp_t* pointer_mask_align = bv_and(pointer_smt, bv_sub(alignment_smt, loc_k(1)));
+        sexp_t* zero_smt = loc_k(0);
+        sexp_t* alignment_expr =
+            sexp_list((sexp_t*[]){sexp_atom("="), pointer_mask_align, zero_smt}, 3);
+        sexp_t* alignment_assert = assume(alignment_expr);
+        ack_command(smt_solver, alignment_assert);
+        sexp_free(alignment_assert);
+        sexp_free(alignment_smt);
+        sexp_free(zero_smt);
+      }
 
       // Ensure exclusive ownership (non-overlapping)
       // For each other resource constraint, assert they don't overlap

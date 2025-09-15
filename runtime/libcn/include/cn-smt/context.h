@@ -24,6 +24,7 @@ typedef struct cn_logical_constraint cn_logical_constraint;
 typedef struct cn_resource_constraint {
   cn_term* pointer;                     // Address
   size_t bytes;                         // Number of bytes owned
+  size_t alignment;                     // Alignment requirement
   struct cn_resource_constraint* next;  // Linked list
 } cn_resource_constraint;
 
@@ -75,7 +76,7 @@ size_t cn_context_variable_count(const cn_constraint_context* ctx);
 
 // Resource constraint management
 cn_resource_constraint* cn_resource_constraint_create_predicate(
-    size_t bytes, cn_term* pointer);
+    cn_term* pointer, size_t bytes, size_t alignment);
 
 void cn_context_add_resource_constraint(
     cn_constraint_context* ctx, cn_resource_constraint* constraint);

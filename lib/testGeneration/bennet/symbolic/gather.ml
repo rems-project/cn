@@ -41,15 +41,22 @@ module Make (AD : Domain.T) = struct
           (Sym.pp last_branch :: Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_GATHER_CALL" ^^ parens args_list }
-    | `Asgn ((addr, ct), value, next_term) ->
+    | `Asgn ((addr, sct), value, next_term) ->
       (* Assignment: claim ownership and assign value to memory location *)
       let addr_smt = Smt.convert_indexterm addr in
       let value_smt = Smt.convert_indexterm value in
       let next_result = gather_term last_branch next_term in
-      let bytes = Memory.size_of_ctype ct in
       let assign_stmt =
         !^"CN_SMT_GATHER_ASSIGN"
-        ^^ parens (int bytes ^^ comma ^^^ addr_smt ^^ comma ^^^ value_smt)
+        ^^ parens
+             (CF.Pp_ail.(
+                with_executable_spec
+                  (pp_ctype ~is_human:false C.no_qualifiers)
+                  (Sctypes.to_ctype sct))
+              ^^ comma
+              ^^^ addr_smt
+              ^^ comma
+              ^^^ value_smt)
       in
       { statements = assign_stmt :: next_result.statements;
         expression = next_result.expression

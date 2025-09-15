@@ -36,7 +36,7 @@ TEST_F(ContextTest, AddPredicateConstraint) {
 
   // Create predicate constraint
   cn_resource_constraint* constraint =
-      cn_resource_constraint_create_predicate(4, pointer);
+      cn_resource_constraint_create_predicate(pointer, 4, 4);
   ASSERT_NE(constraint, nullptr);
 
   // Add to context
@@ -100,7 +100,7 @@ TEST_F(ContextTest, MultipleConstraints) {
   for (int i = 0; i < 3; i++) {
     cn_term* pointer = cn_smt_pointer(i);
     cn_resource_constraint* constraint =
-        cn_resource_constraint_create_predicate(8, pointer);
+        cn_resource_constraint_create_predicate(pointer, 8, 8);
     cn_context_add_resource_constraint(ctx, constraint);
   }
 
@@ -137,7 +137,7 @@ TEST_F(ContextTest, ContextClear) {
   // Add some constraints
   cn_term* pointer = cn_smt_pointer(999);
   cn_resource_constraint* resource_constraint =
-      cn_resource_constraint_create_predicate(8, pointer);
+      cn_resource_constraint_create_predicate(pointer, 8, 8);
   cn_context_add_resource_constraint(ctx, resource_constraint);
 
   cn_term* term = cn_smt_z(888);
@@ -161,7 +161,7 @@ TEST_F(ContextTest, PrintSummary) {
   // Add a few constraints
   cn_term* pointer = cn_smt_pointer(123);
   cn_resource_constraint* resource_constraint =
-      cn_resource_constraint_create_predicate(8, pointer);
+      cn_resource_constraint_create_predicate(pointer, 8, 8);
   cn_context_add_resource_constraint(ctx, resource_constraint);
 
   cn_term* term = cn_smt_bool(true);
