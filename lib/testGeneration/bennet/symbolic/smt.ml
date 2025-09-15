@@ -184,11 +184,9 @@ module Make (AD : Domain.T) = struct
     | BW_Xor -> !^"cn_smt_bw_xor" ^^ args
     | ShiftLeft -> !^"cn_smt_shift_left" ^^ args
     | ShiftRight -> !^"cn_smt_shift_right" ^^ args
-    | LT -> !^"cn_smt_lt" ^^ args
-    | LE -> !^"cn_smt_le" ^^ args
+    | LT | LTPointer -> !^"cn_smt_lt" ^^ args
+    | LE | LEPointer -> !^"cn_smt_le" ^^ args
     | EQ -> !^"cn_smt_eq" ^^ args
-    | LTPointer -> !^"cn_smt_lt_pointer" ^^ args
-    | LEPointer -> !^"cn_smt_le_pointer" ^^ args
     | Min -> !^"cn_smt_min" ^^ args
     | Max -> !^"cn_smt_max" ^^ args
     | SetUnion -> !^"cn_smt_set_union" ^^ args

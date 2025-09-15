@@ -82,99 +82,6 @@ module Make (AD : Domain.T) = struct
       | _ :: stmts' -> consider_equalities stmts' g
       | [] -> g
     in
-    let rec consider_learnable_constraints (stmts : Stmt.t list) (g : Sym.Digraph.t)
-      : Sym.Digraph.t
-      =
-      match stmts with
-      | Stmt (LetStar (x, _), _) :: stmts' ->
-        consider_learnable_constraints stmts' (Sym.Digraph.add_vertex g x)
-      | Stmt (Assert (T (IT (Binop (LE, IT (Sym x, _, _), it), _, _))), _) :: stmts'
-      | Stmt (Assert (T (IT (Binop (LEPointer, IT (Sym x, _, _), it), _, _))), _)
-        :: stmts'
-      | Stmt (Assert (T (IT (Binop (LT, IT (Sym x, _, _), it), _, _))), _) :: stmts'
-      | Stmt (Assert (T (IT (Binop (LTPointer, IT (Sym x, _, _), it), _, _))), _)
-        :: stmts'
-      | Stmt
-          ( Assert (T (IT (Binop (LE, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
-            _ )
-        :: stmts'
-      | Stmt
-          ( Assert
-              (T (IT (Binop (LEPointer, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
-            _ )
-        :: stmts'
-      | Stmt
-          ( Assert (T (IT (Binop (LT, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
-            _ )
-        :: stmts'
-      | Stmt
-          ( Assert
-              (T (IT (Binop (LTPointer, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
-            _ )
-        :: stmts'
-        when (not (Sym.Set.mem x (IT.free_vars it)))
-             && Option.is_none (IT.is_sym it)
-             && it
-                |> IT.is_cast
-                |> Option.map (fun (_, it') -> IT.is_sym it')
-                |> Option.join
-                |> Option.is_none ->
-        let g' =
-          List.fold_left
-            (fun g' y ->
-               if Sym.equal x y then
-                 g'
-               else
-                 add_edge_no_cycle g' (y, x))
-            g
-            (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
-        in
-        consider_learnable_constraints stmts' g'
-      | Stmt (Assert (T (IT (Binop (LE, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
-      | Stmt (Assert (T (IT (Binop (LEPointer, it, IT (Sym x, _, _)), _, _))), _)
-        :: stmts'
-      | Stmt (Assert (T (IT (Binop (LT, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
-      | Stmt (Assert (T (IT (Binop (LTPointer, it, IT (Sym x, _, _)), _, _))), _)
-        :: stmts'
-      | Stmt
-          ( Assert (T (IT (Binop (LE, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
-            _ )
-        :: stmts'
-      | Stmt
-          ( Assert
-              (T (IT (Binop (LEPointer, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
-            _ )
-        :: stmts'
-      | Stmt
-          ( Assert (T (IT (Binop (LT, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
-            _ )
-        :: stmts'
-      | Stmt
-          ( Assert
-              (T (IT (Binop (LTPointer, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
-            _ )
-        :: stmts'
-        when (not (Sym.Set.mem x (IT.free_vars it)))
-             && Option.is_none (IT.is_sym it)
-             && it
-                |> IT.is_cast
-                |> Option.map (fun (_, it') -> IT.is_sym it')
-                |> Option.join
-                |> Option.is_none ->
-        let g' =
-          List.fold_left
-            (fun g' y ->
-               if Sym.equal x y then
-                 g'
-               else
-                 add_edge_no_cycle g' (y, x))
-            g
-            (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
-        in
-        consider_learnable_constraints stmts' g'
-      | _ :: stmts' -> consider_learnable_constraints stmts' g
-      | [] -> g
-    in
     (* Put calls before local variables they constrain *)
     let consider_constrained_calls (stmts : Stmt.t list) (g : Sym.Digraph.t)
       : Sym.Digraph.t
@@ -219,7 +126,6 @@ module Make (AD : Domain.T) = struct
     let g =
       collect_dependencies stmts
       |> consider_equalities stmts
-      |> consider_learnable_constraints stmts
       |> consider_constrained_calls stmts
       |> consider_original_ordering stmts
     in

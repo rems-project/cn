@@ -241,8 +241,6 @@ int cn_test_main(int argc, char* argv[]) {
       char* next = argv[i + 1];
       if (strcmp("uniform", next) == 0) {
         sizing_strategy = BENNET_SIZE_UNIFORM;
-      } else if (strcmp("quartile", next) == 0) {
-        sizing_strategy = BENNET_SIZE_QUARTILE;
       } else if (strcmp("quickcheck", next) == 0) {
         sizing_strategy = BENNET_SIZE_QUICKCHECK;
       } else {

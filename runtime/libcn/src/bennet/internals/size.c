@@ -139,16 +139,6 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
   size_t max_size = bennet_get_max_size();
 
   switch (strategy) {
-    case BENNET_SIZE_QUARTILE:
-      if (successes < max_tests / 4) {
-        max_size /= 4;
-      } else if (successes < max_tests / 2) {
-        max_size /= 2;
-      } else if (successes < 3 * (max_tests / 4)) {
-        max_size /= 4;
-        max_size *= 3;
-      }
-
     case BENNET_SIZE_UNIFORM:;
       size_t sz = bennet_uniform_uint16_t(max_size) + 1;
       return sz;
