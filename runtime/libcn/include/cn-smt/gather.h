@@ -23,10 +23,10 @@ void cn_smt_gather_cleanup(void);
 void cn_smt_gather_reset(void);
 size_t cn_smt_gather_resource_count(void);
 size_t cn_smt_gather_logical_count(void);
-bool cn_smt_gather_add_logical_term(cn_term* term);
-bool cn_smt_gather_add_logical_forall(
+void cn_smt_gather_add_logical_term(cn_term* term);
+void cn_smt_gather_add_logical_forall(
     cn_sym var_name, cn_base_type var_type, cn_term* body);
-bool cn_smt_gather_add_assignment(size_t bytes, cn_term* pointer, cn_term* value);
+void cn_smt_gather_add_assignment(size_t bytes, cn_term* pointer, cn_term* value);
 bool cn_smt_gather_add_substitution(uint64_t symbol_id, cn_term* term);
 cn_term* cn_smt_gather_apply_substitutions(cn_term* term);
 

@@ -40,7 +40,7 @@ TEST_F(ContextTest, AddPredicateConstraint) {
   ASSERT_NE(constraint, nullptr);
 
   // Add to context
-  EXPECT_TRUE(cn_context_add_resource_constraint(ctx, constraint));
+  cn_context_add_resource_constraint(ctx, constraint);
   EXPECT_EQ(cn_context_resource_count(ctx), 1);
 
   // Check constraint properties
@@ -60,7 +60,7 @@ TEST_F(ContextTest, AddLogicalTermConstraint) {
   ASSERT_NE(constraint, nullptr);
 
   // Add to context
-  EXPECT_TRUE(cn_context_add_logical_constraint(ctx, constraint));
+  cn_context_add_logical_constraint(ctx, constraint);
   EXPECT_EQ(cn_context_logical_count(ctx), 1);
 
   // Check constraint properties
@@ -82,7 +82,7 @@ TEST_F(ContextTest, AddLogicalForallConstraint) {
   ASSERT_NE(constraint, nullptr);
 
   // Add to context
-  EXPECT_TRUE(cn_context_add_logical_constraint(ctx, constraint));
+  cn_context_add_logical_constraint(ctx, constraint);
   EXPECT_EQ(cn_context_logical_count(ctx), 1);
 
   // Check constraint properties
@@ -101,14 +101,14 @@ TEST_F(ContextTest, MultipleConstraints) {
     cn_term* pointer = cn_smt_pointer(i);
     cn_resource_constraint* constraint =
         cn_resource_constraint_create_predicate(8, pointer);
-    EXPECT_TRUE(cn_context_add_resource_constraint(ctx, constraint));
+    cn_context_add_resource_constraint(ctx, constraint);
   }
 
   // Add multiple logical constraints
   for (int i = 0; i < 2; i++) {
     cn_term* term = cn_smt_z(i + 100);
     cn_logical_constraint* constraint = cn_logical_constraint_create_term(term);
-    EXPECT_TRUE(cn_context_add_logical_constraint(ctx, constraint));
+    cn_context_add_logical_constraint(ctx, constraint);
   }
 
   EXPECT_EQ(cn_context_resource_count(ctx), 3);
@@ -138,11 +138,11 @@ TEST_F(ContextTest, ContextClear) {
   cn_term* pointer = cn_smt_pointer(999);
   cn_resource_constraint* resource_constraint =
       cn_resource_constraint_create_predicate(8, pointer);
-  EXPECT_TRUE(cn_context_add_resource_constraint(ctx, resource_constraint));
+  cn_context_add_resource_constraint(ctx, resource_constraint);
 
   cn_term* term = cn_smt_z(888);
   cn_logical_constraint* logical_constraint = cn_logical_constraint_create_term(term);
-  EXPECT_TRUE(cn_context_add_logical_constraint(ctx, logical_constraint));
+  cn_context_add_logical_constraint(ctx, logical_constraint);
 
   EXPECT_EQ(cn_context_resource_count(ctx), 1);
   EXPECT_EQ(cn_context_logical_count(ctx), 1);

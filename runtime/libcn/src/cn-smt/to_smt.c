@@ -33,6 +33,7 @@ const char* id_get_string(int id) {
 }
 
 char* fn_name(cn_sym x) {
+  assert(x.name);
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
@@ -358,9 +359,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
     case CN_BASE_LIST: {
       // List bt -> CN_List.t (translate_base_type bt)
-      if (!bt.data.list.element_type) {
-        return NULL;
-      }
+      assert(bt.data.list.element_type);
       sexp_t* element_sexp = translate_base_type(*bt.data.list.element_type);
       if (!element_sexp) {
         return NULL;
@@ -372,9 +371,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
     case CN_BASE_SET: {
       // Set bt -> CN_Set.t (translate_base_type bt)
-      if (!bt.data.set.element_type) {
-        return NULL;
-      }
+      assert(bt.data.set.element_type);
       sexp_t* element_sexp = translate_base_type(*bt.data.set.element_type);
       if (!element_sexp) {
         return NULL;

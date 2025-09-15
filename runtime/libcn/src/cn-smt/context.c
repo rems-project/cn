@@ -21,8 +21,7 @@ BENNET_VECTOR_IMPL(cn_sym)
 // Context management functions
 cn_constraint_context* cn_context_create(void) {
   cn_constraint_context* ctx = malloc(sizeof(cn_constraint_context));
-  if (!ctx)
-    return NULL;
+  assert(ctx);
 
   ctx->resource_constraints = NULL;
   ctx->logical_constraints = NULL;
@@ -32,10 +31,7 @@ cn_constraint_context* cn_context_create(void) {
 
   // Initialize variables hash table
   ctx->variables = malloc(sizeof(bennet_hash_table(cn_sym, cn_base_type)));
-  if (!ctx->variables) {
-    free(ctx);
-    return NULL;
-  }
+  assert(ctx->variables);
   bennet_hash_table_init(cn_sym, cn_base_type)(
       ctx->variables, bennet_hash_cn_sym, bennet_eq_cn_sym);
 
@@ -115,11 +111,9 @@ cn_resource_constraint* cn_resource_constraint_create_predicate(
   return constraint;
 }
 
-bool cn_context_add_resource_constraint(
+void cn_context_add_resource_constraint(
     cn_constraint_context* ctx, cn_resource_constraint* constraint) {
-  if (!ctx || !constraint) {
-    return false;
-  }
+  assert(ctx && constraint);
 
   assert(constraint->pointer->base_type.tag == CN_BASE_LOC);
 
@@ -127,8 +121,6 @@ bool cn_context_add_resource_constraint(
   constraint->next = ctx->resource_constraints;
   ctx->resource_constraints = constraint;
   ctx->resource_count++;
-
-  return true;
 }
 
 void cn_resource_constraint_destroy(cn_resource_constraint* constraint) {
@@ -141,8 +133,7 @@ void cn_resource_constraint_destroy(cn_resource_constraint* constraint) {
 
 // Logical constraint management
 cn_logical_constraint* cn_logical_constraint_create_term(cn_term* term) {
-  if (!term)
-    return NULL;
+  assert(term);
 
   cn_logical_constraint* constraint = malloc(sizeof(cn_logical_constraint));
   if (!constraint)
@@ -157,8 +148,7 @@ cn_logical_constraint* cn_logical_constraint_create_term(cn_term* term) {
 
 cn_logical_constraint* cn_logical_constraint_create_forall(
     cn_sym var_name, cn_base_type var_type, cn_term* body) {
-  if (!var_name.name || !body)
-    return NULL;
+  assert(var_name.name && body);
 
   cn_logical_constraint* constraint = malloc(sizeof(cn_logical_constraint));
   if (!constraint)
@@ -173,17 +163,14 @@ cn_logical_constraint* cn_logical_constraint_create_forall(
   return constraint;
 }
 
-bool cn_context_add_logical_constraint(
+void cn_context_add_logical_constraint(
     cn_constraint_context* ctx, cn_logical_constraint* constraint) {
-  if (!ctx || !constraint)
-    return false;
+  assert(ctx && constraint);
 
   // Add to front of linked list
   constraint->next = ctx->logical_constraints;
   ctx->logical_constraints = constraint;
   ctx->logical_count++;
-
-  return true;
 }
 
 void cn_logical_constraint_destroy(cn_logical_constraint* constraint) {
@@ -197,40 +184,34 @@ void cn_logical_constraint_destroy(cn_logical_constraint* constraint) {
 }
 
 // Variable context management
-bool cn_context_add_variable(cn_constraint_context* ctx, cn_sym var, cn_base_type type) {
-  if (!ctx || !ctx->variables)
-    return false;
+void cn_context_add_variable(cn_constraint_context* ctx, cn_sym var, cn_base_type type) {
+  assert(ctx && ctx->variables);
 
   bennet_hash_table_set(cn_sym, cn_base_type)(ctx->variables, var, type);
-  return true;
 }
 
 bennet_optional(cn_base_type)
     cn_context_get_variable_type(const cn_constraint_context* ctx, cn_sym var) {
-  if (!ctx || !ctx->variables)
-    return bennet_optional_none(cn_base_type);
+  assert(ctx && ctx->variables);
 
   return bennet_hash_table_get(cn_sym, cn_base_type)(ctx->variables, var);
 }
 
 bool cn_context_has_variable(const cn_constraint_context* ctx, cn_sym var) {
-  if (!ctx || !ctx->variables)
-    return false;
+  assert(ctx && ctx->variables);
 
   return bennet_hash_table_contains(cn_sym, cn_base_type)(ctx->variables, var);
 }
 
 size_t cn_context_variable_count(const cn_constraint_context* ctx) {
-  if (!ctx || !ctx->variables)
-    return 0;
+  assert(ctx && ctx->variables);
 
   return bennet_hash_table_size(cn_sym, cn_base_type)(ctx->variables);
 }
 
 void cn_context_foreach_variable(
     const cn_constraint_context* ctx, cn_variable_callback callback, void* user_data) {
-  if (!ctx || !ctx->variables || !callback)
-    return;
+  assert(ctx && ctx->variables && callback);
 
   // Iterate through all entries in the hash table
   for (size_t i = 0; i < ctx->variables->capacity; i++) {
