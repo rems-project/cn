@@ -17,13 +17,9 @@ extern "C" {
 
 // Forward declarations and types
 typedef const char* const_char_ptr;
-typedef sexp_t* sexp_ptr;
 
 // Hash table for string -> sexp mapping (used in let-bindings)
 BENNET_HASH_TABLE_DECL(const_char_ptr, sexp_ptr)
-
-// Optional types
-BENNET_OPTIONAL_DECL(sexp_ptr);
 
 // Struct for let-binding result
 typedef struct {

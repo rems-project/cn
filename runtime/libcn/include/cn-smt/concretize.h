@@ -41,6 +41,7 @@ void* cn_smt_concretize_lookup_symbolic_var(
     if (!convert_from_cn_bool(cn_eval_term(cond))) {                                     \
       cn_smt_gather_add_logical_term(cond);                                              \
                                                                                          \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
       return NULL;                                                                       \
     }                                                                                    \
   } while (0);
@@ -66,10 +67,12 @@ void* cn_smt_concretize_lookup_symbolic_var(
   ({                                                                                     \
     cn_term* var = cn_smt_concretize_##function_symbol(smt_solver, __VA_ARGS__);         \
     if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                      \
-      assert(bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
+      assert(bennet_failure_get_failure_type() == BENNET_FAILURE_ASSERT ||               \
+             bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
                                                                                          \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+    assert(var);                                                                         \
     var;                                                                                 \
   })
 
@@ -91,7 +94,8 @@ void* cn_smt_concretize_lookup_symbolic_var(
   if (0) {                                                                               \
     bennet_label_##tmp##_backtrack :;                                                    \
     bennet_checkpoint_restore(&tmp##_checkpoint);                                        \
-    if (tmp##_urn->size != 0) {                                                          \
+    if (tmp##_urn->size != 0 &&                                                          \
+        bennet_failure_get_failure_type() != BENNET_FAILURE_ASSERT) {                    \
       assert(bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
       bennet_failure_reset();                                                            \
       goto bennet_label_##tmp##_gen;                                                     \

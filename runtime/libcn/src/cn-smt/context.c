@@ -137,8 +137,7 @@ cn_logical_constraint* cn_logical_constraint_create_term(cn_term* term) {
   assert(term);
 
   cn_logical_constraint* constraint = malloc(sizeof(cn_logical_constraint));
-  if (!constraint)
-    return NULL;
+  assert(constraint);
 
   constraint->type = CN_LOGICAL_TERM;
   constraint->data.term = term;
@@ -152,8 +151,7 @@ cn_logical_constraint* cn_logical_constraint_create_forall(
   assert(var_name.name && body);
 
   cn_logical_constraint* constraint = malloc(sizeof(cn_logical_constraint));
-  if (!constraint)
-    return NULL;
+  assert(constraint);
 
   constraint->type = CN_LOGICAL_FORALL;
   constraint->data.forall.var_name = var_name;

@@ -11,7 +11,8 @@ enum bennet_failure_type {
   BENNET_FAILURE_ASSERT,
   BENNET_FAILURE_ASSIGN,
   BENNET_FAILURE_DEPTH,
-  BENNET_FAILURE_TIMEOUT
+  BENNET_FAILURE_TIMEOUT,
+  BENNET_FAILURE_UNSAT
 };
 
 bool bennet_failure_is_young(void);

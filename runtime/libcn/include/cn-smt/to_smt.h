@@ -35,9 +35,9 @@ const char* id_get_string(int id);
 // Name generation functions
 char* fn_name(cn_sym x);
 const char* named_expr_name(void);
-char* struct_name(cn_sym x);
-char* struct_con_name(cn_sym x);
-char* struct_field_name(int x);
+char* cn_smt_struct_name(const char* name);
+char* struct_con_name(const char* x);
+char* struct_field_name(const char* member_name);
 char* datatype_name(cn_sym x);
 char* datatype_con_name(cn_sym x);
 char* datatype_field_name(int x);

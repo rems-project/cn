@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <bennet/utils/optional.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -26,6 +28,10 @@ typedef struct sexp {
   } data;
 } sexp_t;
 
+// Optional type for sexp_t pointer
+typedef sexp_t *sexp_ptr;
+BENNET_OPTIONAL_DECL(sexp_ptr);
+
 char *sexp_to_string(sexp_t *sexp);
 
 // Constructor functions
@@ -37,7 +43,7 @@ bool sexp_is_atom(const sexp_t *sexp);
 sexp_t **sexp_to_list(const sexp_t *sexp, size_t *count);
 
 // Pattern matching functions
-sexp_t *sexp_to_assert(const sexp_t *sexp);
+bennet_optional(sexp_ptr) sexp_to_assert(const sexp_t *sexp);
 
 // Memory management
 void sexp_free(sexp_t *sexp);
@@ -188,11 +194,21 @@ typedef struct {
   size_t field_count;
 } constructor_t;
 
+typedef struct {
+  const char *name;
+  const char **type_params;
+  size_t type_param_count;
+  constructor_t *constructors;
+  size_t constructor_count;
+} datatype_def_t;
+
 sexp_t *declare_datatype(const char *name,
     const char **type_params,
     size_t type_param_count,
     constructor_t *constructors,
     size_t constructor_count);
+
+sexp_t *declare_datatypes(datatype_def_t *datatypes, size_t datatype_count);
 
 // Pattern matching types and functions
 typedef enum {

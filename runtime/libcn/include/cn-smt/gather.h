@@ -88,6 +88,7 @@ uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
                                                                                          \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+    assert(var);                                                                         \
     var;                                                                                 \
   })
 

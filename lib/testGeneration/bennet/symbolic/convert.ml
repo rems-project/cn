@@ -7,6 +7,7 @@ module Make (AD : Domain.T) = struct
   module Gather = Gather.Make (AD)
   module Concretize = Concretize.Make (AD)
   module Harness = Harness.Make (AD)
+  module Setup = Setup_.Make (AD)
   module Ctx = Stage2.Ctx
   module Def = Stage2.Def
 
@@ -64,6 +65,6 @@ module Make (AD : Domain.T) = struct
     ^^ separate hardline typedef_docs
     ^^ !^"/* FUNCTION DECLARATIONS */"
     ^^ twice hardline
-    ^^ Eval.generate_handlers_and_init prog5
+    ^^ Setup.generate_smt_setup prog5
     ^^ separate (twice hardline) functions
 end
