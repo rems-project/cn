@@ -18,8 +18,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
   cn_term* cn_smt_##name(cn_term* operand) {                                             \
     assert(operand);                                                                     \
     cn_term* term = cn_term_alloc(CN_TERM_UNOP, cn_base_type_simple(CN_BASE_BOOL));      \
-    if (!term)                                                                           \
-      return NULL;                                                                       \
+    assert(term);                                                                        \
     term->data.unop.op = op_enum;                                                        \
     term->data.unop.operand = operand;                                                   \
     return term;                                                                         \
@@ -29,8 +28,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
     assert(left&& right);                                                                \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, cn_base_type_simple(CN_BASE_BOOL));     \
-    if (!term)                                                                           \
-      return NULL;                                                                       \
+    assert(term);                                                                        \
     term->data.binop.op = op_enum;                                                       \
     term->data.binop.left = left;                                                        \
     term->data.binop.right = right;                                                      \
@@ -41,8 +39,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
     assert(left&& right);                                                                \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, left->base_type);                       \
-    if (!term)                                                                           \
-      return NULL;                                                                       \
+    assert(term);                                                                        \
     term->data.binop.op = op_enum;                                                       \
     term->data.binop.left = left;                                                        \
     term->data.binop.right = right;                                                      \
@@ -53,8 +50,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
   cn_term* cn_smt_##name(cn_term* operand) {                                             \
     assert(operand);                                                                     \
     cn_term* term = cn_term_alloc(CN_TERM_UNOP, operand->base_type);                     \
-    if (!term)                                                                           \
-      return NULL;                                                                       \
+    assert(term);                                                                        \
     term->data.unop.op = op_enum;                                                        \
     term->data.unop.operand = operand;                                                   \
     return term;                                                                         \
@@ -64,8 +60,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
     assert(left&& right);                                                                \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, left->base_type);                       \
-    if (!term)                                                                           \
-      return NULL;                                                                       \
+    assert(term);                                                                        \
     term->data.binop.op = op_enum;                                                       \
     term->data.binop.left = left;                                                        \
     term->data.binop.right = right;                                                      \
@@ -75,8 +70,7 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
 // Helper function to allocate and initialize a new term
 cn_term* cn_term_alloc(cn_term_type type, cn_base_type base_type) {
   cn_term* term = malloc(sizeof(cn_term));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->type = type;
   term->base_type = base_type;
@@ -86,8 +80,7 @@ cn_term* cn_term_alloc(cn_term_type type, cn_base_type base_type) {
 // Basic constant constructors
 cn_term* cn_smt_z(int64_t value) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_simple(CN_BASE_INTEGER));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_Z;
   term->data.const_val.data.z = value;
@@ -96,8 +89,7 @@ cn_term* cn_smt_z(int64_t value) {
 
 cn_term* cn_smt_bool(bool value) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_simple(CN_BASE_BOOL));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_BOOL;
   term->data.const_val.data.boolean = value;
@@ -116,8 +108,7 @@ cn_term* cn_smt_sym(cn_sym sym, cn_base_type type) {
   assert(sym.name);
 
   cn_term* term = cn_term_alloc(CN_TERM_SYM, type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.sym = sym;
 
@@ -126,8 +117,7 @@ cn_term* cn_smt_sym(cn_sym sym, cn_base_type type) {
 
 cn_term* cn_smt_null(void) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_simple(CN_BASE_LOC));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_NULL;
   return term;
@@ -135,8 +125,7 @@ cn_term* cn_smt_null(void) {
 
 cn_term* cn_smt_unit(void) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_simple(CN_BASE_UNIT));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_UNIT;
   return term;
@@ -144,8 +133,7 @@ cn_term* cn_smt_unit(void) {
 
 cn_term* cn_smt_bits(bool is_signed, int size_bits, intmax_t value) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_bits(is_signed, size_bits));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_BITS;
   term->data.const_val.data.bits.info.is_signed = is_signed;
@@ -173,8 +161,7 @@ cn_term* cn_smt_num(cn_base_type bt, intmax_t value) {
 
 cn_term* cn_smt_rational(double value) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_simple(CN_BASE_REAL));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_Q;
   term->data.const_val.data.q = value;
@@ -183,8 +170,7 @@ cn_term* cn_smt_rational(double value) {
 
 cn_term* cn_smt_pointer(uintptr_t ptr) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, cn_base_type_simple(CN_BASE_LOC));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_POINTER;
   term->data.const_val.data.pointer = ptr;
@@ -193,8 +179,7 @@ cn_term* cn_smt_pointer(uintptr_t ptr) {
 
 cn_term* cn_smt_default(cn_base_type type) {
   cn_term* term = cn_term_alloc(CN_TERM_CONST, type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.const_val.type = CN_CONST_DEFAULT;
   term->data.const_val.data.default_type = type;
@@ -246,8 +231,7 @@ cn_term* cn_smt_ite(cn_term* cond, cn_term* then_term, cn_term* else_term) {
 
   // Result type should match the then/else branches
   cn_term* term = cn_term_alloc(CN_TERM_ITE, then_term->base_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.ite.cond = cond;
   term->data.ite.then_term = then_term;
@@ -260,8 +244,7 @@ cn_term* cn_smt_member_shift(cn_term* base, size_t offset) {
   assert(base);
 
   cn_term* term = cn_term_alloc(CN_TERM_MEMBER_SHIFT, cn_base_type_simple(CN_BASE_LOC));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.member_shift.base = base;
   term->data.member_shift.offset = offset;
@@ -273,8 +256,7 @@ cn_term* cn_smt_array_shift(cn_term* base, size_t element_size, cn_term* index) 
   assert(base && index);
 
   cn_term* term = cn_term_alloc(CN_TERM_ARRAY_SHIFT, cn_base_type_simple(CN_BASE_LOC));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.array_shift.base = base;
   term->data.array_shift.element_size = element_size;
@@ -288,8 +270,7 @@ cn_term* cn_smt_cast(cn_base_type target_type, cn_term* value) {
   assert(value);
 
   cn_term* term = cn_term_alloc(CN_TERM_CAST, target_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.cast.target_type = target_type;
   term->data.cast.value = value;
@@ -300,8 +281,7 @@ cn_term* cn_smt_map_get(cn_term* map, cn_term* key, cn_base_type result_type) {
   assert(map && key);
 
   cn_term* term = cn_term_alloc(CN_TERM_MAP_GET, result_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.map_get.map = map;
   term->data.map_get.key = key;
@@ -312,8 +292,7 @@ cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value) {
   assert(map && key && value);
 
   cn_term* term = cn_term_alloc(CN_TERM_MAP_SET, cn_base_type_simple(CN_BASE_MAP));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.map_set.map = map;
   term->data.map_set.key = key;
@@ -328,14 +307,10 @@ cn_term* cn_smt_apply(const char* function_name,
   assert(function_name && args);
 
   cn_term* term = cn_term_alloc(CN_TERM_APPLY, result_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.apply.function_name = strdup(function_name);
-  if (!term->data.apply.function_name) {
-    free(term);
-    return NULL;
-  }
+  assert(term->data.apply.function_name);
 
   // Initialize the vector and copy from input vector
   bennet_vector_init(cn_term_ptr)(&term->data.apply.args);
@@ -354,17 +329,13 @@ cn_term* cn_smt_let(const char* var_name, cn_term* value, cn_term* body) {
   assert(var_name && value && body);
 
   cn_term* term = cn_term_alloc(CN_TERM_LET, body->base_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.let.var_name = strdup(var_name);
   term->data.let.value = value;
   term->data.let.body = body;
 
-  if (!term->data.let.var_name) {
-    free(term);
-    return NULL;
-  }
+  assert(term->data.let.var_name);
 
   return term;
 }
@@ -377,14 +348,10 @@ cn_term* cn_smt_struct(const char* tag,
   assert(tag && member_names && member_values);
 
   cn_term* term = cn_term_alloc(CN_TERM_STRUCT, cn_base_type_struct(tag));
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.struct_val.tag = strdup(tag);
-  if (!term->data.struct_val.tag) {
-    free(term);
-    return NULL;
-  }
+  assert(term->data.struct_val.tag);
 
   // Initialize the hash table with proper hash and equality functions
   bennet_hash_table_init(const_char_ptr, cn_term_ptr)(&term->data.struct_val.members,
@@ -396,10 +363,7 @@ cn_term* cn_smt_struct(const char* tag,
     assert(member_names[i] && member_values[i]);
 
     const char* name_copy = strdup(member_names[i]);
-    if (!name_copy) {
-      free(term);
-      return NULL;
-    }
+    assert(name_copy);
 
     bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
         &term->data.struct_val.members, name_copy, member_values[i]);
@@ -427,16 +391,12 @@ cn_term* cn_smt_struct_member(cn_term* struct_term, const char* member_name) {
   }
 
   cn_term* term = cn_term_alloc(CN_TERM_STRUCT_MEMBER, member_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.struct_member.struct_term = struct_term;
   term->data.struct_member.member_name = strdup(member_name);
 
-  if (!term->data.struct_member.member_name) {
-    free(term);
-    return NULL;
-  }
+  assert(term->data.struct_member.member_name);
 
   return term;
 }
@@ -446,17 +406,13 @@ cn_term* cn_smt_struct_update(
   assert(struct_term && member_name && new_value);
 
   cn_term* term = cn_term_alloc(CN_TERM_STRUCT_UPDATE, struct_term->base_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.struct_update.struct_term = struct_term;
   term->data.struct_update.member_name = strdup(member_name);
   term->data.struct_update.new_value = new_value;
 
-  if (!term->data.struct_update.member_name) {
-    free(term);
-    return NULL;
-  }
+  assert(term->data.struct_update.member_name);
 
   return term;
 }
@@ -464,8 +420,7 @@ cn_term* cn_smt_struct_update(
 // Record operations
 cn_term* cn_smt_record(
     size_t member_count, const char** member_names, cn_term** member_values) {
-  if (!member_names || !member_values)
-    return NULL;
+  assert(member_names && member_values);
 
   // Create a record base type with the field names and inferred types
   // Extract base types from the member values
@@ -476,8 +431,7 @@ cn_term* cn_smt_record(
   cn_base_type record_bt = create_record_type(member_count, member_names, field_types);
 
   cn_term* term = cn_term_alloc(CN_TERM_RECORD, record_bt);
-  if (!term)
-    return NULL;
+  assert(term);
 
   // Initialize the hash table with proper hash and equality functions
   bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
@@ -485,16 +439,10 @@ cn_term* cn_smt_record(
 
   // Add each member to the hash table
   for (size_t i = 0; i < member_count; i++) {
-    if (!member_names[i] || !member_values[i]) {
-      free(term);
-      return NULL;
-    }
+    assert(member_names[i] && member_values[i]);
 
     const char* name_copy = strdup(member_names[i]);
-    if (!name_copy) {
-      free(term);
-      return NULL;
-    }
+    assert(name_copy);
 
     bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
         &term->data.record.members, name_copy, member_values[i]);
@@ -504,8 +452,7 @@ cn_term* cn_smt_record(
 }
 
 cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name) {
-  if (!record_term || !member_name)
-    return NULL;
+  assert(record_term && member_name);
 
   // Find the member type from the record (simplified - just use the base type of the record)
   cn_base_type member_type = cn_base_type_simple(CN_BASE_INTEGER);  // Default fallback
@@ -523,15 +470,46 @@ cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name) {
   }
 
   cn_term* term = cn_term_alloc(CN_TERM_RECORD_MEMBER, member_type);
-  if (!term)
-    return NULL;
+  assert(term);
 
   term->data.record_member.record_term = record_term;
   term->data.record_member.member_name = strdup(member_name);
 
-  if (!term->data.record_member.member_name) {
-    free(term);
-    return NULL;
+  assert(term->data.record_member.member_name);
+
+  return term;
+}
+
+cn_term* cn_smt_constructor(const char* constructor_name,
+    size_t arg_count,
+    const char** arg_names,
+    cn_term** arg_values) {
+  assert(constructor_name);
+
+  // Create the constructor term with a default datatype base type
+  cn_base_type constructor_type =
+      cn_base_type_simple(CN_BASE_INTEGER);  // Default - should be improved
+  cn_term* term = cn_term_alloc(CN_TERM_CONSTRUCTOR, constructor_type);
+  assert(term);
+
+  term->data.constructor.constructor_name = strdup(constructor_name);
+  assert(term->data.constructor.constructor_name);
+
+  // Initialize the arguments hash table
+  bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
+      &term->data.constructor.args, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+
+  // Add arguments to the hash table
+  if (arg_names && arg_values) {
+    for (size_t i = 0; i < arg_count; i++) {
+      assert(arg_names[i] && arg_values[i]);
+
+      char* name_copy = strdup(arg_names[i]);
+      assert(name_copy);
+
+      bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
+          &term->data.constructor.args, name_copy, arg_values[i]);
+    }
   }
 
   return term;

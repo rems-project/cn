@@ -51,25 +51,20 @@ char *sexp_to_string(sexp_t *sexp) {
 // Constructor functions
 sexp_t *sexp_atom(const char *str) {
   sexp_t *sexp = malloc(sizeof(sexp_t));
-  if (!sexp) {
-    return NULL;
-  }
+  assert(sexp);
 
   sexp->type = SEXP_ATOM;
   sexp->data.atom = malloc(strlen(str) + 1);
-  if (!sexp->data.atom) {
-    free(sexp);
-    return NULL;
-  }
+  assert(sexp->data.atom);
+
   strcpy(sexp->data.atom, str);
+
   return sexp;
 }
 
 sexp_t *sexp_list(sexp_t **elements, size_t count) {
   sexp_t *sexp = malloc(sizeof(sexp_t));
-  if (!sexp) {
-    return NULL;
-  }
+  assert(sexp);
 
   sexp->type = SEXP_LIST;
   sexp->data.list.count = count;
@@ -77,10 +72,8 @@ sexp_t *sexp_list(sexp_t **elements, size_t count) {
 
   if (count > 0) {
     sexp->data.list.elements = malloc(sizeof(sexp_t *) * count);
-    if (!sexp->data.list.elements) {
-      free(sexp);
-      return NULL;
-    }
+    assert(sexp->data.list.elements);
+
     for (size_t i = 0; i < count; i++) {
       sexp->data.list.elements[i] = elements[i];
     }

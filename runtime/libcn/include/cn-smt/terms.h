@@ -546,6 +546,12 @@ cn_term* cn_smt_record(
     size_t member_count, const char** member_names, cn_term** member_values);
 cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name);
 
+// Constructor operations
+cn_term* cn_smt_constructor(const char* constructor_name,
+    size_t arg_count,
+    const char** arg_names,
+    cn_term** arg_values);
+
 // Pretty-print
 char* cn_term_to_string(cn_term* term);
 

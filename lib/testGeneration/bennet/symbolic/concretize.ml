@@ -51,7 +51,7 @@ module Make (AD : Domain.T) = struct
         ^^ parens
              (CF.Pp_ail.(
                 with_executable_spec
-                  (pp_ctype_human C.no_qualifiers)
+                  (pp_ctype ~is_human:false C.no_qualifiers)
                   (Sctypes.to_ctype sct))
               ^^ comma
               ^^^ !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))

@@ -289,17 +289,17 @@ module Make (AD : Domain.T) = struct
   and convert_record (members : (Id.t * IT.t) list) : Pp.document =
     let open Pp in
     let member_count = List.length members in
-    if member_count = 0 then
-      !^"cn_smt_record" ^^ parens !^"0, NULL, NULL"
-    else (
-      let member_names = List.map (fun (id, _) -> dquotes (Id.pp id)) members in
-      let member_values = List.map (fun (_, term) -> convert_indexterm term) members in
-      let names_array = braces (separate (comma ^^ space) member_names) in
-      let values_array =
-        braces (separate_map (comma ^^ space) (fun x -> x) member_values)
-      in
-      !^"cn_smt_record"
-      ^^ parens (int member_count ^^ comma ^^^ names_array ^^ comma ^^^ values_array))
+    let member_names = List.map (fun (id, _) -> dquotes (Id.pp id)) members in
+    let member_values = List.map (fun (_, term) -> convert_indexterm term) members in
+    let names_array =
+      parens !^"const char*[]" ^^ braces (separate (comma ^^ space) member_names)
+    in
+    let values_array =
+      parens !^"cn_term*[]"
+      ^^ braces (separate_map (comma ^^ space) (fun x -> x) member_values)
+    in
+    !^"cn_smt_record"
+    ^^ parens (int member_count ^^ comma ^^^ names_array ^^ comma ^^^ values_array)
 
 
   and convert_recordmember (record_term : IT.t) (member : Id.t) : Pp.document =
@@ -324,10 +324,14 @@ module Make (AD : Domain.T) = struct
     let arg_names = List.map (fun (id, _) -> Pp.dquotes (Id.pp id)) args in
     let arg_values = List.map (fun (_, term) -> convert_indexterm term) args in
     let names_array =
-      Pp.(braces (separate_map (comma ^^ Pp.space) (fun x -> x) arg_names))
+      Pp.(
+        parens !^"const char*[]"
+        ^^ braces (separate_map (comma ^^ Pp.space) (fun x -> x) arg_names))
     in
     let values_array =
-      Pp.(braces (separate_map (comma ^^ Pp.space) (fun x -> x) arg_values))
+      Pp.(
+        parens !^"cn_term*[]"
+        ^^ braces (separate_map (comma ^^ Pp.space) (fun x -> x) arg_values))
     in
     Pp.(
       !^"cn_smt_constructor"
@@ -356,7 +360,7 @@ module Make (AD : Domain.T) = struct
     let base_smt = convert_indexterm base in
     let index_smt = convert_indexterm index in
     let ctype_str =
-      Pp.plain (CF.Pp_ail.pp_ctype_human C.no_qualifiers (Sctypes.to_ctype ct))
+      Pp.plain (CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers (Sctypes.to_ctype ct))
     in
     Pp.(
       !^"cn_smt_array_shift"
@@ -392,7 +396,9 @@ module Make (AD : Domain.T) = struct
           ^^^ int width
           ^^ comma
           ^^^ !^"sizeof"
-          ^^ parens (CF.Pp_ail.pp_ctype_human C.no_qualifiers (Sctypes.to_ctype sct)))
+          ^^ parens
+               (CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers (Sctypes.to_ctype sct))
+         )
 
 
   and convert_offsetof (tag : Sym.t) (member : Id.t) : Pp.document =
