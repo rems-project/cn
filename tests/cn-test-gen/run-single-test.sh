@@ -39,6 +39,29 @@ function separator() {
   OUTPUT="${OUTPUT}"$'\n===========================================================\n\n'
 }
 
+function get_test_type() {
+  local test_file="$1"
+  local config="$2"
+  
+  if [[ $test_file == *.pass.c ]]; then
+    echo "PASS"
+  elif [[ $test_file == *.fail.c ]]; then
+    echo "FAIL"
+  elif [[ $test_file == *.buggy.c ]]; then
+    echo "BUGGY"
+  elif [[ $test_file == *.flaky.c ]]; then
+    echo "FLAKY"
+  elif [[ $test_file == *learn_cast.special.c || $test_file == *learn_multiple.special.c ]]; then
+    if [[ $config == *--symbolic* ]]; then
+      echo "PASS"
+    else
+      echo "FAIL"
+    fi
+  else
+    echo "UNKNOWN"
+  fi
+}
+
 BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix \
   --input-timeout=1000 \
   --progress-level=function \
@@ -71,53 +94,10 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
     OUTPUT="${OUTPUT}Running CI with CLI config \"$FULL_CONFIG\""$'\n'
     separator
 
-    if [[ $TEST == *.pass.c ]]; then
-      OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
-      RET=$?
-      if [[ "$RET" != 0 ]]; then
-        OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
-        NUM_FAILED=$(($NUM_FAILED + 1))
-        FAILED="$FAILED ($ALT_CONFIG --build-tool=$BUILD_TOOL)"
-      else
-        OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
-      fi
-    elif [[ $TEST == *.fail.c || $TEST == *.buggy.c ]]; then
-      THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
-      RET=$?
-      if [[ "$RET" == 0 ]]; then
-        OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
-        NUM_FAILED=$(($NUM_FAILED + 1))
-        FAILED="$FAILED ($ALT_CONFIG)"
-      elif [[ "$BUILD_TOOL" == "bash" && "$RET" != 1 ]]; then
-        OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
-        NUM_FAILED=$(($NUM_FAILED + 1))
-        FAILED="$FAILED ($ALT_CONFIG)"
-      else
-        OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
-      fi
-    elif [[ $TEST == *.flaky.c ]]; then
-      THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
-      RET=$?
-
-      # Run twice, since flaky
-      if [[ "$RET" == 0 ]]; then
-        THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
-        RET=$?
-      fi
-
-      if [[ "$RET" == 0 ]]; then
-        OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
-        NUM_FAILED=$(($NUM_FAILED + 1))
-        FAILED="$FAILED ($ALT_CONFIG)"
-      elif [[ "$BUILD_TOOL" == "bash" && "$RET" != 1 ]]; then
-        OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
-        NUM_FAILED=$(($NUM_FAILED + 1))
-        FAILED="$FAILED ($ALT_CONFIG)"
-      else
-        OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
-      fi
-    elif [[ $TEST == *.only.exp.c ]]; then
-      if [[ $FULL_CONFIG == *--experimental-learning* ]]; then
+    TEST_TYPE=$(get_test_type "$TEST" "$FULL_CONFIG")
+    
+    case "$TEST_TYPE" in
+      "PASS")
         OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
         RET=$?
         if [[ "$RET" != 0 ]]; then
@@ -127,7 +107,8 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
         else
           OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
         fi
-      else
+        ;;
+      "FAIL" | "BUGGY")
         THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
         RET=$?
         if [[ "$RET" == 0 ]]; then
@@ -141,20 +122,37 @@ for ALT_CONFIG in "${ALT_CONFIGS[@]}"; do
         else
           OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed successfully"$'\n'
         fi
-      fi
-    elif [[ $TEST == *.exp.c ]]; then
-      if [[ $FULL_CONFIG == *--experimental-learning* ]]; then
-        OUTPUT="${OUTPUT}$($CN test "$TEST" $FULL_CONFIG 2>&1)"
+        ;;
+      "FLAKY")
+        THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
         RET=$?
-        if [[ "$RET" != 0 ]]; then
-          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests failed unexpectedly"$'\n'
-          NUM_FAILED=$(($NUM_FAILED + 1))
-          FAILED="$FAILED ($ALT_CONFIG --build-tool=$BUILD_TOOL)"
-        else
-          OUTPUT="${OUTPUT}"$'\n'"$TEST -- Tests passed successfully"$'\n'
+
+        # Run twice, since flaky
+        if [[ "$RET" == 0 ]]; then
+          THIS_OUTPUT=$($CN test "$TEST" $FULL_CONFIG 2>&1)
+          RET=$?
         fi
-      fi
-    fi
+
+        if [[ "$RET" == 0 ]]; then
+          OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
+          NUM_FAILED=$(($NUM_FAILED + 1))
+          FAILED="$FAILED ($ALT_CONFIG)"
+        elif [[ "$BUILD_TOOL" == "bash" && "$RET" != 1 ]]; then
+          OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
+          NUM_FAILED=$(($NUM_FAILED + 1))
+          FAILED="$FAILED ($ALT_CONFIG)"
+        else
+          OUTPUT="${OUTPUT}\n$TEST -- Tests failed successfully"
+        fi
+        ;;
+      "SKIP")
+        # Skip this test configuration
+        ;;
+      "UNKNOWN")
+        echo "$TEST -- Unknown test type"$'\n'
+        exit 1
+        ;;
+    esac
 
     separator
   done
