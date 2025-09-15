@@ -18,8 +18,7 @@ module Make (AD : Domain.T) = struct
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("bennet_" ^ generator_name ^ "_record") in
     let vars_decl =
-      !^"cn_smt_handlers_init();"
-      ^/^ !^"struct cn_smt_solver* smt_solver;"
+      !^"struct cn_smt_solver* smt_solver;"
       ^/^ !^"bennet_rand_checkpoint checkpoint;"
       ^/^ !^"enum cn_smt_solver_result result;"
     in
@@ -53,17 +52,22 @@ module Make (AD : Domain.T) = struct
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
       !^"checkpoint = bennet_rand_save();"
-      ^^^ !^"cn_smt_gather_"
+      ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      ^/^ !^"cn_smt_solver_setup(smt_solver);"
+      ^/^ !^"cn_smt_gather_"
       ^^ !^generator_name
       ^^ Pp.parens smt_args
       ^^ !^";"
     in
     let check_sat =
-      !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
+      ^^^ braces !^"return NULL;"
       ^/^ !^"result = cn_smt_gather_model(smt_solver);"
     in
     (* Initialize concretization context *)
-    let conc_context_init = !^"cn_smt_concretize_init();" in
+    let conc_context_init =
+      !^"/* Concretize input */" ^/^ !^"cn_smt_concretize_init();"
+    in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
       def.iargs
@@ -91,10 +95,12 @@ module Make (AD : Domain.T) = struct
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
       !^"bennet_rand_restore(checkpoint);"
-      ^^^ !^"cn_smt_concretize_"
-      ^^ !^generator_name
-      ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ conc_args)
-      ^^ !^";"
+      ^^^ (!^"cn_smt_concretize_"
+           ^^ !^generator_name
+           ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ conc_args)
+           ^^ !^";")
+      ^/^ !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
+      ^^^ braces !^"return NULL;"
     in
     (* Generate struct building and return - create default values for all fields *)
     let struct_fields =
@@ -130,9 +136,11 @@ module Make (AD : Domain.T) = struct
     ^^^ (!^("bennet_" ^ generator_name) ^^ Pp.parens !^"void")
     ^^^ !^"{"
     ^/^ vars_decl
-    ^/^ !^"do"
-    ^^^ braces (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
-    ^^^ !^"while (result != CN_SOLVER_SAT);"
+    ^/^ !^"/* Gather constraints */"
+    ^/^ (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
+    ^^^ !^"if (result != CN_SOLVER_SAT)"
+    ^^^ braces
+          (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);" ^/^ !^"return NULL;")
     ^/^ conc_context_init
     ^/^ concrete_vars
     ^/^ concretize_model

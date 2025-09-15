@@ -5,6 +5,7 @@
 
 // Generate vector and hash table implementations for tests
 BENNET_VECTOR_IMPL(cn_term_ptr)
+BENNET_VECTOR_IMPL(cn_member_pair)
 BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
 
 class CnSmtSubstTest : public ::testing::Test {
@@ -380,14 +381,11 @@ TEST_F(CnSmtSubstTest, StructSubstitution) {
   struct_term->type = CN_TERM_STRUCT;
   struct_term->base_type = cn_base_type_simple(CN_BASE_STRUCT);
   struct_term->data.struct_val.tag = "test_tag";
-  bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
-      &struct_term->data.struct_val.members,
-      bennet_hash_const_char_ptr,
-      bennet_eq_const_char_ptr);
-  bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-      &struct_term->data.struct_val.members, "field1", x_sym);
-  bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-      &struct_term->data.struct_val.members, "field2", y_sym);
+  bennet_vector_init(cn_member_pair)(&struct_term->data.struct_val.members);
+  cn_member_pair pair1 = {.name = "field1", .value = x_sym};
+  cn_member_pair pair2 = {.name = "field2", .value = y_sym};
+  bennet_vector_push(cn_member_pair)(&struct_term->data.struct_val.members, pair1);
+  bennet_vector_push(cn_member_pair)(&struct_term->data.struct_val.members, pair2);
 
   // Create substitution table
   auto* subst_table = cn_create_subst_table();
@@ -405,22 +403,26 @@ TEST_F(CnSmtSubstTest, StructSubstitution) {
   EXPECT_NE(result, struct_term);  // Should be a new term
 
   // Check that field1 has been substituted
-  bennet_optional(cn_term_ptr) field1_result = bennet_hash_table_get(
-      const_char_ptr, cn_term_ptr)(&result->data.struct_val.members, "field1");
-  ASSERT_TRUE(bennet_optional_is_some(field1_result));
-  cn_term* field1_value = bennet_optional_unwrap(field1_result);
+  cn_term* field1_value = NULL;
+  cn_term* field2_value = NULL;
+  bennet_vector(cn_member_pair)* result_members = &result->data.struct_val.members;
+  for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(result_members); i++) {
+    cn_member_pair* pair = bennet_vector_get(cn_member_pair)(result_members, i);
+    if (strcmp(pair->name, "field1") == 0) {
+      field1_value = pair->value;
+    } else if (strcmp(pair->name, "field2") == 0) {
+      field2_value = pair->value;
+    }
+  }
+  ASSERT_NE(field1_value, nullptr);
   EXPECT_EQ(field1_value->type, CN_TERM_CONST);
   EXPECT_EQ(field1_value->data.const_val.data.z, 100);
 
   // Check that field2 is still the original symbol
-  bennet_optional(cn_term_ptr) field2_result = bennet_hash_table_get(
-      const_char_ptr, cn_term_ptr)(&result->data.struct_val.members, "field2");
-  ASSERT_TRUE(bennet_optional_is_some(field2_result));
-  cn_term* field2_value = bennet_optional_unwrap(field2_result);
+  ASSERT_NE(field2_value, nullptr);
   EXPECT_EQ(field2_value, y_sym);
 
-  bennet_hash_table_free(const_char_ptr, cn_term_ptr)(
-      &struct_term->data.struct_val.members);
+  bennet_vector_free(cn_member_pair)(&struct_term->data.struct_val.members);
   free(struct_term);
   cn_free_subst_table(subst_table);
 }

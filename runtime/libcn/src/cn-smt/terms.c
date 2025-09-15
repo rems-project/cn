@@ -10,6 +10,7 @@
 // Generate vector implementations
 BENNET_VECTOR_IMPL(const_char_ptr)
 BENNET_VECTOR_IMPL(cn_term_ptr)
+BENNET_VECTOR_IMPL(cn_member_pair)
 
 // Generate hash table implementation
 BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
@@ -353,20 +354,18 @@ cn_term* cn_smt_struct(const char* tag,
   term->data.struct_val.tag = strdup(tag);
   assert(term->data.struct_val.tag);
 
-  // Initialize the hash table with proper hash and equality functions
-  bennet_hash_table_init(const_char_ptr, cn_term_ptr)(&term->data.struct_val.members,
-      bennet_hash_const_char_ptr,
-      bennet_eq_const_char_ptr);
+  // Initialize the vector
+  bennet_vector_init(cn_member_pair)(&term->data.struct_val.members);
 
-  // Add each member to the hash table
+  // Add each member to the vector
   for (size_t i = 0; i < member_count; i++) {
     assert(member_names[i] && member_values[i]);
 
     const char* name_copy = strdup(member_names[i]);
     assert(name_copy);
 
-    bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-        &term->data.struct_val.members, name_copy, member_values[i]);
+    cn_member_pair pair = {.name = name_copy, .value = member_values[i]};
+    bennet_vector_push(cn_member_pair)(&term->data.struct_val.members, pair);
   }
 
   return term;
@@ -375,20 +374,21 @@ cn_term* cn_smt_struct(const char* tag,
 cn_term* cn_smt_struct_member(cn_term* struct_term, const char* member_name) {
   assert(struct_term && member_name);
 
-  // Find the member type from the struct (simplified - use a default type)
-  cn_base_type member_type = cn_base_type_simple(CN_BASE_INTEGER);  // Default fallback
+  assert(struct_term->type == CN_TERM_STRUCT);
 
-  // Try to look up the actual member in the struct if it's a struct term
-  if (struct_term->type == CN_TERM_STRUCT) {
-    bennet_optional(cn_term_ptr) found_member = bennet_hash_table_get(
-        const_char_ptr, cn_term_ptr)(&struct_term->data.struct_val.members, member_name);
-    if (bennet_optional_is_some(found_member)) {
-      cn_term* member_term = bennet_optional_unwrap(found_member);
-      if (member_term) {
-        member_type = member_term->base_type;
-      }
+  // Search for member in vector
+  cn_term* member_term = NULL;
+  bennet_vector(cn_member_pair)* members = &struct_term->data.struct_val.members;
+  for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(members); i++) {
+    cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+    if (strcmp(pair->name, member_name) == 0) {
+      member_term = pair->value;
+      break;
     }
   }
+  assert(member_term);
+
+  cn_base_type member_type = member_term->base_type;
 
   cn_term* term = cn_term_alloc(CN_TERM_STRUCT_MEMBER, member_type);
   assert(term);
@@ -433,19 +433,18 @@ cn_term* cn_smt_record(
   cn_term* term = cn_term_alloc(CN_TERM_RECORD, record_bt);
   assert(term);
 
-  // Initialize the hash table with proper hash and equality functions
-  bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
-      &term->data.record.members, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+  // Initialize the vector
+  bennet_vector_init(cn_member_pair)(&term->data.record.members);
 
-  // Add each member to the hash table
+  // Add each member to the vector
   for (size_t i = 0; i < member_count; i++) {
     assert(member_names[i] && member_values[i]);
 
     const char* name_copy = strdup(member_names[i]);
     assert(name_copy);
 
-    bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-        &term->data.record.members, name_copy, member_values[i]);
+    cn_member_pair pair = {.name = name_copy, .value = member_values[i]};
+    bennet_vector_push(cn_member_pair)(&term->data.record.members, pair);
   }
 
   return term;
@@ -459,12 +458,13 @@ cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name) {
 
   // Try to look up the actual member in the record if it's a record term
   if (record_term->type == CN_TERM_RECORD) {
-    bennet_optional(cn_term_ptr) found_member = bennet_hash_table_get(
-        const_char_ptr, cn_term_ptr)(&record_term->data.record.members, member_name);
-    if (bennet_optional_is_some(found_member)) {
-      cn_term* member_term = bennet_optional_unwrap(found_member);
-      if (member_term) {
-        member_type = member_term->base_type;
+    // Search for member in vector
+    bennet_vector(cn_member_pair)* members = &record_term->data.record.members;
+    for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(members); i++) {
+      cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+      if (strcmp(pair->name, member_name) == 0) {
+        member_type = pair->value->base_type;
+        break;
       }
     }
   }
@@ -495,11 +495,10 @@ cn_term* cn_smt_constructor(const char* constructor_name,
   term->data.constructor.constructor_name = strdup(constructor_name);
   assert(term->data.constructor.constructor_name);
 
-  // Initialize the arguments hash table
-  bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
-      &term->data.constructor.args, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+  // Initialize the arguments vector
+  bennet_vector_init(cn_member_pair)(&term->data.constructor.args);
 
-  // Add arguments to the hash table
+  // Add arguments to the vector
   if (arg_names && arg_values) {
     for (size_t i = 0; i < arg_count; i++) {
       assert(arg_names[i] && arg_values[i]);
@@ -507,8 +506,8 @@ cn_term* cn_smt_constructor(const char* constructor_name,
       char* name_copy = strdup(arg_names[i]);
       assert(name_copy);
 
-      bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-          &term->data.constructor.args, name_copy, arg_values[i]);
+      cn_member_pair pair = {.name = name_copy, .value = arg_values[i]};
+      bennet_vector_push(cn_member_pair)(&term->data.constructor.args, pair);
     }
   }
 

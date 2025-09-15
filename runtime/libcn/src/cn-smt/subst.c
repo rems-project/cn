@@ -12,6 +12,7 @@ BENNET_HASH_TABLE_IMPL(uint64_t, cn_term_ptr)
 
 // Generate vector implementation for cn_term_ptr
 BENNET_VECTOR_IMPL(cn_term_ptr)
+BENNET_VECTOR_IMPL(cn_member_pair)
 
 // Generate hash table implementation for const_char_ptr -> cn_term_ptr
 BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
@@ -23,9 +24,7 @@ static cn_term* deep_copy_term(cn_term* term) {
   }
 
   cn_term* copy = malloc(sizeof(cn_term));
-  if (!copy) {
-    return NULL;
-  }
+  assert(copy);
 
   // Copy non-pointer data
   *copy = *term;
@@ -37,10 +36,7 @@ static cn_term* deep_copy_term(cn_term* term) {
           term->data.const_val.data.ctype_name) {
         size_t len = strlen(term->data.const_val.data.ctype_name);
         char* dup = malloc(len + 1);
-        if (!dup) {
-          free(copy);
-          return NULL;
-        }
+        assert(dup);
         strcpy(dup, term->data.const_val.data.ctype_name);
         copy->data.const_val.data.ctype_name = dup;
       }
@@ -70,20 +66,16 @@ static cn_term* deep_copy_term(cn_term* term) {
       break;
 
     case CN_TERM_STRUCT:
-      // Deep copy the members hash table
-      bennet_hash_table_init(const_char_ptr, cn_term_ptr)(&copy->data.struct_val.members,
-          bennet_hash_const_char_ptr,
-          bennet_eq_const_char_ptr);
-      // Deep copy all entries in the hash table
-      for (size_t i = 0; i < term->data.struct_val.members.capacity; ++i) {
-        if (term->data.struct_val.members.entries[i].occupied) {
-          const char* key = term->data.struct_val.members.entries[i].key;
-          cn_term* value = term->data.struct_val.members.entries[i].value;
-          cn_term* copied_value = deep_copy_term(value);
-          if (copied_value) {
-            bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-                &copy->data.struct_val.members, key, copied_value);
-          }
+      // Deep copy the members vector
+      bennet_vector_init(cn_member_pair)(&copy->data.struct_val.members);
+      // Deep copy all entries in the vector
+      bennet_vector(cn_member_pair)* src_members = &term->data.struct_val.members;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(src_members); i++) {
+        cn_member_pair* src_pair = bennet_vector_get(cn_member_pair)(src_members, i);
+        cn_term* copied_value = deep_copy_term(src_pair->value);
+        if (copied_value) {
+          cn_member_pair new_pair = {.name = src_pair->name, .value = copied_value};
+          bennet_vector_push(cn_member_pair)(&copy->data.struct_val.members, new_pair);
         }
       }
       break;
@@ -101,20 +93,16 @@ static cn_term* deep_copy_term(cn_term* term) {
       break;
 
     case CN_TERM_RECORD:
-      // Deep copy the members hash table
-      bennet_hash_table_init(const_char_ptr, cn_term_ptr)(&copy->data.record.members,
-          bennet_hash_const_char_ptr,
-          bennet_eq_const_char_ptr);
-      // Deep copy all entries in the hash table
-      for (size_t i = 0; i < term->data.record.members.capacity; ++i) {
-        if (term->data.record.members.entries[i].occupied) {
-          const char* key = term->data.record.members.entries[i].key;
-          cn_term* value = term->data.record.members.entries[i].value;
-          cn_term* copied_value = deep_copy_term(value);
-          if (copied_value) {
-            bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-                &copy->data.record.members, key, copied_value);
-          }
+      // Deep copy the members vector
+      bennet_vector_init(cn_member_pair)(&copy->data.record.members);
+      // Deep copy all entries in the vector
+      bennet_vector(cn_member_pair)* record_members = &term->data.record.members;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(record_members); i++) {
+        cn_member_pair* src_pair = bennet_vector_get(cn_member_pair)(record_members, i);
+        cn_term* copied_value = deep_copy_term(src_pair->value);
+        if (copied_value) {
+          cn_member_pair new_pair = {.name = src_pair->name, .value = copied_value};
+          bennet_vector_push(cn_member_pair)(&copy->data.record.members, new_pair);
         }
       }
       break;
@@ -125,20 +113,16 @@ static cn_term* deep_copy_term(cn_term* term) {
       break;
 
     case CN_TERM_CONSTRUCTOR:
-      // Deep copy the args hash table
-      bennet_hash_table_init(const_char_ptr, cn_term_ptr)(&copy->data.constructor.args,
-          bennet_hash_const_char_ptr,
-          bennet_eq_const_char_ptr);
-      // Deep copy all entries in the hash table
-      for (size_t i = 0; i < term->data.constructor.args.capacity; ++i) {
-        if (term->data.constructor.args.entries[i].occupied) {
-          const char* key = term->data.constructor.args.entries[i].key;
-          cn_term* value = term->data.constructor.args.entries[i].value;
-          cn_term* copied_value = deep_copy_term(value);
-          if (copied_value) {
-            bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-                &copy->data.constructor.args, key, copied_value);
-          }
+      // Deep copy the args vector
+      bennet_vector_init(cn_member_pair)(&copy->data.constructor.args);
+      // Deep copy all entries in the vector
+      bennet_vector(cn_member_pair)* src_args = &term->data.constructor.args;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(src_args); i++) {
+        cn_member_pair* src_pair = bennet_vector_get(cn_member_pair)(src_args, i);
+        cn_term* copied_value = deep_copy_term(src_pair->value);
+        if (copied_value) {
+          cn_member_pair new_pair = {.name = src_pair->name, .value = copied_value};
+          bennet_vector_push(cn_member_pair)(&copy->data.constructor.args, new_pair);
         }
       }
       break;
@@ -247,9 +231,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new unop term with substituted operand
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_UNOP;
       new_term->base_type = term->base_type;
@@ -270,9 +252,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new binop term with substituted operands
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_BINOP;
       new_term->base_type = term->base_type;
@@ -296,9 +276,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new ITE term with substituted parts
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_ITE;
       new_term->base_type = term->base_type;
@@ -318,9 +296,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new EACHI term with substituted body
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_EACHI;
       new_term->base_type = term->base_type;
@@ -333,42 +309,36 @@ static cn_term* cn_subst_term_impl(
     }
 
     case CN_TERM_STRUCT: {
-      // Create a new hash table for the copied members
-      bennet_hash_table(const_char_ptr, cn_term_ptr) new_members;
-      bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
-          &new_members, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+      // Create a new vector for the copied members
+      bennet_vector(cn_member_pair) new_members;
+      bennet_vector_init(cn_member_pair)(&new_members);
 
       bool changed = false;
-      // Iterate through all entries in the original hash table
-      for (size_t i = 0; i < term->data.struct_val.members.capacity; ++i) {
-        if (term->data.struct_val.members.entries[i].occupied) {
-          const char* key = term->data.struct_val.members.entries[i].key;
-          cn_term* value = term->data.struct_val.members.entries[i].value;
-          cn_term* new_value = cn_subst_term_impl(value, subst_table);
+      // Iterate through all entries in the original vector
+      bennet_vector(cn_member_pair)* src_members = &term->data.struct_val.members;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(src_members); i++) {
+        cn_member_pair* src_pair = bennet_vector_get(cn_member_pair)(src_members, i);
+        cn_term* new_value = cn_subst_term_impl(src_pair->value, subst_table);
 
-          // Add the (possibly substituted) value to the new hash table
-          bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-              &new_members, key, new_value);
+        // Add the (possibly substituted) value to the new vector
+        cn_member_pair new_pair = {.name = src_pair->name, .value = new_value};
+        bennet_vector_push(cn_member_pair)(&new_members, new_pair);
 
-          // Check if any substitution occurred
-          if (new_value != value) {
-            changed = true;
-          }
+        // Check if any substitution occurred
+        if (new_value != src_pair->value) {
+          changed = true;
         }
       }
 
       if (!changed) {
-        // No substitution occurred, free the new hash table and return original
-        bennet_hash_table_free(const_char_ptr, cn_term_ptr)(&new_members);
+        // No substitution occurred, free the new vector and return original
+        bennet_vector_free(cn_member_pair)(&new_members);
         return term;
       }
 
       // Create new STRUCT term with substituted members
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        bennet_hash_table_free(const_char_ptr, cn_term_ptr)(&new_members);
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_STRUCT;
       new_term->base_type = term->base_type;
@@ -388,9 +358,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new STRUCT_MEMBER term with substituted struct
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_STRUCT_MEMBER;
       new_term->base_type = term->base_type;
@@ -414,9 +382,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new STRUCT_UPDATE term with substituted parts
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_STRUCT_UPDATE;
       new_term->base_type = term->base_type;
@@ -427,42 +393,36 @@ static cn_term* cn_subst_term_impl(
     }
 
     case CN_TERM_RECORD: {
-      // Create a new hash table for the copied members
-      bennet_hash_table(const_char_ptr, cn_term_ptr) new_members;
-      bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
-          &new_members, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+      // Create a new vector for the copied members
+      bennet_vector(cn_member_pair) new_members;
+      bennet_vector_init(cn_member_pair)(&new_members);
 
       bool changed = false;
-      // Iterate through all entries in the original hash table
-      for (size_t i = 0; i < term->data.record.members.capacity; ++i) {
-        if (term->data.record.members.entries[i].occupied) {
-          const char* key = term->data.record.members.entries[i].key;
-          cn_term* value = term->data.record.members.entries[i].value;
-          cn_term* new_value = cn_subst_term_impl(value, subst_table);
+      // Iterate through all entries in the original vector
+      bennet_vector(cn_member_pair)* src_members = &term->data.record.members;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(src_members); i++) {
+        cn_member_pair* src_pair = bennet_vector_get(cn_member_pair)(src_members, i);
+        cn_term* new_value = cn_subst_term_impl(src_pair->value, subst_table);
 
-          // Add the (possibly substituted) value to the new hash table
-          bennet_hash_table_set(const_char_ptr, cn_term_ptr)(
-              &new_members, key, new_value);
+        // Add the (possibly substituted) value to the new vector
+        cn_member_pair new_pair = {.name = src_pair->name, .value = new_value};
+        bennet_vector_push(cn_member_pair)(&new_members, new_pair);
 
-          // Check if any substitution occurred
-          if (new_value != value) {
-            changed = true;
-          }
+        // Check if any substitution occurred
+        if (new_value != src_pair->value) {
+          changed = true;
         }
       }
 
       if (!changed) {
-        // No substitution occurred, free the new hash table and return original
-        bennet_hash_table_free(const_char_ptr, cn_term_ptr)(&new_members);
+        // No substitution occurred, free the new vector and return original
+        bennet_vector_free(cn_member_pair)(&new_members);
         return term;
       }
 
       // Create new RECORD term with substituted members
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        bennet_hash_table_free(const_char_ptr, cn_term_ptr)(&new_members);
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_RECORD;
       new_term->base_type = term->base_type;
@@ -481,9 +441,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new RECORD_MEMBER term with substituted record
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_RECORD_MEMBER;
       new_term->base_type = term->base_type;
@@ -493,41 +451,36 @@ static cn_term* cn_subst_term_impl(
     }
 
     case CN_TERM_CONSTRUCTOR: {
-      // Create a new hash table for the copied args
-      bennet_hash_table(const_char_ptr, cn_term_ptr) new_args;
-      bennet_hash_table_init(const_char_ptr, cn_term_ptr)(
-          &new_args, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+      // Create a new vector for the copied args
+      bennet_vector(cn_member_pair) new_args;
+      bennet_vector_init(cn_member_pair)(&new_args);
 
       bool changed = false;
-      // Iterate through all entries in the original hash table
-      for (size_t i = 0; i < term->data.constructor.args.capacity; ++i) {
-        if (term->data.constructor.args.entries[i].occupied) {
-          const char* key = term->data.constructor.args.entries[i].key;
-          cn_term* value = term->data.constructor.args.entries[i].value;
-          cn_term* new_value = cn_subst_term_impl(value, subst_table);
+      // Iterate through all entries in the original vector
+      bennet_vector(cn_member_pair)* src_args = &term->data.constructor.args;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(src_args); i++) {
+        cn_member_pair* src_pair = bennet_vector_get(cn_member_pair)(src_args, i);
+        cn_term* new_value = cn_subst_term_impl(src_pair->value, subst_table);
 
-          // Add the (possibly substituted) value to the new hash table
-          bennet_hash_table_set(const_char_ptr, cn_term_ptr)(&new_args, key, new_value);
+        // Add the (possibly substituted) value to the new vector
+        cn_member_pair new_pair = {.name = src_pair->name, .value = new_value};
+        bennet_vector_push(cn_member_pair)(&new_args, new_pair);
 
-          // Check if any substitution occurred
-          if (new_value != value) {
-            changed = true;
-          }
+        // Check if any substitution occurred
+        if (new_value != src_pair->value) {
+          changed = true;
         }
       }
 
       if (!changed) {
-        // No substitution occurred, free the new hash table and return original
-        bennet_hash_table_free(const_char_ptr, cn_term_ptr)(&new_args);
+        // No substitution occurred, free the new vector and return original
+        bennet_vector_free(cn_member_pair)(&new_args);
         return term;
       }
 
       // Create new CONSTRUCTOR term with substituted args
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        bennet_hash_table_free(const_char_ptr, cn_term_ptr)(&new_args);
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_CONSTRUCTOR;
       new_term->base_type = term->base_type;
@@ -547,9 +500,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new member shift term with substituted base
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_MEMBER_SHIFT;
       new_term->base_type = term->base_type;
@@ -571,9 +522,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new array shift term with substituted parts
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_ARRAY_SHIFT;
       new_term->base_type = term->base_type;
@@ -593,9 +542,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new WRAPI term with substituted value
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_WRAPI;
       new_term->base_type = term->base_type;
@@ -618,9 +565,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new MAP_SET term with substituted parts
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_MAP_SET;
       new_term->base_type = term->base_type;
@@ -642,9 +587,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new MAP_GET term with substituted parts
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_MAP_GET;
       new_term->base_type = term->base_type;
@@ -681,10 +624,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new APPLY term with substituted args
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        bennet_vector_free(cn_term_ptr)(&new_args);
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_APPLY;
       new_term->base_type = term->base_type;
@@ -705,9 +645,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new LET term with substituted parts
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_LET;
       new_term->base_type = term->base_type;
@@ -727,9 +665,7 @@ static cn_term* cn_subst_term_impl(
 
       // Create new cast term with substituted value
       cn_term* new_term = malloc(sizeof(cn_term));
-      if (!new_term) {
-        return term;
-      }
+      assert(new_term);
 
       new_term->type = CN_TERM_CAST;
       new_term->base_type = term->base_type;
@@ -748,9 +684,7 @@ static cn_term* cn_subst_term_impl(
 // Create a substitution table with the proper hash and equality functions
 bennet_hash_table(uint64_t, cn_term_ptr) * cn_create_subst_table(void) {
   bennet_hash_table(uint64_t, cn_term_ptr)* table = malloc(sizeof(*table));
-  if (!table) {
-    return NULL;
-  }
+  assert(table);
 
   bennet_hash_table_init(uint64_t, cn_term_ptr)(
       table, bennet_hash_uint64_t, bennet_eq_uint64_t);

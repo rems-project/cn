@@ -1,6 +1,7 @@
 #ifndef BENNET_UTILS_H
 #define BENNET_UTILS_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -68,9 +69,7 @@
 
 // Helper function to get the base name of a filename
 static inline const char* get_basename(const char* filename) {
-  if (!filename) {
-    return NULL;
-  }
+  assert(filename);
 
   // Find the last occurrence of '/' or '\'
   const char* last_slash = strrchr(filename, '/');

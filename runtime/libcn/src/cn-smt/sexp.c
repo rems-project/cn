@@ -106,23 +106,23 @@ sexp_t **sexp_to_list(const sexp_t *sexp, size_t *count) {
 }
 
 // Pattern matching functions
-sexp_t *sexp_to_assert(const sexp_t *sexp) {
+bennet_optional(sexp_ptr) sexp_to_assert(const sexp_t *sexp) {
   if (!sexp || sexp->type != SEXP_LIST) {
-    return NULL;
+    return bennet_optional_none(sexp_ptr);
   }
   if (sexp->data.list.count != 2) {
-    return NULL;
+    return bennet_optional_none(sexp_ptr);
   }
 
   sexp_t *first = sexp->data.list.elements[0];
   if (!first || first->type != SEXP_ATOM) {
-    return NULL;
+    return bennet_optional_none(sexp_ptr);
   }
   if (strcmp(first->data.atom, "assert") != 0) {
-    return NULL;
+    return bennet_optional_none(sexp_ptr);
   }
 
-  return sexp->data.list.elements[1];
+  return bennet_optional_some(sexp_ptr, sexp->data.list.elements[1]);
 }
 
 // Memory management
@@ -160,9 +160,7 @@ static const char *parse_atom(const char *input, char **atom) {
 
   size_t len = input - start;
   *atom = malloc(len + 1);
-  if (!*atom) {
-    return NULL;
-  }
+  assert(*atom);
 
   strncpy(*atom, start, len);
   (*atom)[len] = '\0';
@@ -184,13 +182,8 @@ static const char *parse_list(const char *input, sexp_t **result) {
     if (count >= capacity) {
       capacity = capacity ? capacity * 2 : 4;
       sexp_t **new_elements = realloc(elements, sizeof(sexp_t *) * capacity);
-      if (!new_elements) {
-        for (size_t i = 0; i < count; i++) {
-          sexp_free(elements[i]);
-        }
-        free(elements);
-        return NULL;
-      }
+      assert(new_elements);
+
       elements = new_elements;
     }
 
@@ -266,19 +259,11 @@ sexp_t *sexp_app(sexp_t *f, sexp_t **args, size_t arg_count) {
     } else {
       // For lists, we need to deep copy
       sexp_t **new_elements = malloc(sizeof(sexp_t *) * f->data.list.count);
-      if (!new_elements) {
-        return NULL;
-      }
+      assert(new_elements);
 
       for (size_t i = 0; i < f->data.list.count; i++) {
         new_elements[i] = sexp_app(f->data.list.elements[i], NULL, 0);
-        if (!new_elements[i]) {
-          for (size_t j = 0; j < i; j++) {
-            sexp_free(new_elements[j]);
-          }
-          free(new_elements);
-          return NULL;
-        }
+        assert(new_elements[i]);
       }
 
       sexp_t *result = sexp_list(new_elements, f->data.list.count);
@@ -289,27 +274,14 @@ sexp_t *sexp_app(sexp_t *f, sexp_t **args, size_t arg_count) {
 
   // Create a list with f as first element, followed by args
   sexp_t **elements = malloc(sizeof(sexp_t *) * (arg_count + 1));
-  if (!elements) {
-    return NULL;
-  }
+  assert(elements);
 
   elements[0] = sexp_app(f, NULL, 0);  // Copy f
-  if (!elements[0]) {
-    free(elements);
-    return NULL;
-  }
+  assert(elements[0]);
 
   for (size_t i = 0; i < arg_count; i++) {
     elements[i + 1] = sexp_app(args[i], NULL, 0);  // Deep copy each argument
-    if (!elements[i + 1]) {
-      // Cleanup on failure
-      sexp_free(elements[0]);
-      for (size_t j = 1; j < i + 1; j++) {
-        sexp_free(elements[j]);
-      }
-      free(elements);
-      return NULL;
-    }
+    assert(elements[i + 1]);
   }
 
   sexp_t *result = sexp_list(elements, arg_count + 1);
@@ -346,9 +318,7 @@ sexp_t *sexp_let(sexp_t **bindings, size_t binding_count, sexp_t *e) {
 
   // Create bindings list
   sexp_t *bindings_list = sexp_list(bindings, binding_count);
-  if (!bindings_list) {
-    return NULL;
-  }
+  assert(bindings_list);
 
   sexp_t *args[] = {bindings_list, e};
   sexp_t *result = sexp_app_str("let", args, 2);
@@ -369,22 +339,13 @@ sexp_t *sexp_fam(const char *f, sexp_t **indices, size_t index_count) {
 
   // Create list: (_ f indices...)
   sexp_t **elements = malloc(sizeof(sexp_t *) * (index_count + 2));
-  if (!elements) {
-    return NULL;
-  }
+  assert(elements);
 
   elements[0] = sexp_atom("_");
-  if (!elements[0]) {
-    free(elements);
-    return NULL;
-  }
+  assert(elements[0]);
 
   elements[1] = sexp_atom(f);
-  if (!elements[1]) {
-    sexp_free(elements[0]);
-    free(elements);
-    return NULL;
-  }
+  assert(elements[1]);
 
   for (size_t i = 0; i < index_count; i++) {
     elements[i + 2] = indices[i];
@@ -401,19 +362,11 @@ sexp_t *sexp_ifam(const char *f, int *indices, size_t index_count) {
 
   // Convert int indices to sexp atoms
   sexp_t **sexp_indices = malloc(sizeof(sexp_t *) * index_count);
-  if (!sexp_indices) {
-    return NULL;
-  }
+  assert(sexp_indices);
 
   for (size_t i = 0; i < index_count; i++) {
     sexp_indices[i] = sexp_nat_k(indices[i]);
-    if (!sexp_indices[i]) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(sexp_indices[j]);
-      }
-      free(sexp_indices);
-      return NULL;
-    }
+    assert(sexp_indices[i]);
   }
 
   sexp_t *result = sexp_fam(f, sexp_indices, index_count);
@@ -432,15 +385,10 @@ sexp_t *sexp_named(const char *name, sexp_t *e) {
   assert(name && e);
 
   sexp_t *name_atom = sexp_atom(name);
-  if (!name_atom) {
-    return NULL;
-  }
+  assert(name_atom);
 
   sexp_t *named_atom = sexp_atom(":named");
-  if (!named_atom) {
-    sexp_free(name_atom);
-    return NULL;
-  }
+  assert(named_atom);
 
   sexp_t *args[] = {e, named_atom, name_atom};
   sexp_t *result = sexp_app_str("!", args, 3);
@@ -483,18 +431,14 @@ char *quote_symbol(const char *s) {
     // Return a copy of the original string
     size_t len = strlen(s);
     char *result = malloc(len + 1);
-    if (!result) {
-      return NULL;
-    }
+    assert(result);
     strcpy(result, s);
     return result;
   } else {
     // Return quoted version: |s|
     size_t len = strlen(s);
     char *result = malloc(len + 3);  // +2 for pipes, +1 for null terminator
-    if (!result) {
-      return NULL;
-    }
+    assert(result);
 
     result[0] = '|';
     strcpy(result + 1, s);
@@ -510,9 +454,7 @@ sexp_t *symbol(const char *x) {
   assert(x);
 
   char *quoted = quote_symbol(x);
-  if (!quoted) {
-    return NULL;
-  }
+  assert(quoted);
 
   sexp_t *result = sexp_atom(quoted);
   free(quoted);
@@ -745,9 +687,7 @@ sexp_t *num_divisible(sexp_t *x, int n) {
 
   int indices[] = {n};
   sexp_t *divisible_indexed = sexp_ifam("divisible", indices, 1);
-  if (!divisible_indexed) {
-    return NULL;
-  }
+  assert(divisible_indexed);
 
   sexp_t *args[] = {x};
   sexp_t *result = sexp_app(divisible_indexed, args, 1);
@@ -791,9 +731,7 @@ sexp_t *bv_nat_bin(int w, long long v) {
 
   // Create binary string with proper width
   char *binary_str = malloc(w + 1);
-  if (!binary_str) {
-    return NULL;
-  }
+  assert(binary_str);
 
   // Convert to binary
   for (int i = w - 1; i >= 0; i--) {
@@ -804,10 +742,7 @@ sexp_t *bv_nat_bin(int w, long long v) {
   // Create #b prefix + binary string
   size_t total_len = 2 + w + 1;  // #b + binary + null
   char *result_str = malloc(total_len);
-  if (!result_str) {
-    free(binary_str);
-    return NULL;
-  }
+  assert(result_str);
 
   snprintf(result_str, total_len, "#b%s", binary_str);
   free(binary_str);
@@ -828,17 +763,12 @@ sexp_t *bv_nat_hex(int w, long long v) {
 
   int hex_digits = w / 4;
   char *format_str = malloc(32);
-  if (!format_str) {
-    return NULL;
-  }
+  assert(format_str);
 
   snprintf(format_str, 32, "#x%%0%dllx", hex_digits);
 
   char *result_str = malloc(hex_digits + 3);  // #x + digits + null
-  if (!result_str) {
-    free(format_str);
-    return NULL;
-  }
+  assert(result_str);
 
   snprintf(result_str, hex_digits + 3, format_str, v);
   free(format_str);
@@ -871,9 +801,7 @@ sexp_t *bv_bin(int w, long long v) {
     return bv_nat_bin(w, v);
   } else {
     sexp_t *pos_bv = bv_nat_bin(w, -v);
-    if (!pos_bv) {
-      return NULL;
-    }
+    assert(pos_bv);
 
     sexp_t *result = bv_neg(pos_bv);
     sexp_free(pos_bv);
@@ -889,9 +817,7 @@ sexp_t *bv_hex(int w, long long v) {
     return bv_nat_hex(w, v);
   } else {
     sexp_t *pos_bv = bv_nat_hex(w, -v);
-    if (!pos_bv) {
-      return NULL;
-    }
+    assert(pos_bv);
 
     sexp_t *result = bv_neg(pos_bv);
     sexp_free(pos_bv);
@@ -955,9 +881,7 @@ sexp_t *bv_sign_extend(int i, sexp_t *x) {
 
   int indices[] = {i};
   sexp_t *sign_extend_indexed = sexp_ifam("sign_extend", indices, 1);
-  if (!sign_extend_indexed) {
-    return NULL;
-  }
+  assert(sign_extend_indexed);
 
   sexp_t *args[] = {x};
   sexp_t *result = sexp_app(sign_extend_indexed, args, 1);
@@ -971,9 +895,7 @@ sexp_t *bv_zero_extend(int i, sexp_t *x) {
 
   int indices[] = {i};
   sexp_t *zero_extend_indexed = sexp_ifam("zero_extend", indices, 1);
-  if (!zero_extend_indexed) {
-    return NULL;
-  }
+  assert(zero_extend_indexed);
 
   sexp_t *args[] = {x};
   sexp_t *result = sexp_app(zero_extend_indexed, args, 1);
@@ -989,9 +911,7 @@ sexp_t *bv_extract(int last_ix, int first_ix, sexp_t *x) {
 
   int indices[] = {last_ix, first_ix};
   sexp_t *extract_indexed = sexp_ifam("extract", indices, 2);
-  if (!extract_indexed) {
-    return NULL;
-  }
+  assert(extract_indexed);
 
   sexp_t *args[] = {x};
   sexp_t *result = sexp_app(extract_indexed, args, 1);
@@ -1149,22 +1069,15 @@ sexp_t *arr_const(sexp_t *kt, sexp_t *vt, sexp_t *v) {
   assert(kt && vt && v);
 
   sexp_t *const_atom = sexp_atom("const");
-  if (!const_atom) {
-    return NULL;
-  }
+  assert(const_atom);
 
   sexp_t *array_type = t_array(kt, vt);
-  if (!array_type) {
-    sexp_free(const_atom);
-    return NULL;
-  }
+  assert(array_type);
 
   sexp_t *typed_const = sexp_as_type(const_atom, array_type);
   sexp_free(const_atom);
   sexp_free(array_type);
-  if (!typed_const) {
-    return NULL;
-  }
+  assert(typed_const);
 
   sexp_t *args[] = {v};
   sexp_t *result = sexp_app(typed_const, args, 1);
@@ -1206,15 +1119,10 @@ sexp_t *set_empty(solver_extensions_t ext, sexp_t *t) {
 
   if (ext == SOLVER_CVC5) {
     sexp_t *empty_atom = sexp_atom("set.empty");
-    if (!empty_atom) {
-      return NULL;
-    }
+    assert(empty_atom);
 
     sexp_t *set_type = t_set(t);
-    if (!set_type) {
-      sexp_free(empty_atom);
-      return NULL;
-    }
+    assert(set_type);
 
     sexp_t *args[] = {empty_atom, set_type};
     sexp_t *result = sexp_app_str("as", args, 2);
@@ -1223,29 +1131,19 @@ sexp_t *set_empty(solver_extensions_t ext, sexp_t *t) {
     return result;
   } else {
     sexp_t *const_atom = sexp_atom("const");
-    if (!const_atom) {
-      return NULL;
-    }
+    assert(const_atom);
 
     sexp_t *set_type = t_set(t);
-    if (!set_type) {
-      sexp_free(const_atom);
-      return NULL;
-    }
+    assert(set_type);
 
     sexp_t *const_args[] = {const_atom, set_type};
     sexp_t *typed_const = sexp_app_str("as", const_args, 2);
     sexp_free(const_atom);
     sexp_free(set_type);
-    if (!typed_const) {
-      return NULL;
-    }
+    assert(typed_const);
 
     sexp_t *false_val = bool_k(false);
-    if (!false_val) {
-      sexp_free(typed_const);
-      return NULL;
-    }
+    assert(false_val);
 
     sexp_t *app_args[] = {false_val};
     sexp_t *result = sexp_app(typed_const, app_args, 1);
@@ -1261,15 +1159,10 @@ sexp_t *set_universe(solver_extensions_t ext, sexp_t *t) {
 
   if (ext == SOLVER_CVC5) {
     sexp_t *universe_atom = sexp_atom("set.universe");
-    if (!universe_atom) {
-      return NULL;
-    }
+    assert(universe_atom);
 
     sexp_t *set_type = t_set(t);
-    if (!set_type) {
-      sexp_free(universe_atom);
-      return NULL;
-    }
+    assert(set_type);
 
     sexp_t *args[] = {universe_atom, set_type};
     sexp_t *result = sexp_app_str("as", args, 2);
@@ -1278,29 +1171,19 @@ sexp_t *set_universe(solver_extensions_t ext, sexp_t *t) {
     return result;
   } else {
     sexp_t *const_atom = sexp_atom("const");
-    if (!const_atom) {
-      return NULL;
-    }
+    assert(const_atom);
 
     sexp_t *set_type = t_set(t);
-    if (!set_type) {
-      sexp_free(const_atom);
-      return NULL;
-    }
+    assert(set_type);
 
     sexp_t *const_args[] = {const_atom, set_type};
     sexp_t *typed_const = sexp_app_str("as", const_args, 2);
     sexp_free(const_atom);
     sexp_free(set_type);
-    if (!typed_const) {
-      return NULL;
-    }
+    assert(typed_const);
 
     sexp_t *true_val = bool_k(true);
-    if (!true_val) {
-      sexp_free(typed_const);
-      return NULL;
-    }
+    assert(true_val);
 
     sexp_t *app_args[] = {true_val};
     sexp_t *result = sexp_app(typed_const, app_args, 1);
@@ -1319,9 +1202,7 @@ sexp_t *set_insert(solver_extensions_t ext, sexp_t *x, sexp_t *xs) {
     return sexp_app_str("set.insert", args, 2);
   } else {
     sexp_t *true_val = bool_k(true);
-    if (!true_val) {
-      return NULL;
-    }
+    assert(true_val);
 
     sexp_t *result = arr_store(xs, x, true_val);
     sexp_free(true_val);
@@ -1401,9 +1282,7 @@ sexp_t *forall(sexp_t **bindings, size_t binding_count, sexp_t *p) {
 
   // Create bindings list
   sexp_t *bindings_list = sexp_list(bindings, binding_count);
-  if (!bindings_list) {
-    return NULL;
-  }
+  assert(bindings_list);
 
   sexp_t *args[] = {bindings_list, p};
   sexp_t *result = sexp_app_str("forall", args, 2);
@@ -1420,19 +1299,11 @@ sexp_t *simple_command(const char **strs, size_t count) {
   assert(strs);
 
   sexp_t **atoms = malloc(sizeof(sexp_t *) * count);
-  if (!atoms) {
-    return NULL;
-  }
+  assert(atoms);
 
   for (size_t i = 0; i < count; i++) {
     atoms[i] = sexp_atom(strs[i]);
-    if (!atoms[i]) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(atoms[j]);
-      }
-      free(atoms);
-      return NULL;
-    }
+    assert(atoms[i]);
   }
 
   sexp_t *result = sexp_list(atoms, count);
@@ -1474,12 +1345,9 @@ sexp_t *declare_sort(const char *name, int arity) {
   snprintf(arity_str, sizeof(arity_str), "%d", arity);
 
   sexp_t *name_atom = sexp_atom(name);
+  assert(name_atom);
   sexp_t *arity_atom = sexp_atom(arity_str);
-  if (!name_atom || !arity_atom) {
-    sexp_free(name_atom);
-    sexp_free(arity_atom);
-    return NULL;
-  }
+  assert(arity_atom);
 
   sexp_t *args[] = {name_atom, arity_atom};
   sexp_t *result = sexp_app_str("declare-sort", args, 2);
@@ -1494,15 +1362,10 @@ sexp_t *declare_fun(
   assert(name && result_type);
 
   sexp_t *name_atom = sexp_atom(name);
-  if (!name_atom) {
-    return NULL;
-  }
+  assert(name_atom);
 
   sexp_t *params_list = sexp_list(param_types, param_count);
-  if (!params_list) {
-    sexp_free(name_atom);
-    return NULL;
-  }
+  assert(params_list);
 
   sexp_t *args[] = {name_atom, params_list, result_type};
   sexp_t *result = sexp_app_str("declare-fun", args, 3);
@@ -1525,15 +1388,10 @@ sexp_t *define_fun(const char *name,
   assert(name && result_type && definition);
 
   sexp_t *name_atom = sexp_atom(name);
-  if (!name_atom) {
-    return NULL;
-  }
+  assert(name_atom);
 
   sexp_t *params_list = sexp_list(params, param_count);
-  if (!params_list) {
-    sexp_free(name_atom);
-    return NULL;
-  }
+  assert(params_list);
 
   sexp_t *args[] = {name_atom, params_list, result_type, definition};
   sexp_t *result = sexp_app_str("define-fun", args, 4);
@@ -1558,92 +1416,40 @@ sexp_t *declare_datatype(const char *name,
   assert(name && constructors);
 
   sexp_t *name_atom = sexp_atom(name);
-  if (!name_atom) {
-    return NULL;
-  }
+  assert(name_atom);
 
   // Build constructors list
   sexp_t **cons_exprs = malloc(sizeof(sexp_t *) * constructor_count);
-  if (!cons_exprs) {
-    sexp_free(name_atom);
-    return NULL;
-  }
+  assert(cons_exprs);
 
   for (size_t i = 0; i < constructor_count; i++) {
     // Build field list for this constructor
     sexp_t **field_exprs = malloc(sizeof(sexp_t *) * (constructors[i].field_count + 1));
-    if (!field_exprs) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(cons_exprs[j]);
-      }
-      free(cons_exprs);
-      sexp_free(name_atom);
-      return NULL;
-    }
+    assert(field_exprs);
 
     // Constructor name
     field_exprs[0] = sexp_atom(constructors[i].name);
-    if (!field_exprs[0]) {
-      free(field_exprs);
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(cons_exprs[j]);
-      }
-      free(cons_exprs);
-      sexp_free(name_atom);
-      return NULL;
-    }
+    assert(field_exprs[0]);
 
     // Fields
     for (size_t f = 0; f < constructors[i].field_count; f++) {
       sexp_t *field_name = sexp_atom(constructors[i].fields[f].name);
-      if (!field_name) {
-        for (size_t k = 0; k <= f; k++) {
-          sexp_free(field_exprs[k]);
-        }
-        free(field_exprs);
-        for (size_t j = 0; j < i; j++) {
-          sexp_free(cons_exprs[j]);
-        }
-        free(cons_exprs);
-        sexp_free(name_atom);
-        return NULL;
-      }
+      assert(field_name);
 
       sexp_t *field_args[] = {field_name, constructors[i].fields[f].type};
       field_exprs[f + 1] = sexp_list(field_args, 2);
+      assert(field_exprs[f + 1]);
       sexp_free(field_name);
-      if (!field_exprs[f + 1]) {
-        for (size_t k = 0; k <= f; k++) {
-          sexp_free(field_exprs[k]);
-        }
-        free(field_exprs);
-        for (size_t j = 0; j < i; j++) {
-          sexp_free(cons_exprs[j]);
-        }
-        free(cons_exprs);
-        sexp_free(name_atom);
-        return NULL;
-      }
     }
 
     cons_exprs[i] = sexp_list(field_exprs, constructors[i].field_count + 1);
+    assert(cons_exprs[i]);
     free(field_exprs);
-    if (!cons_exprs[i]) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(cons_exprs[j]);
-      }
-      free(cons_exprs);
-      sexp_free(name_atom);
-      return NULL;
-    }
   }
 
   sexp_t *cons_list = sexp_list(cons_exprs, constructor_count);
+  assert(cons_list);
   free(cons_exprs);
-  if (!cons_list) {
-    sexp_free(name_atom);
-    return NULL;
-  }
 
   sexp_t *def;
   if (type_param_count == 0) {
@@ -1651,41 +1457,22 @@ sexp_t *declare_datatype(const char *name,
   } else {
     // Build type parameters list
     sexp_t **type_param_atoms = malloc(sizeof(sexp_t *) * type_param_count);
-    if (!type_param_atoms) {
-      sexp_free(name_atom);
-      sexp_free(cons_list);
-      return NULL;
-    }
+    assert(type_param_atoms);
 
     for (size_t i = 0; i < type_param_count; i++) {
       type_param_atoms[i] = sexp_atom(type_params[i]);
-      if (!type_param_atoms[i]) {
-        for (size_t j = 0; j < i; j++) {
-          sexp_free(type_param_atoms[j]);
-        }
-        free(type_param_atoms);
-        sexp_free(name_atom);
-        sexp_free(cons_list);
-        return NULL;
-      }
+      assert(type_param_atoms[i]);
     }
 
     sexp_t *type_params_list = sexp_list(type_param_atoms, type_param_count);
+    assert(type_params_list);
     free(type_param_atoms);
-    if (!type_params_list) {
-      sexp_free(name_atom);
-      sexp_free(cons_list);
-      return NULL;
-    }
 
     sexp_t *par_args[] = {type_params_list, cons_list};
     def = sexp_app_str("par", par_args, 2);
+    assert(def);
     sexp_free(type_params_list);
     sexp_free(cons_list);
-    if (!def) {
-      sexp_free(name_atom);
-      return NULL;
-    }
   }
 
   sexp_t *args[] = {name_atom, def};
@@ -1697,6 +1484,125 @@ sexp_t *declare_datatype(const char *name,
   return result;
 }
 
+/** [declare_datatypes tys] defines a group of mutually recursive ADTs.
+    Each element of `tys` is (name,type params,cons). */
+sexp_t *declare_datatypes(datatype_def_t *datatypes, size_t datatype_count) {
+  assert(datatypes && datatype_count > 0);
+
+  // Create arity list: [(name arity), ...]
+  sexp_t **arity_list = malloc(sizeof(sexp_t *) * datatype_count);
+  assert(arity_list);
+
+  for (size_t i = 0; i < datatype_count; i++) {
+    datatype_def_t *dt = &datatypes[i];
+
+    // Create (name arity) pair
+    sexp_t *name_atom = sexp_atom(dt->name);
+    assert(name_atom);
+
+    char arity_str[32];
+    snprintf(arity_str, sizeof(arity_str), "%zu", dt->type_param_count);
+    sexp_t *arity_atom = sexp_atom(arity_str);
+    assert(arity_atom);
+
+    sexp_t *pair_elements[] = {name_atom, arity_atom};
+    arity_list[i] = sexp_list(pair_elements, 2);
+    assert(arity_list[i]);
+
+    sexp_free(name_atom);
+    sexp_free(arity_atom);
+  }
+
+  // Create definition list
+  sexp_t **def_list = malloc(sizeof(sexp_t *) * datatype_count);
+  assert(def_list);
+
+  for (size_t i = 0; i < datatype_count; i++) {
+    datatype_def_t *dt = &datatypes[i];
+
+    // mk_field: create field from (name, type) pair
+    // mk_con: create constructor from (name, fields) pair
+    // mk_cons: create list of constructors
+
+    // Build constructor list
+    sexp_t **cons_exprs = malloc(sizeof(sexp_t *) * dt->constructor_count);
+    assert(cons_exprs);
+
+    for (size_t c = 0; c < dt->constructor_count; c++) {
+      constructor_t *con = &dt->constructors[c];
+
+      // Create elements: [con_name, field1, field2, ...]
+      sexp_t **con_elements = malloc(sizeof(sexp_t *) * (1 + con->field_count));
+      assert(con_elements);
+
+      // Constructor name
+      con_elements[0] = sexp_atom(con->name);
+      assert(con_elements[0]);
+
+      // Fields: each field is (field_name field_type)
+      for (size_t f = 0; f < con->field_count; f++) {
+        sexp_t *field_name = sexp_atom(con->fields[f].name);
+        assert(field_name);
+
+        sexp_t *field_args[] = {field_name, con->fields[f].type};
+        con_elements[f + 1] = sexp_list(field_args, 2);
+        assert(con_elements[f + 1]);
+        sexp_free(field_name);
+      }
+
+      cons_exprs[c] = sexp_list(con_elements, con->field_count + 1);
+      assert(cons_exprs[c]);
+      free(con_elements);
+    }
+
+    sexp_t *cons_list = sexp_list(cons_exprs, dt->constructor_count);
+    assert(cons_list);
+    free(cons_exprs);
+
+    // def: handle type parameters
+    if (dt->type_param_count == 0) {
+      def_list[i] = cons_list;
+    } else {
+      // Build type parameters list
+      sexp_t **type_param_atoms = malloc(sizeof(sexp_t *) * dt->type_param_count);
+      assert(type_param_atoms);
+
+      for (size_t p = 0; p < dt->type_param_count; p++) {
+        type_param_atoms[p] = sexp_atom(dt->type_params[p]);
+        assert(type_param_atoms[p]);
+      }
+
+      sexp_t *type_params_list = sexp_list(type_param_atoms, dt->type_param_count);
+      assert(type_params_list);
+      free(type_param_atoms);
+
+      sexp_t *par_args[] = {type_params_list, cons_list};
+      def_list[i] = sexp_app_str("par", par_args, 2);
+      assert(def_list[i]);
+      sexp_free(type_params_list);
+      sexp_free(cons_list);
+    }
+  }
+
+  // Create the final command
+  sexp_t *arity_sexp = sexp_list(arity_list, datatype_count);
+  assert(arity_sexp);
+  free(arity_list);
+
+  sexp_t *def_sexp = sexp_list(def_list, datatype_count);
+  assert(def_sexp);
+  free(def_list);
+
+  sexp_t *args[] = {arity_sexp, def_sexp};
+  sexp_t *result = sexp_app_str("declare-datatypes", args, 2);
+  assert(result);
+
+  sexp_free(arity_sexp);
+  sexp_free(def_sexp);
+
+  return result;
+}
+
 /** Pattern and match alternative types are defined in the header */
 
 /** Match datatype expression. */
@@ -1704,9 +1610,7 @@ sexp_t *match_datatype(sexp_t *expr, match_alt_t *alts, size_t alt_count) {
   assert(expr && alts);
 
   sexp_t **alt_exprs = malloc(sizeof(sexp_t *) * alt_count);
-  if (!alt_exprs) {
-    return NULL;
-  }
+  assert(alt_exprs);
 
   for (size_t i = 0; i < alt_count; i++) {
     sexp_t *pat_expr;
@@ -1717,68 +1621,31 @@ sexp_t *match_datatype(sexp_t *expr, match_alt_t *alts, size_t alt_count) {
       // PAT_CON
       sexp_t **con_elements =
           malloc(sizeof(sexp_t *) * (alts[i].pattern.data.con.var_count + 1));
-      if (!con_elements) {
-        for (size_t j = 0; j < i; j++) {
-          sexp_free(alt_exprs[j]);
-        }
-        free(alt_exprs);
-        return NULL;
-      }
+      assert(con_elements);
 
       con_elements[0] = sexp_atom(alts[i].pattern.data.con.con_name);
-      if (!con_elements[0]) {
-        free(con_elements);
-        for (size_t j = 0; j < i; j++) {
-          sexp_free(alt_exprs[j]);
-        }
-        free(alt_exprs);
-        return NULL;
-      }
+      assert(con_elements[0]);
 
       for (size_t v = 0; v < alts[i].pattern.data.con.var_count; v++) {
         con_elements[v + 1] = sexp_atom(alts[i].pattern.data.con.var_names[v]);
-        if (!con_elements[v + 1]) {
-          for (size_t k = 0; k <= v; k++) {
-            sexp_free(con_elements[k]);
-          }
-          free(con_elements);
-          for (size_t j = 0; j < i; j++) {
-            sexp_free(alt_exprs[j]);
-          }
-          free(alt_exprs);
-          return NULL;
-        }
+        assert(con_elements[v + 1]);
       }
 
       pat_expr = sexp_list(con_elements, alts[i].pattern.data.con.var_count + 1);
       free(con_elements);
     }
 
-    if (!pat_expr) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(alt_exprs[j]);
-      }
-      free(alt_exprs);
-      return NULL;
-    }
+    assert(pat_expr);
 
     sexp_t *alt_args[] = {pat_expr, alts[i].expr};
     alt_exprs[i] = sexp_list(alt_args, 2);
+    assert(alt_exprs[i]);
     sexp_free(pat_expr);
-    if (!alt_exprs[i]) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(alt_exprs[j]);
-      }
-      free(alt_exprs);
-      return NULL;
-    }
   }
 
   sexp_t *alts_list = sexp_list(alt_exprs, alt_count);
+  assert(alts_list);
   free(alt_exprs);
-  if (!alts_list) {
-    return NULL;
-  }
 
   sexp_t *args[] = {expr, alts_list};
   sexp_t *result = sexp_app_str("match", args, 2);
@@ -1791,16 +1658,12 @@ sexp_t *is_con(const char *constructor, sexp_t *expr) {
   assert(constructor && expr);
 
   sexp_t *con_atom = sexp_atom(constructor);
-  if (!con_atom) {
-    return NULL;
-  }
+  assert(con_atom);
 
   sexp_t *indices[] = {con_atom};
   sexp_t *is_indexed = sexp_fam("is", indices, 1);
+  assert(is_indexed);
   sexp_free(con_atom);
-  if (!is_indexed) {
-    return NULL;
-  }
 
   sexp_t *args[] = {expr};
   sexp_t *result = sexp_app(is_indexed, args, 1);

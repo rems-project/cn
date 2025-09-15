@@ -48,6 +48,7 @@
                                                                                          \
       case BENNET_FAILURE_NONE:                                                          \
       case BENNET_FAILURE_TIMEOUT:                                                       \
+      case BENNET_FAILURE_UNSAT:                                                         \
         assert(false); /* unreachable */                                                 \
     }                                                                                    \
                                                                                          \
@@ -90,6 +91,7 @@ bool bennet_backtrack(int *backtracks, const bennet_checkpoint *cp, const void *
 
     case BENNET_FAILURE_NONE:
     case BENNET_FAILURE_TIMEOUT:
+    case BENNET_FAILURE_UNSAT:
       assert(false); /* unreachable */
   }
 

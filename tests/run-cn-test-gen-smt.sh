@@ -13,6 +13,7 @@ TO_TEST=(
   "cast_equality.pass.c"
   "counter.pass.c"
   "delete_main.pass.c"
+  "dll.pass.c"
   "enum1.pass.c"
   "enum2.pass.c"
   "learn_equality.pass.c"

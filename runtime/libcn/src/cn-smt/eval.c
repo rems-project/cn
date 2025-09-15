@@ -25,6 +25,9 @@ static inline bool bennet_eq_void_ptr(void_ptr a, void_ptr b) {
 // We need to implement the hash table functions
 BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_struct_handler)
 
+// Generate vector implementation for cn_member_pair
+BENNET_VECTOR_IMPL(cn_member_pair)
+
 // Global registry of struct handlers
 static bennet_hash_table(const_char_ptr, cn_struct_handler) g_struct_handlers;
 static bool g_struct_handlers_initialized = false;
@@ -1189,17 +1192,15 @@ void* cn_eval_term(cn_term* term) {
           &member_values, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
 
       // Evaluate all member terms and store in the void_ptr hash table
-      bennet_hash_table(const_char_ptr, cn_term_ptr)* members =
-          &term->data.struct_val.members;
-      for (size_t i = 0; i < members->capacity; i++) {
-        if (members->entries[i].occupied) {
-          const char* member_name = members->entries[i].key;
-          cn_term* member_term = members->entries[i].value;
-          void* member_val = cn_eval_term(member_term);
-          assert(member_val);
-          bennet_hash_table_set(const_char_ptr, void_ptr)(
-              &member_values, member_name, member_val);
-        }
+      bennet_vector(cn_member_pair)* members = &term->data.struct_val.members;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(members); i++) {
+        cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+        const char* member_name = pair->name;
+        cn_term* member_term = pair->value;
+        void* member_val = cn_eval_term(member_term);
+        assert(member_val);
+        bennet_hash_table_set(const_char_ptr, void_ptr)(
+            &member_values, member_name, member_val);
       }
 
       // Call the registered struct creation function

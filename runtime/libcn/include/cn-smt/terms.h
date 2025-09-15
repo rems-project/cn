@@ -21,9 +21,16 @@ typedef struct cn_term cn_term;
 typedef const char* const_char_ptr;
 typedef cn_term* cn_term_ptr;
 
+// Pair type for member name-value mappings
+typedef struct {
+  const_char_ptr name;
+  cn_term_ptr value;
+} cn_member_pair;
+
 // Vector type declarations for arrays in cn_term
 BENNET_VECTOR_DECL(const_char_ptr)
 BENNET_VECTOR_DECL(cn_term_ptr)
+BENNET_VECTOR_DECL(cn_member_pair)
 
 // Optional type for cn_term_ptr is declared in subst.h
 
@@ -373,7 +380,7 @@ struct cn_term {
 
     struct {  // CN_TERM_STRUCT
       const char* tag;
-      bennet_hash_table(const_char_ptr, cn_term_ptr) members;
+      bennet_vector(cn_member_pair) members;
     } struct_val;
 
     struct {  // CN_TERM_STRUCT_MEMBER
@@ -388,7 +395,7 @@ struct cn_term {
     } struct_update;
 
     struct {  // CN_TERM_RECORD
-      bennet_hash_table(const_char_ptr, cn_term_ptr) members;
+      bennet_vector(cn_member_pair) members;
     } record;
 
     struct {  // CN_TERM_RECORD_MEMBER
@@ -398,7 +405,7 @@ struct cn_term {
 
     struct {  // CN_TERM_CONSTRUCTOR
       const char* constructor_name;
-      bennet_hash_table(const_char_ptr, cn_term_ptr) args;
+      bennet_vector(cn_member_pair) args;
     } constructor;
 
     struct {  // CN_TERM_MEMBER_SHIFT

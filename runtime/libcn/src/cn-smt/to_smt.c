@@ -10,6 +10,9 @@
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
 
+// Generate vector implementation for cn_member_pair
+BENNET_VECTOR_IMPL(cn_member_pair)
+
 // Functions that pick names for things (converted from OCaml CN_Names module)
 
 // Helper function to get string representation of a symbol without numbers
@@ -40,6 +43,7 @@ char* fn_name(cn_sym x) {
   // Calculate required buffer size: base_name + "_" + num + null terminator
   size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
   return result;
@@ -49,38 +53,33 @@ const char* named_expr_name(void) {
   return "_cn_named";
 }
 
-char* struct_name(cn_sym x) {
-  const char* base_name = sym_pp_string_no_nums(x);
-  uint64_t num = sym_num(x);
-
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
+char* cn_smt_struct_name(const char* name) {
+  // Calculate required buffer size: base_name + "_struct" + null terminator
+  size_t len = strlen(name) + snprintf(NULL, 0, "_struct") + 1;
   char* result = malloc(len);
+  assert(result);
 
-  sprintf(result, "%s_%" PRIu64, base_name, num);
+  sprintf(result, "%s_struct", name);
   return result;
 }
 
-char* struct_con_name(cn_sym x) {
-  const char* base_name = sym_pp_string_no_nums(x);
-  uint64_t num = sym_num(x);
-
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
+char* struct_con_name(const char* name) {
+  // Calculate required buffer size: name + "_struct_con" + null terminator
+  size_t len = strlen(name) + snprintf(NULL, 0, "_struct_con") + 1;
   char* result = malloc(len);
+  assert(result);
 
-  sprintf(result, "%s_%" PRIu64, base_name, num);
+  sprintf(result, "%s_struct_con", name);
   return result;
 }
 
-char* struct_field_name(int x) {
-  const char* base_name = id_get_string(x);
-
-  // Calculate required buffer size: base_name + "_struct_fld" + null terminator
-  size_t len = strlen(base_name) + strlen("_struct_fld") + 1;
+char* struct_field_name(const char* member_name) {
+  // Calculate required buffer size: member_name + "_struct_fld" + null terminator
+  size_t len = strlen(member_name) + strlen("_struct_fld") + 1;
   char* result = malloc(len);
+  assert(result);
 
-  sprintf(result, "%s_struct_fld", base_name);
+  sprintf(result, "%s_struct_fld", member_name);
   return result;
 }
 
@@ -91,6 +90,7 @@ char* datatype_name(cn_sym x) {
   // Calculate required buffer size: base_name + "_" + num + null terminator
   size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
   return result;
@@ -103,6 +103,7 @@ char* datatype_con_name(cn_sym x) {
   // Calculate required buffer size: base_name + "_" + num + null terminator
   size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
   return result;
@@ -114,6 +115,7 @@ char* datatype_field_name(int x) {
   // Calculate required buffer size: base_name + "_data_fld" + null terminator
   size_t len = strlen(base_name) + strlen("_data_fld") + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "%s_data_fld", base_name);
   return result;
@@ -127,6 +129,7 @@ char* fresh_name(const char* x) {
   // Calculate required buffer size: x + "_" + fresh_counter + null terminator
   size_t len = strlen(x) + 1 + snprintf(NULL, 0, "%d", fresh_counter) + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "%s_%d", x, fresh_counter);
   fresh_counter++;
@@ -145,6 +148,7 @@ static char* cn_tuple_name(int arity) {
   // Calculate required buffer size: "cn_tuple_" + arity + null terminator
   size_t len = strlen("cn_tuple_") + snprintf(NULL, 0, "%d", arity) + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "cn_tuple_%d", arity);
   return result;
@@ -157,6 +161,7 @@ static char* cn_tuple_selector(int arity, int field) {
   size_t len = strlen("cn_get_") + snprintf(NULL, 0, "%d", field) + strlen("_of_") +
                snprintf(NULL, 0, "%d", arity) + 1;
   char* result = malloc(len);
+  assert(result);
 
   sprintf(result, "cn_get_%d_of_%d", field, arity);
   return result;
@@ -179,8 +184,10 @@ void cn_tuple_declare(struct cn_smt_solver* solver) {
     // Create type parameter names: a0, a1, a2, ...
     const char** type_params = NULL;
     type_params = malloc(arity * sizeof(char*));
+    assert(type_params);
     for (int i = 0; i < arity; i++) {
       char* param = malloc(10);  // enough for "a" + digit
+      assert(param);
       sprintf(param, "a%d", i);
       type_params[i] = param;
     }
@@ -189,6 +196,7 @@ void cn_tuple_declare(struct cn_smt_solver* solver) {
     con_field_t* fields = NULL;
     if (arity > 0) {
       fields = malloc(arity * sizeof(con_field_t));
+      assert(fields);
       for (int i = 0; i < arity; i++) {
         fields[i].name = cn_tuple_selector(arity, i);
         fields[i].type = sexp_atom(type_params[i]);
@@ -299,6 +307,7 @@ sexp_t* cn_option_is_some(sexp_t* x) {
   // Generate "is-cn_some" predicate name
   size_t len = strlen("is-") + strlen(cn_option_some_name) + 1;
   char* predicate_name = malloc(len);
+  assert(predicate_name);
   sprintf(predicate_name, "is-%s", cn_option_some_name);
 
   sexp_t* args[] = {x};
@@ -435,11 +444,9 @@ sexp_t* translate_base_type(cn_base_type bt) {
     case CN_BASE_STRUCT: {
       // Struct tag -> SMT.atom (CN_Names.struct_name tag)
       // Convert int tag to cn_sym (assuming tag is symbol id)
-      cn_sym tag_sym = {.name = "struct", .id = (uint64_t)bt.data.struct_tag.tag};
-      char* struct_name_str = struct_name(tag_sym);
-      if (!struct_name_str) {
-        return NULL;
-      }
+      char* struct_name_str = cn_smt_struct_name(bt.data.struct_tag.tag);
+      assert(struct_name_str);
+
       sexp_t* result = sexp_atom(struct_name_str);
       free(struct_name_str);
       return result;
@@ -752,7 +759,7 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
 
 // Forward declarations for translate_term helper functions
 sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm);
-static sexp_t* get_num_z(cn_term* term, int64_t* result);
+static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result);
 static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
     cn_term* iterm,
     cn_term* e1,
@@ -777,12 +784,13 @@ const char* mod_name(cn_base_type bt) {
 }
 
 /** Helper to extract integer literal value */
-static sexp_t* get_num_z(cn_term* term, int64_t* result) {
+static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result) {
   if (term && term->type == CN_TERM_CONST && term->data.const_val.type == CN_CONST_Z) {
     *result = term->data.const_val.data.z;
-    return sexp_atom("found");  // Placeholder for Some
+    sexp_t* found = sexp_atom("found");  // Placeholder for Some
+    return bennet_optional_some(sexp_ptr, found);
   }
-  return NULL;  // None
+  return bennet_optional_none(sexp_ptr);  // None
 }
 
 /** Binary uninterpreted function with same type for arguments and result */
@@ -805,7 +813,7 @@ static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
 
 /** Translate a CN term to SMT */
 sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
-  assert(iterm);
+  assert(s && iterm);
 
   // Get location (placeholder - would need actual location from term)
   // cn_location loc = cn_term_get_loc(iterm);
@@ -985,8 +993,12 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     case CN_TERM_BINOP: {
       cn_term* e1 = iterm->data.binop.left;
       cn_term* e2 = iterm->data.binop.right;
+
       sexp_t* s1 = translate_term(s, e1);
+      assert(s1);
+
       sexp_t* s2 = translate_term(s, e2);
+      assert(s2);
 
       switch (iterm->data.binop.op) {
         case CN_BINOP_AND:
@@ -1064,7 +1076,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         case CN_BINOP_EXP: {
           // Check if both operands are numeric literals
           int64_t z1, z2;
-          if (get_num_z(e1, &z1) && get_num_z(e2, &z2) && z2 <= INT_MAX && z2 >= 0) {
+          bennet_optional(sexp_ptr) opt1 = get_num_z(e1, &z1);
+          bennet_optional(sexp_ptr) opt2 = get_num_z(e2, &z2);
+          if (bennet_optional_is_some(opt1) && bennet_optional_is_some(opt2) &&
+              z2 <= INT_MAX && z2 >= 0) {
             // Compute z1^z2
             int64_t result = 1;
             for (int i = 0; i < z2; i++) {
@@ -1321,8 +1336,178 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // - Option types
       // And many more cases from the original OCaml code
 
+    case CN_TERM_EACHI: {
+      // Universal quantification - for now, return a default boolean
+      // TODO: Implement proper quantification
+      return bool_k(true);
+    }
+
+    case CN_TERM_STRUCT: {
+      // Struct construction - create constructor function call
+      const char* tag = iterm->data.struct_val.tag;
+
+      // Create constructor name using struct_con_name
+      char* con_name = struct_con_name(tag);
+
+      // Get member count from vector
+      bennet_vector(cn_member_pair)* members = &iterm->data.struct_val.members;
+      size_t arg_count = bennet_vector_size(cn_member_pair)(members);
+
+      // Allocate array for translated member arguments
+      sexp_t** args = NULL;
+      if (arg_count > 0) {
+        args = malloc(sizeof(sexp_t*) * arg_count);
+
+        // Translate each member term
+        for (size_t i = 0; i < arg_count; i++) {
+          cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+          cn_term* member_term = pair->value;
+          args[i] = translate_term(s, member_term);
+        }
+      }
+
+      // Create function application
+      sexp_t* fn_atom = sexp_atom(con_name);
+      sexp_t* result = sexp_app(fn_atom, args, arg_count);
+
+      // Cleanup
+      free(con_name);
+      sexp_free(fn_atom);
+      if (args) {
+        free(args);
+      }
+
+      return result;
+    }
+
+    case CN_TERM_STRUCT_MEMBER: {
+      // Struct member access
+      sexp_t* struct_smt = translate_term(s, iterm->data.struct_member.struct_term);
+      const char* member = iterm->data.struct_member.member_name;
+
+      char* fn_name = struct_field_name(member);
+
+      sexp_t* fn_atom = sexp_atom(fn_name);
+      sexp_t* args[] = {struct_smt};
+      sexp_t* result = sexp_app(fn_atom, args, 1);
+
+      free(fn_name);
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_STRUCT_UPDATE: {
+      // Struct update - create uninterpreted function call
+      sexp_t* struct_smt = translate_term(s, iterm->data.struct_update.struct_term);
+      sexp_t* value_smt = translate_term(s, iterm->data.struct_update.new_value);
+      const char* member = iterm->data.struct_update.member_name;
+
+      char* fn_name = malloc(strlen(member) + 20);
+      assert(fn_name);
+      sprintf(fn_name, "set_%s", member);
+
+      sexp_t* fn_atom = sexp_atom(fn_name);
+      sexp_t* args[] = {struct_smt, value_smt};
+      sexp_t* result = sexp_app(fn_atom, args, 2);
+
+      free(fn_name);
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_RECORD: {
+      // Record construction - create uninterpreted function
+      sexp_t* fn_atom = sexp_atom("record");
+      sexp_t* result = sexp_app(fn_atom, NULL, 0);
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_RECORD_MEMBER: {
+      // Record member access
+      sexp_t* record_smt = translate_term(s, iterm->data.record_member.record_term);
+      const char* member = iterm->data.record_member.member_name;
+
+      char* fn_name = malloc(strlen(member) + 20);
+      assert(fn_name);
+      sprintf(fn_name, "get_%s", member);
+
+      sexp_t* fn_atom = sexp_atom(fn_name);
+      sexp_t* args[] = {record_smt};
+      sexp_t* result = sexp_app(fn_atom, args, 1);
+
+      free(fn_name);
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_CONSTRUCTOR: {
+      // Constructor call - create uninterpreted function
+      const char* ctor = iterm->data.constructor.constructor_name;
+      sexp_t* fn_atom = sexp_atom(ctor);
+      sexp_t* result = sexp_app(fn_atom, NULL, 0);  // No args for now
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_WRAPI: {
+      // Integer wrapping - just translate the value for now
+      return translate_term(s, iterm->data.wrapi.value);
+    }
+
+    case CN_TERM_MAP_SET: {
+      // Map set operation - create uninterpreted function
+      sexp_t* map_smt = translate_term(s, iterm->data.map_set.map);
+      sexp_t* key_smt = translate_term(s, iterm->data.map_set.key);
+      sexp_t* value_smt = translate_term(s, iterm->data.map_set.value);
+
+      sexp_t* fn_atom = sexp_atom("map_set");
+      sexp_t* args[] = {map_smt, key_smt, value_smt};
+      sexp_t* result = sexp_app(fn_atom, args, 3);
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_MAP_GET: {
+      // Map get operation - create uninterpreted function
+      sexp_t* map_smt = translate_term(s, iterm->data.map_get.map);
+      sexp_t* key_smt = translate_term(s, iterm->data.map_get.key);
+
+      sexp_t* fn_atom = sexp_atom("map_get");
+      sexp_t* args[] = {map_smt, key_smt};
+      sexp_t* result = sexp_app(fn_atom, args, 2);
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_APPLY: {
+      // Function application - simplified for now
+      const char* fn_name = iterm->data.apply.function_name;
+      sexp_t* fn_atom = sexp_atom(fn_name);
+
+      // For now, create application with no args
+      // TODO: Implement proper argument handling when vector API is available
+      sexp_t* result = sexp_app(fn_atom, NULL, 0);
+
+      sexp_free(fn_atom);
+      return result;
+    }
+
+    case CN_TERM_LET: {
+      // Let binding - for now just translate the body (ignoring binding)
+      // TODO: Implement proper let binding with substitution
+      return translate_term(s, iterm->data.let.body);
+    }
+
+    case CN_TERM_MATCH: {
+      // Pattern matching - not implemented, return default
+      return bool_k(true);
+    }
+
     default:
       // Return a default/error case
+      fprintf(stderr, "ERROR: Unhandled term type %d in translate_term\n", iterm->type);
+      assert(false);
       return NULL;
   }
 }
