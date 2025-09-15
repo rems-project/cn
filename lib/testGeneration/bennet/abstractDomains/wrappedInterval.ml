@@ -28,7 +28,25 @@ module WrappedIntervalBasis = struct
     | _ -> failwith ("invalid type: " ^ Pp.plain (BT.pp bt) ^ " @ " ^ __LOC__)
 
 
-  let get_extrema bt = BT.bits_range (Option.get (BT.is_bits_bt (get_bits_bt bt)))
+  let get_extrema bt =
+    let bt =
+      match bt with
+      | BT.Bits _ -> bt
+      | Loc () -> Memory.uintptr_bt
+      | _ -> failwith ("invalid type: " ^ Pp.plain (BT.pp bt) ^ " @ " ^ __LOC__)
+    in
+    BT.bits_range (Option.get (BT.is_bits_bt bt))
+
+
+  let normalize bt =
+    let bt =
+      match bt with
+      | BT.Bits _ -> bt
+      | Loc () -> Memory.uintptr_bt
+      | _ -> failwith ("invalid type: " ^ Pp.plain (BT.pp bt) ^ " @ " ^ __LOC__)
+    in
+    BT.normalise_to_range_bt bt
+
 
   let get_width bt =
     let bt = match bt with BT.Loc () -> Memory.uintptr_bt | _ -> bt in
@@ -63,7 +81,7 @@ module WrappedIntervalBasis = struct
 
   (* Wrapped membership test: e ∈ [x,y] iff e - x ≤ y - x (modular arithmetic) *)
   let wrapped_member e start stop bt =
-    let normalize = BT.normalise_to_range_bt bt in
+    let normalize = normalize bt in
     let e_norm = normalize e in
     let start_norm = normalize start in
     let stop_norm = normalize stop in
@@ -83,7 +101,7 @@ module WrappedIntervalBasis = struct
     else (
       let min, max = get_extrema bt in
       (Z.equal start min && Z.equal stop max)
-      || Z.equal (BT.normalise_to_range_bt bt (Z.sub start stop)) Z.one)
+      || Z.equal (normalize bt (Z.sub start stop)) Z.one)
 
 
   let equal b1 b2 =
@@ -114,7 +132,10 @@ module WrappedIntervalBasis = struct
 
 
   let of_interval bt start stop =
-    let normalize = BT.normalise_to_range_bt bt in
+    let normalize =
+      let bt = match bt with BT.Loc () -> Memory.uintptr_bt | _ -> bt in
+      normalize bt
+    in
     { bt; is_bottom = false; start = normalize start; stop = normalize stop }
 
 
@@ -216,8 +237,8 @@ module WrappedIntervalBasis = struct
     else if is_top s then
       bottom s.bt
     else (
-      let start = BT.normalise_to_range_bt s.bt (Z.add s.stop Z.one) in
-      let stop = BT.normalise_to_range_bt s.bt (Z.sub s.start Z.one) in
+      let start = normalize s.bt (Z.add s.stop Z.one) in
+      let stop = normalize s.bt (Z.sub s.start Z.one) in
       make_interval s.bt start stop)
 
 
@@ -289,8 +310,8 @@ module WrappedIntervalBasis = struct
     then
       bottom r1.bt
     else (
-      let gap_start = BT.normalise_to_range_bt r1.bt (Z.add r1.stop Z.one) in
-      let gap_stop = BT.normalise_to_range_bt r1.bt (Z.sub r2.start Z.one) in
+      let gap_start = normalize r1.bt (Z.add r1.stop Z.one) in
+      let gap_stop = normalize r1.bt (Z.sub r2.start Z.one) in
       (* Check if intervals are adjacent (no gap) *)
       if Z.equal gap_start r2.start then
         bottom r1.bt
@@ -538,7 +559,7 @@ module WrappedIntervalBasis = struct
       in
       if is_dividend_pos && is_divisor_pos then (
         (* Both positive: [0, divisor_max-1] *)
-        let ub = BT.normalise_to_range_bt bt (Z.sub divisor.stop Z.one) in
+        let ub = normalize bt (Z.sub divisor.stop Z.one) in
         { bt; is_bottom = false; start = Z.zero; stop = ub })
       else if is_dividend_pos && is_divisor_neg then (
         (* Dividend positive, divisor negative: [0, -divisor_min-1] *)
@@ -550,15 +571,15 @@ module WrappedIntervalBasis = struct
           else
             divisor.start
         in
-        let ub = BT.normalise_to_range_bt bt (Z.sub (Z.neg divisor_start_signed) Z.one) in
+        let ub = normalize bt (Z.sub (Z.neg divisor_start_signed) Z.one) in
         { bt; is_bottom = false; start = Z.zero; stop = ub })
       else if is_dividend_neg && is_divisor_pos then (
         (* Dividend negative, divisor positive: [-divisor_max+1, 0] *)
-        let lb = BT.normalise_to_range_bt bt (Z.add (Z.neg divisor.stop) Z.one) in
+        let lb = normalize bt (Z.add (Z.neg divisor.stop) Z.one) in
         { bt; is_bottom = false; start = lb; stop = Z.zero })
       else if is_dividend_neg && is_divisor_neg then (
         (* Both negative: [divisor_min+1, 0] *)
-        let lb = BT.normalise_to_range_bt bt (Z.add divisor.start Z.one) in
+        let lb = normalize bt (Z.add divisor.start Z.one) in
         { bt; is_bottom = false; start = lb; stop = Z.zero })
       else (
         (* Mixed signs or complex cases - fall back to conservative bounds *)
@@ -580,8 +601,8 @@ module WrappedIntervalBasis = struct
                    else
                      Z.zero)))
         in
-        let lb = BT.normalise_to_range_bt bt (Z.sub Z.one max_abs_divisor) in
-        let ub = BT.normalise_to_range_bt bt (Z.sub max_abs_divisor Z.one) in
+        let lb = normalize bt (Z.sub Z.one max_abs_divisor) in
+        let ub = normalize bt (Z.sub max_abs_divisor Z.one) in
         { bt; is_bottom = false; start = lb; stop = ub }))
     else (
       (* Unsigned case: south pole cut and compute for each element *)
@@ -886,19 +907,13 @@ module WrappedIntervalBasis = struct
             let truncated = truncate_to_bits bt operand num_bits_survive_shift in
             if not (is_top truncated) then (
               (* Truncation succeeded - safe to perform precise shift *)
-              let shifted_start =
-                BT.normalise_to_range_bt bt (Z.shift_left operand.start k_int)
-              in
-              let shifted_stop =
-                BT.normalise_to_range_bt bt (Z.shift_left operand.stop k_int)
-              in
+              let shifted_start = normalize bt (Z.shift_left operand.start k_int) in
+              let shifted_stop = normalize bt (Z.shift_left operand.stop k_int) in
               { bt; is_bottom = false; start = shifted_start; stop = shifted_stop })
             else (
               (* Truncation failed - return conservative bounds *)
               let max_val = Z.sub (Z.shift_left Z.one num_bits_survive_shift) Z.one in
-              let upper_bound =
-                BT.normalise_to_range_bt bt (Z.shift_left max_val k_int)
-              in
+              let upper_bound = normalize bt (Z.shift_left max_val k_int) in
               { bt; is_bottom = false; start = Z.zero; stop = upper_bound }))
         | IT.ShiftRight ->
           (* Right shift algorithm - determine if logical or arithmetic based on type *)
@@ -916,7 +931,7 @@ module WrappedIntervalBasis = struct
               let leading_ones_mask =
                 Z.shift_left (Z.sub (Z.shift_left Z.one k_int) Z.one) remaining_bits
               in
-              let lb = BT.normalise_to_range_bt bt leading_ones_mask in
+              let lb = normalize bt leading_ones_mask in
               (* Upper bound: 0..01..1 where #0's = k and #1's = b-k *)
               let ub =
                 if remaining_bits > 0 then
