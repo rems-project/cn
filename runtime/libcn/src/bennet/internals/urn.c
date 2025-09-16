@@ -175,6 +175,8 @@ struct uninsert_res uninsert_urn(struct bennet_int_urn* urn) {
 uint64_t remove_urn_det(struct bennet_int_urn* urn, uint64_t index) {
   struct uninsert_res res = uninsert_urn(urn);
 
+  urn->tree = res.tree;
+
   if (res.tree == NULL) {
     return res.value;
   }
@@ -208,6 +210,6 @@ void tree_free(struct bennet_int_tree* tree) {
 }
 
 void urn_free(struct bennet_int_urn* urn) {
-  free(urn->tree);
+  tree_free(urn->tree);
   free(urn);
 }
