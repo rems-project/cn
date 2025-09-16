@@ -371,24 +371,11 @@ cn_term* cn_smt_struct(const char* tag,
   return term;
 }
 
-cn_term* cn_smt_struct_member(cn_term* struct_term, const char* member_name) {
+cn_term* cn_smt_struct_member(
+    cn_term* struct_term, const char* member_name, cn_base_type member_type) {
   assert(struct_term && member_name);
 
-  assert(struct_term->type == CN_TERM_STRUCT);
-
-  // Search for member in vector
-  cn_term* member_term = NULL;
-  bennet_vector(cn_member_pair)* members = &struct_term->data.struct_val.members;
-  for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(members); i++) {
-    cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
-    if (strcmp(pair->name, member_name) == 0) {
-      member_term = pair->value;
-      break;
-    }
-  }
-  assert(member_term);
-
-  cn_base_type member_type = member_term->base_type;
+  assert(struct_term->base_type.tag == CN_BASE_STRUCT);
 
   cn_term* term = cn_term_alloc(CN_TERM_STRUCT_MEMBER, member_type);
   assert(term);

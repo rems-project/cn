@@ -61,7 +61,7 @@ module Make (AD : Domain.T) = struct
     in
     let check_sat =
       !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
-      ^^^ braces !^"return NULL;"
+      ^^^ braces !^"stop_solver(smt_solver); return NULL;"
       ^/^ !^"result = cn_smt_gather_model(smt_solver);"
     in
     (* Initialize concretization context *)
@@ -100,7 +100,7 @@ module Make (AD : Domain.T) = struct
            ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ conc_args)
            ^^ !^";")
       ^/^ !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
-      ^^^ braces !^"return NULL;"
+      ^^^ braces !^"stop_solver(smt_solver); return NULL;"
     in
     (* Generate struct building and return - create default values for all fields *)
     let struct_fields =
@@ -140,7 +140,8 @@ module Make (AD : Domain.T) = struct
     ^/^ (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
     ^^^ !^"if (result != CN_SOLVER_SAT)"
     ^^^ braces
-          (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);" ^/^ !^"return NULL;")
+          (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
+           ^/^ !^"stop_solver(smt_solver); return NULL;")
     ^/^ conc_context_init
     ^/^ concrete_vars
     ^/^ concretize_model

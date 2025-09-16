@@ -80,7 +80,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate CN-SMT term creation code for IndexTerms.t *)
   let rec convert_indexterm (it : IT.t) : Pp.document =
-    let (IT (term, _bt, _)) = it in
+    let (IT (term, bt, _)) = it in
     match term with
     | Const c -> convert_const c
     | Sym sym -> Sym.pp sym
@@ -92,7 +92,7 @@ module Make (AD : Domain.T) = struct
     | Tuple terms -> convert_tuple terms
     | NthTuple (n, tuple_term) -> convert_nthtuple n tuple_term
     | Struct (tag, members) -> convert_struct tag members
-    | StructMember (struct_term, member) -> convert_structmember struct_term member
+    | StructMember (struct_term, member) -> convert_structmember struct_term member bt
     | StructUpdate ((struct_term, member), value) ->
       convert_structupdate struct_term member value
     | Record members -> convert_record members
@@ -270,10 +270,12 @@ module Make (AD : Domain.T) = struct
             ^^^ values_array))
 
 
-  and convert_structmember (struct_term : IT.t) (member : Id.t) : Pp.document =
+  and convert_structmember (struct_term : IT.t) (member : Id.t) (bt : BT.t) : Pp.document =
     let open Pp in
     let struct_smt = convert_indexterm struct_term in
-    !^"cn_smt_struct_member" ^^ parens (struct_smt ^^ comma ^^^ dquotes (Id.pp member))
+    !^"cn_smt_struct_member"
+    ^^ parens
+         (struct_smt ^^ comma ^^^ dquotes (Id.pp member) ^^ comma ^^^ convert_basetype bt)
 
 
   and convert_structupdate (struct_term : IT.t) (member : Id.t) (value : IT.t)
