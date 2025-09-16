@@ -379,6 +379,9 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
+  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
+  let cn_ghost_enum = generate_ghost_enum prog5 in
+  let cn_ghost_call_site_glob = generate_ghost_call_site_glob () in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -416,8 +419,10 @@ let main
           c_function_decls;
           "\n";
           c_predicate_decls;
-          c_lemma_decls
-        ]
+          c_lemma_decls;
+          cn_ghost_enum
+        ];
+        cn_ghost_call_site_glob
       ]
   in
   (* Definitions for CN helper functions *)
@@ -453,8 +458,13 @@ let main
       (fun (i, loc) -> (loc, [ "struct " ^ Pp.plain (CF.Pp_ail.pp_id i) ]))
       struct_locs
   in
+  let give_precedence_map n = List.map (fun x -> (n, x)) in
   let in_stmt_injs =
-    executable_spec.in_stmt @ accesses_stmt_injs @ toplevel_injections @ struct_injs
+    give_precedence_map 0 executable_spec.in_stmt
+    @ give_precedence_map 1 accesses_stmt_injs
+    @ give_precedence_map 0 toplevel_injections
+    @ give_precedence_map 0 struct_injs
+    @ give_precedence_map 0 fn_call_ghost_args_injs
   in
   let pre_post_pairs =
     if with_testing || without_ownership_checking then

@@ -99,7 +99,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "offsetof_int_const.c" \
     ! -name "issue_113.c" \
     ! -name "alloc_create.c" \
-    ! -name "ghost_arguments.c" \
     ! -name "to_from_bytes_block.c" \
 )
 
@@ -163,7 +162,6 @@ BUGGY="\
        cn/offsetof_int_const.c \
        cn/accesses_on_spec/clientfile.c \
        cn/alloc_create.c \
-       cn/ghost_arguments.c \
        cn/to_from_bytes_block.c \
        "
 

@@ -36,6 +36,10 @@ val generate_c_datatypes
   :  GenTypes.genTypeCategory AilSyntax.sigma ->
   (Cerb_location.t * string) list
 
+val generate_ghost_enum : _ Mucore.file -> string
+
+val generate_ghost_call_site_glob : unit -> string list
+
 val generate_c_struct_strs
   :  (AilSyntax.ail_identifier
      * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
@@ -81,3 +85,9 @@ val generate_ownership_global_assignments
   :  GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (Sym.t * (string list * string list)) list
+
+val generate_fn_call_ghost_args_injs
+  :  string ->
+  GenTypes.genTypeCategory AilSyntax.sigma ->
+  unit Mucore.file ->
+  (Cerb_location.t * string list) list

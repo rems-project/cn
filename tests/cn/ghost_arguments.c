@@ -15,5 +15,7 @@ int main()
   int x = 3;
   int v = 1;
   int* p = &v;
-  return foo(6 /*@ 2i32, x + *p - *p, *p @*/);
+  int y = foo(6 /*@ 2i32, x + *p - *p, *p @*/);
+  /*@  assert(6i32 == y); @*/
+  return 0;
 }

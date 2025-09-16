@@ -218,12 +218,12 @@ val cn_to_ail_lemmas
 val cn_to_ail_pre_post
   :  without_ownership_checking:bool ->
   with_loop_leak_checks:bool ->
-  is_lemma:bool ->
   string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
   Ctype.ctype ->
+  int option ->
   Extract.fn_args_and_body option ->
   ail_executable_spec
 
@@ -249,3 +249,19 @@ val cn_to_ail_assume_pre
   'a LogicalArgumentTypes.t ->
   AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
+
+val gen_ghost_call_site_global_decl
+  : AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
+
+val cn_to_ail_ghost_enum
+  :  unit BaseTypes.t_gen list list ->
+  IndexTerms.t Cnprog.t list list ->
+  AilSyntax.sigma_tag_definition
+
+val cn_to_ail_cnprog_ghost_args
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Ctype.ctype) list ->
+  spec_mode option ->
+  IndexTerms.t Cnprog.t list ->
+  AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list

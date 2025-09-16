@@ -234,3 +234,19 @@ let static_prefix filename =
      |> String.to_seq
      |> Seq.filter (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false)
      |> String.of_seq)
+
+
+let rec remove_last_semicolon =
+  let rec remove_last = function
+    | [] -> []
+    | [ _ ] -> []
+    | x :: xs -> x :: remove_last xs
+  in
+  function
+  | [] -> []
+  | [ x ] ->
+    let split_x = String.split_on_char ';' x in
+    let without_whitespace_x = remove_last split_x in
+    let res = String.concat ";" without_whitespace_x in
+    [ res ]
+  | x :: xs -> x :: remove_last_semicolon xs
