@@ -66,7 +66,8 @@ type t =
     output_tyche : string option;
     print_size_info : bool;
     print_backtrack_info : bool;
-    print_satisfaction_info : bool
+    print_satisfaction_info : bool;
+    print_discard_info : bool
   }
 
 let default =
@@ -108,7 +109,8 @@ let default =
     output_tyche = Option.None;
     print_size_info = false;
     print_backtrack_info = false;
-    print_satisfaction_info = false
+    print_satisfaction_info = false;
+    print_discard_info = false
   }
 
 
@@ -251,6 +253,8 @@ let will_print_size_info () = (Option.get !instance).print_size_info
 let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
 
 let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info
+
+let will_print_discard_info () = (Option.get !instance).print_discard_info
 
 let is_symbolic_enabled () = (Option.get !instance).symbolic
 

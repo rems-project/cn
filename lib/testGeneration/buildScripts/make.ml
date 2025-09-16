@@ -102,9 +102,13 @@ let define_test_flags () =
          [ "--print-backtrack-info" ]
        else
          [])
+    @ (if Config.will_print_satisfaction_info () then
+         [ "--print-satisfaction-info" ]
+       else
+         [])
     @
-    if Config.will_print_satisfaction_info () then
-      [ "--print-satisfaction-info" ]
+    if Config.will_print_discard_info () then
+      [ "--print-discard-info" ]
     else
       []
   in

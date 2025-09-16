@@ -66,7 +66,8 @@ type t =
     output_tyche : string option;
     print_size_info : bool;
     print_backtrack_info : bool;
-    print_satisfaction_info : bool
+    print_satisfaction_info : bool;
+    print_discard_info : bool
   }
 
 val default : t
@@ -164,6 +165,8 @@ val will_print_size_info : unit -> bool
 val will_print_backtrack_info : unit -> bool
 
 val will_print_satisfaction_info : unit -> bool
+
+val will_print_discard_info : unit -> bool
 
 val is_symbolic_enabled : unit -> bool
 

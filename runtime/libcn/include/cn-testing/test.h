@@ -137,6 +137,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         d++;                                                                             \
         recentDiscards++;                                                                \
                                                                                          \
+        /* TODO: Add to discard data colleciton */                                       \
+                                                                                         \
         bennet_info_backtracks_end_run(true);                                            \
         bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
@@ -186,11 +188,11 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
         gettimeofday(&end_time, NULL);                                                   \
                                                                                          \
-        gettimeofday(&end_time, NULL);                                                   \
-                                                                                         \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
+                                                                                         \
+        bennet_info_discards_log(bennet_failure_get_failure_type());                     \
                                                                                          \
         bennet_info_backtracks_end_run(true);                                            \
         bennet_info_unsatisfied_end_run(true);                                           \

@@ -48,6 +48,7 @@
     bennet/assign.o
     bennet/backtrack.o
     bennet/backtracks.o
+    bennet/discards.o
     bennet/failure.o
     bennet/ownership.o
     bennet/prelude.o

@@ -65,6 +65,7 @@ let run_tests
       print_size_info
       print_backtrack_info
       print_satisfaction_info
+      print_discard_info
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -140,7 +141,8 @@ let run_tests
           output_tyche;
           print_size_info;
           print_backtrack_info;
-          print_satisfaction_info
+          print_satisfaction_info;
+          print_discard_info
         }
       in
       TestGeneration.set_config config;
@@ -521,6 +523,11 @@ module Flags = struct
     Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
 
 
+  let print_discard_info =
+    let doc = "(Experimental) Print discard info" in
+    Arg.(value & flag & info [ "print-discard-info" ] ~doc)
+
+
   let symbolic =
     let doc =
       "(Experimental) Use symbolic execution for test generation instead of concrete \
@@ -601,6 +608,7 @@ let cmd =
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
+    $ Flags.print_discard_info
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

@@ -3,6 +3,7 @@
 
 #include <bennet/dsl.h>
 #include <bennet/info/backtracks.h>
+#include <bennet/info/discards.h>
 #include <bennet/info/sizes.h>
 #include <bennet/info/tyche.h>
 #include <bennet/info/unsatisfied.h>
