@@ -41,9 +41,12 @@ void* cn_smt_concretize_lookup_symbolic_var(
     if (!convert_from_cn_bool(cn_eval_term(cond))) {                                     \
       cn_smt_gather_add_logical_term(cond);                                              \
                                                                                          \
+      bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
       return NULL;                                                                       \
     }                                                                                    \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   } while (0);
 
 #define CN_SMT_CONCRETIZE_ASSIGN(ty, convert_from, pointer_term, value_term)             \

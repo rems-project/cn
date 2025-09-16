@@ -71,7 +71,7 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 
 # Set ALT_CONFIGS based on symbolic option
 if [ "$SYMBOLIC" = true ]; then
-  ALT_CONFIGS=("--symbolic --coverage")
+  ALT_CONFIGS=("--symbolic --coverage --print-backtrack-info --print-satisfaction-info")
 else
   ALT_CONFIGS=(
     "--coverage --sizing-strategy=quickcheck"
