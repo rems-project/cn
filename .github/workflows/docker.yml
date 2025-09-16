@@ -107,4 +107,4 @@ jobs:
     - name: Run CI tests
       run: |
         docker pull ${{env.CN_IMAGE_ID}}:release-${{ matrix.os }}
-        docker run -v $PWD:/work -w /work ${{env.CN_IMAGE_ID}}:release-${{ matrix.os }} bash tests/run-cn.sh
+        docker run -v $PWD:/work -w /work ${{env.CN_IMAGE_ID}}:release-${{ matrix.os }} tests/diff-prog.py cn tests/cn/verify.json
