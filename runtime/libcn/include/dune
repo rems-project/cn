@@ -27,6 +27,7 @@
   (bennet/dsl/backtrack.h as runtime/include/bennet/dsl/backtrack.h)
   (bennet/dsl.h as runtime/include/bennet/dsl.h)
   (bennet/info/backtracks.h as runtime/include/bennet/info/backtracks.h)
+  (bennet/info/discards.h as runtime/include/bennet/info/discards.h)
   (bennet/info/unsatisfied.h as runtime/include/bennet/info/unsatisfied.h)
   (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
   (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
