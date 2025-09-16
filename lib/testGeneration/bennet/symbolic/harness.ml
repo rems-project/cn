@@ -5,12 +5,12 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage2 = Stage2.Make (AD)
+  module Stage3 = Stage3.Make (AD)
   module Smt = Smt.Make (AD)
   module Gather = Gather.Make (AD)
   module Concretize = Concretize.Make (AD)
-  module Ctx = Stage2.Ctx
-  module Def = Stage2.Def
+  module Ctx = Stage3.Ctx
+  module Def = Stage3.Def
 
   (** Convert spec generator to bennet_<generator name> function with symbolic variables *)
   let transform_def (def : Def.t) : Pp.document =
