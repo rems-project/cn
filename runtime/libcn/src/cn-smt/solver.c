@@ -1,6 +1,7 @@
 #include <sys/wait.h>
 
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,8 +32,15 @@ char *read_output(struct cn_smt_solver *solver) {
 
   size_t total_len = 0;
   int c;
+  int paren_balance = 0;
+  bool has_parens = false;
 
   while ((c = fgetc(solver->read_output)) != EOF) {
+    // Skip leading newlines/whitespace before any content
+    if (total_len == 0 && (c == '\n' || c == '\r' || c == ' ' || c == '\t')) {
+      continue;
+    }
+
     if (total_len + 1 >= buffer_size) {
       buffer_size *= 2;
       char *new_buffer = realloc(buffer, buffer_size);
@@ -42,7 +50,20 @@ char *read_output(struct cn_smt_solver *solver) {
 
     buffer[total_len++] = c;
 
-    if (c == '\n') {
+    if (c == '(') {
+      paren_balance++;
+      has_parens = true;
+    } else if (c == ')') {
+      paren_balance--;
+    }
+
+    // Stop conditions:
+    // 1. Newline and no parentheses seen (simple response like "success")
+    // 2. All parentheses balanced and we've seen at least one
+    if (c == '\n' && !has_parens) {
+      break;
+    }
+    if (has_parens && paren_balance == 0) {
       break;
     }
   }

@@ -205,7 +205,7 @@ static inline cn_base_type cn_base_type_tuple(cn_base_type* types, size_t count)
 static inline cn_base_type cn_base_type_struct(const char* struct_tag) {
   cn_base_type bt;
   bt.tag = CN_BASE_STRUCT;
-  bt.data.struct_tag.tag = struct_tag;
+  bt.data.struct_tag.tag = strdup(struct_tag);
   return bt;
 }
 

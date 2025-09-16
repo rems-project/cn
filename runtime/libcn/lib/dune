@@ -134,4 +134,5 @@
     cn-smt/terms.o
     cn-smt/sexp.o
     cn-smt/solver.o
+    cn-smt/structs.o
     cn-smt/to_smt.o))))

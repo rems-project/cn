@@ -1,5 +1,6 @@
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
+  module Eval = Eval.Make (AD)
 
   let generate_smt_setup (prog5 : unit Mucore.file) : Pp.document =
     let open Pp in
@@ -16,7 +17,7 @@ module Make (AD : Domain.T) = struct
     let struct_decl_data =
       List.map
         (fun (tag, pieces) ->
-           let tag_name = Sym.pp_string tag in
+           let tag_name = Sym.pp_string_no_nums tag in
            let members =
              pieces
              |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
@@ -44,11 +45,15 @@ module Make (AD : Domain.T) = struct
              ^^ !^tag_name
              ^^ !^"_decl;"
              ^^ hardline
+             ^^ !^"  bennet_vector(struct_member_t) "
+             ^^ !^tag_name
+             ^^ !^"_members_vector;"
+             ^^ hardline
              ^^ (List.fold_left
                    (fun (member_acc, idx) (member_id, member_sct) ->
                       let member_name = Id.get_string member_id in
                       ( member_acc
-                        ^^ !^"    "
+                        ^^ !^"  "
                         ^^ !^tag_name
                         ^^ !^"_members["
                         ^^ int idx
@@ -56,13 +61,32 @@ module Make (AD : Domain.T) = struct
                         ^^ !^member_name
                         ^^ !^"\";"
                         ^^ hardline
-                        ^^ !^"    "
+                        ^^ !^"  "
                         ^^ !^tag_name
                         ^^ !^"_members["
                         ^^ int idx
                         ^^ !^"].base_type = "
                         ^^ Smt.convert_basetype (Memory.bt_of_sct member_sct)
                         ^^ !^";"
+                        ^^ hardline,
+                        idx + 1 ))
+                   (!^"", 0)
+                   members
+                 |> fst)
+             ^^ !^"  bennet_vector_init(struct_member_t)(&"
+             ^^ !^tag_name
+             ^^ !^"_members_vector);"
+             ^^ hardline
+             ^^ (List.fold_left
+                   (fun (push_acc, idx) (_member_id, _member_sct) ->
+                      ( push_acc
+                        ^^ !^"  bennet_vector_push(struct_member_t)(&"
+                        ^^ !^tag_name
+                        ^^ !^"_members_vector, "
+                        ^^ !^tag_name
+                        ^^ !^"_members["
+                        ^^ int idx
+                        ^^ !^"]);"
                         ^^ hardline,
                         idx + 1 ))
                    (!^"", 0)
@@ -129,14 +153,13 @@ module Make (AD : Domain.T) = struct
             struct_names_array ^^ struct_decls_array ^^ cn_structs_declare_call)
           else
             !^"")
-      ^^ hardline
       ^^ List.fold_left
            (fun acc tag ->
               let tag_name = Sym.pp_string_no_nums tag in
               acc
-              ^^ !^"  cn_struct_handler "
+              ^^ !^"  cn_struct_data "
               ^^ !^tag_name
-              ^^ !^"_handler = {"
+              ^^ !^"_data = {"
               ^^ hardline
               ^^ !^"    .create_struct = create_struct_"
               ^^ !^tag_name
@@ -148,14 +171,23 @@ module Make (AD : Domain.T) = struct
               ^^ hardline
               ^^ !^"    .update_member = update_member_"
               ^^ !^tag_name
+              ^^ !^","
+              ^^ hardline
+              ^^ !^"    .default_struct = default_struct_"
+              ^^ !^tag_name
+              ^^ !^"_cn_smt,"
+              ^^ hardline
+              ^^ !^"    .members = "
+              ^^ !^tag_name
+              ^^ !^"_members_vector"
               ^^ hardline
               ^^ !^"  };"
               ^^ hardline
-              ^^ !^"  cn_register_struct_handler(\""
+              ^^ !^"  cn_register_struct(\""
               ^^ !^tag_name
-              ^^ !^"\", "
+              ^^ !^"\", &"
               ^^ !^tag_name
-              ^^ !^"_handler);"
+              ^^ !^"_data);"
               ^^ hardline
               ^^ hardline)
            !^""
