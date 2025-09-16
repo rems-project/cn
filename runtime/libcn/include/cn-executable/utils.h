@@ -6,6 +6,7 @@
 #include "fulminate_alloc.h"
 #include "hash_table.h"
 #include "rts_deps.h"
+#include "stack.h"
 
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
@@ -74,12 +75,6 @@ void initialise_error_msg_info_(
 
 void reset_error_msg_info();
 void free_error_msg_info();
-
-/* TODO: Implement */
-/*struct cn_error_messages {
-    struct cn_error_message_info *top_level_error_msg_info;
-    struct cn_error_message_info *nested_error_msg_info;
-};*/
 
 void update_error_message_info_(
     const char *function_name, char *file_name, int line_number, char *cn_source_loc);
@@ -545,8 +540,35 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-int ownership_ghost_state_get(int64_t address);
-void ownership_ghost_state_set(int64_t address, size_t size, int stack_depth_val);
+// typedef struct cn_source_location_node {
+//     char *cn_source_location;
+//     cn_source_location_node *next;
+// } cn_source_location_node;
+
+// typedef struct cn_source_location_stack {
+//     struct cn_source_location_node *top;
+//     int size;
+// } cn_source_location_stack;
+
+GEN_ALL_STACK(cn_source_location, char *);
+
+typedef struct ownership_ghost_state_info {
+  int depth;
+  cn_source_location_stack *source_loc_stack;
+} ownership_ghost_state_info;
+
+enum STACK_OP {
+  PUSH,
+  POP,
+  NO_OP
+};
+
+int ownership_ghost_state_get_depth(int64_t address);
+void ownership_ghost_state_set(int64_t address,
+    size_t size,
+    int stack_depth_val,
+    struct cn_error_message_info *error_msg_info,
+    enum STACK_OP op);
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
