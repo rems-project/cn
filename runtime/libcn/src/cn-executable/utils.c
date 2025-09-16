@@ -132,11 +132,13 @@ void print_error_msg_info(struct cn_error_message_info* info) {
 void print_owned_calls_stack(ownership_ghost_state_info* entry_maybe) {
   if (entry_maybe && entry_maybe->source_loc_stack) {
     cn_printf(CN_LOGGING_ERROR, "Owned locations stack:\n");
-    char* popped_elem = cn_source_location_stack_pop(entry_maybe->source_loc_stack, &fulm_default_alloc);
+    char* popped_elem =
+        cn_source_location_stack_pop(entry_maybe->source_loc_stack, &fulm_default_alloc);
     while (popped_elem) {
       cn_printf(CN_LOGGING_ERROR, "%s\n", popped_elem);
       cn_printf(CN_LOGGING_ERROR, "==========================\n");
-      popped_elem = cn_source_location_stack_pop(entry_maybe->source_loc_stack, &fulm_default_alloc);
+      popped_elem = cn_source_location_stack_pop(
+          entry_maybe->source_loc_stack, &fulm_default_alloc);
     }
   }
 }
@@ -366,30 +368,30 @@ void ownership_ghost_state_set(int64_t address,
     struct cn_error_message_info* error_msg_info,
     enum STACK_OP op) {
   for (int64_t k = address; k < address + size; k++) {
-    ownership_ghost_state_info* new_entry =
+    ownership_ghost_state_info* entry =
         (ownership_ghost_state_info*)ht_get(cn_ownership_global_ghost_state, &k);
-    if (!new_entry) {
-      new_entry = fulm_malloc(sizeof(ownership_ghost_state_info), &fulm_default_alloc);
-      new_entry->source_loc_stack = cn_source_location_stack_init(&fulm_default_alloc);
+    if (!entry) {
+      entry = fulm_malloc(sizeof(ownership_ghost_state_info), &fulm_default_alloc);
+      entry->source_loc_stack = cn_source_location_stack_init(&fulm_default_alloc);
     }
-    new_entry->depth = stack_depth_val;
+    entry->depth = stack_depth_val;
     switch (op) {
       case NO_OP:
         break;
       case PUSH: {
         if (error_msg_info) {
-          cn_source_location_stack_push(new_entry->source_loc_stack,
+          cn_source_location_stack_push(entry->source_loc_stack,
               error_msg_info->cn_source_loc,
               &fulm_default_alloc);
         }
         break;
       }
       case POP: {
-        cn_source_location_stack_pop(new_entry->source_loc_stack, &fulm_default_alloc);
+        cn_source_location_stack_pop(entry->source_loc_stack, &fulm_default_alloc);
         break;
       }
     }
-    ht_set(cn_ownership_global_ghost_state, &k, new_entry);
+    ht_set(cn_ownership_global_ghost_state, &k, entry);
   }
 }
 
@@ -507,7 +509,6 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
     }
   }
 }
-
 
 void c_ownership_check(char* access_kind,
     void* generic_c_ptr,
