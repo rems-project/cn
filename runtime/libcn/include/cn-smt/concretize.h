@@ -53,8 +53,16 @@ void* cn_smt_concretize_lookup_symbolic_var(
   do {                                                                                   \
     ty* cn_smt_concretize_addr =                                                         \
         (ty*)convert_from_cn_pointer(cn_eval_term(pointer_term));                        \
+    size_t bytes = sizeof(ty);                                                           \
+    if (!bennet_ownership_check(cn_smt_concretize_addr, bytes)) {                        \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+                                                                                         \
+      return NULL;                                                                       \
+    }                                                                                    \
+                                                                                         \
     ty cn_smt_concretize_value = convert_from(cn_eval_term(value_term));                 \
-    memcpy(cn_smt_concretize_addr, &cn_smt_concretize_value, sizeof(ty));                \
+    memcpy(cn_smt_concretize_addr, &cn_smt_concretize_value, bytes);                     \
+    bennet_ownership_update(cn_smt_concretize_addr, bytes);                              \
   } while (0);
 
 // Let symbolic variable lookup (nicer names)
