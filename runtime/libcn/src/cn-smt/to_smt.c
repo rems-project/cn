@@ -1312,16 +1312,19 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Handle different cast combinations - simplified version
       if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_LOC) {
-        // Bits -> Loc: bits_to_ptr
-        return smt_term;  // TODO: Implement proper bits_to_ptr
+        // Bits -> Loc
+        return bv_cast(
+            cn_base_type_bits(false, CHAR_BIT * sizeof(uintptr_t)), source_bt, smt_term);
       } else if (source_bt.tag == CN_BASE_LOC && target_bt.tag == CN_BASE_BITS) {
-        // Loc -> Bits: addr_of with possible cast
-        return smt_term;  // TODO: Implement proper addr_of
+        // Loc -> Bits
+        return bv_cast(
+            target_bt, cn_base_type_bits(false, CHAR_BIT * sizeof(uintptr_t)), smt_term);
       } else if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_BITS) {
         // Bits -> Bits: bv_cast
         return bv_cast(target_bt, source_bt, smt_term);
       } else {
-        // Other casts - simplified fallback
+        // Other casts
+        assert(false);
         return smt_term;
       }
     }

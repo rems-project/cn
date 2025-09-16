@@ -738,8 +738,8 @@ void* cn_eval_term(cn_term* term) {
             case 64:
               return cast_cn_pointer_to_cn_bits_i64((cn_pointer*)value_val);
             default:
-              // Fallback to 64-bit signed for unsupported sizes
-              return cast_cn_pointer_to_cn_bits_i64((cn_pointer*)value_val);
+              assert(false);
+              return NULL;
           }
         } else {
           switch (target_bits.size_bits) {
@@ -752,8 +752,8 @@ void* cn_eval_term(cn_term* term) {
             case 64:
               return cast_cn_pointer_to_cn_bits_u64((cn_pointer*)value_val);
             default:
-              // Fallback to 64-bit unsigned for unsupported sizes
-              return cast_cn_pointer_to_cn_bits_u64((cn_pointer*)value_val);
+              assert(false);
+              return NULL;
           }
         }
       }
@@ -978,7 +978,6 @@ void* cn_eval_term(cn_term* term) {
           }
         }
 
-        // Fallback for unsupported combinations
         assert(false);
         return NULL;
       }
@@ -1031,8 +1030,8 @@ void* cn_eval_term(cn_term* term) {
             case 64:
               return convert_to_cn_bits_i64(int_val->val);
             default:
-              // Fallback to 64-bit signed for unsupported sizes
-              return convert_to_cn_bits_i64(int_val->val);
+              assert(false);
+              return NULL;
           }
         } else {
           switch (target_bits.size_bits) {
@@ -1045,8 +1044,8 @@ void* cn_eval_term(cn_term* term) {
             case 64:
               return convert_to_cn_bits_u64(int_val->val);
             default:
-              // Fallback to 64-bit unsigned for unsupported sizes
-              return convert_to_cn_bits_u64(int_val->val);
+              assert(false);
+              return NULL;
           }
         }
       }
@@ -1286,22 +1285,8 @@ void* cn_eval_term(cn_term* term) {
 }
 
 static cn_bits_info get_bits_info(cn_term* term) {
-  switch (term->type) {
-    case CN_TERM_CONST:
-      if (term->data.const_val.type == CN_CONST_BITS) {
-        return term->data.const_val.data.bits.info;
-      }
-      break;
-    case CN_TERM_BINOP:
-      return get_bits_info(term->data.binop.left);
-    case CN_TERM_UNOP:
-      return get_bits_info(term->data.unop.operand);
-    default:
-      break;
-  }
-  // Return a default/error value
-  cn_bits_info info = {true, -1};
-  return info;
+  assert(term->base_type.tag == CN_BASE_BITS);
+  return term->base_type.data.bits;
 }
 
 bool cn_eval_context(cn_constraint_context* ctx) {
