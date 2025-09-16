@@ -544,7 +544,8 @@ cn_term* cn_smt_struct(const char* tag,
     size_t member_count,
     const char** member_names,
     cn_term** member_values);
-cn_term* cn_smt_struct_member(cn_term* struct_term, const char* member_name);
+cn_term* cn_smt_struct_member(
+    cn_term* struct_term, const char* member_name, cn_base_type member_type);
 cn_term* cn_smt_struct_update(
     cn_term* struct_term, const char* member_name, cn_term* new_value);
 
