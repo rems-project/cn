@@ -7,11 +7,11 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage2 = Stage2.Make (AD)
+  module Stage3 = Stage3.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage2.Ctx
-  module Term = Stage2.Term
-  module Def = Stage2.Def
+  module Ctx = Stage3.Ctx
+  module Term = Stage3.Term
+  module Def = Stage3.Def
 
   let bennet = Sym.fresh "bennet"
 
@@ -28,6 +28,11 @@ module Make (AD : Domain.T) = struct
     match tm_ with
     | `Arbitrary | `Symbolic ->
       (* Generate symbolic value of the given base type *)
+      { statements = [];
+        expression = !^"CN_SMT_CONCRETIZE_SYMBOLIC" ^^ parens (Smt.convert_basetype bt)
+      }
+    | `ArbitraryDomain _ ->
+      (* Generate symbolic value from domain - treat like arbitrary for now *)
       { statements = [];
         expression = !^"CN_SMT_CONCRETIZE_SYMBOLIC" ^^ parens (Smt.convert_basetype bt)
       }
@@ -96,6 +101,9 @@ module Make (AD : Domain.T) = struct
       { statements = assert_stmt :: next_result.statements;
         expression = next_result.expression
       }
+    | `AssertDomain (_, next_term) ->
+      (* Assert domain constraints - skip domain for now and continue *)
+      concretize_term last_branch next_term
     | `ITE (condition, then_term, else_term) ->
       (* Convert if-then-else to Pick statement with recursive calls *)
       let then_branch = Term.assert_ (LC.T condition, then_term) () loc in

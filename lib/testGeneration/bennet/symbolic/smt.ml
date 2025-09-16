@@ -7,10 +7,10 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage2 = Stage2.Make (AD)
-  module Ctx = Stage2.Ctx
-  module Term = Stage2.Term
-  module Def = Stage2.Def
+  module Stage3 = Stage3.Make (AD)
+  module Ctx = Stage3.Ctx
+  module Term = Stage3.Term
+  module Def = Stage3.Def
 
   (** Convert BaseTypes to CN-SMT base type creation expressions *)
   let rec convert_basetype (bt : BT.t) : Pp.document =

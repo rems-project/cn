@@ -85,13 +85,13 @@ let synthesize
   let module Stage2 = Stage2.Make (AD) in
   let ctx = Stage2.transform prog5 ctx in
   debug_stage "Stage 2" (ctx |> Stage2.Ctx.pp |> Pp.plain ~width:80);
+  let module Stage3 = Stage3.Make (AD) in
+  let ctx = Stage3.transform paused ctx in
+  debug_stage "Stage 3" (ctx |> Stage3.Ctx.pp |> Pp.plain ~width:80);
   if TestGenConfig.is_symbolic_enabled () then
     let module Symbolic = Symbolic.Make (AD) in
     Symbolic.transform prog5 ctx
   else
-    let module Stage3 = Stage3.Make (AD) in
-    let ctx = Stage3.transform paused ctx in
-    debug_stage "Stage 3" (ctx |> Stage3.Ctx.pp |> Pp.plain ~width:80);
     let module Stage4 = Stage4.Make (AD) in
     let ctx = Stage4.transform ctx in
     debug_stage "Stage 4" (ctx |> Stage4.Ctx.pp |> Pp.plain ~width:80);
