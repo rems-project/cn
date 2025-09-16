@@ -9,56 +9,10 @@
 #include <bennet/utils/optional.h>
 #include <cn-executable/utils.h>
 #include <cn-smt/eval.h>
-
-// Hash table and optional implementations (types declared in eval.h)
-
-// Hash and equality functions for void_ptr (pointer comparison)
-static inline size_t bennet_hash_void_ptr(void_ptr ptr) {
-  return (size_t)ptr;
-}
-
-static inline bool bennet_eq_void_ptr(void_ptr a, void_ptr b) {
-  return a == b;
-}
-
-// String hash and equality functions are already defined in terms.h
-// We need to implement the hash table functions
-BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_struct_handler)
+#include <cn-smt/structs.h>
 
 // Generate vector implementation for cn_member_pair
 BENNET_VECTOR_IMPL(cn_member_pair)
-
-// Global registry of struct handlers
-static bennet_hash_table(const_char_ptr, cn_struct_handler) g_struct_handlers;
-static bool g_struct_handlers_initialized = false;
-
-// Initialize the global struct handler registry
-static void init_struct_handlers(void) {
-  if (!g_struct_handlers_initialized) {
-    bennet_hash_table_init(const_char_ptr, cn_struct_handler)(
-        &g_struct_handlers, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
-    g_struct_handlers_initialized = true;
-  }
-}
-
-// Register a struct handler for a given struct type name
-void cn_register_struct_handler(const char* struct_name, cn_struct_handler handler) {
-  init_struct_handlers();
-  bennet_hash_table_set(const_char_ptr, cn_struct_handler)(
-      &g_struct_handlers, struct_name, handler);
-}
-
-// Get a struct handler for a given struct type name
-static bool get_struct_handler(const char* struct_name, cn_struct_handler* out_handler) {
-  init_struct_handlers();
-  bennet_optional(cn_struct_handler) opt = bennet_hash_table_get(
-      const_char_ptr, cn_struct_handler)(&g_struct_handlers, struct_name);
-  if (bennet_optional_is_some(opt)) {
-    *out_handler = bennet_optional_unwrap(opt);
-    return true;
-  }
-  return false;
-}
 
 // Forward declarations
 static cn_bits_info get_bits_info(cn_term* term);
@@ -126,6 +80,11 @@ void* cn_eval_term(cn_term* term) {
               return default_cn_pointer();
             case CN_BASE_MAP:
               return default_cn_map();
+            case CN_BASE_STRUCT: {
+              const char* struct_tag =
+                  term->data.const_val.data.default_type.data.struct_tag.tag;
+              return cn_smt_struct_default(struct_tag);
+            }
             default:
               assert(false);
           }
@@ -1182,8 +1141,6 @@ void* cn_eval_term(cn_term* term) {
     case CN_TERM_STRUCT: {
       // Create struct from members using registered handler
       const char* struct_tag = term->data.struct_val.tag;
-      cn_struct_handler handler;
-      assert(get_struct_handler(struct_tag, &handler));
 
       // Convert cn_term_ptr hash table to void_ptr hash table for member values
       bennet_hash_table(const_char_ptr, void_ptr) member_values;
@@ -1203,7 +1160,7 @@ void* cn_eval_term(cn_term* term) {
       }
 
       // Call the registered struct creation function
-      void* result = handler.create_struct(&member_values);
+      void* result = cn_smt_struct_create(struct_tag, &member_values);
 
       // Cleanup temporary hash table
       bennet_hash_table_free(const_char_ptr, void_ptr)(&member_values);
@@ -1221,11 +1178,8 @@ void* cn_eval_term(cn_term* term) {
       assert(cn_base_type_is(struct_term->base_type, CN_BASE_STRUCT));
 
       const char* struct_tag = struct_term->base_type.data.struct_tag.tag;
-      cn_struct_handler handler;
-      assert(get_struct_handler(struct_tag, &handler));
-
       const char* member_name = term->data.struct_member.member_name;
-      return handler.get_member(struct_val, member_name);
+      return cn_smt_struct_get_member(struct_tag, struct_val, member_name);
     }
 
     case CN_TERM_STRUCT_UPDATE: {
@@ -1239,11 +1193,8 @@ void* cn_eval_term(cn_term* term) {
       assert(cn_base_type_is(struct_term->base_type, CN_BASE_STRUCT));
 
       const char* struct_tag = struct_term->base_type.data.struct_tag.tag;
-      cn_struct_handler handler;
-      assert(get_struct_handler(struct_tag, &handler));
-
       const char* member_name = term->data.struct_update.member_name;
-      return handler.update_member(struct_val, member_name, new_val);
+      return cn_smt_struct_update_member(struct_tag, struct_val, member_name, new_val);
     }
 
     case CN_TERM_RECORD: {

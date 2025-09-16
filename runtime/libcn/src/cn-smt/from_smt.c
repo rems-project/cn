@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <cn-smt/from_smt.h>
+#include <cn-smt/structs.h>
 
 // Hash and equality functions are now imported from cn-smt/terms.h
 
@@ -655,16 +656,15 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
       if (strcmp(con_result.name, CN_LIST_NIL_NAME) == 0 && con_result.field_count == 0) {
         free_constructor_result(&con_result);
         // Return nil - in CN this would be a specific nil constructor
-        // For now we'll create a default value
-        return cn_smt_default(cn_base_type_simple(CN_BASE_LIST));
+        assert(false);
+        return NULL;
       }
 
       if (strcmp(con_result.name, CN_LIST_CONS_NAME) == 0 &&
           con_result.field_count == 2) {
         // For cons, we'd need element type to recurse properly
-        // This is simplified for now
-        free_constructor_result(&con_result);
-        return cn_smt_default(cn_base_type_simple(CN_BASE_LIST));
+        assert(false);
+        return NULL;
       }
 
       free_constructor_result(&con_result);
@@ -696,30 +696,66 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
     }
 
     case CN_BASE_TUPLE: {
-      constructor_result_t con_result = to_con(sexp);
+      // constructor_result_t con_result = to_con(sexp);
 
       // For tuples, we'd need to know the component types
-      // This is a simplified implementation
-      free_constructor_result(&con_result);
-      return cn_smt_default(cn_base_type_simple(CN_BASE_TUPLE));
+      assert(false);
+      return NULL;
     }
 
     case CN_BASE_STRUCT: {
       constructor_result_t con_result = to_con(sexp);
 
-      // For structs, we'd need to look up the struct declaration
-      // This is a simplified implementation
+      // Extract struct tag from constructor name (e.g., "State_struct_con" -> "State")
+      const char* constructor_name = con_result.name;
+      const char* struct_suffix = "_struct_con";
+      size_t suffix_len = strlen(struct_suffix);
+      size_t name_len = strlen(constructor_name);
+
+      assert(name_len > suffix_len &&
+             strcmp(constructor_name + name_len - suffix_len, struct_suffix) == 0);
+
+      // Extract struct tag
+      char* struct_tag = strndup(constructor_name, name_len - suffix_len);
+      assert(struct_tag);
+
+      // Get struct declaration
+      cn_struct_data* struct_data = cn_get_struct_data(struct_tag);
+      assert(struct_data);
+
+      // Create member name and value arrays
+      size_t member_count = bennet_vector_size(struct_member_t)(&struct_data->members);
+      const char** member_names = malloc(member_count * sizeof(char*));
+      cn_term** member_values = malloc(member_count * sizeof(cn_term*));
+
+      assert(member_names && member_values);
+
+      // Build members from field values
+      for (size_t i = 0; i < member_count && i < con_result.field_count; i++) {
+        struct_member_t* member =
+            bennet_vector_get(struct_member_t)(&struct_data->members, i);
+        member_names[i] = member->label;
+        member_values[i] = get_ivalue(member->base_type, con_result.fields[i]);
+      }
+
+      cn_term* result =
+          cn_smt_struct(struct_tag, member_count, member_names, member_values);
+
+      // Cleanup
+      free(member_names);
+      free(member_values);
+      free(struct_tag);
       free_constructor_result(&con_result);
-      return cn_smt_default(cn_base_type_simple(CN_BASE_STRUCT));
+
+      return result;
     }
 
     case CN_BASE_RECORD: {
-      constructor_result_t con_result = to_con(sexp);
+      // constructor_result_t con_result = to_con(sexp);
 
       // For records, we'd create a record with the field mappings
-      // This is a simplified implementation
-      free_constructor_result(&con_result);
-      return cn_smt_default(cn_base_type_record(NULL, NULL, 0));
+      assert(false);
+      return NULL;
     }
 
     case CN_BASE_OPTION: {
@@ -728,9 +764,8 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
       if (strcmp(con_result.name, CN_OPTION_SOME_NAME) == 0 &&
           con_result.field_count == 1) {
         // For Some(value), we'd recursively convert the inner value
-        // This is simplified
-        free_constructor_result(&con_result);
-        return cn_smt_default(cn_base_type_simple(CN_BASE_OPTION));
+        assert(false);
+        return NULL;
       }
 
       if (strcmp(con_result.name, CN_OPTION_NONE_NAME) == 0 &&

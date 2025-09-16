@@ -76,6 +76,7 @@
   (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
   (cn-smt/sexp.h as runtime/include/cn-smt/sexp.h)
   (cn-smt/solver.h as runtime/include/cn-smt/solver.h)
+  (cn-smt/structs.h as runtime/include/cn-smt/structs.h)
   ; Counterexample program synthesis prototype
   (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
   (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)

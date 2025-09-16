@@ -6,68 +6,14 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <cn-smt/context.h>
+#include <cn-smt/structs.h>
 #include <cn-smt/terms.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Forward declare pointer types for struct operations
-typedef void* void_ptr;
-
-// Optional and hash table declarations for member mapping (const_char_ptr to void_ptr)
-BENNET_OPTIONAL_DECL(void_ptr);
-BENNET_HASH_TABLE_DECL(const_char_ptr, void_ptr);
-BENNET_HASH_TABLE_IMPL(const_char_ptr, void_ptr);
-
-/**
- * @brief Struct handler containing function pointers for struct operations.
- *
- * This structure defines the interface for handling struct creation, member access,
- * and member updates in the CN evaluation system. Each struct type can register
- * its own implementation of these operations.
- */
-typedef struct {
-  /**
-   * @brief Function pointer for creating structs from member hash table.
-   * @param members Hash table mapping member names to their values.
-   * @return Pointer to the created struct.
-   */
-  void* (*create_struct)(bennet_hash_table(const_char_ptr, void_ptr) * members);
-
-  /**
-   * @brief Function pointer for getting struct member value.
-   * @param struct_val Pointer to the struct.
-   * @param member_name Name of the member to retrieve.
-   * @return Pointer to the member value.
-   */
-  void* (*get_member)(void* struct_val, const char* member_name);
-
-  /**
-   * @brief Function pointer for updating struct member value.
-   * @param struct_val Pointer to the struct.
-   * @param member_name Name of the member to update.
-   * @param new_value New value for the member.
-   * @return Pointer to the updated struct (may be a new struct instance).
-   */
-  void* (*update_member)(void* struct_val, const char* member_name, void* new_value);
-} cn_struct_handler;
-
-// Hash table and optional declarations for cn_struct_handler
-BENNET_HASH_TABLE_DECL(const_char_ptr, cn_struct_handler)
-BENNET_OPTIONAL_DECL(cn_struct_handler);
-
-/**
- * @brief Registers a struct handler for a given struct type name.
- *
- * This function allows registering custom handlers for struct operations.
- * Once registered, the evaluator will use these handlers when evaluating
- * CN_TERM_STRUCT, CN_TERM_STRUCT_MEMBER, and CN_TERM_STRUCT_UPDATE terms.
- *
- * @param struct_name The name/tag of the struct type.
- * @param handler The struct handler containing function pointers.
- */
-void cn_register_struct_handler(const char* struct_name, cn_struct_handler handler);
+// Struct handler definitions moved to structs.h
 
 /**
  * @brief Evaluates a cn_term and returns the result as a Fulminate value.

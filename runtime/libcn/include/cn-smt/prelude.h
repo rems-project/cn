@@ -5,6 +5,7 @@
 #include <cn-smt/gather.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
+#include <cn-smt/structs.h>
 #include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
