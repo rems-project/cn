@@ -13,16 +13,15 @@
   } NAME##_stack;
 
 #define STACK_INIT(NAME)                                                                 \
-  static inline NAME##_stack *NAME##_stack_init(allocator *alloc) {                  \
-    NAME##_stack *s = (NAME##_stack *)alloc->malloc(sizeof(NAME##_stack));           \
+  static inline NAME##_stack *NAME##_stack_init(allocator *alloc) {                      \
+    NAME##_stack *s = (NAME##_stack *)alloc->malloc(sizeof(NAME##_stack));               \
     s->size = 0;                                                                         \
     return s;                                                                            \
   }
 
 #define STACK_PUSH(NAME, CTYPE)                                                          \
-  static inline void NAME##_stack_push(                                                  \
-      NAME##_stack *s, CTYPE elem, allocator *alloc) {                               \
-    NAME##_node *node = (NAME##_node *)alloc->malloc(sizeof(NAME##_node));           \
+  static inline void NAME##_stack_push(NAME##_stack *s, CTYPE elem, allocator *alloc) {  \
+    NAME##_node *node = (NAME##_node *)alloc->malloc(sizeof(NAME##_node));               \
     node->NAME = elem;                                                                   \
     if (!s->top) {                                                                       \
       s->top = node;                                                                     \
@@ -34,13 +33,16 @@
   }
 
 #define STACK_POP(NAME, CTYPE)                                                           \
-  static inline CTYPE NAME##_stack_pop(NAME##_stack *s, allocator *alloc) {          \
+  static inline CTYPE NAME##_stack_pop(NAME##_stack *s, allocator *alloc) {              \
     if (s->top) {                                                                        \
       NAME##_node *old_top = s->top;                                                     \
-      CTYPE elem = old_top->NAME;                                                         \
-      s->top = s->top->next;                                                             \
-      /* TODO: fix \
-      alloc->free(old_top); */                                                          \
+      CTYPE elem = old_top->NAME;                                                        \
+      if (s->size == 1) {                                                                \
+        s->top = 0;                                                                      \
+      } else {                                                                           \
+        s->top = s->top->next;                                                           \
+      }                                                                                  \
+      alloc->free(old_top);                                                              \
       s->size--;                                                                         \
       return elem;                                                                       \
     }                                                                                    \
