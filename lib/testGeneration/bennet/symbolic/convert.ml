@@ -4,6 +4,7 @@ module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
   module Stage3 = Stage3.Make (AD)
+  module PathSelector = PathSelector.Make (AD)
   module Gather = Gather.Make (AD)
   module Concretize = Concretize.Make (AD)
   module Harness = Harness.Make (AD)
@@ -42,18 +43,24 @@ module Make (AD : Domain.T) = struct
       |> List.concat_map (fun (def : Def.t) ->
         if def.spec then
           (* Generate gathering and concretization functions as well as a [bennet_*] harness *)
-          [ Gather.gather_def def;
+          [ PathSelector.path_selector_def def;
+            Gather.gather_def def;
             Concretize.concretize_def def;
             Harness.transform_def def
           ]
         else
-          (* Generate gathering and concretization functions for non-spec definitions *)
-          [ Gather.gather_def def; Concretize.concretize_def def ])
+          (* Generate gathering, concretization, and path selector functions for non-spec definitions *)
+          [ PathSelector.path_selector_def def;
+            Gather.gather_def def;
+            Concretize.concretize_def def
+          ])
     in
     (* Structure output like stage6/convert.ml for compatibility *)
     hardline
     ^^ hardline
     ^^ !^"#include <cn-smt/prelude.h>"
+    ^^ hardline
+    ^^ !^"#include <cn-smt/branch_history.h>"
     ^^ hardline
     ^^ hardline
     ^^ !^"/* TAG DEFINITIONS */"

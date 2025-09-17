@@ -7,8 +7,6 @@ module Records = Fulminate.Records
 module Make (AD : Domain.T) = struct
   module Stage3 = Stage3.Make (AD)
   module Smt = Smt.Make (AD)
-  module Gather = Gather.Make (AD)
-  module Concretize = Concretize.Make (AD)
   module Ctx = Stage3.Ctx
   module Def = Stage3.Def
 
@@ -20,7 +18,12 @@ module Make (AD : Domain.T) = struct
     let vars_decl =
       !^"struct cn_smt_solver* smt_solver;"
       ^/^ !^"bennet_rand_checkpoint checkpoint;"
+      ^/^ !^"struct branch_history_queue branch_hist;"
+      ^/^ !^"branch_history_init(&branch_hist);"
       ^/^ !^"enum cn_smt_solver_result result;"
+    in
+    let select_path =
+      !^"cn_smt_path_selector_" ^^ !^generator_name ^^ Pp.parens !^"&branch_hist" ^^ !^";"
     in
     (* Initialize symbolic execution context *)
     let context_init = !^"cn_smt_gather_init();" in
@@ -51,12 +54,18 @@ module Make (AD : Domain.T) = struct
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_var"))
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
+      let all_args =
+        if List.length def.iargs > 0 then
+          !^"&branch_hist" ^^ !^"," ^^^ Pp.space ^^ smt_args
+        else
+          !^"&branch_hist"
+      in
       !^"checkpoint = bennet_rand_save();"
       ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
       ^/^ !^"cn_smt_solver_setup(smt_solver);"
       ^/^ !^"cn_smt_gather_"
       ^^ !^generator_name
-      ^^ Pp.parens smt_args
+      ^^ Pp.parens all_args
       ^^ !^";"
     in
     let check_sat =
@@ -66,7 +75,9 @@ module Make (AD : Domain.T) = struct
     in
     (* Initialize concretization context *)
     let conc_context_init =
-      !^"/* Concretize input */" ^/^ !^"cn_smt_concretize_init();"
+      !^"/* Concretize input */"
+      ^/^ !^"branch_history_rewind(&branch_hist);"
+      ^/^ !^"cn_smt_concretize_init();"
     in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
@@ -97,7 +108,8 @@ module Make (AD : Domain.T) = struct
       !^"bennet_rand_restore(checkpoint);"
       ^^^ (!^"cn_smt_concretize_"
            ^^ !^generator_name
-           ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ conc_args)
+           ^^ Pp.parens
+                (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
            ^^ !^";")
       ^/^ !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
       ^^^ braces !^"stop_solver(smt_solver); return NULL;"
@@ -136,6 +148,8 @@ module Make (AD : Domain.T) = struct
     ^^^ (!^("bennet_" ^ generator_name) ^^ Pp.parens !^"void")
     ^^^ !^"{"
     ^/^ vars_decl
+    ^/^ !^"/* Select path */"
+    ^/^ select_path
     ^/^ !^"/* Gather constraints */"
     ^/^ (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
     ^^^ !^"if (result != CN_SOLVER_SAT)"
