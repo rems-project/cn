@@ -1589,7 +1589,6 @@ module BaseTyping = struct
       | Vunit -> return (Unit, Mu.Vunit)
       | Vtrue -> return (Bool, Mu.Vtrue)
       | Vfalse -> return (Bool, Mu.Vfalse)
-      | Vfunction_addr sym -> return (Loc (), Mu.Vfunction_addr sym)
       | Vlist (item_cbt, vals) ->
         let@ vals = ListM.mapM (infer_value loc) vals in
         let item_bt = Mu.bt_of_value (List.hd vals) in

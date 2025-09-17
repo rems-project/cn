@@ -818,21 +818,21 @@ let rec n_expr
         assert_error loc !^"core_anormalisation: Eccall with non-ctype first argument"
     in
     let@ e2 =
-      let err () = unsupported loc !^"invalid function constant" in
+      (* let err () = unsupported loc !^"invalid function constant" in *)
       match e2 with
-      | Pexpr (annots, bty, PEval v) ->
-        let@ sym =
-          match v with
-          | Vobject (OVpointer ptrval) | Vloaded (LVspecified (OVpointer ptrval)) ->
-            CF.Impl_mem.case_ptrval
-              ptrval
-              (fun _ct -> err ())
-              (function
-                | None -> (* FIXME(CHERI merge) *) err () | Some sym -> return sym)
-              (fun _prov _ -> err ())
-          | _ -> err ()
-        in
-        return (Mu.Pexpr (loc, annots, bty, PEval (V ((), Vfunction_addr sym))))
+      (* | Pexpr (annots, bty, PEval v) -> *)
+      (*   let@ sym = *)
+      (*     match v with *)
+      (*     | Vobject (OVpointer ptrval) | Vloaded (LVspecified (OVpointer ptrval)) -> *)
+      (*       CF.Impl_mem.case_ptrval *)
+      (*         ptrval *)
+      (*         (fun _ct -> err ()) *)
+      (*         (function *)
+      (*           | None -> (\* FIXME(CHERI merge) *\) err () | Some sym -> return sym) *)
+      (*         (fun _prov _ -> err ()) *)
+      (*     | _ -> err () *)
+      (*   in *)
+      (*   return (Mu.Pexpr (loc, annots, bty, PEval (V ((), Vfunction_addr sym)))) *)
       | _ -> return @@ n_pexpr e2
     in
     let es = List.map n_pexpr es in

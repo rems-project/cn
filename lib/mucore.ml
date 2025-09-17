@@ -17,7 +17,6 @@ and 'TY object_value = OV of 'TY * 'TY object_value_
 and 'TY value_ =
   | Vobject of 'TY object_value
   | Vctype of Cerb_frontend.Ctype.ctype
-  | Vfunction_addr of Sym.t
   | Vunit
   | Vtrue
   | Vfalse

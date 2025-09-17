@@ -53,8 +53,6 @@ module PP = struct
       Dleaf (pp_pure_ctor "Vlist" ^^^ !^(ansi_format [ Red ] "TODO"))
     | Vtuple _cvals -> Dleaf (pp_pure_ctor "Vtuple" ^^^ !^(ansi_format [ Red ] "TODO"))
     | Vctype _ctype -> Dleaf (pp_pure_ctor "Vctype" ^^^ !^(ansi_format [ Red ] "TODO"))
-    | Vfunction_addr _sym ->
-      Dleaf (pp_pure_ctor "Vfunction_addr" ^^^ !^(ansi_format [ Red ] "TODO"))
 
 
   let string_of_bop = Pp_core_ast.string_of_bop

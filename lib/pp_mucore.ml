@@ -236,7 +236,6 @@ module Make (Config : CONFIG) = struct
     | Vtuple cvals -> Pp.parens (comma_list pp_value cvals)
     | Vobject oval -> pp_object_value oval
     | Vctype ct -> Pp.squotes (pp_ctype ct)
-    | Vfunction_addr sym -> Pp.parens (Pp.ampersand ^^^ pp_symbol sym)
 
 
   let pp_ctor = function

@@ -30,7 +30,6 @@ let val_to_it loc (Mu.V ((bt : BT.t), v)) =
       (function None -> None | Some sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc)))
       (fun _prov _p -> (* how to correctly convert provenance? *) None)
   | Vctype ct -> Option.map (fun ct -> IT.const_ctype_ ct loc) (Sctypes.of_ctype ct)
-  | Vfunction_addr sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc))
   | _ -> None
 
 
