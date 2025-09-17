@@ -126,14 +126,15 @@
     ar
     -rcs
     %{target}
-    cn-smt/context.o
+    cn-smt/branch_history.o
     cn-smt/concretize.o
+    cn-smt/context.o
     cn-smt/eval.o
     cn-smt/from_smt.o
-    cn-smt/subst.o
     cn-smt/gather.o
-    cn-smt/terms.o
     cn-smt/sexp.o
     cn-smt/solver.o
     cn-smt/structs.o
+    cn-smt/subst.o
+    cn-smt/terms.o
     cn-smt/to_smt.o))))

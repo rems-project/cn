@@ -1,0 +1,271 @@
+#include <assert.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <cn-smt/branch_history.h>
+
+/**
+ * Initialize a new branch history queue.
+ * Sets all pointers to NULL and length to 0.
+ * 
+ * @param queue Pointer to the queue structure to initialize
+ */
+void branch_history_init(struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  queue->head = NULL;
+  queue->tail = NULL;
+  queue->length = 0;
+}
+
+/**
+ * Record a uint64_t value to the end of the queue.
+ * 
+ * @param queue Pointer to the queue
+ * @param data The uint64_t value to record
+ * @return Pointer to the newly created node, or NULL on allocation failure
+ */
+struct branch_history_node* branch_history_record(
+    struct branch_history_queue* queue, uint64_t data) {
+  assert(queue != NULL);
+
+  // Allocate the node
+  struct branch_history_node* new_node = malloc(sizeof(struct branch_history_node));
+  if (new_node == NULL) {
+    return NULL;
+  }
+
+  // Initialize the node
+  new_node->data = data;
+  new_node->next = NULL;
+  new_node->prev = queue->tail;
+
+  // Update queue pointers
+  if (queue->tail != NULL) {
+    queue->tail->next = new_node;
+  } else {
+    // First node in the queue
+    queue->head = new_node;
+  }
+
+  queue->tail = new_node;
+  queue->length++;
+
+  return new_node;
+}
+
+/**
+ * Get a checkpoint representing the current tail of the queue.
+ * 
+ * @param queue Pointer to the queue
+ * @return Checkpoint representing the current tail, or NULL if queue is empty
+ */
+branch_history_checkpoint branch_history_checkpoint_current(
+    const struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  return queue->tail;
+}
+
+/**
+ * Get a checkpoint for a specific node.
+ * 
+ * @param node Pointer to the node to create a checkpoint for
+ * @return Checkpoint for the given node
+ */
+branch_history_checkpoint branch_history_checkpoint_at(struct branch_history_node* node) {
+  return node;
+}
+
+/**
+ * Free all nodes after (but not including) the given node.
+ * Helper function for restoration operations.
+ * 
+ * @param start_node Node after which to start freeing (this node is preserved)
+ */
+static void free_nodes_after(struct branch_history_node* start_node) {
+  if (start_node == NULL) {
+    return;
+  }
+
+  struct branch_history_node* curr = start_node->next;
+  while (curr != NULL) {
+    struct branch_history_node* next = curr->next;
+
+    // Free the node itself
+    free(curr);
+
+    curr = next;
+  }
+
+  // Update the start node to have no successors
+  start_node->next = NULL;
+}
+
+/**
+ * Restore the queue to a specific checkpoint by removing all nodes after that point.
+ * The checkpoint node itself is preserved. If checkpoint is NULL, the queue is cleared
+ * and the queue pointer may be set to NULL if the queue becomes empty.
+ * 
+ * @param queue Pointer to the queue
+ * @param checkpoint The checkpoint to restore to
+ */
+void branch_history_restore(
+    struct branch_history_queue* queue, branch_history_checkpoint checkpoint) {
+  assert(queue != NULL);
+
+  if (checkpoint == NULL) {
+    // Restore to empty queue
+    branch_history_clear(queue);
+    return;
+  }
+
+  // Free all nodes after the checkpoint
+  free_nodes_after(checkpoint);
+
+  // Update queue tail pointer
+  queue->tail = checkpoint;
+
+  // Recalculate length by traversing from head to tail
+  queue->length = 0;
+  struct branch_history_node* curr = queue->head;
+  while (curr != NULL) {
+    (queue)->length++;
+    if (curr == (queue)->tail) {
+      break;
+    }
+    curr = curr->next;
+  }
+}
+
+/**
+ * Get the length of the queue.
+ * 
+ * @param queue Pointer to the queue
+ * @return Number of nodes in the queue
+ */
+size_t branch_history_length(const struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  return queue->length;
+}
+
+/**
+ * Check if the queue is empty.
+ * 
+ * @param queue Pointer to the queue
+ * @return true if the queue is empty, false otherwise
+ */
+bool branch_history_is_empty(const struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  return queue->length == 0;
+}
+
+/**
+ * Free all nodes in the queue and reset it to empty state.
+ * 
+ * @param queue Pointer to the queue to clear
+ */
+void branch_history_clear(struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  struct branch_history_node* curr = queue->head;
+  while (curr != NULL) {
+    struct branch_history_node* next = curr->next;
+
+    // Free the node itself
+    free(curr);
+
+    curr = next;
+  }
+
+  // Reset queue to empty state
+  queue->head = NULL;
+  queue->tail = NULL;
+  queue->length = 0;
+}
+
+/**
+ * Update the head of the queue to the next node and return the old head's value.
+ * 
+ * @param queue Pointer to the queue
+ * @return The value from the old head node, or UINT64_MAX if queue was empty
+ */
+uint64_t branch_history_next(struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  struct branch_history_node* old_head = queue->head;
+
+  if (old_head == NULL) {
+    return UINT64_MAX;
+  }
+
+  uint64_t data = old_head->data;
+
+  queue->head = old_head->next;
+
+  // Note: We do NOT set tail to NULL when head becomes NULL
+  // because rewind() needs tail to find the last node and traverse backwards
+
+  queue->length--;
+
+  return data;
+}
+
+/**
+ * Get the data from a specific node.
+ * 
+ * @param node Pointer to the node
+ * @return The uint64_t value stored in the node, or UINT64_MAX if node is NULL
+ */
+uint64_t branch_history_node_data(const struct branch_history_node* node) {
+  if (node == NULL) {
+    return UINT64_MAX;
+  }
+
+  return node->data;
+}
+
+/**
+ * Rewind the head of the queue to the first element.
+ * Updates the head pointer to point to the original head via prev pointer.
+ * Also recalculates and restores the correct queue length.
+ * Works even when head is NULL after consuming all nodes by using tail.
+ * 
+ * @param queue Pointer to the queue
+ */
+void branch_history_rewind(struct branch_history_queue* queue) {
+  assert(queue != NULL);
+
+  // If both head and tail are NULL, queue is empty
+  if (queue->head == NULL && queue->tail == NULL) {
+    return;
+  }
+
+  // If head is NULL but tail is not, we consumed all nodes
+  // Start from tail and traverse backwards to find the first node
+  if (queue->head == NULL && queue->tail != NULL) {
+    queue->head = queue->tail;
+    while (queue->head->prev != NULL) {
+      queue->head = queue->head->prev;
+    }
+  } else {
+    // Normal case: head is not NULL, traverse backwards to first node
+    while (queue->head->prev != NULL) {
+      queue->head = queue->head->prev;
+    }
+  }
+
+  // Recalculate length by traversing from head to tail
+  queue->length = 0;
+  struct branch_history_node* curr = queue->head;
+  while (curr != NULL) {
+    queue->length++;
+    if (curr == queue->tail) {
+      break;
+    }
+    curr = curr->next;
+  }
+}
