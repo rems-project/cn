@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 # Install system packages
 RUN apt-get update
 RUN apt-get upgrade -y
-RUN apt-get install -y opam libgmp-dev libmpfr-dev software-properties-common
+RUN apt-get install -y opam libgmp-dev libmpfr-dev software-properties-common time
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 RUN add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
 RUN add-apt-repository "deb-src http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
