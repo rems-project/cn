@@ -83,7 +83,7 @@ module Make (AD : Domain.T) = struct
                 ^^ !^member_name
                 ^^ !^"\") == 0) {"
                 ^^ hardline
-                ^^ !^"    return &s->"
+                ^^ !^"    return s->"
                 ^^ !^member_name
                 ^^ !^";"
                 ^^ hardline
