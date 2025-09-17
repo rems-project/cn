@@ -257,11 +257,6 @@ let rec check_value (loc : Locations.t) (Mu.V (expect, v)) : IT.t m =
   | Vfalse ->
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
     return (IT.bool_ false loc)
-  | Vfunction_addr sym ->
-    let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
-    (* check it is a valid function address *)
-    let@ _ = Global.get_fun_decl loc sym in
-    return (IT.sym_ (sym, BT.(Loc ()), loc))
   | Vlist (_item_cbt, vals) ->
     let item_bt = Mu.bt_of_value (List.hd vals) in
     let@ () = WellTyped.ensure_base_type loc ~expect (List item_bt) in

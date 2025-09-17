@@ -1077,7 +1077,6 @@ and pp_value pp_type (V (ty, v)) =
       (match v with
        | Vobject ov -> pp_constructor1 "Vobject" [ pp_object_value pp_type ov ]
        | Vctype t -> pp_constructor1 "Vctype" [ pp_ctype t ]
-       | Vfunction_addr s -> pp_constructor1 "Vfunction_addr" [ pp_symbol s ]
        | Vunit -> pp_constructor1 "Vunit" []
        | Vtrue -> pp_constructor1 "Vtrue" []
        | Vfalse -> pp_constructor1 "Vfalse" []
