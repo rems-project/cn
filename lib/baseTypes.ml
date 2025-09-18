@@ -40,74 +40,50 @@ module Datatype = struct
     }
 end
 
-let executable_spec = ref false
+let pp pp_loc =
+  let rec aux =
+    let open Pp in
+    function
+    | Unit -> !^"void"
+    | Bool -> !^"boolean"
+    | Integer -> !^"integer"
+    | MemByte -> !^"mem_byte"
+    | Bits (Signed, n) -> !^("i" ^ string_of_int n)
+    | Bits (Unsigned, n) -> !^("u" ^ string_of_int n)
+    | Real -> !^"real"
+    | Loc x -> pp_loc x
+    | Alloc_id -> !^"alloc_id"
+    | CType -> !^"ctype"
+    | Struct sym -> !^"struct" ^^^ Sym.pp sym
+    | Datatype sym -> !^"datatype" ^^^ Sym.pp sym
+    | Record members ->
+      braces (flow_map comma (fun (s, bt) -> aux bt ^^^ Id.pp s) members)
+    | Map (abt, rbt) -> !^"map" ^^ angles (aux abt ^^ comma ^^^ aux rbt)
+    | List bt -> !^"cn_list" ^^ angles (aux bt)
+    | Tuple nbts -> !^"cn_tuple" ^^ angles (flow_map underscore aux nbts)
+    | Set t -> !^"cn_set" ^^ angles (aux t)
+    | Option t -> !^"cn_option" ^^ angles (aux t)
+  in
+  aux
 
-let with_executable_spec f x =
-  let espec = !executable_spec in
-  executable_spec := true;
-  let r = f x in
-  executable_spec := espec;
-  r
 
-
-let rec pp pp_loc =
+let pp_executable_spec pp_loc =
   let open Pp in
-  function
-  | Unit -> !^"void"
-  | Bool -> !^"boolean"
-  | Integer -> !^"integer"
-  | MemByte -> !^"mem_byte"
-  | Bits (Signed, n) -> !^("i" ^ string_of_int n)
-  | Bits (Unsigned, n) -> !^("u" ^ string_of_int n)
-  | Real -> !^"real"
-  | Loc x -> pp_loc x
-  | Alloc_id -> !^"alloc_id"
-  | CType -> !^"ctype"
-  | Struct sym -> !^"struct" ^^^ Sym.pp sym
-  | Datatype sym -> !^"datatype" ^^^ Sym.pp sym
-  | Record members ->
-    if !executable_spec then
-      flow_map underscore (fun (s, bt) -> pp pp_loc bt ^^ underscore ^^ Id.pp s) members
-    else
-      braces (flow_map comma (fun (s, bt) -> pp pp_loc bt ^^^ Id.pp s) members)
-  | Map (abt, rbt) ->
-    !^"map"
-    ^^
-    if !executable_spec then
-      underscores (pp pp_loc abt ^^ underscore ^^^ pp pp_loc rbt)
-    else
-      angles (pp pp_loc abt ^^ comma ^^^ pp pp_loc rbt)
-  | List bt ->
-    !^"cn_list"
-    ^^
-    if !executable_spec then
-      underscores (pp pp_loc bt)
-    else
-      angles (pp pp_loc bt)
-  | Tuple nbts ->
-    !^"cn_tuple"
-    ^^
-    if !executable_spec then
-      underscores (flow_map underscore (pp pp_loc) nbts)
-    else
-      angles (flow_map underscore (pp pp_loc) nbts)
-  | Set t ->
-    !^"cn_set"
-    ^^
-    if !executable_spec then
-      underscores (pp pp_loc t)
-    else
-      angles (pp pp_loc t)
-  | Option t ->
-    !^"cn_option"
-    ^^
-    if !executable_spec then
-      underscores (pp pp_loc t)
-    else
-      angles (pp pp_loc t)
+  let rec aux bt =
+    match bt with
+    | Unit | Bool | Integer | MemByte | Bits _ | Real | Loc _ | Alloc_id | CType
+    | Struct _ | Datatype _ ->
+      pp pp_loc bt
+    | Record members ->
+      flow_map underscore (fun (s, bt) -> aux bt ^^ underscore ^^ Id.pp s) members
+    | Map (abt, rbt) -> !^"map" ^^ underscores (aux abt ^^ underscore ^^^ aux rbt)
+    | List bt -> !^"cn_list" ^^ underscores (aux bt)
+    | Tuple nbts -> !^"cn_tuple" ^^ underscores (flow_map underscore aux nbts)
+    | Set t -> !^"cn_set" ^^ underscores (aux t)
+    | Option t -> !^"cn_option" ^^ underscores (aux t)
+  in
+  aux
 
-
-(* | Option t -> !^"option" ^^ angles (pp t) *)
 
 let rec contained =
   let containeds bts = List.concat_map contained bts in
@@ -297,6 +273,8 @@ module Surface = struct
 
   let pp : t -> _ = pp pp_loc
 
+  let pp_executable_spec : t -> _ = pp_executable_spec pp_loc
+
   let json (bt : t) = json pp_loc bt
 
   let is_map_bt = is_map_bt
@@ -338,6 +316,8 @@ module Unit = struct
   let pp_loc () = Pp.(!^"pointer")
 
   let pp = pp pp_loc
+
+  let pp_executable_spec = pp_executable_spec pp_loc
 
   let json = json pp_loc
 
