@@ -147,7 +147,6 @@ let is_bits_bt = function Bits (sign, n) -> Some (sign, n) | _ -> None
 
 let make_map_bt abt rbt = Map (abt, rbt)
 
-
 let rec of_sct loc is_signed size_of = function
   | Sctypes.Void -> Unit
   | Integer ity -> Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
