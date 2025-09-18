@@ -3784,7 +3784,7 @@ let gen_ghost_enum_member_id bts =
     Id.make here "EMPTY"
   else (
     let triple_underscore = Pp.(underscore ^^ underscore ^^ underscore) in
-    let bts_doc = Pp.(flow_map triple_underscore BT.(with_executable_spec pp) bts) in
+    let bts_doc = Pp.(flow_map triple_underscore BT.(pp_executable_spec) bts) in
     let bts_str = String.uppercase_ascii (CF.Pp_utils.to_plain_string bts_doc) in
     Id.make here bts_str)
 
