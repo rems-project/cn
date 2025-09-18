@@ -51,6 +51,7 @@ void cn_structs_declare(struct cn_smt_solver *s,
     const char **struct_names,
     struct_decl_t **struct_decls,
     size_t struct_count);
+void cn_smt_solver_reset(struct cn_smt_solver *solver);
 
 #ifdef __cplusplus
 }

@@ -189,6 +189,13 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
   return solver;
 }
 
+void cn_smt_solver_reset(struct cn_smt_solver *solver) {
+  sexp_t *reset_atom = sexp_atom("reset");
+  sexp_t *reset_cmd = sexp_list(&reset_atom, 1);
+  ack_command(solver, reset_cmd);
+  sexp_free(reset_cmd);
+}
+
 //////////////////////////////////////////////////////////////////////////////
 // CN_Datatypes and CN_Structs modules (converted from OCaml)
 //////////////////////////////////////////////////////////////////////////////
