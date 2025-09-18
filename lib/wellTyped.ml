@@ -149,6 +149,21 @@ let ensure_z_fits_bits_type loc (sign, n) v =
     (fail { loc; msg = Generic err } [@alert "-deprecated"]))
 
 
+let ensure_integer_or_bits_type ~reason it =
+  let open BT in
+  match IT.get_bt it with
+  | Integer | Bits _ -> return ()
+  | _ ->
+    let expected = "integer or bitvector type" in
+    fail
+      (illtyped_index_term
+         (IT.get_loc it)
+         it
+         (IT.get_bt it)
+         ~expected
+         ~reason:(Either.Left reason))
+
+
 let ensure_arith_type ~reason it =
   let open BT in
   match IT.get_bt it with
@@ -167,7 +182,7 @@ let ensure_arith_type ~reason it =
 let ensure_set_type ~reason it =
   let open BT in
   match IT.get_bt it with
-  | Set bt -> return bt
+  | Set _ -> return ()
   | _ ->
     let expected = "set" in
     fail
@@ -495,6 +510,41 @@ module WIT = struct
     | IT (Cons (it, _), _, _) | it -> return @@ IT.get_loc it
 
 
+  let binop_nia_checks it =
+    match it with
+    | IT (Binop (bop, t, t'), _, loc) ->
+      (match (bop, IT.get_bt t, is_const t, is_const t') with
+       | Mul, Integer, None, None ->
+         let msg =
+           !^"Neither side of the integer multiplication"
+           ^^^ squotes (IT.pp it)
+           ^^^ !^"is a constant."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, None ->
+         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
+         let msg =
+           !^op ^^^ squotes (IT.pp it) ^^^ !^"does not have constant right-hand argument."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, Some (Z z', _)
+         when Z.leq z' Z.zero ->
+         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
+         let msg =
+           !^op ^^^ squotes (IT.pp it) ^^^ !^"does not have positive right-hand argument."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | Exp, (Integer | Bits _), None, _ | Exp, (Integer | Bits _), _, None ->
+         let msg =
+           !^"Exponentiation"
+           ^^^ squotes (IT.pp it)
+           ^^^ !^"does not have constant left and right-hand arguments."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | _ -> return ())
+    | _ -> return ()
+
+
   (* NOTE: This cannot _check_ what the root type of term is (the type is
      universally quantified) and so is not suitable for catching incorrect
      type annotations. *)
@@ -553,152 +603,35 @@ module WIT = struct
             return (t, IT.get_bt t)
         in
         return (IT (Unop (unop, t), ret_bt, loc))
-      | Binop (arith_op, t, t') ->
-        (match arith_op with
-         | Add ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Add, t, t'), IT.get_bt t, loc))
-         | Sub ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Sub, t, t'), IT.get_bt t, loc))
-         | Mul ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           (match (IT.get_bt t, is_const t, is_const t') with
-            | Integer, None, None ->
-              let msg =
-                !^"Both sides of the integer multiplication"
-                ^^^ squotes (IT.pp (mul_ (t, t') loc))
-                ^^^ !^"are not constants."
-                ^^^ !^"treating the term as uninterpreted."
-              in
-              warn loc msg;
-              return (IT (Binop (MulNoSMT, t, t'), IT.get_bt t, loc))
-            | _ -> return (IT (Binop (Mul, t, t'), IT.get_bt t, loc)))
-         | MulNoSMT ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (MulNoSMT, t, t'), IT.get_bt t, loc))
-         | Div ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           (match (IT.get_bt t, is_const t') with
-            | Integer, Some (Z z', _) when Z.leq z' Z.zero ->
-              let msg =
-                !^"Division"
-                ^^^ squotes (IT.pp (div_ (t, t') loc))
-                ^^^ !^"does not have positive right-hand argument."
-                ^^^ !^"Treating as uninterpreted."
-              in
-              warn loc msg;
-              return (IT (Binop (DivNoSMT, t, t'), IT.get_bt t, loc))
-            | Integer, None ->
-              let msg =
-                !^"Division"
-                ^^^ squotes (IT.pp (div_ (t, t') loc))
-                ^^^ !^"does not have constant as right-hand argument."
-                ^^^ !^"Treating as uninterpreted."
-              in
-              warn loc msg;
-              return (IT (Binop (DivNoSMT, t, t'), IT.get_bt t, loc))
-            | _ -> return (IT (Binop (Div, t, t'), IT.get_bt t, loc)))
-         | DivNoSMT ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (DivNoSMT, t, t'), IT.get_bt t, loc))
-         | Exp ->
-           let@ t = infer t in
-           let@ () = ensure_bits_type loc (IT.get_bt t) in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           let msg =
-             !^"Treating exponentiation"
-             ^^^ squotes (IT.pp (exp_ (t, t') loc))
-             ^^^ !^"as uninterpreted."
-           in
-           warn loc msg;
-           return (IT (Binop (ExpNoSMT, t, t'), IT.get_bt t, loc))
-         | ExpNoSMT | RemNoSMT | ModNoSMT | BW_Xor | BW_And | BW_Or | ShiftLeft
-         | ShiftRight | Rem | Mod ->
-           let@ t = infer t in
-           let@ () = ensure_bits_type loc (IT.get_bt t) in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (arith_op, t, t'), IT.get_bt t, loc))
-         | LT ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (LT, t, t'), BT.Bool, loc))
-         | LE ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (LE, t, t'), BT.Bool, loc))
-         | Min ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Min, t, t'), IT.get_bt t, loc))
-         | Max ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Max, t, t'), IT.get_bt t, loc))
-         | EQ ->
-           let@ t = infer t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (EQ, t, t'), BT.Bool, loc))
-         | LTPointer ->
-           let@ t = check loc (Loc ()) t in
-           let@ t' = check loc (Loc ()) t' in
-           return (IT (Binop (LTPointer, t, t'), BT.Bool, loc))
-         | LEPointer ->
-           let@ t = check loc (Loc ()) t in
-           let@ t' = check loc (Loc ()) t' in
-           return (IT (Binop (LEPointer, t, t'), BT.Bool, loc))
-         | SetMember ->
-           let@ t = infer t in
-           let@ t' = check loc (Set (IT.get_bt t)) t' in
-           return (IT (Binop (SetMember, t, t'), BT.Bool, loc))
-         | SetUnion ->
-           let@ t = infer t in
-           let@ _itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (SetUnion, t, t'), IT.get_bt t, loc))
-         | SetIntersection ->
-           let@ t = infer t in
-           let@ _itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (SetIntersection, t, t'), IT.get_bt t, loc))
-         | SetDifference ->
-           let@ t = infer t in
-           let@ itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check loc (Set itembt) t' in
-           return (IT (Binop (SetDifference, t, t'), BT.Set itembt, loc))
-         | Subset ->
-           let@ t = infer t in
-           let@ itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (Set itembt) t' in
-           return (IT (Binop (Subset, t, t'), BT.Bool, loc))
-         | And ->
-           let@ t = check loc Bool t in
-           let@ t' = check loc Bool t' in
-           return (IT (Binop (And, t, t'), Bool, loc))
-         | Or ->
-           let@ t = check loc Bool t in
-           let@ t' = check loc Bool t' in
-           return (IT (Binop (Or, t, t'), Bool, loc))
-         | Implies ->
-           let@ t = check loc Bool t in
-           let@ t' = check loc Bool t' in
-           return (IT (Binop (Implies, t, t'), Bool, loc)))
+      | Binop (SetMember, t, t') ->
+        let@ t = infer t in
+        let@ t' = check loc (Set (IT.get_bt t)) t' in
+        return (IT (Binop (SetMember, t, t'), BT.Bool, loc))
+      | Binop (bop, t, t') ->
+        let@ t = infer t in
+        let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
+        let arg_check, rbt =
+          match bop with
+          | Add | Sub | Mul | MulNoSMT | Div | DivNoSMT | Exp | ExpNoSMT | Min | Max ->
+            (ensure_arith_type ~reason:loc t, IT.get_bt t)
+          | Rem | RemNoSMT | Mod | ModNoSMT | ShiftLeft | ShiftRight ->
+            (ensure_integer_or_bits_type ~reason:loc t, IT.get_bt t)
+          | BW_And | BW_Or | BW_Xor -> (ensure_bits_type loc (IT.get_bt t), IT.get_bt t)
+          | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)
+          | EQ -> (return (), BT.Bool)
+          | LTPointer | LEPointer ->
+            (ensure_base_type loc ~expect:(Loc ()) (IT.get_bt t), BT.Bool)
+          | And | Or | Implies ->
+            (ensure_base_type loc ~expect:Bool (IT.get_bt t), BT.Bool)
+          | SetUnion | SetIntersection | SetDifference ->
+            (ensure_set_type ~reason:loc t, IT.get_bt t)
+          | Subset -> (ensure_set_type ~reason:loc t, BT.Bool)
+          | SetMember -> assert false
+        in
+        let@ () = arg_check in
+        let it = IT (Binop (bop, t, t'), rbt, loc) in
+        let@ () = binop_nia_checks it in
+        return it
       | ITE (t, t', t'') ->
         let@ t = check loc Bool t in
         let@ t' = infer t' in
