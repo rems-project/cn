@@ -16,11 +16,10 @@ module Make (AD : Domain.T) = struct
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("bennet_" ^ generator_name ^ "_record") in
     let vars_decl =
-      !^"struct cn_smt_solver* smt_solver;"
-      ^/^ !^"bennet_rand_checkpoint checkpoint;"
+      !^"bennet_rand_checkpoint checkpoint;"
       ^/^ !^"struct branch_history_queue branch_hist;"
       ^/^ !^"branch_history_init(&branch_hist);"
-      ^/^ !^"enum cn_smt_solver_result result;"
+      ^/^ !^"struct cn_smt_solver* smt_solver = cn_smt_new_solver(SOLVER_Z3);"
     in
     let select_path =
       !^"cn_smt_path_selector_" ^^ !^generator_name ^^ Pp.parens !^"&branch_hist" ^^ !^";"
@@ -61,7 +60,7 @@ module Make (AD : Domain.T) = struct
           !^"&branch_hist"
       in
       !^"checkpoint = bennet_rand_save();"
-      ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      ^/^ !^"cn_smt_solver_reset(smt_solver);"
       ^/^ !^"cn_smt_solver_setup(smt_solver);"
       ^/^ !^"cn_smt_gather_"
       ^^ !^generator_name
@@ -71,7 +70,7 @@ module Make (AD : Domain.T) = struct
     let check_sat =
       !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
       ^^^ braces !^"stop_solver(smt_solver); return NULL;"
-      ^/^ !^"result = cn_smt_gather_model(smt_solver);"
+      ^/^ !^"enum cn_smt_solver_result result = cn_smt_gather_model(smt_solver);"
     in
     (* Initialize concretization context *)
     let conc_context_init =
@@ -154,7 +153,8 @@ module Make (AD : Domain.T) = struct
     ^/^ (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
     ^^^ !^"if (result != CN_SOLVER_SAT)"
     ^^^ braces
-          (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
+          (!^"assert(result== CN_SOLVER_UNSAT);"
+           ^/^ !^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
            ^/^ !^"stop_solver(smt_solver); return NULL;")
     ^/^ conc_context_init
     ^/^ concrete_vars
