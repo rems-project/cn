@@ -684,20 +684,6 @@ let cast_ bt' it loc =
   if BT.equal bt' (get_bt it) then it else IT (Cast (bt', it), bt', loc)
 
 
-let arith_binop_cast op (it1, it2) loc =
-  let it1, it2 =
-    match (get_bt it1, get_bt it2) with
-    | BT.Bits (sgn1, sz1), BT.Bits (sgn2, sz2) ->
-      let sgn = if BT.equal_sign sgn1 sgn2 then sgn1 else Unsigned in
-      let cast = fun it -> cast_ (BT.Bits (sgn, max sz1 sz2)) it (get_loc it) in
-      (cast it1, cast it2)
-    | bt1, bt2 ->
-      assert (BT.equal bt1 bt2);
-      (it1, it2)
-  in
-  arith_binop op (it1, it2) loc
-
-
 let uintptr_const_ n loc = num_lit_ n Memory.uintptr_bt loc
 
 let uintptr_int_ n loc = uintptr_const_ (Z.of_int n) loc
@@ -1030,43 +1016,7 @@ let representable = value_check `Representable
 
 let good_pointer = value_check_pointer `Good
 
-let promote_to_compare it it' loc =
-  let res_bt =
-    match (get_bt it, get_bt it') with
-    | bt1, bt2 when BT.equal bt1 bt2 -> bt1
-    | BT.Bits (_, sz), BT.Bits (_, sz') -> BT.Bits (BT.Signed, sz + sz' + 2)
-    | _ ->
-      failwith
-        ("promote to compare: impossible types to compare: "
-         ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]))
-  in
-  let cast it = if BT.equal (get_bt it) res_bt then it else cast_ res_bt it loc in
-  (cast it, cast it')
 
-
-let rec wrap_bindings_match bs default_v v =
-  match (bs, v) with
-  | _, None -> None
-  | [], _ -> v
-  | (pat, x) :: bindings, _ ->
-    (match wrap_bindings_match bindings default_v v with
-     | None -> None
-     | Some v2 ->
-       let pat_ss = Sym.Set.of_list (List.map fst (bound_by_pattern pat)) in
-       if Sym.Set.is_empty (Sym.Set.inter pat_ss (free_vars v2)) then
-         Some v2
-       else (
-         match x with
-         | None -> None
-         | Some match_e ->
-           let here = Locations.other __LOC__ in
-           Some
-             (IT
-                ( Match
-                    ( match_e,
-                      [ (pat, v2); (Pat (PWild, get_bt match_e, here), default_v) ] ),
-                  get_bt v2,
-                  here ))))
 
 
 let rec map_term_pre (f : t -> t) (it : t) : t =
