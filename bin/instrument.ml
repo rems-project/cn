@@ -82,7 +82,6 @@ let generate_executable_specs
       csv_times
       astprints
       dont_use_vip
-      no_use_ity
       fail_fast
       no_inherit_loc
       magic_comment_char_dollar
@@ -109,7 +108,6 @@ let generate_executable_specs
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
-  WellTyped.use_ity := not no_use_ity;
   Sym.executable_spec_enabled := true;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
@@ -285,7 +283,6 @@ let cmd =
     $ Common.Flags.csv_times
     $ Common.Flags.astprints
     $ Verify.Flags.dont_use_vip
-    $ Common.Flags.no_use_ity
     $ Verify.Flags.fail_fast
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar

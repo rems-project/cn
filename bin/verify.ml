@@ -33,7 +33,6 @@ let verify
       solver_inc_timeout
       astprints
       dont_use_vip
-      no_use_ity
       fail_fast
       quiet
       no_inherit_loc
@@ -70,7 +69,6 @@ let verify
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
-  WellTyped.use_ity := not no_use_ity;
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
@@ -305,7 +303,6 @@ let verify_t : unit Term.t =
   $ Flags.solver_inc_timeout
   $ Common.Flags.astprints
   $ Flags.dont_use_vip
-  $ Common.Flags.no_use_ity
   $ Flags.fail_fast
   $ Flags.quiet
   $ Common.Flags.no_inherit_loc
