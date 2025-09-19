@@ -111,8 +111,6 @@ module NoSolver = struct
   let run ctxt x = x ctxt
 end
 
-let use_ity = ref true
-
 open NoSolver
 
 open Effectful.Make (NoSolver)
@@ -1577,7 +1575,7 @@ module BaseTyping = struct
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (Pp_mucore_ast.pp_pexpr pe)));
     let (Pexpr (loc, annots, _, pe_)) = pe in
     match integer_annot annots with
-    | Some ity when !use_ity ->
+    | Some ity ->
       check_pexpr (Memory.bt_of_sct (Integer ity)) (remove_integer_annot_pexpr pe)
     | _ ->
       let todo () =
@@ -1757,8 +1755,7 @@ module BaseTyping = struct
     let (Pexpr (loc, annots, _, pe_)) = expr in
     let@ () =
       match integer_annot annots with
-      | Some ity when !use_ity ->
-        ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
+      | Some ity -> ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
       | _ -> return ()
     in
     let annot bt pe_ = Mu.Pexpr (loc, annots, bt, pe_) in
@@ -1973,7 +1970,7 @@ module BaseTyping = struct
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (Pp_mucore_ast.pp_expr e)));
     let (Expr (loc, annots, _, e_)) = e in
     match integer_annot annots with
-    | Some ity when !use_ity ->
+    | Some ity ->
       check_expr
         label_context
         (Memory.bt_of_sct (Integer ity))
@@ -2202,8 +2199,7 @@ module BaseTyping = struct
     let (Expr (loc, annots, _, e_)) = expr in
     let@ () =
       match integer_annot annots with
-      | Some ity when !use_ity ->
-        ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
+      | Some ity -> ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
       | _ -> return ()
     in
     match e_ with

@@ -1,7 +1,5 @@
 module CTS : Set.S with type elt = Sctypes.t
 
-val use_ity : bool ref
-
 val add_ct : Sctypes.t -> unit
 
 val maybe_add_ct : Sctypes.t option -> unit
