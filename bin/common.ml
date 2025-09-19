@@ -432,14 +432,6 @@ module Flags = struct
       & info [ "ast" ] ~docv:"LANG1,..." ~doc)
 
 
-  let no_use_ity =
-    let doc =
-      "(this switch should go away) in WellTyped.BaseTyping, do not use\n\
-      \  integer type annotations placed by the Core elaboration"
-    in
-    Arg.(value & flag & info [ "no-use-ity" ] ~doc)
-
-
   let no_inherit_loc =
     let doc =
       "debugging: stop mucore terms inheriting location information from parents"

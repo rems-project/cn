@@ -40,6 +40,20 @@ module IndexTerms = struct
 
   let z0 = z_ Z.zero (Cerb_location.other __LOC__)
 
+  let arith_binop_cast op (it1, it2) loc =
+    let it1, it2 =
+      match (get_bt it1, get_bt it2) with
+      | BT.Bits (sgn1, sz1), BT.Bits (sgn2, sz2) ->
+        let sgn = if BT.equal_sign sgn1 sgn2 then sgn1 else Unsigned in
+        let cast = fun it -> cast_ (BT.Bits (sgn, max sz1 sz2)) it (get_loc it) in
+        (cast it1, cast it2)
+      | bt1, bt2 ->
+        assert (BT.equal bt1 bt2);
+        (it1, it2)
+    in
+    arith_binop op (it1, it2) loc
+
+
   let rec dest_int_addition ts it =
     let loc = IT.get_loc it in
     match IT.get_term it with
@@ -561,7 +575,7 @@ module IndexTerms = struct
           match base with
           | IT (ArrayShift { base = base2; ct = ct2; index = i2 }, _, _)
             when Sctypes.equal ct ct2 ->
-            (base2, IT.arith_binop_cast Add (index, i2) the_loc)
+            (base2, arith_binop_cast Add (index, i2) the_loc)
           | _ -> (base, index)
         in
         let index = aux index in

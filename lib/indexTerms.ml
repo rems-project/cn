@@ -274,8 +274,6 @@ let make_subst assoc =
   Subst.make free_vars_with_rename (List.map (fun (s, t) -> (s, `Term t)) assoc)
 
 
-let substitute_lets_flag = Sym.fresh "substitute_lets"
-
 let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)) =
   match it with
   | Sym sym ->
@@ -330,12 +328,8 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
     IT (MapDef ((s, abt), subst su body), bt, loc)
   | Apply (name, args) -> IT (Apply (name, List.map (subst su) args), bt, loc)
   | Let ((name, t1), t2) ->
-    if Sym.Set.mem substitute_lets_flag su.flags then (
-      let t1 = subst su t1 in
-      subst (Subst.add free_vars_with_rename (name, `Term t1) su) t2)
-    else (
-      let name, t2 = suitably_alpha_rename su.relevant name t2 in
-      IT (Let ((name, subst su t1), subst su t2), bt, loc))
+    let name, t2 = suitably_alpha_rename su.relevant name t2 in
+    IT (Let ((name, subst su t1), subst su t2), bt, loc)
   | Match (e, cases) ->
     let e = subst su e in
     let cases = List.map (subst_under_pattern su) cases in
@@ -382,11 +376,6 @@ and suitably_alpha_rename_pattern su (Pat (pat_, bt, loc), body) =
         args
     in
     (Pat (PConstructor (s, args), bt, loc), body)
-
-
-let substitute_lets =
-  let flags = Sym.Set.of_list [ substitute_lets_flag ] in
-  subst { (make_subst []) with flags }
 
 
 let is_const = function
@@ -668,24 +657,6 @@ let struct_ (tag, members) loc = IT (Struct (tag, members), BT.Struct tag, loc)
 
 let member_ ~member_bt (it, member) loc = IT (StructMember (it, member), member_bt, loc)
 
-let ( %. ) struct_decls t member =
-  let tag =
-    match get_bt t with
-    | BT.Struct tag -> tag
-    | _ -> Cerb_debug.error "illtyped index term. not a struct"
-  in
-  let member_bt =
-    match
-      List.assoc_opt Id.equal member (Memory.member_types (Sym.Map.find tag struct_decls))
-    with
-    | Some sct -> Memory.bt_of_sct sct
-    | None ->
-      Cerb_debug.error
-        ("struct " ^ Sym.pp_string tag ^ " does not have member " ^ Id.get_string member)
-  in
-  member_ ~member_bt (t, member)
-
-
 let record_ members loc =
   IT (Record members, BT.Record (List.map (fun (s, t) -> (s, get_bt t)) members), loc)
 
@@ -707,20 +678,6 @@ let gePointer_ (it, it') loc = lePointer_ (it', it) loc
 
 let cast_ bt' it loc =
   if BT.equal bt' (get_bt it) then it else IT (Cast (bt', it), bt', loc)
-
-
-let arith_binop_cast op (it1, it2) loc =
-  let it1, it2 =
-    match (get_bt it1, get_bt it2) with
-    | BT.Bits (sgn1, sz1), BT.Bits (sgn2, sz2) ->
-      let sgn = if BT.equal_sign sgn1 sgn2 then sgn1 else Unsigned in
-      let cast = fun it -> cast_ (BT.Bits (sgn, max sz1 sz2)) it (get_loc it) in
-      (cast it1, cast it2)
-    | bt1, bt2 ->
-      assert (BT.equal bt1 bt2);
-      (it1, it2)
-  in
-  arith_binop op (it1, it2) loc
 
 
 let uintptr_const_ n loc = num_lit_ n Memory.uintptr_bt loc
@@ -1054,45 +1011,6 @@ let good_value = value_check `Good
 let representable = value_check `Representable
 
 let good_pointer = value_check_pointer `Good
-
-let promote_to_compare it it' loc =
-  let res_bt =
-    match (get_bt it, get_bt it') with
-    | bt1, bt2 when BT.equal bt1 bt2 -> bt1
-    | BT.Bits (_, sz), BT.Bits (_, sz') -> BT.Bits (BT.Signed, sz + sz' + 2)
-    | _ ->
-      failwith
-        ("promote to compare: impossible types to compare: "
-         ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]))
-  in
-  let cast it = if BT.equal (get_bt it) res_bt then it else cast_ res_bt it loc in
-  (cast it, cast it')
-
-
-let rec wrap_bindings_match bs default_v v =
-  match (bs, v) with
-  | _, None -> None
-  | [], _ -> v
-  | (pat, x) :: bindings, _ ->
-    (match wrap_bindings_match bindings default_v v with
-     | None -> None
-     | Some v2 ->
-       let pat_ss = Sym.Set.of_list (List.map fst (bound_by_pattern pat)) in
-       if Sym.Set.is_empty (Sym.Set.inter pat_ss (free_vars v2)) then
-         Some v2
-       else (
-         match x with
-         | None -> None
-         | Some match_e ->
-           let here = Locations.other __LOC__ in
-           Some
-             (IT
-                ( Match
-                    ( match_e,
-                      [ (pat, v2); (Pat (PWild, get_bt match_e, here), default_v) ] ),
-                  get_bt v2,
-                  here ))))
-
 
 let rec map_term_pre (f : t -> t) (it : t) : t =
   let (IT (it_, bt, here)) = f it in
