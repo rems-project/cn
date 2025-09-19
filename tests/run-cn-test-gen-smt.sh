@@ -26,6 +26,7 @@ TO_TEST=(
   "neg100.pass.c"
   "neq.pass.c"
   "non_access_global.pass.c"
+  "runway.pass.c"
   "smt_pruning.pass.c"
   "sorted_list_alt.insert.pass.c"
   "sorted_list_alt3.pass.c"
@@ -36,5 +37,5 @@ TO_TEST=(
 # Run each test with the SMT solver
 for test_file in "${TO_TEST[@]}"; do
   echo "Running symbolic test: $test_file"
-  ./run-single-test.sh -s "src/$test_file"
+  ./run-single-test.sh -s "src/$test_file" || exit 1
 done

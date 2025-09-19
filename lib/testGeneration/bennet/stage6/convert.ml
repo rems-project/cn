@@ -751,28 +751,29 @@ module Make (AD : Domain.T) = struct
   let transform (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Stage5.Ctx.t)
     : Pp.document
     =
-    let defs =
-      List.map
-        (fun ((_, gr) : _ * Stage5.Def.t) -> (GenUtils.get_mangled_name gr.name, gr))
-        ctx
-    in
     let typedef_docs =
-      defs
+      ctx
       |> List.map (fun ((name, def) : Sym.t * Stage5.Def.t) ->
         let loc = Locations.other __LOC__ in
         let bt =
           BT.Record
             (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) def.oargs)
         in
-        let new_tag = Option.get (CtA.generate_record_tag name bt) in
+        let struct_name = Sym.fresh ("cn_test_generator_" ^ Sym.pp_string name) in
+        let new_tag = Option.get (CtA.generate_record_tag struct_name bt) in
         let typedef_doc tag =
           let open Pp in
           !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
         in
         typedef_doc (CtA.lookup_records_map_with_default bt))
     in
+    let defs =
+      List.map
+        (fun ((_, gr) : _ * Stage5.Def.t) -> (GenUtils.get_mangled_name gr.name, gr))
+        ctx
+    in
     let declarations, function_definitions =
-      List.split (List.map (transform_gen_def sigma ctx) defs)
+      defs |> List.map (transform_gen_def sigma ctx) |> List.split
     in
     let sigma : 'a A.sigma = { A.empty_sigma with declarations; function_definitions } in
     let record_defs = Records.generate_all_record_strs () in
@@ -787,6 +788,19 @@ module Make (AD : Domain.T) = struct
       |> String.of_seq
       |> String.capitalize_ascii
       |> fun x -> x ^ "_H" |> Pp.string
+    in
+    let harnesses =
+      ctx
+      |> List.filter (fun ((_, gr) : _ * Stage5.Def.t) -> gr.spec)
+      |> List.map fst
+      |> List.map Sym.pp_string
+      |> List.map (fun name ->
+        Printf.sprintf
+          "%s* %s(void**) { return bennet_%s(); }"
+          ("cn_test_generator_" ^ name ^ "_record")
+          ("cn_test_generator_" ^ name)
+          name)
+      |> String.concat "\n\n"
     in
     let open Pp in
     (!^"#ifndef" ^^^ include_guard_name)
@@ -803,6 +817,7 @@ module Make (AD : Domain.T) = struct
     ^^ !^"/* TYPEDEFS */"
     ^^ hardline
     ^^ separate hardline typedef_docs
+    ^^ twice hardline
     ^^ !^"/* FUNCTION DECLARATIONS */"
     ^^ hardline
     ^^ CF.Pp_ail.(
@@ -814,6 +829,8 @@ module Make (AD : Domain.T) = struct
     ^^ !^"/* EVERYTHING ELSE */"
     ^^ hardline
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, sigma))
+    ^^ hardline
+    ^^ !^harnesses
     ^^ hardline
     ^^ (!^"#endif //" ^^^ include_guard_name)
     ^^ hardline

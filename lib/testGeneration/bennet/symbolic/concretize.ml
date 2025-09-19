@@ -192,10 +192,7 @@ module Make (AD : Domain.T) = struct
           ^^^ !^"struct branch_history_queue* branch_hist"
           ^^ comma
           ^^^ params)
-    ^^^ !^"{"
-    ^/^ !^"CN_SMT_CONCRETIZE_INIT();"
-    ^/^ body
-    ^/^ !^"}"
+    ^^^ braces body
 
 
   let concretize_ctx (ctx : Ctx.t) : Pp.document =

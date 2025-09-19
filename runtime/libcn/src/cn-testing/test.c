@@ -12,6 +12,7 @@
 #include <cn-testing/result.h>
 #include <cn-testing/test.h>
 #include <cn-replicate/shape.h>
+#include <cn-smt/branch_history.h>
 
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
@@ -269,6 +270,8 @@ int cn_test_main(int argc, char* argv[]) {
       print_size_info = true;
     } else if (strcmp("--print-discard-info", arg) == 0) {
       print_discard_info = true;
+    } else if (strcmp("--smt-pruning-at-runtime", arg) == 0) {
+      cn_smt_pruning_at_runtime = true;
     }
   }
 

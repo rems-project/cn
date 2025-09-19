@@ -136,7 +136,7 @@ let compile_random_test_case
         ^^ parens
              (!^(String.concat
                    "_"
-                   [ "bennet";
+                   [ "cn_test_generator";
                      (if is_static then
                         Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string fn
                       else

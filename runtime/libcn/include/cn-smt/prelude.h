@@ -11,3 +11,4 @@
 #include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
+#include <cn-smt/trie.h>

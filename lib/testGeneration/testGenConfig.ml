@@ -40,6 +40,7 @@ type t =
     static_absint : string list;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_at_runtime : bool;
     symbolic : bool;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
@@ -84,6 +85,7 @@ let default =
     static_absint = [];
     smt_pruning_before_absinst = `None;
     smt_pruning_after_absinst = `None;
+    smt_pruning_at_runtime = false;
     symbolic = false;
     symbolic_timeout = None;
     max_unfolds = None;
@@ -189,6 +191,8 @@ let has_static_absint () = (Option.get !instance).static_absint
 let has_smt_pruning_before_absinst () = (Option.get !instance).smt_pruning_before_absinst
 
 let has_smt_pruning_after_absinst () = (Option.get !instance).smt_pruning_after_absinst
+
+let is_smt_pruning_at_runtime () = (Option.get !instance).smt_pruning_at_runtime
 
 let has_inline_everything () = (Option.get !instance).inline_everything
 

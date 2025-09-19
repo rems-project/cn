@@ -137,4 +137,5 @@
     cn-smt/structs.o
     cn-smt/subst.o
     cn-smt/terms.o
-    cn-smt/to_smt.o))))
+    cn-smt/to_smt.o
+    cn-smt/trie.o))))

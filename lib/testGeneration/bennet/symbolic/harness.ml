@@ -14,15 +14,25 @@ module Make (AD : Domain.T) = struct
   let transform_def (def : Def.t) : Pp.document =
     let open Pp in
     let generator_name = Sym.pp_string def.name in
-    let record_type = !^("bennet_" ^ generator_name ^ "_record") in
+    let record_type = !^("cn_test_generator_" ^ generator_name ^ "_record") in
+    let state_init =
+      !^"assert(gen_state != NULL);"
+      ^/^ !^"if"
+      ^^^ parens !^"*gen_state == NULL"
+      ^^^ braces !^"*(cn_trie**)gen_state = cn_trie_create();"
+      ^/^ !^"cn_trie* unsat_paths = *(cn_trie**)gen_state;"
+    in
     let vars_decl =
-      !^"bennet_rand_checkpoint checkpoint;"
-      ^/^ !^"struct branch_history_queue branch_hist;"
+      !^"struct branch_history_queue branch_hist;"
       ^/^ !^"branch_history_init(&branch_hist);"
+      ^/^ !^"bennet_rand_checkpoint checkpoint = bennet_rand_save();"
       ^/^ !^"struct cn_smt_solver* smt_solver = cn_smt_new_solver(SOLVER_Z3);"
     in
     let select_path =
-      !^"cn_smt_path_selector_" ^^ !^generator_name ^^ Pp.parens !^"&branch_hist" ^^ !^";"
+      !^"cn_smt_path_selector_"
+      ^^ !^generator_name
+      ^^ parens !^"&branch_hist, unsat_paths"
+      ^^ !^";"
     in
     (* Initialize symbolic execution context *)
     let context_init = !^"cn_smt_gather_init();" in
@@ -47,7 +57,7 @@ module Make (AD : Domain.T) = struct
       |> Pp.separate Pp.hardline
     in
     (* Generate call to the corresponding cn_smt_gather_<generator name> function with symbolic variables *)
-    let collect_constraints =
+    let gather_constraints =
       let smt_args =
         def.iargs
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_var"))
@@ -59,8 +69,7 @@ module Make (AD : Domain.T) = struct
         else
           !^"&branch_hist"
       in
-      !^"checkpoint = bennet_rand_save();"
-      ^/^ !^"cn_smt_solver_reset(smt_solver);"
+      !^"cn_smt_solver_reset(smt_solver);"
       ^/^ !^"cn_smt_solver_setup(smt_solver);"
       ^/^ !^"cn_smt_gather_"
       ^^ !^generator_name
@@ -68,15 +77,19 @@ module Make (AD : Domain.T) = struct
       ^^ !^";"
     in
     let check_sat =
-      !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
-      ^^^ braces !^"stop_solver(smt_solver); return NULL;"
-      ^/^ !^"enum cn_smt_solver_result result = cn_smt_gather_model(smt_solver);"
+      !^"branch_history_rewind(&branch_hist);"
+      ^/^ !^"result = cn_smt_gather_model(smt_solver);"
+      ^/^ !^"if"
+      ^^^ parens !^"result != CN_SOLVER_SAT"
+      ^^^ braces
+            (!^"assert(result == CN_SOLVER_UNSAT);"
+             ^/^ !^"branch_history_update_trie(&branch_hist, unsat_paths);"
+             ^/^ !^"branch_history_restore(&branch_hist, NULL);"
+             ^/^ !^"attempts++;")
     in
     (* Initialize concretization context *)
     let conc_context_init =
-      !^"/* Concretize input */"
-      ^/^ !^"branch_history_rewind(&branch_hist);"
-      ^/^ !^"cn_smt_concretize_init();"
+      !^"/* Concretize input */" ^/^ !^"cn_smt_concretize_init();"
     in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
@@ -144,18 +157,28 @@ module Make (AD : Domain.T) = struct
     in
     (* Combine everything into the function *)
     (record_type ^^ !^"*")
-    ^^^ (!^("bennet_" ^ generator_name) ^^ Pp.parens !^"void")
+    ^^^ (!^("cn_test_generator_" ^ generator_name) ^^ Pp.parens !^"void** gen_state")
     ^^^ !^"{"
+    ^/^ state_init
     ^/^ vars_decl
-    ^/^ !^"/* Select path */"
-    ^/^ select_path
-    ^/^ !^"/* Gather constraints */"
-    ^/^ (context_init ^/^ symbolic_vars ^/^ collect_constraints ^/^ check_sat)
-    ^^^ !^"if (result != CN_SOLVER_SAT)"
-    ^^^ braces
-          (!^"assert(result== CN_SOLVER_UNSAT);"
-           ^/^ !^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
-           ^/^ !^"stop_solver(smt_solver); return NULL;")
+    ^/^ !^"int attempts = 0;"
+    ^/^ !^"enum cn_smt_solver_result result;"
+    ^/^ (!^"do"
+         ^^^ braces
+               (hardline
+                ^^ !^"/* Select path */"
+                ^/^ select_path
+                ^/^ !^"/* Gather constraints */"
+                ^/^ context_init
+                ^/^ symbolic_vars
+                ^/^ gather_constraints
+                ^/^ check_sat)
+         ^^^ !^"while (result != CN_SOLVER_SAT && attempts < 10);")
+    ^^^ (!^"if (result != CN_SOLVER_SAT)"
+         ^^^ braces
+               (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
+                ^/^ !^"stop_solver(smt_solver); return NULL;"))
+    ^/^ hardline
     ^/^ conc_context_init
     ^/^ concrete_vars
     ^/^ concretize_model

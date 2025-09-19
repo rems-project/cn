@@ -5,6 +5,14 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cn-smt/trie.h>
+
+/**
+ * Global variable to control SMT pruning at runtime.
+ * When true, enables SMT solver-based branch pruning during execution.
+ */
+extern bool cn_smt_pruning_at_runtime;
+
 /**
  * Node structure for the branch history queue.
  * Forms a doubly-linked list for efficient traversal and manipulation.
@@ -122,5 +130,15 @@ uint64_t branch_history_node_data(const struct branch_history_node* node);
  * @param queue Pointer to the queue
  */
 void branch_history_rewind(struct branch_history_queue* queue);
+
+/**
+ * Update the trie with the sequence of values from the branch history queue.
+ * Loops through the queue from head to NULL, collecting all data values
+ * and adding that sequence to the provided trie.
+ * 
+ * @param queue Pointer to the branch history queue to read from
+ * @param trie Pointer to the trie to update with the sequence
+ */
+void branch_history_update_trie(const struct branch_history_queue* queue, cn_trie* trie);
 
 #endif /* CN_SMT_BRANCH_HISTORY_H */

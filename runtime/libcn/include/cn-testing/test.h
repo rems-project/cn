@@ -99,6 +99,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
     bennet_rand_checkpoint checkpoint = bennet_rand_save();                              \
     int i = 0, d = 0, recentDiscards = 0;                                                \
     bool successful_gen = false;                                                         \
+    void* gen_state = NULL;                                                              \
     set_cn_failure_cb(&cn_test_gen_##FuncName##_fail);                                   \
     switch (setjmp(buf_##FuncName)) {                                                    \
       case CN_FAILURE_ASSERT:                                                            \
@@ -184,7 +185,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       bennet_info_backtracks_begin_run();                                                \
       bennet_info_unsatisfied_begin_run();                                               \
       successful_gen = false;                                                            \
-      bennet_##FuncName##_record* res = bennet_##FuncName();                             \
+      cn_test_generator_##FuncName##_record* res =                                       \
+          cn_test_generator_##FuncName(&gen_state);                                      \
       if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
         gettimeofday(&end_time, NULL);                                                   \
                                                                                          \
