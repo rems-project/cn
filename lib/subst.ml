@@ -2,7 +2,7 @@ open Pp
 
 type 'a t =
   { replace : (Sym.t * 'a) list;
-    relevant : Sym.Set.t;
+    relevant : Sym.Set.t
   }
 
 type 'a subst = 'a t
@@ -24,7 +24,6 @@ let make free_vars replace =
 
 
 let add free_vars (s, r) subst =
-  { 
-    replace = (s, r) :: subst.replace;
+  { replace = (s, r) :: subst.replace;
     relevant = Sym.Set.union (free_vars r) (Sym.Set.add s subst.relevant)
   }

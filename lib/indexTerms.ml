@@ -274,7 +274,6 @@ let make_subst assoc =
   Subst.make free_vars_with_rename (List.map (fun (s, t) -> (s, `Term t)) assoc)
 
 
-
 let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)) =
   match it with
   | Sym sym ->
@@ -329,8 +328,8 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
     IT (MapDef ((s, abt), subst su body), bt, loc)
   | Apply (name, args) -> IT (Apply (name, List.map (subst su) args), bt, loc)
   | Let ((name, t1), t2) ->
-     let name, t2 = suitably_alpha_rename su.relevant name t2 in
-     IT (Let ((name, subst su t1), subst su t2), bt, loc)
+    let name, t2 = suitably_alpha_rename su.relevant name t2 in
+    IT (Let ((name, subst su t1), subst su t2), bt, loc)
   | Match (e, cases) ->
     let e = subst su e in
     let cases = List.map (subst_under_pattern su) cases in
@@ -377,9 +376,6 @@ and suitably_alpha_rename_pattern su (Pat (pat_, bt, loc), body) =
         args
     in
     (Pat (PConstructor (s, args), bt, loc), body)
-
-
-
 
 
 let is_const = function
@@ -1015,9 +1011,6 @@ let good_value = value_check `Good
 let representable = value_check `Representable
 
 let good_pointer = value_check_pointer `Good
-
-
-
 
 let rec map_term_pre (f : t -> t) (it : t) : t =
   let (IT (it_, bt, here)) = f it in
