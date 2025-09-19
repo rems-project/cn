@@ -28,19 +28,6 @@ extern "C" {
  */
 void* cn_eval_term(cn_term* term);
 
-/**
- * @brief Evaluates a constraint context and returns whether it is satisfiable.
- *
- * This function evaluates all logical constraints in the context and determines
- * if they are collectively satisfied. For resource constraints, it checks that
- * the constraints are consistent (e.g., no overlapping memory regions).
- *
- * @param ctx The constraint context to evaluate.
- * @return true if the context is satisfiable (all constraints are satisfied),
- *         false otherwise.
- */
-bool cn_eval_context(cn_constraint_context* ctx);
-
 #ifdef __cplusplus
 }
 #endif

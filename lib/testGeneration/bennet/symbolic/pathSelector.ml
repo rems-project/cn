@@ -20,7 +20,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let (GenTerms.Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
-    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ -> empty
+    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ | `Map _ -> empty
     | `Call (fsym, _args) ->
       !^"CN_SMT_PATH_SELECTOR_CALL"
       ^^ parens (separate (comma ^^ space) [ Sym.pp last_branch; Sym.pp fsym ])
@@ -36,7 +36,6 @@ module Make (AD : Domain.T) = struct
       let then_branch = Term.assert_ (LC.T condition, then_term) () loc in
       let else_branch = Term.assert_ (LC.T (IT.not_ condition loc), else_term) () loc in
       path_selector_term last_branch (Term.pick_ [ then_branch; else_branch ] () bt loc)
-    | `Map _ -> failwith __LOC__
     | `Pick choice_terms ->
       (* Weighted choice selection using CN_SMT_PICK macros *)
       let result_var = Sym.fresh_anon () in

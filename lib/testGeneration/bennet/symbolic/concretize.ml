@@ -106,30 +106,102 @@ module Make (AD : Domain.T) = struct
       let then_branch = Term.assert_ (LC.T condition, then_term) () loc in
       let else_branch = Term.assert_ (LC.T (IT.not_ condition loc), else_term) () loc in
       concretize_term (Term.pick_ [ then_branch; else_branch ] () bt loc)
-    | `Map ((i_sym, i_bt, perm), inner_term) ->
-      (* Map operation over a range - generate a loop-like construct *)
-      let var_name = Pp.plain (Sym.pp i_sym) in
-      let var_type = Smt.convert_basetype i_bt in
-      let perm_smt = Smt.convert_indexterm perm in
-      let inner_result = concretize_term inner_term in
-      let loop_body =
-        inner_result.statements @ [ inner_result.expression ]
-        |> List.map (fun stmt -> !^"  " ^^ stmt ^^ !^";")
-        |> separate hardline
+    | `Map
+        ( (i_sym, i_bt, it_perm),
+          Annot
+            ( `LetStar
+                ( (x, Annot ((`Arbitrary | `ArbitraryDomain _ | `Symbolic), _, _, _)),
+                  Annot
+                    ( `Asgn
+                        ( (it_addr, sct),
+                          IT (Sym x', _, _),
+                          Annot (`Return (IT (Sym x'', v_bt, _)), _, _, _) ),
+                      _,
+                      _,
+                      _ ) ),
+              _,
+              _,
+              _ ) )
+      when Sym.equal x x' && Sym.equal x' x'' ->
+      (* Array assignment: claim ownership of memory locations *)
+      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = (f it_min, f it_max) in
+      let max_array_length =
+        match (it_min, it_max) with
+        | IT (Const (Bits (_, min)), _, _), IT (Const (Bits (_, max)), _, _) ->
+          let len = Z.to_int (Z.add (Z.sub max min) Z.one) in
+          assert (len > 0);
+          len
+        | _, IT (Const (Bits ((Signed, _), max)), _, _) -> Z.to_int max + 1
+        | _ -> TestGenConfig.get_max_array_length ()
       in
-      let map_stmt =
-        !^"/* Map operation over range */"
-        ^/^ !^"for ("
-        ^^ var_type
-        ^^ !^" "
-        ^^ !^var_name
-        ^^ !^" in range("
-        ^^ perm_smt
-        ^^ !^")) {"
-        ^/^ loop_body
-        ^/^ !^"}"
+      let prefix = Printf.sprintf "%s_%d_map_value" (Sym.pp_string x) (Sym.num x) in
+      let elem_names =
+        max_array_length |> List.range 0 |> List.map (Printf.sprintf "%s_%d" prefix)
       in
-      { statements = [ map_stmt ]; expression = !^"cn_smt_unit()" }
+      let elem_docs = List.map Pp.string elem_names in
+      let value_bt_doc = Smt.convert_basetype v_bt in
+      let values_stmts =
+        List.map
+          (fun name_doc ->
+             !^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
+             ^^ parens (name_doc ^^ comma ^^^ value_bt_doc))
+          elem_docs
+      in
+      let result_ty = Smt.convert_basetype bt in
+      let map_var_name = Printf.sprintf "%s_acc" prefix in
+      let map_var_doc = Pp.string map_var_name in
+      let here = Locations.other __LOC__ in
+      let ctype_doc =
+        CF.Pp_ail.(
+          with_executable_spec
+            (pp_ctype ~is_human:false C.no_qualifiers)
+            (Sctypes.to_ctype sct))
+      in
+      let convert_fn_doc =
+        !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
+      in
+      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let map_init_stmt =
+        !^"cn_term*" ^^^ map_var_doc ^^^ !^"=" ^^^ !^"cn_smt_default" ^^ parens result_ty
+      in
+      let conditional_stmts =
+        elem_docs
+        |> List.mapi (fun idx value_doc ->
+          let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
+          let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
+          let cond_doc =
+            !^"convert_from_cn_bool"
+            ^^ parens (!^"cn_eval_term" ^^ parens (Smt.convert_indexterm guard_it))
+          in
+          let addr_doc = Smt.convert_indexterm (subst_i_in_addr idx_it) in
+          let assign_doc =
+            !^"CN_SMT_CONCRETIZE_ASSIGN"
+            ^^ parens
+                 (ctype_doc
+                  ^^ comma
+                  ^^^ convert_fn_doc
+                  ^^ comma
+                  ^^^ addr_doc
+                  ^^ comma
+                  ^^^ value_doc)
+          in
+          let key_doc = Smt.convert_indexterm idx_it in
+          let update_doc =
+            map_var_doc
+            ^^^ !^"="
+            ^^^ !^"cn_smt_map_set"
+            ^^ parens (separate (comma ^^ space) [ map_var_doc; key_doc; value_doc ])
+          in
+          !^"if"
+          ^^^ parens cond_doc
+          ^^^ braces (assign_doc ^^ !^";" ^/^ update_doc ^^ !^";"))
+      in
+      { statements = values_stmts @ (map_init_stmt :: conditional_stmts);
+        expression = map_var_doc
+      }
+    | `Map _ -> failwith "TODO: Map"
     | `Pick choice_terms ->
       (* Weighted choice selection using CN_SMT_PICK macros *)
       let result_var = Sym.fresh_anon () in

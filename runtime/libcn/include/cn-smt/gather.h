@@ -28,8 +28,9 @@ size_t cn_smt_gather_logical_count(void);
 void cn_smt_gather_add_logical_term(cn_term* term);
 void cn_smt_gather_add_logical_forall(
     cn_sym var_name, cn_base_type var_type, cn_term* body);
-void cn_smt_gather_add_assignment(
-    cn_term* pointer, cn_term* value, size_t bytes, size_t alignment);
+void cn_smt_gather_add_assignment(cn_term* pointer, size_t bytes, size_t alignment);
+void cn_smt_gather_add_array_assignment(
+    cn_term* start_addr, cn_term* end_addr, size_t alignment);
 
 cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type);
 cn_term* cn_smt_gather_call_function(
@@ -45,9 +46,15 @@ uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
   } while (0);
 
 // Assign macros - add assignment constraints to context
-#define CN_SMT_GATHER_ASSIGN(ty, pointer_expr, value_term)                               \
+#define CN_SMT_GATHER_ASSIGN(ty, pointer_expr)                                           \
   do {                                                                                   \
-    cn_smt_gather_add_assignment(pointer_expr, value_term, sizeof(ty), alignof(ty));     \
+    cn_smt_gather_add_assignment(pointer_expr, sizeof(ty), alignof(ty));                 \
+  } while (0);
+
+// Array assign macros - add array constraints to context
+#define CN_SMT_GATHER_ASSIGN_ARRAY(ty, start, end)                                       \
+  do {                                                                                   \
+    cn_smt_gather_add_array_assignment(start, end, alignof(ty));                         \
   } while (0);
 
 // Let symbolic variable creation (nicer names)

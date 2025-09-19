@@ -82,16 +82,44 @@ void cn_smt_gather_add_logical_forall(
   cn_context_add_logical_constraint(cn_gather_context, constraint);
 }
 
-void cn_smt_gather_add_assignment(
-    cn_term* pointer, cn_term* value, size_t bytes, size_t alignment) {
+void cn_smt_gather_add_assignment(cn_term* pointer, size_t bytes, size_t alignment) {
   assert(pointer);
   assert(alignment);
 
   if (!cn_gather_context) {
     cn_smt_gather_init();
   }
+
+  // Create end address: pointer + bytes - 1
+  cn_term* end_addr;
+
+  // Handle edge case: if bytes is 0, create an invalid range (start > end)
+  assert(bytes);
+
+  cn_term* bytes_term = cn_smt_bits(false, 64, (intmax_t)bytes);
+  cn_term* one_term = cn_smt_bits(false, 64, 1);
+  cn_term* bytes_minus_one = cn_smt_sub(bytes_term, one_term);
+  end_addr = cn_smt_add(pointer, bytes_minus_one);
+
   cn_resource_constraint* constraint =
-      cn_resource_constraint_create_predicate(pointer, bytes, alignment);
+      cn_resource_constraint_create_predicate(pointer, end_addr, alignment);
+  assert(constraint);
+
+  cn_context_add_resource_constraint(cn_gather_context, constraint);
+}
+
+void cn_smt_gather_add_array_assignment(
+    cn_term* start_addr, cn_term* end_addr, size_t alignment) {
+  assert(start_addr);
+  assert(end_addr);
+  assert(alignment);
+
+  if (!cn_gather_context) {
+    cn_smt_gather_init();
+  }
+
+  cn_resource_constraint* constraint =
+      cn_resource_constraint_create_predicate(start_addr, end_addr, alignment);
   assert(constraint);
 
   cn_context_add_resource_constraint(cn_gather_context, constraint);
@@ -246,36 +274,48 @@ enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver) 
     sexp_t* max_ptr_smt = sexp_atom("bennet_max_ptr");
 
     while (resource_constraint != NULL) {
-      // Convert pointers to SMT terms
-      sexp_t* pointer_smt = translate_term(smt_solver, resource_constraint->pointer);
+      // Convert start and end addresses to SMT terms
+      sexp_t* start_addr_smt =
+          translate_term(smt_solver, resource_constraint->start_addr);
+      sexp_t* end_addr_smt = translate_term(smt_solver, resource_constraint->end_addr);
 
-      // Create assertion: `min_ptr <= pointer`
-      sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, pointer_smt);
+      // Create assertion: `min_ptr <= start_addr`
+      sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, start_addr_smt);
       sexp_t* min_bound_assert = assume(min_bound_expr);
       ack_command(smt_solver, min_bound_assert);
       sexp_free(min_bound_assert);
 
-      // Create assertion: `pointer + bytes <= max_ptr`
-      sexp_t* bytes_smt = loc_k(resource_constraint->bytes);
-      sexp_t* pointer_plus_bytes = bv_add(pointer_smt, bytes_smt);
-      sexp_t* max_bound_expr = bv_uleq(pointer_plus_bytes, max_ptr_smt);
+      // Create assertion: `end_addr <= max_ptr`
+      sexp_t* max_bound_expr = bv_uleq(end_addr_smt, max_ptr_smt);
       sexp_t* max_bound_assert = assume(max_bound_expr);
       ack_command(smt_solver, max_bound_assert);
       sexp_free(max_bound_assert);
 
-      // No overflow on `pointer + bytes`
-      sexp_t* no_overflow_expr = bv_uleq(pointer_smt, pointer_plus_bytes);
-      sexp_t* no_overflow_assert = assume(no_overflow_expr);
-      ack_command(smt_solver, no_overflow_assert);
-      sexp_free(no_overflow_assert);
+      // CRITICAL: Prevent bitvector overflow by ensuring start_addr doesn't get too close to max
+      // Add constraint: start_addr + 65536 <= max_ptr (leave safe margin)
+      sexp_t* safety_margin = loc_k(65536);
+      sexp_t* start_plus_margin = bv_add(start_addr_smt, safety_margin);
+      sexp_t* overflow_guard_expr = bv_uleq(start_plus_margin, max_ptr_smt);
+      sexp_t* overflow_guard_assert = assume(overflow_guard_expr);
+      ack_command(smt_solver, overflow_guard_assert);
+      sexp_free(overflow_guard_assert);
+      sexp_free(safety_margin);
+      sexp_free(start_plus_margin);
+
+      // Ensure start_addr <= end_addr (prevents overflow and ensures validity)
+      sexp_t* validity_expr = bv_uleq(start_addr_smt, end_addr_smt);
+      sexp_t* validity_assert = assume(validity_expr);
+      ack_command(smt_solver, validity_assert);
+      sexp_free(validity_assert);
 
       // Alignment
       if (resource_constraint->alignment > 1) {
         sexp_t* alignment_smt = loc_k(resource_constraint->alignment);
-        sexp_t* pointer_mask_align = bv_and(pointer_smt, bv_sub(alignment_smt, loc_k(1)));
+        sexp_t* start_mask_align =
+            bv_and(start_addr_smt, bv_sub(alignment_smt, loc_k(1)));
         sexp_t* zero_smt = loc_k(0);
         sexp_t* alignment_expr =
-            sexp_list((sexp_t*[]){sexp_atom("="), pointer_mask_align, zero_smt}, 3);
+            sexp_list((sexp_t*[]){sexp_atom("="), start_mask_align, zero_smt}, 3);
         sexp_t* alignment_assert = assume(alignment_expr);
         ack_command(smt_solver, alignment_assert);
         sexp_free(alignment_assert);
@@ -295,18 +335,18 @@ enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver) 
         }
 
         {
-          // For two resources (pointer_a, bytes_a) and (pointer_b, bytes_b),
-          // assert: pointer_a + bytes_a <= pointer_b || pointer_b + bytes_b <= pointer_a
+          // For two resources (start_a, end_a) and (start_b, end_b),
+          // assert: end_a < start_b || end_b < start_a
 
-          sexp_t* other_pointer_smt = translate_term(smt_solver, other_resource->pointer);
-          sexp_t* other_bytes_smt = loc_k(other_resource->bytes);
-          sexp_t* other_pointer_plus_bytes = bv_add(other_pointer_smt, other_bytes_smt);
+          sexp_t* other_start_smt =
+              translate_term(smt_solver, other_resource->start_addr);
+          sexp_t* other_end_smt = translate_term(smt_solver, other_resource->end_addr);
 
-          // Condition 1: current_pointer + current_bytes <= other_pointer
-          sexp_t* cond1 = bv_uleq(pointer_plus_bytes, other_pointer_smt);
+          // Condition 1: current_end < other_start
+          sexp_t* cond1 = bv_ult(end_addr_smt, other_start_smt);
 
-          // Condition 2: other_pointer + other_bytes <= current_pointer
-          sexp_t* cond2 = bv_uleq(other_pointer_plus_bytes, pointer_smt);
+          // Condition 2: other_end < current_start
+          sexp_t* cond2 = bv_ult(other_end_smt, start_addr_smt);
 
           // Non-overlap constraint: cond1 || cond2
           sexp_t* non_overlap_expr = bool_or(cond1, cond2);

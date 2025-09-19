@@ -32,10 +32,10 @@ module Make (AD : Domain.T) = struct
       (* TODO: Implement proper recursive type creation for List types *)
       !^"cn_base_type_simple(CN_BASE_LIST) /* TODO: use cn_base_type_list with proper \
          element type */"
-    | Map (_key_bt, _value_bt) ->
-      (* TODO: Implement proper recursive type creation for Map types *)
-      !^"cn_base_type_simple(CN_BASE_MAP) /* TODO: use cn_base_type_map with proper \
-         key/value types */"
+    | Map (key_bt, value_bt) ->
+      let key_doc = convert_basetype key_bt in
+      let value_doc = convert_basetype value_bt in
+      !^"create_map_type" ^^ parens (separate (comma ^^ space) [ key_doc; value_doc ])
     | Tuple _element_bts ->
       (* TODO: Implement proper recursive type creation for Tuple types *)
       !^"cn_base_type_simple(CN_BASE_TUPLE) /* TODO: use cn_base_type_tuple with proper \

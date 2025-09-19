@@ -28,7 +28,7 @@ let run_tests
       num_samples
       max_backtracks
       max_unfolds
-      _max_array_length
+      max_array_length
       build_tool
       sanitizers
       print_seed
@@ -121,6 +121,7 @@ let run_tests
           symbolic;
           symbolic_timeout;
           max_unfolds;
+          max_array_length;
           print_seed;
           input_timeout;
           null_in_every;
@@ -256,9 +257,11 @@ module Flags = struct
 
 
   let max_array_length =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after June 31." in
-    Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
+    let doc = "Maximum array length for symbolic mode" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.max_array_length
+      & info [ "max-array-length" ] ~doc)
 
 
   let build_tool =

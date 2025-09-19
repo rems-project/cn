@@ -1,9 +1,11 @@
 #ifndef CN_SMT_TERMS_H
 #define CN_SMT_TERMS_H
 
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
@@ -192,6 +194,16 @@ static inline cn_base_type cn_base_type_map(
   bt.data.map.key_type = key_type;
   bt.data.map.value_type = value_type;
   return bt;
+}
+
+static inline cn_base_type create_map_type(
+    cn_base_type key_type, cn_base_type value_type) {
+  cn_base_type* key_ptr = (cn_base_type*)malloc(sizeof(cn_base_type));
+  cn_base_type* value_ptr = (cn_base_type*)malloc(sizeof(cn_base_type));
+  assert(key_ptr && value_ptr);
+  *key_ptr = key_type;
+  *value_ptr = value_type;
+  return cn_base_type_map(key_ptr, value_ptr);
 }
 
 static inline cn_base_type cn_base_type_tuple(cn_base_type* types, size_t count) {
