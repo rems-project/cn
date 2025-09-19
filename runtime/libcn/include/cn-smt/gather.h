@@ -38,24 +38,6 @@ cn_term* cn_smt_gather_call_function(
 // PICK functionality - following BENNET_PICK pattern
 uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
 
-// Initialize gather context
-#define CN_SMT_GATHER_INIT()                                                             \
-  size_t bennet_rec_size = bennet_get_size();                                            \
-  CN_SMT_GATHER_INIT_SIZED();
-
-#define CN_SMT_GATHER_INIT_SIZED()                                                       \
-  if (0) {                                                                               \
-  bennet_label_bennet_backtrack:                                                         \
-    bennet_decrement_depth();                                                            \
-    return NULL;                                                                         \
-  }                                                                                      \
-                                                                                         \
-  bennet_increment_depth();                                                              \
-  if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
-    bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
-    goto bennet_label_bennet_backtrack;                                                  \
-  }
-
 // Assert macro - adds logical constraint to context
 #define CN_SMT_GATHER_ASSERT(cond)                                                       \
   do {                                                                                   \

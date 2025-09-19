@@ -185,10 +185,7 @@ module Make (AD : Domain.T) = struct
     !^"static cn_term*"
     ^^^ !^("cn_smt_gather_" ^ Pp.plain (Sym.pp def.name))
     ^^ parens params
-    ^^^ !^"{"
-    ^/^ !^"CN_SMT_GATHER_INIT();"
-    ^/^ body
-    ^/^ !^"}"
+    ^^^ braces body
 
 
   let gather_ctx (ctx : Ctx.t) : Pp.document =

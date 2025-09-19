@@ -5,10 +5,42 @@
 #include <bennet/internals/rand.h>
 #include <bennet/internals/urn.h>
 
-int is_leaf(struct bennet_int_tree* tree) {
+/**
+ * @brief Binary tree node for weighted random sampling.
+ * 
+ * Each node contains a weight (cumulative for internal nodes, actual for leaves)
+ * and a value. Leaf nodes have NULL left and right pointers.
+ */
+struct bennet_int_tree {
+  uint64_t weight;
+  uint64_t value;
+
+  struct bennet_int_tree* left;
+  struct bennet_int_tree* right;
+};
+
+/**
+ * @brief Checks if a tree node is a leaf (has no children).
+ * @param tree Pointer to the tree node
+ * @return 1 if leaf, 0 if internal node
+ */
+static inline int is_leaf(struct bennet_int_tree* tree) {
   return tree->left == NULL && tree->right == NULL;
 }
 
+/**
+ * @brief Deterministically samples an element from the tree at a given index.
+ * 
+ * Navigates the tree based on the index and weights of subtrees to find the
+ * corresponding value. Compares the index with the left subtree's weight:
+ * if less, recurses left; otherwise recurses right with adjusted index.
+ * 
+ * Time complexity: O(log n).
+ * 
+ * @param tree Pointer to the tree root
+ * @param index Index to sample (0 <= index < total_weight)
+ * @return Value at the given index, or -1 if tree is NULL
+ */
 uint64_t sample_tree_det(struct bennet_int_tree* tree, uint64_t index) {
   if (tree == NULL) {
     return -1;
@@ -25,12 +57,33 @@ uint64_t sample_tree_det(struct bennet_int_tree* tree, uint64_t index) {
   return sample_tree_det(tree->right, index - tree->left->weight);
 }
 
+/**
+ * @brief Samples a random element from the urn based on weights.
+ * 
+ * Generates a random index proportional to element weights, then uses
+ * deterministic sampling to find the corresponding element.
+ * 
+ * @param urn Pointer to the urn
+ * @return Randomly sampled value
+ */
 uint64_t sample_urn(struct bennet_int_urn* urn) {
   uint64_t index = bennet_uniform_uint64_t(urn->tree->weight);
   return sample_tree_det(urn->tree, index);
 }
 
-struct bennet_int_tree* insert_tree(
+/**
+ * @brief Inserts a leaf node into the tree following a binary path.
+ * 
+ * Uses the path parameter as a sequence of bits to determine placement.
+ * Each bit (LSB first) indicates left (0) or right (1) traversal.
+ * Creates internal nodes as needed and updates weights along the path.
+ * 
+ * @param path Binary path for insertion (size-based for balance)
+ * @param tree Current tree root
+ * @param leaf Leaf node to insert
+ * @return Updated tree root
+ */
+static struct bennet_int_tree* insert_tree(
     uint8_t path, struct bennet_int_tree* tree, struct bennet_int_tree* leaf) {
   if (tree == NULL) {
     return leaf;
@@ -88,7 +141,20 @@ struct replace_res {
   uint64_t valueNew;
 };
 
-struct replace_res replace_tree(
+/**
+ * @brief Updates the weight and value of a leaf at a given index.
+ * 
+ * Navigates to the target leaf using the index, similar to sampling.
+ * Applies the new weight and value, then adjusts ancestor weights
+ * to reflect the change.
+ * 
+ * @param tree Tree root
+ * @param weight New weight for the leaf
+ * @param value New value for the leaf
+ * @param index Index of the leaf to update
+ * @return Structure containing old and new (weight, value) pairs
+ */
+static struct replace_res replace_tree(
     struct bennet_int_tree* tree, uint64_t weight, uint64_t value, uint64_t index) {
   if (tree == NULL) {
     assert(false);
@@ -123,7 +189,16 @@ struct replace_res replace_tree(
   }
 }
 
-uint64_t replace(
+/**
+ * @brief Replaces an element at the given index with new weight and value.
+ * 
+ * @param urn Pointer to the urn
+ * @param weight New weight
+ * @param value New value
+ * @param index Index of element to replace
+ * @return Old value that was replaced
+ */
+static uint64_t replace(
     struct bennet_int_urn* urn, uint64_t weight, uint64_t value, uint64_t index) {
   return replace_tree(urn->tree, weight, value, index).valueOld;
 }
@@ -137,6 +212,17 @@ struct uninsert_res {
   struct bennet_int_tree* tree;
 };
 
+/**
+ * @brief Removes the leaf at the end of the given path.
+ * 
+ * This is the inverse of insert_tree. Follows the path to locate and remove
+ * the target leaf, adjusting ancestor weights and cleaning up empty nodes.
+ * Also computes the lower bound index for the removed element.
+ * 
+ * @param path Binary path to the leaf (based on size-1)
+ * @param tree Current tree root
+ * @return Structure containing removed element data and updated tree
+ */
 struct uninsert_res uninsert_tree(uint8_t path, struct bennet_int_tree* tree) {
   if (tree == NULL) {
     assert(false);
@@ -167,11 +253,31 @@ struct uninsert_res uninsert_tree(uint8_t path, struct bennet_int_tree* tree) {
   }
 }
 
+/**
+ * @brief Removes the most recently inserted element from the urn.
+ * 
+ * Uses the urn's size-1 as a path to locate and remove the last inserted
+ * leaf. This is the inverse of urn_insert.
+ * 
+ * @param urn Pointer to the urn
+ * @return Structure containing removed element and updated tree
+ */
 struct uninsert_res uninsert_urn(struct bennet_int_urn* urn) {
   urn->size -= 1;
   return uninsert_tree(urn->size, urn->tree);
 }
 
+/**
+ * @brief Removes an element at a specific index from the urn.
+ * 
+ * Implements the "remove at index" strategy: first uninserts the last element,
+ * then replaces the target element with the uninserted one if they're different.
+ * This maintains tree balance while removing arbitrary elements.
+ * 
+ * @param urn Pointer to the urn
+ * @param index Index of element to remove
+ * @return Value of the removed element
+ */
 uint64_t remove_urn_det(struct bennet_int_urn* urn, uint64_t index) {
   struct uninsert_res res = uninsert_urn(urn);
 
@@ -195,6 +301,11 @@ uint64_t urn_remove(struct bennet_int_urn* urn) {
   return remove_urn_det(urn, index);
 }
 
+/**
+ * @brief Recursively frees a tree and all its subtrees.
+ * 
+ * @param tree Pointer to tree root (may be NULL)
+ */
 void tree_free(struct bennet_int_tree* tree) {
   if (tree == NULL) {
     return;

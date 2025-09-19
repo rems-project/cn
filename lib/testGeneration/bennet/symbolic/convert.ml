@@ -18,7 +18,8 @@ module Make (AD : Domain.T) = struct
     let typedef_docs =
       let defs =
         List.map
-          (fun ((_, gr) : _ * Def.t) -> (GenUtils.get_mangled_name gr.name, gr))
+          (fun ((_, gr) : _ * Def.t) ->
+             (Sym.fresh ("cn_test_generator_" ^ Sym.pp_string gr.name), gr))
           ctx
       in
       defs

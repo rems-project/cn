@@ -200,9 +200,13 @@ let run () =
             [ "--print-satisfaction-info" ]
           else
             [])
+       @ (if Config.will_print_discard_info () then
+            [ "--print-discard-info" ]
+          else
+            [])
        @
-       if Config.will_print_discard_info () then
-         [ "--print-discard-info" ]
+       if Config.is_smt_pruning_at_runtime () then
+         [ "--smt-pruning-at-runtime" ]
        else
          [])
   in

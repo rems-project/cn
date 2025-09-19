@@ -16,23 +16,6 @@ extern "C" {
 
 void cn_smt_concretize_init(void);
 
-#define CN_SMT_CONCRETIZE_INIT()                                                         \
-  size_t bennet_rec_size = bennet_get_size();                                            \
-  CN_SMT_GATHER_INIT_SIZED();
-
-#define CN_SMT_CONCRETIZE_INIT_SIZED()                                                   \
-  if (0) {                                                                               \
-  bennet_label_bennet_backtrack:                                                         \
-    bennet_decrement_depth();                                                            \
-    return NULL;                                                                         \
-  }                                                                                      \
-                                                                                         \
-  bennet_increment_depth();                                                              \
-  if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
-    bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
-    goto bennet_label_bennet_backtrack;                                                  \
-  }
-
 void* cn_smt_concretize_lookup_symbolic_var(
     struct cn_smt_solver* smt_solver, const char* name, cn_base_type type);
 
@@ -75,18 +58,7 @@ void* cn_smt_concretize_lookup_symbolic_var(
   cn_smt_concretize_lookup_symbolic_var(smt_solver, "_sym", base_type)
 
 #define CN_SMT_CONCRETIZE_CALL(function_symbol, ...)                                     \
-  ({                                                                                     \
-    cn_term* var =                                                                       \
-        cn_smt_concretize_##function_symbol(smt_solver, branch_hist, __VA_ARGS__);       \
-    if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                      \
-      assert(bennet_failure_get_failure_type() == BENNET_FAILURE_ASSERT ||               \
-             bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
-                                                                                         \
-      goto bennet_label_bennet_backtrack;                                                \
-    }                                                                                    \
-    assert(var);                                                                         \
-    var;                                                                                 \
-  })
+  cn_smt_concretize_##function_symbol(smt_solver, branch_hist, __VA_ARGS__)
 
 #define CN_SMT_CONCRETIZE_RETURN(value) return (value);
 

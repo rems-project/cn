@@ -4,6 +4,13 @@
 #include <string.h>
 
 #include <cn-smt/branch_history.h>
+#include <cn-smt/trie.h>
+
+/**
+ * Global variable to control SMT pruning at runtime.
+ * When true, enables SMT solver-based branch pruning during execution.
+ */
+bool cn_smt_pruning_at_runtime = false;
 
 /**
  * Initialize a new branch history queue.
@@ -268,4 +275,40 @@ void branch_history_rewind(struct branch_history_queue* queue) {
     }
     curr = curr->next;
   }
+}
+
+/**
+ * Update the trie with the sequence of values from the branch history queue.
+ * Loops through the queue from head to NULL, collecting all data values
+ * and adding that sequence to the provided trie.
+ * 
+ * @param queue Pointer to the branch history queue to read from
+ * @param trie Pointer to the trie to update with the sequence
+ */
+void branch_history_update_trie(const struct branch_history_queue* queue, cn_trie* trie) {
+  assert(queue != NULL);
+  assert(trie != NULL);
+
+  // If queue is empty, add empty sequence (mark root as terminal)
+  if (queue->length == 0) {
+    cn_trie_add_sequence(trie, NULL, 0);
+    return;
+  }
+
+  // Allocate array to hold the sequence using queue length
+  uint64_t* sequence = malloc(queue->length * sizeof(uint64_t));
+  assert(sequence != NULL);
+
+  // Collect all data values from head to NULL
+  struct branch_history_node* curr = queue->head;
+  for (size_t i = 0; i < queue->length && curr != NULL; i++) {
+    sequence[i] = curr->data;
+    curr = curr->next;
+  }
+
+  // Add the sequence to the trie
+  cn_trie_add_sequence(trie, sequence, queue->length);
+
+  // Free the temporary array
+  free(sequence);
 }

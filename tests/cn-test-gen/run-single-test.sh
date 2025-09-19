@@ -71,14 +71,17 @@ BASE_CONFIG="-I${OPAM_SWITCH_PREFIX}/lib/cerberus-lib/runtime/libc/include/posix
 
 # Set ALT_CONFIGS based on symbolic option
 if [ "$SYMBOLIC" = true ]; then
-  ALT_CONFIGS=("--symbolic --coverage --print-backtrack-info --print-satisfaction-info")
+  ALT_CONFIGS=(
+    "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-at-runtime"
+    "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-before-absint=slow"
+  )
 else
   ALT_CONFIGS=(
     "--coverage --sizing-strategy=quickcheck"
     "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow"
     "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint=interval --smt-pruning-before-absint=fast"
     "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
-    )
+  )
 fi
 
 BUILD_TOOLS=("bash" "make")

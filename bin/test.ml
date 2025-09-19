@@ -60,6 +60,7 @@ let run_tests
       static_absint
       smt_pruning_before_absinst
       smt_pruning_after_absinst
+      smt_pruning_at_runtime
       symbolic
       symbolic_timeout
       print_size_info
@@ -116,6 +117,7 @@ let run_tests
           static_absint;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
+          smt_pruning_at_runtime;
           symbolic;
           symbolic_timeout;
           max_unfolds;
@@ -191,10 +193,11 @@ let run_tests
         Cerb_debug.maybe_close_csv_timing_file ();
         match build_tool with
         | Bash ->
-          Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
+          let build_script = Filename.concat output_dir "run_tests.sh" in
+          Unix.execv build_script (Array.of_list [ build_script ])
         | Make ->
           Unix.chdir output_dir;
-          Unix.execvp "make" (Array.of_list [ "make" ]));
+          Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
       Result.ok ())
 
 
@@ -494,6 +497,11 @@ module Flags = struct
       & info [ "smt-pruning-after-absint" ] ~doc)
 
 
+  let smt_pruning_at_runtime =
+    let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
+    Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
+
+
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
@@ -603,6 +611,7 @@ let cmd =
     $ Flags.static_absint
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
+    $ Flags.smt_pruning_at_runtime
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.print_size_info

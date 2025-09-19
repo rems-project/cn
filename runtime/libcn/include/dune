@@ -80,6 +80,7 @@
   (cn-smt/subst.h as runtime/include/cn-smt/subst.h)
   (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
   (cn-smt/to_smt.h as runtime/include/cn-smt/to_smt.h)
+  (cn-smt/trie.h as runtime/include/cn-smt/trie.h)
   ; Counterexample program synthesis prototype
   (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
   (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)

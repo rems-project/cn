@@ -77,7 +77,13 @@ module Make (AD : Domain.T) = struct
   (** Convert generator definition to complete CN-SMT symbolic execution function *)
   let path_selector_def (def : Def.t) : Pp.document =
     let open Pp in
-    let branch_hist_param = !^"struct branch_history_queue*" ^^^ !^"branch_hist" in
+    let params =
+      !^"struct branch_history_queue*"
+      ^^^ !^"branch_hist"
+      ^^ comma
+      ^^^ !^"cn_trie*"
+      ^^^ !^"unsat_paths"
+    in
     let body =
       if def.spec then (
         (* For spec functions, generate normal path selector *)
@@ -89,8 +95,8 @@ module Make (AD : Domain.T) = struct
     in
     !^"static void"
     ^^^ !^("cn_smt_path_selector_" ^ Pp.plain (Sym.pp def.name))
-    ^^ parens branch_hist_param
-    ^/^ braces body
+    ^^ parens params
+    ^^^ braces body
 
 
   let path_selector_ctx (ctx : Ctx.t) : Pp.document =

@@ -106,9 +106,13 @@ let define_test_flags () =
          [ "--print-satisfaction-info" ]
        else
          [])
+    @ (if Config.will_print_discard_info () then
+         [ "--print-discard-info" ]
+       else
+         [])
     @
-    if Config.will_print_discard_info () then
-      [ "--print-discard-info" ]
+    if Config.is_smt_pruning_at_runtime () then
+      [ "--smt-pruning-at-runtime" ]
     else
       []
   in
@@ -151,7 +155,7 @@ let rules ~filename_base =
   ^^ hardline
   ^^ !^"\t./$< $(TEST_FLAGS)"
   ^^ (if Config.is_coverage () then
-        coverage_rules ~filename_base
+        hardline ^^ coverage_rules ~filename_base
       else
         twice hardline)
   ^^ !^"# Compilation rules"
