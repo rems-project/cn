@@ -661,24 +661,6 @@ let struct_ (tag, members) loc = IT (Struct (tag, members), BT.Struct tag, loc)
 
 let member_ ~member_bt (it, member) loc = IT (StructMember (it, member), member_bt, loc)
 
-let ( %. ) struct_decls t member =
-  let tag =
-    match get_bt t with
-    | BT.Struct tag -> tag
-    | _ -> Cerb_debug.error "illtyped index term. not a struct"
-  in
-  let member_bt =
-    match
-      List.assoc_opt Id.equal member (Memory.member_types (Sym.Map.find tag struct_decls))
-    with
-    | Some sct -> Memory.bt_of_sct sct
-    | None ->
-      Cerb_debug.error
-        ("struct " ^ Sym.pp_string tag ^ " does not have member " ^ Id.get_string member)
-  in
-  member_ ~member_bt (t, member)
-
-
 let record_ members loc =
   IT (Record members, BT.Record (List.map (fun (s, t) -> (s, get_bt t)) members), loc)
 
