@@ -18,6 +18,7 @@
     cn-executable/fulminate_alloc.o
     cn-executable/bump_alloc.o
     cn-executable/hash_table.o
+    cn-executable/rmap.o
     cn-executable/utils.o))))
 
 (rule
