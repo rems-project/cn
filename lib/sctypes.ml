@@ -158,7 +158,7 @@ let rec to_ctype (ct_ : ctype) =
   Ctype ([], ct_)
 
 
-let rec of_ctype (Ctype.Ctype (_, ct_)) =
+let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
   let open Option in
   match ct_ with
   | Ctype.Void -> return Void
@@ -189,7 +189,13 @@ let rec of_ctype (Ctype.Ctype (_, ct_)) =
   | Ctype.Atomic _ -> None
   | Ctype.Struct s -> return (Struct s)
   | Byte -> return Byte
-  | Union _ -> if !Sym.executable_spec_enabled then return (Array (Byte, None)) else fail
+  | Union _ ->
+    let int_of_ival iv = Z.to_int (Option.get (Mem.eval_integer_value iv)) in
+    let size = int_of_ival (Impl_mem.sizeof_ival ct) in
+    if !Sym.executable_spec_enabled then
+      return (Array (Byte, Some size))
+    else
+      fail
 
 
 let of_ctype_unsafe loc ct =
