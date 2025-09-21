@@ -1,5 +1,5 @@
 # Build a minimal cerberus release image
-FROM redhat/ubi9:9.4
+FROM redhat/ubi9:9.6
 
 # Install system packages
 RUN yum update -y && \

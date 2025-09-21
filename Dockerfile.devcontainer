@@ -21,7 +21,10 @@ RUN opam install --deps-only ./cn.opam
 RUN opam install z3
 RUN opam install ocaml-lsp-server ocamlformat
 
-RUN eval `opam env`
+# Added make install to make test CI pass
+# Not sure if appropriate for a dev container
+RUN eval `opam env` \
+  && make install
 
 WORKDIR /opt
 
