@@ -1013,6 +1013,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         case CN_BINOP_ADD: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS:
+            case CN_BASE_LOC:  // Pointers treated as bitvectors for arithmetic
               return bv_add(s1, s2);
             case CN_BASE_INTEGER:
             case CN_BASE_REAL:
@@ -1026,6 +1027,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         case CN_BINOP_SUB: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS:
+            case CN_BASE_LOC:  // Pointers treated as bitvectors for arithmetic
               return bv_sub(s1, s2);
             case CN_BASE_INTEGER:
             case CN_BASE_REAL:

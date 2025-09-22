@@ -43,10 +43,9 @@ module Make (AD : Domain.T) = struct
         separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_GATHER_CALL" ^^ parens args_list }
-    | `Asgn ((addr, sct), value, next_term) ->
-      (* Assignment: claim ownership and assign value to memory location *)
+    | `Asgn ((addr, sct), _value, next_term) ->
+      (* Assignment: claim ownership of memory location *)
       let addr_smt = Smt.convert_indexterm addr in
-      let value_smt = Smt.convert_indexterm value in
       let next_result = gather_term next_term in
       let assign_stmt =
         !^"CN_SMT_GATHER_ASSIGN"
@@ -56,13 +55,114 @@ module Make (AD : Domain.T) = struct
                   (pp_ctype ~is_human:false C.no_qualifiers)
                   (Sctypes.to_ctype sct))
               ^^ comma
-              ^^^ addr_smt
-              ^^ comma
-              ^^^ value_smt)
+              ^^^ addr_smt)
       in
       { statements = assign_stmt :: next_result.statements;
         expression = next_result.expression
       }
+    | `Map
+        ( (i_sym, i_bt, it_perm),
+          Annot
+            ( `LetStar
+                ( (x, Annot ((`Arbitrary | `ArbitraryDomain _ | `Symbolic), _, _, _)),
+                  Annot
+                    ( `Asgn
+                        ( (it_addr, sct),
+                          IT (Sym x', _, _),
+                          Annot (`Return (IT (Sym x'', v_bt, _)), _, _, _) ),
+                      _,
+                      _,
+                      _ ) ),
+              _,
+              _,
+              _ ) )
+      when Sym.equal x x' && Sym.equal x' x'' ->
+      (* Array assignment: claim ownership of memory locations *)
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      (* Add constraint to ensure array range doesn't exceed max_array_length *)
+      let max_len_constraint =
+        let here = Locations.other __LOC__ in
+        let array_len =
+          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        in
+        let max_len_term =
+          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        in
+        LC.T (IT.le_ (array_len, max_len_term) here)
+      in
+      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let it_min, it_max = (f it_min, f it_max) in
+      let max_array_length =
+        match (it_min, it_max) with
+        | IT (Const (Bits (_, min)), _, _), IT (Const (Bits (_, max)), _, _) ->
+          Z.to_int (Z.add (Z.sub max min) Z.one)
+        | _, IT (Const (Bits ((Signed, _), max)), _, _) -> Z.to_int max + 1
+        | _ -> TestGenConfig.get_max_array_length ()
+      in
+      let elem_names =
+        let prefix = Printf.sprintf "%s_%d_map_value" (Sym.pp_string x) (Sym.num x) in
+        List.map (Printf.sprintf "%s_%d" prefix) (List.range 0 max_array_length)
+      in
+      let elem_docs = List.map Pp.string elem_names in
+      let values_stmts =
+        let value_bt_doc = Smt.convert_basetype v_bt in
+        List.map
+          (fun name_doc ->
+             !^"CN_SMT_GATHER_LET_SYMBOLIC" ^^ parens (name_doc ^^ comma ^^^ value_bt_doc))
+          elem_docs
+      in
+      (* Memory constraint *)
+      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let start_addr_smt = Smt.convert_indexterm (subst_i_in_addr it_min) in
+      let end_addr_smt =
+        let here = Locations.other __LOC__ in
+        Smt.convert_indexterm
+          (f
+             (IT.arrayShift_
+                ~base:(subst_i_in_addr it_max)
+                ~index:
+                  (IT.num_lit_
+                     (Z.of_int (Memory.size_of_ctype sct - 1))
+                     Memory.uintptr_bt
+                     here)
+                Sctypes.char_ct
+                here))
+      in
+      let assign_stmt =
+        !^"CN_SMT_GATHER_ASSIGN_ARRAY"
+        ^^ parens
+             (CF.Pp_ail.(
+                with_executable_spec
+                  (pp_ctype ~is_human:false C.no_qualifiers)
+                  (Sctypes.to_ctype sct))
+              ^^ comma
+              ^^^ start_addr_smt
+              ^^ comma
+              ^^^ end_addr_smt)
+      in
+      (* Return value *)
+      let result_ty = Smt.convert_basetype bt in
+      let elem_entries =
+        let here = Locations.other __LOC__ in
+        elem_docs
+        |> List.mapi (fun idx value_doc ->
+          ( f (IT.add_check_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here),
+            value_doc ))
+      in
+      let actual_map =
+        List.fold_left
+          (fun m (key_it, value_doc) ->
+             let key_doc = Smt.convert_indexterm key_it in
+             !^"cn_smt_map_set"
+             ^^ parens (separate (comma ^^ space) [ m; key_doc; value_doc ]))
+          (!^"cn_smt_default" ^^ parens result_ty)
+          elem_entries
+      in
+      let assert_stmt =
+        !^"CN_SMT_GATHER_ASSERT"
+        ^^ parens (Smt.convert_logical_constraint max_len_constraint)
+      in
+      { statements = assert_stmt :: assign_stmt :: values_stmts; expression = actual_map }
     | `LetStar ((var_sym, Annot ((`Arbitrary | `Symbolic), _, bt_arb, _)), body_term) ->
       (* Let binding *)
       let body_result = gather_term body_term in
@@ -104,30 +204,7 @@ module Make (AD : Domain.T) = struct
       let then_branch = Term.assert_ (LC.T condition, then_term) () loc in
       let else_branch = Term.assert_ (LC.T (IT.not_ condition loc), else_term) () loc in
       gather_term (Term.pick_ [ then_branch; else_branch ] () bt loc)
-    | `Map ((i_sym, i_bt, perm), inner_term) ->
-      (* Map operation over a range - generate a loop-like construct *)
-      let var_name = Pp.plain (Sym.pp i_sym) in
-      let var_type = Smt.convert_basetype i_bt in
-      let perm_smt = Smt.convert_indexterm perm in
-      let inner_result = gather_term inner_term in
-      let loop_body =
-        inner_result.statements @ [ inner_result.expression ]
-        |> List.map (fun stmt -> !^"  " ^^ stmt ^^ !^";")
-        |> separate hardline
-      in
-      let map_stmt =
-        !^"/* Map operation over range */"
-        ^/^ !^"for ("
-        ^^ var_type
-        ^^ !^" "
-        ^^ !^var_name
-        ^^ !^" in range("
-        ^^ perm_smt
-        ^^ !^")) {"
-        ^/^ loop_body
-        ^/^ !^"}"
-      in
-      { statements = [ map_stmt ]; expression = !^"cn_smt_unit()" }
+    | `Map _ -> failwith "TODO"
     | `Pick choice_terms ->
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)

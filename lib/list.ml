@@ -87,3 +87,8 @@ let take n l =
   in
   if n < 0 then invalid_arg "List.take";
   aux n l
+
+
+let range i j =
+  let rec aux n acc = if n < i then acc else aux (n - 1) (n :: acc) in
+  aux j []

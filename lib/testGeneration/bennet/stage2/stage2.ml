@@ -8,7 +8,6 @@ module Make (AD : Domain.T) = struct
     module Reorder = Reorder.Make (AD)
     module SpecializeEquality = SpecializeEquality.Make (AD)
     module SimplifyNames = SimplifyNames.Make (AD)
-    (* module SmtPruning = SmtPruning.Make (AD) *)
   end
 
   module Stage1 = Stage1.Make (AD)
@@ -26,7 +25,7 @@ module Make (AD : Domain.T) = struct
       ctx |> InlineGen.transform |> SimplifyGen.transform prog5
     else
       ctx)
-    |> EachFusion.transform
+    |> (if TestGenConfig.is_symbolic_enabled () then fun x -> x else EachFusion.transform)
     |> SimplifyGen.transform prog5
     |> FlipIfs.transform
     |> SimplifyGen.transform prog5

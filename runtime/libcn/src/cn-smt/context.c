@@ -98,15 +98,17 @@ void cn_context_clear(cn_constraint_context* ctx) {
 
 // Resource constraint management
 cn_resource_constraint* cn_resource_constraint_create_predicate(
-    cn_term* pointer, size_t bytes, size_t alignment) {
-  assert(pointer);
+    cn_term* start_addr, cn_term* end_addr, size_t alignment) {
+  assert(start_addr);
+  assert(end_addr);
+  assert(alignment);
 
   cn_resource_constraint* constraint = malloc(sizeof(cn_resource_constraint));
   assert(constraint);
 
-  constraint->bytes = bytes;
+  constraint->start_addr = start_addr;
+  constraint->end_addr = end_addr;
   constraint->alignment = alignment;
-  constraint->pointer = pointer;
   constraint->next = NULL;
 
   return constraint;
@@ -116,7 +118,8 @@ void cn_context_add_resource_constraint(
     cn_constraint_context* ctx, cn_resource_constraint* constraint) {
   assert(ctx && constraint);
 
-  assert(constraint->pointer->base_type.tag == CN_BASE_LOC);
+  assert(constraint->start_addr->base_type.tag == CN_BASE_LOC);
+  assert(constraint->end_addr->base_type.tag == CN_BASE_LOC);
 
   // Add to front of linked list
   constraint->next = ctx->resource_constraints;
@@ -257,8 +260,8 @@ void cn_context_print_summary(const cn_constraint_context* ctx) {
     const cn_resource_constraint* resource = ctx->resource_constraints;
     int i = 0;
     while (resource && i < 5) {  // Limit to first 5 for summary
-      printf("    [%d] Bytes: %zu\n", i, resource->bytes);
-      printf("         Pointer: %s\n", cn_term_to_string(resource->pointer));
+      printf("    [%d] Start: %s\n", i, cn_term_to_string(resource->start_addr));
+      printf("         End: %s\n", cn_term_to_string(resource->end_addr));
 
       resource = resource->next;
       i++;
