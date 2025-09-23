@@ -88,7 +88,10 @@ jobs:
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           export CFLAGS="-std=c2x"
+          echo "Starting random benchmark comparison..."
           python3 bench/bennet/benchmark_comparison.py --results-dir /tmp/benchmark-results-random 2>&1 | tee /tmp/benchmark-output-random.txt
+          echo "Random benchmark comparison exit code: $?"
+          echo "Output file size: $(wc -l < /tmp/benchmark-output-random.txt) lines"
 
       - name: Prepare random benchmark comment
         run: |
@@ -99,12 +102,18 @@ jobs:
           echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})" >> ${{ env.COMMENT_RANDOM }}
           echo "" >> ${{ env.COMMENT_RANDOM }}
           echo "\`\`\`" >> ${{ env.COMMENT_RANDOM }}
-          # Extract comparison output from the benchmark script output
+          
           if [ -f /tmp/benchmark-output-random.txt ]; then
-            # Get the performance comparison section
-            sed -n '/PERFORMANCE COMPARISON/,$p' /tmp/benchmark-output-random.txt >> ${{ env.COMMENT_RANDOM }}
+            # Check if the output contains performance comparison
+            if grep -q "PERFORMANCE COMPARISON" /tmp/benchmark-output-random.txt; then
+              # Extract the performance comparison section
+              sed -n '/PERFORMANCE COMPARISON/,$p' /tmp/benchmark-output-random.txt >> ${{ env.COMMENT_RANDOM }}
+            else
+              echo "Benchmark ran but no performance comparison found. Full output:" >> ${{ env.COMMENT_RANDOM }}
+              cat /tmp/benchmark-output-random.txt >> ${{ env.COMMENT_RANDOM }}
+            fi
           else
-            echo "Random benchmark comparison completed successfully" >> ${{ env.COMMENT_RANDOM }}
+            echo "Error: benchmark output file not found" >> ${{ env.COMMENT_RANDOM }}
           fi
           echo "\`\`\`" >> ${{ env.COMMENT_RANDOM }}
 
@@ -119,7 +128,10 @@ jobs:
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           export CFLAGS="-std=c2x"
+          echo "Starting symbolic benchmark comparison..."
           python3 bench/bennet/benchmark_comparison.py --symbolic --results-dir /tmp/benchmark-results-symbolic 2>&1 | tee /tmp/benchmark-output-symbolic.txt
+          echo "Symbolic benchmark comparison exit code: $?"
+          echo "Output file size: $(wc -l < /tmp/benchmark-output-symbolic.txt) lines"
 
       - name: Prepare symbolic benchmark comment
         run: |
@@ -130,12 +142,18 @@ jobs:
           echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})" >> ${{ env.COMMENT_SYMBOLIC }}
           echo "" >> ${{ env.COMMENT_SYMBOLIC }}
           echo "\`\`\`" >> ${{ env.COMMENT_SYMBOLIC }}
-          # Extract comparison output from the benchmark script output
+          
           if [ -f /tmp/benchmark-output-symbolic.txt ]; then
-            # Get the performance comparison section
-            sed -n '/PERFORMANCE COMPARISON/,$p' /tmp/benchmark-output-symbolic.txt >> ${{ env.COMMENT_SYMBOLIC }}
+            # Check if the output contains performance comparison
+            if grep -q "PERFORMANCE COMPARISON" /tmp/benchmark-output-symbolic.txt; then
+              # Extract the performance comparison section
+              sed -n '/PERFORMANCE COMPARISON/,$p' /tmp/benchmark-output-symbolic.txt >> ${{ env.COMMENT_SYMBOLIC }}
+            else
+              echo "Benchmark ran but no performance comparison found. Full output:" >> ${{ env.COMMENT_SYMBOLIC }}
+              cat /tmp/benchmark-output-symbolic.txt >> ${{ env.COMMENT_SYMBOLIC }}
+            fi
           else
-            echo "Symbolic benchmark comparison completed successfully" >> ${{ env.COMMENT_SYMBOLIC }}
+            echo "Error: benchmark output file not found" >> ${{ env.COMMENT_SYMBOLIC }}
           fi
           echo "\`\`\`" >> ${{ env.COMMENT_SYMBOLIC }}
 
