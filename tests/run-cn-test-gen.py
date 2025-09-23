@@ -254,7 +254,7 @@ def main():
         sys.exit(1)
 
     if args.symbolic:
-        # For symbolic mode, use the specific subset of tests from run-cn-test-gen-smt.sh
+        # For symbolic mode, use a specific subset of tests
         smt_test_files = [
             "abs_mem.pass.c",
             "abs.pass.c",
