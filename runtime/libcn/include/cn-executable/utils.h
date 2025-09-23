@@ -541,22 +541,15 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-// typedef struct cn_source_location_node {
-//     char *cn_source_location;
-//     cn_source_location_node *next;
-// } cn_source_location_node;
-
-// typedef struct cn_source_location_stack {
-//     struct cn_source_location_node *top;
-//     int size;
-// } cn_source_location_stack;
-
 GEN_ALL_STACK(cn_source_location, char *);
 
 typedef struct ownership_ghost_state_info {
   int depth;
+  #ifdef FULM_RECORD_OWNED_STACK
   cn_source_location_stack *source_loc_stack;
+  #endif
 } ownership_ghost_state_info;
+
 
 enum STACK_OP {
   PUSH,

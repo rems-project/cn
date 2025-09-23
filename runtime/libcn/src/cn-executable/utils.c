@@ -130,6 +130,7 @@ void print_error_msg_info(struct cn_error_message_info* info) {
 }
 
 void print_owned_calls_stack(ownership_ghost_state_info* entry_maybe) {
+  #ifdef FULM_RECORD_OWNED_STACK
   if (entry_maybe && entry_maybe->source_loc_stack) {
     cn_printf(CN_LOGGING_ERROR, "Owned locations stack:\n");
     char* popped_elem =
@@ -141,6 +142,7 @@ void print_owned_calls_stack(ownership_ghost_state_info* entry_maybe) {
           entry_maybe->source_loc_stack, &fulm_default_alloc);
     }
   }
+  #endif
 }
 
 ownership_ghost_state_info* create_ownership_ghost_state_entry(int depth) {
@@ -372,9 +374,12 @@ void ownership_ghost_state_set(int64_t address,
         (ownership_ghost_state_info*)ht_get(cn_ownership_global_ghost_state, &k);
     if (!entry) {
       entry = fulm_malloc(sizeof(ownership_ghost_state_info), &fulm_default_alloc);
+      #ifdef FULM_RECORD_OWNED_STACK
       entry->source_loc_stack = cn_source_location_stack_init(&fulm_default_alloc);
+      #endif
     }
     entry->depth = stack_depth_val;
+    #ifdef FULM_RECORD_OWNED_STACK
     switch (op) {
       case NO_OP:
         break;
@@ -391,6 +396,7 @@ void ownership_ghost_state_set(int64_t address,
         break;
       }
     }
+    #endif
     ht_set(cn_ownership_global_ghost_state, &k, entry);
   }
 }
