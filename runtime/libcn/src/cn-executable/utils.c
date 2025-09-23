@@ -396,7 +396,7 @@ void ownership_ghost_state_set(int64_t address,
 }
 
 void ownership_ghost_state_remove(int64_t address, size_t size) {
-  ownership_ghost_state_set(address, size, UNMAPPED_VAL, no_error_msg_info, POP);
+  ownership_ghost_state_set(address, size, UNMAPPED_VAL, no_error_msg_info, NO_OP);
 }
 
 _Bool is_wildcard(void* generic_c_ptr, int offset) {
