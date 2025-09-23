@@ -879,6 +879,6 @@ void cn_ghost_arg_failure(void) {
   cn_printf(CN_LOGGING_ERROR, "Runtime typechecking of ghost arguments failed\n")
       cn_printf(CN_LOGGING_ERROR,
           "************************************************************\n")
-          print_error_msg_info(error_msg_info);
+          print_error_msg_info(global_error_msg_info);
   cn_failure(CN_FAILURE_GHOST_ARGS, PRE);
 }
