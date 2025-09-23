@@ -1,0 +1,168 @@
+name: PR Benchmark Comparison
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+  pull-requests: write
+
+on:
+  pull_request:
+    branches:
+      - main
+
+env:
+  CERBERUS_IMAGE_ID: ghcr.io/rems-project/cerberus/cn:release
+
+# cancel in-progress job when a new push is performed
+concurrency:
+  group: ci-pr-bench-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  testing-benchmark:
+    name: Testing speed comparison
+    strategy:
+      matrix:
+        version: [4.14.1]
+
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history needed for comparison
+
+      - name: System dependencies (ubuntu)
+        run: |
+          sudo apt-get update
+          sudo apt-get install build-essential libgmp-dev z3 opam jq python3
+
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam install --deps-only --with-test --yes ./cn.opam z3
+
+      - name: Save OPAM cache
+        uses: actions/cache/save@v4
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+
+      - name: Download cvc5 release
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: cvc5/cvc5
+          tag: cvc5-1.2.0
+          fileName: cvc5-Linux-x86_64-static.zip
+
+      - name: Unzip and install cvc5
+        run: |
+          unzip cvc5-Linux-x86_64-static.zip
+          chmod +x cvc5-Linux-x86_64-static/bin/cvc5
+          sudo cp cvc5-Linux-x86_64-static/bin/cvc5 /usr/local/bin/
+
+      - name: Build and install CN
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          make install
+
+      - name: Set environment variables
+        run: |
+          echo "COMMENT_RANDOM=$(mktemp)" >> $GITHUB_ENV
+          echo "COMMENT_SYMBOLIC=$(mktemp)" >> $GITHUB_ENV
+          echo "BASE_SHA=$(echo ${{ github.event.pull_request.base.sha }} | cut -c1-8)" >> $GITHUB_ENV
+          echo "HEAD_SHA=$(echo ${{ github.event.pull_request.head.sha }} | cut -c1-8)" >> $GITHUB_ENV
+
+      - name: Run random benchmark comparison
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          export CFLAGS="-std=c2x"
+          python3 bench/bennet/benchmark_comparison.py --results-dir /tmp/benchmark-results-random 2>&1 | tee /tmp/benchmark-output-random.txt
+
+      - name: Prepare random benchmark comment
+        run: |
+          echo "## 🎲 Random Test Generation Benchmark Comparison" >> ${{ env.COMMENT_RANDOM }}
+          echo "" >> ${{ env.COMMENT_RANDOM }}
+          echo "Comparison between:" >> ${{ env.COMMENT_RANDOM }}
+          echo "- **PR**: [\`${{ env.HEAD_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.head.sha }})" >> ${{ env.COMMENT_RANDOM }}
+          echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})" >> ${{ env.COMMENT_RANDOM }}
+          echo "" >> ${{ env.COMMENT_RANDOM }}
+          echo "\`\`\`" >> ${{ env.COMMENT_RANDOM }}
+          # Extract comparison output from the benchmark script output
+          if [ -f /tmp/benchmark-output-random.txt ]; then
+            # Get the performance comparison section
+            sed -n '/PERFORMANCE COMPARISON/,$p' /tmp/benchmark-output-random.txt >> ${{ env.COMMENT_RANDOM }}
+          else
+            echo "Random benchmark comparison completed successfully" >> ${{ env.COMMENT_RANDOM }}
+          fi
+          echo "\`\`\`" >> ${{ env.COMMENT_RANDOM }}
+
+      - name: Comment PR (Random Benchmarks)
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('${{ env.COMMENT_RANDOM }}', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
+      - name: Run symbolic benchmark comparison
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          export CFLAGS="-std=c2x"
+          python3 bench/bennet/benchmark_comparison.py --symbolic --results-dir /tmp/benchmark-results-symbolic 2>&1 | tee /tmp/benchmark-output-symbolic.txt
+
+      - name: Prepare symbolic benchmark comment
+        run: |
+          echo "## 🔬 Symbolic Test Generation Benchmark Comparison" >> ${{ env.COMMENT_SYMBOLIC }}
+          echo "" >> ${{ env.COMMENT_SYMBOLIC }}
+          echo "Comparison between:" >> ${{ env.COMMENT_SYMBOLIC }}
+          echo "- **PR**: [\`${{ env.HEAD_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.head.sha }})" >> ${{ env.COMMENT_SYMBOLIC }}
+          echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})" >> ${{ env.COMMENT_SYMBOLIC }}
+          echo "" >> ${{ env.COMMENT_SYMBOLIC }}
+          echo "\`\`\`" >> ${{ env.COMMENT_SYMBOLIC }}
+          # Extract comparison output from the benchmark script output
+          if [ -f /tmp/benchmark-output-symbolic.txt ]; then
+            # Get the performance comparison section
+            sed -n '/PERFORMANCE COMPARISON/,$p' /tmp/benchmark-output-symbolic.txt >> ${{ env.COMMENT_SYMBOLIC }}
+          else
+            echo "Symbolic benchmark comparison completed successfully" >> ${{ env.COMMENT_SYMBOLIC }}
+          fi
+          echo "\`\`\`" >> ${{ env.COMMENT_SYMBOLIC }}
+
+      - name: Comment PR (Symbolic Benchmarks)
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('${{ env.COMMENT_SYMBOLIC }}', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: commentBody
+            });
+
