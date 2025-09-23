@@ -109,8 +109,6 @@ module Make (Config : CONFIG) = struct
     | PEconv_loaded_int _ | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
     | PEbitwise_unop (_, _)
     | PEbitwise_binop (_, _, _)
-    | Cfvfromint _
-    | Civfromfloat (_, _)
     | PEapply_fun (_, _)
     | PEbool_to_integer _
     | PEcatch_exceptional_condition (_, _)
@@ -313,10 +311,6 @@ module Make (Config : CONFIG) = struct
                    | BW_XOR -> "IvXOR"
                  in
                  !^opnm ^^ Pp.parens (separate comma [ pp_pexpr p1; pp_pexpr p2 ])
-               | Cfvfromint p1 -> !^"Cfvfromint" ^^ Pp.parens (pp_pexpr p1)
-               | Civfromfloat (ct, p1) ->
-                 !^"Civfromfloat"
-                 ^^ Pp.parens (separate comma [ pp_actype ct; pp_pexpr p1 ])
                | PEarray_shift (pe1, ty, pe2) ->
                  pp_keyword "array_shift"
                  ^^ Pp.parens

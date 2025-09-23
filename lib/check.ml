@@ -578,8 +578,6 @@ let rec check_pexpr (pe : BT.t Mu.pexpr) : IT.t m =
     let@ vt1 = check_pexpr pe1 in
     let@ vt2 = check_pexpr pe2 in
     return (arith_binop binop (vt1, vt2) loc)
-  | Cfvfromint _ -> unsupported loc !^"floats"
-  | Civfromfloat _ -> unsupported loc !^"floats"
   | PEarray_shift (pe1, ct, pe2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
     let@ () = WellTyped.check_ct loc ct in

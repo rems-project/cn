@@ -910,9 +910,9 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEbitwise_binop"
            [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | Cfvfromint e -> pp_constructor1 "Cfvfromint" [ pp_pexpr pp_type e ]
-       | Civfromfloat (act, e) ->
-         pp_constructor1 "Civfromfloat" [ pp_act act; pp_pexpr pp_type e ]
+       (* | Cfvfromint e -> pp_constructor1 "Cfvfromint" [ pp_pexpr pp_type e ] *)
+       (* | Civfromfloat (act, e) -> *)
+       (*   pp_constructor1 "Civfromfloat" [ pp_act act; pp_pexpr pp_type e ] *)
        | PEarray_shift (base, ct, idx) ->
          pp_constructor1
            "PEarray_shift"

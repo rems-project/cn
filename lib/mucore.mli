@@ -98,8 +98,6 @@ type 'TY pexpr_ =
   | PEctor of ctor * 'TY pexpr list
   | PEbitwise_unop of bw_unop * 'TY pexpr
   | PEbitwise_binop of bw_binop * 'TY pexpr * 'TY pexpr
-  | Cfvfromint of 'TY pexpr
-  | Civfromfloat of act * 'TY pexpr
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr

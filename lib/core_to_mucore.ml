@@ -253,17 +253,8 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
        let arg2 = n_pexpr loc arg2 in
        annotate (PEwrapI (ct, annotate (PEbitwise_binop (BW_XOR, arg1, arg2))))
      | CivXOR, _ -> argnum_err ()
-     | Cfvfromint, [ arg1 ] ->
-       let arg1 = n_pexpr loc arg1 in
-       annotate (Cfvfromint arg1)
-     | Cfvfromint, _ -> argnum_err ()
-     | Civfromfloat, [ ct; arg1 ] ->
-       let ct =
-         ensure_pexpr_ctype loc !^"Civfromfloat: first argument not a constant ctype" ct
-       in
-       let arg1 = n_pexpr loc arg1 in
-       annotate (Civfromfloat (ct, arg1))
-     | Civfromfloat, _ -> argnum_err ()
+     | Cfvfromint, _ -> assert_error loc !^"TODO: floats"
+     | Civfromfloat, _ -> assert_error loc !^"TODO: floats"
      | Cnil bt1, _ -> annotate (PEctor (Cnil bt1, List.map (n_pexpr loc) args))
      | Ccons, _ -> annotate (PEctor (Ccons, List.map (n_pexpr loc) args))
      | Ctuple, _ -> annotate (PEctor (Ctuple, List.map (n_pexpr loc) args))
