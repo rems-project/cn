@@ -19,21 +19,25 @@ module Make (AD : Domain.T) = struct
            | `True -> None
            | `False -> Some tm)
       | `Pick gts ->
-        let rec loop gts =
-          match gts with
-          | tm :: wgts' ->
-            let@ otm = pure (aux tm) in
-            let@ wgts' = loop wgts' in
-            return (otm :: wgts')
-          | [] -> return []
-        in
-        let@ gts = loop gts in
-        let gts = List.filter_map (fun x -> x) gts in
-        return
-          (if List.is_empty gts then
-             None
-           else
-             Some (Term.pick_ gts () bt loc))
+        let@ check = provable loc in
+        (match check (LC.T (IT.bool_ false here)) with
+         | `True -> return None
+         | `False ->
+           let rec loop gts =
+             match gts with
+             | tm :: wgts' ->
+               let@ otm = pure (aux tm) in
+               let@ wgts' = loop wgts' in
+               return (otm :: wgts')
+             | [] -> return []
+           in
+           let@ gts = loop gts in
+           let gts = List.filter_map (fun x -> x) gts in
+           return
+             (if List.is_empty gts then
+                None
+              else
+                Some (Term.pick_ gts () bt loc)))
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let@ () =
           if fast then
