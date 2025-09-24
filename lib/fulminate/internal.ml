@@ -571,10 +571,27 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
   List.non_empty (get_main sigm)
 
 
-let generate_ownership_global_assignments
+let generate_global_assignments
+      ?(experimental_ownership_stack_mode = false)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
+  let generate_ownership_stack_mode_init ~experimental_ownership_stack_mode =
+    let ownership_stack_mode_const =
+      A.(
+        AilEconst
+          (ConstantInteger
+             (IConstant
+                (Z.of_int (Bool.to_int experimental_ownership_stack_mode), Decimal, None))))
+    in
+    let ownership_stack_mode_init_expr_ =
+      A.(
+        AilEcall
+          ( mk_expr (AilEident (Sym.fresh "initialise_ownership_stack_mode")),
+            [ mk_expr ownership_stack_mode_const ] ))
+    in
+    A.AilSexpr (mk_expr ownership_stack_mode_init_expr_)
+  in
   match get_main sigm with
   | [] -> []
   | (main_sym, _) :: _ ->
@@ -584,7 +601,11 @@ let generate_ownership_global_assignments
     let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
     let assignments = OE.get_ownership_global_init_stats ~ghost_array_size () in
     let init_and_global_mapping_str =
-      generate_ail_stat_strs ([], assignments @ global_map_stmts_)
+      generate_ail_stat_strs
+        ( [],
+          assignments
+          @ (generate_ownership_stack_mode_init ~experimental_ownership_stack_mode
+             :: global_map_stmts_) )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in

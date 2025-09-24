@@ -12,6 +12,7 @@ val main
   :  ?without_ownership_checking:bool ->
   ?without_loop_invariants:bool ->
   ?with_loop_leak_checks:bool ->
+  ?experimental_ownership_stack_mode:bool ->
   ?with_testing:bool ->
   String.t ->
   String.t ->
