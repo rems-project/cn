@@ -14,8 +14,6 @@ val bind : 'a m -> ('a -> 'b m) -> 'b m
 
 val pure : 'a m -> 'a m
 
-val pure_persist_logical_variables : 'a m -> 'a m
-
 val ( let@ ) : 'a m -> ('a -> 'b m) -> 'b m
 
 val fail : failure -> 'a m

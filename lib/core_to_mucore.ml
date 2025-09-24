@@ -200,6 +200,12 @@ let ity_act loc ity =
     }
 
 
+let is_const_bool_pexpr = function
+  | Mucore.Pexpr (_, _, _, PEval (V (_, Vtrue))) -> Some true
+  | Mucore.Pexpr (_, _, _, PEval (V (_, Vfalse))) -> Some false
+  | _ -> None
+
+
 let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   let loc = (if inherit_loc then Locations.update loc else Fun.id) (get_loc_ annots) in
   let n_pexpr = n_pexpr ~inherit_loc in
@@ -253,17 +259,8 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
        let arg2 = n_pexpr loc arg2 in
        annotate (PEwrapI (ct, annotate (PEbitwise_binop (BW_XOR, arg1, arg2))))
      | CivXOR, _ -> argnum_err ()
-     | Cfvfromint, [ arg1 ] ->
-       let arg1 = n_pexpr loc arg1 in
-       annotate (Cfvfromint arg1)
-     | Cfvfromint, _ -> argnum_err ()
-     | Civfromfloat, [ ct; arg1 ] ->
-       let ct =
-         ensure_pexpr_ctype loc !^"Civfromfloat: first argument not a constant ctype" ct
-       in
-       let arg1 = n_pexpr loc arg1 in
-       annotate (Civfromfloat (ct, arg1))
-     | Civfromfloat, _ -> argnum_err ()
+     | Cfvfromint, _ -> assert_error loc !^"TODO: floats"
+     | Civfromfloat, _ -> assert_error loc !^"TODO: floats"
      | Cnil bt1, _ -> annotate (PEctor (Cnil bt1, List.map (n_pexpr loc) args))
      | Ccons, _ -> annotate (PEctor (Ccons, List.map (n_pexpr loc) args))
      | Ctuple, _ -> annotate (PEctor (Ctuple, List.map (n_pexpr loc) args))
@@ -488,32 +485,14 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
        let e'' = n_pexpr loc e'' in
        annotate (PElet (pat, e', e'')))
   | PEif (e1, e2, e3) ->
-    (match (e2, e3) with
-     | ( Pexpr (_, _, PEval (Vloaded (LVspecified (OVinteger iv1)))),
-         Pexpr (_, _, PEval (Vloaded (LVspecified (OVinteger iv2)))) )
-       when Option.equal Z.equal (CF.Mem.eval_integer_value iv1) (Some Z.one)
-            && Option.equal Z.equal (CF.Mem.eval_integer_value iv2) (Some Z.zero) ->
-       let e1 = n_pexpr loc e1 in
-       annotate (PEbool_to_integer e1)
-     | ( Pexpr
-           (_, _, PEctor (Cspecified, [ Pexpr (_, _, PEval (Vobject (OVinteger iv1))) ])),
-         Pexpr
-           (_, _, PEctor (Cspecified, [ Pexpr (_, _, PEval (Vobject (OVinteger iv2))) ]))
-       )
-       when Option.equal Z.equal (CF.Mem.eval_integer_value iv1) (Some Z.one)
-            && Option.equal Z.equal (CF.Mem.eval_integer_value iv2) (Some Z.zero) ->
-       let e1 = n_pexpr loc e1 in
-       annotate (PEbool_to_integer e1)
-     (* this should go away *)
-     | Pexpr (_, _, PEval Vtrue), Pexpr (_, _, PEval Vfalse) -> n_pexpr loc e1
-     | _ ->
-       let e1 = n_pexpr loc e1 in
-       let e2 = n_pexpr loc e2 in
-       let e3 = n_pexpr loc e3 in
-       (match e1 with
-        | Pexpr (_, _, _, PEval (V (_, Vtrue))) -> e2
-        | Pexpr (_, _, _, PEval (V (_, Vfalse))) -> e3
-        | _ -> annotate (PEif (e1, e2, e3))))
+    let e1 = n_pexpr loc e1 in
+    let e2 = n_pexpr loc e2 in
+    let e3 = n_pexpr loc e3 in
+    (* https://github.com/rems-project/cn/commit/7ec90cf0c8eed6820f5fdf22c25067a3a9aaf80a *)
+    (match is_const_bool_pexpr e1 with
+     | Some true -> e2
+     | Some false -> e3
+     | None -> annotate (PEif (e1, e2, e3)))
   | PEis_scalar _e' -> assert_error loc !^"core_anormalisation: PEis_scalar"
   | PEis_integer _e' -> assert_error loc !^"core_anormalisation: PEis_integer"
   | PEis_signed _e' -> assert_error loc !^"core_anormalisation: PEis_signed"
@@ -790,22 +769,10 @@ let rec n_expr
        let@ e2 = n_expr e2 in
        return (wrap (Elet (pat, e1, e2))))
   | Eif (e1, e2, e3) ->
-    (match (e2, e3) with
-     | ( Expr (_, Epure (Pexpr (_, _, PEval (Vloaded (LVspecified (OVinteger iv1)))))),
-         Expr (_, Epure (Pexpr (_, _, PEval (Vloaded (LVspecified (OVinteger iv2)))))) )
-       when Option.equal Z.equal (CF.Mem.eval_integer_value iv1) (Some Z.one)
-            && Option.equal Z.equal (CF.Mem.eval_integer_value iv2) (Some Z.zero) ->
-       let e1 = n_pexpr e1 in
-       return (wrap_pure (PEbool_to_integer e1))
-     | ( Expr (_, Epure (Pexpr (_, _, PEval Vtrue))),
-         Expr (_, Epure (Pexpr (_, _, PEval Vfalse))) ) ->
-       let e1 = n_pexpr e1 in
-       return (wrap (Epure e1))
-     | _ ->
-       let e1 = n_pexpr e1 in
-       let@ e2 = n_expr e2 in
-       let@ e3 = n_expr e3 in
-       return (wrap (Eif (e1, e2, e3))))
+    let e1 = n_pexpr e1 in
+    let@ e2 = n_expr e2 in
+    let@ e3 = n_expr e3 in
+    return (wrap (Eif (e1, e2, e3)))
   | Eccall (_a, ct1, e2, es) ->
     let ct1 =
       match ct1 with
