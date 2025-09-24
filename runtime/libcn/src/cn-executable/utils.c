@@ -287,6 +287,9 @@ void cn_postcondition_leak_check(void) {
     int64_t* key = it.key;
     ownership_ghost_info* info = (ownership_ghost_info*)it.value;
     if (info->depth != WILDCARD_DEPTH && info->depth > cn_stack_depth) {
+      if (ownership_stack_mode) {
+        print_owned_calls_stack(info);
+      }
       print_error_msg_info(global_error_msg_info);
       // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
@@ -306,6 +309,9 @@ void cn_loop_leak_check(void) {
     ownership_ghost_info* info = (ownership_ghost_info*)it.value;
     /* Everything mapped to the function stack depth should have been bumped up by calls to Owned in invariant */
     if (info->depth != WILDCARD_DEPTH && info->depth == cn_stack_depth) {
+      if (ownership_stack_mode) {
+        print_owned_calls_stack(info);
+      }
       print_error_msg_info(global_error_msg_info);
       // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
