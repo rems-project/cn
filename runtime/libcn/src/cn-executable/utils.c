@@ -387,6 +387,9 @@ void ownership_ghost_state_set(int64_t address,
       entry = fulm_malloc(sizeof(ownership_ghost_info), &fulm_default_alloc);
       if (ownership_stack_mode) {
         entry->source_loc_stack = cn_source_location_stack_init(&fulm_default_alloc);
+      } else {
+        entry->source_loc_stack =
+            0;  // needs to be set to NULL as it is checked in print_owned_calls_stack
       }
     }
     entry->depth = stack_depth_val;
