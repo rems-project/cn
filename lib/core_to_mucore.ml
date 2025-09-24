@@ -206,8 +206,6 @@ let is_const_bool_pexpr = function
   | _ -> None
 
 
-
-
 let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   let loc = (if inherit_loc then Locations.update loc else Fun.id) (get_loc_ annots) in
   let n_pexpr = n_pexpr ~inherit_loc in
@@ -487,11 +485,11 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
        let e'' = n_pexpr loc e'' in
        annotate (PElet (pat, e', e'')))
   | PEif (e1, e2, e3) ->
-     let e1 = n_pexpr loc e1 in
-     let e2 = n_pexpr loc e2 in
-     let e3 = n_pexpr loc e3 in
-     (* https://github.com/rems-project/cn/commit/7ec90cf0c8eed6820f5fdf22c25067a3a9aaf80a *)
-     (match is_const_bool_pexpr e1 with
+    let e1 = n_pexpr loc e1 in
+    let e2 = n_pexpr loc e2 in
+    let e3 = n_pexpr loc e3 in
+    (* https://github.com/rems-project/cn/commit/7ec90cf0c8eed6820f5fdf22c25067a3a9aaf80a *)
+    (match is_const_bool_pexpr e1 with
      | Some true -> e2
      | Some false -> e3
      | None -> annotate (PEif (e1, e2, e3)))
@@ -771,10 +769,10 @@ let rec n_expr
        let@ e2 = n_expr e2 in
        return (wrap (Elet (pat, e1, e2))))
   | Eif (e1, e2, e3) ->
-     let e1 = n_pexpr e1 in
-     let@ e2 = n_expr e2 in
-     let@ e3 = n_expr e3 in
-     return (wrap (Eif (e1, e2, e3)))
+    let e1 = n_pexpr e1 in
+    let@ e2 = n_expr e2 in
+    let@ e3 = n_expr e3 in
+    return (wrap (Eif (e1, e2, e3)))
   | Eccall (_a, ct1, e2, es) ->
     let ct1 =
       match ct1 with

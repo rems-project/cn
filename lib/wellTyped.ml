@@ -1736,7 +1736,7 @@ module BaseTyping = struct
         | PEapply_fun (fname, pes) ->
           let@ bt, pes = check_infer_apply_fun None fname pes pe in
           return (bt, PEapply_fun (fname, pes))
-        | PEconstrained _ 
+        | PEconstrained _
         | PEunion (_, _, _)
         | PEmemberof (_, _, _)
         | PEconv_int (_, _)

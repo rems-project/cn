@@ -47,16 +47,16 @@ let rec check_and_match_pattern (Mu.Pattern (loc, _, bty, pattern)) it =
            fail (fun _ ->
              { loc; msg = WellTyped (Mismatch { has = !^"list"; expect = BT.pp bty }) })
        in
-       return ([], [(loc, LC.T (eq__ it (nil_ ~item_bt loc) loc))])
+       return ([], [ (loc, LC.T (eq__ it (nil_ ~item_bt loc) loc)) ])
      | Ccons, [ p1; p2 ] ->
        let@ () =
          WellTyped.ensure_base_type loc ~expect:bty (List (Mu.bt_of_pattern p1))
        in
        let@ () = WellTyped.ensure_base_type loc ~expect:bty (Mu.bt_of_pattern p2) in
        let item_bt = Mu.bt_of_pattern p1 in
-       let@ a1,c1 = check_and_match_pattern p1 (head_ ~item_bt it loc) in
-       let@ a2,c2 = check_and_match_pattern p2 (tail_ it loc) in
-       return (a1 @ a2, (loc, LC.T (ne_ (it, nil_ ~item_bt loc) loc)) :: c1 @ c2)
+       let@ a1, c1 = check_and_match_pattern p1 (head_ ~item_bt it loc) in
+       let@ a2, c2 = check_and_match_pattern p2 (tail_ it loc) in
+       return (a1 @ a2, ((loc, LC.T (ne_ (it, nil_ ~item_bt loc) loc)) :: c1) @ c2)
      | Ctuple, pats ->
        let@ () =
          WellTyped.ensure_base_type
@@ -71,7 +71,7 @@ let rec check_and_match_pattern (Mu.Pattern (loc, _, bty, pattern)) it =
               check_and_match_pattern p ith)
            pats
        in
-       let as_,cs_ = List.split as_cs in
+       let as_, cs_ = List.split as_cs in
        return (List.concat as_, List.concat cs_)
      | Carray, _ -> Cerb_debug.error "todo: array patterns"
      | _ -> assert false)
@@ -994,7 +994,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
       WellTyped.ensure_base_type loc ~expect:(Mu.bt_of_pexpr e1) (Mu.bt_of_pattern p)
     in
     let@ v1 = check_pexpr path_cs e1 in
-    let@ bound_a,_path_cs' = check_and_match_pattern p v1 in
+    let@ bound_a, _path_cs' = check_and_match_pattern p v1 in
     let@ lvt = check_pexpr path_cs e2 in
     let@ () = remove_as bound_a in
     return lvt
@@ -1912,7 +1912,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         (Mu.bt_of_pattern p)
     in
     check_pexpr e1 (fun v1 ->
-      let@ bound_a,_path_cs = check_and_match_pattern p v1 in
+      let@ bound_a, _path_cs = check_and_match_pattern p v1 in
       check_expr labels e2 (fun rt ->
         let@ () = remove_as bound_a in
         k rt))
@@ -2190,7 +2190,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         (Mu.bt_of_pattern p)
     in
     check_expr labels e1 (fun it ->
-      let@ bound_a,_path_cs = check_and_match_pattern p it in
+      let@ bound_a, _path_cs = check_and_match_pattern p it in
       check_expr labels e2 (fun it2 ->
         let@ () = remove_as bound_a in
         k it2))
