@@ -478,9 +478,7 @@ let main
   in
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
-  output_to_oc oc [ "#define __CN_INSTRUMENT\n"];
-  if experimental_record_owned_stack then output_to_oc oc [ "#define FULM_RECORD_OWNED_STACK\n"];
-  output_to_oc oc ["#include <cn-executable/utils.h>\n" ];
+  output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc

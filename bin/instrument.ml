@@ -121,7 +121,6 @@ let generate_executable_specs
   let out_file =
     Option.value ~default:(Fulminate.get_instrumented_filename basefile) output
   in
-  (* let fulm_macros = ("__CN_INSTRUMENT", None) :: (if experimental_record_owned_stack then [("FULM_RECORD_OWNED_STACK", None)] else []) in  *)
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~cc
@@ -265,8 +264,12 @@ module Flags = struct
     let doc = "Run the instrumented program without collecting debug information" in
     Arg.(value & flag & info [ "no-debug-info" ] ~doc)
 
-  let experimental_record_owned_stack = 
-    let doc = "(experimental) Record (and report, in case of ownership error) the source locations where ownership was taken for Fulminate-tracked memory" in
+
+  let experimental_record_owned_stack =
+    let doc =
+      "(experimental) Record (and report, in case of ownership error) the source \
+       locations where ownership was taken for Fulminate-tracked memory"
+    in
     Arg.(value & flag & info [ "experimental-record-owned-stack" ] ~doc)
 end
 

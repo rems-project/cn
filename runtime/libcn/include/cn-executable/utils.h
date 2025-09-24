@@ -545,9 +545,7 @@ GEN_ALL_STACK(cn_source_location, char *);
 
 typedef struct ownership_ghost_state_info {
   int depth;
-  #ifdef FULM_RECORD_OWNED_STACK
   cn_source_location_stack *source_loc_stack;
-  #endif
 } ownership_ghost_state_info;
 
 
