@@ -8,7 +8,7 @@ module Make (AD : Domain.T) = struct
 
   let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
     let open Typing in
-    let rec aux (tm : Term.t) : Term.t option Typing.t =
+    let rec aux (new_constraint : bool) (tm : Term.t) : Term.t option Typing.t =
       let here = Locations.other __LOC__ in
       let (Annot (tm_, (), bt, loc)) = tm in
       match tm_ with
@@ -19,21 +19,34 @@ module Make (AD : Domain.T) = struct
            | `True -> None
            | `False -> Some tm)
       | `Pick gts ->
-        let rec loop gts =
-          match gts with
-          | tm :: wgts' ->
-            let@ otm = pure (aux tm) in
-            let@ wgts' = loop wgts' in
-            return (otm :: wgts')
-          | [] -> return []
+        let@ unsat =
+          if not new_constraint then
+            return false
+          else
+            let@ check = provable loc in
+            return
+              (match check (LC.T (IT.bool_ false here)) with
+               | `True -> true
+               | `False -> false)
         in
-        let@ gts = loop gts in
-        let gts = List.filter_map (fun x -> x) gts in
-        return
-          (if List.is_empty gts then
-             None
-           else
-             Some (Term.pick_ gts () bt loc))
+        if unsat then
+          return None
+        else (
+          let rec loop gts =
+            match gts with
+            | tm :: wgts' ->
+              let@ otm = pure (aux new_constraint tm) in
+              let@ wgts' = loop wgts' in
+              return (otm :: wgts')
+            | [] -> return []
+          in
+          let@ gts = loop gts in
+          let gts = List.filter_map (fun x -> x) gts in
+          return
+            (if List.is_empty gts then
+               None
+             else
+               Some (Term.pick_ gts () bt loc)))
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let@ () =
           if fast then
@@ -48,24 +61,24 @@ module Make (AD : Domain.T) = struct
               loc
               (P { name = Owned (sct, Init); pointer = it_addr; iargs = [] }, O it_sym))
         in
-        let@ gt_rest = aux gt_rest in
+        let@ gt_rest = aux true gt_rest in
         return
           (let open Option in
            let@ gt_rest in
            return (Term.asgn_ ((it_addr, sct), it_val, gt_rest) () loc))
       | `LetStar ((x, Annot (`Return it, (), _, loc_ret)), gt_rest) ->
         let@ () = add_l_value x it (loc, lazy (Sym.pp x)) in
-        let@ gt_rest = aux gt_rest in
+        let@ gt_rest = aux new_constraint gt_rest in
         return
           (let open Option in
            let@ gt_rest in
            return (Term.let_star_ ((x, Term.return_ it () loc_ret), gt_rest) () loc))
       | `LetStar ((x, gt_inner), gt_rest) ->
-        let@ gt_inner = pure (aux gt_inner) in
+        let@ gt_inner = pure (aux new_constraint gt_inner) in
         (match gt_inner with
          | Some gt_inner ->
            let@ () = add_l x (Term.basetype gt_inner) (loc, lazy (Sym.pp x)) in
-           let@ gt_rest = aux gt_rest in
+           let@ gt_rest = aux new_constraint gt_rest in
            return
              (let open Option in
               let@ gt_rest in
@@ -80,13 +93,13 @@ module Make (AD : Domain.T) = struct
             let@ () = add_c loc lc in
             return false
         in
-        let@ gt_rest = aux gt_rest in
+        let@ gt_rest = aux true gt_rest in
         return
           (let open Option in
            let@ gt_rest in
            return (if redundant then gt_rest else Term.assert_ (lc, gt_rest) () loc))
       | `AssertDomain (domain, gt_rest) ->
-        let@ gt_rest = aux gt_rest in
+        let@ gt_rest = aux true gt_rest in
         return
           (let open Option in
            let@ gt_rest in
@@ -98,7 +111,7 @@ module Make (AD : Domain.T) = struct
           | `False ->
             pure
               (let@ () = add_c loc (LC.T it_if) in
-               aux gt_then)
+               aux new_constraint gt_then)
           | `True -> return None
         in
         let@ ogt_else =
@@ -106,7 +119,7 @@ module Make (AD : Domain.T) = struct
           | `False ->
             pure
               (let@ () = add_c loc (LC.T (IT.not_ it_if here)) in
-               aux gt_else)
+               aux new_constraint gt_else)
           | `True -> return None
         in
         return
@@ -120,14 +133,14 @@ module Make (AD : Domain.T) = struct
           pure
             (let@ () = add_l i i_bt (loc, lazy (Sym.pp i)) in
              let@ () = add_c loc (LC.T it_perm) in
-             aux gt_inner)
+             aux new_constraint gt_inner)
         in
         return
           (let open Option in
            let@ gt_inner in
            return (Term.map_ ((i, i_bt, it_perm), gt_inner) () loc))
     in
-    let@ res = aux tm in
+    let@ res = aux false tm in
     return (Option.get res)
 
 

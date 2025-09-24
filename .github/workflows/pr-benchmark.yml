@@ -102,7 +102,7 @@ jobs:
           echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})" >> ${{ env.COMMENT_RANDOM }}
           echo "" >> ${{ env.COMMENT_RANDOM }}
           echo "\`\`\`" >> ${{ env.COMMENT_RANDOM }}
-          
+
           if [ -f /tmp/benchmark-output-random.txt ]; then
             # Check if the output contains performance comparison
             if grep -q "PERFORMANCE COMPARISON" /tmp/benchmark-output-random.txt; then
@@ -116,12 +116,6 @@ jobs:
             echo "Error: benchmark output file not found" >> ${{ env.COMMENT_RANDOM }}
           fi
           echo "\`\`\`" >> ${{ env.COMMENT_RANDOM }}
-
-      - name: Output Random Benchmark Results
-        run: |
-          echo "::group::🎲 Random Test Generation Benchmark Comparison"
-          cat ${{ env.COMMENT_RANDOM }}
-          echo "::endgroup::"
 
       - name: Run symbolic benchmark comparison
         run: |
@@ -142,7 +136,7 @@ jobs:
           echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})" >> ${{ env.COMMENT_SYMBOLIC }}
           echo "" >> ${{ env.COMMENT_SYMBOLIC }}
           echo "\`\`\`" >> ${{ env.COMMENT_SYMBOLIC }}
-          
+
           if [ -f /tmp/benchmark-output-symbolic.txt ]; then
             # Check if the output contains performance comparison
             if grep -q "PERFORMANCE COMPARISON" /tmp/benchmark-output-symbolic.txt; then
@@ -157,9 +151,16 @@ jobs:
           fi
           echo "\`\`\`" >> ${{ env.COMMENT_SYMBOLIC }}
 
-      - name: Output Symbolic Benchmark Results
+      - name: Output Combined Benchmark Results
         run: |
-          echo "::group::🔬 Symbolic Test Generation Benchmark Comparison"
+          echo "::group::📊 Combined Benchmark Results Summary"
+          echo "# 📊 CN Benchmark Comparison Results"
+          echo ""
+          echo "Comparison between:"
+          echo "- **PR**: [\`${{ env.HEAD_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.head.sha }})"
+          echo "- **Base**: [\`${{ env.BASE_SHA }}\`](${{ github.event.repository.html_url }}/commit/${{ github.event.pull_request.base.sha }})"
+          echo ""
+          cat ${{ env.COMMENT_RANDOM }}
+          echo ""
           cat ${{ env.COMMENT_SYMBOLIC }}
           echo "::endgroup::"
-

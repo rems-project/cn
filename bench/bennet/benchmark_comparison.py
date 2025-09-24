@@ -323,6 +323,13 @@ def main():
         # Compare results
         compare_results(current_results, upstream_results)
 
+    # Reinstall current version after upstream benchmarks
+    print("\n" + "="*60)
+    print("REINSTALLING CURRENT VERSION")
+    print("="*60)
+    run_command(["make", "install"])
+    print("Current version reinstalled successfully")
+
     print("\nTemporary directory cleaned up automatically")
 
 
