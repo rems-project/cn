@@ -146,7 +146,7 @@ typedef hash_table cn_map;
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
-void initialise_ownership_stack_mode(_Bool flag);
+void initialise_ownership_stack_mode(bool flag);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
 void ghost_stack_depth_decr(void);
