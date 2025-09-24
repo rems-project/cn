@@ -200,6 +200,14 @@ let ity_act loc ity =
     }
 
 
+let is_const_bool_pexpr = function
+  | Mucore.Pexpr (_, _, _, PEval (V (_, Vtrue))) -> Some true
+  | Mucore.Pexpr (_, _, _, PEval (V (_, Vfalse))) -> Some false
+  | _ -> None
+
+
+
+
 let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   let loc = (if inherit_loc then Locations.update loc else Fun.id) (get_loc_ annots) in
   let n_pexpr = n_pexpr ~inherit_loc in
@@ -482,7 +490,11 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
      let e1 = n_pexpr loc e1 in
      let e2 = n_pexpr loc e2 in
      let e3 = n_pexpr loc e3 in
-     annotate (PEif (e1, e2, e3))
+     (* https://github.com/rems-project/cn/commit/7ec90cf0c8eed6820f5fdf22c25067a3a9aaf80a *)
+     (match is_const_bool_pexpr e1 with
+     | Some true -> e2
+     | Some false -> e3
+     | None -> annotate (PEif (e1, e2, e3)))
   | PEis_scalar _e' -> assert_error loc !^"core_anormalisation: PEis_scalar"
   | PEis_integer _e' -> assert_error loc !^"core_anormalisation: PEis_integer"
   | PEis_signed _e' -> assert_error loc !^"core_anormalisation: PEis_signed"
