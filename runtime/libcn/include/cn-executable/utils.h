@@ -59,16 +59,16 @@ enum cn_trace_granularity set_cn_trace_granularity(
 void cn_print_nr_owned_predicates(void);
 
 struct cn_error_message_info {
-  const char *function_name;
-  char *file_name;
+  const char* function_name;
+  char* file_name;
   int line_number;
-  char *cn_source_loc;
-  struct cn_error_message_info *parent;
-  struct cn_error_message_info *child;
+  char* cn_source_loc;
+  struct cn_error_message_info* parent;
+  struct cn_error_message_info* child;
 };
 
 void initialise_error_msg_info_(
-    const char *function_name, char *file_name, int line_number);
+    const char* function_name, char* file_name, int line_number);
 
 #define initialise_error_msg_info()                                                      \
   initialise_error_msg_info_(__func__, __FILE__, __LINE__)
@@ -77,7 +77,7 @@ void reset_error_msg_info();
 void free_error_msg_info();
 
 void update_error_message_info_(
-    const char *function_name, char *file_name, int line_number, char *cn_source_loc);
+    const char* function_name, char* file_name, int line_number, char* cn_source_loc);
 
 void cn_pop_msg_info();
 
@@ -130,7 +130,7 @@ typedef struct cn_integer {
 } cn_integer;
 
 typedef struct cn_pointer {
-  void *ptr;
+  void* ptr;
 } cn_pointer;
 
 typedef struct cn_bool {
@@ -146,28 +146,29 @@ typedef hash_table cn_map;
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
+void initialise_ownership_stack_mode(_Bool flag);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
 void ghost_stack_depth_decr(void);
 void cn_postcondition_leak_check(void);
 
-struct loop_ownership *initialise_loop_ownership_state(void);
+struct loop_ownership* initialise_loop_ownership_state(void);
 void cn_loop_leak_check(void);
-void cn_loop_put_back_ownership(struct loop_ownership *loop_ownership);
+void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership);
 
 /* malloc, free */
-void *cn_aligned_alloc(size_t align, size_t size);
-void *cn_unsafe_aligned_alloc(size_t align, size_t size);
-void *cn_malloc(size_t size);
-void *cn_unsafe_malloc(size_t size);
-void *cn_calloc(size_t num, size_t size);
-void *cn_unsafe_calloc(size_t num, size_t size);
-void cn_free_sized(void *, size_t len);
+void* cn_aligned_alloc(size_t align, size_t size);
+void* cn_unsafe_aligned_alloc(size_t align, size_t size);
+void* cn_malloc(size_t size);
+void* cn_unsafe_malloc(size_t size);
+void* cn_calloc(size_t num, size_t size);
+void* cn_unsafe_calloc(size_t num, size_t size);
+void cn_free_sized(void*, size_t len);
 
 void cn_print_nr_u64(int i, unsigned long u);
-void cn_print_u64(const char *str, unsigned long u);
+void cn_print_u64(const char* str, unsigned long u);
 void dump_ownership_ghost_state(int stack_depth);
-bool is_mapped(void *ptr);
+bool is_mapped(void* ptr);
 
 /* cn_failure callbacks */
 enum cn_failure_mode {
@@ -185,25 +186,25 @@ void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 /* Conversion functions */
 
-cn_bool *convert_to_cn_bool(bool b);
-bool convert_from_cn_bool(cn_bool *b);
-void cn_assert(cn_bool *cn_b, enum spec_mode spec_mode);
-cn_bool *cn_bool_and(cn_bool *b1, cn_bool *b2);
-cn_bool *cn_bool_or(cn_bool *b1, cn_bool *b2);
-cn_bool *cn_bool_not(cn_bool *b);
-cn_bool *cn_bool_implies(cn_bool *b1, cn_bool *b2);
-cn_bool *cn_bool_equality(cn_bool *b1, cn_bool *b2);
-void *cn_ite(cn_bool *b, void *e1, void *e2);
+cn_bool* convert_to_cn_bool(bool b);
+bool convert_from_cn_bool(cn_bool* b);
+void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
+cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2);
+cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2);
+cn_bool* cn_bool_not(cn_bool* b);
+cn_bool* cn_bool_implies(cn_bool* b1, cn_bool* b2);
+cn_bool* cn_bool_equality(cn_bool* b1, cn_bool* b2);
+void* cn_ite(cn_bool* b, void* e1, void* e2);
 
-cn_map *map_create(void);
-cn_map *cn_map_set(cn_map *m, cn_integer *key, void *value);
-cn_map *cn_map_deep_copy(cn_map *m1);
-cn_bool *cn_map_equality(
-    cn_map *m1, cn_map *m2, cn_bool *(value_equality_fun)(void *, void *));
+cn_map* map_create(void);
+cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value);
+cn_map* cn_map_deep_copy(cn_map* m1);
+cn_bool* cn_map_equality(
+    cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*));
 
 #define convert_to_cn_map(c_ptr, cntype_conversion_fn, num_elements)                     \
   ({                                                                                     \
-    cn_map *m = map_create();                                                            \
+    cn_map* m = map_create();                                                            \
     for (int i = 0; i < num_elements; i++) {                                             \
       cn_map_set(m, convert_to_cn_integer(i), cntype_conversion_fn(c_ptr[i]));           \
     }                                                                                    \
@@ -214,124 +215,124 @@ cn_bool *cn_map_equality(
     arr[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));    \
   }
 
-cn_bool *cn_pointer_equality(void *i1, void *i2);
-cn_bool *cn_pointer_is_null(cn_pointer *);
-cn_bool *cn_pointer_le(cn_pointer *i1, cn_pointer *i2);
-cn_bool *cn_pointer_lt(cn_pointer *i1, cn_pointer *i2);
-cn_bool *cn_pointer_ge(cn_pointer *i1, cn_pointer *i2);
-cn_bool *cn_pointer_gt(cn_pointer *i1, cn_pointer *i2);
+cn_bool* cn_pointer_equality(void* i1, void* i2);
+cn_bool* cn_pointer_is_null(cn_pointer*);
+cn_bool* cn_pointer_le(cn_pointer* i1, cn_pointer* i2);
+cn_bool* cn_pointer_lt(cn_pointer* i1, cn_pointer* i2);
+cn_bool* cn_pointer_ge(cn_pointer* i1, cn_pointer* i2);
+cn_bool* cn_pointer_gt(cn_pointer* i1, cn_pointer* i2);
 
-#define cn_pointer_deref(CN_PTR, CTYPE) *((CTYPE *)CN_PTR->ptr)
+#define cn_pointer_deref(CN_PTR, CTYPE) *((CTYPE*)CN_PTR->ptr)
 
 /* CN integer type auxilliary functions */
 
 #define CN_GEN_EQUALITY(CNTYPE) CN_GEN_EQUALITY_(CNTYPE)
 
 #define CN_GEN_EQUALITY_(CNTYPE)                                                         \
-  static inline cn_bool *CNTYPE##_equality(void *i1, void *i2) {                         \
-    return convert_to_cn_bool(((CNTYPE *)i1)->val == ((CNTYPE *)i2)->val);               \
+  static inline cn_bool* CNTYPE##_equality(void* i1, void* i2) {                         \
+    return convert_to_cn_bool(((CNTYPE*)i1)->val == ((CNTYPE*)i2)->val);                 \
   }
 
 #define CN_GEN_CONVERT(CTYPE, CNTYPE)                                                    \
-  static inline CNTYPE *convert_to_##CNTYPE(CTYPE i) {                                   \
-    CNTYPE *ret = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* convert_to_##CNTYPE(CTYPE i) {                                   \
+    CNTYPE* ret = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     ret->val = i;                                                                        \
     return ret;                                                                          \
   }
 
 #define CN_GEN_CONVERT_FROM(CTYPE, CNTYPE)                                               \
-  static inline CTYPE convert_from_##CNTYPE(CNTYPE *i) {                                 \
+  static inline CTYPE convert_from_##CNTYPE(CNTYPE* i) {                                 \
     return i->val;                                                                       \
   }
 
 /* Arithmetic operators */
 
 #define CN_GEN_LT(CNTYPE)                                                                \
-  static inline cn_bool *CNTYPE##_lt(CNTYPE *i1, CNTYPE *i2) {                           \
+  static inline cn_bool* CNTYPE##_lt(CNTYPE* i1, CNTYPE* i2) {                           \
     return convert_to_cn_bool(i1->val < i2->val);                                        \
   }
 
 #define CN_GEN_LE(CNTYPE)                                                                \
-  static inline cn_bool *CNTYPE##_le(CNTYPE *i1, CNTYPE *i2) {                           \
+  static inline cn_bool* CNTYPE##_le(CNTYPE* i1, CNTYPE* i2) {                           \
     return convert_to_cn_bool(i1->val <= i2->val);                                       \
   }
 
 #define CN_GEN_GT(CNTYPE)                                                                \
-  static inline cn_bool *CNTYPE##_gt(CNTYPE *i1, CNTYPE *i2) {                           \
+  static inline cn_bool* CNTYPE##_gt(CNTYPE* i1, CNTYPE* i2) {                           \
     return convert_to_cn_bool(i1->val > i2->val);                                        \
   }
 
 #define CN_GEN_GE(CNTYPE)                                                                \
-  static inline cn_bool *CNTYPE##_ge(CNTYPE *i1, CNTYPE *i2) {                           \
+  static inline cn_bool* CNTYPE##_ge(CNTYPE* i1, CNTYPE* i2) {                           \
     return convert_to_cn_bool(i1->val >= i2->val);                                       \
   }
 
 #define CN_GEN_NEGATE(CNTYPE)                                                            \
-  static inline CNTYPE *CNTYPE##_negate(CNTYPE *i) {                                     \
+  static inline CNTYPE* CNTYPE##_negate(CNTYPE* i) {                                     \
     return convert_to_##CNTYPE(-(i->val));                                               \
   }
 
 #define CN_GEN_BW_COMPL(CNTYPE)                                                          \
-  static inline CNTYPE *CNTYPE##_bw_compl(CNTYPE *i) {                                   \
+  static inline CNTYPE* CNTYPE##_bw_compl(CNTYPE* i) {                                   \
     return convert_to_##CNTYPE(~(i->val));                                               \
   }
 
 #define CN_GEN_ADD(UCTYPE, CTYPE, CNTYPE)                                                \
-  static inline CNTYPE *CNTYPE##_add(CNTYPE *i1, CNTYPE *i2) {                           \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_add(CNTYPE* i1, CNTYPE* i2) {                           \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = (UCTYPE)i1->val + (UCTYPE)i2->val;                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_SUB(UCTYPE, CTYPE, CNTYPE)                                                \
-  static inline CNTYPE *CNTYPE##_sub(CNTYPE *i1, CNTYPE *i2) {                           \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_sub(CNTYPE* i1, CNTYPE* i2) {                           \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = (UCTYPE)i1->val - (UCTYPE)i2->val;                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_MUL(CTYPE, CNTYPE)                                                        \
-  static inline CNTYPE *CNTYPE##_multiply(CNTYPE *i1, CNTYPE *i2) {                      \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_multiply(CNTYPE* i1, CNTYPE* i2) {                      \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val * i2->val;                                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_DIV(CTYPE, CNTYPE)                                                        \
-  static inline CNTYPE *CNTYPE##_divide(CNTYPE *i1, CNTYPE *i2) {                        \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_divide(CNTYPE* i1, CNTYPE* i2) {                        \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val / i2->val;                                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_SHIFT_LEFT(CTYPE, CNTYPE)                                                 \
-  static inline CNTYPE *CNTYPE##_shift_left(CNTYPE *i1, CNTYPE *i2) {                    \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_shift_left(CNTYPE* i1, CNTYPE* i2) {                    \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val << i2->val;                                                       \
     return res;                                                                          \
   }
 
 #define CN_GEN_SHIFT_RIGHT(CTYPE, CNTYPE)                                                \
-  static inline CNTYPE *CNTYPE##_shift_right(CNTYPE *i1, CNTYPE *i2) {                   \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_shift_right(CNTYPE* i1, CNTYPE* i2) {                   \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val >> i2->val;                                                       \
     return res;                                                                          \
   }
 
 #define CN_GEN_MIN(CNTYPE)                                                               \
-  static inline CNTYPE *CNTYPE##_min(CNTYPE *i1, CNTYPE *i2) {                           \
+  static inline CNTYPE* CNTYPE##_min(CNTYPE* i1, CNTYPE* i2) {                           \
     return convert_from_cn_bool(CNTYPE##_lt(i1, i2)) ? i1 : i2;                          \
   }
 
 #define CN_GEN_MAX(CNTYPE)                                                               \
-  static inline CNTYPE *CNTYPE##_max(CNTYPE *i1, CNTYPE *i2) {                           \
+  static inline CNTYPE* CNTYPE##_max(CNTYPE* i1, CNTYPE* i2) {                           \
     return convert_from_cn_bool(CNTYPE##_gt(i1, i2)) ? i1 : i2;                          \
   }
 
 /* TODO: Account for UB: https://stackoverflow.com/a/20638659 */
 #define CN_GEN_MOD(CTYPE, CNTYPE)                                                        \
-  static inline CNTYPE *CNTYPE##_mod(CNTYPE *i1, CNTYPE *i2) {                           \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_mod(CNTYPE* i1, CNTYPE* i2) {                           \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val % i2->val;                                                        \
     if (res->val < 0) {                                                                  \
       res->val = (i2->val < 0) ? res->val - i2->val : res->val + i2->val;                \
@@ -340,35 +341,35 @@ cn_bool *cn_pointer_gt(cn_pointer *i1, cn_pointer *i2);
   }
 
 #define CN_GEN_REM(CTYPE, CNTYPE)                                                        \
-  static inline CNTYPE *CNTYPE##_rem(CNTYPE *i1, CNTYPE *i2) {                           \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_rem(CNTYPE* i1, CNTYPE* i2) {                           \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val % i2->val;                                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_XOR(CTYPE, CNTYPE)                                                        \
-  static inline CNTYPE *CNTYPE##_xor(CNTYPE *i1, CNTYPE *i2) {                           \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_xor(CNTYPE* i1, CNTYPE* i2) {                           \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val ^ i2->val;                                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_BWAND(CTYPE, CNTYPE)                                                      \
-  static inline CNTYPE *CNTYPE##_bwand(CNTYPE *i1, CNTYPE *i2) {                         \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_bwand(CNTYPE* i1, CNTYPE* i2) {                         \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val & i2->val;                                                        \
     return res;                                                                          \
   }
 
 #define CN_GEN_BWOR(CTYPE, CNTYPE)                                                       \
-  static inline CNTYPE *CNTYPE##_bwor(CNTYPE *i1, CNTYPE *i2) {                          \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_bwor(CNTYPE* i1, CNTYPE* i2) {                          \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = i1->val | i2->val;                                                        \
     return res;                                                                          \
   }
 
-cn_bits_u32 *cn_bits_u32_fls(cn_bits_u32 *i1);
-cn_bits_u64 *cn_bits_u64_flsl(cn_bits_u64 *i1);
+cn_bits_u32* cn_bits_u32_fls(cn_bits_u32* i1);
+cn_bits_u64* cn_bits_u64_flsl(cn_bits_u64* i1);
 
 static inline int ipow(int base, int exp) {
   int result = 1;
@@ -385,72 +386,72 @@ static inline int ipow(int base, int exp) {
 }
 
 #define CN_GEN_POW(CTYPE, CNTYPE)                                                        \
-  static inline CNTYPE *CNTYPE##_pow(CNTYPE *i1, CNTYPE *i2) {                           \
-    CNTYPE *res = (CNTYPE *)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));      \
+  static inline CNTYPE* CNTYPE##_pow(CNTYPE* i1, CNTYPE* i2) {                           \
+    CNTYPE* res = (CNTYPE*)cn_bump_aligned_alloc(alignof(CNTYPE), sizeof(CNTYPE));       \
     res->val = ipow(i1->val, i2->val);                                                   \
     return res;                                                                          \
   }
 
 #define cn_array_shift(cn_ptr, size, index)                                              \
   convert_to_cn_pointer(                                                                 \
-      (char *)((uintptr_t)cn_ptr->ptr + (uintptr_t)index->val * (uintptr_t)size))
+      (char*)((uintptr_t)cn_ptr->ptr + (uintptr_t)index->val * (uintptr_t)size))
 
 #define cn_member_shift(cn_ptr, tag, member_name)                                        \
   convert_to_cn_pointer(                                                                 \
-      (void *)(((uintptr_t)cn_ptr->ptr) + offsetof(struct tag, member_name)))
+      (void*)(((uintptr_t)cn_ptr->ptr) + offsetof(struct tag, member_name)))
 
 #define CN_GEN_INCREMENT(CNTYPE)                                                         \
-  static inline CNTYPE *CNTYPE##_increment(CNTYPE *i) {                                  \
+  static inline CNTYPE* CNTYPE##_increment(CNTYPE* i) {                                  \
     i->val = i->val + 1;                                                                 \
     return i;                                                                            \
   }
 
 #define CN_GEN_PTR_ADD(CNTYPE)                                                           \
-  static inline cn_pointer *cn_pointer_add_##CNTYPE(cn_pointer *ptr, CNTYPE *i) {        \
-    cn_pointer *res = (cn_pointer *)cn_bump_malloc(sizeof(cn_pointer));                  \
-    res->ptr = (char *)ptr->ptr + i->val;                                                \
+  static inline cn_pointer* cn_pointer_add_##CNTYPE(cn_pointer* ptr, CNTYPE* i) {        \
+    cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));                   \
+    res->ptr = (char*)ptr->ptr + i->val;                                                 \
     return res;                                                                          \
   }
 
 /* Casting functions */
 
 #define CN_GEN_CAST_TO_PTR(CNTYPE, INTPTR_TYPE)                                          \
-  static inline cn_pointer *cast_##CNTYPE##_to_cn_pointer(CNTYPE *i) {                   \
-    cn_pointer *res = (cn_pointer *)cn_bump_malloc(sizeof(cn_pointer));                  \
-    res->ptr = (void *)(INTPTR_TYPE)i->val;                                              \
+  static inline cn_pointer* cast_##CNTYPE##_to_cn_pointer(CNTYPE* i) {                   \
+    cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));                   \
+    res->ptr = (void*)(INTPTR_TYPE)i->val;                                               \
     return res;                                                                          \
   }
 
 #define CN_GEN_CAST_FROM_PTR(CTYPE, CNTYPE, INTPTR_TYPE)                                 \
-  static inline CNTYPE *cast_cn_pointer_to_##CNTYPE(cn_pointer *ptr) {                   \
-    CNTYPE *res = (CNTYPE *)cn_bump_malloc(sizeof(CNTYPE));                              \
+  static inline CNTYPE* cast_cn_pointer_to_##CNTYPE(cn_pointer* ptr) {                   \
+    CNTYPE* res = (CNTYPE*)cn_bump_malloc(sizeof(CNTYPE));                               \
     res->val = (CTYPE)(INTPTR_TYPE)(ptr->ptr);                                           \
     return res;                                                                          \
   }
 
 #define CN_GEN_CAST_INT_TYPES(CNTYPE1, CTYPE2, CNTYPE2)                                  \
-  static inline CNTYPE2 *cast_##CNTYPE1##_to_##CNTYPE2(CNTYPE1 *i) {                     \
-    CNTYPE2 *res = (CNTYPE2 *)cn_bump_aligned_alloc(alignof(CNTYPE2), sizeof(CNTYPE2));  \
+  static inline CNTYPE2* cast_##CNTYPE1##_to_##CNTYPE2(CNTYPE1* i) {                     \
+    CNTYPE2* res = (CNTYPE2*)cn_bump_aligned_alloc(alignof(CNTYPE2), sizeof(CNTYPE2));   \
     res->val = (CTYPE2)i->val;                                                           \
     return res;                                                                          \
   }
 
 #define CN_GEN_DEFAULT(CNTYPE)                                                           \
-  static inline CNTYPE *default_##CNTYPE(void) {                                         \
+  static inline CNTYPE* default_##CNTYPE(void) {                                         \
     return convert_to_##CNTYPE(0);                                                       \
   }
 
-cn_map *default_cn_map(void);
-cn_bool *default_cn_bool(void);
+cn_map* default_cn_map(void);
+cn_bool* default_cn_bool(void);
 
 #define CN_GEN_MAP_GET(CNTYPE)                                                           \
-  static inline void *cn_map_get_##CNTYPE(cn_map *m, cn_integer *key) {                  \
-    int64_t *key_ptr = (int64_t *)fulm_malloc(sizeof(int64_t), &fulm_default_alloc);     \
+  static inline void* cn_map_get_##CNTYPE(cn_map* m, cn_integer* key) {                  \
+    int64_t* key_ptr = (int64_t*)fulm_malloc(sizeof(int64_t), &fulm_default_alloc);      \
     *key_ptr = key->val;                                                                 \
-    void *res = ht_get(m, key_ptr);                                                      \
+    void* res = ht_get(m, key_ptr);                                                      \
     fulm_free(key_ptr, &fulm_default_alloc);                                             \
     if (!res) {                                                                          \
-      return (void *)default_##CNTYPE();                                                 \
+      return (void*)default_##CNTYPE();                                                  \
     }                                                                                    \
     return res;                                                                          \
   }
@@ -526,12 +527,12 @@ CN_GEN_PTR_CASTS_UNSIGNED(uint32_t, cn_bits_u32)
 CN_GEN_PTR_CASTS_UNSIGNED(uint64_t, cn_bits_u64)
 CN_GEN_PTR_CASTS_SIGNED(signed long, cn_integer)
 
-cn_pointer *convert_to_cn_pointer(const void *ptr);
-void *convert_from_cn_pointer(cn_pointer *cn_ptr);
-cn_pointer *cn_pointer_min(cn_pointer *p, cn_pointer *q);
-cn_pointer *cn_pointer_max(cn_pointer *p, cn_pointer *q);
-cn_pointer *cn_pointer_mod(cn_pointer *ptr, cn_pointer *n);
-cn_pointer *cast_cn_pointer_to_cn_pointer(cn_pointer *p);
+cn_pointer* convert_to_cn_pointer(const void* ptr);
+void* convert_from_cn_pointer(cn_pointer* cn_ptr);
+cn_pointer* cn_pointer_min(cn_pointer* p, cn_pointer* q);
+cn_pointer* cn_pointer_max(cn_pointer* p, cn_pointer* q);
+cn_pointer* cn_pointer_mod(cn_pointer* ptr, cn_pointer* n);
+cn_pointer* cast_cn_pointer_to_cn_pointer(cn_pointer* p);
 
 CN_GEN_CONVERT(uint8_t, cn_alloc_id)
 CN_GEN_EQUALITY(cn_alloc_id)
@@ -541,13 +542,17 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-GEN_ALL_STACK(cn_source_location, char *);
+GEN_ALL_STACK(cn_source_location, char*);
 
 typedef struct ownership_ghost_state_info {
   int depth;
-  cn_source_location_stack *source_loc_stack;
+  cn_source_location_stack* source_loc_stack;
 } ownership_ghost_state_info;
 
+typedef struct ownership_ghost_info_with_owned_stack {
+  int depth;
+  cn_source_location_stack* source_loc_stack;
+} ownership_ghost_info_with_owned_stack;
 
 enum STACK_OP {
   PUSH,
@@ -559,28 +564,28 @@ int ownership_ghost_state_get_depth(int64_t address);
 void ownership_ghost_state_set(int64_t address,
     size_t size,
     int stack_depth_val,
-    struct cn_error_message_info *error_msg_info,
+    struct cn_error_message_info* error_msg_info,
     enum STACK_OP op);
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
-void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
+void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun);
 void cn_get_or_put_ownership(enum spec_mode spec_mode,
-    void *generic_c_ptr,
+    void* generic_c_ptr,
     size_t size,
-    struct loop_ownership *loop_ownership);
+    struct loop_ownership* loop_ownership);
 
 /* C ownership checking */
-void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth);
-void c_remove_from_ghost_state(void *ptr_to_local, size_t size);
+void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth);
+void c_remove_from_ghost_state(void* ptr_to_local, size_t size);
 void c_ownership_check(
-    char *access_kind, void *generic_c_ptr, int offset, signed long expected_stack_depth);
+    char* access_kind, void* generic_c_ptr, int offset, signed long expected_stack_depth);
 
 /* Ghost arguments */
 void alloc_ghost_array(int ghost_array_size);
-void add_to_ghost_array(int i, void *ptr_to_ghost_arg);
+void add_to_ghost_array(int i, void* ptr_to_ghost_arg);
 void clear_ghost_array(int ghost_array_size);
-void *load_from_ghost_array(int i);
+void* load_from_ghost_array(int i);
 void cn_ghost_arg_failure(void);
 
 // Unused
@@ -595,13 +600,13 @@ void cn_ghost_arg_failure(void);
   c_concat_with_mapping_stat(CTYPE VAR_NAME = EXPR, CTYPE, VAR_NAME)
 // /Unused
 
-static inline void cn_load(void *ptr, size_t size) {
+static inline void cn_load(void* ptr, size_t size) {
   //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mLOAD\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
-static inline void cn_store(void *ptr, size_t size) {
+static inline void cn_store(void* ptr, size_t size) {
   //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mSTORE\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
-static inline void cn_postfix(void *ptr, size_t size) {
+static inline void cn_postfix(void* ptr, size_t size) {
   //   cn_printf(CN_LOGGING_INFO, "  \x1b[31mPOSTFIX\x1b[0m[%lu] - ptr: %p\n", size, ptr);
 }
 
@@ -610,7 +615,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
 
 #define CN_LOAD(LV)                                                                      \
   ({                                                                                     \
-    typeof(LV) *__tmp = &(LV);                                                           \
+    typeof(LV)* __tmp = &(LV);                                                           \
     update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check("Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());          \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
@@ -619,7 +624,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
 
 #define CN_STORE_OP(LV, op, X)                                                           \
   ({                                                                                     \
-    typeof(LV) *__tmp;                                                                   \
+    typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check("Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());         \
@@ -631,7 +636,7 @@ static inline void cn_postfix(void *ptr, size_t size) {
 
 #define CN_POSTFIX(LV, OP)                                                               \
   ({                                                                                     \
-    typeof(LV) *__tmp;                                                                   \
+    typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check(                                                                   \

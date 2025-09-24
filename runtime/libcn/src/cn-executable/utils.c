@@ -19,6 +19,8 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
+_Bool ownership_stack_mode;
+
 static signed long UNMAPPED_VAL = -1;
 static signed long WILDCARD_DEPTH = INT_MIN + 1;
 
@@ -31,6 +33,7 @@ void reset_fulminate(void) {
   reset_error_msg_info();
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
+  initialise_ownership_stack_mode(0);
 }
 
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;
@@ -218,6 +221,10 @@ void free_ownership_ghost_state(void) {
 
 void initialise_ghost_stack_depth(void) {
   cn_stack_depth = 0;
+}
+
+void initialise_ownership_stack_mode(_Bool flag) {
+  ownership_stack_mode = flag;
 }
 
 signed long get_cn_stack_depth(void) {

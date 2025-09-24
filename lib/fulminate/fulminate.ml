@@ -473,7 +473,9 @@ let main
     else (
       (* XXX: ONLY IF THERE IS A MAIN *)
       (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
-      let global_ownership_init_pair = generate_ownership_global_assignments sigm prog5 in
+      let global_ownership_init_pair =
+        generate_global_assignments ~experimental_record_owned_stack sigm prog5
+      in
       global_ownership_init_pair @ executable_spec.pre_post)
   in
   (* Save things *)
