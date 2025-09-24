@@ -300,7 +300,7 @@ let main
       ?(without_ownership_checking = false)
       ?(without_loop_invariants = false)
       ?(with_loop_leak_checks = false)
-      ?(experimental_record_owned_stack = false)
+      ?(experimental_ownership_stack_mode = false)
       ?(with_testing = false)
       filename
       cc
@@ -474,7 +474,7 @@ let main
       (* XXX: ONLY IF THERE IS A MAIN *)
       (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
       let global_ownership_init_pair =
-        generate_global_assignments ~experimental_record_owned_stack sigm prog5
+        generate_global_assignments ~experimental_ownership_stack_mode sigm prog5
       in
       global_ownership_init_pair @ executable_spec.pre_post)
   in

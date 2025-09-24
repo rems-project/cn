@@ -95,7 +95,7 @@ let generate_executable_specs
       with_testing
       run
       no_debug_info
-      experimental_record_owned_stack
+      experimental_ownership_stack_mode
       mktemp
       print_steps
   =
@@ -157,7 +157,7 @@ let generate_executable_specs
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
-                ~experimental_record_owned_stack
+                ~experimental_ownership_stack_mode
                 ~with_testing
                 filename
                 cc
@@ -265,12 +265,12 @@ module Flags = struct
     Arg.(value & flag & info [ "no-debug-info" ] ~doc)
 
 
-  let experimental_record_owned_stack =
+  let experimental_ownership_stack_mode =
     let doc =
       "(experimental) Record (and report, in case of ownership error) the source \
        locations where ownership was taken for Fulminate-tracked memory"
     in
-    Arg.(value & flag & info [ "experimental-record-owned-stack" ] ~doc)
+    Arg.(value & flag & info [ "ownership-stack-mode" ] ~doc)
 end
 
 let cmd =
@@ -307,7 +307,7 @@ let cmd =
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
     $ Flags.no_debug_info
-    $ Flags.experimental_record_owned_stack
+    $ Flags.experimental_ownership_stack_mode
     $ Flags.mktemp
     $ Flags.print_steps
   in

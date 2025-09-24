@@ -82,7 +82,7 @@ val generate_conversion_and_equality_functions
 val has_main : GenTypes.genTypeCategory AilSyntax.sigma -> bool
 
 val generate_global_assignments
-  :  ?experimental_record_owned_stack:bool ->
+  :  ?experimental_ownership_stack_mode:bool ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (Sym.t * (string list * string list)) list

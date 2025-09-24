@@ -572,17 +572,17 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 
 
 let generate_global_assignments
-      ?(experimental_record_owned_stack = false)
+      ?(experimental_ownership_stack_mode = false)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let generate_ownership_stack_mode_init ~experimental_record_owned_stack =
+  let generate_ownership_stack_mode_init ~experimental_ownership_stack_mode =
     let ownership_stack_mode_const =
       A.(
         AilEconst
           (ConstantInteger
              (IConstant
-                (Z.of_int (Bool.to_int experimental_record_owned_stack), Decimal, None))))
+                (Z.of_int (Bool.to_int experimental_ownership_stack_mode), Decimal, None))))
     in
     let ownership_stack_mode_init_expr_ =
       A.(
@@ -604,7 +604,7 @@ let generate_global_assignments
       generate_ail_stat_strs
         ( [],
           assignments
-          @ (generate_ownership_stack_mode_init ~experimental_record_owned_stack
+          @ (generate_ownership_stack_mode_init ~experimental_ownership_stack_mode
              :: global_map_stmts_) )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
