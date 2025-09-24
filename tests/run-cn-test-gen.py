@@ -160,6 +160,8 @@ def main():
                         help='Use symbolic execution configurations')
     parser.add_argument('--mode', choices=['testing', 'benchmarking'], default='testing',
                         help='Execution mode: testing (parallel, minimal output) or benchmarking (sequential, detailed timing)')
+    parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
+                        help='Build tool to use: bash, make, or both (default: both)')
     parser.add_argument('test_file', nargs='?',
                         help='Single test file to run (optional)')
 
@@ -216,7 +218,13 @@ def main():
             "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
         ]
 
-    build_tools = ["bash", "make"]
+    # Set build tools based on argument
+    if args.build_tool == 'bash':
+        build_tools = ["bash"]
+    elif args.build_tool == 'make':
+        build_tools = ["make"]
+    else:  # 'both'
+        build_tools = ["bash", "make"]
 
     # If a single test file is specified, run just that test
     if args.test_file:

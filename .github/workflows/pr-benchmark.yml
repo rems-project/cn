@@ -34,6 +34,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install build-essential libgmp-dev z3 opam jq python3
+          pip3 install scipy numpy
 
       - name: Restore OPAM cache
         id: cache-opam-restore
