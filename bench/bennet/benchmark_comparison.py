@@ -4,13 +4,14 @@ import argparse
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
-import time
 from datetime import datetime
 from pathlib import Path
+
+import numpy as np
+from scipy import stats
 
 
 def run_command(cmd, cwd=None, check=True):
@@ -71,6 +72,7 @@ def parse_benchmark_output(output):
             r'- all configs (?:passed|failed)\. \(([^)]+)\)', line)
         if config_match and current_test:
             times_str = config_match.group(1)
+
             # Parse individual times
             time_values = []
             for time_part in times_str.split(', '):
@@ -86,7 +88,8 @@ def parse_benchmark_output(output):
 
 def run_benchmarks(symbolic=False):
     """Run the benchmark tests and return timing data."""
-    cmd = [sys.executable, "tests/run-cn-test-gen.py", "--mode=benchmarking"]
+    cmd = [sys.executable, "tests/run-cn-test-gen.py",
+           "--mode=benchmarking", "--build-tool=make"]
     if symbolic:
         cmd.append("-s")
 
@@ -105,7 +108,8 @@ def run_benchmarks(symbolic=False):
 
 def run_benchmarks_in_dir(directory, symbolic=False):
     """Run the benchmark tests in a specific directory and return timing data."""
-    cmd = [sys.executable, "tests/run-cn-test-gen.py", "--mode=benchmarking"]
+    cmd = [sys.executable, "tests/run-cn-test-gen.py",
+           "--mode=benchmarking", "--build-tool=make"]
     if symbolic:
         cmd.append("-s")
 
@@ -136,6 +140,33 @@ def load_results(filename):
         return None
     with open(filename, 'r') as f:
         return json.load(f)
+
+
+def perform_paired_ttest(current_times, upstream_times):
+    """Perform paired t-test on config times."""
+    if len(current_times) != len(upstream_times) or len(current_times) < 2:
+        return None
+
+    try:
+        # Perform paired t-test
+        statistic, p_value = stats.ttest_rel(current_times, upstream_times)
+
+        # Calculate effect size (Cohen's d for paired samples)
+        differences = np.array(current_times) - np.array(upstream_times)
+        effect_size = np.mean(differences) / np.std(differences,
+                                                    ddof=1) if np.std(differences, ddof=1) > 0 else 0
+
+        return {
+            'statistic': statistic,
+            'p_value': p_value,
+            'effect_size': effect_size,
+            'n_configs': len(current_times),
+            'mean_diff': np.mean(differences),
+            'std_diff': np.std(differences, ddof=1)
+        }
+    except Exception as e:
+        print(f"Error in t-test: {e}")
+        return None
 
 
 def compare_results(current_results, upstream_results):
@@ -201,6 +232,148 @@ def compare_results(current_results, upstream_results):
         else:
             print(
                 f"\n✅ Performance is similar to upstream ({total_percent_change:+.1f}%)")
+
+    # Statistical analysis of config times - analyze by configuration across all tests
+    print("\n" + "="*80)
+    print("STATISTICAL ANALYSIS (Per-Config Analysis)")
+    print("="*80)
+
+    # Reorganize data by config position instead of by test file
+    # Determine the number of configs by looking at the config_times arrays
+    max_configs = 0
+    common_tests = set(current_data.keys()) & set(upstream_data.keys())
+
+    for test_file in common_tests:
+        current_config_times = current_data.get(
+            test_file, {}).get('config_times', [])
+        upstream_config_times = upstream_data.get(
+            test_file, {}).get('config_times', [])
+        if len(current_config_times) > 0 and len(upstream_config_times) > 0:
+            max_configs = max(max_configs, len(
+                current_config_times), len(upstream_config_times))
+
+    if max_configs == 0:
+        print("No config timing data available for statistical analysis")
+    else:
+        print(
+            f"\n{'Config':<30} {'p-value':<10} {'Effect':<15} {'Significance'}")
+        print("-" * 80)
+
+        # Define config names based on the test runner configurations
+        if 'symbolic' in current_results.get('mode', ''):
+            config_names = [
+                "symbolic+coverage+pruning-runtime+make",
+                "symbolic+coverage+pruning-before-absint+make"
+            ]
+        else:
+            config_names = [
+                "coverage+quickcheck+make",
+                "coverage+learning+wrapped_interval+slow_prune+make",
+                "uniform+intervals+fast_prune+destruction+make",
+                "learning+satisfaction+tyche_output+make"
+            ]
+
+        significant_configs = []
+
+        # For each configuration position, collect times across all test files
+        for config_idx in range(max_configs):
+            current_config_times_across_tests = []
+            upstream_config_times_across_tests = []
+
+            for test_file in common_tests:
+                current_config_times = current_data.get(
+                    test_file, {}).get('config_times', [])
+                upstream_config_times = upstream_data.get(
+                    test_file, {}).get('config_times', [])
+
+                # Only include if both have this config index
+                if (len(current_config_times) > config_idx and
+                        len(upstream_config_times) > config_idx):
+                    current_config_times_across_tests.append(
+                        current_config_times[config_idx])
+                    upstream_config_times_across_tests.append(
+                        upstream_config_times[config_idx])
+
+            if len(current_config_times_across_tests) >= 2:  # Need at least 2 pairs
+                ttest_result = perform_paired_ttest(
+                    current_config_times_across_tests,
+                    upstream_config_times_across_tests
+                )
+
+                # Use config name if available, otherwise use index
+                config_name = config_names[config_idx] if config_idx < len(
+                    config_names) else f"Config {config_idx}"
+
+                if ttest_result:
+                    p_val = ttest_result['p_value']
+                    effect = ttest_result['effect_size']
+                    mean_diff = ttest_result['mean_diff']
+                    n_tests = len(current_config_times_across_tests)
+
+                    # Interpret significance
+                    if p_val < 0.001:
+                        sig_str = "*** p<0.001"
+                    elif p_val < 0.01:
+                        sig_str = "** p<0.01"
+                    elif p_val < 0.05:
+                        sig_str = "* p<0.05"
+                    else:
+                        sig_str = "n.s."
+
+                    # Interpret effect size
+                    if abs(effect) < 0.2:
+                        effect_str = f"{effect:+.2f} (small, n={n_tests})"
+                    elif abs(effect) < 0.5:
+                        effect_str = f"{effect:+.2f} (medium, n={n_tests})"
+                    elif abs(effect) < 0.8:
+                        effect_str = f"{effect:+.2f} (large, n={n_tests})"
+                    else:
+                        effect_str = f"{effect:+.2f} (very large, n={n_tests})"
+
+                    # Color code significant results
+                    if p_val < 0.05:
+                        if mean_diff > 0:
+                            # Significantly slower
+                            sig_str = f"🔴 {sig_str}"
+                        else:
+                            # Significantly faster
+                            sig_str = f"🟢 {sig_str}"
+                        significant_configs.append(
+                            (config_name, p_val, effect, mean_diff))
+
+                    print(
+                        f"{config_name:<30} {p_val:<10.4f} {effect_str:<15} {sig_str}")
+                else:
+                    print(
+                        f"{config_name:<30} {'N/A':<10} {'N/A':<15} {'insufficient data'}")
+
+        # Summary of statistical findings
+        if significant_configs:
+            print(f"\n📊 STATISTICAL SUMMARY:")
+            print(
+                f"Configs with significant differences (p < 0.05): {len(significant_configs)}")
+
+            # mean_diff < 0
+            faster_configs = [c for c in significant_configs if c[3] < 0]
+            # mean_diff > 0
+            slower_configs = [c for c in significant_configs if c[3] > 0]
+
+            if faster_configs:
+                print(
+                    f"🟢 Significantly faster: {len(faster_configs)} configs")
+            if slower_configs:
+                print(
+                    f"🔴 Significantly slower: {len(slower_configs)} configs")
+
+            # Show most significant changes
+            significant_configs.sort(key=lambda x: x[1])  # Sort by p-value
+            print(f"\nMost significant config changes:")
+            for config_name, p_val, effect, mean_diff in significant_configs[:3]:
+                direction = "faster" if mean_diff < 0 else "slower"
+                print(
+                    f"  {config_name}: {direction} (p={p_val:.4f}, effect={effect:.2f})")
+        else:
+            print(f"\n📊 No statistically significant differences found (p < 0.05)")
 
 
 def main():
