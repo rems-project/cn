@@ -7,6 +7,7 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 #include "stack.h"
+#include <cn-autoannot/auto_annot.h>
 
 #define fallthrough __attribute__((__fallthrough__))
 
@@ -151,6 +152,13 @@ typedef struct cn_alloc_id {
 } cn_alloc_id;
 
 typedef hash_table cn_map;
+
+enum RuntimeMode {
+  RUNTIME_NORMAL_MODE,
+  RUNTIME_OWNERSHIP_STACK_MODE,
+  RUNTIME_AUTO_ANNOT_MODE,
+};
+extern enum RuntimeMode runtime_mode;
 
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
@@ -568,6 +576,8 @@ CN_GEN_MAP_GET(cn_map)
 // };
 
 int ownership_ghost_state_get_depth(int64_t address);
+ownership_ghost_info* ownership_ghost_state_get(int64_t address);
+
 void ownership_ghost_state_set(int64_t address,
     size_t size,
     int stack_depth_val,

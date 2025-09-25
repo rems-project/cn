@@ -24,7 +24,6 @@ void push_focus_context(void) {
   struct focus_context *new_context =
       fulm_default_alloc.malloc(sizeof(struct focus_context));
   new_context->indices = NULL;
-  new_context->iter_ress = NULL;
   new_context->prev = cn_focus_global_context;
   cn_focus_global_context = new_context;
 }
@@ -44,12 +43,6 @@ void pop_focus_context(void) {
     cur_focus = next;
   }
 
-  iter_res_set *cur_iter_res = old_context->iter_ress;
-  while (cur_iter_res) {
-    iter_res_set *next = cur_iter_res->next;
-    fulm_free(cur_iter_res, &fulm_default_alloc);
-    cur_iter_res = next;
-  }
 }
 
 void insert_focus(int64_t index, type_sig sig) {
@@ -70,56 +63,38 @@ void clear_focus() {
   cn_focus_global_context->indices = NULL;
 }
 
-void insert_iter_res(
-    uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig) {
-  struct iter_res_set *new = fulm_malloc(sizeof(iter_res_set), &fulm_default_alloc);
-  new->res.ptr = ptr;
-  new->res.size = size;
-  new->res.start = start;
-  new->res.end = end;
-  new->res.sig = sig;
-  new->next = cn_focus_global_context->iter_ress;
-  cn_focus_global_context->iter_ress = new;
-}
-
 /// Checks if the given address
 ///  (i) is in a iterated resource
 ///  (ii) is not focused
 /// If (i) and (ii), it needs focus, and returns 1.
 int needs_focus(uint64_t address, uint64_t size, int64_t *index_out, type_sig *sig_out) {
   assert(cn_focus_global_context != NULL);
-  // (i) search for iterated resource
-  iter_res_set *iter = cn_focus_global_context->iter_ress;
-  while (iter) {
-    iter_res_set *cur = iter;
-    iter = iter->next;
-    uint64_t start = cur->res.ptr + cur->res.start * cur->res.size;
-    uint64_t end = cur->res.ptr + (cur->res.end + 1) * cur->res.size;
-    int64_t offset = address - cur->res.ptr;
-    if (address < start || address + size > end) {
-      continue;
-    }
-    if (offset % cur->res.size != 0) {
-      continue;
-    }
-
-    uint64_t index = offset / cur->res.size;
-
-    // Case: an appropriate iterated resource is found
-    // (ii) search for focus
-    focus_set *cur_focus = cn_focus_global_context->indices;
-    while (cur_focus) {
-      if (cur_focus->info.index == index &&
-          strcmp(cur_focus->info.sig, cur->res.sig) == 0) {
-        return 0;
-      }
-      cur_focus = cur_focus->next;
-    }
-    // The index is not focused
-    *index_out = index;
-    *sig_out = cur->res.sig;
-    return 1;
+  ownership_ghost_info * info = ownership_ghost_state_get(address);
+  if (!info) {
+    return 0;
   }
-  // We didn't find any appropriate iterated resource
-  return 0;
+  struct cn_res* res_info = info->res_info_stack->top->cn_res_info;
+
+  if (res_info->type != CN_RES_ITER) {
+    return 0;
+  }
+  struct iter_res* res = &res_info->iter_res;
+
+  int64_t offset = address - res->ptr;
+  uint64_t index = offset / res->size;
+
+  // Case: an appropriate iterated resource is found
+  // (ii) search for focus
+  focus_set *cur_focus = cn_focus_global_context->indices;
+  while (cur_focus) {
+    if (cur_focus->info.index == index &&
+        strcmp(cur_focus->info.sig, res->sig) == 0) {
+      return 0;
+    }
+    cur_focus = cur_focus->next;
+  }
+  // The index is not focused
+  *index_out = index;
+  *sig_out = res->sig;
+  return 1;
 }
