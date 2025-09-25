@@ -45,7 +45,7 @@ let parse_domain (s : string list) : (module Domain.T) =
     | _ when String.equal name AbstractDomains.WrappedInterval.name ->
       Some (module AbstractDomains.WrappedInterval)
     | _ ->
-      Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
+      Pp.warn_noloc Pp.(!^"Unknown abstract domain" ^^ comma ^^^ squotes !^name);
       None
   in
   match domain_names with

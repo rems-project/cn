@@ -35,74 +35,72 @@ module Make (AD : Domain.T) = struct
              acc
            else
              acc
-             ^^ !^"  struct_member_t "
-             ^^ !^tag_name
-             ^^ !^"_members["
-             ^^ int member_count
-             ^^ !^"];"
+             ^^ !^"struct_member_t"
+             ^^^ !^tag_name
+             ^^ !^"_members"
+             ^^ brackets (int member_count)
+             ^^ semi
              ^^ hardline
-             ^^ !^"  struct_decl_t "
-             ^^ !^tag_name
+             ^^ !^"struct_decl_t"
+             ^^^ !^tag_name
              ^^ !^"_decl;"
              ^^ hardline
-             ^^ !^"  bennet_vector(struct_member_t) "
-             ^^ !^tag_name
+             ^^ !^"bennet_vector(struct_member_t)"
+             ^^^ !^tag_name
              ^^ !^"_members_vector;"
              ^^ hardline
              ^^ (List.fold_left
                    (fun (member_acc, idx) (member_id, member_sct) ->
                       let member_name = Id.get_string member_id in
                       ( member_acc
-                        ^^ !^"  "
                         ^^ !^tag_name
-                        ^^ !^"_members["
-                        ^^ int idx
-                        ^^ !^"].label = \""
+                        ^^ !^"_members"
+                        ^^ brackets (int idx)
+                        ^^ !^".label = \""
                         ^^ !^member_name
                         ^^ !^"\";"
                         ^^ hardline
-                        ^^ !^"  "
                         ^^ !^tag_name
-                        ^^ !^"_members["
-                        ^^ int idx
-                        ^^ !^"].base_type = "
-                        ^^ Smt.convert_basetype (Memory.bt_of_sct member_sct)
-                        ^^ !^";"
+                        ^^ !^"_members"
+                        ^^ brackets (int idx)
+                        ^^ !^".base_type ="
+                        ^^^ Smt.convert_basetype (Memory.bt_of_sct member_sct)
+                        ^^ semi
                         ^^ hardline,
                         idx + 1 ))
                    (!^"", 0)
                    members
                  |> fst)
-             ^^ !^"  bennet_vector_init(struct_member_t)(&"
-             ^^ !^tag_name
-             ^^ !^"_members_vector);"
+             ^^ !^"bennet_vector_init(struct_member_t)"
+             ^^ parens (!^"&" ^^ !^tag_name ^^ !^"_members_vector")
+             ^^ semi
              ^^ hardline
              ^^ (List.fold_left
                    (fun (push_acc, idx) (_member_id, _member_sct) ->
                       ( push_acc
-                        ^^ !^"  bennet_vector_push(struct_member_t)(&"
-                        ^^ !^tag_name
-                        ^^ !^"_members_vector, "
-                        ^^ !^tag_name
-                        ^^ !^"_members["
-                        ^^ int idx
-                        ^^ !^"]);"
+                        ^^ !^"bennet_vector_push(struct_member_t)"
+                        ^^ parens
+                             (!^"&"
+                              ^^ !^tag_name
+                              ^^ !^"_members_vector,"
+                              ^^^ !^tag_name
+                              ^^ !^"_members"
+                              ^^ brackets (int idx))
+                        ^^ semi
                         ^^ hardline,
                         idx + 1 ))
                    (!^"", 0)
                    members
                  |> fst)
-             ^^ !^"    "
              ^^ !^tag_name
-             ^^ !^"_decl.members = "
-             ^^ !^tag_name
+             ^^ !^"_decl.members ="
+             ^^^ !^tag_name
              ^^ !^"_members;"
              ^^ hardline
-             ^^ !^"    "
              ^^ !^tag_name
-             ^^ !^"_decl.member_count = "
-             ^^ int member_count
-             ^^ !^";"
+             ^^ !^"_decl.member_count ="
+             ^^^ int member_count
+             ^^ semi
              ^^ hardline)
         !^""
         struct_decl_data
@@ -116,83 +114,106 @@ module Make (AD : Domain.T) = struct
     in
     (* Generate the init function *)
     let init_fn =
-      !^"void cn_smt_solver_setup(struct cn_smt_solver *s) {"
-      ^^ hardline
-      ^^ struct_decl_code
-      ^^ hardline
-      ^^ (if List.length struct_decl_data > 0 then (
-            let struct_names_array =
-              !^"  const char* struct_names[] = {"
-              ^^ hardline
-              ^^ List.fold_left
-                   (fun acc (tag_name, _) ->
-                      acc ^^ !^"    \"" ^^ !^tag_name ^^ !^"\"," ^^ hardline)
-                   !^""
-                   struct_decl_data
-              ^^ !^"  };"
-              ^^ hardline
-            in
-            let struct_decls_array =
-              !^"  struct_decl_t* struct_decls[] = {"
-              ^^ hardline
-              ^^ List.fold_left
-                   (fun acc (tag_name, _) ->
-                      acc ^^ !^"    &" ^^ !^tag_name ^^ !^"_decl," ^^ hardline)
-                   !^""
-                   struct_decl_data
-              ^^ !^"  };"
-              ^^ hardline
-            in
-            let cn_structs_declare_call =
-              !^"  cn_structs_declare(s, struct_names, struct_decls, "
-              ^^ int (List.length struct_decl_data)
-              ^^ !^");"
-              ^^ hardline
-              ^^ hardline
-            in
-            struct_names_array ^^ struct_decls_array ^^ cn_structs_declare_call)
-          else
-            !^"")
-      ^^ List.fold_left
-           (fun acc tag ->
-              let tag_name = Sym.pp_string_no_nums tag in
-              acc
-              ^^ !^"  cn_struct_data "
-              ^^ !^tag_name
-              ^^ !^"_data = {"
-              ^^ hardline
-              ^^ !^"    .create_struct = create_struct_"
-              ^^ !^tag_name
-              ^^ !^","
-              ^^ hardline
-              ^^ !^"    .get_member = get_member_"
-              ^^ !^tag_name
-              ^^ !^","
-              ^^ hardline
-              ^^ !^"    .update_member = update_member_"
-              ^^ !^tag_name
-              ^^ !^","
-              ^^ hardline
-              ^^ !^"    .default_struct = default_struct_"
-              ^^ !^tag_name
-              ^^ !^"_cn_smt,"
-              ^^ hardline
-              ^^ !^"    .members = "
-              ^^ !^tag_name
-              ^^ !^"_members_vector"
-              ^^ hardline
-              ^^ !^"  };"
-              ^^ hardline
-              ^^ !^"  cn_register_struct(\""
-              ^^ !^tag_name
-              ^^ !^"\", &"
-              ^^ !^tag_name
-              ^^ !^"_data);"
-              ^^ hardline
-              ^^ hardline)
-           !^""
-           struct_tags
-      ^^ !^"}"
+      !^"void cn_smt_solver_setup(struct cn_smt_solver *s)"
+      ^^^ nest
+            2
+            (braces
+               (hardline
+                ^^ struct_decl_code
+                ^^ hardline
+                ^^ (if List.length struct_decl_data > 0 then (
+                      let struct_names_array =
+                        !^"const char* struct_names[] ="
+                        ^^^ nest
+                              2
+                              (braces
+                                 (hardline
+                                  ^^ List.fold_left
+                                       (fun acc (tag_name, _) ->
+                                          acc
+                                          ^^ !^"\""
+                                          ^^ !^tag_name
+                                          ^^ !^"\","
+                                          ^^ hardline)
+                                       !^""
+                                       struct_decl_data)
+                               ^^ hardline)
+                        ^^ semi
+                        ^^ hardline
+                      in
+                      let struct_decls_array =
+                        !^"struct_decl_t* struct_decls[] ="
+                        ^^^ nest
+                              2
+                              (braces
+                                 (hardline
+                                  ^^ List.fold_left
+                                       (fun acc (tag_name, _) ->
+                                          acc
+                                          ^^ !^"&"
+                                          ^^ !^tag_name
+                                          ^^ !^"_decl,"
+                                          ^^ hardline)
+                                       !^""
+                                       struct_decl_data)
+                               ^^ hardline)
+                        ^^ semi
+                        ^^ hardline
+                      in
+                      let cn_structs_declare_call =
+                        !^"cn_structs_declare"
+                        ^^ parens
+                             (!^"s, struct_names, struct_decls,"
+                              ^^^ int (List.length struct_decl_data))
+                        ^^ semi
+                        ^^ hardline
+                        ^^ hardline
+                      in
+                      struct_names_array ^^ struct_decls_array ^^ cn_structs_declare_call)
+                    else
+                      !^"")
+                ^^ List.fold_left
+                     (fun acc tag ->
+                        let tag_name = Sym.pp_string_no_nums tag in
+                        acc
+                        ^^ !^"cn_struct_data"
+                        ^^^ !^tag_name
+                        ^^ !^"_data ="
+                        ^^^ nest
+                              2
+                              (braces
+                                 (hardline
+                                  ^^ !^".create_struct = create_struct_"
+                                  ^^ !^tag_name
+                                  ^^ comma
+                                  ^^ hardline
+                                  ^^ !^".get_member = get_member_"
+                                  ^^ !^tag_name
+                                  ^^ comma
+                                  ^^ hardline
+                                  ^^ !^".update_member = update_member_"
+                                  ^^ !^tag_name
+                                  ^^ comma
+                                  ^^ hardline
+                                  ^^ !^".default_struct = default_struct_"
+                                  ^^ !^tag_name
+                                  ^^ !^"_cn_smt,"
+                                  ^^ hardline
+                                  ^^ !^".members ="
+                                  ^^^ !^tag_name
+                                  ^^ !^"_members_vector"
+                                  ^^ hardline))
+                        ^^ semi
+                        ^^ hardline
+                        ^^ !^"cn_register_struct"
+                        ^^ parens
+                             (!^"\"" ^^ !^tag_name ^^ !^"\", &" ^^ !^tag_name ^^ !^"_data")
+                        ^^ semi
+                        ^^ hardline
+                        ^^ hardline)
+                     !^""
+                     struct_tags)
+             ^^ hardline)
       ^^ hardline
     in
     all_handlers ^^ hardline ^^ init_fn

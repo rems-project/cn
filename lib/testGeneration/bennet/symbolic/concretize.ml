@@ -40,7 +40,7 @@ module Make (AD : Domain.T) = struct
       (* Call a defined generator function with arguments *)
       let args_smt = List.map Smt.convert_indexterm args in
       let args_list =
-        separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
+        separate_map (comma ^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_CONCRETIZE_CALL" ^^ parens args_list }
     | `Asgn ((addr, sct), value, next_term) ->
@@ -50,17 +50,20 @@ module Make (AD : Domain.T) = struct
       let next_result = concretize_term next_term in
       let assign_stmt =
         !^"CN_SMT_CONCRETIZE_ASSIGN"
-        ^^ parens
-             (CF.Pp_ail.(
-                with_executable_spec
-                  (pp_ctype ~is_human:false C.no_qualifiers)
-                  (Sctypes.to_ctype sct))
-              ^^ comma
-              ^^^ !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
-              ^^ comma
-              ^^^ addr_smt
-              ^^ comma
-              ^^^ value_smt)
+        ^^ nest
+             2
+             (parens
+                (CF.Pp_ail.(
+                   with_executable_spec
+                     (pp_ctype ~is_human:false C.no_qualifiers)
+                     (Sctypes.to_ctype sct))
+                 ^^ comma
+                 ^/^ !^(Option.get
+                          (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
+                 ^^ comma
+                 ^/^ addr_smt
+                 ^^ comma
+                 ^/^ value_smt))
       in
       { statements = assign_stmt :: next_result.statements;
         expression = next_result.expression
@@ -70,7 +73,7 @@ module Make (AD : Domain.T) = struct
       let body_result = concretize_term body_term in
       { statements =
           (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
-           ^^ parens (Sym.pp var_sym ^^ comma ^^^ Smt.convert_basetype bt_arb))
+           ^^ nest 2 (parens (Sym.pp var_sym ^^ comma ^/^ Smt.convert_basetype bt_arb)))
           :: body_result.statements;
         expression = body_result.expression
       }
@@ -81,7 +84,7 @@ module Make (AD : Domain.T) = struct
       let body_result = concretize_term body_term in
       (* Generate let binding as statement *)
       let let_stmt =
-        !^"cn_term*" ^^^ !^var_name ^^^ !^"=" ^^^ binding_result.expression
+        !^"cn_term*" ^^^ !^var_name ^^^ equals ^^^ binding_result.expression
       in
       { statements = binding_result.statements @ (let_stmt :: body_result.statements);
         expression = body_result.expression
@@ -146,7 +149,7 @@ module Make (AD : Domain.T) = struct
         List.map
           (fun name_doc ->
              !^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
-             ^^ parens (name_doc ^^ comma ^^^ value_bt_doc))
+             ^^ nest 2 (parens (name_doc ^^ comma ^/^ value_bt_doc)))
           elem_docs
       in
       let result_ty = Smt.convert_basetype bt in
@@ -164,7 +167,7 @@ module Make (AD : Domain.T) = struct
       in
       let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
       let map_init_stmt =
-        !^"cn_term*" ^^^ map_var_doc ^^^ !^"=" ^^^ !^"cn_smt_default" ^^ parens result_ty
+        !^"cn_term*" ^^^ map_var_doc ^^^ equals ^^^ !^"cn_smt_default" ^^ parens result_ty
       in
       let conditional_stmts =
         elem_docs
@@ -178,25 +181,27 @@ module Make (AD : Domain.T) = struct
           let addr_doc = Smt.convert_indexterm (subst_i_in_addr idx_it) in
           let assign_doc =
             !^"CN_SMT_CONCRETIZE_ASSIGN"
-            ^^ parens
-                 (ctype_doc
-                  ^^ comma
-                  ^^^ convert_fn_doc
-                  ^^ comma
-                  ^^^ addr_doc
-                  ^^ comma
-                  ^^^ value_doc)
+            ^^ nest
+                 2
+                 (parens
+                    (ctype_doc
+                     ^^ comma
+                     ^/^ convert_fn_doc
+                     ^^ comma
+                     ^/^ addr_doc
+                     ^^ comma
+                     ^/^ value_doc))
           in
           let key_doc = Smt.convert_indexterm idx_it in
           let update_doc =
             map_var_doc
-            ^^^ !^"="
+            ^^^ equals
             ^^^ !^"cn_smt_map_set"
             ^^ parens (separate (comma ^^ space) [ map_var_doc; key_doc; value_doc ])
           in
           !^"if"
           ^^^ parens cond_doc
-          ^^^ braces (assign_doc ^^ !^";" ^/^ update_doc ^^ !^";"))
+          ^^^ nest 2 (braces (nest 2 (assign_doc ^^ semi ^/^ update_doc ^^ semi))))
       in
       { statements = values_stmts @ (map_init_stmt :: conditional_stmts);
         expression = map_var_doc
@@ -206,10 +211,7 @@ module Make (AD : Domain.T) = struct
       (* Weighted choice selection using CN_SMT_PICK macros *)
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)
-      let pick_begin =
-        !^"CN_SMT_CONCRETIZE_PICK_BEGIN"
-        ^^ parens (separate (comma ^^ space) [ Sym.pp result_var ])
-      in
+      let pick_begin = !^"CN_SMT_CONCRETIZE_PICK_BEGIN" ^^ parens (Sym.pp result_var) in
       (* Generate case statements for each choice *)
       let cases =
         choice_terms
@@ -218,12 +220,12 @@ module Make (AD : Domain.T) = struct
           let term_result = concretize_term term in
           let case_stmts =
             term_result.statements
-            |> List.map (fun stmt -> stmt ^^ !^";")
+            |> List.map (fun stmt -> nest 2 (stmt ^^ semi))
             |> separate hardline
           in
           let case_end =
             !^"CN_SMT_CONCRETIZE_PICK_CASE_END"
-            ^^ parens (Sym.pp result_var ^^ comma ^^^ term_result.expression)
+            ^^ nest 2 (parens (Sym.pp result_var ^^ comma ^/^ term_result.expression))
           in
           case_begin ^/^ case_stmts ^/^ case_end)
         |> separate hardline
@@ -241,15 +243,15 @@ module Make (AD : Domain.T) = struct
     let term_result = concretize_term def.body in
     let params =
       List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
-      |> separate_map (comma ^^^ space) (fun x -> x)
+      |> separate_map (comma ^^ space) (fun x -> x)
     in
     (* Generate statements with semicolons *)
     let statements =
       term_result.statements
-      |> List.map (fun stmt -> !^"  " ^^ stmt ^^ !^";")
+      |> List.map (fun stmt -> nest 2 (stmt ^^ semi))
       |> separate hardline
     in
-    let return_stmt = !^"  return" ^^^ term_result.expression ^^ !^";" in
+    let return_stmt = nest 2 (!^"return" ^^^ term_result.expression ^^ semi) in
     let body =
       if List.length term_result.statements > 0 then
         statements ^/^ return_stmt
@@ -258,13 +260,15 @@ module Make (AD : Domain.T) = struct
     in
     !^"static cn_term*"
     ^^^ !^("cn_smt_concretize_" ^ Pp.plain (Sym.pp def.name))
-    ^^ parens
-         (!^"struct cn_smt_solver* smt_solver"
-          ^^ comma
-          ^^^ !^"struct branch_history_queue* branch_hist"
-          ^^ comma
-          ^^^ params)
-    ^^^ braces body
+    ^^ nest
+         2
+         (parens
+            (!^"struct cn_smt_solver* smt_solver"
+             ^^ comma
+             ^/^ !^"struct branch_history_queue* branch_hist"
+             ^^ comma
+             ^/^ params))
+    ^^^ nest 2 (braces body)
 
 
   let concretize_ctx (ctx : Ctx.t) : Pp.document =
