@@ -95,30 +95,29 @@ type 'TY pexpr_ =
   | PEsym of Sym.t
   | PEval of 'TY value
   | PEconstrained of (Cerb_frontend.Mem.mem_iv_constraint * 'TY pexpr) list
+  | PEundef of Locations.t * Cerb_frontend.Undefined.undefined_behaviour
+  | PEerror of string * 'TY pexpr
   | PEctor of ctor * 'TY pexpr list
+  | PEmember_shift of 'TY pexpr * Sym.t * Id.t
+  | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
   | PEbitwise_unop of bw_unop * 'TY pexpr
   | PEbitwise_binop of bw_binop * 'TY pexpr * 'TY pexpr
-  | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
-  | PEmember_shift of 'TY pexpr * Sym.t * Id.t
+  | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
-  | PEapply_fun of mu_function * 'TY pexpr list
-  | PEstruct of Sym.t * (Id.t * 'TY pexpr) list
-  | PEunion of Sym.t * Id.t * 'TY pexpr
-  | PEcfunction of 'TY pexpr
-  | PEmemberof of Sym.t * Id.t * 'TY pexpr
-  | PEbool_to_integer of 'TY pexpr
   | PEconv_int of 'TY pexpr * 'TY pexpr
   | PEconv_loaded_int of 'TY pexpr * 'TY pexpr
   | PEwrapI of act * 'TY pexpr
   | PEcatch_exceptional_condition of act * 'TY pexpr
-  | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
-  | PEis_representable_integer of 'TY pexpr * act
-  | PEundef of Locations.t * Cerb_frontend.Undefined.undefined_behaviour
-  | PEerror of string * 'TY pexpr
+  | PEstruct of Sym.t * (Id.t * 'TY pexpr) list
+  | PEunion of Sym.t * Id.t * 'TY pexpr
+  | PEcfunction of 'TY pexpr
+  | PEmemberof of Sym.t * Id.t * 'TY pexpr
+  | PEapply_fun of mu_function * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
+  | PEis_representable_integer of 'TY pexpr * act
 
 and 'TY pexpr = Pexpr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY pexpr_
 

@@ -937,7 +937,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEmemberof"
            [ pp_symbol sym; pp_identifier id; pp_pexpr pp_type e ]
-       | PEbool_to_integer e -> pp_constructor1 "PEbool_to_integer" [ pp_pexpr pp_type e ]
        | PEconv_int (e1, e2) ->
          pp_constructor1 "PEconv_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
        | PEconv_loaded_int (e1, e2) ->

@@ -1676,13 +1676,6 @@ module BaseTyping = struct
         | PEis_representable_integer (pe, act) ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEis_representable_integer (pe, act))
-        | PEbool_to_integer pe ->
-          let@ pe = infer_pexpr pe in
-          (* FIXME: replace this with something derived from a ctype when that info is
-             available *)
-          let ity = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_) in
-          let bt = Memory.bt_of_sct (Sctypes.Integer ity) in
-          return (bt, PEbool_to_integer pe)
         | PEnot pe ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEnot pe)
