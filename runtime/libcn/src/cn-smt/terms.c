@@ -467,6 +467,22 @@ cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name) {
   return term;
 }
 
+cn_term* cn_smt_record_update(
+    cn_term* record_term, const char* member_name, cn_term* new_value) {
+  assert(record_term && member_name && new_value);
+
+  cn_term* term = cn_term_alloc(CN_TERM_RECORD_UPDATE, record_term->base_type);
+  assert(term);
+
+  term->data.record_update.record_term = record_term;
+  term->data.record_update.member_name = strdup(member_name);
+  term->data.record_update.new_value = new_value;
+
+  assert(term->data.record_update.member_name);
+
+  return term;
+}
+
 cn_term* cn_smt_constructor(const char* constructor_name,
     size_t arg_count,
     const char** arg_names,

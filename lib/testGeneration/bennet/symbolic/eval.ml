@@ -149,4 +149,161 @@ module Make (AD : Domain.T) = struct
       in
       create_fn ^^ get_fn ^^ update_fn ^^ default_fn
     | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found")
+
+
+  let generate_record_handlers (record_hash : int) (members : (string * BaseTypes.t) list)
+    : Pp.document
+    =
+    let open Pp in
+    let hash_name = "record_" ^ string_of_int record_hash in
+    let struct_name = "struct " ^ hash_name in
+    (* Generate create_record function *)
+    let create_fn_name = "create_record_" ^ hash_name in
+    let create_fn =
+      !^"void* "
+      ^^ !^create_fn_name
+      ^^ !^"(bennet_hash_table(const_char_ptr, void_ptr) * members) {"
+      ^^ hardline
+      ^^ !^"  "
+      ^^ !^struct_name
+      ^^ !^"* result"
+      ^^^ equals
+      ^^^ (!^"malloc" ^^ parens (!^"sizeof" ^^ parens !^struct_name))
+      ^^ semi
+      ^^ hardline
+      ^^ List.fold_left
+           (fun acc (member_name, _member_bt) ->
+              acc
+              ^^ !^"  bennet_optional(void_ptr) "
+              ^^ !^member_name
+              ^^ !^"_opt = bennet_hash_table_get(const_char_ptr, void_ptr)(members, \""
+              ^^ !^member_name
+              ^^ !^"\");"
+              ^^ hardline
+              ^^ !^"  if (bennet_optional_is_some("
+              ^^ !^member_name
+              ^^ !^"_opt)) {"
+              ^^ hardline
+              ^^ !^"    void* "
+              ^^ !^member_name
+              ^^ !^"_val = bennet_optional_unwrap("
+              ^^ !^member_name
+              ^^ !^"_opt);"
+              ^^ hardline
+              ^^ !^"    result->"
+              ^^ !^member_name
+              ^^ !^" = "
+              ^^ !^member_name
+              ^^ !^"_val;"
+              ^^ hardline
+              ^^ !^"  }"
+              ^^ hardline)
+           !^""
+           members
+      ^^ !^"  return result;"
+      ^^ hardline
+      ^^ !^"}"
+      ^^ hardline
+      ^^ hardline
+    in
+    (* Generate get_member function *)
+    let get_fn_name = "get_member_" ^ hash_name in
+    let get_fn =
+      !^"void* "
+      ^^ !^get_fn_name
+      ^^ !^"(void* record_val, const char* member_name) {"
+      ^^ hardline
+      ^^ !^"  "
+      ^^ !^struct_name
+      ^^ !^"* r = ("
+      ^^ !^struct_name
+      ^^ !^"*)record_val;"
+      ^^ hardline
+      ^^ List.fold_left
+           (fun acc (member_name, _) ->
+              acc
+              ^^ !^"  if (strcmp(member_name, \""
+              ^^ !^member_name
+              ^^ !^"\") == 0) {"
+              ^^ hardline
+              ^^ !^"    return r->"
+              ^^ !^member_name
+              ^^ !^";"
+              ^^ hardline
+              ^^ !^"  }"
+              ^^ hardline)
+           !^""
+           members
+      ^^ !^"  return NULL;"
+      ^^ hardline
+      ^^ !^"}"
+      ^^ hardline
+      ^^ hardline
+    in
+    (* Generate update_member function *)
+    let update_fn_name = "update_member_" ^ hash_name in
+    let update_fn =
+      !^"void* "
+      ^^ !^update_fn_name
+      ^^ !^"(void* record_val, const char* member_name, void* new_value) {"
+      ^^ hardline
+      ^^ !^"  "
+      ^^ !^struct_name
+      ^^ !^"* r = ("
+      ^^ !^struct_name
+      ^^ !^"*)record_val;"
+      ^^ hardline
+      ^^ !^"  "
+      ^^ !^struct_name
+      ^^ !^"* result = malloc(sizeof("
+      ^^ !^struct_name
+      ^^ !^"));"
+      ^^ hardline
+      ^^ !^"  *result = *r; // copy original record"
+      ^^ hardline
+      ^^ List.fold_left
+           (fun acc (member_name, _member_bt) ->
+              acc
+              ^^ !^"  if (strcmp(member_name, \""
+              ^^ !^member_name
+              ^^ !^"\") == 0) {"
+              ^^ hardline
+              ^^ !^"    result->"
+              ^^ !^member_name
+              ^^ !^" = new_value;"
+              ^^ hardline
+              ^^ !^"  }"
+              ^^ hardline)
+           !^""
+           members
+      ^^ !^"  return result;"
+      ^^ hardline
+      ^^ !^"}"
+      ^^ hardline
+    in
+    (* Generate default_record function *)
+    let default_fn_name = "default_record_" ^ hash_name in
+    let default_fn =
+      !^"void* "
+      ^^ !^default_fn_name
+      ^^ !^"(void) {"
+      ^^ hardline
+      ^^ !^"  "
+      ^^ !^struct_name
+      ^^ !^"* result = malloc(sizeof("
+      ^^ !^struct_name
+      ^^ !^"));"
+      ^^ hardline
+      ^^ List.fold_left
+           (fun acc (member_name, _member_bt) ->
+              acc ^^ !^"  result->" ^^ !^member_name ^^ !^" = NULL;" ^^ hardline)
+           !^""
+           members
+      ^^ !^"  return result;"
+      ^^ hardline
+      ^^ !^"}"
+      ^^ hardline
+      ^^ hardline
+    in
+    create_fn ^^ get_fn ^^ update_fn ^^ default_fn
 end

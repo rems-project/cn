@@ -135,6 +135,7 @@
     cn-smt/sexp.o
     cn-smt/solver.o
     cn-smt/structs.o
+    cn-smt/records.o
     cn-smt/subst.o
     cn-smt/terms.o
     cn-smt/to_smt.o
