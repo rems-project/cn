@@ -40,7 +40,7 @@ module Make (AD : Domain.T) = struct
       (* Call a defined generator function with arguments *)
       let args_smt = List.map Smt.convert_indexterm args in
       let args_list =
-        separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
+        separate_map (comma ^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_GATHER_CALL" ^^ parens args_list }
     | `Asgn ((addr, sct), _value, next_term) ->
@@ -131,14 +131,15 @@ module Make (AD : Domain.T) = struct
       let assign_stmt =
         !^"CN_SMT_GATHER_ASSIGN_ARRAY"
         ^^ parens
-             (CF.Pp_ail.(
-                with_executable_spec
-                  (pp_ctype ~is_human:false C.no_qualifiers)
-                  (Sctypes.to_ctype sct))
-              ^^ comma
-              ^^^ start_addr_smt
-              ^^ comma
-              ^^^ end_addr_smt)
+             (separate
+                (comma ^^ space)
+                [ CF.Pp_ail.(
+                    with_executable_spec
+                      (pp_ctype ~is_human:false C.no_qualifiers)
+                      (Sctypes.to_ctype sct));
+                  start_addr_smt;
+                  end_addr_smt
+                ])
       in
       (* Return value *)
       let result_ty = Smt.convert_basetype bt in
@@ -168,7 +169,10 @@ module Make (AD : Domain.T) = struct
       let body_result = gather_term body_term in
       { statements =
           (!^"CN_SMT_GATHER_LET_SYMBOLIC"
-           ^^ parens (Sym.pp var_sym ^^ comma ^^^ Smt.convert_basetype bt_arb))
+           ^^ parens
+                (separate
+                   (comma ^^ space)
+                   [ Sym.pp var_sym; Smt.convert_basetype bt_arb ]))
           :: body_result.statements;
         expression = body_result.expression
       }
@@ -179,7 +183,7 @@ module Make (AD : Domain.T) = struct
       let body_result = gather_term body_term in
       (* Generate let binding as statement *)
       let let_stmt =
-        !^"cn_term*" ^^^ !^var_name ^^^ !^"=" ^^^ binding_result.expression
+        !^"cn_term*" ^^^ !^var_name ^^^ equals ^^^ binding_result.expression
       in
       { statements = binding_result.statements @ (let_stmt :: body_result.statements);
         expression = body_result.expression
@@ -208,10 +212,7 @@ module Make (AD : Domain.T) = struct
     | `Pick choice_terms ->
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)
-      let pick_begin =
-        !^"CN_SMT_GATHER_PICK_BEGIN"
-        ^^ parens (separate (comma ^^ space) [ Sym.pp result_var ])
-      in
+      let pick_begin = !^"CN_SMT_GATHER_PICK_BEGIN" ^^ parens (Sym.pp result_var) in
       (* Generate case statements for each choice *)
       let cases =
         choice_terms
@@ -219,13 +220,21 @@ module Make (AD : Domain.T) = struct
           let case_begin = !^"CN_SMT_GATHER_PICK_CASE_BEGIN" ^^ parens (int i) in
           let term_result = gather_term term in
           let case_stmts =
-            term_result.statements
-            |> List.map (fun stmt -> stmt ^^ !^";")
-            |> separate hardline
+            if List.length term_result.statements > 0 then
+              nest
+                2
+                (hardline
+                 ^^ (term_result.statements
+                     |> List.map (fun stmt -> stmt ^^ semi)
+                     |> separate hardline))
+              ^^ hardline
+            else
+              empty
           in
           let case_end =
             !^"CN_SMT_GATHER_PICK_CASE_END"
-            ^^ parens (Sym.pp result_var ^^ comma ^^^ term_result.expression)
+            ^^ parens
+                 (separate (comma ^^ space) [ Sym.pp result_var; term_result.expression ])
           in
           case_begin ^/^ case_stmts ^/^ case_end)
         |> separate hardline
@@ -244,16 +253,14 @@ module Make (AD : Domain.T) = struct
     let branch_hist_param = !^"struct branch_history_queue*" ^^^ !^"branch_hist" in
     let def_params = List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs in
     let params =
-      branch_hist_param :: def_params |> separate_map (comma ^^^ space) (fun x -> x)
+      branch_hist_param :: def_params |> separate_map (comma ^^ space) (fun x -> x)
     in
     (* Generate statements with semicolons *)
     let statements =
-      term_result.statements
-      |> List.map (fun stmt -> !^"  " ^^ stmt ^^ !^";")
-      |> separate hardline
+      term_result.statements |> List.map (fun stmt -> stmt ^^ semi) |> separate hardline
     in
-    let return_stmt = !^"  return" ^^^ term_result.expression ^^ !^";" in
-    let body =
+    let return_stmt = !^"return" ^^^ term_result.expression ^^ semi in
+    let body_content =
       if List.length term_result.statements > 0 then
         statements ^/^ return_stmt
       else
@@ -262,7 +269,7 @@ module Make (AD : Domain.T) = struct
     !^"static cn_term*"
     ^^^ !^("cn_smt_gather_" ^ Pp.plain (Sym.pp def.name))
     ^^ parens params
-    ^^^ braces body
+    ^^^ braces (nest 2 (hardline ^^ body_content))
 
 
   let gather_ctx (ctx : Ctx.t) : Pp.document =

@@ -789,20 +789,23 @@ module Make (AD : Domain.T) = struct
       |> String.capitalize_ascii
       |> fun x -> x ^ "_H" |> Pp.string
     in
+    let open Pp in
     let harnesses =
       ctx
       |> List.filter (fun ((_, gr) : _ * Stage5.Def.t) -> gr.spec)
       |> List.map fst
-      |> List.map Sym.pp_string
       |> List.map (fun name ->
-        Printf.sprintf
-          "%s* %s(void**) { return bennet_%s(); }"
-          ("cn_test_generator_" ^ name ^ "_record")
-          ("cn_test_generator_" ^ name)
-          name)
-      |> String.concat "\n\n"
+        let name_str = Sym.pp_string name in
+        let record_type = "cn_test_generator_" ^ name_str ^ "_record" in
+        let func_name = "cn_test_generator_" ^ name_str in
+        let bennet_func = "bennet_" ^ name_str in
+        (!^record_type ^^^ !^"*")
+        ^^^ (!^func_name ^^ parens !^"void**")
+        ^^^ braces
+              (nest 2 (hardline ^^ !^"return" ^^^ (!^bennet_func ^^ parens empty) ^^ semi)
+               ^^ hardline))
+      |> separate (twice hardline)
     in
-    let open Pp in
     (!^"#ifndef" ^^^ include_guard_name)
     ^^ hardline
     ^^ (!^"#define" ^^^ include_guard_name)
@@ -826,12 +829,14 @@ module Make (AD : Domain.T) = struct
               CF.Pp_ail.pp_function_prototype tag decl))
            declarations)
     ^^ twice hardline
-    ^^ !^"/* EVERYTHING ELSE */"
+    ^^ !^"/* FUNCTION IMPLEMENTATIONS */"
     ^^ hardline
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, sigma))
+    ^^ twice hardline
+    ^^ !^"/* HARNESSES */"
     ^^ hardline
-    ^^ !^harnesses
+    ^^ harnesses
     ^^ hardline
-    ^^ (!^"#endif //" ^^^ include_guard_name)
+    ^^ (!^"#endif" ^^^ !^"//" ^^^ include_guard_name)
     ^^ hardline
 end

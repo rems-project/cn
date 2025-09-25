@@ -55,7 +55,10 @@ module Make (AD : Domain.T) = struct
             let sym = Sym.fresh_anon () in
             let it_sym = IT.sym_ (sym, IT.get_bt it_val, loc) in
             let@ () =
-              add_l_value sym it_val (loc, lazy Pp.(Sym.pp sym ^^^ !^"=" ^^^ IT.pp it_val))
+              add_l_value
+                sym
+                it_val
+                (loc, lazy Pp.(Sym.pp sym ^^^ equals ^^^ IT.pp it_val))
             in
             add_r
               loc

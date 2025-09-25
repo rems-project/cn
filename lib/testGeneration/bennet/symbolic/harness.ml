@@ -19,7 +19,15 @@ module Make (AD : Domain.T) = struct
       !^"assert(gen_state != NULL);"
       ^/^ !^"if"
       ^^^ parens !^"*gen_state == NULL"
-      ^^^ braces !^"*(cn_trie**)gen_state = cn_trie_create();"
+      ^/^ nest
+            2
+            (hardline
+             ^^ braces
+                  (nest
+                     2
+                     (hardline
+                      ^^ !^"*(cn_trie**)gen_state = cn_trie_create();"
+                      ^^ hardline)))
       ^/^ !^"cn_trie* unsat_paths = *(cn_trie**)gen_state;"
     in
     let vars_decl =
@@ -31,8 +39,8 @@ module Make (AD : Domain.T) = struct
     let select_path =
       !^"cn_smt_path_selector_"
       ^^ !^generator_name
-      ^^ parens !^"&branch_hist, unsat_paths"
-      ^^ !^";"
+      ^^ parens (!^"&branch_hist" ^^ comma ^^^ !^"unsat_paths")
+      ^^ semi
     in
     (* Initialize symbolic execution context *)
     let context_init = !^"cn_smt_gather_init();" in
@@ -42,30 +50,34 @@ module Make (AD : Domain.T) = struct
       |> List.map (fun (sym, bt) ->
         let var_name = Sym.pp_string sym in
         let var_type = Smt.convert_basetype bt in
-        !^"cn_term* "
-        ^^ Sym.pp sym
+        !^"cn_term*"
+        ^^^ Sym.pp sym
         ^^ !^"_var"
         ^^^ equals
         ^^^ parens
               (braces
-                 (!^"CN_SMT_GATHER_LET_SYMBOLIC"
-                  ^^ Pp.parens (!^var_name ^^ !^"," ^^^ var_type)
-                  ^^ semi
-                  ^/^ Sym.pp sym
-                  ^^ semi))
+                 (nest
+                    2
+                    (hardline
+                     ^^ !^"CN_SMT_GATHER_LET_SYMBOLIC"
+                     ^^ parens (!^var_name ^^ comma ^^^ var_type)
+                     ^^ semi
+                     ^/^ Sym.pp sym
+                     ^^ semi)
+                  ^^ hardline))
         ^^ semi)
-      |> Pp.separate Pp.hardline
+      |> separate hardline
     in
     (* Generate call to the corresponding cn_smt_gather_<generator name> function with symbolic variables *)
     let gather_constraints =
       let smt_args =
         def.iargs
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_var"))
-        |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
+        |> Pp.separate_map (comma ^^^ Pp.space) (fun x -> x)
       in
       let all_args =
         if List.length def.iargs > 0 then
-          !^"&branch_hist" ^^ !^"," ^^^ Pp.space ^^ smt_args
+          !^"&branch_hist" ^^ comma ^^^ Pp.space ^^ smt_args
         else
           !^"&branch_hist"
       in
@@ -74,18 +86,25 @@ module Make (AD : Domain.T) = struct
       ^/^ !^"cn_smt_gather_"
       ^^ !^generator_name
       ^^ Pp.parens all_args
-      ^^ !^";"
+      ^^ semi
     in
     let check_sat =
       !^"branch_history_rewind(&branch_hist);"
       ^/^ !^"result = cn_smt_gather_model(smt_solver);"
       ^/^ !^"if"
       ^^^ parens !^"result != CN_SOLVER_SAT"
-      ^^^ braces
-            (!^"assert(result == CN_SOLVER_UNSAT);"
-             ^/^ !^"branch_history_update_trie(&branch_hist, unsat_paths);"
-             ^/^ !^"branch_history_restore(&branch_hist, NULL);"
-             ^/^ !^"attempts++;")
+      ^/^ nest
+            2
+            (hardline
+             ^^ braces
+                  (nest
+                     2
+                     (hardline
+                      ^^ !^"assert(result == CN_SOLVER_UNSAT);"
+                      ^/^ !^"branch_history_update_trie(&branch_hist, unsat_paths);"
+                      ^/^ !^"branch_history_restore(&branch_hist, NULL);"
+                      ^/^ !^"attempts++;")
+                   ^^ hardline))
     in
     (* Initialize concretization context *)
     let conc_context_init =
@@ -97,34 +116,42 @@ module Make (AD : Domain.T) = struct
       |> List.map (fun (sym, bt) ->
         let var_name = Sym.pp_string sym in
         let var_type = Smt.convert_basetype bt in
-        !^"cn_term* "
-        ^^ Sym.pp sym
+        !^"cn_term*"
+        ^^^ Sym.pp sym
         ^^ !^"_val"
         ^^^ equals
         ^^^ parens
               (braces
-                 (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
-                  ^^ Pp.parens (!^var_name ^^ !^"," ^^^ var_type)
-                  ^^ semi
-                  ^/^ Sym.pp sym
-                  ^^ semi))
+                 (nest
+                    2
+                    (hardline
+                     ^^ !^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
+                     ^^ parens (!^var_name ^^ comma ^^^ var_type)
+                     ^^ semi
+                     ^/^ Sym.pp sym
+                     ^^ semi)
+                  ^^ hardline))
         ^^ semi)
-      |> Pp.separate Pp.hardline
+      |> separate hardline
     in
     let concretize_model =
       let conc_args =
         def.iargs
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_val"))
-        |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
+        |> separate_map (comma ^^^ space) (fun x -> x)
       in
       !^"bennet_rand_restore(checkpoint);"
-      ^^^ (!^"cn_smt_concretize_"
+      ^/^ (!^"cn_smt_concretize_"
            ^^ !^generator_name
-           ^^ Pp.parens
-                (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
-           ^^ !^";")
+           ^^ parens (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
+           ^^ semi)
       ^/^ !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
-      ^^^ braces !^"stop_solver(smt_solver); return NULL;"
+      ^/^ nest
+            2
+            (hardline
+             ^^ braces
+                  (nest 2 (hardline ^^ !^"stop_solver(smt_solver);" ^/^ !^"return NULL;")
+                   ^^ hardline))
     in
     (* Generate struct building and return - create default values for all fields *)
     let struct_fields =
@@ -139,11 +166,11 @@ module Make (AD : Domain.T) = struct
         ^^ !^"cn_eval_term"
         ^^ parens (Sym.pp sym ^^ !^"_val")
         ^^ comma)
-      |> Pp.separate Pp.hardline
+      |> separate hardline
     in
     let stop_solver = !^"stop_solver(smt_solver);" in
     let struct_return =
-      (record_type ^^ star)
+      (record_type ^^ !^"*")
       ^^^ !^"result_struct"
       ^^^ equals
       ^^^ (!^"malloc" ^^ parens (!^"sizeof" ^^ parens record_type))
@@ -151,38 +178,61 @@ module Make (AD : Domain.T) = struct
       ^/^ !^"*result_struct"
       ^^^ equals
       ^^^ parens record_type
-      ^/^ braces struct_fields
+      ^/^ nest
+            2
+            (hardline
+             ^^ braces (nest 2 (hardline ^^ struct_fields ^^ hardline) ^^ hardline))
       ^^ semi
       ^/^ !^"return result_struct;"
     in
     (* Combine everything into the function *)
     (record_type ^^ !^"*")
-    ^^^ (!^("cn_test_generator_" ^ generator_name) ^^ Pp.parens !^"void** gen_state")
-    ^^^ !^"{"
-    ^/^ state_init
-    ^/^ vars_decl
-    ^/^ !^"int attempts = 0;"
-    ^/^ !^"enum cn_smt_solver_result result;"
-    ^/^ (!^"do"
-         ^^^ braces
-               (hardline
-                ^^ !^"/* Select path */"
-                ^/^ select_path
-                ^/^ !^"/* Gather constraints */"
-                ^/^ context_init
-                ^/^ symbolic_vars
-                ^/^ gather_constraints
-                ^/^ check_sat)
-         ^^^ !^"while (result != CN_SOLVER_SAT && attempts < 10);")
-    ^^^ (!^"if (result != CN_SOLVER_SAT)"
-         ^^^ braces
-               (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
-                ^/^ !^"stop_solver(smt_solver); return NULL;"))
-    ^/^ hardline
-    ^/^ conc_context_init
-    ^/^ concrete_vars
-    ^/^ concretize_model
-    ^/^ stop_solver
-    ^/^ struct_return
-    ^/^ !^"}"
+    ^^^ (!^("cn_test_generator_" ^ generator_name) ^^ parens (!^"void**" ^^^ !^"gen_state")
+        )
+    ^/^ braces
+          (nest
+             2
+             (hardline
+              ^^ state_init
+              ^/^ hardline
+              ^^ vars_decl
+              ^/^ !^"int attempts = 0;"
+              ^/^ !^"enum cn_smt_solver_result result;"
+              ^/^ hardline
+              ^^ (!^"do"
+                  ^/^ nest
+                        2
+                        (hardline
+                         ^^ braces
+                              (nest
+                                 2
+                                 (hardline
+                                  ^^ !^"/* Select path */"
+                                  ^/^ select_path
+                                  ^/^ !^"/* Gather constraints */"
+                                  ^/^ context_init
+                                  ^/^ symbolic_vars
+                                  ^/^ gather_constraints
+                                  ^/^ check_sat)
+                               ^^ hardline))
+                  ^^^ !^"while (result != CN_SOLVER_SAT && attempts < 10);")
+              ^/^ (!^"if (result != CN_SOLVER_SAT)"
+                   ^/^ nest
+                         2
+                         (hardline
+                          ^^ braces
+                               (nest
+                                  2
+                                  (hardline
+                                   ^^ !^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
+                                   ^/^ !^"stop_solver(smt_solver);"
+                                   ^/^ !^"return NULL;")
+                                ^^ hardline)))
+              ^/^ hardline
+              ^^ conc_context_init
+              ^/^ concrete_vars
+              ^/^ concretize_model
+              ^/^ stop_solver
+              ^/^ struct_return)
+           ^^ hardline)
 end

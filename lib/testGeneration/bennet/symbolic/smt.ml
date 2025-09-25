@@ -22,7 +22,7 @@ module Make (AD : Domain.T) = struct
     | Real -> !^"cn_base_type_simple(CN_BASE_REAL)"
     | Bits (sign, width) ->
       let sign_bool = match sign with BT.Signed -> "true" | BT.Unsigned -> "false" in
-      !^"cn_base_type_bits(" ^^ !^sign_bool ^^ comma ^^^ int width ^^ !^")"
+      !^"cn_base_type_bits" ^^ parens (!^sign_bool ^^ comma ^^^ int width)
     | Loc _ -> !^"cn_base_type_simple(CN_BASE_LOC)"
     | CType -> !^"cn_base_type_simple(CN_BASE_CTYPE)"
     | Struct tag ->
@@ -35,7 +35,7 @@ module Make (AD : Domain.T) = struct
     | Map (key_bt, value_bt) ->
       let key_doc = convert_basetype key_bt in
       let value_doc = convert_basetype value_bt in
-      !^"create_map_type" ^^ parens (separate (comma ^^ space) [ key_doc; value_doc ])
+      !^"create_map_type" ^^ parens (separate (comma ^^^ space) [ key_doc; value_doc ])
     | Tuple _element_bts ->
       (* TODO: Implement proper recursive type creation for Tuple types *)
       !^"cn_base_type_simple(CN_BASE_TUPLE) /* TODO: use cn_base_type_tuple with proper \
@@ -48,17 +48,15 @@ module Make (AD : Domain.T) = struct
         (* Generate call to helper function that handles record creation *)
         let field_names = List.map (fun (id, _) -> dquotes (Id.pp id)) member_types in
         let field_types = List.map (fun (_, bt) -> convert_basetype bt) member_types in
-        let names_args = separate_map (comma ^^ space) (fun x -> x) field_names in
-        let types_args = separate_map (comma ^^ space) (fun x -> x) field_types in
+        let names_args = separate_map (comma ^^^ space) (fun x -> x) field_names in
+        let types_args = separate_map (comma ^^^ space) (fun x -> x) field_types in
         !^"create_record_type"
         ^^ parens
              (int field_count
               ^^ comma
-              ^^^ braces !^"const char*[]"
-              ^^ braces names_args
+              ^^^ braces (!^"const char*[]" ^^ braces names_args)
               ^^ comma
-              ^^^ parens !^"cn_base_type[]"
-              ^^ braces types_args))
+              ^^^ parens (!^"cn_base_type[]" ^^ braces types_args)))
     | Set _element_bt ->
       (* TODO: Implement proper recursive type creation for Set types *)
       !^"cn_base_type_simple(CN_BASE_SET) /* TODO: use cn_base_type_set with proper \
@@ -231,7 +229,7 @@ module Make (AD : Domain.T) = struct
   and convert_tuple (terms : IT.t list) : Pp.document =
     let terms_smt = List.map convert_indexterm terms in
     let args_array =
-      Pp.(braces (separate_map (comma ^^ Pp.space) (fun x -> x) terms_smt))
+      Pp.(braces (separate_map (comma ^^^ space) (fun x -> x) terms_smt))
     in
     Pp.(!^"cn_smt_tuple" ^^ parens (int (List.length terms) ^^ comma ^^^ args_array))
 

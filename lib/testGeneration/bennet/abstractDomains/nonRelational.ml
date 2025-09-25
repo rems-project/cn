@@ -161,7 +161,7 @@ module Make (B : BASIS) = struct
        | bindings ->
          brackets
            (separate_map
-              (!^";" ^^^ break 1)
+              (semi ^^ break 1)
               (fun (sym, b) -> Sym.pp sym ^^ !^"↦" ^^ B.pp b)
               bindings))
 

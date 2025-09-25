@@ -51,25 +51,32 @@ module Make (AD : Domain.T) = struct
       (* Generate the pick begin macro call *)
       let pick_begin =
         !^"CN_SMT_PATH_SELECTOR_PICK_BEGIN"
-        ^^ parens
-             (separate
-                (comma ^^ space)
-                [ Sym.pp result_var; Sym.pp tmp_var; Sym.pp last_branch; choices ])
+        ^^ nest
+             2
+             (parens
+                (separate
+                   (comma ^^ break 1)
+                   [ Sym.pp result_var; Sym.pp tmp_var; Sym.pp last_branch; choices ]))
+        ^^ semi
       in
       (* Generate case statements for each choice *)
       let cases =
         choice_terms
         |> List.mapi (fun i term ->
-          let case_begin = !^"CN_SMT_PATH_SELECTOR_PICK_CASE_BEGIN" ^^ parens (int i) in
+          let case_begin =
+            !^"CN_SMT_PATH_SELECTOR_PICK_CASE_BEGIN" ^^ parens (int i) ^^ semi
+          in
           let term_result = path_selector_term tmp_var term in
-          let case_end = !^"CN_SMT_PATH_SELECTOR_PICK_CASE_END" ^^ parens empty in
-          case_begin ^/^ term_result ^/^ case_end)
+          let case_end = !^"CN_SMT_PATH_SELECTOR_PICK_CASE_END" ^^ parens empty ^^ semi in
+          nest 2 (case_begin ^/^ term_result) ^/^ case_end)
         |> separate hardline
       in
       (* Generate the pick end macro call *)
-      let pick_end = !^"CN_SMT_PATH_SELECTOR_PICK_END" ^^ parens (Sym.pp tmp_var) in
+      let pick_end =
+        !^"CN_SMT_PATH_SELECTOR_PICK_END" ^^ parens (Sym.pp tmp_var) ^^ semi
+      in
       (* Combine everything as single statement block *)
-      let pick_stmt = pick_begin ^/^ cases ^/^ pick_end in
+      let pick_stmt = pick_begin ^/^ nest 2 cases ^/^ pick_end in
       pick_stmt
 
 
@@ -80,10 +87,11 @@ module Make (AD : Domain.T) = struct
       !^"struct branch_history_queue*"
       ^^^ !^"branch_hist"
       ^^ comma
-      ^^^ !^"cn_trie*"
+      ^^ break 1
+      ^^ !^"cn_trie*"
       ^^^ !^"unsat_paths"
     in
-    let body =
+    let body_content =
       if def.spec then (
         (* For spec functions, generate normal path selector *)
         let term_result = path_selector_term bennet def.body in
@@ -94,8 +102,9 @@ module Make (AD : Domain.T) = struct
     in
     !^"static void"
     ^^^ !^("cn_smt_path_selector_" ^ Pp.plain (Sym.pp def.name))
-    ^^ parens params
-    ^^^ braces body
+    ^^ nest 2 (parens params)
+    ^^^ hardline
+    ^^ braces (hardline ^^ nest 2 body_content ^^ hardline)
 
 
   let path_selector_ctx (ctx : Ctx.t) : Pp.document =

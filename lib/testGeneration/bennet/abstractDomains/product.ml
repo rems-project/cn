@@ -120,7 +120,7 @@ let product_domains (domains : (module Domain.T) list) =
           !^"static inline bool"
           ^^^ !^(func_prefix ^ op_name ^ "_##ty")
           ^^ parens (!^struct_type ^^ !^"* ptr")
-          ^/^ braces (!^"  return " ^^ generate_condition_calls op_name joiner ^^ !^";")
+          ^/^ braces (!^"  return " ^^ generate_condition_calls op_name joiner ^^ semi)
 
 
         let generate_binary_op op_name =
@@ -143,7 +143,7 @@ let product_domains (domains : (module Domain.T) list) =
           !^"static inline bool"
           ^^^ !^(func_prefix ^ op_name ^ "_##ty")
           ^^ parens (!^struct_type ^^ !^"* ptr1, " ^^ !^struct_type ^^ !^"* ptr2")
-          ^/^ braces (!^"  return " ^^ generate_binary_conditions op_name joiner ^^ !^";")
+          ^/^ braces (!^"  return " ^^ generate_binary_conditions op_name joiner ^^ semi)
 
 
         let generate_copy_function =
@@ -164,7 +164,7 @@ let product_domains (domains : (module Domain.T) list) =
                         ^^ int i
                         ^^ !^" = ptr->element_"
                         ^^ int i
-                        ^^ !^";")
+                        ^^ semi)
                       |> separate hardline)
                  ^/^ !^"  return result;")
 
@@ -321,7 +321,7 @@ let product_domains (domains : (module Domain.T) list) =
               ^^ !^"_of_"
               ^^ !^"##ty"
               ^^ parens !^(D.pp_args ())
-              ^^ !^";")
+              ^^ semi)
             |> separate hardline
           in
           !^"static inline"
