@@ -110,7 +110,6 @@ module Make (Config : CONFIG) = struct
     | PEbitwise_unop (_, _)
     | PEbitwise_binop (_, _, _)
     | PEapply_fun (_, _)
-    | PEbool_to_integer _
     | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
     | PEis_representable_integer (_, _) ->
@@ -350,8 +349,6 @@ module Make (Config : CONFIG) = struct
                        ^^^ Pp_symbol.pp_identifier memb_ident
                        ^^ Pp.comma
                        ^^^ pp_pexpr pe)
-               | PEbool_to_integer asym ->
-                 pp_keyword "bool_to_integer" ^^ Pp.parens (pp_pexpr asym)
                | PEconv_int (ct_expr, int_expr) ->
                  Cn_Pp.c_app !^"conv_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
                | PEconv_loaded_int (ct_expr, int_expr) ->

@@ -834,11 +834,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
                 [@alert "-deprecated"]
             })))
   | PEmemberof _ -> Cerb_debug.error "todo: PEmemberof"
-  | PEbool_to_integer pe ->
-    let@ _ = ensure_bitvector_type loc ~expect in
-    let@ () = WellTyped.ensure_base_type loc ~expect:Bool (Mu.bt_of_pexpr pe) in
-    let@ arg = check_pexpr path_cs pe in
-    return (ite_ (arg, int_lit_ 1 expect loc, int_lit_ 0 expect loc) loc)
   | PEbounded_binop (Bound_Wrap act, iop, pe1, pe2) ->
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)

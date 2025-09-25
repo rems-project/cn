@@ -343,9 +343,6 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       match binop with BW_AND -> IT.BW_And | BW_OR -> IT.BW_Or | BW_XOR -> IT.BW_Xor
     in
     simp_const_pe (IT.arith_binop binop (x, y) loc)
-  | PEbool_to_integer pe ->
-    let@ x = self var_map pe in
-    return (bool_ite_1_0 signed_int_ty x loc)
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
