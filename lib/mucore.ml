@@ -216,14 +216,17 @@ let fun_return_type mu_fun args =
   | F_params_length, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Unsigned Short))))
   | F_params_nth, _ -> Some (`Returns_BT CType)
   | F_are_compatible, _ -> Some (`Returns_BT Bool)
-  | F_align_of, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Signed Int_)))) (* TODO: arbitrary choice *)
-  | F_size_of, _ -> Some (`Returns_BT Memory.size_bt) (* TODO: arbitrary choice *)
-  | (F_max_int | F_min_int), [ ct ] ->
+  | F_align_of, _ -> Some `Returns_Integer
+  | F_size_of, _ -> Some (`Returns_BT Memory.size_bt) (* TODO: Is that good? *)
+  | F_max_int, [ ct ] ->
     Option.bind (is_ctype_const ct) Sctypes.of_ctype
     |> Option.map (fun sct -> `Returns_BT (Memory.bt_of_sct sct))
   | F_max_int, _ -> None
+  | F_min_int, [ ct ] ->
+    Option.bind (is_ctype_const ct) Sctypes.of_ctype
+    |> Option.map (fun sct -> `Returns_BT (Memory.bt_of_sct sct))
   | F_min_int, _ -> None
-  | F_ctype_width, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Signed Int_)))) (* TODO: arbitrary choice *)
+  | F_ctype_width, _ -> Some `Returns_Integer
 
 
 type m_kill_kind =
