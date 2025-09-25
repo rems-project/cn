@@ -60,10 +60,17 @@ struct iter_res {
   type_sig sig;
 };
 
-typedef struct iter_res_set {
-  struct iter_res res;
-  struct iter_res_set *next;
-} iter_res_set;
+enum cn_res_type {
+  CN_RES_ITER,
+  OTHER,
+};
+
+struct cn_res {
+  enum cn_res_type type;
+  union {
+    struct iter_res iter_res;
+  };
+};
 
 struct focus_info {
   int64_t index;
@@ -77,7 +84,6 @@ typedef struct focus_set {
 
 struct focus_context {
   focus_set *indices;
-  iter_res_set *iter_ress;
   struct focus_context *prev;
 };
 
@@ -86,8 +92,6 @@ void push_focus_context(void);
 void pop_focus_context(void);
 void clear_focus(void);
 void insert_focus(int64_t index, type_sig sig);
-void insert_iter_res(
-    uint64_t ptr, uint64_t start, uint64_t end, uint64_t size, type_sig sig);
 int needs_focus(uint64_t address, uint64_t size, int64_t *index_out, type_sig *sig_out);
 
 #ifdef __cplusplus
