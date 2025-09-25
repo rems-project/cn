@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
+import concurrent.futures
+import multiprocessing
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-import concurrent.futures
-import multiprocessing
 
 
 def get_test_type(test_file, config):
@@ -162,6 +162,8 @@ def main():
                         help='Execution mode: testing (parallel, minimal output) or benchmarking (sequential, detailed timing)')
     parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
                         help='Build tool to use: bash, make, or both (default: both)')
+    parser.add_argument('--only', type=str,
+                        help='Comma-separated list of specific test files to run (e.g., "bst.pass.c,bst.fail.c")')
     parser.add_argument('test_file', nargs='?',
                         help='Single test file to run (optional)')
 
@@ -261,6 +263,7 @@ def main():
             f"Error: Source directory {src_dir} does not exist", file=sys.stderr)
         sys.exit(1)
 
+    # First, determine the normal set of test files based on mode
     if args.symbolic:
         # For symbolic mode, use a specific subset of tests
         smt_test_files = [
@@ -302,6 +305,25 @@ def main():
     else:
         # For non-symbolic mode, use all .c files
         test_files = list(src_dir.glob("**/*.c"))
+
+    # Filter to only requested files if --only is specified
+    if args.only:
+        only_files = [f.strip() for f in args.only.split(",")]
+        # Convert test_files to a set of filenames for quick lookup
+        available_files = {
+            test_file.name: test_file for test_file in test_files}
+
+        filtered_test_files = []
+        for test_name in only_files:
+            if test_name in available_files:
+                filtered_test_files.append(available_files[test_name])
+            else:
+                mode_str = "symbolic" if args.symbolic else "random"
+                print(
+                    f"Error: Test file {test_name} not found in {mode_str} mode test set", file=sys.stderr)
+                sys.exit(1)
+
+        test_files = filtered_test_files
 
     if not test_files:
         print("No test files found")

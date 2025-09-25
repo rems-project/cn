@@ -86,45 +86,199 @@ def parse_benchmark_output(output):
     return times_data
 
 
-def run_benchmarks(symbolic=False):
-    """Run the benchmark tests and return timing data."""
+def get_benchmark_test_files(symbolic=False):
+    """Get the list of test files to benchmark based on mode."""
+    if symbolic:
+        # For symbolic mode, use specific subset for benchmarking
+        return [
+            "bounds.pass.c",
+            "dll.pass.c",
+            "list_rev.pass.c",
+            "sorted_list_alt.insert.pass.c",
+            "runway.pass.c"
+        ]
+    else:
+        # For random mode, use only the specified subset
+        return [
+            "runway.pass.c",
+            "mkm.pass.c",
+            "slf_sized_stack.pass.c",
+            "tutorial_queue.pass.c",
+            "ini_queue.pass.c",
+            "ini_queue.fail.c",
+            "bst.pass.c",
+            "bst.fail.c",
+            "bounds.pass.c",
+            "bin_tree.pass.c",
+            "sorted_list.insert.pass.c"
+        ]
+
+
+def filter_benchmark_data(benchmark_data, test_files):
+    """Filter benchmark data to only include specified test files."""
+    if test_files is None:
+        return benchmark_data
+
+    filtered_data = {}
+    for test_file in benchmark_data:
+        # Check if the test file matches any of our target files
+        test_basename = os.path.basename(test_file)
+        if test_basename in test_files:
+            filtered_data[test_file] = benchmark_data[test_file]
+
+    return filtered_data
+
+
+def average_benchmark_data(all_trials_data):
+    """Average benchmark data across multiple trials."""
+    if not all_trials_data:
+        return {}
+
+    # Get all test files that appear in any trial
+    all_test_files = set()
+    for trial_data in all_trials_data:
+        all_test_files.update(trial_data.keys())
+
+    averaged_data = {}
+
+    for test_file in all_test_files:
+        # Collect data for this test file across all trials
+        trial_times = []
+        trial_config_times = []
+        statuses = []
+
+        for trial_data in all_trials_data:
+            if test_file in trial_data:
+                test_data = trial_data[test_file]
+                trial_times.append(test_data['total_time'])
+                trial_config_times.append(test_data.get('config_times', []))
+                statuses.append(test_data['status'])
+
+        if not trial_times:
+            continue
+
+        # Average total time
+        avg_total_time = np.mean(trial_times)
+
+        # Average config times - need to handle variable length arrays
+        avg_config_times = []
+        if trial_config_times and any(config_times for config_times in trial_config_times):
+            max_configs = max(len(config_times)
+                              for config_times in trial_config_times if config_times)
+
+            for config_idx in range(max_configs):
+                config_times_for_idx = []
+                for config_times in trial_config_times:
+                    if config_idx < len(config_times):
+                        config_times_for_idx.append(config_times[config_idx])
+
+                if config_times_for_idx:
+                    avg_config_times.append(np.mean(config_times_for_idx))
+
+        # Use the most common status (should be consistent across trials)
+        most_common_status = max(
+            set(statuses), key=statuses.count) if statuses else 'UNKNOWN'
+
+        averaged_data[test_file] = {
+            'status': most_common_status,
+            'total_time': avg_total_time,
+            'config_times': avg_config_times
+        }
+
+    return averaged_data
+
+
+def run_benchmarks(symbolic=False, trials=10):
+    """Run the benchmark tests multiple times and return averaged timing data."""
     cmd = [sys.executable, "tests/run-cn-test-gen.py",
            "--mode=benchmarking", "--build-tool=make"]
     if symbolic:
         cmd.append("-s")
 
-    print(f"Running benchmarks with command: {' '.join(cmd)}")
-    result = run_command(cmd, check=False)  # Don't fail on test failures
-
-    if result.returncode not in [0, 1]:  # 0 = all passed, 1 = some failed
+    # Get the test files to benchmark
+    target_test_files = get_benchmark_test_files(symbolic)
+    if target_test_files:
+        # Use --only to run just the specific test files
+        cmd.extend(["--only", ",".join(target_test_files)])
+        mode_str = "symbolic" if symbolic else "random"
         print(
-            f"Benchmark command failed unexpectedly with code {result.returncode}")
-        print(f"stdout: {result.stdout}")
-        print(f"stderr: {result.stderr}")
+            f"Running benchmarks for {len(target_test_files)} specific tests in {mode_str} mode")
+
+    print(
+        f"Running benchmarks with command: {' '.join(cmd)} ({trials} trials)")
+
+    all_trials_data = []
+
+    for trial in range(trials):
+        print(f"  Trial {trial + 1}/{trials}...")
+        result = run_command(cmd, check=False)  # Don't fail on test failures
+
+        if result.returncode not in [0, 1]:  # 0 = all passed, 1 = some failed
+            print(
+                f"Benchmark command failed unexpectedly with code {result.returncode}")
+            print(f"stdout: {result.stdout}")
+            print(f"stderr: {result.stderr}")
+            return None
+
+        trial_data = parse_benchmark_output(result.stdout)
+        if trial_data:
+            all_trials_data.append(trial_data)
+        else:
+            print(f"  Trial {trial + 1} failed to produce valid data")
+
+    if not all_trials_data:
+        print("No valid trials completed")
         return None
 
-    return parse_benchmark_output(result.stdout)
+    print(f"Successfully completed {len(all_trials_data)}/{trials} trials")
+    return average_benchmark_data(all_trials_data)
 
 
-def run_benchmarks_in_dir(directory, symbolic=False):
-    """Run the benchmark tests in a specific directory and return timing data."""
+def run_benchmarks_in_dir(directory, symbolic=False, trials=10):
+    """Run the benchmark tests in a specific directory multiple times and return averaged timing data."""
     cmd = [sys.executable, "tests/run-cn-test-gen.py",
            "--mode=benchmarking", "--build-tool=make"]
     if symbolic:
         cmd.append("-s")
 
-    print(f"Running benchmarks in {directory} with command: {' '.join(cmd)}")
-    # Don't fail on test failures
-    result = run_command(cmd, cwd=directory, check=False)
-
-    if result.returncode not in [0, 1]:  # 0 = all passed, 1 = some failed
+    # Get the test files to benchmark
+    target_test_files = get_benchmark_test_files(symbolic)
+    if target_test_files:
+        # Use --only to run just the specific test files
+        cmd.extend(["--only", ",".join(target_test_files)])
+        mode_str = "symbolic" if symbolic else "random"
         print(
-            f"Benchmark command failed unexpectedly with code {result.returncode}")
-        print(f"stdout: {result.stdout}")
-        print(f"stderr: {result.stderr}")
+            f"Running benchmarks in {directory} for {len(target_test_files)} specific tests in {mode_str} mode")
+
+    print(
+        f"Running benchmarks in {directory} with command: {' '.join(cmd)} ({trials} trials)")
+
+    all_trials_data = []
+
+    for trial in range(trials):
+        print(f"  Trial {trial + 1}/{trials}...")
+        # Don't fail on test failures
+        result = run_command(cmd, cwd=directory, check=False)
+
+        if result.returncode not in [0, 1]:  # 0 = all passed, 1 = some failed
+            print(
+                f"Benchmark command failed unexpectedly with code {result.returncode}")
+            print(f"stdout: {result.stdout}")
+            print(f"stderr: {result.stderr}")
+            return None
+
+        trial_data = parse_benchmark_output(result.stdout)
+        if trial_data:
+            all_trials_data.append(trial_data)
+        else:
+            print(f"  Trial {trial + 1} failed to produce valid data")
+
+    if not all_trials_data:
+        print("No valid trials completed")
         return None
 
-    return parse_benchmark_output(result.stdout)
+    print(f"Successfully completed {len(all_trials_data)}/{trials} trials")
+    return average_benchmark_data(all_trials_data)
 
 
 def save_results(results, filename):
@@ -177,6 +331,11 @@ def compare_results(current_results, upstream_results):
 
     print("\n" + "="*80)
     print("PERFORMANCE COMPARISON")
+    trials_info = f"(Results averaged across {current_results.get('trials', 'unknown')} trials"
+    if current_results.get('mode') == 'random':
+        trials_info += ", random mode limited to 11 specific tests"
+    trials_info += ")"
+    print(trials_info)
     print("="*80)
 
     current_data = current_results.get('benchmark_data', {})
@@ -385,6 +544,8 @@ def main():
                         help='Skip upstream comparison (only run current version)')
     parser.add_argument('--results-dir', default='.',
                         help='Directory to store results (default: current directory)')
+    parser.add_argument('--trials', type=int, default=10,
+                        help='Number of trials to run for averaging (default: 10)')
 
     args = parser.parse_args()
 
@@ -408,13 +569,14 @@ def main():
     print(f"Current commit: {current_commit}")
     print(f"Current branch: {current_branch}")
     print(f"Benchmark mode: {mode}")
+    print(f"Number of trials: {args.trials}")
 
     # Run benchmarks on current version
     print("\n" + "="*60)
     print("RUNNING BENCHMARKS ON CURRENT VERSION")
     print("="*60)
 
-    current_benchmark_data = run_benchmarks(args.symbolic)
+    current_benchmark_data = run_benchmarks(args.symbolic, args.trials)
     if not current_benchmark_data:
         print("Failed to run current version benchmarks")
         sys.exit(1)
@@ -424,6 +586,7 @@ def main():
         'commit': current_commit,
         'branch': current_branch,
         'mode': mode,
+        'trials': args.trials,
         'benchmark_data': current_benchmark_data
     }
 
@@ -476,7 +639,7 @@ def main():
 
         # We need to run the benchmark from the upstream directory
         upstream_benchmark_data = run_benchmarks_in_dir(
-            upstream_dir, args.symbolic)
+            upstream_dir, args.symbolic, args.trials)
         if not upstream_benchmark_data:
             print("Failed to run upstream version benchmarks")
             return
@@ -486,6 +649,7 @@ def main():
             'commit': upstream_commit,
             'branch': 'upstream/main',
             'mode': mode,
+            'trials': args.trials,
             'benchmark_data': upstream_benchmark_data
         }
 
