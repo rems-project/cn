@@ -287,6 +287,7 @@ def main():
             "neg100.pass.c",
             "neq.pass.c",
             "non_access_global.pass.c",
+            "record_test.pass.c",
             "runway.pass.c",
             "smt_pruning.pass.c",
             "sorted_list_alt.insert.pass.c",

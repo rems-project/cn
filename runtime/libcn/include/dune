@@ -78,6 +78,7 @@
   (cn-smt/sexp.h as runtime/include/cn-smt/sexp.h)
   (cn-smt/solver.h as runtime/include/cn-smt/solver.h)
   (cn-smt/structs.h as runtime/include/cn-smt/structs.h)
+  (cn-smt/records.h as runtime/include/cn-smt/records.h)
   (cn-smt/subst.h as runtime/include/cn-smt/subst.h)
   (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
   (cn-smt/to_smt.h as runtime/include/cn-smt/to_smt.h)

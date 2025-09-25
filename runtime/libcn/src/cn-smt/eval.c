@@ -9,6 +9,7 @@
 #include <bennet/utils/optional.h>
 #include <cn-executable/utils.h>
 #include <cn-smt/eval.h>
+#include <cn-smt/records.h>
 #include <cn-smt/structs.h>
 
 // Generate vector implementation for cn_member_pair
@@ -1198,16 +1199,101 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_RECORD: {
-      // Create record from members
-      assert(false);
+      // Create record from member values using registered handler
+
+      // First, extract member names and types to compute record hash
+      bennet_vector(cn_member_pair)* members = &term->data.record.members;
+      size_t member_count = bennet_vector_size(cn_member_pair)(members);
+
+      if (member_count == 0) {
+        // Empty record - return a sentinel value
+        return convert_to_cn_pointer(NULL);
+      }
+
+      // Collect member names and types for hash computation
+      const char** member_names = malloc(member_count * sizeof(const char*));
+      cn_base_type* member_types = malloc(member_count * sizeof(cn_base_type));
+
+      for (size_t i = 0; i < member_count; i++) {
+        cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+        member_names[i] = pair->name;
+        member_types[i] = pair->value->base_type;
+      }
+
+      // Compute record hash from member composition
+      record_hash_t record_hash =
+          cn_record_member_hash(member_count, member_names, member_types);
+
+      // Convert cn_term_ptr hash table to void_ptr hash table for member values
+      bennet_hash_table(const_char_ptr, void_ptr) member_values;
+      bennet_hash_table_init(const_char_ptr, void_ptr)(
+          &member_values, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+
+      // Evaluate all member terms and store in the void_ptr hash table
+      for (size_t i = 0; i < member_count; i++) {
+        cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+        const char* member_name = pair->name;
+        cn_term* member_term = pair->value;
+        void* member_val = cn_eval_term(member_term);
+        assert(member_val);
+        bennet_hash_table_set(const_char_ptr, void_ptr)(
+            &member_values, member_name, member_val);
+      }
+
+      // Call the registered record creation function
+      void* result = cn_smt_record_create(record_hash, &member_values);
+
+      // Cleanup temporary memory and hash table
+      free(member_names);
+      free(member_types);
+      bennet_hash_table_free(const_char_ptr, void_ptr)(&member_values);
+
+      return result;
     }
 
     case CN_TERM_RECORD_MEMBER: {
       void* record_val = cn_eval_term(term->data.record_member.record_term);
       assert(record_val);
 
-      // Extract record member
-      assert(false);
+      // Extract record member using registered handler
+      // We need to get the record type from the base type of the record term
+      cn_term* record_term = term->data.record_member.record_term;
+      assert(cn_base_type_is(record_term->base_type, CN_BASE_RECORD));
+
+      // Compute record hash from the record term's type information
+      cn_base_type record_type = record_term->base_type;
+      size_t member_count = record_type.data.record.count;
+      const char** member_names = record_type.data.record.names;
+      cn_base_type* member_types = record_type.data.record.types;
+
+      record_hash_t record_hash =
+          cn_record_member_hash(member_count, member_names, member_types);
+
+      const char* member_name = term->data.record_member.member_name;
+      return cn_smt_record_get_member(record_hash, record_val, member_name);
+    }
+
+    case CN_TERM_RECORD_UPDATE: {
+      void* record_val = cn_eval_term(term->data.record_update.record_term);
+      void* new_val = cn_eval_term(term->data.record_update.new_value);
+      assert(record_val && new_val);
+
+      // Update record member using registered handler
+      // We need to get the record type from the base type of the record term
+      cn_term* record_term = term->data.record_update.record_term;
+      assert(cn_base_type_is(record_term->base_type, CN_BASE_RECORD));
+
+      // Compute record hash from the record term's type information
+      cn_base_type record_type = record_term->base_type;
+      size_t member_count = record_type.data.record.count;
+      const char** member_names = record_type.data.record.names;
+      cn_base_type* member_types = record_type.data.record.types;
+
+      record_hash_t record_hash =
+          cn_record_member_hash(member_count, member_names, member_types);
+
+      const char* member_name = term->data.record_update.member_name;
+      return cn_smt_record_update_member(record_hash, record_val, member_name, new_val);
     }
 
     case CN_TERM_CONSTRUCTOR: {

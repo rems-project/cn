@@ -80,6 +80,7 @@ typedef enum {
   CN_BASE_UNIT,
   CN_BASE_CTYPE,
   CN_BASE_STRUCT,
+  CN_BASE_DATATYPE,
   CN_BASE_LIST,
   CN_BASE_SET,
   CN_BASE_MAP,
@@ -324,6 +325,7 @@ typedef enum {
   CN_TERM_STRUCT_UPDATE,
   CN_TERM_RECORD,
   CN_TERM_RECORD_MEMBER,
+  CN_TERM_RECORD_UPDATE,
   CN_TERM_CONSTRUCTOR,
   CN_TERM_MEMBER_SHIFT,
   CN_TERM_ARRAY_SHIFT,
@@ -414,6 +416,12 @@ struct cn_term {
       cn_term* record_term;
       const char* member_name;
     } record_member;
+
+    struct {  // CN_TERM_RECORD_UPDATE
+      cn_term* record_term;
+      const char* member_name;
+      cn_term* new_value;
+    } record_update;
 
     struct {  // CN_TERM_CONSTRUCTOR
       const char* constructor_name;
@@ -565,6 +573,8 @@ cn_term* cn_smt_struct_update(
 cn_term* cn_smt_record(
     size_t member_count, const char** member_names, cn_term** member_values);
 cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name);
+cn_term* cn_smt_record_update(
+    cn_term* record_term, const char* member_name, cn_term* new_value);
 
 // Constructor operations
 cn_term* cn_smt_constructor(const char* constructor_name,
