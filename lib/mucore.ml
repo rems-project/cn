@@ -34,6 +34,15 @@ type ctor =
   | Ccons
   | Ctuple
   | Carray
+  | Civmax
+  | Civmin
+  | Civsizeof
+  | Civalignof
+  | CivCOMPL
+  | CivAND
+  | CivOR
+  | CivXOR
+
 
 type 'TY pattern_ =
   | CaseBase of (Sym.t option * Cerb_frontend.Core.core_base_type)

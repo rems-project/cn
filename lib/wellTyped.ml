@@ -1435,7 +1435,15 @@ module BaseTyping = struct
           in
           let@ pats = ListM.map2M check_and_bind_pattern bts pats in
           return (Mu.Ctuple, pats)
-        | Carray, _ -> Cerb_debug.error "todo: array types"
+        | Carray, _ -> assert false
+        | Civmax, _ -> assert false
+        | Civmin, _ -> assert false
+        | Civsizeof, _ -> assert false
+        | Civalignof, _ -> assert false
+        | CivCOMPL, _ -> assert false
+        | CivAND, _ -> assert false
+        | CivOR, _ -> assert false
+        | CivXOR, _ -> assert false
       in
       return (Mu.CaseCtor (ctor, pats))
 
@@ -1712,6 +1720,14 @@ module BaseTyping = struct
                   pes
               in
               return (Map (Memory.uintptr_bt, ibt))
+            | Civmax
+            | Civmin
+            | Civsizeof
+            | Civalignof
+            | CivCOMPL
+            | CivAND
+            | CivOR
+            | CivXOR -> todo ()
           in
           return (bt, PEctor (ctor, pes))
         | PEcfunction pe ->

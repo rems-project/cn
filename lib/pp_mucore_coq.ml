@@ -757,6 +757,14 @@ let pp_ctor = function
   | Mucore.Ccons -> pp_constructor0 "Ccons"
   | Mucore.Ctuple -> pp_constructor0 "Ctuple"
   | Mucore.Carray -> pp_constructor0 "Carray"
+  | Mucore.Civmax -> pp_constructor0 "Civmax"
+  | Mucore.Civmin -> pp_constructor0 "Civmin"
+  | Mucore.Civsizeof -> pp_constructor0 "Civsizeof"
+  | Mucore.Civalignof ->pp_constructor0 "Civalignof"
+  | Mucore.CivCOMPL -> pp_constructor0 "CivCOMPL"
+  | Mucore.CivAND -> pp_constructor0 "CivAND"
+  | Mucore.CivOR -> pp_constructor0 "CivOR"
+  | Mucore.CivXOR -> pp_constructor0 "CivXOR"
 
 
 let pp_core_binop = function

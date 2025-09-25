@@ -240,6 +240,14 @@ module Make (Config : CONFIG) = struct
     | Ccons -> !^"Cons"
     | Ctuple -> !^"Tuple"
     | Carray -> !^"Array"
+    | Civmax -> !^"Max"
+    | Civmin -> !^"Min"
+    | Civsizeof -> !^"Sizeof"
+    | Civalignof -> !^"Alignof"
+    | CivCOMPL -> !^"COMPL"
+    | CivAND -> !^"AND"
+    | CivOR -> !^"OR"
+    | CivXOR -> !^"XOR"
 
 
   let rec pp_pattern (Pattern (_, _, _, pat)) =
