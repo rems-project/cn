@@ -145,7 +145,7 @@ let run_tests
           print_size_info;
           print_backtrack_info;
           print_satisfaction_info;
-          print_discard_info
+          print_discard_info;
           with_auto_annot = false
         }
       in

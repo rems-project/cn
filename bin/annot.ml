@@ -28,8 +28,8 @@ let run_auto_annot
       dont_run
       num_samples
       max_backtracks
-      _max_unfolds
-      _max_array_length
+      max_unfolds
+      max_array_length
       build_tool
       sanitizers
       print_seed
@@ -58,10 +58,16 @@ let run_auto_annot
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
-      smt_pruning
+      static_absint
+      smt_pruning_before_absinst
+      smt_pruning_after_absinst
+      smt_pruning_at_runtime
+      symbolic
+      symbolic_timeout
       print_size_info
       print_backtrack_info
       print_satisfaction_info
+      print_discard_info
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -121,7 +127,14 @@ let run_auto_annot
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
-          smt_pruning;
+          static_absint;
+          smt_pruning_before_absinst;
+          smt_pruning_after_absinst;
+          smt_pruning_at_runtime;
+          symbolic;
+          symbolic_timeout;
+          max_unfolds;
+          max_array_length;
           print_seed;
           input_timeout;
           null_in_every;
@@ -145,6 +158,7 @@ let run_auto_annot
           print_size_info;
           print_backtrack_info;
           print_satisfaction_info;
+          print_discard_info;
           with_auto_annot = true
         }
       in
@@ -497,12 +511,45 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
 
 
-  let smt_pruning =
-    let doc = "(Experimental) Use SMT solver to prune unsatisfiable branches" in
+  let smt_pruning_before_absinst =
+    let doc =
+      "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
+       interpretation"
+    in
     Arg.(
       value
       & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
-      & info [ "smt-pruning" ] ~doc)
+      & info [ "smt-pruning-before-absint" ] ~doc)
+
+
+  let smt_pruning_after_absinst =
+    let doc =
+      "(Experimental) Use SMT solver to prune unsatisfiable branches after abstract \
+       interpretation"
+    in
+    Arg.(
+      value
+      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
+      & info [ "smt-pruning-after-absint" ] ~doc)
+
+
+  let smt_pruning_at_runtime =
+    let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
+    Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
+
+
+  let static_absint =
+    let doc =
+      "(Experimental) Use static abstract interpretation with specified domain (or a \
+       comma-separated list). (e.g., 'interval', 'wrapped_interval')"
+    in
+    Arg.(
+      value
+      & opt
+          (list
+             (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
+          []
+      & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
 
 
   let print_size_info =
@@ -518,6 +565,29 @@ module Flags = struct
   let print_satisfaction_info =
     let doc = "(Experimental) Print satisfaction info" in
     Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
+
+
+  let print_discard_info =
+    let doc = "(Experimental) Print discard info" in
+    Arg.(value & flag & info [ "print-discard-info" ] ~doc)
+
+
+  let symbolic =
+    let doc =
+      "(Experimental) Use symbolic execution for test generation instead of concrete \
+       value generation."
+    in
+    Arg.(value & flag & info [ "symbolic" ] ~doc)
+
+
+  let symbolic_timeout =
+    let doc = "Set timeout for SMT solver in symbolic mode (seconds)" in
+    Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
+
+
+  let max_path_length =
+    let doc = "Set maximum symbolic path length for exploration" in
+    Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
 end
 
 let cmd =
@@ -574,10 +644,16 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
-    $ Flags.smt_pruning
+    $ Flags.static_absint
+    $ Flags.smt_pruning_before_absinst
+    $ Flags.smt_pruning_after_absinst
+    $ Flags.smt_pruning_at_runtime
+    $ Flags.symbolic
+    $ Flags.symbolic_timeout
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
+    $ Flags.print_discard_info
   in
   let doc =
     "Generates proof annotations such as `unfold` and `focus` from testing executions."
