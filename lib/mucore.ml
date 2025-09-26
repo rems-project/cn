@@ -43,7 +43,6 @@ type ctor =
   | CivOR
   | CivXOR
 
-
 type 'TY pattern_ =
   | CaseBase of (Sym.t option * Cerb_frontend.Core.core_base_type)
   | CaseCtor of ctor * 'TY pattern list

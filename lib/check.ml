@@ -73,16 +73,16 @@ let rec check_and_match_pattern (Mu.Pattern (loc, _, bty, pattern)) it =
        in
        let as_, cs_ = List.split as_cs in
        return (List.concat as_, List.concat cs_)
-       | Carray, _ -> assert false
-       | Civmax, _ -> assert false
-       | Civmin, _ -> assert false
-       | Civsizeof, _ -> assert false
-       | Civalignof, _ -> assert false
-       | CivCOMPL, _ -> assert false
-       | CivAND, _ -> assert false
-       | CivOR, _ -> assert false
-       | CivXOR, _ -> assert false
-       | _ -> assert false)
+     | Carray, _ -> assert false
+     | Civmax, _ -> assert false
+     | Civmin, _ -> assert false
+     | Civsizeof, _ -> assert false
+     | Civalignof, _ -> assert false
+     | CivCOMPL, _ -> assert false
+     | CivAND, _ -> assert false
+     | CivOR, _ -> assert false
+     | CivXOR, _ -> assert false
+     | _ -> assert false)
 
 
 (*** pure value inference *****************************************************)
@@ -579,8 +579,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | CivCOMPL, _ -> failwith "todo"
      | CivAND, _ -> failwith "todo"
      | CivOR, _ -> failwith "todo"
-     | CivXOR, _ -> failwith "todo"
-    )
+     | CivXOR, _ -> failwith "todo")
   | PEbitwise_unop (unop, pe1) ->
     let@ _ = ensure_bitvector_type loc ~expect in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in

@@ -760,7 +760,7 @@ let pp_ctor = function
   | Mucore.Civmax -> pp_constructor0 "Civmax"
   | Mucore.Civmin -> pp_constructor0 "Civmin"
   | Mucore.Civsizeof -> pp_constructor0 "Civsizeof"
-  | Mucore.Civalignof ->pp_constructor0 "Civalignof"
+  | Mucore.Civalignof -> pp_constructor0 "Civalignof"
   | Mucore.CivCOMPL -> pp_constructor0 "CivCOMPL"
   | Mucore.CivAND -> pp_constructor0 "CivAND"
   | Mucore.CivOR -> pp_constructor0 "CivOR"

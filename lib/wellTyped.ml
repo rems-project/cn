@@ -1720,14 +1720,9 @@ module BaseTyping = struct
                   pes
               in
               return (Map (Memory.uintptr_bt, ibt))
-            | Civmax
-            | Civmin
-            | Civsizeof
-            | Civalignof
-            | CivCOMPL
-            | CivAND
-            | CivOR
-            | CivXOR -> todo ()
+            | Civmax | Civmin | Civsizeof | Civalignof | CivCOMPL | CivAND | CivOR
+            | CivXOR ->
+              todo ()
           in
           return (bt, PEctor (ctor, pes))
         | PEcfunction pe ->
