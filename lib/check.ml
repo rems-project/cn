@@ -572,79 +572,79 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
              WellTyped
                (Number_arguments { type_ = `Other; has = List.length pes; expect = 2 })
          })
-     | (Civmax | Civmin), [e] ->
-        let@ () = WellTyped.ensure_bits_type loc expect in
-        let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e) in
-        let@ e = check_pexpr path_cs e in
-        let ct = Option.get (IT.is_ctype_const e) in
-        let@ () = WellTyped.check_ct loc ct in
-        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
-        let ity = Option.get (Sctypes.is_integer_type ct) in
-        (match ctor with
+     | (Civmax | Civmin), [ e ] ->
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e) in
+       let@ e = check_pexpr path_cs e in
+       let ct = Option.get (IT.is_ctype_const e) in
+       let@ () = WellTyped.check_ct loc ct in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
+       let ity = Option.get (Sctypes.is_integer_type ct) in
+       (match ctor with
         | Civmax -> return (IT.num_lit_ (Memory.max_integer_type ity) expect loc)
         | Civmin -> return (IT.num_lit_ (Memory.min_integer_type ity) expect loc)
         | _ -> assert false)
-     | (Civsizeof | Civalignof), [ e ] -> 
-        let@ () = WellTyped.ensure_bits_type loc expect in
-        let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e) in
-        let@ e = check_pexpr path_cs e in
-        let ct = Option.get (IT.is_ctype_const e) in
-        let@ () = WellTyped.check_ct loc ct in
-        (match ctor with
-        | Civsizeof -> 
-           let@ () = WellTyped.ensure_base_type loc ~expect Memory.size_bt in
-           return (IT.num_lit_ (Z.of_int (Memory.size_of_ctype ct)) expect loc)
-        | Civalignof -> 
-           let@ () = WellTyped.ensure_bits_type loc expect in
-           return (IT.num_lit_ (Z.of_int (Memory.align_of_ctype ct)) expect loc)
+     | (Civsizeof | Civalignof), [ e ] ->
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e) in
+       let@ e = check_pexpr path_cs e in
+       let ct = Option.get (IT.is_ctype_const e) in
+       let@ () = WellTyped.check_ct loc ct in
+       (match ctor with
+        | Civsizeof ->
+          let@ () = WellTyped.ensure_base_type loc ~expect Memory.size_bt in
+          return (IT.num_lit_ (Z.of_int (Memory.size_of_ctype ct)) expect loc)
+        | Civalignof ->
+          let@ () = WellTyped.ensure_bits_type loc expect in
+          return (IT.num_lit_ (Z.of_int (Memory.align_of_ctype ct)) expect loc)
         | _ -> assert false)
      | (Civmax | Civmin | Civsizeof | Civalignof), _ ->
-        fail (fun _ ->
-            { loc;
-              msg =
-                WellTyped
-                  (Number_arguments { type_ = `Other; has = List.length pes; expect = 1 })
-          })
+       fail (fun _ ->
+         { loc;
+           msg =
+             WellTyped
+               (Number_arguments { type_ = `Other; has = List.length pes; expect = 1 })
+         })
      | CivCOMPL, [ e1; e2 ] ->
-        let@ () = WellTyped.ensure_bits_type loc expect in
-        let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e1) in
-        let@ e1 = check_pexpr path_cs e1 in
-        let ct = Option.get (is_ctype_const e1) in
-        let@ () = WellTyped.check_ct loc ct in
-        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
-        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
-        let@ e2 = check_pexpr path_cs e2 in
-        return (arith_unop BW_Compl e2 loc)
-     | CivCOMPL, _ -> 
-        fail (fun _ ->
-            { loc;
-              msg =
-                WellTyped
-                  (Number_arguments { type_ = `Other; has = List.length pes; expect = 2 })
-          })
-     | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] -> 
-        let@ () = WellTyped.ensure_bits_type loc expect in
-        let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e1) in
-        let@ e1 = check_pexpr path_cs e1 in
-        let ct = Option.get (is_ctype_const e1) in
-        let@ () = WellTyped.check_ct loc ct in
-        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
-        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
-        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e3) in
-        let@ e2 = check_pexpr path_cs e2 in
-        let@ e3 = check_pexpr path_cs e3 in
-        (match ctor with
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e1) in
+       let@ e1 = check_pexpr path_cs e1 in
+       let ct = Option.get (is_ctype_const e1) in
+       let@ () = WellTyped.check_ct loc ct in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
+       let@ e2 = check_pexpr path_cs e2 in
+       return (arith_unop BW_Compl e2 loc)
+     | CivCOMPL, _ ->
+       fail (fun _ ->
+         { loc;
+           msg =
+             WellTyped
+               (Number_arguments { type_ = `Other; has = List.length pes; expect = 2 })
+         })
+     | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e1) in
+       let@ e1 = check_pexpr path_cs e1 in
+       let ct = Option.get (is_ctype_const e1) in
+       let@ () = WellTyped.check_ct loc ct in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e3) in
+       let@ e2 = check_pexpr path_cs e2 in
+       let@ e3 = check_pexpr path_cs e3 in
+       (match ctor with
         | CivAND -> return (arith_binop BW_And (e2, e3) loc)
         | CivOR -> return (arith_binop BW_Or (e2, e3) loc)
         | CivXOR -> return (arith_binop BW_Xor (e2, e3) loc)
         | _ -> assert false)
-     | (CivAND | CivOR | CivXOR), _ -> 
-        fail (fun _ ->
-            { loc;
-              msg =
-                WellTyped
-                  (Number_arguments { type_ = `Other; has = List.length pes; expect = 3 })
-          }))
+     | (CivAND | CivOR | CivXOR), _ ->
+       fail (fun _ ->
+         { loc;
+           msg =
+             WellTyped
+               (Number_arguments { type_ = `Other; has = List.length pes; expect = 3 })
+         }))
   | PEbitwise_unop (unop, pe1) ->
     let@ _ = ensure_bitvector_type loc ~expect in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in

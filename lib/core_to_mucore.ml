@@ -228,10 +228,12 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
     (*        (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe)))) *)
     (* in *)
     (match (ctor, args) with
-      (CivCOMPL | CivAND | CivOR | CivXOR | Civsizeof | Civalignof | Civmax | Civmin), _ ->
-       let ctor = match ctor with
-         | CivCOMPL -> Mu.CivCOMPL 
-         | CivAND -> CivAND 
+     | (CivCOMPL | CivAND | CivOR | CivXOR | Civsizeof | Civalignof | Civmax | Civmin), _
+       ->
+       let ctor =
+         match ctor with
+         | CivCOMPL -> Mu.CivCOMPL
+         | CivAND -> CivAND
          | CivOR -> CivOR
          | CivXOR -> CivXOR
          | Civsizeof -> Civsizeof
