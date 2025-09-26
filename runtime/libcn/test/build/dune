@@ -15,7 +15,8 @@
   (file Makefile)
   (glob_files ../bennet/*.hpp)
   (glob_files ../bennet/*.cpp)
-  (glob_files ../cn-smt/*.cpp))
+  (glob_files ../cn-smt/*.cpp)
+  (glob_files ../autoannot/*.cpp))
  (action
   (run make)))
 

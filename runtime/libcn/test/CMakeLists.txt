@@ -35,6 +35,7 @@ add_executable(libcn_tests
     cn-smt/subst.cpp
     cn-smt/sexp.cpp
     cn-smt/solver.cpp
+    autoannot/focus.cpp
 )
 
 # Disable narrowing warnings

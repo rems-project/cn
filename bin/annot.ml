@@ -1,8 +1,9 @@
+(* Almost a copy of test.ml. Might be better to extract common parts. *)
 module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_tests
+let run_auto_annot
       (* Common *)
         filename
       cc
@@ -79,10 +80,22 @@ let run_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
-  let output_dir = Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true Test output_dir in
+  let output_dir =
+    Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true AutoAnnot output_dir
+  in
+  Pp.(debug 2 (lazy (item "Output directory" (string output_dir))));
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
+  let log_file = AutoAnnot.get_log_filename basefile in
+  (* Clear the log file if it already exists *)
+  (try
+     if Sys.file_exists log_file then (
+       let oc = open_out_gen [ Open_wronly; Open_creat; Open_trunc ] 0o644 log_file in
+       close_out oc)
+   with
+   | _ -> ());
+  AutoAnnot.log_filename := log_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~cc
@@ -146,7 +159,7 @@ let run_tests
           print_backtrack_info;
           print_satisfaction_info;
           print_discard_info;
-          with_auto_annot = false
+          with_auto_annot = true
         }
       in
       TestGeneration.set_config config;
@@ -162,12 +175,14 @@ let run_tests
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
+      (* Enable additional instrumentations for auto-annot *)
+      Fulminate.Config.enable_auto_annot ();
       Cerb_colour.do_colour := false;
       (try
          Fulminate.main
            ~without_ownership_checking
-           ~without_loop_invariants:true
-           ~with_loop_leak_checks:false
+           ~without_loop_invariants:false
+           ~with_loop_leak_checks:true
            ~with_testing:true
            filename
            cc
@@ -193,13 +208,32 @@ let run_tests
        | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
       if not dont_run then (
         Cerb_debug.maybe_close_csv_timing_file ();
-        match build_tool with
-        | Bash ->
-          let build_script = Filename.concat output_dir "run_tests.sh" in
-          Unix.execv build_script (Array.of_list [ build_script ])
-        | Make ->
-          Unix.chdir output_dir;
-          Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
+        Pp.(debug 10 (lazy (item "wait for auto-annotation" (string log_file))));
+        (* Run tests as a child process and wait, so we can continue afterwards *)
+        let status =
+          match build_tool with
+          | Bash ->
+            let prog = Filename.concat output_dir "run_tests.sh" in
+            let pid =
+              Unix.create_process prog [| prog |] Unix.stdin Unix.stdout Unix.stderr
+            in
+            snd (Unix.waitpid [] pid)
+          | Make ->
+            let pid =
+              Unix.create_process
+                "make"
+                [| "make"; "-C"; output_dir |]
+                Unix.stdin
+                Unix.stdout
+                Unix.stderr
+            in
+            snd (Unix.waitpid [] pid)
+        in
+        match status with
+        | Unix.WEXITED 0 -> AutoAnnot.run_autoannot (Filename.concat output_dir log_file)
+        | Unix.WEXITED n -> Pp.(debug 5 (lazy (item "Test runner exit code" (int n))))
+        | Unix.WSIGNALED n -> Pp.(debug 5 (lazy (item "Test runner signaled" (int n))))
+        | Unix.WSTOPPED n -> Pp.(debug 5 (lazy (item "Test runner stopped" (int n)))));
       Result.ok ())
 
 
@@ -251,18 +285,15 @@ module Flags = struct
 
 
   let gen_max_unfolds =
-    let doc =
-      "Maximum number of times to inline function calls in symbolic mode (default: 10)"
-    in
-    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~deprecated ~doc)
 
 
   let max_array_length =
-    let doc = "Maximum array length for symbolic mode" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_array_length
-      & info [ "max-array-length" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
 
 
   let build_tool =
@@ -561,7 +592,7 @@ end
 let cmd =
   let open Term in
   let test_t =
-    const run_tests
+    const run_auto_annot
     $ Common.Flags.file
     $ Common.Flags.cc
     $ Common.Flags.macros
@@ -624,11 +655,7 @@ let cmd =
     $ Flags.print_discard_info
   in
   let doc =
-    "Generates tests for all functions in [FILE] with CN specifications.\n\
-    \    The tests use randomized inputs, which are guaranteed to satisfy the CN \
-     precondition.\n\
-    \    A script [run_tests.sh] for building and running the tests will be placed in \
-     [output-dir]."
+    "Generates proof annotations such as `unfold` and `focus` from testing executions."
   in
-  let info = Cmd.info "test" ~doc in
+  let info = Cmd.info "auto-annot" ~doc in
   Cmd.v info test_t

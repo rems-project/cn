@@ -5,6 +5,7 @@ module Internal = Internal
 module Ownership = Ownership
 module Records = Records
 module Utils = Utils
+module Config = Config
 
 val get_instrumented_filename : string -> string
 
