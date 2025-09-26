@@ -1,9 +1,10 @@
 #ifndef FOCUS_CTX_H
 #define FOCUS_CTX_H
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <cn-executable/cerb_types.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {

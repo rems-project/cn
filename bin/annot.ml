@@ -230,11 +230,10 @@ let run_auto_annot
             snd (Unix.waitpid [] pid)
         in
         match status with
-        | Unix.WEXITED 0 -> ()
+        | Unix.WEXITED 0 -> AutoAnnot.run_autoannot (Filename.concat output_dir log_file)
         | Unix.WEXITED n -> Pp.(debug 5 (lazy (item "Test runner exit code" (int n))))
         | Unix.WSIGNALED n -> Pp.(debug 5 (lazy (item "Test runner signaled" (int n))))
         | Unix.WSTOPPED n -> Pp.(debug 5 (lazy (item "Test runner stopped" (int n)))));
-      AutoAnnot.run_autoannot (Filename.concat output_dir log_file);
       Result.ok ())
 
 

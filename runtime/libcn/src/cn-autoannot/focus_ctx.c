@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-executable/cerb_types.h>
 #include <cn-executable/fulminate_alloc.h>
 #include <cn-executable/utils.h>
 
