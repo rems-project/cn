@@ -66,10 +66,6 @@ type mu_function =
   | F_params_length
   | F_params_nth
   | F_are_compatible
-  | F_size_of
-  | F_align_of
-  | F_max_int
-  | F_min_int
   | F_ctype_width
 
 val pp_function : mu_function -> Pp.document

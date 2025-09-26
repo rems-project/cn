@@ -58,10 +58,6 @@ type mu_function =
   | F_params_length
   | F_params_nth
   | F_are_compatible
-  | F_size_of
-  | F_align_of
-  | F_max_int
-  | F_min_int
   | F_ctype_width
 
 let pp_function =
@@ -70,10 +66,6 @@ let pp_function =
   | F_params_length -> !^"params_length"
   | F_params_nth -> !^"params_nth"
   | F_are_compatible -> !^"are_compatible"
-  | F_align_of -> !^"align_of"
-  | F_size_of -> !^"size_of"
-  | F_max_int -> !^"max_int"
-  | F_min_int -> !^"min_int"
   | F_ctype_width -> !^"ctype_width"
 
 
@@ -84,10 +76,6 @@ let fun_param_types mu_fun =
   | F_params_length -> [ List CType ]
   | F_params_nth -> [ List CType; short_int ]
   | F_are_compatible -> [ CType; CType ]
-  | F_align_of -> [ CType ]
-  | F_size_of -> [ CType ]
-  | F_max_int -> [ CType ]
-  | F_min_int -> [ CType ]
   | F_ctype_width -> [ CType ]
 
 
@@ -119,28 +107,6 @@ let evaluate_fun mu_fun args =
          Some (`Result_IT (IT.bool_ true here))
        else
          None
-     | _ -> None)
-  | F_size_of ->
-    (match List.map IT.is_const args with
-     | [ Some (IT.CType_const ct, _) ] ->
-       Some (`Result_Integer (Z.of_int (Memory.size_of_ctype ct)))
-     | _ -> None)
-  | F_align_of ->
-    (match List.map IT.is_const args with
-     | [ Some (IT.CType_const ct, _) ] ->
-       Some (`Result_Integer (Z.of_int (Memory.align_of_ctype ct)))
-     | _ -> None)
-  | F_max_int ->
-    (match List.map IT.is_const args with
-     | [ Some (IT.CType_const (Sctypes.Integer ity), _) ] ->
-       let bt = Memory.bt_of_sct (Sctypes.Integer ity) in
-       Some (`Result_IT (IT.num_lit_ (Memory.max_integer_type ity) bt here))
-     | _ -> None)
-  | F_min_int ->
-    (match List.map IT.is_const args with
-     | [ Some (IT.CType_const (Sctypes.Integer ity), _) ] ->
-       let bt = Memory.bt_of_sct (Sctypes.Integer ity) in
-       Some (`Result_IT (IT.num_lit_ (Memory.min_integer_type ity) bt here))
      | _ -> None)
   | F_ctype_width ->
     (match List.map IT.is_const args with
@@ -215,16 +181,6 @@ let fun_return_type mu_fun args =
   | F_params_length, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Unsigned Short))))
   | F_params_nth, _ -> Some (`Returns_BT CType)
   | F_are_compatible, _ -> Some (`Returns_BT Bool)
-  | F_align_of, _ -> Some `Returns_Integer
-  | F_size_of, _ -> Some (`Returns_BT Memory.size_bt) (* TODO: Is that good? *)
-  | F_max_int, [ ct ] ->
-    Option.bind (is_ctype_const ct) Sctypes.of_ctype
-    |> Option.map (fun sct -> `Returns_BT (Memory.bt_of_sct sct))
-  | F_max_int, _ -> None
-  | F_min_int, [ ct ] ->
-    Option.bind (is_ctype_const ct) Sctypes.of_ctype
-    |> Option.map (fun sct -> `Returns_BT (Memory.bt_of_sct sct))
-  | F_min_int, _ -> None
   | F_ctype_width, _ -> Some `Returns_Integer
 
 
