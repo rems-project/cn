@@ -135,6 +135,8 @@ val bt_of_pexpr : 'TY pexpr -> 'TY
 
 val is_undef_or_error_pexpr : 'a pexpr -> bool
 
+val is_ctype_const : 'a pexpr -> Cerb_frontend.Ctype.ctype option
+
 val fun_return_type
   :  mu_function ->
   'a pexpr list ->
