@@ -590,14 +590,20 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ e = check_pexpr path_cs e in
        let ct = Option.get (IT.is_ctype_const e) in
        let@ () = WellTyped.check_ct loc ct in
-       (match ctor with
-        | Civsizeof ->
-          let@ () = WellTyped.ensure_base_type loc ~expect Memory.size_bt in
-          return (IT.num_lit_ (Z.of_int (Memory.size_of_ctype ct)) expect loc)
-        | Civalignof ->
-          let@ () = WellTyped.ensure_bits_type loc expect in
-          return (IT.num_lit_ (Z.of_int (Memory.align_of_ctype ct)) expect loc)
-        | _ -> assert false)
+       let@ n =
+         match ctor with
+         | Civsizeof ->
+           let@ () = WellTyped.ensure_base_type loc ~expect Memory.size_bt in
+           return (Z.of_int (Memory.size_of_ctype ct))
+         | Civalignof ->
+           let@ () = WellTyped.ensure_bits_type loc expect in
+           return (Z.of_int (Memory.align_of_ctype ct))
+         | _ -> assert false
+       in
+       let@ () =
+         WellTyped.ensure_z_fits_bits_type loc (Option.get (BT.is_bits_bt expect)) n
+       in
+       return (num_lit_ n expect loc)
      | (Civmax | Civmin | Civsizeof | Civalignof), _ ->
        fail (fun _ ->
          { loc;

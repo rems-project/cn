@@ -2640,6 +2640,8 @@ let ensure_same_argument_number = ensure_same_argument_number
 
 let ensure_bits_type = ensure_bits_type
 
+let ensure_z_fits_bits_type = ensure_z_fits_bits_type
+
 module type ErrorReader = sig
   type 'a t
 
@@ -2739,4 +2741,7 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
     (* assert (match bt with BT.Bits _ -> true | _ -> false); *)
     (* M.return ()                                            *)
     lift2 ensure_bits_type
+
+
+  let ensure_z_fits_bits_type = lift3 ensure_z_fits_bits_type
 end
