@@ -220,18 +220,11 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEundef (l, u) -> annotate (PEundef (l, u))
   | PEerror (err, e') -> annotate (PEerror (err, n_pexpr loc e'))
   | PEctor (ctor, args) ->
-    (* let argnum_err () = *)
-    (*   assert_error *)
-    (*     loc *)
-    (*     (item *)
-    (*        "PEctor wrong number of arguments" *)
-    (*        (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe)))) *)
-    (* in *)
-    (match (ctor, args) with
-     | (CivCOMPL | CivAND | CivOR | CivXOR | Civsizeof | Civalignof | Civmax | Civmin), _
-       ->
-       let ctor =
-         match ctor with
+     let args = List.map (n_pexpr loc) args in
+     begin match ctor with
+     | Cspecified -> List.hd args
+     | _ ->
+        let ctor = match ctor with
          | CivCOMPL -> Mu.CivCOMPL
          | CivAND -> CivAND
          | CivOR -> CivOR
@@ -240,64 +233,21 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
          | Civalignof -> Civalignof
          | Civmax -> Civmax
          | Civmin -> Civmin
-         | _ -> assert false
-       in
-       let args = List.map (n_pexpr loc) args in
-       annotate (PEctor (ctor, args))
-     (* | CivCOMPL, [ ct; arg1 ] -> *)
-     (*   let ct = *)
-     (*     ensure_pexpr_ctype loc !^"CivCOMPL: first argument not a constant ctype" ct *)
-     (*   in *)
-     (*   let arg1 = n_pexpr loc arg1 in *)
-     (*   annotate (PEwrapI (ct, annotate (PEbitwise_unop (BW_COMPL, arg1)))) *)
-     (* | CivCOMPL, _ -> argnum_err () *)
-     (* | CivAND, [ ct; arg1; arg2 ] -> *)
-     (*   let ct = *)
-     (*     ensure_pexpr_ctype loc !^"CivAND: first argument not a constant ctype" ct *)
-     (*   in *)
-     (*   let arg1 = n_pexpr loc arg1 in *)
-     (*   let arg2 = n_pexpr loc arg2 in *)
-     (*   annotate (PEwrapI (ct, annotate (PEbitwise_binop (BW_AND, arg1, arg2)))) *)
-     (* | CivAND, _ -> argnum_err () *)
-     (* | CivOR, [ ct; arg1; arg2 ] -> *)
-     (*   let ct = *)
-     (*     ensure_pexpr_ctype loc !^"CivOR: first argument not a constant ctype" ct *)
-     (*   in *)
-     (*   let arg1 = n_pexpr loc arg1 in *)
-     (*   let arg2 = n_pexpr loc arg2 in *)
-     (*   annotate (PEwrapI (ct, annotate (PEbitwise_binop (BW_OR, arg1, arg2)))) *)
-     (* | CivOR, _ -> argnum_err () *)
-     (* | CivXOR, [ ct; arg1; arg2 ] -> *)
-     (*   let ct = *)
-     (*     ensure_pexpr_ctype loc !^"CivXOR: first argument not a constant ctype" ct *)
-     (*   in *)
-     (*   let arg1 = n_pexpr loc arg1 in *)
-     (*   let arg2 = n_pexpr loc arg2 in *)
-     (*   annotate (PEwrapI (ct, annotate (PEbitwise_binop (BW_XOR, arg1, arg2)))) *)
-     (* | CivXOR, _ -> argnum_err () *)
-     | Cfvfromint, _ -> assert_error loc !^"TODO: floats"
-     | Civfromfloat, _ -> assert_error loc !^"TODO: floats"
-     | Cnil bt1, _ -> annotate (PEctor (Cnil bt1, List.map (n_pexpr loc) args))
-     | Ccons, _ -> annotate (PEctor (Ccons, List.map (n_pexpr loc) args))
-     | Ctuple, _ -> annotate (PEctor (Ctuple, List.map (n_pexpr loc) args))
-     | Carray, _ -> annotate (PEctor (Carray, List.map (n_pexpr loc) args))
-     | Cspecified, _ -> n_pexpr loc (List.hd args)
-     (* | Civsizeof, [ ct_expr ] -> *)
-     (*   annotate (PEapply_fun (F_size_of, [ n_pexpr loc ct_expr ])) *)
-     (* | Civsizeof, _ -> argnum_err () *)
-     (* | Civalignof, [ ct_expr ] -> *)
-     (*   annotate (PEapply_fun (F_align_of, [ n_pexpr loc ct_expr ])) *)
-     (* | Civalignof, _ -> argnum_err () *)
-     (* | Civmax, [ ct_expr ] -> annotate (PEapply_fun (F_max_int, [ n_pexpr loc ct_expr ])) *)
-     (* | Civmax, _ -> argnum_err () *)
-     (* | Civmin, [ ct_expr ] -> annotate (PEapply_fun (F_min_int, [ n_pexpr loc ct_expr ])) *)
-     (* | Civmin, _ -> argnum_err () *)
-     | _ ->
-       assert_error
-         loc
-         (item
-            "core_to_mucore: unsupported ctor application"
-            (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe)))))
+         | Cfvfromint -> assert_error loc !^"TODO: floats"
+         | Civfromfloat -> assert_error loc !^"TODO: floats"
+         | Cnil bt1 -> Cnil bt1
+         | Ccons -> Ccons
+         | Ctuple -> Ctuple
+         | Carray -> Carray
+         | _ ->
+            assert_error
+              loc
+              (item
+                 "core_to_mucore: unsupported ctor application"
+                 (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe))))
+        in
+        annotate (PEctor (ctor, args))
+     end
   | PEcase (_e', _pats_pes) -> assert_error loc !^"PEcase"
   | PEarray_shift (e', ct, e'') ->
     let e' = n_pexpr loc e' in
