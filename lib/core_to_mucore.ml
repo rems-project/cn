@@ -220,11 +220,12 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEundef (l, u) -> annotate (PEundef (l, u))
   | PEerror (err, e') -> annotate (PEerror (err, n_pexpr loc e'))
   | PEctor (ctor, args) ->
-     let args = List.map (n_pexpr loc) args in
-     begin match ctor with
+    let args = List.map (n_pexpr loc) args in
+    (match ctor with
      | Cspecified -> List.hd args
      | _ ->
-        let ctor = match ctor with
+       let ctor =
+         match ctor with
          | CivCOMPL -> Mu.CivCOMPL
          | CivAND -> CivAND
          | CivOR -> CivOR
@@ -240,14 +241,13 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
          | Ctuple -> Ctuple
          | Carray -> Carray
          | _ ->
-            assert_error
-              loc
-              (item
-                 "core_to_mucore: unsupported ctor application"
-                 (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe))))
-        in
-        annotate (PEctor (ctor, args))
-     end
+           assert_error
+             loc
+             (item
+                "core_to_mucore: unsupported ctor application"
+                (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe))))
+       in
+       annotate (PEctor (ctor, args)))
   | PEcase (_e', _pats_pes) -> assert_error loc !^"PEcase"
   | PEarray_shift (e', ct, e'') ->
     let e' = n_pexpr loc e' in

@@ -824,7 +824,6 @@ let pp_binop = function
 (*   | BW_AND -> pp_constructor0 "BW_AND" *)
 (*   | BW_XOR -> pp_constructor0 "BW_XOR" *)
 
-
 let pp_bw_unop = function
   (* | BW_COMPL -> pp_constructor0 "BW_COMPL" *)
   | BW_CTZ -> pp_constructor0 "BW_CTZ"

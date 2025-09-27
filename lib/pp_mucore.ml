@@ -303,9 +303,7 @@ module Make (Config : CONFIG) = struct
                | PEctor (ctor, pes) -> pp_ctor ctor ^^ Pp.parens (comma_list pp_pexpr pes)
                | PEbitwise_unop (unop, p1) ->
                  let opnm =
-                   match unop with
-                   | BW_CTZ -> "builtin_ctz"
-                   | BW_FFS -> "builtin_ffs"
+                   match unop with BW_CTZ -> "builtin_ctz" | BW_FFS -> "builtin_ffs"
                  in
                  !^opnm ^^ Pp.parens (pp_pexpr p1)
                | PEarray_shift (pe1, ty, pe2) ->

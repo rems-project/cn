@@ -655,11 +655,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     let@ _ = ensure_bitvector_type loc ~expect in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
     let@ vt1 = check_pexpr path_cs pe1 in
-    let unop =
-      match unop with
-      | BW_FFS -> BW_FFS_NoSMT
-      | BW_CTZ -> BW_CTZ_NoSMT
-    in
+    let unop = match unop with BW_FFS -> BW_FFS_NoSMT | BW_CTZ -> BW_CTZ_NoSMT in
     return (arith_unop unop vt1 loc)
   | PEarray_shift (pe1, ct, pe2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in

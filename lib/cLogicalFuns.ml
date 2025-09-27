@@ -378,14 +378,15 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        in
        return_z_within_range loc z bt pexpr
      | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
-        let@ _ct = must_be_ct_const loc e1 in
-        let bop = match ctor with
-          | CivAND -> IT.BW_And
-          | CivOR -> IT.BW_Or
-          | CivXOR -> IT.BW_Xor
-          | _ -> assert false
-        in
-        return (IT.arith_binop bop (e2, e3) loc)
+       let@ _ct = must_be_ct_const loc e1 in
+       let bop =
+         match ctor with
+         | CivAND -> IT.BW_And
+         | CivOR -> IT.BW_Or
+         | CivXOR -> IT.BW_Xor
+         | _ -> assert false
+       in
+       return (IT.arith_binop bop (e2, e3) loc)
      | _ -> unsupported "pure-expression type" !^"")
   | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
     let@ x = self var_map pe in
