@@ -349,16 +349,8 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       match unop with
       | BW_CTZ -> return IT.BW_CTZ_NoSMT
       | BW_FFS -> return IT.BW_FFS_NoSMT
-      | _ -> unsupported "unary op" !^""
     in
     simp_const_pe (IT.arith_unop unop x loc)
-  | PEbitwise_binop (binop, pe1, pe2) ->
-    let@ x = self var_map pe1 in
-    let@ y = self var_map pe2 in
-    let binop =
-      match binop with BW_AND -> IT.BW_And | BW_OR -> IT.BW_Or | BW_XOR -> IT.BW_Xor
-    in
-    simp_const_pe (IT.arith_binop binop (x, y) loc)
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
@@ -385,6 +377,15 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
          | _ -> assert false
        in
        return_z_within_range loc z bt pexpr
+     | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+        let@ _ct = must_be_ct_const loc e1 in
+        let bop = match ctor with
+          | CivAND -> IT.BW_And
+          | CivOR -> IT.BW_Or
+          | CivXOR -> IT.BW_Xor
+          | _ -> assert false
+        in
+        return (IT.arith_binop bop (e2, e3) loc)
      | _ -> unsupported "pure-expression type" !^"")
   | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
     let@ x = self var_map pe in

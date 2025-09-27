@@ -77,13 +77,7 @@ val evaluate_fun
   IndexTerms.t list ->
   [> `Result_IT of IndexTerms.t | `Result_Integer of Z.t ] Option.m
 
-type bw_binop =
-  | BW_OR
-  | BW_AND
-  | BW_XOR
-
 type bw_unop =
-  | BW_COMPL
   | BW_CTZ
   | BW_FFS
 
@@ -105,7 +99,6 @@ type 'TY pexpr_ =
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
   | PEbitwise_unop of bw_unop * 'TY pexpr
-  | PEbitwise_binop of bw_binop * 'TY pexpr * 'TY pexpr
   | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr

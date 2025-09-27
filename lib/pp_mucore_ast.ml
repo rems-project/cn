@@ -58,7 +58,7 @@ module PP = struct
   let string_of_bop = Pp_core_ast.string_of_bop
 
   let dtree_of_pexpr (pexpr : 'ty pexpr) =
-    let rec self (Pexpr (loc, annot, _, pexpr_)) =
+    let rec self ((Pexpr (loc, annot, _, pexpr_)) as pexpr) =
       let pp_ctor str =
         pp_pure_ctor str ^^^ Cerb_location.pp_location ~clever:false loc
       in

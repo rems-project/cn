@@ -819,14 +819,14 @@ let pp_binop = function
   | Terms.Subset -> pp_constructor0 "Terms.Subset"
 
 
-let pp_bw_binop = function
-  | BW_OR -> pp_constructor0 "BW_OR"
-  | BW_AND -> pp_constructor0 "BW_AND"
-  | BW_XOR -> pp_constructor0 "BW_XOR"
+(* let pp_bw_binop = function *)
+(*   | BW_OR -> pp_constructor0 "BW_OR" *)
+(*   | BW_AND -> pp_constructor0 "BW_AND" *)
+(*   | BW_XOR -> pp_constructor0 "BW_XOR" *)
 
 
 let pp_bw_unop = function
-  | BW_COMPL -> pp_constructor0 "BW_COMPL"
+  (* | BW_COMPL -> pp_constructor0 "BW_COMPL" *)
   | BW_CTZ -> pp_constructor0 "BW_CTZ"
   | BW_FFS -> pp_constructor0 "BW_FFS"
 
@@ -914,10 +914,10 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            [ pp_list (pp_pair pp_mem_constraint (pp_pexpr pp_type)) cs ]
        | PEbitwise_unop (op, e) ->
          pp_constructor1 "PEbitwise_unop" [ pp_bw_unop op; pp_pexpr pp_type e ]
-       | PEbitwise_binop (op, e1, e2) ->
-         pp_constructor1
-           "PEbitwise_binop"
-           [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
+       (* | PEbitwise_binop (op, e1, e2) -> *)
+       (*   pp_constructor1 *)
+       (*     "PEbitwise_binop" *)
+       (*     [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ] *)
        (* | Cfvfromint e -> pp_constructor1 "Cfvfromint" [ pp_pexpr pp_type e ] *)
        (* | Civfromfloat (act, e) -> *)
        (*   pp_constructor1 "Civfromfloat" [ pp_act act; pp_pexpr pp_type e ] *)

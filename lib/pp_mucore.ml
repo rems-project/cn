@@ -108,7 +108,6 @@ module Make (Config : CONFIG) = struct
     | PEnot _ | PEstruct _ | PEunion _ | PEcfunction _ | PEmemberof _ | PEconv_int _
     | PEconv_loaded_int _ | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
     | PEbitwise_unop (_, _)
-    | PEbitwise_binop (_, _, _)
     | PEapply_fun (_, _)
     | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
@@ -305,19 +304,10 @@ module Make (Config : CONFIG) = struct
                | PEbitwise_unop (unop, p1) ->
                  let opnm =
                    match unop with
-                   | BW_COMPL -> "IvCOMPL"
                    | BW_CTZ -> "builtin_ctz"
                    | BW_FFS -> "builtin_ffs"
                  in
                  !^opnm ^^ Pp.parens (pp_pexpr p1)
-               | PEbitwise_binop (binop, p1, p2) ->
-                 let opnm =
-                   match binop with
-                   | BW_OR -> "IvOR"
-                   | BW_AND -> "IvAND"
-                   | BW_XOR -> "IvXOR"
-                 in
-                 !^opnm ^^ Pp.parens (separate comma [ pp_pexpr p1; pp_pexpr p2 ])
                | PEarray_shift (pe1, ty, pe2) ->
                  pp_keyword "array_shift"
                  ^^ Pp.parens

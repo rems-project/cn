@@ -1635,13 +1635,6 @@ module BaseTyping = struct
           let bt = bt_of_pexpr pe in
           let@ () = ensure_bits_type (loc_of_pexpr pe) bt in
           return (bt, PEbitwise_unop (unop, pe))
-        | PEbitwise_binop (binop, pe1, pe2) ->
-          (* all the supported binops do arithmetic in the one (bitwise) type *)
-          let@ pe1 = infer_pexpr pe1 in
-          let bt = bt_of_pexpr pe1 in
-          let@ () = ensure_bits_type (loc_of_pexpr pe1) bt in
-          let@ pe2 = check_pexpr bt pe2 in
-          return (bt, PEbitwise_binop (binop, pe1, pe2))
         | PEif (c_pe, pe1, pe2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, pe1, pe2 =

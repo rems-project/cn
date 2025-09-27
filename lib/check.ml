@@ -659,17 +659,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
       match unop with
       | BW_FFS -> BW_FFS_NoSMT
       | BW_CTZ -> BW_CTZ_NoSMT
-      | BW_COMPL -> BW_Compl
     in
     return (arith_unop unop vt1 loc)
-  | PEbitwise_binop (binop, pe1, pe2) ->
-    let@ _ = ensure_bitvector_type loc ~expect in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe2) in
-    let binop = match binop with BW_AND -> BW_And | BW_OR -> BW_Or | BW_XOR -> BW_Xor in
-    let@ vt1 = check_pexpr path_cs pe1 in
-    let@ vt2 = check_pexpr path_cs pe2 in
-    return (arith_binop binop (vt1, vt2) loc)
   | PEarray_shift (pe1, ct, pe2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
     let@ () = WellTyped.check_ct loc ct in
