@@ -42,6 +42,14 @@ type ctor =
   | Ccons
   | Ctuple
   | Carray
+  | Civmax
+  | Civmin
+  | Civsizeof
+  | Civalignof
+  | CivCOMPL
+  | CivAND
+  | CivOR
+  | CivXOR
 
 type 'TY pattern_ =
   | CaseBase of (Sym.t option * Cerb_frontend.Core.core_base_type)
@@ -58,10 +66,6 @@ type mu_function =
   | F_params_length
   | F_params_nth
   | F_are_compatible
-  | F_size_of
-  | F_align_of
-  | F_max_int
-  | F_min_int
   | F_ctype_width
 
 val pp_function : mu_function -> Pp.document
@@ -126,6 +130,8 @@ val loc_of_pexpr : 'a pexpr -> Locations.t
 val bt_of_pexpr : 'TY pexpr -> 'TY
 
 val is_undef_or_error_pexpr : 'a pexpr -> bool
+
+val is_ctype_const : 'a pexpr -> Cerb_frontend.Ctype.ctype option
 
 val fun_return_type
   :  mu_function ->

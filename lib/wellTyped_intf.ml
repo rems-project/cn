@@ -3,6 +3,8 @@ module type S = sig
 
   val ensure_bits_type : Locations.t -> BaseTypes.t -> unit t
 
+  val ensure_z_fits_bits_type : Locations.t -> BaseTypes.sign * int -> Z.t -> unit t
+
   val ensure_base_type : Locations.t -> expect:BaseTypes.t -> BaseTypes.t -> unit t
 
   val ensure_same_argument_number
