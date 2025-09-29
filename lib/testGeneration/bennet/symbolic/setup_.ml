@@ -193,7 +193,7 @@ module Make (AD : Domain.T) = struct
     (all_handlers, struct_decl_code ^^ hardline ^^ struct_init_code)
 
 
-  let generate_record_setup (_prog5 : unit Mucore.file) : Pp.document =
+  let generate_record_setup (_prog5 : unit Mucore.file) : Pp.document * Pp.document =
     let open Pp in
     (*
        * Get all record types discovered by Fulminate during compilation.
@@ -205,7 +205,7 @@ module Make (AD : Domain.T) = struct
       Fulminate.Cn_to_ail.RecordMap.bindings !Fulminate.Cn_to_ail.records
     in
     if List.length all_records = 0 then
-      !^""
+      (!^"", !^"")
     else (
       (* Generate record setup similar to struct setup *)
       let record_handlers_and_data =
@@ -219,7 +219,7 @@ module Make (AD : Domain.T) = struct
              let default_fn_name = "default_record_" ^ record_name in
              (* Create record handler functions *)
              let create_fn =
-               !^"void* "
+               !^"static inline void* "
                ^^ !^create_fn_name
                ^^ !^"(bennet_hash_table(const_char_ptr, void_ptr) * members) {"
                ^^ hardline
@@ -263,7 +263,7 @@ module Make (AD : Domain.T) = struct
                ^^ hardline
              in
              let get_fn =
-               !^"void* "
+               !^"static inline void* "
                ^^ !^get_fn_name
                ^^ !^"(void* record_val, const char* member_name) {"
                ^^ hardline
@@ -282,7 +282,7 @@ module Make (AD : Domain.T) = struct
                ^^ hardline
              in
              let update_fn =
-               !^"void* "
+               !^"static inline void* "
                ^^ !^update_fn_name
                ^^ !^"(void* record_val, const char* member_name, void* new_value) {"
                ^^ hardline
@@ -341,7 +341,7 @@ module Make (AD : Domain.T) = struct
                ^^ hardline
              in
              let default_fn =
-               !^"void* "
+               !^"static inline void* "
                ^^ !^default_fn_name
                ^^ !^"(void) {"
                ^^ hardline
@@ -513,19 +513,19 @@ module Make (AD : Domain.T) = struct
           !^""
           all_records
       in
-      record_handlers_and_data ^^ hardline ^^ record_registration)
+      (record_handlers_and_data, record_registration))
 
 
   let generate_smt_setup (prog5 : unit Mucore.file) : Pp.document =
     let open Pp in
     let struct_handlers, struct_init = generate_struct_setup prog5 in
-    let record_content = generate_record_setup prog5 in
+    let record_handlers, record_init = generate_record_setup prog5 in
     let init_fn =
       !^"void"
       ^^^ !^"cn_smt_solver_setup"
       ^^ parens !^"struct cn_smt_solver *s"
-      ^^^ braces (hardline ^^ struct_init ^^ hardline ^^ record_content)
+      ^^^ braces (hardline ^^ struct_init ^^ hardline ^^ record_init)
       ^^ hardline
     in
-    struct_handlers ^^ hardline ^^ init_fn
+    struct_handlers ^^ hardline ^^ record_handlers ^^ hardline ^^ init_fn
 end
