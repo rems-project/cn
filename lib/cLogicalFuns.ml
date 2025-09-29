@@ -187,28 +187,31 @@ let bool_rep_ty = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
 
 let bool_ite_1_0 bt b loc = IT.ite_ (b, IT.int_lit_ 1 bt loc, IT.int_lit_ 0 bt loc) loc
 
+let return_z_within_range loc z bt orig_pexpr =
+  let@ () = WellTyped.ensure_bits_type loc bt in
+  let bits_info = Option.get (BT.is_bits_bt bt) in
+  if BT.fits_range bits_info z then
+    return (IT.num_lit_ z bt loc)
+  else
+    fail_n
+      { loc;
+        msg =
+          Generic
+            (Pp.item
+               "function application result out of range"
+               (Pp_mucore_ast.pp_pexpr orig_pexpr
+                ^^ Pp.hardline
+                ^^ Pp.typ (Pp.z z) (BT.pp bt)))
+          [@alert "-deprecated"]
+      }
+
+
 (* FIXME: find a home for this, also needed in check, needs the Typing monad *)
 let eval_fun f args orig_pexpr =
   let (Mu.Pexpr (loc, _, bt, _pe)) = orig_pexpr in
   match Mu.evaluate_fun f args with
   | Some (`Result_IT it) -> return it
-  | Some (`Result_Integer z) ->
-    let@ () = WellTyped.ensure_bits_type loc bt in
-    let bits_info = Option.get (BT.is_bits_bt bt) in
-    if BT.fits_range bits_info z then
-      return (IT.num_lit_ z bt loc)
-    else
-      fail_n
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 "function application result out of range"
-                 (Pp_mucore_ast.pp_pexpr orig_pexpr
-                  ^^ Pp.hardline
-                  ^^ Pp.typ (Pp.z z) (BT.pp bt)))
-            [@alert "-deprecated"]
-        }
+  | Some (`Result_Integer z) -> return_z_within_range loc z bt orig_pexpr
   | None ->
     fail_n
       { loc;
@@ -224,8 +227,21 @@ let eval_fun f args orig_pexpr =
       }
 
 
+let must_be_ct_const loc ct_it =
+  match IT.is_const ct_it with
+  | Some (IT.CType_const ct, _) -> return ct
+  | Some _ -> assert false (* shouldn't be possible given type *)
+  | None ->
+    fail_n
+      { loc;
+        msg =
+          Generic (Pp.item "expr from C syntax: non-constant type" (IT.pp ct_it))
+          [@alert "-deprecated"]
+      }
+
+
 let rec symb_exec_pexpr ctxt var_map pexpr =
-  let (Mu.Pexpr (loc, annots, _, pe)) = pexpr in
+  let (Mu.Pexpr (loc, annots, bt, pe)) = pexpr in
   let opt_bt =
     WellTyped.integer_annot annots
     |> Option.map (fun ity -> Memory.bt_of_sct (Sctypes.Integer ity))
@@ -333,40 +349,49 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       match unop with
       | BW_CTZ -> return IT.BW_CTZ_NoSMT
       | BW_FFS -> return IT.BW_FFS_NoSMT
-      | _ -> unsupported "unary op" !^""
     in
     simp_const_pe (IT.arith_unop unop x loc)
-  | PEbitwise_binop (binop, pe1, pe2) ->
-    let@ x = self var_map pe1 in
-    let@ y = self var_map pe2 in
-    let binop =
-      match binop with BW_AND -> IT.BW_And | BW_OR -> IT.BW_Or | BW_XOR -> IT.BW_Xor
-    in
-    simp_const_pe (IT.arith_binop binop (x, y) loc)
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
   | PEapply_fun (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     eval_fun f xs pexpr
-  | PEctor (Ctuple, pes) ->
+  | PEctor (ctor, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
-    return (IT.tuple_ xs loc)
+    (match (ctor, xs) with
+     | Ctuple, _ -> return (IT.tuple_ xs loc)
+     | Civsizeof, [ e ] ->
+       let@ ct = must_be_ct_const loc e in
+       return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct)) bt pexpr
+     | Civalignof, [ e ] ->
+       let@ ct = must_be_ct_const loc e in
+       return_z_within_range loc (Z.of_int (Memory.align_of_ctype ct)) bt pexpr
+     | (Civmax | Civmin), [ e ] ->
+       let@ ct = must_be_ct_const loc e in
+       let ity = Option.get (Sctypes.is_integer_type ct) in
+       let z =
+         match ctor with
+         | Civmax -> Memory.max_integer_type ity
+         | Civmin -> Memory.min_integer_type ity
+         | _ -> assert false
+       in
+       return_z_within_range loc z bt pexpr
+     | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+       let@ _ct = must_be_ct_const loc e1 in
+       let bop =
+         match ctor with
+         | CivAND -> IT.BW_And
+         | CivOR -> IT.BW_Or
+         | CivXOR -> IT.BW_Xor
+         | _ -> assert false
+       in
+       return (IT.arith_binop bop (e2, e3) loc)
+     | _ -> unsupported "pure-expression type" !^"")
   | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
     let@ x = self var_map pe in
     let@ ct_it = self var_map ct_expr in
-    let@ ct =
-      match IT.is_const ct_it with
-      | Some (IT.CType_const ct, _) -> return ct
-      | Some _ -> assert false (* shouldn't be possible given type *)
-      | None ->
-        fail_n
-          { loc;
-            msg =
-              Generic (Pp.item "expr from C syntax: non-constant type" (IT.pp ct_it))
-              [@alert "-deprecated"]
-          }
-    in
+    let@ ct = must_be_ct_const loc ct_it in
     (match ct with
      | Sctypes.Integer Sctypes.IntegerTypes.Bool ->
        let here = Locations.other __LOC__ in

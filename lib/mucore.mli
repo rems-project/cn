@@ -37,11 +37,7 @@ val bt_of_value : 'a value -> 'a
 
 val bt_of_object_value : 'a object_value -> 'a
 
-type ctor =
-  | Cnil of Cerb_frontend.Core.core_base_type
-  | Ccons
-  | Ctuple
-  | Carray
+type ctor = Cerb_frontend.Core.ctor
 
 type 'TY pattern_ =
   | CaseBase of (Sym.t option * Cerb_frontend.Core.core_base_type)
@@ -58,10 +54,6 @@ type mu_function =
   | F_params_length
   | F_params_nth
   | F_are_compatible
-  | F_size_of
-  | F_align_of
-  | F_max_int
-  | F_min_int
   | F_ctype_width
 
 val pp_function : mu_function -> Pp.document
@@ -73,13 +65,7 @@ val evaluate_fun
   IndexTerms.t list ->
   [> `Result_IT of IndexTerms.t | `Result_Integer of Z.t ] Option.m
 
-type bw_binop =
-  | BW_OR
-  | BW_AND
-  | BW_XOR
-
 type bw_unop =
-  | BW_COMPL
   | BW_CTZ
   | BW_FFS
 
@@ -101,7 +87,6 @@ type 'TY pexpr_ =
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
   | PEbitwise_unop of bw_unop * 'TY pexpr
-  | PEbitwise_binop of bw_binop * 'TY pexpr * 'TY pexpr
   | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
@@ -126,6 +111,8 @@ val loc_of_pexpr : 'a pexpr -> Locations.t
 val bt_of_pexpr : 'TY pexpr -> 'TY
 
 val is_undef_or_error_pexpr : 'a pexpr -> bool
+
+val is_ctype_const : 'a pexpr -> Cerb_frontend.Ctype.ctype option
 
 val fun_return_type
   :  mu_function ->

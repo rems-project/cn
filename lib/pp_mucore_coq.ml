@@ -753,10 +753,23 @@ and pp_core_object_type = function
 
 
 let pp_ctor = function
-  | Mucore.Cnil bt -> pp_constructor "Cnil" [ pp_core_base_type bt ]
-  | Mucore.Ccons -> pp_constructor0 "Ccons"
-  | Mucore.Ctuple -> pp_constructor0 "Ctuple"
-  | Mucore.Carray -> pp_constructor0 "Carray"
+  | Core.Cnil bt -> pp_constructor "Cnil" [ pp_core_base_type bt ]
+  | Core.Ccons -> pp_constructor0 "Ccons"
+  | Core.Ctuple -> pp_constructor0 "Ctuple"
+  | Core.Carray -> pp_constructor0 "Carray"
+  | Core.Civmax -> pp_constructor0 "Civmax"
+  | Core.Civmin -> pp_constructor0 "Civmin"
+  | Core.Civsizeof -> pp_constructor0 "Civsizeof"
+  | Core.Civalignof -> pp_constructor0 "Civalignof"
+  | Core.CivCOMPL -> pp_constructor0 "CivCOMPL"
+  | Core.CivAND -> pp_constructor0 "CivAND"
+  | Core.CivOR -> pp_constructor0 "CivOR"
+  | Core.CivXOR -> pp_constructor0 "CivXOR"
+  | Core.Cspecified -> assert false
+  | Core.Cunspecified -> assert false
+  | Core.Cfvfromint -> assert false
+  | Core.Civfromfloat -> assert false
+  | Core.CivNULLcap _ -> assert false
 
 
 let pp_core_binop = function
@@ -811,14 +824,13 @@ let pp_binop = function
   | Terms.Subset -> pp_constructor0 "Terms.Subset"
 
 
-let pp_bw_binop = function
-  | BW_OR -> pp_constructor0 "BW_OR"
-  | BW_AND -> pp_constructor0 "BW_AND"
-  | BW_XOR -> pp_constructor0 "BW_XOR"
-
+(* let pp_bw_binop = function *)
+(*   | BW_OR -> pp_constructor0 "BW_OR" *)
+(*   | BW_AND -> pp_constructor0 "BW_AND" *)
+(*   | BW_XOR -> pp_constructor0 "BW_XOR" *)
 
 let pp_bw_unop = function
-  | BW_COMPL -> pp_constructor0 "BW_COMPL"
+  (* | BW_COMPL -> pp_constructor0 "BW_COMPL" *)
   | BW_CTZ -> pp_constructor0 "BW_CTZ"
   | BW_FFS -> pp_constructor0 "BW_FFS"
 
@@ -906,10 +918,10 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            [ pp_list (pp_pair pp_mem_constraint (pp_pexpr pp_type)) cs ]
        | PEbitwise_unop (op, e) ->
          pp_constructor1 "PEbitwise_unop" [ pp_bw_unop op; pp_pexpr pp_type e ]
-       | PEbitwise_binop (op, e1, e2) ->
-         pp_constructor1
-           "PEbitwise_binop"
-           [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
+       (* | PEbitwise_binop (op, e1, e2) -> *)
+       (*   pp_constructor1 *)
+       (*     "PEbitwise_binop" *)
+       (*     [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ] *)
        (* | Cfvfromint e -> pp_constructor1 "Cfvfromint" [ pp_pexpr pp_type e ] *)
        (* | Civfromfloat (act, e) -> *)
        (*   pp_constructor1 "Civfromfloat" [ pp_act act; pp_pexpr pp_type e ] *)

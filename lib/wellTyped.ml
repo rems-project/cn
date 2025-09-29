@@ -1400,10 +1400,11 @@ module BaseTyping = struct
             }
       in
       let@ ctor, pats =
+        let open Cerb_frontend.Core in
         match (ctor, pats) with
         | Cnil cbt, [] ->
           let@ _item_bt = get_item_bt bt in
-          return (Mu.Cnil cbt, [])
+          return (Cnil cbt, [])
         | Cnil _, _ ->
           let type_ = `Other in
           let has = List.length pats in
@@ -1412,7 +1413,7 @@ module BaseTyping = struct
           let@ item_bt = get_item_bt bt in
           let@ p1 = check_and_bind_pattern item_bt p1 in
           let@ p2 = check_and_bind_pattern bt p2 in
-          return (Mu.Ccons, [ p1; p2 ])
+          return (Ccons, [ p1; p2 ])
         | Ccons, _ ->
           let type_ = `Other in
           let has = List.length pats in
@@ -1434,8 +1435,21 @@ module BaseTyping = struct
                 }
           in
           let@ pats = ListM.map2M check_and_bind_pattern bts pats in
-          return (Mu.Ctuple, pats)
-        | Carray, _ -> Cerb_debug.error "todo: array types"
+          return (Ctuple, pats)
+        | Carray, _ -> assert false
+        | Civmax, _ -> assert false
+        | Civmin, _ -> assert false
+        | Civsizeof, _ -> assert false
+        | Civalignof, _ -> assert false
+        | CivCOMPL, _ -> assert false
+        | CivAND, _ -> assert false
+        | CivOR, _ -> assert false
+        | CivXOR, _ -> assert false
+        | Cspecified, _ -> assert false
+        | Cunspecified, _ -> assert false
+        | Cfvfromint, _ -> assert false
+        | Civfromfloat, _ -> assert false
+        | CivNULLcap _, _ -> assert false
       in
       return (Mu.CaseCtor (ctor, pats))
 
@@ -1627,13 +1641,6 @@ module BaseTyping = struct
           let bt = bt_of_pexpr pe in
           let@ () = ensure_bits_type (loc_of_pexpr pe) bt in
           return (bt, PEbitwise_unop (unop, pe))
-        | PEbitwise_binop (binop, pe1, pe2) ->
-          (* all the supported binops do arithmetic in the one (bitwise) type *)
-          let@ pe1 = infer_pexpr pe1 in
-          let bt = bt_of_pexpr pe1 in
-          let@ () = ensure_bits_type (loc_of_pexpr pe1) bt in
-          let@ pe2 = check_pexpr bt pe2 in
-          return (bt, PEbitwise_binop (binop, pe1, pe2))
         | PEif (c_pe, pe1, pe2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, pe1, pe2 =
@@ -1688,32 +1695,7 @@ module BaseTyping = struct
           let@ () = ensure_base_type loc ~expect:(Option MemByte) (bt_of_pexpr pe) in
           return (Bits (Unsigned, 8), PEmemop (IntFromByte, pe))
         | PEmemop (_, _) -> assert false
-        | PEctor (ctor, pes) ->
-          let@ pes = ListM.mapM infer_pexpr pes in
-          let@ bt =
-            match ctor with
-            | Cnil _ -> todo ()
-            | Ccons ->
-              (match pes with
-               | [ x; xs ] ->
-                 let ibt = bt_of_pexpr x in
-                 let@ () = ensure_base_type loc ~expect:(List ibt) (bt_of_pexpr xs) in
-                 return (bt_of_pexpr xs)
-               | _ ->
-                 let type_ = `Other in
-                 let has = List.length pes in
-                 fail { loc; msg = Number_arguments { type_; has; expect = 2 } })
-            | Ctuple -> return (BT.Tuple (List.map bt_of_pexpr pes))
-            | Carray ->
-              let ibt = bt_of_pexpr (List.hd pes) in
-              let@ () =
-                ListM.iterM
-                  (fun pe -> ensure_base_type loc ~expect:ibt (bt_of_pexpr pe))
-                  pes
-              in
-              return (Map (Memory.uintptr_bt, ibt))
-          in
-          return (bt, PEctor (ctor, pes))
+        | PEctor (ctor, pes) -> check_infer_ctor None ctor pes pe
         | PEcfunction pe ->
           let@ pe = infer_pexpr pe in
           return (Tuple [ CType; List CType; Bool; Bool ], PEcfunction pe)
@@ -1762,6 +1744,9 @@ module BaseTyping = struct
     | PEapply_fun (fname, pes) ->
       let@ _bt, pes = check_infer_apply_fun (Some expect) fname pes expr in
       return (annot expect (Mu.PEapply_fun (fname, pes)))
+    | PEctor (ctor, pes) ->
+      let@ _bt, e = check_infer_ctor (Some expect) ctor pes expr in
+      return (annot expect e)
     | _ ->
       let@ expr = infer_pexpr expr in
       (match Mu.bt_of_pexpr expr with
@@ -1803,14 +1788,86 @@ module BaseTyping = struct
         fail
           { loc;
             msg =
-              Generic
-                (Pp.item
-                   "mucore function requires type-annotation"
-                   (Pp_mucore_ast.pp_pexpr orig_pe))
+              Generic !^"Could not infer bit-vector type of expression."
               [@alert "-deprecated"]
           }
     in
     return (bt, pexps)
+
+
+  and check_infer_ctor (expect : BT.t option) ctor pes orig_pe =
+    let open Mu in
+    let loc = loc_of_pexpr orig_pe in
+    let@ pes = ListM.mapM infer_pexpr pes in
+    let maybe_ensure_base_type bt =
+      match expect with
+      | None -> return bt
+      | Some expect ->
+        let@ () = ensure_base_type loc ~expect bt in
+        return bt
+    in
+    let missing_annotation () =
+      fail
+        { loc;
+          msg =
+            Generic !^"Could not infer bit-vector type of expression."
+            [@alert "-deprecated"]
+        }
+    in
+    let@ bt =
+      match (ctor, pes) with
+      | Cnil _, _ -> failwith "todo"
+      | Ccons, [ x; xs ] ->
+        let ibt = bt_of_pexpr x in
+        let@ () = ensure_base_type loc ~expect:(List ibt) (bt_of_pexpr xs) in
+        maybe_ensure_base_type (bt_of_pexpr xs)
+      | Ccons, _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+      | Ctuple, _ -> maybe_ensure_base_type (BT.Tuple (List.map bt_of_pexpr pes))
+      | Carray, _ ->
+        let ibt = bt_of_pexpr (List.hd pes) in
+        let@ () =
+          ListM.iterM (fun pe -> ensure_base_type loc ~expect:ibt (bt_of_pexpr pe)) pes
+        in
+        maybe_ensure_base_type (Map (Memory.uintptr_bt, ibt))
+      | (Civmax | Civmin), [ e ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
+        let ct = Option.get (Mu.is_ctype_const e) in
+        let sct = Option.get (Sctypes.of_ctype ct) in
+        let@ () = WCT.is_ct loc sct in
+        maybe_ensure_base_type (Memory.bt_of_sct sct)
+      | Civsizeof, [ e ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
+        maybe_ensure_base_type Memory.size_bt
+      | Civalignof, [ e ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
+        let@ expect =
+          match expect with Some bt -> return bt | None -> missing_annotation ()
+        in
+        let@ () = ensure_bits_type loc expect in
+        return expect
+      | CivCOMPL, [ e1; e2 ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e1) in
+        let ct = Option.get (is_ctype_const e1) in
+        let sct = Option.get (Sctypes.of_ctype ct) in
+        let@ () = WCT.is_ct loc sct in
+        let rbt = Memory.bt_of_sct sct in
+        let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e2) in
+        maybe_ensure_base_type rbt
+      | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e1) in
+        let ct = Option.get (is_ctype_const e1) in
+        let sct = Option.get (Sctypes.of_ctype ct) in
+        let@ () = WCT.is_ct loc sct in
+        let rbt = Memory.bt_of_sct sct in
+        let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e2) in
+        let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e3) in
+        maybe_ensure_base_type rbt
+      | _ -> assert false
+    in
+    return (bt, PEctor (ctor, pes))
 
 
   let check_cn_statement loc stmt =
@@ -2582,6 +2639,8 @@ let ensure_same_argument_number = ensure_same_argument_number
 
 let ensure_bits_type = ensure_bits_type
 
+let ensure_z_fits_bits_type = ensure_z_fits_bits_type
+
 module type ErrorReader = sig
   type 'a t
 
@@ -2681,4 +2740,7 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
     (* assert (match bt with BT.Bits _ -> true | _ -> false); *)
     (* M.return ()                                            *)
     lift2 ensure_bits_type
+
+
+  let ensure_z_fits_bits_type = lift3 ensure_z_fits_bits_type
 end
