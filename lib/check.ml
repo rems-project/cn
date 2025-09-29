@@ -596,8 +596,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
          | Civsizeof ->
            let@ () = WellTyped.ensure_base_type loc ~expect Memory.size_bt in
            return (Z.of_int (Memory.size_of_ctype ct))
-         | Civalignof ->
-           return (Z.of_int (Memory.align_of_ctype ct))
+         | Civalignof -> return (Z.of_int (Memory.align_of_ctype ct))
          | _ -> assert false
        in
        let@ () =
