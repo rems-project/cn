@@ -10,8 +10,39 @@ module Make (AD : Domain.T) = struct
   module Ctx = Stage3.Ctx
   module Def = Stage3.Def
 
+  let arbitrary_of_bt (prog5 : unit Mucore.file) (bt : BT.t) =
+    let module Stage1 = Stage1.Make (AD) in
+    Stage1.Term.arbitrary_ () bt (Locations.other __LOC__)
+    |> Stage1.DestructArbitrary.transform_gt prog5
+    |> Stage1.Term.upcast
+
+
+  let gather_of_bt ((sym, tm) : Sym.t * _) : Pp.document =
+    let module Gather = Gather.Make (AD) in
+    let res = tm |> Gather.Term.downcast |> Gather.gather_term in
+    let open Pp in
+    separate hardline res.statements
+    ^/^ !^"cn_term*"
+    ^^^ (Sym.pp sym ^^ !^"_var")
+    ^^^ equals
+    ^^^ parens res.expression
+    ^^ semi
+
+
+  let concretize_of_bt ((sym, tm) : Sym.t * _) : Pp.document =
+    let module Concretize = Concretize.Make (AD) in
+    let res = tm |> Concretize.Term.downcast |> Concretize.concretize_term in
+    let open Pp in
+    separate hardline res.statements
+    ^/^ !^"cn_term*"
+    ^^^ (Sym.pp sym ^^ !^"_val")
+    ^^^ equals
+    ^^^ parens res.expression
+    ^^ semi
+
+
   (** Convert spec generator to bennet_<generator name> function with symbolic variables *)
-  let transform_def (def : Def.t) : Pp.document =
+  let transform_def (prog5 : unit Mucore.file) (def : Def.t) : Pp.document =
     let open Pp in
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("cn_test_generator_" ^ generator_name ^ "_record") in
@@ -36,25 +67,10 @@ module Make (AD : Domain.T) = struct
     in
     (* Initialize symbolic execution context *)
     let context_init = !^"cn_smt_gather_init();" in
+    let destructed_vars = def.iargs |> List.map_snd (arbitrary_of_bt prog5) in
     (* Generate symbolic variable declarations for each argument *)
     let symbolic_vars =
-      def.iargs
-      |> List.map (fun (sym, bt) ->
-        let var_name = Sym.pp_string sym in
-        let var_type = Smt.convert_basetype bt in
-        !^"cn_term* "
-        ^^ Sym.pp sym
-        ^^ !^"_var"
-        ^^^ equals
-        ^^^ parens
-              (braces
-                 (!^"CN_SMT_GATHER_LET_SYMBOLIC"
-                  ^^ Pp.parens (!^var_name ^^ !^"," ^^^ var_type)
-                  ^^ semi
-                  ^/^ Sym.pp sym
-                  ^^ semi))
-        ^^ semi)
-      |> Pp.separate Pp.hardline
+      destructed_vars |> List.map gather_of_bt |> Pp.separate Pp.hardline
     in
     (* Generate call to the corresponding cn_smt_gather_<generator name> function with symbolic variables *)
     let gather_constraints =
@@ -93,23 +109,7 @@ module Make (AD : Domain.T) = struct
     in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
-      def.iargs
-      |> List.map (fun (sym, bt) ->
-        let var_name = Sym.pp_string sym in
-        let var_type = Smt.convert_basetype bt in
-        !^"cn_term* "
-        ^^ Sym.pp sym
-        ^^ !^"_val"
-        ^^^ equals
-        ^^^ parens
-              (braces
-                 (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
-                  ^^ Pp.parens (!^var_name ^^ !^"," ^^^ var_type)
-                  ^^ semi
-                  ^/^ Sym.pp sym
-                  ^^ semi))
-        ^^ semi)
-      |> Pp.separate Pp.hardline
+      destructed_vars |> List.map concretize_of_bt |> Pp.separate Pp.hardline
     in
     let concretize_model =
       let conc_args =
