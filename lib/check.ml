@@ -525,7 +525,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     check_value loc v
   | PEconstrained _ -> Cerb_debug.error "todo: PEconstrained"
   | PEctor (ctor, pes) ->
-    Cerb_frontend.Core.(match (ctor, pes) with
+    let open Cerb_frontend.Core in
+    (match (ctor, pes) with
      | Ctuple, _ ->
        let@ () =
          WellTyped.ensure_base_type loc ~expect (Tuple (List.map Mu.bt_of_pexpr pes))

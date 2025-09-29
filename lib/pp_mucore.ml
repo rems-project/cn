@@ -236,7 +236,6 @@ module Make (Config : CONFIG) = struct
 
   let pp_ctor = Cerb_frontend.Pp_core.Basic.pp_ctor
 
-
   let rec pp_pattern (Pattern (_, _, _, pat)) =
     match pat with
     | CaseBase (None, bTy) -> Pp.underscore ^^ Pp.colon ^^^ pp_core_base_type bTy

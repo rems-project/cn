@@ -221,9 +221,7 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEerror (err, e') -> annotate (PEerror (err, n_pexpr loc e'))
   | PEctor (ctor, args) ->
     let args = List.map (n_pexpr loc) args in
-    (match ctor with
-     | Cspecified -> List.hd args
-     | _ -> annotate (PEctor (ctor, args)))
+    (match ctor with Cspecified -> List.hd args | _ -> annotate (PEctor (ctor, args)))
   | PEcase (_e', _pats_pes) -> assert_error loc !^"PEcase"
   | PEarray_shift (e', ct, e'') ->
     let e' = n_pexpr loc e' in
