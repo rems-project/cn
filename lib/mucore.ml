@@ -29,19 +29,7 @@ let bt_of_value (V (bty, _)) = bty
 
 let bt_of_object_value (OV (bty, _)) = bty
 
-type ctor =
-  | Cnil of Cerb_frontend.Core.core_base_type
-  | Ccons
-  | Ctuple
-  | Carray
-  | Civmax
-  | Civmin
-  | Civsizeof
-  | Civalignof
-  | CivCOMPL
-  | CivAND
-  | CivOR
-  | CivXOR
+type ctor = Cerb_frontend.Core.ctor
 
 type 'TY pattern_ =
   | CaseBase of (Sym.t option * Cerb_frontend.Core.core_base_type)

@@ -752,19 +752,24 @@ and pp_core_object_type = function
   | Core.OTy_union sym -> pp_constructor "OTy_union" [ pp_symbol sym ]
 
 
-let pp_ctor = function
-  | Mucore.Cnil bt -> pp_constructor "Cnil" [ pp_core_base_type bt ]
-  | Mucore.Ccons -> pp_constructor0 "Ccons"
-  | Mucore.Ctuple -> pp_constructor0 "Ctuple"
-  | Mucore.Carray -> pp_constructor0 "Carray"
-  | Mucore.Civmax -> pp_constructor0 "Civmax"
-  | Mucore.Civmin -> pp_constructor0 "Civmin"
-  | Mucore.Civsizeof -> pp_constructor0 "Civsizeof"
-  | Mucore.Civalignof -> pp_constructor0 "Civalignof"
-  | Mucore.CivCOMPL -> pp_constructor0 "CivCOMPL"
-  | Mucore.CivAND -> pp_constructor0 "CivAND"
-  | Mucore.CivOR -> pp_constructor0 "CivOR"
-  | Mucore.CivXOR -> pp_constructor0 "CivXOR"
+let pp_ctor = Core.(function
+  | Cnil bt -> pp_constructor "Cnil" [ pp_core_base_type bt ]
+  | Ccons -> pp_constructor0 "Ccons"
+  | Ctuple -> pp_constructor0 "Ctuple"
+  | Carray -> pp_constructor0 "Carray"
+  | Civmax -> pp_constructor0 "Civmax"
+  | Civmin -> pp_constructor0 "Civmin"
+  | Civsizeof -> pp_constructor0 "Civsizeof"
+  | Civalignof -> pp_constructor0 "Civalignof"
+  | CivCOMPL -> pp_constructor0 "CivCOMPL"
+  | CivAND -> pp_constructor0 "CivAND"
+  | CivOR -> pp_constructor0 "CivOR"
+  | CivXOR -> pp_constructor0 "CivXOR"
+  | Cspecified -> assert false
+  | Cunspecified -> assert false
+  | Cfvfromint -> assert false
+  | Civfromfloat -> assert false
+  | CivNULLcap _ -> assert false)
 
 
 let pp_core_binop = function

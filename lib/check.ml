@@ -525,7 +525,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     check_value loc v
   | PEconstrained _ -> Cerb_debug.error "todo: PEconstrained"
   | PEctor (ctor, pes) ->
-    (match (ctor, pes) with
+    Cerb_frontend.Core.(match (ctor, pes) with
      | Ctuple, _ ->
        let@ () =
          WellTyped.ensure_base_type loc ~expect (Tuple (List.map Mu.bt_of_pexpr pes))
@@ -650,7 +650,12 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
            msg =
              WellTyped
                (Number_arguments { type_ = `Other; has = List.length pes; expect = 3 })
-         }))
+         })
+     | Cspecified, _ -> assert false
+     | Cunspecified, _ -> assert false
+     | Cfvfromint, _ -> assert false
+     | Civfromfloat, _ -> assert false
+     | CivNULLcap _, _ -> assert false)
   | PEbitwise_unop (unop, pe1) ->
     let@ _ = ensure_bitvector_type loc ~expect in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in

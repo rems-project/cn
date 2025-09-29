@@ -223,31 +223,7 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
     let args = List.map (n_pexpr loc) args in
     (match ctor with
      | Cspecified -> List.hd args
-     | _ ->
-       let ctor =
-         match ctor with
-         | CivCOMPL -> Mu.CivCOMPL
-         | CivAND -> CivAND
-         | CivOR -> CivOR
-         | CivXOR -> CivXOR
-         | Civsizeof -> Civsizeof
-         | Civalignof -> Civalignof
-         | Civmax -> Civmax
-         | Civmin -> Civmin
-         | Cfvfromint -> assert_error loc !^"TODO: floats"
-         | Civfromfloat -> assert_error loc !^"TODO: floats"
-         | Cnil bt1 -> Cnil bt1
-         | Ccons -> Ccons
-         | Ctuple -> Ctuple
-         | Carray -> Carray
-         | _ ->
-           assert_error
-             loc
-             (item
-                "core_to_mucore: unsupported ctor application"
-                (CF.Pp_core.Basic.pp_pexpr (Pexpr (annots, bty, pe))))
-       in
-       annotate (PEctor (ctor, args)))
+     | _ -> annotate (PEctor (ctor, args)))
   | PEcase (_e', _pats_pes) -> assert_error loc !^"PEcase"
   | PEarray_shift (e', ct, e'') ->
     let e' = n_pexpr loc e' in

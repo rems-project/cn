@@ -1400,10 +1400,11 @@ module BaseTyping = struct
             }
       in
       let@ ctor, pats =
+        let open Cerb_frontend.Core in
         match (ctor, pats) with
         | Cnil cbt, [] ->
           let@ _item_bt = get_item_bt bt in
-          return (Mu.Cnil cbt, [])
+          return (Cnil cbt, [])
         | Cnil _, _ ->
           let type_ = `Other in
           let has = List.length pats in
@@ -1412,7 +1413,7 @@ module BaseTyping = struct
           let@ item_bt = get_item_bt bt in
           let@ p1 = check_and_bind_pattern item_bt p1 in
           let@ p2 = check_and_bind_pattern bt p2 in
-          return (Mu.Ccons, [ p1; p2 ])
+          return (Ccons, [ p1; p2 ])
         | Ccons, _ ->
           let type_ = `Other in
           let has = List.length pats in
@@ -1434,7 +1435,7 @@ module BaseTyping = struct
                 }
           in
           let@ pats = ListM.map2M check_and_bind_pattern bts pats in
-          return (Mu.Ctuple, pats)
+          return (Ctuple, pats)
         | Carray, _ -> assert false
         | Civmax, _ -> assert false
         | Civmin, _ -> assert false
@@ -1444,6 +1445,11 @@ module BaseTyping = struct
         | CivAND, _ -> assert false
         | CivOR, _ -> assert false
         | CivXOR, _ -> assert false
+        | Cspecified, _ -> assert false
+        | Cunspecified, _ -> assert false
+        | Cfvfromint, _ -> assert false
+        | Civfromfloat, _ -> assert false
+        | CivNULLcap _, _ -> assert false
       in
       return (Mu.CaseCtor (ctor, pats))
 

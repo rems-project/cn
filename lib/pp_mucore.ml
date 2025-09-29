@@ -234,19 +234,7 @@ module Make (Config : CONFIG) = struct
     | Vctype ct -> Pp.squotes (pp_ctype ct)
 
 
-  let pp_ctor = function
-    | Cnil _ -> !^"Nil"
-    | Ccons -> !^"Cons"
-    | Ctuple -> !^"Tuple"
-    | Carray -> !^"Array"
-    | Civmax -> !^"Max"
-    | Civmin -> !^"Min"
-    | Civsizeof -> !^"Sizeof"
-    | Civalignof -> !^"Alignof"
-    | CivCOMPL -> !^"COMPL"
-    | CivAND -> !^"AND"
-    | CivOR -> !^"OR"
-    | CivXOR -> !^"XOR"
+  let pp_ctor = Cerb_frontend.Pp_core.Basic.pp_ctor
 
 
   let rec pp_pattern (Pattern (_, _, _, pat)) =
