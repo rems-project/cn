@@ -47,7 +47,7 @@ module Make (AD : Domain.T) = struct
           [ PathSelector.path_selector_def def;
             Gather.gather_def def;
             Concretize.concretize_def def;
-            Harness.transform_def def
+            Harness.transform_def prog5 def
           ]
         else
           (* Generate gathering, concretization, and path selector functions for non-spec definitions *)

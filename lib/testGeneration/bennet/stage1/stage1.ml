@@ -1,7 +1,8 @@
 module Make (AD : Domain.T) = struct
+  module DestructArbitrary = DestructArbitrary.Make (AD)
+
   open struct
     module Convert = Convert.Make (AD)
-    module DestructArbitrary = DestructArbitrary.Make (AD)
     module DestructProducts = DestructProducts.Make (AD)
     module Unfold = Unfold.Make (AD)
   end

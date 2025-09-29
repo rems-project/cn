@@ -508,6 +508,67 @@ module Make (GT : T) = struct
     f result
 
 
+  let rec upcast_ (tm : t_) : ('tag, 'recur) ast as 'recur =
+    match tm with
+    | `Arbitrary -> `Arbitrary
+    | `Symbolic -> `Symbolic
+    | `ArbitraryDomain ad -> `ArbitraryDomain ad
+    | `Call (fsym, iargs) -> `Call (fsym, iargs)
+    | `CallSized (fsym, iargs, sz) -> `CallSized (fsym, iargs, sz)
+    | `Asgn (addr_sct, it_val, g') -> `Asgn (addr_sct, it_val, upcast g')
+    | `AsgnElab (backtrack_var, pointer_addr_sct, it_val, g') ->
+      `AsgnElab (backtrack_var, pointer_addr_sct, it_val, upcast g')
+    | `LetStar (x_gt1, gt2) ->
+      let x, gt1 = x_gt1 in
+      `LetStar ((x, upcast gt1), upcast gt2)
+    | `Return it -> `Return it
+    | `Assert (lc, gt') -> `Assert (lc, upcast gt')
+    | `AssertDomain (ad, gt') -> `AssertDomain (ad, upcast gt')
+    | `ITE (it, gt_then, gt_else) -> `ITE (it, upcast gt_then, upcast gt_else)
+    | `Map (i_bt_perm, gt') -> `Map (i_bt_perm, upcast gt')
+    | `MapElab (i_bt_bounds_perm, gt') -> `MapElab (i_bt_bounds_perm, upcast gt')
+    | `Pick gts -> `Pick (List.map upcast gts)
+    | `PickSized choices -> `PickSized (List.map (fun (w, g) -> (w, upcast g)) choices)
+    | `PickSizedElab (pick_var, choices) ->
+      `PickSizedElab (pick_var, List.map (fun (w, g) -> (w, upcast g)) choices)
+    | `SplitSize (syms, gt') -> `SplitSize (syms, upcast gt')
+    | `SplitSizeElab (split_var, syms, gt') -> `SplitSizeElab (split_var, syms, upcast gt')
+
+
+  and upcast (Annot (tm_, tag, bt, loc)) : ('tag, (('tag, 'recur) ast as 'recur)) annot =
+    Annot (upcast_ tm_, tag, bt, loc)
+
+
+  let rec downcast (tm : ('tag, (('tag, 'recur) ast as 'recur)) annot) : t =
+    let (Annot (tm_, tag, bt, loc)) = tm in
+    match tm_ with
+    | `Arbitrary -> arbitrary_ tag bt loc
+    | `Symbolic -> symbolic_ tag bt loc
+    | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+    | `Call (fsym, iargs) -> call_ (fsym, iargs) tag bt loc
+    | `CallSized (fsym, iargs, sz) -> call_sized_ (fsym, iargs, sz) tag bt loc
+    | `Asgn (addr_sct, it_val, g') -> asgn_ (addr_sct, it_val, downcast g') tag loc
+    | `AsgnElab (backtrack_var, pointer_addr_sct, it_val, g') ->
+      asgn_elab_ (backtrack_var, pointer_addr_sct, it_val, downcast g') tag loc
+    | `LetStar (x_gt1, gt2) ->
+      let x, gt1 = x_gt1 in
+      let_star_ ((x, downcast gt1), downcast gt2) tag loc
+    | `Return it -> return_ it tag loc
+    | `Assert (lc, gt') -> assert_ (lc, downcast gt') tag loc
+    | `AssertDomain (ad, gt') -> assert_domain_ (ad, downcast gt') tag loc
+    | `ITE (it, gt_then, gt_else) -> ite_ (it, downcast gt_then, downcast gt_else) tag loc
+    | `Map (i_bt_perm, gt') -> map_ (i_bt_perm, downcast gt') tag loc
+    | `MapElab (i_bt_bounds_perm, gt') ->
+      map_elab_ (i_bt_bounds_perm, downcast gt') tag loc
+    | `Pick gts -> pick_ (List.map downcast gts) tag bt loc
+    | `PickSized choices -> pick_sized_ (List.map_snd downcast choices) tag bt loc
+    | `PickSizedElab (pick_var, choices) ->
+      pick_sized_elab_ pick_var (List.map_snd downcast choices) tag bt loc
+    | `SplitSize (syms, gt') -> split_size_ (syms, downcast gt') tag loc
+    | `SplitSizeElab (split_var, syms, gt') ->
+      split_size_elab_ (split_var, syms, downcast gt') tag loc
+
+
   (***************)
   (* Elaboration *)
   (***************)

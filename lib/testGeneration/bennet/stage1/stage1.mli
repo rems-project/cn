@@ -1,4 +1,6 @@
 module Make (AD : Domain.T) : sig
+  module DestructArbitrary : module type of DestructArbitrary.Make (AD)
+
   module Term : module type of Term.Make (AD)
 
   module Def : module type of Def.Make (AD)
