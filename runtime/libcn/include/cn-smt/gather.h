@@ -36,9 +36,6 @@ cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type);
 cn_term* cn_smt_gather_call_function(
     cn_sym function_symbol, cn_term** args, size_t arg_count);
 
-// PICK functionality - following BENNET_PICK pattern
-uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices);
-
 // Assert macro - adds logical constraint to context
 #define CN_SMT_GATHER_ASSERT(cond)                                                       \
   do {                                                                                   \

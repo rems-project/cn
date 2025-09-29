@@ -5,6 +5,8 @@
 #include <stddef.h>
 
 #include <bennet/utils/vector.h>
+#include <cn-smt/sexp.h>
+#include <cn-smt/solver.h>
 #include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 
@@ -19,6 +21,18 @@ extern "C" {
 typedef struct cn_constraint_context cn_constraint_context;
 typedef struct cn_resource_constraint cn_resource_constraint;
 typedef struct cn_logical_constraint cn_logical_constraint;
+
+// Variable entry structure to hold both type and skew
+typedef struct cn_variable_entry {
+  cn_base_type type;
+  cn_term* skew;
+} cn_variable_entry;
+
+// Declare optional type for cn_variable_entry
+BENNET_OPTIONAL_DECL(cn_variable_entry);
+
+// Declare hash table type for cn_sym -> cn_variable_entry
+BENNET_HASH_TABLE_DECL(cn_sym, cn_variable_entry)
 
 // Resource constraint
 typedef struct cn_resource_constraint {
@@ -50,8 +64,8 @@ typedef struct cn_logical_constraint {
 
 // Main constraint context structure
 typedef struct cn_constraint_context {
-  // Variable context - maps cn_sym to cn_base_type
-  bennet_hash_table(cn_sym, cn_base_type) * variables;
+  // Variable context - maps cn_sym to cn_variable_entry (type and skew)
+  bennet_hash_table(cn_sym, cn_variable_entry) * variables;
 
   cn_resource_constraint* resource_constraints;
   cn_logical_constraint* logical_constraints;
@@ -68,9 +82,11 @@ void cn_context_destroy(cn_constraint_context* ctx);
 void cn_context_clear(cn_constraint_context* ctx);
 
 // Variable context management
-void cn_context_add_variable(cn_constraint_context* ctx, cn_sym var, cn_base_type type);
+void cn_context_add_variable(
+    cn_constraint_context* ctx, cn_sym var, cn_base_type type, cn_term* skew);
 bennet_optional(cn_base_type)
     cn_context_get_variable_type(const cn_constraint_context* ctx, cn_sym var);
+cn_term* cn_context_get_variable_skew(const cn_constraint_context* ctx, cn_sym var);
 bool cn_context_has_variable(const cn_constraint_context* ctx, cn_sym var);
 size_t cn_context_variable_count(const cn_constraint_context* ctx);
 
@@ -103,12 +119,17 @@ const cn_resource_constraint* cn_context_first_resource(const cn_constraint_cont
 const cn_logical_constraint* cn_context_first_logical(const cn_constraint_context* ctx);
 
 // Variable iteration function
-typedef void (*cn_variable_callback)(cn_sym var, cn_base_type type, void* user_data);
+typedef void (*cn_variable_callback)(
+    cn_sym var, cn_variable_entry entry, void* user_data);
 void cn_context_foreach_variable(
     const cn_constraint_context* ctx, cn_variable_callback callback, void* user_data);
 
 // Debug/printing functions (optional)
 void cn_context_print_summary(const cn_constraint_context* ctx);
+
+// SMT solver integration
+enum cn_smt_solver_result cn_smt_context_model(
+    struct cn_smt_solver* smt_solver, const cn_constraint_context* ctx);
 
 #ifdef __cplusplus
 }

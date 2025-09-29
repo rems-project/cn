@@ -236,6 +236,7 @@ typedef struct {
 sexp_t *match_datatype(sexp_t *expr, match_alt_t *alts, size_t alt_count);
 sexp_t *is_con(const char *constructor, sexp_t *expr);
 sexp_t *assume(sexp_t *expr);
+sexp_t *assume_soft(sexp_t *expr);
 
 #ifdef __cplusplus
 }

@@ -2,7 +2,9 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
+#include <bennet/internals/domains/sized.h>
 #include <bennet/state/rand_alloc.h>
 #include <cn-smt/gather.h>
 #include <cn-smt/solver.h>
@@ -137,7 +139,89 @@ cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type) 
 
   cn_sym sym = {.name = strdup(name), .id = cn_gather_context->counter};
   cn_term* res = cn_smt_sym(sym, type);
-  cn_context_add_variable(cn_gather_context, res->data.sym, type);
+
+  // Generate skew value based on type
+  cn_term* skew = NULL;
+
+  // For pointers and bitvectors, generate skew values using bennet_arbitrary
+  switch (type.tag) {
+    case CN_BASE_LOC: {
+      // Generate an arbitrary pointer value as skew
+      uintptr_t generated_ptr = bennet_arbitrary_sized_uintptr_t_top();
+      skew = cn_smt_pointer(generated_ptr);
+      break;
+    }
+
+    case CN_BASE_BITS: {
+      cn_bits_info bits_info = cn_base_type_get_bits_info(type);
+
+      if (bits_info.is_signed) {
+        // Handle signed bitvectors
+        switch (bits_info.size_bits) {
+          case 8: {
+            int8_t generated_val = bennet_arbitrary_sized_int8_t_top();
+            skew = cn_smt_bits(true, 8, generated_val);
+            break;
+          }
+          case 16: {
+            int16_t generated_val = bennet_arbitrary_sized_int16_t_top();
+            skew = cn_smt_bits(true, 16, generated_val);
+            break;
+          }
+          case 32: {
+            int32_t generated_val = bennet_arbitrary_sized_int32_t_top();
+            skew = cn_smt_bits(true, 32, generated_val);
+            break;
+          }
+          case 64: {
+            int64_t generated_val = bennet_arbitrary_sized_int64_t_top();
+            skew = cn_smt_bits(true, 64, generated_val);
+            break;
+          }
+
+          default:
+            assert(false);  // Unreachable
+        }
+      } else {
+        // Handle unsigned bitvectors
+        switch (bits_info.size_bits) {
+          case 8: {
+            uint8_t generated_val = bennet_arbitrary_sized_uint8_t_top();
+            skew = cn_smt_bits(false, 8, generated_val);
+            break;
+          }
+          case 16: {
+            uint16_t generated_val = bennet_arbitrary_sized_uint16_t_top();
+            skew = cn_smt_bits(false, 16, generated_val);
+            break;
+          }
+          case 32: {
+            uint32_t generated_val = bennet_arbitrary_sized_uint32_t_top();
+            skew = cn_smt_bits(false, 32, generated_val);
+            break;
+          }
+          case 64: {
+            uint64_t generated_val = bennet_arbitrary_sized_uint64_t_top();
+            skew = cn_smt_bits(false, 64, generated_val);
+            break;
+          }
+
+          default:
+            assert(false);  // Unreachable
+        }
+      }
+      break;
+    }
+
+    default:
+      printf("DEBUG: Unhandled type tag in cn_smt_gather_create_symbolic_var: %d\n",
+          type.tag);
+      fflush(stdout);
+      assert(false);  // Unreachable
+  }
+
+  // Add variable with its skew to the context
+  cn_context_add_variable(cn_gather_context, res->data.sym, type, skew);
 
   return res;
 }
@@ -174,194 +258,6 @@ bool cn_smt_gather_conditional_branch(cn_term* condition, uint8_t x, uint8_t y) 
   return random_value < x;
 }
 
-// Weighted choice implementation
-uint64_t cn_smt_gather_weighted_choice(uint64_t* choices, size_t num_choices) {
-  // Simple implementation - for now just return the first choice
-  // In a real implementation, this would use the weights for probabilistic selection
-  return choices[0];
-}
-
-// Helper callback for declaring variables in SMT solver
-static void declare_variable_callback(cn_sym var, cn_base_type type, void* user_data) {
-  struct cn_smt_solver* solver = (struct cn_smt_solver*)user_data;
-  cn_declare_variable(solver, var, type);
-}
-
 enum cn_smt_solver_result cn_smt_gather_model(struct cn_smt_solver* smt_solver) {
-  if (!cn_gather_context) {
-    // No constraints to check, return satisfiable
-    return CN_SOLVER_SAT;
-  }
-
-  // Declare all variables in the context first
-  cn_context_foreach_variable(cn_gather_context, declare_variable_callback, smt_solver);
-
-  // Add all logical constraints as assertions to the solver
-  const cn_logical_constraint* logical_constraint =
-      cn_context_first_logical(cn_gather_context);
-  while (logical_constraint != NULL) {
-    sexp_t* smt_expr = NULL;
-
-    switch (logical_constraint->type) {
-      case CN_LOGICAL_TERM: {
-        // Convert the term to SMT and add as assertion
-        smt_expr = translate_term(smt_solver, logical_constraint->data.term);
-        break;
-      }
-
-      case CN_LOGICAL_FORALL: {
-        // For forall constraints, we need to create a quantified formula
-        // Note: This is simplified - in practice you might need more sophisticated handling
-        sexp_t* body_smt =
-            translate_term(smt_solver, logical_constraint->data.forall.body);
-
-        // Create variable binding for the quantifier
-        sexp_t* var_smt = symbol(logical_constraint->data.forall.var_name.name);
-        sexp_t* var_type_smt = NULL;
-
-        // Convert base type to SMT type
-        switch (logical_constraint->data.forall.var_type.tag) {
-          case CN_BASE_INTEGER:
-            var_type_smt = t_int();
-            break;
-          case CN_BASE_BOOL:
-            var_type_smt = t_bool();
-            break;
-          case CN_BASE_BITS: {
-            int width = logical_constraint->data.forall.var_type.data.bits.size_bits;
-            var_type_smt = t_bits(width);
-            break;
-          }
-          default:
-            var_type_smt = t_int();  // fallback
-            break;
-        }
-
-        sexp_t* binding = sexp_list((sexp_t*[]){var_smt, var_type_smt}, 2);
-        sexp_t* bindings[] = {binding};
-        smt_expr = forall(bindings, 1, body_smt);
-        break;
-      }
-    }
-
-    if (smt_expr) {
-      // Add the constraint as an assertion
-      sexp_t* assert_cmd = assume(smt_expr);
-      ack_command(smt_solver, assert_cmd);
-      sexp_free(assert_cmd);
-    }
-
-    logical_constraint = logical_constraint->next;
-  }
-
-  // Handle resource constraints
-  const cn_resource_constraint* resource_constraint =
-      cn_context_first_resource(cn_gather_context);
-
-  // Setup resource bounds
-  if (resource_constraint != NULL) {
-    sexp_t* define_min_ptr = define_const(
-        "bennet_min_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_min_ptr()));
-    ack_command(smt_solver, define_min_ptr);
-    sexp_free(define_min_ptr);
-
-    sexp_t* define_max_ptr = define_const(
-        "bennet_max_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_max_ptr()));
-    ack_command(smt_solver, define_max_ptr);
-    sexp_free(define_max_ptr);
-
-    sexp_t* min_ptr_smt = sexp_atom("bennet_min_ptr");
-    sexp_t* max_ptr_smt = sexp_atom("bennet_max_ptr");
-
-    while (resource_constraint != NULL) {
-      // Convert start and end addresses to SMT terms
-      sexp_t* start_addr_smt =
-          translate_term(smt_solver, resource_constraint->start_addr);
-      sexp_t* end_addr_smt = translate_term(smt_solver, resource_constraint->end_addr);
-
-      // Create assertion: `min_ptr <= start_addr`
-      sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, start_addr_smt);
-      sexp_t* min_bound_assert = assume(min_bound_expr);
-      ack_command(smt_solver, min_bound_assert);
-      sexp_free(min_bound_assert);
-
-      // Create assertion: `end_addr <= max_ptr`
-      sexp_t* max_bound_expr = bv_uleq(end_addr_smt, max_ptr_smt);
-      sexp_t* max_bound_assert = assume(max_bound_expr);
-      ack_command(smt_solver, max_bound_assert);
-      sexp_free(max_bound_assert);
-
-      // CRITICAL: Prevent bitvector overflow by ensuring start_addr doesn't get too close to max
-      // Add constraint: start_addr + 65536 <= max_ptr (leave safe margin)
-      sexp_t* safety_margin = loc_k(65536);
-      sexp_t* start_plus_margin = bv_add(start_addr_smt, safety_margin);
-      sexp_t* overflow_guard_expr = bv_uleq(start_plus_margin, max_ptr_smt);
-      sexp_t* overflow_guard_assert = assume(overflow_guard_expr);
-      ack_command(smt_solver, overflow_guard_assert);
-      sexp_free(overflow_guard_assert);
-      sexp_free(safety_margin);
-      sexp_free(start_plus_margin);
-
-      // Ensure start_addr <= end_addr (prevents overflow and ensures validity)
-      sexp_t* validity_expr = bv_uleq(start_addr_smt, end_addr_smt);
-      sexp_t* validity_assert = assume(validity_expr);
-      ack_command(smt_solver, validity_assert);
-      sexp_free(validity_assert);
-
-      // Alignment
-      if (resource_constraint->alignment > 1) {
-        sexp_t* alignment_smt = loc_k(resource_constraint->alignment);
-        sexp_t* start_mask_align =
-            bv_and(start_addr_smt, bv_sub(alignment_smt, loc_k(1)));
-        sexp_t* zero_smt = loc_k(0);
-        sexp_t* alignment_expr =
-            sexp_list((sexp_t*[]){sexp_atom("="), start_mask_align, zero_smt}, 3);
-        sexp_t* alignment_assert = assume(alignment_expr);
-        ack_command(smt_solver, alignment_assert);
-        sexp_free(alignment_assert);
-        sexp_free(alignment_smt);
-        sexp_free(zero_smt);
-      }
-
-      // Ensure exclusive ownership (non-overlapping)
-      // For each other resource constraint, assert they don't overlap
-      const cn_resource_constraint* other_resource =
-          cn_context_first_resource(cn_gather_context);
-      while (other_resource != NULL) {
-        // Skip comparison with itself
-        if (other_resource == resource_constraint) {
-          other_resource = other_resource->next;
-          continue;
-        }
-
-        {
-          // For two resources (start_a, end_a) and (start_b, end_b),
-          // assert: end_a < start_b || end_b < start_a
-
-          sexp_t* other_start_smt =
-              translate_term(smt_solver, other_resource->start_addr);
-          sexp_t* other_end_smt = translate_term(smt_solver, other_resource->end_addr);
-
-          // Condition 1: current_end < other_start
-          sexp_t* cond1 = bv_ult(end_addr_smt, other_start_smt);
-
-          // Condition 2: other_end < current_start
-          sexp_t* cond2 = bv_ult(other_end_smt, start_addr_smt);
-
-          // Non-overlap constraint: cond1 || cond2
-          sexp_t* non_overlap_expr = bool_or(cond1, cond2);
-          sexp_t* non_overlap_assert = assume(non_overlap_expr);
-          ack_command(smt_solver, non_overlap_assert);
-          sexp_free(non_overlap_assert);
-        }
-
-        other_resource = other_resource->next;
-      }
-
-      resource_constraint = resource_constraint->next;
-    }
-  }
-
-  // Check satisfiability
-  return check(smt_solver);
+  return cn_smt_context_model(smt_solver, cn_gather_context);
 }

@@ -3,14 +3,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/state/rand_alloc.h>
 #include <cn-smt/context.h>
 #include <cn-smt/subst.h>
+#include <cn-smt/to_smt.h>
 
 // Generate hash table implementation for uint64_t -> cn_term_ptr
 BENNET_HASH_TABLE_IMPL(uint64_t, cn_term_ptr)
 
-// Generate hash table implementation for cn_sym -> cn_base_type
-BENNET_HASH_TABLE_IMPL(cn_sym, cn_base_type)
+// Generate hash table implementation for cn_sym -> cn_variable_entry
+BENNET_HASH_TABLE_IMPL(cn_sym, cn_variable_entry)
 
 // Generate vector implementation for cn_term_ptr
 BENNET_VECTOR_IMPL(cn_term_ptr)
@@ -30,9 +32,9 @@ cn_constraint_context* cn_context_create(void) {
   ctx->counter = 0;
 
   // Initialize variables hash table
-  ctx->variables = malloc(sizeof(bennet_hash_table(cn_sym, cn_base_type)));
+  ctx->variables = malloc(sizeof(bennet_hash_table(cn_sym, cn_variable_entry)));
   assert(ctx->variables);
-  bennet_hash_table_init(cn_sym, cn_base_type)(
+  bennet_hash_table_init(cn_sym, cn_variable_entry)(
       ctx->variables, bennet_hash_cn_sym, bennet_eq_cn_sym);
 
   return ctx;
@@ -59,7 +61,7 @@ void cn_context_destroy(cn_constraint_context* ctx) {
   }
 
   // Free variables hash table
-  bennet_hash_table_free(cn_sym, cn_base_type)(ctx->variables);
+  bennet_hash_table_free(cn_sym, cn_variable_entry)(ctx->variables);
   free(ctx->variables);
 
   free(ctx);
@@ -90,7 +92,7 @@ void cn_context_clear(cn_constraint_context* ctx) {
   ctx->logical_count = 0;
 
   // Clear variables hash table
-  bennet_hash_table_clear(cn_sym, cn_base_type)(ctx->variables);
+  bennet_hash_table_clear(cn_sym, cn_variable_entry)(ctx->variables);
 
   // Reset counter
   ctx->counter = 0;
@@ -186,29 +188,49 @@ void cn_logical_constraint_destroy(cn_logical_constraint* constraint) {
 }
 
 // Variable context management
-void cn_context_add_variable(cn_constraint_context* ctx, cn_sym var, cn_base_type type) {
+void cn_context_add_variable(
+    cn_constraint_context* ctx, cn_sym var, cn_base_type type, cn_term* skew) {
   assert(ctx && ctx->variables);
 
-  bennet_hash_table_set(cn_sym, cn_base_type)(ctx->variables, var, type);
+  cn_variable_entry entry = {.type = type, .skew = skew};
+  bennet_hash_table_set(cn_sym, cn_variable_entry)(ctx->variables, var, entry);
 }
 
 bennet_optional(cn_base_type)
     cn_context_get_variable_type(const cn_constraint_context* ctx, cn_sym var) {
   assert(ctx && ctx->variables);
 
-  return bennet_hash_table_get(cn_sym, cn_base_type)(ctx->variables, var);
+  bennet_optional(cn_variable_entry) entry =
+      bennet_hash_table_get(cn_sym, cn_variable_entry)(ctx->variables, var);
+  if (entry.is_some) {
+    return bennet_optional_some(cn_base_type, entry.body.type);
+  } else {
+    return bennet_optional_none(cn_base_type);
+  }
+}
+
+cn_term* cn_context_get_variable_skew(const cn_constraint_context* ctx, cn_sym var) {
+  assert(ctx && ctx->variables);
+
+  bennet_optional(cn_variable_entry) entry =
+      bennet_hash_table_get(cn_sym, cn_variable_entry)(ctx->variables, var);
+  if (entry.is_some) {
+    return entry.body.skew;
+  } else {
+    return NULL;
+  }
 }
 
 bool cn_context_has_variable(const cn_constraint_context* ctx, cn_sym var) {
   assert(ctx && ctx->variables);
 
-  return bennet_hash_table_contains(cn_sym, cn_base_type)(ctx->variables, var);
+  return bennet_hash_table_contains(cn_sym, cn_variable_entry)(ctx->variables, var);
 }
 
 size_t cn_context_variable_count(const cn_constraint_context* ctx) {
   assert(ctx && ctx->variables);
 
-  return bennet_hash_table_size(cn_sym, cn_base_type)(ctx->variables);
+  return bennet_hash_table_size(cn_sym, cn_variable_entry)(ctx->variables);
 }
 
 void cn_context_foreach_variable(
@@ -289,4 +311,193 @@ void cn_context_print_summary(const cn_constraint_context* ctx) {
       printf("    ... and %zu more\n", ctx->logical_count - 5);
     }
   }
+}
+
+enum cn_smt_solver_result cn_smt_context_model(
+    struct cn_smt_solver* smt_solver, const cn_constraint_context* ctx) {
+  assert(ctx != NULL);
+  assert(ctx->variables != NULL);
+
+  // Declare all variables in the context first
+  for (size_t i = 0; i < ctx->variables->capacity; i++) {
+    if (ctx->variables->entries[i].occupied) {
+      cn_sym var = ctx->variables->entries[i].key;
+      cn_variable_entry entry = ctx->variables->entries[i].value;
+      cn_declare_variable(smt_solver, var, entry.type);
+
+      cn_term* eq_term = cn_smt_eq(cn_smt_sym(var, entry.type), entry.skew);
+      sexp_t* eq_smt = translate_term(smt_solver, eq_term);
+      sexp_t* eq_soft_assert = assume_soft(eq_smt);
+      ack_command(smt_solver, eq_soft_assert);
+      free(eq_soft_assert);
+      free(eq_term);
+      free(eq_smt);
+    }
+  }
+
+  // Add all logical constraints as assertions to the solver
+  const cn_logical_constraint* logical_constraint = ctx->logical_constraints;
+  while (logical_constraint != NULL) {
+    sexp_t* smt_expr = NULL;
+
+    switch (logical_constraint->type) {
+      case CN_LOGICAL_TERM: {
+        // Convert the term to SMT and add as assertion
+        smt_expr = translate_term(smt_solver, logical_constraint->data.term);
+        break;
+      }
+
+      case CN_LOGICAL_FORALL: {
+        // For forall constraints, we need to create a quantified formula
+        // Note: This is simplified - in practice you might need more sophisticated handling
+        sexp_t* body_smt =
+            translate_term(smt_solver, logical_constraint->data.forall.body);
+
+        // Create variable binding for the quantifier
+        sexp_t* var_smt = symbol(logical_constraint->data.forall.var_name.name);
+        sexp_t* var_type_smt = NULL;
+
+        // Convert base type to SMT type
+        switch (logical_constraint->data.forall.var_type.tag) {
+          case CN_BASE_INTEGER:
+            var_type_smt = t_int();
+            break;
+          case CN_BASE_BOOL:
+            var_type_smt = t_bool();
+            break;
+          case CN_BASE_BITS: {
+            int width = logical_constraint->data.forall.var_type.data.bits.size_bits;
+            var_type_smt = t_bits(width);
+            break;
+          }
+          default:
+            var_type_smt = t_int();  // fallback
+            break;
+        }
+
+        sexp_t* binding = sexp_list((sexp_t*[]){var_smt, var_type_smt}, 2);
+        sexp_t* bindings[] = {binding};
+        smt_expr = forall(bindings, 1, body_smt);
+        break;
+      }
+    }
+
+    if (smt_expr) {
+      // Add the constraint as an assertion
+      sexp_t* assert_cmd = assume(smt_expr);
+      ack_command(smt_solver, assert_cmd);
+      sexp_free(assert_cmd);
+    }
+
+    logical_constraint = logical_constraint->next;
+  }
+
+  // Handle resource constraints
+  const cn_resource_constraint* resource_constraint = ctx->resource_constraints;
+
+  // Setup resource bounds
+  if (resource_constraint != NULL) {
+    sexp_t* define_min_ptr = define_const(
+        "bennet_min_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_min_ptr()));
+    ack_command(smt_solver, define_min_ptr);
+    sexp_free(define_min_ptr);
+
+    sexp_t* define_max_ptr = define_const(
+        "bennet_max_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_max_ptr()));
+    ack_command(smt_solver, define_max_ptr);
+    sexp_free(define_max_ptr);
+
+    sexp_t* min_ptr_smt = sexp_atom("bennet_min_ptr");
+    sexp_t* max_ptr_smt = sexp_atom("bennet_max_ptr");
+
+    while (resource_constraint != NULL) {
+      // Convert start and end addresses to SMT terms
+      sexp_t* start_addr_smt =
+          translate_term(smt_solver, resource_constraint->start_addr);
+      sexp_t* end_addr_smt = translate_term(smt_solver, resource_constraint->end_addr);
+
+      // Create assertion: `min_ptr <= start_addr`
+      sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, start_addr_smt);
+      sexp_t* min_bound_assert = assume(min_bound_expr);
+      ack_command(smt_solver, min_bound_assert);
+      sexp_free(min_bound_assert);
+
+      // Create assertion: `end_addr <= max_ptr`
+      sexp_t* max_bound_expr = bv_uleq(end_addr_smt, max_ptr_smt);
+      sexp_t* max_bound_assert = assume(max_bound_expr);
+      ack_command(smt_solver, max_bound_assert);
+      sexp_free(max_bound_assert);
+
+      // CRITICAL: Prevent bitvector overflow by ensuring start_addr doesn't get too close to max
+      // Add constraint: start_addr + 65536 <= max_ptr (leave safe margin)
+      sexp_t* safety_margin = loc_k(65536);
+      sexp_t* start_plus_margin = bv_add(start_addr_smt, safety_margin);
+      sexp_t* overflow_guard_expr = bv_uleq(start_plus_margin, max_ptr_smt);
+      sexp_t* overflow_guard_assert = assume(overflow_guard_expr);
+      ack_command(smt_solver, overflow_guard_assert);
+      sexp_free(overflow_guard_assert);
+      sexp_free(safety_margin);
+      sexp_free(start_plus_margin);
+
+      // Ensure start_addr <= end_addr (prevents overflow and ensures validity)
+      sexp_t* validity_expr = bv_uleq(start_addr_smt, end_addr_smt);
+      sexp_t* validity_assert = assume(validity_expr);
+      ack_command(smt_solver, validity_assert);
+      sexp_free(validity_assert);
+
+      // Alignment
+      if (resource_constraint->alignment > 1) {
+        sexp_t* alignment_smt = loc_k(resource_constraint->alignment);
+        sexp_t* start_mask_align =
+            bv_and(start_addr_smt, bv_sub(alignment_smt, loc_k(1)));
+        sexp_t* zero_smt = loc_k(0);
+        sexp_t* alignment_expr =
+            sexp_list((sexp_t*[]){sexp_atom("="), start_mask_align, zero_smt}, 3);
+        sexp_t* alignment_assert = assume(alignment_expr);
+        ack_command(smt_solver, alignment_assert);
+        sexp_free(alignment_assert);
+        sexp_free(alignment_smt);
+        sexp_free(zero_smt);
+      }
+
+      // Ensure exclusive ownership (non-overlapping)
+      // For each other resource constraint, assert they don't overlap
+      const cn_resource_constraint* other_resource = ctx->resource_constraints;
+      while (other_resource != NULL) {
+        // Skip comparison with itself
+        if (other_resource == resource_constraint) {
+          other_resource = other_resource->next;
+          continue;
+        }
+
+        {
+          // For two resources (start_a, end_a) and (start_b, end_b),
+          // assert: end_a < start_b || end_b < start_a
+
+          sexp_t* other_start_smt =
+              translate_term(smt_solver, other_resource->start_addr);
+          sexp_t* other_end_smt = translate_term(smt_solver, other_resource->end_addr);
+
+          // Condition 1: current_end < other_start
+          sexp_t* cond1 = bv_ult(end_addr_smt, other_start_smt);
+
+          // Condition 2: other_end < current_start
+          sexp_t* cond2 = bv_ult(other_end_smt, start_addr_smt);
+
+          // Non-overlap constraint: cond1 || cond2
+          sexp_t* non_overlap_expr = bool_or(cond1, cond2);
+          sexp_t* non_overlap_assert = assume(non_overlap_expr);
+          ack_command(smt_solver, non_overlap_assert);
+          sexp_free(non_overlap_assert);
+        }
+
+        other_resource = other_resource->next;
+      }
+
+      resource_constraint = resource_constraint->next;
+    }
+  }
+
+  // Check satisfiability
+  return check(smt_solver);
 }
