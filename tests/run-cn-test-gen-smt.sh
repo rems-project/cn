@@ -7,6 +7,7 @@ cd "$SCRIPT_DIR/cn-test-gen" || exit 1
 
 # List of test files to run with the SMT solver
 TO_TEST=(
+  "abs_mem.fail.c"
   "abs_mem.pass.c"
   "abs.pass.c"
   "array_shift.pass.c"
@@ -20,6 +21,7 @@ TO_TEST=(
   "learn_cast.special.c"
   "learn_equality.pass.c"
   "learn_multiple.special.c"
+  "list_rev.fail.c"
   "list_rev.pass.c"
   "list_seg.pass.c"
   "member_shift.pass.c"
@@ -29,6 +31,7 @@ TO_TEST=(
   "non_access_global.pass.c"
   "runway.pass.c"
   "smt_pruning.pass.c"
+  "sorted_list_alt.insert.flaky.c"
   "sorted_list_alt.insert.pass.c"
   "sorted_list_alt3.pass.c"
   "test_macro.fail.c"

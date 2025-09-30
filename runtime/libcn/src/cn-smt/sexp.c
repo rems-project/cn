@@ -1678,3 +1678,11 @@ sexp_t *assume(sexp_t *expr) {
   sexp_t *args[] = {expr};
   return sexp_app_str("assert", args, 1);
 }
+
+/** Add an assertion to the current scope. */
+sexp_t *assume_soft(sexp_t *expr) {
+  assert(expr);
+
+  sexp_t *args[] = {expr};
+  return sexp_app_str("assert-soft", args, 1);
+}
