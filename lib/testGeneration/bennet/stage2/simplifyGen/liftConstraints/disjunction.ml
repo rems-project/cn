@@ -29,9 +29,7 @@ module Make (AD : Domain.T) = struct
        (* De Morgan's Law *)
        | IT (Binop (And, e1, e2), info, loc) ->
          Binop
-           ( Or,
-             dnf (IT.IT (Unop (Not, e1), info, loc)),
-             dnf (IT (Unop (Not, e2), info, loc)) )
+           (Or, dnf (IT (Unop (Not, e1), info, loc)), dnf (IT (Unop (Not, e2), info, loc)))
        | IT (Binop (Or, e1, e2), info, loc) ->
          Binop
            ( And,
@@ -84,8 +82,8 @@ module Make (AD : Domain.T) = struct
            let its_split, its_left =
              it
              |> listify_constraints
-             |> List.partition (fun it' ->
-               match it with
+             |> List.partition (fun (it' : IT.t) ->
+               match it' with
                | IT (Binop (EQ, IT (Sym x, _, _), _), _, _) when not (Sym.Set.mem x ext)
                  ->
                  true
