@@ -24,6 +24,8 @@ let run_tests
       output_dir
       only
       skip
+      only_fulminate
+      skip_fulminate
       dont_run
       num_samples
       max_backtracks
@@ -168,7 +170,7 @@ let run_tests
            ~without_loop_invariants:true
            ~with_loop_leak_checks:false
            ~with_testing:true
-           ~skip_and_only:([], [])
+           ~skip_and_only:(skip_fulminate, only_fulminate)
            filename
            cc
            pp_file
@@ -226,6 +228,22 @@ module Flags = struct
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+
+
+  let only_fulminate =
+    let doc =
+      "Only check the pre- and post-conditions of this function (or comma-separated \
+       names)"
+    in
+    Arg.(value & opt (list string) [] & info [ "only-fulminate" ] ~doc)
+
+
+  let skip_fulminate =
+    let doc =
+      "Skip checking the pre- and post-conditions of this function (or comma-separated \
+       names)"
+    in
+    Arg.(value & opt (list string) [] & info [ "skip-fulminate" ] ~doc)
 
 
   let dont_run =
@@ -579,6 +597,8 @@ let cmd =
     $ Flags.output_dir
     $ Flags.only
     $ Flags.skip
+    $ Flags.only_fulminate
+    $ Flags.skip_fulminate
     $ Flags.dont_run
     $ Flags.gen_num_samples
     $ Flags.gen_backtrack_attempts
