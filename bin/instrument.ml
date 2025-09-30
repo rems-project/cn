@@ -105,7 +105,6 @@ let generate_executable_specs
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
-  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -159,6 +158,7 @@ let generate_executable_specs
                 ~with_loop_leak_checks
                 ~experimental_ownership_stack_mode
                 ~with_testing
+                ~skip_and_only:(skip, only)
                 filename
                 cc
                 pp_file

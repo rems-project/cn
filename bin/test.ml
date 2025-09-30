@@ -71,7 +71,6 @@ let run_tests
   (* flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.print_level := print_level;
-  Check.skip_and_only := (skip, only);
   Sym.executable_spec_enabled := true;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
@@ -104,7 +103,8 @@ let run_tests
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
-        { cc;
+        { skip_and_only = (skip, only);
+          cc;
           print_steps;
           num_samples;
           max_backtracks;
@@ -168,6 +168,7 @@ let run_tests
            ~without_loop_invariants:true
            ~with_loop_leak_checks:false
            ~with_testing:true
+           ~skip_and_only:([], [])
            filename
            cc
            pp_file

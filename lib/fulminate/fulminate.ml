@@ -268,8 +268,9 @@ let get_main_sym sym_list =
   List.filter (fun sym -> String.equal (Sym.pp_string sym) "main") sym_list
 
 
-(* Filtering based on Check.skip_and_only *)
+(* Filtering *)
 let filter_using_skip_and_only
+      skip_and_only
       ( (prog5 : unit Mucore.file),
         (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma),
         (instrumentation : Extract.instrumentation list) )
@@ -278,7 +279,7 @@ let filter_using_skip_and_only
   let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
   let main_sym = get_main_sym prog5_fns_list in
   let selected_function_syms =
-    Sym.Set.elements (Check.select_functions all_fns_sym_set)
+    Sym.Set.elements (Check.select_functions skip_and_only all_fns_sym_set)
   in
   let is_sym_selected =
     fun sym -> List.mem Sym.equal sym (selected_function_syms @ main_sym)
@@ -302,6 +303,7 @@ let main
       ?(with_loop_leak_checks = false)
       ?(experimental_ownership_stack_mode = false)
       ?(with_testing = false)
+      ~skip_and_only
       filename
       cc
       in_filename (* WARNING: this file will be deleted after this function *)
@@ -342,7 +344,7 @@ let main
   in
   (* Filters based on functions passed to --only and/or --skip *)
   let filtered_instrumentation, filtered_sigm =
-    filter_using_skip_and_only (prog5, sigm, full_instrumentation)
+    filter_using_skip_and_only skip_and_only (prog5, sigm, full_instrumentation)
   in
   let static_funcs =
     filtered_instrumentation

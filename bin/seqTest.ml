@@ -71,6 +71,7 @@ let run_seq_tests
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
              ~with_testing:true
+             ~skip_and_only:([], [])
              filename
              cc
              pp_file

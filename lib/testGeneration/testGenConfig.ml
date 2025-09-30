@@ -27,6 +27,7 @@ type sizing_strategy =
 
 type t =
   { (* Compile time *)
+    skip_and_only : string list * string list;
     cc : string;
     print_steps : bool;
     num_samples : int;
@@ -73,7 +74,8 @@ type t =
   }
 
 let default =
-  { cc = "cc";
+  { skip_and_only = ([], []);
+    cc = "cc";
     print_steps = false;
     num_samples = 100;
     max_backtracks = 25;
@@ -163,6 +165,8 @@ end
 let instance : t option ref = ref Option.None
 
 let initialize (cfg : t) = instance := Some cfg
+
+let get_skip_and_only () = (Option.get !instance).skip_and_only
 
 let get_cc () = (Option.get !instance).cc
 
