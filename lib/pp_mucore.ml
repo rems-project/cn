@@ -520,45 +520,9 @@ module Make (Config : CONFIG) = struct
            ^^^
            match (e : 'ty expr_) with
            | Epure pe -> pp_keyword "pure" ^^ Pp.parens (pp_pexpr pe)
-           | Ememop memop ->
-             let aux memop =
-               let open Mem_common in
-               let mctype ct1 = Either.Left ct1 in
-               let msym sym1 = Either.Right sym1 in
-               match memop with
-               | Mucore.PtrEq (sym1, sym2) -> (PtrEq, [ msym sym1; msym sym2 ])
-               | PtrNe (sym1, sym2) -> (PtrNe, [ msym sym1; msym sym2 ])
-               | PtrLt (sym1, sym2) -> (PtrLt, [ msym sym1; msym sym2 ])
-               | PtrGt (sym1, sym2) -> (PtrGt, [ msym sym1; msym sym2 ])
-               | PtrLe (sym1, sym2) -> (PtrLe, [ msym sym1; msym sym2 ])
-               | PtrGe (sym1, sym2) -> (PtrGe, [ msym sym1; msym sym2 ])
-               | Ptrdiff (ct1, sym1, sym2) ->
-                 (Ptrdiff, [ mctype ct1; msym sym1; msym sym2 ])
-               | IntFromPtr (ct1, ct2, sym1) ->
-                 (IntFromPtr, [ mctype ct1; mctype ct2; msym sym1 ])
-               | PtrFromInt (ct1, ct2, sym1) ->
-                 (PtrFromInt, [ mctype ct1; mctype ct2; msym sym1 ])
-               | PtrValidForDeref (ct1, sym1) ->
-                 (PtrValidForDeref, [ mctype ct1; msym sym1 ])
-               | PtrWellAligned (ct1, sym1) -> (PtrWellAligned, [ mctype ct1; msym sym1 ])
-               | PtrArrayShift (sym1, ct1, sym2) ->
-                 (PtrArrayShift, [ msym sym1; mctype ct1; msym sym2 ])
-               | PtrMemberShift (tag_sym, memb_ident, sym) ->
-                 (PtrMemberShift (tag_sym, memb_ident), [ msym sym ])
-               | Memcpy (sym1, sym2, sym3) -> (Memcpy, [ msym sym1; msym sym2; msym sym3 ])
-               | Memcmp (sym1, sym2, sym3) -> (Memcmp, [ msym sym1; msym sym2; msym sym3 ])
-               | Realloc (sym1, sym2, sym3) ->
-                 (Realloc, [ msym sym1; msym sym2; msym sym3 ])
-               | Va_start (sym1, sym2) -> (Va_start, [ msym sym1; msym sym2 ])
-               | Va_copy sym1 -> (Va_copy, [ msym sym1 ])
-               | Va_arg (sym1, ct1) -> (Va_arg, [ msym sym1; mctype ct1 ])
-               | Va_end sym1 -> (Va_end, [ msym sym1 ])
-               | CopyAllocId (sym1, sym2) -> (Copy_alloc_id, [ msym sym1; msym sym2 ])
-             in
-             let memop, pes = aux memop in
+           | Ememop (memop, pes) ->
              pp_keyword "memop"
-             ^^ Pp.parens
-                  (Pp_mem.pp_memop memop ^^ Pp.comma ^^^ comma_list pp_actype_or_pexpr pes)
+             ^^ Pp.parens (Pp_mem.pp_memop memop ^^ Pp.comma ^^^ comma_list pp_pexpr pes)
            | Eaction (Paction (p, Action (_, act))) -> pp_polarity p (pp_action act)
            | Eskip -> pp_keyword "skip"
            | Eccall (pe_ty, pe, pes, gargs_opt) ->

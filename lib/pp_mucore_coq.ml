@@ -1291,36 +1291,34 @@ and pp_request_name = function
     pp_constructor "Owned" [ pp_sctype ct; pp_request_init init ]
 
 
-let pp_memop pp_type m =
-  let pte = pp_pexpr pp_type in
-  match m with
-  | PtrEq e12 -> pp_constructor1 "MuCore.PtrEq" [ pp_pair pte pte e12 ]
-  | PtrNe e12 -> pp_constructor1 "MuCore.PtrNe" [ pp_pair pte pte e12 ]
-  | PtrLt e12 -> pp_constructor1 "MuCore.PtrLt" [ pp_pair pte pte e12 ]
-  | PtrGt e12 -> pp_constructor1 "MuCore.PtrGt" [ pp_pair pte pte e12 ]
-  | PtrLe e12 -> pp_constructor1 "MuCore.PtrLe" [ pp_pair pte pte e12 ]
-  | PtrGe e12 -> pp_constructor1 "MuCore.PtrGe" [ pp_pair pte pte e12 ]
-  | Ptrdiff e123 -> pp_constructor1 "MuCore.Ptrdiff" [ pp_triple pp_act pte pte e123 ]
-  | IntFromPtr e123 ->
-    pp_constructor1 "MuCore.IntFromPtr" [ pp_triple pp_act pp_act pte e123 ]
-  | PtrFromInt e123 ->
-    pp_constructor1 "MuCore.PtrFromInt" [ pp_triple pp_act pp_act pte e123 ]
-  | PtrValidForDeref e12 ->
-    pp_constructor1 "MuCore.PtrValidForDeref" [ pp_pair pp_act pte e12 ]
-  | PtrWellAligned e12 ->
-    pp_constructor1 "MuCore.PtrWellAligned" [ pp_pair pp_act pte e12 ]
-  | PtrArrayShift e123 ->
-    pp_constructor1 "MuCore.PtrArrayShift" [ pp_triple pte pp_act pte e123 ]
-  | PtrMemberShift e123 ->
-    pp_constructor1 "MuCore.PtrMemberShift" [ pp_triple pp_symbol pp_identifier pte e123 ]
-  | Memcpy e123 -> pp_constructor1 "MuCore.Memcpy" [ pp_triple pte pte pte e123 ]
-  | Memcmp e123 -> pp_constructor1 "MuCore.Memcmp" [ pp_triple pte pte pte e123 ]
-  | Realloc e123 -> pp_constructor1 "MuCore.Realloc" [ pp_triple pte pte pte e123 ]
-  | Va_start e12 -> pp_constructor1 "MuCore.Va_start" [ pp_pair pte pte e12 ]
-  | Va_copy e -> pp_constructor1 "MuCore.Va_copy" [ pte e ]
-  | Va_arg e12 -> pp_constructor1 "MuCore.Va_arg" [ pp_pair pte pp_act e12 ]
-  | Va_end e -> pp_constructor1 "MuCore.Va_end" [ pte e ]
-  | CopyAllocId e12 -> pp_constructor1 "MuCore.CopyAllocId" [ pp_pair pte pte e12 ]
+let pp_memop m =
+  let open Cerb_frontend.Mem_common in
+  let n =
+    match m with
+    | PtrEq -> "PtrEq"
+    | PtrNe -> "PtrNe"
+    | PtrLt -> "PtrLt"
+    | PtrGt -> "PtrGt"
+    | PtrLe -> "PtrLe"
+    | PtrGe -> "PtrGe"
+    | Ptrdiff -> "Ptrdiff"
+    | IntFromPtr -> "IntFromPtr"
+    | PtrFromInt -> "PtrFromInt"
+    | PtrValidForDeref -> "PtrValidForDeref"
+    | PtrWellAligned -> "PtrWellAligned"
+    | PtrArrayShift -> "PtrArrayShift"
+    | PtrMemberShift _ -> assert false
+    | Memcpy -> "Memcpy"
+    | Memcmp -> "Memcmp"
+    | Realloc -> "Realloc"
+    | Va_start -> "Va_start"
+    | Va_copy -> "Va_copy"
+    | Va_arg -> "Va_arg"
+    | Va_end -> "Va_end"
+    | Copy_alloc_id -> "Copy_alloc_id"
+    | CHERI_intrinsic _ -> assert false
+  in
+  pp_constructor1 ("Core." ^ n) []
 
 
 let pp_pack_unpack = function
@@ -1836,7 +1834,8 @@ and pp_expr pp_type = function
         pp_type ty;
         (match e with
          | Epure pe -> pp_constructor1 "Epure" [ pp_pexpr pp_type pe ]
-         | Ememop m -> pp_constructor1 "Ememop" [ pp_memop pp_type m ]
+         | Ememop (m, pes) ->
+           pp_constructor1 "Ememop" (pp_memop m :: List.map (pp_pexpr pp_type) pes)
          | Eaction pa -> pp_constructor1 "Eaction" [ pp_paction pp_type pa ]
          | Eskip -> pp_constructor1 "Eskip" []
          | Eccall (act, f, args, gargs_opt) ->

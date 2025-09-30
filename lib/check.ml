@@ -1349,6 +1349,15 @@ let call_prefix = function
   | Subtyping -> "return"
 
 
+let check_pexpr_good_ctype_const pe =
+  let loc = Mu.loc_of_pexpr pe in
+  let@ () = WellTyped.ensure_base_type loc ~expect:BT.CType (Mu.bt_of_pexpr pe) in
+  let@ pe = check_pexpr [] pe in
+  let ct = Option.get (IT.is_ctype_const pe) in
+  let@ () = WellTyped.check_ct loc ct in
+  return ct
+
+
 (* TODO: De-CPS'ify check_expr and remove the function below.  *)
 let check_pexpr (pe : BT.t Mu.pexpr) (k : IT.t -> unit m) : unit m =
   let@ lvt = check_pexpr [] pe in
@@ -1519,7 +1528,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
   | Epure pe ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe) in
     check_pexpr pe (fun lvt -> k lvt)
-  | Ememop memop ->
+  | Ememop (m, pes) ->
+    let memop = (m, pes) in
     let here = Locations.other __LOC__ in
     let pointer_eq ?(negate = false) pe1 pe2 =
       let@ () = WellTyped.ensure_base_type loc ~expect Bool in
@@ -1603,14 +1613,14 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
           k (op (arg1, arg2))))
     in
     (match memop with
-     | PtrEq (pe1, pe2) -> pointer_eq pe1 pe2
-     | PtrNe (pe1, pe2) -> pointer_eq ~negate:true pe1 pe2
-     | PtrLt (pe1, pe2) -> pointer_op (Fun.flip ltPointer_ loc) pe1 pe2
-     | PtrGt (pe1, pe2) -> pointer_op (Fun.flip gtPointer_ loc) pe1 pe2
-     | PtrLe (pe1, pe2) -> pointer_op (Fun.flip lePointer_ loc) pe1 pe2
-     | PtrGe (pe1, pe2) -> pointer_op (Fun.flip gePointer_ loc) pe1 pe2
-     | Ptrdiff (act, pe1, pe2) ->
-       let@ () = WellTyped.check_ct act.loc act.ct in
+     | PtrEq, [ pe1; pe2 ] -> pointer_eq pe1 pe2
+     | PtrNe, [ pe1; pe2 ] -> pointer_eq ~negate:true pe1 pe2
+     | PtrLt, [ pe1; pe2 ] -> pointer_op (Fun.flip ltPointer_ loc) pe1 pe2
+     | PtrGt, [ pe1; pe2 ] -> pointer_op (Fun.flip gtPointer_ loc) pe1 pe2
+     | PtrLe, [ pe1; pe2 ] -> pointer_op (Fun.flip lePointer_ loc) pe1 pe2
+     | PtrGe, [ pe1; pe2 ] -> pointer_op (Fun.flip gePointer_ loc) pe1 pe2
+     | Ptrdiff, [ pe_ct; pe1; pe2 ] ->
+       let@ ct = check_pexpr_good_ctype_const pe_ct in
        let@ () =
          WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct (Integer Ptrdiff_t))
        in
@@ -1620,9 +1630,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          check_pexpr pe2 (fun arg2 ->
            (* copying and adapting from memory/concrete/impl_mem.ml *)
            let divisor =
-             match act.ct with
+             match ct with
              | Array (item_ty, _) -> Memory.size_of_ctype item_ty
-             | ct -> Memory.size_of_ctype ct
+             | _ -> Memory.size_of_ctype ct
            in
            let ub = CF.Undefined.UB048_disjoint_array_pointers_subtraction in
            let@ () = check_both_eq_alloc loc arg1 arg2 ub in
@@ -1640,14 +1650,14 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                loc
            in
            k result))
-     | IntFromPtr (act_from, act_to, pe) ->
-       let@ () = WellTyped.check_ct act_from.loc act_from.ct in
-       let@ () = WellTyped.check_ct act_to.loc act_to.ct in
-       assert (match act_to.ct with Integer _ -> true | _ -> false);
-       let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct act_to.ct) in
+     | IntFromPtr, [ pe_from_ct; pe_to_ct; pe ] ->
+       let@ _from_ct = check_pexpr_good_ctype_const pe_from_ct in
+       let@ to_ct = check_pexpr_good_ctype_const pe_to_ct in
+       assert (match to_ct with Integer _ -> true | _ -> false);
+       let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct to_ct) in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        check_pexpr pe (fun arg ->
-         let actual_value = cast_ (Memory.bt_of_sct act_to.ct) arg loc in
+         let actual_value = cast_ (Memory.bt_of_sct to_ct) arg loc in
          (* NOTE: After discussing with Kavyan
                (1) The pointer does NOT need to be live. The PNVI/VIP
                formalisations are missing a rule for the dead pointer case.
@@ -1656,25 +1666,25 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                (2) So, the only UB possible is unrepresentable results. *)
          let@ provable = provable loc in
          let here = Locations.other __LOC__ in
-         let lc = LC.T (representable_ (act_to.ct, arg) here) in
+         let lc = LC.T (representable_ (to_ct, arg) here) in
          let@ () =
            match provable lc with
            | `True -> return ()
            | `False ->
              let@ model = model () in
              fail (fun ctxt ->
-               let ict = act_to.ct in
+               let ict = to_ct in
                { loc; msg = Int_unrepresentable { value = arg; ict; ctxt; model } })
          in
          k actual_value)
-     | PtrFromInt (act_from, act_to, pe) ->
-       let@ () = WellTyped.check_ct act_from.loc act_from.ct in
-       let@ () = WellTyped.check_ct act_to.loc act_to.ct in
+     | PtrFromInt, [ pe_from_ct; pe_to_ct; pe ] ->
+       let@ from_ct = check_pexpr_good_ctype_const pe_from_ct in
+       let@ _to_ct = check_pexpr_good_ctype_const pe_to_ct in
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () =
          WellTyped.ensure_base_type
            loc
-           ~expect:(Memory.bt_of_sct act_from.ct)
+           ~expect:(Memory.bt_of_sct from_ct)
            (Mu.bt_of_pexpr pe)
        in
        let@ _bt_info = ensure_bitvector_type loc ~expect:(Mu.bt_of_pexpr pe) in
@@ -1694,9 +1704,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          let constr = ite_ (cond, null_case, alloc_case) here in
          let@ () = add_c loc (LC.T constr) in
          k result)
-     | PtrValidForDeref (act, pe) ->
+     | PtrValidForDeref, [ pe_ct; pe ] ->
        (* TODO (DCM, VIP) *)
-       let@ () = WellTyped.check_ct act.loc act.ct in
+       let@ ct = check_pexpr_good_ctype_const pe_ct in
        let@ () = WellTyped.ensure_base_type loc ~expect Bool in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        (* TODO (DCM, VIP): error if called on Void or Function Ctype.
@@ -1708,29 +1718,29 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          (* let check_this = arrayShift_ ~base:arg ~index act.ct loc in *)
          (* let ub = CF.Undefined.(UB_CERB004_unspecified unspec) in *)
          (* let@ () = check_live_alloc_bounds `ISO_array_shift loc ub [ check_this ] in *)
-         let result = aligned_ (arg, act.ct) loc in
+         let result = aligned_ (arg, ct) loc in
          k result)
-     | PtrWellAligned (act, pe) ->
-       let@ () = WellTyped.check_ct act.loc act.ct in
+     | PtrWellAligned, [ pe_ct; pe ] ->
+       let@ ct = check_pexpr_good_ctype_const pe_ct in
        let@ () = WellTyped.ensure_base_type loc ~expect Bool in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        (* TODO (DCM, VIP): error if called on Void or Function Ctype *)
        check_pexpr pe (fun arg ->
          (* let unspec = CF.Undefined.UB_unspec_pointer_add in *)
          (* let@ () = check_has_alloc_id loc arg unspec in *)
-         let result = aligned_ (arg, act.ct) loc in
+         let result = aligned_ (arg, ct) loc in
          k result)
-     | PtrArrayShift (pe1, act, pe2) ->
+     | PtrArrayShift, [ pe1; pe_ct; pe2 ] ->
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe1) in
-       let@ () = WellTyped.check_ct act.loc act.ct in
+       let@ ct = check_pexpr_good_ctype_const pe_ct in
        let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in
        check_pexpr pe1 (fun vt1 ->
          check_pexpr pe2 (fun vt2 ->
            let result =
-             arrayShift_ ~base:vt1 act.ct ~index:(cast_ Memory.uintptr_bt vt2 loc) loc
+             arrayShift_ ~base:vt1 ct ~index:(cast_ Memory.uintptr_bt vt2 loc) loc
            in
-           let@ has_owned = valid_for_deref loc result act.ct in
+           let@ has_owned = valid_for_deref loc result ct in
            let@ () =
              if has_owned then
                k result
@@ -1741,9 +1751,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                check_live_alloc_bounds `ISO_array_shift loc ub [ result ])
            in
            k result))
-     | PtrMemberShift _ ->
+     | PtrMemberShift _, _ ->
        unsupported (Loc.other __LOC__) !^"PtrMemberShift should be a CHERI only construct"
-     | CopyAllocId (pe1, pe2) ->
+     | Copy_alloc_id, [ pe1; pe2 ] ->
        let@ () =
          WellTyped.ensure_base_type loc ~expect:Memory.uintptr_bt (Mu.bt_of_pexpr pe1)
        in
@@ -1758,18 +1768,20 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            let result = copyAllocId_ ~addr:vt1 ~loc:vt2 loc in
            let@ () = check_live_alloc_bounds `Copy_alloc_id loc ub [ result ] in
            k result))
-     | Memcpy _ ->
+     | Memcpy, _ ->
        (* should have been intercepted by memcpy_proxy *)
        assert false
-     | Memcmp _ ->
+     | Memcmp, _ ->
        (* TODO (DCM, VIP) *)
        Cerb_debug.error "todo: Memcmp"
-     | Realloc _ (* (asym 'bty * asym 'bty * asym 'bty) *) ->
+     | Realloc, _ (* (asym 'bty * asym 'bty * asym 'bty) *) ->
        Cerb_debug.error "todo: Realloc"
-     | Va_start _ (* (asym 'bty * asym 'bty) *) -> Cerb_debug.error "todo: Va_start"
-     | Va_copy _ (* (asym 'bty) *) -> Cerb_debug.error "todo: Va_copy"
-     | Va_arg _ (* (asym 'bty * actype 'bty) *) -> Cerb_debug.error "todo: Va_arg"
-     | Va_end _ (* (asym 'bty) *) -> Cerb_debug.error "todo: Va_end")
+     | Va_start, _ (* (asym 'bty * asym 'bty) *) -> Cerb_debug.error "todo: Va_start"
+     | Va_copy, _ (* (asym 'bty) *) -> Cerb_debug.error "todo: Va_copy"
+     | Va_arg, _ (* (asym 'bty * actype 'bty) *) -> Cerb_debug.error "todo: Va_arg"
+     | Va_end, _ (* (asym 'bty) *) -> Cerb_debug.error "todo: Va_end"
+     | CHERI_intrinsic _, _ -> Cerb_debug.error "todo: CHERI_intrinsic"
+     | _ -> assert false)
   | Eaction (Paction (_pol, Action (_aloc, action_))) ->
     (match action_ with
      | Create (pe, act, prefix) ->

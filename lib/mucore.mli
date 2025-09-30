@@ -161,32 +161,9 @@ type 'TY action = Action of Locations.t * 'TY action_
 
 type 'TY paction = Paction of Cerb_frontend.Core.polarity * 'TY action
 
-type 'TY memop =
-  | PtrEq of ('TY pexpr * 'TY pexpr)
-  | PtrNe of ('TY pexpr * 'TY pexpr)
-  | PtrLt of ('TY pexpr * 'TY pexpr)
-  | PtrGt of ('TY pexpr * 'TY pexpr)
-  | PtrLe of ('TY pexpr * 'TY pexpr)
-  | PtrGe of ('TY pexpr * 'TY pexpr)
-  | Ptrdiff of (act * 'TY pexpr * 'TY pexpr)
-  | IntFromPtr of (act * act * 'TY pexpr)
-  | PtrFromInt of (act * act * 'TY pexpr)
-  | PtrValidForDeref of (act * 'TY pexpr)
-  | PtrWellAligned of (act * 'TY pexpr)
-  | PtrArrayShift of ('TY pexpr * act * 'TY pexpr)
-  | PtrMemberShift of (Sym.t * Id.t * 'TY pexpr)
-  | Memcpy of ('TY pexpr * 'TY pexpr * 'TY pexpr)
-  | Memcmp of ('TY pexpr * 'TY pexpr * 'TY pexpr)
-  | Realloc of ('TY pexpr * 'TY pexpr * 'TY pexpr)
-  | Va_start of ('TY pexpr * 'TY pexpr)
-  | Va_copy of 'TY pexpr
-  | Va_arg of ('TY pexpr * act)
-  | Va_end of 'TY pexpr
-  | CopyAllocId of ('TY pexpr * 'TY pexpr)
-
 type 'TY expr_ =
   | Epure of 'TY pexpr
-  | Ememop of 'TY memop
+  | Ememop of Sym.t Cerb_frontend.Mem_common.generic_memop * 'TY pexpr list
   | Eaction of 'TY paction
   | Eskip
   | Eccall of

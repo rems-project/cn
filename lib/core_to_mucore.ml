@@ -528,115 +528,6 @@ let n_paction ~inherit_loc loc (Paction (pol, a)) =
   Mu.Paction (pol, n_action ~inherit_loc loc a)
 
 
-let show_n_memop =
-  CF.Mem_common.(
-    instance_Show_Show_Mem_common_generic_memop_dict
-      CF.Symbol.instance_Show_Show_Symbol_sym_dict)
-    .show_method
-
-
-let n_memop ~inherit_loc loc memop pexprs =
-  let n_pexpr = n_pexpr ~inherit_loc in
-  let open CF.Mem_common in
-  match (memop, pexprs) with
-  | PtrEq, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    Mu.PtrEq (pe1, pe2)
-  | PtrNe, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    PtrNe (pe1, pe2)
-  | PtrLt, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    PtrLt (pe1, pe2)
-  | PtrGt, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    PtrGt (pe1, pe2)
-  | PtrLe, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    PtrLe (pe1, pe2)
-  | PtrGe, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    PtrGe (pe1, pe2)
-  | Ptrdiff, [ ct1; pe1; pe2 ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"Ptrdiff: not a constant ctype" ct1 in
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    Ptrdiff (ct1, pe1, pe2)
-  | IntFromPtr, [ ct1; ct2; pe ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"IntFromPtr: not a constant ctype" ct1 in
-    let ct2 = ensure_pexpr_ctype loc !^"IntFromPtr: not a constant ctype" ct2 in
-    let pe = n_pexpr loc pe in
-    IntFromPtr (ct1, ct2, pe)
-  | PtrFromInt, [ ct1; ct2; pe ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"PtrFromInt: not a constant ctype" ct1 in
-    let ct2 = ensure_pexpr_ctype loc !^"PtrFromInt: not a constant ctype" ct2 in
-    let pe = n_pexpr loc pe in
-    PtrFromInt (ct1, ct2, pe)
-  | PtrValidForDeref, [ ct1; pe ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"PtrValidForDeref: not a constant ctype" ct1 in
-    let pe = n_pexpr loc pe in
-    PtrValidForDeref (ct1, pe)
-  | PtrWellAligned, [ ct1; pe ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"PtrWellAligned: not a constant ctype" ct1 in
-    let pe = n_pexpr loc pe in
-    PtrWellAligned (ct1, pe)
-  | PtrArrayShift, [ pe1; ct1; pe2 ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"PtrArrayShift: not a constant ctype" ct1 in
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    PtrArrayShift (pe1, ct1, pe2)
-  | Memcpy, [ pe1; pe2; pe3 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    let pe3 = n_pexpr loc pe3 in
-    Memcpy (pe1, pe2, pe3)
-  | Memcmp, [ pe1; pe2; pe3 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    let pe3 = n_pexpr loc pe3 in
-    Memcmp (pe1, pe2, pe3)
-  | Realloc, [ pe1; pe2; pe3 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    let pe3 = n_pexpr loc pe3 in
-    Realloc (pe1, pe2, pe3)
-  | Va_start, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    Va_start (pe1, pe2)
-  | Va_copy, [ pe ] ->
-    let pe = n_pexpr loc pe in
-    Va_copy pe
-  | Va_arg, [ pe; ct1 ] ->
-    let ct1 = ensure_pexpr_ctype loc !^"Va_arg: not a constant ctype" ct1 in
-    let pe = n_pexpr loc pe in
-    Va_arg (pe, ct1)
-  | Va_end, [ pe ] ->
-    let pe = n_pexpr loc pe in
-    Va_end pe
-  | Copy_alloc_id, [ pe1; pe2 ] ->
-    let pe1 = n_pexpr loc pe1 in
-    let pe2 = n_pexpr loc pe2 in
-    CopyAllocId (pe1, pe2)
-  | PtrMemberShift _, _ -> assert_error loc !^"PtrMemberShift (CHERI only)"
-  | memop, pexprs1 ->
-    let err =
-      !^__LOC__
-      ^^ colon
-      ^^^ !^(show_n_memop memop)
-      ^^^ !^"applied to"
-      ^^^ int (List.length pexprs1)
-      ^^^ !^"arguments"
-    in
-    assert_error loc err
-
-
 let unsupported loc doc = fail { loc; msg = Unsupported (!^"unsupported" ^^^ doc) }
 
 let rec n_expr
@@ -654,7 +545,6 @@ let rec n_expr
   let wrap_pure pe = wrap (Epure (Pexpr (loc, [], (), pe))) in
   let n_pexpr = n_pexpr ~inherit_loc loc in
   let n_paction = n_paction ~inherit_loc loc in
-  let n_memop = n_memop ~inherit_loc loc in
   let n_expr =
     n_expr
       ~inherit_loc
@@ -664,7 +554,7 @@ let rec n_expr
   in
   match pe with
   | Epure pexpr2 -> return (wrap (Epure (n_pexpr pexpr2)))
-  | Ememop (memop1, pexprs1) -> return (wrap (Ememop (n_memop memop1 pexprs1)))
+  | Ememop (memop, pes) -> return (wrap (Ememop (memop, List.map n_pexpr pes)))
   | Eaction paction2 -> return (wrap (Eaction (n_paction paction2)))
   | Ecase (_pexpr, _pats_es) -> assert_error loc !^"Ecase"
   | Elet (pat, e1, e2) ->
