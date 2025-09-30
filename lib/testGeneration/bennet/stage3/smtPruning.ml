@@ -126,7 +126,9 @@ module Make (AD : Domain.T) = struct
           (match (ogt_then, ogt_else) with
            | Some gt_then, Some gt_else ->
              Some (Term.ite_ (it_if, gt_then, gt_else) () loc)
-           | Some gt, None | None, Some gt -> Some gt
+           | Some gt_then, None -> Some (Term.assert_ (LC.T it_if, gt_then) () loc)
+           | None, Some gt_else ->
+             Some (Term.assert_ (LC.T (IT.not_ it_if here), gt_else) () loc)
            | None, None -> None)
       | `Map ((i, i_bt, it_perm), gt_inner) ->
         let@ gt_inner =

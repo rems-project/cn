@@ -17,9 +17,7 @@ module Make (AD : Domain.T) = struct
        (* De Morgan's Law *)
        | IT (Binop (And, e1, e2), info, loc) ->
          Binop
-           ( Or,
-             cnf (IT.IT (Unop (Not, e1), info, loc)),
-             cnf (IT (Unop (Not, e2), info, loc)) )
+           (Or, cnf (IT (Unop (Not, e1), info, loc)), cnf (IT (Unop (Not, e2), info, loc)))
        | IT (Binop (Or, e1, e2), info, loc) ->
          Binop
            ( And,

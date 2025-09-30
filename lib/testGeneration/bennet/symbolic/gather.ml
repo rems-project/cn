@@ -199,11 +199,21 @@ module Make (AD : Domain.T) = struct
     | `AssertDomain (_, next_term) ->
       (* Assert domain constraints - skip domain for now and continue *)
       gather_term next_term
-    | `ITE (condition, then_term, else_term) ->
+    | `ITE (it_if, then_term, else_term) ->
       (* Convert if-then-else to Pick statement with recursive calls *)
-      let then_branch = Term.assert_ (LC.T condition, then_term) () loc in
-      let else_branch = Term.assert_ (LC.T (IT.not_ condition loc), else_term) () loc in
-      gather_term (Term.pick_ [ then_branch; else_branch ] () bt loc)
+      let wgts1 =
+        match then_term with
+        | Annot (`Pick gts, (), _, _) ->
+          List.map (fun gt' -> Term.assert_ (T it_if, gt') () loc) gts
+        | gt' -> [ Term.assert_ (T it_if, gt') () loc ]
+      in
+      let wgts2 =
+        match else_term with
+        | Annot (`Pick gts, (), _, _) ->
+          List.map (fun gt' -> Term.assert_ (T (IT.not_ it_if loc), gt') () loc) gts
+        | gt' -> [ Term.assert_ (T (IT.not_ it_if loc), gt') () loc ]
+      in
+      gather_term (Term.pick_ (wgts1 @ wgts2) () bt loc)
     | `Map _ -> failwith "TODO"
     | `Pick choice_terms ->
       let result_var = Sym.fresh_anon () in
