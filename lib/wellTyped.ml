@@ -2034,78 +2034,58 @@ module BaseTyping = struct
         | Epure pe ->
           let@ pe = infer_pexpr pe in
           return (bt_of_pexpr pe, Epure pe)
-        | Ememop (PtrEq (pe1, pe2)) ->
+        | Ememop (((PtrEq | PtrNe | PtrLt | PtrGt | PtrLe | PtrGe) as memop), [ pe1; pe2 ])
+          ->
           let@ pe1 = check_pexpr (Loc ()) pe1 in
           let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrEq (pe1, pe2)))
-        | Ememop (PtrNe (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrNe (pe1, pe2)))
-        | Ememop (PtrLt (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrLt (pe1, pe2)))
-        | Ememop (PtrGt (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrGt (pe1, pe2)))
-        | Ememop (PtrLe (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrLe (pe1, pe2)))
-        | Ememop (PtrGe (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrGe (pe1, pe2)))
-        | Ememop (Ptrdiff (act, pe1, pe2)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Bool, Ememop (memop, [ pe1; pe2 ]))
+        | Ememop (Ptrdiff, [ pe_ct; pe1; pe2 ]) ->
+          let@ pe_ct, _ct = check_pexpr_good_ctype_const pe_ct in
           let@ pe1 = check_pexpr (Loc ()) pe1 in
           let@ pe2 = check_pexpr (Loc ()) pe2 in
           let bty = Memory.bt_of_sct (Integer Ptrdiff_t) in
-          return (bty, Ememop (Ptrdiff (act, pe1, pe2)))
-        | Ememop (IntFromPtr (act_from, act_to, pe)) ->
-          let@ () = WCT.is_ct act_from.loc act_from.ct in
-          let@ () = WCT.is_ct act_to.loc act_to.ct in
+          return (bty, Ememop (Ptrdiff, [ pe_ct; pe1; pe2 ]))
+        | Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]) ->
+          let@ pe_from_ct, _ = check_pexpr_good_ctype_const pe_from_ct in
+          let@ pe_to_ct, to_ct = check_pexpr_good_ctype_const pe_to_ct in
           let@ pe = check_pexpr (Loc ()) pe in
-          let bty = Memory.bt_of_sct act_to.ct in
-          return (bty, Ememop (IntFromPtr (act_from, act_to, pe)))
-        | Ememop (PtrFromInt (act_from, act_to, pe)) ->
-          let@ () = WCT.is_ct act_from.loc act_from.ct in
-          let@ () = WCT.is_ct act_to.loc act_to.ct in
-          let from_bt = Memory.bt_of_sct act_from.ct in
+          let bty = Memory.bt_of_sct to_ct in
+          return (bty, Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]))
+        | Ememop (PtrFromInt, [ pe_from_ct; pe_to_ct; pe ]) ->
+          let@ pe_from_ct, from_ct = check_pexpr_good_ctype_const pe_from_ct in
+          let@ pe_to_ct, _ = check_pexpr_good_ctype_const pe_to_ct in
+          let from_bt = Memory.bt_of_sct from_ct in
           let@ pe = check_pexpr from_bt pe in
           let@ () = ensure_bits_type (loc_of_pexpr pe) from_bt in
-          return (Loc (), Ememop (PtrFromInt (act_from, act_to, pe)))
-        | Ememop (PtrValidForDeref (act, pe)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Loc (), Ememop (PtrFromInt, [ pe_from_ct; pe_to_ct; pe ]))
+        | Ememop (PtrValidForDeref, [ pe_ct; pe ]) ->
+          let@ pe_ct, _ = check_pexpr_good_ctype_const pe_ct in
           let@ pe = check_pexpr (Loc ()) pe in
-          return (Bool, Ememop (PtrValidForDeref (act, pe)))
-        | Ememop (PtrWellAligned (act, pe)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Bool, Ememop (PtrValidForDeref, [ pe_ct; pe ]))
+        | Ememop (PtrWellAligned, [ pe_ct; pe ]) ->
+          let@ pe_ct, _ = check_pexpr_good_ctype_const pe_ct in
           let@ pe = check_pexpr (Loc ()) pe in
-          return (Bool, Ememop (PtrWellAligned (act, pe)))
-        | Ememop (PtrArrayShift (pe1, act, pe2)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Bool, Ememop (PtrWellAligned, [ pe_ct; pe ]))
+        | Ememop (PtrArrayShift, [ pe1; pe_ct; pe2 ]) ->
+          let@ pe_ct, _ = check_pexpr_good_ctype_const pe_ct in
           let@ pe1 = check_pexpr (Loc ()) pe1 in
           let@ pe2 = infer_pexpr pe2 in
           let@ () = ensure_bits_type (loc_of_pexpr pe2) (bt_of_pexpr pe2) in
-          return (Loc (), Ememop (PtrArrayShift (pe1, act, pe2)))
-        | Ememop (PtrMemberShift (tag_sym, memb_ident, pe)) ->
-          let@ _ = get_struct_member_type loc tag_sym memb_ident in
-          let@ pe = check_pexpr (Loc ()) pe in
-          return (Loc (), Ememop (PtrMemberShift (tag_sym, memb_ident, pe)))
-        | Ememop (Memcpy _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Memcmp _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Realloc _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Va_start _) (* (asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Va_copy _) (* (asym 'bty) *) -> todo ()
-        | Ememop (Va_arg _) (* (asym 'bty * actype 'bty) *) -> todo ()
-        | Ememop (Va_end _) (* (asym 'bty) *) -> todo ()
-        | Ememop (CopyAllocId (pe1, pe2)) ->
+          return (Loc (), Ememop (PtrArrayShift, [ pe1; pe_ct; pe2 ]))
+        | Ememop (PtrMemberShift _, _) -> todo ()
+        | Ememop (Memcpy, _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Memcmp, _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Realloc, _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Va_start, _) (* (asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Va_copy, _) (* (asym 'bty) *) -> todo ()
+        | Ememop (Va_arg, _) (* (asym 'bty * actype 'bty) *) -> todo ()
+        | Ememop (Va_end, _) (* (asym 'bty) *) -> todo ()
+        | Ememop (Copy_alloc_id, [ pe1; pe2 ]) ->
           let@ pe1 = check_pexpr Memory.uintptr_bt pe1 in
           let@ pe2 = check_pexpr BT.(Loc ()) pe2 in
-          return (Loc (), Ememop (CopyAllocId (pe1, pe2)))
+          return (Loc (), Ememop (Copy_alloc_id, [ pe1; pe2 ]))
+        | Ememop (CHERI_intrinsic _, _) -> todo ()
+        | Ememop _ -> assert false
         | Eaction (Paction (pol, Action (aloc, action_))) ->
           let@ bTy, action_ =
             match action_ with
@@ -2241,6 +2221,14 @@ module BaseTyping = struct
         | End _ -> todo ()
       in
       return (Expr (loc, annots, bty, e_))
+
+
+  and check_pexpr_good_ctype_const pe =
+    let@ pe = check_pexpr CType pe in
+    let ct = Option.get (Mu.is_ctype_const pe) in
+    let sct = Option.get (Sctypes.of_ctype ct) in
+    let@ () = WCT.is_ct (Mu.loc_of_pexpr pe) sct in
+    return (pe, sct)
 
 
   and check_expr label_context (expect : BT.t) expr =
