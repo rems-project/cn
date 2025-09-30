@@ -14,6 +14,7 @@ val main
   ?with_loop_leak_checks:bool ->
   ?experimental_ownership_stack_mode:bool ->
   ?with_testing:bool ->
+  skip_and_only:string list * string list ->
   String.t ->
   String.t ->
   String.t ->

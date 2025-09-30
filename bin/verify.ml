@@ -65,7 +65,6 @@ let verify
   Solver.try_hard := try_hard;
   Solver.inc_enabled := solver_inc_enabled;
   Solver.inc_timeout := solver_inc_timeout;
-  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
@@ -98,6 +97,7 @@ let verify
         let open Typing in
         let@ errors =
           Check.time_check_c_functions
+            (skip, only)
             check_consistency
             (global_var_constraints, functions)
         in

@@ -2627,7 +2627,9 @@ let c_function_name ((fsym, (_loc, _args_and_body)) : c_function) : string =
 
 (** Filter functions according to [skip_and_only]: first according to "only",
     then according to "skip" *)
-let select_functions (fsyms : Sym.Set.t) : Sym.Set.t =
+let select_functions (skip_and_only : string list * string list) (fsyms : Sym.Set.t)
+  : Sym.Set.t
+  =
   let matches_str s fsym = String.equal s (Sym.pp_string fsym) in
   let str_fsyms s =
     let ss = Sym.Set.filter (matches_str s) fsyms in
@@ -2640,10 +2642,10 @@ let select_functions (fsyms : Sym.Set.t) : Sym.Set.t =
   let strs_fsyms ss =
     ss |> List.map str_fsyms |> List.fold_left Sym.Set.union Sym.Set.empty
   in
-  let skip = strs_fsyms (fst !skip_and_only) in
-  let only = strs_fsyms (snd !skip_and_only) in
+  let skip = strs_fsyms (fst skip_and_only) in
+  let only = strs_fsyms (snd skip_and_only) in
   let only_funs =
-    match snd !skip_and_only with
+    match snd skip_and_only with
     | [] -> fsyms
     | _ss -> Sym.Set.filter (fun fsym -> Sym.Set.mem fsym only) fsyms
   in
@@ -2709,8 +2711,12 @@ let check_c_functions_all (funs : c_function list) : (string * TypeErrors.t) lis
     results. Errors in checking are captured, collected, and returned, along
     with the name of the function in which they occurred. When [fail_fast] is
     set, the first error encountered will halt checking. *)
-let check_c_functions (funs : c_function list) : (string * TypeErrors.t) list m =
-  let selected_fsyms = select_functions (Sym.Set.of_list (List.map fst funs)) in
+let check_c_functions skip_and_only (funs : c_function list)
+  : (string * TypeErrors.t) list m
+  =
+  let selected_fsyms =
+    select_functions skip_and_only (Sym.Set.of_list (List.map fst funs))
+  in
   let selected_funs =
     List.filter (fun (fsym, _) -> Sym.Set.mem fsym selected_fsyms) funs
   in
@@ -2910,6 +2916,7 @@ let check_decls_lemmata_fun_specs (file : unit Mu.file) =
     [check_c_functions]. See that function for more information on the
     semantics of checking. *)
 let time_check_c_functions
+      skip_and_only
       check_consistency
       (global_var_constraints, (checked : c_function list))
   : (string * TypeErrors.t) list m
@@ -2951,7 +2958,7 @@ let time_check_c_functions
       return ()
     | false -> return ()
   in
-  let@ errors = check_c_functions checked in
+  let@ errors = check_c_functions skip_and_only checked in
   Cerb_debug.end_csv_timing "type checking functions";
   return errors
 

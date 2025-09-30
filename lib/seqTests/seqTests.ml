@@ -546,6 +546,7 @@ let functions_under_test
   let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
     Check.select_functions
+      !Check.skip_and_only
       (Sym.Set.of_list
          (List.map (fun (inst : Fulminate.Extract.instrumentation) -> inst.fn) insts))
   in

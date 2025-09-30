@@ -27,6 +27,7 @@ type sizing_strategy =
 
 type t =
   { (* Compile time *)
+    skip_and_only : string list * string list;
     cc : string;
     print_steps : bool;
     num_samples : int;
@@ -87,6 +88,8 @@ module Options : sig
 end
 
 val initialize : t -> unit
+
+val get_skip_and_only : unit -> string list * string list
 
 val get_cc : unit -> string
 
