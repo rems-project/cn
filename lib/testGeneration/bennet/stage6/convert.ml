@@ -39,11 +39,39 @@ module Make (AD : Domain.T) = struct
         (name : Sym.t)
         (it : IT.t)
     =
-    CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] (Some name) None it
+    let var = Sym.fresh_anon () in
+    let bs, ss, e =
+      CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] (Some name) None it
+    in
+    ( [ Utils.create_binding var (bt_to_ctype (IT.get_bt it)) ],
+      A.
+        [ AilSdeclaration
+            [ ( var,
+                Some
+                  (mk_expr
+                     (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ]))))
+              )
+            ]
+        ],
+      mk_expr (AilEident var) )
 
 
   let transform_lc filename (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t) =
-    CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
+    let var = Sym.fresh_anon () in
+    let bs, ss, e =
+      CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
+    in
+    ( [ Utils.create_binding var (bt_to_ctype BT.Bool) ],
+      A.
+        [ AilSdeclaration
+            [ ( var,
+                Some
+                  (mk_expr
+                     (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ]))))
+              )
+            ]
+        ],
+      mk_expr (AilEident var) )
 
 
   let string_ident (str : string) : CF.GenTypes.genTypeCategory A.expression_ =
