@@ -19,13 +19,21 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
-_Bool ownership_stack_mode;
+enum RuntimeMode runtime_mode = RUNTIME_NORMAL_MODE;
 
-static signed long UNMAPPED_VAL = -1;
+    static signed long UNMAPPED_VAL = -1;
 static signed long WILDCARD_DEPTH = INT_MIN + 1;
 
 static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
+
+int is_ownership_stack_mode() {
+  return runtime_mode == RUNTIME_OWNERSHIP_STACK_MODE;
+}
+
+int is_auto_annot_mode() {
+  return runtime_mode == RUNTIME_AUTO_ANNOT_MODE;
+}
 
 void reset_fulminate(void) {
   cn_bump_free_all();
@@ -33,7 +41,7 @@ void reset_fulminate(void) {
   reset_error_msg_info();
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
-  initialise_ownership_stack_mode(0);
+  initialise_runtime_mode(RUNTIME_NORMAL_MODE);
 }
 
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;
@@ -223,8 +231,8 @@ void initialise_ghost_stack_depth(void) {
   cn_stack_depth = 0;
 }
 
-void initialise_ownership_stack_mode(_Bool flag) {
-  ownership_stack_mode = flag;
+void initialise_runtime_mode(enum RuntimeMode mode) {
+  runtime_mode = mode;
 }
 
 signed long get_cn_stack_depth(void) {
@@ -287,7 +295,7 @@ void cn_postcondition_leak_check(void) {
     int64_t* key = it.key;
     ownership_ghost_info* info = (ownership_ghost_info*)it.value;
     if (info->depth != WILDCARD_DEPTH && info->depth > cn_stack_depth) {
-      if (ownership_stack_mode) {
+      if (is_ownership_stack_mode()) {
         print_owned_calls_stack(info);
       }
       print_error_msg_info(global_error_msg_info);
@@ -309,7 +317,7 @@ void cn_loop_leak_check(void) {
     ownership_ghost_info* info = (ownership_ghost_info*)it.value;
     /* Everything mapped to the function stack depth should have been bumped up by calls to Owned in invariant */
     if (info->depth != WILDCARD_DEPTH && info->depth == cn_stack_depth) {
-      if (ownership_stack_mode) {
+      if (is_ownership_stack_mode()) {
         print_owned_calls_stack(info);
       }
       print_error_msg_info(global_error_msg_info);
@@ -385,14 +393,14 @@ void ownership_ghost_state_set(int64_t address,
         (ownership_ghost_info*)ht_get(cn_ownership_global_ghost_state, &k);
     if (!entry) {
       entry = fulm_malloc(sizeof(ownership_ghost_info), &fulm_default_alloc);
-      if (ownership_stack_mode) {
+      if (is_ownership_stack_mode()) {
         entry->source_loc_stack = cn_source_location_stack_init(&fulm_default_alloc);
       } else {
         entry->source_loc_stack = 0;
       }
     }
     entry->depth = stack_depth_val;
-    if (ownership_stack_mode) {
+    if (is_ownership_stack_mode()) {
       switch (op) {
         case NO_OP:
           break;
@@ -539,7 +547,7 @@ void c_ownership_check(char* access_kind,
         ownership_ghost_state_get((uintptr_t)generic_c_ptr + i);
     int curr_depth = entry_maybe ? entry_maybe->depth : UNMAPPED_VAL;
     if (curr_depth != WILDCARD_DEPTH && curr_depth != expected_stack_depth) {
-      if (ownership_stack_mode) {
+      if (is_ownership_stack_mode()) {
         print_owned_calls_stack(entry_maybe);
       }
       print_error_msg_info(global_error_msg_info);

@@ -98,6 +98,7 @@ let generate_executable_specs
       experimental_ownership_stack_mode
       mktemp
       print_steps
+      with_auto_annot
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -109,6 +110,7 @@ let generate_executable_specs
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   Sym.executable_spec_enabled := true;
+  Fulminate.Config.with_auto_annot := with_auto_annot;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
@@ -271,6 +273,11 @@ module Flags = struct
        locations where ownership was taken for Fulminate-tracked memory"
     in
     Arg.(value & flag & info [ "ownership-stack-mode" ] ~doc)
+
+
+  let with_auto_annot =
+    let doc = "Instrument additional information for auto-annot (for debugging)" in
+    Arg.(value & flag & info [ "with-auto-annot" ] ~doc)
 end
 
 let cmd =
@@ -310,6 +317,7 @@ let cmd =
     $ Flags.experimental_ownership_stack_mode
     $ Flags.mktemp
     $ Flags.print_steps
+    $ Flags.with_auto_annot
   in
   let doc =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \

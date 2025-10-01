@@ -236,6 +236,10 @@ let compile_test_file
           "#include <cn-executable/utils.h>\n";
           "#include <cn-executable/cerb_types.h>\n"
         ];
+        (if Config.with_auto_annot () then
+           [ "#include <cn-autoannot/auto_annot.h>\n" ]
+         else
+           []);
         [ c_struct_decls ];
         [ (* (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else ""); *)
           (*  record_defs; *)
@@ -276,6 +280,13 @@ let compile_test_file
     |> Pp.(separate hardline)
   in
   let open Pp in
+  let initialize_auto_annot, finalize_auto_annot =
+    if Config.with_auto_annot () then
+      ( string ("initialize_auto_annot(\"" ^ !AutoAnnot.log_filename ^ "\");") ^^ hardline,
+        string "finalize_auto_annot();" ^^ hardline )
+    else
+      (string "", string "")
+  in
   !^(String.concat " " cn_header_decls_list)
   ^^ compile_includes ~filename ~generators:(List.non_empty generator_tests)
   ^^ twice hardline
@@ -295,9 +306,13 @@ let compile_test_file
               (nest
                  2
                  (hardline
+                  ^^ initialize_auto_annot
                   ^^ separate_map hardline compile_test all_tests
                   ^^ twice hardline
-                  ^^ !^"return cn_test_main(argc, argv);")
+                  ^^ !^"int cn_test_main_ret = cn_test_main(argc, argv);"
+                  ^^ hardline
+                  ^^ finalize_auto_annot
+                  ^^ !^"return cn_test_main_ret;")
                ^^ hardline))
   ^^ hardline
   ^^ !^(String.concat

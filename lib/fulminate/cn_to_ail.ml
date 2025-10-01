@@ -2835,11 +2835,8 @@ let cn_to_ail_struct ((sym, (loc, attrs, tag_def)) : A.sigma_tag_definition)
   | C.UnionDef _ -> []
 
 
-let get_while_bounds_and_cond (i_sym, i_bt) it =
-  (* Translation of q.pointer *)
-  let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
-  (* Start of range *)
-  let start_expr =
+let get_range_from_it (i_sym, i_bt) it =
+  let lb =
     if BT.equal_sign (fst (Option.get (BT.is_bits_bt i_bt))) BT.Unsigned then
       IndexTerms.Bounds.get_lower_bound (i_sym, i_bt) it
     else (
@@ -2857,21 +2854,7 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
           ();
         exit 2)
   in
-  let start_expr =
-    IT.IT
-      ( IT.Cast (IT.get_bt start_expr, start_expr),
-        IT.get_bt start_expr,
-        Cerb_location.unknown )
-  in
-  let start_cond =
-    match start_expr with
-    | IT (Binop (Add, start_expr', IT (Const (Bits (_, n)), _, _)), _, _)
-      when Z.equal n Z.one ->
-      IT.lt_ (start_expr', i_it) Cerb_location.unknown
-    | _ -> IT.le_ (start_expr, i_it) Cerb_location.unknown
-  in
-  (* End of range *)
-  let end_expr =
+  let ub =
     match IndexTerms.Bounds.get_upper_bound_opt (i_sym, i_bt) it with
     | Some e -> e
     | None ->
@@ -2886,6 +2869,28 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
         ();
       exit 2
   in
+  (lb, ub)
+
+
+let get_while_bounds_and_cond (i_sym, i_bt) it =
+  (* Translation of q.pointer *)
+  let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
+  (* Start of range *)
+  let start_expr, end_expr = get_range_from_it (i_sym, i_bt) it in
+  let start_expr =
+    IT.IT
+      ( IT.Cast (IT.get_bt start_expr, start_expr),
+        IT.get_bt start_expr,
+        Cerb_location.unknown )
+  in
+  let start_cond =
+    match start_expr with
+    | IT (Binop (Add, start_expr', IT (Const (Bits (_, n)), _, _)), _, _)
+      when Z.equal n Z.one ->
+      IT.lt_ (start_expr', i_it) Cerb_location.unknown
+    | _ -> IT.le_ (start_expr, i_it) Cerb_location.unknown
+  in
+  (* End of range *)
   let end_cond =
     match end_expr with
     | IT (Binop (Sub, end_expr', IT (Const (Bits (_, n)), _, _)), _, _)
@@ -3036,10 +3041,37 @@ let cn_to_ail_resource
     }
     *)
     let i_sym, i_bt = q.q in
-    let start_expr, _, while_loop_cond = get_while_bounds_and_cond q.q q.permission in
+    let start_expr, end_expr, while_loop_cond =
+      get_while_bounds_and_cond q.q q.permission
+    in
     let _, _, e_start =
       cn_to_ail_expr filename dts globals spec_mode_opt start_expr PassBack
     in
+    let _, _, e_end =
+      cn_to_ail_expr filename dts globals spec_mode_opt end_expr PassBack
+    in
+    let pname = Sym.fresh "CN_INSERT_ITER_RES" in
+    let e_step = mk_expr A.(AilEsizeof (C.no_qualifiers, Sctypes.to_ctype q.step)) in
+    let _, _, e_pointer =
+      cn_to_ail_expr filename dts globals spec_mode_opt q.pointer PassBack
+    in
+    let iter_res_call_stmt_opt =
+      match q.name with
+      | Owned (sct, _) ->
+        let type_str = Pp.plain (Sctypes.pp sct) in
+        let ail_type_str = A.AilEstr (None, [ (Cerb_location.unknown, [ type_str ]) ]) in
+        let iter_res_call =
+          mk_expr
+            A.(
+              AilEcall
+                ( mk_expr (AilEident pname),
+                  [ e_pointer; e_start; e_end; e_step; mk_expr ail_type_str ] ))
+        in
+        let iter_res_call_stmt = A.(AilSexpr iter_res_call) in
+        Some iter_res_call_stmt
+      | _ -> None
+    in
+    (* Generate while loop condition *)
     let _, _, while_cond_expr =
       cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
     in
@@ -3153,9 +3185,14 @@ let cn_to_ail_resource
                 mk_stmt (AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ])),
                 0 ))
         in
-        let ail_block =
-          A.(AilSblock ([ start_binding ], List.map mk_stmt [ start_assign; while_loop ]))
+        let stmts = [ start_assign; while_loop ] in
+        let stmts =
+          match (iter_res_call_stmt_opt, spec_mode_opt) with
+          | (Some stmt, Some Pre | Some stmt, Some Loop) when !Config.with_auto_annot ->
+            stmt :: stmts
+          | _ -> stmts
         in
+        let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
         ([], [ ail_block ])
       | _ ->
         (* TODO: Change to mostly use index terms rather than Ail directly - avoids duplication between these functions and cn_to_ail *)
@@ -3209,9 +3246,14 @@ let cn_to_ail_resource
                 mk_stmt A.(AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ])),
                 0 ))
         in
-        let ail_block =
-          A.(AilSblock ([ start_binding ], List.map mk_stmt [ start_assign; while_loop ]))
+        let stmts = [ start_assign; while_loop ] in
+        let stmts =
+          match (iter_res_call_stmt_opt, spec_mode_opt) with
+          | (Some stmt, Some Pre | Some stmt, Some Loop) when !Config.with_auto_annot ->
+            stmt :: stmts
+          | _ -> stmts
         in
+        let ail_block = A.(AilSblock ([ start_binding ], List.map mk_stmt stmts)) in
         ([ sym_binding ], [ sym_decl; ail_block ])
     in
     (b1 @ b2 @ b3 @ bs' @ bs, s1 @ s2 @ s3 @ ss @ ss')
@@ -3669,7 +3711,25 @@ let cn_to_ail_cnstatement
   | Have _lc -> failwith "TODO Have"
   | Instantiate (_to_instantiate, _it) -> (default_res_for_dest, true)
   | Split_case _ -> (default_res_for_dest, true)
-  | Extract (_, _, _it) -> (default_res_for_dest, true)
+  | Extract (_, _, _) when not !Config.with_auto_annot -> (default_res_for_dest, true)
+  | Extract (_, to_extract, it) ->
+    let b, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt it PassBack in
+    (match to_extract with
+     | E_Pred (CN_owned (Some ct)) | E_Pred (CN_block (Some ct)) ->
+       let s = Pp.plain (Sctypes.pp ct) in
+       Pp.(debug 10 (lazy (string s)));
+       let s_expr = mk_expr (A.AilEstr (None, [ (Cerb_location.unknown, [ s ]) ])) in
+       let call_expr =
+         A.AilEcall (mk_expr (A.AilEident (Sym.fresh "CN_INSERT_FOCUS")), [ e; s_expr ])
+       in
+       let call_stat = A.AilSexpr (mk_expr call_expr) in
+       (prefix d (b, ss @ [ call_stat ]) (empty_for_dest d), false)
+     | E_Everything
+     | E_Pred (CN_owned None)
+     | E_Pred (CN_block None)
+     | E_Pred (CN_named _) ->
+       (* Not supported, or deprecated *)
+       (default_res_for_dest, true))
   | Unfold (_fsym, _args) -> (default_res_for_dest, true) (* fsym is a function symbol *)
   | Apply (fsym, args) ->
     ( cn_to_ail_expr
@@ -4115,8 +4175,23 @@ let cn_to_ail_loop_inv
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
+    (* reset the current focus context *)
+    let pop_focus_context_fn_call =
+      A.AilSexpr
+        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "pop_focus_context")), [])))
+    in
+    let push_focus_context_fn_call =
+      A.AilSexpr
+        (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "push_focus_context")), [])))
+    in
     let stats =
-      (bump_alloc_start_stat_ :: loop_ownership_state.assign :: cond_ss)
+      (bump_alloc_start_stat_
+       :: loop_ownership_state.assign
+       ::
+       (if !Config.with_auto_annot then
+          pop_focus_context_fn_call :: push_focus_context_fn_call :: cond_ss
+        else
+          cond_ss))
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
       @ [ cn_loop_put_call; bump_alloc_end_stat_; dummy_expr_as_stat ]
     in
@@ -4282,7 +4357,14 @@ let rec cn_to_ail_lat_2
         List.map
           (fun fn_sym ->
              mk_stmt (A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident fn_sym), [])))))
-          OE.[ cn_stack_depth_decr_sym; cn_postcondition_leak_check_sym ]
+          (if !Config.with_auto_annot then
+             OE.
+               [ cn_stack_depth_decr_sym;
+                 cn_postcondition_leak_check_sym;
+                 Sym.fresh "pop_focus_context"
+               ]
+           else
+             OE.[ cn_stack_depth_decr_sym; cn_postcondition_leak_check_sym ])
     in
     let block =
       A.(
@@ -4504,7 +4586,15 @@ let cn_to_ail_pre_post
           A.AilSexpr
             (mk_expr (AilEcall (mk_expr (AilEident OE.cn_stack_depth_incr_sym), [])))
         in
-        [ cn_stack_depth_incr_stat_ ])
+        let push_focus_context =
+          A.AilSexpr
+            (mk_expr
+               (AilEcall (mk_expr (AilEident (Sym.fresh "push_focus_context")), [])))
+        in
+        if !Config.with_auto_annot then
+          [ cn_stack_depth_incr_stat_; push_focus_context ]
+        else
+          [ cn_stack_depth_incr_stat_ ])
     in
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()

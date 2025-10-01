@@ -6,6 +6,7 @@ module Internal = Internal
 module Records = Records
 module Ownership = Ownership
 module Utils = Utils
+module Config = Config
 
 let rec group_toplevel_defs new_list = function
   | [] -> new_list
@@ -114,7 +115,10 @@ let collect_memory_accesses (_, sigm) =
     | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ -> ()
     | AilSexpr e | AilSreturn e | AilSreg_store (_, e) -> aux_expr e env
     | AilSblock (bs, ss) ->
-      let lookup_ty sym = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+      let lookup_ty sym =
+        let _, (_, _, _, ty) = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+        (sym, ty)
+      in
       let env_cell = ref env in
       List.iter
         (fun s ->
@@ -150,8 +154,74 @@ let collect_memory_accesses (_, sigm) =
       (* AilSdeclaration must be handled in `AilSblock` *)
       failwith "unreachable"
   in
-  List.iter (fun (_, (_, _, _, _, stmt)) -> aux_stmt stmt []) sigm.function_definitions;
+  sigm.function_definitions
+  |> List.iter (fun (f, body) ->
+    match List.assoc Sym.equal f sigm.declarations with
+    | _, _, Decl_function (_, _, types, _, _, _) ->
+      let _, _, _, args, stmt = body in
+      let env = List.map2 (fun arg (_, ct, _) -> (arg, ct)) args types in
+      aux_stmt stmt env
+    | _ -> failwith "ill-formed program");
   !acc
+
+
+let gen_fmt_for_integer_type =
+  let open CF.Ctype in
+  (* Ignore IntN_t and its friends *)
+  let usable = function Ichar | Short | Int_ | Long | LongLong -> true | _ -> false in
+  function
+  | Char -> Some "%c"
+  | Bool -> Some "%d"
+  | Signed i when usable i ->
+    (match (CF.Ocaml_implementation.get ()).sizeof_ity (Signed i) with
+     | Some 1 -> Some "%c"
+     | Some 2 -> Some "%hd"
+     | Some 4 -> Some "%d"
+     | Some 8 -> Some "%lld"
+     | _ -> failwith "unimplemented")
+  | Unsigned u when usable u ->
+    (match (CF.Ocaml_implementation.get ()).sizeof_ity (Unsigned u) with
+     | Some 1 -> Some "%c"
+     | Some 2 -> Some "%hu"
+     | Some 4 -> Some "%u"
+     | Some 8 -> Some "%llu"
+     | _ -> failwith "unimplemented")
+  | _ -> None
+
+
+let get_symbol = function
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_Id s)
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_ObjectAddress s) ->
+    Some s
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_FunArg _) -> failwith "funarg"
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_FunArgValue _) -> failwith "var"
+  | CF.Symbol.Symbol (_, _, CF.Symbol.SD_CN_Id _) -> failwith "cn id"
+  | _ -> None
+
+
+let gen_env_fmt_printer x =
+  let rec aux = function
+    | [] -> ("", [])
+    | (sym, ty) :: xs ->
+      let fmt, args = aux xs in
+      let open CF.Ctype in
+      let (Ctype (_, ty)) = ty in
+      (match ty with
+       | Basic (Integer b) ->
+         (match (gen_fmt_for_integer_type b, get_symbol sym) with
+          | Some f, Some sym ->
+            let f = Printf.sprintf "%s=%s, " sym f in
+            (f ^ fmt, sym :: args)
+          | _ -> (fmt, args))
+       | Struct _ -> failwith "unimplemented"
+       | Basic (Floating _)
+       | Array _ | Function _ | Void | FunctionNoParams _ | Pointer _ | Atomic _ | Union _
+       | Byte ->
+         (fmt, args))
+  in
+  let fmt, args = aux x in
+  (* The first element is for the target index, which will be filled in CN_XXX_ANNOT macros *)
+  ("!index=%lld, " ^ fmt, args)
 
 
 let memory_accesses_injections ail_prog =
@@ -179,23 +249,66 @@ let memory_accesses_injections ail_prog =
   let acc = ref [] in
   let xs = collect_memory_accesses ail_prog in
   List.iter
-    (* HK: Currently, `env` is ignored. It will be used in future patches. *)
-    (fun (access, _env) ->
+    (fun (access, env) ->
+       (* autoannot things *)
+       let autoannot_fmt, autoannot_fmt_args =
+         if !Config.with_auto_annot then (
+           let fmt, args = gen_env_fmt_printer env in
+           (fmt ^ "\\n", List.fold_left (fun acc arg -> acc ^ ", " ^ arg) "" args))
+         else
+           ("", "")
+       in
        match access with
        | Load { loc; _ } ->
          let b, e = pos_bbox loc in
-         acc := (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
+         let pos_info = Cerb_location.location_to_string loc in
+         let autoannot_fmt_args =
+           ", \""
+           ^ "[auto annot (focus)]"
+           ^ pos_info
+           (* The fmt for type. Filled by CN_XXX_ANNOT *)
+           ^ ":%s:%s"
+           ^ ", "
+           ^ autoannot_fmt
+           ^ "\""
+           ^ autoannot_fmt_args
+         in
+         acc
+         := if !Config.with_auto_annot then
+              (point b, [ "CN_LOAD_ANNOT(" ])
+              :: (point e, [ autoannot_fmt_args ^ ")" ])
+              :: !acc
+            else
+              (point b, [ "CN_LOAD(" ]) :: (point e, [ ")" ]) :: !acc
        | Store { lvalue; expr; _ } ->
          (* NOTE: we are not using the location of the access (the AilEassign), because if
            in the source the assignment was surrounded by parens its location will contain
            the parens, which will break the CN_STORE macro call *)
          let b, pos1 = pos_bbox (loc_of_expr lvalue) in
          let pos2, e = pos_bbox (loc_of_expr expr) in
+         let pos_info = Cerb_location.location_to_string (loc_of_expr lvalue) in
+         let autoannot_fmt_args =
+           ", \""
+           ^ "[auto annot (focus)]"
+           ^ pos_info
+           (* The fmt for type. Filled by CN_XXX_ANNOT *)
+           ^ ":%s:%s"
+           ^ ", "
+           ^ autoannot_fmt
+           ^ "\""
+           ^ autoannot_fmt_args
+         in
          acc
-         := (point b, [ "CN_STORE(" ])
-            :: (region (pos1, pos2) NoCursor, [ ", " ])
-            :: (point e, [ ")" ])
-            :: !acc
+         := if !Config.with_auto_annot then
+              (point b, [ "CN_STORE_ANNOT(" ])
+              :: (region (pos1, pos2) NoCursor, [ ", " ])
+              :: (point e, [ autoannot_fmt_args ^ ")" ])
+              :: !acc
+            else
+              (point b, [ "CN_STORE(" ])
+              :: (region (pos1, pos2) NoCursor, [ ", " ])
+              :: (point e, [ ")" ])
+              :: !acc
        | StoreOp { lvalue; aop; expr; loc } ->
          (match bbox [ loc_of_expr expr ] with
           | `Other _ ->
@@ -204,28 +317,70 @@ let memory_accesses_injections ail_prog =
                      simple literals *)
             let pp_expr e = CF.Pp_utils.to_plain_string (Pp_ail.pp_expression e) in
             let sstart, ssend = pos_bbox loc in
+            let pos_info = Cerb_location.location_to_string loc in
+            let autoannot_fmt_args =
+              ", \""
+              ^ "[auto annot (focus)]"
+              ^ pos_info
+              (* The fmt for type. Filled by CN_XXX_ANNOT *)
+              ^ ":%s:%s"
+              ^ ", "
+              ^ autoannot_fmt
+              ^ "\""
+              ^ autoannot_fmt_args
+            in
             let b, _ = pos_bbox (loc_of_expr lvalue) in
             acc
             := (region (sstart, b) NoCursor, [ "" ])
-               :: ( point b,
-                    [ "CN_STORE_OP("
-                      ^ pp_expr lvalue
-                      ^ ","
-                      ^ string_of_aop aop
-                      ^ ","
-                      ^ pp_expr expr
-                      ^ ")"
-                    ] )
+               :: (if !Config.with_auto_annot then
+                     ( point b,
+                       [ "CN_STORE_OP_ANNOT("
+                         ^ pp_expr lvalue
+                         ^ ","
+                         ^ string_of_aop aop
+                         ^ ","
+                         ^ pp_expr expr
+                         ^ autoannot_fmt_args
+                         ^ ")"
+                       ] )
+                   else
+                     ( point b,
+                       [ "CN_STORE_OP("
+                         ^ pp_expr lvalue
+                         ^ ","
+                         ^ string_of_aop aop
+                         ^ ","
+                         ^ pp_expr expr
+                         ^ ")"
+                       ] ))
                :: (region (b, ssend) NoCursor, [ "" ])
                :: !acc
           | `Bbox _ ->
             let b, pos1 = pos_bbox (loc_of_expr lvalue) in
             let pos2, e = pos_bbox (loc_of_expr expr) in
+            let pos_info = Cerb_location.location_to_string (loc_of_expr lvalue) in
+            let autoannot_fmt_args =
+              ", \""
+              ^ "[auto annot (focus)]"
+              ^ pos_info
+              (* The fmt for type. Filled by CN_XXX_ANNOT *)
+              ^ ":%s:%s"
+              ^ ", "
+              ^ autoannot_fmt
+              ^ "\""
+              ^ autoannot_fmt_args
+            in
             acc
-            := (point b, [ "CN_STORE_OP(" ])
-               :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
-               :: (point e, [ ")" ])
-               :: !acc)
+            := if !Config.with_auto_annot then
+                 (point b, [ "CN_STORE_OP_ANNOT(" ])
+                 :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
+                 :: (point e, [ autoannot_fmt_args ^ ")" ])
+                 :: !acc
+               else
+                 (point b, [ "CN_STORE_OP(" ])
+                 :: (region (pos1, pos2) NoCursor, [ "," ^ string_of_aop aop ^ "," ])
+                 :: (point e, [ ")" ])
+                 :: !acc)
        | Postfix { loc; op; lvalue } ->
          let op_str = match op with `Incr -> "++" | `Decr -> "--" in
          let b, e = pos_bbox loc in
@@ -482,7 +637,18 @@ let main
   in
   (* Save things *)
   let oc = Stdlib.open_out out_filename in
-  output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
+  if !Config.with_auto_annot then (
+    output_to_oc
+      oc
+      [ "#define __CN_INSTRUMENT\n";
+        "#include <stdint.h>\n";
+        "#include <cn-executable/utils.h>\n"
+      ];
+    output_to_oc oc [ "#include <cn-autoannot/auto_annot.h>\n" ])
+  else (
+    output_to_oc oc [ "#define __CN_INSTRUMENT\n"; "#include <cn-executable/utils.h>\n" ];
+    output_to_oc oc [ "#include <cn-autoannot/auto_annot.h>\n" ]);
+  output_to_oc oc [ "#include <stdio.h>\n" ];
   output_to_oc oc cn_header_decls_list;
   output_to_oc
     oc

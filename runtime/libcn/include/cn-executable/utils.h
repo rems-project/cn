@@ -7,6 +7,7 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 #include "stack.h"
+#include <cn-autoannot/auto_annot.h>
 
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
@@ -143,10 +144,17 @@ typedef struct cn_alloc_id {
 
 typedef hash_table cn_map;
 
+enum RuntimeMode {
+  RUNTIME_NORMAL_MODE,
+  RUNTIME_OWNERSHIP_STACK_MODE,
+  RUNTIME_AUTO_ANNOT_MODE,
+};
+extern enum RuntimeMode runtime_mode;
+
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
-void initialise_ownership_stack_mode(bool flag);
+void initialise_runtime_mode(enum RuntimeMode mode);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
 void ghost_stack_depth_decr(void);
@@ -543,11 +551,17 @@ CN_GEN_MAP_GET(cn_map)
 /* OWNERSHIP */
 
 GEN_ALL_STACK(cn_source_location, char*);
+GEN_ALL_STACK(cn_res_info, struct cn_res*);
 
 typedef struct ownership_ghost_info {
   int depth;
-  cn_source_location_stack*
-      source_loc_stack;  // set to null if ownership_stack_mode is disabled
+  union {
+    // runtime_mode == RUNTIME_OWNERSHIP_STACK_MODE
+    cn_source_location_stack* source_loc_stack;  // set to null if ownership_stack_mode is disabled
+
+    // runtime_mode == RUNTIME_AUTO_ANNOT_MODE
+    cn_res_info_stack* res_info_stack;
+  };
 } ownership_ghost_info;
 
 enum STACK_OP {
@@ -557,6 +571,8 @@ enum STACK_OP {
 };
 
 int ownership_ghost_state_get_depth(int64_t address);
+ownership_ghost_info* ownership_ghost_state_get(int64_t address);
+
 void ownership_ghost_state_set(int64_t address,
     size_t size,
     int stack_depth_val,
