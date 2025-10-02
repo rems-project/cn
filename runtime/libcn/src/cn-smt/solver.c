@@ -1,6 +1,8 @@
+#include <sys/select.h>
 #include <sys/wait.h>
 
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,6 +28,43 @@ void send_string(struct cn_smt_solver *solver, const char *str) {
 
 char *read_output(struct cn_smt_solver *solver) {
   assert(solver);
+
+  // Wait for data to be available with a timeout
+  int fd = fileno(solver->read_output);
+  fd_set read_fds;
+  struct timeval timeout;
+  int select_result;
+
+  // Retry select() if interrupted by signal (EINTR)
+  while (1) {
+    FD_ZERO(&read_fds);
+    FD_SET(fd, &read_fds);
+
+    // 30 second timeout
+    timeout.tv_sec = 30;
+    timeout.tv_usec = 0;
+
+    select_result = select(fd + 1, &read_fds, NULL, NULL, &timeout);
+
+    if (select_result == -1) {
+      if (errno == EINTR) {
+        // Interrupted by signal, retry
+        continue;
+      }
+      perror("select failed in read_output");
+      assert(false);
+    }
+
+    // Success or timeout, break out of retry loop
+    break;
+  }
+
+  if (select_result == 0) {
+    fprintf(stderr, "Timeout waiting for SMT solver response\n");
+    assert(false);
+  }
+
+  // Data is available, proceed with reading
   size_t buffer_size = 128;
   char *buffer = malloc(buffer_size);
   assert(buffer);
@@ -96,6 +135,15 @@ sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp) {
 void stop_solver(struct cn_smt_solver *solver) {
   assert(solver);
   send_string(solver, "(exit)");
+
+  // Close FILE* streams (this closes the underlying file descriptors)
+  fclose(solver->write_input);
+  fclose(solver->read_output);
+  fclose(solver->log_file);
+
+  // Wait for solver process to exit
+  int status;
+  waitpid(solver->pid, &status, 0);
 }
 
 void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
@@ -170,6 +218,11 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
 
   solver->ext = ext;
   solver->pid = pid;
+
+  // Close unused pipe ends in parent
+  close(pipe_fd_in[0]);
+  close(pipe_fd_out[1]);
+
   solver->write_input = fdopen(pipe_fd_in[1], "w");
   solver->read_output = fdopen(pipe_fd_out[0], "r");
   solver->log_file = fopen("./smt.log", "w");
