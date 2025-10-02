@@ -142,7 +142,7 @@ module Make (AD : Domain.T) = struct
       |> Pp.separate Pp.hardline
     in
     let stop_solver = !^"stop_solver(smt_solver);" in
-    let struct_return =
+    let result_struct =
       (record_type ^^ star)
       ^^^ !^"result_struct"
       ^^^ equals
@@ -153,7 +153,6 @@ module Make (AD : Domain.T) = struct
       ^^^ parens record_type
       ^/^ braces struct_fields
       ^^ semi
-      ^/^ !^"return result_struct;"
     in
     (* Combine everything into the function *)
     (record_type ^^ !^"*")
@@ -177,12 +176,14 @@ module Make (AD : Domain.T) = struct
     ^^^ (!^"if (result != CN_SOLVER_SAT)"
          ^^^ braces
                (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
-                ^/^ !^"stop_solver(smt_solver); return NULL;"))
+                ^/^ stop_solver
+                ^^^ !^"return NULL;"))
     ^/^ hardline
     ^/^ conc_context_init
     ^/^ concrete_vars
     ^/^ concretize_model
+    ^/^ result_struct
     ^/^ stop_solver
-    ^/^ struct_return
+    ^/^ !^"return result_struct;"
     ^/^ !^"}"
 end
