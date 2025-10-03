@@ -136,7 +136,7 @@ let rec add_pattern p v var_map =
   match pattern with
   | CaseBase (Some s, _) -> return (Sym.Map.add s v var_map)
   | CaseBase (None, _) -> return var_map
-  | CaseCtor (Cspecified, [p]) -> add_pattern p v var_map
+  | CaseCtor (Cspecified, [ p ]) -> add_pattern p v var_map
   | CaseCtor (Ctuple, ps) ->
     let@ vs =
       match v with

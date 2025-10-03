@@ -1445,9 +1445,9 @@ module BaseTyping = struct
         | CivAND, _ -> assert false
         | CivOR, _ -> assert false
         | CivXOR, _ -> assert false
-        | Cspecified, [pat] -> 
-           let@ pat = check_and_bind_pattern bt pat in
-           return (Cspecified, [pat])           
+        | Cspecified, [ pat ] ->
+          let@ pat = check_and_bind_pattern bt pat in
+          return (Cspecified, [ pat ])
         | Cspecified, _ -> assert false
         | Cunspecified, _ -> assert false
         | Cfvfromint, _ -> assert false
@@ -1892,8 +1892,7 @@ module BaseTyping = struct
         let type_ = `Other in
         let has = List.length pes in
         fail { loc; msg = Number_arguments { type_; has; expect = 3 } }
-      | Cspecified, [p] ->
-         maybe_ensure_base_type (Mu.bt_of_pexpr p)
+      | Cspecified, [ p ] -> maybe_ensure_base_type (Mu.bt_of_pexpr p)
       | Cspecified, _ -> assert false
       | _ -> assert false
     in

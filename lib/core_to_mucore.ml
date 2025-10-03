@@ -141,8 +141,6 @@ let rec core_to__pattern ~inherit_loc loc (Pattern (annots, pat_)) =
     wrap (CaseCtor (ctor, pats))
 
 
-
-
 let rec n_ov loc ov =
   let ov =
     match ov with
@@ -215,7 +213,7 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEerror (err, e') -> annotate (PEerror (err, n_pexpr loc e'))
   | PEctor (ctor, args) ->
     let args = List.map (n_pexpr loc) args in
-    (annotate (PEctor (ctor, args)))
+    annotate (PEctor (ctor, args))
   | PEcase (_e', _pats_pes) -> assert_error loc !^"PEcase"
   | PEarray_shift (e', ct, e'') ->
     let e' = n_pexpr loc e' in
@@ -378,10 +376,10 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
             (!^"PEcall to impl not inlined:"
              ^^^ !^(CF.Implementation.string_of_implementation_constant impl))))
   | PElet (pat, e', e'') ->
-    (let pat = core_to__pattern ~inherit_loc loc pat in
-     let e' = n_pexpr loc e' in
-     let e'' = n_pexpr loc e'' in
-     annotate (PElet (pat, e', e'')))
+    let pat = core_to__pattern ~inherit_loc loc pat in
+    let e' = n_pexpr loc e' in
+    let e'' = n_pexpr loc e'' in
+    annotate (PElet (pat, e', e''))
   | PEif (e1, e2, e3) ->
     let e1 = n_pexpr loc e1 in
     let e2 = n_pexpr loc e2 in
@@ -516,10 +514,10 @@ let rec n_expr
   | Eaction paction2 -> return (wrap (Eaction (n_paction paction2)))
   | Ecase (_pexpr, _pats_es) -> assert_error loc !^"Ecase"
   | Elet (pat, e1, e2) ->
-     (let e1 = n_pexpr e1 in
-      let pat = core_to__pattern ~inherit_loc loc pat in
-      let@ e2 = n_expr e2 in
-      return (wrap (Elet (pat, e1, e2))))
+    let e1 = n_pexpr e1 in
+    let pat = core_to__pattern ~inherit_loc loc pat in
+    let@ e2 = n_expr e2 in
+    return (wrap (Elet (pat, e1, e2)))
   | Eif (e1, e2, e3) ->
     let e1 = n_pexpr e1 in
     let@ e2 = n_expr e2 in
