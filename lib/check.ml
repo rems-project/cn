@@ -73,6 +73,10 @@ let rec check_and_match_pattern (Mu.Pattern (loc, _, bty, pattern)) it =
        in
        let as_, cs_ = List.split as_cs in
        return (List.concat as_, List.concat cs_)
+     | Cspecified, [p] -> 
+        let@ () = WellTyped.ensure_base_type loc ~expect:bty (Mu.bt_of_pattern p) in
+        check_and_match_pattern p it
+     | Cspecified, _ -> assert false
      | Carray, _ -> assert false
      | Civmax, _ -> assert false
      | Civmin, _ -> assert false
@@ -650,6 +654,9 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
              WellTyped
                (Number_arguments { type_ = `Other; has = List.length pes; expect = 3 })
          })
+     | Cspecified, [p] -> 
+        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr p) in
+        check_pexpr path_cs p
      | Cspecified, _ -> assert false
      | Cunspecified, _ -> assert false
      | Cfvfromint, _ -> assert false

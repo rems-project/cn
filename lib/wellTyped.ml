@@ -1445,6 +1445,9 @@ module BaseTyping = struct
         | CivAND, _ -> assert false
         | CivOR, _ -> assert false
         | CivXOR, _ -> assert false
+        | Cspecified, [pat] -> 
+           let@ pat = check_and_bind_pattern bt pat in
+           return (Cspecified, [pat])           
         | Cspecified, _ -> assert false
         | Cunspecified, _ -> assert false
         | Cfvfromint, _ -> assert false
