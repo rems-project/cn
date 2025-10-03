@@ -1892,6 +1892,9 @@ module BaseTyping = struct
         let type_ = `Other in
         let has = List.length pes in
         fail { loc; msg = Number_arguments { type_; has; expect = 3 } }
+      | Cspecified, [p] ->
+         maybe_ensure_base_type (Mu.bt_of_pexpr p)
+      | Cspecified, _ -> assert false
       | _ -> assert false
     in
     return (bt, PEctor (ctor, pes))

@@ -23,8 +23,6 @@ module Desugar = struct
   let cn_arg = CF.Cabs_to_ail.desugar_cn_arg
 end
 
-let get_loc = CF.Annot.get_loc
-
 let get_loc_ = CF.Annot.get_loc_
 
 let fetch_enum d_st loc sym =
@@ -140,13 +138,9 @@ let rec core_to__pattern ~inherit_loc loc (Pattern (annots, pat_)) =
   | CaseBase (msym, cbt1) -> wrap (CaseBase (msym, cbt1))
   | CaseCtor (ctor, pats) ->
     let pats = Lem_pervasives.map (core_to__pattern ~inherit_loc loc) pats in
-    (match ctor with
-     | Cnil cbt1 -> wrap (CaseCtor (Cnil cbt1, pats))
-     | Ccons -> wrap (CaseCtor (Ccons, pats))
-     | Ctuple -> wrap (CaseCtor (Ctuple, pats))
-     | Carray -> wrap (CaseCtor (Carray, pats))
-     | Cspecified -> List.hd pats
-     | _ -> assert_error loc !^"core_to_mucore: unsupported pattern")
+    wrap (CaseCtor (ctor, pats))
+
+
 
 
 let rec n_ov loc ov =
@@ -221,7 +215,7 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEerror (err, e') -> annotate (PEerror (err, n_pexpr loc e'))
   | PEctor (ctor, args) ->
     let args = List.map (n_pexpr loc) args in
-    (match ctor with Cspecified -> List.hd args | _ -> annotate (PEctor (ctor, args)))
+    (annotate (PEctor (ctor, args)))
   | PEcase (_e', _pats_pes) -> assert_error loc !^"PEcase"
   | PEarray_shift (e', ct, e'') ->
     let e' = n_pexpr loc e' in
@@ -384,46 +378,10 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
             (!^"PEcall to impl not inlined:"
              ^^^ !^(CF.Implementation.string_of_implementation_constant impl))))
   | PElet (pat, e', e'') ->
-    (match (pat, e') with
-     | Pattern (_annots, CaseBase (Some sym, _)), Pexpr (annots2, _, PEsym sym2)
-     | ( Pattern (_annots, CaseCtor (Cspecified, [ Pattern (_, CaseBase (Some sym, _)) ])),
-         Pexpr (annots2, _, PEsym sym2) ) ->
-       let e'' = CF.Core_peval.subst_sym_pexpr2 sym (get_loc annots2, `SYM sym2) e'' in
-       n_pexpr loc e''
-     | ( Pattern
-           ( _annots,
-             CaseCtor
-               ( Ctuple,
-                 [ Pattern (_, CaseBase (Some sym, _));
-                   Pattern (_, CaseBase (Some sym', _))
-                 ] ) ),
-         Pexpr
-           ( annots2,
-             _,
-             PEctor (Ctuple, [ Pexpr (_, _, PEsym sym2); Pexpr (_, _, PEsym sym2') ]) ) )
-     | ( Pattern
-           ( _annots,
-             CaseCtor
-               ( Ctuple,
-                 [ Pattern
-                     (_, CaseCtor (Cspecified, [ Pattern (_, CaseBase (Some sym, _)) ]));
-                   Pattern
-                     (_, CaseCtor (Cspecified, [ Pattern (_, CaseBase (Some sym', _)) ]))
-                 ] ) ),
-         Pexpr
-           ( annots2,
-             _,
-             PEctor (Ctuple, [ Pexpr (_, _, PEsym sym2); Pexpr (_, _, PEsym sym2') ]) ) )
-     (* pairwise disjoint *)
-       when List.length (List.sort_uniq Sym.compare [ sym; sym'; sym2; sym2' ]) = 4 ->
-       let e'' = CF.Core_peval.subst_sym_pexpr2 sym (get_loc annots2, `SYM sym2) e'' in
-       let e'' = CF.Core_peval.subst_sym_pexpr2 sym' (get_loc annots2, `SYM sym2') e'' in
-       n_pexpr loc e''
-     | _ ->
-       let pat = core_to__pattern ~inherit_loc loc pat in
-       let e' = n_pexpr loc e' in
-       let e'' = n_pexpr loc e'' in
-       annotate (PElet (pat, e', e'')))
+    (let pat = core_to__pattern ~inherit_loc loc pat in
+     let e' = n_pexpr loc e' in
+     let e'' = n_pexpr loc e'' in
+     annotate (PElet (pat, e', e'')))
   | PEif (e1, e2, e3) ->
     let e1 = n_pexpr loc e1 in
     let e2 = n_pexpr loc e2 in
@@ -558,46 +516,10 @@ let rec n_expr
   | Eaction paction2 -> return (wrap (Eaction (n_paction paction2)))
   | Ecase (_pexpr, _pats_es) -> assert_error loc !^"Ecase"
   | Elet (pat, e1, e2) ->
-    (match (pat, e1) with
-     | Pattern (_annots, CaseBase (Some sym, _)), Pexpr (annots2, _, PEsym sym2)
-     | ( Pattern (_annots, CaseCtor (Cspecified, [ Pattern (_, CaseBase (Some sym, _)) ])),
-         Pexpr (annots2, _, PEsym sym2) ) ->
-       let e2 = CF.Core_peval.subst_sym_expr2 sym (get_loc annots2, `SYM sym2) e2 in
-       n_expr e2
-     | ( Pattern
-           ( _annots,
-             CaseCtor
-               ( Ctuple,
-                 [ Pattern (_, CaseBase (Some sym, _));
-                   Pattern (_, CaseBase (Some sym', _))
-                 ] ) ),
-         Pexpr
-           ( annots2,
-             _,
-             PEctor (Ctuple, [ Pexpr (_, _, PEsym sym2); Pexpr (_, _, PEsym sym2') ]) ) )
-     | ( Pattern
-           ( _annots,
-             CaseCtor
-               ( Ctuple,
-                 [ Pattern
-                     (_, CaseCtor (Cspecified, [ Pattern (_, CaseBase (Some sym, _)) ]));
-                   Pattern
-                     (_, CaseCtor (Cspecified, [ Pattern (_, CaseBase (Some sym', _)) ]))
-                 ] ) ),
-         Pexpr
-           ( annots2,
-             _,
-             PEctor (Ctuple, [ Pexpr (_, _, PEsym sym2); Pexpr (_, _, PEsym sym2') ]) ) )
-     (* pairwise disjoint *)
-       when List.length (List.sort_uniq Sym.compare [ sym; sym'; sym2; sym2' ]) = 4 ->
-       let e2 = CF.Core_peval.subst_sym_expr2 sym (get_loc annots2, `SYM sym2) e2 in
-       let e2 = CF.Core_peval.subst_sym_expr2 sym' (get_loc annots2, `SYM sym2') e2 in
-       n_expr e2
-     | _ ->
-       let e1 = n_pexpr e1 in
-       let pat = core_to__pattern ~inherit_loc loc pat in
-       let@ e2 = n_expr e2 in
-       return (wrap (Elet (pat, e1, e2))))
+     (let e1 = n_pexpr e1 in
+      let pat = core_to__pattern ~inherit_loc loc pat in
+      let@ e2 = n_expr e2 in
+      return (wrap (Elet (pat, e1, e2))))
   | Eif (e1, e2, e3) ->
     let e1 = n_pexpr e1 in
     let@ e2 = n_expr e2 in
@@ -614,24 +536,7 @@ let rec n_expr
       | _ ->
         assert_error loc !^"core_anormalisation: Eccall with non-ctype first argument"
     in
-    let@ e2 =
-      (* let err () = unsupported loc !^"invalid function constant" in *)
-      match e2 with
-      (* | Pexpr (annots, bty, PEval v) -> *)
-      (*   let@ sym = *)
-      (*     match v with *)
-      (*     | Vobject (OVpointer ptrval) | Vloaded (LVspecified (OVpointer ptrval)) -> *)
-      (*       CF.Impl_mem.case_ptrval *)
-      (*         ptrval *)
-      (*         (fun _ct -> err ()) *)
-      (*         (function *)
-      (*           | None -> (\* FIXME(CHERI merge) *\) err () | Some sym -> return sym) *)
-      (*         (fun _prov _ -> err ()) *)
-      (*     | _ -> err () *)
-      (*   in *)
-      (*   return (Mu.Pexpr (loc, annots, bty, PEval (V ((), Vfunction_addr sym)))) *)
-      | _ -> return @@ n_pexpr e2
-    in
+    let@ e2 = return @@ n_pexpr e2 in
     let es = List.map n_pexpr es in
     let@ parsed_ghosts = Parse.cn_ghost_args annots in
     let@ ghost_args =
