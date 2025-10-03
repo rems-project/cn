@@ -14,7 +14,7 @@ type 'TY object_value_ =
 
 and 'TY object_value = OV of 'TY * 'TY object_value_
 
-and 'TY loaded_value = 
+and 'TY loaded_value =
   | LVspecified of 'TY object_value
   | LVunspecified of Cerb_frontend.Ctype.ctype
 
@@ -37,6 +37,7 @@ let bt_of_object_value (OV (bty, _)) = bty
 let bt_of_loaded_value = function
   | LVspecified ov -> bt_of_object_value ov
   | LVunspecified _ -> assert false
+
 
 type ctor = Cerb_frontend.Core.ctor
 

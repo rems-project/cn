@@ -248,7 +248,8 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
   | OVunion (tag, id, mv) -> check_union loc tag id mv
   | OVfloating _iv -> unsupported loc !^"floats"
 
-and check_loaded_value loc lv = 
+
+and check_loaded_value loc lv =
   match lv with
   | Mu.LVspecified ov -> check_object_value loc ov
   | Mu.LVunspecified _ -> assert false

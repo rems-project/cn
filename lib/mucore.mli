@@ -22,7 +22,7 @@ type 'TY object_value_ =
 
 and 'TY object_value = OV of 'TY * 'TY object_value_
 
-and 'TY loaded_value = 
+and 'TY loaded_value =
   | LVspecified of 'TY object_value
   | LVunspecified of Cerb_frontend.Ctype.ctype
 

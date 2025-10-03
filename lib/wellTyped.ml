@@ -1491,12 +1491,12 @@ module BaseTyping = struct
     in
     return (Mu.OV (bt, ov))
 
+
   and infer_loaded_value loc = function
-    | Mu.LVspecified ov -> 
-       let@ ov = infer_object_value loc ov in
-       return (Mu.LVspecified ov)
-    | LVunspecified _ ->
-       assert false
+    | Mu.LVspecified ov ->
+      let@ ov = infer_object_value loc ov in
+      return (Mu.LVspecified ov)
+    | LVunspecified _ -> assert false
 
 
   let rec check_object_value
@@ -1522,11 +1522,12 @@ module BaseTyping = struct
       let@ () = ensure_base_type loc ~expect:bt (Mu.bt_of_object_value ov) in
       return ov
 
+
   and check_loaded_value loc bt lv =
     match lv with
-    | Mu.LVspecified ov -> 
-       let@ ov = check_object_value loc bt ov in
-       return (Mu.LVspecified ov)
+    | Mu.LVspecified ov ->
+      let@ ov = check_object_value loc bt ov in
+      return (Mu.LVspecified ov)
     | LVunspecified _ -> assert false
 
 

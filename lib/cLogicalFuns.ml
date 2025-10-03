@@ -17,7 +17,7 @@ type 'a exec_result =
   | Compute of IT.t * 'a
   | If_Else of IT.t * 'a exec_result * 'a exec_result
 
-let ov_to_it loc (Mu.OV (bt, ov)) = 
+let ov_to_it loc (Mu.OV (bt, ov)) =
   match ov with
   | OVinteger iv -> Some (IT.num_lit_ (Memory.z_of_ival iv) bt loc)
   | OVpointer ptr_val ->
@@ -27,6 +27,7 @@ let ov_to_it loc (Mu.OV (bt, ov)) =
       (function None -> None | Some sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc)))
       (fun _prov _p -> (* how to correctly convert provenance? *) None)
   | _ -> None
+
 
 let lv_to_it loc = function
   | Mu.LVspecified ov -> ov_to_it loc ov
