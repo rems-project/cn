@@ -36,7 +36,7 @@ module PP = struct
                (fun fval -> !^(string_of_float fval)))
     | OVpointer ptrval ->
       Dleaf (pp_pure_ctor "OVpointer" ^^^ Impl_mem.pp_pointer_value ptrval)
-    | OVarray lvals -> Dnode (pp_pure_ctor "OVarray", List.map dtree_of_object_value lvals)
+    | OVarray lvals -> Dnode (pp_pure_ctor "OVarray", List.map dtree_of_loaded_value lvals)
     | OVstruct (_tag_sym, _xs) ->
       Dleaf (pp_pure_ctor "OVstruct" ^^^ !^(ansi_format [ Red ] "TODO"))
     | OVunion (_tag_sym, _membr_ident, _mval) ->
@@ -46,6 +46,7 @@ module PP = struct
   and dtree_of_value (V (_bty, v)) =
     match v with
     | Vobject oval -> Dnode (pp_pure_ctor "Vobject", [ dtree_of_object_value oval ])
+    | Vloaded lv -> Dnode (pp_pure_ctor "Vloaded", [ dtree_of_loaded_value lv ])
     | Vunit -> Dleaf (pp_pure_ctor "Vunit")
     | Vtrue -> Dleaf (pp_pure_ctor "Vtrue")
     | Vfalse -> Dleaf (pp_pure_ctor "Vfalse")
@@ -53,6 +54,11 @@ module PP = struct
       Dleaf (pp_pure_ctor "Vlist" ^^^ !^(ansi_format [ Red ] "TODO"))
     | Vtuple _cvals -> Dleaf (pp_pure_ctor "Vtuple" ^^^ !^(ansi_format [ Red ] "TODO"))
     | Vctype _ctype -> Dleaf (pp_pure_ctor "Vctype" ^^^ !^(ansi_format [ Red ] "TODO"))
+
+
+  and dtree_of_loaded_value = function
+    | LVspecified ov -> Dnode (pp_pure_ctor "LVspecified", [ dtree_of_object_value ov ])
+    | LVunspecified _ -> Dleaf (pp_pure_ctor "LVunspecified")
 
 
   let string_of_bop = Pp_core_ast.string_of_bop

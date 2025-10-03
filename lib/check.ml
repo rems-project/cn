@@ -73,6 +73,10 @@ let rec check_and_match_pattern (Mu.Pattern (loc, _, bty, pattern)) it =
        in
        let as_, cs_ = List.split as_cs in
        return (List.concat as_, List.concat cs_)
+     | Cspecified, [ p ] ->
+       let@ () = WellTyped.ensure_base_type loc ~expect:bty (Mu.bt_of_pattern p) in
+       check_and_match_pattern p it
+     | Cspecified, _ -> assert false
      | Carray, _ -> assert false
      | Civmax, _ -> assert false
      | Civmin, _ -> assert false
@@ -233,10 +237,10 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
     let@ () =
       ListM.iterM
         (fun i ->
-           WellTyped.ensure_base_type loc ~expect:item_bt (Mu.bt_of_object_value i))
+           WellTyped.ensure_base_type loc ~expect:item_bt (Mu.bt_of_loaded_value i))
         items
     in
-    let@ values = ListM.mapM (check_object_value loc) items in
+    let@ values = ListM.mapM (check_loaded_value loc) items in
     return (make_array_ ~index_bt ~item_bt values loc)
   | OVstruct (tag, fields) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
@@ -245,11 +249,20 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
   | OVfloating _iv -> unsupported loc !^"floats"
 
 
+and check_loaded_value loc lv =
+  match lv with
+  | Mu.LVspecified ov -> check_object_value loc ov
+  | Mu.LVunspecified _ -> assert false
+
+
 let rec check_value (loc : Locations.t) (Mu.V (expect, v)) : IT.t m =
   match v with
   | Vobject ov ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_object_value ov) in
     check_object_value loc ov
+  | Vloaded lv ->
+    let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_loaded_value lv) in
+    check_loaded_value loc lv
   | Vctype ct ->
     let@ () = WellTyped.ensure_base_type loc ~expect CType in
     let ct = Sctypes.of_ctype_unsafe loc ct in
@@ -650,6 +663,9 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
              WellTyped
                (Number_arguments { type_ = `Other; has = List.length pes; expect = 3 })
          })
+     | Cspecified, [ p ] ->
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr p) in
+       check_pexpr path_cs p
      | Cspecified, _ -> assert false
      | Cunspecified, _ -> assert false
      | Cfvfromint, _ -> assert false
