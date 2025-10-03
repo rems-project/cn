@@ -1719,7 +1719,7 @@ module BaseTyping = struct
           let@ () = ensure_base_type loc ~expect:(Option MemByte) (bt_of_pexpr pe) in
           return (Bits (Unsigned, 8), PEmemop (IntFromByte, pe))
         | PEmemop (_, _) -> assert false
-        | PEctor (ctor, pes) -> check_infer_ctor None ctor pes pe
+        | PEctor (ctor, pes) -> infer_ctor ctor pes pe
         | PEcfunction pe ->
           let@ pe = infer_pexpr pe in
           return (Tuple [ CType; List CType; Bool; Bool ], PEcfunction pe)
@@ -1769,7 +1769,7 @@ module BaseTyping = struct
       let@ _bt, pes = check_infer_apply_fun (Some expect) fname pes expr in
       return (annot expect (Mu.PEapply_fun (fname, pes)))
     | PEctor (ctor, pes) ->
-      let@ _bt, e = check_infer_ctor (Some expect) ctor pes expr in
+      let@ e = check_ctor expect ctor pes expr in
       return (annot expect e)
     | _ ->
       let@ expr = infer_pexpr expr in
@@ -1819,17 +1819,10 @@ module BaseTyping = struct
     return (bt, pexps)
 
 
-  and check_infer_ctor (expect : BT.t option) ctor pes orig_pe =
+  and infer_ctor ctor pes orig_pe =
     let open Mu in
     let loc = loc_of_pexpr orig_pe in
     let@ pes = ListM.mapM infer_pexpr pes in
-    let maybe_ensure_base_type bt =
-      match expect with
-      | None -> return bt
-      | Some expect ->
-        let@ () = ensure_base_type loc ~expect bt in
-        return bt
-    in
     let missing_annotation () =
       fail
         { loc;
@@ -1844,18 +1837,18 @@ module BaseTyping = struct
       | Ccons, [ x; xs ] ->
         let ibt = bt_of_pexpr x in
         let@ () = ensure_base_type loc ~expect:(List ibt) (bt_of_pexpr xs) in
-        maybe_ensure_base_type (bt_of_pexpr xs)
+        return (bt_of_pexpr xs)
       | Ccons, _ ->
         let type_ = `Other in
         let has = List.length pes in
         fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
-      | Ctuple, _ -> maybe_ensure_base_type (BT.Tuple (List.map bt_of_pexpr pes))
+      | Ctuple, _ -> return (BT.Tuple (List.map bt_of_pexpr pes))
       | Carray, _ ->
         let ibt = bt_of_pexpr (List.hd pes) in
         let@ () =
           ListM.iterM (fun pe -> ensure_base_type loc ~expect:ibt (bt_of_pexpr pe)) pes
         in
-        maybe_ensure_base_type (Map (Memory.uintptr_bt, ibt))
+        return (Map (Memory.uintptr_bt, ibt))
       | (Civmax | Civmin), [ e ] ->
         let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
         let ct = Option.get (Mu.is_ctype_const e) in
@@ -1863,23 +1856,21 @@ module BaseTyping = struct
         let@ () = WCT.is_ct loc sct in
         let rbt = Memory.bt_of_sct sct in
         let@ () = ensure_bits_type loc rbt in
-        maybe_ensure_base_type rbt
+        return rbt
       | (Civmax | Civmin), _ ->
         let type_ = `Other in
         let has = List.length pes in
         fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
       | Civsizeof, [ e ] ->
         let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
-        maybe_ensure_base_type Memory.size_bt
+        return Memory.size_bt
       | Civsizeof, _ ->
         let type_ = `Other in
         let has = List.length pes in
         fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
       | Civalignof, [ e ] ->
         let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
-        let@ expect =
-          match expect with Some bt -> return bt | None -> missing_annotation ()
-        in
+        let@ expect = missing_annotation () in
         let@ () = ensure_bits_type loc expect in
         return expect
       | Civalignof, _ ->
@@ -1894,7 +1885,7 @@ module BaseTyping = struct
         let rbt = Memory.bt_of_sct sct in
         let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e2) in
         let@ () = ensure_bits_type loc rbt in
-        maybe_ensure_base_type rbt
+        return rbt
       | CivCOMPL, _ ->
         let type_ = `Other in
         let has = List.length pes in
@@ -1908,16 +1899,141 @@ module BaseTyping = struct
         let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e2) in
         let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e3) in
         let@ () = ensure_bits_type loc rbt in
-        maybe_ensure_base_type rbt
+        return rbt
       | (CivAND | CivOR | CivXOR), _ ->
         let type_ = `Other in
         let has = List.length pes in
         fail { loc; msg = Number_arguments { type_; has; expect = 3 } }
-      | Cspecified, [ p ] -> maybe_ensure_base_type (Mu.bt_of_pexpr p)
+      | Cspecified, [ p ] -> return (Mu.bt_of_pexpr p)
       | Cspecified, _ -> assert false
       | _ -> assert false
     in
     return (bt, PEctor (ctor, pes))
+
+  and check_ctor (expect : BT.t) ctor pes orig_pe =
+    let open Mu in
+    let loc = loc_of_pexpr orig_pe in
+    let expect_list_bt () = 
+      match expect with
+      | List item_bt -> return item_bt
+      | _ ->
+         let msg = Mismatch { has = !^"list"; expect = BT.pp expect } in
+         fail { loc; msg }
+    in
+    let expect_tuple_bt () = 
+      match expect with
+      | Tuple item_bts -> return item_bts
+      | _ ->
+         let msg = Mismatch { has = !^"tuple"; expect = BT.pp expect } in
+         fail { loc; msg }
+    in
+    let expect_map_bt () = 
+      match expect with
+      | Map (index_bt,item_bt) -> return (index_bt, item_bt)
+      | _ ->
+         let msg = Mismatch { has = !^"array/map"; expect = BT.pp expect } in
+         fail { loc; msg }
+    in
+    match (ctor, pes) with
+    | Cnil _, _ -> failwith "todo"
+    | Ccons, [ x; xs ] ->
+       let@ item_bt = expect_list_bt () in
+       let@ x = check_pexpr item_bt x in
+       let@ xs = check_pexpr (List item_bt) xs in
+       return (PEctor (ctor, [x; xs]))
+    | Ccons, _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+    | Ctuple, _ -> 
+       let@ item_bts = expect_tuple_bt () in
+       let@ () = 
+         let expected = List.length item_bts in
+         let have = List.length pes in
+         if (expected = have) then return ()
+         else 
+           let msg = 
+             !^"Expected tuple with" 
+             ^^^ Pp.int expected 
+             ^^^ !^"components" ^^ comma 
+             ^^^ !^"found tuple with"
+             ^^^ Pp.int have
+             ^^^ !^"components" ^^ dot
+           in
+           fail {loc; msg = Generic msg} [@alert "-deprecated"]
+       in
+       let@ pes = ListM.map2M check_pexpr item_bts pes in
+       return (PEctor (ctor, pes))
+    | Carray, _ ->
+       let@ index_bt, item_bt = expect_map_bt () in
+       let@ () = ensure_bits_type loc index_bt in
+       let@ pes = ListM.mapM (check_pexpr item_bt) pes in
+       return (PEctor (ctor, pes))
+    | (Civmax | Civmin), [ e ] ->
+       let@ e = check_pexpr CType e in
+       let ct = Option.get (Mu.is_ctype_const e) in
+       let sct = Option.get (Sctypes.of_ctype ct) in
+       let@ () = WCT.is_ct loc sct in
+       let rbt = Memory.bt_of_sct sct in
+       let@ () = ensure_bits_type loc rbt in
+       let@ () = ensure_base_type loc ~expect rbt in
+       return (PEctor (ctor, [ e ]))
+    | (Civmax | Civmin), _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+    | Civsizeof, [ e ] ->
+       let@ e = check_pexpr CType e in
+       let@ () = ensure_base_type loc ~expect Memory.size_bt in
+       return (PEctor (ctor, [e]))
+    | Civsizeof, _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+    | Civalignof, [ e ] ->
+       let@ e = check_pexpr CType e in
+       (* TODO: check z fits range, also elsewhere *)
+       let@ () = ensure_bits_type loc expect in
+       return (PEctor (ctor, [e]))
+    | Civalignof, _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+    | CivCOMPL, [ e1; e2 ] ->
+       let@ e1 = check_pexpr CType e1 in
+       let ct = Option.get (is_ctype_const e1) in
+       let sct = Option.get (Sctypes.of_ctype ct) in
+       let@ () = WCT.is_ct loc sct in
+       let rbt = Memory.bt_of_sct sct in
+       let@ e2 = check_pexpr rbt e2 in
+       let@ () = ensure_bits_type loc rbt in
+       let@ () = ensure_base_type loc ~expect rbt in
+       return (PEctor (ctor, [e1;e2]))
+    | CivCOMPL, _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+    | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+       let@ e1 = check_pexpr CType e1 in
+       let ct = Option.get (is_ctype_const e1) in
+       let sct = Option.get (Sctypes.of_ctype ct) in
+       let@ () = WCT.is_ct loc sct in
+       let rbt = Memory.bt_of_sct sct in
+       let@ e2 = check_pexpr rbt e2 in
+       let@ e3 = check_pexpr rbt e3 in
+       let@ () = ensure_bits_type loc rbt in
+       let@ () = ensure_base_type loc ~expect rbt in
+       return (PEctor (ctor, [e1;e2;e3]))
+    | (CivAND | CivOR | CivXOR), _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       fail { loc; msg = Number_arguments { type_; has; expect = 3 } }
+    | Cspecified, [ p ] -> 
+       let@ p = check_pexpr expect p in
+       return (PEctor (ctor, [p]))
+    | Cspecified, _ -> assert false
+    | _ -> assert false
+
 
 
   let check_cn_statement loc stmt =
