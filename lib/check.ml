@@ -237,10 +237,10 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
     let@ () =
       ListM.iterM
         (fun i ->
-           WellTyped.ensure_base_type loc ~expect:item_bt (Mu.bt_of_object_value i))
+           WellTyped.ensure_base_type loc ~expect:item_bt (Mu.bt_of_loaded_value i))
         items
     in
-    let@ values = ListM.mapM (check_object_value loc) items in
+    let@ values = ListM.mapM (check_loaded_value loc) items in
     return (make_array_ ~index_bt ~item_bt values loc)
   | OVstruct (tag, fields) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
@@ -248,12 +248,20 @@ let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
   | OVunion (tag, id, mv) -> check_union loc tag id mv
   | OVfloating _iv -> unsupported loc !^"floats"
 
+and check_loaded_value loc lv = 
+  match lv with
+  | Mu.LVspecified ov -> check_object_value loc ov
+  | Mu.LVunspecified _ -> assert false
+
 
 let rec check_value (loc : Locations.t) (Mu.V (expect, v)) : IT.t m =
   match v with
   | Vobject ov ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_object_value ov) in
     check_object_value loc ov
+  | Vloaded lv ->
+    let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_loaded_value lv) in
+    check_loaded_value loc lv
   | Vctype ct ->
     let@ () = WellTyped.ensure_base_type loc ~expect CType in
     let ct = Sctypes.of_ctype_unsafe loc ct in

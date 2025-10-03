@@ -157,15 +157,15 @@ let rec n_ov loc ov =
 
 and n_lv loc v =
   match v with
-  | LVspecified ov -> n_ov loc ov
-  | LVunspecified _ct1 -> assert_error loc !^"core_anormalisation: LVunspecified"
+  | LVspecified ov -> LVspecified (n_ov loc ov)
+  | LVunspecified ct1 -> LVunspecified ct1
 
 
 and n_val loc v =
   let v =
     match v with
     | Vobject ov -> Mu.Vobject (n_ov loc ov)
-    | Vloaded lv -> Vobject (n_lv loc lv)
+    | Vloaded lv -> Vloaded (n_lv loc lv)
     | Vunit -> Vunit
     | Vtrue -> Vtrue
     | Vfalse -> Vfalse

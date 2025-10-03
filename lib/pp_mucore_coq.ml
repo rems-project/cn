@@ -1087,6 +1087,7 @@ and pp_value pp_type (V (ty, v)) =
     [ pp_type ty;
       (match v with
        | Vobject ov -> pp_constructor1 "Vobject" [ pp_object_value pp_type ov ]
+       | Vloaded lv -> pp_constructor1 "Vloaded" [ pp_loaded_value pp_type lv ]
        | Vctype t -> pp_constructor1 "Vctype" [ pp_ctype t ]
        | Vunit -> pp_constructor1 "Vunit" []
        | Vtrue -> pp_constructor1 "Vtrue" []
@@ -1096,6 +1097,10 @@ and pp_value pp_type (V (ty, v)) =
        | Vtuple vs -> pp_constructor1 "Vtuple" [ pp_list (pp_value pp_type) vs ])
     ]
 
+
+and pp_loaded_value pp_type = function
+  | LVspecified ov -> pp_constructor1 "LVspecified" [ pp_object_value pp_type ov ]
+  | LVunspecified ct1 -> pp_constructor1 "LVunspecified" [ pp_ctype ct1 ]
 
 and pp_object_value pp_type (OV (ty, ov)) =
   pp_constructor1
@@ -1107,7 +1112,7 @@ and pp_object_value pp_type (OV (ty, ov)) =
        | OVfloating f -> pp_constructor1 "OVfloating" [ pp_floating_value f ]
        | OVpointer p ->
          pp_constructor1 "OVpointer" [ Impl_mem.pp_pointer_value_for_coq pp_symbol p ]
-       | OVarray vs -> pp_constructor1 "OVarray" [ pp_list (pp_object_value pp_type) vs ]
+       | OVarray vs -> pp_constructor1 "OVarray" [ pp_list (pp_loaded_value pp_type) vs ]
        | OVstruct (sym, fields) ->
          pp_constructor1
            "OVstruct"

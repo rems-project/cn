@@ -1484,15 +1484,22 @@ module BaseTyping = struct
       | OVfloating fv -> return (Real, Mu.OVfloating fv)
       | OVpointer pv -> return (Loc (), Mu.OVpointer pv)
       | OVarray xs ->
-        let@ _bt_xs = ListM.mapM (infer_object_value loc) xs in
+        let@ _xs = ListM.mapM (infer_loaded_value loc) xs in
         todo ()
       | OVstruct (nm, xs) -> return (Struct nm, Mu.OVstruct (nm, xs))
       | OVunion _ -> todo ()
     in
     return (Mu.OV (bt, ov))
 
+  and infer_loaded_value loc = function
+    | Mu.LVspecified ov -> 
+       let@ ov = infer_object_value loc ov in
+       return (Mu.LVspecified ov)
+    | LVunspecified _ ->
+       assert false
 
-  let check_object_value
+
+  let rec check_object_value
     : 'TY. Locations.t -> BT.t -> 'TY Mu.object_value -> BT.t Mu.object_value m
     =
     fun loc bt (OV (_, ov) as ov_original) ->
@@ -1515,6 +1522,13 @@ module BaseTyping = struct
       let@ () = ensure_base_type loc ~expect:bt (Mu.bt_of_object_value ov) in
       return ov
 
+  and check_loaded_value loc bt lv =
+    match lv with
+    | Mu.LVspecified ov -> 
+       let@ ov = check_object_value loc bt ov in
+       return (Mu.LVspecified ov)
+    | LVunspecified _ -> assert false
+
 
   let rec infer_value : 'TY. Locations.t -> 'TY Mu.value -> BT.t Mu.value m =
     fun loc (V (_, v)) ->
@@ -1523,6 +1537,9 @@ module BaseTyping = struct
       | Mu.Vobject ov ->
         let@ ov = infer_object_value loc ov in
         return (Mu.bt_of_object_value ov, Mu.Vobject ov)
+      | Mu.Vloaded lv ->
+        let@ lv = infer_loaded_value loc lv in
+        return (Mu.bt_of_loaded_value lv, Mu.Vloaded lv)
       | Vctype ct ->
         let@ sct =
           match Sctypes.of_ctype ct with
@@ -1555,6 +1572,9 @@ module BaseTyping = struct
     | Vobject ov ->
       let@ ov = check_object_value loc expect ov in
       return (Mu.V (expect, Vobject ov))
+    | Vloaded lv ->
+      let@ lv = check_loaded_value loc expect lv in
+      return (Mu.V (expect, Vloaded lv))
     | _ ->
       let@ v = infer_value loc orig_v in
       let@ () = ensure_base_type loc ~expect (Mu.bt_of_value v) in

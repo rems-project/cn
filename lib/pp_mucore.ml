@@ -210,7 +210,7 @@ module Make (Config : CONFIG) = struct
         (fun fval -> !^(string_of_float fval))
     | OVpointer ptr_val -> Impl_mem.pp_pointer_value ptr_val
     | OVarray lvals ->
-      pp_const "Array" ^^ Pp.parens (Pp.nest 1 (comma_list pp_object_value lvals))
+      pp_const "Array" ^^ Pp.parens (Pp.nest 1 (comma_list pp_loaded_value lvals))
     | OVstruct (tag_sym, xs) ->
       Pp.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
       ^^ Pp.braces
@@ -231,7 +231,12 @@ module Make (Config : CONFIG) = struct
     | Vlist (_, cvals) -> Pp.brackets (comma_list pp_value cvals)
     | Vtuple cvals -> Pp.parens (comma_list pp_value cvals)
     | Vobject oval -> pp_object_value oval
+    | Vloaded lv -> pp_loaded_value lv
     | Vctype ct -> Pp.squotes (pp_ctype ct)
+
+  and pp_loaded_value = function
+    | LVspecified v -> Pp.parens (!^"specified" ^^^ pp_object_value v)
+    | LVunspecified _ -> !^"unspecified"
 
 
   let pp_ctor = Cerb_frontend.Pp_core.Basic.pp_ctor

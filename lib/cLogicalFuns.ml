@@ -17,18 +17,29 @@ type 'a exec_result =
   | Compute of IT.t * 'a
   | If_Else of IT.t * 'a exec_result * 'a exec_result
 
-let val_to_it loc (Mu.V ((bt : BT.t), v)) =
-  match v with
-  | Vunit -> Some (IT.unit_ loc)
-  | Vtrue -> Some (IT.bool_ true loc)
-  | Vfalse -> Some (IT.bool_ false loc)
-  | Vobject (OV (_, OVinteger iv)) -> Some (IT.num_lit_ (Memory.z_of_ival iv) bt loc)
-  | Vobject (OV (_, OVpointer ptr_val)) ->
+let ov_to_it loc (Mu.OV (bt, ov)) = 
+  match ov with
+  | OVinteger iv -> Some (IT.num_lit_ (Memory.z_of_ival iv) bt loc)
+  | OVpointer ptr_val ->
     CF.Impl_mem.case_ptrval
       ptr_val
       (fun _ -> Some (IT.null_ loc))
       (function None -> None | Some sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc)))
       (fun _prov _p -> (* how to correctly convert provenance? *) None)
+  | _ -> None
+
+let lv_to_it loc = function
+  | Mu.LVspecified ov -> ov_to_it loc ov
+  | Mu.LVunspecified _ -> None
+
+
+let val_to_it loc (Mu.V (_, v)) =
+  match v with
+  | Vunit -> Some (IT.unit_ loc)
+  | Vtrue -> Some (IT.bool_ true loc)
+  | Vfalse -> Some (IT.bool_ false loc)
+  | Vobject ov -> ov_to_it loc ov
+  | Vloaded lv -> lv_to_it loc lv
   | Vctype ct -> Option.map (fun ct -> IT.const_ctype_ ct loc) (Sctypes.of_ctype ct)
   | _ -> None
 

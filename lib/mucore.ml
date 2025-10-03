@@ -8,14 +8,19 @@ type 'TY object_value_ =
   | OVinteger of Cerb_frontend.Impl_mem.integer_value
   | OVfloating of Cerb_frontend.Impl_mem.floating_value
   | OVpointer of Cerb_frontend.Impl_mem.pointer_value
-  | OVarray of 'TY object_value list
+  | OVarray of 'TY loaded_value list
   | OVstruct of Sym.t * (Id.t * Sctypes.t * Cerb_frontend.Impl_mem.mem_value) list
   | OVunion of Sym.t * Id.t * Cerb_frontend.Impl_mem.mem_value
 
 and 'TY object_value = OV of 'TY * 'TY object_value_
 
+and 'TY loaded_value = 
+  | LVspecified of 'TY object_value
+  | LVunspecified of Cerb_frontend.Ctype.ctype
+
 and 'TY value_ =
   | Vobject of 'TY object_value
+  | Vloaded of 'TY loaded_value
   | Vctype of Cerb_frontend.Ctype.ctype
   | Vunit
   | Vtrue
@@ -28,6 +33,10 @@ and 'TY value = V of 'TY * 'TY value_
 let bt_of_value (V (bty, _)) = bty
 
 let bt_of_object_value (OV (bty, _)) = bty
+
+let bt_of_loaded_value = function
+  | LVspecified ov -> bt_of_object_value ov
+  | LVunspecified _ -> assert false
 
 type ctor = Cerb_frontend.Core.ctor
 
