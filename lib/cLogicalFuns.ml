@@ -400,6 +400,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
          | _ -> assert false
        in
        return (IT.arith_binop bop (e2, e3) loc)
+     | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
   | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
     let@ x = self var_map pe in
