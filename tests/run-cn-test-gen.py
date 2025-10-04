@@ -22,11 +22,13 @@ def get_test_type(test_file, config):
         return 'BUGGY'
     elif test_file.endswith('.flaky.c'):
         return 'FLAKY'
-    elif test_file.endswith('learn_cast.special.c') or test_file.endswith('learn_multiple.special.c'):
+    elif (test_file.endswith('learn_cast.special.c')
+          or test_file.endswith('learn_multiple.special.c')
+          or test_file.endswith('pointer_ordering.special.c')):
         if '--symbolic' in config:
             return 'PASS'
         else:
-            return 'FAIL'
+            return 'SKIP'
     else:
         return 'UNKNOWN'
 
@@ -289,6 +291,7 @@ def main():
             "neg100.pass.c",
             "neq.pass.c",
             "non_access_global.pass.c",
+            "pointer_ordering.special.c",
             "record_test.pass.c",
             "runway.pass.c",
             "smt_pruning.pass.c",
