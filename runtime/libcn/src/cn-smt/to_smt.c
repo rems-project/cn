@@ -1190,6 +1190,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
         case CN_BINOP_LT: {
           switch (e1->base_type.tag) {
+            case CN_BASE_LOC: {
+              return bv_ult(s1, s2);
+            }
+
             case CN_BASE_BITS: {
               if (e1->base_type.data.bits.is_signed) {
                 return bv_slt(s1, s2);
@@ -1200,6 +1204,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
             case CN_BASE_INTEGER:
             case CN_BASE_REAL:
               return num_lt(s1, s2);
+
             default:
               assert(false);  // "LT"
               return NULL;
@@ -1208,6 +1213,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
         case CN_BINOP_LE: {
           switch (e1->base_type.tag) {
+            case CN_BASE_LOC: {
+              return bv_uleq(s1, s2);
+            }
+
             case CN_BASE_BITS: {
               if (e1->base_type.data.bits.is_signed) {
                 return bv_sleq(s1, s2);
@@ -1215,9 +1224,11 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
                 return bv_uleq(s1, s2);
               }
             }
+
             case CN_BASE_INTEGER:
             case CN_BASE_REAL:
               return num_leq(s1, s2);
+
             default:
               // The OCaml code has error handling here with BT.pp
               assert(false);  // "LE"
