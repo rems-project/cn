@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -115,7 +116,7 @@ struct cn_base_type {
       const char* tag;
     } struct_tag;
     struct {
-      int tag;
+      const char* tag;
     } datatype_tag;
     struct {
       cn_base_type* element_type;
@@ -219,6 +220,13 @@ static inline cn_base_type cn_base_type_struct(const char* struct_tag) {
   cn_base_type bt;
   bt.tag = CN_BASE_STRUCT;
   bt.data.struct_tag.tag = strdup(struct_tag);
+  return bt;
+}
+
+static inline cn_base_type cn_base_type_datatype(const char* datatype_tag) {
+  cn_base_type bt;
+  bt.tag = CN_BASE_DATATYPE;
+  bt.data.datatype_tag.tag = strdup(datatype_tag);
   return bt;
 }
 
@@ -554,7 +562,8 @@ cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value);
 // Function application
 cn_term* cn_smt_apply(const char* function_name,
     cn_base_type result_type,
-    bennet_vector(cn_term_ptr) * args);
+    cn_term** args,
+    size_t arg_count);
 
 // Let binding
 cn_term* cn_smt_let(const char* var_name, cn_term* value, cn_term* body);

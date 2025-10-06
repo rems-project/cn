@@ -13,6 +13,9 @@
 // Generate vector implementation for cn_member_pair
 BENNET_VECTOR_IMPL(cn_member_pair)
 
+// Generate vector implementation for cn_term_ptr
+BENNET_VECTOR_IMPL(cn_term_ptr)
+
 // Functions that pick names for things (converted from OCaml CN_Names module)
 
 // Helper function to get string representation of a symbol without numbers
@@ -139,7 +142,7 @@ char* fresh_name(const char* x) {
 /* Note: CVC5 would have support for arbitrary tuples without declaring them. */
 
 // CN_Tuple module functionality
-static const int CN_TUPLE_MAX_ARITY =
+const int CN_TUPLE_MAX_ARITY =
     15; /* TODO: compute required arity based on the input program. */
 
 static char* cn_tuple_name(int arity) {
@@ -176,57 +179,6 @@ sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count) {
   return result;
 }
 
-/** Declare a datatype for a tuple */
-void cn_tuple_declare(struct cn_smt_solver* solver) {
-  for (int arity = 1; arity <= CN_TUPLE_MAX_ARITY; arity++) {
-    char* name = cn_tuple_name(arity);
-
-    // Create type parameter names: a0, a1, a2, ...
-    const char** type_params = NULL;
-    type_params = malloc(arity * sizeof(char*));
-    assert(type_params);
-    for (int i = 0; i < arity; i++) {
-      char* param = malloc(10);  // enough for "a" + digit
-      assert(param);
-      sprintf(param, "a%d", i);
-      type_params[i] = param;
-    }
-
-    // Create constructor fields
-    con_field_t* fields = NULL;
-    if (arity > 0) {
-      fields = malloc(arity * sizeof(con_field_t));
-      assert(fields);
-      for (int i = 0; i < arity; i++) {
-        fields[i].name = cn_tuple_selector(arity, i);
-        fields[i].type = sexp_atom(type_params[i]);
-      }
-    }
-
-    // Create constructor
-    constructor_t constructor;
-    constructor.name = name;
-    constructor.fields = fields;
-    constructor.field_count = arity;
-
-    // Declare the datatype
-    sexp_t* datatype_decl = declare_datatype(name, type_params, arity, &constructor, 1);
-    ack_command(solver, datatype_decl);
-
-    // Clean up
-    if (arity > 0) {
-      for (int i = 0; i < arity; i++) {
-        free((char*)type_params[i]);
-        free((char*)fields[i].name);
-        sexp_free(fields[i].type);
-      }
-      free(type_params);
-      free(fields);
-    }
-    free(name);
-  }
-}
-
 /** Make a tuple value */
 char* cn_tuple_constructor_name(int arity) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
@@ -241,54 +193,21 @@ char* cn_tuple_get_selector_name(int arity, int field) {
 // CN_Option module functionality (converted from OCaml)
 
 /** Option type name */
-static const char* cn_option_name = "cn_option";
+const char* cn_option_name = "cn_option";
 
 /** None constructor name */
-static const char* cn_option_none_name = "cn_none";
+const char* cn_option_none_name = "cn_none";
 
 /** Some constructor name */
-static const char* cn_option_some_name = "cn_some";
+const char* cn_option_some_name = "cn_some";
 
 /** Value field name */
-static const char* cn_option_val_name = "cn_val";
+const char* cn_option_val_name = "cn_val";
 
 /** Create an option type with element type a */
 sexp_t* cn_option_type(sexp_t* a) {
   sexp_t* args[] = {a};
   return sexp_app_str(cn_option_name, args, 1);
-}
-
-/** Declare the option datatype */
-void cn_option_declare(struct cn_smt_solver* solver) {
-  // Type parameter
-  const char* type_params[] = {"a"};
-
-  // None constructor (no fields)
-  constructor_t none_constructor;
-  none_constructor.name = cn_option_none_name;
-  none_constructor.fields = NULL;
-  none_constructor.field_count = 0;
-
-  // Some constructor with value field
-  con_field_t some_field;
-  some_field.name = cn_option_val_name;
-  some_field.type = sexp_atom("a");
-
-  constructor_t some_constructor;
-  some_constructor.name = cn_option_some_name;
-  some_constructor.fields = &some_field;
-  some_constructor.field_count = 1;
-
-  // Array of constructors
-  constructor_t constructors[] = {none_constructor, some_constructor};
-
-  // Declare the datatype
-  sexp_t* datatype_decl =
-      declare_datatype(cn_option_name, type_params, 1, constructors, 2);
-  ack_command(solver, datatype_decl);
-
-  // Clean up
-  sexp_free(some_field.type);
 }
 
 /** Create a None value with given element type */
@@ -449,6 +368,22 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
       sexp_t* result = sexp_atom(struct_name_str);
       free(struct_name_str);
+      return result;
+    }
+
+    case CN_BASE_DATATYPE: {
+      // Datatype tag -> SMT.atom (datatype name with _dt suffix)
+      const char* tag_name = bt.data.datatype_tag.tag;
+      assert(tag_name);
+
+      // Create datatype SMT name: tag_name + "_dt"
+      size_t len = strlen(tag_name) + 4;  // "_dt" + null terminator
+      char* datatype_name_str = malloc(len);
+      assert(datatype_name_str);
+      snprintf(datatype_name_str, len, "%s_dt", tag_name);
+
+      sexp_t* result = sexp_atom(datatype_name_str);
+      free(datatype_name_str);
       return result;
     }
 
@@ -1432,10 +1367,37 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_RECORD: {
-      // Record construction - create uninterpreted function
-      sexp_t* fn_atom = sexp_atom("record");
-      sexp_t* result = sexp_app(fn_atom, NULL, 0);
+      // Record construction - similar to struct
+      // Get member count from vector
+      bennet_vector(cn_member_pair)* members = &iterm->data.record.members;
+      size_t member_count = bennet_vector_size(cn_member_pair)(members);
+
+      // Allocate array for translated member arguments
+      sexp_t** args = NULL;
+      if (member_count > 0) {
+        args = malloc(sizeof(sexp_t*) * member_count);
+        assert(args);
+
+        // Translate each member term
+        for (size_t i = 0; i < member_count; i++) {
+          cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+          cn_term* member_term = pair->value;
+          args[i] = translate_term(s, member_term);
+        }
+      }
+
+      // Create function application with tuple constructor
+      char* tuple_con_name = cn_tuple_constructor_name(member_count);
+      sexp_t* fn_atom = sexp_atom(tuple_con_name);
+      sexp_t* result = sexp_app(fn_atom, args, member_count);
+
+      // Cleanup
+      free(tuple_con_name);
       sexp_free(fn_atom);
+      if (args) {
+        free(args);
+      }
+
       return result;
     }
 
@@ -1472,40 +1434,53 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_MAP_SET: {
-      // Map set operation - create uninterpreted function
+      // Map set operation - use arr_store
       sexp_t* map_smt = translate_term(s, iterm->data.map_set.map);
       sexp_t* key_smt = translate_term(s, iterm->data.map_set.key);
       sexp_t* value_smt = translate_term(s, iterm->data.map_set.value);
 
-      sexp_t* fn_atom = sexp_atom("map_set");
-      sexp_t* args[] = {map_smt, key_smt, value_smt};
-      sexp_t* result = sexp_app(fn_atom, args, 3);
-      sexp_free(fn_atom);
-      return result;
+      return arr_store(map_smt, key_smt, value_smt);
     }
 
     case CN_TERM_MAP_GET: {
-      // Map get operation - create uninterpreted function
+      // Map get operation - use arr_select
       sexp_t* map_smt = translate_term(s, iterm->data.map_get.map);
       sexp_t* key_smt = translate_term(s, iterm->data.map_get.key);
 
-      sexp_t* fn_atom = sexp_atom("map_get");
-      sexp_t* args[] = {map_smt, key_smt};
-      sexp_t* result = sexp_app(fn_atom, args, 2);
-      sexp_free(fn_atom);
-      return result;
+      return arr_select(map_smt, key_smt);
     }
 
     case CN_TERM_APPLY: {
-      // Function application - simplified for now
+      // Function application
       const char* fn_name = iterm->data.apply.function_name;
       sexp_t* fn_atom = sexp_atom(fn_name);
 
-      // For now, create application with no args
-      // TODO: Implement proper argument handling when vector API is available
-      sexp_t* result = sexp_app(fn_atom, NULL, 0);
+      // Get argument count from vector
+      bennet_vector(cn_term_ptr)* args_vec = &iterm->data.apply.args;
+      size_t arg_count = bennet_vector_size(cn_term_ptr)(args_vec);
 
+      // Allocate array for translated arguments
+      sexp_t** args = NULL;
+      if (arg_count > 0) {
+        args = malloc(sizeof(sexp_t*) * arg_count);
+        assert(args);
+
+        // Translate each argument term
+        for (size_t i = 0; i < arg_count; i++) {
+          cn_term* arg_term = *bennet_vector_get(cn_term_ptr)(args_vec, i);
+          args[i] = translate_term(s, arg_term);
+        }
+      }
+
+      // Create function application
+      sexp_t* result = sexp_app(fn_atom, args, arg_count);
+
+      // Cleanup
       sexp_free(fn_atom);
+      if (args) {
+        free(args);
+      }
+
       return result;
     }
 
