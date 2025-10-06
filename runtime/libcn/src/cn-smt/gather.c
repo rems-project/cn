@@ -229,23 +229,11 @@ cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type) 
 // Call a defined generator function with arguments
 cn_term* cn_smt_gather_call_function(
     cn_sym function_symbol, cn_term** args, size_t arg_count) {
-  // Create a vector to hold the arguments
-  bennet_vector(cn_term_ptr) arg_vector;
-  bennet_vector_init(cn_term_ptr)(&arg_vector);
-
-  // Add all arguments to the vector
-  for (size_t i = 0; i < arg_count; i++) {
-    bennet_vector_push(cn_term_ptr)(&arg_vector, args[i]);
-  }
-
   // Create a function application term
   // Note: We assume the result type is CN_BASE_INTEGER for now
   // In a real implementation, this would need proper type inference
-  cn_term* result = cn_smt_apply(
-      function_symbol.name, cn_base_type_simple(CN_BASE_INTEGER), &arg_vector);
-
-  bennet_vector_free(cn_term_ptr)(&arg_vector);
-  return result;
+  return cn_smt_apply(
+      function_symbol.name, cn_base_type_simple(CN_BASE_INTEGER), args, arg_count);
 }
 
 // Conditional branching with probabilistic choice

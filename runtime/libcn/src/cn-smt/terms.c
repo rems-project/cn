@@ -304,8 +304,10 @@ cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value) {
 // Function application
 cn_term* cn_smt_apply(const char* function_name,
     cn_base_type result_type,
-    bennet_vector(cn_term_ptr) * args) {
-  assert(function_name && args);
+    cn_term** args,
+    size_t arg_count) {
+  assert(function_name);
+  assert(args || arg_count == 0);
 
   cn_term* term = cn_term_alloc(CN_TERM_APPLY, result_type);
   assert(term);
@@ -313,13 +315,11 @@ cn_term* cn_smt_apply(const char* function_name,
   term->data.apply.function_name = strdup(function_name);
   assert(term->data.apply.function_name);
 
-  // Initialize the vector and copy from input vector
+  // Initialize the vector and copy from input array
   bennet_vector_init(cn_term_ptr)(&term->data.apply.args);
-  size_t arg_count = bennet_vector_size(cn_term_ptr)(args);
 
   for (size_t i = 0; i < arg_count; i++) {
-    cn_term* arg = *bennet_vector_get(cn_term_ptr)(args, i);
-    bennet_vector_push(cn_term_ptr)(&term->data.apply.args, arg);
+    bennet_vector_push(cn_term_ptr)(&term->data.apply.args, args[i]);
   }
 
   return term;

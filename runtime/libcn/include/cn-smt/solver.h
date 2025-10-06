@@ -40,6 +40,22 @@ typedef struct {
   size_t member_count;
 } struct_decl_t;
 
+// Datatype declaration types
+typedef struct {
+  const char *label;       // Field label/name
+  cn_base_type base_type;  // Field base type
+} dt_param_t;
+
+typedef struct {
+  dt_param_t *params;
+  size_t param_count;
+} dt_constr_info_t;
+
+typedef struct {
+  const char **constrs;  // Constructor symbol names
+  size_t constr_count;
+} dt_info_t;
+
 // Function declarations
 void send_string(struct cn_smt_solver *solver, const char *str);
 sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp);
@@ -51,7 +67,15 @@ void cn_structs_declare(struct cn_smt_solver *s,
     const char **struct_names,
     struct_decl_t **struct_decls,
     size_t struct_count);
+void cn_datatypes_declare(struct cn_smt_solver *s,
+    const char ***datatype_order,
+    size_t order_count,
+    size_t *group_sizes,
+    dt_info_t **all_datatype_infos,
+    dt_constr_info_t ***all_constr_infos);
 void cn_smt_solver_reset(struct cn_smt_solver *solver);
+void cn_tuple_declare(struct cn_smt_solver *solver);
+void cn_option_declare(struct cn_smt_solver *solver);
 
 #ifdef __cplusplus
 }

@@ -341,7 +341,8 @@ TEST_F(CnSmtTest, FunctionApplication) {
   bennet_vector_push(cn_term_ptr)(&args, arg1);
   bennet_vector_push(cn_term_ptr)(&args, arg2);
 
-  cn_term* apply_term = cn_smt_apply("add", cn_base_type_simple(CN_BASE_INTEGER), &args);
+  cn_term* apply_term =
+      cn_smt_apply("add", cn_base_type_simple(CN_BASE_INTEGER), args.data, args.size);
   ASSERT_NE(apply_term, nullptr);
   EXPECT_EQ(apply_term->type, CN_TERM_APPLY);
   EXPECT_TRUE(cn_base_type_is(apply_term->base_type, CN_BASE_INTEGER));

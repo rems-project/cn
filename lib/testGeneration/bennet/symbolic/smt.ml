@@ -28,6 +28,9 @@ module Make (AD : Domain.T) = struct
     | Struct tag ->
       let tag_name = Sym.pp tag in
       !^"cn_base_type_struct" ^^ parens (dquotes tag_name)
+    | Datatype tag ->
+      let tag_name = Sym.pp_string_no_nums tag in
+      !^"cn_base_type_datatype" ^^ parens (dquotes !^tag_name)
     | List _element_bt ->
       (* TODO: Implement proper recursive type creation for List types *)
       !^"cn_base_type_simple(CN_BASE_LIST) /* TODO: use cn_base_type_list with proper \
@@ -54,7 +57,7 @@ module Make (AD : Domain.T) = struct
         ^^ parens
              (int field_count
               ^^ comma
-              ^^^ braces !^"const char*[]"
+              ^^^ parens !^"const char*[]"
               ^^ braces names_args
               ^^ comma
               ^^^ parens !^"cn_base_type[]"
@@ -113,7 +116,7 @@ module Make (AD : Domain.T) = struct
       convert_mapset map_term key_term value_term
     | MapGet (map_term, key_term) -> convert_mapget map_term key_term
     | MapDef ((var_sym, var_bt), body) -> convert_mapdef var_sym var_bt body
-    | Apply (func_sym, args) -> convert_apply func_sym args
+    | Apply (func_sym, args) -> convert_apply func_sym args bt
     | Let ((var_sym, binding), body) -> convert_let var_sym binding body
     | Match (scrutinee, cases) -> convert_match scrutinee cases
     | Cast (target_bt, term) -> convert_cast target_bt term
@@ -464,16 +467,28 @@ module Make (AD : Domain.T) = struct
     ^^ parens (dquotes var_name ^^ comma ^^^ var_type ^^ comma ^^^ body_smt)
 
 
-  and convert_apply (func_sym : Sym.t) (args : IT.t list) : Pp.document =
+  and convert_apply (func_sym : Sym.t) (args : IT.t list) (result_bt : BT.t) : Pp.document
+    =
     let open Pp in
     let func_name = Sym.pp func_sym in
     let args_smt = List.map convert_indexterm args in
+    let result_type = convert_basetype result_bt in
     let args_array =
-      !^"{" ^^ separate_map (comma ^^ space) (fun x -> x) args_smt ^^ !^"}"
+      if List.length args = 0 then
+        !^"NULL"
+      else
+        parens !^"cn_term*[]"
+        ^^ braces (separate_map (comma ^^ space) (fun x -> x) args_smt)
     in
     !^"cn_smt_apply"
     ^^ parens
-         (dquotes func_name ^^ comma ^^^ int (List.length args) ^^ comma ^^^ args_array)
+         (dquotes func_name
+          ^^ comma
+          ^^^ result_type
+          ^^ comma
+          ^^^ args_array
+          ^^ comma
+          ^^^ int (List.length args))
 
 
   and convert_let (var_sym : Sym.t) (binding : IT.t) (body : IT.t) : Pp.document =

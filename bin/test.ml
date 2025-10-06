@@ -227,12 +227,14 @@ module Flags = struct
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+    Term.(
+      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "only" ] ~doc))
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+    Term.(
+      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "skip" ] ~doc))
 
 
   let only_fulminate =
@@ -240,7 +242,9 @@ module Flags = struct
       "Only check the pre- and post-conditions of this function (or comma-separated \
        names)"
     in
-    Arg.(value & opt (list string) [] & info [ "only-fulminate" ] ~doc)
+    Term.(
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info [ "only-fulminate" ] ~doc))
 
 
   let skip_fulminate =
@@ -248,7 +252,9 @@ module Flags = struct
       "Skip checking the pre- and post-conditions of this function (or comma-separated \
        names)"
     in
-    Arg.(value & opt (list string) [] & info [ "skip-fulminate" ] ~doc)
+    Term.(
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info [ "skip-fulminate" ] ~doc))
 
 
   let dont_run =
