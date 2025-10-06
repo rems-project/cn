@@ -19,6 +19,7 @@ signed long cn_stack_depth;
 
 signed long nr_owned_predicates;
 
+_Bool exec_c_locs_mode;
 _Bool ownership_stack_mode;
 
 static signed long UNMAPPED_VAL = -1;
@@ -33,6 +34,7 @@ void reset_fulminate(void) {
   reset_error_msg_info();
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
+  initialise_exec_c_locs_mode(0);
   initialise_ownership_stack_mode(0);
 }
 
@@ -90,14 +92,20 @@ enum cn_trace_granularity set_cn_trace_granularity(
 }
 
 void print_error_msg_info_single(struct cn_error_message_info* info) {
-  cn_printf(CN_LOGGING_ERROR,
-      "function %s, file %s, line %d\n",
-      info->function_name,
-      info->file_name,
-      info->line_number);
-  if (info->cn_source_loc) {
-    cn_printf(
-        CN_LOGGING_ERROR, "original source location: \n%s\n\n", info->cn_source_loc);
+  if (exec_c_locs_mode) {
+    cn_printf(CN_LOGGING_ERROR,
+        "function %s, file %s, line %d\n",
+        info->function_name,
+        info->file_name,
+        info->line_number);
+  } else {
+    if (info->cn_source_loc) {
+      cn_printf(
+          CN_LOGGING_ERROR, "original source location: \n%s\n\n", info->cn_source_loc);
+    } else {
+      cn_printf(CN_LOGGING_ERROR,
+          "no source location found (try running with --exec-c-locs-mode enabled)")
+    }
   }
 }
 
@@ -221,6 +229,10 @@ void free_ownership_ghost_state(void) {
 
 void initialise_ghost_stack_depth(void) {
   cn_stack_depth = 0;
+}
+
+void initialise_exec_c_locs_mode(_Bool flag) {
+  exec_c_locs_mode = flag;
 }
 
 void initialise_ownership_stack_mode(_Bool flag) {

@@ -572,23 +572,26 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 
 
 let generate_global_assignments
+      ?(exec_c_locs_mode = false)
       ?(experimental_ownership_stack_mode = false)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let generate_ownership_stack_mode_init ~experimental_ownership_stack_mode =
-    let ownership_stack_mode_const =
+  (* For the experimental ownership stack mode, source locations are required *)
+  let exec_c_locs_mode =
+    if experimental_ownership_stack_mode then false else exec_c_locs_mode
+  in
+  let generate_flag_init_stat (flag, str) =
+    let gen_ail_const_from_flag flag =
       A.(
         AilEconst
-          (ConstantInteger
-             (IConstant
-                (Z.of_int (Bool.to_int experimental_ownership_stack_mode), Decimal, None))))
+          (ConstantInteger (IConstant (Z.of_int (Bool.to_int flag), Decimal, None))))
     in
     let ownership_stack_mode_init_expr_ =
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh "initialise_ownership_stack_mode")),
-            [ mk_expr ownership_stack_mode_const ] ))
+          ( mk_expr (AilEident (Sym.fresh ("initialise_" ^ str))),
+            [ mk_expr (gen_ail_const_from_flag flag) ] ))
     in
     A.AilSexpr (mk_expr ownership_stack_mode_init_expr_)
   in
@@ -604,8 +607,12 @@ let generate_global_assignments
       generate_ail_stat_strs
         ( [],
           assignments
-          @ (generate_ownership_stack_mode_init ~experimental_ownership_stack_mode
-             :: global_map_stmts_) )
+          @ List.map
+              generate_flag_init_stat
+              [ (exec_c_locs_mode, "exec_c_locs_mode");
+                (experimental_ownership_stack_mode, "ownership_stack_mode")
+              ]
+          @ global_map_stmts_ )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
