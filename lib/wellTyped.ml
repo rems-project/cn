@@ -1735,8 +1735,17 @@ module BaseTyping = struct
         | PEapply_fun (fname, pes) ->
           let@ bt, pes = check_infer_apply_fun None fname pes pe in
           return (bt, PEapply_fun (fname, pes))
-        | PEconstrained _
-        | PEunion (_, _, _)
+        | PEconstrained _ -> todo ()
+        | PEunion (tag, member, pe) ->
+          if !Sym.executable_spec_enabled then (
+            (* todo: make this proper when CN actually supports unions *)
+            let ct = Option.get (Sctypes.of_ctype (CF.Ctype.Ctype ([], Union tag))) in
+            let@ () = WCT.is_ct loc ct in
+            let@ pe = infer_pexpr pe in
+            return (Memory.bt_of_sct ct, PEunion (tag, member, pe)))
+          else
+            fail
+              { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
         | PEmemberof (_, _, _)
         | PEconv_int (_, _)
         | PEconv_loaded_int (_, _)
