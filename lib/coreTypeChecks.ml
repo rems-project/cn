@@ -41,7 +41,13 @@ let check_against_core_bt core_bt cn_bt =
       let@ () = check_object_type (OTy_integer, param_t) in
       check_object_type (t, t2)
     | OTy_struct tag, BT.Struct tag2 when Sym.equal tag tag2 -> return ()
-    | OTy_union _tag, _ -> fail (Pp.string "unsupported: union types")
+    | (OTy_union _tag as core_obj_ty), bt ->
+      if !Sym.executable_spec_enabled then (
+        match bt with
+        | Map (_, Option MemByte) -> return ()
+        | _ -> mismatch (BTy_object core_obj_ty) bt)
+      else
+        fail (Pp.string "unsupported: union types")
     | OTy_floating, _ -> fail (Pp.string "unsupported: floats")
     | core_obj_ty, bt -> mismatch (BTy_object core_obj_ty) bt
   in
