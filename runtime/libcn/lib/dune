@@ -129,6 +129,7 @@
     cn-smt/branch_history.o
     cn-smt/concretize.o
     cn-smt/context.o
+    cn-smt/datatypes.o
     cn-smt/eval.o
     cn-smt/from_smt.o
     cn-smt/gather.o

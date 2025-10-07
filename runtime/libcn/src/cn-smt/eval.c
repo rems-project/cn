@@ -7,7 +7,9 @@
 
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
+#include <bennet/utils/vector.h>
 #include <cn-executable/utils.h>
+#include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/records.h>
 #include <cn-smt/structs.h>
@@ -1298,7 +1300,35 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_CONSTRUCTOR: {
       // Apply data constructor
-      assert(false);
+      // Extract datatype name from base type
+      assert(term->base_type.tag == CN_BASE_DATATYPE);
+      const char* datatype_name = term->base_type.data.datatype_tag.tag;
+      assert(datatype_name);
+
+      // Extract constructor name
+      const char* constructor_name = term->data.constructor.constructor_name;
+      assert(constructor_name);
+
+      // Create vector for evaluated arguments
+      bennet_vector(void_ptr) args_vec;
+      bennet_vector_init(void_ptr)(&args_vec);
+
+      // Evaluate each argument and add to vector
+      bennet_vector(cn_member_pair)* args = &term->data.constructor.args;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(args); i++) {
+        cn_member_pair* pair = bennet_vector_get(cn_member_pair)(args, i);
+        void* evaluated_arg = cn_eval_term(pair->value);
+        bennet_vector_push(void_ptr)(&args_vec, evaluated_arg);
+      }
+
+      // Call the registered constructor function
+      void* result =
+          cn_smt_datatype_apply_constructor(datatype_name, constructor_name, &args_vec);
+
+      // Clean up vector (but not the contents, as they're owned by the result)
+      bennet_vector_free(void_ptr)(&args_vec);
+
+      return result;
     }
 
     case CN_TERM_APPLY: {
