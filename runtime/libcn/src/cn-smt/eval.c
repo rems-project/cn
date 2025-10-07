@@ -97,6 +97,13 @@ void* cn_eval_term(cn_term* term) {
       }
     }
 
+    case CN_TERM_SYM: {
+      // Symbol evaluation - would need symbol table
+      // For now, just document that we have name and unique ID available
+      // printf("Evaluating symbol: %s (ID: %" PRIu64 ")\n", term->data.sym.name, term->data.sym.id);
+      assert(false);
+    }
+
     case CN_TERM_UNOP: {
       void* operand_val = cn_eval_term(term->data.unop.operand);
       assert(operand_val);
@@ -1127,13 +1134,6 @@ void* cn_eval_term(cn_term* term) {
       // Wrap integer to given integer type
       // For now, just return the value unchanged
       return value_val;
-    }
-
-    case CN_TERM_SYM: {
-      // Symbol evaluation - would need symbol table
-      // For now, just document that we have name and unique ID available
-      // printf("Evaluating symbol: %s (ID: %" PRIu64 ")\n", term->data.sym.name, term->data.sym.id);
-      assert(false);
     }
 
     case CN_TERM_LET: {

@@ -67,6 +67,7 @@ let run_tests
       smt_pruning_at_runtime
       symbolic
       symbolic_timeout
+      use_solver_eval
       print_size_info
       print_backtrack_info
       print_satisfaction_info
@@ -124,6 +125,7 @@ let run_tests
           smt_pruning_at_runtime;
           symbolic;
           symbolic_timeout;
+          use_solver_eval;
           max_unfolds;
           max_array_length;
           print_seed;
@@ -582,6 +584,11 @@ module Flags = struct
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
 
 
+  let use_solver_eval =
+    let doc = "(Experimental) Use solver-based evaluation" in
+    Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
+
+
   let max_path_length =
     let doc = "Set maximum symbolic path length for exploration" in
     Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
@@ -651,6 +658,7 @@ let cmd =
     $ Flags.smt_pruning_at_runtime
     $ Flags.symbolic
     $ Flags.symbolic_timeout
+    $ Flags.use_solver_eval
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info

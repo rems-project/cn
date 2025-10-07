@@ -183,7 +183,9 @@ module Make (AD : Domain.T) = struct
           let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let cond_doc =
             !^"convert_from_cn_bool"
-            ^^ parens (!^"cn_eval_term" ^^ parens (Smt.convert_indexterm guard_it))
+            ^^ parens
+                 (!^"cn_smt_concretize_eval_term"
+                  ^^ parens (!^"smt_solver" ^^ comma ^^^ Smt.convert_indexterm guard_it))
           in
           let addr_doc = Smt.convert_indexterm (subst_i_in_addr idx_it) in
           let assign_doc =

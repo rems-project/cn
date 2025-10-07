@@ -78,7 +78,7 @@ sexp_t** get_exprs(
   return results;
 }
 
-/** Evaluate the given expression in the current context.
+/** Get the value of a given descriptor in the current context.
     Only valid after a [Sat] result.
     Throws {!UnexpectedSolverResponse}. */
 sexp_t* get_expr(struct cn_smt_solver* s, sexp_t* v) {
@@ -107,6 +107,22 @@ sexp_t* get_expr(struct cn_smt_solver* s, sexp_t* v) {
   }
 
   return pair_elements[1];
+}
+
+/** Evaluate the given expression in the current context.
+    Only valid after a [Sat] result.
+    Throws {!UnexpectedSolverResponse}. */
+sexp_t* eval_expr(struct cn_smt_solver* s, sexp_t* v) {
+  // Create (eval v)
+  sexp_t* eval_atom = sexp_atom("eval");
+  sexp_t* cmd_elements[] = {eval_atom, v};
+  sexp_t* eval_cmd = sexp_list(cmd_elements, 2);
+
+  sexp_t* res = send_command(s, eval_cmd);
+  sexp_free(eval_cmd);
+  sexp_free(eval_atom);
+
+  return res;
 }
 
 /** Check if expression is a let-binding and extract bindings and body */
