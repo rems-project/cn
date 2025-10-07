@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <cn-smt/datatypes.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/terms.h>
@@ -313,7 +314,7 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
       datatypes[i].constructors[c].name = con_name;
       datatypes[i].constructors[c].field_count = ci->param_count;
 
-      // Build constructor fields
+      // Build constructor fields for SMT
       if (ci->param_count > 0) {
         datatypes[i].constructors[c].fields =
             malloc(sizeof(con_field_t) * ci->param_count);
@@ -333,6 +334,26 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
         }
       } else {
         datatypes[i].constructors[c].fields = NULL;
+      }
+
+      // Register constructor with metadata and function pointer
+      cn_datatype_field_info *fields = NULL;
+      if (ci->param_count > 0) {
+        fields = malloc(sizeof(cn_datatype_field_info) * ci->param_count);
+        assert(fields);
+        for (size_t f = 0; f < ci->param_count; f++) {
+          fields[f].label = ci->params[f].label;
+          fields[f].base_type = ci->params[f].base_type;
+        }
+      }
+
+      // Register constructor with function pointer from dt_constr_info_t
+      cn_register_datatype_constructor(
+          dt_name, constr_name, ci->constructor_fn, fields, ci->param_count);
+
+      // Note: fields array is copied by cn_register_datatype_constructor
+      if (fields) {
+        free(fields);
       }
     }
   }

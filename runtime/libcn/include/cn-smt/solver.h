@@ -5,12 +5,20 @@
 
 #include <stdio.h>
 
+#include <bennet/utils/vector.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/terms.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Forward declare void_ptr for datatype constructors
+typedef void *void_ptr;
+
+// Vector declaration for void_ptr (for constructor arguments)
+BENNET_VECTOR_DECL(void_ptr)
+BENNET_VECTOR_IMPL(void_ptr)
 
 struct cn_smt_solver {
   solver_extensions_t ext;
@@ -40,6 +48,9 @@ typedef struct {
   size_t member_count;
 } struct_decl_t;
 
+// Forward declare constructor function type from datatypes.h
+typedef void *(*cn_datatype_constructor_fn)(bennet_vector(void_ptr) * args);
+
 // Datatype declaration types
 typedef struct {
   const char *label;       // Field label/name
@@ -49,6 +60,7 @@ typedef struct {
 typedef struct {
   dt_param_t *params;
   size_t param_count;
+  cn_datatype_constructor_fn constructor_fn;  // Function pointer to constructor
 } dt_constr_info_t;
 
 typedef struct {

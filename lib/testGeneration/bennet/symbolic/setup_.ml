@@ -519,24 +519,27 @@ module Make (AD : Domain.T) = struct
       (record_handlers_and_data, record_registration))
 
 
-  let generate_datatype_setup (prog5 : unit Mucore.file) : Pp.document =
+  let generate_datatype_setup (prog5 : unit Mucore.file) : Pp.document * Pp.document =
     (* Graph modules for datatype dependency analysis *)
     let module G = Graph.Persistent.Digraph.Concrete (Sym) in
     let module Components = Graph.Components.Make (G) in
     let open Pp in
     (* Extract datatypes from prog5 *)
     let datatypes = prog5.datatypes in
+    (* Generate datatype handlers *)
+    let datatype_handlers = Eval.generate_datatype_handlers prog5 in
     if List.length datatypes = 0 then (* Empty arrays for no datatypes *)
-      !^"const char **datatype_order_empty[1] = {NULL};"
-      ^^ hardline
-      ^^ !^"size_t group_sizes_empty[1] = {0};"
-      ^^ hardline
-      ^^ !^"dt_info_t *all_datatype_infos_empty[1] = {NULL};"
-      ^^ hardline
-      ^^ !^"dt_constr_info_t **all_constr_infos_empty[1] = {NULL};"
-      ^^ hardline
-      ^^ !^"cn_datatypes_declare(s, datatype_order_empty, 0, group_sizes_empty, \
-            all_datatype_infos_empty, all_constr_infos_empty);"
+      ( !^"",
+        !^"const char **datatype_order_empty[1] = {NULL};"
+        ^^ hardline
+        ^^ !^"size_t group_sizes_empty[1] = {0};"
+        ^^ hardline
+        ^^ !^"dt_info_t *all_datatype_infos_empty[1] = {NULL};"
+        ^^ hardline
+        ^^ !^"dt_constr_info_t **all_constr_infos_empty[1] = {NULL};"
+        ^^ hardline
+        ^^ !^"cn_datatypes_declare(s, datatype_order_empty, 0, group_sizes_empty, \
+              all_datatype_infos_empty, all_constr_infos_empty);" )
     else (
       (* Build dependency graph *)
       (* Helper: get datatypes referenced in a BaseType *)
@@ -634,6 +637,7 @@ module Make (AD : Domain.T) = struct
              let constr_infos =
                List.mapi
                  (fun dt_idx dt_sym ->
+                    let dt_name = Sym.pp_string_no_nums dt_sym in
                     let dt_def =
                       List.assoc Sym.equal dt_sym datatypes
                       |> fun (x : Mucore.datatype) -> x
@@ -641,7 +645,11 @@ module Make (AD : Domain.T) = struct
                     (* For each constructor *)
                     let constr_structs =
                       List.mapi
-                        (fun c_idx (_c_sym, params) ->
+                        (fun c_idx (c_sym, params) ->
+                           let ctor_name = Sym.pp_string_no_nums c_sym in
+                           let fn_name =
+                             "create_constructor_" ^ dt_name ^ "_" ^ ctor_name
+                           in
                            let param_count = List.length params in
                            if param_count = 0 then
                              !^"dt_constr_info_t constr_g"
@@ -650,7 +658,10 @@ module Make (AD : Domain.T) = struct
                              ^^ int dt_idx
                              ^^ !^"_c"
                              ^^ int c_idx
-                             ^^ !^" = {.params = NULL, .param_count = 0};"
+                             ^^ !^" = {.params = NULL, .param_count = 0, .constructor_fn \
+                                   = "
+                             ^^ !^fn_name
+                             ^^ !^"};"
                            else (* Generate dt_param_t array *)
                              !^"dt_param_t constr_params_g"
                              ^^ int group_idx
@@ -707,6 +718,8 @@ module Make (AD : Domain.T) = struct
                              ^^ int c_idx
                              ^^ !^", .param_count = "
                              ^^ int param_count
+                             ^^ !^", .constructor_fn = "
+                             ^^ !^fn_name
                              ^^ !^"};")
                         dt_def.cases
                     in
@@ -830,26 +843,27 @@ module Make (AD : Domain.T) = struct
         ^^ !^"};"
       in
       (* Combine everything *)
-      separate hardline (datatype_order_arrays @ dt_info_arrays @ constr_info_arrays)
-      ^^ hardline
-      ^^ datatype_order_array
-      ^^ hardline
-      ^^ group_sizes_array
-      ^^ hardline
-      ^^ all_dt_infos_array
-      ^^ hardline
-      ^^ all_constr_infos_array
-      ^^ hardline
-      ^^ !^"cn_datatypes_declare(s, datatype_order, "
-      ^^ int group_count
-      ^^ !^", group_sizes, all_datatype_infos, all_constr_infos);")
+      ( datatype_handlers,
+        separate hardline (datatype_order_arrays @ dt_info_arrays @ constr_info_arrays)
+        ^^ hardline
+        ^^ datatype_order_array
+        ^^ hardline
+        ^^ group_sizes_array
+        ^^ hardline
+        ^^ all_dt_infos_array
+        ^^ hardline
+        ^^ all_constr_infos_array
+        ^^ hardline
+        ^^ !^"cn_datatypes_declare(s, datatype_order, "
+        ^^ int group_count
+        ^^ !^", group_sizes, all_datatype_infos, all_constr_infos);" ))
 
 
   let generate_smt_setup (prog5 : unit Mucore.file) : Pp.document =
     let open Pp in
     let struct_handlers, struct_init = generate_struct_setup prog5 in
     let record_handlers, record_init = generate_record_setup prog5 in
-    let datatype_init = generate_datatype_setup prog5 in
+    let datatype_handlers, datatype_init = generate_datatype_setup prog5 in
     let declarations =
       [ !^"cn_tuple_declare(s);";
         !^"cn_option_declare(s);";
@@ -865,5 +879,11 @@ module Make (AD : Domain.T) = struct
       ^^^ braces (nest 2 (hardline ^^ separate hardline declarations) ^^ hardline)
       ^^ hardline
     in
-    struct_handlers ^^ hardline ^^ record_handlers ^^ hardline ^^ init_fn
+    struct_handlers
+    ^^ hardline
+    ^^ record_handlers
+    ^^ hardline
+    ^^ datatype_handlers
+    ^^ hardline
+    ^^ init_fn
 end

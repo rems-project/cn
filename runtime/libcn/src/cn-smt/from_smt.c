@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-smt/datatypes.h>
 #include <cn-smt/from_smt.h>
 #include <cn-smt/structs.h>
 
@@ -787,6 +788,52 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
       fprintf(stderr, "Unsupported Option constructor\\n");
       assert(false);
       return NULL;
+    }
+
+    case CN_BASE_DATATYPE: {
+      constructor_result_t con_result = to_con(sexp);
+
+      // Extract datatype tag from base type
+      const char* datatype_tag = bt.data.datatype_tag.tag;
+      assert(datatype_tag);
+
+      // Get constructor data to access field metadata
+      cn_datatype_constructor_data* ctor_data =
+          cn_get_datatype_constructor_data(datatype_tag, con_result.name);
+      assert(ctor_data);
+
+      // Verify field count matches
+      assert(ctor_data->field_count == con_result.field_count);
+
+      // Create arrays for argument names and values
+      const char** arg_names = NULL;
+      cn_term** arg_values = NULL;
+
+      if (ctor_data->field_count > 0) {
+        arg_names = malloc(sizeof(char*) * ctor_data->field_count);
+        arg_values = malloc(sizeof(cn_term*) * ctor_data->field_count);
+        assert(arg_names && arg_values);
+
+        // Recursively parse each field value
+        for (size_t i = 0; i < ctor_data->field_count; i++) {
+          arg_names[i] = ctor_data->fields[i].label;
+          arg_values[i] =
+              get_ivalue(ctor_data->fields[i].base_type, con_result.fields[i]);
+        }
+      }
+
+      // Create constructor term
+      cn_term* result = cn_smt_constructor(
+          con_result.name, ctor_data->field_count, arg_names, arg_values);
+
+      // Cleanup
+      if (arg_names)
+        free(arg_names);
+      if (arg_values)
+        free(arg_values);
+      free_constructor_result(&con_result);
+
+      return result;
     }
 
     default:
