@@ -9,11 +9,12 @@ module Utils = Utils
 val get_instrumented_filename : string -> string
 
 val main
-  :  ?without_ownership_checking:bool ->
-  ?without_loop_invariants:bool ->
-  ?with_loop_leak_checks:bool ->
-  ?experimental_ownership_stack_mode:bool ->
-  ?with_testing:bool ->
+  :  without_ownership_checking:bool ->
+  without_loop_invariants:bool ->
+  with_loop_leak_checks:bool ->
+  exec_c_locs_mode:bool ->
+  experimental_ownership_stack_mode:bool ->
+  with_testing:bool ->
   skip_and_only:string list * string list ->
   String.t ->
   String.t ->

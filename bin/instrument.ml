@@ -95,6 +95,7 @@ let generate_executable_specs
       with_testing
       run
       no_debug_info
+      exec_c_locs_mode
       experimental_ownership_stack_mode
       mktemp
       print_steps
@@ -136,7 +137,8 @@ let generate_executable_specs
     ~magic_comment_char_dollar
     ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
-    ~disable_linemarkers:true
+    ~disable_linemarkers:exec_c_locs_mode
+      (* If output locations requested, disable linemarkers in preproc step *)
     ~skip_label_inlining:true
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
@@ -156,6 +158,7 @@ let generate_executable_specs
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
+                ~exec_c_locs_mode
                 ~experimental_ownership_stack_mode
                 ~with_testing
                 ~skip_and_only:(skip, only)
@@ -265,6 +268,14 @@ module Flags = struct
     Arg.(value & flag & info [ "no-debug-info" ] ~doc)
 
 
+  let exec_c_locs_mode =
+    let doc =
+      "At errors, report the location in the Fulminated output, not the source. This \
+       flag needs to be enabled for lldb to be usable on the instrumented binary."
+    in
+    Arg.(value & flag & info [ "exec-c-locs-mode" ] ~doc)
+
+
   let experimental_ownership_stack_mode =
     let doc =
       "(experimental) Record (and report, in case of ownership error) the source \
@@ -307,6 +318,7 @@ let cmd =
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
     $ Flags.no_debug_info
+    $ Flags.exec_c_locs_mode
     $ Flags.experimental_ownership_stack_mode
     $ Flags.mktemp
     $ Flags.print_steps

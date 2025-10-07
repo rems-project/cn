@@ -298,11 +298,12 @@ let get_instrumented_filename filename =
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
 let main
-      ?(without_ownership_checking = false)
-      ?(without_loop_invariants = false)
-      ?(with_loop_leak_checks = false)
-      ?(experimental_ownership_stack_mode = false)
-      ?(with_testing = false)
+      ~without_ownership_checking
+      ~without_loop_invariants
+      ~with_loop_leak_checks
+      ~exec_c_locs_mode
+      ~experimental_ownership_stack_mode
+      ~with_testing
       ~skip_and_only
       filename
       cc
@@ -476,7 +477,11 @@ let main
       (* XXX: ONLY IF THERE IS A MAIN *)
       (* Inject ownership init function calls and mapping and unmapping of globals into provided main function *)
       let global_ownership_init_pair =
-        generate_global_assignments ~experimental_ownership_stack_mode sigm prog5
+        generate_global_assignments
+          ~exec_c_locs_mode
+          ~experimental_ownership_stack_mode
+          sigm
+          prog5
       in
       global_ownership_init_pair @ executable_spec.pre_post)
   in
