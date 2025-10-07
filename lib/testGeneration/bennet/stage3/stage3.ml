@@ -3,6 +3,7 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module SpecializeDomain = SpecializeDomain.Make (AD)
     module SmtPruning = SmtPruning.Make (AD)
+    module PruneCallGraph = PruneCallGraph.Make (AD)
   end
 
   module Stage2 = Stage2.Make (AD)
@@ -22,10 +23,10 @@ module Make (AD : Domain.T) = struct
           fun ctx -> ctx |> AI.annotate |> SpecializeDomain.transform
         else
           fun ctx -> ctx)
-    |>
-    match TestGenConfig.has_smt_pruning_after_absinst () with
-    | `Fast -> SmtPruning.transform paused true
-    | `Slow -> SmtPruning.transform paused false
-    | `None -> fun ctx -> ctx
+    |> (match TestGenConfig.has_smt_pruning_after_absinst () with
+      | `Fast -> SmtPruning.transform paused true
+      | `Slow -> SmtPruning.transform paused false
+      | `None -> fun ctx -> ctx)
+    |> PruneCallGraph.transform
   (* |> SimplifyGen.transform prog5 *)
 end
