@@ -1324,7 +1324,7 @@ sexp_t *set_logic(const char *logic) {
 }
 
 /** Push a new scope. */
-sexp_t *push(int n) {
+sexp_t *sexp_push(int n) {
   char n_str[32];
   snprintf(n_str, sizeof(n_str), "%d", n);
   const char *strs[] = {"push", n_str};
@@ -1332,7 +1332,7 @@ sexp_t *push(int n) {
 }
 
 /** Pop a scope. */
-sexp_t *pop(int n) {
+sexp_t *sexp_pop(int n) {
   char n_str[32];
   snprintf(n_str, sizeof(n_str), "%d", n);
   const char *strs[] = {"pop", n_str};

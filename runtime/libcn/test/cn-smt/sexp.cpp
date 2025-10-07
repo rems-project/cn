@@ -46,8 +46,8 @@ TEST_F(SexpCommandsTest, SetLogic) {
 }
 
 TEST_F(SexpCommandsTest, PushPop) {
-  sexp_t* push_cmd = push(1);
-  sexp_t* pop_cmd = pop(1);
+  sexp_t* push_cmd = sexp_push(1);
+  sexp_t* pop_cmd = sexp_pop(1);
 
   ASSERT_NE(push_cmd, nullptr);
   ASSERT_NE(pop_cmd, nullptr);
