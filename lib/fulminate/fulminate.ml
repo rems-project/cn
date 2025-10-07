@@ -298,12 +298,12 @@ let get_instrumented_filename filename =
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
 let main
-      ?(without_ownership_checking = false)
-      ?(without_loop_invariants = false)
-      ?(with_loop_leak_checks = false)
-      ?(exec_c_locs_mode = false)
-      ?(experimental_ownership_stack_mode = false)
-      ?(with_testing = false)
+      ~without_ownership_checking
+      ~without_loop_invariants
+      ~with_loop_leak_checks
+      ~exec_c_locs_mode
+      ~experimental_ownership_stack_mode
+      ~with_testing
       ~skip_and_only
       filename
       cc

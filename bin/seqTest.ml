@@ -18,7 +18,8 @@ let run_seq_tests
       allow_split_magic_comments
       (* Executable spec *)
         without_ownership_checking
-      (* without_loop_invariants *)
+      exec_c_locs_mode
+      experimental_ownership_stack_mode
       (* Test Generation *)
         output_dir
       print_steps
@@ -70,6 +71,8 @@ let run_seq_tests
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
+             ~exec_c_locs_mode
+             ~experimental_ownership_stack_mode
              ~with_testing:true
              ~skip_and_only:([], [])
              filename
@@ -149,6 +152,8 @@ let cmd =
     $ Common.Flags.magic_comment_char_dollar
     $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
+    $ Instrument.Flags.exec_c_locs_mode
+    $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.output_dir
     $ Flags.print_steps
     $ Flags.gen_num_calls
