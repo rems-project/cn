@@ -193,6 +193,7 @@ let rec bt_to_cn_base_type = function
   | List bt -> CN_list (bt_to_cn_base_type bt)
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
+  | Option MemByte -> bt_to_cn_base_type (Bits (Unsigned, 8))
   | Option _ -> failwith (__LOC__ ^ ": TODO Option")
 
 
