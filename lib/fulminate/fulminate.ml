@@ -47,6 +47,26 @@ let collect_memory_accesses (_, sigm) =
   let open CF.AilSyntax in
   let acc = ref [] in
   (* list of scoped variables *)
+  let scan_for_decls_and_update_env (bs, ss) env f_expr f_stmt =
+    let lookup_ty sym = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+    let env_cell = ref env in
+    List.iter
+      (fun s ->
+         match s.node with
+         (* Update the environment when variables are declared *)
+         | AilSdeclaration xs ->
+           List.iter
+             (function
+               | sym, None ->
+                 env_cell := lookup_ty sym :: !env_cell;
+                 ()
+               | sym, Some e ->
+                 env_cell := lookup_ty sym :: !env_cell;
+                 f_expr e !env_cell)
+             xs
+         | _ -> f_stmt s !env_cell)
+      ss
+  in
   let rec aux_expr (AnnotatedExpression (_, _, loc, expr_)) env =
     match expr_ with
     | AilErvalue lvalue ->
@@ -108,30 +128,13 @@ let collect_memory_accesses (_, sigm) =
       List.iter (function None -> () | Some e -> aux_expr e env) xs
     | AilEstruct (_, xs) ->
       List.iter (function _, None -> () | _, Some e -> aux_expr e env) xs
-    | AilEgcc_statement (_, ss) -> List.iter (fun s -> aux_stmt s env) ss
+    | AilEgcc_statement (bs, ss) ->
+      scan_for_decls_and_update_env (bs, ss) env aux_expr aux_stmt
   and aux_stmt stmt env =
     match stmt.node with
     | AilSskip | AilSbreak | AilScontinue | AilSreturnVoid | AilSgoto _ -> ()
     | AilSexpr e | AilSreturn e | AilSreg_store (_, e) -> aux_expr e env
-    | AilSblock (bs, ss) ->
-      let lookup_ty sym = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
-      let env_cell = ref env in
-      List.iter
-        (fun s ->
-           match s.node with
-           (* Update the environment when variables are declared *)
-           | AilSdeclaration xs ->
-             List.iter
-               (function
-                 | sym, None ->
-                   env_cell := lookup_ty sym :: !env_cell;
-                   ()
-                 | sym, Some e ->
-                   env_cell := lookup_ty sym :: !env_cell;
-                   aux_expr e !env_cell)
-               xs
-           | _ -> aux_stmt s !env_cell)
-        ss
+    | AilSblock (bs, ss) -> scan_for_decls_and_update_env (bs, ss) env aux_expr aux_stmt
     | AilSpar ss -> List.iter (fun s -> aux_stmt s env) ss
     | AilSif (e, s1, s2) ->
       aux_expr e env;
