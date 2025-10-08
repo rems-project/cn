@@ -617,3 +617,14 @@ let generate_global_assignments
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
+
+
+(* Needed for handling typedef definitions *)
+let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
+  List.map
+    (fun (sym, (loc, _, tag_def)) ->
+       let tag_ctype_str =
+         match tag_def with CF.Ctype.StructDef _ -> "struct" | UnionDef _ -> "union"
+       in
+       (loc, [ tag_ctype_str ^ " " ^ Pp.plain (CF.Pp_ail.pp_id sym) ]))
+    tag_defs

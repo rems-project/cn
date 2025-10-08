@@ -456,18 +456,13 @@ let main
     else
       memory_accesses_injections filtered_ail_prog
   in
-  let struct_locs = List.map (fun (i, (loc, _, _)) -> (i, loc)) sigm.tag_definitions in
-  let struct_injs =
-    List.map
-      (fun (i, loc) -> (loc, [ "struct " ^ Pp.plain (CF.Pp_ail.pp_id i) ]))
-      struct_locs
-  in
+  let tag_def_injs = generate_tag_definition_injs sigm.tag_definitions in
   let give_precedence_map n = List.map (fun x -> (n, x)) in
   let in_stmt_injs =
     give_precedence_map 0 executable_spec.in_stmt
     @ give_precedence_map 1 accesses_stmt_injs
     @ give_precedence_map 0 toplevel_injections
-    @ give_precedence_map 0 struct_injs
+    @ give_precedence_map 0 tag_def_injs
     @ give_precedence_map 0 fn_call_ghost_args_injs
   in
   let pre_post_pairs =
