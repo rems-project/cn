@@ -5,7 +5,6 @@ module C = CF.Ctype
 module A = CF.AilSyntax
 module AT = ArgumentTypes
 module OE = Ownership
-module CP = Cerb_position
 
 type executable_spec =
   { pre_post : (CF.Symbol.sym * (string list * string list)) list;
@@ -622,20 +621,9 @@ let generate_global_assignments
 
 (* Needed for handling typedef definitions *)
 let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
-  (* In the style of Cerb_location.line_numbers *)
-  let line_and_column_numbers = function
-    | Cerb_location.Loc_unknown -> None
-    | Loc_other _ -> None
-    | Loc_point p -> Some ((CP.line p, CP.line p), (CP.column p, CP.column p))
-    | Loc_region (p1, p2, _) ->
-      Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
-    | Loc_regions ((p1, p2) :: _, _) ->
-      Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
-    | Loc_regions ([], _) -> None
-  in
   (* Check whether loc is (strictly) contained within loc' *)
   let is_strict_sub_location loc loc' =
-    match (line_and_column_numbers loc, line_and_column_numbers loc') with
+    match (Utils.line_and_column_numbers loc, Utils.line_and_column_numbers loc') with
     | None, _ | _, None -> false
     | Some ((ls, le), (cs, ce)), Some ((ls', le'), (cs', ce')) ->
       Printf.printf "entered check\n";

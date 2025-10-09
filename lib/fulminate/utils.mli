@@ -58,3 +58,5 @@ val concat_map_newline : PPrint.document list -> PPrint.document
 val static_prefix : string -> string
 
 val remove_last_semicolon : string list -> string list
+
+val line_and_column_numbers : Cerb_location.t -> ((int * int) * (int * int)) option
