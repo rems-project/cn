@@ -626,12 +626,9 @@ let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition l
     match (Utils.line_and_column_numbers loc, Utils.line_and_column_numbers loc') with
     | None, _ | _, None -> false
     | Some ((ls, le), (cs, ce)), Some ((ls', le'), (cs', ce')) ->
-      Printf.printf "entered check\n";
-      let not_same_line_b = ls > ls' && le < le' in
-      let same_line_b = ls == ls' && le == le' && cs > cs' && ce < ce' in
-      let b = not_same_line_b || same_line_b in
-      if b then Printf.printf "true\n";
-      b
+      let not_same_line_sub_loc = ls > ls' && le < le' in
+      let same_line_sub_loc = ls == ls' && le == le' && cs > cs' && ce < ce' in
+      not_same_line_sub_loc || same_line_sub_loc
   in
   let tag_defs' = ref [] in
   List.iter
