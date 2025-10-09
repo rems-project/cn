@@ -5,6 +5,7 @@ module C = CF.Ctype
 module A = CF.AilSyntax
 module AT = ArgumentTypes
 module OE = Ownership
+module CP = Cerb_position
 
 type executable_spec =
   { pre_post : (CF.Symbol.sym * (string list * string list)) list;
@@ -621,10 +622,49 @@ let generate_global_assignments
 
 (* Needed for handling typedef definitions *)
 let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
-  List.map
-    (fun (sym, (loc, _, tag_def)) ->
-       let tag_ctype_str =
-         match tag_def with CF.Ctype.StructDef _ -> "struct" | UnionDef _ -> "union"
+  (* In the style of Cerb_location.line_numbers *)
+  let line_and_column_numbers = function
+    | Cerb_location.Loc_unknown -> None
+    | Loc_other _ -> None
+    | Loc_point p -> Some ((CP.line p, CP.line p), (CP.column p, CP.column p))
+    | Loc_region (p1, p2, _) ->
+      Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
+    | Loc_regions ((p1, p2) :: _, _) ->
+      Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
+    | Loc_regions ([], _) -> None
+  in
+  (* Check whether loc is (strictly) contained within loc' *)
+  let is_strict_sub_location loc loc' =
+    match (line_and_column_numbers loc, line_and_column_numbers loc') with
+    | None, _ | _, None -> false
+    | Some ((ls, le), (cs, ce)), Some ((ls', le'), (cs', ce')) ->
+      Printf.printf "entered check\n";
+      let not_same_line_b = ls > ls' && le < le' in
+      let same_line_b = ls == ls' && le == le' && cs > cs' && ce < ce' in
+      let b = not_same_line_b || same_line_b in
+      if b then Printf.printf "true\n";
+      b
+  in
+  let tag_defs' = ref [] in
+  List.iter
+    (fun ((_, (loc, _, _)) as tag_def) ->
+       let ssl =
+         List.map (fun (_, (loc', _, _)) -> is_strict_sub_location loc loc') tag_defs
        in
-       (loc, [ tag_ctype_str ^ " " ^ Pp.plain (CF.Pp_ail.pp_id sym) ]))
-    tag_defs
+       let is_strict_subloc_of_any = List.fold_left ( || ) false ssl in
+       if not is_strict_subloc_of_any then tag_defs' := tag_def :: !tag_defs')
+    tag_defs;
+  let all_tag_def_injs =
+    List.map
+      (fun (sym, (loc, _, tag_def)) ->
+         Printf.printf
+           "tag definition %s at %s\n"
+           (Sym.pp_string sym)
+           (Cerb_location.simple_location loc);
+         let tag_ctype_str =
+           match tag_def with CF.Ctype.StructDef _ -> "struct" | UnionDef _ -> "union"
+         in
+         (loc, [ tag_ctype_str ^ " " ^ Pp.plain (CF.Pp_ail.pp_id sym) ]))
+      !tag_defs'
+  in
+  all_tag_def_injs
