@@ -938,6 +938,16 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
        | PEnot e -> pp_constructor1 "PEnot" [ pp_pexpr pp_type e ]
        | PEapply_fun (f, args) ->
          pp_constructor1 "PEapply_fun" [ pp_function f; pp_list (pp_pexpr pp_type) args ]
+       | PEcall (f, args) ->
+         let fn =
+           match f with
+           | Sym s -> pp_constructor1 "Sym" [ Sym.pp s ]
+           | Impl s ->
+             pp_constructor1
+               "Impl"
+               [ !^(CF.Implementation.string_of_implementation_constant s) ]
+         in
+         pp_constructor1 "PEcall" [ fn; pp_list (pp_pexpr pp_type) args ]
        | PEstruct (sym, fields) ->
          pp_constructor1
            "PEstruct"

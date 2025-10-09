@@ -370,6 +370,14 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
   | PEapply_fun (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     eval_fun f xs pexpr
+  | PEcall (f, pes) ->
+    let@ xs = ListM.mapM (self var_map) pes in
+    (match (f, xs) with
+     | Sym (Symbol (_, _, SD_Id "ctype_width")), [ x ]
+       when Option.is_some (IT.is_ctype_const x) ->
+       let ct = Option.get (IT.is_ctype_const x) in
+       return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
+     | _ -> unsupported "pure-expression type" !^"")
   | PEctor (ctor, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (ctor, xs) with

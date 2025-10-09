@@ -61,7 +61,7 @@ type mu_function =
   | F_params_length
   | F_params_nth
   | F_are_compatible
-  | F_ctype_width
+(* | F_ctype_width *)
 
 val pp_function : mu_function -> Pp.document
 
@@ -83,6 +83,8 @@ type bound_kind =
   | Bound_Except of act (** Report an exception, for signed types *)
 
 val bound_kind_act : bound_kind -> act
+
+type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
 
 type 'TY pexpr_ =
   | PEsym of Sym.t
@@ -107,6 +109,7 @@ type 'TY pexpr_ =
   | PEcfunction of 'TY pexpr
   | PEmemberof of Sym.t * Id.t * 'TY pexpr
   | PEapply_fun of mu_function * 'TY pexpr list
+  | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
   | PEis_representable_integer of 'TY pexpr * act

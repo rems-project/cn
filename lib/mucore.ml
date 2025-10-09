@@ -56,7 +56,7 @@ type mu_function =
   | F_params_length
   | F_params_nth
   | F_are_compatible
-  | F_ctype_width
+(* | F_ctype_width *)
 
 let pp_function =
   let open Pp.Infix in
@@ -64,8 +64,9 @@ let pp_function =
   | F_params_length -> !^"params_length"
   | F_params_nth -> !^"params_nth"
   | F_are_compatible -> !^"are_compatible"
-  | F_ctype_width -> !^"ctype_width"
 
+
+(* | F_ctype_width -> !^"ctype_width" *)
 
 let fun_param_types mu_fun =
   let open BaseTypes in
@@ -74,8 +75,9 @@ let fun_param_types mu_fun =
   | F_params_length -> [ List CType ]
   | F_params_nth -> [ List CType; short_int ]
   | F_are_compatible -> [ CType; CType ]
-  | F_ctype_width -> [ CType ]
 
+
+(* | F_ctype_width -> [ CType ] *)
 
 let evaluate_fun mu_fun args =
   let module IT = IndexTerms in
@@ -106,12 +108,13 @@ let evaluate_fun mu_fun args =
        else
          None
      | _ -> None)
-  | F_ctype_width ->
-    (match List.map IT.is_const args with
-     | [ Some (IT.CType_const ct, _) ] ->
-       Some (`Result_Integer (Z.of_int (Memory.size_of_ctype ct * 8)))
-     | _ -> None)
 
+
+(* | F_ctype_width -> *)
+(*   (match List.map IT.is_const args with *)
+(*    | [ Some (IT.CType_const ct, _) ] -> *)
+(*      Some (`Result_Integer (Z.of_int (Memory.size_of_ctype ct * 8))) *)
+(*    | _ -> None) *)
 
 type bw_unop =
   | BW_CTZ
@@ -124,6 +127,8 @@ type bound_kind =
   | Bound_Except of act (** Report an exception, for signed types *)
 
 let bound_kind_act = function Bound_Wrap act -> act | Bound_Except act -> act
+
+type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
 
 type 'TY pexpr_ =
   | PEsym of Sym.t
@@ -148,6 +153,7 @@ type 'TY pexpr_ =
   | PEcfunction of 'TY pexpr
   | PEmemberof of Sym.t * Id.t * 'TY pexpr
   | PEapply_fun of mu_function * 'TY pexpr list
+  | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
   | PEis_representable_integer of 'TY pexpr * act
@@ -172,8 +178,9 @@ let fun_return_type mu_fun args =
   | F_params_length, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Unsigned Short))))
   | F_params_nth, _ -> Some (`Returns_BT CType)
   | F_are_compatible, _ -> Some (`Returns_BT Bool)
-  | F_ctype_width, _ -> Some `Returns_Integer
 
+
+(* | F_ctype_width, _ -> Some `Returns_Integer *)
 
 type m_kill_kind =
   | Dynamic

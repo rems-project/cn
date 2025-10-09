@@ -109,6 +109,7 @@ module Make (Config : CONFIG) = struct
     | PEconv_loaded_int _ | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
     | PEbitwise_unop (_, _)
     | PEapply_fun (_, _)
+    | PEcall _
     | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
     | PEis_representable_integer (_, _) ->
@@ -319,6 +320,9 @@ module Make (Config : CONFIG) = struct
                | PEop (bop, pe1, pe2) -> pp_pexpr pe1 ^^^ pp_binop bop ^^^ pp_pexpr pe2
                | PEapply_fun (f, args) ->
                  Cn_Pp.c_app (pp_function f) (List.map pp_pexpr args)
+               | PEcall (fn, args) ->
+                 let fn = match fn with Sym s -> Sym.pp s | Impl i -> pp_impl i in
+                 Cn_Pp.c_app fn (List.map pp_pexpr args)
                | PEstruct (tag_sym, xs) ->
                  Pp.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
                  ^^ Pp.braces

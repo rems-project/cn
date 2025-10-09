@@ -1735,6 +1735,14 @@ module BaseTyping = struct
         | PEapply_fun (fname, pes) ->
           let@ bt, pes = check_infer_apply_fun None fname pes pe in
           return (bt, PEapply_fun (fname, pes))
+        | PEcall (f, pes) ->
+          (match (f, pes) with
+           | Sym (Symbol (_, _, SD_Id "ctype_width")), _ ->
+             Pp.debug 10 (lazy (item "untypeable" (Pp_mucore_ast.pp_pexpr pe)));
+             let err = !^"untypeable expression" in
+             fail { loc; msg = Generic err [@alert "-deprecated"] }
+           | _ ->
+             fail { loc; msg = Generic !^"PEcall not inlined" } [@alert "-deprecated"])
         | PEconstrained _
         | PEunion (_, _, _)
         | PEmemberof (_, _, _)
@@ -1747,6 +1755,14 @@ module BaseTyping = struct
           todo ()
       in
       return (Pexpr (loc, annots, bty, pe_))
+
+
+  and check_pexpr_good_ctype_const pe =
+    let@ pe = check_pexpr CType pe in
+    let ct = Option.get (Mu.is_ctype_const pe) in
+    let sct = Option.get (Sctypes.of_ctype ct) in
+    let@ () = WCT.is_ct (Mu.loc_of_pexpr pe) sct in
+    return (pe, sct)
 
 
   and check_pexpr (expect : BT.t) expr =
@@ -1768,6 +1784,16 @@ module BaseTyping = struct
     | PEapply_fun (fname, pes) ->
       let@ _bt, pes = check_infer_apply_fun (Some expect) fname pes expr in
       return (annot expect (Mu.PEapply_fun (fname, pes)))
+    | PEcall (f, pes) ->
+      (match (f, pes) with
+       | Sym (Symbol (_, _, SD_Id "ctype_width")), [ pe ] ->
+         let@ pe, _sct = check_pexpr_good_ctype_const pe in
+         let@ () = ensure_bits_type loc expect in
+         return (annot expect (Mu.PEcall (f, [ pe ])))
+       | Sym (Symbol (_, _, SD_Id "ctype_width")), _ ->
+         let has = List.length pes in
+         fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
+       | _ -> fail { loc; msg = Generic !^"PEcall not inlined" } [@alert "-deprecated"])
     | PEctor (ctor, pes) ->
       let@ e = check_ctor expect ctor pes expr in
       return (annot expect e)
@@ -2390,14 +2416,6 @@ module BaseTyping = struct
         | End _ -> todo ()
       in
       return (Expr (loc, annots, bty, e_))
-
-
-  and check_pexpr_good_ctype_const pe =
-    let@ pe = check_pexpr CType pe in
-    let ct = Option.get (Mu.is_ctype_const pe) in
-    let sct = Option.get (Sctypes.of_ctype ct) in
-    let@ () = WCT.is_ct (Mu.loc_of_pexpr pe) sct in
-    return (pe, sct)
 
 
   and check_expr label_context (expect : BT.t) expr =

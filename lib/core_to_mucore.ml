@@ -178,8 +178,7 @@ and n_val loc v =
 
 let function_ids =
   [ ("params_length", Mu.F_params_length);
-    ("params_nth", F_params_nth);
-    ("ctype_width", F_ctype_width)
+    ("params_nth", F_params_nth) (* ("ctype_width", F_ctype_width) *)
   ]
 
 
@@ -330,18 +329,11 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
             loc
             (!^"all_values_representable_in: not integer types:"
              ^^^ list CF.Pp_core.Basic.pp_pexpr [ arg1; arg2 ]))
-     | Sym (Symbol (_, _, SD_Id fun_id)), args ->
+     | (Sym (Symbol (_, _, SD_Id fun_id)) as name), args ->
+       let args = List.map (n_pexpr loc) args in
        (match List.assoc_opt String.equal fun_id function_ids with
-        | Some fun_id ->
-          let args = List.map (n_pexpr loc) args in
-          annotate (PEapply_fun (fun_id, args))
-        | None ->
-          assert_error
-            loc
-            (!^"PEcall (SD_Id) not inlined: "
-             ^^^ !^fun_id
-             ^^ colon
-             ^^^ list CF.Pp_core.Basic.pp_pexpr args))
+        | Some fun_id -> annotate (PEapply_fun (fun_id, args))
+        | None -> annotate (PEcall (name, args)))
      | Sym sym, _ -> assert_error loc (!^"PEcall not inlined:" ^^^ Sym.pp sym)
      | Impl impl, args ->
        (match (impl, args) with
