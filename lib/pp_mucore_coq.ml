@@ -978,6 +978,8 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            ]
        | PEis_representable_integer (e, act) ->
          pp_constructor1 "PEis_representable_integer" [ pp_pexpr pp_type e; pp_act act ]
+       | PEare_compatible (pe1, pe2) ->
+         pp_constructor1 "PEare_compatible" [ pp_pexpr pp_type pe1; pp_pexpr pp_type pe2 ]
        | PEundef (loc, ub) ->
          pp_constructor1 "PEundef" [ pp_location loc; pp_undefined_behaviour ub ]
        | PEerror (msg, e) ->

@@ -60,8 +60,6 @@ val loc_of_pattern : 'a pattern -> Locations.t
 type mu_function =
   | F_params_length
   | F_params_nth
-  | F_are_compatible
-(* | F_ctype_width *)
 
 val pp_function : mu_function -> Pp.document
 
@@ -113,6 +111,7 @@ type 'TY pexpr_ =
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
   | PEis_representable_integer of 'TY pexpr * act
+  | PEare_compatible of 'TY pexpr * 'TY pexpr
 
 and 'TY pexpr = Pexpr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY pexpr_
 

@@ -55,15 +55,10 @@ let loc_of_pattern (Pattern (loc, _, _, _)) = loc
 type mu_function =
   | F_params_length
   | F_params_nth
-  | F_are_compatible
-(* | F_ctype_width *)
 
 let pp_function =
   let open Pp.Infix in
-  function
-  | F_params_length -> !^"params_length"
-  | F_params_nth -> !^"params_nth"
-  | F_are_compatible -> !^"are_compatible"
+  function F_params_length -> !^"params_length" | F_params_nth -> !^"params_nth"
 
 
 (* | F_ctype_width -> !^"ctype_width" *)
@@ -74,14 +69,11 @@ let fun_param_types mu_fun =
   match mu_fun with
   | F_params_length -> [ List CType ]
   | F_params_nth -> [ List CType; short_int ]
-  | F_are_compatible -> [ CType; CType ]
 
-
-(* | F_ctype_width -> [ CType ] *)
 
 let evaluate_fun mu_fun args =
   let module IT = IndexTerms in
-  let here = Locations.other __LOC__ in
+  (* let here = Locations.other __LOC__ in *)
   match mu_fun with
   | F_params_length ->
     (match args with
@@ -100,20 +92,15 @@ let evaluate_fun mu_fun args =
            else
              None))
      | _ -> None)
-  | F_are_compatible ->
-    (match List.map IT.is_const args with
-     | [ Some (IT.CType_const ct1, _); Some (IT.CType_const ct2, _) ] ->
-       if Sctypes.equal ct1 ct2 then
-         Some (`Result_IT (IT.bool_ true here))
-       else
-         None
-     | _ -> None)
 
 
-(* | F_ctype_width -> *)
+(* | F_are_compatible -> *)
 (*   (match List.map IT.is_const args with *)
-(*    | [ Some (IT.CType_const ct, _) ] -> *)
-(*      Some (`Result_Integer (Z.of_int (Memory.size_of_ctype ct * 8))) *)
+(*    | [ Some (IT.CType_const ct1, _); Some (IT.CType_const ct2, _) ] -> *)
+(*      if Sctypes.equal ct1 ct2 then *)
+(*        Some (`Result_IT (IT.bool_ true here)) *)
+(*      else *)
+(*        None *)
 (*    | _ -> None) *)
 
 type bw_unop =
@@ -157,6 +144,7 @@ type 'TY pexpr_ =
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
   | PEis_representable_integer of 'TY pexpr * act
+  | PEare_compatible of 'TY pexpr * 'TY pexpr
 
 and 'TY pexpr = Pexpr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY pexpr_
 
@@ -177,8 +165,9 @@ let fun_return_type mu_fun args =
   match (mu_fun, args) with
   | F_params_length, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Unsigned Short))))
   | F_params_nth, _ -> Some (`Returns_BT CType)
-  | F_are_compatible, _ -> Some (`Returns_BT Bool)
 
+
+(* | F_are_compatible, _ -> Some (`Returns_BT Bool) *)
 
 (* | F_ctype_width, _ -> Some `Returns_Integer *)
 

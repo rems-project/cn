@@ -389,7 +389,7 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEare_compatible (e1, e2) ->
     let e1 = n_pexpr loc e1 in
     let e2 = n_pexpr loc e2 in
-    annotate (PEapply_fun (F_are_compatible, [ e1; e2 ]))
+    annotate (PEare_compatible (e1, e2))
 
 
 let n_kill_kind loc = function

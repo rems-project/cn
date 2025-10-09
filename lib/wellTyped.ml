@@ -1743,6 +1743,10 @@ module BaseTyping = struct
              fail { loc; msg = Generic err [@alert "-deprecated"] }
            | _ ->
              fail { loc; msg = Generic !^"PEcall not inlined" } [@alert "-deprecated"])
+        | PEare_compatible (pe1, pe2) ->
+          let@ pe1 = check_pexpr CType pe1 in
+          let@ pe2 = check_pexpr CType pe2 in
+          return (BT.Bool, PEare_compatible (pe1, pe2))
         | PEconstrained _
         | PEunion (_, _, _)
         | PEmemberof (_, _, _)

@@ -112,6 +112,7 @@ module Make (Config : CONFIG) = struct
     | PEcall _
     | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
+    | PEare_compatible _
     | PEis_representable_integer (_, _) ->
       None
 
@@ -364,6 +365,9 @@ module Make (Config : CONFIG) = struct
                | PEis_representable_integer (asym, act) ->
                  !^"is_representable_integer"
                  ^^ Pp.parens (pp_pexpr asym ^^ Pp.comma ^^^ pp_ct act.ct)
+               | PEare_compatible (pe1, pe2) ->
+                 !^"are_compatible"
+                 ^^ Pp.parens (pp_pexpr pe1 ^^ Pp.comma ^^^ pp_pexpr pe2)
                | PElet (pat, pe1, pe2) ->
                  pp_control "let"
                  ^^^ pp_pattern pat

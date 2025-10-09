@@ -902,6 +902,11 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | _ ->
        fail (fun _ -> { loc; msg = Generic !^"PEcall not inlined" })
        [@alert "-deprecated"])
+  | PEare_compatible (pe1, pe2) ->
+    let@ () = WellTyped.ensure_base_type loc ~expect BT.Bool in
+    let@ sct1 = check_pexpr_good_ctype_const path_cs pe1 in
+    let@ sct2 = check_pexpr_good_ctype_const path_cs pe2 in
+    return (IT.bool_ (Sctypes.equal sct1 sct2) loc)
   | PEstruct (tag, xs) ->
     let@ () = WellTyped.check_ct loc (Struct tag) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in

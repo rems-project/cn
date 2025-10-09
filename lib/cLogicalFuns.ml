@@ -378,6 +378,12 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        let ct = Option.get (IT.is_ctype_const x) in
        return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
      | _ -> unsupported "pure-expression type" !^"")
+  | PEare_compatible (pe1, pe2) ->
+    let@ x1 = self var_map pe1 in
+    let@ x2 = self var_map pe2 in
+    (match (IT.is_ctype_const x1, IT.is_ctype_const x2) with
+     | Some ct1, Some ct2 -> return (IT.bool_ (Sctypes.equal ct1 ct2) loc)
+     | _ -> unsupported "are-compatible applied to non-constants" !^"")
   | PEctor (ctor, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (ctor, xs) with
