@@ -856,35 +856,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | OpMul -> not_yet "OpMul"
      | OpRem_f -> not_yet "OpRem_f"
      | OpExp -> not_yet "OpExp")
-  | PEapply_fun (fun_id, args) ->
-    let@ () =
-      match Mu.fun_return_type fun_id args with
-      | Some (`Returns_BT bt) -> WellTyped.ensure_base_type loc ~expect bt
-      | Some `Returns_Integer -> WellTyped.ensure_bits_type loc expect
-      | None ->
-        fail (fun _ ->
-          { loc;
-            msg =
-              Generic
-                (Pp.item "untypeable mucore function" (Pp_mucore_ast.pp_pexpr orig_pe))
-              [@alert "-deprecated"]
-          })
-    in
-    let expect_args = Mucore.fun_param_types fun_id in
-    let@ () =
-      let has = List.length args in
-      let expect = List.length expect_args in
-      WellTyped.ensure_same_argument_number loc `Other has ~expect
-    in
-    let@ _ =
-      ListM.map2M
-        (fun pe expect -> WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe))
-        args
-        expect_args
-    in
-    let@ args = ListM.mapM (check_pexpr path_cs) args in
-    let@ res = CLogicalFuns.eval_fun fun_id args orig_pe in
-    return res
   | PEcall (f, pes) ->
     (match (f, pes) with
      | Sym (Symbol (_, _, SD_Id "ctype_width")), [ pe ] ->
@@ -899,8 +870,52 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let has = List.length pes in
        let err = WT.Number_arguments { type_ = `Other; has; expect = 1 } in
        fail (fun _ -> { loc; msg = WellTyped err })
+     | Sym (Symbol (_, _, SD_Id "params_length")), [ e ] ->
+       let rbt = Memory.bt_of_sct (Integer (Unsigned Short)) in
+       let@ () = WellTyped.ensure_base_type loc ~expect rbt in
+       let@ () = WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e) in
+       let@ e = check_pexpr path_cs e in
+       (match IT.dest_list e with
+        | Some its ->
+          let n = Z.of_int (List.length its) in
+          let@ () =
+            WellTyped.ensure_z_fits_bits_type loc (Option.get (BT.is_bits_bt expect)) n
+          in
+          return (num_lit_ n expect loc)
+        | None ->
+          let msg = "Could not evaluate params_length argument to a constant list." in
+          (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
+     | Sym (Symbol (_, _, SD_Id "params_length")), _ ->
+       let has = List.length pes in
+       let err = WT.Number_arguments { type_ = `Other; has; expect = 1 } in
+       fail (fun _ -> { loc; msg = WellTyped err })
+     | Sym (Symbol (_, _, SD_Id "params_nth")), [ e1; e2 ] ->
+       let@ () = WellTyped.ensure_base_type loc ~expect CType in
+       let@ () =
+         WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e1)
+       in
+       let@ () =
+         WellTyped.ensure_base_type
+           loc
+           ~expect:(Memory.bt_of_sct (Integer (Signed Short)))
+           (Mu.bt_of_pexpr e2)
+       in
+       let@ e1 = check_pexpr path_cs e1 in
+       let@ e2 = check_pexpr path_cs e2 in
+       (match (IT.dest_list e1, IT.is_bits_const e2) with
+        | Some its, Some (bits_info, i) ->
+          assert (BaseTypes.fits_range bits_info i);
+          return (List.nth its (Z.to_int i))
+        | _ ->
+          let msg = "Could not evaluate params_nth arguments to constants." in
+          (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
+     | Sym (Symbol (_, _, SD_Id "params_nth")), _ ->
+       let has = List.length pes in
+       let err = WT.Number_arguments { type_ = `Other; has; expect = 2 } in
+       fail (fun _ -> { loc; msg = WellTyped err })
      | _ ->
-       fail (fun _ -> { loc; msg = Generic !^"PEcall not inlined" })
+       fail (fun _ ->
+         { loc; msg = Generic !^"Unsupported Core standard library function" })
        [@alert "-deprecated"])
   | PEare_compatible (pe1, pe2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect BT.Bool in

@@ -936,8 +936,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
        | PEmemop (pure_memop, e) ->
          pp_constructor1 "PEmemop" [ pp_pure_memop pure_memop; pp_pexpr pp_type e ]
        | PEnot e -> pp_constructor1 "PEnot" [ pp_pexpr pp_type e ]
-       | PEapply_fun (f, args) ->
-         pp_constructor1 "PEapply_fun" [ pp_function f; pp_list (pp_pexpr pp_type) args ]
        | PEcall (f, args) ->
          let fn =
            match f with

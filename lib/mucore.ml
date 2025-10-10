@@ -52,57 +52,6 @@ let bt_of_pattern (Pattern (_, _, bty, _)) = bty
 
 let loc_of_pattern (Pattern (loc, _, _, _)) = loc
 
-type mu_function =
-  | F_params_length
-  | F_params_nth
-
-let pp_function =
-  let open Pp.Infix in
-  function F_params_length -> !^"params_length" | F_params_nth -> !^"params_nth"
-
-
-(* | F_ctype_width -> !^"ctype_width" *)
-
-let fun_param_types mu_fun =
-  let open BaseTypes in
-  let short_int = Bits (Signed, 32) in
-  match mu_fun with
-  | F_params_length -> [ List CType ]
-  | F_params_nth -> [ List CType; short_int ]
-
-
-let evaluate_fun mu_fun args =
-  let module IT = IndexTerms in
-  (* let here = Locations.other __LOC__ in *)
-  match mu_fun with
-  | F_params_length ->
-    (match args with
-     | [ arg ] ->
-       Option.bind (IT.dest_list arg) (fun xs ->
-         Some (`Result_Integer (Z.of_int (List.length xs))))
-     | _ -> None)
-  | F_params_nth ->
-    (match args with
-     | [ arg1; arg2 ] ->
-       Option.bind (IT.dest_list arg1) (fun xs ->
-         Option.bind (IT.is_bits_const arg2) (fun (bits_info, i) ->
-           assert (BaseTypes.fits_range bits_info i);
-           if Z.lt i (Z.of_int (List.length xs)) && Z.leq Z.zero i then
-             Option.bind (List.nth_opt xs (Z.to_int i)) (fun it -> Some (`Result_IT it))
-           else
-             None))
-     | _ -> None)
-
-
-(* | F_are_compatible -> *)
-(*   (match List.map IT.is_const args with *)
-(*    | [ Some (IT.CType_const ct1, _); Some (IT.CType_const ct2, _) ] -> *)
-(*      if Sctypes.equal ct1 ct2 then *)
-(*        Some (`Result_IT (IT.bool_ true here)) *)
-(*      else *)
-(*        None *)
-(*    | _ -> None) *)
-
 type bw_unop =
   | BW_CTZ
   | BW_FFS
@@ -139,7 +88,6 @@ type 'TY pexpr_ =
   | PEunion of Sym.t * Id.t * 'TY pexpr
   | PEcfunction of 'TY pexpr
   | PEmemberof of Sym.t * Id.t * 'TY pexpr
-  | PEapply_fun of mu_function * 'TY pexpr list
   | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
@@ -159,17 +107,6 @@ let is_undef_or_error_pexpr (Pexpr (_, _, _, pe)) =
 let is_ctype_const (Pexpr (_loc, _, _, pe)) =
   match pe with PEval (V (_, Vctype ct)) -> Some ct | _ -> None
 
-
-let fun_return_type mu_fun args =
-  let open BaseTypes in
-  match (mu_fun, args) with
-  | F_params_length, _ -> Some (`Returns_BT (Memory.bt_of_sct (Integer (Unsigned Short))))
-  | F_params_nth, _ -> Some (`Returns_BT CType)
-
-
-(* | F_are_compatible, _ -> Some (`Returns_BT Bool) *)
-
-(* | F_ctype_width, _ -> Some `Returns_Integer *)
 
 type m_kill_kind =
   | Dynamic

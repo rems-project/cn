@@ -57,19 +57,6 @@ val bt_of_pattern : 'a pattern -> 'a
 
 val loc_of_pattern : 'a pattern -> Locations.t
 
-type mu_function =
-  | F_params_length
-  | F_params_nth
-
-val pp_function : mu_function -> Pp.document
-
-val fun_param_types : mu_function -> BaseTypes.t list
-
-val evaluate_fun
-  :  mu_function ->
-  IndexTerms.t list ->
-  [> `Result_IT of IndexTerms.t | `Result_Integer of Z.t ] Option.m
-
 type bw_unop =
   | BW_CTZ
   | BW_FFS
@@ -106,7 +93,6 @@ type 'TY pexpr_ =
   | PEunion of Sym.t * Id.t * 'TY pexpr
   | PEcfunction of 'TY pexpr
   | PEmemberof of Sym.t * Id.t * 'TY pexpr
-  | PEapply_fun of mu_function * 'TY pexpr list
   | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
@@ -122,11 +108,6 @@ val bt_of_pexpr : 'TY pexpr -> 'TY
 val is_undef_or_error_pexpr : 'a pexpr -> bool
 
 val is_ctype_const : 'a pexpr -> Cerb_frontend.Ctype.ctype option
-
-val fun_return_type
-  :  mu_function ->
-  'a pexpr list ->
-  [> `Returns_BT of BaseTypes.t | `Returns_Integer ] Option.t
 
 type m_kill_kind =
   | Dynamic
