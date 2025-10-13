@@ -269,14 +269,14 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
     annotate (PEbounded_binop (Bound_Except act, iop, arg1, arg2))
   | PEcall (sym1, args) ->
     (match (sym1, args) with
-     | Sym (Symbol (_, _, SD_Id "conv_int")), [ arg1; arg2 ] ->
-       let arg1 = n_pexpr loc arg1 in
-       let arg2 = n_pexpr loc arg2 in
-       annotate (PEconv_int (arg1, arg2))
-     | Sym (Symbol (_, _, SD_Id "conv_loaded_int")), [ arg1; arg2 ] ->
-       let arg1 = n_pexpr loc arg1 in
-       let arg2 = n_pexpr loc arg2 in
-       annotate (PEconv_loaded_int (arg1, arg2))
+     (* | Sym (Symbol (_, _, SD_Id "conv_int")), [ arg1; arg2 ] -> *)
+     (*   let arg1 = n_pexpr loc arg1 in *)
+     (*   let arg2 = n_pexpr loc arg2 in *)
+     (*   annotate (PEconv_int (arg1, arg2)) *)
+     (* | Sym (Symbol (_, _, SD_Id "conv_loaded_int")), [ arg1; arg2 ] -> *)
+     (*   let arg1 = n_pexpr loc arg1 in *)
+     (*   let arg2 = n_pexpr loc arg2 in *)
+     (*   annotate (PEconv_loaded_int (arg1, arg2)) *)
      | Sym (Symbol (_, _, SD_Id "wrapI")), [ arg1; arg2 ] ->
        let ct = ensure_pexpr_ctype loc !^"PEcall(wrapI,_): not a constant ctype" arg1 in
        let arg2 = n_pexpr loc arg2 in

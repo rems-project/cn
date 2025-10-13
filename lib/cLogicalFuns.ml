@@ -346,6 +346,20 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
+  | PEconv_int (ct_expr, pe) ->
+    let@ x = self var_map pe in
+    let@ ct_it = self var_map ct_expr in
+    let@ ct = must_be_ct_const loc ct_it in
+    (match ct with
+     | Sctypes.Integer Sctypes.IntegerTypes.Bool ->
+       let here = Locations.other __LOC__ in
+       simp_const_pe
+         (bool_ite_1_0
+            bool_rep_ty
+            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
+            loc)
+     | _ -> do_wrapI loc ct x)
   | PEcall (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (f, xs) with
@@ -404,19 +418,6 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        return (IT.arith_binop bop (e2, e3) loc)
      | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
-  | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
-    let@ x = self var_map pe in
-    let@ ct_it = self var_map ct_expr in
-    let@ ct = must_be_ct_const loc ct_it in
-    (match ct with
-     | Sctypes.Integer Sctypes.IntegerTypes.Bool ->
-       let here = Locations.other __LOC__ in
-       simp_const_pe
-         (bool_ite_1_0
-            bool_rep_ty
-            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
-            loc)
-     | _ -> do_wrapI loc ct x)
   | PEwrapI (act, pe) ->
     let@ x = self var_map pe in
     do_wrapI loc act.ct x

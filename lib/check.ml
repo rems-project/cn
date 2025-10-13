@@ -856,6 +856,22 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | OpMul -> not_yet "OpMul"
      | OpRem_f -> not_yet "OpRem_f"
      | OpExp -> not_yet "OpExp")
+  | PEconv_int (ct_expr, pe)
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
+    ->
+    let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr ct_expr) in
+    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+    let@ ct_it = check_pexpr path_cs ct_expr in
+    let@ ct = check_single_ct loc ct_it in
+    let@ () = WellTyped.check_ct loc ct in
+    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
+    let@ lvt = check_pexpr path_cs pe in
+    let@ vt = check_conv_int loc ~expect ct lvt in
+    return vt
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), pes) ->
+    let has = List.length pes in
+    let err = WT.Number_arguments { type_ = `Other; has; expect = 2 } in
+    fail (fun _ -> { loc; msg = WellTyped err })
   | PEcall (f, pes) ->
     (match (f, pes) with
      | Sym (Symbol (_, _, SD_Id "ctype_width")), [ pe ] ->
@@ -1053,16 +1069,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
         fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } })
     in
     return direct_x
-  | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
-    let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr ct_expr) in
-    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
-    let@ ct_it = check_pexpr path_cs ct_expr in
-    let@ ct = check_single_ct loc ct_it in
-    let@ () = WellTyped.check_ct loc ct in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
-    let@ lvt = check_pexpr path_cs pe in
-    let@ vt = check_conv_int loc ~expect ct lvt in
-    return vt
   | PEwrapI (act, pe) ->
     let@ () = WellTyped.check_ct act.loc act.ct in
     let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in

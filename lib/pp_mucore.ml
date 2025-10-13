@@ -106,7 +106,7 @@ module Make (Config : CONFIG) = struct
     | PEval _ | PEconstrained _ | PEsym _ | PEctor _ | PEarray_shift _ | PEmember_shift _
     | PEmemop (_, _)
     | PEnot _ | PEstruct _ | PEunion _ | PEcfunction _ | PEmemberof _ | PEconv_int _
-    | PEconv_loaded_int _ | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
+    | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
     | PEbitwise_unop (_, _)
     | PEcall _
     | PEcatch_exceptional_condition (_, _)
@@ -340,8 +340,6 @@ module Make (Config : CONFIG) = struct
                        ^^^ pp_pexpr pe)
                | PEconv_int (ct_expr, int_expr) ->
                  Cn_Pp.c_app !^"conv_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
-               | PEconv_loaded_int (ct_expr, int_expr) ->
-                 Cn_Pp.c_app !^"conv_loaded_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
                | PEwrapI (act, asym) ->
                  !^"wrapI" ^^ Pp.parens (pp_ct act.ct ^^ Pp.comma ^^^ pp_pexpr asym)
                | PEbounded_binop (bound, iop, arg1, arg2) ->

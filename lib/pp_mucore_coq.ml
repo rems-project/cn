@@ -959,8 +959,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            [ pp_symbol sym; pp_identifier id; pp_pexpr pp_type e ]
        | PEconv_int (e1, e2) ->
          pp_constructor1 "PEconv_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEconv_loaded_int (e1, e2) ->
-         pp_constructor1 "PEconv_loaded_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
        | PEwrapI (act, e) -> pp_constructor1 "PEwrapI" [ pp_act act; pp_pexpr pp_type e ]
        | PEcatch_exceptional_condition (act, e) ->
          pp_constructor1

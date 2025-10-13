@@ -1687,17 +1687,24 @@ module BaseTyping = struct
         | PEmember_shift (pe, tag, member) ->
           let@ pe = infer_pexpr pe in
           return (Loc (), PEmember_shift (pe, tag, member))
-        | PEconv_int (Pexpr (l2, a2, _, PEval (V (_, Vctype ct))), pe) ->
-          let ct_pe = Pexpr (l2, a2, CType, PEval (V (CType, Vctype ct))) in
+        | PEcall
+            (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_pe; pe ])
+        | PEconv_int (ct_pe, pe) ->
+          let@ ct_pe, sct = check_pexpr_good_ctype_const ct_pe in
           let@ pe = infer_pexpr pe in
-          return
-            (Memory.bt_of_sct (Sctypes.of_ctype_unsafe loc ct), PEconv_int (ct_pe, pe))
-        | PEconv_loaded_int (Pexpr (l2, a2, _, PEval (V (_, Vctype ct))), pe) ->
-          let ct_pe = Pexpr (l2, a2, CType, PEval (V (CType, Vctype ct))) in
-          let@ pe = infer_pexpr pe in
-          return
-            ( Memory.bt_of_sct (Sctypes.of_ctype_unsafe loc ct),
-              PEconv_loaded_int (ct_pe, pe) )
+          let@ () = ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+          let rbt = Memory.bt_of_sct sct in
+          let@ () = ensure_bits_type loc rbt in
+          let pe_ =
+            match pe_ with
+            | PEcall (f, _) -> PEcall (f, [ ct_pe; pe ])
+            | PEconv_int _ -> PEconv_int (ct_pe, pe)
+            | _ -> assert false
+          in
+          return (rbt, pe_)
+        | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), pes) ->
+          let has = List.length pes in
+          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
         | PEcatch_exceptional_condition (act, pe) ->
           let@ pe = infer_pexpr pe in
           return (bt_of_pexpr pe, PEcatch_exceptional_condition (act, pe))
@@ -1761,8 +1768,6 @@ module BaseTyping = struct
         | PEconstrained _
         | PEunion (_, _, _)
         | PEmemberof (_, _, _)
-        | PEconv_int (_, _)
-        | PEconv_loaded_int (_, _)
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
         | PEerror (_, _)
