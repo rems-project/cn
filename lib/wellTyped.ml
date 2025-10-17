@@ -1708,9 +1708,6 @@ module BaseTyping = struct
         | PEcatch_exceptional_condition (act, pe) ->
           let@ pe = infer_pexpr pe in
           return (bt_of_pexpr pe, PEcatch_exceptional_condition (act, pe))
-        | PEwrapI (act, pe) ->
-          let@ pe = infer_pexpr pe in
-          return (Memory.bt_of_sct act.ct, PEwrapI (act, pe))
         | PEis_representable_integer (pe, act) ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEis_representable_integer (pe, act))
@@ -1741,6 +1738,14 @@ module BaseTyping = struct
           return (Struct nm, PEstruct (nm, nm_pes))
         | PEcall (f, pes) ->
           (match (f, pes) with
+           | Sym (Symbol (_, _, SD_Id "wrapI")), [ e1; e2 ] ->
+             let@ e1, ct = check_pexpr_good_ctype_const e1 in
+             let@ e2 = infer_pexpr e2 in
+             let@ () = ensure_bits_type loc (Mu.bt_of_pexpr e2) in
+             return (Memory.bt_of_sct ct, PEcall (f, [ e1; e2 ]))
+           | Sym (Symbol (_, _, SD_Id "wrapI")), _ ->
+             let has = List.length pes in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
            | Sym (Symbol (_, _, SD_Id "ctype_width")), _ ->
              Pp.debug 10 (lazy (item "untypeable" (Pp_mucore_ast.pp_pexpr pe)));
              let err = !^"untypeable expression" in

@@ -81,7 +81,6 @@ type 'TY pexpr_ =
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
   | PEconv_int of 'TY pexpr * 'TY pexpr
-  | PEwrapI of act * 'TY pexpr
   | PEcatch_exceptional_condition of act * 'TY pexpr
   | PEstruct of Sym.t * (Id.t * 'TY pexpr) list
   | PEunion of Sym.t * Id.t * 'TY pexpr

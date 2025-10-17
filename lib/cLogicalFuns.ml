@@ -363,6 +363,10 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
   | PEcall (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (f, xs) with
+     | Sym (Symbol (_, _, SD_Id "wrapI")), [ x; y ] 
+       when Option.is_some (IT.is_ctype_const x) ->
+       let ct = Option.get (IT.is_ctype_const x) in
+       do_wrapI loc ct y        
      | Sym (Symbol (_, _, SD_Id "ctype_width")), [ x ]
        when Option.is_some (IT.is_ctype_const x) ->
        let ct = Option.get (IT.is_ctype_const x) in
@@ -418,9 +422,6 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        return (IT.arith_binop bop (e2, e3) loc)
      | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
-  | PEwrapI (act, pe) ->
-    let@ x = self var_map pe in
-    do_wrapI loc act.ct x
   | PEcatch_exceptional_condition (act, pe) ->
     let@ x = self var_map pe in
     do_wrapI loc act.ct x
