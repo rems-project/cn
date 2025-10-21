@@ -207,13 +207,13 @@ cn_bool* cn_map_equality(
   ({                                                                                     \
     cn_map* m = map_create();                                                            \
     for (int i = 0; i < num_elements; i++) {                                             \
-      cn_map_set(m, convert_to_cn_integer(i), cntype_conversion_fn(c_ptr[i]));           \
+      cn_map_set(m, convert_to_cn_integer(i), cntype_conversion_fn((c_ptr)[i]));         \
     }                                                                                    \
     m;                                                                                   \
   })
 #define convert_from_cn_map(arr, m, cntype, num_elements)                                \
   for (int i = 0; i < num_elements; i++) {                                               \
-    arr[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));    \
+    (arr)[i] = convert_from_##cntype(cn_map_get_##cntype(m, convert_to_cn_integer(i)));  \
   }
 
 cn_bool* cn_pointer_equality(void* i1, void* i2);
