@@ -643,10 +643,6 @@ let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition l
   let all_tag_def_injs =
     List.map
       (fun (sym, (loc, _, tag_def)) ->
-         Printf.printf
-           "tag definition %s at %s\n"
-           (Sym.pp_string sym)
-           (Cerb_location.simple_location loc);
          let tag_ctype_str =
            match tag_def with CF.Ctype.StructDef _ -> "struct" | UnionDef _ -> "union"
          in
