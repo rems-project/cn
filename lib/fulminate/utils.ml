@@ -237,6 +237,15 @@ let line_and_column_numbers = function
   | Loc_regions ([], _) -> None
 
 
+let from_same_file = function
+  | Cerb_location.Loc_unknown, _ | Loc_other _, _ | Loc_regions ([], _), _ -> false
+  | Loc_point pos, Cerb_location.Loc_point pos'
+  | Loc_region (pos, _, _), Loc_region (pos', _, _)
+  | Loc_regions ((pos, _) :: _, _), Loc_regions ((pos', _) :: _, _) ->
+    String.equal (Cerb_position.file pos) (Cerb_position.file pos')
+  | _, _ -> false
+
+
 let concat_map_newline docs = PPrint.(concat_map (fun doc -> doc ^^ hardline) docs)
 
 let static_prefix filename =

@@ -60,3 +60,5 @@ val static_prefix : string -> string
 val remove_last_semicolon : string list -> string list
 
 val line_and_column_numbers : Cerb_location.t -> ((int * int) * (int * int)) option
+
+val from_same_file : Cerb_location.t * Cerb_location.t -> bool
