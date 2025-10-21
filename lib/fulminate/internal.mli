@@ -93,3 +93,7 @@ val generate_fn_call_ghost_args_injs
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
   (Cerb_location.t * string list) list
+
+val generate_tag_definition_injs
+  :  AilSyntax.sigma_tag_definition list ->
+  (Cerb_location.t * string list) list
