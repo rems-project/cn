@@ -176,13 +176,6 @@ and n_val loc v =
   V ((), v)
 
 
-let function_ids =
-  [ ("params_length", Mu.F_params_length);
-    ("params_nth", F_params_nth);
-    ("ctype_width", F_ctype_width)
-  ]
-
-
 let ity_act loc ity =
   Mu.
     { loc;
@@ -276,18 +269,10 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
     annotate (PEbounded_binop (Bound_Except act, iop, arg1, arg2))
   | PEcall (sym1, args) ->
     (match (sym1, args) with
-     | Sym (Symbol (_, _, SD_Id "conv_int")), [ arg1; arg2 ] ->
-       let arg1 = n_pexpr loc arg1 in
-       let arg2 = n_pexpr loc arg2 in
-       annotate (PEconv_int (arg1, arg2))
-     | Sym (Symbol (_, _, SD_Id "conv_loaded_int")), [ arg1; arg2 ] ->
-       let arg1 = n_pexpr loc arg1 in
-       let arg2 = n_pexpr loc arg2 in
-       annotate (PEconv_loaded_int (arg1, arg2))
-     | Sym (Symbol (_, _, SD_Id "wrapI")), [ arg1; arg2 ] ->
-       let ct = ensure_pexpr_ctype loc !^"PEcall(wrapI,_): not a constant ctype" arg1 in
-       let arg2 = n_pexpr loc arg2 in
-       annotate (PEwrapI (ct, arg2))
+     (* | Sym (Symbol (_, _, SD_Id "wrapI")), [ arg1; arg2 ] -> *)
+     (*   let ct = ensure_pexpr_ctype loc !^"PEcall(wrapI,_): not a constant ctype" arg1 in *)
+     (*   let arg2 = n_pexpr loc arg2 in *)
+     (*   annotate (PEwrapI (ct, arg2)) *)
      | Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")), [ arg1; arg2 ] ->
        let ct =
          ensure_pexpr_ctype
@@ -330,19 +315,9 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
             loc
             (!^"all_values_representable_in: not integer types:"
              ^^^ list CF.Pp_core.Basic.pp_pexpr [ arg1; arg2 ]))
-     | Sym (Symbol (_, _, SD_Id fun_id)), args ->
-       (match List.assoc_opt String.equal fun_id function_ids with
-        | Some fun_id ->
-          let args = List.map (n_pexpr loc) args in
-          annotate (PEapply_fun (fun_id, args))
-        | None ->
-          assert_error
-            loc
-            (!^"PEcall (SD_Id) not inlined: "
-             ^^^ !^fun_id
-             ^^ colon
-             ^^^ list CF.Pp_core.Basic.pp_pexpr args))
-     | Sym sym, _ -> assert_error loc (!^"PEcall not inlined:" ^^^ Sym.pp sym)
+     | (Sym _ as name), args ->
+       let args = List.map (n_pexpr loc) args in
+       annotate (PEcall (name, args))
      | Impl impl, args ->
        (match (impl, args) with
         | ( CF.Implementation.SHR_signed_negative,
@@ -397,7 +372,7 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
   | PEare_compatible (e1, e2) ->
     let e1 = n_pexpr loc e1 in
     let e2 = n_pexpr loc e2 in
-    annotate (PEapply_fun (F_are_compatible, [ e1; e2 ]))
+    annotate (PEare_compatible (e1, e2))
 
 
 let n_kill_kind loc = function
@@ -437,9 +412,6 @@ let n_action ~inherit_loc loc action =
     let e2 = n_pexpr loc e2 in
     wrap (Load (ctype1, e2, mo1))
   | SeqRMW (_b, _e1, _e2, _sym, _e3) -> assert_error loc !^"TODO: SeqRMW"
-  (* let ctype1 = (ensure_pexpr_ctype loc !^"SeqRMW: not a constant ctype" e1) in
-     n_pexpr_in_expr_name e2 (fun e2 -> n_pexpr_in_expr_name e3 (fun e3 -> k (wrap
-     (SeqRMW(ctype1, e2, sym, e3))))) *)
   | RMW0 (e1, e2, e3, e4, mo1, mo2) ->
     let ctype1 = ensure_pexpr_ctype loc !^"RMW: not a constant ctype" e1 in
     let e2 = n_pexpr loc e2 in

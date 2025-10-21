@@ -856,35 +856,97 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | OpMul -> not_yet "OpMul"
      | OpRem_f -> not_yet "OpRem_f"
      | OpExp -> not_yet "OpExp")
-  | PEapply_fun (fun_id, args) ->
-    let@ () =
-      match Mu.fun_return_type fun_id args with
-      | Some (`Returns_BT bt) -> WellTyped.ensure_base_type loc ~expect bt
-      | Some `Returns_Integer -> WellTyped.ensure_bits_type loc expect
-      | None ->
-        fail (fun _ ->
-          { loc;
-            msg =
-              Generic
-                (Pp.item "untypeable mucore function" (Pp_mucore_ast.pp_pexpr orig_pe))
-              [@alert "-deprecated"]
-          })
-    in
-    let expect_args = Mucore.fun_param_types fun_id in
-    let@ () =
-      let has = List.length args in
-      let expect = List.length expect_args in
-      WellTyped.ensure_same_argument_number loc `Other has ~expect
-    in
-    let@ _ =
-      ListM.map2M
-        (fun pe expect -> WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe))
-        args
-        expect_args
-    in
-    let@ args = ListM.mapM (check_pexpr path_cs) args in
-    let@ res = CLogicalFuns.eval_fun fun_id args orig_pe in
-    return res
+  | PEconv_int (ct_expr, pe)
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
+    ->
+    let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr ct_expr) in
+    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+    let@ ct_it = check_pexpr path_cs ct_expr in
+    let@ ct = check_single_ct loc ct_it in
+    let@ () = WellTyped.check_ct loc ct in
+    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
+    let@ lvt = check_pexpr path_cs pe in
+    let@ vt = check_conv_int loc ~expect ct lvt in
+    return vt
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), pes) ->
+    let has = List.length pes in
+    let err = WT.Number_arguments { type_ = `Other; has; expect = 2 } in
+    fail (fun _ -> { loc; msg = WellTyped err })
+  | PEcall (f, pes) ->
+    (match (f, pes) with
+     | Sym (Symbol (_, _, SD_Id "wrapI")), [ e1; e2 ] ->
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ ct = check_pexpr_good_ctype_const path_cs e1 in
+       let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr e2) in
+       let@ arg = check_pexpr path_cs e2 in
+       let bt = Memory.bt_of_sct ct in
+       let@ () = WellTyped.ensure_bits_type loc bt in
+       let@ () = WellTyped.ensure_base_type loc ~expect bt in
+       return (cast_ bt arg loc)
+     | Sym (Symbol (_, _, SD_Id "ctype_width")), [ pe ] ->
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ ct = check_pexpr_good_ctype_const path_cs pe in
+       let n = Z.of_int (Memory.size_of_ctype ct * 8) in
+       let@ () =
+         WellTyped.ensure_z_fits_bits_type loc (Option.get (BT.is_bits_bt expect)) n
+       in
+       return (num_lit_ n expect loc)
+     | Sym (Symbol (_, _, SD_Id "ctype_width")), _ ->
+       let has = List.length pes in
+       let err = WT.Number_arguments { type_ = `Other; has; expect = 1 } in
+       fail (fun _ -> { loc; msg = WellTyped err })
+     | Sym (Symbol (_, _, SD_Id "params_length")), [ e ] ->
+       let rbt = Memory.bt_of_sct (Integer (Unsigned Short)) in
+       let@ () = WellTyped.ensure_base_type loc ~expect rbt in
+       let@ () = WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e) in
+       let@ e = check_pexpr path_cs e in
+       (match IT.dest_list e with
+        | Some its ->
+          let n = Z.of_int (List.length its) in
+          let@ () =
+            WellTyped.ensure_z_fits_bits_type loc (Option.get (BT.is_bits_bt expect)) n
+          in
+          return (num_lit_ n expect loc)
+        | None ->
+          let msg = "Could not evaluate params_length argument to a constant list." in
+          (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
+     | Sym (Symbol (_, _, SD_Id "params_length")), _ ->
+       let has = List.length pes in
+       let err = WT.Number_arguments { type_ = `Other; has; expect = 1 } in
+       fail (fun _ -> { loc; msg = WellTyped err })
+     | Sym (Symbol (_, _, SD_Id "params_nth")), [ e1; e2 ] ->
+       let@ () = WellTyped.ensure_base_type loc ~expect CType in
+       let@ () =
+         WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e1)
+       in
+       let@ () =
+         WellTyped.ensure_base_type
+           loc
+           ~expect:(Memory.bt_of_sct (Integer (Signed Short)))
+           (Mu.bt_of_pexpr e2)
+       in
+       let@ e1 = check_pexpr path_cs e1 in
+       let@ e2 = check_pexpr path_cs e2 in
+       (match (IT.dest_list e1, IT.is_bits_const e2) with
+        | Some its, Some (bits_info, i) ->
+          assert (BaseTypes.fits_range bits_info i);
+          return (List.nth its (Z.to_int i))
+        | _ ->
+          let msg = "Could not evaluate params_nth arguments to constants." in
+          (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
+     | Sym (Symbol (_, _, SD_Id "params_nth")), _ ->
+       let has = List.length pes in
+       let err = WT.Number_arguments { type_ = `Other; has; expect = 2 } in
+       fail (fun _ -> { loc; msg = WellTyped err })
+     | _ ->
+       fail (fun _ ->
+         { loc; msg = Generic !^"Unsupported Core standard library function" })
+       [@alert "-deprecated"])
+  | PEare_compatible (pe1, pe2) ->
+    let@ () = WellTyped.ensure_base_type loc ~expect BT.Bool in
+    let@ sct1 = check_pexpr_good_ctype_const path_cs pe1 in
+    let@ sct2 = check_pexpr_good_ctype_const path_cs pe2 in
+    return (IT.bool_ (Sctypes.equal sct1 sct2) loc)
   | PEstruct (tag, xs) ->
     let@ () = WellTyped.check_ct loc (Struct tag) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
@@ -1016,23 +1078,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
         fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } })
     in
     return direct_x
-  | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
-    let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr ct_expr) in
-    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
-    let@ ct_it = check_pexpr path_cs ct_expr in
-    let@ ct = check_single_ct loc ct_it in
-    let@ () = WellTyped.check_ct loc ct in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
-    let@ lvt = check_pexpr path_cs pe in
-    let@ vt = check_conv_int loc ~expect ct lvt in
-    return vt
-  | PEwrapI (act, pe) ->
-    let@ () = WellTyped.check_ct act.loc act.ct in
-    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
-    let@ arg = check_pexpr path_cs pe in
-    let bt = Memory.bt_of_sct act.ct in
-    let@ () = WellTyped.ensure_bits_type loc bt in
-    return (cast_ bt arg loc)
   | PEcatch_exceptional_condition (act, pe) ->
     let@ () = WellTyped.check_ct act.loc act.ct in
     let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
@@ -1103,6 +1148,15 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | `False ->
        let@ model = model () in
        fail (fun ctxt -> { loc; msg = StaticError { err; ctxt; model } }))
+
+
+and check_pexpr_good_ctype_const path_cs pe =
+  let loc = Mu.loc_of_pexpr pe in
+  let@ () = WellTyped.ensure_base_type loc ~expect:BT.CType (Mu.bt_of_pexpr pe) in
+  let@ pe = check_pexpr path_cs pe in
+  let ct = Option.get (IT.is_ctype_const pe) in
+  let@ () = WellTyped.check_ct loc ct in
+  return ct
 
 
 module Spine : sig
@@ -1363,15 +1417,6 @@ let call_prefix = function
   | LemmaApplication l -> "apply_" ^ Sym.pp_string_no_nums l
   | LabelCall la -> Where.label_prefix la
   | Subtyping -> "return"
-
-
-let check_pexpr_good_ctype_const pe =
-  let loc = Mu.loc_of_pexpr pe in
-  let@ () = WellTyped.ensure_base_type loc ~expect:BT.CType (Mu.bt_of_pexpr pe) in
-  let@ pe = check_pexpr [] pe in
-  let ct = Option.get (IT.is_ctype_const pe) in
-  let@ () = WellTyped.check_ct loc ct in
-  return ct
 
 
 (* TODO: De-CPS'ify check_expr and remove the function below.  *)
@@ -1636,7 +1681,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | PtrLe, [ pe1; pe2 ] -> pointer_op (Fun.flip lePointer_ loc) pe1 pe2
      | PtrGe, [ pe1; pe2 ] -> pointer_op (Fun.flip gePointer_ loc) pe1 pe2
      | Ptrdiff, [ pe_ct; pe1; pe2 ] ->
-       let@ ct = check_pexpr_good_ctype_const pe_ct in
+       let@ ct = check_pexpr_good_ctype_const [] pe_ct in
        let@ () =
          WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct (Integer Ptrdiff_t))
        in
@@ -1667,8 +1712,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            in
            k result))
      | IntFromPtr, [ pe_from_ct; pe_to_ct; pe ] ->
-       let@ _from_ct = check_pexpr_good_ctype_const pe_from_ct in
-       let@ to_ct = check_pexpr_good_ctype_const pe_to_ct in
+       let@ _from_ct = check_pexpr_good_ctype_const [] pe_from_ct in
+       let@ to_ct = check_pexpr_good_ctype_const [] pe_to_ct in
        assert (match to_ct with Integer _ -> true | _ -> false);
        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct to_ct) in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
@@ -1694,8 +1739,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          in
          k actual_value)
      | PtrFromInt, [ pe_from_ct; pe_to_ct; pe ] ->
-       let@ from_ct = check_pexpr_good_ctype_const pe_from_ct in
-       let@ _to_ct = check_pexpr_good_ctype_const pe_to_ct in
+       let@ from_ct = check_pexpr_good_ctype_const [] pe_from_ct in
+       let@ _to_ct = check_pexpr_good_ctype_const [] pe_to_ct in
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () =
          WellTyped.ensure_base_type
@@ -1722,7 +1767,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          k result)
      | PtrValidForDeref, [ pe_ct; pe ] ->
        (* TODO (DCM, VIP) *)
-       let@ ct = check_pexpr_good_ctype_const pe_ct in
+       let@ ct = check_pexpr_good_ctype_const [] pe_ct in
        let@ () = WellTyped.ensure_base_type loc ~expect Bool in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        (* TODO (DCM, VIP): error if called on Void or Function Ctype.
@@ -1737,7 +1782,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          let result = aligned_ (arg, ct) loc in
          k result)
      | PtrWellAligned, [ pe_ct; pe ] ->
-       let@ ct = check_pexpr_good_ctype_const pe_ct in
+       let@ ct = check_pexpr_good_ctype_const [] pe_ct in
        let@ () = WellTyped.ensure_base_type loc ~expect Bool in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        (* TODO (DCM, VIP): error if called on Void or Function Ctype *)
@@ -1749,7 +1794,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | PtrArrayShift, [ pe1; pe_ct; pe2 ] ->
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe1) in
-       let@ ct = check_pexpr_good_ctype_const pe_ct in
+       let@ ct = check_pexpr_good_ctype_const [] pe_ct in
        let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in
        check_pexpr pe1 (fun vt1 ->
          check_pexpr pe2 (fun vt2 ->

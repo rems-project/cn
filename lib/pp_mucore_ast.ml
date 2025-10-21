@@ -92,6 +92,8 @@ module PP = struct
           Dleaf (pp_ctor "PEundef" ^^^ !^(ansi_format [ Red ] "TODO"))
         | PEerror (str, pe) ->
           Dnode (pp_ctor "PEerror" ^^^ P.dquotes !^(ansi_format [ Red ] str), [ self pe ])
+        | PEare_compatible (pe1, pe2) ->
+          Dnode (pp_ctor "PEare_compatible", [ self pe1; self pe2 ])
         | _ -> Dnode (pp_ctor "Pexpr(TODO)", [ Dleaf (Pp_mucore.pp_pexpr pexpr) ])
       in
       match (annot, without_annot) with

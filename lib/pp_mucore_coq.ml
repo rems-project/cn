@@ -936,8 +936,16 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
        | PEmemop (pure_memop, e) ->
          pp_constructor1 "PEmemop" [ pp_pure_memop pure_memop; pp_pexpr pp_type e ]
        | PEnot e -> pp_constructor1 "PEnot" [ pp_pexpr pp_type e ]
-       | PEapply_fun (f, args) ->
-         pp_constructor1 "PEapply_fun" [ pp_function f; pp_list (pp_pexpr pp_type) args ]
+       | PEcall (f, args) ->
+         let fn =
+           match f with
+           | Sym s -> pp_constructor1 "Sym" [ Sym.pp s ]
+           | Impl s ->
+             pp_constructor1
+               "Impl"
+               [ !^(CF.Implementation.string_of_implementation_constant s) ]
+         in
+         pp_constructor1 "PEcall" [ fn; pp_list (pp_pexpr pp_type) args ]
        | PEstruct (sym, fields) ->
          pp_constructor1
            "PEstruct"
@@ -951,9 +959,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            [ pp_symbol sym; pp_identifier id; pp_pexpr pp_type e ]
        | PEconv_int (e1, e2) ->
          pp_constructor1 "PEconv_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEconv_loaded_int (e1, e2) ->
-         pp_constructor1 "PEconv_loaded_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEwrapI (act, e) -> pp_constructor1 "PEwrapI" [ pp_act act; pp_pexpr pp_type e ]
        | PEcatch_exceptional_condition (act, e) ->
          pp_constructor1
            "PEcatch_exceptional_condition"
@@ -968,6 +973,8 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            ]
        | PEis_representable_integer (e, act) ->
          pp_constructor1 "PEis_representable_integer" [ pp_pexpr pp_type e; pp_act act ]
+       | PEare_compatible (pe1, pe2) ->
+         pp_constructor1 "PEare_compatible" [ pp_pexpr pp_type pe1; pp_pexpr pp_type pe2 ]
        | PEundef (loc, ub) ->
          pp_constructor1 "PEundef" [ pp_location loc; pp_undefined_behaviour ub ]
        | PEerror (msg, e) ->
