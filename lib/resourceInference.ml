@@ -72,29 +72,26 @@ module General = struct
     in
     let vbt = BaseTypes.Map (qbt, item_bt) in
     match manys with
-    | [] -> 
-       return (update_with_ones (IT.default_ vbt here) ones)
-    | [ { many_guard = _; value } ] ->
-       return (update_with_ones value ones)
+    | [] -> return (update_with_ones (IT.default_ vbt here) ones)
+    | [ { many_guard = _; value } ] -> return (update_with_ones value ones)
     | _ ->
       let vsym = Sym.fresh_make_uniq "merged_array" in
       let v = IT.sym_ (vsym, vbt, here) in
       let@ () = add_l vsym vbt (loc, lazy (Sym.pp vsym)) in
-      let cs1 = 
-        List.map (fun {one_index; value} -> 
-            LC.T (IT.(eq_ (map_get_ v one_index here, value) here))
-          ) ones 
+      let cs1 =
+        List.map
+          (fun { one_index; value } ->
+             LC.T IT.(eq_ (map_get_ v one_index here, value) here))
+          ones
       in
       Pp.(print stdout !^"Using quantifiers to describe result of an array merge.");
-      let cs2 = 
+      let cs2 =
         let q = IT.sym_ (qs, qbt, here) in
-        List.map (fun {many_guard; value} -> 
-            let equality = 
-              IT.(eq_ (map_get_ v q here,
-                       map_get_ value q here) here)
-            in
-            LC.forall_ (qs,qbt) (IT.impl_ (many_guard, equality) here)
-          ) manys
+        List.map
+          (fun { many_guard; value } ->
+             let equality = IT.(eq_ (map_get_ v q here, map_get_ value q here) here) in
+             LC.forall_ (qs, qbt) (IT.impl_ (many_guard, equality) here))
+          manys
       in
       let@ () = add_cs here (cs1 @ cs2) in
       return v
