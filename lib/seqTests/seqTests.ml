@@ -393,7 +393,10 @@ let generate
         ())
   in
   let open Pp in
-  let struct_decls = Fulminate.Internal.generate_c_struct_strs sigma.tag_definitions in
+  let ordered_ail_tag_defs =
+    Fulminate.Internal.order_ail_tag_definitions sigma.tag_definitions
+  in
+  let struct_decls = Fulminate.Internal.generate_c_tag_def_strs ordered_ail_tag_defs in
   let fun_decls =
     string struct_decls ^^ hardline ^^ separate_map hardline fun_to_decl insts
   in
