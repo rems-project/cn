@@ -72,6 +72,7 @@
   (cn-smt/context.h as runtime/include/cn-smt/context.h)
   (cn-smt/eval.h as runtime/include/cn-smt/eval.h)
   (cn-smt/from_smt.h as runtime/include/cn-smt/from_smt.h)
+  (cn-smt/functions.h as runtime/include/cn-smt/functions.h)
   (cn-smt/gather.h as runtime/include/cn-smt/gather.h)
   (cn-smt/path_selector.h as runtime/include/cn-smt/path_selector.h)
   (cn-smt/prelude.h as runtime/include/cn-smt/prelude.h)

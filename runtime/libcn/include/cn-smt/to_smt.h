@@ -113,14 +113,6 @@ void cn_declare_fun(struct cn_smt_solver* s,
     size_t args_count,
     cn_base_type res_bt);
 
-// Define a function in SMT
-void cn_define_fun(struct cn_smt_solver* s,
-    cn_sym name,
-    cn_arg_binder* arg_binders,
-    size_t arg_count,
-    cn_base_type res_bt,
-    cn_term* body);
-
 // Declare a variable (zero-argument function) in SMT
 void cn_declare_variable(struct cn_smt_solver* solver, cn_sym sym, cn_base_type bt);
 

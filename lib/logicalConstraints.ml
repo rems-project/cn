@@ -116,3 +116,7 @@ let impl loc (it : IT.t) (lc : t) : t =
   | Forall ((s, bt), t) ->
     let s, t = IT.alpha_rename s t in
     Forall ((s, bt), IT.impl_ (it, t) loc)
+
+
+let preds_of (lc : t) : Sym.Set.t =
+  match lc with T it | Forall (_, it) -> IT.preds_of it

@@ -25,6 +25,9 @@ module Make (AD : Domain.T) = struct
       let sign_bool = match sign with BT.Signed -> "true" | BT.Unsigned -> "false" in
       !^"cn_base_type_bits(" ^^ !^sign_bool ^^ comma ^^^ int width ^^ !^")"
     | Loc _ -> !^"cn_base_type_simple(CN_BASE_LOC)"
+    | Alloc_id ->
+      !^"cn_base_type_simple(CN_BASE_INTEGER)"
+      (* Alloc_id is represented as integer in SMT *)
     | CType -> !^"cn_base_type_simple(CN_BASE_CTYPE)"
     | Struct tag ->
       let tag_name = Sym.pp tag in
@@ -79,7 +82,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let name = Sym.pp sym in
     let id = Sym.num sym in
-    braces (dquotes name ^^ comma ^^^ int id)
+    parens !^"cn_sym" ^^ braces (dquotes name ^^ comma ^^^ int id)
 
 
   (** Generate CN-SMT term creation code for IndexTerms.t *)

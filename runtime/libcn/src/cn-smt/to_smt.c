@@ -52,6 +52,20 @@ char* fn_name(cn_sym x) {
   return result;
 }
 
+// Function definition name - just append _func without number
+char* fn_def_name(cn_sym x) {
+  assert(x.name);
+  const char* base_name = sym_pp_string_no_nums(x);
+
+  // Append _func suffix
+  size_t len = strlen(base_name) + 6;  // +5 for "_func" +1 for null
+  char* result = malloc(len);
+  assert(result);
+
+  sprintf(result, "%s_func", base_name);
+  return result;
+}
+
 const char* named_expr_name(void) {
   return "_cn_named";
 }
@@ -1468,7 +1482,15 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     case CN_TERM_APPLY: {
       // Function application
       const char* fn_name = iterm->data.apply.function_name;
-      sexp_t* fn_atom = sexp_atom(fn_name);
+
+      // Append _func suffix to get SMT name
+      size_t len = strlen(fn_name) + 6;  // +5 for "_func" +1 for null
+      char* smt_fn_name = malloc(len);
+      assert(smt_fn_name);
+      sprintf(smt_fn_name, "%s_func", fn_name);
+
+      sexp_t* fn_atom = sexp_atom(smt_fn_name);
+      free(smt_fn_name);
 
       // Get argument count from vector
       bennet_vector(cn_term_ptr)* args_vec = &iterm->data.apply.args;
@@ -1603,122 +1625,6 @@ void cn_declare_fun(struct cn_smt_solver* s,
   let args = List.map mk_arg arg_binders in
   let ret_t = translate_base_type res_bt in
   ack_command s (SMT.define_fun sname args ret_t (translate_term s body)) */
-
-void cn_define_fun(struct cn_smt_solver* s,
-    cn_sym name,
-    cn_arg_binder* arg_binders,
-    size_t arg_count,
-    cn_base_type res_bt,
-    cn_term* body) {
-  char* sname = fn_name(name);
-  if (!sname)
-    return;
-
-  // Create parameter list for SMT define_fun
-  sexp_t** args = NULL;
-  if (arg_count > 0) {
-    args = malloc(sizeof(sexp_t*) * arg_count);
-    if (!args) {
-      free(sname);
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < arg_count; i++) {
-    // mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt)
-    char* arg_name = fn_name(arg_binders[i].sym);
-    if (!arg_name) {
-      // Cleanup
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-
-    sexp_t* arg_type = translate_cn_base_type(arg_binders[i].bt);
-
-    if (!arg_type) {
-      free(arg_name);
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-
-    // Create parameter as (name type)
-    sexp_t* name_atom = sexp_atom(arg_name);
-    free(arg_name);
-
-    if (!name_atom) {
-      sexp_free(arg_type);
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-
-    sexp_t* param_elements[] = {name_atom, arg_type};
-    args[i] = sexp_list(param_elements, 2);
-    sexp_free(name_atom);
-    sexp_free(arg_type);
-
-    if (!args[i]) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-  }
-
-  // Translate result type
-  sexp_t* ret_t = translate_cn_base_type(res_bt);
-
-  if (!ret_t) {
-    for (size_t i = 0; i < arg_count; i++) {
-      sexp_free(args[i]);
-    }
-    free(args);
-    free(sname);
-    return;
-  }
-
-  // Translate body
-  sexp_t* body_smt = translate_term(s, body);
-  if (!body_smt) {
-    for (size_t i = 0; i < arg_count; i++) {
-      sexp_free(args[i]);
-    }
-    free(args);
-    sexp_free(ret_t);
-    free(sname);
-    return;
-  }
-
-  // Create SMT define_fun command
-  sexp_t* def_cmd = define_fun(sname, args, arg_count, ret_t, body_smt);
-  if (def_cmd) {
-    // Send command
-    ack_command(s, def_cmd);
-    sexp_free(def_cmd);
-  }
-
-  // Cleanup
-  for (size_t i = 0; i < arg_count; i++) {
-    sexp_free(args[i]);
-  }
-  free(args);
-  sexp_free(ret_t);
-  sexp_free(body_smt);
-  free(sname);
-}
 
 /* let declare_variable solver (sym, bt) = declare_fun solver sym [] bt */
 

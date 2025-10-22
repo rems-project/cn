@@ -4,6 +4,7 @@
 #include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/from_smt.h>
+#include <cn-smt/functions.h>
 #include <cn-smt/gather.h>
 #include <cn-smt/path_selector.h>
 #include <cn-smt/records.h>

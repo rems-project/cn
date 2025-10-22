@@ -11,11 +11,13 @@
 #include <cn-executable/utils.h>
 #include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
+#include <cn-smt/functions.h>
 #include <cn-smt/records.h>
 #include <cn-smt/structs.h>
 
-// Generate vector implementation for cn_member_pair
+// Generate vector implementation for cn_member_pair and cn_term_ptr
 BENNET_VECTOR_IMPL(cn_member_pair)
+BENNET_VECTOR_IMPL(cn_term_ptr)
 
 // Forward declarations
 static cn_bits_info get_bits_info(cn_term* term);
@@ -1333,7 +1335,43 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_APPLY: {
       // Function application - evaluate arguments and apply function
-      assert(false);
+      const char* base_function_name = term->data.apply.function_name;
+      assert(base_function_name);
+
+      // Construct full function name with "_func" suffix (matching fn_def_name)
+      size_t name_len = strlen(base_function_name) + 6;  // +5 for "_func" +1 for null
+      char* function_name = malloc(name_len);
+      assert(function_name);
+      sprintf(function_name, "%s_func", base_function_name);
+
+      // Get argument count from the term
+      bennet_vector(cn_term_ptr)* args_vec = &term->data.apply.args;
+      size_t arg_count = bennet_vector_size(cn_term_ptr)(args_vec);
+
+      // Allocate array for evaluated arguments
+      void** evaluated_args = NULL;
+      if (arg_count > 0) {
+        evaluated_args = malloc(arg_count * sizeof(void*));
+        assert(evaluated_args);
+      }
+
+      // Evaluate arguments left-to-right
+      for (size_t i = 0; i < arg_count; i++) {
+        cn_term** arg_ptr = bennet_vector_get(cn_term_ptr)(args_vec, i);
+        assert(arg_ptr && *arg_ptr);
+        evaluated_args[i] = cn_eval_term(*arg_ptr);
+        assert(evaluated_args[i]);
+      }
+
+      // Lookup and call the function handler
+      cn_func_handler handler = cn_get_func_handler(function_name);
+      assert(handler);
+      void* result = handler(evaluated_args);
+
+      // Cleanup and return
+      free(evaluated_args);
+      free(function_name);
+      return result;
     }
 
     case CN_TERM_EACHI: {
