@@ -92,6 +92,7 @@ let generate_executable_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       with_testing
       run
       no_debug_info
@@ -158,6 +159,7 @@ let generate_executable_specs
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
+                ~without_lemma_checks
                 ~exec_c_locs_mode
                 ~experimental_ownership_stack_mode
                 ~with_testing
@@ -217,6 +219,11 @@ module Flags = struct
   let with_loop_leak_checks =
     let doc = "Enable leak checking across all runtime loop invariants" in
     Arg.(value & flag & info [ "with-loop-leak-checks" ] ~doc)
+
+
+  let without_lemma_checks =
+    let doc = "Disable runtime checking of lemmas" in
+    Arg.(value & flag & info [ "without-lemma-checks" ] ~doc)
 
 
   let with_test_gen =
@@ -313,6 +320,7 @@ let cmd =
     $ Flags.without_ownership_checking
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
+    $ Flags.without_lemma_checks
     $ Term.map
         (fun (x, y) -> x || y)
         (Term.product Flags.with_test_gen Flags.with_testing)

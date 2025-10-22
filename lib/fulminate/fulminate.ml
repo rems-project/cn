@@ -301,6 +301,7 @@ let main
       ~without_ownership_checking
       ~without_loop_invariants
       ~with_loop_leak_checks
+      ~without_lemma_checks
       ~exec_c_locs_mode
       ~experimental_ownership_stack_mode
       ~with_testing
@@ -360,6 +361,7 @@ let main
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       filtered_instrumentation
       sigm
@@ -372,7 +374,12 @@ let main
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates filename prog5 sigm
   in
-  let c_lemma_defs, c_lemma_decls = generate_c_lemmas filename sigm prog5 in
+  let c_lemma_defs, c_lemma_decls =
+    if without_lemma_checks then
+      ("", "")
+    else
+      generate_c_lemmas filename sigm prog5
+  in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
   in
