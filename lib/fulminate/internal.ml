@@ -346,8 +346,51 @@ let[@warning "-32" (* unused-value-declaration *)] generate_str_from_ail_struct 
   doc_to_pretty_string (generate_doc_from_ail_struct ail_struct)
 
 
+module TagDefs = struct
+  module G = Graph.Persistent.Digraph.Concrete (Sym)
+  module Components = Graph.Components.Make (G)
+
+  let tag_def_order tag_defs =
+    let tag_defs_of ms =
+      let rec aux = function
+        | [] -> []
+        | (_, (_, _, _, m_ctype)) :: ms' ->
+          (match Utils.rm_ctype m_ctype with
+           | C.Struct sym | Union sym -> sym :: aux ms'
+           | _ -> aux ms')
+      in
+      Sym.Set.of_list (aux ms)
+    in
+    let graph = G.empty in
+    let graph = Sym.Map.fold (fun tag _ graph -> G.add_vertex graph tag) tag_defs graph in
+    let graph =
+      Sym.Map.fold
+        (fun tag (_, _, tag_def) graph ->
+           let includes =
+             match tag_def with C.StructDef (ms, _) | C.UnionDef ms -> tag_defs_of ms
+           in
+           Sym.Set.fold (fun tag' graph -> G.add_edge graph tag tag') includes graph)
+        tag_defs
+        graph
+    in
+    let sccs = Components.scc_list graph in
+    sccs
+end
+
 let generate_str_from_ail_structs ail_structs =
-  let docs = List.map generate_doc_from_ail_struct ail_structs in
+  (* Dependency analysis and ordering *)
+  let struct_sym_map = ref Sym.Map.empty in
+  List.iter
+    (fun (sym, tag_def) -> struct_sym_map := Sym.Map.add sym tag_def !struct_sym_map)
+    ail_structs;
+  let ordered_syms = List.concat (TagDefs.tag_def_order !struct_sym_map) in
+  let docs =
+    List.map
+      (fun sym ->
+         let tag_def_triple = Sym.Map.find sym !struct_sym_map in
+         generate_doc_from_ail_struct (sym, tag_def_triple))
+      ordered_syms
+  in
   doc_to_pretty_string (Utils.concat_map_newline docs)
 
 

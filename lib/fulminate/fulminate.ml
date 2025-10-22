@@ -379,7 +379,7 @@ let main
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
   in
-  let c_struct_decls = generate_c_struct_strs sigm.tag_definitions in
+  let c_struct_defs = generate_c_struct_strs sigm.tag_definitions in
   let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
@@ -407,7 +407,7 @@ let main
           "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
           "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n"
         ];
-        [ c_struct_decls ];
+        [ c_struct_defs ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
           record_defs;
           cn_converted_struct_defs
