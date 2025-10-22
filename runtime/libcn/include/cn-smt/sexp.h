@@ -179,6 +179,7 @@ sexp_t *define_fun(const char *name,
     sexp_t **params,
     size_t param_count,
     sexp_t *result_type,
+    bool recursive,
     sexp_t *definition);
 sexp_t *define_const(const char *name, sexp_t *type, sexp_t *definition);
 

@@ -54,7 +54,7 @@ module Make (AD : Domain.T) = struct
                 ^^ hardline
                 ^^ !^"  }"
                 ^^ hardline)
-             !^""
+             empty
              members
         ^^ !^"  return result;"
         ^^ hardline
@@ -89,7 +89,7 @@ module Make (AD : Domain.T) = struct
                 ^^ hardline
                 ^^ !^"  }"
                 ^^ hardline)
-             !^""
+             empty
              members
         ^^ !^"  return NULL;"
         ^^ hardline
@@ -132,7 +132,7 @@ module Make (AD : Domain.T) = struct
                 ^^ hardline
                 ^^ !^"  }"
                 ^^ hardline)
-             !^""
+             empty
              members
         ^^ !^"  return result;"
         ^^ hardline
@@ -198,7 +198,7 @@ module Make (AD : Domain.T) = struct
               ^^ hardline
               ^^ !^"  }"
               ^^ hardline)
-           !^""
+           empty
            members
       ^^ !^"  return result;"
       ^^ hardline
@@ -232,7 +232,7 @@ module Make (AD : Domain.T) = struct
               ^^ hardline
               ^^ !^"  }"
               ^^ hardline)
-           !^""
+           empty
            members
       ^^ !^"  return NULL;"
       ^^ hardline
@@ -274,7 +274,7 @@ module Make (AD : Domain.T) = struct
               ^^ hardline
               ^^ !^"  }"
               ^^ hardline)
-           !^""
+           empty
            members
       ^^ !^"  return result;"
       ^^ hardline
@@ -297,7 +297,7 @@ module Make (AD : Domain.T) = struct
       ^^ List.fold_left
            (fun acc (member_name, _member_bt) ->
               acc ^^ !^"  result->" ^^ !^member_name ^^ !^" = NULL;" ^^ hardline)
-           !^""
+           empty
            members
       ^^ !^"  return result;"
       ^^ hardline
@@ -312,7 +312,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let datatypes = prog5.datatypes in
     if List.length datatypes = 0 then
-      !^""
+      empty
     else
       List.fold_left
         (fun acc (dt_sym, (dt_def : Mucore.datatype)) ->
@@ -347,11 +347,11 @@ module Make (AD : Domain.T) = struct
                                         ^^ !^");"
                                         ^^ hardline,
                                         idx + 1 ))
-                                   (!^"", 0)
+                                   (empty, 0)
                                    params
                                  |> fst
                                else
-                                 !^"")
+                                 empty)
                            ^^ hardline
                            (* Allocate datatype struct *)
                            ^^ !^"  "
@@ -386,10 +386,10 @@ module Make (AD : Domain.T) = struct
                                       ^^ !^param_name
                                       ^^ !^";"
                                       ^^ hardline)
-                                   !^""
+                                   empty
                                    params
                                else
-                                 !^"")
+                                 empty)
                            (* Return result *)
                            ^^ !^"  return result;"
                            ^^ hardline)
@@ -397,10 +397,89 @@ module Make (AD : Domain.T) = struct
                     ^^ hardline
                   in
                   ctor_acc ^^ fn_sig)
-               !^""
+               empty
                dt_def.cases
            in
            acc ^^ constructor_fns)
-        !^""
+        empty
         datatypes
+
+
+  let generate_function_handlers (prog5 : unit Mucore.file) : Pp.document =
+    let open Pp in
+    let logical_functions = prog5.logical_predicates in
+    if List.length logical_functions = 0 then
+      empty
+    else
+      List.fold_left
+        (fun acc (fn_sym, (fn_def : Definition.Function.t)) ->
+           match fn_def.body with
+           | Definition.Function.Uninterp ->
+             (* Skip uninterpreted functions - they'll error at registration *)
+             acc
+           | Definition.Function.Def _ | Definition.Function.Rec_Def _ ->
+             let fn_name = Sym.pp_string_no_nums fn_sym in
+             let handler_name = "cn_func_" ^ fn_name in
+             let arg_count = List.length fn_def.args in
+             let is_unit_return =
+               match fn_def.return_bt with BaseTypes.Unit -> true | _ -> false
+             in
+             (* Generate handler function *)
+             let handler =
+               !^"static void* "
+               ^^ !^handler_name
+               ^^ !^"(void** args)"
+               ^^^ braces
+                     (hardline
+                      (* Cast arguments from args array *)
+                      ^^ (if arg_count > 0 then
+                            List.fold_left
+                              (fun (arg_acc, idx) (arg_sym, _) ->
+                                 let arg_name = Sym.pp_string_no_nums arg_sym in
+                                 ( arg_acc
+                                   ^^ !^"  void* "
+                                   ^^ !^arg_name
+                                   ^^ !^" = args["
+                                   ^^ int idx
+                                   ^^ !^"];"
+                                   ^^ hardline,
+                                   idx + 1 ))
+                              (empty, 0)
+                              fn_def.args
+                            |> fst
+                          else
+                            empty)
+                      (* Call Fulminate-generated function *)
+                      ^^ !^"  "
+                      ^^ (if is_unit_return then
+                            (* For unit return, call function and return NULL *)
+                            !^fn_name
+                            ^^ !^"("
+                            ^^ separate
+                                 (comma ^^ space)
+                                 (List.map
+                                    (fun (arg_sym, _) ->
+                                       !^(Sym.pp_string_no_nums arg_sym))
+                                    fn_def.args)
+                            ^^ !^");"
+                            ^^ hardline
+                            ^^ !^"  return NULL;"
+                          else (* For non-unit return, return the result *)
+                            !^"return "
+                            ^^ !^fn_name
+                            ^^ !^"("
+                            ^^ separate
+                                 (comma ^^ space)
+                                 (List.map
+                                    (fun (arg_sym, _) ->
+                                       !^(Sym.pp_string_no_nums arg_sym))
+                                    fn_def.args)
+                            ^^ !^");")
+                      ^^ hardline)
+               ^^ hardline
+               ^^ hardline
+             in
+             acc ^^ handler)
+        empty
+        logical_functions
 end

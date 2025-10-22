@@ -355,6 +355,36 @@ module Make (GT : T) = struct
       List.exists (fun (_, g) -> contains_constraint g) wgts
 
 
+  let get_pure_functions (gt : GT.t) : Sym.Set.t =
+    let rec aux (gt : GT.t) : Sym.Set.t =
+      let (Annot (gt_, _, _, _)) = gt in
+      match gt_ with
+      | `Arbitrary | `Symbolic | `ArbitraryDomain _ -> Sym.Set.empty
+      | `Return it -> IT.preds_of it
+      | `Call (_, its) | `CallSized (_, its, _) ->
+        its |> List.map IT.preds_of |> List.fold_left Sym.Set.union Sym.Set.empty
+      | `Asgn ((it_addr, _), it_val, gt_rest)
+      | `AsgnElab (_, ((_, it_addr), _), it_val, gt_rest) ->
+        [ it_addr; it_val ]
+        |> List.map IT.preds_of
+        |> List.fold_left Sym.Set.union (aux gt_rest)
+      | `LetStar ((_, gt_inner), gt_rest) -> Sym.Set.union (aux gt_inner) (aux gt_rest)
+      | `Assert (lc, gt_rest) -> Sym.Set.union (LC.preds_of lc) (aux gt_rest)
+      | `AssertDomain (_, gt_rest)
+      | `SplitSize (_, gt_rest)
+      | `SplitSizeElab (_, _, gt_rest) ->
+        aux gt_rest
+      | `ITE (it_if, gt_then, gt_else) ->
+        List.fold_left Sym.Set.union (IT.preds_of it_if) [ aux gt_then; aux gt_else ]
+      | `Map ((_, _, it_perm), gt_inner) | `MapElab ((_, _, _, it_perm), gt_inner) ->
+        Sym.Set.union (IT.preds_of it_perm) (aux gt_inner)
+      | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
+      | `PickSized wgts | `PickSizedElab (_, wgts) ->
+        wgts |> List.map snd |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
+    in
+    aux gt
+
+
   let rec subst (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt : t) : t =
     let (Annot (gt_, tag, bt, loc)) = gt in
     match gt_ with

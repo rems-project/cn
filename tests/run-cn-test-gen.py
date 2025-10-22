@@ -280,6 +280,7 @@ def main():
             "dll.pass.c",
             "enum1.pass.c",
             "enum2.pass.c",
+            "func_apply.pass.c",
             "learn_cast.special.c",
             "learn_equality.pass.c",
             "learn_multiple.special.c",

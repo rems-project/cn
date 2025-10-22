@@ -74,6 +74,6 @@ module Make (AD : Domain.T) = struct
     ^^ separate hardline typedef_docs
     ^^ !^"/* FUNCTION DECLARATIONS */"
     ^^ twice hardline
-    ^^ Setup.generate_smt_setup prog5
+    ^^ Setup.generate_smt_setup prog5 ctx
     ^^ separate (twice hardline) functions
 end

@@ -4,6 +4,10 @@ module A = CF.AilSyntax
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
   module Eval = Eval.Make (AD)
+  module Stage3 = Stage3.Make (AD)
+  module GT = Stage3.Term
+  module Ctx = Stage3.Ctx
+  module Def = Stage3.Def
 
   let generate_struct_setup (prog5 : unit Mucore.file) : Pp.document * Pp.document =
     let open Pp in
@@ -73,7 +77,7 @@ module Make (AD : Domain.T) = struct
                         ^^ !^";"
                         ^^ hardline,
                         idx + 1 ))
-                   (!^"", 0)
+                   (empty, 0)
                    members
                  |> fst)
              ^^ !^"  bennet_vector_init(struct_member_t)(&"
@@ -92,7 +96,7 @@ module Make (AD : Domain.T) = struct
                         ^^ !^"]);"
                         ^^ hardline,
                         idx + 1 ))
-                   (!^"", 0)
+                   (empty, 0)
                    members
                  |> fst)
              ^^ !^"    "
@@ -107,14 +111,14 @@ module Make (AD : Domain.T) = struct
              ^^ int member_count
              ^^ !^";"
              ^^ hardline)
-        !^""
+        empty
         struct_decl_data
     in
     (* Generate handler functions for all structs *)
     let all_handlers =
       List.fold_left
         (fun acc tag -> acc ^^ Eval.generate_struct_handlers prog5 tag ^^ hardline)
-        !^""
+        empty
         struct_tags
     in
     (* Generate struct arrays and registration code *)
@@ -126,7 +130,7 @@ module Make (AD : Domain.T) = struct
            ^^ List.fold_left
                 (fun acc (tag_name, _) ->
                    acc ^^ !^"    \"" ^^ !^tag_name ^^ !^"\"," ^^ hardline)
-                !^""
+                empty
                 struct_decl_data
            ^^ !^"  };"
            ^^ hardline
@@ -137,7 +141,7 @@ module Make (AD : Domain.T) = struct
            ^^ List.fold_left
                 (fun acc (tag_name, _) ->
                    acc ^^ !^"    &" ^^ !^tag_name ^^ !^"_decl," ^^ hardline)
-                !^""
+                empty
                 struct_decl_data
            ^^ !^"  };"
            ^^ hardline
@@ -151,7 +155,7 @@ module Make (AD : Domain.T) = struct
          in
          struct_names_array ^^ struct_decls_array ^^ cn_structs_declare_call)
        else
-         !^"")
+         empty)
       ^^ List.fold_left
            (fun acc tag ->
               let tag_name = Sym.pp_string_no_nums tag in
@@ -189,7 +193,7 @@ module Make (AD : Domain.T) = struct
               ^^ !^"_data);"
               ^^ hardline
               ^^ hardline)
-           !^""
+           empty
            struct_tags
     in
     (* Return handlers separately from init code *)
@@ -208,7 +212,7 @@ module Make (AD : Domain.T) = struct
       Fulminate.Cn_to_ail.RecordMap.bindings !Fulminate.Cn_to_ail.records
     in
     if List.length all_records = 0 then
-      (!^"", !^"")
+      (empty, empty)
     else (
       (* Generate record setup similar to struct setup *)
       let record_handlers_and_data =
@@ -257,7 +261,7 @@ module Make (AD : Domain.T) = struct
                        ^^ hardline
                        ^^ !^"  }"
                        ^^ hardline)
-                    !^""
+                    empty
                     members
                ^^ !^"  return record;"
                ^^ hardline
@@ -332,7 +336,7 @@ module Make (AD : Domain.T) = struct
                        ^^ hardline
                        ^^ !^"  }"
                        ^^ hardline)
-                    !^""
+                    empty
                     members
                ^^ !^"  bennet_hash_table_set(const_char_ptr, void_ptr)(new_record, \
                      member_name, new_value);"
@@ -362,7 +366,7 @@ module Make (AD : Domain.T) = struct
                        ^^ !^member_name
                        ^^ !^"\", NULL);"
                        ^^ hardline)
-                    !^""
+                    empty
                     members
                ^^ !^"  return record;"
                ^^ hardline
@@ -371,7 +375,7 @@ module Make (AD : Domain.T) = struct
                ^^ hardline
              in
              acc ^^ create_fn ^^ get_fn ^^ update_fn ^^ default_fn)
-          !^""
+          empty
           all_records
       in
       (* Generate record registration code *)
@@ -461,7 +465,7 @@ module Make (AD : Domain.T) = struct
                      ^^ !^(simple_basetype_name bt)
                      ^^ !^";"
                      ^^ hardline)
-                  !^""
+                  empty
                   (List.mapi (fun i m -> (m, i)) members)
              ^^ !^"  bennet_vector_init(struct_member_t)(&"
              ^^ !^record_name
@@ -478,7 +482,7 @@ module Make (AD : Domain.T) = struct
                      ^^ int idx
                      ^^ !^"]);"
                      ^^ hardline)
-                  !^""
+                  empty
                   (List.mapi (fun i m -> (m, i)) members)
              ^^ !^"  cn_record_data "
              ^^ !^record_name
@@ -513,7 +517,7 @@ module Make (AD : Domain.T) = struct
              ^^ !^"_data);"
              ^^ hardline
              ^^ hardline)
-          !^""
+          empty
           all_records
       in
       (record_handlers_and_data, record_registration))
@@ -529,7 +533,7 @@ module Make (AD : Domain.T) = struct
     (* Generate datatype handlers *)
     let datatype_handlers = Eval.generate_datatype_handlers prog5 in
     if List.length datatypes = 0 then (* Empty arrays for no datatypes *)
-      ( !^"",
+      ( empty,
         !^"const char **datatype_order_empty[1] = {NULL};"
         ^^ hardline
         ^^ !^"size_t group_sizes_empty[1] = {0};"
@@ -585,7 +589,7 @@ module Make (AD : Domain.T) = struct
                       ^^ !^(Sym.pp_string_no_nums dt_sym)
                       ^^ !^"\","
                       ^^ hardline)
-                   !^""
+                   empty
                    group
                  |> nest 2)
              ^^ !^"};")
@@ -623,7 +627,7 @@ module Make (AD : Domain.T) = struct
                       ^^ hardline
                       ^^ !^"  },"
                       ^^ hardline)
-                   !^""
+                   empty
                    group
                  |> nest 2)
              ^^ !^"};")
@@ -701,7 +705,7 @@ module Make (AD : Domain.T) = struct
                                         ^^ !^";"
                                         ^^ hardline,
                                         p_idx + 1 ))
-                                   (!^"", 0)
+                                   (empty, 0)
                                    params
                                  |> fst)
                              ^^ !^"dt_constr_info_t constr_g"
@@ -745,7 +749,7 @@ module Make (AD : Domain.T) = struct
                                ^^ !^","
                                ^^ hardline,
                                c_idx + 1 ))
-                          (!^"", 0)
+                          (empty, 0)
                           dt_def.cases
                         |> fst
                         |> nest 2)
@@ -779,7 +783,7 @@ module Make (AD : Domain.T) = struct
                         (acc, 0)
                         dt_def.cases
                       |> fst)
-                   !^""
+                   empty
                    (List.mapi (fun i x -> (i, x)) group)
                  |> nest 2)
              ^^ !^"};")
@@ -795,7 +799,7 @@ module Make (AD : Domain.T) = struct
               (fun (acc, idx) _ ->
                  ( acc ^^ !^"  datatype_group_" ^^ int idx ^^ !^"_names," ^^ hardline,
                    idx + 1 ))
-              (!^"", 0)
+              (empty, 0)
               sccs
             |> fst
             |> nest 2)
@@ -809,7 +813,7 @@ module Make (AD : Domain.T) = struct
         ^^ (List.fold_left
               (fun acc group ->
                  acc ^^ !^"  " ^^ int (List.length group) ^^ !^"," ^^ hardline)
-              !^""
+              empty
               sccs
             |> nest 2)
         ^^ !^"};"
@@ -822,7 +826,7 @@ module Make (AD : Domain.T) = struct
         ^^ (List.fold_left
               (fun (acc, idx) _ ->
                  (acc ^^ !^"  dt_infos_g" ^^ int idx ^^ !^"," ^^ hardline, idx + 1))
-              (!^"", 0)
+              (empty, 0)
               sccs
             |> fst
             |> nest 2)
@@ -836,7 +840,7 @@ module Make (AD : Domain.T) = struct
         ^^ (List.fold_left
               (fun (acc, idx) _ ->
                  (acc ^^ !^"  all_constr_infos_g" ^^ int idx ^^ !^"," ^^ hardline, idx + 1))
-              (!^"", 0)
+              (empty, 0)
               sccs
             |> fst
             |> nest 2)
@@ -859,17 +863,166 @@ module Make (AD : Domain.T) = struct
         ^^ !^", group_sizes, all_datatype_infos, all_constr_infos);" ))
 
 
-  let generate_smt_setup (prog5 : unit Mucore.file) : Pp.document =
+  let generate_function_setup (prog5 : unit Mucore.file) (ctx : Ctx.t)
+    : Pp.document * Pp.document
+    =
+    let open Pp in
+    (* Collect all pure functions used in the generators *)
+    let used_functions =
+      Ctx.fold
+        (fun acc _sym (gd : Def.t) -> Sym.Set.union acc (GT.get_pure_functions gd.body))
+        Sym.Set.empty
+        ctx
+    in
+    (* Filter logical_functions to only those that are actually used *)
+    let logical_functions =
+      List.filter
+        (fun (fn_sym, _) -> Sym.Set.mem fn_sym used_functions)
+        prog5.logical_predicates
+    in
+    if List.length logical_functions = 0 then
+      (empty, empty)
+    else (
+      let function_handlers = Eval.generate_function_handlers prog5 in
+      let function_registrations =
+        List.fold_left
+          (fun acc (fn_sym, fn_def) ->
+             let fn_name = Sym.pp_string_no_nums fn_sym in
+             let arg_count = List.length fn_def.Definition.Function.args in
+             let return_bt = fn_def.Definition.Function.return_bt in
+             let handler_name = "cn_func_" ^ fn_name in
+             match fn_def.Definition.Function.body with
+             | Definition.Function.Def body | Definition.Function.Rec_Def body ->
+               let is_recursive =
+                 match fn_def.Definition.Function.body with
+                 | Definition.Function.Def _ -> false
+                 | Definition.Function.Rec_Def _ -> true
+                 | Definition.Function.Uninterp -> assert false (* unreachable *)
+               in
+               (* Generate cn_register_func call for defined functions *)
+               let arg_binders_code =
+                 if arg_count = 0 then
+                   !^"NULL"
+                 else
+                   !^"(cn_arg_binder[]){"
+                   ^^ separate_map
+                        (comma ^^ space)
+                        (fun (arg_sym, arg_bt) ->
+                           braces
+                             (!^".sym = "
+                              ^^ Smt.convert_sym arg_sym
+                              ^^ comma
+                              ^^^ !^".bt = "
+                              ^^ Smt.convert_basetype arg_bt))
+                        fn_def.Definition.Function.args
+                   ^^ !^"}"
+               in
+               (* Generate code block with variable declarations and cn_register_func call *)
+               let function_reg_block =
+                 if arg_count = 0 then
+                   (* No arguments, just call cn_register_func directly *)
+                   !^"  // Register function: "
+                   ^^ !^fn_name
+                   ^^ hardline
+                   ^^ !^"  cn_register_func("
+                   ^^ Smt.convert_sym fn_sym
+                   ^^ comma
+                   ^^^ !^handler_name
+                   ^^ comma
+                   ^^^ !^"NULL, 0"
+                   ^^ comma
+                   ^^^ Smt.convert_basetype return_bt
+                   ^^ comma
+                   ^^^ !^(if is_recursive then "true" else "false")
+                   ^^ comma
+                   ^^^ Smt.convert_indexterm body
+                   ^^ comma
+                   ^^^ !^"s);"
+                   ^^ hardline
+                 else (* With arguments, create a scope with variable declarations *)
+                   !^"  // Register function: "
+                   ^^ !^fn_name
+                   ^^ hardline
+                   ^^ !^"  {"
+                   ^^ hardline
+                   ^^ separate_map
+                        hardline
+                        (fun (arg_sym, arg_bt) ->
+                           let arg_name = Sym.pp_string_no_nums arg_sym in
+                           !^"    cn_term *"
+                           ^^ !^arg_name
+                           ^^ !^" = cn_smt_sym"
+                           ^^ parens
+                                (Smt.convert_sym arg_sym
+                                 ^^ comma
+                                 ^^^ Smt.convert_basetype arg_bt)
+                           ^^ !^";")
+                        fn_def.Definition.Function.args
+                   ^^ hardline
+                   ^^ !^"    cn_term *body = "
+                   ^^ Smt.convert_indexterm body
+                   ^^ !^";"
+                   ^^ hardline
+                   ^^ !^"    cn_register_func("
+                   ^^ Smt.convert_sym fn_sym
+                   ^^ comma
+                   ^^^ !^handler_name
+                   ^^ comma
+                   ^^^ arg_binders_code
+                   ^^ comma
+                   ^^^ int arg_count
+                   ^^ comma
+                   ^^^ Smt.convert_basetype return_bt
+                   ^^ comma
+                   ^^^ !^(if is_recursive then "true" else "false")
+                   ^^ !^", body, s);"
+                   ^^ hardline
+                   ^^ !^"  }"
+                   ^^ hardline
+               in
+               acc ^^ function_reg_block ^^ hardline
+             | Definition.Function.Uninterp ->
+               (* For uninterpreted functions, still call cn_register_func but with NULL body *)
+               (* This will trigger an error message at registration time *)
+               acc
+               ^^ !^"  // Uninterpreted function (will error): "
+               ^^ !^fn_name
+               ^^ hardline
+               ^^ !^"  cn_register_func("
+               ^^ Smt.convert_sym fn_sym
+               ^^ comma
+               ^^^ !^"NULL" (* NULL handler - will trigger error *)
+               ^^ comma
+               ^^^ !^"NULL, 0"
+               ^^ comma
+               ^^^ Smt.convert_basetype return_bt
+               ^^ comma
+               ^^^ !^"false"
+               ^^ comma
+               ^^^ !^"NULL" (* NULL body - will trigger error *)
+               ^^ comma
+               ^^^ !^"s);"
+               ^^ hardline
+               ^^ hardline)
+          empty
+          logical_functions
+      in
+      (function_handlers, function_registrations))
+
+
+  let generate_smt_setup (prog5 : unit Mucore.file) (ctx : Ctx.t) : Pp.document =
     let open Pp in
     let struct_handlers, struct_init = generate_struct_setup prog5 in
     let record_handlers, record_init = generate_record_setup prog5 in
     let datatype_handlers, datatype_init = generate_datatype_setup prog5 in
+    let function_handlers, function_init = generate_function_setup prog5 ctx in
     let declarations =
       [ !^"cn_tuple_declare(s);";
         !^"cn_option_declare(s);";
         struct_init;
         datatype_init;
-        record_init
+        record_init;
+        function_init
       ]
     in
     let init_fn =
@@ -884,6 +1037,8 @@ module Make (AD : Domain.T) = struct
     ^^ record_handlers
     ^^ hardline
     ^^ datatype_handlers
+    ^^ hardline
+    ^^ function_handlers
     ^^ hardline
     ^^ init_fn
 end

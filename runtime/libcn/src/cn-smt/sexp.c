@@ -1392,6 +1392,7 @@ sexp_t *define_fun(const char *name,
     sexp_t **params,
     size_t param_count,
     sexp_t *result_type,
+    bool recursive,
     sexp_t *definition) {
   assert(name && result_type && definition);
 
@@ -1401,8 +1402,9 @@ sexp_t *define_fun(const char *name,
   sexp_t *params_list = sexp_list(params, param_count);
   assert(params_list);
 
+  const char *command = recursive ? "define-fun-rec" : "define-fun";
   sexp_t *args[] = {name_atom, params_list, result_type, definition};
-  sexp_t *result = sexp_app_str("define-fun", args, 4);
+  sexp_t *result = sexp_app_str(command, args, 4);
   sexp_free(name_atom);
   sexp_free(params_list);
   return result;
@@ -1410,7 +1412,7 @@ sexp_t *define_fun(const char *name,
 
 /** Defines a constant of given type and definition. */
 sexp_t *define_const(const char *name, sexp_t *type, sexp_t *definition) {
-  return define_fun(name, NULL, 0, type, definition);
+  return define_fun(name, NULL, 0, type, false, definition);
 }
 
 /** Constructor field and constructor types are defined in the header */

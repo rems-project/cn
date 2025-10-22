@@ -132,6 +132,7 @@
     cn-smt/datatypes.o
     cn-smt/eval.o
     cn-smt/from_smt.o
+    cn-smt/functions.o
     cn-smt/gather.o
     cn-smt/sexp.o
     cn-smt/solver.o

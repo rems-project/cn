@@ -7,6 +7,8 @@ module Make (GT : GenTerms.T) : sig
 
   val find_opt : Sym.t -> t -> GenDefinitions.Make(GT).t option
 
+  val fold : ('a -> Sym.t -> GenDefinitions.Make(GT).t -> 'a) -> 'a -> t -> 'a
+
   val pp : t -> Pp.document
 
   val get_call_graph : t -> Sym.Digraph.t
@@ -20,6 +22,8 @@ module MakeOptional (GT : GenTerms.T) : sig
   val find : Sym.t -> t -> GenDefinitions.MakeOptional(GT).t
 
   val find_opt : Sym.t -> t -> GenDefinitions.MakeOptional(GT).t option
+
+  val fold : ('a -> Sym.t -> GenDefinitions.MakeOptional(GT).t -> 'a) -> 'a -> t -> 'a
 
   val pp : t -> Pp.document
 
