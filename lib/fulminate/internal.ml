@@ -377,20 +377,25 @@ module TagDefs = struct
     sccs
 end
 
-let generate_str_from_ail_structs ail_structs =
+let order_ail_tag_definitions tag_defs =
   (* Dependency analysis and ordering *)
   let struct_sym_map = ref Sym.Map.empty in
   List.iter
     (fun (sym, tag_def) -> struct_sym_map := Sym.Map.add sym tag_def !struct_sym_map)
-    ail_structs;
+    tag_defs;
   let ordered_syms = List.concat (TagDefs.tag_def_order !struct_sym_map) in
-  let docs =
+  let ordered_tag_defs =
     List.map
       (fun sym ->
          let tag_def_triple = Sym.Map.find sym !struct_sym_map in
-         generate_doc_from_ail_struct (sym, tag_def_triple))
+         (sym, tag_def_triple))
       ordered_syms
   in
+  ordered_tag_defs
+
+
+let generate_str_from_ail_structs ail_structs =
+  let docs = List.map generate_doc_from_ail_struct ail_structs in
   doc_to_pretty_string (Utils.concat_map_newline docs)
 
 
@@ -433,11 +438,11 @@ let generate_ghost_call_site_glob () =
   generate_ail_stat_strs Cn_to_ail.gen_ghost_call_site_global_decl
 
 
-let generate_c_struct_strs c_structs =
+let generate_c_tag_def_strs c_structs =
   "\n/* ORIGINAL C STRUCTS AND UNIONS */\n\n" ^ generate_str_from_ail_structs c_structs
 
 
-let generate_c_struct_decl_strs c_structs =
+let generate_c_tag_decl_strs c_structs =
   "/* ORIGINAL C STRUCT AND UNION DECLARATIONS */\n"
   :: List.map generate_struct_decl_str c_structs
 

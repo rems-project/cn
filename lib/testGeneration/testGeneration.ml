@@ -223,8 +223,9 @@ let compile_test_file
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
   in
-  let c_struct_decls = generate_c_struct_strs sigma.tag_definitions in
-  let cn_converted_struct_defs = generate_cn_versions_of_structs sigma.tag_definitions in
+  let ordered_ail_tag_defs = order_ail_tag_definitions sigma.tag_definitions in
+  let c_struct_decls = generate_c_tag_def_strs ordered_ail_tag_defs in
+  let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigma in
   (* let record_defs = Records.generate_all_record_strs () in *)
   let cn_header_decls_list =
