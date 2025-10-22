@@ -159,6 +159,7 @@ let generate_c_specs_from_cn_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
@@ -178,6 +179,7 @@ let generate_c_specs_from_cn_internal
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      ~without_lemma_checks
       filename
       dts
       preds
@@ -213,6 +215,7 @@ let generate_c_specs_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
@@ -229,6 +232,7 @@ let generate_c_specs_internal
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
+        without_lemma_checks
         filename
         instrumentation
         sigm
@@ -302,6 +306,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       instrumentation_list
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -313,6 +318,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       instrumentation
       sigm

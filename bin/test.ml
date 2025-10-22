@@ -171,6 +171,7 @@ let run_tests
            ~without_ownership_checking
            ~without_loop_invariants:true
            ~with_loop_leak_checks:false
+           ~without_lemma_checks:false
            ~exec_c_locs_mode
            ~experimental_ownership_stack_mode
            ~with_testing:true

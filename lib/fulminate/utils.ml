@@ -55,7 +55,7 @@ let[@warning "-32" (* unused-value-declaration *)] rm_stmt = function
   | A.{ loc = _; desug_info = _; attrs = _; node = stmt_ } -> stmt_
 
 
-let empty_ail_str = "empty_ail"
+let empty_ail_str = ";" (* horrible; TODO change *)
 
 let empty_ail_expr = A.(AilEident (Sym.fresh empty_ail_str))
 
