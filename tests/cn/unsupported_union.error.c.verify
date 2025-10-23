@@ -1,4 +1,1 @@
-return code: 2
-tests/cn/unsupported_union.error.c:1:1: error: unsupported union types
-union union_test {
-~~~~~~^~~~~~~~~~~~ 
+return code: 0
