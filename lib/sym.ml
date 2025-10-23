@@ -4,6 +4,8 @@ let print_nums = ref false
 
 let executable_spec_enabled = ref false
 
+let experimental_unions = ref false
+
 module Ord = struct
   type t = S.sym
 

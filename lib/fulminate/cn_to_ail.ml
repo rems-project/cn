@@ -193,7 +193,11 @@ let rec bt_to_cn_base_type = function
   | List bt -> CN_list (bt_to_cn_base_type bt)
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
-  | Option MemByte -> bt_to_cn_base_type (Bits (Unsigned, 8))
+  | Option MemByte ->
+    if !Sym.experimental_unions then
+      bt_to_cn_base_type (Bits (Unsigned, 8))
+    else
+      failwith (__LOC__ ^ ": TODO Option")
   | Option _ -> failwith (__LOC__ ^ ": TODO Option")
 
 
@@ -2532,6 +2536,8 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
 
 let transform_if_union (bt, sct) ail_expr =
   let is_union =
+    !Sym.experimental_unions
+    &&
     match (bt, sct) with
     | BT.Map (_, Option MemByte), Sctypes.Array (Byte, _) -> true
     | _, _ -> false

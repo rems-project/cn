@@ -2437,7 +2437,7 @@ let record_tagdefs tagDefs =
     (fun tag def ->
        match def with
        | Mu.UnionDef ->
-         if !Sym.executable_spec_enabled then
+         if !Sym.experimental_unions then
            return ()
          else
            unsupported (Loc.other __LOC__) !^"todo: union types"
@@ -2451,7 +2451,7 @@ let check_tagdefs tagDefs =
        let open Memory in
        match def with
        | Mu.UnionDef ->
-         if !Sym.executable_spec_enabled then
+         if !Sym.experimental_unions then
            return ()
          else
            unsupported (Loc.other __LOC__) !^"todo: union types"

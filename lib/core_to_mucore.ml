@@ -1489,7 +1489,7 @@ let normalise_tag_definition tag (loc, def) =
     unsupported loc !^"flexible array members"
   | StructDef (fields, None) -> return (Mu.StructDef (make_struct_decl loc fields tag))
   | UnionDef _l ->
-    if !Sym.executable_spec_enabled then
+    if !Sym.experimental_unions then
       return Mu.UnionDef
     else
       unsupported loc !^"union types"

@@ -192,7 +192,7 @@ let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
   | Union _ ->
     let int_of_ival iv = Z.to_int (Option.get (Mem.eval_integer_value iv)) in
     let size = int_of_ival (Impl_mem.sizeof_ival ct) in
-    if !Sym.executable_spec_enabled then
+    if !Sym.experimental_unions then
       return (Array (Byte, Some size))
     else
       fail

@@ -2,6 +2,8 @@ val print_nums : bool ref
 
 val executable_spec_enabled : bool ref
 
+val experimental_unions : bool ref
+
 type t = Cerb_frontend.Symbol.sym
 
 val equal : t -> t -> bool

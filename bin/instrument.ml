@@ -97,6 +97,7 @@ let generate_executable_specs
       no_debug_info
       exec_c_locs_mode
       experimental_ownership_stack_mode
+      experimental_unions
       mktemp
       print_steps
   =
@@ -110,6 +111,7 @@ let generate_executable_specs
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   Sym.executable_spec_enabled := true;
+  Sym.experimental_unions := experimental_unions;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
@@ -282,6 +284,11 @@ module Flags = struct
        locations where ownership was taken for Fulminate-tracked memory"
     in
     Arg.(value & flag & info [ "ownership-stack-mode" ] ~doc)
+
+
+  let experimental_unions =
+    let doc = "(experimental) Handle unions from source" in
+    Arg.(value & flag & info [ "experimental-unions" ] ~doc)
 end
 
 let cmd =
@@ -320,6 +327,7 @@ let cmd =
     $ Flags.no_debug_info
     $ Flags.exec_c_locs_mode
     $ Flags.experimental_ownership_stack_mode
+    $ Flags.experimental_unions
     $ Flags.mktemp
     $ Flags.print_steps
   in

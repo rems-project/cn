@@ -1737,7 +1737,7 @@ module BaseTyping = struct
           return (bt, PEapply_fun (fname, pes))
         | PEconstrained _ -> todo ()
         | PEunion (tag, member, pe) ->
-          if !Sym.executable_spec_enabled then (
+          if !Sym.experimental_unions then (
             (* todo: make this proper when CN actually supports unions *)
             let ct = Option.get (Sctypes.of_ctype (CF.Ctype.Ctype ([], Union tag))) in
             let@ () = WCT.is_ct loc ct in
@@ -1754,7 +1754,7 @@ module BaseTyping = struct
         | PEerror (_, _) ->
           todo ()
         | PEundef (loc, ub) ->
-          if !Sym.executable_spec_enabled then
+          if !Sym.experimental_unions then
             (* in the case of a well-formedness check when labels are not inlined
              *      run ret_label ( undef(<<UB088_reached_end_of_function>>)))
              * we may need to infer an type for PEundef, which in the absence of
@@ -2365,7 +2365,7 @@ module BaseTyping = struct
         | Erun (l, pes) ->
           (match Sym.Map.find_opt l label_context with
            | None ->
-             if !Sym.executable_spec_enabled then
+             if !Sym.experimental_unions then
                let@ pes = ListM.mapM infer_pexpr pes in
                return (Unit, Erun (l, pes))
              else (* copying from check.ml *)
