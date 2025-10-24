@@ -12,7 +12,9 @@ module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 module OE = Ownership
 
-let true_const = A.AilEconst (ConstantPredefined PConstantTrue)
+let true_const = A.(AilEconst (ConstantInteger (IConstant (Z.of_int 1, Decimal, None))))
+
+let false_const = A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
 
 let ownership_ctypes = ref []
 
@@ -637,9 +639,7 @@ let cn_to_ail_const const basetype =
       in
       wrap (A.AilEunary (Address, mk_expr ail_const'))
     | Alloc_id _ -> failwith (__LOC__ ^ ": TODO Alloc_id")
-    | Bool b ->
-      wrap
-        (A.AilEconst (ConstantPredefined (if b then PConstantTrue else PConstantFalse)))
+    | Bool b -> wrap (if b then true_const else false_const)
     | Unit -> wrap ail_null (* Gets overridden by dest_with_unit_check *)
     | Null -> wrap ail_null
     | CType_const _ -> failwith (__LOC__ ^ ": TODO CType_const")

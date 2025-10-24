@@ -13,10 +13,6 @@
     printf(__VA_ARGS__);                                                                 \
   }
 
-// XXX: things used by injected code
-#define true  1
-#define false 0
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -134,7 +130,7 @@ typedef struct cn_pointer {
 } cn_pointer;
 
 typedef struct cn_bool {
-  bool val;
+  _Bool val;
 } cn_bool;
 
 typedef struct cn_alloc_id {
@@ -146,8 +142,8 @@ typedef hash_table cn_map;
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
-void initialise_exec_c_locs_mode(bool flag);
-void initialise_ownership_stack_mode(bool flag);
+void initialise_exec_c_locs_mode(_Bool flag);
+void initialise_ownership_stack_mode(_Bool flag);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
 void ghost_stack_depth_decr(void);
@@ -169,7 +165,7 @@ void cn_free_sized(void*, size_t len);
 void cn_print_nr_u64(int i, unsigned long u);
 void cn_print_u64(const char* str, unsigned long u);
 void dump_ownership_ghost_state(int stack_depth);
-bool is_mapped(void* ptr);
+_Bool is_mapped(void* ptr);
 
 /* cn_failure callbacks */
 enum cn_failure_mode {
@@ -187,8 +183,8 @@ void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 /* Conversion functions */
 
-cn_bool* convert_to_cn_bool(bool b);
-bool convert_from_cn_bool(cn_bool* b);
+cn_bool* convert_to_cn_bool(_Bool b);
+_Bool convert_from_cn_bool(cn_bool* b);
 void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
 cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2);
 cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2);

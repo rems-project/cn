@@ -26,7 +26,6 @@
   #define int64_t   __cerbty_int64_t
   #define intptr_t  __cerbty_intptr_t
   #define alignof   _Alignof
-  #define bool      _Bool
 
 #else
   #include <stdalign.h>
