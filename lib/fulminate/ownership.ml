@@ -373,6 +373,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
         []
         A.
           { loc;
+            (* TODO: just update the end position of loc to be the end position of the (n-1)th statement *)
             desug_info = Desug_none;
             attrs = Attrs [];
             node = A.(AilSblock (bs, ss))
