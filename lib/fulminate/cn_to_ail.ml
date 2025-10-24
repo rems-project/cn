@@ -1898,6 +1898,7 @@ let generate_tag_definition dt_members =
   let ail_dt_members = List.map (fun (id, bt) -> (bt_to_ail_ctype bt, id)) dt_members in
   (* TODO: Check if something called tag already exists *)
   let members = List.map create_member ail_dt_members in
+  let members = List.rev members in
   C.(StructDef (members, None))
 
 
