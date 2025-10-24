@@ -1270,6 +1270,21 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       } else if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_BITS) {
         // Bits -> Bits: bv_cast
         return bv_cast(target_bt, source_bt, smt_term);
+      } else if (source_bt.tag == CN_BASE_LOC && target_bt.tag == CN_BASE_INTEGER) {
+        // Loc -> Integer: LOC is represented as a bitvector, convert bitvector to integer
+        // In the C implementation, t_loc() returns t_bits(CHAR_BIT * sizeof(uintptr_t))
+        // So we can directly convert the bitvector to integer using bv2int
+        sexp_t* args[] = {smt_term};
+        return sexp_app_str("bv2int", args, 1);
+      } else if (source_bt.tag == CN_BASE_INTEGER && target_bt.tag == CN_BASE_LOC) {
+        // Integer -> Loc: Convert integer to bitvector
+        // LOC is represented as a bitvector of width CHAR_BIT * sizeof(uintptr_t)
+        // Use (_ int2bv n) to convert integer to n-bit bitvector
+        int ptr_width = CHAR_BIT * sizeof(uintptr_t);
+        char int2bv_op[64];
+        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", ptr_width);
+        sexp_t* args[] = {smt_term};
+        return sexp_app_str(int2bv_op, args, 1);
       } else {
         // Other casts
         assert(false);
