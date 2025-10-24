@@ -354,19 +354,80 @@ let get_c_control_flow_ownership_injs stat =
 
 (* Ghost state tracking for stack-allocated variables in blocks *)
 let get_c_block_entry_exit_injs_aux bindings s =
-  let rec aux_stmt bindings A.{ loc; desug_info; node = s_; _ } =
-    let gen_standard_block_injs (bs, ss) =
-      let exit_injs =
-        List.map
-          (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
-             ( get_end_loc ~offset:(-1) loc,
-               [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
-          bs
-      in
-      let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
-      let stat_injs = List.map (fun s -> aux_stmt bs s) ss in
-      List.concat stat_injs @ exit_injs'
+  let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
+    let exit_injs =
+      List.map
+        (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
+           ( get_end_loc ~offset:(-1) loc,
+             [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
+        bs
     in
+    let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
+    let stat_injs = List.map (fun s -> f_stmt_injs bs s) ss in
+    List.concat stat_injs @ exit_injs'
+  in
+  let rec aux_expr (A.AnnotatedExpression (_, _, loc, e_)) =
+    match e_ with
+    | AilEgcc_statement (bs, ss) ->
+      aux_stmt
+        []
+        A.
+          { loc;
+            desug_info = Desug_none;
+            attrs = Attrs [];
+            node = A.(AilSblock (bs, ss))
+          }
+      (* TODO: change to do the right unmapping *)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      []
+    | AilErvalue e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEcompound (_, _, e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      let injs = aux_expr e1 in
+      let injs' = aux_expr e2 in
+      injs @ injs'
+    | AilEcond (e1, Some e2, e3) ->
+      let injs = aux_expr e1 in
+      let injs' = aux_expr e2 in
+      let injs'' = aux_expr e3 in
+      injs @ injs' @ injs''
+    | AilEcall (e, es) ->
+      let injs = aux_expr e in
+      let injs' = List.map aux_expr es in
+      injs @ List.concat injs'
+    | AilEgeneric (e, _, gas) ->
+      let injs = aux_expr e in
+      let injs' =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      injs @ List.concat injs'
+    | AilEarray (_, _, xs) ->
+      List.concat (List.map (function None -> [] | Some e -> aux_expr e) xs)
+    | AilEstruct (_, xs) ->
+      List.concat (List.map (function _, None -> [] | _, Some e -> aux_expr e) xs)
+  and aux_stmt bindings A.{ loc; desug_info; node = s_; _ } =
     let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
     match s_ with
     | A.(AilSdeclaration decls) ->
@@ -382,22 +443,23 @@ let get_c_block_entry_exit_injs_aux bindings s =
         let injs' = aux_stmt [] s in
         inj @ injs')
       else
-        gen_standard_block_injs (bs, ss)
-    | AilSblock (bs, ss) -> gen_standard_block_injs (bs, ss)
-    | AilSif (_, s1, s2) ->
-      let injs = aux_stmt bindings s1 in
-      let injs' = aux_stmt bindings s2 in
+        gen_standard_block_injs (bs, ss) aux_stmt loc
+    | AilSblock (bs, ss) -> gen_standard_block_injs (bs, ss) aux_stmt loc
+    | AilSif (e, s1, s2) ->
+      let injs = aux_expr e in
+      let injs' = aux_stmt bindings s1 in
+      let injs'' = aux_stmt bindings s2 in
+      injs @ injs' @ injs''
+    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+      let injs = aux_expr e in
+      let injs' = aux_stmt bindings s in
       injs @ injs'
-    | AilSwhile (_, s, _) -> aux_stmt bindings s
-    | AilSdo (s, _, _) -> aux_stmt bindings s
-    | AilSswitch (_, s)
-    | AilScase (_, s)
-    | AilScase_rangeGNU (_, _, s)
-    | AilSdefault s
-    | AilSlabel (_, s, _) ->
+    | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _)
+      ->
       aux_stmt bindings s
-    | AilSgoto _ | AilSreturn _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
-    | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
+    | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ ->
       []
   in
   aux_stmt bindings s
