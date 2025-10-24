@@ -1,5 +1,6 @@
 module CF = Cerb_frontend
 module C = CF.Ctype
+module A = CF.AilSyntax
 module IT = IndexTerms
 module BT = BaseTypes
 module LC = LogicalConstraints
@@ -136,8 +137,44 @@ module Make (AD : Domain.T) = struct
       let sign_str =
         match sign with BaseTypes.Signed -> "true" | BaseTypes.Unsigned -> "false"
       in
+      let z_min, _ = BT.bits_range (sign, width) in
+      let suffix =
+        let size_of = Memory.size_of_integer_type in
+        match sign with
+        | Unsigned ->
+          if width <= size_of (Unsigned Int_) then
+            Some A.U
+          else if width <= size_of (Unsigned Long) then
+            Some A.UL
+          else
+            Some A.ULL
+        | Signed ->
+          if width <= size_of (Signed Int_) then
+            None
+          else if width <= size_of (Signed Long) then
+            Some A.L
+          else
+            Some A.LL
+      in
+      let ail_const =
+        Fulminate.Utils.mk_expr
+          (let k a = A.(AilEconst (ConstantInteger (IConstant (a, Decimal, suffix)))) in
+           if Z.equal value z_min && BT.equal_sign sign BT.Signed then
+             A.(
+               AilEbinary
+                 ( Fulminate.Utils.mk_expr (k (Z.neg (Z.sub (Z.neg value) Z.one))),
+                   Arithmetic Sub,
+                   Fulminate.Utils.mk_expr (k Z.one) ))
+           else
+             k value)
+      in
       !^"cn_smt_bits"
-      ^^ parens (!^sign_str ^^ comma ^^^ int width ^^ comma ^^^ !^(Z.to_string value))
+      ^^ parens
+           (!^sign_str
+            ^^ comma
+            ^^^ int width
+            ^^ comma
+            ^^^ CF.Pp_ail.pp_expression ail_const)
     | MemByte _ | Pointer _ -> failwith ("Unsupported @" ^ __LOC__)
     | Bool true -> !^"cn_smt_bool(true)"
     | Bool false -> !^"cn_smt_bool(false)"
