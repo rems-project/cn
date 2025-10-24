@@ -193,6 +193,11 @@ let rec bt_to_cn_base_type = function
   | List bt -> CN_list (bt_to_cn_base_type bt)
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
+  | Option MemByte ->
+    if !Sym.experimental_unions then
+      bt_to_cn_base_type (Bits (Unsigned, 8))
+    else
+      failwith (__LOC__ ^ ": TODO Option")
   | Option _ -> failwith (__LOC__ ^ ": TODO Option")
 
 
@@ -2529,6 +2534,24 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
   | C.UnionDef _ -> []
 
 
+let transform_if_union (bt, sct) ail_expr =
+  let is_union =
+    !Sym.experimental_unions
+    &&
+    match (bt, sct) with
+    | BT.Map (_, Option MemByte), Sctypes.Array (Byte, _) -> true
+    | _, _ -> false
+  in
+  if is_union then (
+    let addr_of_lhs = A.(AilEunary (Address, mk_expr ail_expr)) in
+    let cast_addr_of_lhs =
+      A.(AilEcast (C.no_qualifiers, C.pointer_to_char, mk_expr addr_of_lhs))
+    in
+    cast_addr_of_lhs)
+  else
+    ail_expr
+
+
 let generate_struct_conversion_to_function
       ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_definition)
   : (A.sigma_declaration * 'a A.sigma_function_definition) list
@@ -2556,6 +2579,7 @@ let generate_struct_conversion_to_function
         match sct_opt with Some t -> t | None -> failwith (__LOC__ ^ "Bad sctype")
       in
       let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+      let rhs = transform_if_union (bt, sct) rhs in
       let rhs = wrap_with_convert_to ~sct rhs bt in
       let lhs = A.(AilEmemberofptr (mk_expr (AilEident res_sym), id)) in
       A.(AilSexpr (mk_expr (AilEassign (mk_expr lhs, mk_expr rhs))))
@@ -2620,6 +2644,7 @@ let generate_struct_conversion_from_function
       let lhs = A.(AilEmemberof (mk_expr (AilEident res_sym), id)) in
       match (bt, sct) with
       | BT.Map (_k_bt, v_bt), Sctypes.Array (_v_sct, Some sz) ->
+        let lhs = transform_if_union (bt, sct) lhs in
         A.(
           AilSexpr
             (mk_expr
