@@ -308,6 +308,77 @@ module Make (AD : Domain.T) = struct
     create_fn ^^ get_fn ^^ update_fn ^^ default_fn
 
 
+  let generate_datatype_destructor (dt_name : string) (dt_def : Mucore.datatype)
+    : Pp.document
+    =
+    let open Pp in
+    let fn_name = "destruct_constructor_" ^ dt_name in
+    let struct_name = "struct " ^ dt_name in
+    (* Generate destructor function signature *)
+    !^"void** "
+    ^^ !^fn_name
+    ^^ !^"(const char* ctor_name, void* value)"
+    ^^^ braces
+          (hardline
+           ^^ !^"  "
+           ^^ !^struct_name
+           ^^ !^"* dt = ("
+           ^^ !^struct_name
+           ^^ !^"*)value;"
+           ^^ hardline
+           ^^ hardline
+           (* Generate if-else chain for each constructor *)
+           ^^ List.fold_left
+                (fun ctor_acc (ctor_sym, params) ->
+                   let ctor_name = Sym.pp_string_no_nums ctor_sym in
+                   let ctor_name_upper = String.uppercase_ascii ctor_name in
+                   let ctor_name_lower = String.lowercase_ascii ctor_name in
+                   let param_count = List.length params in
+                   ctor_acc
+                   ^^ !^"  if (strcmp(ctor_name, "
+                   ^^ dquotes !^ctor_name
+                   ^^ !^") == 0)"
+                   ^^^ braces
+                         (hardline
+                          ^^ !^"    if (dt->tag != "
+                          ^^ !^ctor_name_upper
+                          ^^ !^") return NULL;"
+                          ^^ hardline
+                          ^^
+                          if param_count = 0 then
+                            !^"    return malloc(0);  // No members" ^^ hardline
+                          else
+                            !^"    void** members = malloc(sizeof(void*) * "
+                            ^^ int param_count
+                            ^^ !^");"
+                            ^^ hardline
+                            ^^ (List.fold_left
+                                  (fun (member_acc, idx) (param_id, _param_bt) ->
+                                     let param_name = Id.get_string param_id in
+                                     ( member_acc
+                                       ^^ !^"    members["
+                                       ^^ int idx
+                                       ^^ !^"] = dt->u."
+                                       ^^ !^ctor_name_lower
+                                       ^^ !^"->"
+                                       ^^ !^param_name
+                                       ^^ !^";"
+                                       ^^ hardline,
+                                       idx + 1 ))
+                                  (empty, 0)
+                                  params
+                                |> fst)
+                            ^^ !^"    return members;"
+                            ^^ hardline)
+                   ^^ hardline)
+                empty
+                dt_def.cases
+           ^^ !^"  return NULL;"
+           ^^ hardline)
+    ^^ hardline
+    ^^ hardline
+
+
   let generate_datatype_handlers (prog5 : unit Mucore.file) : Pp.document =
     let open Pp in
     let datatypes = prog5.datatypes in
@@ -400,7 +471,9 @@ module Make (AD : Domain.T) = struct
                empty
                dt_def.cases
            in
-           acc ^^ constructor_fns)
+           (* Generate destructor function *)
+           let destructor_fn = generate_datatype_destructor dt_name dt_def in
+           acc ^^ constructor_fns ^^ destructor_fn)
         empty
         datatypes
 

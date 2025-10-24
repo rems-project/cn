@@ -840,7 +840,7 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
 
       // Create constructor term
       cn_term* result = cn_smt_constructor(
-          con_result.name, ctor_data->field_count, arg_names, arg_values);
+          bt, con_result.name, ctor_data->field_count, arg_names, arg_values);
 
       // Cleanup
       if (arg_names)

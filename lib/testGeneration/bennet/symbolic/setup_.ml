@@ -532,6 +532,26 @@ module Make (AD : Domain.T) = struct
     let datatypes = prog5.datatypes in
     (* Generate datatype handlers *)
     let datatype_handlers = Eval.generate_datatype_handlers prog5 in
+    (* Generate forward declarations for destructor functions *)
+    let destructor_declarations =
+      if List.length datatypes = 0 then
+        empty
+      else
+        !^"// Forward declarations for datatype destructor functions"
+        ^^ hardline
+        ^^ List.fold_left
+             (fun acc (dt_sym, _dt_def) ->
+                let dt_name = Sym.pp_string_no_nums dt_sym in
+                let destructor_fn_name = "destruct_constructor_" ^ dt_name in
+                acc
+                ^^ !^"void** "
+                ^^ !^destructor_fn_name
+                ^^ !^"(const char* ctor_name, void* value);"
+                ^^ hardline)
+             empty
+             datatypes
+        ^^ hardline
+    in
     if List.length datatypes = 0 then (* Empty arrays for no datatypes *)
       ( empty,
         !^"const char **datatype_order_empty[1] = {NULL};"
@@ -543,7 +563,9 @@ module Make (AD : Domain.T) = struct
         ^^ !^"dt_constr_info_t **all_constr_infos_empty[1] = {NULL};"
         ^^ hardline
         ^^ !^"cn_datatypes_declare(s, datatype_order_empty, 0, group_sizes_empty, \
-              all_datatype_infos_empty, all_constr_infos_empty);" )
+              all_datatype_infos_empty, all_constr_infos_empty);"
+        ^^ hardline
+        ^^ !^"// No destructor registrations needed for empty datatypes" )
     else (
       (* Build dependency graph *)
       (* Helper: get datatypes referenced in a BaseType *)
@@ -847,7 +869,23 @@ module Make (AD : Domain.T) = struct
         ^^ !^"};"
       in
       (* Combine everything *)
-      ( datatype_handlers,
+      (* Generate destructor registration calls *)
+      let destructor_registrations =
+        List.fold_left
+          (fun acc (dt_sym, _dt_def) ->
+             let dt_name = Sym.pp_string_no_nums dt_sym in
+             let destructor_fn_name = "destruct_constructor_" ^ dt_name in
+             acc
+             ^^ !^"cn_register_datatype_destructor(\""
+             ^^ !^dt_name
+             ^^ !^"\", "
+             ^^ !^destructor_fn_name
+             ^^ !^");"
+             ^^ hardline)
+          (!^"// Register datatype destructors for pattern matching" ^^ hardline)
+          datatypes
+      in
+      ( datatype_handlers ^^ destructor_declarations,
         separate hardline (datatype_order_arrays @ dt_info_arrays @ constr_info_arrays)
         ^^ hardline
         ^^ datatype_order_array
@@ -860,7 +898,10 @@ module Make (AD : Domain.T) = struct
         ^^ hardline
         ^^ !^"cn_datatypes_declare(s, datatype_order, "
         ^^ int group_count
-        ^^ !^", group_sizes, all_datatype_infos, all_constr_infos);" ))
+        ^^ !^", group_sizes, all_datatype_infos, all_constr_infos);"
+        ^^ hardline
+        ^^ hardline
+        ^^ destructor_registrations ))
 
 
   let generate_function_setup (prog5 : unit Mucore.file) (ctx : Ctx.t)

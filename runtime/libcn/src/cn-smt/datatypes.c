@@ -45,6 +45,9 @@ static cn_datatype_data* get_or_create_datatype_data(const char* datatype_name) 
   bennet_hash_table_init(const_char_ptr, void_ptr)(
       &data->constructors, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
 
+  // Initialize destructor to NULL
+  data->destructor = NULL;
+
   // Register the datatype
   bennet_hash_table_set(const_char_ptr, void_ptr)(
       &g_datatype_registry, datatype_name, (void_ptr)data);
@@ -150,4 +153,30 @@ bool cn_datatype_exists(const char* datatype_name) {
   init_datatype_registry();
   return bennet_hash_table_contains(const_char_ptr, void_ptr)(
       &g_datatype_registry, datatype_name);
+}
+
+// Register a destructor function for a datatype
+void cn_register_datatype_destructor(
+    const char* datatype_name, cn_datatype_destructor_fn destructor_fn) {
+  assert(datatype_name);
+  assert(destructor_fn);
+
+  // Get or create the datatype data
+  cn_datatype_data* datatype_data = get_or_create_datatype_data(datatype_name);
+  assert(datatype_data);
+
+  // Set the destructor function
+  datatype_data->destructor = destructor_fn;
+}
+
+// Get the destructor function for a datatype
+cn_datatype_destructor_fn cn_get_datatype_destructor(const char* datatype_name) {
+  assert(datatype_name);
+
+  // Get the datatype data
+  cn_datatype_data* datatype_data = cn_get_datatype_data(datatype_name);
+  assert(datatype_data);
+  assert(datatype_data->destructor);  // Destructor must be registered
+
+  return datatype_data->destructor;
 }
