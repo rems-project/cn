@@ -15,9 +15,10 @@
 #include <cn-smt/records.h>
 #include <cn-smt/structs.h>
 
-// Generate vector implementation for cn_member_pair and cn_term_ptr
+// Generate vector implementation for cn_member_pair, cn_term_ptr, and cn_match_case
 BENNET_VECTOR_IMPL(cn_member_pair)
 BENNET_VECTOR_IMPL(cn_term_ptr)
+BENNET_VECTOR_IMPL(cn_match_case)
 
 // Generate hash table implementation for cn_sym -> void_ptr
 BENNET_HASH_TABLE_IMPL(cn_sym, void_ptr)
@@ -1413,7 +1414,66 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
     }
 
     case CN_TERM_MATCH: {
-      // Pattern matching - complex operation
+      // Evaluate the scrutinee (value being matched)
+      void* scrutinee_val = cn_eval_term_aux(context, term->data.match_data.scrutinee);
+      assert(scrutinee_val);
+
+      // Get datatype name from scrutinee base type
+      assert(term->data.match_data.scrutinee->base_type.tag == CN_BASE_DATATYPE);
+      const char* dt_name =
+          term->data.match_data.scrutinee->base_type.data.datatype_tag.tag;
+
+      // Get destructor function for this datatype
+      cn_datatype_destructor_fn destructor = cn_get_datatype_destructor(dt_name);
+      assert(destructor);
+
+      // Try each pattern case
+      bennet_vector(cn_match_case)* cases = &term->data.match_data.cases;
+      for (size_t i = 0; i < bennet_vector_size(cn_match_case)(cases); i++) {
+        cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases, i);
+
+        // Call destructor to check if constructor matches and get members
+        void** members = destructor(match_case->constructor_tag, scrutinee_val);
+
+        if (members == NULL) {
+          // Constructor doesn't match, try next pattern
+          continue;
+        }
+
+        // Constructor matches! Extend context with pattern variables
+        bennet_hash_table(cn_sym, void_ptr) extended_context;
+        bennet_hash_table_init(cn_sym, void_ptr)(
+            &extended_context, bennet_hash_cn_sym, bennet_eq_cn_sym);
+
+        // Copy all entries from current context
+        for (size_t j = 0; j < context->capacity; j++) {
+          if (context->entries[j].occupied) {
+            bennet_hash_table_set(cn_sym, void_ptr)(
+                &extended_context, context->entries[j].key, context->entries[j].value);
+          }
+        }
+
+        // Bind non-wildcard pattern variables to member values
+        for (size_t j = 0; j < match_case->pattern_var_count; j++) {
+          // Check if this is not a wildcard (name is not NULL)
+          if (match_case->pattern_vars[j].name != NULL) {
+            bennet_hash_table_set(cn_sym, void_ptr)(
+                &extended_context, match_case->pattern_vars[j], members[j]);
+          }
+          // Wildcards are skipped - they don't bind
+        }
+
+        // Evaluate the body with extended context
+        void* result = cn_eval_term_aux(&extended_context, match_case->body_term);
+
+        // Cleanup
+        free(members);
+        bennet_hash_table_free(cn_sym, void_ptr)(&extended_context);
+
+        return result;
+      }
+
+      // No pattern matched - this should not happen in well-typed programs
       assert(false);
     }
 

@@ -17,6 +17,9 @@ BENNET_VECTOR_IMPL(cn_member_pair)
 // Generate vector implementation for cn_term_ptr
 BENNET_VECTOR_IMPL(cn_term_ptr)
 
+// Generate vector implementation for cn_match_case
+BENNET_VECTOR_IMPL(cn_match_case)
+
 // Functions that pick names for things (converted from OCaml CN_Names module)
 
 // Helper function to get string representation of a symbol without numbers
@@ -484,9 +487,8 @@ sexp_t* translate_const(void* s, cn_const* co) {
     case CN_CONST_DEFAULT: {
       // Default t -> CN_Option.val_ (CN_Option.none (translate_base_type t))
       sexp_t* base_type_sexp = translate_base_type(co->data.default_type);
-      if (!base_type_sexp) {
-        return NULL;
-      }
+      assert(base_type_sexp);
+
       sexp_t* none_option = cn_option_none(base_type_sexp);
       sexp_t* result = cn_option_val(none_option);
       sexp_free(base_type_sexp);
@@ -1450,11 +1452,73 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_CONSTRUCTOR: {
-      // Constructor call - create uninterpreted function
+      // Constructor call with arguments
       const char* ctor = iterm->data.constructor.constructor_name;
-      sexp_t* fn_atom = sexp_atom(ctor);
-      sexp_t* result = sexp_app(fn_atom, NULL, 0);  // No args for now
+
+      // Add _con suffix to constructor name
+      size_t ctor_len = strlen(ctor);
+      char* ctor_smt = malloc(ctor_len + 5);  // +4 for "_con" +1 for null
+      assert(ctor_smt);
+      sprintf(ctor_smt, "%s_con", ctor);
+
+      // Get the arguments vector
+      bennet_vector(cn_member_pair)* args_vec = &iterm->data.constructor.args;
+      size_t arg_count = bennet_vector_size(cn_member_pair)(args_vec);
+
+      if (arg_count == 0) {
+        // Nullary constructor
+        sexp_t* fn_atom = sexp_atom(ctor_smt);
+        sexp_t* result = sexp_app(fn_atom, NULL, 0);
+        sexp_free(fn_atom);
+        free(ctor_smt);
+        return result;
+      }
+
+      // Sort arguments alphabetically by field name to match datatype declaration
+      size_t* sorted_indices = malloc(sizeof(size_t) * arg_count);
+      assert(sorted_indices);
+      for (size_t i = 0; i < arg_count; i++) {
+        sorted_indices[i] = i;
+      }
+      // Simple insertion sort by name
+      for (size_t s_idx = 1; s_idx < arg_count; s_idx++) {
+        size_t key_idx = sorted_indices[s_idx];
+        const char* key_name = bennet_vector_get(cn_member_pair)(args_vec, key_idx)->name;
+        int j = s_idx - 1;
+        while (j >= 0) {
+          const char* cmp_name =
+              bennet_vector_get(cn_member_pair)(args_vec, sorted_indices[j])->name;
+          if (strcmp(cmp_name, key_name) <= 0)
+            break;
+          sorted_indices[j + 1] = sorted_indices[j];
+          j--;
+        }
+        sorted_indices[j + 1] = key_idx;
+      }
+
+      // Translate arguments in sorted order
+      sexp_t** arg_sexps = malloc(sizeof(sexp_t*) * arg_count);
+      assert(arg_sexps);
+      for (size_t i = 0; i < arg_count; i++) {
+        cn_member_pair* pair =
+            bennet_vector_get(cn_member_pair)(args_vec, sorted_indices[i]);
+        arg_sexps[i] = translate_term(s, pair->value);
+        assert(arg_sexps[i]);
+      }
+
+      // Build constructor application
+      sexp_t* fn_atom = sexp_atom(ctor_smt);
+      sexp_t* result = sexp_app(fn_atom, arg_sexps, arg_count);
+
+      // Cleanup
       sexp_free(fn_atom);
+      for (size_t i = 0; i < arg_count; i++) {
+        sexp_free(arg_sexps[i]);
+      }
+      free(arg_sexps);
+      free(sorted_indices);
+      free(ctor_smt);
+
       return result;
     }
 
@@ -1546,8 +1610,135 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_MATCH: {
-      // Pattern matching - not implemented, return default
-      return bool_k(true);
+      // Pattern matching - translate to SMT-LIB match expression
+
+      // Translate scrutinee
+      sexp_t* scrutinee_smt = translate_term(s, iterm->data.match_data.scrutinee);
+      assert(scrutinee_smt);
+
+      // Get cases vector
+      bennet_vector(cn_match_case)* cases_vec = &iterm->data.match_data.cases;
+      size_t case_count = bennet_vector_size(cn_match_case)(cases_vec);
+
+      // Handle empty match (shouldn't happen, but be safe)
+      if (case_count == 0) {
+        sexp_free(scrutinee_smt);
+        return bool_k(true);
+      }
+
+      // Allocate alternatives array
+      match_alt_t* alternatives = malloc(sizeof(match_alt_t) * case_count);
+      assert(alternatives);
+
+      // Track allocated strings for cleanup
+      char*** var_names_arrays = malloc(sizeof(char**) * case_count);
+      assert(var_names_arrays);
+
+      // Build each alternative
+      for (size_t i = 0; i < case_count; i++) {
+        cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
+
+        // Determine pattern type and build pattern
+        if (match_case->constructor_tag == NULL) {
+          // Variable or wildcard pattern (PAT_VAR)
+          alternatives[i].pattern.type = PAT_VAR;
+
+          if (match_case->pattern_var_count == 1 &&
+              match_case->pattern_vars[0].name != NULL) {
+            // Single variable binding
+            char* var_name = fn_name(match_case->pattern_vars[0]);
+            assert(var_name);
+            alternatives[i].pattern.data.var_name = var_name;
+
+            // Track for cleanup (1 variable)
+            var_names_arrays[i] = malloc(sizeof(char*));
+            var_names_arrays[i][0] = var_name;
+          } else {
+            // Wildcard pattern
+            alternatives[i].pattern.data.var_name = "_";
+            var_names_arrays[i] = NULL;  // No cleanup needed for constant
+          }
+        } else {
+          // Constructor pattern (PAT_CON)
+          alternatives[i].pattern.type = PAT_CON;
+
+          // Add _con suffix to match datatype constructor naming convention
+          size_t tag_len = strlen(match_case->constructor_tag);
+          char* con_name = malloc(tag_len + 5);  // "_con" + null terminator
+          assert(con_name);
+          sprintf(con_name, "%s_con", match_case->constructor_tag);
+          alternatives[i].pattern.data.con.con_name = con_name;
+
+          alternatives[i].pattern.data.con.var_count = match_case->pattern_var_count;
+
+          // Convert pattern variables to name strings
+          if (match_case->pattern_var_count > 0) {
+            const char** var_names =
+                malloc(sizeof(const char*) * match_case->pattern_var_count);
+            assert(var_names);
+
+            for (size_t j = 0; j < match_case->pattern_var_count; j++) {
+              if (match_case->pattern_vars[j].name != NULL) {
+                // Named variable binding
+                var_names[j] = fn_name(match_case->pattern_vars[j]);
+                assert(var_names[j]);
+              } else {
+                // Wildcard in constructor pattern
+                var_names[j] = "_";
+              }
+            }
+
+            alternatives[i].pattern.data.con.var_names = var_names;
+            var_names_arrays[i] = (char**)var_names;
+          } else {
+            // Constructor with no arguments
+            alternatives[i].pattern.data.con.var_names = NULL;
+            var_names_arrays[i] = NULL;
+          }
+        }
+
+        // Translate body term
+        alternatives[i].expr = translate_term(s, match_case->body_term);
+        assert(alternatives[i].expr);
+      }
+
+      // Generate SMT match expression
+      sexp_t* result = match_datatype(scrutinee_smt, alternatives, case_count);
+      assert(result);
+
+      // Clean up allocated memory
+      sexp_free(scrutinee_smt);
+
+      for (size_t i = 0; i < case_count; i++) {
+        sexp_free(alternatives[i].expr);
+
+        if (var_names_arrays[i] != NULL) {
+          cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
+
+          if (alternatives[i].pattern.type == PAT_VAR) {
+            // Free single variable name (not wildcard)
+            free(var_names_arrays[i][0]);
+            free(var_names_arrays[i]);
+          } else {
+            // PAT_CON - free constructor variable names and constructor name
+            for (size_t j = 0; j < match_case->pattern_var_count; j++) {
+              // Only free if it was allocated (not wildcard "_")
+              if (match_case->pattern_vars[j].name != NULL) {
+                free((char*)alternatives[i].pattern.data.con.var_names[j]);
+              }
+            }
+            free((char**)alternatives[i].pattern.data.con.var_names);
+
+            // Free the allocated constructor name (with _con suffix)
+            free((char*)alternatives[i].pattern.data.con.con_name);
+          }
+        }
+      }
+
+      free(var_names_arrays);
+      free(alternatives);
+
+      return result;
     }
 
     default:

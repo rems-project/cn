@@ -65,6 +65,17 @@ typedef struct {
   uint64_t id;
 } cn_sym;
 
+// Pattern matching case structure
+typedef struct {
+  const char* constructor_tag;  // Constructor to match
+  cn_sym* pattern_vars;         // Array of symbols; use name=NULL for wildcard
+  size_t pattern_var_count;     // Number of variables
+  cn_term* body_term;           // Term to evaluate if pattern matches
+} cn_match_case;
+
+// Vector declaration for cn_match_case (must come after definition)
+BENNET_VECTOR_DECL(cn_match_case)
+
 // Bitvector info (sign and size)
 typedef struct {
   bool is_signed;
@@ -482,7 +493,10 @@ struct cn_term {
       cn_term* body;
     } let;
 
-    // CN_TERM_MATCH - skipping for now (complex pattern matching)
+    struct {  // CN_TERM_MATCH
+      cn_term* scrutinee;
+      bennet_vector(cn_match_case) cases;
+    } match_data;
 
     struct {  // CN_TERM_CAST
       cn_base_type target_type;
@@ -594,10 +608,19 @@ cn_term* cn_smt_record_update(
     cn_term* record_term, const char* member_name, cn_term* new_value);
 
 // Constructor operations
-cn_term* cn_smt_constructor(const char* constructor_name,
+cn_term* cn_smt_constructor(cn_base_type base_type,
+    const char* constructor_name,
     size_t arg_count,
     const char** arg_names,
     cn_term** arg_values);
+
+// Pattern matching (stub implementation)
+cn_term* cn_smt_match(cn_term* scrutinee,
+    size_t case_count,
+    const char** constructor_tags,
+    cn_sym** pattern_vars_arrays,
+    size_t* pattern_var_counts,
+    cn_term** body_terms);
 
 // Pretty-print
 char* cn_term_to_string(cn_term* term);

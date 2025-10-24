@@ -11,6 +11,18 @@
 // (bennet_vector(void_ptr) is declared in solver.h)
 // (cn_datatype_constructor_fn is declared in solver.h)
 
+/**
+ * @brief Function pointer type for datatype destructor.
+ *
+ * Given a constructor name and a datatype value, returns an array of member pointers
+ * if the value matches the constructor, or NULL if it doesn't match.
+ *
+ * @param constructor_name Name of the constructor to check (e.g., "Nil", "Cons")
+ * @param value Pointer to the datatype value
+ * @return Array of void* pointers to members if match, NULL otherwise
+ */
+typedef void** (*cn_datatype_destructor_fn)(const char*, void*);
+
 // Hash table and optional declarations for (const_char_ptr, void_ptr) are in structs.h
 // We use them here without redeclaring
 
@@ -46,6 +58,12 @@ typedef struct {
    * Value: void_ptr (actually cn_datatype_constructor_data* cast to void*)
    */
   bennet_hash_table(const_char_ptr, void_ptr) constructors;
+
+  /**
+   * @brief Destructor function for pattern matching.
+   * Takes a constructor name and value, returns member array or NULL.
+   */
+  cn_datatype_destructor_fn destructor;
 } cn_datatype_data;
 
 /**
@@ -103,5 +121,22 @@ cn_datatype_constructor_data* cn_get_datatype_constructor_data(
  * @return True if the datatype is registered, false otherwise
  */
 bool cn_datatype_exists(const char* datatype_name);
+
+/**
+ * @brief Register a destructor function for a datatype.
+ *
+ * @param datatype_name Name of the datatype
+ * @param destructor_fn Destructor function pointer
+ */
+void cn_register_datatype_destructor(
+    const char* datatype_name, cn_datatype_destructor_fn destructor_fn);
+
+/**
+ * @brief Get the destructor function for a datatype.
+ *
+ * @param datatype_name Name of the datatype
+ * @return Destructor function pointer
+ */
+cn_datatype_destructor_fn cn_get_datatype_destructor(const char* datatype_name);
 
 #endif  // CN_SMT_DATATYPES_H

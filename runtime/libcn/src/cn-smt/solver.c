@@ -315,13 +315,32 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
       datatypes[i].constructors[c].field_count = ci->param_count;
 
       // Build constructor fields for SMT
+      // Sort params by label to match the order used in Constructor and Pattern
       if (ci->param_count > 0) {
+        // Create sorted index array
+        size_t *sorted_indices = malloc(sizeof(size_t) * ci->param_count);
+        assert(sorted_indices);
+        for (size_t f = 0; f < ci->param_count; f++) {
+          sorted_indices[f] = f;
+        }
+        // Simple insertion sort by label
+        for (size_t s_idx = 1; s_idx < ci->param_count; s_idx++) {
+          size_t key_idx = sorted_indices[s_idx];
+          const char *key_label = ci->params[key_idx].label;
+          int j = s_idx - 1;
+          while (j >= 0 && strcmp(ci->params[sorted_indices[j]].label, key_label) > 0) {
+            sorted_indices[j + 1] = sorted_indices[j];
+            j--;
+          }
+          sorted_indices[j + 1] = key_idx;
+        }
+
         datatypes[i].constructors[c].fields =
             malloc(sizeof(con_field_t) * ci->param_count);
         assert(datatypes[i].constructors[c].fields);
 
         for (size_t f = 0; f < ci->param_count; f++) {
-          dt_param_t *param = &ci->params[f];
+          dt_param_t *param = &ci->params[sorted_indices[f]];
 
           // Create field name using CN_Names.datatype_field_name
           char *field_name = malloc(strlen(param->label) + 20);
@@ -332,6 +351,8 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
           datatypes[i].constructors[c].fields[f].type =
               translate_base_type(param->base_type);
         }
+
+        free(sorted_indices);
       } else {
         datatypes[i].constructors[c].fields = NULL;
       }
