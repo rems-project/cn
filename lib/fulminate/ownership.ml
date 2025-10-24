@@ -353,51 +353,54 @@ let get_c_control_flow_ownership_injs stat =
 
 
 (* Ghost state tracking for stack-allocated variables in blocks *)
-let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; desug_info; node = s_; _ } =
-  let gen_standard_block_injs bs ss =
-    let exit_injs =
-      List.map
-        (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
-           ( get_end_loc ~offset:(-1) loc,
-             [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
-        bs
+let get_c_block_entry_exit_injs_aux bindings s =
+  let rec aux_stmt bindings A.{ loc; desug_info; node = s_; _ } =
+    let gen_standard_block_injs (bs, ss) =
+      let exit_injs =
+        List.map
+          (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
+             ( get_end_loc ~offset:(-1) loc,
+               [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
+          bs
+      in
+      let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
+      let stat_injs = List.map (fun s -> aux_stmt bs s) ss in
+      List.concat stat_injs @ exit_injs'
     in
-    let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
-    let stat_injs = List.map (fun s -> get_c_block_entry_exit_injs_aux bs s) ss in
-    List.concat stat_injs @ exit_injs'
+    let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
+    match s_ with
+    | A.(AilSdeclaration decls) ->
+      generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings
+    | AilSblock
+        ( bs,
+          ([ A.{ loc = decl_loc; node = AilSdeclaration decls; _ };
+             A.{ node = A.AilSwhile (_, s, _); _ }
+           ] as ss) ) ->
+      if is_forloop then (
+        (* WIP: special case for for-loops *)
+        let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
+        let injs' = aux_stmt [] s in
+        inj @ injs')
+      else
+        gen_standard_block_injs (bs, ss)
+    | AilSblock (bs, ss) -> gen_standard_block_injs (bs, ss)
+    | AilSif (_, s1, s2) ->
+      let injs = aux_stmt bindings s1 in
+      let injs' = aux_stmt bindings s2 in
+      injs @ injs'
+    | AilSwhile (_, s, _) -> aux_stmt bindings s
+    | AilSdo (s, _, _) -> aux_stmt bindings s
+    | AilSswitch (_, s)
+    | AilScase (_, s)
+    | AilScase_rangeGNU (_, _, s)
+    | AilSdefault s
+    | AilSlabel (_, s, _) ->
+      aux_stmt bindings s
+    | AilSgoto _ | AilSreturn _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
+    | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
+      []
   in
-  let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
-  match s_ with
-  | A.(AilSdeclaration decls) ->
-    generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings
-  | AilSblock
-      ( bs,
-        ([ A.{ loc = decl_loc; node = AilSdeclaration decls; _ };
-           A.{ node = A.AilSwhile (_, s, _); _ }
-         ] as ss) ) ->
-    if is_forloop then (
-      (* WIP: special case for for-loops *)
-      let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
-      let injs' = get_c_block_entry_exit_injs_aux [] s in
-      inj @ injs')
-    else
-      gen_standard_block_injs bs ss
-  | AilSblock (bs, ss) -> gen_standard_block_injs bs ss
-  | AilSif (_, s1, s2) ->
-    let injs = get_c_block_entry_exit_injs_aux bindings s1 in
-    let injs' = get_c_block_entry_exit_injs_aux bindings s2 in
-    injs @ injs'
-  | AilSwhile (_, s, _) -> get_c_block_entry_exit_injs_aux bindings s
-  | AilSdo (s, _, _) -> get_c_block_entry_exit_injs_aux bindings s
-  | AilSswitch (_, s)
-  | AilScase (_, s)
-  | AilScase_rangeGNU (_, _, s)
-  | AilSdefault s
-  | AilSlabel (_, s, _) ->
-    get_c_block_entry_exit_injs_aux bindings s
-  | AilSgoto _ | AilSreturn _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
-  | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
-    []
+  aux_stmt bindings s
 
 
 let get_c_block_entry_exit_injs stat : ownership_injection list =
