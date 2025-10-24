@@ -104,8 +104,8 @@ sexp_t *int_to_real(sexp_t *e);
 
 // Bit Vector functions
 sexp_t *t_bits(int w);
-sexp_t *bv_nat_bin(int w, long long v);
-sexp_t *bv_nat_hex(int w, long long v);
+sexp_t *bv_nat_bin(int w, unsigned long long v);
+sexp_t *bv_nat_hex(int w, unsigned long long v);
 sexp_t *bv_neg(sexp_t *x);
 sexp_t *bv_compl(sexp_t *x);
 sexp_t *bv_bin(int w, long long v);

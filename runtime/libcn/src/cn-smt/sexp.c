@@ -722,13 +722,8 @@ sexp_t *t_bits(int w) {
 }
 
 /** A bit-vector represented in binary.
-    - The number should be non-negative.
     - The number should not exceed the number of bits. */
-sexp_t *bv_nat_bin(int w, long long v) {
-  if (v < 0) {
-    return NULL;
-  }
-
+sexp_t *bv_nat_bin(int w, unsigned long long v) {
   // Create binary string with proper width
   char *binary_str = malloc(w + 1);
   assert(binary_str);
@@ -753,13 +748,10 @@ sexp_t *bv_nat_bin(int w, long long v) {
 }
 
 /** A bit-vector represented in hex.
-    - The number should be non-negative.
     - The number should not exceed the number of bits.
     - The width should be a multiple of 4. */
-sexp_t *bv_nat_hex(int w, long long v) {
-  if (v < 0 || w % 4 != 0) {
-    return NULL;
-  }
+sexp_t *bv_nat_hex(int w, unsigned long long v) {
+  assert(w % 4 == 0);
 
   int hex_digits = w / 4;
   char *format_str = malloc(32);
@@ -798,14 +790,22 @@ sexp_t *bv_compl(sexp_t *x) {
     The number should fit in the given number of bits. */
 sexp_t *bv_bin(int w, long long v) {
   if (v >= 0) {
-    return bv_nat_bin(w, v);
+    return bv_nat_bin(w, (unsigned long long)v);
   } else {
-    sexp_t *pos_bv = bv_nat_bin(w, -v);
-    assert(pos_bv);
-
-    sexp_t *result = bv_neg(pos_bv);
-    sexp_free(pos_bv);
-    return result;
+    // Check if v is the minimum signed value for width w
+    // For minimum signed value: v == -(2^(w-1))
+    // Negating this value causes overflow, so convert to unsigned bit pattern
+    if ((w > 0 && w <= 63 && v == -(1LL << (w - 1))) || (w == 64 && v == LLONG_MIN)) {
+      // Use unsigned bit pattern: 2^(w-1) = 0b100...0
+      unsigned long long unsigned_val = (w == 64) ? (1ULL << 63) : (1ULL << (w - 1));
+      return bv_nat_bin(w, unsigned_val);
+    } else {
+      // Regular negative number: convert -v to unsigned
+      sexp_t *pos_bv = bv_nat_bin(w, (unsigned long long)(-v));
+      sexp_t *result = bv_neg(pos_bv);
+      sexp_free(pos_bv);
+      return result;
+    }
   }
 }
 
@@ -814,14 +814,22 @@ sexp_t *bv_bin(int w, long long v) {
     - The width should be a multiple of 4. */
 sexp_t *bv_hex(int w, long long v) {
   if (v >= 0) {
-    return bv_nat_hex(w, v);
+    return bv_nat_hex(w, (unsigned long long)v);
   } else {
-    sexp_t *pos_bv = bv_nat_hex(w, -v);
-    assert(pos_bv);
-
-    sexp_t *result = bv_neg(pos_bv);
-    sexp_free(pos_bv);
-    return result;
+    // Check if v is the minimum signed value for width w
+    // For minimum signed value: v == -(2^(w-1))
+    // Negating this value causes overflow, so convert to unsigned bit pattern
+    if ((w > 0 && w <= 63 && v == -(1LL << (w - 1))) || (w == 64 && v == LLONG_MIN)) {
+      // Use unsigned bit pattern: 2^(w-1) = 0x800...0
+      unsigned long long unsigned_val = (w == 64) ? (1ULL << 63) : (1ULL << (w - 1));
+      return bv_nat_hex(w, unsigned_val);
+    } else {
+      // Regular negative number: convert -v to unsigned
+      sexp_t *pos_bv = bv_nat_hex(w, (unsigned long long)(-v));
+      sexp_t *result = bv_neg(pos_bv);
+      sexp_free(pos_bv);
+      return result;
+    }
   }
 }
 
