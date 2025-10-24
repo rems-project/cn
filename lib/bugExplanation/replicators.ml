@@ -8,6 +8,8 @@ module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
 
+let pp_ctype = CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers
+
 let mk_expr = Utils.mk_expr
 
 let mk_stmt = Utils.mk_stmt
@@ -347,7 +349,10 @@ let compile_sct (sct : Sctypes.t)
   let b_cast, s_cast =
     sprintf_to_buf
       cast_addr_str_sym
-      [ "*((" ^ Pp.plain (Sctypes.pp (Sctypes.pointer_ct sct)) ^ ")"; "%s"; ")" ]
+      [ "*((" ^ Pp.plain (pp_ctype (Sctypes.to_ctype (Sctypes.pointer_ct sct))) ^ ")";
+        "%s";
+        ")"
+      ]
       [ Sym.pp_string addr_str_sym ]
   in
   let s =
@@ -746,9 +751,7 @@ let compile_spec
           Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct)
         in
         let fsym = Sym.fresh ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux") in
-        let type_str =
-          Pp.plain (Sctypes.pp (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))
-        in
+        let type_str = Pp.plain (pp_ctype ct) in
         let b_arg = [ Utils.create_binding arg_str_sym C.pointer_to_char ] in
         let s_arg =
           A.

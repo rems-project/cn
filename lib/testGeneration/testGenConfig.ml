@@ -46,6 +46,7 @@ type t =
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
+    use_solver_eval : bool; (* Use solver-based evaluation *)
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -93,6 +94,7 @@ let default =
     symbolic_timeout = None;
     max_unfolds = None;
     max_array_length = 50;
+    use_solver_eval = false;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -273,3 +275,5 @@ let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
 let get_max_unfolds () = (Option.get !instance).max_unfolds
 
 let get_max_array_length () = (Option.get !instance).max_array_length
+
+let is_use_solver_eval () = (Option.get !instance).use_solver_eval

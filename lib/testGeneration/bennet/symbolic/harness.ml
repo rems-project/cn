@@ -136,8 +136,8 @@ module Make (AD : Domain.T) = struct
         ^^^ parens
               CF.Pp_ail.(
                 with_executable_spec (pp_ctype C.no_qualifiers) (CtA.bt_to_ail_ctype bt))
-        ^^ !^"cn_eval_term"
-        ^^ parens (Sym.pp sym ^^ !^"_val")
+        ^^ !^"cn_smt_concretize_eval_term"
+        ^^ parens (!^"smt_solver" ^^ comma ^^^ Sym.pp sym ^^ !^"_val")
         ^^ comma)
       |> Pp.separate Pp.hardline
     in

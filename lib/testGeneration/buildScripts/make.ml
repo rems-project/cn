@@ -110,9 +110,13 @@ let define_test_flags () =
          [ "--print-discard-info" ]
        else
          [])
+    @ (if Config.is_smt_pruning_at_runtime () then
+         [ "--smt-pruning-at-runtime" ]
+       else
+         [])
     @
-    if Config.is_smt_pruning_at_runtime () then
-      [ "--smt-pruning-at-runtime" ]
+    if Config.is_use_solver_eval () then
+      [ "--use-solver-eval" ]
     else
       []
   in

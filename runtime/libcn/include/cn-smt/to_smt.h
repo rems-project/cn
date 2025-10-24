@@ -47,19 +47,26 @@ char* fresh_name(const char* x);
 // CN Tuple module functionality
 // ================================
 
+// Tuple constants
+extern const int CN_TUPLE_MAX_ARITY;
+
 // Tuple type and constructor functions
 sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count);
 char* cn_tuple_constructor_name(int arity);
 char* cn_tuple_get_selector_name(int arity, int field);
-void cn_tuple_declare(struct cn_smt_solver* solver);
 
 // ================================
 // CN Option module functionality
 // ================================
 
+// Option constants
+extern const char* cn_option_name;
+extern const char* cn_option_none_name;
+extern const char* cn_option_some_name;
+extern const char* cn_option_val_name;
+
 // Option type functions
 sexp_t* cn_option_type(sexp_t* a);
-void cn_option_declare(struct cn_smt_solver* solver);
 sexp_t* cn_option_none(sexp_t* elT);
 sexp_t* cn_option_some(sexp_t* x);
 sexp_t* cn_option_is_some(sexp_t* x);

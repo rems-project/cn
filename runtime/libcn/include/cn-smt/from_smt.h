@@ -57,10 +57,15 @@ sexp_t* get_model(struct cn_smt_solver* s);
 sexp_t** get_exprs(
     struct cn_smt_solver* s, sexp_t** vals, size_t val_count, size_t* result_count);
 
-/** Evaluate the given expression in the current context.
+/** Get the value of a given descriptor in the current context.
     Only valid after a [Sat] result.
     Throws {!UnexpectedSolverResponse}. */
 sexp_t* get_expr(struct cn_smt_solver* s, sexp_t* v);
+
+/** Evaluate the given expression in the current context.
+    Only valid after a [Sat] result.
+    Throws {!UnexpectedSolverResponse}. */
+sexp_t* eval_expr(struct cn_smt_solver* s, sexp_t* v);
 
 /** Check if expression is a let-binding and extract bindings and body */
 bennet_optional(let_binding_t) is_let(sexp_t* exp);
