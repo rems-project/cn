@@ -25,11 +25,12 @@ module Make (AD : Domain.T) = struct
       defs
       |> List.map (fun ((name, def) : Sym.t * Def.t) ->
         let loc = Locations.other __LOC__ in
+        let inputs_outputs =
+          match def.oarg with BT.Unit -> def.iargs | _ -> def.iargs
+        in
         let bt =
           BT.Record
-            (List.map
-               (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt))
-               (def.iargs @ def.oargs))
+            (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) inputs_outputs)
         in
         let new_tag = Option.get (CtA.generate_record_tag name bt) in
         let typedef_doc tag =
