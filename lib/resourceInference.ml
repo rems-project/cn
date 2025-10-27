@@ -59,7 +59,7 @@ module General = struct
 
   let add_case case (C cases) = C (cases @ [ case ])
 
-  let cases_to_map loc (_situation, _requests) (qs, qbt) item_bt (C cases) =
+  let cases_to_map loc (qs, qbt) item_bt (C cases) =
     let here = Locations.other __LOC__ in
     let update_with_ones base_array ones =
       List.fold_left
@@ -250,7 +250,7 @@ module General = struct
          return None)
 
 
-  and qpredicate_request_aux loc uiinfo (requested : Req.QPredicate.t) =
+  and qpredicate_request loc uiinfo (requested : Req.QPredicate.t) =
     Pp.(debug 7 (lazy (item __LOC__ (Req.pp (Q requested)))));
     let@ provable = provable loc in
     let provable = provable ~purpose:"qpredicate_request_aux" in
@@ -364,34 +364,15 @@ module General = struct
     in
     let nothing_more_needed = LC.forall_ requested.q (IT.not_ needed here) in
     Pp.debug 9 (lazy (Pp.item "checking resource remainder" (LC.pp nothing_more_needed)));
-    let holds = provable nothing_more_needed in
-    match holds with
-    | `True -> return (Some (oarg, l))
+    match provable nothing_more_needed with
+    | `True ->
+      let@ oarg_item_bt = WellTyped.oarg_bt_of_pred loc requested.name in
+      let@ oarg = cases_to_map loc requested.q oarg_item_bt oarg in
+      return (Some ((requested, Resource.O oarg), l))
     | `False ->
       let@ model = model () in
       debug_constraint_failure_diagnostics 9 model simp_ctxt nothing_more_needed;
       return None
-
-
-  and qpredicate_request loc uiinfo (requested : Req.QPredicate.t) =
-    let@ o_oarg = qpredicate_request_aux loc uiinfo requested in
-    let@ oarg_item_bt = WellTyped.oarg_bt_of_pred loc requested.name in
-    match o_oarg with
-    | None -> return None
-    | Some (oarg, l) ->
-      let@ oarg = cases_to_map loc uiinfo requested.q oarg_item_bt oarg in
-      let r =
-        Req.QPredicate.
-          { name = requested.name;
-            pointer = requested.pointer;
-            q = requested.q;
-            q_loc = requested.q_loc;
-            step = requested.step;
-            permission = requested.permission;
-            iargs = requested.iargs
-          }
-      in
-      return (Some ((r, Resource.O oarg), l))
 
 
   and ftyp_args_request_for_pack loc uiinfo ftyp =
