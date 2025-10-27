@@ -1687,23 +1687,27 @@ module BaseTyping = struct
         | PEmember_shift (pe, tag, member) ->
           let@ pe = infer_pexpr pe in
           return (Loc (), PEmember_shift (pe, tag, member))
-        | PEconv_int (Pexpr (l2, a2, _, PEval (V (_, Vctype ct))), pe) ->
-          let ct_pe = Pexpr (l2, a2, CType, PEval (V (CType, Vctype ct))) in
+        | PEcall
+            (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_pe; pe ])
+        | PEconv_int (ct_pe, pe) ->
+          let@ ct_pe, sct = check_pexpr_good_ctype_const ct_pe in
           let@ pe = infer_pexpr pe in
-          return
-            (Memory.bt_of_sct (Sctypes.of_ctype_unsafe loc ct), PEconv_int (ct_pe, pe))
-        | PEconv_loaded_int (Pexpr (l2, a2, _, PEval (V (_, Vctype ct))), pe) ->
-          let ct_pe = Pexpr (l2, a2, CType, PEval (V (CType, Vctype ct))) in
-          let@ pe = infer_pexpr pe in
-          return
-            ( Memory.bt_of_sct (Sctypes.of_ctype_unsafe loc ct),
-              PEconv_loaded_int (ct_pe, pe) )
+          let@ () = ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+          let rbt = Memory.bt_of_sct sct in
+          let@ () = ensure_bits_type loc rbt in
+          let pe_ =
+            match pe_ with
+            | PEcall (f, _) -> PEcall (f, [ ct_pe; pe ])
+            | PEconv_int _ -> PEconv_int (ct_pe, pe)
+            | _ -> assert false
+          in
+          return (rbt, pe_)
+        | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), pes) ->
+          let has = List.length pes in
+          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
         | PEcatch_exceptional_condition (act, pe) ->
           let@ pe = infer_pexpr pe in
           return (bt_of_pexpr pe, PEcatch_exceptional_condition (act, pe))
-        | PEwrapI (act, pe) ->
-          let@ pe = infer_pexpr pe in
-          return (Memory.bt_of_sct act.ct, PEwrapI (act, pe))
         | PEis_representable_integer (pe, act) ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEis_representable_integer (pe, act))
@@ -1732,9 +1736,40 @@ module BaseTyping = struct
               nm_pes
           in
           return (Struct nm, PEstruct (nm, nm_pes))
-        | PEapply_fun (fname, pes) ->
-          let@ bt, pes = check_infer_apply_fun None fname pes pe in
-          return (bt, PEapply_fun (fname, pes))
+        | PEcall (f, pes) ->
+          (match (f, pes) with
+           | Sym (Symbol (_, _, SD_Id "wrapI")), [ e1; e2 ] ->
+             let@ e1, ct = check_pexpr_good_ctype_const e1 in
+             let@ e2 = infer_pexpr e2 in
+             let@ () = ensure_bits_type loc (Mu.bt_of_pexpr e2) in
+             return (Memory.bt_of_sct ct, PEcall (f, [ e1; e2 ]))
+           | Sym (Symbol (_, _, SD_Id "wrapI")), _ ->
+             let has = List.length pes in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
+           | Sym (Symbol (_, _, SD_Id "ctype_width")), _ ->
+             Pp.debug 10 (lazy (item "untypeable" (Pp_mucore_ast.pp_pexpr pe)));
+             let err = !^"untypeable expression" in
+             fail { loc; msg = Generic err [@alert "-deprecated"] }
+           | Sym (Symbol (_, _, SD_Id "params_length")), [ e ] ->
+             let@ e = check_pexpr (List CType) e in
+             let rbt = Memory.bt_of_sct (Integer (Unsigned Short)) in
+             return (rbt, PEcall (f, [ e ]))
+           | Sym (Symbol (_, _, SD_Id "params_length")), _ ->
+             let has = List.length pes in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
+           | Sym (Symbol (_, _, SD_Id "params_nth")), [ e1; e2 ] ->
+             let@ e1 = check_pexpr (List CType) e1 in
+             let@ e2 = check_pexpr (Memory.bt_of_sct (Integer (Signed Short))) e2 in
+             return (CType, PEcall (f, [ e1; e2 ]))
+           | Sym (Symbol (_, _, SD_Id "params_nth")), _ ->
+             let has = List.length pes in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
+           | _ ->
+             fail { loc; msg = Generic !^"PEcall not inlined" } [@alert "-deprecated"])
+        | PEare_compatible (pe1, pe2) ->
+          let@ pe1 = check_pexpr CType pe1 in
+          let@ pe2 = check_pexpr CType pe2 in
+          return (BT.Bool, PEare_compatible (pe1, pe2))
         | PEconstrained _ -> todo ()
         | PEunion (tag, member, pe) ->
           if !Sym.experimental_unions then (
@@ -1747,8 +1782,6 @@ module BaseTyping = struct
             fail
               { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
         | PEmemberof (_, _, _)
-        | PEconv_int (_, _)
-        | PEconv_loaded_int (_, _)
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
         | PEerror (_, _) ->
@@ -1764,6 +1797,14 @@ module BaseTyping = struct
             todo ()
       in
       return (Pexpr (loc, annots, bty, pe_))
+
+
+  and check_pexpr_good_ctype_const pe =
+    let@ pe = check_pexpr CType pe in
+    let ct = Option.get (Mu.is_ctype_const pe) in
+    let sct = Option.get (Sctypes.of_ctype ct) in
+    let@ () = WCT.is_ct (Mu.loc_of_pexpr pe) sct in
+    return (pe, sct)
 
 
   and check_pexpr (expect : BT.t) expr =
@@ -1782,9 +1823,13 @@ module BaseTyping = struct
     | PEval v ->
       let@ v = check_value loc expect v in
       return (annot expect (Mu.PEval v))
-    | PEapply_fun (fname, pes) ->
-      let@ _bt, pes = check_infer_apply_fun (Some expect) fname pes expr in
-      return (annot expect (Mu.PEapply_fun (fname, pes)))
+    | PEcall ((Sym (Symbol (_, _, SD_Id "ctype_width")) as f), [ pe ]) ->
+      let@ pe, _sct = check_pexpr_good_ctype_const pe in
+      let@ () = ensure_bits_type loc expect in
+      return (annot expect (Mu.PEcall (f, [ pe ])))
+    | PEcall (Sym (Symbol (_, _, SD_Id "ctype_width")), pes) ->
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
     | PEctor (ctor, pes) ->
       let@ e = check_ctor expect ctor pes expr in
       return (annot expect e)
@@ -1798,42 +1843,6 @@ module BaseTyping = struct
        | _ -> ());
       let@ () = ensure_base_type (Mu.loc_of_pexpr expr) ~expect (Mu.bt_of_pexpr expr) in
       return expr
-
-
-  and check_infer_apply_fun (expect : BT.t option) fname pexps orig_pe =
-    let (Pexpr (loc, _annots, _, _)) = orig_pe in
-    let param_tys = Mucore.fun_param_types fname in
-    let@ () =
-      ensure_same_argument_number
-        loc
-        `Input
-        (List.length pexps)
-        ~expect:(List.length param_tys)
-    in
-    let@ pexps = ListM.map2M check_pexpr param_tys pexps in
-    let@ bt =
-      match (Mucore.fun_return_type fname pexps, expect) with
-      | Some (`Returns_BT bt), _ -> return bt
-      | Some `Returns_Integer, Some bt ->
-        let@ () = ensure_bits_type loc bt in
-        return bt
-      | None, _ ->
-        fail
-          { loc;
-            msg =
-              Generic
-                (Pp.item "untypeable mucore function" (Pp_mucore_ast.pp_pexpr orig_pe))
-              [@alert "-deprecated"]
-          }
-      | Some `Returns_Integer, None ->
-        fail
-          { loc;
-            msg =
-              Generic !^"Could not infer bit-vector type of expression."
-              [@alert "-deprecated"]
-          }
-    in
-    return (bt, pexps)
 
 
   and infer_ctor ctor pes orig_pe =
@@ -2410,14 +2419,6 @@ module BaseTyping = struct
         | End _ -> todo ()
       in
       return (Expr (loc, annots, bty, e_))
-
-
-  and check_pexpr_good_ctype_const pe =
-    let@ pe = check_pexpr CType pe in
-    let ct = Option.get (Mu.is_ctype_const pe) in
-    let sct = Option.get (Sctypes.of_ctype ct) in
-    let@ () = WCT.is_ct (Mu.loc_of_pexpr pe) sct in
-    return (pe, sct)
 
 
   and check_expr label_context (expect : BT.t) expr =

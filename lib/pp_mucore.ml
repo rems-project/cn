@@ -106,11 +106,12 @@ module Make (Config : CONFIG) = struct
     | PEval _ | PEconstrained _ | PEsym _ | PEctor _ | PEarray_shift _ | PEmember_shift _
     | PEmemop (_, _)
     | PEnot _ | PEstruct _ | PEunion _ | PEcfunction _ | PEmemberof _ | PEconv_int _
-    | PEconv_loaded_int _ | PEwrapI _ | PElet _ | PEif _ | PEundef _ | PEerror _
+    | PElet _ | PEif _ | PEundef _ | PEerror _
     | PEbitwise_unop (_, _)
-    | PEapply_fun (_, _)
+    | PEcall _
     | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
+    | PEare_compatible _
     | PEis_representable_integer (_, _) ->
       None
 
@@ -129,8 +130,6 @@ module Make (Config : CONFIG) = struct
   let compare_precedence p1 p2 =
     match (p1, p2) with Some n1, Some n2 -> n1 <= n2 | _ -> true
 
-
-  let pp_function = Mucore.pp_function
 
   let pp_binop = function
     | Core.OpAdd -> Pp.plus
@@ -317,8 +316,9 @@ module Make (Config : CONFIG) = struct
                  ^^ Pp.parens (pp_pure_memop pure_memop ^^ Pp.comma ^^^ pp_pexpr pe)
                | PEnot pe -> pp_keyword "not" ^^ Pp.parens (pp_pexpr pe)
                | PEop (bop, pe1, pe2) -> pp_pexpr pe1 ^^^ pp_binop bop ^^^ pp_pexpr pe2
-               | PEapply_fun (f, args) ->
-                 Cn_Pp.c_app (pp_function f) (List.map pp_pexpr args)
+               | PEcall (fn, args) ->
+                 let fn = match fn with Sym s -> Sym.pp s | Impl i -> pp_impl i in
+                 Cn_Pp.c_app fn (List.map pp_pexpr args)
                | PEstruct (tag_sym, xs) ->
                  Pp.parens (pp_const "struct" ^^^ pp_raw_symbol tag_sym)
                  ^^ Pp.braces
@@ -340,10 +340,6 @@ module Make (Config : CONFIG) = struct
                        ^^^ pp_pexpr pe)
                | PEconv_int (ct_expr, int_expr) ->
                  Cn_Pp.c_app !^"conv_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
-               | PEconv_loaded_int (ct_expr, int_expr) ->
-                 Cn_Pp.c_app !^"conv_loaded_int" [ pp_pexpr ct_expr; pp_pexpr int_expr ]
-               | PEwrapI (act, asym) ->
-                 !^"wrapI" ^^ Pp.parens (pp_ct act.ct ^^ Pp.comma ^^^ pp_pexpr asym)
                | PEbounded_binop (bound, iop, arg1, arg2) ->
                  !^"bound_op"
                  ^^ Pp.parens
@@ -360,6 +356,9 @@ module Make (Config : CONFIG) = struct
                | PEis_representable_integer (asym, act) ->
                  !^"is_representable_integer"
                  ^^ Pp.parens (pp_pexpr asym ^^ Pp.comma ^^^ pp_ct act.ct)
+               | PEare_compatible (pe1, pe2) ->
+                 !^"are_compatible"
+                 ^^ Pp.parens (pp_pexpr pe1 ^^ Pp.comma ^^^ pp_pexpr pe2)
                | PElet (pat, pe1, pe2) ->
                  pp_control "let"
                  ^^^ pp_pattern pat

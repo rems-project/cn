@@ -219,27 +219,6 @@ let return_z_within_range loc z bt orig_pexpr =
       }
 
 
-(* FIXME: find a home for this, also needed in check, needs the Typing monad *)
-let eval_fun f args orig_pexpr =
-  let (Mu.Pexpr (loc, _, bt, _pe)) = orig_pexpr in
-  match Mu.evaluate_fun f args with
-  | Some (`Result_IT it) -> return it
-  | Some (`Result_Integer z) -> return_z_within_range loc z bt orig_pexpr
-  | None ->
-    fail_n
-      { loc;
-        msg =
-          Generic
-            (Pp.item
-               "cannot evaluate mucore function app"
-               (Pp_mucore_ast.pp_pexpr orig_pexpr
-                ^^ Pp.hardline
-                ^^ !^"arg vals:"
-                ^^^ Pp.brackets (Pp.list IT.pp args)))
-          [@alert "-deprecated"]
-      }
-
-
 let must_be_ct_const loc ct_it =
   match IT.is_const ct_it with
   | Some (IT.CType_const ct, _) -> return ct
@@ -367,9 +346,50 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
-  | PEapply_fun (f, pes) ->
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
+  | PEconv_int (ct_expr, pe) ->
+    let@ x = self var_map pe in
+    let@ ct_it = self var_map ct_expr in
+    let@ ct = must_be_ct_const loc ct_it in
+    (match ct with
+     | Sctypes.Integer Sctypes.IntegerTypes.Bool ->
+       let here = Locations.other __LOC__ in
+       simp_const_pe
+         (bool_ite_1_0
+            bool_rep_ty
+            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
+            loc)
+     | _ -> do_wrapI loc ct x)
+  | PEcall (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
-    eval_fun f xs pexpr
+    (match (f, xs) with
+     | Sym (Symbol (_, _, SD_Id "wrapI")), [ x; y ]
+       when Option.is_some (IT.is_ctype_const x) ->
+       let ct = Option.get (IT.is_ctype_const x) in
+       do_wrapI loc ct y
+     | Sym (Symbol (_, _, SD_Id "ctype_width")), [ x ]
+       when Option.is_some (IT.is_ctype_const x) ->
+       let ct = Option.get (IT.is_ctype_const x) in
+       return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
+     | Sym (Symbol (_, _, SD_Id "params_length")), [ x ] ->
+       (match IT.dest_list x with
+        | Some xs ->
+          let n = Z.of_int (List.length xs) in
+          return_z_within_range loc n bt pexpr
+        | None -> unsupported "pure-expression type" !^"")
+     | Sym (Symbol (_, _, SD_Id "params_nth")), [ x; y ] ->
+       (match (IT.dest_list x, IT.is_bits_const y) with
+        | Some its, Some (bits_info, i) ->
+          assert (BaseTypes.fits_range bits_info i);
+          return (List.nth its (Z.to_int i))
+        | _ -> unsupported "pure-expression type" !^"")
+     | _ -> unsupported "pure-expression type" !^"")
+  | PEare_compatible (pe1, pe2) ->
+    let@ x1 = self var_map pe1 in
+    let@ x2 = self var_map pe2 in
+    (match (IT.is_ctype_const x1, IT.is_ctype_const x2) with
+     | Some ct1, Some ct2 -> return (IT.bool_ (Sctypes.equal ct1 ct2) loc)
+     | _ -> unsupported "are-compatible applied to non-constants" !^"")
   | PEctor (ctor, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (ctor, xs) with
@@ -402,22 +422,6 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        return (IT.arith_binop bop (e2, e3) loc)
      | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
-  | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
-    let@ x = self var_map pe in
-    let@ ct_it = self var_map ct_expr in
-    let@ ct = must_be_ct_const loc ct_it in
-    (match ct with
-     | Sctypes.Integer Sctypes.IntegerTypes.Bool ->
-       let here = Locations.other __LOC__ in
-       simp_const_pe
-         (bool_ite_1_0
-            bool_rep_ty
-            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
-            loc)
-     | _ -> do_wrapI loc ct x)
-  | PEwrapI (act, pe) ->
-    let@ x = self var_map pe in
-    do_wrapI loc act.ct x
   | PEcatch_exceptional_condition (act, pe) ->
     let@ x = self var_map pe in
     do_wrapI loc act.ct x
