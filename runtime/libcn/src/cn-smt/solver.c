@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <cn-smt/datatypes.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/terms.h>
@@ -253,24 +254,6 @@ void cn_smt_solver_reset(struct cn_smt_solver *solver) {
 // CN_Datatypes and CN_Structs modules (converted from OCaml)
 //////////////////////////////////////////////////////////////////////////////
 
-// Datatype constructor parameter info (equivalent to BaseTypes.constr_info.params)
-typedef struct {
-  const char *label;       // Field label/name
-  cn_base_type base_type;  // Field base type
-} dt_param_t;
-
-// Datatype constructor info (equivalent to BaseTypes.constr_info)
-typedef struct {
-  dt_param_t *params;
-  size_t param_count;
-} dt_constr_info_t;
-
-// Datatype info (equivalent to BT.dt_info)
-typedef struct {
-  const char **constrs;  // Constructor symbol names
-  size_t constr_count;
-} dt_info_t;
-
 // CN_Datatypes module functions
 
 // Helper function to create datatype field from label and base type
@@ -331,14 +314,33 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
       datatypes[i].constructors[c].name = con_name;
       datatypes[i].constructors[c].field_count = ci->param_count;
 
-      // Build constructor fields
+      // Build constructor fields for SMT
+      // Sort params by label to match the order used in Constructor and Pattern
       if (ci->param_count > 0) {
+        // Create sorted index array
+        size_t *sorted_indices = malloc(sizeof(size_t) * ci->param_count);
+        assert(sorted_indices);
+        for (size_t f = 0; f < ci->param_count; f++) {
+          sorted_indices[f] = f;
+        }
+        // Simple insertion sort by label
+        for (size_t s_idx = 1; s_idx < ci->param_count; s_idx++) {
+          size_t key_idx = sorted_indices[s_idx];
+          const char *key_label = ci->params[key_idx].label;
+          int j = s_idx - 1;
+          while (j >= 0 && strcmp(ci->params[sorted_indices[j]].label, key_label) > 0) {
+            sorted_indices[j + 1] = sorted_indices[j];
+            j--;
+          }
+          sorted_indices[j + 1] = key_idx;
+        }
+
         datatypes[i].constructors[c].fields =
             malloc(sizeof(con_field_t) * ci->param_count);
         assert(datatypes[i].constructors[c].fields);
 
         for (size_t f = 0; f < ci->param_count; f++) {
-          dt_param_t *param = &ci->params[f];
+          dt_param_t *param = &ci->params[sorted_indices[f]];
 
           // Create field name using CN_Names.datatype_field_name
           char *field_name = malloc(strlen(param->label) + 20);
@@ -349,8 +351,30 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
           datatypes[i].constructors[c].fields[f].type =
               translate_base_type(param->base_type);
         }
+
+        free(sorted_indices);
       } else {
         datatypes[i].constructors[c].fields = NULL;
+      }
+
+      // Register constructor with metadata and function pointer
+      cn_datatype_field_info *fields = NULL;
+      if (ci->param_count > 0) {
+        fields = malloc(sizeof(cn_datatype_field_info) * ci->param_count);
+        assert(fields);
+        for (size_t f = 0; f < ci->param_count; f++) {
+          fields[f].label = ci->params[f].label;
+          fields[f].base_type = ci->params[f].base_type;
+        }
+      }
+
+      // Register constructor with function pointer from dt_constr_info_t
+      cn_register_datatype_constructor(
+          dt_name, constr_name, ci->constructor_fn, fields, ci->param_count);
+
+      // Note: fields array is copied by cn_register_datatype_constructor
+      if (fields) {
+        free(fields);
       }
     }
   }
@@ -574,4 +598,88 @@ void cn_structs_declare(struct cn_smt_solver *s,
   }
 
   free_declared_struct_set(done_structs);
+}
+
+/** Declare a datatype for a tuple */
+void cn_tuple_declare(struct cn_smt_solver *solver) {
+  for (int arity = 1; arity <= CN_TUPLE_MAX_ARITY; arity++) {
+    char *name = cn_tuple_constructor_name(arity);
+
+    // Create type parameter names: a0, a1, a2, ...
+    const char **type_params = NULL;
+    type_params = malloc(arity * sizeof(char *));
+    assert(type_params);
+    for (int i = 0; i < arity; i++) {
+      char *param = malloc(12);  // enough for "a" + int (max 10 digits) + null
+      assert(param);
+      sprintf(param, "a%d", i);
+      type_params[i] = param;
+    }
+
+    // Create constructor fields
+    con_field_t *fields = NULL;
+    if (arity > 0) {
+      fields = malloc(arity * sizeof(con_field_t));
+      assert(fields);
+      for (int i = 0; i < arity; i++) {
+        fields[i].name = cn_tuple_get_selector_name(arity, i);
+        fields[i].type = sexp_atom(type_params[i]);
+      }
+    }
+
+    // Create constructor
+    constructor_t constructor;
+    constructor.name = name;
+    constructor.fields = fields;
+    constructor.field_count = arity;
+
+    // Declare the datatype
+    sexp_t *datatype_decl = declare_datatype(name, type_params, arity, &constructor, 1);
+    ack_command(solver, datatype_decl);
+
+    // Clean up
+    if (arity > 0) {
+      for (int i = 0; i < arity; i++) {
+        free((char *)type_params[i]);
+        free((char *)fields[i].name);
+        sexp_free(fields[i].type);
+      }
+      free(type_params);
+      free(fields);
+    }
+    free(name);
+  }
+}
+
+/** Declare the option datatype */
+void cn_option_declare(struct cn_smt_solver *solver) {
+  // Type parameter
+  const char *type_params[] = {"a"};
+
+  // None constructor (no fields)
+  constructor_t none_constructor;
+  none_constructor.name = cn_option_none_name;
+  none_constructor.fields = NULL;
+  none_constructor.field_count = 0;
+
+  // Some constructor with value field
+  con_field_t some_field;
+  some_field.name = cn_option_val_name;
+  some_field.type = sexp_atom("a");
+
+  constructor_t some_constructor;
+  some_constructor.name = cn_option_some_name;
+  some_constructor.fields = &some_field;
+  some_constructor.field_count = 1;
+
+  // Array of constructors
+  constructor_t constructors[] = {none_constructor, some_constructor};
+
+  // Declare the datatype
+  sexp_t *datatype_decl =
+      declare_datatype(cn_option_name, type_params, 1, constructors, 2);
+  ack_command(solver, datatype_decl);
+
+  // Clean up
+  sexp_free(some_field.type);
 }

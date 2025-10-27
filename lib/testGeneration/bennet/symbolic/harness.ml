@@ -5,10 +5,10 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage3 = Stage3.Make (AD)
+  module Stage4 = Stage4.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage3.Ctx
-  module Def = Stage3.Def
+  module Ctx = Stage4.Ctx
+  module Def = Stage4.Def
 
   let arbitrary_of_bt (prog5 : unit Mucore.file) (bt : BT.t) =
     let module Stage1 = Stage1.Make (AD) in
@@ -118,6 +118,7 @@ module Make (AD : Domain.T) = struct
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
       !^"bennet_rand_restore(checkpoint);"
+      ^^^ !^"branch_history_rewind(&branch_hist);"
       ^^^ (!^"cn_smt_concretize_"
            ^^ !^generator_name
            ^^ Pp.parens
@@ -136,8 +137,8 @@ module Make (AD : Domain.T) = struct
         ^^^ parens
               CF.Pp_ail.(
                 with_executable_spec (pp_ctype C.no_qualifiers) (CtA.bt_to_ail_ctype bt))
-        ^^ !^"cn_eval_term"
-        ^^ parens (Sym.pp sym ^^ !^"_val")
+        ^^ !^"cn_smt_concretize_eval_term"
+        ^^ parens (!^"smt_solver" ^^ comma ^^^ Sym.pp sym ^^ !^"_val")
         ^^ comma)
       |> Pp.separate Pp.hardline
     in

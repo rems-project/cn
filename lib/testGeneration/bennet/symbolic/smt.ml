@@ -1,5 +1,6 @@
 module CF = Cerb_frontend
 module C = CF.Ctype
+module A = CF.AilSyntax
 module IT = IndexTerms
 module BT = BaseTypes
 module LC = LogicalConstraints
@@ -7,10 +8,12 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage3 = Stage3.Make (AD)
-  module Ctx = Stage3.Ctx
-  module Term = Stage3.Term
-  module Def = Stage3.Def
+  module Stage4 = Stage4.Make (AD)
+  module Ctx = Stage4.Ctx
+  module Term = Stage4.Term
+  module Def = Stage4.Def
+  module StringMap = Map.Make (String)
+  module IntMap = Map.Make (Int)
 
   (** Convert BaseTypes to CN-SMT base type creation expressions *)
   let rec convert_basetype (bt : BT.t) : Pp.document =
@@ -24,10 +27,16 @@ module Make (AD : Domain.T) = struct
       let sign_bool = match sign with BT.Signed -> "true" | BT.Unsigned -> "false" in
       !^"cn_base_type_bits(" ^^ !^sign_bool ^^ comma ^^^ int width ^^ !^")"
     | Loc _ -> !^"cn_base_type_simple(CN_BASE_LOC)"
+    | Alloc_id ->
+      !^"cn_base_type_simple(CN_BASE_INTEGER)"
+      (* Alloc_id is represented as integer in SMT *)
     | CType -> !^"cn_base_type_simple(CN_BASE_CTYPE)"
     | Struct tag ->
       let tag_name = Sym.pp tag in
       !^"cn_base_type_struct" ^^ parens (dquotes tag_name)
+    | Datatype tag ->
+      let tag_name = Sym.pp_string_no_nums tag in
+      !^"cn_base_type_datatype" ^^ parens (dquotes !^tag_name)
     | List _element_bt ->
       (* TODO: Implement proper recursive type creation for List types *)
       !^"cn_base_type_simple(CN_BASE_LIST) /* TODO: use cn_base_type_list with proper \
@@ -54,7 +63,7 @@ module Make (AD : Domain.T) = struct
         ^^ parens
              (int field_count
               ^^ comma
-              ^^^ braces !^"const char*[]"
+              ^^^ parens !^"const char*[]"
               ^^ braces names_args
               ^^ comma
               ^^^ parens !^"cn_base_type[]"
@@ -75,7 +84,175 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let name = Sym.pp sym in
     let id = Sym.num sym in
-    braces (dquotes name ^^ comma ^^^ int id)
+    parens !^"cn_sym" ^^ braces (dquotes name ^^ comma ^^^ int id)
+
+
+  (** Assert that a pattern is not nested (only top-level constructor with PSym/PWild fields) *)
+  let assert_pattern_not_nested (pat : BT.t Terms.pattern) : unit =
+    let open Terms in
+    match pat with
+    | Pat (PConstructor (_ctor, fields), _bt, _loc) ->
+      List.iter
+        (fun (_id, field_pat) ->
+           match field_pat with
+           | Pat (PSym _, _, _) | Pat (PWild, _, _) -> ()
+           | Pat (PConstructor _, _, _) ->
+             failwith
+               ("Nested pattern constructors are not supported in Match expressions @ "
+                ^ __LOC__))
+        fields
+    | Pat (PSym _, _, _) | Pat (PWild, _, _) ->
+      failwith ("Match pattern must be a constructor @ " ^ __LOC__)
+
+
+  (** Extract constructor name from a pattern *)
+  let extract_constructor_name (pat : BT.t Terms.pattern) : string =
+    let open Terms in
+    match pat with
+    | Pat (PConstructor (ctor, _fields), _bt, _loc) -> Sym.pp_string_no_nums ctor
+    | _ -> failwith ("Pattern must be a constructor @ " ^ __LOC__)
+
+
+  (** Extract pattern variables (symbol, type pairs) from a constructor pattern *)
+  let extract_pattern_vars (pat : BT.t Terms.pattern) : (Sym.t * BT.t) list =
+    let open Terms in
+    match pat with
+    | Pat (PConstructor (_ctor, fields), _bt, _loc) ->
+      List.filter_map
+        (fun (_id, field_pat) ->
+           match field_pat with
+           | Pat (PSym sym, field_bt, _loc) -> Some (sym, field_bt)
+           | Pat (PWild, _, _) -> None
+           | _ -> failwith ("Unexpected nested pattern @ " ^ __LOC__))
+        fields
+    | _ -> failwith ("Pattern must be a constructor @ " ^ __LOC__)
+
+
+  (** Extract all pattern fields (including wildcards) from a constructor pattern *)
+  type pattern_field =
+    | PField_Sym of Sym.t * BT.t
+    | PField_Wild
+
+  let extract_pattern_fields (pat : BT.t Terms.pattern) : pattern_field list =
+    let open Terms in
+    match pat with
+    | Pat (PConstructor (_ctor, fields), _bt, _loc) ->
+      List.map
+        (fun (_id, field_pat) ->
+           match field_pat with
+           | Pat (PSym sym, field_bt, _loc) -> PField_Sym (sym, field_bt)
+           | Pat (PWild, _, _) -> PField_Wild
+           | _ -> failwith ("Unexpected nested pattern @ " ^ __LOC__))
+        fields
+    | _ -> failwith ("Pattern must be a constructor @ " ^ __LOC__)
+
+
+  (** Rename pattern variables according to the given mapping *)
+  let rename_pattern (renaming : Sym.t Sym.Map.t) (pat : BT.t Terms.pattern)
+    : BT.t Terms.pattern
+    =
+    let open Terms in
+    match pat with
+    | Pat (PConstructor (ctor, fields), bt, loc) ->
+      let renamed_fields =
+        List.map
+          (fun (id, field_pat) ->
+             match field_pat with
+             | Pat (PSym sym, field_bt, field_loc) ->
+               let new_sym =
+                 match Sym.Map.find_opt sym renaming with Some s -> s | None -> sym
+               in
+               (id, Pat (PSym new_sym, field_bt, field_loc))
+             | _ -> (id, field_pat))
+          fields
+      in
+      Pat (PConstructor (ctor, renamed_fields), bt, loc)
+    | _ -> pat
+
+
+  (** Compute free variables in an index term, excluding the given bound variables *)
+  let rec free_vars_it (bound : Sym.Set.t) (it : IT.t) : (Sym.t * BT.t) list =
+    let (IT (term, bt, _)) = it in
+    match term with
+    | Const _ -> []
+    | Sym sym ->
+      if Sym.Set.mem sym bound then
+        []
+      else
+        [ (sym, bt) ]
+    | Unop (_, t) -> free_vars_it bound t
+    | Binop (_, t1, t2) -> free_vars_it bound t1 @ free_vars_it bound t2
+    | ITE (cond, then_term, else_term) ->
+      free_vars_it bound cond
+      @ free_vars_it bound then_term
+      @ free_vars_it bound else_term
+    | EachI ((_start, (var_sym, _var_bt), _end), body) ->
+      let bound' = Sym.Set.add var_sym bound in
+      free_vars_it bound' body
+    | Tuple terms -> List.concat_map (free_vars_it bound) terms
+    | NthTuple (_, tuple_term) -> free_vars_it bound tuple_term
+    | Struct (_, members) -> List.concat_map (fun (_, t) -> free_vars_it bound t) members
+    | StructMember (struct_term, _) -> free_vars_it bound struct_term
+    | StructUpdate ((struct_term, _), value) ->
+      free_vars_it bound struct_term @ free_vars_it bound value
+    | Record members -> List.concat_map (fun (_, t) -> free_vars_it bound t) members
+    | RecordMember (record_term, _) -> free_vars_it bound record_term
+    | RecordUpdate ((record_term, _), value) ->
+      free_vars_it bound record_term @ free_vars_it bound value
+    | Constructor (_, args) -> List.concat_map (fun (_, t) -> free_vars_it bound t) args
+    | MemberShift (term, _, _) -> free_vars_it bound term
+    | ArrayShift { base; index; _ } -> free_vars_it bound base @ free_vars_it bound index
+    | CopyAllocId { addr; loc } -> free_vars_it bound addr @ free_vars_it bound loc
+    | HasAllocId loc -> free_vars_it bound loc
+    | SizeOf _ | OffsetOf _ -> []
+    | Aligned { t; align } -> free_vars_it bound t @ free_vars_it bound align
+    | WrapI (_, term) -> free_vars_it bound term
+    | MapConst (_, term) -> free_vars_it bound term
+    | MapSet (map_term, key_term, value_term) ->
+      free_vars_it bound map_term
+      @ free_vars_it bound key_term
+      @ free_vars_it bound value_term
+    | MapGet (map_term, key_term) ->
+      free_vars_it bound map_term @ free_vars_it bound key_term
+    | MapDef ((var_sym, _var_bt), body) ->
+      let bound' = Sym.Set.add var_sym bound in
+      free_vars_it bound' body
+    | Apply (_, args) -> List.concat_map (free_vars_it bound) args
+    | Let ((var_sym, binding), body) ->
+      let bound' = Sym.Set.add var_sym bound in
+      free_vars_it bound binding @ free_vars_it bound' body
+    | Match (scrutinee, cases) ->
+      let scrutinee_fvs = free_vars_it bound scrutinee in
+      let cases_fvs =
+        List.concat_map
+          (fun (pat, body) ->
+             (* Extract pattern variables and add them to bound set *)
+             let pat_vars = extract_pattern_vars pat in
+             let bound' =
+               List.fold_left (fun acc (sym, _) -> Sym.Set.add sym acc) bound pat_vars
+             in
+             free_vars_it bound' body)
+          cases
+      in
+      scrutinee_fvs @ cases_fvs
+    | Cast (_, term) -> free_vars_it bound term
+    | CN_None _ -> []
+    | CN_Some term -> free_vars_it bound term
+    | Good _ | Representable _ -> []
+    | _ -> []
+
+
+  (** Remove duplicates from free variable list, keeping first occurrence *)
+  let unique_free_vars (fvs : (Sym.t * BT.t) list) : (Sym.t * BT.t) list =
+    let seen = ref Sym.Set.empty in
+    List.filter
+      (fun (sym, _bt) ->
+         if Sym.Set.mem sym !seen then
+           false
+         else (
+           seen := Sym.Set.add sym !seen;
+           true))
+      fvs
 
 
   (** Generate CN-SMT term creation code for IndexTerms.t *)
@@ -99,7 +276,7 @@ module Make (AD : Domain.T) = struct
     | RecordMember (record_term, member) -> convert_recordmember record_term member
     | RecordUpdate ((record_term, member), value) ->
       convert_recordupdate record_term member value
-    | Constructor (constr, args) -> convert_constructor constr args
+    | Constructor (constr, args) -> convert_constructor bt constr args
     | MemberShift (term, tag, member) -> convert_membershift term tag member
     | ArrayShift { base; ct; index } -> convert_arrayshift base ct index
     | CopyAllocId { addr; loc } -> convert_copyallocid addr loc
@@ -113,7 +290,7 @@ module Make (AD : Domain.T) = struct
       convert_mapset map_term key_term value_term
     | MapGet (map_term, key_term) -> convert_mapget map_term key_term
     | MapDef ((var_sym, var_bt), body) -> convert_mapdef var_sym var_bt body
-    | Apply (func_sym, args) -> convert_apply func_sym args
+    | Apply (func_sym, args) -> convert_apply func_sym args bt
     | Let ((var_sym, binding), body) -> convert_let var_sym binding body
     | Match (scrutinee, cases) -> convert_match scrutinee cases
     | Cast (target_bt, term) -> convert_cast target_bt term
@@ -133,8 +310,44 @@ module Make (AD : Domain.T) = struct
       let sign_str =
         match sign with BaseTypes.Signed -> "true" | BaseTypes.Unsigned -> "false"
       in
+      let z_min, _ = BT.bits_range (sign, width) in
+      let suffix =
+        let size_of = Memory.size_of_integer_type in
+        match sign with
+        | Unsigned ->
+          if width <= size_of (Unsigned Int_) then
+            Some A.U
+          else if width <= size_of (Unsigned Long) then
+            Some A.UL
+          else
+            Some A.ULL
+        | Signed ->
+          if width <= size_of (Signed Int_) then
+            None
+          else if width <= size_of (Signed Long) then
+            Some A.L
+          else
+            Some A.LL
+      in
+      let ail_const =
+        Fulminate.Utils.mk_expr
+          (let k a = A.(AilEconst (ConstantInteger (IConstant (a, Decimal, suffix)))) in
+           if Z.equal value z_min && BT.equal_sign sign BT.Signed then
+             A.(
+               AilEbinary
+                 ( Fulminate.Utils.mk_expr (k (Z.neg (Z.sub (Z.neg value) Z.one))),
+                   Arithmetic Sub,
+                   Fulminate.Utils.mk_expr (k Z.one) ))
+           else
+             k value)
+      in
       !^"cn_smt_bits"
-      ^^ parens (!^sign_str ^^ comma ^^^ int width ^^ comma ^^^ !^(Z.to_string value))
+      ^^ parens
+           (!^sign_str
+            ^^ comma
+            ^^^ int width
+            ^^ comma
+            ^^^ CF.Pp_ail.pp_expression ail_const)
     | MemByte _ | Pointer _ -> failwith ("Unsupported @" ^ __LOC__)
     | Bool true -> !^"cn_smt_bool(true)"
     | Bool false -> !^"cn_smt_bool(false)"
@@ -320,11 +533,14 @@ module Make (AD : Domain.T) = struct
       ^^ parens (record_smt ^^ comma ^^^ dquotes (Id.pp member) ^^ comma ^^^ value_smt))
 
 
-  and convert_constructor (constr : Sym.t) (args : (Id.t * IT.t) list) : Pp.document =
+  and convert_constructor (bt : BT.t) (constr : Sym.t) (args : (Id.t * IT.t) list)
+    : Pp.document
+    =
     let constr_name = Sym.pp constr in
     let arg_count = List.length args in
     let arg_names = List.map (fun (id, _) -> Pp.dquotes (Id.pp id)) args in
     let arg_values = List.map (fun (_, term) -> convert_indexterm term) args in
+    let bt_smt = convert_basetype bt in
     let names_array =
       Pp.(
         parens !^"const char*[]"
@@ -338,7 +554,9 @@ module Make (AD : Domain.T) = struct
     Pp.(
       !^"cn_smt_constructor"
       ^^ parens
-           (dquotes constr_name
+           (bt_smt
+            ^^ comma
+            ^^^ dquotes constr_name
             ^^ comma
             ^^^ int arg_count
             ^^ comma
@@ -464,25 +682,67 @@ module Make (AD : Domain.T) = struct
     ^^ parens (dquotes var_name ^^ comma ^^^ var_type ^^ comma ^^^ body_smt)
 
 
-  and convert_apply (func_sym : Sym.t) (args : IT.t list) : Pp.document =
+  and convert_apply (func_sym : Sym.t) (args : IT.t list) (result_bt : BT.t) : Pp.document
+    =
     let open Pp in
     let func_name = Sym.pp func_sym in
     let args_smt = List.map convert_indexterm args in
+    let result_type = convert_basetype result_bt in
     let args_array =
-      !^"{" ^^ separate_map (comma ^^ space) (fun x -> x) args_smt ^^ !^"}"
+      if List.length args = 0 then
+        !^"NULL"
+      else
+        parens !^"cn_term*[]"
+        ^^ braces (separate_map (comma ^^ space) (fun x -> x) args_smt)
     in
     !^"cn_smt_apply"
     ^^ parens
-         (dquotes func_name ^^ comma ^^^ int (List.length args) ^^ comma ^^^ args_array)
+         (dquotes func_name
+          ^^ comma
+          ^^^ result_type
+          ^^ comma
+          ^^^ args_array
+          ^^ comma
+          ^^^ int (List.length args))
 
 
   and convert_let (var_sym : Sym.t) (binding : IT.t) (body : IT.t) : Pp.document =
     let open Pp in
     let binding_smt = convert_indexterm binding in
     let body_smt = convert_indexterm body in
-    let var_name = Sym.pp var_sym in
-    !^"cn_smt_let"
-    ^^ parens (dquotes var_name ^^ comma ^^^ binding_smt ^^ comma ^^^ body_smt)
+    (* Extract base type from binding *)
+    let (IT (_, binding_bt, _)) = binding in
+    let bt_smt = convert_basetype binding_bt in
+    (* Get symbol info *)
+    let var_name_doc = Sym.pp var_sym in
+    let var_id = Sym.num var_sym in
+    let var_name_c = Sym.pp_string_no_nums var_sym in
+    (* Generate block statement with symbol declaration and cn_smt_let *)
+    !^"({"
+    ^^ nest
+         2
+         (hardline
+          ^^ !^"cn_term* "
+          ^^ !^var_name_c
+          ^^ !^" = cn_smt_sym("
+          ^^ parens !^"cn_sym"
+          ^^ braces
+               (!^".name = " ^^ dquotes var_name_doc ^^ comma ^^^ !^".id = " ^^ int var_id)
+          ^^ comma
+          ^^^ bt_smt
+          ^^ !^");"
+          ^^ hardline
+          ^^ !^"cn_smt_let"
+          ^^ parens
+               (!^var_name_c
+                ^^ !^"->data.sym"
+                ^^ comma
+                ^^^ binding_smt
+                ^^ comma
+                ^^^ body_smt)
+          ^^ !^";")
+    ^^ hardline
+    ^^ !^"})"
 
 
   and convert_match (scrutinee : IT.t) (cases : (BT.t Terms.pattern * IT.t) list)
@@ -490,11 +750,199 @@ module Make (AD : Domain.T) = struct
     =
     let open Pp in
     let scrutinee_smt = convert_indexterm scrutinee in
-    (* For simplicity, match expressions will generate a simplified representation *)
     let case_count = List.length cases in
-    !^"cn_smt_match"
-    ^^ parens
-         (scrutinee_smt ^^ comma ^^^ int case_count ^^ comma ^^^ !^"/* cases omitted */")
+    (* Step 1: Validate all patterns *)
+    List.iter (fun (pat, _) -> assert_pattern_not_nested pat) cases;
+    (* Step 2: Collect all pattern variables with their case indices *)
+    let indexed_vars =
+      List.mapi
+        (fun case_idx (pat, _body) ->
+           let vars = extract_pattern_vars pat in
+           List.map (fun (sym, bt) -> (case_idx, sym, bt)) vars)
+        cases
+      |> List.concat
+    in
+    (* Step 3: Group variables by base name to detect duplicates *)
+    let vars_by_name =
+      List.fold_left
+        (fun acc (case_idx, sym, bt) ->
+           let name = Sym.pp_string_no_nums sym in
+           let existing =
+             match StringMap.find_opt name acc with Some lst -> lst | None -> []
+           in
+           StringMap.add name ((case_idx, sym, bt) :: existing) acc)
+        StringMap.empty
+        indexed_vars
+    in
+    (* Step 4: Assign suffixes and create renaming info *)
+    (* Returns: list of (case_idx, old_sym, new_sym, orig_name, orig_id, bt) *)
+    let all_renamings =
+      StringMap.bindings vars_by_name
+      |> List.concat_map (fun (base_name, occurrences) ->
+        let count = List.length occurrences in
+        if count = 1 then (* No suffix needed *)
+          List.map
+            (fun (case_idx, sym, bt) -> (case_idx, sym, sym, base_name, Sym.num sym, bt))
+            occurrences
+        else (
+          (* Assign suffixes _1, _2, _3, ... in order of appearance *)
+          let sorted_occurrences =
+            List.sort (fun (i, _, _) (j, _, _) -> compare i j) occurrences
+          in
+          List.mapi
+            (fun i (case_idx, sym, bt) ->
+               let suffix = i + 1 in
+               let new_name = base_name ^ "_" ^ string_of_int suffix in
+               let new_sym = Sym.fresh_make_uniq new_name in
+               (case_idx, sym, new_sym, base_name, Sym.num sym, bt))
+            sorted_occurrences))
+    in
+    (* Step 5: Create renaming map for each case *)
+    let case_renaming_maps =
+      List.fold_left
+        (fun acc (case_idx, old_sym, new_sym, _, _, _) ->
+           let existing =
+             match IntMap.find_opt case_idx acc with
+             | Some map -> map
+             | None -> Sym.Map.empty
+           in
+           IntMap.add case_idx (Sym.Map.add old_sym new_sym existing) acc)
+        IntMap.empty
+        all_renamings
+    in
+    (* Step 6: Process each case with renaming *)
+    let processed_cases =
+      List.mapi
+        (fun case_idx (pattern, body) ->
+           let ctor_name = extract_constructor_name pattern in
+           let renaming_map =
+             match IntMap.find_opt case_idx case_renaming_maps with
+             | Some map -> map
+             | None -> Sym.Map.empty
+           in
+           let renamed_pattern = rename_pattern renaming_map pattern in
+           (* Apply multiple renamings by folding over the map *)
+           let renamed_body =
+             Sym.Map.fold
+               (fun old_sym new_sym acc_body ->
+                  IT.subst (IT.make_rename ~from:old_sym ~to_:new_sym) acc_body)
+               renaming_map
+               body
+           in
+           (ctor_name, renamed_pattern, renamed_body))
+        cases
+    in
+    (* Step 7: Collect all unique renamed variables for declarations *)
+    let unique_renamed_vars =
+      List.sort_uniq
+        (fun (_, _, new_sym1, _, _, _) (_, _, new_sym2, _, _, _) ->
+           Sym.compare new_sym1 new_sym2)
+        all_renamings
+      |> List.map (fun (_, _, new_sym, orig_name, orig_id, bt) ->
+        (new_sym, orig_name, orig_id, bt))
+    in
+    (* Step 8: Generate variable declarations *)
+    let var_declarations =
+      if List.length unique_renamed_vars = 0 then
+        empty
+      else
+        separate_map
+          hardline
+          (fun (sym, orig_name, orig_id, bt) ->
+             let var_name = Sym.pp_string_no_nums sym in
+             let bt_smt = convert_basetype bt in
+             !^"cn_term* "
+             ^^ !^var_name
+             ^^ !^" = cn_smt_sym("
+             ^^ parens !^"cn_sym"
+             ^^ braces
+                  (!^".name = "
+                   ^^ dquotes !^orig_name
+                   ^^ comma
+                   ^^^ !^".id = "
+                   ^^ int orig_id)
+             ^^ comma
+             ^^^ bt_smt
+             ^^ !^");")
+          unique_renamed_vars
+        ^^ hardline
+    in
+    (* Step 9: Generate pattern arrays *)
+    let constructor_tags =
+      parens !^"const char*[]"
+      ^^ braces
+           (separate_map
+              (comma ^^ space)
+              (fun (ctor_name, _, _) -> dquotes !^ctor_name)
+              processed_cases)
+    in
+    (* For each case, generate array of cn_sym* for pattern variables *)
+    let pattern_syms_arrays =
+      parens !^"cn_sym*[]"
+      ^^ braces
+           (separate_map
+              (comma ^^ space)
+              (fun (_, renamed_pattern, _) ->
+                 let fields = extract_pattern_fields renamed_pattern in
+                 if List.length fields = 0 then
+                   !^"NULL"
+                 else
+                   parens !^"cn_sym[]"
+                   ^^ braces
+                        (separate_map
+                           (comma ^^ space)
+                           (fun field ->
+                              match field with
+                              | PField_Sym (sym, _bt) ->
+                                let var_name = Sym.pp_string_no_nums sym in
+                                !^var_name ^^ !^"->data.sym"
+                              | PField_Wild ->
+                                parens !^"cn_sym"
+                                ^^ braces (!^".name = NULL" ^^ comma ^^^ !^".id = -1"))
+                           fields))
+              processed_cases)
+    in
+    let pattern_sym_counts =
+      parens !^"size_t[]"
+      ^^ braces
+           (separate_map
+              (comma ^^ space)
+              (fun (_, renamed_pattern, _) ->
+                 let fields = extract_pattern_fields renamed_pattern in
+                 int (List.length fields))
+              processed_cases)
+    in
+    (* Step 10: Generate body terms array *)
+    let body_terms =
+      parens !^"cn_term*[]"
+      ^^ braces
+           (separate_map
+              (comma ^^ space)
+              (fun (_, _, body) -> convert_indexterm body)
+              processed_cases)
+    in
+    (* Step 11: Generate the complete block statement with cn_smt_match call *)
+    parens
+      (braces
+         (nest
+            2
+            (hardline
+             ^^ var_declarations
+             ^^ !^"cn_smt_match"
+             ^^ parens
+                  (scrutinee_smt
+                   ^^ comma
+                   ^^^ int case_count
+                   ^^ comma
+                   ^^^ constructor_tags
+                   ^^ comma
+                   ^^^ pattern_syms_arrays
+                   ^^ comma
+                   ^^^ pattern_sym_counts
+                   ^^ comma
+                   ^^^ body_terms)
+             ^^ !^";")
+          ^^ hardline))
 
 
   and convert_cast (target_bt : BT.t) (term : IT.t) : Pp.document =

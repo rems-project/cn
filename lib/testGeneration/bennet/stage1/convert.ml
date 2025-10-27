@@ -44,12 +44,6 @@ module Make (AD : Domain.T) = struct
 
   open State
 
-  let cn_return = Sym.fresh "cn_return"
-
-  let transform_oargs (ret_bt : BT.t) (iargs : (Sym.t * BT.t) list) : (Sym.t * BT.t) list =
-    match ret_bt with Unit -> [] | _ -> (cn_return, ret_bt) :: iargs
-
-
   let add_request
         (recursive : Sym.Set.t)
         (preds : (Sym.Map.key * Definition.Predicate.t) list)
@@ -63,17 +57,14 @@ module Make (AD : Domain.T) = struct
         spec = false;
         name = fsym;
         iargs = (pred.pointer, BT.Loc ()) :: pred.iargs;
-        oargs = transform_oargs (snd pred.oarg) [];
+        oarg = snd pred.oarg;
         body = None
       }
     in
     modify (OptCtx.add gd)
 
 
-  let transform_vars
-        (generated : Sym.Set.t)
-        (oargs : (Sym.t * BT.t) list)
-        (lat : IT.t LAT.t)
+  let transform_vars (generated : Sym.Set.t) (_oarg : BT.t) (lat : IT.t LAT.t)
     : Sym.Set.t * (Tm.t -> Tm.t)
     =
     let rec aux (xbts : (Sym.t * BT.t) list) : Tm.t -> Tm.t =
@@ -93,17 +84,7 @@ module Make (AD : Domain.T) = struct
         (Sym.Set.singleton x, Sym.Map.add x bt (Request.free_vars_bts ret))
       | Resource ((x, (ret, _)), _, _) -> (Sym.Set.singleton x, Request.free_vars_bts ret)
       | Constraint (lc, _, _) -> (Sym.Set.empty, LC.free_vars_bts lc)
-      | I it ->
-        ( Sym.Set.empty,
-          Sym.Map.union
-            (fun _ bt1 bt2 ->
-               assert (BT.equal bt1 bt2);
-               Some bt1)
-            (IT.free_vars_bts it)
-            (oargs
-             |> List.filter (fun (x, _) -> not (Sym.equal x cn_return))
-             |> List.to_seq
-             |> Sym.Map.of_seq) )
+      | I it -> (Sym.Set.empty, IT.free_vars_bts it)
     in
     let xbts =
       xbts
@@ -126,21 +107,21 @@ module Make (AD : Domain.T) = struct
             (preds : (Sym.t * Definition.Predicate.t) list)
             (name : Sym.t)
             (generated : Sym.Set.t)
-            (oargs : (Sym.t * BT.t) list)
+            (oarg : BT.t)
             (lat : IT.t LAT.t)
     : Tm.t m
     =
     (* Generate any free variables needed *)
-    let generated, f_gt_init = transform_vars generated oargs lat in
+    let generated, f_gt_init = transform_vars generated oarg lat in
     (* Compile *)
     let@ gt =
       match lat with
       | Define ((x, it), (loc, _), lat') ->
-        let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
+        let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         return (Tm.let_star_ ((x, Tm.return_ it () (IT.get_loc it)), gt') () loc)
       | Resource
           ((x, (P { name = Owned (ct, _); pointer; iargs = _ }, bt)), (loc, _), lat') ->
-        let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
+        let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         let gt_asgn = Tm.asgn_ ((pointer, ct), IT.sym_ (x, bt, loc), gt') () loc in
         let gt_val =
           if Sym.Set.mem x generated then
@@ -152,38 +133,14 @@ module Make (AD : Domain.T) = struct
       | Resource
           ((x, (P { name = PName fsym; pointer; iargs = args_its' }, bt)), (loc, _), lat')
         ->
-        let here = Locations.other __LOC__ in
-        let ret_bt =
-          BT.Record
-            (transform_oargs bt []
-             |> List.map_fst (fun x -> Id.make here (Sym.pp_string x)))
-        in
         (* Recurse *)
-        let@ gt' =
-          transform_it_lat
-            filename
-            recursive
-            preds
-            name
-            generated
-            oargs
-            (LAT.subst
-               IT.subst
-               (IT.make_subst
-                  [ ( x,
-                      IT.recordMember_
-                        ~member_bt:bt
-                        (IT.sym_ (x, ret_bt, here), Identifier (here, "cn_return"))
-                        here )
-                  ])
-               lat')
-        in
+        let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         (* Add request *)
         let@ () = add_request recursive preds fsym in
         (* Get arguments *)
         let iargs = pointer :: args_its' in
         (* Build [Tm.t] *)
-        let gt_call = Tm.call_ (fsym, iargs) () ret_bt loc in
+        let gt_call = Tm.call_ (fsym, iargs) () bt loc in
         let gt_let = Tm.let_star_ ((x, gt_call), gt') () loc in
         return gt_let
       | Resource
@@ -200,7 +157,7 @@ module Make (AD : Domain.T) = struct
                 bt ) ),
             (loc, _),
             lat' ) ->
-        let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
+        let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         let k_bt, v_bt = BT.map_bt bt in
         let gt_body =
           let sym_val = Sym.fresh_anon () in
@@ -234,7 +191,7 @@ module Make (AD : Domain.T) = struct
             (loc, _),
             lat' ) ->
         (* Recurse *)
-        let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
+        let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         (* Add request *)
         let@ () = add_request recursive preds fsym in
         (* Get arguments *)
@@ -244,52 +201,20 @@ module Make (AD : Domain.T) = struct
         (* Build [Tm.t] *)
         let _, v_bt = BT.map_bt bt in
         let gt_body =
-          let here = Locations.other __LOC__ in
-          let ret_bt =
-            BT.Record
-              (transform_oargs v_bt []
-               |> List.map_fst (fun x -> Id.make here (Sym.pp_string x)))
-          in
           let y = Sym.fresh_anon () in
-          if BT.equal (BT.Record []) ret_bt then
-            Tm.let_star_
-              ( (y, Tm.call_ (fsym, iargs) () ret_bt loc),
-                Tm.return_ (IT.sym_ (y, ret_bt, loc)) () loc )
-              ()
-              loc
-          else (
-            let it_ret =
-              IT.recordMember_
-                ~member_bt:v_bt
-                (IT.sym_ (y, ret_bt, loc), Id.make here "cn_return")
-                loc
-            in
-            Tm.let_star_
-              ((y, Tm.call_ (fsym, iargs) () ret_bt loc), Tm.return_ it_ret () loc)
-              ()
-              loc)
+          Tm.let_star_
+            ( (y, Tm.call_ (fsym, iargs) () v_bt loc),
+              Tm.return_ (IT.sym_ (y, v_bt, loc)) () loc )
+            ()
+            loc
         in
         let gt_map = Tm.map_ ((q_sym, q_bt, permission), gt_body) () loc in
         let gt_let = Tm.let_star_ ((x, gt_map), gt') () loc in
         return gt_let
       | Constraint (lc, (loc, _), lat') ->
-        let@ gt' = transform_it_lat filename recursive preds name generated oargs lat' in
+        let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         return (Tm.assert_ (lc, gt') () loc)
-      | I it ->
-        let here = Locations.other __LOC__ in
-        let conv_fn = List.map (fun (x, bt) -> (x, IT.sym_ (x, bt, here))) in
-        let it_oargs =
-          match oargs with
-          | (sym, _) :: oargs' when Sym.equal sym cn_return ->
-            (cn_return, it) :: conv_fn oargs'
-          | _ -> conv_fn oargs
-        in
-        let it_ret =
-          IT.record_
-            (List.map_fst (fun sym -> Id.make here (Sym.pp_string sym)) it_oargs)
-            here
-        in
-        return (Tm.return_ it_ret () (IT.get_loc it))
+      | I it -> return (Tm.return_ it () (IT.get_loc it))
     in
     return (f_gt_init gt)
 
@@ -300,20 +225,20 @@ module Make (AD : Domain.T) = struct
             (preds : (Sym.t * Definition.Predicate.t) list)
             (name : Sym.t)
             (iargs : Sym.Set.t)
-            (oargs : (Sym.t * BT.t) list)
+            (oarg : BT.t)
             (cls : Definition.Clause.t list)
     : Tm.t m
     =
     match cls with
     | [ cl ] ->
       assert (IT.is_true cl.guard);
-      transform_it_lat filename recursive preds name iargs oargs cl.packing_ft
+      transform_it_lat filename recursive preds name iargs oarg cl.packing_ft
     | cl :: cls' ->
       let it_if = cl.guard in
       let@ gt_then =
-        transform_it_lat filename recursive preds name iargs oargs cl.packing_ft
+        transform_it_lat filename recursive preds name iargs oarg cl.packing_ft
       in
-      let@ gt_else = transform_clauses filename recursive preds name iargs oargs cls' in
+      let@ gt_else = transform_clauses filename recursive preds name iargs oarg cls' in
       return (Tm.ite_ (it_if, gt_then, gt_else) () cl.loc)
     | [] -> failwith ("unreachable @ " ^ __LOC__)
 
@@ -321,7 +246,7 @@ module Make (AD : Domain.T) = struct
   let transform_pred
         (recursive_preds : Sym.Set.t)
         (preds : (Sym.t * Definition.Predicate.t) list)
-        ({ filename; recursive; spec; name; iargs; oargs; body } : OptDef.t)
+        ({ filename; recursive; spec; name; iargs; oarg; body } : OptDef.t)
     : unit m
     =
     assert (Option.is_none body);
@@ -333,11 +258,11 @@ module Make (AD : Domain.T) = struct
         preds
         name
         (Sym.Set.of_list (List.map fst iargs))
-        oargs
+        oarg
         (Option.get pred.clauses)
     in
     let gd : OptDef.t =
-      { filename; recursive; spec; name; iargs; oargs; body = Some gt }
+      { filename; recursive; spec; name; iargs; oarg; body = Some gt }
     in
     modify (OptCtx.add gd)
 
@@ -364,12 +289,39 @@ module Make (AD : Domain.T) = struct
                 x
                 vars')))
     in
-    let iargs, oargs =
+    let iargs, oarg =
       if Config.is_symbolic_enabled () then
         (* Symbolic mode: take arguments as inputs, return unit *)
-        (vars, [])
+        (vars, BT.Unit)
       else (* Concrete mode: no inputs, return arguments as outputs *)
-        ([], vars)
+        (
+        let oarg_bt =
+          match vars with
+          | [] -> BT.Unit
+          | _ ->
+            (* Always wrap arguments in a record, even for single argument *)
+            BT.Record
+              (List.map (fun (x, bt) -> (Id.make here (Sym.pp_string x), bt)) vars)
+        in
+        ([], oarg_bt))
+    in
+    let ret_it =
+      match oarg with
+      | BT.Unit -> IT.unit_ here
+      | BT.Record fields ->
+        (* Construct a record with all the vars *)
+        IT.record_
+          (List.map
+             (fun (id, bt) ->
+                (* Find the var corresponding to this field *)
+                let field_name = Id.get_string id in
+                let x, _ =
+                  List.find (fun (x, _) -> String.equal (Sym.pp_string x) field_name) vars
+                in
+                (id, IT.sym_ (x, bt, here)))
+             fields)
+          here
+      | _ -> failwith "Unexpected oarg type in transform_spec"
     in
     let@ gt =
       transform_it_lat
@@ -378,11 +330,11 @@ module Make (AD : Domain.T) = struct
         preds
         name
         (Sym.Set.of_list (List.map fst iargs))
-        oargs
-        (LAT.map (fun _ -> IT.unit_ here) lat)
+        oarg
+        (LAT.map (fun _ -> ret_it) lat)
     in
     let gd : OptDef.t =
-      { filename; recursive = false; spec = true; name; iargs; oargs; body = Some gt }
+      { filename; recursive = false; spec = true; name; iargs; oarg; body = Some gt }
     in
     modify (OptCtx.add gd)
 

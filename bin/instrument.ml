@@ -92,11 +92,13 @@ let generate_executable_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       with_testing
       run
       no_debug_info
       exec_c_locs_mode
       experimental_ownership_stack_mode
+      experimental_unions
       mktemp
       print_steps
   =
@@ -110,6 +112,7 @@ let generate_executable_specs
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   Sym.executable_spec_enabled := true;
+  Sym.experimental_unions := experimental_unions;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
@@ -158,6 +161,7 @@ let generate_executable_specs
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
+                ~without_lemma_checks
                 ~exec_c_locs_mode
                 ~experimental_ownership_stack_mode
                 ~with_testing
@@ -217,6 +221,11 @@ module Flags = struct
   let with_loop_leak_checks =
     let doc = "Enable leak checking across all runtime loop invariants" in
     Arg.(value & flag & info [ "with-loop-leak-checks" ] ~doc)
+
+
+  let without_lemma_checks =
+    let doc = "Disable runtime checking of lemmas" in
+    Arg.(value & flag & info [ "without-lemma-checks" ] ~doc)
 
 
   let with_test_gen =
@@ -282,6 +291,11 @@ module Flags = struct
        locations where ownership was taken for Fulminate-tracked memory"
     in
     Arg.(value & flag & info [ "ownership-stack-mode" ] ~doc)
+
+
+  let experimental_unions =
+    let doc = "(experimental) Handle unions from source" in
+    Arg.(value & flag & info [ "experimental-unions" ] ~doc)
 end
 
 let cmd =
@@ -313,6 +327,7 @@ let cmd =
     $ Flags.without_ownership_checking
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
+    $ Flags.without_lemma_checks
     $ Term.map
         (fun (x, y) -> x || y)
         (Term.product Flags.with_test_gen Flags.with_testing)
@@ -320,6 +335,7 @@ let cmd =
     $ Flags.no_debug_info
     $ Flags.exec_c_locs_mode
     $ Flags.experimental_ownership_stack_mode
+    $ Flags.experimental_unions
     $ Flags.mktemp
     $ Flags.print_steps
   in

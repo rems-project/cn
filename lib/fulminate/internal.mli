@@ -22,6 +22,7 @@ val generate_c_specs
   :  bool ->
   bool ->
   bool ->
+  bool ->
   string ->
   Extract.instrumentation list ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
@@ -40,13 +41,20 @@ val generate_ghost_enum : _ Mucore.file -> string
 
 val generate_ghost_call_site_glob : unit -> string list
 
-val generate_c_struct_strs
+val order_ail_tag_definitions
+  :  (AilSyntax.ail_identifier
+     * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
+       list ->
+  (AilSyntax.ail_identifier * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
+    list
+
+val generate_c_tag_def_strs
   :  (AilSyntax.ail_identifier
      * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
        list ->
   string
 
-val generate_c_struct_decl_strs
+val generate_c_tag_decl_strs
   :  (AilSyntax.ail_identifier
      * (Cerb_location.t * Cerb_frontend.Annot.attributes * Ctype.tag_definition))
        list ->
@@ -92,4 +100,8 @@ val generate_fn_call_ghost_args_injs
   :  string ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
+  (Cerb_location.t * string list) list
+
+val generate_tag_definition_injs
+  :  AilSyntax.sigma_tag_definition list ->
   (Cerb_location.t * string list) list

@@ -301,6 +301,7 @@ let main
       ~without_ownership_checking
       ~without_loop_invariants
       ~with_loop_leak_checks
+      ~without_lemma_checks
       ~exec_c_locs_mode
       ~experimental_ownership_stack_mode
       ~with_testing
@@ -360,6 +361,7 @@ let main
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       filtered_instrumentation
       sigm
@@ -372,15 +374,21 @@ let main
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
     generate_c_predicates filename prog5 sigm
   in
-  let c_lemma_defs, c_lemma_decls = generate_c_lemmas filename sigm prog5 in
+  let c_lemma_defs, c_lemma_decls =
+    if without_lemma_checks then
+      ("", "")
+    else
+      generate_c_lemmas filename sigm prog5
+  in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
   in
   let ownership_function_defs, ownership_function_decls =
     generate_ownership_functions without_ownership_checking !Cn_to_ail.ownership_ctypes
   in
-  let c_struct_decls = generate_c_struct_strs sigm.tag_definitions in
-  let cn_converted_struct_defs = generate_cn_versions_of_structs sigm.tag_definitions in
+  let ordered_ail_tag_defs = order_ail_tag_definitions sigm.tag_definitions in
+  let c_tag_defs = generate_c_tag_def_strs ordered_ail_tag_defs in
+  let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
   let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
@@ -407,7 +415,7 @@ let main
           "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
           "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n"
         ];
-        [ c_struct_decls ];
+        [ c_tag_defs ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
           record_defs;
           cn_converted_struct_defs
@@ -456,18 +464,14 @@ let main
     else
       memory_accesses_injections filtered_ail_prog
   in
-  let struct_locs = List.map (fun (i, (loc, _, _)) -> (i, loc)) sigm.tag_definitions in
-  let struct_injs =
-    List.map
-      (fun (i, loc) -> (loc, [ "struct " ^ Pp.plain (CF.Pp_ail.pp_id i) ]))
-      struct_locs
-  in
+  (* Use order of tag definitions from source when injecting on them directly - no call to Internal.order_ail_tag_definitions *)
+  let tag_def_injs = generate_tag_definition_injs sigm.tag_definitions in
   let give_precedence_map n = List.map (fun x -> (n, x)) in
   let in_stmt_injs =
     give_precedence_map 0 executable_spec.in_stmt
     @ give_precedence_map 1 accesses_stmt_injs
     @ give_precedence_map 0 toplevel_injections
-    @ give_precedence_map 0 struct_injs
+    @ give_precedence_map 0 tag_def_injs
     @ give_precedence_map 0 fn_call_ghost_args_injs
   in
   let pre_post_pairs =

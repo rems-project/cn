@@ -7,18 +7,27 @@
 
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
+#include <bennet/utils/vector.h>
 #include <cn-executable/utils.h>
+#include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
+#include <cn-smt/functions.h>
 #include <cn-smt/records.h>
 #include <cn-smt/structs.h>
 
-// Generate vector implementation for cn_member_pair
+// Generate vector implementation for cn_member_pair, cn_term_ptr, and cn_match_case
 BENNET_VECTOR_IMPL(cn_member_pair)
+BENNET_VECTOR_IMPL(cn_term_ptr)
+BENNET_VECTOR_IMPL(cn_match_case)
+
+// Generate hash table implementation for cn_sym -> void_ptr
+BENNET_HASH_TABLE_IMPL(cn_sym, void_ptr)
 
 // Forward declarations
 static cn_bits_info get_bits_info(cn_term* term);
 
-void* cn_eval_term(cn_term* term) {
+void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* term) {
+  assert(context);
   assert(term);
 
   switch (term->type) {
@@ -95,8 +104,16 @@ void* cn_eval_term(cn_term* term) {
       }
     }
 
+    case CN_TERM_SYM: {
+      // Symbol evaluation - lookup in context hashtable
+      bennet_optional(void_ptr) opt =
+          bennet_hash_table_get(cn_sym, void_ptr)(context, term->data.sym);
+      assert(bennet_optional_is_some(opt));  // Symbol must be in context
+      return bennet_optional_unwrap(opt);
+    }
+
     case CN_TERM_UNOP: {
-      void* operand_val = cn_eval_term(term->data.unop.operand);
+      void* operand_val = cn_eval_term_aux(context, term->data.unop.operand);
       assert(operand_val);
 
       switch (term->data.unop.op) {
@@ -193,8 +210,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_BINOP: {
-      void* left_val = cn_eval_term(term->data.binop.left);
-      void* right_val = cn_eval_term(term->data.binop.right);
+      void* left_val = cn_eval_term_aux(context, term->data.binop.left);
+      void* right_val = cn_eval_term_aux(context, term->data.binop.right);
       assert(left_val && right_val);
 
       if (cn_base_type_is(term->data.binop.left->base_type, CN_BASE_BITS)) {
@@ -618,18 +635,18 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_ITE: {
-      cn_bool* cond_val = (cn_bool*)cn_eval_term(term->data.ite.cond);
+      cn_bool* cond_val = (cn_bool*)cn_eval_term_aux(context, term->data.ite.cond);
       assert(cond_val);
 
       if (convert_from_cn_bool(cond_val)) {
-        return cn_eval_term(term->data.ite.then_term);
+        return cn_eval_term_aux(context, term->data.ite.then_term);
       } else {
-        return cn_eval_term(term->data.ite.else_term);
+        return cn_eval_term_aux(context, term->data.ite.else_term);
       }
     }
 
     case CN_TERM_CAST: {
-      void* value_val = cn_eval_term(term->data.cast.value);
+      void* value_val = cn_eval_term_aux(context, term->data.cast.value);
       assert(value_val);
 
       cn_base_type source_type = term->data.cast.value->base_type;
@@ -1014,7 +1031,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MEMBER_SHIFT: {
-      void* base_val = cn_eval_term(term->data.member_shift.base);
+      void* base_val = cn_eval_term_aux(context, term->data.member_shift.base);
       assert(base_val);
 
       cn_pointer* base_ptr = (cn_pointer*)base_val;
@@ -1026,8 +1043,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_ARRAY_SHIFT: {
-      void* base_val = cn_eval_term(term->data.array_shift.base);
-      void* index_val = cn_eval_term(term->data.array_shift.index);
+      void* base_val = cn_eval_term_aux(context, term->data.array_shift.base);
+      void* index_val = cn_eval_term_aux(context, term->data.array_shift.index);
       assert(base_val && index_val);
 
       cn_pointer* base_ptr = (cn_pointer*)base_val;
@@ -1095,9 +1112,9 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MAP_SET: {
-      void* map_val = cn_eval_term(term->data.map_set.map);
-      void* key_val = cn_eval_term(term->data.map_set.key);
-      void* value_val = cn_eval_term(term->data.map_set.value);
+      void* map_val = cn_eval_term_aux(context, term->data.map_set.map);
+      void* key_val = cn_eval_term_aux(context, term->data.map_set.key);
+      void* value_val = cn_eval_term_aux(context, term->data.map_set.value);
       assert(map_val && key_val && value_val);
 
       cn_map* map = (cn_map*)map_val;
@@ -1109,8 +1126,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MAP_GET: {
-      void* map_val = cn_eval_term(term->data.map_get.map);
-      void* key_val = cn_eval_term(term->data.map_get.key);
+      void* map_val = cn_eval_term_aux(context, term->data.map_get.map);
+      void* key_val = cn_eval_term_aux(context, term->data.map_get.key);
       assert(map_val && key_val);
 
       // Use appropriate map get function based on result type
@@ -1119,7 +1136,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_WRAPI: {
-      void* value_val = cn_eval_term(term->data.wrapi.value);
+      void* value_val = cn_eval_term_aux(context, term->data.wrapi.value);
       assert(value_val);
 
       // Wrap integer to given integer type
@@ -1127,16 +1144,37 @@ void* cn_eval_term(cn_term* term) {
       return value_val;
     }
 
-    case CN_TERM_SYM: {
-      // Symbol evaluation - would need symbol table
-      // For now, just document that we have name and unique ID available
-      // printf("Evaluating symbol: %s (ID: %" PRIu64 ")\n", term->data.sym.name, term->data.sym.id);
-      assert(false);
-    }
-
     case CN_TERM_LET: {
-      // Let binding - would need variable substitution or environment
-      assert(false);
+      // Let binding - evaluate value and extend context for body
+
+      // Evaluate the right-hand side with current context
+      void* value_result = cn_eval_term_aux(context, term->data.let.value);
+      assert(value_result);
+
+      // Create a copy of the current context
+      bennet_hash_table(cn_sym, void_ptr) extended_context;
+      bennet_hash_table_init(cn_sym, void_ptr)(
+          &extended_context, bennet_hash_cn_sym, bennet_eq_cn_sym);
+
+      // Copy all entries from current context
+      for (size_t i = 0; i < context->capacity; i++) {
+        if (context->entries[i].occupied) {
+          bennet_hash_table_set(cn_sym, void_ptr)(
+              &extended_context, context->entries[i].key, context->entries[i].value);
+        }
+      }
+
+      // Add the new binding
+      bennet_hash_table_set(cn_sym, void_ptr)(
+          &extended_context, term->data.let.var, value_result);
+
+      // Evaluate the body with extended context
+      void* body_result = cn_eval_term_aux(&extended_context, term->data.let.body);
+
+      // Cleanup
+      bennet_hash_table_free(cn_sym, void_ptr)(&extended_context);
+
+      return body_result;
     }
 
     case CN_TERM_STRUCT: {
@@ -1154,7 +1192,7 @@ void* cn_eval_term(cn_term* term) {
         cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
         const char* member_name = pair->name;
         cn_term* member_term = pair->value;
-        void* member_val = cn_eval_term(member_term);
+        void* member_val = cn_eval_term_aux(context, member_term);
         assert(member_val);
         bennet_hash_table_set(const_char_ptr, void_ptr)(
             &member_values, member_name, member_val);
@@ -1170,7 +1208,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_STRUCT_MEMBER: {
-      void* struct_val = cn_eval_term(term->data.struct_member.struct_term);
+      void* struct_val = cn_eval_term_aux(context, term->data.struct_member.struct_term);
       assert(struct_val);
 
       // Extract struct member using registered handler
@@ -1184,8 +1222,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_STRUCT_UPDATE: {
-      void* struct_val = cn_eval_term(term->data.struct_update.struct_term);
-      void* new_val = cn_eval_term(term->data.struct_update.new_value);
+      void* struct_val = cn_eval_term_aux(context, term->data.struct_update.struct_term);
+      void* new_val = cn_eval_term_aux(context, term->data.struct_update.new_value);
       assert(struct_val && new_val);
 
       // Update struct member using registered handler
@@ -1234,7 +1272,7 @@ void* cn_eval_term(cn_term* term) {
         cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
         const char* member_name = pair->name;
         cn_term* member_term = pair->value;
-        void* member_val = cn_eval_term(member_term);
+        void* member_val = cn_eval_term_aux(context, member_term);
         assert(member_val);
         bennet_hash_table_set(const_char_ptr, void_ptr)(
             &member_values, member_name, member_val);
@@ -1252,7 +1290,7 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_RECORD_MEMBER: {
-      void* record_val = cn_eval_term(term->data.record_member.record_term);
+      void* record_val = cn_eval_term_aux(context, term->data.record_member.record_term);
       assert(record_val);
 
       // Extract record member using registered handler
@@ -1274,8 +1312,8 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_RECORD_UPDATE: {
-      void* record_val = cn_eval_term(term->data.record_update.record_term);
-      void* new_val = cn_eval_term(term->data.record_update.new_value);
+      void* record_val = cn_eval_term_aux(context, term->data.record_update.record_term);
+      void* new_val = cn_eval_term_aux(context, term->data.record_update.new_value);
       assert(record_val && new_val);
 
       // Update record member using registered handler
@@ -1298,12 +1336,76 @@ void* cn_eval_term(cn_term* term) {
 
     case CN_TERM_CONSTRUCTOR: {
       // Apply data constructor
-      assert(false);
+      // Extract datatype name from base type
+      assert(term->base_type.tag == CN_BASE_DATATYPE);
+      const char* datatype_name = term->base_type.data.datatype_tag.tag;
+      assert(datatype_name);
+
+      // Extract constructor name
+      const char* constructor_name = term->data.constructor.constructor_name;
+      assert(constructor_name);
+
+      // Create vector for evaluated arguments
+      bennet_vector(void_ptr) args_vec;
+      bennet_vector_init(void_ptr)(&args_vec);
+
+      // Evaluate each argument and add to vector
+      bennet_vector(cn_member_pair)* args = &term->data.constructor.args;
+      for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(args); i++) {
+        cn_member_pair* pair = bennet_vector_get(cn_member_pair)(args, i);
+        void* evaluated_arg = cn_eval_term_aux(context, pair->value);
+        bennet_vector_push(void_ptr)(&args_vec, evaluated_arg);
+      }
+
+      // Call the registered constructor function
+      void* result =
+          cn_smt_datatype_apply_constructor(datatype_name, constructor_name, &args_vec);
+
+      // Clean up vector (but not the contents, as they're owned by the result)
+      bennet_vector_free(void_ptr)(&args_vec);
+
+      return result;
     }
 
     case CN_TERM_APPLY: {
       // Function application - evaluate arguments and apply function
-      assert(false);
+      const char* base_function_name = term->data.apply.function_name;
+      assert(base_function_name);
+
+      // Construct full function name with "_func" suffix (matching fn_def_name)
+      size_t name_len = strlen(base_function_name) + 6;  // +5 for "_func" +1 for null
+      char* function_name = malloc(name_len);
+      assert(function_name);
+      sprintf(function_name, "%s_func", base_function_name);
+
+      // Get argument count from the term
+      bennet_vector(cn_term_ptr)* args_vec = &term->data.apply.args;
+      size_t arg_count = bennet_vector_size(cn_term_ptr)(args_vec);
+
+      // Allocate array for evaluated arguments
+      void** evaluated_args = NULL;
+      if (arg_count > 0) {
+        evaluated_args = malloc(arg_count * sizeof(void*));
+        assert(evaluated_args);
+      }
+
+      // Evaluate arguments left-to-right
+      for (size_t i = 0; i < arg_count; i++) {
+        cn_term** arg_ptr = bennet_vector_get(cn_term_ptr)(args_vec, i);
+        assert(arg_ptr && *arg_ptr);
+        evaluated_args[i] = cn_eval_term_aux(context, *arg_ptr);
+        assert(evaluated_args[i]);
+      }
+
+      // Lookup and call the function handler
+      cn_func_handler handler = cn_get_func_handler(function_name);
+      assert(handler);
+      void* result = handler(evaluated_args);
+
+      // Cleanup and return
+      free(evaluated_args);
+      free(function_name);
+      return result;
     }
 
     case CN_TERM_EACHI: {
@@ -1312,13 +1414,87 @@ void* cn_eval_term(cn_term* term) {
     }
 
     case CN_TERM_MATCH: {
-      // Pattern matching - complex operation
+      // Evaluate the scrutinee (value being matched)
+      void* scrutinee_val = cn_eval_term_aux(context, term->data.match_data.scrutinee);
+      assert(scrutinee_val);
+
+      // Get datatype name from scrutinee base type
+      assert(term->data.match_data.scrutinee->base_type.tag == CN_BASE_DATATYPE);
+      const char* dt_name =
+          term->data.match_data.scrutinee->base_type.data.datatype_tag.tag;
+
+      // Get destructor function for this datatype
+      cn_datatype_destructor_fn destructor = cn_get_datatype_destructor(dt_name);
+      assert(destructor);
+
+      // Try each pattern case
+      bennet_vector(cn_match_case)* cases = &term->data.match_data.cases;
+      for (size_t i = 0; i < bennet_vector_size(cn_match_case)(cases); i++) {
+        cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases, i);
+
+        // Call destructor to check if constructor matches and get members
+        void** members = destructor(match_case->constructor_tag, scrutinee_val);
+
+        if (members == NULL) {
+          // Constructor doesn't match, try next pattern
+          continue;
+        }
+
+        // Constructor matches! Extend context with pattern variables
+        bennet_hash_table(cn_sym, void_ptr) extended_context;
+        bennet_hash_table_init(cn_sym, void_ptr)(
+            &extended_context, bennet_hash_cn_sym, bennet_eq_cn_sym);
+
+        // Copy all entries from current context
+        for (size_t j = 0; j < context->capacity; j++) {
+          if (context->entries[j].occupied) {
+            bennet_hash_table_set(cn_sym, void_ptr)(
+                &extended_context, context->entries[j].key, context->entries[j].value);
+          }
+        }
+
+        // Bind non-wildcard pattern variables to member values
+        for (size_t j = 0; j < match_case->pattern_var_count; j++) {
+          // Check if this is not a wildcard (name is not NULL)
+          if (match_case->pattern_vars[j].name != NULL) {
+            bennet_hash_table_set(cn_sym, void_ptr)(
+                &extended_context, match_case->pattern_vars[j], members[j]);
+          }
+          // Wildcards are skipped - they don't bind
+        }
+
+        // Evaluate the body with extended context
+        void* result = cn_eval_term_aux(&extended_context, match_case->body_term);
+
+        // Cleanup
+        free(members);
+        bennet_hash_table_free(cn_sym, void_ptr)(&extended_context);
+
+        return result;
+      }
+
+      // No pattern matched - this should not happen in well-typed programs
       assert(false);
     }
 
     default:
       assert(false);
   }
+}
+
+void* cn_eval_term(cn_term* term) {
+  // Create an empty context for evaluation
+  bennet_hash_table(cn_sym, void_ptr) context;
+  bennet_hash_table_init(cn_sym, void_ptr)(
+      &context, bennet_hash_cn_sym, bennet_eq_cn_sym);
+
+  // Evaluate the term with the empty context
+  void* result = cn_eval_term_aux(&context, term);
+
+  // Cleanup the context
+  bennet_hash_table_free(cn_sym, void_ptr)(&context);
+
+  return result;
 }
 
 static cn_bits_info get_bits_info(cn_term* term) {

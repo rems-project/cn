@@ -20,6 +20,8 @@ val free_vars_bts : t -> BaseTypes.t Sym.Map.t
 
 val free_vars : t -> Sym.Set.t
 
+val preds_of : t -> Sym.Set.t
+
 val alpha_equivalent : t -> t -> bool
 
 val forall_ : Sym.t * BaseTypes.t -> IndexTerms.t -> t

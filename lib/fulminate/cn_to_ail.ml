@@ -193,6 +193,11 @@ let rec bt_to_cn_base_type = function
   | List bt -> CN_list (bt_to_cn_base_type bt)
   | Tuple bts -> CN_tuple (List.map bt_to_cn_base_type bts)
   | Set bt -> CN_set (bt_to_cn_base_type bt)
+  | Option MemByte ->
+    if !Sym.experimental_unions then
+      bt_to_cn_base_type (Bits (Unsigned, 8))
+    else
+      failwith (__LOC__ ^ ": TODO Option")
   | Option _ -> failwith (__LOC__ ^ ": TODO Option")
 
 
@@ -1893,6 +1898,7 @@ let generate_tag_definition dt_members =
   let ail_dt_members = List.map (fun (id, bt) -> (bt_to_ail_ctype bt, id)) dt_members in
   (* TODO: Check if something called tag already exists *)
   let members = List.map create_member ail_dt_members in
+  let members = List.rev members in
   C.(StructDef (members, None))
 
 
@@ -2529,6 +2535,24 @@ let generate_struct_map_get ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_defini
   | C.UnionDef _ -> []
 
 
+let transform_if_union (bt, sct) ail_expr =
+  let is_union =
+    !Sym.experimental_unions
+    &&
+    match (bt, sct) with
+    | BT.Map (_, Option MemByte), Sctypes.Array (Byte, _) -> true
+    | _, _ -> false
+  in
+  if is_union then (
+    let addr_of_lhs = A.(AilEunary (Address, mk_expr ail_expr)) in
+    let cast_addr_of_lhs =
+      A.(AilEcast (C.no_qualifiers, C.pointer_to_char, mk_expr addr_of_lhs))
+    in
+    cast_addr_of_lhs)
+  else
+    ail_expr
+
+
 let generate_struct_conversion_to_function
       ((sym, (_loc, _attrs, tag_def)) : A.sigma_tag_definition)
   : (A.sigma_declaration * 'a A.sigma_function_definition) list
@@ -2556,6 +2580,7 @@ let generate_struct_conversion_to_function
         match sct_opt with Some t -> t | None -> failwith (__LOC__ ^ "Bad sctype")
       in
       let bt = BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct in
+      let rhs = transform_if_union (bt, sct) rhs in
       let rhs = wrap_with_convert_to ~sct rhs bt in
       let lhs = A.(AilEmemberofptr (mk_expr (AilEident res_sym), id)) in
       A.(AilSexpr (mk_expr (AilEassign (mk_expr lhs, mk_expr rhs))))
@@ -2620,6 +2645,7 @@ let generate_struct_conversion_from_function
       let lhs = A.(AilEmemberof (mk_expr (AilEident res_sym), id)) in
       match (bt, sct) with
       | BT.Map (_k_bt, v_bt), Sctypes.Array (_v_sct, Some sz) ->
+        let lhs = transform_if_union (bt, sct) lhs in
         A.(
           AilSexpr
             (mk_expr
@@ -3653,6 +3679,7 @@ let cn_to_ail_post
 
 let cn_to_ail_cnstatement
   : type a.
+    without_lemma_checks:bool ->
     string ->
     _ CF.Cn.cn_datatype list ->
     (C.union_tag * C.ctype) list ->
@@ -3661,7 +3688,7 @@ let cn_to_ail_cnstatement
     Cnstatement.statement ->
     a * bool
   =
-  fun filename dts globals spec_mode_opt d cnstatement ->
+  fun ~without_lemma_checks filename dts globals spec_mode_opt d cnstatement ->
   let default_res_for_dest = empty_for_dest d in
   match cnstatement with
   | Cnstatement.Pack_unpack (_pack_unpack, _pt) -> (default_res_for_dest, true)
@@ -3672,22 +3699,25 @@ let cn_to_ail_cnstatement
   | Extract (_, _, _it) -> (default_res_for_dest, true)
   | Unfold (_fsym, _args) -> (default_res_for_dest, true) (* fsym is a function symbol *)
   | Apply (fsym, args) ->
-    ( cn_to_ail_expr
-        filename
-        dts
-        globals
-        spec_mode_opt
-        (IT.IT (Apply (fsym, args), BT.Unit, Locations.other __LOC__))
-        d,
-      false )
-    (* fsym is a lemma symbol *)
+    if without_lemma_checks then
+      (default_res_for_dest, true)
+    else
+      ( cn_to_ail_expr
+          filename
+          dts
+          globals
+          spec_mode_opt
+          (IT.IT (Apply (fsym, args), BT.Unit, Locations.other __LOC__))
+          d,
+        false ) (* fsym is a lemma symbol *)
   | Assert lc ->
     (cn_to_ail_logical_constraint_aux filename dts globals spec_mode_opt d lc, false)
   | Inline _ -> failwith "TODO Inline"
   | Print _t -> (default_res_for_dest, true)
 
 
-let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
+let rec cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt
+  = function
   | Cnprog.Let (_loc, (name, { ct; pointer }), prog) ->
     let b1, s, e = cn_to_ail_expr filename dts globals spec_mode_opt pointer PassBack in
     let cn_ptr_deref_sym = Sym.fresh "cn_pointer_deref" in
@@ -3710,7 +3740,9 @@ let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
         AilSdeclaration
           [ (name, Some (mk_expr (wrap_with_convert_to cn_ptr_deref_fcall bt))) ])
     in
-    let (b2, ss), no_op = cn_to_ail_cnprog_aux filename dts globals spec_mode_opt prog in
+    let (b2, ss), no_op =
+      cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt prog
+    in
     if no_op then
       (([], []), true)
     else
@@ -3721,18 +3753,34 @@ let rec cn_to_ail_cnprog_aux filename dts globals spec_mode_opt = function
     (match stmt with
      | Cnstatement.Apply _ ->
        let (bs, ss, e), no_op =
-         cn_to_ail_cnstatement filename dts globals spec_mode_opt PassBack stmt
+         cn_to_ail_cnstatement
+           ~without_lemma_checks
+           filename
+           dts
+           globals
+           spec_mode_opt
+           PassBack
+           stmt
        in
        ((bs, upd_s @ ss @ [ A.AilSexpr e ] @ pop_s), no_op)
      | _ ->
        let (bs, ss), no_op =
-         cn_to_ail_cnstatement filename dts globals spec_mode_opt (Assert loc) stmt
+         cn_to_ail_cnstatement
+           ~without_lemma_checks
+           filename
+           dts
+           globals
+           spec_mode_opt
+           (Assert loc)
+           stmt
        in
        ((bs, upd_s @ ss @ pop_s), no_op))
 
 
-let cn_to_ail_cnprog filename dts globals spec_mode_opt cn_prog =
-  let (bs, ss), _ = cn_to_ail_cnprog_aux filename dts globals spec_mode_opt cn_prog in
+let cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt cn_prog =
+  let (bs, ss), _ =
+    cn_to_ail_cnprog_aux ~without_lemma_checks filename dts globals spec_mode_opt cn_prog
+  in
   (bs, ss)
 
 
@@ -3873,12 +3921,20 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
   ([], [ A.AilSexpr (mk_expr ail_gcc_stmt) ])
 
 
-let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =
+let cn_to_ail_statements
+      ~without_lemma_checks
+      filename
+      dts
+      globals
+      spec_mode_opt
+      (loc, cn_progs)
+  =
   let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
   let pop_s = generate_cn_pop_msg_info in
   let bs_and_ss =
     List.map
-      (fun prog -> cn_to_ail_cnprog filename dts globals spec_mode_opt prog)
+      (fun prog ->
+         cn_to_ail_cnprog ~without_lemma_checks filename dts globals spec_mode_opt prog)
       cn_progs
   in
   let bs, ss = List.split bs_and_ss in
@@ -3886,6 +3942,7 @@ let cn_to_ail_statements filename dts globals spec_mode_opt (loc, cn_progs) =
 
 
 let rec cn_to_ail_lat_internal_loop
+          ~without_lemma_checks
           filename
           dts
           globals
@@ -3900,6 +3957,7 @@ let rec cn_to_ail_lat_internal_loop
     let b1, s1 = cn_to_ail_expr filename dts globals spec_mode_opt it (AssignVar name) in
     let b2, s2 =
       cn_to_ail_lat_internal_loop
+        ~without_lemma_checks
         filename
         dts
         globals
@@ -3926,6 +3984,7 @@ let rec cn_to_ail_lat_internal_loop
     in
     let b2, s2 =
       cn_to_ail_lat_internal_loop
+        ~without_lemma_checks
         filename
         dts
         globals
@@ -3949,6 +4008,7 @@ let rec cn_to_ail_lat_internal_loop
     in
     let b2, s2 =
       cn_to_ail_lat_internal_loop
+        ~without_lemma_checks
         filename
         dts
         globals
@@ -3962,7 +4022,13 @@ let rec cn_to_ail_lat_internal_loop
     let ail_statements =
       List.map
         (fun stat_pair ->
-           cn_to_ail_statements filename dts globals spec_mode_opt stat_pair)
+           cn_to_ail_statements
+             ~without_lemma_checks
+             filename
+             dts
+             globals
+             spec_mode_opt
+             stat_pair)
         ss
     in
     let _, bs_and_ss = List.split ail_statements in
@@ -3971,6 +4037,7 @@ let rec cn_to_ail_lat_internal_loop
 
 
 let rec cn_to_ail_loop_inv_aux
+          ~without_lemma_checks
           filename
           dts
           globals
@@ -3989,6 +4056,7 @@ let rec cn_to_ail_loop_inv_aux
     in
     let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
       cn_to_ail_loop_inv_aux
+        ~without_lemma_checks
         filename
         dts
         globals
@@ -4034,6 +4102,7 @@ let rec cn_to_ail_loop_inv_aux
     in
     let bs, ss =
       cn_to_ail_lat_internal_loop
+        ~without_lemma_checks
         filename
         dts
         globals
@@ -4078,6 +4147,7 @@ let get_loop_ownership_bs_and_ss () =
 
 
 let cn_to_ail_loop_inv
+      ~without_lemma_checks
       filename
       dts
       globals
@@ -4089,6 +4159,7 @@ let cn_to_ail_loop_inv
     let loop_ownership_state = get_loop_ownership_bs_and_ss () in
     let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
       cn_to_ail_loop_inv_aux
+        ~without_lemma_checks
         filename
         dts
         globals
@@ -4147,6 +4218,7 @@ let append_to_postcondition ail_executable_spec (b2, s2) =
 let rec cn_to_ail_lat_2
           without_ownership_checking
           with_loop_leak_checks
+          without_lemma_checks
           filename
           dts
           globals
@@ -4169,6 +4241,7 @@ let rec cn_to_ail_lat_2
       cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
+        without_lemma_checks
         filename
         dts
         globals
@@ -4190,6 +4263,7 @@ let rec cn_to_ail_lat_2
       cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
+        without_lemma_checks
         filename
         dts
         globals
@@ -4215,6 +4289,7 @@ let rec cn_to_ail_lat_2
       cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
+        without_lemma_checks
         filename
         dts
         globals
@@ -4267,11 +4342,25 @@ let rec cn_to_ail_lat_2
     let ail_statements =
       List.map
         (fun stat_pair ->
-           cn_to_ail_statements filename dts globals (Some Statement) stat_pair)
+           cn_to_ail_statements
+             ~without_lemma_checks
+             filename
+             dts
+             globals
+             (Some Statement)
+             stat_pair)
         stats
     in
     let ail_loop_invariants =
-      List.map (cn_to_ail_loop_inv filename dts globals preds with_loop_leak_checks) loop
+      List.map
+        (cn_to_ail_loop_inv
+           ~without_lemma_checks
+           filename
+           dts
+           globals
+           preds
+           with_loop_leak_checks)
+        loop
     in
     let ail_loop_invariants = List.filter_map Fun.id ail_loop_invariants in
     let post_bs, post_ss = cn_to_ail_post filename dts globals preds post in
@@ -4299,6 +4388,7 @@ let rec cn_to_ail_lat_2
 let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
+          without_lemma_checks
           filename
           dts
           preds
@@ -4322,6 +4412,7 @@ let rec cn_to_ail_pre_post_aux
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
+        without_lemma_checks
         filename
         dts
         preds
@@ -4342,6 +4433,7 @@ let rec cn_to_ail_pre_post_aux
        cn_to_ail_pre_post_aux
          without_ownership_checking
          with_loop_leak_checks
+         without_lemma_checks
          filename
          dts
          preds
@@ -4378,6 +4470,7 @@ let rec cn_to_ail_pre_post_aux
          cn_to_ail_pre_post_aux
            without_ownership_checking
            with_loop_leak_checks
+           without_lemma_checks
            filename
            dts
            preds
@@ -4394,6 +4487,7 @@ let rec cn_to_ail_pre_post_aux
       cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
+        without_lemma_checks
         filename
         dts
         globals
@@ -4439,6 +4533,7 @@ let rec cn_to_ail_pre_post_aux
 let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      ~without_lemma_checks
       filename
       dts
       preds
@@ -4451,6 +4546,7 @@ let cn_to_ail_pre_post
       cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
+        without_lemma_checks
         filename
         dts
         preds
@@ -4535,6 +4631,8 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
     cn_to_ail_pre_post
       ~without_ownership_checking:false
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
+      ~without_lemma_checks:false
+        (* If this function is being called, then lemma checks have been enabled *)
       filename
       dts
       preds

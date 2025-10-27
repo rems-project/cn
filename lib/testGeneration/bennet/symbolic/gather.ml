@@ -7,11 +7,11 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage3 = Stage3.Make (AD)
+  module Stage4 = Stage4.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage3.Ctx
-  module Term = Stage3.Term
-  module Def = Stage3.Def
+  module Ctx = Stage4.Ctx
+  module Term = Stage4.Term
+  module Def = Stage4.Def
 
   let bennet = Sym.fresh "bennet"
 
@@ -36,13 +36,16 @@ module Make (AD : Domain.T) = struct
       { statements = [];
         expression = !^"CN_SMT_GATHER_SYMBOLIC" ^^ parens (Smt.convert_basetype bt)
       }
-    | `Call (fsym, args) ->
+    | `Call (fsym, args) | `CallSized (fsym, args, _) ->
       (* Call a defined generator function with arguments *)
       let args_smt = List.map Smt.convert_indexterm args in
       let args_list =
         separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_GATHER_CALL" ^^ parens args_list }
+    | `SplitSize (_, next_term) ->
+      (* Split size - just process the next term *)
+      gather_term next_term
     | `Asgn ((addr, sct), _value, next_term) ->
       (* Assignment: claim ownership of memory location *)
       let addr_smt = Smt.convert_indexterm addr in
@@ -200,22 +203,24 @@ module Make (AD : Domain.T) = struct
       (* Assert domain constraints - skip domain for now and continue *)
       gather_term next_term
     | `ITE (it_if, then_term, else_term) ->
-      (* Convert if-then-else to Pick statement with recursive calls *)
+      (* Convert if-then-else to PickSized statement with recursive calls *)
       let wgts1 =
         match then_term with
-        | Annot (`Pick gts, (), _, _) ->
-          List.map (fun gt' -> Term.assert_ (T it_if, gt') () loc) gts
-        | gt' -> [ Term.assert_ (T it_if, gt') () loc ]
+        | Annot (`PickSized gts, (), _, _) ->
+          List.map (fun (w, gt') -> (w, Term.assert_ (T it_if, gt') () loc)) gts
+        | gt' -> [ (Z.one, Term.assert_ (T it_if, gt') () loc) ]
       in
       let wgts2 =
         match else_term with
-        | Annot (`Pick gts, (), _, _) ->
-          List.map (fun gt' -> Term.assert_ (T (IT.not_ it_if loc), gt') () loc) gts
-        | gt' -> [ Term.assert_ (T (IT.not_ it_if loc), gt') () loc ]
+        | Annot (`PickSized gts, (), _, _) ->
+          List.map
+            (fun (w, gt') -> (w, Term.assert_ (T (IT.not_ it_if loc), gt') () loc))
+            gts
+        | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
       in
-      gather_term (Term.pick_ (wgts1 @ wgts2) () bt loc)
+      gather_term (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map _ -> failwith "TODO"
-    | `Pick choice_terms ->
+    | `PickSized choice_terms ->
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)
       let pick_begin =
@@ -225,7 +230,7 @@ module Make (AD : Domain.T) = struct
       (* Generate case statements for each choice *)
       let cases =
         choice_terms
-        |> List.mapi (fun i term ->
+        |> List.mapi (fun i (_, term) ->
           let case_begin = !^"CN_SMT_GATHER_PICK_CASE_BEGIN" ^^ parens (int i) in
           let term_result = gather_term term in
           let case_stmts =
@@ -245,6 +250,20 @@ module Make (AD : Domain.T) = struct
       (* Combine everything as single statement block *)
       let pick_stmt = pick_begin ^/^ cases ^/^ pick_end in
       { statements = [ pick_stmt ]; expression = Sym.pp result_var }
+
+
+  (** Generate forward declaration for a gather function *)
+  let gather_forward_decl (def : Def.t) : Pp.document =
+    let open Pp in
+    let branch_hist_param = !^"struct branch_history_queue*" ^^^ !^"branch_hist" in
+    let def_params = List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs in
+    let params =
+      branch_hist_param :: def_params |> separate_map (comma ^^^ space) (fun x -> x)
+    in
+    !^"static cn_term*"
+    ^^^ !^("cn_smt_gather_" ^ Pp.plain (Sym.pp def.name))
+    ^^ parens params
+    ^^ semi
 
 
   (** Convert generator definition to complete CN-SMT symbolic execution function *)

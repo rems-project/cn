@@ -9,6 +9,8 @@ module Make (GT : GenTerms.T) = struct
 
   let find_opt (sym : Sym.t) (ctx : t) = List.assoc_opt Sym.equal sym ctx
 
+  let fold f acc ctx = List.fold_left (fun acc (sym, gd) -> f acc sym gd) acc ctx
+
   let pp (ctx : t) : Pp.document =
     Sym.executable_spec_enabled := false;
     Sym.print_nums := true;
@@ -72,6 +74,8 @@ module MakeOptional (GT : GenTerms.T) = struct
 
   let find_opt (sym : Sym.t) (ctx : t) : GD.t option = List.assoc_opt Sym.equal sym ctx
 
+  let fold f acc ctx = List.fold_left (fun acc (sym, gd) -> f acc sym gd) acc ctx
+
   let pp (ctx : t) : Pp.document =
     let open Pp in
     ctx
@@ -94,11 +98,11 @@ module MakeOptional (GT : GenTerms.T) = struct
 
   let drop_nones (ctx : t) : Make(GT).t =
     List.filter_map
-      (fun (_, GD.{ filename; recursive; spec; name; iargs; oargs; body }) ->
+      (fun (_, GD.{ filename; recursive; spec; name; iargs; oarg; body }) ->
          match body with
          | Some body ->
            let module GD' = GenDefinitions.Make (GT) in
-           Some (name, GD'.{ filename; recursive; spec; name; iargs; oargs; body })
+           Some (name, GD'.{ filename; recursive; spec; name; iargs; oarg; body })
          | None -> None)
       ctx
 

@@ -7,11 +7,18 @@
 
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
+#include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
 
 // Generate vector implementation for cn_member_pair
 BENNET_VECTOR_IMPL(cn_member_pair)
+
+// Generate vector implementation for cn_term_ptr
+BENNET_VECTOR_IMPL(cn_term_ptr)
+
+// Generate vector implementation for cn_match_case
+BENNET_VECTOR_IMPL(cn_match_case)
 
 // Functions that pick names for things (converted from OCaml CN_Names module)
 
@@ -46,6 +53,20 @@ char* fn_name(cn_sym x) {
   assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
+  return result;
+}
+
+// Function definition name - just append _func without number
+char* fn_def_name(cn_sym x) {
+  assert(x.name);
+  const char* base_name = sym_pp_string_no_nums(x);
+
+  // Append _func suffix
+  size_t len = strlen(base_name) + 6;  // +5 for "_func" +1 for null
+  char* result = malloc(len);
+  assert(result);
+
+  sprintf(result, "%s_func", base_name);
   return result;
 }
 
@@ -139,7 +160,7 @@ char* fresh_name(const char* x) {
 /* Note: CVC5 would have support for arbitrary tuples without declaring them. */
 
 // CN_Tuple module functionality
-static const int CN_TUPLE_MAX_ARITY =
+const int CN_TUPLE_MAX_ARITY =
     15; /* TODO: compute required arity based on the input program. */
 
 static char* cn_tuple_name(int arity) {
@@ -176,57 +197,6 @@ sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count) {
   return result;
 }
 
-/** Declare a datatype for a tuple */
-void cn_tuple_declare(struct cn_smt_solver* solver) {
-  for (int arity = 1; arity <= CN_TUPLE_MAX_ARITY; arity++) {
-    char* name = cn_tuple_name(arity);
-
-    // Create type parameter names: a0, a1, a2, ...
-    const char** type_params = NULL;
-    type_params = malloc(arity * sizeof(char*));
-    assert(type_params);
-    for (int i = 0; i < arity; i++) {
-      char* param = malloc(10);  // enough for "a" + digit
-      assert(param);
-      sprintf(param, "a%d", i);
-      type_params[i] = param;
-    }
-
-    // Create constructor fields
-    con_field_t* fields = NULL;
-    if (arity > 0) {
-      fields = malloc(arity * sizeof(con_field_t));
-      assert(fields);
-      for (int i = 0; i < arity; i++) {
-        fields[i].name = cn_tuple_selector(arity, i);
-        fields[i].type = sexp_atom(type_params[i]);
-      }
-    }
-
-    // Create constructor
-    constructor_t constructor;
-    constructor.name = name;
-    constructor.fields = fields;
-    constructor.field_count = arity;
-
-    // Declare the datatype
-    sexp_t* datatype_decl = declare_datatype(name, type_params, arity, &constructor, 1);
-    ack_command(solver, datatype_decl);
-
-    // Clean up
-    if (arity > 0) {
-      for (int i = 0; i < arity; i++) {
-        free((char*)type_params[i]);
-        free((char*)fields[i].name);
-        sexp_free(fields[i].type);
-      }
-      free(type_params);
-      free(fields);
-    }
-    free(name);
-  }
-}
-
 /** Make a tuple value */
 char* cn_tuple_constructor_name(int arity) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
@@ -241,54 +211,21 @@ char* cn_tuple_get_selector_name(int arity, int field) {
 // CN_Option module functionality (converted from OCaml)
 
 /** Option type name */
-static const char* cn_option_name = "cn_option";
+const char* cn_option_name = "cn_option";
 
 /** None constructor name */
-static const char* cn_option_none_name = "cn_none";
+const char* cn_option_none_name = "cn_none";
 
 /** Some constructor name */
-static const char* cn_option_some_name = "cn_some";
+const char* cn_option_some_name = "cn_some";
 
 /** Value field name */
-static const char* cn_option_val_name = "cn_val";
+const char* cn_option_val_name = "cn_val";
 
 /** Create an option type with element type a */
 sexp_t* cn_option_type(sexp_t* a) {
   sexp_t* args[] = {a};
   return sexp_app_str(cn_option_name, args, 1);
-}
-
-/** Declare the option datatype */
-void cn_option_declare(struct cn_smt_solver* solver) {
-  // Type parameter
-  const char* type_params[] = {"a"};
-
-  // None constructor (no fields)
-  constructor_t none_constructor;
-  none_constructor.name = cn_option_none_name;
-  none_constructor.fields = NULL;
-  none_constructor.field_count = 0;
-
-  // Some constructor with value field
-  con_field_t some_field;
-  some_field.name = cn_option_val_name;
-  some_field.type = sexp_atom("a");
-
-  constructor_t some_constructor;
-  some_constructor.name = cn_option_some_name;
-  some_constructor.fields = &some_field;
-  some_constructor.field_count = 1;
-
-  // Array of constructors
-  constructor_t constructors[] = {none_constructor, some_constructor};
-
-  // Declare the datatype
-  sexp_t* datatype_decl =
-      declare_datatype(cn_option_name, type_params, 1, constructors, 2);
-  ack_command(solver, datatype_decl);
-
-  // Clean up
-  sexp_free(some_field.type);
 }
 
 /** Create a None value with given element type */
@@ -452,6 +389,22 @@ sexp_t* translate_base_type(cn_base_type bt) {
       return result;
     }
 
+    case CN_BASE_DATATYPE: {
+      // Datatype tag -> SMT.atom (datatype name with _dt suffix)
+      const char* tag_name = bt.data.datatype_tag.tag;
+      assert(tag_name);
+
+      // Create datatype SMT name: tag_name + "_dt"
+      size_t len = strlen(tag_name) + 4;  // "_dt" + null terminator
+      char* datatype_name_str = malloc(len);
+      assert(datatype_name_str);
+      snprintf(datatype_name_str, len, "%s_dt", tag_name);
+
+      sexp_t* result = sexp_atom(datatype_name_str);
+      free(datatype_name_str);
+      return result;
+    }
+
     case CN_BASE_OPTION: {
       // Option bt -> CN_Option.t (translate_base_type bt)
       if (!bt.data.option.element_type) {
@@ -534,9 +487,8 @@ sexp_t* translate_const(void* s, cn_const* co) {
     case CN_CONST_DEFAULT: {
       // Default t -> CN_Option.val_ (CN_Option.none (translate_base_type t))
       sexp_t* base_type_sexp = translate_base_type(co->data.default_type);
-      if (!base_type_sexp) {
-        return NULL;
-      }
+      assert(base_type_sexp);
+
       sexp_t* none_option = cn_option_none(base_type_sexp);
       sexp_t* result = cn_option_val(none_option);
       sexp_free(base_type_sexp);
@@ -1190,6 +1142,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
         case CN_BINOP_LT: {
           switch (e1->base_type.tag) {
+            case CN_BASE_LOC: {
+              return bv_ult(s1, s2);
+            }
+
             case CN_BASE_BITS: {
               if (e1->base_type.data.bits.is_signed) {
                 return bv_slt(s1, s2);
@@ -1200,6 +1156,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
             case CN_BASE_INTEGER:
             case CN_BASE_REAL:
               return num_lt(s1, s2);
+
             default:
               assert(false);  // "LT"
               return NULL;
@@ -1208,6 +1165,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
         case CN_BINOP_LE: {
           switch (e1->base_type.tag) {
+            case CN_BASE_LOC: {
+              return bv_uleq(s1, s2);
+            }
+
             case CN_BASE_BITS: {
               if (e1->base_type.data.bits.is_signed) {
                 return bv_sleq(s1, s2);
@@ -1215,9 +1176,11 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
                 return bv_uleq(s1, s2);
               }
             }
+
             case CN_BASE_INTEGER:
             case CN_BASE_REAL:
               return num_leq(s1, s2);
+
             default:
               // The OCaml code has error handling here with BT.pp
               assert(false);  // "LE"
@@ -1324,6 +1287,21 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       } else if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_BITS) {
         // Bits -> Bits: bv_cast
         return bv_cast(target_bt, source_bt, smt_term);
+      } else if (source_bt.tag == CN_BASE_LOC && target_bt.tag == CN_BASE_INTEGER) {
+        // Loc -> Integer: LOC is represented as a bitvector, convert bitvector to integer
+        // In the C implementation, t_loc() returns t_bits(CHAR_BIT * sizeof(uintptr_t))
+        // So we can directly convert the bitvector to integer using bv2int
+        sexp_t* args[] = {smt_term};
+        return sexp_app_str("bv2int", args, 1);
+      } else if (source_bt.tag == CN_BASE_INTEGER && target_bt.tag == CN_BASE_LOC) {
+        // Integer -> Loc: Convert integer to bitvector
+        // LOC is represented as a bitvector of width CHAR_BIT * sizeof(uintptr_t)
+        // Use (_ int2bv n) to convert integer to n-bit bitvector
+        int ptr_width = CHAR_BIT * sizeof(uintptr_t);
+        char int2bv_op[64];
+        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", ptr_width);
+        sexp_t* args[] = {smt_term};
+        return sexp_app_str(int2bv_op, args, 1);
       } else {
         // Other casts
         assert(false);
@@ -1421,10 +1399,37 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_RECORD: {
-      // Record construction - create uninterpreted function
-      sexp_t* fn_atom = sexp_atom("record");
-      sexp_t* result = sexp_app(fn_atom, NULL, 0);
+      // Record construction - similar to struct
+      // Get member count from vector
+      bennet_vector(cn_member_pair)* members = &iterm->data.record.members;
+      size_t member_count = bennet_vector_size(cn_member_pair)(members);
+
+      // Allocate array for translated member arguments
+      sexp_t** args = NULL;
+      if (member_count > 0) {
+        args = malloc(sizeof(sexp_t*) * member_count);
+        assert(args);
+
+        // Translate each member term
+        for (size_t i = 0; i < member_count; i++) {
+          cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
+          cn_term* member_term = pair->value;
+          args[i] = translate_term(s, member_term);
+        }
+      }
+
+      // Create function application with tuple constructor
+      char* tuple_con_name = cn_tuple_constructor_name(member_count);
+      sexp_t* fn_atom = sexp_atom(tuple_con_name);
+      sexp_t* result = sexp_app(fn_atom, args, member_count);
+
+      // Cleanup
+      free(tuple_con_name);
       sexp_free(fn_atom);
+      if (args) {
+        free(args);
+      }
+
       return result;
     }
 
@@ -1447,11 +1452,73 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_CONSTRUCTOR: {
-      // Constructor call - create uninterpreted function
+      // Constructor call with arguments
       const char* ctor = iterm->data.constructor.constructor_name;
-      sexp_t* fn_atom = sexp_atom(ctor);
-      sexp_t* result = sexp_app(fn_atom, NULL, 0);  // No args for now
+
+      // Add _con suffix to constructor name
+      size_t ctor_len = strlen(ctor);
+      char* ctor_smt = malloc(ctor_len + 5);  // +4 for "_con" +1 for null
+      assert(ctor_smt);
+      sprintf(ctor_smt, "%s_con", ctor);
+
+      // Get the arguments vector
+      bennet_vector(cn_member_pair)* args_vec = &iterm->data.constructor.args;
+      size_t arg_count = bennet_vector_size(cn_member_pair)(args_vec);
+
+      if (arg_count == 0) {
+        // Nullary constructor
+        sexp_t* fn_atom = sexp_atom(ctor_smt);
+        sexp_t* result = sexp_app(fn_atom, NULL, 0);
+        sexp_free(fn_atom);
+        free(ctor_smt);
+        return result;
+      }
+
+      // Sort arguments alphabetically by field name to match datatype declaration
+      size_t* sorted_indices = malloc(sizeof(size_t) * arg_count);
+      assert(sorted_indices);
+      for (size_t i = 0; i < arg_count; i++) {
+        sorted_indices[i] = i;
+      }
+      // Simple insertion sort by name
+      for (size_t s_idx = 1; s_idx < arg_count; s_idx++) {
+        size_t key_idx = sorted_indices[s_idx];
+        const char* key_name = bennet_vector_get(cn_member_pair)(args_vec, key_idx)->name;
+        int j = s_idx - 1;
+        while (j >= 0) {
+          const char* cmp_name =
+              bennet_vector_get(cn_member_pair)(args_vec, sorted_indices[j])->name;
+          if (strcmp(cmp_name, key_name) <= 0)
+            break;
+          sorted_indices[j + 1] = sorted_indices[j];
+          j--;
+        }
+        sorted_indices[j + 1] = key_idx;
+      }
+
+      // Translate arguments in sorted order
+      sexp_t** arg_sexps = malloc(sizeof(sexp_t*) * arg_count);
+      assert(arg_sexps);
+      for (size_t i = 0; i < arg_count; i++) {
+        cn_member_pair* pair =
+            bennet_vector_get(cn_member_pair)(args_vec, sorted_indices[i]);
+        arg_sexps[i] = translate_term(s, pair->value);
+        assert(arg_sexps[i]);
+      }
+
+      // Build constructor application
+      sexp_t* fn_atom = sexp_atom(ctor_smt);
+      sexp_t* result = sexp_app(fn_atom, arg_sexps, arg_count);
+
+      // Cleanup
       sexp_free(fn_atom);
+      for (size_t i = 0; i < arg_count; i++) {
+        sexp_free(arg_sexps[i]);
+      }
+      free(arg_sexps);
+      free(sorted_indices);
+      free(ctor_smt);
+
       return result;
     }
 
@@ -1461,52 +1528,217 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_MAP_SET: {
-      // Map set operation - create uninterpreted function
+      // Map set operation - use arr_store
       sexp_t* map_smt = translate_term(s, iterm->data.map_set.map);
       sexp_t* key_smt = translate_term(s, iterm->data.map_set.key);
       sexp_t* value_smt = translate_term(s, iterm->data.map_set.value);
 
-      sexp_t* fn_atom = sexp_atom("map_set");
-      sexp_t* args[] = {map_smt, key_smt, value_smt};
-      sexp_t* result = sexp_app(fn_atom, args, 3);
-      sexp_free(fn_atom);
-      return result;
+      return arr_store(map_smt, key_smt, value_smt);
     }
 
     case CN_TERM_MAP_GET: {
-      // Map get operation - create uninterpreted function
+      // Map get operation - use arr_select
       sexp_t* map_smt = translate_term(s, iterm->data.map_get.map);
       sexp_t* key_smt = translate_term(s, iterm->data.map_get.key);
 
-      sexp_t* fn_atom = sexp_atom("map_get");
-      sexp_t* args[] = {map_smt, key_smt};
-      sexp_t* result = sexp_app(fn_atom, args, 2);
-      sexp_free(fn_atom);
-      return result;
+      return arr_select(map_smt, key_smt);
     }
 
     case CN_TERM_APPLY: {
-      // Function application - simplified for now
+      // Function application
       const char* fn_name = iterm->data.apply.function_name;
-      sexp_t* fn_atom = sexp_atom(fn_name);
 
-      // For now, create application with no args
-      // TODO: Implement proper argument handling when vector API is available
-      sexp_t* result = sexp_app(fn_atom, NULL, 0);
+      // Append _func suffix to get SMT name
+      size_t len = strlen(fn_name) + 6;  // +5 for "_func" +1 for null
+      char* smt_fn_name = malloc(len);
+      assert(smt_fn_name);
+      sprintf(smt_fn_name, "%s_func", fn_name);
 
+      sexp_t* fn_atom = sexp_atom(smt_fn_name);
+      free(smt_fn_name);
+
+      // Get argument count from vector
+      bennet_vector(cn_term_ptr)* args_vec = &iterm->data.apply.args;
+      size_t arg_count = bennet_vector_size(cn_term_ptr)(args_vec);
+
+      // Allocate array for translated arguments
+      sexp_t** args = NULL;
+      if (arg_count > 0) {
+        args = malloc(sizeof(sexp_t*) * arg_count);
+        assert(args);
+
+        // Translate each argument term
+        for (size_t i = 0; i < arg_count; i++) {
+          cn_term* arg_term = *bennet_vector_get(cn_term_ptr)(args_vec, i);
+          args[i] = translate_term(s, arg_term);
+        }
+      }
+
+      // Create function application
+      sexp_t* result = sexp_app(fn_atom, args, arg_count);
+
+      // Cleanup
       sexp_free(fn_atom);
+      if (args) {
+        free(args);
+      }
+
       return result;
     }
 
     case CN_TERM_LET: {
-      // Let binding - for now just translate the body (ignoring binding)
-      // TODO: Implement proper let binding with substitution
-      return translate_term(s, iterm->data.let.body);
+      // Substitute the variable with its value in the body, then translate
+
+      // Create a substitution table
+      bennet_hash_table(uint64_t, cn_term_ptr)* subst_table = cn_create_subst_table();
+      assert(subst_table);
+
+      // Add the substitution from variable ID to the value term
+      cn_add_substitution(subst_table, iterm->data.let.var.id, iterm->data.let.value);
+
+      // Perform substitution on the body
+      cn_term* substituted_body = cn_subst_term(iterm->data.let.body, subst_table);
+      assert(substituted_body);
+
+      // Translate the substituted body
+      sexp_t* result = translate_term(s, substituted_body);
+
+      // Cleanup
+      cn_free_subst_table(subst_table);
+
+      return result;
     }
 
     case CN_TERM_MATCH: {
-      // Pattern matching - not implemented, return default
-      return bool_k(true);
+      // Pattern matching - translate to SMT-LIB match expression
+
+      // Translate scrutinee
+      sexp_t* scrutinee_smt = translate_term(s, iterm->data.match_data.scrutinee);
+      assert(scrutinee_smt);
+
+      // Get cases vector
+      bennet_vector(cn_match_case)* cases_vec = &iterm->data.match_data.cases;
+      size_t case_count = bennet_vector_size(cn_match_case)(cases_vec);
+
+      // Handle empty match (shouldn't happen, but be safe)
+      if (case_count == 0) {
+        sexp_free(scrutinee_smt);
+        return bool_k(true);
+      }
+
+      // Allocate alternatives array
+      match_alt_t* alternatives = malloc(sizeof(match_alt_t) * case_count);
+      assert(alternatives);
+
+      // Track allocated strings for cleanup
+      char*** var_names_arrays = malloc(sizeof(char**) * case_count);
+      assert(var_names_arrays);
+
+      // Build each alternative
+      for (size_t i = 0; i < case_count; i++) {
+        cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
+
+        // Determine pattern type and build pattern
+        if (match_case->constructor_tag == NULL) {
+          // Variable or wildcard pattern (PAT_VAR)
+          alternatives[i].pattern.type = PAT_VAR;
+
+          if (match_case->pattern_var_count == 1 &&
+              match_case->pattern_vars[0].name != NULL) {
+            // Single variable binding
+            char* var_name = fn_name(match_case->pattern_vars[0]);
+            assert(var_name);
+            alternatives[i].pattern.data.var_name = var_name;
+
+            // Track for cleanup (1 variable)
+            var_names_arrays[i] = malloc(sizeof(char*));
+            var_names_arrays[i][0] = var_name;
+          } else {
+            // Wildcard pattern
+            alternatives[i].pattern.data.var_name = "_";
+            var_names_arrays[i] = NULL;  // No cleanup needed for constant
+          }
+        } else {
+          // Constructor pattern (PAT_CON)
+          alternatives[i].pattern.type = PAT_CON;
+
+          // Add _con suffix to match datatype constructor naming convention
+          size_t tag_len = strlen(match_case->constructor_tag);
+          char* con_name = malloc(tag_len + 5);  // "_con" + null terminator
+          assert(con_name);
+          sprintf(con_name, "%s_con", match_case->constructor_tag);
+          alternatives[i].pattern.data.con.con_name = con_name;
+
+          alternatives[i].pattern.data.con.var_count = match_case->pattern_var_count;
+
+          // Convert pattern variables to name strings
+          if (match_case->pattern_var_count > 0) {
+            const char** var_names =
+                malloc(sizeof(const char*) * match_case->pattern_var_count);
+            assert(var_names);
+
+            for (size_t j = 0; j < match_case->pattern_var_count; j++) {
+              if (match_case->pattern_vars[j].name != NULL) {
+                // Named variable binding
+                var_names[j] = fn_name(match_case->pattern_vars[j]);
+                assert(var_names[j]);
+              } else {
+                // Wildcard in constructor pattern
+                var_names[j] = "_";
+              }
+            }
+
+            alternatives[i].pattern.data.con.var_names = var_names;
+            var_names_arrays[i] = (char**)var_names;
+          } else {
+            // Constructor with no arguments
+            alternatives[i].pattern.data.con.var_names = NULL;
+            var_names_arrays[i] = NULL;
+          }
+        }
+
+        // Translate body term
+        alternatives[i].expr = translate_term(s, match_case->body_term);
+        assert(alternatives[i].expr);
+      }
+
+      // Generate SMT match expression
+      sexp_t* result = match_datatype(scrutinee_smt, alternatives, case_count);
+      assert(result);
+
+      // Clean up allocated memory
+      sexp_free(scrutinee_smt);
+
+      for (size_t i = 0; i < case_count; i++) {
+        sexp_free(alternatives[i].expr);
+
+        if (var_names_arrays[i] != NULL) {
+          cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
+
+          if (alternatives[i].pattern.type == PAT_VAR) {
+            // Free single variable name (not wildcard)
+            free(var_names_arrays[i][0]);
+            free(var_names_arrays[i]);
+          } else {
+            // PAT_CON - free constructor variable names and constructor name
+            for (size_t j = 0; j < match_case->pattern_var_count; j++) {
+              // Only free if it was allocated (not wildcard "_")
+              if (match_case->pattern_vars[j].name != NULL) {
+                free((char*)alternatives[i].pattern.data.con.var_names[j]);
+              }
+            }
+            free((char**)alternatives[i].pattern.data.con.var_names);
+
+            // Free the allocated constructor name (with _con suffix)
+            free((char*)alternatives[i].pattern.data.con.con_name);
+          }
+        }
+      }
+
+      free(var_names_arrays);
+      free(alternatives);
+
+      return result;
     }
 
     default:
@@ -1602,122 +1834,6 @@ void cn_declare_fun(struct cn_smt_solver* s,
   let args = List.map mk_arg arg_binders in
   let ret_t = translate_base_type res_bt in
   ack_command s (SMT.define_fun sname args ret_t (translate_term s body)) */
-
-void cn_define_fun(struct cn_smt_solver* s,
-    cn_sym name,
-    cn_arg_binder* arg_binders,
-    size_t arg_count,
-    cn_base_type res_bt,
-    cn_term* body) {
-  char* sname = fn_name(name);
-  if (!sname)
-    return;
-
-  // Create parameter list for SMT define_fun
-  sexp_t** args = NULL;
-  if (arg_count > 0) {
-    args = malloc(sizeof(sexp_t*) * arg_count);
-    if (!args) {
-      free(sname);
-      return;
-    }
-  }
-
-  for (size_t i = 0; i < arg_count; i++) {
-    // mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt)
-    char* arg_name = fn_name(arg_binders[i].sym);
-    if (!arg_name) {
-      // Cleanup
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-
-    sexp_t* arg_type = translate_cn_base_type(arg_binders[i].bt);
-
-    if (!arg_type) {
-      free(arg_name);
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-
-    // Create parameter as (name type)
-    sexp_t* name_atom = sexp_atom(arg_name);
-    free(arg_name);
-
-    if (!name_atom) {
-      sexp_free(arg_type);
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-
-    sexp_t* param_elements[] = {name_atom, arg_type};
-    args[i] = sexp_list(param_elements, 2);
-    sexp_free(name_atom);
-    sexp_free(arg_type);
-
-    if (!args[i]) {
-      for (size_t j = 0; j < i; j++) {
-        sexp_free(args[j]);
-      }
-      free(args);
-      free(sname);
-      return;
-    }
-  }
-
-  // Translate result type
-  sexp_t* ret_t = translate_cn_base_type(res_bt);
-
-  if (!ret_t) {
-    for (size_t i = 0; i < arg_count; i++) {
-      sexp_free(args[i]);
-    }
-    free(args);
-    free(sname);
-    return;
-  }
-
-  // Translate body
-  sexp_t* body_smt = translate_term(s, body);
-  if (!body_smt) {
-    for (size_t i = 0; i < arg_count; i++) {
-      sexp_free(args[i]);
-    }
-    free(args);
-    sexp_free(ret_t);
-    free(sname);
-    return;
-  }
-
-  // Create SMT define_fun command
-  sexp_t* def_cmd = define_fun(sname, args, arg_count, ret_t, body_smt);
-  if (def_cmd) {
-    // Send command
-    ack_command(s, def_cmd);
-    sexp_free(def_cmd);
-  }
-
-  // Cleanup
-  for (size_t i = 0; i < arg_count; i++) {
-    sexp_free(args[i]);
-  }
-  free(args);
-  sexp_free(ret_t);
-  sexp_free(body_smt);
-  free(sname);
-}
 
 /* let declare_variable solver (sym, bt) = declare_fun solver sym [] bt */
 

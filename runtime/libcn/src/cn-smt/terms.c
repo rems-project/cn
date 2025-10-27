@@ -11,6 +11,7 @@
 BENNET_VECTOR_IMPL(const_char_ptr)
 BENNET_VECTOR_IMPL(cn_term_ptr)
 BENNET_VECTOR_IMPL(cn_member_pair)
+BENNET_VECTOR_IMPL(cn_match_case)
 
 // Generate hash table implementation
 BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
@@ -304,8 +305,10 @@ cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value) {
 // Function application
 cn_term* cn_smt_apply(const char* function_name,
     cn_base_type result_type,
-    bennet_vector(cn_term_ptr) * args) {
-  assert(function_name && args);
+    cn_term** args,
+    size_t arg_count) {
+  assert(function_name);
+  assert(args || arg_count == 0);
 
   cn_term* term = cn_term_alloc(CN_TERM_APPLY, result_type);
   assert(term);
@@ -313,30 +316,26 @@ cn_term* cn_smt_apply(const char* function_name,
   term->data.apply.function_name = strdup(function_name);
   assert(term->data.apply.function_name);
 
-  // Initialize the vector and copy from input vector
+  // Initialize the vector and copy from input array
   bennet_vector_init(cn_term_ptr)(&term->data.apply.args);
-  size_t arg_count = bennet_vector_size(cn_term_ptr)(args);
 
   for (size_t i = 0; i < arg_count; i++) {
-    cn_term* arg = *bennet_vector_get(cn_term_ptr)(args, i);
-    bennet_vector_push(cn_term_ptr)(&term->data.apply.args, arg);
+    bennet_vector_push(cn_term_ptr)(&term->data.apply.args, args[i]);
   }
 
   return term;
 }
 
 // Let binding
-cn_term* cn_smt_let(const char* var_name, cn_term* value, cn_term* body) {
-  assert(var_name && value && body);
+cn_term* cn_smt_let(cn_sym var, cn_term* value, cn_term* body) {
+  assert(value && body);
 
   cn_term* term = cn_term_alloc(CN_TERM_LET, body->base_type);
   assert(term);
 
-  term->data.let.var_name = strdup(var_name);
+  term->data.let.var = var;
   term->data.let.value = value;
   term->data.let.body = body;
-
-  assert(term->data.let.var_name);
 
   return term;
 }
@@ -483,16 +482,15 @@ cn_term* cn_smt_record_update(
   return term;
 }
 
-cn_term* cn_smt_constructor(const char* constructor_name,
+cn_term* cn_smt_constructor(cn_base_type base_type,
+    const char* constructor_name,
     size_t arg_count,
     const char** arg_names,
     cn_term** arg_values) {
   assert(constructor_name);
 
-  // Create the constructor term with a default datatype base type
-  cn_base_type constructor_type =
-      cn_base_type_simple(CN_BASE_INTEGER);  // Default - should be improved
-  cn_term* term = cn_term_alloc(CN_TERM_CONSTRUCTOR, constructor_type);
+  // Create the constructor term with the provided base type
+  cn_term* term = cn_term_alloc(CN_TERM_CONSTRUCTOR, base_type);
   assert(term);
 
   term->data.constructor.constructor_name = strdup(constructor_name);
@@ -512,6 +510,77 @@ cn_term* cn_smt_constructor(const char* constructor_name,
       cn_member_pair pair = {.name = name_copy, .value = arg_values[i]};
       bennet_vector_push(cn_member_pair)(&term->data.constructor.args, pair);
     }
+  }
+
+  return term;
+}
+
+// Pattern matching
+cn_term* cn_smt_match(cn_term* scrutinee,
+    size_t case_count,
+    const char** constructor_tags,
+    cn_sym** pattern_vars_arrays,
+    size_t* pattern_var_counts,
+    cn_term** body_terms) {
+  assert(scrutinee);
+  assert(case_count > 0);
+  assert(constructor_tags && pattern_vars_arrays && pattern_var_counts && body_terms);
+
+  // Determine result type from first body term
+  cn_base_type result_type = body_terms[0]->base_type;
+
+  // Assert all body terms have the same type
+  for (size_t i = 1; i < case_count; i++) {
+    assert(body_terms[i]->base_type.tag == result_type.tag);
+  }
+
+  cn_term* term = cn_term_alloc(CN_TERM_MATCH, result_type);
+  assert(term);
+
+  term->data.match_data.scrutinee = scrutinee;
+
+  // Initialize the cases vector
+  bennet_vector_init(cn_match_case)(&term->data.match_data.cases);
+
+  // Build each case
+  for (size_t i = 0; i < case_count; i++) {
+    assert(constructor_tags[i] && body_terms[i]);
+
+    cn_match_case match_case;
+
+    // Duplicate constructor tag
+    match_case.constructor_tag = strdup(constructor_tags[i]);
+    assert(match_case.constructor_tag);
+
+    // Copy pattern variables
+    match_case.pattern_var_count = pattern_var_counts[i];
+
+    if (match_case.pattern_var_count > 0) {
+      assert(pattern_vars_arrays[i]);
+
+      // Allocate array for pattern variables
+      match_case.pattern_vars = malloc(match_case.pattern_var_count * sizeof(cn_sym));
+      assert(match_case.pattern_vars);
+
+      // Copy each pattern variable
+      for (size_t j = 0; j < match_case.pattern_var_count; j++) {
+        // Handle NULL names for wildcard patterns
+        if (pattern_vars_arrays[i][j].name != NULL) {
+          match_case.pattern_vars[j].name = strdup(pattern_vars_arrays[i][j].name);
+          assert(match_case.pattern_vars[j].name);
+        } else {
+          match_case.pattern_vars[j].name = NULL;
+        }
+        match_case.pattern_vars[j].id = pattern_vars_arrays[i][j].id;
+      }
+    } else {
+      match_case.pattern_vars = NULL;
+    }
+
+    // Set body term
+    match_case.body_term = body_terms[i];
+
+    bennet_vector_push(cn_match_case)(&term->data.match_data.cases, match_case);
   }
 
   return term;

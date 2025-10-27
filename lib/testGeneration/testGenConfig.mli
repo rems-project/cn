@@ -46,6 +46,7 @@ type t =
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
+    use_solver_eval : bool; (* Use solver-based evaluation *)
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -182,3 +183,5 @@ val has_symbolic_timeout : unit -> int option
 val get_max_unfolds : unit -> int option
 
 val get_max_array_length : unit -> int
+
+val is_use_solver_eval : unit -> bool

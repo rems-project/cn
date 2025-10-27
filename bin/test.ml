@@ -67,6 +67,7 @@ let run_tests
       smt_pruning_at_runtime
       symbolic
       symbolic_timeout
+      use_solver_eval
       print_size_info
       print_backtrack_info
       print_satisfaction_info
@@ -124,6 +125,7 @@ let run_tests
           smt_pruning_at_runtime;
           symbolic;
           symbolic_timeout;
+          use_solver_eval;
           max_unfolds;
           max_array_length;
           print_seed;
@@ -171,6 +173,7 @@ let run_tests
            ~without_ownership_checking
            ~without_loop_invariants:true
            ~with_loop_leak_checks:false
+           ~without_lemma_checks:false
            ~exec_c_locs_mode
            ~experimental_ownership_stack_mode
            ~with_testing:true
@@ -226,12 +229,14 @@ module Flags = struct
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+    Term.(
+      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "only" ] ~doc))
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+    Term.(
+      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "skip" ] ~doc))
 
 
   let only_fulminate =
@@ -239,7 +244,9 @@ module Flags = struct
       "Only check the pre- and post-conditions of this function (or comma-separated \
        names)"
     in
-    Arg.(value & opt (list string) [] & info [ "only-fulminate" ] ~doc)
+    Term.(
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info [ "only-fulminate" ] ~doc))
 
 
   let skip_fulminate =
@@ -247,7 +254,9 @@ module Flags = struct
       "Skip checking the pre- and post-conditions of this function (or comma-separated \
        names)"
     in
-    Arg.(value & opt (list string) [] & info [ "skip-fulminate" ] ~doc)
+    Term.(
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info [ "skip-fulminate" ] ~doc))
 
 
   let dont_run =
@@ -575,6 +584,11 @@ module Flags = struct
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
 
 
+  let use_solver_eval =
+    let doc = "(Experimental) Use solver-based evaluation" in
+    Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
+
+
   let max_path_length =
     let doc = "Set maximum symbolic path length for exploration" in
     Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
@@ -644,6 +658,7 @@ let cmd =
     $ Flags.smt_pruning_at_runtime
     $ Flags.symbolic
     $ Flags.symbolic_timeout
+    $ Flags.use_solver_eval
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info

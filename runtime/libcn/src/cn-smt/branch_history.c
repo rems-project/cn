@@ -1,10 +1,34 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include <cn-smt/branch_history.h>
 #include <cn-smt/trie.h>
+
+// Debug flag - set to 1 to enable debug prints (optimized out at compile time if 0)
+#define DEBUG_BRANCH_HISTORY 0
+
+#if DEBUG_BRANCH_HISTORY
+// Helper function to print the entire branch history
+static void print_branch_history(
+    const char* prefix, const struct branch_history_queue* queue) {
+  fprintf(stderr, "[BH_DEBUG] %s history (len=%zu): [", prefix, queue->length);
+  struct branch_history_node* curr = queue->head;
+  bool first = true;
+  while (curr != NULL) {
+    if (!first)
+      fprintf(stderr, ", ");
+    fprintf(stderr, "%" PRIu64, curr->data);
+    first = false;
+    curr = curr->next;
+  }
+  fprintf(stderr, "]\n");
+  fflush(stderr);
+}
+#endif
 
 /**
  * Global variable to control SMT pruning at runtime.
@@ -37,6 +61,11 @@ struct branch_history_node* branch_history_record(
     struct branch_history_queue* queue, uint64_t data) {
   assert(queue != NULL);
 
+#if DEBUG_BRANCH_HISTORY
+  fprintf(stderr, "[BH_DEBUG] RECORD choice %" PRIu64 "\n", data);
+  fflush(stderr);
+#endif
+
   // Allocate the node
   struct branch_history_node* new_node = malloc(sizeof(struct branch_history_node));
   if (new_node == NULL) {
@@ -58,6 +87,10 @@ struct branch_history_node* branch_history_record(
 
   queue->tail = new_node;
   queue->length++;
+
+#if DEBUG_BRANCH_HISTORY
+  print_branch_history("  After RECORD", queue);
+#endif
 
   return new_node;
 }
@@ -122,9 +155,19 @@ void branch_history_restore(
     struct branch_history_queue* queue, branch_history_checkpoint checkpoint) {
   assert(queue != NULL);
 
+#if DEBUG_BRANCH_HISTORY
+  fprintf(stderr,
+      "[BH_DEBUG] RESTORE to checkpoint (data=%" PRIu64 ")\n",
+      checkpoint ? checkpoint->data : 0);
+  print_branch_history("  Before RESTORE", queue);
+#endif
+
   if (checkpoint == NULL) {
     // Restore to empty queue
     branch_history_clear(queue);
+#if DEBUG_BRANCH_HISTORY
+    print_branch_history("  After RESTORE (cleared)", queue);
+#endif
     return;
   }
 
@@ -144,6 +187,10 @@ void branch_history_restore(
     }
     curr = curr->next;
   }
+
+#if DEBUG_BRANCH_HISTORY
+  print_branch_history("  After RESTORE", queue);
+#endif
 }
 
 /**
@@ -206,10 +253,19 @@ uint64_t branch_history_next(struct branch_history_queue* queue) {
   struct branch_history_node* old_head = queue->head;
 
   if (old_head == NULL) {
+#if DEBUG_BRANCH_HISTORY
+    fprintf(stderr, "[BH_DEBUG] NEXT (GATHER) - RAN OUT! Returning UINT64_MAX\n");
+    fflush(stderr);
+#endif
     return UINT64_MAX;
   }
 
   uint64_t data = old_head->data;
+
+#if DEBUG_BRANCH_HISTORY
+  fprintf(stderr, "[BH_DEBUG] NEXT (GATHER) consuming %" PRIu64 "\n", data);
+  print_branch_history("  Before NEXT", queue);
+#endif
 
   queue->head = old_head->next;
 
@@ -217,6 +273,10 @@ uint64_t branch_history_next(struct branch_history_queue* queue) {
   // because rewind() needs tail to find the last node and traverse backwards
 
   queue->length--;
+
+#if DEBUG_BRANCH_HISTORY
+  print_branch_history("  After NEXT", queue);
+#endif
 
   return data;
 }
@@ -246,8 +306,17 @@ uint64_t branch_history_node_data(const struct branch_history_node* node) {
 void branch_history_rewind(struct branch_history_queue* queue) {
   assert(queue != NULL);
 
+#if DEBUG_BRANCH_HISTORY
+  fprintf(
+      stderr, "\n[BH_DEBUG] ========== REWIND (PATH SELECTION -> GATHER) ==========\n");
+  print_branch_history("  Before REWIND", queue);
+#endif
+
   // If both head and tail are NULL, queue is empty
   if (queue->head == NULL && queue->tail == NULL) {
+#if DEBUG_BRANCH_HISTORY
+    fprintf(stderr, "[BH_DEBUG] REWIND: Queue is empty\n");
+#endif
     return;
   }
 
@@ -275,6 +344,13 @@ void branch_history_rewind(struct branch_history_queue* queue) {
     }
     curr = curr->next;
   }
+
+#if DEBUG_BRANCH_HISTORY
+  print_branch_history("  After REWIND (FINAL history for gather)", queue);
+  fprintf(
+      stderr, "[BH_DEBUG] ======================================================\n\n");
+  fflush(stderr);
+#endif
 }
 
 /**

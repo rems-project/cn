@@ -1770,14 +1770,31 @@ module BaseTyping = struct
           let@ pe1 = check_pexpr CType pe1 in
           let@ pe2 = check_pexpr CType pe2 in
           return (BT.Bool, PEare_compatible (pe1, pe2))
-        | PEconstrained _
-        | PEunion (_, _, _)
+        | PEconstrained _ -> todo ()
+        | PEunion (tag, member, pe) ->
+          if !Sym.experimental_unions then (
+            (* todo: make this proper when CN actually supports unions *)
+            let ct = Option.get (Sctypes.of_ctype (CF.Ctype.Ctype ([], Union tag))) in
+            let@ () = WCT.is_ct loc ct in
+            let@ pe = infer_pexpr pe in
+            return (Memory.bt_of_sct ct, PEunion (tag, member, pe)))
+          else
+            fail
+              { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
         | PEmemberof (_, _, _)
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
-        | PEerror (_, _)
-        | PEundef (_, _) ->
+        | PEerror (_, _) ->
           todo ()
+        | PEundef (loc, ub) ->
+          if !Sym.experimental_unions then
+            (* in the case of a well-formedness check when labels are not inlined
+             *      run ret_label ( undef(<<UB088_reached_end_of_function>>)))
+             * we may need to infer an type for PEundef, which in the absence of
+             * polymorphism is arbitrarily to Unit below *)
+            return (Unit, PEundef (loc, ub))
+          else
+            todo ()
       in
       return (Pexpr (loc, annots, bty, pe_))
 
@@ -2355,44 +2372,47 @@ module BaseTyping = struct
           let bts = List.map bt_of_expr es in
           return (Tuple bts, Eunseq es)
         | Erun (l, pes) ->
-          (* copying from check.ml *)
-          let@ lt, _lkind =
-            match Sym.Map.find_opt l label_context with
-            | None ->
-              fail
-                { loc;
-                  msg =
-                    Generic (!^"undefined code label" ^/^ Sym.pp l) [@alert "-deprecated"]
-                }
-            | Some (lt, lkind, _) -> return (lt, lkind)
-          in
-          let@ pes =
-            let wrong_number_computational_args () =
-              let has = List.length pes in
-              let expect = AT.count_computational lt in
-              fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
-            in
-            let wrong_number_ghost_args () =
-              let has = 0 in
-              let expect = AT.count_ghost lt in
-              fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
-            in
-            let rec check_args acc_pes lt pes =
-              Pp.debug 1 (lazy (Pp.item __FUNCTION__ (AT.pp (fun _ -> Pp.empty) lt)));
-              match (lt, pes) with
-              | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
-                let@ pe = check_pexpr bt pe in
-                check_args (acc_pes @ [ pe ]) lt' pes'
-              | AT.L _lat, [] -> return acc_pes
-              | AT.Computational _, [] | AT.L _, _ :: _ ->
-                wrong_number_computational_args ()
-              | AT.Ghost _, _ -> wrong_number_ghost_args ()
-            in
-            (* TODO: fix duplication wrt Check.check_expr, cf.
+          (match Sym.Map.find_opt l label_context with
+           | None ->
+             if !Sym.experimental_unions then
+               let@ pes = ListM.mapM infer_pexpr pes in
+               return (Unit, Erun (l, pes))
+             else (* copying from check.ml *)
+               fail
+                 { loc;
+                   msg =
+                     Generic (!^"undefined code label" ^/^ Sym.pp l)
+                     [@alert "-deprecated"]
+                 }
+           | Some (lt, _lkind, _) ->
+             let@ pes =
+               let wrong_number_computational_args () =
+                 let has = List.length pes in
+                 let expect = AT.count_computational lt in
+                 fail
+                   { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
+               in
+               let wrong_number_ghost_args () =
+                 let has = 0 in
+                 let expect = AT.count_ghost lt in
+                 fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
+               in
+               let rec check_args acc_pes lt pes =
+                 Pp.debug 1 (lazy (Pp.item __FUNCTION__ (AT.pp (fun _ -> Pp.empty) lt)));
+                 match (lt, pes) with
+                 | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
+                   let@ pe = check_pexpr bt pe in
+                   check_args (acc_pes @ [ pe ]) lt' pes'
+                 | AT.L _lat, [] -> return acc_pes
+                 | AT.Computational _, [] | AT.L _, _ :: _ ->
+                   wrong_number_computational_args ()
+                 | AT.Ghost _, _ -> wrong_number_ghost_args ()
+               in
+               (* TODO: fix duplication wrt Check.check_expr, cf.
                      https://github.com/rems-project/cn/issues/210 *)
-            check_args [] lt pes
-          in
-          return (Unit, Erun (l, pes))
+               check_args [] lt pes
+             in
+             return (Unit, Erun (l, pes)))
         | CN_progs (surfaceprog, cnprogs) ->
           let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))

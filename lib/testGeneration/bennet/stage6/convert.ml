@@ -17,16 +17,28 @@ module Make (AD : Domain.T) = struct
 
   let bt_to_ctype (bt : BT.t) : C.ctype = CtA.bt_to_ail_ctype bt
 
+  (* Convert BT to ctype for variable binding - Unit becomes void* instead of void *)
+  let bt_to_ctype_for_binding (bt : BT.t) : C.ctype =
+    match bt with
+    | BT.Unit -> C.(mk_ctype_pointer no_qualifiers (Ctype ([], Void)))
+    | _ -> bt_to_ctype bt
+
+
   let name_of_bt (bt : BT.t) : string =
-    let ct = bt_to_ctype bt in
-    let ct' =
-      match bt_to_ctype bt with Ctype (_, Pointer (_, ct')) -> ct' | _ -> failwith ""
-    in
-    let default =
-      CF.Pp_utils.to_plain_string
-        CF.Pp_ail.(with_executable_spec (pp_ctype C.no_qualifiers) ct')
-    in
-    Utils.get_typedef_string ct |> Option.value ~default
+    match bt with
+    | BT.Unit -> "void"
+    | _ ->
+      let ct = bt_to_ctype bt in
+      let ct' =
+        match bt_to_ctype bt with
+        | Ctype (_, Pointer (_, ct')) -> ct'
+        | _ -> failwith ("name_of_bt: expected pointer type, got " ^ Pp.plain (BT.pp bt))
+      in
+      let default =
+        CF.Pp_utils.to_plain_string
+          CF.Pp_ail.(with_executable_spec (pp_ctype C.no_qualifiers) ct')
+      in
+      Utils.get_typedef_string ct |> Option.value ~default
 
 
   let _str_name_of_bt (bt : BT.t) : string =
@@ -40,10 +52,16 @@ module Make (AD : Domain.T) = struct
         (it : IT.t)
     =
     let var = Sym.fresh_anon () in
+    let it_bt = IT.get_bt it in
     let bs, ss, e =
-      CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] (Some name) None it
+      match it_bt with
+      | BT.Unit ->
+        (* For unit types, return NULL directly *)
+        ([], [], mk_expr (AilEconst ConstantNull))
+      | _ ->
+        CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] (Some name) None it
     in
-    ( [ Utils.create_binding var (bt_to_ctype (IT.get_bt it)) ],
+    ( [ Utils.create_binding var (bt_to_ctype_for_binding it_bt) ],
       A.
         [ AilSdeclaration
             [ ( var,
@@ -61,7 +79,7 @@ module Make (AD : Domain.T) = struct
     let bs, ss, e =
       CtA.cn_to_ail_logical_constraint filename sigma.cn_datatypes [] None lc
     in
-    ( [ Utils.create_binding var (bt_to_ctype BT.Bool) ],
+    ( [ Utils.create_binding var (bt_to_ctype_for_binding BT.Bool) ],
       A.
         [ AilSdeclaration
             [ ( var,
@@ -382,7 +400,7 @@ module Make (AD : Domain.T) = struct
         | Unsigned -> "BENNET_LET_ARBITRARY_UNSIGNED"
         | Signed -> "BENNET_LET_ARBITRARY_SIGNED"
       in
-      let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
+      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
         [ A.AilSexpr
             (mk_expr
@@ -415,7 +433,7 @@ module Make (AD : Domain.T) = struct
         | Unsigned -> "BENNET_LET_ARBITRARY_DOMAIN_UNSIGNED"
         | Signed -> "BENNET_LET_ARBITRARY_DOMAIN_SIGNED"
       in
-      let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
+      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
         [ A.AilSexpr
             (mk_expr
@@ -456,7 +474,7 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Loc (), _)), _) ->
       failwith "TODO: LetStar Symbolic Loc"
     | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Loc () as x_bt), _)), gt_rest) ->
-      let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
+      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
         [ A.AilSexpr
             (mk_expr
@@ -479,7 +497,7 @@ module Make (AD : Domain.T) = struct
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((x, GenTerms.Annot (`ArbitraryDomain d, _, (Loc () as x_bt), _)), gt_rest)
       ->
-      let b_let = [ Utils.create_binding x (bt_to_ctype x_bt) ] in
+      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
         [ A.AilSexpr
             (mk_expr
@@ -601,7 +619,7 @@ module Make (AD : Domain.T) = struct
       let b_else, s_else, e_else = transform_term filename sigma ctx name gt_else in
       let res_sym = Sym.fresh_anon () in
       let res_expr = mk_expr (AilEident res_sym) in
-      let res_binding = Utils.create_binding res_sym (bt_to_ctype bt) in
+      let res_binding = Utils.create_binding res_sym (bt_to_ctype_for_binding bt) in
       let res_stmt_ e = A.(AilSexpr (mk_expr (AilEassign (res_expr, e)))) in
       ( b_if @ [ res_binding ],
         (s_if
@@ -618,8 +636,8 @@ module Make (AD : Domain.T) = struct
         res_expr )
     | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner) ->
       let sym_map = Sym.fresh_anon () in
-      let b_map = Utils.create_binding sym_map (bt_to_ctype bt) in
-      let b_i = Utils.create_binding i (bt_to_ctype i_bt) in
+      let b_map = Utils.create_binding sym_map (bt_to_ctype_for_binding bt) in
+      let b_i = Utils.create_binding i (bt_to_ctype_for_binding i_bt) in
       let b_min, s_min, e_min = transform_it filename sigma name it_min in
       let b_max, s_max, e_max = transform_it filename sigma name it_max in
       let e_args =
@@ -705,11 +723,15 @@ module Make (AD : Domain.T) = struct
     : A.sigma_declaration * 'a A.sigma_function_definition
     =
     let loc = Locations.other __LOC__ in
-    let bt_ret =
-      BT.Record (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) gr.oargs)
+    let bt_ret = gr.oarg in
+    let ct_ret =
+      match bt_ret with
+      | BT.Record _ ->
+        let struct_tag = CtA.lookup_records_map_with_default bt_ret in
+        C.(mk_ctype_pointer no_qualifiers (Ctype ([], Struct struct_tag)))
+      | BT.Unit -> C.(mk_ctype_pointer no_qualifiers (Ctype ([], Void)))
+      | _ -> bt_to_ctype bt_ret
     in
-    let struct_tag = CtA.lookup_records_map_with_default bt_ret in
-    let ct_ret = C.(mk_ctype_pointer no_qualifiers (Ctype ([], Struct struct_tag))) in
     let decl : A.declaration =
       A.Decl_function
         ( false,
@@ -761,17 +783,8 @@ module Make (AD : Domain.T) = struct
                                (AilEcall
                                   (mk_expr (string_ident "bennet_decrement_depth"), [])))
                         ]
-                    @ A.
-                        [ AilSreturn
-                            (mk_expr
-                               (AilEcast
-                                  ( C.no_qualifiers,
-                                    C.(
-                                      mk_ctype_pointer
-                                        no_qualifiers
-                                        (Ctype ([], Struct struct_tag))),
-                                    e2 )))
-                        ]) )) ) )
+                    @ A.[ AilSreturn (mk_expr (AilEcast (C.no_qualifiers, ct_ret, e2))) ]
+                   ) )) ) )
     in
     (sigma_decl, sigma_def)
 
@@ -781,19 +794,18 @@ module Make (AD : Domain.T) = struct
     =
     let typedef_docs =
       ctx
-      |> List.map (fun ((name, def) : Sym.t * Stage5.Def.t) ->
-        let loc = Locations.other __LOC__ in
-        let bt =
-          BT.Record
-            (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) def.oargs)
-        in
-        let struct_name = Sym.fresh ("cn_test_generator_" ^ Sym.pp_string name) in
-        let new_tag = Option.get (CtA.generate_record_tag struct_name bt) in
-        let typedef_doc tag =
-          let open Pp in
-          !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
-        in
-        typedef_doc (CtA.lookup_records_map_with_default bt))
+      |> List.filter_map (fun ((name, def) : Sym.t * Stage5.Def.t) ->
+        let bt = def.oarg in
+        match bt with
+        | BT.Record _ ->
+          let struct_name = Sym.fresh ("cn_test_generator_" ^ Sym.pp_string name) in
+          let new_tag = Option.get (CtA.generate_record_tag struct_name bt) in
+          let typedef_doc tag =
+            let open Pp in
+            !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
+          in
+          Some (typedef_doc (CtA.lookup_records_map_with_default bt))
+        | _ -> None)
     in
     let defs =
       List.map

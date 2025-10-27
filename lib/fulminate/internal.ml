@@ -159,6 +159,7 @@ let generate_c_specs_from_cn_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
@@ -178,6 +179,7 @@ let generate_c_specs_from_cn_internal
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
+      ~without_lemma_checks
       filename
       dts
       preds
@@ -213,6 +215,7 @@ let generate_c_specs_internal
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       (instrumentation : Extract.instrumentation)
       (sigm : _ CF.AilSyntax.sigma)
@@ -229,6 +232,7 @@ let generate_c_specs_internal
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
+        without_lemma_checks
         filename
         instrumentation
         sigm
@@ -302,6 +306,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       instrumentation_list
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -313,6 +318,7 @@ let generate_c_specs
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       filename
       instrumentation
       sigm
@@ -344,6 +350,54 @@ let generate_c_records ail_structs =
 let[@warning "-32" (* unused-value-declaration *)] generate_str_from_ail_struct ail_struct
   =
   doc_to_pretty_string (generate_doc_from_ail_struct ail_struct)
+
+
+module TagDefs = struct
+  module G = Graph.Persistent.Digraph.Concrete (Sym)
+  module Components = Graph.Components.Make (G)
+
+  let tag_def_order tag_defs =
+    let tag_defs_of ms =
+      let rec aux = function
+        | [] -> []
+        | (_, (_, _, _, m_ctype)) :: ms' ->
+          (match Utils.rm_ctype m_ctype with
+           | C.Struct sym | Union sym -> sym :: aux ms'
+           | _ -> aux ms')
+      in
+      Sym.Set.of_list (aux ms)
+    in
+    let graph = G.empty in
+    let graph = Sym.Map.fold (fun tag _ graph -> G.add_vertex graph tag) tag_defs graph in
+    let graph =
+      Sym.Map.fold
+        (fun tag (_, _, tag_def) graph ->
+           let includes =
+             match tag_def with C.StructDef (ms, _) | C.UnionDef ms -> tag_defs_of ms
+           in
+           Sym.Set.fold (fun tag' graph -> G.add_edge graph tag tag') includes graph)
+        tag_defs
+        graph
+    in
+    let sccs = Components.scc_list graph in
+    sccs
+end
+
+let order_ail_tag_definitions tag_defs =
+  (* Dependency analysis and ordering *)
+  let struct_sym_map = ref Sym.Map.empty in
+  List.iter
+    (fun (sym, tag_def) -> struct_sym_map := Sym.Map.add sym tag_def !struct_sym_map)
+    tag_defs;
+  let ordered_syms = List.concat (TagDefs.tag_def_order !struct_sym_map) in
+  let ordered_tag_defs =
+    List.map
+      (fun sym ->
+         let tag_def_triple = Sym.Map.find sym !struct_sym_map in
+         (sym, tag_def_triple))
+      ordered_syms
+  in
+  ordered_tag_defs
 
 
 let generate_str_from_ail_structs ail_structs =
@@ -390,12 +444,13 @@ let generate_ghost_call_site_glob () =
   generate_ail_stat_strs Cn_to_ail.gen_ghost_call_site_global_decl
 
 
-let generate_c_struct_strs c_structs =
-  "\n/* ORIGINAL C STRUCTS */\n\n" ^ generate_str_from_ail_structs c_structs
+let generate_c_tag_def_strs c_structs =
+  "\n/* ORIGINAL C STRUCTS AND UNIONS */\n\n" ^ generate_str_from_ail_structs c_structs
 
 
-let generate_c_struct_decl_strs c_structs =
-  "/* ORIGINAL C STRUCTS DECLARATIONS */\n" :: List.map generate_struct_decl_str c_structs
+let generate_c_tag_decl_strs c_structs =
+  "/* ORIGINAL C STRUCT AND UNION DECLARATIONS */\n"
+  :: List.map generate_struct_decl_str c_structs
 
 
 let generate_cn_versions_of_structs c_structs =
@@ -617,3 +672,38 @@ let generate_global_assignments
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
     let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
+
+
+(* Needed for handling typedef definitions *)
+let generate_tag_definition_injs (tag_defs : CF.AilSyntax.sigma_tag_definition list) =
+  (* Check whether loc is (strictly) contained within loc' *)
+  let is_strict_sub_location (loc, loc') =
+    if Utils.from_same_file (loc, loc') then (
+      match (Utils.line_and_column_numbers loc, Utils.line_and_column_numbers loc') with
+      | None, _ | _, None -> false
+      | Some ((ls, le), (cs, ce)), Some ((ls', le'), (cs', ce')) ->
+        let not_same_line_sub_loc = ls > ls' && le < le' in
+        let same_line_sub_loc = ls == ls' && le == le' && cs > cs' && ce < ce' in
+        not_same_line_sub_loc || same_line_sub_loc)
+    else
+      false
+  in
+  let tag_defs' = ref [] in
+  List.iter
+    (fun ((_, (loc, _, _)) as tag_def) ->
+       let ssl =
+         List.map (fun (_, (loc', _, _)) -> is_strict_sub_location (loc, loc')) tag_defs
+       in
+       let is_strict_subloc_of_any = List.fold_left ( || ) false ssl in
+       if not is_strict_subloc_of_any then tag_defs' := tag_def :: !tag_defs')
+    tag_defs;
+  let all_tag_def_injs =
+    List.map
+      (fun (sym, (loc, _, tag_def)) ->
+         let tag_ctype_str =
+           match tag_def with CF.Ctype.StructDef _ -> "struct" | UnionDef _ -> "union"
+         in
+         (loc, [ tag_ctype_str ^ " " ^ Pp.plain (CF.Pp_ail.pp_id sym) ]))
+      !tag_defs'
+  in
+  all_tag_def_injs

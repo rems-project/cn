@@ -104,8 +104,8 @@ sexp_t *int_to_real(sexp_t *e);
 
 // Bit Vector functions
 sexp_t *t_bits(int w);
-sexp_t *bv_nat_bin(int w, long long v);
-sexp_t *bv_nat_hex(int w, long long v);
+sexp_t *bv_nat_bin(int w, unsigned long long v);
+sexp_t *bv_nat_hex(int w, unsigned long long v);
 sexp_t *bv_neg(sexp_t *x);
 sexp_t *bv_compl(sexp_t *x);
 sexp_t *bv_bin(int w, long long v);
@@ -169,8 +169,8 @@ sexp_t *forall(sexp_t **bindings, size_t binding_count, sexp_t *p);
 sexp_t *simple_command(const char **strs, size_t count);
 sexp_t *set_option(const char *opt, const char *val);
 sexp_t *set_logic(const char *logic);
-sexp_t *push(int n);
-sexp_t *pop(int n);
+sexp_t *sexp_push(int n);
+sexp_t *sexp_pop(int n);
 sexp_t *declare_sort(const char *name, int arity);
 sexp_t *declare_fun(
     const char *name, sexp_t **param_types, size_t param_count, sexp_t *result_type);
@@ -179,6 +179,7 @@ sexp_t *define_fun(const char *name,
     sexp_t **params,
     size_t param_count,
     sexp_t *result_type,
+    bool recursive,
     sexp_t *definition);
 sexp_t *define_const(const char *name, sexp_t *type, sexp_t *definition);
 

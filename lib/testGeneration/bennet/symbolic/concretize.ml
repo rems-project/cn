@@ -7,11 +7,11 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage3 = Stage3.Make (AD)
+  module Stage4 = Stage4.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage3.Ctx
-  module Term = Stage3.Term
-  module Def = Stage3.Def
+  module Ctx = Stage4.Ctx
+  module Term = Stage4.Term
+  module Def = Stage4.Def
 
   let bennet = Sym.fresh "bennet"
 
@@ -36,13 +36,16 @@ module Make (AD : Domain.T) = struct
       { statements = [];
         expression = !^"CN_SMT_CONCRETIZE_SYMBOLIC" ^^ parens (Smt.convert_basetype bt)
       }
-    | `Call (fsym, args) ->
+    | `Call (fsym, args) | `CallSized (fsym, args, _) ->
       (* Call a defined generator function with arguments *)
       let args_smt = List.map Smt.convert_indexterm args in
       let args_list =
         separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_CONCRETIZE_CALL" ^^ parens args_list }
+    | `SplitSize (_, next_term) ->
+      (* Split size - just process the next term *)
+      concretize_term next_term
     | `Asgn ((addr, sct), value, next_term) ->
       (* Assignment: claim ownership and assign value to memory location *)
       let addr_smt = Smt.convert_indexterm addr in
@@ -102,20 +105,22 @@ module Make (AD : Domain.T) = struct
       (* Assert domain constraints - skip domain for now and continue *)
       concretize_term next_term
     | `ITE (it_if, then_term, else_term) ->
-      (* Convert if-then-else to Pick statement with recursive calls *)
+      (* Convert if-then-else to PickSized statement with recursive calls *)
       let wgts1 =
         match then_term with
-        | Annot (`Pick gts, (), _, _) ->
-          List.map (fun gt' -> Term.assert_ (T it_if, gt') () loc) gts
-        | gt' -> [ Term.assert_ (T it_if, gt') () loc ]
+        | Annot (`PickSized gts, (), _, _) ->
+          List.map (fun (w, gt') -> (w, Term.assert_ (T it_if, gt') () loc)) gts
+        | gt' -> [ (Z.one, Term.assert_ (T it_if, gt') () loc) ]
       in
       let wgts2 =
         match else_term with
-        | Annot (`Pick gts, (), _, _) ->
-          List.map (fun gt' -> Term.assert_ (T (IT.not_ it_if loc), gt') () loc) gts
-        | gt' -> [ Term.assert_ (T (IT.not_ it_if loc), gt') () loc ]
+        | Annot (`PickSized gts, (), _, _) ->
+          List.map
+            (fun (w, gt') -> (w, Term.assert_ (T (IT.not_ it_if loc), gt') () loc))
+            gts
+        | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
       in
-      concretize_term (Term.pick_ (wgts1 @ wgts2) () bt loc)
+      concretize_term (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map
         ( (i_sym, i_bt, it_perm),
           Annot
@@ -183,7 +188,9 @@ module Make (AD : Domain.T) = struct
           let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let cond_doc =
             !^"convert_from_cn_bool"
-            ^^ parens (!^"cn_eval_term" ^^ parens (Smt.convert_indexterm guard_it))
+            ^^ parens
+                 (!^"cn_smt_concretize_eval_term"
+                  ^^ parens (!^"smt_solver" ^^ comma ^^^ Smt.convert_indexterm guard_it))
           in
           let addr_doc = Smt.convert_indexterm (subst_i_in_addr idx_it) in
           let assign_doc =
@@ -212,7 +219,7 @@ module Make (AD : Domain.T) = struct
         expression = map_var_doc
       }
     | `Map _ -> failwith "TODO: Map"
-    | `Pick choice_terms ->
+    | `PickSized choice_terms ->
       (* Weighted choice selection using CN_SMT_PICK macros *)
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)
@@ -223,7 +230,7 @@ module Make (AD : Domain.T) = struct
       (* Generate case statements for each choice *)
       let cases =
         choice_terms
-        |> List.mapi (fun i term ->
+        |> List.mapi (fun i (_, term) ->
           let case_begin = !^"CN_SMT_CONCRETIZE_PICK_CASE_BEGIN" ^^ parens (int i) in
           let term_result = concretize_term term in
           let case_stmts =
@@ -243,6 +250,24 @@ module Make (AD : Domain.T) = struct
       (* Combine everything as single statement block *)
       let pick_stmt = pick_begin ^/^ cases ^/^ pick_end in
       { statements = [ pick_stmt ]; expression = Sym.pp result_var }
+
+
+  (** Generate forward declaration for a concretize function *)
+  let concretize_forward_decl (def : Def.t) : Pp.document =
+    let open Pp in
+    let params =
+      List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
+      |> separate_map (comma ^^^ space) (fun x -> x)
+    in
+    !^"static cn_term*"
+    ^^^ !^("cn_smt_concretize_" ^ Pp.plain (Sym.pp def.name))
+    ^^ parens
+         (!^"struct cn_smt_solver* smt_solver"
+          ^^ comma
+          ^^^ !^"struct branch_history_queue* branch_hist"
+          ^^ comma
+          ^^^ params)
+    ^^ semi
 
 
   (** Convert generator definition to complete CN-SMT symbolic execution function *)

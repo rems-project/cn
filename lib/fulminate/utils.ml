@@ -2,6 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module Cn = CF.Cn
+module CP = Cerb_position
 
 let[@warning "-32" (* unused-value-declaration *)] const_qualifiers : C.qualifiers =
   { const = true; restrict = false; volatile = false }
@@ -54,7 +55,7 @@ let[@warning "-32" (* unused-value-declaration *)] rm_stmt = function
   | A.{ loc = _; desug_info = _; attrs = _; node = stmt_ } -> stmt_
 
 
-let empty_ail_str = "empty_ail"
+let empty_ail_str = ";" (* horrible; TODO change *)
 
 let empty_ail_expr = A.(AilEident (Sym.fresh empty_ail_str))
 
@@ -222,6 +223,27 @@ let get_end_loc ?(offset = 0) = function
   | Loc_point pos -> Cerb_location.point (Cerb_position.change_cnum pos offset)
   | Loc_unknown | Loc_other _ ->
     failwith "get_end_loc: Location should be Loc_region, Loc_regions or Loc_point"
+
+
+(* In the style of Cerb_location.line_numbers *)
+(* TODO: Move to Cerberus (Cerb_location.ml) *)
+let line_and_column_numbers = function
+  | Cerb_location.Loc_unknown -> None
+  | Loc_other _ -> None
+  | Loc_point p -> Some ((CP.line p, CP.line p), (CP.column p, CP.column p))
+  | Loc_region (p1, p2, _) -> Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
+  | Loc_regions ((p1, p2) :: _, _) ->
+    Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
+  | Loc_regions ([], _) -> None
+
+
+let from_same_file = function
+  | Cerb_location.Loc_unknown, _ | Loc_other _, _ | Loc_regions ([], _), _ -> false
+  | Loc_point pos, Cerb_location.Loc_point pos'
+  | Loc_region (pos, _, _), Loc_region (pos', _, _)
+  | Loc_regions ((pos, _) :: _, _), Loc_regions ((pos', _) :: _, _) ->
+    String.equal (Cerb_position.file pos) (Cerb_position.file pos')
+  | _, _ -> false
 
 
 let concat_map_newline docs = PPrint.(concat_map (fun doc -> doc ^^ hardline) docs)

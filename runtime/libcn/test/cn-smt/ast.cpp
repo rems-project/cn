@@ -341,7 +341,8 @@ TEST_F(CnSmtTest, FunctionApplication) {
   bennet_vector_push(cn_term_ptr)(&args, arg1);
   bennet_vector_push(cn_term_ptr)(&args, arg2);
 
-  cn_term* apply_term = cn_smt_apply("add", cn_base_type_simple(CN_BASE_INTEGER), &args);
+  cn_term* apply_term =
+      cn_smt_apply("add", cn_base_type_simple(CN_BASE_INTEGER), args.data, args.size);
   ASSERT_NE(apply_term, nullptr);
   EXPECT_EQ(apply_term->type, CN_TERM_APPLY);
   EXPECT_TRUE(cn_base_type_is(apply_term->base_type, CN_BASE_INTEGER));
@@ -355,15 +356,17 @@ TEST_F(CnSmtTest, FunctionApplication) {
 
 // Test let binding
 TEST_F(CnSmtTest, LetBinding) {
+  cn_sym var_sym = cn_sym_from_string("x");
   cn_term* value = cn_smt_z(42);
-  cn_term* body_var = cn_smt_sym_string("x", cn_base_type_simple(CN_BASE_INTEGER));
+  cn_term* body_var = cn_smt_sym(var_sym, cn_base_type_simple(CN_BASE_INTEGER));
   cn_term* body = cn_smt_add(body_var, cn_smt_z(1));
 
-  cn_term* let_term = cn_smt_let("x", value, body);
+  cn_term* let_term = cn_smt_let(var_sym, value, body);
   ASSERT_NE(let_term, nullptr);
   EXPECT_EQ(let_term->type, CN_TERM_LET);
   EXPECT_TRUE(cn_base_type_is(let_term->base_type, CN_BASE_INTEGER));  // type of body
-  EXPECT_STREQ(let_term->data.let.var_name, "x");
+  EXPECT_STREQ(let_term->data.let.var.name, "x");
+  EXPECT_EQ(let_term->data.let.var.id, var_sym.id);
   EXPECT_EQ(let_term->data.let.value, value);
   EXPECT_EQ(let_term->data.let.body, body);
 }
