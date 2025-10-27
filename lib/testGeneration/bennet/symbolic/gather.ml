@@ -252,6 +252,20 @@ module Make (AD : Domain.T) = struct
       { statements = [ pick_stmt ]; expression = Sym.pp result_var }
 
 
+  (** Generate forward declaration for a gather function *)
+  let gather_forward_decl (def : Def.t) : Pp.document =
+    let open Pp in
+    let branch_hist_param = !^"struct branch_history_queue*" ^^^ !^"branch_hist" in
+    let def_params = List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs in
+    let params =
+      branch_hist_param :: def_params |> separate_map (comma ^^^ space) (fun x -> x)
+    in
+    !^"static cn_term*"
+    ^^^ !^("cn_smt_gather_" ^ Pp.plain (Sym.pp def.name))
+    ^^ parens params
+    ^^ semi
+
+
   (** Convert generator definition to complete CN-SMT symbolic execution function *)
   let gather_def (def : Def.t) : Pp.document =
     let open Pp in

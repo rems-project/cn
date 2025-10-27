@@ -39,6 +39,16 @@ module Make (AD : Domain.T) = struct
         typedef_doc (CtA.lookup_records_map_with_default bt))
     in
     let record_defs = Records.generate_all_record_strs () in
+    (* Generate forward declarations for all functions *)
+    let forward_decls =
+      ctx
+      |> List.map snd
+      |> List.concat_map (fun (def : Def.t) ->
+        [ PathSelector.path_selector_forward_decl def;
+          Gather.gather_forward_decl def;
+          Concretize.concretize_forward_decl def
+        ])
+    in
     let functions =
       ctx
       |> List.map snd
@@ -72,7 +82,12 @@ module Make (AD : Domain.T) = struct
     ^^ !^"/* TYPEDEFS */"
     ^^ hardline
     ^^ separate hardline typedef_docs
-    ^^ !^"/* FUNCTION DECLARATIONS */"
+    ^^ hardline
+    ^^ !^"/* FORWARD DECLARATIONS */"
+    ^^ hardline
+    ^^ separate hardline forward_decls
+    ^^ hardline
+    ^^ !^"/* FUNCTION DEFINITIONS */"
     ^^ twice hardline
     ^^ Setup.generate_smt_setup prog5 ctx
     ^^ separate (twice hardline) functions
