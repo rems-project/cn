@@ -1,8 +1,8 @@
 #include <stdint.h>
 
 struct point {
-    int x;
-    int y;
+  int x;
+  int y;
 };
 
 /*@
@@ -26,7 +26,7 @@ ensures
     true;
 @*/
 {
-    /*@ assert(x >= 0i32 && y >= 0i32); @*/
+  /*@ assert(x >= 0i32 && y >= 0i32); @*/
 }
 
 // Simple test that should work without complex operations
@@ -39,8 +39,8 @@ ensures
     true;
 @*/
 {
-    /*@ assert(a >= 0i32); @*/
-    /*@ assert(b >= 0i32); @*/
+  /*@ assert(a >= 0i32); @*/
+  /*@ assert(b >= 0i32); @*/
 }
 
 // Test simple record operations
@@ -54,5 +54,23 @@ ensures
     my_record.x == a && my_record.y == b;
 @*/
 {
-    /*@ assert(a >= 0i32 && b >= 0i32); @*/
+  /*@ assert(a >= 0i32 && b >= 0i32); @*/
+}
+
+/*@
+    function [rec] ({u8 res}) count(u8 n) {
+        let res = (n == 0u8) ? 0u8 : 1u8 + count(n - 1u8).res;
+        { res: res }
+    }
+@*/
+
+uint8_t f(uint8_t x)
+/*@
+requires
+    x == count(x).res;
+ensures
+    return == count(x).res;
+@*/
+{
+  return x;
 }
