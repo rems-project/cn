@@ -135,6 +135,14 @@ BENNET_OPTIONAL_DECL(cn_base_type);
 // Hash table type declaration for cn_sym -> cn_base_type mapping
 BENNET_HASH_TABLE_DECL(cn_sym, cn_base_type)
 
+// Hash table type declaration for cn_sym -> void_ptr mapping (for eval context)
+// Forward declare void_ptr if not already declared
+#ifndef VOID_PTR_TYPEDEF
+  #define VOID_PTR_TYPEDEF
+typedef void* void_ptr;
+#endif
+BENNET_HASH_TABLE_DECL(cn_sym, void_ptr)
+
 // Hash and equality functions for cn_sym
 static inline size_t bennet_hash_cn_sym(cn_sym sym) {
   // Hash based on the unique ID
@@ -469,7 +477,7 @@ struct cn_term {
     } apply;
 
     struct {  // CN_TERM_LET
-      const char* var_name;
+      cn_sym var;
       cn_term* value;
       cn_term* body;
     } let;
@@ -566,7 +574,7 @@ cn_term* cn_smt_apply(const char* function_name,
     size_t arg_count);
 
 // Let binding
-cn_term* cn_smt_let(const char* var_name, cn_term* value, cn_term* body);
+cn_term* cn_smt_let(cn_sym var, cn_term* value, cn_term* body);
 
 // Struct operations
 cn_term* cn_smt_struct(const char* tag,

@@ -326,17 +326,15 @@ cn_term* cn_smt_apply(const char* function_name,
 }
 
 // Let binding
-cn_term* cn_smt_let(const char* var_name, cn_term* value, cn_term* body) {
-  assert(var_name && value && body);
+cn_term* cn_smt_let(cn_sym var, cn_term* value, cn_term* body) {
+  assert(value && body);
 
   cn_term* term = cn_term_alloc(CN_TERM_LET, body->base_type);
   assert(term);
 
-  term->data.let.var_name = strdup(var_name);
+  term->data.let.var = var;
   term->data.let.value = value;
   term->data.let.body = body;
-
-  assert(term->data.let.var_name);
 
   return term;
 }

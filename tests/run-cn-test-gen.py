@@ -284,6 +284,7 @@ def main():
             "learn_cast.special.c",
             "learn_equality.pass.c",
             "learn_multiple.special.c",
+            "let.pass.c",
             "list_rev.fail.c",
             "list_rev.pass.c",
             "list_seg.pass.c",
