@@ -236,6 +236,29 @@ let apply_builtin_funs fsym args loc =
   | Some (_, _, mk) -> Result.bind (mk args loc) (fun t -> return (Some t))
 
 
+let apply_builtin_fun_defs fsym args _loc =
+  match List.find_opt (fun (_, fsym', _) -> Sym.equal fsym fsym') builtin_fun_defs with
+  | None -> None
+  | Some (_, _, fn_def) ->
+    let body =
+      match fn_def.Definition.Function.body with
+      | Definition.Function.Def body -> body
+      | Definition.Function.Rec_Def body -> body
+      | Definition.Function.Uninterp -> failwith "Builtin function must have a body"
+    in
+    let formal_args = fn_def.Definition.Function.args in
+    (* Create list of (formal_sym, actual_arg) pairs *)
+    let subst_list =
+      List.map2
+        (fun (formal_sym, _) actual_arg -> (formal_sym, actual_arg))
+        formal_args
+        args
+    in
+    (* Create and apply substitution *)
+    let subst = IT.make_subst subst_list in
+    Some (IT.subst subst body)
+
+
 (* This list of names is later passed to the frontend in bin/main.ml so that
  * these are available in the elaboration, so it should include all builtin
  * function names *)

@@ -257,7 +257,7 @@ module Make (AD : Domain.T) = struct
 
   (** Generate CN-SMT term creation code for IndexTerms.t *)
   let rec convert_indexterm (it : IT.t) : Pp.document =
-    let (IT (term, bt, _)) = it in
+    let (IT (term, bt, loc)) = it in
     match term with
     | Const c -> convert_const c
     | Sym sym -> Sym.pp sym
@@ -290,7 +290,20 @@ module Make (AD : Domain.T) = struct
       convert_mapset map_term key_term value_term
     | MapGet (map_term, key_term) -> convert_mapget map_term key_term
     | MapDef ((var_sym, var_bt), body) -> convert_mapdef var_sym var_bt body
-    | Apply (func_sym, args) -> convert_apply func_sym args bt
+    | Apply (func_sym, args) ->
+      (* Try to expand builtin functions inline *)
+      let expanded =
+        match
+          ( Builtins.apply_builtin_fun_defs func_sym args loc,
+            Builtins.apply_builtin_funs func_sym (List.map IT.Surface.inj args) loc )
+        with
+        | Some it, _ -> Some it
+        | None, Ok (Some it_surface) -> Some (IT.Surface.proj it_surface)
+        | _ -> None
+      in
+      (match expanded with
+       | Some it_expanded -> convert_indexterm it_expanded
+       | None -> convert_apply func_sym args bt)
     | Let ((var_sym, binding), body) -> convert_let var_sym binding body
     | Match (scrutinee, cases) -> convert_match scrutinee cases
     | Cast (target_bt, term) -> convert_cast target_bt term

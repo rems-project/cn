@@ -924,7 +924,7 @@ module Make (AD : Domain.T) = struct
     if List.length logical_functions = 0 then
       (empty, empty)
     else (
-      let function_handlers = Eval.generate_function_handlers prog5 in
+      let function_handlers = Eval.generate_function_handlers logical_functions in
       let function_registrations =
         List.fold_left
           (fun acc (fn_sym, fn_def) ->

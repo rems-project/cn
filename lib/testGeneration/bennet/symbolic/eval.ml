@@ -1,5 +1,9 @@
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
+  module Stage4 = Stage4.Make (AD)
+  module GT = Stage4.Term
+  module Ctx = Stage4.Ctx
+  module Def = Stage4.Def
 
   let generate_struct_handlers (prog5 : unit Mucore.file) (tag : Sym.t) : Pp.document =
     match Pmap.find tag prog5.tagDefs with
@@ -478,9 +482,11 @@ module Make (AD : Domain.T) = struct
         datatypes
 
 
-  let generate_function_handlers (prog5 : unit Mucore.file) : Pp.document =
+  let generate_function_handlers
+        (logical_functions : (Sym.t * Definition.Function.t) list)
+    : Pp.document
+    =
     let open Pp in
-    let logical_functions = prog5.logical_predicates in
     if List.length logical_functions = 0 then
       empty
     else
