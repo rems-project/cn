@@ -1,6 +1,6 @@
 module Make (AD : Domain.T) = struct
   module Convert = Convert.Make (AD)
 
-  let transform (prog5 : unit Mucore.file) (ctx : Stage3.Make(AD).Ctx.t) =
+  let transform (prog5 : unit Mucore.file) (ctx : Stage4.Make(AD).Ctx.t) =
     Convert.transform prog5 ctx
 end
