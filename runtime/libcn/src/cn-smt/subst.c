@@ -649,7 +649,7 @@ static cn_term* cn_subst_term_impl(
 
       new_term->type = CN_TERM_LET;
       new_term->base_type = term->base_type;
-      new_term->data.let.var_name = term->data.let.var_name;
+      new_term->data.let.var = term->data.let.var;
       new_term->data.let.value = new_value;
       new_term->data.let.body = new_body;
       return new_term;

@@ -7,6 +7,7 @@
 
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
+#include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
 
@@ -1522,9 +1523,26 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_LET: {
-      // Let binding - for now just translate the body (ignoring binding)
-      // TODO: Implement proper let binding with substitution
-      return translate_term(s, iterm->data.let.body);
+      // Substitute the variable with its value in the body, then translate
+
+      // Create a substitution table
+      bennet_hash_table(uint64_t, cn_term_ptr)* subst_table = cn_create_subst_table();
+      assert(subst_table);
+
+      // Add the substitution from variable ID to the value term
+      cn_add_substitution(subst_table, iterm->data.let.var.id, iterm->data.let.value);
+
+      // Perform substitution on the body
+      cn_term* substituted_body = cn_subst_term(iterm->data.let.body, subst_table);
+      assert(substituted_body);
+
+      // Translate the substituted body
+      sexp_t* result = translate_term(s, substituted_body);
+
+      // Cleanup
+      cn_free_subst_table(subst_table);
+
+      return result;
     }
 
     case CN_TERM_MATCH: {

@@ -535,9 +535,39 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let binding_smt = convert_indexterm binding in
     let body_smt = convert_indexterm body in
-    let var_name = Sym.pp var_sym in
-    !^"cn_smt_let"
-    ^^ parens (dquotes var_name ^^ comma ^^^ binding_smt ^^ comma ^^^ body_smt)
+    (* Extract base type from binding *)
+    let (IT (_, binding_bt, _)) = binding in
+    let bt_smt = convert_basetype binding_bt in
+    (* Get symbol info *)
+    let var_name_doc = Sym.pp var_sym in
+    let var_id = Sym.num var_sym in
+    let var_name_c = Sym.pp_string_no_nums var_sym in
+    (* Generate block statement with symbol declaration and cn_smt_let *)
+    !^"({"
+    ^^ nest
+         2
+         (hardline
+          ^^ !^"cn_term* "
+          ^^ !^var_name_c
+          ^^ !^" = cn_smt_sym("
+          ^^ parens !^"cn_sym"
+          ^^ braces
+               (!^".name = " ^^ dquotes var_name_doc ^^ comma ^^^ !^".id = " ^^ int var_id)
+          ^^ comma
+          ^^^ bt_smt
+          ^^ !^");"
+          ^^ hardline
+          ^^ !^"cn_smt_let"
+          ^^ parens
+               (!^var_name_c
+                ^^ !^"->data.sym"
+                ^^ comma
+                ^^^ binding_smt
+                ^^ comma
+                ^^^ body_smt)
+          ^^ !^";")
+    ^^ hardline
+    ^^ !^"})"
 
 
   and convert_match (scrutinee : IT.t) (cases : (BT.t Terms.pattern * IT.t) list)
