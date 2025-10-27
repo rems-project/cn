@@ -106,6 +106,23 @@ module Make (AD : Domain.T) = struct
       pick_stmt
 
 
+  (** Generate forward declaration for a path selector function *)
+  let path_selector_forward_decl (def : Def.t) : Pp.document =
+    let open Pp in
+    let params =
+      !^"struct branch_history_queue*"
+      ^^^ !^"branch_hist"
+      ^^ comma
+      ^^^ !^"cn_trie*"
+      ^^^ !^"unsat_paths"
+      ^^ if def.recursive then comma ^^^ !^"size_t" ^^^ !^"bennet_rec_size" else empty
+    in
+    !^"static void"
+    ^^^ !^("cn_smt_path_selector_" ^ Pp.plain (Sym.pp def.name))
+    ^^ parens params
+    ^^ semi
+
+
   (** Convert generator definition to complete CN-SMT symbolic execution function *)
   let path_selector_def (ctx : Ctx.t) (def : Def.t) : Pp.document =
     let open Pp in

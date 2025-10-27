@@ -252,6 +252,24 @@ module Make (AD : Domain.T) = struct
       { statements = [ pick_stmt ]; expression = Sym.pp result_var }
 
 
+  (** Generate forward declaration for a concretize function *)
+  let concretize_forward_decl (def : Def.t) : Pp.document =
+    let open Pp in
+    let params =
+      List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
+      |> separate_map (comma ^^^ space) (fun x -> x)
+    in
+    !^"static cn_term*"
+    ^^^ !^("cn_smt_concretize_" ^ Pp.plain (Sym.pp def.name))
+    ^^ parens
+         (!^"struct cn_smt_solver* smt_solver"
+          ^^ comma
+          ^^^ !^"struct branch_history_queue* branch_hist"
+          ^^ comma
+          ^^^ params)
+    ^^ semi
+
+
   (** Convert generator definition to complete CN-SMT symbolic execution function *)
   let concretize_def (def : Def.t) : Pp.document =
     let open Pp in
