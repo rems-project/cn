@@ -373,15 +373,11 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
      | Sym (Symbol (_, _, SD_Id "params_length")), [ x ] ->
        (match IT.dest_list x with
-        | Some xs ->
-          let n = Z.of_int (List.length xs) in
-          return_z_within_range loc n bt pexpr
+        | Some xs -> return (IT.int_ (List.length xs) loc)
         | None -> unsupported "pure-expression type" !^"")
      | Sym (Symbol (_, _, SD_Id "params_nth")), [ x; y ] ->
-       (match (IT.dest_list x, IT.is_bits_const y) with
-        | Some its, Some (bits_info, i) ->
-          assert (BaseTypes.fits_range bits_info i);
-          return (List.nth its (Z.to_int i))
+       (match (IT.dest_list x, IT.is_z y) with
+        | Some its, Some i -> return (List.nth its (Z.to_int i))
         | _ -> unsupported "pure-expression type" !^"")
      | _ -> unsupported "pure-expression type" !^"")
   | PEare_compatible (pe1, pe2) ->
