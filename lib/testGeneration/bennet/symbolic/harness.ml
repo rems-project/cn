@@ -100,7 +100,7 @@ module Make (AD : Domain.T) = struct
       ^^^ braces
             (!^"assert(result == CN_SOLVER_UNSAT);"
              ^/^ !^"branch_history_update_trie(&branch_hist, unsat_paths);"
-             ^/^ !^"branch_history_restore(&branch_hist, NULL);"
+             ^/^ !^"branch_history_clear(&branch_hist);"
              ^/^ !^"attempts++;")
     in
     (* Initialize concretization context *)
@@ -168,6 +168,13 @@ module Make (AD : Domain.T) = struct
                (hardline
                 ^^ !^"/* Select path */"
                 ^/^ select_path
+                ^/^ !^"if (bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH)"
+                ^^^ braces
+                      (hardline
+                       ^^ !^"branch_history_clear(&branch_hist);"
+                       ^/^ !^"bennet_failure_reset();"
+                       ^/^ !^"attempts++;"
+                       ^/^ !^"continue;")
                 ^/^ !^"/* Gather constraints */"
                 ^/^ context_init
                 ^/^ symbolic_vars

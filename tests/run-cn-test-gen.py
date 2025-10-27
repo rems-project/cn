@@ -273,6 +273,7 @@ def main():
             "abs_mem.pass.c",
             "abs.pass.c",
             "array_shift.pass.c",
+            "bin_tree.pass.c",
             "bounds.pass.c",
             "cast_equality.pass.c",
             "counter.pass.c",
