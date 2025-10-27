@@ -32,9 +32,9 @@ extern "C" {
   }
 
 // Function calls
-#define CN_SMT_PATH_SELECTOR_CALL(last_var, function_symbol)                             \
+#define CN_SMT_PATH_SELECTOR_CALL(last_var, function_symbol, ...)                        \
   ({                                                                                     \
-    cn_smt_path_selector_##function_symbol(branch_hist, unsat_paths);                    \
+    cn_smt_path_selector_##function_symbol(branch_hist, unsat_paths, ##__VA_ARGS__);     \
     if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                      \
       assert(bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH);                 \
                                                                                          \

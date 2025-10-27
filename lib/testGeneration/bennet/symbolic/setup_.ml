@@ -4,10 +4,10 @@ module A = CF.AilSyntax
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
   module Eval = Eval.Make (AD)
-  module Stage3 = Stage3.Make (AD)
-  module GT = Stage3.Term
-  module Ctx = Stage3.Ctx
-  module Def = Stage3.Def
+  module Stage4 = Stage4.Make (AD)
+  module GT = Stage4.Term
+  module Ctx = Stage4.Ctx
+  module Def = Stage4.Def
 
   let generate_struct_setup (prog5 : unit Mucore.file) : Pp.document * Pp.document =
     let open Pp in

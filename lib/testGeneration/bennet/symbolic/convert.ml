@@ -3,14 +3,14 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage3 = Stage3.Make (AD)
+  module Stage4 = Stage4.Make (AD)
   module PathSelector = PathSelector.Make (AD)
   module Gather = Gather.Make (AD)
   module Concretize = Concretize.Make (AD)
   module Harness = Harness.Make (AD)
   module Setup = Setup_.Make (AD)
-  module Ctx = Stage3.Ctx
-  module Def = Stage3.Def
+  module Ctx = Stage4.Ctx
+  module Def = Stage4.Def
 
   (** Convert Stage 1 context with multiple definitions to a C source file *)
   let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) : Pp.document =
@@ -45,14 +45,14 @@ module Make (AD : Domain.T) = struct
       |> List.concat_map (fun (def : Def.t) ->
         if def.spec then
           (* Generate gathering and concretization functions as well as a [bennet_*] harness *)
-          [ PathSelector.path_selector_def def;
+          [ PathSelector.path_selector_def ctx def;
             Gather.gather_def def;
             Concretize.concretize_def def;
             Harness.transform_def prog5 def
           ]
         else
           (* Generate gathering, concretization, and path selector functions for non-spec definitions *)
-          [ PathSelector.path_selector_def def;
+          [ PathSelector.path_selector_def ctx def;
             Gather.gather_def def;
             Concretize.concretize_def def
           ])
