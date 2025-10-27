@@ -1399,22 +1399,34 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_RECORD: {
-      // Record construction - similar to struct
-      // Get member count from vector
-      bennet_vector(cn_member_pair)* members = &iterm->data.record.members;
-      size_t member_count = bennet_vector_size(cn_member_pair)(members);
+      // Record construction - build tuple in canonical type order
+      cn_base_type record_bt = iterm->base_type;
+      assert(record_bt.tag == CN_BASE_RECORD);
 
-      // Allocate array for translated member arguments
+      size_t member_count = record_bt.data.record.count;
+      bennet_vector(cn_member_pair)* members = &iterm->data.record.members;
+
+      // Allocate array for translated member arguments in type order
       sexp_t** args = NULL;
       if (member_count > 0) {
         args = malloc(sizeof(sexp_t*) * member_count);
         assert(args);
 
-        // Translate each member term
+        // For each member in the base type (in canonical order), find its value
         for (size_t i = 0; i < member_count; i++) {
-          cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
-          cn_term* member_term = pair->value;
-          args[i] = translate_term(s, member_term);
+          const char* type_member_name = record_bt.data.record.names[i];
+
+          // Find this member in the members vector
+          bool found = false;
+          for (size_t j = 0; j < bennet_vector_size(cn_member_pair)(members); j++) {
+            cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, j);
+            if (strcmp(pair->name, type_member_name) == 0) {
+              args[i] = translate_term(s, pair->value);
+              found = true;
+              break;
+            }
+          }
+          assert(found);  // All members should be present
         }
       }
 
@@ -1434,19 +1446,35 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_RECORD_MEMBER: {
-      // Record member access
+      // Record member access - use tuple selector
       sexp_t* record_smt = translate_term(s, iterm->data.record_member.record_term);
       const char* member = iterm->data.record_member.member_name;
 
-      char* fn_name = malloc(strlen(member) + 20);
-      assert(fn_name);
-      sprintf(fn_name, "get_%s", member);
+      // Get the record's base type to find member index
+      cn_base_type record_bt = iterm->data.record_member.record_term->base_type;
+      assert(record_bt.tag == CN_BASE_RECORD);
 
-      sexp_t* fn_atom = sexp_atom(fn_name);
+      // Find the index of the member in the record type
+      size_t member_index = 0;
+      bool found = false;
+      for (size_t i = 0; i < record_bt.data.record.count; i++) {
+        if (strcmp(record_bt.data.record.names[i], member) == 0) {
+          member_index = i;
+          found = true;
+          break;
+        }
+      }
+      assert(found);  // Member should exist in the record type
+
+      // Get the tuple selector name (e.g., "cn_get_0_of_2")
+      char* selector_name =
+          cn_tuple_get_selector_name(record_bt.data.record.count, member_index);
+
+      sexp_t* fn_atom = sexp_atom(selector_name);
       sexp_t* args[] = {record_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      free(fn_name);
+      free(selector_name);
       sexp_free(fn_atom);
       return result;
     }
