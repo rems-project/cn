@@ -1506,13 +1506,20 @@ module BaseTyping = struct
     match ov with
     | OV (_, OVinteger iv) ->
       let z = Memory.z_of_ival iv in
-      let@ () = match bt with
+      let@ () =
+        match bt with
         | Integer -> return ()
-        | Bits (sign,n) when BT.fits_range (sign,n) z -> return ()
+        | Bits (sign, n) when BT.fits_range (sign, n) z -> return ()
         | Bits _ ->
-           let msg = !^"Value " ^^^ Pp.z z ^^^ !^"does not fit expected type" ^^^ BT.pp bt in
-           fail { loc; msg = Generic msg [@alert "-deprecated"]}
-        | _ -> fail { loc; msg = Mismatch { has = !^"bitvector/integer type"; expect = BT.pp bt } }
+          let msg =
+            !^"Value " ^^^ Pp.z z ^^^ !^"does not fit expected type" ^^^ BT.pp bt
+          in
+          fail { loc; msg = Generic msg [@alert "-deprecated"] }
+        | _ ->
+          fail
+            { loc;
+              msg = Mismatch { has = !^"bitvector/integer type"; expect = BT.pp bt }
+            }
       in
       return (Mu.OV (bt, OVinteger iv))
     | _ ->
@@ -1762,7 +1769,9 @@ module BaseTyping = struct
              let has = List.length pes in
              fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
            | _ ->
-             fail { loc; msg = Generic !^"Unsupported Core standard library function" } [@alert "-deprecated"])
+             fail
+               { loc; msg = Generic !^"Unsupported Core standard library function" }
+             [@alert "-deprecated"])
         | PEare_compatible (pe1, pe2) ->
           let@ pe1 = check_pexpr CType pe1 in
           let@ pe2 = check_pexpr CType pe2 in

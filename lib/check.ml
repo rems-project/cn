@@ -215,16 +215,17 @@ let ensure_bitvector_type (loc : Locations.t) ~(expect : BT.t) : (BT.sign * int)
 let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
   match ov with
   | OVinteger iv ->
-     let z = Memory.z_of_ival iv in
-     (match expect with
-     | BT.Bits (sign,n) ->
-        let@ () = WellTyped.ensure_z_fits_bits_type loc (sign, n) z in
-        return (num_lit_ z expect loc)
-     | BT.Integer ->
-        return (z_ z loc)
+    let z = Memory.z_of_ival iv in
+    (match expect with
+     | BT.Bits (sign, n) ->
+       let@ () = WellTyped.ensure_z_fits_bits_type loc (sign, n) z in
+       return (num_lit_ z expect loc)
+     | BT.Integer -> return (z_ z loc)
      | _ ->
-        let msg = WellTyped (Mismatch { has = !^"integer/bitvector type"; expect = BT.pp expect }) in
-        fail (fun _ -> { loc; msg }))
+       let msg =
+         WellTyped (Mismatch { has = !^"integer/bitvector type"; expect = BT.pp expect })
+       in
+       fail (fun _ -> { loc; msg }))
   | OVpointer p -> check_ptrval loc ~expect p
   | OVarray items ->
     let@ index_bt, item_bt = expect_must_be_map_bt loc ~expect in
@@ -895,8 +896,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e) in
        let@ e = check_pexpr path_cs e in
        (match IT.dest_list e with
-        | Some its ->
-          return (int_ (List.length its) loc)
+        | Some its -> return (int_ (List.length its) loc)
         | None ->
           let msg = "Could not evaluate params_length argument to a constant list." in
           (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
@@ -909,9 +909,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ () =
          WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e1)
        in
-       let@ () =
-         WellTyped.ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr e2)
-       in
+       let@ () = WellTyped.ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr e2) in
        let@ e1 = check_pexpr path_cs e1 in
        let@ e2 = check_pexpr path_cs e2 in
        (match (IT.dest_list e1, IT.is_z e2) with
