@@ -105,6 +105,18 @@ branch_history_checkpoint branch_history_checkpoint_current(
     const struct branch_history_queue* queue) {
   assert(queue != NULL);
 
+#if DEBUG_BRANCH_HISTORY
+  if (queue->tail == NULL) {
+    fprintf(stderr, "[BH_DEBUG] CHECKPOINT_CURRENT: returning NULL (queue empty)\n");
+  } else {
+    fprintf(stderr,
+        "[BH_DEBUG] CHECKPOINT_CURRENT: returning node=%p (data=%" PRIu64 ")\n",
+        (void*)queue->tail,
+        queue->tail->data);
+  }
+  print_branch_history("  Current state", queue);
+#endif
+
   return queue->tail;
 }
 
@@ -156,9 +168,14 @@ void branch_history_restore(
   assert(queue != NULL);
 
 #if DEBUG_BRANCH_HISTORY
-  fprintf(stderr,
-      "[BH_DEBUG] RESTORE to checkpoint (data=%" PRIu64 ")\n",
-      checkpoint ? checkpoint->data : 0);
+  if (checkpoint == NULL) {
+    fprintf(stderr, "[BH_DEBUG] RESTORE to checkpoint (NULL)\n");
+  } else {
+    fprintf(stderr,
+        "[BH_DEBUG] RESTORE to checkpoint (node=%p, data=%" PRIu64 ")\n",
+        (void*)checkpoint,
+        checkpoint->data);
+  }
   print_branch_history("  Before RESTORE", queue);
 #endif
 
@@ -166,7 +183,7 @@ void branch_history_restore(
     // Restore to empty queue
     branch_history_clear(queue);
 #if DEBUG_BRANCH_HISTORY
-    print_branch_history("  After RESTORE (cleared)", queue);
+    print_branch_history("  After RESTORE to NULL (cleared)", queue);
 #endif
     return;
   }
@@ -225,6 +242,11 @@ bool branch_history_is_empty(const struct branch_history_queue* queue) {
 void branch_history_clear(struct branch_history_queue* queue) {
   assert(queue != NULL);
 
+#if DEBUG_BRANCH_HISTORY
+  fprintf(stderr, "[BH_DEBUG] CLEAR called\n");
+  print_branch_history("  Before CLEAR", queue);
+#endif
+
   struct branch_history_node* curr = queue->head;
   while (curr != NULL) {
     struct branch_history_node* next = curr->next;
@@ -239,6 +261,10 @@ void branch_history_clear(struct branch_history_queue* queue) {
   queue->head = NULL;
   queue->tail = NULL;
   queue->length = 0;
+
+#if DEBUG_BRANCH_HISTORY
+  fprintf(stderr, "[BH_DEBUG]   After CLEAR history (len=0): []\n");
+#endif
 }
 
 /**
