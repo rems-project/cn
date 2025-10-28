@@ -369,16 +369,30 @@ let get_c_block_entry_exit_injs_aux bindings s =
   let rec aux_expr (A.AnnotatedExpression (_, _, loc, e_)) =
     match e_ with
     | AilEgcc_statement (bs, ss) ->
-      aux_stmt
-        []
-        A.
-          { loc;
-            (* TODO: just update the end position of loc to be the end position of the (n-1)th statement *)
-            desug_info = Desug_none;
-            attrs = Attrs [];
-            node = A.(AilSblock (bs, ss))
-          }
-      (* TODO: change to do the right unmapping *)
+      (* implicit check that ss is non-empty *)
+      (match List.last ss with
+       | Some A.{ loc = loc'; desug_info = _; attrs = _; node = _ } ->
+         let injs = List.map (aux_stmt bs) ss in
+         let gcc_cn_ret_sym = Sym.fresh_anon () in
+         let bad_sym = Sym.fresh (Sym.pp_string gcc_cn_ret_sym ^ " = ") in
+         let ret_inj_1 =
+           (get_start_loc loc', [], [ A.(AilSexpr (mk_expr (AilEident bad_sym))) ])
+         in
+         let exit_injs =
+           List.map
+             (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
+                ( get_end_loc ~offset:(-1) loc,
+                  [],
+                  [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
+             bs
+         in
+         let ret_inj_2 =
+           ( get_end_loc ~offset:(-1) loc,
+             [],
+             [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
+         in
+         List.concat injs @ ret_inj_1 :: exit_injs @ [ret_inj_2]
+       | None -> [])
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
     | AilEsizeof _ | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
