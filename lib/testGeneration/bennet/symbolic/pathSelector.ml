@@ -22,8 +22,10 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let (GenTerms.Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
-    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ | `Map _ | `SplitSize _ ->
-      empty
+    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ | `Map _ -> empty
+    | `SplitSize (_, next_term) ->
+      (* Split size - process the next term *)
+      path_selector_term ctx last_branch next_term
     | `Call (fsym, _args) ->
       (* Check if the called function is recursive *)
       let is_recursive =
