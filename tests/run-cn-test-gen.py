@@ -273,6 +273,7 @@ def main():
             "abs_mem.pass.c",
             "abs.pass.c",
             "array_shift.pass.c",
+            "between.pass.c",
             "bin_tree.pass.c",
             "bounds.pass.c",
             "cast_equality.pass.c",
@@ -290,6 +291,7 @@ def main():
             "list_rev.pass.c",
             "list_seg.pass.c",
             "member_shift.pass.c",
+            "memcpy.pass.c",
             "mps_1.pass.c",
             "neg100.pass.c",
             "neq.pass.c",
@@ -314,7 +316,8 @@ def main():
                 test_files.append(test_path)
             else:
                 print(
-                    f"Warning: SMT test file {test_path} not found", file=sys.stderr)
+                    f"Error: SMT test file {test_path} not found", file=sys.stderr)
+                sys.exit(1)
     else:
         # For non-symbolic mode, use all .c files
         test_files = list(src_dir.glob("**/*.c"))
