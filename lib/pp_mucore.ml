@@ -106,9 +106,7 @@ module Make (Config : CONFIG) = struct
     | PEval _ | PEconstrained _ | PEsym _ | PEctor _ | PEarray_shift _ | PEmember_shift _
     | PEmemop (_, _)
     | PEnot _ | PEstruct _ | PEunion _ | PEcfunction _ | PEmemberof _ | PEconv_int _
-    | PElet _ | PEif _ | PEundef _ | PEerror _
-    | PEbitwise_unop (_, _)
-    | PEcall _
+    | PElet _ | PEif _ | PEundef _ | PEerror _ | PEcall _
     | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
     | PEare_compatible _
@@ -117,7 +115,9 @@ module Make (Config : CONFIG) = struct
 
 
   let precedence_expr = function
-    | Epure _ | Ememop _ | Eaction _ | Eskip | Eccall _ | Eunseq _ | CN_progs _ -> None
+    | Epure _ | Ememop _ | Eaction _ | Eskip | Eccall _ | Eproc _ | Eunseq _ | CN_progs _
+      ->
+      None
     | Ebound _ -> None
     | End _ -> None
     | Eif _ -> Some 1
@@ -293,11 +293,6 @@ module Make (Config : CONFIG) = struct
                | PEctor (Cnil _, _) -> Pp.brackets Pp.empty
                | PEctor (Ctuple, pes) -> Pp.parens (comma_list pp_pexpr pes)
                | PEctor (ctor, pes) -> pp_ctor ctor ^^ Pp.parens (comma_list pp_pexpr pes)
-               | PEbitwise_unop (unop, p1) ->
-                 let opnm =
-                   match unop with BW_CTZ -> "builtin_ctz" | BW_FFS -> "builtin_ffs"
-                 in
-                 !^opnm ^^ Pp.parens (pp_pexpr p1)
                | PEarray_shift (pe1, ty, pe2) ->
                  pp_keyword "array_shift"
                  ^^ Pp.parens
@@ -544,6 +539,9 @@ module Make (Config : CONFIG) = struct
                   (Cn_Pp.list
                      Pp_ast.pp_doc_tree
                      (List.map (Cnprog.dtree IndexTerms.dtree) ghost_args))
+           | Eproc (fn, args) ->
+             let fn = match fn with Sym s -> Sym.pp s | Impl i -> pp_impl i in
+             Cn_Pp.c_app fn (List.map pp_pexpr args)
            | CN_progs (_, stmts) ->
              pp_keyword "cn_prog"
              ^^ Pp.parens

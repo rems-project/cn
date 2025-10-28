@@ -667,12 +667,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | Cfvfromint, _ -> assert false
      | Civfromfloat, _ -> assert false
      | CivNULLcap _, _ -> assert false)
-  | PEbitwise_unop (unop, pe1) ->
-    let@ _ = ensure_bitvector_type loc ~expect in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
-    let@ vt1 = check_pexpr path_cs pe1 in
-    let unop = match unop with BW_FFS -> BW_FFS_NoSMT | BW_CTZ -> BW_CTZ_NoSMT in
-    return (arith_unop unop vt1 loc)
   | PEarray_shift (pe1, ct, pe2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
     let@ () = WellTyped.check_ct loc ct in
@@ -1960,6 +1954,29 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
   | Eskip ->
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     k (unit_ loc)
+  | Eproc (name, pes) ->
+    (match (name, pes) with
+     | Impl (BuiltinFunction (("ctz" | "generic_ffs") as fn)), [ pe1 ] ->
+       let@ _ = ensure_bitvector_type loc ~expect in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
+       check_pexpr pe1 (fun vt1 ->
+         let unop =
+           match fn with
+           | "ctz" -> BW_CTZ_NoSMT
+           | "generic_ffs" -> BW_FFS_NoSMT
+           | _ -> assert false
+         in
+         k (arith_unop unop vt1 loc))
+     | Impl (BuiltinFunction ("ctz" | "generic_ffs")), _ ->
+       let type_ = `Other in
+       let has = List.length pes in
+       let expect = 1 in
+       let msg = WellTyped (Number_arguments { type_; has; expect }) in
+       fail (fun _ -> { loc; msg })
+     | _ ->
+       fail (fun _ ->
+         { loc; msg = Generic !^"Unsupported Core standard library procedure" })
+       [@alert "-deprecated"])
   | Eccall (act, f_pe, pes, gargs_opt) ->
     let@ () = WellTyped.check_ct act.loc act.ct in
     (* copied TS's, from wellTyped.ml *)

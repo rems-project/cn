@@ -829,12 +829,6 @@ let pp_binop = function
 (*   | BW_AND -> pp_constructor0 "BW_AND" *)
 (*   | BW_XOR -> pp_constructor0 "BW_XOR" *)
 
-let pp_bw_unop = function
-  (* | BW_COMPL -> pp_constructor0 "BW_COMPL" *)
-  | BW_CTZ -> pp_constructor0 "BW_CTZ"
-  | BW_FFS -> pp_constructor0 "BW_FFS"
-
-
 let pp_core_iop = function
   | Core.IOpAdd -> pp_constructor0 "Core.IOpAdd"
   | Core.IOpSub -> pp_constructor0 "Core.IOpSub"
@@ -916,8 +910,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEconstrained"
            [ pp_list (pp_pair pp_mem_constraint (pp_pexpr pp_type)) cs ]
-       | PEbitwise_unop (op, e) ->
-         pp_constructor1 "PEbitwise_unop" [ pp_bw_unop op; pp_pexpr pp_type e ]
        (* | PEbitwise_binop (op, e1, e2) -> *)
        (*   pp_constructor1 *)
        (*     "PEbitwise_binop" *)
@@ -1864,6 +1856,16 @@ and pp_expr pp_type = function
                    pp_list (pp_cn_prog pp_index_term) ghost_args
                  ]
              ]
+         | Eproc (f, args) ->
+           let fn =
+             match f with
+             | Sym s -> pp_constructor1 "Sym" [ Sym.pp s ]
+             | Impl s ->
+               pp_constructor1
+                 "Impl"
+                 [ !^(CF.Implementation.string_of_implementation_constant s) ]
+           in
+           pp_constructor1 "Eproc" [ fn; pp_list (pp_pexpr pp_type) args ]
          | Elet (pat, e1, e2) ->
            pp_constructor1
              "Elet"
