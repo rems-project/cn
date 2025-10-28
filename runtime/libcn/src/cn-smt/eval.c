@@ -999,13 +999,13 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
         if (target_bits.is_signed) {
           switch (target_bits.size_bits) {
             case 8:
-              return convert_to_cn_bits_i8(int_val->val);
+              return cast_cn_integer_to_cn_bits_i8(int_val);
             case 16:
-              return convert_to_cn_bits_i16(int_val->val);
+              return cast_cn_integer_to_cn_bits_i16(int_val);
             case 32:
-              return convert_to_cn_bits_i32(int_val->val);
+              return cast_cn_integer_to_cn_bits_i32(int_val);
             case 64:
-              return convert_to_cn_bits_i64(int_val->val);
+              return cast_cn_integer_to_cn_bits_i64(int_val);
             default:
               assert(false);
               return NULL;
@@ -1013,13 +1013,13 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
         } else {
           switch (target_bits.size_bits) {
             case 8:
-              return convert_to_cn_bits_u8(int_val->val);
+              return cast_cn_integer_to_cn_bits_u8(int_val);
             case 16:
-              return convert_to_cn_bits_u16(int_val->val);
+              return cast_cn_integer_to_cn_bits_u16(int_val);
             case 32:
-              return convert_to_cn_bits_u32(int_val->val);
+              return cast_cn_integer_to_cn_bits_u32(int_val);
             case 64:
-              return convert_to_cn_bits_u64(int_val->val);
+              return cast_cn_integer_to_cn_bits_u64(int_val);
             default:
               assert(false);
               return NULL;
@@ -1136,12 +1136,7 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
     }
 
     case CN_TERM_WRAPI: {
-      void* value_val = cn_eval_term_aux(context, term->data.wrapi.value);
-      assert(value_val);
-
-      // Wrap integer to given integer type
-      // For now, just return the value unchanged
-      return value_val;
+      assert(false);
     }
 
     case CN_TERM_LET: {

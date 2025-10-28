@@ -622,6 +622,9 @@ cn_term* cn_smt_match(cn_term* scrutinee,
     size_t* pattern_var_counts,
     cn_term** body_terms);
 
+// Equality comparison for cn_base_type
+bool cn_base_type_eq(cn_base_type a, cn_base_type b);
+
 // Pretty-print
 char* cn_term_to_string(cn_term* term);
 

@@ -1287,6 +1287,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       } else if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_BITS) {
         // Bits -> Bits: bv_cast
         return bv_cast(target_bt, source_bt, smt_term);
+      } else if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_INTEGER) {
+        // Bits -> Integer: Bitvector to integer conversion
+        sexp_t* args[] = {smt_term};
+        return sexp_app_str("bv2int", args, 1);
       } else if (source_bt.tag == CN_BASE_LOC && target_bt.tag == CN_BASE_INTEGER) {
         // Loc -> Integer: LOC is represented as a bitvector, convert bitvector to integer
         // In the C implementation, t_loc() returns t_bits(CHAR_BIT * sizeof(uintptr_t))
@@ -1300,6 +1304,13 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         int ptr_width = CHAR_BIT * sizeof(uintptr_t);
         char int2bv_op[64];
         snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", ptr_width);
+        sexp_t* args[] = {smt_term};
+        return sexp_app_str(int2bv_op, args, 1);
+      } else if (source_bt.tag == CN_BASE_INTEGER && target_bt.tag == CN_BASE_BITS) {
+        // Integer -> Bits: Convert integer to bitvector of target width
+        int target_width = target_bt.data.bits.size_bits;
+        char int2bv_op[64];
+        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", target_width);
         sexp_t* args[] = {smt_term};
         return sexp_app_str(int2bv_op, args, 1);
       } else {
@@ -1551,8 +1562,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_WRAPI: {
-      // Integer wrapping - just translate the value for now
-      return translate_term(s, iterm->data.wrapi.value);
+      assert(false);
     }
 
     case CN_TERM_MAP_SET: {
