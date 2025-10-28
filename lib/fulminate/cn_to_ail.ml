@@ -1898,7 +1898,6 @@ let generate_tag_definition dt_members =
   let ail_dt_members = List.map (fun (id, bt) -> (bt_to_ail_ctype bt, id)) dt_members in
   (* TODO: Check if something called tag already exists *)
   let members = List.map create_member ail_dt_members in
-  let members = List.rev members in
   C.(StructDef (members, None))
 
 
@@ -2022,10 +2021,10 @@ let cn_to_ail_datatype ?(first = false) (cn_datatype : _ cn_datatype)
     ]
   in
   let bt_cases =
-    List.map
-      (fun (sym, ms) ->
-         (sym, List.map (fun (id, cn_t) -> (id, cn_base_type_to_bt cn_t)) ms))
-      cn_datatype.cn_dt_cases
+    cn_datatype.cn_dt_cases
+    |> List.map (fun (sym, ms) ->
+      (sym, List.map (fun (id, cn_t) -> (id, cn_base_type_to_bt cn_t)) ms))
+    |> List.sort (fun (sym, _) (sym', _) -> Sym.compare sym sym')
   in
   let structs = List.map (fun c -> generate_struct_definition c) bt_cases in
   let structs =
