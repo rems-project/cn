@@ -183,7 +183,7 @@ module PP = struct
       Dnode
         (pp_pure_ctor "Erun", [ Dnode (pp_ctor "Args", List.map dtree_of_pexpr asyms) ])
     | Ebound e -> Dnode (pp_ctor "Ebound", [ dtree_of_expr e ])
-    | Ememop _ | Eccall (_, _, _, _) | Eunseq _ | End _ | CN_progs (_, _) ->
+    | Ememop _ | Eccall (_, _, _, _) | Eproc _ | Eunseq _ | End _ | CN_progs (_, _) ->
       Dnode (pp_ctor "TExpr(TODO)", [ Dleaf (Pp_mucore.pp_expr expr) ])
 
 

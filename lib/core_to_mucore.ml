@@ -470,7 +470,6 @@ let rec n_expr
   let (Expr (annots, pe)) = e in
   let loc = (if inherit_loc then Locations.update loc else Fun.id) (get_loc_ annots) in
   let wrap pe = Mu.Expr (loc, annots, (), pe) in
-  let wrap_pure pe = wrap (Epure (Pexpr (loc, [], (), pe))) in
   let n_pexpr = n_pexpr ~inherit_loc loc in
   let n_paction = n_paction ~inherit_loc loc in
   let n_expr =
@@ -553,12 +552,13 @@ let rec n_expr
     return (wrap (Eccall (ct1, e2, es, ghost_args)))
   | Eproc (_a, name, es) ->
     let es = List.map n_pexpr es in
-    (match (name, es) with
-     | Impl (BuiltinFunction "ctz"), [ arg1 ] ->
-       return (wrap_pure (PEbitwise_unop (BW_CTZ, arg1)))
-     | Impl (BuiltinFunction "generic_ffs"), [ arg1 ] ->
-       return (wrap_pure (PEbitwise_unop (BW_FFS, arg1)))
-     | _ -> assert_error loc (item "Eproc" (CF.Pp_core_ast.pp_expr e)))
+    return (wrap (Eproc (name, es)))
+    (* (match (name, es) with *)
+    (* | Impl (BuiltinFunction "ctz"), [ arg1 ] -> *)
+    (*   return (wrap_pure (PEbitwise_unop (BW_CTZ, arg1))) *)
+    (* | Impl (BuiltinFunction "generic_ffs"), [ arg1 ] -> *)
+    (*   return (wrap_pure (PEbitwise_unop (BW_FFS, arg1))) *)
+    (* | _ -> assert_error loc (item "Eproc" (CF.Pp_core_ast.pp_expr e))) *)
   | Eunseq es ->
     let@ es = ListM.mapM n_expr es in
     return (wrap (Eunseq es))

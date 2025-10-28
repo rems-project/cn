@@ -65,6 +65,7 @@ let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =
   | Eaction _ -> []
   | Eskip -> []
   | Eccall _ -> []
+  | Eproc _ -> []
   | Elet (_, _, e) -> stmts_in_expr e
   | Eunseq es -> List.concat_map stmts_in_expr es
   | Ewseq (_, e1, e2) -> stmts_in_expr e1 @ stmts_in_expr e2
@@ -183,6 +184,7 @@ let ghost_args_and_their_call_locs prog5 =
     | Eskip -> ()
     | Eccall (_, _, _, Some (_, ghost_args)) -> acc := (loc, ghost_args) :: !acc
     | Eccall (_, _, _, None) -> acc := (loc, []) :: !acc
+    | Eproc _ -> ()
     | Elet (_, _, e) -> aux_expr e
     | Eunseq es -> List.iter aux_expr es
     | Ewseq (_, e1, e2) ->

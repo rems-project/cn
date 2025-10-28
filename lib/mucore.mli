@@ -57,10 +57,6 @@ val bt_of_pattern : 'a pattern -> 'a
 
 val loc_of_pattern : 'a pattern -> Locations.t
 
-type bw_unop =
-  | BW_CTZ
-  | BW_FFS
-
 (** What to do on out of bounds.
     The annotated C type is the result type of the operation. *)
 type bound_kind =
@@ -80,7 +76,6 @@ type 'TY pexpr_ =
   | PEctor of ctor * 'TY pexpr list
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
-  | PEbitwise_unop of bw_unop * 'TY pexpr
   | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
@@ -156,6 +151,7 @@ type 'TY expr_ =
   | Eskip
   | Eccall of
       act * 'TY pexpr * 'TY pexpr list * (Locations.t * IndexTerms.t Cnprog.t list) option
+  | Eproc of Sym.t generic_name * 'TY pexpr list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
   | Ewseq of 'TY pattern * 'TY expr * 'TY expr

@@ -335,14 +335,6 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
      | _, _, _ ->
        let@ res = simp_const_pe (f x_v y_v) in
        return res)
-  | PEbitwise_unop (unop, pe1) ->
-    let@ x = self var_map pe1 in
-    let@ unop =
-      match unop with
-      | BW_CTZ -> return IT.BW_CTZ_NoSMT
-      | BW_FFS -> return IT.BW_FFS_NoSMT
-    in
-    simp_const_pe (IT.arith_unop unop x loc)
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
@@ -590,6 +582,17 @@ let rec symb_exec_expr ctxt state_vars expr =
                   (Pp_mucore.pp_expr expr))
              [@alert "-deprecated"]
          })
+  | Eproc (Impl (BuiltinFunction (("ctz" | "generic_ffs") as fn)), [ pe1 ]) ->
+    let@ x = symb_exec_pexpr ctxt var_map pe1 in
+    let unop =
+      match fn with
+      | "ctz" -> IT.BW_CTZ_NoSMT
+      | "generic_ffs" -> IT.BW_FFS_NoSMT
+      | _ -> assert false
+    in
+    let t = IT.arith_unop unop x loc in
+    let@ v = simp_const loc (lazy (Pp_mucore.pp_pexpr pe1)) t in
+    return (Compute (v, state))
   | Eccall (_act, fun_pe, args_pe, gargs_opt) ->
     let@ fun_it = symb_exec_pexpr ctxt var_map fun_pe in
     let@ args_its = ListM.mapM (symb_exec_pexpr ctxt var_map) args_pe in

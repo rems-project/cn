@@ -1659,12 +1659,6 @@ module BaseTyping = struct
           in
           return
             (Memory.bt_of_sct (bound_kind_act bk).ct, PEbounded_binop (bk, op, pe1, pe2))
-        | PEbitwise_unop (unop, pe) ->
-          (* all the supported unops do arithmetic in the one (bitwise) type *)
-          let@ pe = infer_pexpr pe in
-          let bt = bt_of_pexpr pe in
-          let@ () = ensure_bits_type (loc_of_pexpr pe) bt in
-          return (bt, PEbitwise_unop (unop, pe))
         | PEif (c_pe, pe1, pe2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, pe1, pe2 =
@@ -1765,7 +1759,8 @@ module BaseTyping = struct
              let has = List.length pes in
              fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
            | _ ->
-             fail { loc; msg = Generic !^"PEcall not inlined" } [@alert "-deprecated"])
+             fail
+               { loc; msg = Generic !^"Unsupported Core function" } [@alert "-deprecated"])
         | PEare_compatible (pe1, pe2) ->
           let@ pe1 = check_pexpr CType pe1 in
           let@ pe2 = check_pexpr CType pe2 in
@@ -2308,6 +2303,20 @@ module BaseTyping = struct
           in
           return (bTy, Eaction (Paction (pol, Action (aloc, action_))))
         | Eskip -> return (Unit, Eskip)
+        | Eproc (name, es) ->
+          (match (name, es) with
+           | Impl (BuiltinFunction ("ctz" | "generic_ffs")), [ pe ] ->
+             let@ pe = infer_pexpr pe in
+             let bt = bt_of_pexpr pe in
+             let@ () = ensure_bits_type (loc_of_pexpr pe) bt in
+             return (bt, Eproc (name, [ pe ]))
+           | Impl (BuiltinFunction ("ctz" | "generic_ffs")), _ ->
+             let has = List.length es in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
+           | _ ->
+             fail
+               { loc; msg = Generic !^"Unsupported Core procedure" }
+             [@alert "-deprecated"])
         | Eccall (act, f_pe, pes, gargs_opt) ->
           let@ () = WCT.is_ct act.loc act.ct in
           let@ ret_ct, arg_cts =
