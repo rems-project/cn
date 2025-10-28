@@ -1502,23 +1502,28 @@ module BaseTyping = struct
   let rec check_object_value
     : 'TY. Locations.t -> BT.t -> 'TY Mu.object_value -> BT.t Mu.object_value m
     =
-    fun loc bt (OV (_, ov) as ov_original) ->
+    fun loc bt ov ->
     match ov with
-    | OVinteger iv ->
+    | OV (_, OVinteger iv) ->
       let z = Memory.z_of_ival iv in
-      let@ () = ensure_bits_type loc bt in
-      if BT.fits_range (Option.get (BT.is_bits_bt bt)) z then
-        return (Mu.OV (bt, OVinteger iv))
-      else
-        fail
-          { loc;
-            msg =
-              Generic
-                (!^"Value " ^^^ Pp.z z ^^^ !^"does not fit in expected type" ^^^ BT.pp bt)
-              [@alert "-deprecated"]
-          }
+      let@ () =
+        match bt with
+        | Integer -> return ()
+        | Bits (sign, n) when BT.fits_range (sign, n) z -> return ()
+        | Bits _ ->
+          let msg =
+            !^"Value " ^^^ Pp.z z ^^^ !^"does not fit expected type" ^^^ BT.pp bt
+          in
+          fail { loc; msg = Generic msg [@alert "-deprecated"] }
+        | _ ->
+          fail
+            { loc;
+              msg = Mismatch { has = !^"bitvector/integer type"; expect = BT.pp bt }
+            }
+      in
+      return (Mu.OV (bt, OVinteger iv))
     | _ ->
-      let@ ov = infer_object_value loc ov_original in
+      let@ ov = infer_object_value loc ov in
       let@ () = ensure_base_type loc ~expect:bt (Mu.bt_of_object_value ov) in
       return ov
 
@@ -1752,20 +1757,21 @@ module BaseTyping = struct
              fail { loc; msg = Generic err [@alert "-deprecated"] }
            | Sym (Symbol (_, _, SD_Id "params_length")), [ e ] ->
              let@ e = check_pexpr (List CType) e in
-             let rbt = Memory.bt_of_sct (Integer (Unsigned Short)) in
-             return (rbt, PEcall (f, [ e ]))
+             return (Integer, PEcall (f, [ e ]))
            | Sym (Symbol (_, _, SD_Id "params_length")), _ ->
              let has = List.length pes in
              fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
            | Sym (Symbol (_, _, SD_Id "params_nth")), [ e1; e2 ] ->
              let@ e1 = check_pexpr (List CType) e1 in
-             let@ e2 = check_pexpr (Memory.bt_of_sct (Integer (Signed Short))) e2 in
+             let@ e2 = check_pexpr Integer e2 in
              return (CType, PEcall (f, [ e1; e2 ]))
            | Sym (Symbol (_, _, SD_Id "params_nth")), _ ->
              let has = List.length pes in
              fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
            | _ ->
-             fail { loc; msg = Generic !^"PEcall not inlined" } [@alert "-deprecated"])
+             fail
+               { loc; msg = Generic !^"Unsupported Core standard library function" }
+             [@alert "-deprecated"])
         | PEare_compatible (pe1, pe2) ->
           let@ pe1 = check_pexpr CType pe1 in
           let@ pe2 = check_pexpr CType pe2 in

@@ -215,21 +215,17 @@ let ensure_bitvector_type (loc : Locations.t) ~(expect : BT.t) : (BT.sign * int)
 let rec check_object_value (loc : Locations.t) (Mu.OV (expect, ov)) : IT.t m =
   match ov with
   | OVinteger iv ->
-    (* TODO: maybe check whether iv is within range of the type? *)
-    let@ bt_info = ensure_bitvector_type loc ~expect in
     let z = Memory.z_of_ival iv in
-    let min_z, max_z = BT.bits_range bt_info in
-    if Z.leq min_z z && Z.leq z max_z then
-      return (num_lit_ z expect loc)
-    else
-      fail (fun _ ->
-        { loc;
-          msg =
-            Generic
-              (!^"integer literal not representable at type"
-               ^^^ Pp.typ (Pp.z z) (BT.pp expect))
-            [@alert "-deprecated"]
-        })
+    (match expect with
+     | BT.Bits (sign, n) ->
+       let@ () = WellTyped.ensure_z_fits_bits_type loc (sign, n) z in
+       return (num_lit_ z expect loc)
+     | BT.Integer -> return (z_ z loc)
+     | _ ->
+       let msg =
+         WellTyped (Mismatch { has = !^"integer/bitvector type"; expect = BT.pp expect })
+       in
+       fail (fun _ -> { loc; msg }))
   | OVpointer p -> check_ptrval loc ~expect p
   | OVarray items ->
     let@ index_bt, item_bt = expect_must_be_map_bt loc ~expect in
@@ -896,17 +892,11 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let err = WT.Number_arguments { type_ = `Other; has; expect = 1 } in
        fail (fun _ -> { loc; msg = WellTyped err })
      | Sym (Symbol (_, _, SD_Id "params_length")), [ e ] ->
-       let rbt = Memory.bt_of_sct (Integer (Unsigned Short)) in
-       let@ () = WellTyped.ensure_base_type loc ~expect rbt in
+       let@ () = WellTyped.ensure_base_type loc ~expect Integer in
        let@ () = WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e) in
        let@ e = check_pexpr path_cs e in
        (match IT.dest_list e with
-        | Some its ->
-          let n = Z.of_int (List.length its) in
-          let@ () =
-            WellTyped.ensure_z_fits_bits_type loc (Option.get (BT.is_bits_bt expect)) n
-          in
-          return (num_lit_ n expect loc)
+        | Some its -> return (int_ (List.length its) loc)
         | None ->
           let msg = "Could not evaluate params_length argument to a constant list." in
           (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
@@ -919,18 +909,11 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ () =
          WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e1)
        in
-       let@ () =
-         WellTyped.ensure_base_type
-           loc
-           ~expect:(Memory.bt_of_sct (Integer (Signed Short)))
-           (Mu.bt_of_pexpr e2)
-       in
+       let@ () = WellTyped.ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr e2) in
        let@ e1 = check_pexpr path_cs e1 in
        let@ e2 = check_pexpr path_cs e2 in
-       (match (IT.dest_list e1, IT.is_bits_const e2) with
-        | Some its, Some (bits_info, i) ->
-          assert (BaseTypes.fits_range bits_info i);
-          return (List.nth its (Z.to_int i))
+       (match (IT.dest_list e1, IT.is_z e2) with
+        | Some its, Some i -> return (List.nth its (Z.to_int i))
         | _ ->
           let msg = "Could not evaluate params_nth arguments to constants." in
           (fail (fun _ -> { loc; msg = Generic !^msg }) [@alert "-deprecated"]))
