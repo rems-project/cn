@@ -658,7 +658,13 @@ let struct_ (tag, members) loc = IT (Struct (tag, members), BT.Struct tag, loc)
 let member_ ~member_bt (it, member) loc = IT (StructMember (it, member), member_bt, loc)
 
 let record_ members loc =
-  IT (Record members, BT.Record (List.map (fun (s, t) -> (s, get_bt t)) members), loc)
+  let sorted_members =
+    List.sort_uniq (fun (id1, _) (id2, _) -> Id.compare id1 id2) members
+  in
+  IT
+    ( Record sorted_members,
+      BT.Record (List.map (fun (s, t) -> (s, get_bt t)) sorted_members),
+      loc )
 
 
 let recordMember_ ~member_bt (t, member) loc =
