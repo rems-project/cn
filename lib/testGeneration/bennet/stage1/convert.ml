@@ -301,7 +301,9 @@ module Make (AD : Domain.T) = struct
           | _ ->
             (* Always wrap arguments in a record, even for single argument *)
             BT.Record
-              (List.map (fun (x, bt) -> (Id.make here (Sym.pp_string x), bt)) vars)
+              (vars
+               |> List.map (fun (x, bt) -> (Id.make here (Sym.pp_string x), bt))
+               |> List.sort (fun (id, _) (id', _) -> Id.compare id id'))
         in
         ([], oarg_bt))
     in

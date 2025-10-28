@@ -3331,7 +3331,9 @@ let rec generate_record_opt pred_sym bt =
   let open Option in
   let@ type_sym = generate_record_tag pred_sym bt in
   match bt with
-  | BT.Record members -> Some (generate_struct_definition ~lc:false (type_sym, members))
+  | BT.Record members ->
+    assert (List.sorted_and_unique (fun (id, _) (id', _) -> Id.compare id id') members);
+    Some (generate_struct_definition ~lc:false (type_sym, members))
   | BT.Tuple ts ->
     let members = List.map (fun t -> (create_id_from_sym (Sym.fresh_anon ()), t)) ts in
     generate_record_opt type_sym (BT.Record members)
