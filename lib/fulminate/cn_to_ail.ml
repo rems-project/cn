@@ -2024,7 +2024,6 @@ let cn_to_ail_datatype ?(first = false) (cn_datatype : _ cn_datatype)
     cn_datatype.cn_dt_cases
     |> List.map (fun (sym, ms) ->
       (sym, List.map (fun (id, cn_t) -> (id, cn_base_type_to_bt cn_t)) ms))
-    |> List.sort (fun (sym, _) (sym', _) -> Sym.compare sym sym')
   in
   let structs = List.map (fun c -> generate_struct_definition c) bt_cases in
   let structs =
