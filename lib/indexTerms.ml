@@ -661,6 +661,12 @@ let record_ members loc =
   let sorted_members =
     List.sort_uniq (fun (id1, _) (id2, _) -> Id.compare id1 id2) members
   in
+  if List.length sorted_members <> List.length members then
+    failwith
+      ("Record members are not allowed to include duplicates: "
+       ^ String.concat
+           ", "
+           (members |> List.map fst |> List.map Id.pp |> List.map Pp.plain));
   IT
     ( Record sorted_members,
       BT.Record (List.map (fun (s, t) -> (s, get_bt t)) sorted_members),
