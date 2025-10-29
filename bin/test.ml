@@ -72,6 +72,7 @@ let run_tests
       print_backtrack_info
       print_satisfaction_info
       print_discard_info
+      just_reset_solver
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -151,7 +152,8 @@ let run_tests
           print_size_info;
           print_backtrack_info;
           print_satisfaction_info;
-          print_discard_info
+          print_discard_info;
+          just_reset_solver
         }
       in
       TestGeneration.set_config config;
@@ -571,6 +573,14 @@ module Flags = struct
     Arg.(value & flag & info [ "print-discard-info" ] ~doc)
 
 
+  let just_reset_solver =
+    let doc =
+      "Just reset the SMT solver instead of closing and creating a new one. WARNING: A \
+       bunch of stuff breaks."
+    in
+    Arg.(value & flag & info [ "just-reset-solver" ] ~doc)
+
+
   let symbolic =
     let doc =
       "(Experimental) Use symbolic execution for test generation instead of concrete \
@@ -663,6 +673,7 @@ let cmd =
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
     $ Flags.print_discard_info
+    $ Flags.just_reset_solver
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
