@@ -230,11 +230,9 @@ module Make (AD : Domain.T) = struct
                ^^ !^create_fn_name
                ^^ !^"(bennet_hash_table(const_char_ptr, void_ptr) * members) {"
                ^^ hardline
-               ^^ !^"  bennet_hash_table(const_char_ptr, void_ptr) * record = \
-                     malloc(sizeof(*record));"
-               ^^ hardline
-               ^^ !^"  bennet_hash_table_init(const_char_ptr, void_ptr)(record, \
-                     bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);"
+               ^^ !^"  struct "
+               ^^ !^record_name
+               ^^ !^"* record = malloc(sizeof(*record));"
                ^^ hardline
                ^^ List.fold_left
                     (fun acc_inner (id, _) ->
@@ -251,13 +249,11 @@ module Make (AD : Domain.T) = struct
                        ^^ !^member_name
                        ^^ !^"_opt)) {"
                        ^^ hardline
-                       ^^ !^"    bennet_hash_table_set(const_char_ptr, void_ptr)(record, \
-                             \""
+                       ^^ !^"    record->"
                        ^^ !^member_name
-                       ^^ !^"\", "
-                       ^^ !^"bennet_optional_unwrap("
+                       ^^ !^" = bennet_optional_unwrap("
                        ^^ !^member_name
-                       ^^ !^"_opt));"
+                       ^^ !^"_opt);"
                        ^^ hardline
                        ^^ !^"  }"
                        ^^ hardline)
@@ -274,15 +270,29 @@ module Make (AD : Domain.T) = struct
                ^^ !^get_fn_name
                ^^ !^"(void* record_val, const char* member_name) {"
                ^^ hardline
-               ^^ !^"  bennet_hash_table(const_char_ptr, void_ptr) * record = "
-               ^^ !^"(bennet_hash_table(const_char_ptr, void_ptr) *)record_val;"
+               ^^ !^"  struct "
+               ^^ !^record_name
+               ^^ !^"* record = (struct "
+               ^^ !^record_name
+               ^^ !^"*)record_val;"
                ^^ hardline
-               ^^ !^"  bennet_optional(void_ptr) member_opt = \
-                     bennet_hash_table_get(const_char_ptr, void_ptr)(record, \
-                     member_name);"
-               ^^ hardline
-               ^^ !^"  return bennet_optional_is_some(member_opt) ? \
-                     bennet_optional_unwrap(member_opt) : NULL;"
+               ^^ List.fold_left
+                    (fun acc_inner (id, _) ->
+                       let member_name = Id.get_string id in
+                       acc_inner
+                       ^^ !^"  if (strcmp(member_name, \""
+                       ^^ !^member_name
+                       ^^ !^"\") == 0) {"
+                       ^^ hardline
+                       ^^ !^"    return record->"
+                       ^^ !^member_name
+                       ^^ !^";"
+                       ^^ hardline
+                       ^^ !^"  }"
+                       ^^ hardline)
+                    empty
+                    members
+               ^^ !^"  return NULL;"
                ^^ hardline
                ^^ !^"}"
                ^^ hardline
@@ -293,54 +303,48 @@ module Make (AD : Domain.T) = struct
                ^^ !^update_fn_name
                ^^ !^"(void* record_val, const char* member_name, void* new_value) {"
                ^^ hardline
-               ^^ !^"  bennet_hash_table(const_char_ptr, void_ptr) * old_record = "
-               ^^ !^"(bennet_hash_table(const_char_ptr, void_ptr) *)record_val;"
+               ^^ !^"  struct "
+               ^^ !^record_name
+               ^^ !^"* old_record = (struct "
+               ^^ !^record_name
+               ^^ !^"*)record_val;"
                ^^ hardline
-               ^^ !^"  bennet_hash_table(const_char_ptr, void_ptr) * new_record = \
-                     malloc(sizeof(*new_record));"
-               ^^ hardline
-               ^^ !^"  bennet_hash_table_init(const_char_ptr, void_ptr)(new_record, \
-                     bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);"
+               ^^ !^"  struct "
+               ^^ !^record_name
+               ^^ !^"* new_record = malloc(sizeof(*new_record));"
                ^^ hardline
                ^^ !^"  // Copy all existing members"
                ^^ hardline
                ^^ List.fold_left
                     (fun acc_inner (id, _) ->
-                       let member_name = Id.get_string id in
+                       let member_name_local = Id.get_string id in
+                       acc_inner
+                       ^^ !^"  new_record->"
+                       ^^ !^member_name_local
+                       ^^ !^" = old_record->"
+                       ^^ !^member_name_local
+                       ^^ !^";"
+                       ^^ hardline)
+                    empty
+                    members
+               ^^ !^"  // Update the specified member"
+               ^^ hardline
+               ^^ List.fold_left
+                    (fun acc_inner (id, _) ->
+                       let member_name_local = Id.get_string id in
                        acc_inner
                        ^^ !^"  if (strcmp(member_name, \""
-                       ^^ !^member_name
-                       ^^ !^"\") != 0) {"
+                       ^^ !^member_name_local
+                       ^^ !^"\") == 0) {"
                        ^^ hardline
-                       ^^ !^"    bennet_optional(void_ptr) "
-                       ^^ !^member_name
-                       ^^ !^"_opt = "
-                       ^^ !^"bennet_hash_table_get(const_char_ptr, void_ptr)(old_record, \
-                             \""
-                       ^^ !^member_name
-                       ^^ !^"\");"
-                       ^^ hardline
-                       ^^ !^"    if (bennet_optional_is_some("
-                       ^^ !^member_name
-                       ^^ !^"_opt)) {"
-                       ^^ hardline
-                       ^^ !^"      bennet_hash_table_set(const_char_ptr, \
-                             void_ptr)(new_record, \""
-                       ^^ !^member_name
-                       ^^ !^"\", "
-                       ^^ !^"bennet_optional_unwrap("
-                       ^^ !^member_name
-                       ^^ !^"_opt));"
-                       ^^ hardline
-                       ^^ !^"    }"
+                       ^^ !^"    new_record->"
+                       ^^ !^member_name_local
+                       ^^ !^" = new_value;"
                        ^^ hardline
                        ^^ !^"  }"
                        ^^ hardline)
                     empty
                     members
-               ^^ !^"  bennet_hash_table_set(const_char_ptr, void_ptr)(new_record, \
-                     member_name, new_value);"
-               ^^ hardline
                ^^ !^"  return new_record;"
                ^^ hardline
                ^^ !^"}"
@@ -352,19 +356,17 @@ module Make (AD : Domain.T) = struct
                ^^ !^default_fn_name
                ^^ !^"(void) {"
                ^^ hardline
-               ^^ !^"  bennet_hash_table(const_char_ptr, void_ptr) * record = \
-                     malloc(sizeof(*record));"
-               ^^ hardline
-               ^^ !^"  bennet_hash_table_init(const_char_ptr, void_ptr)(record, \
-                     bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);"
+               ^^ !^"  struct "
+               ^^ !^record_name
+               ^^ !^"* record = malloc(sizeof(*record));"
                ^^ hardline
                ^^ List.fold_left
                     (fun acc_inner (id, _) ->
                        let member_name = Id.get_string id in
                        acc_inner
-                       ^^ !^"  bennet_hash_table_set(const_char_ptr, void_ptr)(record, \""
+                       ^^ !^"  record->"
                        ^^ !^member_name
-                       ^^ !^"\", NULL);"
+                       ^^ !^" = NULL;"
                        ^^ hardline)
                     empty
                     members
