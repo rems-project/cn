@@ -295,7 +295,7 @@ def main():
             "neq.pass.c",
             "non_access_global.pass.c",
             "pointer_ordering.special.c",
-            "record_test.pass.c",
+            "record.pass.c",
             "runway.pass.c",
             "smt_pruning.pass.c",
             "sorted_list.cons.fail.c",

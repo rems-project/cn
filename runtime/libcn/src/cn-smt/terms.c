@@ -40,11 +40,15 @@ BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
 #define DEFINE_CN_SMT_ARITH_BINOP(name, op_enum)                                         \
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
     assert(left&& right);                                                                \
+    assert(cn_base_type_eq(left->base_type, right->base_type));                          \
+                                                                                         \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, left->base_type);                       \
     assert(term);                                                                        \
+                                                                                         \
     term->data.binop.op = op_enum;                                                       \
     term->data.binop.left = left;                                                        \
     term->data.binop.right = right;                                                      \
+                                                                                         \
     return term;                                                                         \
   }
 
@@ -438,32 +442,39 @@ cn_term* cn_smt_record(
 
 cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name) {
   assert(record_term && member_name);
+  assert(record_term->base_type.tag == CN_BASE_RECORD);
 
-  // Find the member type from the record (simplified - just use the base type of the record)
-  cn_base_type member_type = cn_base_type_simple(CN_BASE_INTEGER);  // Default fallback
+  // Look up the member type from the record's base type
+  size_t count = record_term->base_type.data.record.count;
+  const char** names = record_term->base_type.data.record.names;
+  cn_base_type* types = record_term->base_type.data.record.types;
 
-  // Try to look up the actual member in the record if it's a record term
-  if (record_term->type == CN_TERM_RECORD) {
-    // Search for member in vector
-    bennet_vector(cn_member_pair)* members = &record_term->data.record.members;
-    for (size_t i = 0; i < bennet_vector_size(cn_member_pair)(members); i++) {
-      cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
-      if (strcmp(pair->name, member_name) == 0) {
-        member_type = pair->value->base_type;
-        break;
-      }
+  for (size_t i = 0; i < count; i++) {
+    if (strcmp(names[i], member_name) == 0) {
+      cn_base_type member_type = types[i];
+      cn_term* term = cn_term_alloc(CN_TERM_RECORD_MEMBER, member_type);
+      assert(term);
+
+      term->data.record_member.record_term = record_term;
+      term->data.record_member.member_name = strdup(member_name);
+      assert(term->data.record_member.member_name);
+
+      return term;
     }
   }
 
-  cn_term* term = cn_term_alloc(CN_TERM_RECORD_MEMBER, member_type);
-  assert(term);
-
-  term->data.record_member.record_term = record_term;
-  term->data.record_member.member_name = strdup(member_name);
-
-  assert(term->data.record_member.member_name);
-
-  return term;
+  // Member not found - this is a bug
+  fprintf(stderr,
+      "ERROR: cn_smt_record_member could not find member '%s' in record\n",
+      member_name);
+  fprintf(stderr, "  Record has %zu members: ", count);
+  for (size_t i = 0; i < count; i++) {
+    fprintf(stderr, "%s (tag=%d)%s", names[i], types[i].tag, i < count - 1 ? ", " : "");
+  }
+  fprintf(stderr, "\n");
+  fflush(stderr);
+  assert(false && "Record member not found");
+  return NULL;  // Unreachable
 }
 
 cn_term* cn_smt_record_update(
@@ -584,6 +595,82 @@ cn_term* cn_smt_match(cn_term* scrutinee,
   }
 
   return term;
+}
+
+// Equality function for cn_base_type
+bool cn_base_type_eq(cn_base_type a, cn_base_type b) {
+  // First check if tags are equal
+  if (a.tag != b.tag) {
+    return false;
+  }
+
+  // Then check tag-specific data
+  switch (a.tag) {
+    case CN_BASE_BOOL:
+    case CN_BASE_INTEGER:
+    case CN_BASE_REAL:
+    case CN_BASE_LOC:
+    case CN_BASE_UNIT:
+    case CN_BASE_CTYPE:
+    case CN_BASE_MAP:
+      // Simple types with no additional data
+      return true;
+
+    case CN_BASE_BITS:
+      return a.data.bits.is_signed == b.data.bits.is_signed &&
+             a.data.bits.size_bits == b.data.bits.size_bits;
+
+    case CN_BASE_LIST:
+      assert(a.data.list.element_type && b.data.list.element_type);
+      return cn_base_type_eq(*a.data.list.element_type, *b.data.list.element_type);
+
+    case CN_BASE_SET:
+      assert(a.data.set.element_type && b.data.set.element_type);
+      return cn_base_type_eq(*a.data.set.element_type, *b.data.set.element_type);
+
+    case CN_BASE_OPTION:
+      assert(a.data.option.element_type && b.data.option.element_type);
+      return cn_base_type_eq(*a.data.option.element_type, *b.data.option.element_type);
+
+    case CN_BASE_STRUCT:
+      assert(a.data.struct_tag.tag && b.data.struct_tag.tag);
+      return strcmp(a.data.struct_tag.tag, b.data.struct_tag.tag) == 0;
+
+    case CN_BASE_DATATYPE:
+      assert(a.data.datatype_tag.tag && b.data.datatype_tag.tag);
+      return strcmp(a.data.datatype_tag.tag, b.data.datatype_tag.tag) == 0;
+
+    case CN_BASE_TUPLE:
+      if (a.data.tuple.count != b.data.tuple.count) {
+        return false;
+      }
+      for (size_t i = 0; i < a.data.tuple.count; i++) {
+        if (!cn_base_type_eq(a.data.tuple.types[i], b.data.tuple.types[i])) {
+          return false;
+        }
+      }
+      return true;
+
+    case CN_BASE_RECORD:
+      if (a.data.record.count != b.data.record.count) {
+        return false;
+      }
+      // Check that field names and types match
+      for (size_t i = 0; i < a.data.record.count; i++) {
+        assert(a.data.record.names[i] && b.data.record.names[i]);
+        if (strcmp(a.data.record.names[i], b.data.record.names[i]) != 0) {
+          return false;
+        }
+        if (!cn_base_type_eq(a.data.record.types[i], b.data.record.types[i])) {
+          return false;
+        }
+      }
+      return true;
+
+    default:
+      assert(false);  // Unknown tag
+      return false;
+  }
 }
 
 char* cn_term_to_string(cn_term* term) {
