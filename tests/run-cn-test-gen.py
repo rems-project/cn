@@ -267,62 +267,21 @@ def main():
 
     # First, determine the normal set of test files based on mode
     if args.symbolic:
-        # For symbolic mode, use a specific subset of tests
-        smt_test_files = [
-            "abs_mem.fail.c",
-            "abs_mem.pass.c",
-            "abs.pass.c",
-            "array_shift.pass.c",
-            "between.pass.c",
-            "bin_tree.pass.c",
-            "bounds.pass.c",
-            "bst.flaky.c",
-            "bst.pass.c",
-            "cast_equality.pass.c",
-            "counter.pass.c",
-            "delete_main.pass.c",
-            "dll.pass.c",
-            "enum1.pass.c",
-            "enum2.pass.c",
-            "func_apply.pass.c",
-            "learn_cast.special.c",
-            "learn_equality.pass.c",
-            "learn_multiple.special.c",
-            "let.pass.c",
-            "list_rev.fail.c",
-            "list_rev.pass.c",
-            "list_seg.pass.c",
-            "member_shift.pass.c",
-            "memcpy.pass.c",
-            "mps_1.pass.c",
-            "neg100.pass.c",
-            "neq.pass.c",
-            "non_access_global.pass.c",
-            "pointer_ordering.special.c",
-            "record.pass.c",
-            "runway.pass.c",
-            "slf_sized_stack.pass.c",
-            "smt_pruning.pass.c",
-            "sorted_list.cons.fail.c",
-            "sorted_list.insert.pass.c",
-            "sorted_list.sum.pass.c",
-            "sorted_list_alt.insert.flaky.c",
-            "sorted_list_alt.insert.pass.c",
-            "sorted_list_alt2.pass.c",
-            "sorted_list_alt3.pass.c",
-            "tutorial_queue.pass.c",
-            "test_macro.fail.c",
-            "void_pred.pass.c",
+        # For symbolic mode, exclude unsupported tests
+        smt_test_unsupported = [
+            "ini_queue.fail.c",
+            "ini_queue.pass.c",
+            "mkm.pass.c",
+            "range.fail.c",
+            "range.pass.c",
+            "sized_array.pass.c",
         ]
-        test_files = []
-        for test_name in smt_test_files:
-            test_path = src_dir / test_name
-            if test_path.exists():
-                test_files.append(test_path)
-            else:
-                print(
-                    f"Error: SMT test file {test_path} not found", file=sys.stderr)
-                sys.exit(1)
+        # Get all .c files and filter out unsupported ones
+        all_test_files = list(src_dir.glob("**/*.c"))
+        test_files = [
+            test_file for test_file in all_test_files
+            if test_file.name not in smt_test_unsupported
+        ]
     else:
         # For non-symbolic mode, use all .c files
         test_files = list(src_dir.glob("**/*.c"))
