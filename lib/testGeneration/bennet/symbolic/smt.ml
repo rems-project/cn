@@ -13,6 +13,7 @@ module Make (AD : Domain.T) = struct
   module Term = Stage4.Term
   module Def = Stage4.Def
   module StringMap = Map.Make (String)
+  module StringSet = Set.Make (String)
   module IntMap = Map.Make (Int)
 
   (** Convert BaseTypes to CN-SMT base type creation expressions *)
@@ -1001,6 +1002,26 @@ module Make (AD : Domain.T) = struct
         cases
       |> List.concat
     in
+    (* Step 2.5: Collect free variable names from scrutinee and case bodies to avoid shadowing *)
+    let free_var_names =
+      let scrutinee_fvs = IT.free_vars_bts scrutinee in
+      let body_fvs =
+        List.fold_left
+          (fun acc (_pat, body) ->
+             let body_free_vars = IT.free_vars_bts body in
+             Sym.Map.union (fun _k v1 _v2 -> Some v1) acc body_free_vars)
+          Sym.Map.empty
+          cases
+      in
+      let all_free_vars =
+        Sym.Map.union (fun _k v1 _v2 -> Some v1) scrutinee_fvs body_fvs
+      in
+      (* Convert to a set of strings for easy lookup *)
+      Sym.Map.fold
+        (fun sym _bt acc -> StringSet.add (Sym.pp_string_no_nums sym) acc)
+        all_free_vars
+        StringSet.empty
+    in
     (* Step 3: Group variables by base name to detect duplicates *)
     let vars_by_name =
       List.fold_left
@@ -1017,9 +1038,11 @@ module Make (AD : Domain.T) = struct
     (* Returns: list of (case_idx, old_sym, new_sym, orig_name, orig_id, bt) *)
     let all_renamings =
       StringMap.bindings vars_by_name
-      |> List.concat_map (fun (base_name, occurrences) ->
+      |> List.concat_map (fun ((base_name : string), occurrences) ->
         let count = List.length occurrences in
-        if count = 1 then (* No suffix needed *)
+        (* Check if this name conflicts with a free variable in scope *)
+        let conflicts_with_free_var = StringSet.mem base_name free_var_names in
+        if count = 1 && not conflicts_with_free_var then (* No suffix needed *)
           List.map
             (fun (case_idx, sym, bt) -> (case_idx, sym, sym, base_name, Sym.num sym, bt))
             occurrences

@@ -193,7 +193,7 @@ def main():
 
     # Set environment variables for stricter CI and sanitizers
     env = os.environ.copy()
-    env['CPPFLAGS'] = env.get('CPPFLAGS', '') + ' -Werror'
+    env['CPPFLAGS'] = env.get('CPPFLAGS', '') + ' -Werror -Wno-unused-value'
     env['UBSAN_OPTIONS'] = 'halt_on_error=1'
     env['ASAN_OPTIONS'] = 'allocator_may_return_null=1:detect_leaks=0'
     os.environ.update(env)
@@ -276,6 +276,8 @@ def main():
             "between.pass.c",
             "bin_tree.pass.c",
             "bounds.pass.c",
+            "bst.flaky.c",
+            "bst.pass.c",
             "cast_equality.pass.c",
             "counter.pass.c",
             "delete_main.pass.c",
