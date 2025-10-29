@@ -276,6 +276,8 @@ def main():
             "between.pass.c",
             "bin_tree.pass.c",
             "bounds.pass.c",
+            "bst.fail.c",
+            "bst.pass.c",
             "cast_equality.pass.c",
             "counter.pass.c",
             "delete_main.pass.c",
