@@ -174,6 +174,7 @@ module Make (AD : Domain.T) = struct
       ^^ semi
     in
     (* Combine everything into the function *)
+    let max_attempts = 10 in
     (record_type ^^ !^"*")
     ^^^ (!^("cn_test_generator_" ^ generator_name) ^^ Pp.parens !^"void** gen_state")
     ^^^ !^"{"
@@ -189,7 +190,9 @@ module Make (AD : Domain.T) = struct
                 ^/^ !^"if (bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH)"
                 ^^^ braces
                       (hardline
-                       ^^ !^"branch_history_clear(&branch_hist);"
+                       ^^ !^(Printf.sprintf "if (attempts == %d)" max_attempts)
+                       ^^^ braces !^"stop_solver(smt_solver); return NULL;"
+                       ^/^ !^"branch_history_clear(&branch_hist);"
                        ^/^ !^"bennet_failure_reset();"
                        ^/^ !^"attempts++;"
                        ^/^ !^"continue;")
@@ -198,8 +201,10 @@ module Make (AD : Domain.T) = struct
                 ^/^ symbolic_vars
                 ^/^ gather_constraints
                 ^/^ check_sat)
-         ^^^ !^"while (result != CN_SOLVER_SAT && attempts < 10);")
-    ^^^ (!^"if (result != CN_SOLVER_SAT)"
+         ^/^ !^(Printf.sprintf
+                  "while (result != CN_SOLVER_SAT && attempts < %d);"
+                  max_attempts))
+    ^/^ (!^"if (result != CN_SOLVER_SAT)"
          ^^^ braces
                (!^"bennet_failure_set_failure_type(BENNET_FAILURE_UNSAT);"
                 ^/^ stop_solver
