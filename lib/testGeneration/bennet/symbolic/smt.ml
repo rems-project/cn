@@ -113,6 +113,61 @@ module Make (AD : Domain.T) = struct
     | _ -> failwith ("Pattern must be a constructor @ " ^ __LOC__)
 
 
+  (** Reorder a list of (Id.t * 'a) pairs to match the datatype constructor field
+      ordering in sigma. This is used to ensure that constructor arguments and pattern
+      fields match the SMT datatype declaration order. *)
+  let reorder_constructor_fields
+        (type a)
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (dt_tag : Sym.t)
+        (ctor : Sym.t)
+        (fields : (Id.t * a) list)
+    : (Id.t * a) list
+    =
+    (* Look up the datatype definition in sigma *)
+    match
+      List.find_opt
+        (fun (dt : A.sigma_cn_datatype) -> Sym.equal dt.cn_dt_name dt_tag)
+        sigma.cn_datatypes
+    with
+    | Some dt_def ->
+      (* Find the constructor within the datatype *)
+      (match
+         List.find_opt (fun (ctor_sym, _) -> Sym.equal ctor_sym ctor) dt_def.cn_dt_cases
+       with
+       | Some (_, sigma_fields) ->
+         (* Reorder fields to match sigma_fields ordering *)
+         List.map
+           (fun (sigma_field_id, _sigma_field_bt) ->
+              match
+                List.find_opt
+                  (fun (field_id, _) -> Id.equal field_id sigma_field_id)
+                  fields
+              with
+              | Some field -> field
+              | None ->
+                failwith
+                  ("Constructor field "
+                   ^ Id.get_string sigma_field_id
+                   ^ " not found in arguments @ "
+                   ^ __LOC__))
+           sigma_fields
+       | None ->
+         failwith
+           ("Constructor "
+            ^ Sym.pp_string ctor
+            ^ " not found in datatype "
+            ^ Sym.pp_string dt_tag
+            ^ " @ "
+            ^ __LOC__))
+    | None ->
+      failwith
+        ("Datatype "
+         ^ Sym.pp_string dt_tag
+         ^ " not found in sigma.cn_datatypes @ "
+         ^ __LOC__)
+
+
   (** Extract pattern variables (symbol, type pairs) from a constructor pattern *)
   let extract_pattern_vars (pat : BT.t Terms.pattern) : (Sym.t * BT.t) list =
     let open Terms in
@@ -144,6 +199,36 @@ module Make (AD : Domain.T) = struct
            | Pat (PWild, _, _) -> PField_Wild
            | _ -> failwith ("Unexpected nested pattern @ " ^ __LOC__))
         fields
+    | _ -> failwith ("Pattern must be a constructor @ " ^ __LOC__)
+
+
+  (** Reorder pattern fields to match the datatype constructor field ordering in sigma.
+      This is necessary because the SMT datatype declaration uses the sigma ordering,
+      but the user's pattern may have fields in a different order. *)
+  let reorder_pattern_fields
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (pat : BT.t Terms.pattern)
+    : pattern_field list
+    =
+    let open Terms in
+    match pat with
+    | Pat (PConstructor (ctor, fields), bt, _loc) ->
+      (match bt with
+       | BT.Datatype dt_tag ->
+         let reordered_fields = reorder_constructor_fields sigma dt_tag ctor fields in
+         List.map
+           (fun (_, field_pat) ->
+              match field_pat with
+              | Pat (PSym sym, field_bt, _loc) -> PField_Sym (sym, field_bt)
+              | Pat (PWild, _, _) -> PField_Wild
+              | _ -> failwith ("Unexpected nested pattern @ " ^ __LOC__))
+           reordered_fields
+       | _ ->
+         failwith
+           ("Pattern constructor "
+            ^ Sym.pp_string ctor
+            ^ " has non-datatype base type @ "
+            ^ __LOC__))
     | _ -> failwith ("Pattern must be a constructor @ " ^ __LOC__)
 
 
@@ -256,40 +341,43 @@ module Make (AD : Domain.T) = struct
 
 
   (** Generate CN-SMT term creation code for IndexTerms.t *)
-  let rec convert_indexterm (it : IT.t) : Pp.document =
+  let rec convert_indexterm (sigma : CF.GenTypes.genTypeCategory A.sigma) (it : IT.t)
+    : Pp.document
+    =
     let (IT (term, bt, loc)) = it in
     match term with
     | Const c -> convert_const c
     | Sym sym -> Sym.pp sym
-    | Unop (op, t) -> convert_unop op t
-    | Binop (op, t1, t2) -> convert_binop op t1 t2
-    | ITE (cond, then_term, else_term) -> convert_ite cond then_term else_term
+    | Unop (op, t) -> convert_unop sigma op t
+    | Binop (op, t1, t2) -> convert_binop sigma op t1 t2
+    | ITE (cond, then_term, else_term) -> convert_ite sigma cond then_term else_term
     | EachI ((start, (var_sym, var_bt), end_i), body) ->
-      convert_eachi start var_sym var_bt end_i body
-    | Tuple terms -> convert_tuple terms
-    | NthTuple (n, tuple_term) -> convert_nthtuple n tuple_term
-    | Struct (tag, members) -> convert_struct tag members
-    | StructMember (struct_term, member) -> convert_structmember struct_term member bt
+      convert_eachi sigma start var_sym var_bt end_i body
+    | Tuple terms -> convert_tuple sigma terms
+    | NthTuple (n, tuple_term) -> convert_nthtuple sigma n tuple_term
+    | Struct (tag, members) -> convert_struct sigma tag members
+    | StructMember (struct_term, member) ->
+      convert_structmember sigma struct_term member bt
     | StructUpdate ((struct_term, member), value) ->
-      convert_structupdate struct_term member value
-    | Record members -> convert_record members
-    | RecordMember (record_term, member) -> convert_recordmember record_term member
+      convert_structupdate sigma struct_term member value
+    | Record members -> convert_record sigma members
+    | RecordMember (record_term, member) -> convert_recordmember sigma record_term member
     | RecordUpdate ((record_term, member), value) ->
-      convert_recordupdate record_term member value
-    | Constructor (constr, args) -> convert_constructor bt constr args
-    | MemberShift (term, tag, member) -> convert_membershift term tag member
-    | ArrayShift { base; ct; index } -> convert_arrayshift base ct index
-    | CopyAllocId { addr; loc } -> convert_copyallocid addr loc
-    | HasAllocId loc -> convert_hasallocid loc
+      convert_recordupdate sigma record_term member value
+    | Constructor (constr, args) -> convert_constructor sigma bt constr args
+    | MemberShift (term, tag, member) -> convert_membershift sigma term tag member
+    | ArrayShift { base; ct; index } -> convert_arrayshift sigma base ct index
+    | CopyAllocId { addr; loc } -> convert_copyallocid sigma addr loc
+    | HasAllocId loc -> convert_hasallocid sigma loc
     | SizeOf ct -> convert_sizeof ct
     | OffsetOf (tag, member) -> convert_offsetof tag member
-    | Aligned { t; align } -> convert_aligned t align
-    | WrapI (int_type, term) -> convert_wrapi int_type term
-    | MapConst (base_type, term) -> convert_mapconst base_type term
+    | Aligned { t; align } -> convert_aligned sigma t align
+    | WrapI (int_type, term) -> convert_wrapi sigma int_type term
+    | MapConst (base_type, term) -> convert_mapconst sigma base_type term
     | MapSet (map_term, key_term, value_term) ->
-      convert_mapset map_term key_term value_term
-    | MapGet (map_term, key_term) -> convert_mapget map_term key_term
-    | MapDef ((var_sym, var_bt), body) -> convert_mapdef var_sym var_bt body
+      convert_mapset sigma map_term key_term value_term
+    | MapGet (map_term, key_term) -> convert_mapget sigma map_term key_term
+    | MapDef ((var_sym, var_bt), body) -> convert_mapdef sigma var_sym var_bt body
     | Apply (func_sym, args) ->
       (* Try to expand builtin functions inline *)
       let expanded =
@@ -302,13 +390,13 @@ module Make (AD : Domain.T) = struct
         | _ -> None
       in
       (match expanded with
-       | Some it_expanded -> convert_indexterm it_expanded
-       | None -> convert_apply func_sym args bt)
-    | Let ((var_sym, binding), body) -> convert_let var_sym binding body
-    | Match (scrutinee, cases) -> convert_match scrutinee cases
-    | Cast (target_bt, term) -> convert_cast target_bt term
+       | Some it_expanded -> convert_indexterm sigma it_expanded
+       | None -> convert_apply sigma func_sym args bt)
+    | Let ((var_sym, binding), body) -> convert_let sigma var_sym binding body
+    | Match (scrutinee, cases) -> convert_match sigma scrutinee cases
+    | Cast (target_bt, term) -> convert_cast sigma target_bt term
     | CN_None bt -> convert_cn_none bt
-    | CN_Some term -> convert_cn_some term
+    | CN_Some term -> convert_cn_some sigma term
     | Good _ | Representable _ ->
       Pp.string "cn_smt_bool(true)" (* FIXME: Fulminate also doesn't enforce *)
     | _ -> failwith ("TODO (" ^ Pp.plain (IT.pp it) ^ ") @ " ^ __LOC__)
@@ -371,9 +459,14 @@ module Make (AD : Domain.T) = struct
     | Alloc_id id -> !^"cn_smt_alloc_id" ^^ parens !^(Z.to_string id)
 
 
-  and convert_unop (op : Terms.unop) (t : IT.t) : Pp.document =
+  and convert_unop
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (op : Terms.unop)
+        (t : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let operand = convert_indexterm t in
+    let operand = convert_indexterm sigma t in
     match op with
     | Not -> !^"cn_smt_not" ^^ parens operand
     | Negate -> !^"cn_smt_negate" ^^ parens operand
@@ -384,10 +477,16 @@ module Make (AD : Domain.T) = struct
     | BW_Compl -> !^"cn_smt_bw_compl" ^^ parens operand
 
 
-  and convert_binop (op : Terms.binop) (t1 : IT.t) (t2 : IT.t) : Pp.document =
+  and convert_binop
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (op : Terms.binop)
+        (t1 : IT.t)
+        (t2 : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let left = convert_indexterm t1 in
-    let right = convert_indexterm t2 in
+    let left = convert_indexterm sigma t1 in
+    let right = convert_indexterm sigma t2 in
     let args = parens (left ^^ comma ^^^ right) in
     match op with
     | And -> !^"cn_smt_and" ^^ args
@@ -422,14 +521,21 @@ module Make (AD : Domain.T) = struct
     | Subset -> !^"cn_smt_subset" ^^ args
 
 
-  and convert_ite (cond : IT.t) (then_term : IT.t) (else_term : IT.t) : Pp.document =
-    let cond_smt = convert_indexterm cond in
-    let then_smt = convert_indexterm then_term in
-    let else_smt = convert_indexterm else_term in
+  and convert_ite
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (cond : IT.t)
+        (then_term : IT.t)
+        (else_term : IT.t)
+    : Pp.document
+    =
+    let cond_smt = convert_indexterm sigma cond in
+    let then_smt = convert_indexterm sigma then_term in
+    let else_smt = convert_indexterm sigma else_term in
     Pp.(!^"cn_smt_ite" ^^ parens (cond_smt ^^ comma ^^^ then_smt ^^ comma ^^^ else_smt))
 
 
   and convert_eachi
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (start : int)
         (var_sym : Sym.t)
         (var_bt : BT.t)
@@ -437,7 +543,7 @@ module Make (AD : Domain.T) = struct
         (body : IT.t)
     : Pp.document
     =
-    let body_smt = convert_indexterm body in
+    let body_smt = convert_indexterm sigma body in
     let var_name = Sym.pp var_sym in
     let var_type = convert_basetype var_bt in
     Pp.(
@@ -454,20 +560,32 @@ module Make (AD : Domain.T) = struct
             ^^^ body_smt))
 
 
-  and convert_tuple (terms : IT.t list) : Pp.document =
-    let terms_smt = List.map convert_indexterm terms in
+  and convert_tuple (sigma : CF.GenTypes.genTypeCategory A.sigma) (terms : IT.t list)
+    : Pp.document
+    =
+    let terms_smt = List.map (convert_indexterm sigma) terms in
     let args_array =
       Pp.(braces (separate_map (comma ^^ Pp.space) (fun x -> x) terms_smt))
     in
     Pp.(!^"cn_smt_tuple" ^^ parens (int (List.length terms) ^^ comma ^^^ args_array))
 
 
-  and convert_nthtuple (n : int) (tuple_term : IT.t) : Pp.document =
-    let tuple_smt = convert_indexterm tuple_term in
+  and convert_nthtuple
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (n : int)
+        (tuple_term : IT.t)
+    : Pp.document
+    =
+    let tuple_smt = convert_indexterm sigma tuple_term in
     Pp.(!^"cn_smt_nthtuple" ^^ parens (int n ^^ comma ^^^ tuple_smt))
 
 
-  and convert_struct (tag : Sym.t) (members : (Id.t * IT.t) list) : Pp.document =
+  and convert_struct
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (tag : Sym.t)
+        (members : (Id.t * IT.t) list)
+    : Pp.document
+    =
     let open Pp in
     let tag_name = Sym.pp tag in
     let member_count = List.length members in
@@ -475,7 +593,9 @@ module Make (AD : Domain.T) = struct
       !^"cn_smt_struct" ^^ parens (dquotes tag_name ^^ comma ^^^ !^"0, NULL, NULL")
     else (
       let member_names = List.map (fun (id, _) -> dquotes (Id.pp id)) members in
-      let member_values = List.map (fun (_, term) -> convert_indexterm term) members in
+      let member_values =
+        List.map (fun (_, term) -> convert_indexterm sigma term) members
+      in
       (* Use compound literals for the arrays *)
       let names_array =
         parens !^"const char*[]"
@@ -496,29 +616,45 @@ module Make (AD : Domain.T) = struct
             ^^^ values_array))
 
 
-  and convert_structmember (struct_term : IT.t) (member : Id.t) (bt : BT.t) : Pp.document =
+  and convert_structmember
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (struct_term : IT.t)
+        (member : Id.t)
+        (bt : BT.t)
+    : Pp.document
+    =
     let open Pp in
-    let struct_smt = convert_indexterm struct_term in
+    let struct_smt = convert_indexterm sigma struct_term in
     !^"cn_smt_struct_member"
     ^^ parens
          (struct_smt ^^ comma ^^^ dquotes (Id.pp member) ^^ comma ^^^ convert_basetype bt)
 
 
-  and convert_structupdate (struct_term : IT.t) (member : Id.t) (value : IT.t)
+  and convert_structupdate
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (struct_term : IT.t)
+        (member : Id.t)
+        (value : IT.t)
     : Pp.document
     =
     let open Pp in
-    let struct_smt = convert_indexterm struct_term in
-    let value_smt = convert_indexterm value in
+    let struct_smt = convert_indexterm sigma struct_term in
+    let value_smt = convert_indexterm sigma value in
     !^"cn_smt_struct_update"
     ^^ parens (struct_smt ^^ comma ^^^ dquotes (Id.pp member) ^^ comma ^^^ value_smt)
 
 
-  and convert_record (members : (Id.t * IT.t) list) : Pp.document =
+  and convert_record
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (members : (Id.t * IT.t) list)
+    : Pp.document
+    =
     let open Pp in
     let member_count = List.length members in
     let member_names = List.map (fun (id, _) -> dquotes (Id.pp id)) members in
-    let member_values = List.map (fun (_, term) -> convert_indexterm term) members in
+    let member_values =
+      List.map (fun (_, term) -> convert_indexterm sigma term) members
+    in
     let names_array =
       parens !^"const char*[]" ^^ braces (separate (comma ^^ space) member_names)
     in
@@ -530,29 +666,55 @@ module Make (AD : Domain.T) = struct
     ^^ parens (int member_count ^^ comma ^^^ names_array ^^ comma ^^^ values_array)
 
 
-  and convert_recordmember (record_term : IT.t) (member : Id.t) : Pp.document =
-    let record_smt = convert_indexterm record_term in
+  and convert_recordmember
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (record_term : IT.t)
+        (member : Id.t)
+    : Pp.document
+    =
+    let record_smt = convert_indexterm sigma record_term in
     Pp.(
       !^"cn_smt_record_member" ^^ parens (record_smt ^^ comma ^^^ dquotes (Id.pp member)))
 
 
-  and convert_recordupdate (record_term : IT.t) (member : Id.t) (value : IT.t)
+  and convert_recordupdate
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (record_term : IT.t)
+        (member : Id.t)
+        (value : IT.t)
     : Pp.document
     =
-    let record_smt = convert_indexterm record_term in
-    let value_smt = convert_indexterm value in
+    let record_smt = convert_indexterm sigma record_term in
+    let value_smt = convert_indexterm sigma value in
     Pp.(
       !^"cn_smt_record_update"
       ^^ parens (record_smt ^^ comma ^^^ dquotes (Id.pp member) ^^ comma ^^^ value_smt))
 
 
-  and convert_constructor (bt : BT.t) (constr : Sym.t) (args : (Id.t * IT.t) list)
+  and convert_constructor
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (bt : BT.t)
+        (constr : Sym.t)
+        (args : (Id.t * IT.t) list)
     : Pp.document
     =
     let constr_name = Sym.pp constr in
-    let arg_count = List.length args in
-    let arg_names = List.map (fun (id, _) -> Pp.dquotes (Id.pp id)) args in
-    let arg_values = List.map (fun (_, term) -> convert_indexterm term) args in
+    (* Reorder args to match the datatype definition ordering in sigma *)
+    let reordered_args =
+      match bt with
+      | BT.Datatype dt_tag -> reorder_constructor_fields sigma dt_tag constr args
+      | _ ->
+        failwith
+          ("Constructor "
+           ^ Sym.pp_string constr
+           ^ " has non-datatype base type @ "
+           ^ __LOC__)
+    in
+    let arg_count = List.length reordered_args in
+    let arg_names = List.map (fun (id, _) -> Pp.dquotes (Id.pp id)) reordered_args in
+    let arg_values =
+      List.map (fun (_, term) -> convert_indexterm sigma term) reordered_args
+    in
     let bt_smt = convert_basetype bt in
     let names_array =
       Pp.(
@@ -578,8 +740,14 @@ module Make (AD : Domain.T) = struct
             ^^^ values_array))
 
 
-  and convert_membershift (term : IT.t) (tag : Sym.t) (member : Id.t) : Pp.document =
-    let term_smt = convert_indexterm term in
+  and convert_membershift
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (term : IT.t)
+        (tag : Sym.t)
+        (member : Id.t)
+    : Pp.document
+    =
+    let term_smt = convert_indexterm sigma term in
     Pp.(
       !^"cn_smt_member_shift"
       ^^ parens
@@ -589,9 +757,15 @@ module Make (AD : Domain.T) = struct
             ^^ parens (!^"struct" ^^^ Sym.pp tag ^^ comma ^^^ Id.pp member)))
 
 
-  and convert_arrayshift (base : IT.t) (ct : Sctypes.t) (index : IT.t) : Pp.document =
-    let base_smt = convert_indexterm base in
-    let index_smt = convert_indexterm index in
+  and convert_arrayshift
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (base : IT.t)
+        (ct : Sctypes.t)
+        (index : IT.t)
+    : Pp.document
+    =
+    let base_smt = convert_indexterm sigma base in
+    let index_smt = convert_indexterm sigma index in
     let ctype_str =
       Pp.plain (CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers (Sctypes.to_ctype ct))
     in
@@ -605,14 +779,21 @@ module Make (AD : Domain.T) = struct
             ^^^ index_smt))
 
 
-  and convert_copyallocid (addr : IT.t) (loc : IT.t) : Pp.document =
-    let addr_smt = convert_indexterm addr in
-    let loc_smt = convert_indexterm loc in
+  and convert_copyallocid
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (addr : IT.t)
+        (loc : IT.t)
+    : Pp.document
+    =
+    let addr_smt = convert_indexterm sigma addr in
+    let loc_smt = convert_indexterm sigma loc in
     Pp.(!^"cn_smt_copy_alloc_id" ^^ parens (addr_smt ^^ comma ^^^ loc_smt))
 
 
-  and convert_hasallocid (loc : IT.t) : Pp.document =
-    let loc_smt = convert_indexterm loc in
+  and convert_hasallocid (sigma : CF.GenTypes.genTypeCategory A.sigma) (loc : IT.t)
+    : Pp.document
+    =
+    let loc_smt = convert_indexterm sigma loc in
     Pp.(!^"cn_smt_has_alloc_id" ^^ parens loc_smt)
 
 
@@ -650,56 +831,92 @@ module Make (AD : Domain.T) = struct
           ^^ parens (!^"struct" ^^^ Sym.pp tag ^^ comma ^^^ Id.pp member))
 
 
-  and convert_aligned (t : IT.t) (align : IT.t) : Pp.document =
-    let t_smt = convert_indexterm t in
-    let align_smt = convert_indexterm align in
+  and convert_aligned
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (t : IT.t)
+        (align : IT.t)
+    : Pp.document
+    =
+    let t_smt = convert_indexterm sigma t in
+    let align_smt = convert_indexterm sigma align in
     Pp.(!^"cn_smt_aligned" ^^ parens (t_smt ^^ comma ^^^ align_smt))
 
 
-  and convert_wrapi (int_type : Sctypes.IntegerTypes.t) (term : IT.t) : Pp.document =
+  and convert_wrapi
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (int_type : Sctypes.IntegerTypes.t)
+        (term : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let term_smt = convert_indexterm term in
+    let term_smt = convert_indexterm sigma term in
     let int_type_str = plain (Sctypes.IntegerTypes.pp int_type) in
     !^"cn_smt_wrapi" ^^ parens (dquotes !^int_type_str ^^ comma ^^^ term_smt)
 
 
-  and convert_mapconst (base_type : BT.t) (term : IT.t) : Pp.document =
+  and convert_mapconst
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (base_type : BT.t)
+        (term : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let term_smt = convert_indexterm term in
+    let term_smt = convert_indexterm sigma term in
     let bt_smt = convert_basetype base_type in
     !^"cn_smt_map_const" ^^ parens (bt_smt ^^ comma ^^^ term_smt)
 
 
-  and convert_mapset (map_term : IT.t) (key_term : IT.t) (value_term : IT.t) : Pp.document
+  and convert_mapset
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (map_term : IT.t)
+        (key_term : IT.t)
+        (value_term : IT.t)
+    : Pp.document
     =
     let open Pp in
-    let map_smt = convert_indexterm map_term in
-    let key_smt = convert_indexterm key_term in
-    let value_smt = convert_indexterm value_term in
+    let map_smt = convert_indexterm sigma map_term in
+    let key_smt = convert_indexterm sigma key_term in
+    let value_smt = convert_indexterm sigma value_term in
     !^"cn_smt_map_set" ^^ parens (map_smt ^^ comma ^^^ key_smt ^^ comma ^^^ value_smt)
 
 
-  and convert_mapget (map_term : IT.t) (key_term : IT.t) : Pp.document =
+  and convert_mapget
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (map_term : IT.t)
+        (key_term : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let map_smt = convert_indexterm map_term in
-    let key_smt = convert_indexterm key_term in
+    let map_smt = convert_indexterm sigma map_term in
+    let key_smt = convert_indexterm sigma key_term in
     !^"cn_smt_map_get" ^^ parens (map_smt ^^ comma ^^^ key_smt)
 
 
-  and convert_mapdef (var_sym : Sym.t) (var_bt : BT.t) (body : IT.t) : Pp.document =
+  and convert_mapdef
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (var_sym : Sym.t)
+        (var_bt : BT.t)
+        (body : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let body_smt = convert_indexterm body in
+    let body_smt = convert_indexterm sigma body in
     let var_name = Sym.pp var_sym in
     let var_type = convert_basetype var_bt in
     !^"cn_smt_map_def"
     ^^ parens (dquotes var_name ^^ comma ^^^ var_type ^^ comma ^^^ body_smt)
 
 
-  and convert_apply (func_sym : Sym.t) (args : IT.t list) (result_bt : BT.t) : Pp.document
+  and convert_apply
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (func_sym : Sym.t)
+        (args : IT.t list)
+        (result_bt : BT.t)
+    : Pp.document
     =
     let open Pp in
     let func_name = Sym.pp func_sym in
-    let args_smt = List.map convert_indexterm args in
+    let args_smt = List.map (convert_indexterm sigma) args in
     let result_type = convert_basetype result_bt in
     let args_array =
       if List.length args = 0 then
@@ -719,10 +936,16 @@ module Make (AD : Domain.T) = struct
           ^^^ int (List.length args))
 
 
-  and convert_let (var_sym : Sym.t) (binding : IT.t) (body : IT.t) : Pp.document =
+  and convert_let
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (var_sym : Sym.t)
+        (binding : IT.t)
+        (body : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let binding_smt = convert_indexterm binding in
-    let body_smt = convert_indexterm body in
+    let binding_smt = convert_indexterm sigma binding in
+    let body_smt = convert_indexterm sigma body in
     (* Extract base type from binding *)
     let (IT (_, binding_bt, _)) = binding in
     let bt_smt = convert_basetype binding_bt in
@@ -758,11 +981,14 @@ module Make (AD : Domain.T) = struct
     ^^ !^"})"
 
 
-  and convert_match (scrutinee : IT.t) (cases : (BT.t Terms.pattern * IT.t) list)
+  and convert_match
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (scrutinee : IT.t)
+        (cases : (BT.t Terms.pattern * IT.t) list)
     : Pp.document
     =
     let open Pp in
-    let scrutinee_smt = convert_indexterm scrutinee in
+    let scrutinee_smt = convert_indexterm sigma scrutinee in
     let case_count = List.length cases in
     (* Step 1: Validate all patterns *)
     List.iter (fun (pat, _) -> assert_pattern_not_nested pat) cases;
@@ -896,7 +1122,7 @@ module Make (AD : Domain.T) = struct
            (separate_map
               (comma ^^ space)
               (fun (_, renamed_pattern, _) ->
-                 let fields = extract_pattern_fields renamed_pattern in
+                 let fields = reorder_pattern_fields sigma renamed_pattern in
                  if List.length fields = 0 then
                    !^"NULL"
                  else
@@ -921,7 +1147,7 @@ module Make (AD : Domain.T) = struct
            (separate_map
               (comma ^^ space)
               (fun (_, renamed_pattern, _) ->
-                 let fields = extract_pattern_fields renamed_pattern in
+                 let fields = reorder_pattern_fields sigma renamed_pattern in
                  int (List.length fields))
               processed_cases)
     in
@@ -931,7 +1157,7 @@ module Make (AD : Domain.T) = struct
       ^^ braces
            (separate_map
               (comma ^^ space)
-              (fun (_, _, body) -> convert_indexterm body)
+              (fun (_, _, body) -> convert_indexterm sigma body)
               processed_cases)
     in
     (* Step 11: Generate the complete block statement with cn_smt_match call *)
@@ -958,9 +1184,14 @@ module Make (AD : Domain.T) = struct
           ^^ hardline))
 
 
-  and convert_cast (target_bt : BT.t) (term : IT.t) : Pp.document =
+  and convert_cast
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (target_bt : BT.t)
+        (term : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let term_smt = convert_indexterm term in
+    let term_smt = convert_indexterm sigma term in
     let target_bt_smt = convert_basetype target_bt in
     !^"cn_smt_cast" ^^ parens (target_bt_smt ^^ comma ^^^ term_smt)
 
@@ -971,21 +1202,25 @@ module Make (AD : Domain.T) = struct
     !^"cn_smt_none" ^^ parens bt_smt
 
 
-  and convert_cn_some (term : IT.t) : Pp.document =
+  and convert_cn_some (sigma : CF.GenTypes.genTypeCategory A.sigma) (term : IT.t)
+    : Pp.document
+    =
     let open Pp in
-    let term_smt = convert_indexterm term in
+    let term_smt = convert_indexterm sigma term in
     !^"cn_smt_some" ^^ parens term_smt
 
 
   (** Convert LogicalConstraints.t to CN-SMT logical constraint creation code *)
-  let convert_logical_constraint (lc : LC.t) : Pp.document =
+  let convert_logical_constraint (sigma : CF.GenTypes.genTypeCategory A.sigma) (lc : LC.t)
+    : Pp.document
+    =
     let open Pp in
     match lc with
-    | LC.T it -> convert_indexterm it
+    | LC.T it -> convert_indexterm sigma it
     | LC.Forall ((sym, bt), body) ->
       let var_name = convert_sym sym in
       let var_type = convert_basetype bt in
-      let body_term = convert_indexterm body in
+      let body_term = convert_indexterm sigma body in
       !^"cn_logical_constraint_create_forall"
       ^^ parens (var_name ^^ comma ^^^ var_type ^^ comma ^^^ body_term)
 end

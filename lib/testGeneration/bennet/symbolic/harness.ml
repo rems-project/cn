@@ -1,4 +1,5 @@
 module CF = Cerb_frontend
+module A = CF.AilSyntax
 module C = CF.Ctype
 module BT = BaseTypes
 module CtA = Fulminate.Cn_to_ail
@@ -17,9 +18,11 @@ module Make (AD : Domain.T) = struct
     |> Stage1.Term.upcast
 
 
-  let gather_of_bt ((sym, tm) : Sym.t * _) : Pp.document =
+  let gather_of_bt (sigma : CF.GenTypes.genTypeCategory A.sigma) ((sym, tm) : Sym.t * _)
+    : Pp.document
+    =
     let module Gather = Gather.Make (AD) in
-    let res = tm |> Gather.Term.downcast |> Gather.gather_term in
+    let res = tm |> Gather.Term.downcast |> Gather.gather_term sigma in
     let open Pp in
     separate hardline res.statements
     ^/^ !^"cn_term*"
@@ -29,9 +32,13 @@ module Make (AD : Domain.T) = struct
     ^^ semi
 
 
-  let concretize_of_bt ((sym, tm) : Sym.t * _) : Pp.document =
+  let concretize_of_bt
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ((sym, tm) : Sym.t * _)
+    : Pp.document
+    =
     let module Concretize = Concretize.Make (AD) in
-    let res = tm |> Concretize.Term.downcast |> Concretize.concretize_term in
+    let res = tm |> Concretize.Term.downcast |> Concretize.concretize_term sigma in
     let open Pp in
     separate hardline res.statements
     ^/^ !^"cn_term*"
@@ -42,7 +49,12 @@ module Make (AD : Domain.T) = struct
 
 
   (** Convert spec generator to bennet_<generator name> function with symbolic variables *)
-  let transform_def (prog5 : unit Mucore.file) (def : Def.t) : Pp.document =
+  let transform_def
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (prog5 : unit Mucore.file)
+        (def : Def.t)
+    : Pp.document
+    =
     let open Pp in
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("cn_test_generator_" ^ generator_name ^ "_record") in
@@ -70,7 +82,7 @@ module Make (AD : Domain.T) = struct
     let destructed_vars = def.iargs |> List.map_snd (arbitrary_of_bt prog5) in
     (* Generate symbolic variable declarations for each argument *)
     let symbolic_vars =
-      destructed_vars |> List.map gather_of_bt |> Pp.separate Pp.hardline
+      destructed_vars |> List.map (gather_of_bt sigma) |> Pp.separate Pp.hardline
     in
     (* Generate call to the corresponding cn_smt_gather_<generator name> function with symbolic variables *)
     let gather_constraints =
@@ -109,7 +121,7 @@ module Make (AD : Domain.T) = struct
     in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
-      destructed_vars |> List.map concretize_of_bt |> Pp.separate Pp.hardline
+      destructed_vars |> List.map (concretize_of_bt sigma) |> Pp.separate Pp.hardline
     in
     let concretize_model =
       let conc_args =

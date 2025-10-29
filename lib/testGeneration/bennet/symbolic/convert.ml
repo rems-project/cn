@@ -1,3 +1,5 @@
+module CF = Cerb_frontend
+module A = CF.AilSyntax
 module BT = BaseTypes
 module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
@@ -13,7 +15,12 @@ module Make (AD : Domain.T) = struct
   module Def = Stage4.Def
 
   (** Convert Stage 1 context with multiple definitions to a C source file *)
-  let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) : Pp.document =
+  let transform
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (prog5 : unit Mucore.file)
+        (ctx : Ctx.t)
+    : Pp.document
+    =
     let open Pp in
     let typedef_docs =
       let defs =
@@ -56,15 +63,15 @@ module Make (AD : Domain.T) = struct
         if def.spec then
           (* Generate gathering and concretization functions as well as a [bennet_*] harness *)
           [ PathSelector.path_selector_def ctx def;
-            Gather.gather_def def;
-            Concretize.concretize_def def;
-            Harness.transform_def prog5 def
+            Gather.gather_def sigma def;
+            Concretize.concretize_def sigma def;
+            Harness.transform_def sigma prog5 def
           ]
         else
           (* Generate gathering, concretization, and path selector functions for non-spec definitions *)
           [ PathSelector.path_selector_def ctx def;
-            Gather.gather_def def;
-            Concretize.concretize_def def
+            Gather.gather_def sigma def;
+            Concretize.concretize_def sigma def
           ])
     in
     (* Structure output like stage6/convert.ml for compatibility *)
@@ -89,6 +96,6 @@ module Make (AD : Domain.T) = struct
     ^^ hardline
     ^^ !^"/* FUNCTION DEFINITIONS */"
     ^^ twice hardline
-    ^^ Setup.generate_smt_setup prog5 ctx
+    ^^ Setup.generate_smt_setup sigma prog5 ctx
     ^^ separate (twice hardline) functions
 end

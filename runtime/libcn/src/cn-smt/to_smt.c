@@ -1513,34 +1513,11 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         return result;
       }
 
-      // Sort arguments alphabetically by field name to match datatype declaration
-      size_t* sorted_indices = malloc(sizeof(size_t) * arg_count);
-      assert(sorted_indices);
-      for (size_t i = 0; i < arg_count; i++) {
-        sorted_indices[i] = i;
-      }
-      // Simple insertion sort by name
-      for (size_t s_idx = 1; s_idx < arg_count; s_idx++) {
-        size_t key_idx = sorted_indices[s_idx];
-        const char* key_name = bennet_vector_get(cn_member_pair)(args_vec, key_idx)->name;
-        int j = s_idx - 1;
-        while (j >= 0) {
-          const char* cmp_name =
-              bennet_vector_get(cn_member_pair)(args_vec, sorted_indices[j])->name;
-          if (strcmp(cmp_name, key_name) <= 0)
-            break;
-          sorted_indices[j + 1] = sorted_indices[j];
-          j--;
-        }
-        sorted_indices[j + 1] = key_idx;
-      }
-
-      // Translate arguments in sorted order
+      // Translate arguments in the order they are provided
       sexp_t** arg_sexps = malloc(sizeof(sexp_t*) * arg_count);
       assert(arg_sexps);
       for (size_t i = 0; i < arg_count; i++) {
-        cn_member_pair* pair =
-            bennet_vector_get(cn_member_pair)(args_vec, sorted_indices[i]);
+        cn_member_pair* pair = bennet_vector_get(cn_member_pair)(args_vec, i);
         arg_sexps[i] = translate_term(s, pair->value);
         assert(arg_sexps[i]);
       }
@@ -1555,7 +1532,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         sexp_free(arg_sexps[i]);
       }
       free(arg_sexps);
-      free(sorted_indices);
       free(ctor_smt);
 
       return result;

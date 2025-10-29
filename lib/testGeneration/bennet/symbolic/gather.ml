@@ -1,4 +1,5 @@
 module CF = Cerb_frontend
+module A = CF.AilSyntax
 module C = CF.Ctype
 module IT = IndexTerms
 module BT = BaseTypes
@@ -22,7 +23,8 @@ module Make (AD : Domain.T) = struct
     }
 
   (** Convert a generator term to CN-SMT symbolic execution statements and expression *)
-  let rec gather_term (tm : Term.t) : result =
+  let rec gather_term (sigma : CF.GenTypes.genTypeCategory A.sigma) (tm : Term.t) : result
+    =
     let open Pp in
     let (GenTerms.Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
@@ -38,18 +40,18 @@ module Make (AD : Domain.T) = struct
       }
     | `Call (fsym, args) | `CallSized (fsym, args, _) ->
       (* Call a defined generator function with arguments *)
-      let args_smt = List.map Smt.convert_indexterm args in
+      let args_smt = List.map (Smt.convert_indexterm sigma) args in
       let args_list =
         separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_GATHER_CALL" ^^ parens args_list }
     | `SplitSize (_, next_term) ->
       (* Split size - just process the next term *)
-      gather_term next_term
+      gather_term sigma next_term
     | `Asgn ((addr, sct), _value, next_term) ->
       (* Assignment: claim ownership of memory location *)
-      let addr_smt = Smt.convert_indexterm addr in
-      let next_result = gather_term next_term in
+      let addr_smt = Smt.convert_indexterm sigma addr in
+      let next_result = gather_term sigma next_term in
       let assign_stmt =
         !^"CN_SMT_GATHER_ASSIGN"
         ^^ parens
@@ -116,10 +118,11 @@ module Make (AD : Domain.T) = struct
       in
       (* Memory constraint *)
       let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
-      let start_addr_smt = Smt.convert_indexterm (subst_i_in_addr it_min) in
+      let start_addr_smt = Smt.convert_indexterm sigma (subst_i_in_addr it_min) in
       let end_addr_smt =
         let here = Locations.other __LOC__ in
         Smt.convert_indexterm
+          sigma
           (f
              (IT.arrayShift_
                 ~base:(subst_i_in_addr it_max)
@@ -155,7 +158,7 @@ module Make (AD : Domain.T) = struct
       let actual_map =
         List.fold_left
           (fun m (key_it, value_doc) ->
-             let key_doc = Smt.convert_indexterm key_it in
+             let key_doc = Smt.convert_indexterm sigma key_it in
              !^"cn_smt_map_set"
              ^^ parens (separate (comma ^^ space) [ m; key_doc; value_doc ]))
           (!^"cn_smt_default" ^^ parens result_ty)
@@ -163,12 +166,12 @@ module Make (AD : Domain.T) = struct
       in
       let assert_stmt =
         !^"CN_SMT_GATHER_ASSERT"
-        ^^ parens (Smt.convert_logical_constraint max_len_constraint)
+        ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
       in
       { statements = assert_stmt :: assign_stmt :: values_stmts; expression = actual_map }
     | `LetStar ((var_sym, Annot ((`Arbitrary | `Symbolic), _, bt_arb, _)), body_term) ->
       (* Let binding *)
-      let body_result = gather_term body_term in
+      let body_result = gather_term sigma body_term in
       { statements =
           (!^"CN_SMT_GATHER_LET_SYMBOLIC"
            ^^ parens (Sym.pp var_sym ^^ comma ^^^ Smt.convert_basetype bt_arb))
@@ -178,8 +181,8 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((var_sym, binding_term), body_term) ->
       (* Let binding *)
       let var_name = Pp.plain (Sym.pp var_sym) in
-      let binding_result = gather_term binding_term in
-      let body_result = gather_term body_term in
+      let binding_result = gather_term sigma binding_term in
+      let body_result = gather_term sigma body_term in
       (* Generate let binding as statement *)
       let let_stmt =
         !^"cn_term*" ^^^ !^var_name ^^^ !^"=" ^^^ binding_result.expression
@@ -189,19 +192,19 @@ module Make (AD : Domain.T) = struct
       }
     | `Return it ->
       (* Monadic return - just return the expression, no return statement needed *)
-      let term_smt = Smt.convert_indexterm it in
+      let term_smt = Smt.convert_indexterm sigma it in
       { statements = []; expression = term_smt }
     | `Assert (lc, next_term) ->
       (* Assert logical constraints *)
-      let constraint_smt = Smt.convert_logical_constraint lc in
-      let next_result = gather_term next_term in
+      let constraint_smt = Smt.convert_logical_constraint sigma lc in
+      let next_result = gather_term sigma next_term in
       let assert_stmt = !^"CN_SMT_GATHER_ASSERT" ^^ parens constraint_smt in
       { statements = assert_stmt :: next_result.statements;
         expression = next_result.expression
       }
     | `AssertDomain (_, next_term) ->
       (* Assert domain constraints - skip domain for now and continue *)
-      gather_term next_term
+      gather_term sigma next_term
     | `ITE (it_if, then_term, else_term) ->
       (* Convert if-then-else to PickSized statement with recursive calls *)
       let wgts1 =
@@ -218,7 +221,7 @@ module Make (AD : Domain.T) = struct
             gts
         | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
       in
-      gather_term (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
+      gather_term sigma (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map _ -> failwith "TODO"
     | `PickSized choice_terms ->
       let result_var = Sym.fresh_anon () in
@@ -232,7 +235,7 @@ module Make (AD : Domain.T) = struct
         choice_terms
         |> List.mapi (fun i (_, term) ->
           let case_begin = !^"CN_SMT_GATHER_PICK_CASE_BEGIN" ^^ parens (int i) in
-          let term_result = gather_term term in
+          let term_result = gather_term sigma term in
           let case_stmts =
             term_result.statements
             |> List.map (fun stmt -> stmt ^^ !^";")
@@ -267,9 +270,10 @@ module Make (AD : Domain.T) = struct
 
 
   (** Convert generator definition to complete CN-SMT symbolic execution function *)
-  let gather_def (def : Def.t) : Pp.document =
+  let gather_def (sigma : CF.GenTypes.genTypeCategory A.sigma) (def : Def.t) : Pp.document
+    =
     let open Pp in
-    let term_result = gather_term def.body in
+    let term_result = gather_term sigma def.body in
     let branch_hist_param = !^"struct branch_history_queue*" ^^^ !^"branch_hist" in
     let def_params = List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs in
     let params =
@@ -294,6 +298,7 @@ module Make (AD : Domain.T) = struct
     ^^^ braces body
 
 
-  let gather_ctx (ctx : Ctx.t) : Pp.document =
-    Pp.(separate_map (twice hardline) gather_def (List.map snd ctx))
+  let gather_ctx (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Ctx.t) : Pp.document
+    =
+    Pp.(separate_map (twice hardline) (gather_def sigma) (List.map snd ctx))
 end

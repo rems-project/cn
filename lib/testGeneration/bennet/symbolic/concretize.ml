@@ -1,4 +1,5 @@
 module CF = Cerb_frontend
+module A = CF.AilSyntax
 module C = CF.Ctype
 module IT = IndexTerms
 module BT = BaseTypes
@@ -22,7 +23,9 @@ module Make (AD : Domain.T) = struct
     }
 
   (** Convert a generator term to CN-SMT symbolic execution statements and expression *)
-  let rec concretize_term (tm : Term.t) : result =
+  let rec concretize_term (sigma : CF.GenTypes.genTypeCategory A.sigma) (tm : Term.t)
+    : result
+    =
     let open Pp in
     let (GenTerms.Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
@@ -38,19 +41,19 @@ module Make (AD : Domain.T) = struct
       }
     | `Call (fsym, args) | `CallSized (fsym, args, _) ->
       (* Call a defined generator function with arguments *)
-      let args_smt = List.map Smt.convert_indexterm args in
+      let args_smt = List.map (Smt.convert_indexterm sigma) args in
       let args_list =
         separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
       { statements = []; expression = !^"CN_SMT_CONCRETIZE_CALL" ^^ parens args_list }
     | `SplitSize (_, next_term) ->
       (* Split size - just process the next term *)
-      concretize_term next_term
+      concretize_term sigma next_term
     | `Asgn ((addr, sct), value, next_term) ->
       (* Assignment: claim ownership and assign value to memory location *)
-      let addr_smt = Smt.convert_indexterm addr in
-      let value_smt = Smt.convert_indexterm value in
-      let next_result = concretize_term next_term in
+      let addr_smt = Smt.convert_indexterm sigma addr in
+      let value_smt = Smt.convert_indexterm sigma value in
+      let next_result = concretize_term sigma next_term in
       let assign_stmt =
         !^"CN_SMT_CONCRETIZE_ASSIGN"
         ^^ parens
@@ -70,7 +73,7 @@ module Make (AD : Domain.T) = struct
       }
     | `LetStar ((var_sym, Annot ((`Arbitrary | `Symbolic), _, bt_arb, _)), body_term) ->
       (* Let binding with potential backtracking *)
-      let body_result = concretize_term body_term in
+      let body_result = concretize_term sigma body_term in
       { statements =
           (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
            ^^ parens (Sym.pp var_sym ^^ comma ^^^ Smt.convert_basetype bt_arb))
@@ -80,8 +83,8 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((var_sym, binding_term), body_term) ->
       (* Let binding with potential backtracking *)
       let var_name = Pp.plain (Sym.pp var_sym) in
-      let binding_result = concretize_term binding_term in
-      let body_result = concretize_term body_term in
+      let binding_result = concretize_term sigma binding_term in
+      let body_result = concretize_term sigma body_term in
       (* Generate let binding as statement *)
       let let_stmt =
         !^"cn_term*" ^^^ !^var_name ^^^ !^"=" ^^^ binding_result.expression
@@ -91,19 +94,19 @@ module Make (AD : Domain.T) = struct
       }
     | `Return it ->
       (* Monadic return - just return the expression, no return statement needed *)
-      let term_smt = Smt.convert_indexterm it in
+      let term_smt = Smt.convert_indexterm sigma it in
       { statements = []; expression = term_smt }
     | `Assert (lc, next_term) ->
       (* Assert logical constraints, backtrack if false *)
-      let constraint_smt = Smt.convert_logical_constraint lc in
-      let next_result = concretize_term next_term in
+      let constraint_smt = Smt.convert_logical_constraint sigma lc in
+      let next_result = concretize_term sigma next_term in
       let assert_stmt = !^"CN_SMT_CONCRETIZE_ASSERT" ^^ parens constraint_smt in
       { statements = assert_stmt :: next_result.statements;
         expression = next_result.expression
       }
     | `AssertDomain (_, next_term) ->
       (* Assert domain constraints - skip domain for now and continue *)
-      concretize_term next_term
+      concretize_term sigma next_term
     | `ITE (it_if, then_term, else_term) ->
       (* Convert if-then-else to PickSized statement with recursive calls *)
       let wgts1 =
@@ -120,7 +123,7 @@ module Make (AD : Domain.T) = struct
             gts
         | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
       in
-      concretize_term (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
+      concretize_term sigma (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map
         ( (i_sym, i_bt, it_perm),
           Annot
@@ -190,9 +193,11 @@ module Make (AD : Domain.T) = struct
             !^"convert_from_cn_bool"
             ^^ parens
                  (!^"cn_smt_concretize_eval_term"
-                  ^^ parens (!^"smt_solver" ^^ comma ^^^ Smt.convert_indexterm guard_it))
+                  ^^ parens
+                       (!^"smt_solver" ^^ comma ^^^ Smt.convert_indexterm sigma guard_it)
+                 )
           in
-          let addr_doc = Smt.convert_indexterm (subst_i_in_addr idx_it) in
+          let addr_doc = Smt.convert_indexterm sigma (subst_i_in_addr idx_it) in
           let assign_doc =
             !^"CN_SMT_CONCRETIZE_ASSIGN"
             ^^ parens
@@ -204,7 +209,7 @@ module Make (AD : Domain.T) = struct
                   ^^ comma
                   ^^^ value_doc)
           in
-          let key_doc = Smt.convert_indexterm idx_it in
+          let key_doc = Smt.convert_indexterm sigma idx_it in
           let update_doc =
             map_var_doc
             ^^^ !^"="
@@ -232,7 +237,7 @@ module Make (AD : Domain.T) = struct
         choice_terms
         |> List.mapi (fun i (_, term) ->
           let case_begin = !^"CN_SMT_CONCRETIZE_PICK_CASE_BEGIN" ^^ parens (int i) in
-          let term_result = concretize_term term in
+          let term_result = concretize_term sigma term in
           let case_stmts =
             term_result.statements
             |> List.map (fun stmt -> stmt ^^ !^";")
@@ -271,9 +276,11 @@ module Make (AD : Domain.T) = struct
 
 
   (** Convert generator definition to complete CN-SMT symbolic execution function *)
-  let concretize_def (def : Def.t) : Pp.document =
+  let concretize_def (sigma : CF.GenTypes.genTypeCategory A.sigma) (def : Def.t)
+    : Pp.document
+    =
     let open Pp in
-    let term_result = concretize_term def.body in
+    let term_result = concretize_term sigma def.body in
     let params =
       List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
       |> separate_map (comma ^^^ space) (fun x -> x)
@@ -302,6 +309,8 @@ module Make (AD : Domain.T) = struct
     ^^^ braces body
 
 
-  let concretize_ctx (ctx : Ctx.t) : Pp.document =
-    Pp.(separate_map (twice hardline) concretize_def (List.map snd ctx))
+  let concretize_ctx (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Ctx.t)
+    : Pp.document
+    =
+    Pp.(separate_map (twice hardline) (concretize_def sigma) (List.map snd ctx))
 end

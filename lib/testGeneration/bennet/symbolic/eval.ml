@@ -356,22 +356,20 @@ module Make (AD : Domain.T) = struct
                             ^^ int param_count
                             ^^ !^");"
                             ^^ hardline
-                            ^^ (List.fold_left
-                                  (fun (member_acc, idx) (param_id, _param_bt) ->
-                                     let param_name = Id.get_string param_id in
-                                     ( member_acc
-                                       ^^ !^"    members["
-                                       ^^ int idx
-                                       ^^ !^"] = dt->u."
-                                       ^^ !^ctor_name_lower
-                                       ^^ !^"->"
-                                       ^^ !^param_name
-                                       ^^ !^";"
-                                       ^^ hardline,
-                                       idx + 1 ))
-                                  (empty, 0)
-                                  params
-                                |> fst)
+                            ^^ List.fold_left
+                                 (fun member_acc (idx, (param_id, _param_bt)) ->
+                                    let param_name = Id.get_string param_id in
+                                    member_acc
+                                    ^^ !^"    members["
+                                    ^^ int idx
+                                    ^^ !^"] = dt->u."
+                                    ^^ !^ctor_name_lower
+                                    ^^ !^"->"
+                                    ^^ !^param_name
+                                    ^^ !^";"
+                                    ^^ hardline)
+                                 empty
+                                 (List.mapi (fun i x -> (i, x)) params)
                             ^^ !^"    return members;"
                             ^^ hardline)
                    ^^ hardline)
@@ -412,19 +410,17 @@ module Make (AD : Domain.T) = struct
                            (* Extract arguments from vector *)
                            ^^ (if param_count > 0 then
                                  List.fold_left
-                                   (fun (arg_acc, idx) (param_id, _param_bt) ->
+                                   (fun arg_acc (idx, (param_id, _param_bt)) ->
                                       let param_name = Id.get_string param_id in
-                                      ( arg_acc
-                                        ^^ !^"  void* "
-                                        ^^ !^param_name
-                                        ^^ !^" = *bennet_vector_get(void_ptr)(args, "
-                                        ^^ int idx
-                                        ^^ !^");"
-                                        ^^ hardline,
-                                        idx + 1 ))
-                                   (empty, 0)
-                                   params
-                                 |> fst
+                                      arg_acc
+                                      ^^ !^"  void* "
+                                      ^^ !^param_name
+                                      ^^ !^" = *bennet_vector_get(void_ptr)(args, "
+                                      ^^ int idx
+                                      ^^ !^");"
+                                      ^^ hardline)
+                                   empty
+                                   (List.mapi (fun i x -> (i, x)) params)
                                else
                                  empty)
                            ^^ hardline
@@ -513,19 +509,17 @@ module Make (AD : Domain.T) = struct
                       (* Cast arguments from args array *)
                       ^^ (if arg_count > 0 then
                             List.fold_left
-                              (fun (arg_acc, idx) (arg_sym, _) ->
+                              (fun arg_acc (idx, (arg_sym, _)) ->
                                  let arg_name = Sym.pp_string_no_nums arg_sym in
-                                 ( arg_acc
-                                   ^^ !^"  void* "
-                                   ^^ !^arg_name
-                                   ^^ !^" = args["
-                                   ^^ int idx
-                                   ^^ !^"];"
-                                   ^^ hardline,
-                                   idx + 1 ))
-                              (empty, 0)
-                              fn_def.args
-                            |> fst
+                                 arg_acc
+                                 ^^ !^"  void* "
+                                 ^^ !^arg_name
+                                 ^^ !^" = args["
+                                 ^^ int idx
+                                 ^^ !^"];"
+                                 ^^ hardline)
+                              empty
+                              (List.mapi (fun i x -> (i, x)) fn_def.args)
                           else
                             empty)
                       (* Call Fulminate-generated function *)
