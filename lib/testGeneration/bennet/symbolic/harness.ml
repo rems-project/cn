@@ -97,7 +97,13 @@ module Make (AD : Domain.T) = struct
         else
           !^"&branch_hist"
       in
-      !^"cn_smt_solver_reset(smt_solver);"
+      let reset_or_new_solver =
+        if TestGenConfig.is_just_reset_solver () then
+          !^"cn_smt_solver_reset(smt_solver);"
+        else
+          !^"stop_solver(smt_solver);" ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      in
+      reset_or_new_solver
       ^/^ !^"cn_smt_solver_setup(smt_solver);"
       ^/^ !^"cn_smt_gather_"
       ^^ !^generator_name

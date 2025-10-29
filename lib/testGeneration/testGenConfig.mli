@@ -71,7 +71,8 @@ type t =
     print_size_info : bool;
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
-    print_discard_info : bool
+    print_discard_info : bool;
+    just_reset_solver : bool
   }
 
 val default : t
@@ -185,3 +186,5 @@ val get_max_unfolds : unit -> int option
 val get_max_array_length : unit -> int
 
 val is_use_solver_eval : unit -> bool
+
+val is_just_reset_solver : unit -> bool
