@@ -1,4 +1,4 @@
-name: Spec Testing
+name: SMT Testing
 
 on:
   pull_request:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Spec testing
+    name: SMT testing
 
     strategy:
       matrix:
@@ -72,45 +72,9 @@ jobs:
           opam pin --yes --no-action add cn .
           opam install --yes cn
 
-      - name: Run LibCN unit tests
+      - name: Run CN-SMT-Testing CI tests
         run: |
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
-          dune test runtime/libcn
-
-      - name: Run CN-runtime CI tests (Cerberus)
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-exec.sh
-
-      - name: Checkout cn-tutorial
-        uses: actions/checkout@v4
-        with:
-          repository: rems-project/cn-tutorial
-          path: cn-tutorial
-          ref: cn-runtime-testing # FIXME: remove once the branch is merged
-
-      - name: Run CN-runtime CI tests (CN tutorial)
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd cn-tutorial; ./runtime-test.sh 
-          cd ..
-
-      - name: Run Bennet CI tests
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-test-gen.py
-
-      - name: Run CN-Seq-Test-Gen CI tests
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-seq-test-gen.sh
+          cd tests; ./run-cn-test-gen.py -s
