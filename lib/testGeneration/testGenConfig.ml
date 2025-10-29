@@ -23,6 +23,7 @@ type progress_level =
 
 type sizing_strategy =
   | Uniform
+  | Constant
   | QuickCheck
 
 type t =
@@ -140,7 +141,10 @@ let string_of_progress_level (progress_level : progress_level) =
 
 
 let string_of_sizing_strategy (sizing_strategy : sizing_strategy) =
-  match sizing_strategy with Uniform -> "uniform" | QuickCheck -> "quickcheck"
+  match sizing_strategy with
+  | Uniform -> "uniform"
+  | Constant -> "constant"
+  | QuickCheck -> "quickcheck"
 
 
 module Options = struct
@@ -163,7 +167,7 @@ module Options = struct
   let sizing_strategy : (string * sizing_strategy) list =
     List.map
       (fun strat -> (string_of_sizing_strategy strat, strat))
-      [ Uniform; QuickCheck ]
+      [ Uniform; Constant; QuickCheck ]
 end
 
 let instance : t option ref = ref Option.None
