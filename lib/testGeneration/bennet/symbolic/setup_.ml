@@ -56,49 +56,45 @@ module Make (AD : Domain.T) = struct
              ^^ !^tag_name
              ^^ !^"_members_vector;"
              ^^ hardline
-             ^^ (List.fold_left
-                   (fun (member_acc, idx) (member_id, member_sct) ->
-                      let member_name = Id.get_string member_id in
-                      ( member_acc
-                        ^^ !^"  "
-                        ^^ !^tag_name
-                        ^^ !^"_members["
-                        ^^ int idx
-                        ^^ !^"].label = \""
-                        ^^ !^member_name
-                        ^^ !^"\";"
-                        ^^ hardline
-                        ^^ !^"  "
-                        ^^ !^tag_name
-                        ^^ !^"_members["
-                        ^^ int idx
-                        ^^ !^"].base_type = "
-                        ^^ Smt.convert_basetype (Memory.bt_of_sct member_sct)
-                        ^^ !^";"
-                        ^^ hardline,
-                        idx + 1 ))
-                   (empty, 0)
-                   members
-                 |> fst)
+             ^^ List.fold_left
+                  (fun member_acc (idx, (member_id, member_sct)) ->
+                     let member_name = Id.get_string member_id in
+                     member_acc
+                     ^^ !^"  "
+                     ^^ !^tag_name
+                     ^^ !^"_members["
+                     ^^ int idx
+                     ^^ !^"].label = \""
+                     ^^ !^member_name
+                     ^^ !^"\";"
+                     ^^ hardline
+                     ^^ !^"  "
+                     ^^ !^tag_name
+                     ^^ !^"_members["
+                     ^^ int idx
+                     ^^ !^"].base_type = "
+                     ^^ Smt.convert_basetype (Memory.bt_of_sct member_sct)
+                     ^^ !^";"
+                     ^^ hardline)
+                  empty
+                  (List.mapi (fun i x -> (i, x)) members)
              ^^ !^"  bennet_vector_init(struct_member_t)(&"
              ^^ !^tag_name
              ^^ !^"_members_vector);"
              ^^ hardline
-             ^^ (List.fold_left
-                   (fun (push_acc, idx) (_member_id, _member_sct) ->
-                      ( push_acc
-                        ^^ !^"  bennet_vector_push(struct_member_t)(&"
-                        ^^ !^tag_name
-                        ^^ !^"_members_vector, "
-                        ^^ !^tag_name
-                        ^^ !^"_members["
-                        ^^ int idx
-                        ^^ !^"]);"
-                        ^^ hardline,
-                        idx + 1 ))
-                   (empty, 0)
-                   members
-                 |> fst)
+             ^^ List.fold_left
+                  (fun push_acc (idx, (_member_id, _member_sct)) ->
+                     push_acc
+                     ^^ !^"  bennet_vector_push(struct_member_t)(&"
+                     ^^ !^tag_name
+                     ^^ !^"_members_vector, "
+                     ^^ !^tag_name
+                     ^^ !^"_members["
+                     ^^ int idx
+                     ^^ !^"]);"
+                     ^^ hardline)
+                  empty
+                  (List.mapi (fun i x -> (i, x)) members)
              ^^ !^"    "
              ^^ !^tag_name
              ^^ !^"_decl.members = "
@@ -701,37 +697,35 @@ module Make (AD : Domain.T) = struct
                              ^^ int param_count
                              ^^ !^"];"
                              ^^ hardline
-                             ^^ (List.fold_left
-                                   (fun (acc, p_idx) (param_id, param_bt) ->
-                                      ( acc
-                                        ^^ !^"constr_params_g"
-                                        ^^ int group_idx
-                                        ^^ !^"_dt"
-                                        ^^ int dt_idx
-                                        ^^ !^"_c"
-                                        ^^ int c_idx
-                                        ^^ !^"["
-                                        ^^ int p_idx
-                                        ^^ !^"].label = \""
-                                        ^^ !^(Id.get_string param_id)
-                                        ^^ !^"\";"
-                                        ^^ hardline
-                                        ^^ !^"constr_params_g"
-                                        ^^ int group_idx
-                                        ^^ !^"_dt"
-                                        ^^ int dt_idx
-                                        ^^ !^"_c"
-                                        ^^ int c_idx
-                                        ^^ !^"["
-                                        ^^ int p_idx
-                                        ^^ !^"].base_type = "
-                                        ^^ Smt.convert_basetype param_bt
-                                        ^^ !^";"
-                                        ^^ hardline,
-                                        p_idx + 1 ))
-                                   (empty, 0)
-                                   params
-                                 |> fst)
+                             ^^ List.fold_left
+                                  (fun acc (p_idx, (param_id, param_bt)) ->
+                                     acc
+                                     ^^ !^"constr_params_g"
+                                     ^^ int group_idx
+                                     ^^ !^"_dt"
+                                     ^^ int dt_idx
+                                     ^^ !^"_c"
+                                     ^^ int c_idx
+                                     ^^ !^"["
+                                     ^^ int p_idx
+                                     ^^ !^"].label = \""
+                                     ^^ !^(Id.get_string param_id)
+                                     ^^ !^"\";"
+                                     ^^ hardline
+                                     ^^ !^"constr_params_g"
+                                     ^^ int group_idx
+                                     ^^ !^"_dt"
+                                     ^^ int dt_idx
+                                     ^^ !^"_c"
+                                     ^^ int c_idx
+                                     ^^ !^"["
+                                     ^^ int p_idx
+                                     ^^ !^"].base_type = "
+                                     ^^ Smt.convert_basetype param_bt
+                                     ^^ !^";"
+                                     ^^ hardline)
+                                  empty
+                                  (List.mapi (fun i x -> (i, x)) params)
                              ^^ !^"dt_constr_info_t constr_g"
                              ^^ int group_idx
                              ^^ !^"_dt"
@@ -762,20 +756,18 @@ module Make (AD : Domain.T) = struct
                     ^^ !^"] = {"
                     ^^ hardline
                     ^^ (List.fold_left
-                          (fun (acc, c_idx) _ ->
-                             ( acc
-                               ^^ !^"  &constr_g"
-                               ^^ int group_idx
-                               ^^ !^"_dt"
-                               ^^ int dt_idx
-                               ^^ !^"_c"
-                               ^^ int c_idx
-                               ^^ !^","
-                               ^^ hardline,
-                               c_idx + 1 ))
-                          (empty, 0)
-                          dt_def.cases
-                        |> fst
+                          (fun acc (c_idx, _) ->
+                             acc
+                             ^^ !^"  &constr_g"
+                             ^^ int group_idx
+                             ^^ !^"_dt"
+                             ^^ int dt_idx
+                             ^^ !^"_c"
+                             ^^ int c_idx
+                             ^^ !^","
+                             ^^ hardline)
+                          empty
+                          (List.mapi (fun i x -> (i, x)) dt_def.cases)
                         |> nest 2)
                     ^^ !^"};")
                  group
@@ -793,20 +785,18 @@ module Make (AD : Domain.T) = struct
                         |> fun (x : Mucore.datatype) -> x
                       in
                       List.fold_left
-                        (fun (inner_acc, c_idx) _ ->
-                           ( inner_acc
-                             ^^ !^"  &constr_g"
-                             ^^ int group_idx
-                             ^^ !^"_dt"
-                             ^^ int dt_idx
-                             ^^ !^"_c"
-                             ^^ int c_idx
-                             ^^ !^","
-                             ^^ hardline,
-                             c_idx + 1 ))
-                        (acc, 0)
-                        dt_def.cases
-                      |> fst)
+                        (fun inner_acc (c_idx, _) ->
+                           inner_acc
+                           ^^ !^"  &constr_g"
+                           ^^ int group_idx
+                           ^^ !^"_dt"
+                           ^^ int dt_idx
+                           ^^ !^"_c"
+                           ^^ int c_idx
+                           ^^ !^","
+                           ^^ hardline)
+                        acc
+                        (List.mapi (fun i x -> (i, x)) dt_def.cases))
                    empty
                    (List.mapi (fun i x -> (i, x)) group)
                  |> nest 2)
@@ -820,12 +810,10 @@ module Make (AD : Domain.T) = struct
         ^^ !^"] = {"
         ^^ hardline
         ^^ (List.fold_left
-              (fun (acc, idx) _ ->
-                 ( acc ^^ !^"  datatype_group_" ^^ int idx ^^ !^"_names," ^^ hardline,
-                   idx + 1 ))
-              (empty, 0)
-              sccs
-            |> fst
+              (fun acc (idx, _) ->
+                 acc ^^ !^"  datatype_group_" ^^ int idx ^^ !^"_names," ^^ hardline)
+              empty
+              (List.mapi (fun i x -> (i, x)) sccs)
             |> nest 2)
         ^^ !^"};"
       in
@@ -848,11 +836,10 @@ module Make (AD : Domain.T) = struct
         ^^ !^"] = {"
         ^^ hardline
         ^^ (List.fold_left
-              (fun (acc, idx) _ ->
-                 (acc ^^ !^"  dt_infos_g" ^^ int idx ^^ !^"," ^^ hardline, idx + 1))
-              (empty, 0)
-              sccs
-            |> fst
+              (fun acc (idx, _) ->
+                 acc ^^ !^"  dt_infos_g" ^^ int idx ^^ !^"," ^^ hardline)
+              empty
+              (List.mapi (fun i x -> (i, x)) sccs)
             |> nest 2)
         ^^ !^"};"
       in
@@ -862,11 +849,10 @@ module Make (AD : Domain.T) = struct
         ^^ !^"] = {"
         ^^ hardline
         ^^ (List.fold_left
-              (fun (acc, idx) _ ->
-                 (acc ^^ !^"  all_constr_infos_g" ^^ int idx ^^ !^"," ^^ hardline, idx + 1))
-              (empty, 0)
-              sccs
-            |> fst
+              (fun acc (idx, _) ->
+                 acc ^^ !^"  all_constr_infos_g" ^^ int idx ^^ !^"," ^^ hardline)
+              empty
+              (List.mapi (fun i x -> (i, x)) sccs)
             |> nest 2)
         ^^ !^"};"
       in
@@ -906,7 +892,10 @@ module Make (AD : Domain.T) = struct
         ^^ destructor_registrations ))
 
 
-  let generate_function_setup (prog5 : unit Mucore.file) (ctx : Ctx.t)
+  let generate_function_setup
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (prog5 : unit Mucore.file)
+        (ctx : Ctx.t)
     : Pp.document * Pp.document
     =
     let open Pp in
@@ -978,7 +967,7 @@ module Make (AD : Domain.T) = struct
                    ^^ comma
                    ^^^ !^(if is_recursive then "true" else "false")
                    ^^ comma
-                   ^^^ Smt.convert_indexterm body
+                   ^^^ Smt.convert_indexterm sigma body
                    ^^ comma
                    ^^^ !^"s);"
                    ^^ hardline
@@ -1003,7 +992,7 @@ module Make (AD : Domain.T) = struct
                         fn_def.Definition.Function.args
                    ^^ hardline
                    ^^ !^"    cn_term *body = "
-                   ^^ Smt.convert_indexterm body
+                   ^^ Smt.convert_indexterm sigma body
                    ^^ !^";"
                    ^^ hardline
                    ^^ !^"    cn_register_func("
@@ -1053,12 +1042,17 @@ module Make (AD : Domain.T) = struct
       (function_handlers, function_registrations))
 
 
-  let generate_smt_setup (prog5 : unit Mucore.file) (ctx : Ctx.t) : Pp.document =
+  let generate_smt_setup
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (prog5 : unit Mucore.file)
+        (ctx : Ctx.t)
+    : Pp.document
+    =
     let open Pp in
     let struct_handlers, struct_init = generate_struct_setup prog5 in
     let record_handlers, record_init = generate_record_setup prog5 in
     let datatype_handlers, datatype_init = generate_datatype_setup prog5 in
-    let function_handlers, function_init = generate_function_setup prog5 ctx in
+    let function_handlers, function_init = generate_function_setup sigma prog5 ctx in
     let declarations =
       [ !^"cn_tuple_declare(s);";
         !^"cn_option_declare(s);";

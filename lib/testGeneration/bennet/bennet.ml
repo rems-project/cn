@@ -93,7 +93,7 @@ let synthesize
   debug_stage "Stage 4" (ctx |> Stage4.Ctx.pp |> Pp.plain ~width:80);
   if TestGenConfig.is_symbolic_enabled () then
     let module Symbolic = Symbolic.Make (AD) in
-    Symbolic.transform prog5 ctx
+    Symbolic.transform sigma prog5 ctx
   else
     let module Stage5 = Stage5.Make (AD) in
     let ctx = Stage5.transform ctx in
