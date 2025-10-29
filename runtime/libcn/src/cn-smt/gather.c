@@ -101,7 +101,7 @@ void cn_smt_gather_add_assignment(cn_term* pointer, size_t bytes, size_t alignme
   cn_term* bytes_term = cn_smt_bits(false, 64, (intmax_t)bytes);
   cn_term* one_term = cn_smt_bits(false, 64, 1);
   cn_term* bytes_minus_one = cn_smt_sub(bytes_term, one_term);
-  end_addr = cn_smt_add(pointer, bytes_minus_one);
+  end_addr = cn_smt_array_shift(pointer, 1, bytes_minus_one);
 
   cn_resource_constraint* constraint =
       cn_resource_constraint_create_predicate(pointer, end_addr, alignment);
