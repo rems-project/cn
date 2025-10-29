@@ -472,10 +472,21 @@ sexp_t* translate_const(void* s, cn_const* co) {
     }
 
     case CN_CONST_UNIT: {
-      // Unit -> SMT.atom (CN_Tuple.name 0)
+      // Unit -> type-annotated 0-tuple
+      // Create the nullary tuple type
+      sexp_t* tuple_type = cn_tuple_type_name(NULL, 0);
+      assert(tuple_type);
+
+      // Create type-annotated tuple constructor
       char* tuple_name = cn_tuple_constructor_name(0);
-      sexp_t* result = sexp_atom(tuple_name);
+      sexp_t* constructor_atom = sexp_atom(tuple_name);
+      sexp_t* result = sexp_as_type(constructor_atom, tuple_type);
+
+      // Cleanup
       free(tuple_name);
+      sexp_free(constructor_atom);
+      sexp_free(tuple_type);
+
       return result;
     }
 
@@ -1441,14 +1452,41 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         }
       }
 
-      // Create function application with tuple constructor
+      // Compute element types for type annotation
+      sexp_t** element_types = NULL;
+      if (member_count > 0) {
+        element_types = malloc(sizeof(sexp_t*) * member_count);
+        assert(element_types);
+
+        for (size_t i = 0; i < member_count; i++) {
+          element_types[i] = translate_base_type(record_bt.data.record.types[i]);
+          assert(element_types[i]);
+        }
+      }
+
+      // Create the tuple type for annotation
+      sexp_t* tuple_type = cn_tuple_type_name(element_types, member_count);
+      assert(tuple_type);
+
+      // Create type-annotated tuple constructor
       char* tuple_con_name = cn_tuple_constructor_name(member_count);
-      sexp_t* fn_atom = sexp_atom(tuple_con_name);
-      sexp_t* result = sexp_app(fn_atom, args, member_count);
+      sexp_t* constructor_atom = sexp_atom(tuple_con_name);
+      sexp_t* typed_constructor = sexp_as_type(constructor_atom, tuple_type);
+
+      // Apply to values
+      sexp_t* result = sexp_app(typed_constructor, args, member_count);
 
       // Cleanup
       free(tuple_con_name);
-      sexp_free(fn_atom);
+      sexp_free(constructor_atom);
+      sexp_free(typed_constructor);
+      sexp_free(tuple_type);
+      if (element_types) {
+        for (size_t i = 0; i < member_count; i++) {
+          sexp_free(element_types[i]);
+        }
+        free(element_types);
+      }
       if (args) {
         free(args);
       }
