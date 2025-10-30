@@ -68,6 +68,7 @@ let run_tests
       symbolic
       symbolic_timeout
       use_solver_eval
+      smt_logging
       print_size_info
       print_backtrack_info
       print_satisfaction_info
@@ -127,6 +128,7 @@ let run_tests
           symbolic;
           symbolic_timeout;
           use_solver_eval;
+          smt_logging;
           max_unfolds;
           max_array_length;
           print_seed;
@@ -599,6 +601,11 @@ module Flags = struct
     Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
 
 
+  let smt_logging =
+    let doc = "Log SMT solver communication to specified file" in
+    Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
+
+
   let max_path_length =
     let doc = "Set maximum symbolic path length for exploration" in
     Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
@@ -669,6 +676,7 @@ let cmd =
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval
+    $ Flags.smt_logging
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info

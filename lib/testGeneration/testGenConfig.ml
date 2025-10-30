@@ -73,7 +73,8 @@ type t =
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
     print_discard_info : bool;
-    just_reset_solver : bool
+    just_reset_solver : bool;
+    smt_logging : string option
   }
 
 let default =
@@ -121,7 +122,8 @@ let default =
     print_backtrack_info = false;
     print_satisfaction_info = false;
     print_discard_info = false;
-    just_reset_solver = false
+    just_reset_solver = false;
+    smt_logging = None
   }
 
 
@@ -285,3 +287,5 @@ let get_max_array_length () = (Option.get !instance).max_array_length
 let is_use_solver_eval () = (Option.get !instance).use_solver_eval
 
 let is_just_reset_solver () = (Option.get !instance).just_reset_solver
+
+let get_smt_logging () = (Option.get !instance).smt_logging

@@ -73,7 +73,8 @@ type t =
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
     print_discard_info : bool;
-    just_reset_solver : bool
+    just_reset_solver : bool;
+    smt_logging : string option
   }
 
 val default : t
@@ -189,3 +190,5 @@ val get_max_array_length : unit -> int
 val is_use_solver_eval : unit -> bool
 
 val is_just_reset_solver : unit -> bool
+
+val get_smt_logging : unit -> string option
