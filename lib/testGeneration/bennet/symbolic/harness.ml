@@ -78,6 +78,9 @@ module Make (AD : Domain.T) = struct
       ^^ !^";"
     in
     (* Initialize symbolic execution context *)
+    let gather_checkpoint_save =
+      !^"cn_bump_frame_id gather_checkpoint = cn_bump_get_frame_id();"
+    in
     let context_init = !^"cn_smt_gather_init();" in
     let destructed_vars = def.iargs |> List.map_snd (arbitrary_of_bt prog5) in
     (* Generate symbolic variable declarations for each argument *)
@@ -121,7 +124,11 @@ module Make (AD : Domain.T) = struct
              ^/^ !^"branch_history_clear(&branch_hist);"
              ^/^ !^"attempts++;")
     in
+    let gather_checkpoint_restore = !^"cn_bump_free_after(gather_checkpoint);" in
     (* Initialize concretization context *)
+    let concretize_checkpoint_save =
+      !^"cn_bump_frame_id concretize_checkpoint = cn_bump_get_frame_id();"
+    in
     let conc_context_init =
       !^"/* Concretize input */" ^/^ !^"cn_smt_concretize_init();"
     in
@@ -173,6 +180,7 @@ module Make (AD : Domain.T) = struct
       ^/^ braces struct_fields
       ^^ semi
     in
+    let concretize_checkpoint_restore = !^"cn_bump_free_after(concretize_checkpoint);" in
     (* Combine everything into the function *)
     let max_attempts = 10 in
     (record_type ^^ !^"*")
@@ -197,10 +205,12 @@ module Make (AD : Domain.T) = struct
                        ^/^ !^"attempts++;"
                        ^/^ !^"continue;")
                 ^/^ !^"/* Gather constraints */"
+                ^/^ gather_checkpoint_save
                 ^/^ context_init
                 ^/^ symbolic_vars
                 ^/^ gather_constraints
-                ^/^ check_sat)
+                ^/^ check_sat
+                ^/^ gather_checkpoint_restore)
          ^/^ !^(Printf.sprintf
                   "while (result != CN_SOLVER_SAT && attempts < %d);"
                   max_attempts))
@@ -210,10 +220,12 @@ module Make (AD : Domain.T) = struct
                 ^/^ stop_solver
                 ^^^ !^"return NULL;"))
     ^/^ hardline
+    ^/^ concretize_checkpoint_save
     ^/^ conc_context_init
     ^/^ concrete_vars
     ^/^ concretize_model
     ^/^ result_struct
+    ^/^ concretize_checkpoint_restore
     ^/^ stop_solver
     ^/^ !^"return result_struct;"
     ^/^ !^"}"
