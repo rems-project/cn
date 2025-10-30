@@ -135,7 +135,7 @@ void* cn_bump_calloc(size_t count, size_t size) {
 }
 
 void cn_bump_free_all(void) {
-  for (uint16_t i = 0; bump_blocks[i] != NULL; i++) {
+  for (uint16_t i = 0; bump_blocks[i] != NULL && i < BUMP_BLOCK_COUNT; i++) {
     fulm_free(bump_blocks[i], &fulm_default_alloc);
     bump_blocks[i] = NULL;
   }
