@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-executable/bump_alloc.h>
 #include <cn-smt/context.h>
 #include <cn-smt/subst.h>  // for bennet_optional_cn_term_ptr
 #include <cn-smt/terms.h>
@@ -72,7 +73,7 @@ BENNET_VECTOR_IMPL(cn_match_case)
 
 // Helper function to allocate and initialize a new term
 cn_term* cn_term_alloc(cn_term_type type, cn_base_type base_type) {
-  cn_term* term = malloc(sizeof(cn_term));
+  cn_term* term = cn_bump_malloc(sizeof(cn_term));
   assert(term);
 
   term->type = type;
@@ -314,8 +315,10 @@ cn_term* cn_smt_apply(const char* function_name,
   cn_term* term = cn_term_alloc(CN_TERM_APPLY, result_type);
   assert(term);
 
-  term->data.apply.function_name = strdup(function_name);
-  assert(term->data.apply.function_name);
+  char* name_copy = cn_bump_malloc(strlen(function_name) + 1);
+  assert(name_copy);
+  strcpy(name_copy, function_name);
+  term->data.apply.function_name = name_copy;
 
   // Initialize the vector and copy from input array
   bennet_vector_init(cn_term_ptr)(&term->data.apply.args);
@@ -351,8 +354,10 @@ cn_term* cn_smt_struct(const char* tag,
   cn_term* term = cn_term_alloc(CN_TERM_STRUCT, cn_base_type_struct(tag));
   assert(term);
 
-  term->data.struct_val.tag = strdup(tag);
-  assert(term->data.struct_val.tag);
+  char* tag_copy = cn_bump_malloc(strlen(tag) + 1);
+  assert(tag_copy);
+  strcpy(tag_copy, tag);
+  term->data.struct_val.tag = tag_copy;
 
   // Initialize the vector
   bennet_vector_init(cn_member_pair)(&term->data.struct_val.members);
@@ -361,8 +366,9 @@ cn_term* cn_smt_struct(const char* tag,
   for (size_t i = 0; i < member_count; i++) {
     assert(member_names[i] && member_values[i]);
 
-    const char* name_copy = strdup(member_names[i]);
+    char* name_copy = cn_bump_malloc(strlen(member_names[i]) + 1);
     assert(name_copy);
+    strcpy(name_copy, member_names[i]);
 
     cn_member_pair pair = {.name = name_copy, .value = member_values[i]};
     bennet_vector_push(cn_member_pair)(&term->data.struct_val.members, pair);
@@ -381,9 +387,10 @@ cn_term* cn_smt_struct_member(
   assert(term);
 
   term->data.struct_member.struct_term = struct_term;
-  term->data.struct_member.member_name = strdup(member_name);
-
-  assert(term->data.struct_member.member_name);
+  char* name_copy = cn_bump_malloc(strlen(member_name) + 1);
+  assert(name_copy);
+  strcpy(name_copy, member_name);
+  term->data.struct_member.member_name = name_copy;
 
   return term;
 }
@@ -396,10 +403,11 @@ cn_term* cn_smt_struct_update(
   assert(term);
 
   term->data.struct_update.struct_term = struct_term;
-  term->data.struct_update.member_name = strdup(member_name);
+  char* name_copy = cn_bump_malloc(strlen(member_name) + 1);
+  assert(name_copy);
+  strcpy(name_copy, member_name);
+  term->data.struct_update.member_name = name_copy;
   term->data.struct_update.new_value = new_value;
-
-  assert(term->data.struct_update.member_name);
 
   return term;
 }
@@ -411,7 +419,8 @@ cn_term* cn_smt_record(
 
   // Create a record base type with the field names and inferred types
   // Extract base types from the member values
-  cn_base_type* field_types = malloc(member_count * sizeof(cn_base_type));
+  cn_base_type* field_types = cn_bump_malloc(member_count * sizeof(cn_base_type));
+  assert(field_types);
   for (size_t i = 0; i < member_count; i++) {
     field_types[i] = member_values[i]->base_type;
   }
@@ -427,8 +436,9 @@ cn_term* cn_smt_record(
   for (size_t i = 0; i < member_count; i++) {
     assert(member_names[i] && member_values[i]);
 
-    const char* name_copy = strdup(member_names[i]);
+    char* name_copy = cn_bump_malloc(strlen(member_names[i]) + 1);
     assert(name_copy);
+    strcpy(name_copy, member_names[i]);
 
     cn_member_pair pair = {.name = name_copy, .value = member_values[i]};
     bennet_vector_push(cn_member_pair)(&term->data.record.members, pair);
@@ -453,8 +463,10 @@ cn_term* cn_smt_record_member(cn_term* record_term, const char* member_name) {
       assert(term);
 
       term->data.record_member.record_term = record_term;
-      term->data.record_member.member_name = strdup(member_name);
-      assert(term->data.record_member.member_name);
+      char* name_copy = cn_bump_malloc(strlen(member_name) + 1);
+      assert(name_copy);
+      strcpy(name_copy, member_name);
+      term->data.record_member.member_name = name_copy;
 
       return term;
     }
@@ -482,10 +494,11 @@ cn_term* cn_smt_record_update(
   assert(term);
 
   term->data.record_update.record_term = record_term;
-  term->data.record_update.member_name = strdup(member_name);
+  char* name_copy = cn_bump_malloc(strlen(member_name) + 1);
+  assert(name_copy);
+  strcpy(name_copy, member_name);
+  term->data.record_update.member_name = name_copy;
   term->data.record_update.new_value = new_value;
-
-  assert(term->data.record_update.member_name);
 
   return term;
 }
@@ -501,8 +514,10 @@ cn_term* cn_smt_constructor(cn_base_type base_type,
   cn_term* term = cn_term_alloc(CN_TERM_CONSTRUCTOR, base_type);
   assert(term);
 
-  term->data.constructor.constructor_name = strdup(constructor_name);
-  assert(term->data.constructor.constructor_name);
+  char* name_copy = cn_bump_malloc(strlen(constructor_name) + 1);
+  assert(name_copy);
+  strcpy(name_copy, constructor_name);
+  term->data.constructor.constructor_name = name_copy;
 
   // Initialize the arguments vector
   bennet_vector_init(cn_member_pair)(&term->data.constructor.args);
@@ -512,10 +527,11 @@ cn_term* cn_smt_constructor(cn_base_type base_type,
     for (size_t i = 0; i < arg_count; i++) {
       assert(arg_names[i] && arg_values[i]);
 
-      char* name_copy = strdup(arg_names[i]);
-      assert(name_copy);
+      char* arg_name_copy = cn_bump_malloc(strlen(arg_names[i]) + 1);
+      assert(arg_name_copy);
+      strcpy(arg_name_copy, arg_names[i]);
 
-      cn_member_pair pair = {.name = name_copy, .value = arg_values[i]};
+      cn_member_pair pair = {.name = arg_name_copy, .value = arg_values[i]};
       bennet_vector_push(cn_member_pair)(&term->data.constructor.args, pair);
     }
   }
@@ -557,8 +573,10 @@ cn_term* cn_smt_match(cn_term* scrutinee,
     cn_match_case match_case;
 
     // Duplicate constructor tag
-    match_case.constructor_tag = strdup(constructor_tags[i]);
-    assert(match_case.constructor_tag);
+    char* tag_copy = cn_bump_malloc(strlen(constructor_tags[i]) + 1);
+    assert(tag_copy);
+    strcpy(tag_copy, constructor_tags[i]);
+    match_case.constructor_tag = tag_copy;
 
     // Copy pattern variables
     match_case.pattern_var_count = pattern_var_counts[i];
@@ -567,15 +585,19 @@ cn_term* cn_smt_match(cn_term* scrutinee,
       assert(pattern_vars_arrays[i]);
 
       // Allocate array for pattern variables
-      match_case.pattern_vars = malloc(match_case.pattern_var_count * sizeof(cn_sym));
+      match_case.pattern_vars =
+          cn_bump_malloc(match_case.pattern_var_count * sizeof(cn_sym));
       assert(match_case.pattern_vars);
 
       // Copy each pattern variable
       for (size_t j = 0; j < match_case.pattern_var_count; j++) {
         // Handle NULL names for wildcard patterns
         if (pattern_vars_arrays[i][j].name != NULL) {
-          match_case.pattern_vars[j].name = strdup(pattern_vars_arrays[i][j].name);
-          assert(match_case.pattern_vars[j].name);
+          char* var_name_copy =
+              cn_bump_malloc(strlen(pattern_vars_arrays[i][j].name) + 1);
+          assert(var_name_copy);
+          strcpy(var_name_copy, pattern_vars_arrays[i][j].name);
+          match_case.pattern_vars[j].name = var_name_copy;
         } else {
           match_case.pattern_vars[j].name = NULL;
         }

@@ -1,11 +1,23 @@
 #include <gtest/gtest.h>
 
+#include <cn-executable/bump_alloc.h>
 #include <cn-smt/terms.h>
 
 // Generate vector implementations for tests
 BENNET_VECTOR_IMPL(cn_term_ptr)
 
-class CnSmtTest : public ::testing::Test {};
+class CnSmtTest : public ::testing::Test {
+ protected:
+  cn_bump_frame_id frame_id;
+
+  void SetUp() override {
+    frame_id = cn_bump_get_frame_id();
+  }
+
+  void TearDown() override {
+    cn_bump_free_after(frame_id);
+  }
+};
 
 // Test basic constant constructors
 TEST_F(CnSmtTest, BasicConstants) {
