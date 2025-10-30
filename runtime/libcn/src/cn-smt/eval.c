@@ -23,10 +23,107 @@ BENNET_VECTOR_IMPL(cn_match_case)
 // Generate hash table implementation for cn_sym -> void_ptr
 BENNET_HASH_TABLE_IMPL(cn_sym, void_ptr)
 
+// Evaluation context stack (linked list of hash tables for scoped bindings)
+typedef struct cn_eval_context_node {
+  bennet_hash_table(cn_sym, void_ptr) table;
+  struct cn_eval_context_node* next;  // Next node down the stack
+} cn_eval_context_node;
+
+typedef struct cn_eval_context_stack {
+  cn_eval_context_node* head;  // Top of the stack
+} cn_eval_context_stack;
+
 // Forward declarations
 static cn_bits_info get_bits_info(cn_term* term);
+static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term);
 
-void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* term) {
+// Static stack operation functions for eval context
+static cn_eval_context_stack* create_eval_context_stack(void) {
+  cn_eval_context_stack* stack = malloc(sizeof(cn_eval_context_stack));
+  assert(stack);
+
+  // Allocate and initialize the first node
+  cn_eval_context_node* node = malloc(sizeof(cn_eval_context_node));
+  assert(node);
+
+  bennet_hash_table_init(cn_sym, void_ptr)(
+      &node->table, bennet_hash_cn_sym, bennet_eq_cn_sym);
+  node->next = NULL;
+
+  stack->head = node;
+  return stack;
+}
+
+static void free_eval_context_stack(cn_eval_context_stack* stack) {
+  if (!stack) {
+    return;
+  }
+
+  // Pop and free all nodes
+  while (stack->head) {
+    cn_eval_context_node* node = stack->head;
+    stack->head = node->next;
+    bennet_hash_table_free(cn_sym, void_ptr)(&node->table);
+    free(node);
+  }
+
+  free(stack);
+}
+
+static void push_eval_context(cn_eval_context_stack* stack) {
+  assert(stack);
+
+  // Allocate and initialize new node
+  cn_eval_context_node* node = malloc(sizeof(cn_eval_context_node));
+  assert(node);
+
+  bennet_hash_table_init(cn_sym, void_ptr)(
+      &node->table, bennet_hash_cn_sym, bennet_eq_cn_sym);
+  node->next = stack->head;
+
+  // Make it the new head
+  stack->head = node;
+}
+
+static void pop_eval_context(cn_eval_context_stack* stack) {
+  assert(stack);
+  assert(stack->head);  // Cannot pop from empty stack
+
+  // Remove head node
+  cn_eval_context_node* node = stack->head;
+  stack->head = node->next;
+
+  // Free the node's table and the node itself
+  bennet_hash_table_free(cn_sym, void_ptr)(&node->table);
+  free(node);
+}
+
+static void set_eval_binding(cn_eval_context_stack* stack, cn_sym key, void* value) {
+  assert(stack);
+  assert(stack->head);
+  assert(value);
+
+  bennet_hash_table_set(cn_sym, void_ptr)(&stack->head->table, key, value);
+}
+
+static void* get_eval_binding(cn_eval_context_stack* stack, cn_sym key) {
+  if (!stack) {
+    return NULL;
+  }
+
+  // Search from top (head) down the stack
+  for (cn_eval_context_node* node = stack->head; node != NULL; node = node->next) {
+    bennet_optional(void_ptr) result =
+        bennet_hash_table_get(cn_sym, void_ptr)(&node->table, key);
+    if (bennet_optional_is_some(result)) {
+      return bennet_optional_unwrap(result);
+    }
+  }
+
+  return NULL;
+}
+
+static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
   assert(context);
   assert(term);
 
@@ -105,11 +202,10 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
     }
 
     case CN_TERM_SYM: {
-      // Symbol evaluation - lookup in context hashtable
-      bennet_optional(void_ptr) opt =
-          bennet_hash_table_get(cn_sym, void_ptr)(context, term->data.sym);
-      assert(bennet_optional_is_some(opt));  // Symbol must be in context
-      return bennet_optional_unwrap(opt);
+      // Symbol evaluation - lookup in context stack
+      void* result = get_eval_binding(context, term->data.sym);
+      assert(result);  // Symbol must be in context
+      return result;
     }
 
     case CN_TERM_UNOP: {
@@ -1146,28 +1242,15 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
       void* value_result = cn_eval_term_aux(context, term->data.let.value);
       assert(value_result);
 
-      // Create a copy of the current context
-      bennet_hash_table(cn_sym, void_ptr) extended_context;
-      bennet_hash_table_init(cn_sym, void_ptr)(
-          &extended_context, bennet_hash_cn_sym, bennet_eq_cn_sym);
-
-      // Copy all entries from current context
-      for (size_t i = 0; i < context->capacity; i++) {
-        if (context->entries[i].occupied) {
-          bennet_hash_table_set(cn_sym, void_ptr)(
-              &extended_context, context->entries[i].key, context->entries[i].value);
-        }
-      }
-
-      // Add the new binding
-      bennet_hash_table_set(cn_sym, void_ptr)(
-          &extended_context, term->data.let.var, value_result);
+      // Push new scope and add the binding
+      push_eval_context(context);
+      set_eval_binding(context, term->data.let.var, value_result);
 
       // Evaluate the body with extended context
-      void* body_result = cn_eval_term_aux(&extended_context, term->data.let.body);
+      void* body_result = cn_eval_term_aux(context, term->data.let.body);
 
-      // Cleanup
-      bennet_hash_table_free(cn_sym, void_ptr)(&extended_context);
+      // Pop scope
+      pop_eval_context(context);
 
       return body_result;
     }
@@ -1435,35 +1518,24 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
           continue;
         }
 
-        // Constructor matches! Extend context with pattern variables
-        bennet_hash_table(cn_sym, void_ptr) extended_context;
-        bennet_hash_table_init(cn_sym, void_ptr)(
-            &extended_context, bennet_hash_cn_sym, bennet_eq_cn_sym);
-
-        // Copy all entries from current context
-        for (size_t j = 0; j < context->capacity; j++) {
-          if (context->entries[j].occupied) {
-            bennet_hash_table_set(cn_sym, void_ptr)(
-                &extended_context, context->entries[j].key, context->entries[j].value);
-          }
-        }
+        // Constructor matches! Push new scope and bind pattern variables
+        push_eval_context(context);
 
         // Bind non-wildcard pattern variables to member values
         for (size_t j = 0; j < match_case->pattern_var_count; j++) {
           // Check if this is not a wildcard (name is not NULL)
           if (match_case->pattern_vars[j].name != NULL) {
-            bennet_hash_table_set(cn_sym, void_ptr)(
-                &extended_context, match_case->pattern_vars[j], members[j]);
+            set_eval_binding(context, match_case->pattern_vars[j], members[j]);
           }
           // Wildcards are skipped - they don't bind
         }
 
         // Evaluate the body with extended context
-        void* result = cn_eval_term_aux(&extended_context, match_case->body_term);
+        void* result = cn_eval_term_aux(context, match_case->body_term);
 
         // Cleanup
         free(members);
-        bennet_hash_table_free(cn_sym, void_ptr)(&extended_context);
+        pop_eval_context(context);
 
         return result;
       }
@@ -1478,16 +1550,14 @@ void* cn_eval_term_aux(bennet_hash_table(cn_sym, void_ptr) * context, cn_term* t
 }
 
 void* cn_eval_term(cn_term* term) {
-  // Create an empty context for evaluation
-  bennet_hash_table(cn_sym, void_ptr) context;
-  bennet_hash_table_init(cn_sym, void_ptr)(
-      &context, bennet_hash_cn_sym, bennet_eq_cn_sym);
+  // Create an empty context stack for evaluation
+  cn_eval_context_stack* context = create_eval_context_stack();
 
   // Evaluate the term with the empty context
-  void* result = cn_eval_term_aux(&context, term);
+  void* result = cn_eval_term_aux(context, term);
 
   // Cleanup the context
-  bennet_hash_table_free(cn_sym, void_ptr)(&context);
+  free_eval_context_stack(context);
 
   return result;
 }

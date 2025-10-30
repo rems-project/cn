@@ -13,9 +13,6 @@ BENNET_VECTOR_IMPL(cn_term_ptr)
 BENNET_VECTOR_IMPL(cn_member_pair)
 BENNET_VECTOR_IMPL(cn_match_case)
 
-// Generate hash table implementation
-BENNET_HASH_TABLE_IMPL(const_char_ptr, cn_term_ptr)
-
 #define DEFINE_CN_SMT_LOGICAL_UNOP(name, op_enum)                                        \
   cn_term* cn_smt_##name(cn_term* operand) {                                             \
     assert(operand);                                                                     \
