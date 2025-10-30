@@ -95,25 +95,26 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
   }                                                                                      \
                                                                                          \
   enum cn_test_result cn_test_gen_##FuncName(struct cn_test_input test_input) {          \
-    struct timeval start_time, end_time;                                                 \
-    bennet_rand_checkpoint checkpoint = bennet_rand_save();                              \
-    int i = 0, d = 0, recentDiscards = 0;                                                \
-    bool successful_gen = false;                                                         \
-    void* gen_state = NULL;                                                              \
+    volatile struct timeval start_time, end_time;                                        \
+    volatile bennet_rand_checkpoint checkpoint = bennet_rand_save();                     \
+    volatile int i = 0, d = 0, recentDiscards = 0;                                       \
+    volatile bool successful_gen = false;                                                \
+    volatile void* gen_state = NULL;                                                     \
     set_cn_failure_cb(&cn_test_gen_##FuncName##_fail);                                   \
     switch (setjmp(buf_##FuncName)) {                                                    \
       case CN_FAILURE_ASSERT:                                                            \
       case CN_FAILURE_CHECK_OWNERSHIP:                                                   \
       case CN_FAILURE_OWNERSHIP_LEAK:                                                    \
       case CN_FAILURE_GHOST_ARGS:                                                        \
-        gettimeofday(&end_time, NULL);                                                   \
+        gettimeofday((struct timeval*)&end_time, NULL);                                  \
                                                                                          \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
+          int64_t runtime = timediff_timeval(                                            \
+              (struct timeval*)&start_time, (struct timeval*)&end_time);                 \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "failed",                                                        \
@@ -133,7 +134,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
         return CN_TEST_FAIL;                                                             \
       case CN_FAILURE_ALLOC:                                                             \
-        gettimeofday(&end_time, NULL);                                                   \
+        gettimeofday((struct timeval*)&end_time, NULL);                                  \
                                                                                          \
         d++;                                                                             \
         recentDiscards++;                                                                \
@@ -144,7 +145,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
+          int64_t runtime = timediff_timeval(                                            \
+              (struct timeval*)&start_time, (struct timeval*)&end_time);                 \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "gave_up",                                                       \
@@ -186,9 +188,9 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       bennet_info_unsatisfied_begin_run();                                               \
       successful_gen = false;                                                            \
       cn_test_generator_##FuncName##_record* res =                                       \
-          cn_test_generator_##FuncName(&gen_state);                                      \
+          cn_test_generator_##FuncName((void**)&gen_state);                              \
       if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
-        gettimeofday(&end_time, NULL);                                                   \
+        gettimeofday((struct timeval*)&end_time, NULL);                                  \
                                                                                          \
         i--;                                                                             \
         d++;                                                                             \
@@ -200,7 +202,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
+          int64_t runtime = timediff_timeval(                                            \
+              (struct timeval*)&start_time, (struct timeval*)&end_time);                 \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "gave_up",                                                       \
@@ -235,15 +238,16 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       if (test_input.trap) {                                                             \
         cn_trap();                                                                       \
       }                                                                                  \
-      gettimeofday(&start_time, NULL);                                                   \
+      gettimeofday((struct timeval*)&start_time, NULL);                                  \
       (void)FuncName(__VA_ARGS__);                                                       \
       if (test_input.replay) {                                                           \
         return CN_TEST_PASS;                                                             \
       }                                                                                  \
       recentDiscards = 0;                                                                \
       if (test_input.output_tyche) {                                                     \
-        gettimeofday(&end_time, NULL);                                                   \
-        int64_t runtime = timediff_timeval(&start_time, &end_time);                      \
+        gettimeofday((struct timeval*)&end_time, NULL);                                  \
+        int64_t runtime =                                                                \
+            timediff_timeval((struct timeval*)&start_time, (struct timeval*)&end_time);  \
         struct tyche_line_info line_info = {.test_suite = #Suite,                        \
             .test_name = #Name,                                                          \
             .status = "passed",                                                          \
