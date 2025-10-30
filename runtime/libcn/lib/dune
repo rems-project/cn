@@ -135,6 +135,8 @@
     cn-smt/functions.o
     cn-smt/gather.o
     cn-smt/sexp.o
+    cn-smt/sexp_parsing.o
+    cn-smt/sexp_printing.o
     cn-smt/solver.o
     cn-smt/structs.o
     cn-smt/records.o

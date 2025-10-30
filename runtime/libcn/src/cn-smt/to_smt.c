@@ -311,7 +311,6 @@ sexp_t* translate_base_type(cn_base_type bt) {
         return NULL;
       }
       sexp_t* result = cn_list_type(element_sexp);
-      sexp_free(element_sexp);
       return result;
     }
 
@@ -323,7 +322,6 @@ sexp_t* translate_base_type(cn_base_type bt) {
         return NULL;
       }
       sexp_t* result = t_set(element_sexp);
-      sexp_free(element_sexp);
       return result;
     }
 
@@ -337,14 +335,10 @@ sexp_t* translate_base_type(cn_base_type bt) {
       sexp_t* value_sexp = translate_base_type(*bt.data.map.value_type);
 
       if (!key_sexp || !value_sexp) {
-        sexp_free(key_sexp);
-        sexp_free(value_sexp);
         return NULL;
       }
 
       sexp_t* result = t_array(key_sexp, value_sexp);
-      sexp_free(key_sexp);
-      sexp_free(value_sexp);
       return result;
     }
 
@@ -361,7 +355,6 @@ sexp_t* translate_base_type(cn_base_type bt) {
         if (!translated_types[i]) {
           // Clean up on failure
           for (size_t j = 0; j < i; j++) {
-            sexp_free(translated_types[j]);
           }
           free(translated_types);
           return NULL;
@@ -372,7 +365,6 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
       // Clean up
       for (size_t i = 0; i < bt.data.tuple.count; i++) {
-        sexp_free(translated_types[i]);
       }
       free(translated_types);
       return result;
@@ -415,7 +407,6 @@ sexp_t* translate_base_type(cn_base_type bt) {
         return NULL;
       }
       sexp_t* result = cn_option_type(element_sexp);
-      sexp_free(element_sexp);
       return result;
     }
 
@@ -484,8 +475,6 @@ sexp_t* translate_const(void* s, cn_const* co) {
 
       // Cleanup
       free(tuple_name);
-      sexp_free(constructor_atom);
-      sexp_free(tuple_type);
 
       return result;
     }
@@ -502,8 +491,6 @@ sexp_t* translate_const(void* s, cn_const* co) {
 
       sexp_t* none_option = cn_option_none(base_type_sexp);
       sexp_t* result = cn_option_val(none_option);
-      sexp_free(base_type_sexp);
-      sexp_free(none_option);
       return result;
     }
 
@@ -579,7 +566,6 @@ static sexp_t* bv_clz_count(int result_w, int w, sexp_t* e) {
     assert(zero != NULL);
 
     sexp_t* is_zero = eq(e, zero);
-    sexp_free(zero);
     assert(is_zero != NULL);
 
     sexp_t* one_result = bv_k(result_w, 1);
@@ -590,10 +576,6 @@ static sexp_t* bv_clz_count(int result_w, int w, sexp_t* e) {
 
     sexp_t* result = ite(is_zero, one_result, zero_result);
     assert(result != NULL);
-
-    sexp_free(is_zero);
-    sexp_free(one_result);
-    sexp_free(zero_result);
 
     return result;
   } else {
@@ -611,7 +593,6 @@ static sexp_t* bv_clz_count(int result_w, int w, sexp_t* e) {
 
     sexp_t* top_is_zero = eq(top, top_zero);
     assert(top_is_zero != NULL);
-    sexp_free(top_zero);
 
     sexp_t* bot_count = bv_clz_count(result_w, bot_w, bot);
     assert(bot_count != NULL);
@@ -629,13 +610,6 @@ static sexp_t* bv_clz_count(int result_w, int w, sexp_t* e) {
     assert(result != NULL);
 
     // Clean up
-    sexp_free(top);
-    sexp_free(bot);
-    sexp_free(top_is_zero);
-    sexp_free(bot_count);
-    sexp_free(top_count);
-    sexp_free(top_w_const);
-    sexp_free(bot_plus_topw);
 
     return result;
   }
@@ -658,7 +632,6 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
     assert(zero != NULL);
 
     sexp_t* is_zero = eq(e, zero);
-    sexp_free(zero);
     assert(is_zero != NULL);
 
     sexp_t* one_result = bv_k(result_w, 1);
@@ -669,10 +642,6 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
 
     sexp_t* result = ite(is_zero, one_result, zero_result);
     assert(result != NULL);
-
-    sexp_free(is_zero);
-    sexp_free(one_result);
-    sexp_free(zero_result);
 
     return result;
   } else {
@@ -690,7 +659,6 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
 
     sexp_t* bot_is_zero = eq(bot, bot_zero);
     assert(bot_is_zero != NULL);
-    sexp_free(bot_zero);
 
     sexp_t* bot_count = bv_ctz_count(result_w, bot_w, bot);
     assert(bot_count != NULL);
@@ -708,13 +676,6 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
     assert(result != NULL);
 
     // Clean up
-    sexp_free(top);
-    sexp_free(bot);
-    sexp_free(bot_is_zero);
-    sexp_free(bot_count);
-    sexp_free(top_count);
-    sexp_free(bot_w_const);
-    sexp_free(top_plus_botw);
 
     return result;
   }
@@ -770,7 +731,6 @@ static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
   sexp_t* args[] = {s1, s2};
   sexp_t* result = sexp_app(fn_atom, args, 2);
 
-  sexp_free(fn_atom);
   return result;
 }
 
@@ -908,8 +868,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
                   sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
               free(x);
-              sexp_free(x_atom);
-              sexp_free(result_expr);
               operand_smt = result;
             }
 
@@ -936,8 +894,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
                   sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
               free(x);
-              sexp_free(x_atom);
-              sexp_free(result_expr);
               operand_smt = result;
             }
 
@@ -1377,7 +1333,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Cleanup
       free(con_name);
-      sexp_free(fn_atom);
       if (args) {
         free(args);
       }
@@ -1397,7 +1352,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
       free(fn_name);
-      sexp_free(fn_atom);
       return result;
     }
 
@@ -1416,7 +1370,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, 2);
 
       free(fn_name);
-      sexp_free(fn_atom);
       return result;
     }
 
@@ -1478,12 +1431,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Cleanup
       free(tuple_con_name);
-      sexp_free(constructor_atom);
-      sexp_free(typed_constructor);
-      sexp_free(tuple_type);
       if (element_types) {
         for (size_t i = 0; i < member_count; i++) {
-          sexp_free(element_types[i]);
         }
         free(element_types);
       }
@@ -1524,7 +1473,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
       free(selector_name);
-      sexp_free(fn_atom);
       return result;
     }
 
@@ -1546,7 +1494,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         // Nullary constructor
         sexp_t* fn_atom = sexp_atom(ctor_smt);
         sexp_t* result = sexp_app(fn_atom, NULL, 0);
-        sexp_free(fn_atom);
         free(ctor_smt);
         return result;
       }
@@ -1565,9 +1512,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, arg_sexps, arg_count);
 
       // Cleanup
-      sexp_free(fn_atom);
       for (size_t i = 0; i < arg_count; i++) {
-        sexp_free(arg_sexps[i]);
       }
       free(arg_sexps);
       free(ctor_smt);
@@ -1630,7 +1575,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, arg_count);
 
       // Cleanup
-      sexp_free(fn_atom);
       if (args) {
         free(args);
       }
@@ -1674,7 +1618,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Handle empty match (shouldn't happen, but be safe)
       if (case_count == 0) {
-        sexp_free(scrutinee_smt);
         return bool_k(true);
       }
 
@@ -1759,11 +1702,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       assert(result);
 
       // Clean up allocated memory
-      sexp_free(scrutinee_smt);
 
       for (size_t i = 0; i < case_count; i++) {
-        sexp_free(alternatives[i].expr);
-
         if (var_names_arrays[i] != NULL) {
           cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
 
@@ -1843,7 +1783,6 @@ void cn_declare_fun(struct cn_smt_solver* s,
     if (!args_ts[i]) {
       // Cleanup on failure
       for (size_t j = 0; j < i; j++) {
-        sexp_free(args_ts[j]);
       }
       free(args_ts);
       free(sname);
@@ -1856,7 +1795,6 @@ void cn_declare_fun(struct cn_smt_solver* s,
 
   if (!res_t) {
     for (size_t i = 0; i < args_count; i++) {
-      sexp_free(args_ts[i]);
     }
     free(args_ts);
     free(sname);
@@ -1868,15 +1806,12 @@ void cn_declare_fun(struct cn_smt_solver* s,
   if (decl_cmd) {
     // Send command
     ack_command(s, decl_cmd);
-    sexp_free(decl_cmd);
   }
 
   // Cleanup
   for (size_t i = 0; i < args_count; i++) {
-    sexp_free(args_ts[i]);
   }
   free(args_ts);
-  sexp_free(res_t);
   free(sname);
 }
 

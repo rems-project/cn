@@ -45,7 +45,6 @@ TEST_F(SolverTest, BasicSolverOperations1) {
   enum cn_smt_solver_result result = check(solver);
   EXPECT_EQ(result, CN_SOLVER_SAT);
 
-  sexp_free(assert_cmd);
   stop_solver(solver);
   free(solver);
 }
@@ -62,7 +61,6 @@ TEST_F(SolverTest, BasicSolverOperations2) {
   enum cn_smt_solver_result result = check(solver);
   EXPECT_EQ(result, CN_SOLVER_UNSAT);
 
-  sexp_free(assert_cmd);
   stop_solver(solver);
   free(solver);
 }

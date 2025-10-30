@@ -31,8 +31,6 @@ sexp_t* get_model(struct cn_smt_solver* s) {
   sexp_t* get_model_atom = sexp_atom("get-model");
   sexp_t* get_model_cmd = sexp_list(&get_model_atom, 1);
   sexp_t* ans = send_command(s, get_model_cmd);
-  sexp_free(get_model_atom);
-  sexp_free(get_model_cmd);
   return ans;
 }
 
@@ -47,9 +45,6 @@ sexp_t** get_exprs(
   sexp_t* get_value_cmd = sexp_list(cmd_elements, 2);
 
   sexp_t* res = send_command(s, get_value_cmd);
-  sexp_free(get_value_cmd);
-  sexp_free(get_value_atom);
-  sexp_free(vals_list);
 
   // Extract results - expect List of pairs
   size_t pair_count;
@@ -89,9 +84,6 @@ sexp_t* get_expr(struct cn_smt_solver* s, sexp_t* v) {
   sexp_t* get_value_cmd = sexp_list(cmd_elements, 2);
 
   sexp_t* res = send_command(s, get_value_cmd);
-  sexp_free(get_value_cmd);
-  sexp_free(get_value_atom);
-  sexp_free(vals_list);
 
   // Expect List [ List [ _; x ] ]
   size_t outer_count;
@@ -119,8 +111,6 @@ sexp_t* eval_expr(struct cn_smt_solver* s, sexp_t* v) {
   sexp_t* eval_cmd = sexp_list(cmd_elements, 2);
 
   sexp_t* res = send_command(s, eval_cmd);
-  sexp_free(eval_cmd);
-  sexp_free(eval_atom);
 
   return res;
 }
