@@ -4,6 +4,7 @@
 
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/vector.h>
+#include <cn-executable/bump_alloc.h>
 #include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 
@@ -23,7 +24,7 @@ static cn_term* deep_copy_term(cn_term* term) {
     return NULL;
   }
 
-  cn_term* copy = malloc(sizeof(cn_term));
+  cn_term* copy = cn_bump_malloc(sizeof(cn_term));
   assert(copy);
 
   // Copy non-pointer data
@@ -35,7 +36,7 @@ static cn_term* deep_copy_term(cn_term* term) {
       if (term->data.const_val.type == CN_CONST_CTYPE_CONST &&
           term->data.const_val.data.ctype_name) {
         size_t len = strlen(term->data.const_val.data.ctype_name);
-        char* dup = malloc(len + 1);
+        char* dup = cn_bump_malloc(len + 1);
         assert(dup);
         strcpy(dup, term->data.const_val.data.ctype_name);
         copy->data.const_val.data.ctype_name = dup;
@@ -230,7 +231,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new unop term with substituted operand
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_UNOP;
@@ -251,7 +252,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new binop term with substituted operands
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_BINOP;
@@ -275,7 +276,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new ITE term with substituted parts
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_ITE;
@@ -295,7 +296,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new EACHI term with substituted body
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_EACHI;
@@ -337,7 +338,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new STRUCT term with substituted members
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_STRUCT;
@@ -357,7 +358,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new STRUCT_MEMBER term with substituted struct
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_STRUCT_MEMBER;
@@ -381,7 +382,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new STRUCT_UPDATE term with substituted parts
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_STRUCT_UPDATE;
@@ -421,7 +422,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new RECORD term with substituted members
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_RECORD;
@@ -440,7 +441,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new RECORD_MEMBER term with substituted record
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_RECORD_MEMBER;
@@ -479,7 +480,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new CONSTRUCTOR term with substituted args
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_CONSTRUCTOR;
@@ -499,7 +500,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new member shift term with substituted base
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_MEMBER_SHIFT;
@@ -521,7 +522,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new array shift term with substituted parts
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_ARRAY_SHIFT;
@@ -541,7 +542,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new WRAPI term with substituted value
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_WRAPI;
@@ -564,7 +565,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new MAP_SET term with substituted parts
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_MAP_SET;
@@ -586,7 +587,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new MAP_GET term with substituted parts
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_MAP_GET;
@@ -623,7 +624,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new APPLY term with substituted args
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_APPLY;
@@ -644,7 +645,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new LET term with substituted parts
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_LET;
@@ -664,7 +665,7 @@ static cn_term* cn_subst_term_impl(
       }
 
       // Create new cast term with substituted value
-      cn_term* new_term = malloc(sizeof(cn_term));
+      cn_term* new_term = cn_bump_malloc(sizeof(cn_term));
       assert(new_term);
 
       new_term->type = CN_TERM_CAST;

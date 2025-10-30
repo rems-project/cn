@@ -329,7 +329,6 @@ enum cn_smt_solver_result cn_smt_context_model(
       sexp_t* eq_smt = translate_term(smt_solver, eq_term);
       sexp_t* eq_soft_assert = assume_soft(eq_smt);
       ack_command(smt_solver, eq_soft_assert);
-      free(eq_term);
     }
   }
 

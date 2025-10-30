@@ -11,6 +11,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <bennet/utils/vector.h>
+#include <cn-executable/bump_alloc.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -219,8 +220,8 @@ static inline cn_base_type cn_base_type_map(
 
 static inline cn_base_type create_map_type(
     cn_base_type key_type, cn_base_type value_type) {
-  cn_base_type* key_ptr = (cn_base_type*)malloc(sizeof(cn_base_type));
-  cn_base_type* value_ptr = (cn_base_type*)malloc(sizeof(cn_base_type));
+  cn_base_type* key_ptr = (cn_base_type*)cn_bump_malloc(sizeof(cn_base_type));
+  cn_base_type* value_ptr = (cn_base_type*)cn_bump_malloc(sizeof(cn_base_type));
   assert(key_ptr && value_ptr);
   *key_ptr = key_type;
   *value_ptr = value_type;
@@ -238,14 +239,20 @@ static inline cn_base_type cn_base_type_tuple(cn_base_type* types, size_t count)
 static inline cn_base_type cn_base_type_struct(const char* struct_tag) {
   cn_base_type bt;
   bt.tag = CN_BASE_STRUCT;
-  bt.data.struct_tag.tag = strdup(struct_tag);
+  char* tag_copy = (char*)cn_bump_malloc(strlen(struct_tag) + 1);
+  assert(tag_copy);
+  strcpy(tag_copy, struct_tag);
+  bt.data.struct_tag.tag = tag_copy;
   return bt;
 }
 
 static inline cn_base_type cn_base_type_datatype(const char* datatype_tag) {
   cn_base_type bt;
   bt.tag = CN_BASE_DATATYPE;
-  bt.data.datatype_tag.tag = strdup(datatype_tag);
+  char* tag_copy = (char*)cn_bump_malloc(strlen(datatype_tag) + 1);
+  assert(tag_copy);
+  strcpy(tag_copy, datatype_tag);
+  bt.data.datatype_tag.tag = tag_copy;
   return bt;
 }
 
@@ -269,9 +276,10 @@ static inline cn_base_type cn_base_type_record(
 // Helper function to create record types with proper memory allocation
 static inline cn_base_type create_record_type(
     size_t count, const char** field_names, cn_base_type* field_types) {
-  // Allocate memory for permanent storage (memory leak is acceptable for test generation)
-  const char** names = (const char**)malloc(count * sizeof(const char*));
-  cn_base_type* types = (cn_base_type*)malloc(count * sizeof(cn_base_type));
+  // Allocate memory for permanent storage using bump allocator
+  const char** names = (const char**)cn_bump_malloc(count * sizeof(const char*));
+  cn_base_type* types = (cn_base_type*)cn_bump_malloc(count * sizeof(cn_base_type));
+  assert(names && types);
   for (size_t i = 0; i < count; i++) {
     names[i] = field_names[i];
     types[i] = field_types[i];

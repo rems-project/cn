@@ -781,10 +781,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
           sexp_t* result = translate_term(s, ite_term);
 
-          // Clean up temporary terms
-          free(ctz_term);
-          // Note: other terms might need cleanup depending on ownership
-
           return result;
         }
 
@@ -814,9 +810,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           cn_term* ite_term = cn_smt_ite(eq_zero, zero, sub_term);
 
           sexp_t* result = translate_term(s, ite_term);
-
-          // Clean up
-          free(clz_term);
 
           return result;
         }
