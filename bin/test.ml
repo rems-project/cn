@@ -606,11 +606,6 @@ module Flags = struct
   let smt_logging =
     let doc = "Log SMT solver communication to specified file" in
     Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
-
-
-  let max_path_length =
-    let doc = "Set maximum symbolic path length for exploration" in
-    Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
 end
 
 let cmd =
