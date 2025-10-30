@@ -115,7 +115,12 @@ def run_single_test(test_file, cn_path, base_config, alt_configs, build_tools, _
                 ret_code, elapsed, test_output = run_cn_test(
                     cn_path, test_file, full_config)
 
-                # Run twice since flaky
+                # Run three times since flaky
+                if ret_code == 0:
+                    ret_code, elapsed_extra, test_output = run_cn_test(
+                        cn_path, test_file, full_config)
+                    elapsed += elapsed_extra
+
                 if ret_code == 0:
                     ret_code, elapsed_extra, test_output = run_cn_test(
                         cn_path, test_file, full_config)
