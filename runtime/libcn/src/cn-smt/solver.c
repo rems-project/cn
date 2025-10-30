@@ -15,16 +15,25 @@
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
 
+// SMT logging configuration (NULL = disabled)
+const char *cn_smt_log_file_path = NULL;
+
+void cn_smt_set_log_file_path(const char *path) {
+  cn_smt_log_file_path = path;
+}
+
 void send_string(struct cn_smt_solver *solver, const char *str) {
   assert(solver && str);
   fprintf(solver->write_input, "%s\n", str);
   fflush(solver->write_input);
 
-  fprintf(solver->log_file, "\nStart Write:\n%s\nEnd Write\n", str);
-  fflush(solver->log_file);
+  if (solver->log_file != NULL) {
+    fprintf(solver->log_file, "\nStart Write:\n%s\nEnd Write\n", str);
+    fflush(solver->log_file);
 
-  fclose(solver->log_file);
-  solver->log_file = fopen("smt.log", "a");
+    fclose(solver->log_file);
+    solver->log_file = fopen(cn_smt_log_file_path, "a");
+  }
 }
 
 char *read_output(struct cn_smt_solver *solver) {
@@ -117,8 +126,10 @@ char *read_output(struct cn_smt_solver *solver) {
     buffer[total_len - 1] = '\0';
   }
 
-  fprintf(solver->log_file, "\nStart Read:\n%s\nEnd Read\n", buffer);
-  fflush(solver->log_file);
+  if (solver->log_file != NULL) {
+    fprintf(solver->log_file, "\nStart Read:\n%s\nEnd Read\n", buffer);
+    fflush(solver->log_file);
+  }
 
   return buffer;
 }
@@ -140,7 +151,9 @@ void stop_solver(struct cn_smt_solver *solver) {
   // Close FILE* streams (this closes the underlying file descriptors)
   fclose(solver->write_input);
   fclose(solver->read_output);
-  fclose(solver->log_file);
+  if (solver->log_file != NULL) {
+    fclose(solver->log_file);
+  }
 
   // Wait for solver process to exit
   int status;
@@ -226,7 +239,13 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
 
   solver->write_input = fdopen(pipe_fd_in[1], "w");
   solver->read_output = fdopen(pipe_fd_out[0], "r");
-  solver->log_file = fopen("./smt.log", "w");
+
+  // Only open log file if logging is enabled
+  if (cn_smt_log_file_path != NULL) {
+    solver->log_file = fopen(cn_smt_log_file_path, "w");
+  } else {
+    solver->log_file = NULL;
+  }
 
   ack_command(solver, set_option(":print-success", "true"));
   ack_command(solver, set_option(":produce-models", "true"));

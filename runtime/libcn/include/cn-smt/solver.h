@@ -68,6 +68,9 @@ typedef struct {
   size_t constr_count;
 } dt_info_t;
 
+// SMT logging configuration
+void cn_smt_set_log_file_path(const char *path);
+
 // Function declarations
 void send_string(struct cn_smt_solver *solver, const char *str);
 sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp);
