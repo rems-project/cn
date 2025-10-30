@@ -75,6 +75,20 @@ type state =
     last_indent : int
   }
 
+type precedence =
+  | Top
+  | Cartesian of (int * int)
+
+let compare_precedence p1 p2 =
+  match (p1, p2) with
+  | Top, Top -> 0
+  | Top, Cartesian _ -> -1
+  | Cartesian _, Top -> 1
+  | Cartesian (x1, y1), Cartesian (x2, y2) ->
+    let cmp = Stdlib.compare x1 x2 in
+    if cmp = 0 then -Stdlib.compare y1 y2 else -cmp
+
+
 let ident_of_line str =
   let rec aux i =
     match String.get str i with
@@ -158,7 +172,7 @@ let move_to ?(print = true) ?(no_ident = false) st pos =
 (* Various kinds of edits we can perform *)
 type injection_kind =
   (* Inject a statement in a function *)
-  | InStmt of int * int * string
+  | InStmt of precedence * int * string
   (* | Return of (Pos.t * Pos.t) option *)
   (* | Return of Pos.t option *)
 
@@ -323,7 +337,7 @@ let sort_injects xs =
     let c_end = Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos in
     let c_precedence =
       match (inj1.kind, inj2.kind) with
-      | InStmt (n1, _, _), InStmt (n2, _, _) -> Stdlib.compare n1 n2
+      | InStmt (n1, _, _), InStmt (n2, _, _) -> compare_precedence n1 n2
       | _ -> 0
     in
     if c_start = 0 then
@@ -439,7 +453,7 @@ let return_injs xs =
                ({ footprint = { start_pos; end_pos };
                   kind =
                     InStmt
-                      ( 0,
+                      ( Top,
                         1,
                         String.concat "" ("{ " :: inj_strs) ^ "goto __cn_epilogue; }\n" )
                 }
@@ -449,12 +463,14 @@ let return_injs xs =
              let* e_start_pos, e_end_pos = Pos.of_location loc in
              Ok
                ({ footprint = { start_pos; end_pos = e_start_pos };
-                  kind = InStmt (0, 1, "{ __cn_ret = ")
+                  kind = InStmt (Top, 1, "{ __cn_ret = ")
                 }
                 :: { footprint = { start_pos = e_end_pos; end_pos };
                      kind =
                        InStmt
-                         (0, 1, "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }")
+                         ( Top,
+                           1,
+                           "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }" )
                    }
                 :: acc)
          in
@@ -495,7 +511,7 @@ type 'a cn_injection =
     program : 'a A.ail_program;
     static_funcs : Sym.Set.t;
     pre_post : (Sym.t * (string list * string list)) list;
-    in_stmt : (int * (Cerb_location.t * string list)) list;
+    in_stmt : (precedence * (Cerb_location.t * string list)) list;
     returns : (Cerb_location.t * ('a A.expression option * string list)) list;
     inject_in_preproc : bool;
     with_testing : bool
