@@ -98,9 +98,6 @@ void cn_register_func(cn_sym name,
     sexp_t* param_elements[] = {name_atom, arg_type};
     args[i] = sexp_list(param_elements, 2);
     assert(args[i]);
-
-    sexp_free(name_atom);
-    sexp_free(arg_type);
   }
 
   // Translate result type
@@ -117,15 +114,11 @@ void cn_register_func(cn_sym name,
 
   // Send command
   ack_command(s, def_cmd);
-  sexp_free(def_cmd);
 
   // Cleanup
   for (size_t i = 0; i < arg_count; i++) {
-    sexp_free(args[i]);
   }
   free(args);
-  sexp_free(ret_t);
-  sexp_free(body_smt);
 }
 
 cn_func_handler cn_get_func_handler(const char* func_name) {

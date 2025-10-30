@@ -4,16 +4,21 @@
 #include <cstring>
 #include <string>
 
+#include <cn-executable/bump_alloc.h>
 #include <cn-smt/sexp.h>
 
 class SexpCommandsTest : public ::testing::Test {
  protected:
+  cn_bump_frame_id frame_id;
+
   void SetUp() override {
-    // Setup if needed
+    // Save allocator state before test
+    frame_id = cn_bump_get_frame_id();
   }
 
   void TearDown() override {
-    // Cleanup if needed
+    // Reset bump allocator to state before test
+    cn_bump_free_after(frame_id);
   }
 };
 
@@ -23,8 +28,6 @@ TEST_F(SexpCommandsTest, SimpleCommand) {
 
   ASSERT_NE(cmd, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(cmd), "(set-logic QF_LIA)");
-
-  sexp_free(cmd);
 }
 
 TEST_F(SexpCommandsTest, SetOption) {
@@ -32,8 +35,6 @@ TEST_F(SexpCommandsTest, SetOption) {
 
   ASSERT_NE(opt, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(opt), "(set-option :produce-models true)");
-
-  sexp_free(opt);
 }
 
 TEST_F(SexpCommandsTest, SetLogic) {
@@ -41,8 +42,6 @@ TEST_F(SexpCommandsTest, SetLogic) {
 
   ASSERT_NE(logic, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(logic), "(set-logic QF_LIA)");
-
-  sexp_free(logic);
 }
 
 TEST_F(SexpCommandsTest, PushPop) {
@@ -54,9 +53,6 @@ TEST_F(SexpCommandsTest, PushPop) {
 
   ASSERT_STRCASEEQ(sexp_to_string(push_cmd), "(push 1)");
   ASSERT_STRCASEEQ(sexp_to_string(pop_cmd), "(pop 1)");
-
-  sexp_free(push_cmd);
-  sexp_free(pop_cmd);
 }
 
 TEST_F(SexpCommandsTest, DeclareSort) {
@@ -64,8 +60,6 @@ TEST_F(SexpCommandsTest, DeclareSort) {
 
   ASSERT_NE(sort_decl, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(sort_decl), "(declare-sort MySort 0)");
-
-  sexp_free(sort_decl);
 }
 
 TEST_F(SexpCommandsTest, DeclareConst) {
@@ -74,9 +68,6 @@ TEST_F(SexpCommandsTest, DeclareConst) {
 
   ASSERT_NE(const_decl, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(const_decl), "(declare-fun x () Int)");
-
-  sexp_free(const_decl);
-  sexp_free(int_type);
 }
 
 TEST_F(SexpCommandsTest, DeclareFun) {
@@ -88,11 +79,6 @@ TEST_F(SexpCommandsTest, DeclareFun) {
 
   ASSERT_NE(fun_decl, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(fun_decl), "(declare-fun f (Int Int) Bool)");
-
-  sexp_free(fun_decl);
-  sexp_free(int_type1);
-  sexp_free(int_type2);
-  sexp_free(bool_type);
 }
 
 TEST_F(SexpCommandsTest, DefineConst) {
@@ -102,10 +88,6 @@ TEST_F(SexpCommandsTest, DefineConst) {
 
   ASSERT_NE(const_def, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(const_def), "(define-fun c () Int 42)");
-
-  sexp_free(const_def);
-  sexp_free(int_type);
-  sexp_free(value);
 }
 
 TEST_F(SexpCommandsTest, Assume) {
@@ -116,11 +98,6 @@ TEST_F(SexpCommandsTest, Assume) {
 
   ASSERT_NE(assertion, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(assertion), "(assert (> x 0))");
-
-  sexp_free(assertion);
-  sexp_free(x);
-  sexp_free(zero);
-  sexp_free(gt_expr);
 }
 
 TEST_F(SexpCommandsTest, IsCon) {
@@ -129,9 +106,6 @@ TEST_F(SexpCommandsTest, IsCon) {
 
   ASSERT_NE(test, nullptr);
   ASSERT_STRCASEEQ(sexp_to_string(test), "((_ is Some) my_expr)");
-
-  sexp_free(test);
-  sexp_free(expr);
 }
 
 TEST_F(SexpCommandsTest, SimpleDatatype) {
@@ -165,7 +139,4 @@ TEST_F(SexpCommandsTest, SimpleDatatype) {
   EXPECT_TRUE(result.find("None") != std::string::npos);
   EXPECT_TRUE(result.find("Some") != std::string::npos);
   EXPECT_TRUE(result.find("value") != std::string::npos);
-
-  sexp_free(datatype_decl);
-  sexp_free(some_field.type);
 }

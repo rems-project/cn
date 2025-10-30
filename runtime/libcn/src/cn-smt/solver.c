@@ -135,7 +135,12 @@ char *read_output(struct cn_smt_solver *solver) {
 }
 
 sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp) {
-  send_string(solver, sexp_to_string(sexp));
+  char *sexp_str = sexp_to_string(sexp);
+  send_string(solver, sexp_str);
+  // Only free if sexp_to_string allocated a new string (lists) vs returning atom pointer
+  if (!sexp_is_atom(sexp)) {
+    free(sexp_str);
+  }
 
   char *buffer = read_output(solver);
   sexp_t *result = sexp_parse(buffer);
@@ -266,7 +271,6 @@ void cn_smt_solver_reset(struct cn_smt_solver *solver) {
   sexp_t *reset_atom = sexp_atom("reset");
   sexp_t *reset_cmd = sexp_list(&reset_atom, 1);
   ack_command(solver, reset_cmd);
-  sexp_free(reset_cmd);
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -381,7 +385,6 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
   sexp_t *cmd = declare_datatypes(datatypes, name_count);
   if (cmd) {
     ack_command(s, cmd);
-    sexp_free(cmd);
   }
 
   // Cleanup
@@ -391,7 +394,6 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
       free((char *)datatypes[i].constructors[c].name);
       for (size_t f = 0; f < datatypes[i].constructors[c].field_count; f++) {
         free((char *)datatypes[i].constructors[c].fields[f].name);
-        sexp_free(datatypes[i].constructors[c].fields[f].type);
       }
       free(datatypes[i].constructors[c].fields);
     }
@@ -559,7 +561,6 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
       declare_datatype(struct_name, type_params, 0, &constructor, 1);
   if (struct_decl_sexp) {
     ack_command(s, struct_decl_sexp);
-    sexp_free(struct_decl_sexp);
   }
 
   // Cleanup
@@ -568,7 +569,6 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
   if (fields) {
     for (size_t i = 0; i < field_count; i++) {
       free((char *)fields[i].name);
-      sexp_free(fields[i].type);
     }
     free(fields);
   }
@@ -640,7 +640,6 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
       for (int i = 0; i < arity; i++) {
         free((char *)type_params[i]);
         free((char *)fields[i].name);
-        sexp_free(fields[i].type);
       }
       free(type_params);
       free(fields);
@@ -677,7 +676,4 @@ void cn_option_declare(struct cn_smt_solver *solver) {
   sexp_t *datatype_decl =
       declare_datatype(cn_option_name, type_params, 1, constructors, 2);
   ack_command(solver, datatype_decl);
-
-  // Clean up
-  sexp_free(some_field.type);
 }

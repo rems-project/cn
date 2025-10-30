@@ -45,9 +45,6 @@ sexp_t **sexp_to_list(const sexp_t *sexp, size_t *count);
 // Pattern matching functions
 bennet_optional(sexp_ptr) sexp_to_assert(const sexp_t *sexp);
 
-// Memory management
-void sexp_free(sexp_t *sexp);
-
 // Parsing
 sexp_t *sexp_parse(const char *input);
 

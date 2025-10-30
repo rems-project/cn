@@ -329,9 +329,7 @@ enum cn_smt_solver_result cn_smt_context_model(
       sexp_t* eq_smt = translate_term(smt_solver, eq_term);
       sexp_t* eq_soft_assert = assume_soft(eq_smt);
       ack_command(smt_solver, eq_soft_assert);
-      free(eq_soft_assert);
       free(eq_term);
-      free(eq_smt);
     }
   }
 
@@ -386,7 +384,6 @@ enum cn_smt_solver_result cn_smt_context_model(
       // Add the constraint as an assertion
       sexp_t* assert_cmd = assume(smt_expr);
       ack_command(smt_solver, assert_cmd);
-      sexp_free(assert_cmd);
     }
 
     logical_constraint = logical_constraint->next;
@@ -400,12 +397,10 @@ enum cn_smt_solver_result cn_smt_context_model(
     sexp_t* define_min_ptr = define_const(
         "bennet_min_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_min_ptr()));
     ack_command(smt_solver, define_min_ptr);
-    sexp_free(define_min_ptr);
 
     sexp_t* define_max_ptr = define_const(
         "bennet_max_ptr", t_loc(), loc_k((uintptr_t)bennet_rand_alloc_max_ptr()));
     ack_command(smt_solver, define_max_ptr);
-    sexp_free(define_max_ptr);
 
     sexp_t* min_ptr_smt = sexp_atom("bennet_min_ptr");
     sexp_t* max_ptr_smt = sexp_atom("bennet_max_ptr");
@@ -420,13 +415,11 @@ enum cn_smt_solver_result cn_smt_context_model(
       sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, start_addr_smt);
       sexp_t* min_bound_assert = assume(min_bound_expr);
       ack_command(smt_solver, min_bound_assert);
-      sexp_free(min_bound_assert);
 
       // Create assertion: `end_addr <= max_ptr`
       sexp_t* max_bound_expr = bv_uleq(end_addr_smt, max_ptr_smt);
       sexp_t* max_bound_assert = assume(max_bound_expr);
       ack_command(smt_solver, max_bound_assert);
-      sexp_free(max_bound_assert);
 
       // CRITICAL: Prevent bitvector overflow by ensuring start_addr doesn't get too close to max
       // Add constraint: start_addr + 65536 <= max_ptr (leave safe margin)
@@ -435,15 +428,11 @@ enum cn_smt_solver_result cn_smt_context_model(
       sexp_t* overflow_guard_expr = bv_uleq(start_plus_margin, max_ptr_smt);
       sexp_t* overflow_guard_assert = assume(overflow_guard_expr);
       ack_command(smt_solver, overflow_guard_assert);
-      sexp_free(overflow_guard_assert);
-      sexp_free(safety_margin);
-      sexp_free(start_plus_margin);
 
       // Ensure start_addr <= end_addr (prevents overflow and ensures validity)
       sexp_t* validity_expr = bv_uleq(start_addr_smt, end_addr_smt);
       sexp_t* validity_assert = assume(validity_expr);
       ack_command(smt_solver, validity_assert);
-      sexp_free(validity_assert);
 
       // Alignment
       if (resource_constraint->alignment > 1) {
@@ -455,9 +444,6 @@ enum cn_smt_solver_result cn_smt_context_model(
             sexp_list((sexp_t*[]){sexp_atom("="), start_mask_align, zero_smt}, 3);
         sexp_t* alignment_assert = assume(alignment_expr);
         ack_command(smt_solver, alignment_assert);
-        sexp_free(alignment_assert);
-        sexp_free(alignment_smt);
-        sexp_free(zero_smt);
       }
 
       // Ensure exclusive ownership (non-overlapping)
@@ -488,7 +474,6 @@ enum cn_smt_solver_result cn_smt_context_model(
           sexp_t* non_overlap_expr = bool_or(cond1, cond2);
           sexp_t* non_overlap_assert = assume(non_overlap_expr);
           ack_command(smt_solver, non_overlap_assert);
-          sexp_free(non_overlap_assert);
         }
 
         other_resource = other_resource->next;

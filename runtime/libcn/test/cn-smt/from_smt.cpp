@@ -12,19 +12,16 @@ class FromSmtTest : public ::testing::Test {
 TEST_F(FromSmtTest, ToBoolTrue) {
   sexp_t* true_sexp = sexp_atom("true");
   EXPECT_TRUE(to_bool(true_sexp));
-  sexp_free(true_sexp);
 }
 
 TEST_F(FromSmtTest, ToBoolFalse) {
   sexp_t* false_sexp = sexp_atom("false");
   EXPECT_FALSE(to_bool(false_sexp));
-  sexp_free(false_sexp);
 }
 
 TEST_F(FromSmtTest, ToZPositive) {
   sexp_t* num_sexp = sexp_atom("42");
   EXPECT_EQ(to_z(num_sexp), 42);
-  sexp_free(num_sexp);
 }
 
 TEST_F(FromSmtTest, ToZNegative) {
@@ -34,22 +31,16 @@ TEST_F(FromSmtTest, ToZNegative) {
   sexp_t* neg_sexp = sexp_list(elements, 2);
 
   EXPECT_EQ(to_z(neg_sexp), -42);
-
-  sexp_free(minus_atom);
-  sexp_free(num_atom);
-  sexp_free(neg_sexp);
 }
 
 TEST_F(FromSmtTest, ToBitsHex) {
   sexp_t* hex_sexp = sexp_atom("#x0F");
   EXPECT_EQ(to_bits(8, false, hex_sexp), 15);
-  sexp_free(hex_sexp);
 }
 
 TEST_F(FromSmtTest, ToBitsBinary) {
   sexp_t* bin_sexp = sexp_atom("#b1111");
   EXPECT_EQ(to_bits(4, false, bin_sexp), 15);
-  sexp_free(bin_sexp);
 }
 
 TEST_F(FromSmtTest, ToConSimple) {
@@ -61,7 +52,6 @@ TEST_F(FromSmtTest, ToConSimple) {
   EXPECT_EQ(result.fields, nullptr);
 
   free_constructor_result(&result);
-  sexp_free(con_sexp);
 }
 
 TEST_F(FromSmtTest, ToConWithFields) {
@@ -80,7 +70,4 @@ TEST_F(FromSmtTest, ToConWithFields) {
   EXPECT_STREQ(sexp_to_string(result.fields[0]), "42");  // Check field content
 
   free_constructor_result(&result);
-  sexp_free(some_atom);
-  sexp_free(value_atom);
-  sexp_free(con_sexp);
 }
