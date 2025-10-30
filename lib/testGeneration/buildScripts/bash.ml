@@ -212,7 +212,11 @@ let run () =
        if Config.is_use_solver_eval () then
          [ "--use-solver-eval" ]
        else
-         [])
+         []
+         @ (Config.get_smt_logging ()
+            |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
+            |> Option.to_list
+            |> List.flatten))
   in
   !^"# Run"
   ^^ hardline
