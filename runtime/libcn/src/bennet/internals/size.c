@@ -143,6 +143,9 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       size_t sz = bennet_uniform_uint16_t(max_size) + 1;
       return sz;
 
+    case BENNET_SIZE_CONSTANT:
+      return max_size;
+
     case BENNET_SIZE_QUICKCHECK:;
       size_t discard_divisor;
       if (max_discard_ratio > 0) {

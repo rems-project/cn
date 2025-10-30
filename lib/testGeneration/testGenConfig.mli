@@ -23,6 +23,7 @@ type progress_level =
 
 type sizing_strategy =
   | Uniform
+  | Constant
   | QuickCheck
 
 type t =
