@@ -1,0 +1,11 @@
+--- tests/cn/issue_392.c.verify
++++ tests/cn/issue_392.c.verify
+@@ -0,0 +1,8 @@
++return code: 1
++[1/2]: id -- pass
++[2/2]: main -- fail
++tests/cn/issue_392.c:11:5: error: Pointer `call_id0_return` needs allocation ID
++    id(&c)->alloc_size;
++    ~~~~~~^~~~~~~~~~~~ 
++(UB missing short message): UB_CERB004_unspecified__pointer_add
++State file: file:///tmp/state__issue_392.c__main.html
