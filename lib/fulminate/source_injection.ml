@@ -77,6 +77,8 @@ type state =
 
 type precedence =
   | Bot
+  (* Cartesian (x, y): ordered in reverse lexicographic order
+   (larger x/y ==> smaller in ordering, i.e. higher precedence) *)
   | Cartesian of (int * int)
 
 let compare_precedence p1 p2 =
