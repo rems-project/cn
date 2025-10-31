@@ -75,6 +75,7 @@ type t =
     print_discard_info : bool;
     print_timing_info : bool;
     just_reset_solver : bool;
+    disable_smt_skewing : bool;
     smt_logging : string option
   }
 
@@ -193,5 +194,7 @@ val get_max_array_length : unit -> int
 val is_use_solver_eval : unit -> bool
 
 val is_just_reset_solver : unit -> bool
+
+val is_disable_smt_skewing : unit -> bool
 
 val get_smt_logging : unit -> string option

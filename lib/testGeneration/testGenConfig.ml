@@ -75,6 +75,7 @@ type t =
     print_discard_info : bool;
     print_timing_info : bool;
     just_reset_solver : bool;
+    disable_smt_skewing : bool;
     smt_logging : string option
   }
 
@@ -125,6 +126,7 @@ let default =
     print_discard_info = false;
     print_timing_info = false;
     just_reset_solver = false;
+    disable_smt_skewing = false;
     smt_logging = None
   }
 
@@ -291,5 +293,7 @@ let get_max_array_length () = (Option.get !instance).max_array_length
 let is_use_solver_eval () = (Option.get !instance).use_solver_eval
 
 let is_just_reset_solver () = (Option.get !instance).just_reset_solver
+
+let is_disable_smt_skewing () = (Option.get !instance).disable_smt_skewing
 
 let get_smt_logging () = (Option.get !instance).smt_logging
