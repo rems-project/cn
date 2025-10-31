@@ -262,6 +262,7 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
       ack_command(solver, set_option(":auto_config", "false"));
       ack_command(solver, set_option(":model.completion", "true"));
       ack_command(solver, set_option(":smt.relevancy", "0"));
+      ack_command(solver, set_option(":smt.phase_selection", "5"));
   }
 
   return solver;
