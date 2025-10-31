@@ -6,6 +6,7 @@ let verify
       filename
       cc
       macros
+      permissive
       incl_dirs
       incl_files
       loc_pp
@@ -77,6 +78,7 @@ let verify
     ~filename
     ~cc
     ~macros:(("__CN_VERIFY", None) :: macros)
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~coq_export_file
@@ -276,6 +278,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.file
   $ Common.Flags.cc
   $ Common.Flags.macros
+  $ Common.Flags.permissive
   $ Common.Flags.incl_dirs
   $ Common.Flags.incl_files
   $ Flags.loc_pp

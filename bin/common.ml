@@ -27,6 +27,7 @@ let print_log_file =
 let frontend
       ~cc
       ~macros
+      ~permissive
       ~incl_dirs
       ~incl_files
       ~astprints
@@ -44,7 +45,7 @@ let frontend
     ~concurrency:false
     (* error verbosity *) Basic
     ~defacto:false
-    ~permissive:false
+    ~permissive
     ~agnostic:false
     ~ignore_bitfields:false;
   CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
@@ -135,6 +136,7 @@ let with_well_formedness_check
       ~cc
       ~filename
       ~macros
+      ~permissive
       ~incl_dirs
       ~incl_files
       ~coq_export_file
@@ -164,6 +166,7 @@ let with_well_formedness_check
       (frontend
          ~cc
          ~macros
+         ~permissive
          ~incl_dirs
          ~incl_files
          ~astprints
@@ -373,6 +376,11 @@ module Flags = struct
       value
       & opt_all macro_pair []
       & info [ "D"; "define-macro" ] ~docv:"NAME[=VALUE]" ~doc)
+
+
+  let permissive =
+    let doc = "Enable permissive mode in Cerberus frontend" in
+    Arg.(value & flag & info [ "permissive" ] ~doc)
 
 
   let incl_dirs =
