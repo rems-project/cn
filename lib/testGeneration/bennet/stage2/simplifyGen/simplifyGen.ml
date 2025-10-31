@@ -22,7 +22,10 @@ module Make (AD : Domain.T) = struct
         let old_gt = gt in
         let new_gt =
           gt
-          |> LiftConstraints.transform_gt
+          |> (if TestGenConfig.is_symbolic_enabled () then
+                fun gt -> gt
+              else
+                LiftConstraints.transform_gt)
           |> BranchPruning.transform_gt
           |> SimplifyIndexTerm.transform_gt prog5
           |> RemoveUnused.transform_gt
