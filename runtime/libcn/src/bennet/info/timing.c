@@ -135,14 +135,14 @@ void bennet_info_timing_start(const char* event_name) {
 }
 
 void bennet_info_timing_end(const char* event_name) {
+  struct timeval end_time;
+  gettimeofday(&end_time, NULL);
+
   if (!initialized || !current_function) {
     return;
   }
 
   assert(event_name);
-
-  struct timeval end_time;
-  gettimeofday(&end_time, NULL);
 
   // Get the stats table for current function
   bennet_optional(pointer) stats_table_opt =
