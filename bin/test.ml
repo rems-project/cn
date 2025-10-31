@@ -57,7 +57,7 @@ let run_tests
       no_replays
       no_replicas
       output_tyche
-      inline_everything
+      inline
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
@@ -119,7 +119,7 @@ let run_tests
           max_backtracks;
           build_tool;
           sanitizers;
-          inline_everything;
+          inline;
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
@@ -498,9 +498,15 @@ module Flags = struct
       & info [ "output-tyche" ] ~doc)
 
 
-  let inline_everything =
-    let doc = "Maximally inline everything" in
-    Arg.(value & flag & info [ "inline-everything" ] ~doc)
+  let inline =
+    let doc =
+      "Set inlining mode: 'nothing' (no inlining, default), 'nonrec' (non-recursive \
+       only), 'rec' (recursive only), or 'everything' (both)"
+    in
+    Arg.(
+      value
+      & opt (enum TestGeneration.Options.inline_mode) TestGeneration.default_cfg.inline
+      & info [ "inline" ] ~doc)
 
 
   let experimental_struct_asgn_destruction =
@@ -674,7 +680,7 @@ let cmd =
     $ Flags.no_replays
     $ Flags.no_replicas
     $ Flags.output_tyche
-    $ Flags.inline_everything
+    $ Flags.inline
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning

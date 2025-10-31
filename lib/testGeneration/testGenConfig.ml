@@ -26,6 +26,11 @@ type sizing_strategy =
   | Constant
   | QuickCheck
 
+type inline_mode =
+  | Nothing
+  | NonRecursive
+  | Everything
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -35,7 +40,7 @@ type t =
     max_backtracks : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
-    inline_everything : bool;
+    inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
@@ -87,7 +92,7 @@ let default =
     max_backtracks = 25;
     build_tool = Bash;
     sanitizers = (None, None);
-    inline_everything = false;
+    inline = Nothing;
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
     experimental_learning = false;
@@ -153,6 +158,13 @@ let string_of_sizing_strategy (sizing_strategy : sizing_strategy) =
   | QuickCheck -> "quickcheck"
 
 
+let string_of_inline_mode (inline_mode : inline_mode) =
+  match inline_mode with
+  | Nothing -> "nothing"
+  | NonRecursive -> "nonrec"
+  | Everything -> "everything"
+
+
 module Options = struct
   let build_tool = [ ("bash", Bash); ("make", Make) ]
 
@@ -174,6 +186,12 @@ module Options = struct
     List.map
       (fun strat -> (string_of_sizing_strategy strat, strat))
       [ Uniform; Constant; QuickCheck ]
+
+
+  let inline_mode : (string * inline_mode) list =
+    List.map
+      (fun mode -> (string_of_inline_mode mode, mode))
+      [ Nothing; NonRecursive; Everything ]
 end
 
 let instance : t option ref = ref Option.None
@@ -214,7 +232,7 @@ let has_smt_pruning_after_absinst () = (Option.get !instance).smt_pruning_after_
 
 let is_smt_pruning_at_runtime () = (Option.get !instance).smt_pruning_at_runtime
 
-let has_inline_everything () = (Option.get !instance).inline_everything
+let get_inline_mode () = (Option.get !instance).inline
 
 let has_input_timeout () = (Option.get !instance).input_timeout
 

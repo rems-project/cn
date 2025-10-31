@@ -3,7 +3,7 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module SpecializeDomain = SpecializeDomain.Make (AD)
     module SmtPruning = SmtPruning.Make (AD)
-    module PruneCallGraph = PruneCallGraph.Make (AD)
+    module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
   end
 
   module Stage2 = Stage2.Make (AD)

@@ -26,6 +26,11 @@ type sizing_strategy =
   | Constant
   | QuickCheck
 
+type inline_mode =
+  | Nothing
+  | NonRecursive
+  | Everything
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -35,7 +40,7 @@ type t =
     max_backtracks : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
-    inline_everything : bool;
+    inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
@@ -91,6 +96,8 @@ module Options : sig
   val progress_level : (string * progress_level) list
 
   val sizing_strategy : (string * sizing_strategy) list
+
+  val inline_mode : (string * inline_mode) list
 end
 
 val initialize : t -> unit
@@ -111,7 +118,7 @@ val get_build_tool : unit -> build_tool
 
 val has_sanitizers : unit -> string option * string option
 
-val has_inline_everything : unit -> bool
+val get_inline_mode : unit -> inline_mode
 
 val is_experimental_struct_asgn_destruction : unit -> bool
 

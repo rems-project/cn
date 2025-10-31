@@ -1,6 +1,7 @@
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
+  module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
@@ -108,6 +109,19 @@ module Make (AD : Domain.T) = struct
       |> List.map_snd (transform_gd ctx)
   end
 
-  let transform (ctx : Ctx.t) =
-    ctx |> InlineNonRecursive.transform |> InlineRecursive.transform
+  let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) : Ctx.t =
+    let module SimplifyGen = SimplifyGen.Make (AD) in
+    match TestGenConfig.get_inline_mode () with
+    | Nothing -> ctx
+    | NonRecursive ->
+      ctx
+      |> InlineNonRecursive.transform
+      |> PruneCallGraph.transform
+      |> SimplifyGen.transform prog5
+    | Everything ->
+      ctx
+      |> InlineNonRecursive.transform
+      |> InlineRecursive.transform
+      |> PruneCallGraph.transform
+      |> SimplifyGen.transform prog5
 end
