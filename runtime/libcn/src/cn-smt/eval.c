@@ -192,6 +192,37 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                   term->data.const_val.data.default_type.data.struct_tag.tag;
               return cn_smt_struct_default(struct_tag);
             }
+            case CN_BASE_BITS: {
+              cn_bits_info bits_info =
+                  cn_base_type_get_bits_info(term->data.const_val.data.default_type);
+              if (bits_info.is_signed) {
+                switch (bits_info.size_bits) {
+                  case 8:
+                    return default_cn_bits_i8();
+                  case 16:
+                    return default_cn_bits_i16();
+                  case 32:
+                    return default_cn_bits_i32();
+                  case 64:
+                    return default_cn_bits_i64();
+                  default:
+                    assert(false && "Unsupported signed bit width");
+                }
+              } else {
+                switch (bits_info.size_bits) {
+                  case 8:
+                    return default_cn_bits_u8();
+                  case 16:
+                    return default_cn_bits_u16();
+                  case 32:
+                    return default_cn_bits_u32();
+                  case 64:
+                    return default_cn_bits_u64();
+                  default:
+                    assert(false && "Unsupported unsigned bit width");
+                }
+              }
+            }
             default:
               assert(false);
           }
