@@ -1,6 +1,6 @@
-module Make (AD : Domain.T) = struct
-  module Ctx = Ctx.Make (AD)
-  module Def = Def.Make (AD)
+module Make (GT : GenTerms.T) = struct
+  module Ctx = GenContext.Make (GT)
+  module Def = GenDefinitions.Make (GT)
 
   let transform (ctx : Ctx.t) : Ctx.t =
     (* Get all spec generators *)

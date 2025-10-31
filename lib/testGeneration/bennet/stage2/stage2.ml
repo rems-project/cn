@@ -20,11 +20,7 @@ module Make (AD : Domain.T) = struct
     |> Convert.transform
     |> SimplifyGen.MemberIndirection.transform
     |> SimplifyGen.transform prog5
-    |> (fun ctx ->
-    if TestGenConfig.has_inline_everything () then
-      ctx |> InlineGen.transform |> SimplifyGen.transform prog5
-    else
-      ctx)
+    |> InlineGen.transform prog5
     |> (if TestGenConfig.is_symbolic_enabled () then fun x -> x else EachFusion.transform)
     |> SimplifyGen.transform prog5
     |> FlipIfs.transform
