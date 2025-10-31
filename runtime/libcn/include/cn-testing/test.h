@@ -95,7 +95,6 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
   }                                                                                      \
                                                                                          \
   enum cn_test_result cn_test_gen_##FuncName(struct cn_test_input test_input) {          \
-    volatile struct timeval start_time, end_time;                                        \
     volatile bennet_rand_checkpoint checkpoint = bennet_rand_save();                     \
     volatile int i = 0, d = 0, recentDiscards = 0;                                       \
     volatile bool successful_gen = false;                                                \
@@ -106,23 +105,19 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       case CN_FAILURE_CHECK_OWNERSHIP:                                                   \
       case CN_FAILURE_OWNERSHIP_LEAK:                                                    \
       case CN_FAILURE_GHOST_ARGS:                                                        \
-        gettimeofday((struct timeval*)&end_time, NULL);                                  \
+        bennet_info_timing_end("execute:test");                                          \
                                                                                          \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          int64_t runtime = timediff_timeval(                                            \
-              (struct timeval*)&start_time, (struct timeval*)&end_time);                 \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "failed",                                                        \
               .status_reason = "TODO: Fulminate error message",                          \
               .suite_begin_time = test_input.begin_time,                                 \
-              .representation = cn_replica_lines_to_json_literal(),                      \
-              .init_time = 0,                                                            \
-              .runtime = runtime};                                                       \
+              .representation = cn_replica_lines_to_json_literal()};                     \
           print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
         }                                                                                \
                                                                                          \
@@ -134,7 +129,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
         return CN_TEST_FAIL;                                                             \
       case CN_FAILURE_ALLOC:                                                             \
-        gettimeofday((struct timeval*)&end_time, NULL);                                  \
+        bennet_info_timing_end("execute:test");                                          \
                                                                                          \
         d++;                                                                             \
         recentDiscards++;                                                                \
@@ -145,17 +140,13 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          int64_t runtime = timediff_timeval(                                            \
-              (struct timeval*)&start_time, (struct timeval*)&end_time);                 \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "gave_up",                                                       \
               .status_reason = "Allocation failed",                                      \
               .suite_begin_time = test_input.begin_time,                                 \
               .representation =                                                          \
-                  (successful_gen) ? cn_replica_lines_to_json_literal() : "",            \
-              .init_time = 0,                                                            \
-              .runtime = runtime};                                                       \
+                  (successful_gen) ? cn_replica_lines_to_json_literal() : ""};           \
           print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
         }                                                                                \
                                                                                          \
@@ -187,11 +178,11 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       bennet_info_backtracks_begin_run();                                                \
       bennet_info_unsatisfied_begin_run();                                               \
       successful_gen = false;                                                            \
+      bennet_info_timing_start("generate:total");                                        \
       cn_test_generator_##FuncName##_record* res =                                       \
           cn_test_generator_##FuncName((void**)&gen_state);                              \
+      bennet_info_timing_end("generate:total");                                          \
       if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
-        gettimeofday((struct timeval*)&end_time, NULL);                                  \
-                                                                                         \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
@@ -202,8 +193,6 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         bennet_info_unsatisfied_end_run(true);                                           \
                                                                                          \
         if (test_input.output_tyche) {                                                   \
-          int64_t runtime = timediff_timeval(                                            \
-              (struct timeval*)&start_time, (struct timeval*)&end_time);                 \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "gave_up",                                                       \
@@ -212,9 +201,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                       ? "Generation timed out"                                           \
                       : "Generation backtracked all the way to the top",                 \
               .suite_begin_time = test_input.begin_time,                                 \
-              .representation = "",                                                      \
-              .init_time = 0,                                                            \
-              .runtime = runtime};                                                       \
+              .representation = ""};                                                     \
           print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
         }                                                                                \
                                                                                          \
@@ -238,24 +225,20 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       if (test_input.trap) {                                                             \
         cn_trap();                                                                       \
       }                                                                                  \
-      gettimeofday((struct timeval*)&start_time, NULL);                                  \
+      bennet_info_timing_start("execute:test");                                          \
       (void)FuncName(__VA_ARGS__);                                                       \
+      bennet_info_timing_end("execute:test");                                            \
       if (test_input.replay) {                                                           \
         return CN_TEST_PASS;                                                             \
       }                                                                                  \
       recentDiscards = 0;                                                                \
       if (test_input.output_tyche) {                                                     \
-        gettimeofday((struct timeval*)&end_time, NULL);                                  \
-        int64_t runtime =                                                                \
-            timediff_timeval((struct timeval*)&start_time, (struct timeval*)&end_time);  \
         struct tyche_line_info line_info = {.test_suite = #Suite,                        \
             .test_name = #Name,                                                          \
             .status = "passed",                                                          \
             .status_reason = "",                                                         \
             .suite_begin_time = test_input.begin_time,                                   \
-            .representation = cn_replica_lines_to_json_literal(),                        \
-            .init_time = 0,                                                              \
-            .runtime = runtime};                                                         \
+            .representation = cn_replica_lines_to_json_literal()};                       \
         print_test_summary_tyche(test_input.tyche_output_stream, &line_info);            \
       }                                                                                  \
     }                                                                                    \

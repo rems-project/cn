@@ -73,6 +73,7 @@ type t =
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
     print_discard_info : bool;
+    print_timing_info : bool;
     just_reset_solver : bool;
     smt_logging : string option
   }
@@ -122,6 +123,7 @@ let default =
     print_backtrack_info = false;
     print_satisfaction_info = false;
     print_discard_info = false;
+    print_timing_info = false;
     just_reset_solver = false;
     smt_logging = None
   }
@@ -275,6 +277,8 @@ let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
 let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info
 
 let will_print_discard_info () = (Option.get !instance).print_discard_info
+
+let will_print_timing_info () = (Option.get !instance).print_timing_info
 
 let is_symbolic_enabled () = (Option.get !instance).symbolic
 

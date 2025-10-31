@@ -73,6 +73,7 @@ type t =
     print_backtrack_info : bool;
     print_satisfaction_info : bool;
     print_discard_info : bool;
+    print_timing_info : bool;
     just_reset_solver : bool;
     smt_logging : string option
   }
@@ -178,6 +179,8 @@ val will_print_backtrack_info : unit -> bool
 val will_print_satisfaction_info : unit -> bool
 
 val will_print_discard_info : unit -> bool
+
+val will_print_timing_info : unit -> bool
 
 val is_symbolic_enabled : unit -> bool
 

@@ -8,8 +8,6 @@ struct tyche_line_info {
   char *status_reason;
   uint64_t suite_begin_time;
   char *representation;
-  int64_t init_time;
-  int64_t runtime;
 };
 
 void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info);

@@ -110,6 +110,7 @@ let define_test_flags () =
          [ "--print-discard-info" ]
        else
          [])
+    @ (if Config.will_print_timing_info () then [ "--print-timing-info" ] else [])
     @ (if Config.is_smt_pruning_at_runtime () then
          [ "--smt-pruning-at-runtime" ]
        else
