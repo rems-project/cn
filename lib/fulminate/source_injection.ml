@@ -76,14 +76,14 @@ type state =
   }
 
 type precedence =
-  | Top
+  | Bot
   | Cartesian of (int * int)
 
 let compare_precedence p1 p2 =
   match (p1, p2) with
-  | Top, Top -> 0
-  | Top, Cartesian _ -> 1
-  | Cartesian _, Top -> -1
+  | Bot, Bot -> 0
+  | Bot, Cartesian _ -> -1
+  | Cartesian _, Bot -> 1
   | Cartesian (x1, y1), Cartesian (x2, y2) ->
     let cmp = Stdlib.compare x1 x2 in
     if cmp = 0 then -Stdlib.compare y1 y2 else -cmp
@@ -453,7 +453,7 @@ let return_injs xs =
                ({ footprint = { start_pos; end_pos };
                   kind =
                     InStmt
-                      ( Top,
+                      ( Bot,
                         1,
                         String.concat "" ("{ " :: inj_strs) ^ "goto __cn_epilogue; }\n" )
                 }
@@ -463,12 +463,12 @@ let return_injs xs =
              let* e_start_pos, e_end_pos = Pos.of_location loc in
              Ok
                ({ footprint = { start_pos; end_pos = e_start_pos };
-                  kind = InStmt (Top, 1, "{ __cn_ret = ")
+                  kind = InStmt (Bot, 1, "{ __cn_ret = ")
                 }
                 :: { footprint = { start_pos = e_end_pos; end_pos };
                      kind =
                        InStmt
-                         ( Top,
+                         ( Bot,
                            1,
                            "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }" )
                    }

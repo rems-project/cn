@@ -493,14 +493,14 @@ let main
         in
         let open Source_injection in
         let a = (Cartesian pos, (p, strs)) in
-        let cs = give_precedence_map Top injs in
-        let b = (Top, (p', [ closing_expr ])) in
+        let cs = give_precedence_map Bot injs in
+        let b = (Bot, (p', [ closing_expr ])) in
         let cs' = a :: b :: cs in
         aux (cs' @ acc) xs
     in
     aux [] l
   in
-  let top = Source_injection.Top in
+  let top = Source_injection.Bot in
   let in_stmt_injs =
     give_precedence_map top executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs

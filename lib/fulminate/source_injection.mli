@@ -1,7 +1,7 @@
 open Cerb_frontend
 
 type precedence =
-  | Top
+  | Bot
   | Cartesian of (int * int)
 
 type 'a cn_injection =
