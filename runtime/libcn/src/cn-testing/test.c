@@ -281,6 +281,8 @@ int cn_test_main(int argc, char* argv[]) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {
       cn_set_use_solver_eval(true);
+    } else if (strcmp("--disable-smt-skewing", arg) == 0) {
+      cn_set_smt_skewing_enabled(false);
     } else if (strcmp("--smt-logging", arg) == 0) {
       cn_smt_set_log_file_path(argv[i + 1]);
       i++;

@@ -131,6 +131,9 @@ void cn_context_print_summary(const cn_constraint_context* ctx);
 enum cn_smt_solver_result cn_smt_context_model(
     struct cn_smt_solver* smt_solver, const cn_constraint_context* ctx);
 
+// SMT skewing control
+void cn_set_smt_skewing_enabled(bool enabled);
+
 #ifdef __cplusplus
 }
 #endif

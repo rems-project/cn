@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,6 +8,13 @@
 #include <cn-smt/context.h>
 #include <cn-smt/subst.h>
 #include <cn-smt/to_smt.h>
+
+// Global flag to control whether SMT skewing is enabled
+static bool smt_skewing_enabled = true;
+
+void cn_set_smt_skewing_enabled(bool enabled) {
+  smt_skewing_enabled = enabled;
+}
 
 // Generate hash table implementation for uint64_t -> cn_term_ptr
 BENNET_HASH_TABLE_IMPL(uint64_t, cn_term_ptr)
@@ -325,10 +333,12 @@ enum cn_smt_solver_result cn_smt_context_model(
       cn_variable_entry entry = ctx->variables->entries[i].value;
       cn_declare_variable(smt_solver, var, entry.type);
 
-      cn_term* eq_term = cn_smt_eq(cn_smt_sym(var, entry.type), entry.skew);
-      sexp_t* eq_smt = translate_term(smt_solver, eq_term);
-      sexp_t* eq_soft_assert = assume_soft(eq_smt);
-      ack_command(smt_solver, eq_soft_assert);
+      if (smt_skewing_enabled) {
+        cn_term* eq_term = cn_smt_eq(cn_smt_sym(var, entry.type), entry.skew);
+        sexp_t* eq_smt = translate_term(smt_solver, eq_term);
+        sexp_t* eq_assert = assume_soft(eq_smt);
+        ack_command(smt_solver, eq_assert);
+      }
     }
   }
 

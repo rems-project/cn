@@ -115,15 +115,18 @@ let define_test_flags () =
          [ "--smt-pruning-at-runtime" ]
        else
          [])
-    @
-    if Config.is_use_solver_eval () then
-      [ "--use-solver-eval" ]
-    else
-      []
-      @ (Config.get_smt_logging ()
-         |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
-         |> Option.to_list
-         |> List.flatten)
+    @ (if Config.is_use_solver_eval () then
+         [ "--use-solver-eval" ]
+       else
+         [])
+    @ (if Config.is_disable_smt_skewing () then
+         [ "--disable-smt-skewing" ]
+       else
+         [])
+    @ (Config.get_smt_logging ()
+       |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
+       |> Option.to_list
+       |> List.flatten)
   in
   !^"TEST_FLAGS := " ^^ separate_map space string flags ^^ hardline
 
