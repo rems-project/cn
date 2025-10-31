@@ -77,6 +77,11 @@ module Make (AD : Domain.T) = struct
       ^^ parens !^"&branch_hist, unsat_paths"
       ^^ !^";"
     in
+    let select_path_with_timing =
+      !^"bennet_info_timing_start(\"darcy:select_path\");"
+      ^/^ select_path
+      ^/^ !^"bennet_info_timing_end(\"darcy:select_path\");"
+    in
     (* Initialize symbolic execution context *)
     let gather_checkpoint_save =
       !^"cn_bump_frame_id gather_checkpoint = cn_bump_get_frame_id();"
@@ -88,6 +93,13 @@ module Make (AD : Domain.T) = struct
       destructed_vars |> List.map (gather_of_bt sigma) |> Pp.separate Pp.hardline
     in
     (* Generate call to the corresponding cn_smt_gather_<generator name> function with symbolic variables *)
+    let reset_or_new_solver =
+      if TestGenConfig.is_just_reset_solver () then
+        !^"cn_smt_solver_reset(smt_solver);"
+      else
+        !^"stop_solver(smt_solver);" ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+    in
+    let solver_setup = !^"cn_smt_solver_setup(smt_solver);" in
     let gather_constraints =
       let smt_args =
         def.iargs
@@ -100,57 +112,57 @@ module Make (AD : Domain.T) = struct
         else
           !^"&branch_hist"
       in
-      let reset_or_new_solver =
-        if TestGenConfig.is_just_reset_solver () then
-          !^"cn_smt_solver_reset(smt_solver);"
-        else
-          !^"stop_solver(smt_solver);" ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
-      in
-      reset_or_new_solver
-      ^/^ !^"cn_smt_solver_setup(smt_solver);"
-      ^/^ !^"cn_smt_gather_"
-      ^^ !^generator_name
-      ^^ Pp.parens all_args
-      ^^ !^";"
+      !^"cn_smt_gather_" ^^ !^generator_name ^^ Pp.parens all_args ^^ !^";"
+    in
+    let query_solver_section =
+      !^"/* Query Solver */"
+      ^/^ !^"bennet_info_timing_start(\"darcy:query_solver\");"
+      ^/^ solver_setup
+      ^/^ !^"result = cn_smt_gather_model(smt_solver);"
+      ^/^ !^"bennet_info_timing_end(\"darcy:query_solver\");"
+      ^/^ !^"branch_history_rewind(&branch_hist);"
     in
     let check_sat =
-      !^"branch_history_rewind(&branch_hist);"
-      ^/^ !^"result = cn_smt_gather_model(smt_solver);"
-      ^/^ !^"if"
+      !^"if"
       ^^^ parens !^"result != CN_SOLVER_SAT"
       ^^^ braces
             (!^"assert(result == CN_SOLVER_UNSAT);"
              ^/^ !^"branch_history_update_trie(&branch_hist, unsat_paths);"
              ^/^ !^"branch_history_clear(&branch_hist);"
+             ^/^ reset_or_new_solver
              ^/^ !^"attempts++;")
     in
     let gather_checkpoint_restore = !^"cn_bump_free_after(gather_checkpoint);" in
+    let gather_section_with_timing =
+      gather_checkpoint_save
+      ^/^ context_init
+      ^/^ !^"bennet_info_timing_start(\"darcy:gather_constraints\");"
+      ^/^ symbolic_vars
+      ^/^ gather_constraints
+      ^/^ !^"bennet_info_timing_end(\"darcy:gather_constraints\");"
+    in
     (* Initialize concretization context *)
     let concretize_checkpoint_save =
       !^"cn_bump_frame_id concretize_checkpoint = cn_bump_get_frame_id();"
     in
-    let conc_context_init =
-      !^"/* Concretize input */" ^/^ !^"cn_smt_concretize_init();"
-    in
+    let conc_context_init = !^"cn_smt_concretize_init();" in
     (* Generate symbolic variable declarations for each argument *)
     let concrete_vars =
       destructed_vars |> List.map (concretize_of_bt sigma) |> Pp.separate Pp.hardline
     in
-    let concretize_model =
+    let restore_and_rewind =
+      !^"bennet_rand_restore(checkpoint);" ^^^ !^"branch_history_rewind(&branch_hist);"
+    in
+    let concretize_call =
       let conc_args =
         def.iargs
         |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_val"))
         |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
       in
-      !^"bennet_rand_restore(checkpoint);"
-      ^^^ !^"branch_history_rewind(&branch_hist);"
-      ^^^ (!^"cn_smt_concretize_"
-           ^^ !^generator_name
-           ^^ Pp.parens
-                (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
-           ^^ !^";")
-      ^/^ !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
-      ^^^ braces !^"stop_solver(smt_solver); return NULL;"
+      !^"cn_smt_concretize_"
+      ^^ !^generator_name
+      ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
+      ^^ !^";"
     in
     (* Generate struct building and return - create default values for all fields *)
     let struct_fields =
@@ -168,19 +180,37 @@ module Make (AD : Domain.T) = struct
       |> Pp.separate Pp.hardline
     in
     let stop_solver = !^"stop_solver(smt_solver);" in
-    let result_struct =
+    let result_struct_alloc =
       (record_type ^^ star)
       ^^^ !^"result_struct"
       ^^^ equals
       ^^^ (!^"malloc" ^^ parens (!^"sizeof" ^^ parens record_type))
       ^^ semi
-      ^/^ !^"*result_struct"
+    in
+    let result_struct_init =
+      !^"*result_struct"
       ^^^ equals
       ^^^ parens record_type
       ^/^ braces struct_fields
       ^^ semi
     in
     let concretize_checkpoint_restore = !^"cn_bump_free_after(concretize_checkpoint);" in
+    let concretize_section_with_timing =
+      !^"/* Concretize input */"
+      ^/^ !^"bennet_info_timing_start(\"darcy:concretize_input\");"
+      ^/^ concretize_checkpoint_save
+      ^/^ conc_context_init
+      ^/^ concrete_vars
+      ^/^ restore_and_rewind
+      ^/^ result_struct_alloc
+      ^/^ concretize_call
+      ^/^ result_struct_init
+      ^/^ !^"bennet_info_timing_end(\"darcy:concretize_input\");"
+      ^/^ stop_solver
+      ^/^ concretize_checkpoint_restore
+      ^/^ !^"if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE)"
+      ^^^ braces !^"return NULL;"
+    in
     (* Combine everything into the function *)
     let max_attempts = 10 in
     (record_type ^^ !^"*")
@@ -194,7 +224,7 @@ module Make (AD : Domain.T) = struct
          ^^^ braces
                (hardline
                 ^^ !^"/* Select path */"
-                ^/^ select_path
+                ^/^ select_path_with_timing
                 ^/^ !^"if (bennet_failure_get_failure_type() == BENNET_FAILURE_DEPTH)"
                 ^^^ braces
                       (hardline
@@ -205,10 +235,8 @@ module Make (AD : Domain.T) = struct
                        ^/^ !^"attempts++;"
                        ^/^ !^"continue;")
                 ^/^ !^"/* Gather constraints */"
-                ^/^ gather_checkpoint_save
-                ^/^ context_init
-                ^/^ symbolic_vars
-                ^/^ gather_constraints
+                ^/^ gather_section_with_timing
+                ^/^ query_solver_section
                 ^/^ check_sat
                 ^/^ gather_checkpoint_restore)
          ^/^ !^(Printf.sprintf
@@ -220,13 +248,7 @@ module Make (AD : Domain.T) = struct
                 ^/^ stop_solver
                 ^^^ !^"return NULL;"))
     ^/^ hardline
-    ^/^ concretize_checkpoint_save
-    ^/^ conc_context_init
-    ^/^ concrete_vars
-    ^/^ concretize_model
-    ^/^ result_struct
-    ^/^ concretize_checkpoint_restore
-    ^/^ stop_solver
+    ^/^ concretize_section_with_timing
     ^/^ !^"return result_struct;"
     ^/^ !^"}"
 end

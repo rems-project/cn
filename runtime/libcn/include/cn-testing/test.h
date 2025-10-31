@@ -129,12 +129,13 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
         return CN_TEST_FAIL;                                                             \
       case CN_FAILURE_ALLOC:                                                             \
+        bennet_info_timing_end("bennet");                                                \
         bennet_info_timing_end("execute:test");                                          \
                                                                                          \
         d++;                                                                             \
         recentDiscards++;                                                                \
                                                                                          \
-        /* TODO: Add to discard data colleciton */                                       \
+        /* TODO: Add to discard data collection */                                       \
                                                                                          \
         bennet_info_backtracks_end_run(true);                                            \
         bennet_info_unsatisfied_end_run(true);                                           \
@@ -178,10 +179,11 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       bennet_info_backtracks_begin_run();                                                \
       bennet_info_unsatisfied_begin_run();                                               \
       successful_gen = false;                                                            \
-      bennet_info_timing_start("generate:total");                                        \
+                                                                                         \
       cn_test_generator_##FuncName##_record* res =                                       \
           cn_test_generator_##FuncName((void**)&gen_state);                              \
-      bennet_info_timing_end("generate:total");                                          \
+      bennet_info_timing_end("bennet");                                                  \
+                                                                                         \
       if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
         i--;                                                                             \
         d++;                                                                             \

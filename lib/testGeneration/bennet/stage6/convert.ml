@@ -747,6 +747,22 @@ module Make (AD : Domain.T) = struct
           false )
     in
     let sigma_decl : A.sigma_declaration = (name, (loc, CF.Annot.Attrs [], decl)) in
+    let s_timing =
+      if
+        gr.spec
+        && (TestGenConfig.will_print_timing_info ()
+            || Option.is_some (TestGenConfig.get_output_tyche ()))
+      then
+        A.
+          [ AilSexpr
+              (mk_expr
+                 (string_call
+                    "bennet_info_timing_start"
+                    [ mk_expr (AilEident (Sym.fresh "\"bennet\"")) ]))
+          ]
+      else
+        []
+    in
     let s1 =
       A.(
         AilSexpr
@@ -775,7 +791,8 @@ module Make (AD : Domain.T) = struct
                ( b2,
                  List.map
                    mk_stmt
-                   ([ s1 ]
+                   (s_timing
+                    @ [ s1 ]
                     @ s2
                     @ A.
                         [ AilSexpr
