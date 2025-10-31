@@ -82,8 +82,8 @@ type precedence =
 let compare_precedence p1 p2 =
   match (p1, p2) with
   | Top, Top -> 0
-  | Top, Cartesian _ -> -1
-  | Cartesian _, Top -> 1
+  | Top, Cartesian _ -> 1
+  | Cartesian _, Top -> -1
   | Cartesian (x1, y1), Cartesian (x2, y2) ->
     let cmp = Stdlib.compare x1 x2 in
     if cmp = 0 then -Stdlib.compare y1 y2 else -cmp
