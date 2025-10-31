@@ -74,6 +74,7 @@ let run_tests
       print_backtrack_info
       print_satisfaction_info
       print_discard_info
+      print_timing_info
       just_reset_solver
   =
   (* flags *)
@@ -157,6 +158,7 @@ let run_tests
           print_backtrack_info;
           print_satisfaction_info;
           print_discard_info;
+          print_timing_info;
           just_reset_solver
         }
       in
@@ -577,6 +579,11 @@ module Flags = struct
     Arg.(value & flag & info [ "print-discard-info" ] ~doc)
 
 
+  let print_timing_info =
+    let doc = "(Experimental) Print timing info" in
+    Arg.(value & flag & info [ "print-timing-info" ] ~doc)
+
+
   let just_reset_solver =
     let doc =
       "Just reset the SMT solver instead of closing and creating a new one. WARNING: A \
@@ -679,6 +686,7 @@ let cmd =
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
     $ Flags.print_discard_info
+    $ Flags.print_timing_info
     $ Flags.just_reset_solver
   in
   let doc =

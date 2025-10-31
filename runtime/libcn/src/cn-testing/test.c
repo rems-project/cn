@@ -168,6 +168,7 @@ int cn_test_main(int argc, char* argv[]) {
   bool print_backtrack_info = false;
   bool print_satisfaction_info = false;
   bool print_discard_info = false;
+  bool print_timing_info = false;
 
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
@@ -274,6 +275,8 @@ int cn_test_main(int argc, char* argv[]) {
       print_size_info = true;
     } else if (strcmp("--print-discard-info", arg) == 0) {
       print_discard_info = true;
+    } else if (strcmp("--print-timing-info", arg) == 0) {
+      print_timing_info = true;
     } else if (strcmp("--smt-pruning-at-runtime", arg) == 0) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {
@@ -298,6 +301,10 @@ int cn_test_main(int argc, char* argv[]) {
 
   if (print_discard_info) {
     bennet_info_discards_init();
+  }
+
+  if (output_tyche || print_timing_info) {
+    bennet_info_timing_init();
   }
 
   if (timeout != 0) {
@@ -337,6 +344,10 @@ int cn_test_main(int argc, char* argv[]) {
 
       if (print_discard_info) {
         bennet_info_discards_set_function_under_test(test_cases[i].name);
+      }
+
+      if (output_tyche || print_timing_info) {
+        bennet_info_timing_set_function_under_test(test_cases[i].name);
       }
 
       struct cn_test_case* test_case = &test_cases[i];
@@ -475,6 +486,12 @@ outside_loop:;
     printf("\n");
 
     bennet_info_discards_print_info();
+  }
+
+  if (print_timing_info) {
+    printf("\n");
+
+    bennet_info_timing_print_info();
   }
 
   return !(failed == 0 && errored == 0);

@@ -25,7 +25,8 @@
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/bennet/*.h))
+   (glob_files ../include/bennet/*.h)
+   (glob_files ../include/bennet/info/*.h))
   (:src
    (glob_files ../src/bennet/*.c)
    (glob_files ../src/bennet/dsl/*.c)
@@ -60,6 +61,7 @@
     bennet/sized.o
     bennet/tnum.o
     bennet/trivial.o
+    bennet/timing.o
     bennet/tyche.o
     bennet/unsatisfied.o
     bennet/urn.o
@@ -71,6 +73,8 @@
   (:headers
    (glob_files ../include/cn-executable/*.h)
    (glob_files ../include/cn-testing/*.h)
+   (glob_files ../include/bennet/*.h)
+   (glob_files ../include/bennet/info/*.h)
    (glob_files ../include/bennet/internals/*.h))
   (:src
    (glob_files ../src/cn-testing/*.c)))
