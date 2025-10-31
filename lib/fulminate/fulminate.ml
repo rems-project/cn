@@ -500,12 +500,12 @@ let main
     in
     aux [] l
   in
-  let top = Source_injection.Bot in
+  let bot = Source_injection.Bot in
   let in_stmt_injs =
-    give_precedence_map top executable_spec.in_stmt
+    give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
-    @ give_precedence_map top toplevel_injections
-    @ give_precedence_map top tag_def_injs
+    @ give_precedence_map bot toplevel_injections
+    @ give_precedence_map bot tag_def_injs
     @ give_parenthesis_aware_precedence_map fn_call_ghost_args_injs
   in
   let pre_post_pairs =
