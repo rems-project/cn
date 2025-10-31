@@ -72,7 +72,7 @@ typedef struct {
 
 hash_table_iterator ht_iterator(hash_table* table);
 
-bool ht_next(hash_table_iterator* it);
+_Bool ht_next(hash_table_iterator* it);
 
 #ifdef __cplusplus
 }
