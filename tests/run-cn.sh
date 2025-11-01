@@ -62,7 +62,7 @@ unset CERB_INSTALL_PREFIX
 
 SUCC=$(find "${DIRNAME}"/cn -name '*.c' ! -name 'gcc-stat-as-expr.c' | grep -v '\.error\.c')
 FAIL=$(find "${DIRNAME}"/cn -name '*.error.c')
-PERMISSIVE_SUCC=$(find "${DIRNAME}"/cn -name 'gcc-stat-as-expr.c') # Run test cases that rely on Cerberus frontend permissive mode
+PERMISSIVE_SUCC=$(find "${DIRNAME}"/cn -name '*gcc-stat-as-expr.c') # Run test cases that rely on Cerberus frontend permissive mode
 
 FAILED=""
 
