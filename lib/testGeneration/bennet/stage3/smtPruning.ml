@@ -6,7 +6,8 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let transform_gt (fast : bool) (tm : Term.t) : Term.t Typing.t =
+  let transform_gt (fast : bool) (remove_redundant : bool) (tm : Term.t) : Term.t Typing.t
+    =
     let open Typing in
     let rec aux (new_constraint : bool) (tm : Term.t) : Term.t option Typing.t =
       let here = Locations.other __LOC__ in
@@ -87,9 +88,13 @@ module Make (AD : Domain.T) = struct
       | `Assert (lc, gt_rest) ->
         let@ check = provable loc in
         let@ redundant =
-          match check lc with
-          | `True -> return true
-          | `False ->
+          if remove_redundant then (
+            match check lc with
+            | `True -> return true
+            | `False ->
+              let@ () = add_c loc lc in
+              return false)
+          else
             let@ () = add_c loc lc in
             return false
         in
@@ -146,7 +151,13 @@ module Make (AD : Domain.T) = struct
     return (Option.get res)
 
 
-  let transform_gd (paused : _ Typing.pause) (fast : bool) (def : Def.t) : Def.t =
+  let transform_gd
+        (paused : _ Typing.pause)
+        (fast : bool)
+        (remove_redundant : bool)
+        (def : Def.t)
+    : Def.t
+    =
     let f () =
       Typing.run_from_pause
         (fun _ ->
@@ -160,7 +171,7 @@ module Make (AD : Domain.T) = struct
                (return ())
                def.iargs
            in
-           transform_gt fast def.body)
+           transform_gt fast remove_redundant def.body)
         paused
     in
     match f () with
@@ -172,5 +183,6 @@ module Make (AD : Domain.T) = struct
 
   let transform (paused : _ Typing.pause) (fast : bool) (ctx : Ctx.t) : Ctx.t =
     Cerb_debug.print_debug 2 [] (fun () -> "smt_pruning");
-    List.map_snd (transform_gd paused fast) ctx
+    let remove_redundant = TestGenConfig.is_smt_pruning_remove_redundant_assertions () in
+    List.map_snd (transform_gd paused fast remove_redundant) ctx
 end

@@ -47,6 +47,7 @@ type t =
     static_absint : string list;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     symbolic : bool;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
@@ -131,6 +132,8 @@ val has_static_absint : unit -> string list
 val has_smt_pruning_before_absinst : unit -> [ `None | `Fast | `Slow ]
 
 val has_smt_pruning_after_absinst : unit -> [ `None | `Fast | `Slow ]
+
+val is_smt_pruning_remove_redundant_assertions : unit -> bool
 
 val is_smt_pruning_at_runtime : unit -> bool
 
