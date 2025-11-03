@@ -951,10 +951,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            [ pp_symbol sym; pp_identifier id; pp_pexpr pp_type e ]
        | PEconv_int (e1, e2) ->
          pp_constructor1 "PEconv_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEcatch_exceptional_condition (act, e) ->
-         pp_constructor1
-           "PEcatch_exceptional_condition"
-           [ pp_act act; pp_pexpr pp_type e ]
        | PEbounded_binop (kind, op, e1, e2) ->
          pp_constructor1
            "PEbounded_binop"
@@ -963,8 +959,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
              pp_pexpr pp_type e1;
              pp_pexpr pp_type e2
            ]
-       | PEis_representable_integer (e, act) ->
-         pp_constructor1 "PEis_representable_integer" [ pp_pexpr pp_type e; pp_act act ]
        | PEare_compatible (pe1, pe2) ->
          pp_constructor1 "PEare_compatible" [ pp_pexpr pp_type pe1; pp_pexpr pp_type pe2 ]
        | PEundef (loc, ub) ->

@@ -81,7 +81,6 @@ type 'TY pexpr_ =
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
   | PEconv_int of 'TY pexpr * 'TY pexpr
-  | PEcatch_exceptional_condition of act * 'TY pexpr
   | PEstruct of Sym.t * (Id.t * 'TY pexpr) list
   | PEunion of Sym.t * Id.t * 'TY pexpr
   | PEcfunction of 'TY pexpr
@@ -89,7 +88,6 @@ type 'TY pexpr_ =
   | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
-  | PEis_representable_integer of 'TY pexpr * act
   | PEare_compatible of 'TY pexpr * 'TY pexpr
 
 and 'TY pexpr = Pexpr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY pexpr_
