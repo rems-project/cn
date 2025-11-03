@@ -364,6 +364,8 @@ let empty_block_local_injs = { standard_injs = []; gcc_stat_as_expr_injs = [] }
 (* Most common case - no injections for GCC stats-as-exprs *)
 let ret_standard_injs injs = { standard_injs = injs; gcc_stat_as_expr_injs = [] }
 
+let ret_gcc_injs injs = { standard_injs = []; gcc_stat_as_expr_injs = injs }
+
 let concat_block_local_injs injs =
   let ret = ref empty_block_local_injs in
   List.iter
@@ -407,7 +409,8 @@ let get_c_block_entry_exit_injs_aux bindings s =
            ^ Sym.pp_string gcc_cn_ret_sym
            ^ " = "
          in
-         let ret_inj_1 = (get_start_loc loc', [ gcc_cn_ret_str ]) in
+         Printf.printf "reached ret_inj_1\n";
+         let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
          let exit_injs =
            ret_standard_injs
              (List.map
@@ -424,8 +427,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
                  [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
              ]
          in
-         let ret = concat_block_local_injs [ injs; exit_injs; ret_inj_2 ] in
-         { ret with gcc_stat_as_expr_injs = [ ret_inj_1 ] }
+         concat_block_local_injs [ ret_inj_1; injs; exit_injs; ret_inj_2 ]
        | None -> empty_block_local_injs)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
