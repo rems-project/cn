@@ -402,7 +402,9 @@ let get_c_block_entry_exit_injs_aux bindings s =
       (match List.last ss with
        | Some A.{ loc = loc'; desug_info = _; attrs = _; node = _ } ->
          let injs = concat_block_local_injs (List.map (aux_stmt bs) ss) in
-         let gcc_cn_ret_sym = Sym.fresh_anon () in
+         let gcc_cn_ret_sym =
+           Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
+         in
          let gcc_cn_ret_str =
            Pp.plain CF.Pp_ail.(with_executable_spec pp_genTypeCategory gtc)
            ^ " "
