@@ -12,9 +12,10 @@
 #include <cn-executable/bump_alloc.h>
 #include <cn-executable/utils.h>
 
-#define BUMP_BLOCK_SIZE  (1024 * 1024 * 8)
-#define BUMP_BLOCK_COUNT (1024 / 8)
-static char* bump_blocks[BUMP_BLOCK_COUNT];
+#define BUMP_BLOCK_SIZE       (1024 * 1024 * 8)
+#define BUMP_INITIAL_CAPACITY 256
+static char** bump_blocks;
+static size_t bump_blocks_capacity;
 static uint16_t bump_curr_block;
 static char* bump_curr;
 
@@ -38,6 +39,16 @@ void cn_bump_print() {}
 
 void cn_bump_init() {
   if (bump_curr == NULL) {
+    // Allocate initial array of block pointers
+    bump_blocks_capacity = BUMP_INITIAL_CAPACITY;
+    bump_blocks = fulm_malloc(bump_blocks_capacity * sizeof(char*), &fulm_default_alloc);
+
+    // Initialize all pointers to NULL
+    for (size_t i = 0; i < bump_blocks_capacity; i++) {
+      bump_blocks[i] = NULL;
+    }
+
+    // Allocate first block
     bump_blocks[0] = fulm_malloc(BUMP_BLOCK_SIZE, &fulm_default_alloc);
     bump_curr = bump_blocks[0];
   }
@@ -56,9 +67,23 @@ bool bump_can_fit(size_t nbytes) {
 }
 
 bool bump_expand() {
-  if (bump_curr_block + 1 >= BUMP_BLOCK_COUNT) {
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
-    return 0;
+  // Check if we need to grow the block array
+  if (bump_curr_block + 1 >= bump_blocks_capacity) {
+    size_t new_capacity = bump_blocks_capacity * 2;
+    char** new_blocks = fulm_malloc(new_capacity * sizeof(char*), &fulm_default_alloc);
+
+    // Copy existing block pointers
+    memcpy(new_blocks, bump_blocks, bump_blocks_capacity * sizeof(char*));
+
+    // Initialize new pointers to NULL
+    memset(new_blocks + bump_blocks_capacity,
+        0,
+        (new_capacity - bump_blocks_capacity) * sizeof(char*));
+
+    // Free old array and update to new one
+    fulm_free(bump_blocks, &fulm_default_alloc);
+    bump_blocks = new_blocks;
+    bump_blocks_capacity = new_capacity;
   }
 
   bump_curr_block++;
@@ -135,10 +160,19 @@ void* cn_bump_calloc(size_t count, size_t size) {
 }
 
 void cn_bump_free_all(void) {
-  for (uint16_t i = 0; bump_blocks[i] != NULL && i < BUMP_BLOCK_COUNT; i++) {
-    fulm_free(bump_blocks[i], &fulm_default_alloc);
-    bump_blocks[i] = NULL;
+  if (bump_blocks != NULL) {
+    // Free all allocated blocks
+    for (size_t i = 0; i < bump_blocks_capacity && bump_blocks[i] != NULL; i++) {
+      fulm_free(bump_blocks[i], &fulm_default_alloc);
+      bump_blocks[i] = NULL;
+    }
+
+    // Free the block pointer array itself
+    fulm_free(bump_blocks, &fulm_default_alloc);
+    bump_blocks = NULL;
   }
+
+  bump_blocks_capacity = 0;
   bump_curr_block = 0;
   bump_curr = NULL;
 }
