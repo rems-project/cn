@@ -764,7 +764,8 @@ let compile_spec
                          (AilEcall
                             ( mk_expr
                                 (AilEident
-                                   (Sym.fresh (Fulminate.Globals.getter_str filename arg))),
+                                   (Sym.fresh
+                                      (Fulminate.Cn_to_ail.getter_str filename arg))),
                               [] )) )
                  | _ -> AilEident arg
                in

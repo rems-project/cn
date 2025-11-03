@@ -367,21 +367,22 @@ let main
       without_lemma_checks
       filename
       filtered_instrumentation
+      cabs_tunit
       sigm
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename prog5 sigm
+    generate_c_functions filename cabs_tunit prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename prog5 sigm
+    generate_c_predicates filename cabs_tunit prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
       ("", "")
     else
-      generate_c_lemmas filename sigm prog5
+      generate_c_lemmas filename cabs_tunit sigm prog5
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
@@ -394,7 +395,9 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
-  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
+  let fn_call_ghost_args_injs =
+    generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
+  in
   let cn_ghost_enum = generate_ghost_enum prog5 in
   let cn_ghost_call_site_glob = generate_ghost_call_site_glob () in
   (* Forward declarations and CN types *)
@@ -487,6 +490,7 @@ let main
         generate_global_assignments
           ~exec_c_locs_mode
           ~experimental_ownership_stack_mode
+          cabs_tunit
           sigm
           prog5
       in
@@ -507,7 +511,7 @@ let main
   output_string
     oc
     ("void* memcpy(void* dest, const void* src, __cerbty_size_t count );\n"
-     ^ Globals.accessors_prototypes filename prog5);
+     ^ Globals.accessors_prototypes filename cabs_tunit prog5);
   (match
      Source_injection.(
        output_injections
@@ -527,7 +531,7 @@ let main
    | Error str ->
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
-  output_to_oc oc [ Globals.accessors_str filename prog5 ];
+  output_to_oc oc [ Globals.accessors_str filename cabs_tunit prog5 ];
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename

@@ -125,6 +125,10 @@ module Clause = struct
       (new_negated, cur)
     in
     snd (List.fold_left_map comb (IT.bool_ true here) cs)
+
+
+  let free_vars (c : t) : Sym.Set.t =
+    Sym.Set.union (IT.free_vars c.guard) (LAT.free_vars IT.free_vars c.packing_ft)
 end
 
 module Predicate = struct
@@ -204,6 +208,17 @@ module Predicate = struct
     | Some [] -> true
     | Some [ _ ] -> true
     | _ -> false
+
+
+  let free_vars (def : t) : Sym.Set.t =
+    let vars_in_body =
+      def.clauses
+      |> Option.value ~default:[]
+      |> List.map Clause.free_vars
+      |> List.fold_left Sym.Set.union Sym.Set.empty
+    in
+    let args = def.iargs |> List.map fst |> List.cons def.pointer |> Sym.Set.of_list in
+    Sym.Set.diff vars_in_body args
 end
 
 let alloc =

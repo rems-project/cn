@@ -88,6 +88,12 @@ let rec get_ghost = function
   | L _ -> []
 
 
+let rec free_vars i_free_vars = function
+  | Computational ((x, _), _, ft) -> Sym.Set.remove x (free_vars i_free_vars ft)
+  | Ghost ((x, _), _, ft) -> Sym.Set.remove x (free_vars i_free_vars ft)
+  | L t -> LAT.free_vars i_free_vars t
+
+
 let count_computational at = List.length (get_computational at)
 
 let count_ghost at = List.length (get_ghost at)

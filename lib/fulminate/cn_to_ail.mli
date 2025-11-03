@@ -1,5 +1,9 @@
 open Cerb_frontend
 
+val getter_str : string -> Sym.t -> string
+
+val setter_str : string -> Sym.t -> string
+
 val ownership_ctypes : Ctype.ctype list ref
 
 type spec_mode =
@@ -61,8 +65,9 @@ type ail_executable_spec =
   }
 
 val extract_global_variables
-  :  ('a * 'b Mucore.globs) list ->
-  ('a * Cerb_frontend.Ctype.ctype) list
+  :  Cabs.translation_unit ->
+  _ Mucore.file ->
+  (Sym.t * Cerb_frontend.Ctype.ctype) list
 
 val generate_get_or_put_ownership_function
   :  without_ownership_checking:bool ->
@@ -187,6 +192,7 @@ val cn_to_ail_records
 val cn_to_ail_function
   :  string ->
   Sym.t * Definition.Function.t ->
+  Cabs.translation_unit ->
   _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
