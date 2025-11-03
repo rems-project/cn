@@ -65,7 +65,8 @@ type 'TY pexpr_ =
   | PEctor of ctor * 'TY pexpr list
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
-  | PEcatch_exceptional_condition of integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
+  | PEcatch_exceptional_condition of
+      integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEwrapI of integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
