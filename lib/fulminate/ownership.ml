@@ -409,7 +409,6 @@ let get_c_block_entry_exit_injs_aux bindings s =
            ^ Sym.pp_string gcc_cn_ret_sym
            ^ " = "
          in
-         Printf.printf "reached ret_inj_1\n";
          let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
          let exit_injs =
            ret_standard_injs
