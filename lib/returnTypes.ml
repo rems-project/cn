@@ -72,6 +72,10 @@ let alpha_equivalent rt rt' =
     BaseTypes.equal bt bt' && LRT.alpha_equivalent t t'
 
 
+let free_vars = function
+  | Computational ((x, _), _, lrt) -> Sym.Set.remove x (LRT.free_vars lrt)
+
+
 open Cerb_frontend.Pp_ast
 
 let dtree = function

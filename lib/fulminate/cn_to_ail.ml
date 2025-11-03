@@ -8,6 +8,7 @@ module BT = BaseTypes
 module IT = IndexTerms
 module T = Terms
 module LRT = LogicalReturnTypes
+module RT = ReturnTypes
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 module OE = Ownership
@@ -3357,21 +3358,36 @@ let extract_global_variables
         Definition.Predicate.free_vars pred)
       |> List.fold_left Sym.Set.union Sym.Set.empty
     in
-    let from_specs =
+    let from_annotations =
       fst (Extract.collect_instrumentation cabs_tunit prog5)
       |> List.map (fun (inst : Extract.instrumentation) -> inst.internal)
       |> List.filter_map (fun x -> x)
-      |> List.map (AT.free_vars (fun _ -> Sym.Set.empty))
+      |> List.map
+           (AT.free_vars (fun (rt, (statements, loops)) ->
+              let from_statements =
+                statements
+                |> List.map snd
+                |> List.flatten
+                |> List.map (Cnprog.free_vars Cnstatement.free_vars)
+              in
+              let from_loops =
+                loops
+                |> List.map (fun (_, _, _, at) -> at)
+                |> List.map (AT.map (List.map snd))
+                |> List.map (AT.map List.flatten)
+                |> List.map (AT.free_vars (Cnprog.free_vars_list Cnstatement.free_vars))
+              in
+              List.fold_left Sym.Set.union (RT.free_vars rt) (from_statements @ from_loops)))
       |> List.fold_left Sym.Set.union Sym.Set.empty
     in
     let from_lemmata =
       prog5.lemmata
       |> List.map snd
       |> List.map snd
-      |> List.map (AT.free_vars (fun _ -> Sym.Set.empty))
+      |> List.map (AT.free_vars LRT.free_vars)
       |> List.fold_left Sym.Set.union Sym.Set.empty
     in
-    List.fold_left Sym.Set.union from_predicates [ from_specs; from_lemmata ]
+    List.fold_left Sym.Set.union from_predicates [ from_annotations; from_lemmata ]
   in
   (* Filter globals to only those referenced in resource predicates *)
   prog5.globs
