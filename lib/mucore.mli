@@ -57,13 +57,7 @@ val bt_of_pattern : 'a pattern -> 'a
 
 val loc_of_pattern : 'a pattern -> Locations.t
 
-(** What to do on out of bounds.
-    The annotated C type is the result type of the operation. *)
-type bound_kind =
-  | Bound_Wrap of act (** Wrap around (used for unsigned types) *)
-  | Bound_Except of act (** Report an exception, for signed types *)
-
-val bound_kind_act : bound_kind -> act
+type integerType = Cerb_frontend.Ctype.integerType
 
 type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
 
@@ -76,12 +70,13 @@ type 'TY pexpr_ =
   | PEctor of ctor * 'TY pexpr list
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
-  | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
+  | PEcatch_exceptional_condition of
+      integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
+  | PEwrapI of integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
   | PEconv_int of 'TY pexpr * 'TY pexpr
-  | PEcatch_exceptional_condition of act * 'TY pexpr
   | PEstruct of Sym.t * (Id.t * 'TY pexpr) list
   | PEunion of Sym.t * Id.t * 'TY pexpr
   | PEcfunction of 'TY pexpr
@@ -89,7 +84,6 @@ type 'TY pexpr_ =
   | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
-  | PEis_representable_integer of 'TY pexpr * act
   | PEare_compatible of 'TY pexpr * 'TY pexpr
 
 and 'TY pexpr = Pexpr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY pexpr_

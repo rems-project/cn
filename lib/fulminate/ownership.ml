@@ -352,9 +352,36 @@ let get_c_control_flow_ownership_injs stat =
   get_c_control_flow_ownership_injs_aux [] [] [] [] stat
 
 
+type block_local_injs =
+  { standard_injs :
+      (Cerb_location.t * A.bindings * CF.GenTypes.genTypeCategory A.statement_ list) list;
+    gcc_stat_as_expr_injs : (Cerb_location.t * string list) list
+      (* One special string injection needed for GCC-stats-as-exprs *)
+  }
+
+let empty_block_local_injs = { standard_injs = []; gcc_stat_as_expr_injs = [] }
+
+(* Most common case - no injections for GCC stats-as-exprs *)
+let ret_standard_injs injs = { standard_injs = injs; gcc_stat_as_expr_injs = [] }
+
+let ret_gcc_injs injs = { standard_injs = []; gcc_stat_as_expr_injs = injs }
+
+let concat_block_local_injs injs =
+  let ret = ref empty_block_local_injs in
+  List.iter
+    (fun (block_local_injs : block_local_injs) ->
+       ret
+       := { standard_injs = !ret.standard_injs @ block_local_injs.standard_injs;
+            gcc_stat_as_expr_injs =
+              !ret.gcc_stat_as_expr_injs @ block_local_injs.gcc_stat_as_expr_injs
+          })
+    injs;
+  !ret
+
+
 (* Ghost state tracking for stack-allocated variables in blocks *)
-let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; desug_info; node = s_; _ } =
-  let gen_standard_block_injs bs ss =
+let get_c_block_entry_exit_injs_aux bindings s =
+  let gen_standard_block_injs (bs, ss) f_stmt_injs loc =
     let exit_injs =
       List.map
         (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
@@ -362,49 +389,157 @@ let rec get_c_block_entry_exit_injs_aux bindings A.{ loc; desug_info; node = s_;
              [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
         bs
     in
-    let exit_injs' = List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs in
-    let stat_injs = List.map (fun s -> get_c_block_entry_exit_injs_aux bs s) ss in
-    List.concat stat_injs @ exit_injs'
+    let exit_injs' =
+      ret_standard_injs (List.map (fun (loc, stats) -> (loc, [], stats)) exit_injs)
+    in
+    let stat_injs = List.map (fun s -> f_stmt_injs bs s) ss in
+    concat_block_local_injs [ concat_block_local_injs stat_injs; exit_injs' ]
   in
-  let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
-  match s_ with
-  | A.(AilSdeclaration decls) ->
-    generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings
-  | AilSblock
-      ( bs,
-        ([ A.{ loc = decl_loc; node = AilSdeclaration decls; _ };
-           A.{ node = A.AilSwhile (_, s, _); _ }
-         ] as ss) ) ->
-    if is_forloop then (
-      (* WIP: special case for for-loops *)
-      let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
-      let injs' = get_c_block_entry_exit_injs_aux [] s in
-      inj @ injs')
-    else
-      gen_standard_block_injs bs ss
-  | AilSblock (bs, ss) -> gen_standard_block_injs bs ss
-  | AilSif (_, s1, s2) ->
-    let injs = get_c_block_entry_exit_injs_aux bindings s1 in
-    let injs' = get_c_block_entry_exit_injs_aux bindings s2 in
-    injs @ injs'
-  | AilSwhile (_, s, _) -> get_c_block_entry_exit_injs_aux bindings s
-  | AilSdo (s, _, _) -> get_c_block_entry_exit_injs_aux bindings s
-  | AilSswitch (_, s)
-  | AilScase (_, s)
-  | AilScase_rangeGNU (_, _, s)
-  | AilSdefault s
-  | AilSlabel (_, s, _) ->
-    get_c_block_entry_exit_injs_aux bindings s
-  | AilSgoto _ | AilSreturn _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
-  | AilSexpr _ | AilSpar _ | AilSreg_store _ | AilSmarker _ ->
-    []
+  let rec aux_expr (A.AnnotatedExpression (gtc, _, loc, e_)) =
+    match e_ with
+    | AilEgcc_statement (bs, ss) ->
+      (* implicit check that ss is non-empty *)
+      (match List.last ss with
+       | Some A.{ loc = loc'; desug_info = _; attrs = _; node = _ } ->
+         let injs = concat_block_local_injs (List.map (aux_stmt bs) ss) in
+         let gcc_cn_ret_sym =
+           Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
+         in
+         let gcc_cn_ret_str =
+           Pp.plain CF.Pp_ail.(with_executable_spec pp_genTypeCategory gtc)
+           ^ " "
+           ^ Sym.pp_string gcc_cn_ret_sym
+           ^ " = "
+         in
+         let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
+         let exit_injs =
+           ret_standard_injs
+             (List.map
+                (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
+                   ( get_end_loc ~offset:(-2) loc,
+                     [],
+                     [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
+                bs)
+         in
+         let ret_inj_2 =
+           ret_standard_injs
+             [ ( get_end_loc ~offset:(-2) loc,
+                 [],
+                 [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
+             ]
+         in
+         concat_block_local_injs [ ret_inj_1; injs; exit_injs; ret_inj_2 ]
+       | None -> empty_block_local_injs)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      empty_block_local_injs
+    | AilErvalue e ->
+      Printf.printf "AilErvalue\n";
+      aux_expr e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEcompound (_, _, e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      let injs = aux_expr e1 in
+      let injs' = aux_expr e2 in
+      concat_block_local_injs [ injs; injs' ]
+    | AilEcond (e1, Some e2, e3) ->
+      let injs = aux_expr e1 in
+      let injs' = aux_expr e2 in
+      let injs'' = aux_expr e3 in
+      concat_block_local_injs [ injs; injs'; injs'' ]
+    | AilEcall (e, es) ->
+      let injs = aux_expr e in
+      let injs' = List.map aux_expr es in
+      concat_block_local_injs [ injs; concat_block_local_injs injs' ]
+    | AilEgeneric (e, _, gas) ->
+      let injs = aux_expr e in
+      let injs' =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      concat_block_local_injs [ injs; concat_block_local_injs injs' ]
+    | AilEarray (_, _, xs) ->
+      concat_block_local_injs
+        (List.map (function None -> empty_block_local_injs | Some e -> aux_expr e) xs)
+    | AilEstruct (_, xs) ->
+      concat_block_local_injs
+        (List.map
+           (function _, None -> empty_block_local_injs | _, Some e -> aux_expr e)
+           xs)
+  and aux_stmt bindings A.{ loc; desug_info; node = s_; _ } : block_local_injs =
+    let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
+    match s_ with
+    | A.(AilSdeclaration decls) ->
+      let injs = generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings in
+      let injs' =
+        List.map
+          (fun (_, e_opt) ->
+             match e_opt with Some e -> aux_expr e | None -> empty_block_local_injs)
+          decls
+      in
+      concat_block_local_injs [ ret_standard_injs injs; concat_block_local_injs injs' ]
+    | AilSblock
+        ( bs,
+          ([ A.{ loc = decl_loc; node = AilSdeclaration decls; _ };
+             A.{ node = A.AilSwhile (_, s, _); _ }
+           ] as ss) ) ->
+      if is_forloop then (
+        (* WIP: special case for for-loops *)
+        let inj = generate_c_local_ownership_entry_inj ~is_forloop decl_loc decls bs in
+        let injs' = aux_stmt [] s in
+        concat_block_local_injs [ ret_standard_injs inj; injs' ])
+      else
+        gen_standard_block_injs (bs, ss) aux_stmt loc
+    | AilSblock (bs, ss) -> gen_standard_block_injs (bs, ss) aux_stmt loc
+    | AilSif (e, s1, s2) ->
+      let injs = aux_expr e in
+      let injs' = aux_stmt bindings s1 in
+      let injs'' = aux_stmt bindings s2 in
+      concat_block_local_injs [ injs; injs'; injs'' ]
+    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+      let injs = aux_expr e in
+      let injs' = aux_stmt bindings s in
+      concat_block_local_injs [ injs; injs' ]
+    | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _)
+      ->
+      aux_stmt bindings s
+    | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ ->
+      empty_block_local_injs
+  in
+  aux_stmt bindings s
 
 
-let get_c_block_entry_exit_injs stat : ownership_injection list =
+let get_c_block_entry_exit_injs stat
+  : ownership_injection list * (Cerb_location.t * string list) list
+  =
   let injs = get_c_block_entry_exit_injs_aux [] stat in
-  List.map
-    (fun (loc, bs, ss) -> { loc; bs_and_ss = (bs, ss); injection_kind = NonReturnInj })
-    injs
+  let standard_injs =
+    List.map
+      (fun (loc, bs, ss) -> { loc; bs_and_ss = (bs, ss); injection_kind = NonReturnInj })
+      injs.standard_injs
+  in
+  (standard_injs, injs.gcc_stat_as_expr_injs)
 
 
 let rec remove_duplicates ds = function
@@ -426,7 +561,7 @@ let get_c_block_local_ownership_checking_injs
   =
   match fn_block with
   | A.(AilSblock _) ->
-    let injs = get_c_block_entry_exit_injs statement in
+    let injs, gcc_injs = get_c_block_entry_exit_injs statement in
     let injs' = get_c_control_flow_ownership_injs statement in
     let injs = injs @ injs' in
     let locs = List.map (fun o_inj -> o_inj.loc) injs in
@@ -463,10 +598,10 @@ let get_c_block_local_ownership_checking_injs
            })
         locs
     in
-    combined_injs
+    (combined_injs, gcc_injs)
   | _ ->
     Printf.printf "Ownership: function body is not a block";
-    []
+    ([], [])
 
 
 (* Ghost state *)
@@ -485,4 +620,4 @@ let get_c_fn_local_ownership_checking_injs
     let ownership_stats_pair = get_c_local_ownership_checking params in
     let block_ownership_injs = get_c_block_local_ownership_checking_injs fn_body in
     (Some ownership_stats_pair, block_ownership_injs)
-  | _, _ -> (None, [])
+  | _, _ -> (None, ([], []))

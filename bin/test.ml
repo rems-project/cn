@@ -65,6 +65,7 @@ let run_tests
       static_absint
       smt_pruning_before_absinst
       smt_pruning_after_absinst
+      smt_pruning_keep_redundant_assertions
       smt_pruning_at_runtime
       symbolic
       symbolic_timeout
@@ -128,6 +129,8 @@ let run_tests
           static_absint;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
+          smt_pruning_remove_redundant_assertions =
+            not smt_pruning_keep_redundant_assertions;
           smt_pruning_at_runtime;
           symbolic;
           symbolic_timeout;
@@ -548,6 +551,13 @@ module Flags = struct
       & info [ "smt-pruning-after-absint" ] ~doc)
 
 
+  let smt_pruning_keep_redundant_assertions =
+    let doc =
+      "(Experimental) Keep assertions even if provably redundant during SMT pruning"
+    in
+    Arg.(value & flag & info [ "smt-pruning-keep-redundant-assertions" ] ~doc)
+
+
   let smt_pruning_at_runtime =
     let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
     Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
@@ -690,6 +700,7 @@ let cmd =
     $ Flags.static_absint
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
+    $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
     $ Flags.symbolic
     $ Flags.symbolic_timeout

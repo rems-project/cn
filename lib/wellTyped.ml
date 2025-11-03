@@ -1649,7 +1649,8 @@ module BaseTyping = struct
           in
           let bt = if casts_to_bool then Bool else bt_of_pexpr pe1 in
           return (bt, PEop (op, pe1, pe2))
-        | PEbounded_binop (bk, op, pe1, pe2) ->
+        | PEcatch_exceptional_condition (ity, op, pe1, pe2) | PEwrapI (ity, op, pe1, pe2)
+          ->
           let@ pe1 = infer_pexpr pe1 in
           (* Core i-binops are all ('a -> 'a -> 'a), except shifts which promote the
              rhs *)
@@ -1662,8 +1663,14 @@ module BaseTyping = struct
             else
               check_pexpr (bt_of_pexpr pe1) pe2
           in
-          return
-            (Memory.bt_of_sct (bound_kind_act bk).ct, PEbounded_binop (bk, op, pe1, pe2))
+          let pe_ =
+            match pe_ with
+            | PEcatch_exceptional_condition _ ->
+              PEcatch_exceptional_condition (ity, op, pe1, pe2)
+            | PEwrapI _ -> PEwrapI (ity, op, pe1, pe2)
+            | _ -> assert false
+          in
+          return (Memory.bt_of_sct (Integer ity), pe_)
         | PEif (c_pe, pe1, pe2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, pe1, pe2 =
@@ -1704,12 +1711,6 @@ module BaseTyping = struct
         | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), pes) ->
           let has = List.length pes in
           fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
-        | PEcatch_exceptional_condition (act, pe) ->
-          let@ pe = infer_pexpr pe in
-          return (bt_of_pexpr pe, PEcatch_exceptional_condition (act, pe))
-        | PEis_representable_integer (pe, act) ->
-          let@ pe = infer_pexpr pe in
-          return (Bool, PEis_representable_integer (pe, act))
         | PEnot pe ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEnot pe)
@@ -1735,6 +1736,24 @@ module BaseTyping = struct
               nm_pes
           in
           return (Struct nm, PEstruct (nm, nm_pes))
+        | PEcall
+            ( (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")) as f),
+              [ pe_ct; pe ] ) ->
+          let@ pe = infer_pexpr pe in
+          let@ pe_ct = check_pexpr CType pe_ct in
+          return (bt_of_pexpr pe, PEcall (f, [ pe_ct; pe ]))
+        | PEcall (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")), pes) ->
+          let has = List.length pes in
+          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
+        | PEcall
+            ((Sym (Symbol (_, _, SD_Id "is_representable_integer")) as f), [ pe; pe_ct ])
+          ->
+          let@ pe = infer_pexpr pe in
+          let@ pe_ct = check_pexpr CType pe_ct in
+          return (Bool, PEcall (f, [ pe; pe_ct ]))
+        | PEcall (Sym (Symbol (_, _, SD_Id "is_representable_integer")), pes) ->
+          let has = List.length pes in
+          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
         | PEcall (f, pes) ->
           (match (f, pes) with
            | Sym (Symbol (_, _, SD_Id "wrapI")), [ e1; e2 ] ->
