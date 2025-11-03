@@ -415,7 +415,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        return (IT.arith_binop bop (e2, e3) loc)
      | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
-  | PEbounded_binop (bk, op, pe_x, pe_y) ->
+  | PEcatch_exceptional_condition (ity, op, pe_x, pe_y) | PEwrapI (ity, op, pe_x, pe_y) ->
     let@ x = self var_map pe_x in
     let@ y = self var_map pe_y in
     let here = Locations.other __LOC__ in
@@ -427,7 +427,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (IT.get_bt x) y here) loc
       | IOpShr -> IT.arith_binop Terms.ShiftRight (x, IT.cast_ (IT.get_bt x) y here) loc
     in
-    do_wrapI loc (Mu.bound_kind_act bk).ct it
+    do_wrapI loc (Integer ity) it
   | PEcfunction pe ->
     let@ x = self var_map pe in
     let sig_it =

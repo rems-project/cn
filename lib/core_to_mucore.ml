@@ -176,15 +176,6 @@ and n_val loc v =
   V ((), v)
 
 
-let ity_act loc ity =
-  Mu.
-    { loc;
-      annot = [];
-      (* type_annot = (); *)
-      ct = Sctypes.Integer ity
-    }
-
-
 let is_const_bool_pexpr = function
   | Mucore.Pexpr (_, _, _, PEval (V (_, Vtrue))) -> Some true
   | Mucore.Pexpr (_, _, _, PEval (V (_, Vfalse))) -> Some false
@@ -258,15 +249,13 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
     in
     annotate (PEconv_int (ity_e, e'))
   | PEwrapI (ity, iop, arg1, arg2) ->
-    let act = ity_act loc ity in
     let arg1 = n_pexpr loc arg1 in
     let arg2 = n_pexpr loc arg2 in
-    annotate (PEbounded_binop (Bound_Wrap act, iop, arg1, arg2))
+    annotate (PEwrapI (ity, iop, arg1, arg2))
   | PEcatch_exceptional_condition (ity, iop, arg1, arg2) ->
-    let act = ity_act loc ity in
     let arg1 = n_pexpr loc arg1 in
     let arg2 = n_pexpr loc arg2 in
-    annotate (PEbounded_binop (Bound_Except act, iop, arg1, arg2))
+    annotate (PEcatch_exceptional_condition (ity, iop, arg1, arg2))
   | PEcall (sym1, args) ->
     (match (sym1, args) with
      | Sym (Symbol (_, _, SD_Id "all_values_representable_in")), [ arg1; arg2 ] ->
@@ -307,10 +296,8 @@ let rec n_pexpr ~inherit_loc loc (Pexpr (annots, bty, pe)) : unit Mucore.pexpr =
             | Some i -> i
             | None -> failwith "Non-integer type in shift"
           in
-          let act = ity_act loc ity in
           let op = CF.Core.IOpShr in
-          let bound = Mu.Bound_Except act in
-          let shift = annotate (PEbounded_binop (bound, op, arg1, arg2)) in
+          let shift = annotate (PEcatch_exceptional_condition (ity, op, arg1, arg2)) in
           let impl_ok =
             true
             (* XXX: parameterize *)

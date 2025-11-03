@@ -951,10 +951,16 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            [ pp_symbol sym; pp_identifier id; pp_pexpr pp_type e ]
        | PEconv_int (e1, e2) ->
          pp_constructor1 "PEconv_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEbounded_binop (kind, op, e1, e2) ->
+       | PEcatch_exceptional_condition (ity, op, e1, e2) | PEwrapI (ity, op, e1, e2) ->
+         let ctor =
+           match pe with
+           | PEcatch_exceptional_condition _ -> "PEcatch_exceptional_condition"
+           | PEwrapI _ -> "PEwrapI"
+           | _ -> assert false
+         in
          pp_constructor1
-           "PEbounded_binop"
-           [ pp_bound_kind kind;
+           ctor
+           [ pp_sctype (Integer ity);
              pp_core_iop op;
              pp_pexpr pp_type e1;
              pp_pexpr pp_type e2
@@ -974,11 +980,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            "PEif"
            [ pp_pexpr pp_type c; pp_pexpr pp_type t; pp_pexpr pp_type e ])
     ]
-
-
-and pp_bound_kind = function
-  | Bound_Wrap act -> pp_constructor "Bound_Wrap" [ pp_act act ]
-  | Bound_Except act -> pp_constructor "Bound_Except" [ pp_act act ]
 
 
 and pp_action pp_type (Action (loc, act)) =
