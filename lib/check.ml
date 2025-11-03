@@ -997,15 +997,12 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
                 [@alert "-deprecated"]
             })))
   | PEmemberof _ -> Cerb_debug.error "todo: PEmemberof"
-  | PEbounded_binop (Bound_Wrap act, iop, pe1, pe2) ->
+  | PEwrapI (ity, iop, pe1, pe2) ->
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)
-    let@ () = WellTyped.check_ct act.loc act.ct in
-    assert (
-      match act.ct with
-      | Integer ity when Sctypes.is_unsigned_integer_type ity -> true
-      | _ -> false);
-    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct act.ct) in
+    let@ () = WellTyped.check_ct loc (Integer ity) in
+    assert (Sctypes.is_unsigned_integer_type ity);
+    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity)) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
     let@ () = WellTyped.ensure_bits_type loc expect in
     let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in
@@ -1038,10 +1035,9 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
           loc
     in
     return x
-  | PEbounded_binop (Bound_Except act, iop, pe1, pe2) ->
-    let@ () = WellTyped.check_ct act.loc act.ct in
-    let ity = match act.ct with Integer ity -> ity | _ -> assert false in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct act.ct) in
+  | PEcatch_exceptional_condition (ity, iop, pe1, pe2) ->
+    let@ () = WellTyped.check_ct loc (Integer ity) in
+    let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity)) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
     let@ () = WellTyped.ensure_bits_type loc expect in
     let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in

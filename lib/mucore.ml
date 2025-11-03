@@ -52,15 +52,9 @@ let bt_of_pattern (Pattern (_, _, bty, _)) = bty
 
 let loc_of_pattern (Pattern (loc, _, _, _)) = loc
 
-(** What to do on out of bounds.
-    The annotated C type is the result type of the operation. *)
-type bound_kind =
-  | Bound_Wrap of act (** Wrap around (used for unsigned types) *)
-  | Bound_Except of act (** Report an exception, for signed types *)
-
-let bound_kind_act = function Bound_Wrap act -> act | Bound_Except act -> act
-
 type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
+
+type integerType = Cerb_frontend.Ctype.integerType
 
 type 'TY pexpr_ =
   | PEsym of Sym.t
@@ -71,7 +65,8 @@ type 'TY pexpr_ =
   | PEctor of ctor * 'TY pexpr list
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
-  | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
+  | PEcatch_exceptional_condition of integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
+  | PEwrapI of integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr

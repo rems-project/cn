@@ -1649,7 +1649,8 @@ module BaseTyping = struct
           in
           let bt = if casts_to_bool then Bool else bt_of_pexpr pe1 in
           return (bt, PEop (op, pe1, pe2))
-        | PEbounded_binop (bk, op, pe1, pe2) ->
+        | PEcatch_exceptional_condition (ity, op, pe1, pe2)
+        | PEwrapI (ity, op, pe1, pe2) ->
           let@ pe1 = infer_pexpr pe1 in
           (* Core i-binops are all ('a -> 'a -> 'a), except shifts which promote the
              rhs *)
@@ -1662,8 +1663,14 @@ module BaseTyping = struct
             else
               check_pexpr (bt_of_pexpr pe1) pe2
           in
-          return
-            (Memory.bt_of_sct (bound_kind_act bk).ct, PEbounded_binop (bk, op, pe1, pe2))
+          let pe_ = match pe_ with
+            | PEcatch_exceptional_condition _ ->
+               PEcatch_exceptional_condition (ity, op, pe1, pe2)
+            | PEwrapI _ ->
+               PEwrapI (ity, op, pe1, pe2)
+            | _ -> assert false
+          in
+          return (Memory.bt_of_sct (Integer ity), pe_)
         | PEif (c_pe, pe1, pe2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, pe1, pe2 =
