@@ -434,9 +434,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
     | AilEsizeof _ | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
       empty_block_local_injs
-    | AilErvalue e ->
-      Printf.printf "AilErvalue\n";
-      aux_expr e
+    | AilErvalue e -> aux_expr e
     | AilEunary (_, e)
     | AilEcast (_, _, e)
     | AilEassert e
