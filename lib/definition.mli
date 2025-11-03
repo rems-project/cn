@@ -47,6 +47,8 @@ module Clause : sig
   val lrt : IndexTerms.t -> IndexTerms.t LogicalArgumentTypes.t -> LogicalReturnTypes.t
 
   val explicit_negative_guards : t list -> t list
+
+  val free_vars : t -> Sym.Set.t
 end
 
 module Predicate : sig
@@ -76,6 +78,8 @@ module Predicate : sig
     Clause.t option
 
   val given_to_solver : t -> bool
+
+  val free_vars : t -> Sym.Set.t
 end
 
 val alloc : Predicate.t

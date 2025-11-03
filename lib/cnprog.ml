@@ -35,6 +35,20 @@ and suitably_alpha_rename f syms s prog =
     (s, prog)
 
 
+let rec free_vars f = function
+  | Let (_, (name, { pointer; _ }), prog) ->
+    let pointer_fvs = IT.free_vars pointer in
+    let prog_fvs = free_vars f prog in
+    Sym.Set.union pointer_fvs (Sym.Set.remove name prog_fvs)
+  | Pure (_, x) -> f x
+
+
+let free_vars_list pure_free_vars progs =
+  progs
+  |> List.map (free_vars pure_free_vars)
+  |> List.fold_left Sym.Set.union Sym.Set.empty
+
+
 let rec dtree f =
   let open Cerb_frontend.Pp_ast in
   function

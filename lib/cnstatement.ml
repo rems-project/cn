@@ -70,6 +70,35 @@ and suitably_alpha_rename syms s prog =
     (s, prog)
 
 
+let free_vars_predicate_or_predicate_name = function
+  | Predicate pt -> IT.free_vars_list (pt.pointer :: pt.iargs)
+  | PredicateName _pn -> Sym.Set.empty
+
+
+let free_vars = function
+  | Pack_unpack (_pack_unpack, pt) -> free_vars_predicate_or_predicate_name pt
+  | To_from_bytes (_to_from, pt) -> IT.free_vars_list (pt.pointer :: pt.iargs)
+  | Have lc -> LC.free_vars lc
+  | Instantiate (_o_s, it) ->
+    (* o_s is not a (option) binder *)
+    IT.free_vars it
+  | Split_case lc -> LC.free_vars lc
+  | Extract (_attrs, _to_extract, it) -> IT.free_vars it
+  | Unfold (_fsym, args) ->
+    (* fsym is a function symbol *)
+    IT.free_vars_list args
+  | Apply (_fsym, args) ->
+    (* fsym is a lemma symbol *)
+    IT.free_vars_list args
+  | Assert lc -> LC.free_vars lc
+  | Inline _nms -> Sym.Set.empty
+  | Print it -> IT.free_vars it
+
+
+let free_vars_list stmts =
+  stmts |> List.map free_vars |> List.fold_left Sym.Set.union Sym.Set.empty
+
+
 let dtree_of_to_instantiate =
   let open Cerb_frontend.Pp_ast in
   function

@@ -8,9 +8,18 @@ module BT = BaseTypes
 module IT = IndexTerms
 module T = Terms
 module LRT = LogicalReturnTypes
+module RT = ReturnTypes
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 module OE = Ownership
+
+let getter_str filename sym =
+  "cn_test_get_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
+
+
+let setter_str filename sym =
+  "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
+
 
 let true_const = A.AilEconst (ConstantPredefined PConstantTrue)
 
@@ -909,9 +918,7 @@ let rec cn_to_ail_expr_aux
         if List.exists (fun (x, _) -> Sym.equal x sym) globals then
           wrap_with_convert
             ~convert_from:false
-            A.(
-              AilEcall
-                (mk_expr (AilEident (Sym.fresh (Globals.getter_str filename sym))), []))
+            A.(AilEcall (mk_expr (AilEident (Sym.fresh (getter_str filename sym))), []))
             basetype
         else
           wrap_with_convert
@@ -3339,19 +3346,62 @@ let rec generate_record_opt pred_sym bt =
   | _ -> None
 
 
-let rec extract_global_variables = function
-  | [] -> []
-  | (sym, globs) :: ds ->
-    (match globs with
-     | Mucore.GlobalDef (ctype, _) ->
-       (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds
-     | GlobalDecl ctype -> (sym, Sctypes.to_ctype ctype) :: extract_global_variables ds)
+let extract_global_variables
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (prog5 : _ Mucore.file)
+  =
+  (* Collect free variables from resource predicates *)
+  let referenced_syms =
+    let from_predicates =
+      prog5.resource_predicates
+      |> List.map (fun (_sym, (pred : Definition.Predicate.t)) ->
+        Definition.Predicate.free_vars pred)
+      |> List.fold_left Sym.Set.union Sym.Set.empty
+    in
+    let from_annotations =
+      fst (Extract.collect_instrumentation cabs_tunit prog5)
+      |> List.map (fun (inst : Extract.instrumentation) -> inst.internal)
+      |> List.filter_map (fun x -> x)
+      |> List.map
+           (AT.free_vars (fun (rt, (statements, loops)) ->
+              let from_statements =
+                statements
+                |> List.map snd
+                |> List.flatten
+                |> List.map (Cnprog.free_vars Cnstatement.free_vars)
+              in
+              let from_loops =
+                loops
+                |> List.map (fun (_, _, _, at) -> at)
+                |> List.map (AT.map (List.map snd))
+                |> List.map (AT.map List.flatten)
+                |> List.map (AT.free_vars (Cnprog.free_vars_list Cnstatement.free_vars))
+              in
+              List.fold_left Sym.Set.union (RT.free_vars rt) (from_statements @ from_loops)))
+      |> List.fold_left Sym.Set.union Sym.Set.empty
+    in
+    let from_lemmata =
+      prog5.lemmata
+      |> List.map snd
+      |> List.map snd
+      |> List.map (AT.free_vars LRT.free_vars)
+      |> List.fold_left Sym.Set.union Sym.Set.empty
+    in
+    List.fold_left Sym.Set.union from_predicates [ from_annotations; from_lemmata ]
+  in
+  (* Filter globals to only those referenced in resource predicates *)
+  prog5.globs
+  |> List.filter (fun (sym, _) -> Sym.Set.mem sym referenced_syms)
+  |> List.map (fun (sym, glob) ->
+    match glob with
+    | Mucore.GlobalDef (sct, _) | GlobalDecl sct -> (sym, Sctypes.to_ctype sct))
 
 
 (* TODO: Finish with rest of function - maybe header file with A.Decl_function (cn.h?) *)
 let cn_to_ail_function
       (filename : string)
       (fn_sym, (lf_def : Definition.Function.t))
+      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (cn_datatypes : A.sigma_cn_datatype list)
       (cn_functions : A.sigma_cn_function list)
@@ -3368,7 +3418,7 @@ let cn_to_ail_function
           filename
           (Some fn_sym)
           cn_datatypes
-          (extract_global_variables prog5.globs)
+          (extract_global_variables cabs_tunit prog5)
           None
           it
           Return

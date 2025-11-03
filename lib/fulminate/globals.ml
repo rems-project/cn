@@ -2,14 +2,10 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 
-let getter_str filename sym =
-  "cn_test_get_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
-
-
 let getter filename (sym : Sym.t) (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
-  let fsym = Sym.fresh (getter_str filename sym) in
+  let fsym = Sym.fresh (Cn_to_ail.getter_str filename sym) in
   let ct = Sctypes.to_ctype sct in
   A.
     ( ( fsym,
@@ -37,14 +33,10 @@ let getter filename (sym : Sym.t) (sct : Sctypes.t)
                  ] )) ) ) )
 
 
-let setter_str filename sym =
-  "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
-
-
 let setter filename (sym : Sym.t) (sct : Sctypes.t)
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
-  let fsym = Sym.fresh (setter_str filename sym) in
+  let fsym = Sym.fresh (Cn_to_ail.setter_str filename sym) in
   let ptr_sym = Sym.fresh "ptr" in
   let ct = Sctypes.to_ctype sct in
   let e_size_ =
@@ -120,20 +112,25 @@ let accessor filename (sym : Sym.t) (sct : Sctypes.t)
   [ getter filename sym sct; setter filename sym sct ]
 
 
-let accessors filename (prog5 : unit Mucore.file)
+let accessors filename (cabs_tunit : CF.Cabs.translation_unit) (prog5 : unit Mucore.file)
   : A.sigma_declaration list
     * CF.GenTypes.genTypeCategory A.sigma_function_definition list
   =
-  prog5.globs
-  |> List.map (fun (sym, glob) ->
-    match glob with
-    | Mucore.GlobalDef (sct, _) | GlobalDecl sct -> accessor filename sym sct)
+  Cn_to_ail.extract_global_variables cabs_tunit prog5
+  |> List.map (fun (sym, ct) ->
+    let sct = Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct in
+    accessor filename sym sct)
   |> List.flatten
   |> List.split
 
 
-let accessors_prototypes (filename : string) (prog5 : unit Mucore.file) : string =
-  let decls, _ = accessors filename prog5 in
+let accessors_prototypes
+      (filename : string)
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (prog5 : unit Mucore.file)
+  : string
+  =
+  let decls, _ = accessors filename cabs_tunit prog5 in
   Pp.(
     plain
       (separate
@@ -145,8 +142,13 @@ let accessors_prototypes (filename : string) (prog5 : unit Mucore.file) : string
        ^^ hardline))
 
 
-let accessors_str (filename : string) (prog5 : unit Mucore.file) : string =
-  let declarations, function_definitions = accessors filename prog5 in
+let accessors_str
+      (filename : string)
+      (cabs_tunit : CF.Cabs.translation_unit)
+      (prog5 : unit Mucore.file)
+  : string
+  =
+  let declarations, function_definitions = accessors filename cabs_tunit prog5 in
   Pp.plain
     CF.Pp_ail.(
       with_executable_spec
