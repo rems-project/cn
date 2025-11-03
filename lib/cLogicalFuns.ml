@@ -352,6 +352,11 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
             (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
             loc)
      | _ -> do_wrapI loc ct x)
+  | PEcall (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")), [ pe_ct; pe ]) ->
+    let@ ct_it = self var_map pe_ct in
+    let@ ct = must_be_ct_const loc ct_it in
+    let@ x = self var_map pe in
+    do_wrapI loc ct x
   | PEcall (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (f, xs) with
@@ -410,9 +415,6 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        return (IT.arith_binop bop (e2, e3) loc)
      | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
-  | PEcatch_exceptional_condition (act, pe) ->
-    let@ x = self var_map pe in
-    do_wrapI loc act.ct x
   | PEbounded_binop (bk, op, pe_x, pe_y) ->
     let@ x = self var_map pe_x in
     let@ y = self var_map pe_y in

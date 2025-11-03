@@ -107,10 +107,8 @@ module Make (Config : CONFIG) = struct
     | PEmemop (_, _)
     | PEnot _ | PEstruct _ | PEunion _ | PEcfunction _ | PEmemberof _ | PEconv_int _
     | PElet _ | PEif _ | PEundef _ | PEerror _ | PEcall _
-    | PEcatch_exceptional_condition (_, _)
     | PEbounded_binop (_, _, _, _)
-    | PEare_compatible _
-    | PEis_representable_integer (_, _) ->
+    | PEare_compatible _ ->
       None
 
 
@@ -345,12 +343,6 @@ module Make (Config : CONFIG) = struct
                            pp_pexpr arg1;
                            pp_pexpr arg2
                          ])
-               | PEcatch_exceptional_condition (act, asym) ->
-                 !^"catch_exceptional_condition"
-                 ^^ Pp.parens (pp_ct act.ct ^^ Pp.comma ^^^ pp_pexpr asym)
-               | PEis_representable_integer (asym, act) ->
-                 !^"is_representable_integer"
-                 ^^ Pp.parens (pp_pexpr asym ^^ Pp.comma ^^^ pp_ct act.ct)
                | PEare_compatible (pe1, pe2) ->
                  !^"are_compatible"
                  ^^ Pp.parens (pp_pexpr pe1 ^^ Pp.comma ^^^ pp_pexpr pe2)
