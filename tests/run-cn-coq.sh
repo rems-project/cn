@@ -71,7 +71,7 @@ if [ -n "${SINGLE_FILE}" ]; then
     fi
     SUCC="${SINGLE_FILE}"
 else
-    SUCC=$(find "${DIRNAME}"/cn -name '*.c' ! -name '*gcc-stat-as-expr.c' | grep -v '\.error\.c')
+    SUCC=$(find "${DIRNAME}"/cn -name '*.c' | grep -v '\.error\.c')
 fi
 
 # Filter out blacklisted files

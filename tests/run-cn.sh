@@ -60,20 +60,13 @@ DIRNAME=$(dirname "$0")
 # Making sure the runtime installed in dune _build is not used
 unset CERB_INSTALL_PREFIX
 
-SUCC=$(find "${DIRNAME}"/cn -name '*.c' ! -name 'gcc-stat-as-expr.c' | grep -v '\.error\.c')
+SUCC=$(find "${DIRNAME}"/cn -name '*.c' | grep -v '\.error\.c')
 FAIL=$(find "${DIRNAME}"/cn -name '*.error.c')
-PERMISSIVE_SUCC=$(find "${DIRNAME}"/cn -name '*gcc-stat-as-expr.c') # Run test cases that rely on Cerberus frontend permissive mode
 
 FAILED=""
 
 for TEST in ${SUCC}; do
   if ! exits_with_code "cn verify" "${TEST}" 0; then
-    FAILED+=" ${TEST}"
-  fi
-done
-
-for TEST in ${PERMISSIVE_SUCC}; do
-  if ! exits_with_code "cn verify --permissive" "${TEST}" 0; then
     FAILED+=" ${TEST}"
   fi
 done
