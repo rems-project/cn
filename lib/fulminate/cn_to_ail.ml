@@ -4561,23 +4561,7 @@ let rec cn_to_ail_pre_post_aux
         ail_executable_spec
         ([ clear_ghost_call_site_binding ], [ clear_ghost_call_site_decl ])
     in
-    let clear_ghost_array_fn_str = "clear_ghost_array" in
-    let clear_ghost_array_decl =
-      A.(
-        AilSexpr
-          (mk_expr
-             (AilEcall
-                ( mk_expr (AilEident (Sym.fresh clear_ghost_array_fn_str)),
-                  [ mk_expr
-                      (AilEconst
-                         (ConstantInteger
-                            (IConstant
-                               ( Z.of_int (Option.value ghost_array_size_opt ~default:0),
-                                 Decimal,
-                                 None ))))
-                  ] ))))
-    in
-    ([], prepend_to_precondition ail_executable_spec ([], [ clear_ghost_array_decl ]))
+    ([], ail_executable_spec)
 
 
 let cn_to_ail_pre_post

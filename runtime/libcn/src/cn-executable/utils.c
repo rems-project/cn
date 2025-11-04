@@ -898,10 +898,8 @@ void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
   ghost_arg_array[i] = ptr_to_ghost_arg;
 }
 
-void clear_ghost_array(int ghost_array_size) {
-  for (int i = 0; i < ghost_array_size; i++) {
-    fulm_free(ghost_arg_array + i * sizeof(void*), &fulm_default_alloc);
-  }
+void free_ghost_array() {
+  fulm_free(ghost_arg_array, &fulm_default_alloc);
 }
 
 void* load_from_ghost_array(int i) {
