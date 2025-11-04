@@ -395,7 +395,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
     let stat_injs = List.map (fun s -> f_stmt_injs bs s) ss in
     concat_block_local_injs [ concat_block_local_injs stat_injs; exit_injs' ]
   in
-  let rec aux_expr (A.AnnotatedExpression (gtc, _, loc, e_)) =
+  let rec aux_expr (A.AnnotatedExpression (gtc, _, _, e_)) =
     match e_ with
     | AilEgcc_statement (bs, ss) ->
       (* implicit check that ss is non-empty *)
@@ -406,7 +406,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
            ret_standard_injs
              (List.map
                 (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
-                   ( get_end_loc ~offset:(-2) loc,
+                   ( get_end_loc loc',
                      [],
                      [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
                 bs)
@@ -429,7 +429,7 @@ let get_c_block_entry_exit_injs_aux bindings s =
              let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
              let ret_inj_2 =
                ret_standard_injs
-                 [ ( get_end_loc ~offset:(-2) loc,
+                 [ ( get_end_loc loc',
                      [],
                      [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
                  ]
