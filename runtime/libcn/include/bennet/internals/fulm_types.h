@@ -8,3 +8,4 @@ typedef struct cn_bits_i32 cn_bits_i32;
 typedef struct cn_bits_u64 cn_bits_u64;
 typedef struct cn_bits_i64 cn_bits_i64;
 typedef struct cn_pointer cn_pointer;
+typedef struct cn_bool cn_bool;
