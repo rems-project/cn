@@ -166,8 +166,7 @@ type injection_kind =
   | Pre of
       string list * C.ctype * bool (* flag for whether injection is for main function *)
   (* Inject a post-condition for a function *)
-  | Post of
-      string list * C.ctype * bool (* flag for whether injection is for main function *)
+  | Post of string list * C.ctype
   (* Delete `main` function *)
   | DeleteMain of bool (* flag for whether start (true) or end (false) *)
   (* Insert a non-static wrapper of a static function *)
@@ -229,7 +228,7 @@ let inject st inj =
               ^ ";\n"
               ^ indent))
          ^ str)
-    | Post (strs, ret_ty, is_main) ->
+    | Post (strs, ret_ty) ->
       let indent = String.make st.last_indent ' ' in
       let epilogue_indent = String.make (st.last_indent + 2) ' ' in
       let indented_strs =
@@ -248,7 +247,6 @@ let inject st inj =
          ^ "\n__cn_epilogue:\n"
          ^ (if List.is_empty strs then indent ^ ";\n" else "")
          ^ str
-         ^ (if is_main then "\nfree_ghost_array();\n" else "")
          ^
          if CF.AilTypesAux.is_void ret_ty then
            ""
@@ -421,7 +419,7 @@ let pre_post_injs pre_post is_void is_main A.{ loc; _ } =
         kind = Pre (fst pre_post, is_void, is_main)
       },
       { footprint = { start_pos = post_pos; end_pos = post_pos };
-        kind = Post (snd pre_post, is_void, is_main)
+        kind = Post (snd pre_post, is_void)
       } )
 
 
