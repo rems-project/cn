@@ -20,6 +20,7 @@ let getter_str filename sym =
 let setter_str filename sym =
   "cn_test_set_" ^ Utils.static_prefix filename ^ "_" ^ Sym.pp_string sym
 
+
 let true_const = A.(AilEconst (ConstantInteger (IConstant (Z.of_int 1, Decimal, None))))
 
 let false_const = A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
