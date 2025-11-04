@@ -300,25 +300,8 @@ let get_instrumented_filename filename =
 
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
-let main
-      ~without_ownership_checking
-      ~without_loop_invariants
-      ~with_loop_leak_checks
-      ~without_lemma_checks
-      ~exec_c_locs_mode
-      ~experimental_ownership_stack_mode
-      ~with_testing
-      ~skip_and_only
-      filename
-      cc
-      in_filename (* WARNING: this file will be deleted after this function *)
-      out_filename
-      output_dir
-      cabs_tunit
-      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
-       ail_prog)
-      prog5
-  =
+(* TODO: fix + add CLI flag *)
+let _gen_compile_commands_json cc output_dir out_filename =
   let compile_commands_json_oc =
     Stdlib.open_out (get_filename_with_prefix output_dir "compile_commands.json")
   in
@@ -342,8 +325,31 @@ let main
     ]
   in
   output_to_oc compile_commands_json_oc compile_commands_json_str;
-  close_out compile_commands_json_oc;
+  close_out compile_commands_json_oc
+
+
+let main
+      ~without_ownership_checking
+      ~without_loop_invariants
+      ~with_loop_leak_checks
+      ~without_lemma_checks
+      ~exec_c_locs_mode
+      ~experimental_ownership_stack_mode
+      ~with_testing
+      ~skip_and_only
+      filename
+      _cc
+      in_filename (* WARNING: this file will be deleted after this function *)
+      out_filename
+      output_dir
+      cabs_tunit
+      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
+       ail_prog)
+      prog5
+  =
   let out_filename = get_filename_with_prefix output_dir out_filename in
+  (* disabled until fixed *)
+  (* _gen_compile_commands_json cc output_dir out_filename; *)
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation cabs_tunit prog5
   in
