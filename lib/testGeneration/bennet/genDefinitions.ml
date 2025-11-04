@@ -1,4 +1,5 @@
 module BT = BaseTypes
+module C = Cerb_frontend.Ctype
 
 module Make (GT : GenTerms.T) = struct
   module GT' = GenTerms.Make (GT)
@@ -10,6 +11,8 @@ module Make (GT : GenTerms.T) = struct
       name : Sym.t;
       iargs : (Sym.t * BT.t) list;
       oarg : BT.t;
+      c_types :
+        ((Sym.t * C.ctype) list[@equal fun _ _ -> true] [@compare fun _ _ -> 0]) option;
       body : GT.t
     }
   [@@deriving eq, ord]
@@ -41,6 +44,8 @@ module MakeOptional (GT : GenTerms.T) = struct
       name : Sym.t;
       iargs : (Sym.t * BT.t) list;
       oarg : BT.t;
+      c_types :
+        ((Sym.t * C.ctype) list[@equal fun _ _ -> true] [@compare fun _ _ -> 0]) option;
       body : GT.t option
     }
   [@@deriving eq, ord]

@@ -11,9 +11,13 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Ctx = Ctx.Make (AD)
 
-  let transform filename (prog5 : unit Mucore.file) (tests : Test.t list) : Ctx.t =
+  let transform filename sigma (prog5 : unit Mucore.file) (tests : Test.t list) : Ctx.t =
     tests
-    |> Convert.transform filename (List.map fst prog5.globs) prog5.resource_predicates
+    |> Convert.transform
+         sigma
+         filename
+         (List.map fst prog5.globs)
+         prog5.resource_predicates
     |> DestructArbitrary.transform prog5
     |> (if TestGenConfig.is_experimental_product_arg_destruction () then
           DestructProducts.transform prog5

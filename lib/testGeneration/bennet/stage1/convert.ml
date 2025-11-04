@@ -4,6 +4,8 @@ module AT = ArgumentTypes
 module LC = LogicalConstraints
 module LAT = LogicalArgumentTypes
 module Config = TestGenConfig
+module CF = Cerb_frontend
+module A = CF.AilSyntax
 
 module Make (AD : Domain.T) = struct
   module OptCtx = GenContext.MakeOptional (Term.Make (AD))
@@ -58,6 +60,7 @@ module Make (AD : Domain.T) = struct
         name = fsym;
         iargs = (pred.pointer, BT.Loc ()) :: pred.iargs;
         oarg = snd pred.oarg;
+        c_types = None;
         body = None
       }
     in
@@ -246,7 +249,7 @@ module Make (AD : Domain.T) = struct
   let transform_pred
         (recursive_preds : Sym.Set.t)
         (preds : (Sym.t * Definition.Predicate.t) list)
-        ({ filename; recursive; spec; name; iargs; oarg; body } : OptDef.t)
+        ({ filename; recursive; spec; name; iargs; oarg; c_types; body } : OptDef.t)
     : unit m
     =
     assert (Option.is_none body);
@@ -262,7 +265,7 @@ module Make (AD : Domain.T) = struct
         (Option.get pred.clauses)
     in
     let gd : OptDef.t =
-      { filename; recursive; spec; name; iargs; oarg; body = Some gt }
+      { filename; recursive; spec; name; iargs; oarg; c_types; body = Some gt }
     in
     modify (OptCtx.add gd)
 
@@ -272,6 +275,7 @@ module Make (AD : Domain.T) = struct
         (recursive : Sym.Set.t)
         (preds : (Sym.t * Definition.Predicate.t) list)
         (name : Sym.t)
+        (c_types : (Sym.t * CF.Ctype.ctype) list)
         (at : 'a AT.t)
     : unit m
     =
@@ -336,7 +340,15 @@ module Make (AD : Domain.T) = struct
         (LAT.map (fun _ -> ret_it) lat)
     in
     let gd : OptDef.t =
-      { filename; recursive = false; spec = true; name; iargs; oarg; body = Some gt }
+      { filename;
+        recursive = false;
+        spec = true;
+        name;
+        iargs;
+        oarg;
+        c_types = Some c_types;
+        body = Some gt
+      }
     in
     modify (OptCtx.add gd)
 
@@ -372,6 +384,7 @@ module Make (AD : Domain.T) = struct
 
 
   let transform
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
         filename
         (globals : Sym.t list)
         (preds : (Sym.t * Definition.Predicate.t) list)
@@ -404,17 +417,38 @@ module Make (AD : Domain.T) = struct
     let context_specs =
       tests
       |> List.map (fun (test : Test.t) ->
+        (* Look up C types using the original function name *)
+        let c_types =
+          match
+            ( List.assoc_opt Sym.equal test.fn sigma.declarations,
+              List.assoc_opt Sym.equal test.fn sigma.function_definitions )
+          with
+          | ( Some (_, _, A.Decl_function (_, _, arg_ctypes, _, _, _)),
+              Some (_, _, _, param_names, _) ) ->
+            List.combine param_names arg_ctypes
+            |> List.map (fun (param_name, (_, ctype, _)) -> (param_name, ctype))
+          | _ ->
+            failwith
+              (Printf.sprintf
+                 "Spec function %s not found in sigma.declarations or \
+                  sigma.function_definitions"
+                 (Sym.pp_string test.fn))
+        in
+        let name =
+          if test.is_static then
+            Sym.fresh
+              (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn)
+          else
+            test.fn
+        in
         test.internal
         |> AT.subst (fun _ x -> x) globals_subst
         |> transform_spec
              (Option.get (Cerb_location.get_filename test.fn_loc))
              recursive_preds
              preds
-             (if test.is_static then
-                Sym.fresh
-                  (Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn)
-              else
-                test.fn))
+             name
+             c_types)
       |> List.fold_left (fun ctx f -> execState f ctx) OptCtx.empty
     in
     let context_preds (ctx : OptCtx.t) : OptCtx.t =

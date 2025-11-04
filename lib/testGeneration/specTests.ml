@@ -54,15 +54,14 @@ let compile_constant_tests
   (tests, separate (twice hardline) docs ^^ twice hardline)
 
 
-let convert_from ((x, ct) : Sym.t * C.ctype) =
+let convert_from ((x, _ct) : Sym.t * C.ctype) =
+  (* Just return raw field access - conversions now happen in harness *)
   CF.Pp_ail.pp_expression
     (Utils.mk_expr
-       (CtA.wrap_with_convert_from
-          A.(
-            AilEmemberofptr
-              ( Utils.mk_expr (AilEident (Sym.fresh "res")),
-                CF.Symbol.Identifier (Locations.other __LOC__, Sym.pp_string x) ))
-          (Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))))
+       A.(
+         AilEmemberofptr
+           ( Utils.mk_expr (AilEident (Sym.fresh "res")),
+             CF.Symbol.Identifier (Locations.other __LOC__, Sym.pp_string x) )))
 
 
 let compile_random_test_case
@@ -162,18 +161,18 @@ let compile_random_test_case
                           (ty ^^ star)
                           ^^^ tmp_doc
                           ^^^ equals
-                          ^^^ (!^"convert_from_cn_pointer"
-                               ^^ parens (!^"res->" ^^ Sym.pp sym)
-                               ^^ semi
-                               ^^ hardline
-                               ^^ !^"cn_assume_ownership"
-                               ^^ parens
-                                    (separate
-                                       (comma ^^ space)
-                                       [ !^(Fulminate.Cn_to_ail.getter_str filename sym);
-                                         !^"sizeof" ^^ parens ty;
-                                         !^"(char*)" ^^ dquotes init_name
-                                       ]))
+                          ^^^ !^"res->"
+                          ^^ Sym.pp sym
+                          ^^ semi
+                          ^^ hardline
+                          ^^ !^"cn_assume_ownership"
+                          ^^ parens
+                               (separate
+                                  (comma ^^ space)
+                                  [ !^(Fulminate.Cn_to_ail.getter_str filename sym);
+                                    !^"sizeof" ^^ parens ty;
+                                    !^"(char*)" ^^ dquotes init_name
+                                  ])
                           ^^ semi
                           ^^ hardline
                           ^^ !^(Fulminate.Cn_to_ail.setter_str filename sym)

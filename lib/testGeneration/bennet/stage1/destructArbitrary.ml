@@ -125,10 +125,19 @@ module Make (AD : Domain.T) = struct
 
   let transform_gd
         (prog5 : unit Mucore.file)
-        ({ filename; recursive; spec; name; iargs; oarg; body } : Def.t)
+        ({ filename; recursive; spec; name; iargs; oarg; c_types; body } : Def.t)
     : Def.t
     =
-    Def.{ filename; recursive; spec; name; iargs; oarg; body = transform_gt prog5 body }
+    Def.
+      { filename;
+        recursive;
+        spec;
+        name;
+        iargs;
+        oarg;
+        c_types;
+        body = transform_gt prog5 body
+      }
 
 
   let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) =
