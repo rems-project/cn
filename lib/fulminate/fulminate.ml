@@ -473,12 +473,46 @@ let main
   (* Use order of tag definitions from source when injecting on them directly - no call to Internal.order_ail_tag_definitions *)
   let tag_def_injs = generate_tag_definition_injs sigm.tag_definitions in
   let give_precedence_map n = List.map (fun x -> (n, x)) in
+  (* workaround for https://github.com/rems-project/cn/issues/392
+  HK: This workaround is not so clean, which should be fixed later.
+  This is for handling the case where multiple insertions take place at the same location.
+  Previously, it was handled by using fixed "precedences", which is incorrect as pointed out in the above issue.
+  To address this issue, we assign precedences based on the position of the corresponding closing parenthesis for each "CN_LOAD(" or such.
+
+  **This function is designed specifically for memory access injections and ghost arg injections, so adding a different kind of injections may require modification.**
+  *)
+  let give_parenthesis_aware_precedence_map l =
+    let rec look_for_closing_parenthesis acc = function
+      | [] -> assert false
+      | (p, [ s ]) :: xs when Char.equal (String.get s (String.length s - 1)) ')' ->
+        (acc, xs, p, s)
+      | x :: xs -> look_for_closing_parenthesis (x :: acc) xs
+    in
+    let rec aux acc = function
+      | [] -> acc
+      | (p, strs) :: xs ->
+        let injs, xs, p', closing_expr = look_for_closing_parenthesis [] xs in
+        let pos =
+          match Cerb_location.to_cartesian_user p' with
+          | Some (start_pos, _) -> start_pos
+          | _ -> failwith "error"
+        in
+        let open Source_injection in
+        let a = (Cartesian pos, (p, strs)) in
+        let cs = give_precedence_map Bot injs in
+        let b = (Bot, (p', [ closing_expr ])) in
+        let cs' = a :: b :: cs in
+        aux (cs' @ acc) xs
+    in
+    aux [] l
+  in
+  let bot = Source_injection.Bot in
   let in_stmt_injs =
-    give_precedence_map 0 executable_spec.in_stmt
-    @ give_precedence_map 1 accesses_stmt_injs
-    @ give_precedence_map 0 toplevel_injections
-    @ give_precedence_map 0 tag_def_injs
-    @ give_precedence_map 0 fn_call_ghost_args_injs
+    give_precedence_map bot executable_spec.in_stmt
+    @ give_parenthesis_aware_precedence_map accesses_stmt_injs
+    @ give_precedence_map bot toplevel_injections
+    @ give_precedence_map bot tag_def_injs
+    @ give_parenthesis_aware_precedence_map fn_call_ghost_args_injs
   in
   let pre_post_pairs =
     if with_testing || without_ownership_checking then
