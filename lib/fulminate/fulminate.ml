@@ -348,8 +348,8 @@ let main
       prog5
   =
   let out_filename = get_filename_with_prefix output_dir out_filename in
-  (* gen_compile_commands_json cc output_dir out_filename; *)
   (* disabled until fixed *)
+  (* _gen_compile_commands_json cc output_dir out_filename; *)
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation cabs_tunit prog5
   in
