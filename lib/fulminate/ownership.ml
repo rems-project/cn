@@ -402,16 +402,6 @@ let get_c_block_entry_exit_injs_aux bindings s =
       (match List.last ss with
        | Some A.{ loc = loc'; desug_info = _; attrs = _; node = _ } ->
          let injs = concat_block_local_injs (List.map (aux_stmt bs) ss) in
-         let gcc_cn_ret_sym =
-           Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
-         in
-         let gcc_cn_ret_str =
-           Pp.plain CF.Pp_ail.(with_executable_spec pp_genTypeCategory gtc)
-           ^ " "
-           ^ Sym.pp_string gcc_cn_ret_sym
-           ^ " = "
-         in
-         let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
          let exit_injs =
            ret_standard_injs
              (List.map
@@ -421,14 +411,32 @@ let get_c_block_entry_exit_injs_aux bindings s =
                      [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
                 bs)
          in
-         let ret_inj_2 =
-           ret_standard_injs
-             [ ( get_end_loc ~offset:(-2) loc,
-                 [],
-                 [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
-             ]
+         let ret_injs =
+           match gtc with
+           | CF.GenTypes.GenLValueType (_, C.Ctype (_, C.Void), _) | GenRValueType GenVoid
+             ->
+             empty_block_local_injs
+           | _ ->
+             let gcc_cn_ret_sym =
+               Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
+             in
+             let gcc_cn_ret_str =
+               Pp.plain CF.Pp_ail.(with_executable_spec pp_genTypeCategory gtc)
+               ^ " "
+               ^ Sym.pp_string gcc_cn_ret_sym
+               ^ " = "
+             in
+             let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
+             let ret_inj_2 =
+               ret_standard_injs
+                 [ ( get_end_loc ~offset:(-2) loc,
+                     [],
+                     [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
+                 ]
+             in
+             concat_block_local_injs [ ret_inj_1; ret_inj_2 ]
          in
-         concat_block_local_injs [ ret_inj_1; injs; exit_injs; ret_inj_2 ]
+         concat_block_local_injs [ injs; exit_injs; ret_injs ]
        | None -> empty_block_local_injs)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
