@@ -420,8 +420,26 @@ let get_c_block_entry_exit_injs_aux bindings s =
              let gcc_cn_ret_sym =
                Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
              in
+             let qs, ctype =
+               (* Based on CF.Translation_aux.qualified_ctype_of *)
+               match
+                 CF.ErrorMonad.runErrorMonad
+                   (CF.GenTypesAux.interpret_genTypeCategory
+                      Cerb_location.unknown
+                      (CF.Implementation.integerImpl ())
+                      gtc)
+               with
+               | Right (CF.GenTypes.LValueType (qs, ty, _)) -> (qs, ty)
+               | Right (CF.GenTypes.RValueType ty) -> (CF.Ctype.no_qualifiers, ty)
+               | Left
+                   ( _,
+                     CF.TypingError.TError_MiscError
+                       (CF.TypingError.UntypableIntegerConstant _) ) ->
+                 failwith "untypeable integer constant"
+               | _ -> failwith "impossible case"
+             in
              let gcc_cn_ret_str =
-               Pp.plain CF.Pp_ail.(with_executable_spec pp_genTypeCategory gtc)
+               Pp.plain CF.Pp_ail.(with_executable_spec (pp_ctype qs) ctype)
                ^ " "
                ^ Sym.pp_string gcc_cn_ret_sym
                ^ " = "
