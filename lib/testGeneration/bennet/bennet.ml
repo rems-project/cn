@@ -80,7 +80,7 @@ let synthesize
   =
   let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
   let module Stage1 = Stage1.Make (AD) in
-  let ctx = Stage1.transform filename prog5 tests in
+  let ctx = Stage1.transform filename sigma prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);
   let module Stage2 = Stage2.Make (AD) in
   let ctx = Stage2.transform prog5 ctx in
@@ -99,4 +99,4 @@ let synthesize
     let ctx = Stage5.transform ctx in
     debug_stage "Stage 5" (ctx |> Stage5.Ctx.pp |> Pp.plain ~width:80);
     let module Stage6 = Stage6.Make (AD) in
-    Stage6.transform sigma ctx
+    Stage6.transform sigma prog5 ctx

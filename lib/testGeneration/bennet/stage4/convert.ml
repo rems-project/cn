@@ -110,6 +110,7 @@ module Make (AD : Domain.T) = struct
            name : Sym.Set.elt;
            iargs : (Sym.Set.elt * BT.t) list;
            oarg : BT.t;
+           c_types;
            body : Stage3.Term.t
          } :
           Stage3.Def.t)
@@ -127,6 +128,7 @@ module Make (AD : Domain.T) = struct
       name;
       iargs;
       oarg;
+      c_types;
       body = transform_gt recursive_syms body
     }
 

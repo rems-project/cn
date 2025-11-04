@@ -1,7 +1,6 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
-module BT = BaseTypes
-module CtA = Fulminate.Cn_to_ail
+module C = CF.Ctype
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
@@ -22,28 +21,77 @@ module Make (AD : Domain.T) = struct
     : Pp.document
     =
     let open Pp in
-    let typedef_docs =
-      let defs =
-        List.map
-          (fun ((_, gr) : _ * Def.t) ->
-             (Sym.fresh ("cn_test_generator_" ^ Sym.pp_string gr.name), gr))
-          ctx
-      in
-      defs
-      |> List.map (fun ((name, def) : Sym.t * Def.t) ->
-        let loc = Locations.other __LOC__ in
-        let inputs_outputs =
-          match def.oarg with BT.Unit -> def.iargs | _ -> def.iargs
-        in
-        let bt =
-          BT.Record
-            (List.map (fun (x, bt) -> (Id.make loc (Sym.pp_string x), bt)) inputs_outputs)
-        in
-        let new_tag = Option.get (CtA.generate_record_tag name bt) in
-        let typedef_doc tag =
-          !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
-        in
-        typedef_doc (CtA.lookup_records_map_with_default bt))
+    let struct_defs =
+      ctx
+      |> List.filter_map (fun ((_, def) : Sym.t * Def.t) ->
+        (* Generate struct definitions for spec functions only *)
+        if not def.spec then
+          None
+        else (
+          let struct_name = "cn_test_generator_" ^ Sym.pp_string def.name ^ "_record" in
+          (* Get parameter C types from def *)
+          let c_types = Option.get def.c_types in
+          let param_name_strings =
+            c_types |> List.map (fun (param_name, _) -> Sym.pp_string param_name)
+          in
+          let param_field_docs =
+            c_types
+            |> List.map (fun (param_name, ctype) ->
+              let field_ty_doc =
+                CF.Pp_ail.(
+                  with_executable_spec (pp_ctype ~is_human:false C.no_qualifiers) ctype)
+              in
+              field_ty_doc ^^^ Sym.pp param_name ^^ semi)
+          in
+          let global_field_docs =
+            def.iargs
+            |> List.filter_map (fun (sym, _bt) ->
+              let sym_str = Sym.pp_string sym in
+              (* Skip if this is a parameter *)
+              if List.exists (String.equal sym_str) param_name_strings then
+                None
+              else (
+                (* Look up in globals using string comparison *)
+                  match
+                    prog5.globs
+                    |> List.find_opt (fun (global_sym, _) ->
+                      String.equal (Sym.pp_string global_sym) sym_str)
+                  with
+                  | Some (_, Mucore.GlobalDecl sct) | Some (_, Mucore.GlobalDef (sct, _))
+                    ->
+                    (* Globals are stored as pointers in the struct *)
+                    let ctype =
+                      C.mk_ctype_pointer C.no_qualifiers (Sctypes.to_ctype sct)
+                    in
+                    let field_ty_doc =
+                      CF.Pp_ail.(
+                        with_executable_spec
+                          (pp_ctype ~is_human:false C.no_qualifiers)
+                          ctype)
+                    in
+                    Some (field_ty_doc ^^^ Sym.pp sym ^^ semi)
+                  | None ->
+                    failwith
+                      (Printf.sprintf
+                         "Could not find C type for global %s in function %s"
+                         sym_str
+                         (Sym.pp_string def.name))))
+          in
+          let field_docs = param_field_docs @ global_field_docs in
+          (* Skip if we couldn't find the function declaration *)
+          if List.length field_docs = 0 then
+            None
+          else
+            Some
+              (!^"struct"
+               ^^^ !^struct_name
+               ^^^ braces (nest 2 (hardline ^^ separate hardline field_docs) ^^ hardline)
+               ^^ semi
+               ^^ hardline
+               ^^ !^"typedef struct"
+               ^^^ !^struct_name
+               ^^^ !^struct_name
+               ^^ semi)))
     in
     let record_defs = Records.generate_all_record_strs () in
     (* Generate forward declarations for all functions *)
@@ -86,9 +134,9 @@ module Make (AD : Domain.T) = struct
     ^^ hardline
     ^^ !^record_defs
     ^^ hardline
-    ^^ !^"/* TYPEDEFS */"
+    ^^ !^"/* STRUCT DEFINITIONS */"
     ^^ hardline
-    ^^ separate hardline typedef_docs
+    ^^ separate hardline struct_defs
     ^^ hardline
     ^^ !^"/* FORWARD DECLARATIONS */"
     ^^ hardline
