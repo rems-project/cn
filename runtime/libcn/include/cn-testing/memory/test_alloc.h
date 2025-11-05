@@ -50,6 +50,11 @@ void* cn_test_aligned_alloc(size_t alignment, size_t size);
 void cn_test_free(void* ptr);
 
 /**
+ * Free all tracked allocations using the configured test allocator.
+ */
+void cn_test_free_all(void);
+
+/**
  * Configure the test allocator with custom function pointers.
  *
  * @param data Context data to pass to the allocator functions.
@@ -58,13 +63,15 @@ void cn_test_free(void* ptr);
  * @param realloc_fn Function pointer for realloc.
  * @param aligned_alloc_fn Function pointer for aligned_alloc.
  * @param free_fn Function pointer for free.
+ * @param free_all_fn Function pointer for free_all.
  */
 void cn_test_set_alloc(void* data,
     void* (*malloc_fn)(void* data, size_t size),
     void* (*calloc_fn)(void* data, size_t count, size_t size),
     void* (*realloc_fn)(void* data, void* ptr, size_t size),
     void* (*aligned_alloc_fn)(void* data, size_t alignment, size_t size),
-    void (*free_fn)(void* data, void* ptr));
+    void (*free_fn)(void* data, void* ptr),
+    void (*free_all_fn)(void* data));
 
 #ifdef __cplusplus
 }

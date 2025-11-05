@@ -71,6 +71,9 @@
   (cn-testing/memory/test_alloc.h
    as
    runtime/include/cn-testing/memory/test_alloc.h)
+  (cn-testing/memory/std_alloc.h
+   as
+   runtime/include/cn-testing/memory/std_alloc.h)
   ; CN SMT
   (cn-smt/branch_history.h as runtime/include/cn-smt/branch_history.h)
   (cn-smt/concretize.h as runtime/include/cn-smt/concretize.h)

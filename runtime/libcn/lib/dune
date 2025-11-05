@@ -92,7 +92,8 @@
     %{target}
     cn-testing/test.o
     cn-testing/arena.o
-    cn-testing/test_alloc.o))))
+    cn-testing/test_alloc.o
+    cn-testing/std_alloc.o))))
 
 (rule
  (target libcn_replica.a)
