@@ -762,5 +762,5 @@ let get_c_fn_local_ownership_checking_injs
     in
     let single_stat_curly_brace_injs = gen_single_stat_control_flow_injs fn_body in
     ( Some ownership_stats_pair,
-      (block_standard_injs, block_gcc_injs @ single_stat_curly_brace_injs) )
-  | _, _ -> (None, ([], []))
+      (block_standard_injs, block_gcc_injs, single_stat_curly_brace_injs) )
+  | _, _ -> (None, ([], [], []))

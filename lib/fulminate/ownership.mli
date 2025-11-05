@@ -52,4 +52,6 @@ val get_c_fn_local_ownership_checking_injs
    * GenTypes.genTypeCategory AilSyntax.statement_ list)
   * ('b list * GenTypes.genTypeCategory AilSyntax.statement_ list))
     option
-  * (ownership_injection list * (Cerb_location.t * string list) list)
+  * (ownership_injection list
+    * (Cerb_location.t * string list) list
+    * (Cerb_location.t * string list) list)

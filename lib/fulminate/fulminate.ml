@@ -1,5 +1,4 @@
 module CF = Cerb_frontend
-module A = CF.AilSyntax
 module Cn_to_ail = Cn_to_ail
 module Extract = Extract
 module Globals = Globals
