@@ -86,7 +86,13 @@
    (chdir
     cn-testing
     (run ../compile.sh %{src}))
-   (run ar -rcs %{target} cn-testing/test.o cn-testing/arena.o))))
+   (run
+    ar
+    -rcs
+    %{target}
+    cn-testing/test.o
+    cn-testing/arena.o
+    cn-testing/test_alloc.o))))
 
 (rule
  (target libcn_replica.a)
