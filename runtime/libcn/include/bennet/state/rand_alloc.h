@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 #include <bennet/internals/domain.h>
+#include <cn-executable/error.h>
 
 // Opaque struct for the allocator
 struct rand_alloc;

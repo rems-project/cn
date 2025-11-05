@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 #include <bennet/state/alloc.h>
-#include <cn-executable/utils.h>
 
 #define bennet_assign(pointer_ty, id, base_ptr, addr, value, bytes, vars)                \
   (bennet_assign_##pointer_ty(id, base_ptr, addr, value, bytes, vars))

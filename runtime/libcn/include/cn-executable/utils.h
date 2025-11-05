@@ -7,15 +7,8 @@
 #include "hash_table.h"
 #include "rts_deps.h"
 #include "stack.h"
+#include "error.h"
 
-#define cn_printf(level, ...)                                                            \
-  if (get_cn_logging_level() >= level) {                                                 \
-    printf(__VA_ARGS__);                                                                 \
-  }
-
-// XXX: things used by injected code
-#define true  1
-#define false 0
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,62 +23,7 @@ enum spec_mode {
   NON_SPEC = 6
 };
 
-/* Error handlers */
 void reset_fulminate(void);
-
-enum cn_logging_level {
-  CN_LOGGING_NONE = 0,
-  CN_LOGGING_ERROR = 1,
-  CN_LOGGING_INFO = 2
-};
-
-enum cn_logging_level get_cn_logging_level(void);
-
-/** Sets the logging level, returning the previous one */
-enum cn_logging_level set_cn_logging_level(enum cn_logging_level new_level);
-
-enum cn_trace_granularity {
-  CN_TRACE_NONE = 0,
-  CN_TRACE_ENDS = 1,
-  CN_TRACE_ALL = 2,
-};
-
-enum cn_trace_granularity get_cn_trace_granularity(void);
-
-/** Sets the trace granularity, returning the previous one */
-enum cn_trace_granularity set_cn_trace_granularity(
-    enum cn_trace_granularity new_granularity);
-
-void cn_print_nr_owned_predicates(void);
-
-struct cn_error_message_info {
-  const char* function_name;
-  char* file_name;
-  int line_number;
-  char* cn_source_loc;
-  struct cn_error_message_info* parent;
-  struct cn_error_message_info* child;
-};
-
-void initialise_error_msg_info_(
-    const char* function_name, char* file_name, int line_number);
-
-#define initialise_error_msg_info()                                                      \
-  initialise_error_msg_info_(__func__, __FILE__, __LINE__)
-
-void reset_error_msg_info();
-void free_error_msg_info();
-
-void update_error_message_info_(
-    const char* function_name, char* file_name, int line_number, char* cn_source_loc);
-
-void cn_pop_msg_info();
-
-#define update_cn_error_message_info(x)                                                  \
-  update_error_message_info_(__func__, __FILE__, __LINE__ + 1, x)
-
-#define update_cn_error_message_info_access_check(x)                                     \
-  update_error_message_info_(__func__, __FILE__, __LINE__, x)
 
 /* Wrappers for C types */
 
@@ -134,7 +72,7 @@ typedef struct cn_pointer {
 } cn_pointer;
 
 typedef struct cn_bool {
-  bool val;
+  _Bool val;
 } cn_bool;
 
 typedef struct cn_alloc_id {
@@ -146,8 +84,8 @@ typedef hash_table cn_map;
 void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
-void initialise_exec_c_locs_mode(bool flag);
-void initialise_ownership_stack_mode(bool flag);
+void initialise_exec_c_locs_mode(_Bool flag);
+void initialise_ownership_stack_mode(_Bool flag);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
 void ghost_stack_depth_decr(void);
@@ -169,7 +107,7 @@ void cn_free_sized(void*, size_t len);
 void cn_print_nr_u64(int i, unsigned long u);
 void cn_print_u64(const char* str, unsigned long u);
 void dump_ownership_ghost_state(int stack_depth);
-bool is_mapped(void* ptr);
+_Bool is_mapped(void* ptr);
 
 /* cn_failure callbacks */
 enum cn_failure_mode {
@@ -187,8 +125,8 @@ void cn_failure(enum cn_failure_mode failure_mode, enum spec_mode spec_mode);
 
 /* Conversion functions */
 
-cn_bool* convert_to_cn_bool(bool b);
-bool convert_from_cn_bool(cn_bool* b);
+cn_bool* convert_to_cn_bool(_Bool b);
+_Bool convert_from_cn_bool(cn_bool* b);
 void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
 cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2);
 cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2);

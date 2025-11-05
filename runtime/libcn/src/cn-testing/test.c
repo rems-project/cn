@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include <bennet/prelude.h>
-#include <cn-executable/utils.h>
+
 #include <cn-testing/result.h>
 #include <cn-testing/test.h>
 #include <cn-replicate/shape.h>
