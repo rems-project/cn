@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/subst.h>
@@ -49,7 +50,7 @@ char* fn_name(cn_sym x) {
 
   // Calculate required buffer size: base_name + "_" + num + null terminator
   size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
@@ -63,7 +64,7 @@ char* fn_def_name(cn_sym x) {
 
   // Append _func suffix
   size_t len = strlen(base_name) + 6;  // +5 for "_func" +1 for null
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_func", base_name);
@@ -77,7 +78,7 @@ const char* named_expr_name(void) {
 char* cn_smt_struct_name(const char* name) {
   // Calculate required buffer size: base_name + "_struct" + null terminator
   size_t len = strlen(name) + snprintf(NULL, 0, "_struct") + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_struct", name);
@@ -87,7 +88,7 @@ char* cn_smt_struct_name(const char* name) {
 char* struct_con_name(const char* name) {
   // Calculate required buffer size: name + "_struct_con" + null terminator
   size_t len = strlen(name) + snprintf(NULL, 0, "_struct_con") + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_struct_con", name);
@@ -97,7 +98,7 @@ char* struct_con_name(const char* name) {
 char* struct_field_name(const char* member_name) {
   // Calculate required buffer size: member_name + "_struct_fld" + null terminator
   size_t len = strlen(member_name) + strlen("_struct_fld") + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_struct_fld", member_name);
@@ -110,7 +111,7 @@ char* datatype_name(cn_sym x) {
 
   // Calculate required buffer size: base_name + "_" + num + null terminator
   size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
@@ -123,7 +124,7 @@ char* datatype_con_name(cn_sym x) {
 
   // Calculate required buffer size: base_name + "_" + num + null terminator
   size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_%" PRIu64, base_name, num);
@@ -135,7 +136,7 @@ char* datatype_field_name(int x) {
 
   // Calculate required buffer size: base_name + "_data_fld" + null terminator
   size_t len = strlen(base_name) + strlen("_data_fld") + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_data_fld", base_name);
@@ -149,7 +150,7 @@ static int fresh_counter = 0;
 char* fresh_name(const char* x) {
   // Calculate required buffer size: x + "_" + fresh_counter + null terminator
   size_t len = strlen(x) + 1 + snprintf(NULL, 0, "%d", fresh_counter) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_%d", x, fresh_counter);
@@ -168,7 +169,7 @@ static char* cn_tuple_name(int arity) {
 
   // Calculate required buffer size: "cn_tuple_" + arity + null terminator
   size_t len = strlen("cn_tuple_") + snprintf(NULL, 0, "%d", arity) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "cn_tuple_%d", arity);
@@ -181,7 +182,7 @@ static char* cn_tuple_selector(int arity, int field) {
   // Calculate required buffer size: "cn_get_" + field + "_of_" + arity + null terminator
   size_t len = strlen("cn_get_") + snprintf(NULL, 0, "%d", field) + strlen("_of_") +
                snprintf(NULL, 0, "%d", arity) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "cn_get_%d_of_%d", field, arity);
@@ -193,7 +194,7 @@ sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count) {
   int arity = (int)type_count;
   char* name = cn_tuple_name(arity);
   sexp_t* result = sexp_app_str(name, types, type_count);
-  free(name);
+  cn_test_free(name);
   return result;
 }
 
@@ -243,14 +244,14 @@ sexp_t* cn_option_some(sexp_t* x) {
 sexp_t* cn_option_is_some(sexp_t* x) {
   // Generate "is-cn_some" predicate name
   size_t len = strlen("is-") + strlen(cn_option_some_name) + 1;
-  char* predicate_name = malloc(len);
+  char* predicate_name = cn_test_malloc(len);
   assert(predicate_name);
   sprintf(predicate_name, "is-%s", cn_option_some_name);
 
   sexp_t* args[] = {x};
   sexp_t* result = sexp_app_str(predicate_name, args, 1);
 
-  free(predicate_name);
+  cn_test_free(predicate_name);
   return result;
 }
 
@@ -345,7 +346,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
     case CN_BASE_TUPLE: {
       // Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
 
-      sexp_t** translated_types = malloc(bt.data.tuple.count * sizeof(sexp_t*));
+      sexp_t** translated_types = cn_test_malloc(bt.data.tuple.count * sizeof(sexp_t*));
       if (!translated_types) {
         return NULL;
       }
@@ -356,7 +357,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
           // Clean up on failure
           for (size_t j = 0; j < i; j++) {
           }
-          free(translated_types);
+          cn_test_free(translated_types);
           return NULL;
         }
       }
@@ -366,7 +367,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
       // Clean up
       for (size_t i = 0; i < bt.data.tuple.count; i++) {
       }
-      free(translated_types);
+      cn_test_free(translated_types);
       return result;
     }
 
@@ -377,7 +378,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
       assert(struct_name_str);
 
       sexp_t* result = sexp_atom(struct_name_str);
-      free(struct_name_str);
+      cn_test_free(struct_name_str);
       return result;
     }
 
@@ -388,12 +389,12 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
       // Create datatype SMT name: tag_name + "_dt"
       size_t len = strlen(tag_name) + 4;  // "_dt" + null terminator
-      char* datatype_name_str = malloc(len);
+      char* datatype_name_str = cn_test_malloc(len);
       assert(datatype_name_str);
       snprintf(datatype_name_str, len, "%s_dt", tag_name);
 
       sexp_t* result = sexp_atom(datatype_name_str);
-      free(datatype_name_str);
+      cn_test_free(datatype_name_str);
       return result;
     }
 
@@ -474,7 +475,7 @@ sexp_t* translate_const(void* s, cn_const* co) {
       sexp_t* result = sexp_as_type(constructor_atom, tuple_type);
 
       // Cleanup
-      free(tuple_name);
+      cn_test_free(tuple_name);
 
       return result;
     }
@@ -749,7 +750,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     case CN_TERM_SYM: {
       char* name = fn_name(iterm->data.sym);
       sexp_t* result = sexp_atom(name);
-      free(name);
+      cn_test_free(name);
       return result;
     }
 
@@ -860,7 +861,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               sexp_t* bindings[] = {
                   sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
-              free(x);
+              cn_test_free(x);
               operand_smt = result;
             }
 
@@ -886,7 +887,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               sexp_t* bindings[] = {
                   sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
-              free(x);
+              cn_test_free(x);
               operand_smt = result;
             }
 
@@ -1310,7 +1311,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Allocate array for translated member arguments
       sexp_t** args = NULL;
       if (arg_count > 0) {
-        args = malloc(sizeof(sexp_t*) * arg_count);
+        args = cn_test_malloc(sizeof(sexp_t*) * arg_count);
 
         // Translate each member term
         for (size_t i = 0; i < arg_count; i++) {
@@ -1325,9 +1326,9 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, arg_count);
 
       // Cleanup
-      free(con_name);
+      cn_test_free(con_name);
       if (args) {
-        free(args);
+        cn_test_free(args);
       }
 
       return result;
@@ -1344,7 +1345,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* args[] = {struct_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      free(fn_name);
+      cn_test_free(fn_name);
       return result;
     }
 
@@ -1354,7 +1355,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* value_smt = translate_term(s, iterm->data.struct_update.new_value);
       const char* member = iterm->data.struct_update.member_name;
 
-      char* fn_name = malloc(strlen(member) + 20);
+      char* fn_name = cn_test_malloc(strlen(member) + 20);
       assert(fn_name);
       sprintf(fn_name, "set_%s", member);
 
@@ -1362,7 +1363,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* args[] = {struct_smt, value_smt};
       sexp_t* result = sexp_app(fn_atom, args, 2);
 
-      free(fn_name);
+      cn_test_free(fn_name);
       return result;
     }
 
@@ -1377,7 +1378,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Allocate array for translated member arguments in type order
       sexp_t** args = NULL;
       if (member_count > 0) {
-        args = malloc(sizeof(sexp_t*) * member_count);
+        args = cn_test_malloc(sizeof(sexp_t*) * member_count);
         assert(args);
 
         // For each member in the base type (in canonical order), find its value
@@ -1401,7 +1402,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Compute element types for type annotation
       sexp_t** element_types = NULL;
       if (member_count > 0) {
-        element_types = malloc(sizeof(sexp_t*) * member_count);
+        element_types = cn_test_malloc(sizeof(sexp_t*) * member_count);
         assert(element_types);
 
         for (size_t i = 0; i < member_count; i++) {
@@ -1423,14 +1424,14 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(typed_constructor, args, member_count);
 
       // Cleanup
-      free(tuple_con_name);
+      cn_test_free(tuple_con_name);
       if (element_types) {
         for (size_t i = 0; i < member_count; i++) {
         }
-        free(element_types);
+        cn_test_free(element_types);
       }
       if (args) {
-        free(args);
+        cn_test_free(args);
       }
 
       return result;
@@ -1465,7 +1466,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* args[] = {record_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      free(selector_name);
+      cn_test_free(selector_name);
       return result;
     }
 
@@ -1475,7 +1476,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Add _con suffix to constructor name
       size_t ctor_len = strlen(ctor);
-      char* ctor_smt = malloc(ctor_len + 5);  // +4 for "_con" +1 for null
+      char* ctor_smt = cn_test_malloc(ctor_len + 5);  // +4 for "_con" +1 for null
       assert(ctor_smt);
       sprintf(ctor_smt, "%s_con", ctor);
 
@@ -1487,12 +1488,12 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         // Nullary constructor
         sexp_t* fn_atom = sexp_atom(ctor_smt);
         sexp_t* result = sexp_app(fn_atom, NULL, 0);
-        free(ctor_smt);
+        cn_test_free(ctor_smt);
         return result;
       }
 
       // Translate arguments in the order they are provided
-      sexp_t** arg_sexps = malloc(sizeof(sexp_t*) * arg_count);
+      sexp_t** arg_sexps = cn_test_malloc(sizeof(sexp_t*) * arg_count);
       assert(arg_sexps);
       for (size_t i = 0; i < arg_count; i++) {
         cn_member_pair* pair = bennet_vector_get(cn_member_pair)(args_vec, i);
@@ -1507,8 +1508,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Cleanup
       for (size_t i = 0; i < arg_count; i++) {
       }
-      free(arg_sexps);
-      free(ctor_smt);
+      cn_test_free(arg_sexps);
+      cn_test_free(ctor_smt);
 
       return result;
     }
@@ -1540,12 +1541,12 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Append _func suffix to get SMT name
       size_t len = strlen(fn_name) + 6;  // +5 for "_func" +1 for null
-      char* smt_fn_name = malloc(len);
+      char* smt_fn_name = cn_test_malloc(len);
       assert(smt_fn_name);
       sprintf(smt_fn_name, "%s_func", fn_name);
 
       sexp_t* fn_atom = sexp_atom(smt_fn_name);
-      free(smt_fn_name);
+      cn_test_free(smt_fn_name);
 
       // Get argument count from vector
       bennet_vector(cn_term_ptr)* args_vec = &iterm->data.apply.args;
@@ -1554,7 +1555,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Allocate array for translated arguments
       sexp_t** args = NULL;
       if (arg_count > 0) {
-        args = malloc(sizeof(sexp_t*) * arg_count);
+        args = cn_test_malloc(sizeof(sexp_t*) * arg_count);
         assert(args);
 
         // Translate each argument term
@@ -1569,7 +1570,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Cleanup
       if (args) {
-        free(args);
+        cn_test_free(args);
       }
 
       return result;
@@ -1615,11 +1616,11 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       }
 
       // Allocate alternatives array
-      match_alt_t* alternatives = malloc(sizeof(match_alt_t) * case_count);
+      match_alt_t* alternatives = cn_test_malloc(sizeof(match_alt_t) * case_count);
       assert(alternatives);
 
       // Track allocated strings for cleanup
-      char*** var_names_arrays = malloc(sizeof(char**) * case_count);
+      char*** var_names_arrays = cn_test_malloc(sizeof(char**) * case_count);
       assert(var_names_arrays);
 
       // Build each alternative
@@ -1639,7 +1640,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
             alternatives[i].pattern.data.var_name = var_name;
 
             // Track for cleanup (1 variable)
-            var_names_arrays[i] = malloc(sizeof(char*));
+            var_names_arrays[i] = cn_test_malloc(sizeof(char*));
             var_names_arrays[i][0] = var_name;
           } else {
             // Wildcard pattern
@@ -1652,7 +1653,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
           // Add _con suffix to match datatype constructor naming convention
           size_t tag_len = strlen(match_case->constructor_tag);
-          char* con_name = malloc(tag_len + 5);  // "_con" + null terminator
+          char* con_name = cn_test_malloc(tag_len + 5);  // "_con" + null terminator
           assert(con_name);
           sprintf(con_name, "%s_con", match_case->constructor_tag);
           alternatives[i].pattern.data.con.con_name = con_name;
@@ -1662,7 +1663,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // Convert pattern variables to name strings
           if (match_case->pattern_var_count > 0) {
             const char** var_names =
-                malloc(sizeof(const char*) * match_case->pattern_var_count);
+                cn_test_malloc(sizeof(const char*) * match_case->pattern_var_count);
             assert(var_names);
 
             for (size_t j = 0; j < match_case->pattern_var_count; j++) {
@@ -1702,26 +1703,26 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
           if (alternatives[i].pattern.type == PAT_VAR) {
             // Free single variable name (not wildcard)
-            free(var_names_arrays[i][0]);
-            free(var_names_arrays[i]);
+            cn_test_free(var_names_arrays[i][0]);
+            cn_test_free(var_names_arrays[i]);
           } else {
             // PAT_CON - free constructor variable names and constructor name
             for (size_t j = 0; j < match_case->pattern_var_count; j++) {
               // Only free if it was allocated (not wildcard "_")
               if (match_case->pattern_vars[j].name != NULL) {
-                free((char*)alternatives[i].pattern.data.con.var_names[j]);
+                cn_test_free((char*)alternatives[i].pattern.data.con.var_names[j]);
               }
             }
-            free((char**)alternatives[i].pattern.data.con.var_names);
+            cn_test_free((char**)alternatives[i].pattern.data.con.var_names);
 
             // Free the allocated constructor name (with _con suffix)
-            free((char*)alternatives[i].pattern.data.con.con_name);
+            cn_test_free((char*)alternatives[i].pattern.data.con.con_name);
           }
         }
       }
 
-      free(var_names_arrays);
-      free(alternatives);
+      cn_test_free(var_names_arrays);
+      cn_test_free(alternatives);
 
       return result;
     }
@@ -1763,7 +1764,7 @@ void cn_declare_fun(struct cn_smt_solver* s,
   // Translate argument base types
   sexp_t** args_ts = NULL;
   if (args_count > 0) {
-    args_ts = malloc(sizeof(sexp_t*) * args_count);
+    args_ts = cn_test_malloc(sizeof(sexp_t*) * args_count);
     assert(args_ts);
   }
 
@@ -1784,8 +1785,8 @@ void cn_declare_fun(struct cn_smt_solver* s,
   // Cleanup
   for (size_t i = 0; i < args_count; i++) {
   }
-  free(args_ts);
-  free(sname);
+  cn_test_free(args_ts);
+  cn_test_free(sname);
 }
 
 /* let define_fun s name arg_binders res_bt body =

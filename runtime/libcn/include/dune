@@ -67,13 +67,6 @@
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
-  (cn-testing/memory/arena.h as runtime/include/cn-testing/memory/arena.h)
-  (cn-testing/memory/test_alloc.h
-   as
-   runtime/include/cn-testing/memory/test_alloc.h)
-  (cn-testing/memory/std_alloc.h
-   as
-   runtime/include/cn-testing/memory/std_alloc.h)
   ; CN SMT
   (cn-smt/branch_history.h as runtime/include/cn-smt/branch_history.h)
   (cn-smt/concretize.h as runtime/include/cn-smt/concretize.h)
@@ -93,6 +86,9 @@
   (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
   (cn-smt/to_smt.h as runtime/include/cn-smt/to_smt.h)
   (cn-smt/trie.h as runtime/include/cn-smt/trie.h)
+  (cn-smt/memory/arena.h as runtime/include/cn-smt/memory/arena.h)
+  (cn-smt/memory/std_alloc.h as runtime/include/cn-smt/memory/std_alloc.h)
+  (cn-smt/memory/test_alloc.h as runtime/include/cn-smt/memory/test_alloc.h)
   ; Counterexample program synthesis prototype
   (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
   (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)

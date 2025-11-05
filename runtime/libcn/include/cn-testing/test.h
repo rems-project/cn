@@ -13,6 +13,8 @@
 #include <cn-testing/result.h>
 #include <cn-replicate/lines.h>
 #include <cn-replicate/shape.h>
+#include <cn-smt/memory/std_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 
 enum cn_test_gen_progress {
   CN_TEST_GEN_PROGRESS_NONE = 0,
@@ -310,9 +312,13 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
 int cn_test_main(int argc, char* argv[]);
 
 void bennet_reset(void);
+void cn_smt_reset(void);
 
 #define CN_TEST_INIT()                                                                   \
+  std_set_as_default();                                                                  \
+  cn_test_free_all();                                                                    \
   reset_fulminate();                                                                     \
-  bennet_reset();
+  bennet_reset();                                                                        \
+  cn_smt_reset();
 
 #endif  // CN_TEST_H

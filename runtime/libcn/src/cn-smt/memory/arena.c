@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <cn-testing/memory/arena.h>
-#include <cn-testing/memory/test_alloc.h>
+#include <cn-smt/memory/arena.h>
+#include <cn-smt/memory/test_alloc.h>
 
 /* Default block size: 8MB */
 #define CN_ARENA_DEFAULT_BLOCK_SIZE (8 * 1024 * 1024)

@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include <cn-testing/memory/test_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 
 /**
  * Internal allocator structure holding function pointers and context data.

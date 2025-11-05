@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 
 // Helper functions for parsing
@@ -23,7 +24,7 @@ static const char *parse_atom(const char *input, char **atom) {
   }
 
   size_t len = input - start;
-  *atom = malloc(len + 1);
+  *atom = cn_test_malloc(len + 1);
   assert(*atom);
 
   strncpy(*atom, start, len);
@@ -45,7 +46,7 @@ static const char *parse_list(const char *input, sexp_t **result) {
   while (*input && *input != ')') {
     if (count >= capacity) {
       capacity = capacity ? capacity * 2 : 4;
-      sexp_t **new_elements = realloc(elements, sizeof(sexp_t *) * capacity);
+      sexp_t **new_elements = cn_test_realloc(elements, sizeof(sexp_t *) * capacity);
       assert(new_elements);
 
       elements = new_elements;
@@ -53,7 +54,7 @@ static const char *parse_list(const char *input, sexp_t **result) {
 
     input = parse_sexp_impl(input, &elements[count]);
     if (!input) {
-      free(elements);
+      cn_test_free(elements);
       return NULL;
     }
     count++;
@@ -61,13 +62,13 @@ static const char *parse_list(const char *input, sexp_t **result) {
   }
 
   if (*input != ')') {
-    free(elements);
+    cn_test_free(elements);
     return NULL;
   }
   input++;  // skip ')'
 
   *result = sexp_list(elements, count);
-  free(elements);  // sexp_list copies the elements
+  cn_test_free(elements);  // sexp_list copies the elements
   return input;
 }
 
@@ -86,7 +87,7 @@ static const char *parse_sexp_impl(const char *input, sexp_t **result) {
       return NULL;
 
     *result = sexp_atom(atom);
-    free(atom);
+    cn_test_free(atom);
     return input;
   }
 }

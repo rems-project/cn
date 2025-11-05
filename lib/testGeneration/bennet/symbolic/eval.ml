@@ -350,9 +350,9 @@ module Make (AD : Domain.T) = struct
                           ^^ hardline
                           ^^
                           if param_count = 0 then
-                            !^"    return malloc(0);  // No members" ^^ hardline
+                            !^"    return cn_test_malloc(0);  // No members" ^^ hardline
                           else
-                            !^"    void** members = malloc(sizeof(void*) * "
+                            !^"    void** members = cn_test_malloc(sizeof(void*) * "
                             ^^ int param_count
                             ^^ !^");"
                             ^^ hardline
