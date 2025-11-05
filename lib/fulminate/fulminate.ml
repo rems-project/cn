@@ -1,5 +1,6 @@
 module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
+module A = CF.AilSyntax
 module Extract = Extract
 module Globals = Globals
 module Internal = Internal
@@ -240,6 +241,145 @@ let memory_accesses_injections ail_prog =
             :: !acc)
     xs;
   !acc
+
+
+(* Lifetime of compound literals can change if enclosed in a block via gen_single_stat_control_flow_injs, so need to check for any instances *)
+let contains_compound_literal s =
+  let rec aux_expr (A.AnnotatedExpression (_, _, _, e_)) =
+    match e_ with
+    | AilEcompound _ -> true
+    | AilEgcc_statement (_, ss) -> List.fold_left ( || ) false (List.map aux_stmt ss)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      false
+    | AilEsizeof_expr e
+    | AilErvalue e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      aux_expr e1 || aux_expr e2
+    | AilEcond (e1, Some e2, e3) -> aux_expr e1 || aux_expr e2 || aux_expr e3
+    | AilEcall (e, es) -> aux_expr e || List.fold_left ( || ) false (List.map aux_expr es)
+    | AilEgeneric (e, _, gas) ->
+      let bs =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      aux_expr e || List.fold_left ( || ) false bs
+    | AilEarray (_, _, xs) ->
+      let bs = List.map (function None -> false | Some e -> aux_expr e) xs in
+      List.fold_left ( || ) false bs
+    | AilEstruct (_, xs) ->
+      let bs = List.map (function _, None -> false | _, Some e -> aux_expr e) xs in
+      List.fold_left ( || ) false bs
+  and aux_stmt A.{ node = s_; _ } =
+    match s_ with
+    | A.(AilSdeclaration decls) ->
+      let bs =
+        List.map
+          (fun (_, e_opt) -> match e_opt with Some e -> aux_expr e | None -> false)
+          decls
+      in
+      List.fold_left ( || ) false bs
+    | AilSblock (_, ss) ->
+      let bs = List.map aux_stmt ss in
+      List.fold_left ( || ) false bs
+    | AilSif (e, s1, s2) -> aux_expr e || aux_stmt s1 || aux_stmt s2
+    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+      aux_expr e || aux_stmt s
+    | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _)
+      ->
+      aux_stmt s
+    | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ ->
+      false
+  in
+  aux_stmt s
+
+
+let gen_single_stat_control_flow_injs statement =
+  let gen_curly_braces_inj loc =
+    [ (Utils.get_start_loc loc, [ "{" ]); (Utils.get_end_loc loc, [ "}" ]) ]
+  in
+  let is_valid_single_stat s =
+    let is_single_stat A.{ node = s_; _ } =
+      match s_ with
+      | A.(AilSexpr _)
+      | AilSreturn _ | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
+        ->
+        true
+      | _ -> false
+    in
+    let b = is_single_stat s in
+    if b && contains_compound_literal s then
+      failwith
+        "Cannot enclose single statement with curly braces: compound literal found in \
+         statement"
+    else
+      b
+  in
+  let rec aux_stmt A.{ desug_info; node = s_; _ } =
+    let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
+    match s_ with
+    | AilSblock
+        ( _,
+          ([ A.{ node = AilSdeclaration _; _ }; A.{ node = A.AilSwhile (_, s, _); _ } ] as
+           ss) ) ->
+      if is_forloop then
+        aux_stmt s
+      else
+        List.concat (List.map aux_stmt ss)
+    | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
+    | AilSif (_, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
+      let inj1 =
+        if is_valid_single_stat s1 then gen_curly_braces_inj loc1 else aux_stmt s1
+      in
+      let inj2 =
+        if is_valid_single_stat s2 then gen_curly_braces_inj loc2 else aux_stmt s2
+      in
+      inj1 @ inj2
+    | AilSwhile (_, (A.{ loc; _ } as s), _)
+    | AilSdo ((A.{ loc; _ } as s), _, _)
+    | AilSswitch (_, (A.{ loc; _ } as s))
+    | AilScase (_, (A.{ loc; _ } as s))
+    | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
+    | AilSlabel (_, (A.{ loc; _ } as s), _) ->
+      if is_valid_single_stat s then gen_curly_braces_inj loc else aux_stmt s
+    | AilSdefault _ -> []
+    | AilSreturn _ | AilSexpr _ | AilSreg_store (_, _) -> []
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ | AilSdeclaration _ ->
+      []
+  in
+  aux_stmt statement
+
+
+let get_c_control_flow_extra_curly_braces
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+  =
+  sigm.function_definitions
+  |> List.map (fun (_, (_, _, _, _, fn_body)) ->
+    gen_single_stat_control_flow_injs fn_body)
+  |> List.concat
 
 
 let filter_selected_fns
@@ -513,9 +653,13 @@ let main
     in
     aux [] l
   in
+  let control_flow_curly_brace_injs =
+    get_c_control_flow_extra_curly_braces filtered_sigm
+  in
   let bot = Source_injection.Bot in
   let in_stmt_injs =
-    give_precedence_map bot executable_spec.in_stmt
+    give_precedence_map bot control_flow_curly_brace_injs
+    @ give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
     @ give_precedence_map bot toplevel_injections
     @ give_precedence_map bot tag_def_injs

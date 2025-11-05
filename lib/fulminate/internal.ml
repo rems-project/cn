@@ -45,7 +45,7 @@ type stack_local_var_inj_info =
   }
 
 let generate_stack_local_var_inj_strs fn_sym (sigm : _ CF.AilSyntax.sigma) =
-  let fn_ownership_stats_opt, (block_ownership_injs, gcc_injs, single_stat_injs) =
+  let fn_ownership_stats_opt, (block_ownership_injs, gcc_injs) =
     OE.get_c_fn_local_ownership_checking_injs fn_sym sigm
   in
   let (entry_ownership_str, exit_ownership_str), block_ownership_injs =
@@ -83,12 +83,11 @@ let generate_stack_local_var_inj_strs fn_sym (sigm : _ CF.AilSyntax.sigma) =
   let return_ownership_stmts, block_ownership_stmts =
     get_return_and_non_return_injs [] [] block_ownership_injs
   in
-  ( { entry_ownership_str;
-      exit_ownership_str;
-      block_ownership_stmts = block_ownership_stmts @ gcc_injs;
-      return_ownership_stmts
-    },
-    single_stat_injs )
+  { entry_ownership_str;
+    exit_ownership_str;
+    block_ownership_stmts = block_ownership_stmts @ gcc_injs;
+    return_ownership_stmts
+  }
 
 
 let generate_c_loop_invariants
@@ -234,7 +233,7 @@ let generate_c_specs_internal
   =
   let contains_user_spec = Cn_to_ail.has_cn_spec instrumentation in
   (* C stack-local variable ownership checking: needed regardless of whether user has provided CN spec *)
-  let (stack_local_var_inj_info : stack_local_var_inj_info), single_stat_curly_brace_injs =
+  let stack_local_var_inj_info : stack_local_var_inj_info =
     generate_stack_local_var_inj_strs instrumentation.fn sigm
   in
   let cn_spec_inj_info =
@@ -269,8 +268,7 @@ let generate_c_specs_internal
   ( [ ( instrumentation.fn,
         (cn_spec_inj_info.pre_str @ entry_strs, exit_strs @ cn_spec_inj_info.post_str) )
     ],
-    single_stat_curly_brace_injs
-    @ cn_spec_inj_info.in_stmt_and_loop_inv_injs
+    cn_spec_inj_info.in_stmt_and_loop_inv_injs
     @ stack_local_var_inj_info.block_ownership_stmts,
     stack_local_var_inj_info.return_ownership_stmts )
 
