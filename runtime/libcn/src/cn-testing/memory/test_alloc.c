@@ -47,3 +47,17 @@ void cn_test_free(void* ptr) {
   assert(cn_test_allocator.free != NULL);
   cn_test_allocator.free(cn_test_allocator.data, ptr);
 }
+
+void cn_test_set_alloc(void* data,
+    void* (*malloc_fn)(void* data, size_t size),
+    void* (*calloc_fn)(void* data, size_t count, size_t size),
+    void* (*realloc_fn)(void* data, void* ptr, size_t size),
+    void* (*aligned_alloc_fn)(void* data, size_t alignment, size_t size),
+    void (*free_fn)(void* data, void* ptr)) {
+  cn_test_allocator.data = data;
+  cn_test_allocator.malloc = malloc_fn;
+  cn_test_allocator.calloc = calloc_fn;
+  cn_test_allocator.realloc = realloc_fn;
+  cn_test_allocator.aligned_alloc = aligned_alloc_fn;
+  cn_test_allocator.free = free_fn;
+}

@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include <cn-testing/memory/arena.h>
+#include <cn-testing/memory/test_alloc.h>
 
 /* Default block size: 8MB */
 #define CN_ARENA_DEFAULT_BLOCK_SIZE (8 * 1024 * 1024)
@@ -272,4 +273,51 @@ void cn_arena_reset(cn_arena* arena) {
 size_t cn_arena_get_used(cn_arena* arena) {
   assert(arena != NULL);
   return arena->total_allocated;
+}
+
+void* cn_arena_realloc(cn_arena* arena, void* ptr, size_t size) {
+  assert(arena != NULL);
+
+  /* If ptr is NULL, act like malloc */
+  if (ptr == NULL) {
+    return cn_arena_malloc(arena, size);
+  }
+
+  /* If size is 0, we can't free in an arena, so just return NULL */
+  if (size == 0) {
+    return NULL;
+  }
+
+  /* Allocate new memory */
+  void* new_ptr = cn_arena_malloc(arena, size);
+  if (new_ptr == NULL) {
+    return NULL;
+  }
+
+  /* Copy data from old to new
+   * Note: We don't track individual allocation sizes, so we copy 'size' bytes.
+   * The caller must ensure this doesn't exceed the original allocation size. */
+  memcpy(new_ptr, ptr, size);
+
+  /* Note: The old pointer is not freed since arenas don't support
+   * individual deallocation */
+
+  return new_ptr;
+}
+
+void cn_arena_free(cn_arena* arena, void* ptr) {
+  assert(arena != NULL);
+  /* No-op: arenas don't support individual deallocation */
+  (void)ptr;
+}
+
+void cn_arena_set_default_alloc(cn_arena* arena) {
+  assert(arena != NULL);
+
+  cn_test_set_alloc(arena,
+      (void* (*)(void*, size_t))cn_arena_malloc,
+      (void* (*)(void*, size_t, size_t))cn_arena_calloc,
+      (void* (*)(void*, void*, size_t))cn_arena_realloc,
+      (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
+      (void (*)(void*, void*))cn_arena_free);
 }
