@@ -1764,42 +1764,22 @@ void cn_declare_fun(struct cn_smt_solver* s,
   sexp_t** args_ts = NULL;
   if (args_count > 0) {
     args_ts = malloc(sizeof(sexp_t*) * args_count);
-    if (!args_ts) {
-      free(sname);
-      return;
-    }
+    assert(args_ts);
   }
 
   for (size_t i = 0; i < args_count; i++) {
     args_ts[i] = translate_cn_base_type(args_bts[i]);
-
-    if (!args_ts[i]) {
-      // Cleanup on failure
-      for (size_t j = 0; j < i; j++) {
-      }
-      free(args_ts);
-      free(sname);
-      return;
-    }
+    assert(args_ts[i]);
   }
 
   // Translate result type
   sexp_t* res_t = translate_cn_base_type(res_bt);
-
-  if (!res_t) {
-    for (size_t i = 0; i < args_count; i++) {
-    }
-    free(args_ts);
-    free(sname);
-    return;
-  }
+  assert(res_t);
 
   // Create SMT declare_fun command
   sexp_t* decl_cmd = declare_fun(sname, args_ts, args_count, res_t);
-  if (decl_cmd) {
-    // Send command
-    ack_command(s, decl_cmd);
-  }
+  assert(decl_cmd);
+  ack_command(s, decl_cmd);
 
   // Cleanup
   for (size_t i = 0; i < args_count; i++) {
