@@ -425,7 +425,8 @@ let main
           (* TODO need to inject definitions for all the __cerbvars in cerberus
              builtins.lem. Hoisting/lowering doesn't affect needing to do this *)
           "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
-          "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n"
+          "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n";
+          "static const unsigned long long __cerbvar_SIZE_MAX = ~(0ULL);\n"
         ];
         [ c_tag_defs ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
