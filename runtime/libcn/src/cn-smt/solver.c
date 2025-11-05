@@ -221,7 +221,7 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
 
     switch (ext) {
       case SOLVER_CVC5:
-        execlp("cvc5", "cvc5", "--sets-ext", "--force-logic=QF_ALL", NULL);
+        execlp("cvc5", "cvc5", "--sets-exp", "--force-logic=QF_ALL", NULL);
         perror("execlp cvc5 failed");
         exit(1);
       case SOLVER_Z3:
