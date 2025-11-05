@@ -73,18 +73,20 @@
   (:headers
    (glob_files ../include/cn-executable/*.h)
    (glob_files ../include/cn-testing/*.h)
+   (glob_files ../include/cn-testing/memory/*.h)
    (glob_files ../include/bennet/*.h)
    (glob_files ../include/bennet/info/*.h)
    (glob_files ../include/bennet/internals/*.h))
   (:src
-   (glob_files ../src/cn-testing/*.c)))
+   (glob_files ../src/cn-testing/*.c)
+   (glob_files ../src/cn-testing/memory/*.c)))
  (action
   (progn
    (run mkdir -p cn-testing)
    (chdir
     cn-testing
     (run ../compile.sh %{src}))
-   (run ar -rcs %{target} cn-testing/test.o))))
+   (run ar -rcs %{target} cn-testing/test.o cn-testing/arena.o))))
 
 (rule
  (target libcn_replica.a)
