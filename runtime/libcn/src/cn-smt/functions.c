@@ -6,6 +6,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <cn-smt/functions.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/structs.h>
@@ -77,7 +78,7 @@ void cn_register_func(cn_sym name,
   // Create parameter list for SMT define_fun
   sexp_t** args = NULL;
   if (arg_count > 0) {
-    args = malloc(sizeof(sexp_t*) * arg_count);
+    args = cn_test_malloc(sizeof(sexp_t*) * arg_count);
     assert(args);
   }
 
@@ -93,7 +94,7 @@ void cn_register_func(cn_sym name,
     sexp_t* name_atom = sexp_atom(arg_name);
     assert(name_atom);
 
-    free(arg_name);
+    cn_test_free(arg_name);
 
     sexp_t* param_elements[] = {name_atom, arg_type};
     args[i] = sexp_list(param_elements, 2);
@@ -118,7 +119,7 @@ void cn_register_func(cn_sym name,
   // Cleanup
   for (size_t i = 0; i < arg_count; i++) {
   }
-  free(args);
+  cn_test_free(args);
 }
 
 cn_func_handler cn_get_func_handler(const char* func_name) {
@@ -141,4 +142,9 @@ bool cn_func_exists(const char* func_name) {
   init_func_registry();
   return bennet_hash_table_contains(const_char_ptr, void_ptr)(
       &g_func_registry, func_name);
+}
+
+// Reset the function registry
+void cn_smt_func_registry_reset(void) {
+  g_func_registry_initialized = false;
 }

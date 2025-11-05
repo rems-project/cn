@@ -32,6 +32,9 @@ cn_func_handler cn_get_func_handler(const char* func_name);
 // Check if a function is registered
 bool cn_func_exists(const char* func_name);
 
+// Reset the function registry
+void cn_smt_func_registry_reset(void);
+
 #ifdef __cplusplus
 }
 #endif

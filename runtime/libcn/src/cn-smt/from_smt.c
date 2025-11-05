@@ -7,6 +7,7 @@
 
 #include <cn-smt/datatypes.h>
 #include <cn-smt/from_smt.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/structs.h>
 
 // Hash and equality functions are now imported from cn-smt/terms.h
@@ -53,7 +54,7 @@ sexp_t** get_exprs(
     unexpected_solver_response(res, "get_exprs - expected list");
   }
 
-  sexp_t** results = malloc(sizeof(sexp_t*) * pair_count);
+  sexp_t** results = cn_test_malloc(sizeof(sexp_t*) * pair_count);
   if (!results) {
     fprintf(stderr, "Memory allocation failed in get_exprs\n");
     assert(false);
@@ -249,7 +250,7 @@ static sexp_t* expand_with_substitution(
         return exp;
       }
 
-      sexp_t** new_elements = malloc(sizeof(sexp_t*) * list_count);
+      sexp_t** new_elements = cn_test_malloc(sizeof(sexp_t*) * list_count);
       if (!new_elements) {
         fprintf(stderr, "Memory allocation failed in expand_with_substitution\n");
         assert(false);
@@ -260,7 +261,7 @@ static sexp_t* expand_with_substitution(
       }
 
       sexp_t* result = sexp_list(new_elements, list_count);
-      free(new_elements);
+      cn_test_free(new_elements);
       return result;
     }
   }
@@ -440,7 +441,7 @@ constructor_result_t to_con(sexp_t* exp) {
       result.name = sexp_to_string(first);
       result.field_count = list_count - 1;
       if (result.field_count > 0) {
-        result.fields = malloc(sizeof(sexp_t*) * result.field_count);
+        result.fields = cn_test_malloc(sizeof(sexp_t*) * result.field_count);
         if (!result.fields) {
           fprintf(stderr, "Memory allocation failed in to_con\n");
           assert(false);
@@ -465,7 +466,7 @@ constructor_result_t to_con(sexp_t* exp) {
         result.name = sexp_to_string(first_list_elements[1]);
         result.field_count = list_count - 1;
         if (result.field_count > 0) {
-          result.fields = malloc(sizeof(sexp_t*) * result.field_count);
+          result.fields = cn_test_malloc(sizeof(sexp_t*) * result.field_count);
           if (!result.fields) {
             fprintf(stderr, "Memory allocation failed in to_con (cvc5 format)\n");
             assert(false);
@@ -502,7 +503,7 @@ array_result_t to_array(sexp_t* exp0) {
 
   sexp_t* current = exp0;
   size_t pairs_capacity = 4;
-  result.pairs = malloc(sizeof(*result.pairs) * pairs_capacity);
+  result.pairs = cn_test_malloc(sizeof(*result.pairs) * pairs_capacity);
   if (!result.pairs) {
     fprintf(stderr, "Memory allocation failed in to_array\n");
     assert(false);
@@ -530,7 +531,8 @@ array_result_t to_array(sexp_t* exp0) {
       // Expand pairs array if needed
       if (result.pair_count >= pairs_capacity) {
         pairs_capacity *= 2;
-        result.pairs = realloc(result.pairs, sizeof(*result.pairs) * pairs_capacity);
+        result.pairs =
+            cn_test_realloc(result.pairs, sizeof(*result.pairs) * pairs_capacity);
         if (!result.pairs) {
           fprintf(stderr, "Memory reallocation failed in to_array\n");
           assert(false);
@@ -586,7 +588,7 @@ array_result_t to_array(sexp_t* exp0) {
 // Memory management functions
 void free_constructor_result(constructor_result_t* result) {
   if (result->fields) {
-    free(result->fields);
+    cn_test_free(result->fields);
     result->fields = NULL;
   }
   result->field_count = 0;
@@ -594,7 +596,7 @@ void free_constructor_result(constructor_result_t* result) {
 
 void free_array_result(array_result_t* result) {
   if (result->pairs) {
-    free(result->pairs);
+    cn_test_free(result->pairs);
     result->pairs = NULL;
   }
   result->pair_count = 0;
@@ -732,8 +734,8 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
 
       // Create member name and value arrays
       size_t member_count = bennet_vector_size(struct_member_t)(&struct_data->members);
-      const char** member_names = malloc(member_count * sizeof(char*));
-      cn_term** member_values = malloc(member_count * sizeof(cn_term*));
+      const char** member_names = cn_test_malloc(member_count * sizeof(char*));
+      cn_term** member_values = cn_test_malloc(member_count * sizeof(cn_term*));
 
       assert(member_names && member_values);
 
@@ -749,9 +751,9 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
           cn_smt_struct(struct_tag, member_count, member_names, member_values);
 
       // Cleanup
-      free(member_names);
-      free(member_values);
-      free(struct_tag);
+      cn_test_free(member_names);
+      cn_test_free(member_values);
+      cn_test_free(struct_tag);
       free_constructor_result(&con_result);
 
       return result;
@@ -816,8 +818,8 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
       cn_term** arg_values = NULL;
 
       if (ctor_data->field_count > 0) {
-        arg_names = malloc(sizeof(char*) * ctor_data->field_count);
-        arg_values = malloc(sizeof(cn_term*) * ctor_data->field_count);
+        arg_names = cn_test_malloc(sizeof(char*) * ctor_data->field_count);
+        arg_values = cn_test_malloc(sizeof(cn_term*) * ctor_data->field_count);
         assert(arg_names && arg_values);
 
         // Recursively parse each field value
@@ -834,9 +836,9 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
 
       // Cleanup
       if (arg_names)
-        free(arg_names);
+        cn_test_free(arg_names);
       if (arg_values)
-        free(arg_values);
+        cn_test_free(arg_values);
       free_constructor_result(&con_result);
 
       return result;

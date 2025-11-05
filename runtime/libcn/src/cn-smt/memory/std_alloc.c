@@ -5,8 +5,8 @@
 #include <string.h>
 
 #include <bennet/utils/hash_table.h>
-#include <cn-testing/memory/std_alloc.h>
-#include <cn-testing/memory/test_alloc.h>
+#include <cn-smt/memory/std_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 
 // Define hash function for void* pointers (hash the address)
 static inline size_t bennet_hash_voidptr(void* ptr) {

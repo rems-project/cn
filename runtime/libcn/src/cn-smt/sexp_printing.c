@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include <bennet/utils/vector.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 
 typedef const char *const_char_ptr;
@@ -51,7 +52,7 @@ char *sexp_to_string(sexp_t *sexp) {
   sexp_to_string_aux(&vec, &total_length, sexp);
 
   // Allocate final buffer and concatenate all fragments
-  char *result = malloc(total_length + 1);
+  char *result = cn_test_malloc(total_length + 1);
   assert(result && "Failed to allocate memory for sexp string");
 
   char *ptr = result;

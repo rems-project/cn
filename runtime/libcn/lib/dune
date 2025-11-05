@@ -73,27 +73,18 @@
   (:headers
    (glob_files ../include/cn-executable/*.h)
    (glob_files ../include/cn-testing/*.h)
-   (glob_files ../include/cn-testing/memory/*.h)
    (glob_files ../include/bennet/*.h)
    (glob_files ../include/bennet/info/*.h)
    (glob_files ../include/bennet/internals/*.h))
   (:src
-   (glob_files ../src/cn-testing/*.c)
-   (glob_files ../src/cn-testing/memory/*.c)))
+   (glob_files ../src/cn-testing/*.c)))
  (action
   (progn
    (run mkdir -p cn-testing)
    (chdir
     cn-testing
     (run ../compile.sh %{src}))
-   (run
-    ar
-    -rcs
-    %{target}
-    cn-testing/test.o
-    cn-testing/arena.o
-    cn-testing/test_alloc.o
-    cn-testing/std_alloc.o))))
+   (run ar -rcs %{target} cn-testing/test.o))))
 
 (rule
  (target libcn_replica.a)
@@ -126,9 +117,11 @@
  (deps
   (:headers
    (glob_files ../include/cn-smt/*.h)
+   (glob_files ../include/cn-smt/memory/*.h)
    (glob_files ../include/bennet/utils/*.h))
   (:src
-   (glob_files ../src/cn-smt/*.c)))
+   (glob_files ../src/cn-smt/*.c)
+   (glob_files ../src/cn-smt/memory/*.c)))
  (action
   (progn
    (run mkdir -p cn-smt)
@@ -139,6 +132,7 @@
     ar
     -rcs
     %{target}
+    cn-smt/arena.o
     cn-smt/branch_history.o
     cn-smt/concretize.o
     cn-smt/context.o
@@ -147,13 +141,16 @@
     cn-smt/from_smt.o
     cn-smt/functions.o
     cn-smt/gather.o
+    cn-smt/prelude.o
     cn-smt/sexp.o
     cn-smt/sexp_parsing.o
     cn-smt/sexp_printing.o
     cn-smt/solver.o
+    cn-smt/std_alloc.o
     cn-smt/structs.o
     cn-smt/records.o
     cn-smt/subst.o
     cn-smt/terms.o
+    cn-smt/test_alloc.o
     cn-smt/to_smt.o
     cn-smt/trie.o))))

@@ -5,6 +5,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/vector.h>
 #include <cn-executable/bump_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/subst.h>
 #include <cn-smt/terms.h>
 
@@ -684,7 +685,7 @@ static cn_term* cn_subst_term_impl(
 
 // Create a substitution table with the proper hash and equality functions
 bennet_hash_table(uint64_t, cn_term_ptr) * cn_create_subst_table(void) {
-  bennet_hash_table(uint64_t, cn_term_ptr)* table = malloc(sizeof(*table));
+  bennet_hash_table(uint64_t, cn_term_ptr)* table = cn_test_malloc(sizeof(*table));
   assert(table);
 
   bennet_hash_table_init(uint64_t, cn_term_ptr)(
@@ -696,7 +697,7 @@ bennet_hash_table(uint64_t, cn_term_ptr) * cn_create_subst_table(void) {
 void cn_free_subst_table(bennet_hash_table(uint64_t, cn_term_ptr) * table) {
   if (table) {
     bennet_hash_table_free(uint64_t, cn_term_ptr)(table);
-    free(table);
+    cn_test_free(table);
   }
 }
 
