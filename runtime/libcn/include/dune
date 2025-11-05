@@ -68,6 +68,9 @@
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
   (cn-testing/memory/arena.h as runtime/include/cn-testing/memory/arena.h)
+  (cn-testing/memory/test_alloc.h
+   as
+   runtime/include/cn-testing/memory/test_alloc.h)
   ; CN SMT
   (cn-smt/branch_history.h as runtime/include/cn-smt/branch_history.h)
   (cn-smt/concretize.h as runtime/include/cn-smt/concretize.h)
