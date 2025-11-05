@@ -169,13 +169,13 @@ let compile_random_test_case
                           ^^ parens
                                (separate
                                   (comma ^^ space)
-                                  [ !^(Fulminate.Cn_to_ail.getter_str filename sym);
+                                  [ !^(CtA.getter_str filename sym);
                                     !^"sizeof" ^^ parens ty;
                                     !^"(char*)" ^^ dquotes init_name
                                   ])
                           ^^ semi
                           ^^ hardline
-                          ^^ !^(Fulminate.Cn_to_ail.setter_str filename sym)
+                          ^^ !^(CtA.setter_str filename sym)
                           ^^ parens tmp_doc
                           ^^ semi)
                        globals)
