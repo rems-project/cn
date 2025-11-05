@@ -72,6 +72,40 @@ void* cn_arena_calloc(cn_arena* arena, size_t count, size_t size);
 void* cn_arena_aligned_alloc(cn_arena* arena, size_t alignment, size_t size);
 
 /**
+ * Reallocate memory from an arena.
+ *
+ * Note: This allocates new memory and copies the old data. The old pointer
+ * is not actually freed since arenas don't support individual deallocation.
+ *
+ * @param arena The arena to allocate from. Must not be NULL.
+ * @param ptr The pointer to the memory to reallocate, or NULL.
+ * @param size The new size in bytes.
+ * @return A pointer to the reallocated memory, or NULL if allocation fails.
+ */
+void* cn_arena_realloc(cn_arena* arena, void* ptr, size_t size);
+
+/**
+ * Free memory from an arena (no-op).
+ *
+ * This function does nothing since arenas don't support individual
+ * deallocation. Memory is freed when the arena is destroyed or reset.
+ *
+ * @param arena The arena. Must not be NULL.
+ * @param ptr The pointer to the memory to free.
+ */
+void cn_arena_free(cn_arena* arena, void* ptr);
+
+/**
+ * Configure the test allocator to use this arena.
+ *
+ * After calling this function, cn_test_malloc, cn_test_calloc, etc. will
+ * allocate from the specified arena.
+ *
+ * @param arena The arena to use for test allocations. Must not be NULL.
+ */
+void cn_arena_set_default_alloc(cn_arena* arena);
+
+/**
  * Get the current frame ID for checkpoint/restore operations.
  *
  * @param arena The arena. Must not be NULL.
