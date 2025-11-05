@@ -458,9 +458,10 @@ let get_c_block_entry_exit_injs_aux bindings s =
        | None -> empty_block_local_injs)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-    | AilEsizeof _ | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
       empty_block_local_injs
-    | AilErvalue e -> aux_expr e
+    | AilEsizeof_expr e
+    | AilErvalue e
     | AilEunary (_, e)
     | AilEcast (_, _, e)
     | AilEassert e
@@ -580,52 +581,166 @@ let rec remove_duplicates ds = function
       l :: remove_duplicates (l :: ds) ls
 
 
-let get_c_block_local_ownership_checking_injs
-      A.({ loc = _; desug_info = _; attrs = _; node = fn_block } as statement)
-  =
-  match fn_block with
-  | A.(AilSblock _) ->
-    let injs, gcc_injs = get_c_block_entry_exit_injs statement in
-    let injs' = get_c_control_flow_ownership_injs statement in
-    let injs = injs @ injs' in
-    let locs = List.map (fun o_inj -> o_inj.loc) injs in
-    let locs = remove_duplicates [] locs in
-    let rec combine_injs_over_location loc = function
-      | [] -> []
-      | inj :: injs' ->
-        if
-          String.equal
-            (Cerb_location.location_to_string loc)
-            (Cerb_location.location_to_string inj.loc)
-        then (
-          let bs, ss = inj.bs_and_ss in
-          (bs, ss, inj.injection_kind) :: combine_injs_over_location loc injs')
-        else
-          combine_injs_over_location loc injs'
+(* Lifetime of compound literals can change if enclosed in a block via gen_single_stat_control_flow_injs, so need to check for any instances *)
+let contains_compound_literal s =
+  let rec aux_expr (A.AnnotatedExpression (_, _, _, e_)) =
+    match e_ with
+    | AilEcompound _ -> true
+    | AilEgcc_statement (_, ss) -> List.fold_left ( || ) false (List.map aux_stmt ss)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      false
+    | AilEsizeof_expr e
+    | AilErvalue e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      aux_expr e1 || aux_expr e2
+    | AilEcond (e1, Some e2, e3) -> aux_expr e1 || aux_expr e2 || aux_expr e3
+    | AilEcall (e, es) -> aux_expr e || List.fold_left ( || ) false (List.map aux_expr es)
+    | AilEgeneric (e, _, gas) ->
+      let bs =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      aux_expr e || List.fold_left ( || ) false bs
+    | AilEarray (_, _, xs) ->
+      let bs = List.map (function None -> false | Some e -> aux_expr e) xs in
+      List.fold_left ( || ) false bs
+    | AilEstruct (_, xs) ->
+      let bs = List.map (function _, None -> false | _, Some e -> aux_expr e) xs in
+      List.fold_left ( || ) false bs
+  and aux_stmt A.{ node = s_; _ } =
+    match s_ with
+    | A.(AilSdeclaration decls) ->
+      let bs =
+        List.map
+          (fun (_, e_opt) -> match e_opt with Some e -> aux_expr e | None -> false)
+          decls
+      in
+      List.fold_left ( || ) false bs
+    | AilSblock (_, ss) ->
+      let bs = List.map aux_stmt ss in
+      List.fold_left ( || ) false bs
+    | AilSif (e, s1, s2) -> aux_expr e || aux_stmt s1 || aux_stmt s2
+    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+      aux_expr e || aux_stmt s
+    | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _)
+      ->
+      aux_stmt s
+    | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ ->
+      false
+  in
+  aux_stmt s
+
+
+let gen_single_stat_control_flow_injs statement =
+  let gen_curly_braces_inj loc =
+    [ (get_start_loc loc, [ "{" ]); (get_end_loc loc, [ "}" ]) ]
+  in
+  let is_valid_single_stat s =
+    let is_single_stat A.{ node = s_; _ } =
+      match s_ with
+      | A.(AilSexpr _)
+      | AilSreturn _ | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
+        ->
+        true
+      | _ -> false
     in
-    (* If any of the individual injections to be combined is a return injection, the entire combined injection becomes a return injection *)
-    let rec get_return_inj_kind = function
-      | [] -> NonReturnInj
-      | ReturnInj r :: _ -> ReturnInj r
-      | NonReturnInj :: xs -> get_return_inj_kind xs
-    in
-    (* Injections at the same location need to be grouped together *)
-    let combined_injs =
-      List.map
-        (fun l ->
-           let injs' = combine_injs_over_location l injs in
-           let bs_list, ss_list, inj_kind_list = Utils.list_split_three injs' in
-           let inj_kind = get_return_inj_kind inj_kind_list in
-           { loc = l;
-             bs_and_ss = (List.concat bs_list, List.concat ss_list);
-             injection_kind = inj_kind
-           })
-        locs
-    in
-    (combined_injs, gcc_injs)
-  | _ ->
-    Printf.printf "Ownership: function body is not a block";
-    ([], [])
+    let b = is_single_stat s in
+    if b && contains_compound_literal s then
+      failwith
+        "Cannot enclose single statement with curly braces: compound literal found in \
+         statement"
+    else
+      b
+  in
+  let rec aux_stmt A.{ node = s_; _ } =
+    match s_ with
+    | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
+    | AilSif (_, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
+      let inj1 =
+        if is_valid_single_stat s1 then gen_curly_braces_inj loc1 else aux_stmt s1
+      in
+      let inj2 =
+        if is_valid_single_stat s2 then gen_curly_braces_inj loc2 else aux_stmt s2
+      in
+      inj1 @ inj2
+    | AilSwhile (_, (A.{ loc; _ } as s), _)
+    | AilSdo ((A.{ loc; _ } as s), _, _)
+    | AilSswitch (_, (A.{ loc; _ } as s))
+    | AilScase (_, (A.{ loc; _ } as s))
+    | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
+    | AilSlabel (_, (A.{ loc; _ } as s), _) ->
+      if is_valid_single_stat s then gen_curly_braces_inj loc else aux_stmt s
+    | AilSdefault _ -> []
+    | AilSreturn _ | AilSexpr _ | AilSreg_store (_, _) -> []
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ | AilSdeclaration _ ->
+      []
+  in
+  aux_stmt statement
+
+
+let get_c_block_local_ownership_checking_injs statement =
+  let injs, gcc_injs = get_c_block_entry_exit_injs statement in
+  let injs' = get_c_control_flow_ownership_injs statement in
+  let injs = injs @ injs' in
+  let locs = List.map (fun o_inj -> o_inj.loc) injs in
+  let locs = remove_duplicates [] locs in
+  let rec combine_injs_over_location loc = function
+    | [] -> []
+    | inj :: injs' ->
+      if
+        String.equal
+          (Cerb_location.location_to_string loc)
+          (Cerb_location.location_to_string inj.loc)
+      then (
+        let bs, ss = inj.bs_and_ss in
+        (bs, ss, inj.injection_kind) :: combine_injs_over_location loc injs')
+      else
+        combine_injs_over_location loc injs'
+  in
+  (* If any of the individual injections to be combined is a return injection, the entire combined injection becomes a return injection *)
+  let rec get_return_inj_kind = function
+    | [] -> NonReturnInj
+    | ReturnInj r :: _ -> ReturnInj r
+    | NonReturnInj :: xs -> get_return_inj_kind xs
+  in
+  (* Injections at the same location need to be grouped together *)
+  let combined_injs =
+    List.map
+      (fun l ->
+         let injs' = combine_injs_over_location l injs in
+         let bs_list, ss_list, inj_kind_list = Utils.list_split_three injs' in
+         let inj_kind = get_return_inj_kind inj_kind_list in
+         { loc = l;
+           bs_and_ss = (List.concat bs_list, List.concat ss_list);
+           injection_kind = inj_kind
+         })
+      locs
+  in
+  (combined_injs, gcc_injs)
 
 
 (* Ghost state *)
@@ -642,6 +757,10 @@ let get_c_fn_local_ownership_checking_injs
     let param_types = List.map (fun (_, ctype, _) -> ctype) param_types in
     let params = List.combine param_syms param_types in
     let ownership_stats_pair = get_c_local_ownership_checking params in
-    let block_ownership_injs = get_c_block_local_ownership_checking_injs fn_body in
-    (Some ownership_stats_pair, block_ownership_injs)
+    let block_standard_injs, block_gcc_injs =
+      get_c_block_local_ownership_checking_injs fn_body
+    in
+    let single_stat_curly_brace_injs = gen_single_stat_control_flow_injs fn_body in
+    ( Some ownership_stats_pair,
+      (block_standard_injs, block_gcc_injs @ single_stat_curly_brace_injs) )
   | _, _ -> (None, ([], []))

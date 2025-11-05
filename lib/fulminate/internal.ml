@@ -45,7 +45,7 @@ type stack_local_var_inj_info =
   }
 
 let generate_stack_local_var_inj_strs fn_sym (sigm : _ CF.AilSyntax.sigma) =
-  let fn_ownership_stats_opt, (block_ownership_injs, gcc_injs) =
+  let fn_ownership_stats_opt, (block_ownership_injs, str_injs) =
     OE.get_c_fn_local_ownership_checking_injs fn_sym sigm
   in
   let (entry_ownership_str, exit_ownership_str), block_ownership_injs =
@@ -85,7 +85,7 @@ let generate_stack_local_var_inj_strs fn_sym (sigm : _ CF.AilSyntax.sigma) =
   in
   { entry_ownership_str;
     exit_ownership_str;
-    block_ownership_stmts = block_ownership_stmts @ gcc_injs;
+    block_ownership_stmts = str_injs @ block_ownership_stmts;
     return_ownership_stmts
   }
 
