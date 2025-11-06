@@ -835,6 +835,8 @@ let pp_core_iop = function
   | Core.IOpMul -> pp_constructor0 "Core.IOpMul"
   | Core.IOpShl -> pp_constructor0 "Core.IOpShl"
   | Core.IOpShr -> pp_constructor0 "Core.IOpShr"
+  | Core.IOpDiv -> pp_constructor0 "Core.IOpDiv"
+  | Core.IOpRem_t -> pp_constructor0 "Core.IOpRem_t"
 
 
 let rec pp_pattern_ pp_type = function

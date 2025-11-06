@@ -1033,6 +1033,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
             IT.int_lit_ 0 expect loc,
             arith_binop Terms.ShiftRight (arg1, cast_ (IT.get_bt arg1) arg2 loc) loc )
           loc
+      | IOpDiv -> failwith "TODO division operator"
+      | IOpRem_t -> failwith "TODO remainder operator"
     in
     return x
   | PEcatch_exceptional_condition (ity, iop, pe1, pe2) ->
@@ -1068,6 +1070,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
         ( arith_binop Terms.ShiftRight (arg1, cast_ (IT.get_bt arg1) arg2 loc) loc,
           arith_binop Terms.ShiftRight (large arg1, large arg2) loc,
           IT.in_z_range arg2 (Z.zero, Z.of_int bits) loc )
+      | IOpDiv -> failwith "TODO division operator"
+      | IOpRem_t -> failwith "TODO remainder operator"
     in
     let@ provable = provable loc in
     let@ () =
