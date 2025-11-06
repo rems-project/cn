@@ -649,12 +649,10 @@ let main
           | _ -> failwith "error"
         in
         let open Source_injection in
-        (* '}': 0, ')': 1, '(': 2, '{': 3 *)
-        let a = (Cartesian ((true, pos_x, pos_y), static_prec lxor 3), (p, strs)) in
-        let cs = give_precedence_map Bot injs in
-        let b =
-          (Cartesian ((false, pos_x, pos_y), static_prec), (p', [ closing_expr ]))
-        in
+        (*  ')': 1, '(': 2, '{': 3 *)
+        let a = if static_prec = 1 then (Normal (-1), (p, strs))  else (Cartesian ((true, pos_x, pos_y)), (p, strs)) in
+        let cs = give_precedence_map (Normal 0) injs in
+        let b = (Cartesian ((false, pos_x, pos_y)), (p', [ closing_expr ])) in
         let cs' = a :: b :: cs in
         aux (cs' @ acc) xs
     in
@@ -663,7 +661,7 @@ let main
   let control_flow_curly_brace_injs =
     get_c_control_flow_extra_curly_braces filtered_sigm
   in
-  let bot = Source_injection.Bot in
+  let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
     give_parenthesis_aware_precedence_map control_flow_curly_brace_injs
     @ give_precedence_map bot executable_spec.in_stmt
