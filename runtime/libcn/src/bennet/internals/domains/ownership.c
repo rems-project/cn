@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdlib.h>
 
 #include <bennet/dsl/arbitrary.h>
 #include <bennet/internals/domains/ownership.h>
@@ -33,6 +34,7 @@
                                                                                          \
     bennet_domain_ownership(cty)* d =                                                    \
         (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
+    assert(d);                                                                           \
     d->bottom = 0;                                                                       \
     d->before = lower_offset;                                                            \
     d->after = upper_offset;                                                             \

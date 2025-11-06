@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -107,6 +108,7 @@ void bennet_info_unsatisfied_begin_run(void) {
     if (bennet_optional_is_none(entry_opt)) {
       bennet_info_unsatisfied_locations_count* loc_table =
           malloc(sizeof(bennet_info_unsatisfied_locations_count));
+      assert(loc_table);
       bennet_hash_table_init(location_key_t, satisfaction_counters_t)(
           loc_table, location_hash, location_equal);
       function_unsatisfied_entry_t entry = {.loc_table = loc_table, .run_count = 0};
@@ -140,6 +142,7 @@ void bennet_info_unsatisfied_end_run(bool record) {
       function_unsatisfied_entry_t entry;
       if (bennet_optional_is_none(entry_opt)) {
         entry.loc_table = malloc(sizeof(bennet_info_unsatisfied_locations_count));
+        assert(entry.loc_table);
         bennet_hash_table_init(location_key_t, satisfaction_counters_t)(
             entry.loc_table, location_hash, location_equal);
         entry.run_count = 0;
@@ -190,6 +193,7 @@ void bennet_info_unsatisfied_log(
   bennet_info_unsatisfied_locations* loc_table;
   if (bennet_optional_is_none(loc_table_opt)) {
     loc_table = malloc(sizeof(bennet_info_unsatisfied_locations));
+    assert(loc_table);
     bennet_hash_table_init(location_key_t, boolean)(
         loc_table, location_hash, location_equal);
     bennet_hash_table_set(const_str, pointer)(
@@ -259,6 +263,7 @@ void bennet_info_unsatisfied_print_info(void) {
       }
 
       loc_info_t* infos = malloc(loc_count * sizeof(loc_info_t));
+      assert(infos);
       size_t idx = 0;
       for (size_t j = 0; j < loc_table->capacity; ++j) {
         if (loc_table->entries[j].occupied) {

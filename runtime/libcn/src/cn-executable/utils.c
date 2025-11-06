@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <inttypes.h>
 #include <limits.h>
 #include <signal.h>  // for SIGABRT
@@ -352,7 +353,7 @@ struct loop_ownership {
 struct loop_ownership* initialise_loop_ownership_state(void) {
   struct loop_ownership* loop_ownership =
       bump_alloc.malloc(sizeof(struct loop_ownership));
-  // assert(loop_ownership);
+  assert(loop_ownership);
   *loop_ownership = (struct loop_ownership){.head = NULL};
   return loop_ownership;
 }
@@ -367,6 +368,7 @@ void cn_add_to_loop_ownership_state(
     hd->size += size;
   else {
     loop_ownership_nd* newhd = bump_alloc.malloc(sizeof(loop_ownership_nd));
+    assert(newhd);
     *newhd = (loop_ownership_nd){.addr = addr, .size = size, .next = hd};
     loop_ownership->head = newhd;
   }

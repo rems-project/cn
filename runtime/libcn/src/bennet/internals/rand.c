@@ -272,6 +272,7 @@ uint64_t bennet_rand(void) {
   uint64_t choice = genrand();
 
   struct choice_list* new_node = malloc(sizeof(struct choice_list));
+  assert(new_node);
   *new_node =
       (struct choice_list){.choice = choice, .next = NULL, .prev = choice_history};
 
@@ -339,6 +340,7 @@ char* bennet_rand_to_str(bennet_rand_checkpoint checkpoint) {
 
   curr = (struct choice_list*)checkpoint;
   char* buf = malloc(bytes);
+  assert(buf);
   buf[0] = '\0';
 
   if (curr != NULL) {
@@ -353,6 +355,7 @@ char* bennet_rand_to_str(bennet_rand_checkpoint checkpoint) {
 
   while (curr != NULL) {
     char* tmp = malloc(21);
+    assert(tmp);
     snprintf(tmp, 21, ", %" PRIu64, curr->choice);
     strcat(buf, tmp);
     free(tmp);

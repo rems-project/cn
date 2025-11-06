@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@ static void bennet_rand_alloc_init() {
   }
 
   global_rand_alloc.buffer = malloc(RAND_ALLOC_MEM_SIZE);
+  assert(global_rand_alloc.buffer);
   global_rand_alloc.buffer_len = RAND_ALLOC_MEM_SIZE;
   bennet_vector_init(rand_alloc_region)(&global_rand_alloc.regions);
 }

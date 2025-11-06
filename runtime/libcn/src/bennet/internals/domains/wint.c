@@ -210,6 +210,7 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
 #define WINT_DOMAIN_IMPL(cty)                                                                            \
   bennet_domain_wint(cty) * bennet_domain_wint_top_##cty(void) {                                         \
     bennet_domain_wint(cty)* result = malloc(sizeof(bennet_domain_wint(cty)));                           \
+    assert(result);                                                                                      \
     result->top = true;                                                                                  \
     result->bottom = false;                                                                              \
     result->start = BV_MIN(cty);                                                                         \
@@ -219,6 +220,7 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
                                                                                                          \
   bennet_domain_wint(cty) * bennet_domain_wint_bottom_##cty(void) {                                      \
     bennet_domain_wint(cty)* result = malloc(sizeof(bennet_domain_wint(cty)));                           \
+    assert(result);                                                                                      \
     result->top = false;                                                                                 \
     result->bottom = true;                                                                               \
     result->start = 0;                                                                                   \
@@ -228,6 +230,7 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
                                                                                                          \
   bennet_domain_wint(cty) * bennet_domain_wint_of_##cty(cty start, cty end) {                            \
     bennet_domain_wint(cty)* result = malloc(sizeof(bennet_domain_wint(cty)));                           \
+    assert(result);                                                                                      \
     result->top = false;                                                                                 \
     result->bottom = false;                                                                              \
     result->start = start;                                                                               \
@@ -290,6 +293,7 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
   bennet_domain_wint(cty) * bennet_domain_wint_join_##cty(bennet_domain_wint(cty) * d1,                  \
                                 bennet_domain_wint(cty) * d2) {                                          \
     bennet_domain_wint(cty)* result = malloc(sizeof(bennet_domain_wint(cty)));                           \
+    assert(result);                                                                                      \
                                                                                                          \
     if (d1->top || d2->top) {                                                                            \
       result->top = true;                                                                                \
@@ -331,6 +335,7 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
   bennet_domain_wint(cty) * bennet_domain_wint_meet_##cty(bennet_domain_wint(cty) * d1,                  \
                                 bennet_domain_wint(cty) * d2) {                                          \
     bennet_domain_wint(cty)* result = malloc(sizeof(bennet_domain_wint(cty)));                           \
+    assert(result);                                                                                      \
                                                                                                          \
     if (d1->bottom || d2->bottom) {                                                                      \
       result->top = false;                                                                               \
@@ -371,6 +376,7 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
                                                                                                          \
   bennet_domain_wint(cty) * bennet_domain_wint_copy_##cty(bennet_domain_wint(cty) * d) {                 \
     bennet_domain_wint(cty)* result = malloc(sizeof(bennet_domain_wint(cty)));                           \
+    assert(result);                                                                                      \
     *result = *d;                                                                                        \
     return result;                                                                                       \
   }                                                                                                      \
