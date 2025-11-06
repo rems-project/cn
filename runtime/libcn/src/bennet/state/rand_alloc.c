@@ -56,7 +56,12 @@ static bool overlaps(size_t offset, size_t length) {
 void *bennet_rand_alloc(size_t bytes) {
   bennet_rand_alloc_init();
 
-  if (bytes == 0 || bytes > global_rand_alloc.buffer_len) {
+  if (bytes == 0) {
+    return NULL;
+  }
+
+  if (bytes > global_rand_alloc.buffer_len) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 
