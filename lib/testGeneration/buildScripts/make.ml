@@ -119,10 +119,13 @@ let define_test_flags () =
          [ "--use-solver-eval" ]
        else
          [])
-    @ (if Config.is_disable_smt_skewing () then
-         [ "--disable-smt-skewing" ]
-       else
-         [])
+    @ (let mode_str =
+         match Config.get_smt_skewing_mode () with
+         | Config.Uniform -> "uniform"
+         | Config.Sized -> "sized"
+         | Config.None -> "none"
+       in
+       [ "--smt-skewing"; mode_str ])
     @ (Config.get_smt_logging ()
        |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
        |> Option.to_list

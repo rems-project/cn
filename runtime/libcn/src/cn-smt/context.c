@@ -10,11 +10,15 @@
 #include <cn-smt/subst.h>
 #include <cn-smt/to_smt.h>
 
-// Global flag to control whether SMT skewing is enabled
-static bool smt_skewing_enabled = true;
+// Global flag to control SMT skewing mode
+static cn_smt_skewing_mode smt_skewing_mode = CN_SMT_SKEWING_SIZED;
 
-void cn_set_smt_skewing_enabled(bool enabled) {
-  smt_skewing_enabled = enabled;
+void cn_set_smt_skewing_mode(cn_smt_skewing_mode mode) {
+  smt_skewing_mode = mode;
+}
+
+cn_smt_skewing_mode cn_get_smt_skewing_mode(void) {
+  return smt_skewing_mode;
 }
 
 // Generate hash table implementation for uint64_t -> cn_term_ptr
@@ -338,7 +342,7 @@ enum cn_smt_solver_result cn_smt_context_model(
         cn_variable_entry entry = ctx->variables->entries[i].value;
         cn_declare_variable(smt_solver, var, entry.type);
 
-        if (smt_skewing_enabled) {
+        if (smt_skewing_mode != CN_SMT_SKEWING_NONE) {
           cn_term* eq_term = cn_smt_eq(cn_smt_sym(var, entry.type), entry.skew);
           sexp_t* eq_smt = translate_term(smt_solver, eq_term);
           sexp_t* eq_assert = assume_soft(eq_smt);
