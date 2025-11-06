@@ -10,6 +10,7 @@
 #include <unistd.h>
 
 #include <cn-smt/datatypes.h>
+#include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
@@ -308,6 +309,8 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
   datatype_def_t *datatypes = cn_test_malloc(sizeof(datatype_def_t) * name_count);
   assert(datatypes);
 
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
   // Build each datatype definition
   for (size_t i = 0; i < name_count; i++) {
     const char *dt_name = names[i];
@@ -389,6 +392,8 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
   if (cmd) {
     ack_command(s, cmd);
   }
+
+  cn_bump_free_after(frame);
 
   // Cleanup
   for (size_t i = 0; i < name_count; i++) {
@@ -524,6 +529,8 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
     }
   }
 
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
   // Create struct constructor name using CN_Names.struct_con_name
   char *con_name = struct_con_name(name);
   assert(con_name);
@@ -566,6 +573,8 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
     ack_command(s, struct_decl_sexp);
   }
 
+  cn_bump_free_after(frame);
+
   // Cleanup
   cn_test_free(con_name);
   cn_test_free(struct_name);
@@ -606,6 +615,8 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
   for (int arity = 1; arity <= CN_TUPLE_MAX_ARITY; arity++) {
     char *name = cn_tuple_constructor_name(arity);
 
+    cn_bump_frame_id frame = cn_bump_get_frame_id();
+
     // Create type parameter names: a0, a1, a2, ...
     const char **type_params = NULL;
     type_params = cn_test_malloc(arity * sizeof(char *));
@@ -638,6 +649,8 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
     sexp_t *datatype_decl = declare_datatype(name, type_params, arity, &constructor, 1);
     ack_command(solver, datatype_decl);
 
+    cn_bump_free_after(frame);
+
     // Clean up
     if (arity > 0) {
       for (int i = 0; i < arity; i++) {
@@ -653,6 +666,8 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
 
 /** Declare the option datatype */
 void cn_option_declare(struct cn_smt_solver *solver) {
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
   // Type parameter
   const char *type_params[] = {"a"};
 
@@ -679,4 +694,6 @@ void cn_option_declare(struct cn_smt_solver *solver) {
   sexp_t *datatype_decl =
       declare_datatype(cn_option_name, type_params, 1, constructors, 2);
   ack_command(solver, datatype_decl);
+
+  cn_bump_free_after(frame);
 }

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
@@ -37,9 +38,9 @@ uint64_t sym_num(cn_sym sym) {
 
 // Helper function to get string from Id
 const char* id_get_string(int id) {
-  // This would need to be implemented based on the actual Id module
-  static char buffer[256];
-  snprintf(buffer, sizeof(buffer), "id_%d", id);
+  size_t bytes = CHAR_BIT * sizeof(int) / 2;
+  char* buffer = malloc(bytes);
+  snprintf(buffer, bytes, "id_%d", id);
   return buffer;
 }
 
@@ -449,8 +450,8 @@ sexp_t* translate_const(void* s, cn_const* co) {
 
     case CN_CONST_Q: {
       // Q q -> SMT.real_k q
-      char buffer[64];
-      snprintf(buffer, sizeof(buffer), "%.15g", co->data.q);
+      char* buffer = malloc(64);
+      snprintf(buffer, 64, "%.15g", co->data.q);
       return sexp_atom(buffer);
     }
 
@@ -682,15 +683,6 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
   }
 }
 
-// Forward declarations for translate_term helper functions
-sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm);
-static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result);
-static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
-    cn_term* iterm,
-    cn_term* e1,
-    cn_term* e2,
-    const char* (*name_fn)(cn_base_type));
-
 // Helper function names from OCaml CN_Names module
 const char* mul_name(cn_base_type bt) {
   return "cn_mul";
@@ -718,25 +710,8 @@ static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result) {
   return bennet_optional_none(sexp_ptr);  // None
 }
 
-/** Binary uninterpreted function with same type for arguments and result */
-static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
-    cn_term* iterm,
-    cn_term* e1,
-    cn_term* e2,
-    const char* (*name_fn)(cn_base_type)) {
-  sexp_t* s1 = translate_term(s, e1);
-  sexp_t* s2 = translate_term(s, e2);
-  const char* fn_name = name_fn(iterm->base_type);
-
-  sexp_t* fn_atom = sexp_atom(fn_name);
-  sexp_t* args[] = {s1, s2};
-  sexp_t* result = sexp_app(fn_atom, args, 2);
-
-  return result;
-}
-
 /** Translate a CN term to SMT */
-sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
+static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
   assert(s && iterm);
 
   // Get location (placeholder - would need actual location from term)
@@ -780,7 +755,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // Create ite_(eq_zero, 0, add_one)
           cn_term* ite_term = cn_smt_ite(eq_zero, zero, add_one);
 
-          sexp_t* result = translate_term(s, ite_term);
+          sexp_t* result = translate_term_aux(s, ite_term);
 
           return result;
         }
@@ -810,18 +785,18 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // Create ite_(eq_zero, 0, sub_term)
           cn_term* ite_term = cn_smt_ite(eq_zero, zero, sub_term);
 
-          sexp_t* result = translate_term(s, ite_term);
+          sexp_t* result = translate_term_aux(s, ite_term);
 
           return result;
         }
 
         case CN_UNOP_NOT: {
-          sexp_t* operand_smt = translate_term(s, e1);
+          sexp_t* operand_smt = translate_term_aux(s, e1);
           return bool_not(operand_smt);
         }
 
         case CN_UNOP_NEGATE: {
-          sexp_t* operand_smt = translate_term(s, e1);
+          sexp_t* operand_smt = translate_term_aux(s, e1);
 
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS:
@@ -836,7 +811,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         }
 
         case CN_UNOP_BW_COMPL: {
-          sexp_t* operand_smt = translate_term(s, e1);
+          sexp_t* operand_smt = translate_term_aux(s, e1);
 
           if (iterm->base_type.tag == CN_BASE_BITS) {
             return bv_compl(operand_smt);
@@ -852,14 +827,14 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
             // Helper function wrapper for bv_clz
             sexp_t* operand_smt;
-            if (sexp_is_atom(translate_term(s, e1))) {
-              operand_smt = bv_clz(w, w, translate_term(s, e1));
+            if (sexp_is_atom(translate_term_aux(s, e1))) {
+              operand_smt = bv_clz(w, w, translate_term_aux(s, e1));
             } else {
               char* x = fresh_name(named_expr_name());
               sexp_t* x_atom = sexp_atom(x);
               sexp_t* result_expr = bv_clz(w, w, x_atom);
               sexp_t* bindings[] = {
-                  sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
+                  sexp_list((sexp_t*[]){x_atom, translate_term_aux(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
               cn_test_free(x);
               operand_smt = result;
@@ -878,14 +853,14 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
             // Helper function wrapper for bv_ctz
             sexp_t* operand_smt;
-            if (sexp_is_atom(translate_term(s, e1))) {
-              operand_smt = bv_ctz(w, w, translate_term(s, e1));
+            if (sexp_is_atom(translate_term_aux(s, e1))) {
+              operand_smt = bv_ctz(w, w, translate_term_aux(s, e1));
             } else {
               char* x = fresh_name(named_expr_name());
               sexp_t* x_atom = sexp_atom(x);
               sexp_t* result_expr = bv_ctz(w, w, x_atom);
               sexp_t* bindings[] = {
-                  sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
+                  sexp_list((sexp_t*[]){x_atom, translate_term_aux(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
               cn_test_free(x);
               operand_smt = result;
@@ -907,10 +882,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       cn_term* e1 = iterm->data.binop.left;
       cn_term* e2 = iterm->data.binop.right;
 
-      sexp_t* s1 = translate_term(s, e1);
+      sexp_t* s1 = translate_term_aux(s, e1);
       assert(s1);
 
-      sexp_t* s2 = translate_term(s, e2);
+      sexp_t* s2 = translate_term_aux(s, e2);
       assert(s2);
 
       switch (iterm->data.binop.op) {
@@ -951,7 +926,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_MUL: {
+        case CN_BINOP_MUL:
+        case CN_BINOP_MULNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS:
               return bv_mul(s1, s2);
@@ -964,10 +940,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_MULNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, mul_name);
-
-        case CN_BINOP_DIV: {
+        case CN_BINOP_DIV:
+        case CN_BINOP_DIVNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS: {
               if (iterm->base_type.data.bits.is_signed) {
@@ -985,10 +959,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_DIVNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, div_name);
-
-        case CN_BINOP_EXP: {
+        case CN_BINOP_EXP:
+        case CN_BINOP_EXPNOSMT: {
           // Check if both operands are numeric literals
           int64_t z1, z2;
           bennet_optional(sexp_ptr) opt1 = get_num_z(e1, &z1);
@@ -1002,17 +974,15 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
             }
 
             cn_term* result_term = cn_smt_num(e1->base_type, result);
-            return translate_term(s, result_term);
+            return translate_term_aux(s, result_term);
           } else {
             assert(false);  // "Exp"
             return NULL;
           }
         }
 
-        case CN_BINOP_EXPNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, exp_name);
-
-        case CN_BINOP_REM: {
+        case CN_BINOP_REM:
+        case CN_BINOP_REMNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS: {
               if (iterm->base_type.data.bits.is_signed) {
@@ -1029,10 +999,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_REMNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, rem_name);
-
-        case CN_BINOP_MOD: {
+        case CN_BINOP_MOD:
+        case CN_BINOP_MODNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS: {
               if (iterm->base_type.data.bits.is_signed) {
@@ -1048,9 +1016,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               return NULL;
           }
         }
-
-        case CN_BINOP_MODNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, mod_name);
 
         case CN_BINOP_BW_XOR: {
           if (iterm->base_type.tag == CN_BASE_BITS) {
@@ -1154,7 +1119,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // translate_term s (ite_ (le_ (e1, e2) loc, e1, e2) loc)
           cn_term* le_term = cn_smt_le(e1, e2);
           cn_term* ite_term = cn_smt_ite(le_term, e1, e2);
-          return translate_term(s, ite_term);
+          return translate_term_aux(s, ite_term);
         }
 
         case CN_BINOP_MAX: {
@@ -1162,7 +1127,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // translate_term s (ite_ (ge_ (e1, e2) loc, e1, e2) loc)
           cn_term* ge_term = cn_smt_ge(e1, e2);
           cn_term* ite_term = cn_smt_ite(ge_term, e1, e2);
-          return translate_term(s, ite_term);
+          return translate_term_aux(s, ite_term);
         }
 
         case CN_BINOP_EQ:
@@ -1174,7 +1139,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               cn_base_type_bits(false, 64);  // Memory.uintptr_bt equivalent
           cn_term* cast_e1 = cn_smt_cast(uintptr_bt, e1);
           cn_term* cast_e2 = cn_smt_cast(uintptr_bt, e2);
-          return translate_term(s, cn_smt_lt(cast_e1, cast_e2));
+          return translate_term_aux(s, cn_smt_lt(cast_e1, cast_e2));
         }
 
         case CN_BINOP_LE_POINTER: {
@@ -1183,7 +1148,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               cn_base_type_bits(false, 64);  // Memory.uintptr_bt equivalent
           cn_term* cast_e1 = cn_smt_cast(uintptr_bt, e1);
           cn_term* cast_e2 = cn_smt_cast(uintptr_bt, e2);
-          return translate_term(s, cn_smt_le(cast_e1, cast_e2));
+          return translate_term_aux(s, cn_smt_le(cast_e1, cast_e2));
         }
 
         case CN_BINOP_SET_UNION:
@@ -1208,22 +1173,22 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_ITE: {
-      sexp_t* cond_smt = translate_term(s, iterm->data.ite.cond);
-      sexp_t* then_smt = translate_term(s, iterm->data.ite.then_term);
-      sexp_t* else_smt = translate_term(s, iterm->data.ite.else_term);
+      sexp_t* cond_smt = translate_term_aux(s, iterm->data.ite.cond);
+      sexp_t* then_smt = translate_term_aux(s, iterm->data.ite.then_term);
+      sexp_t* else_smt = translate_term_aux(s, iterm->data.ite.else_term);
       return ite(cond_smt, then_smt, else_smt);
     }
 
     case CN_TERM_MEMBER_SHIFT: {
-      sexp_t* ptr_smt = translate_term(s, iterm->data.member_shift.base);
+      sexp_t* ptr_smt = translate_term_aux(s, iterm->data.member_shift.base);
 
       return bv_add(ptr_smt, loc_k(iterm->data.member_shift.offset));
     }
 
     case CN_TERM_ARRAY_SHIFT: {
-      sexp_t* base_smt = translate_term(s, iterm->data.array_shift.base);
+      sexp_t* base_smt = translate_term_aux(s, iterm->data.array_shift.base);
       sexp_t* offset_smt = bv_mul(loc_k(iterm->data.array_shift.element_size),
-          translate_term(s, iterm->data.array_shift.index));
+          translate_term_aux(s, iterm->data.array_shift.index));
 
       return bv_add(base_smt, offset_smt);
     }
@@ -1234,7 +1199,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       cn_base_type target_bt = iterm->base_type;
       cn_base_type source_bt = t->base_type;
 
-      sexp_t* smt_term = translate_term(s, t);
+      sexp_t* smt_term = translate_term_aux(s, t);
 
       // Handle different cast combinations - simplified version
       if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_LOC) {
@@ -1263,15 +1228,15 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         // LOC is represented as a bitvector of width CHAR_BIT * sizeof(uintptr_t)
         // Use (_ int2bv n) to convert integer to n-bit bitvector
         int ptr_width = CHAR_BIT * sizeof(uintptr_t);
-        char int2bv_op[64];
-        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", ptr_width);
+        char* int2bv_op = malloc(64);
+        snprintf(int2bv_op, 64, "(_ int2bv %d)", ptr_width);
         sexp_t* args[] = {smt_term};
         return sexp_app_str(int2bv_op, args, 1);
       } else if (source_bt.tag == CN_BASE_INTEGER && target_bt.tag == CN_BASE_BITS) {
         // Integer -> Bits: Convert integer to bitvector of target width
         int target_width = target_bt.data.bits.size_bits;
-        char int2bv_op[64];
-        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", target_width);
+        char* int2bv_op = malloc(64);
+        snprintf(int2bv_op, 64, "(_ int2bv %d)", target_width);
         sexp_t* args[] = {smt_term};
         return sexp_app_str(int2bv_op, args, 1);
       } else {
@@ -1317,7 +1282,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         for (size_t i = 0; i < arg_count; i++) {
           cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
           cn_term* member_term = pair->value;
-          args[i] = translate_term(s, member_term);
+          args[i] = translate_term_aux(s, member_term);
         }
       }
 
@@ -1336,7 +1301,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_STRUCT_MEMBER: {
       // Struct member access
-      sexp_t* struct_smt = translate_term(s, iterm->data.struct_member.struct_term);
+      sexp_t* struct_smt = translate_term_aux(s, iterm->data.struct_member.struct_term);
       const char* member = iterm->data.struct_member.member_name;
 
       char* fn_name = struct_field_name(member);
@@ -1351,8 +1316,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_STRUCT_UPDATE: {
       // Struct update - create uninterpreted function call
-      sexp_t* struct_smt = translate_term(s, iterm->data.struct_update.struct_term);
-      sexp_t* value_smt = translate_term(s, iterm->data.struct_update.new_value);
+      sexp_t* struct_smt = translate_term_aux(s, iterm->data.struct_update.struct_term);
+      sexp_t* value_smt = translate_term_aux(s, iterm->data.struct_update.new_value);
       const char* member = iterm->data.struct_update.member_name;
 
       char* fn_name = cn_test_malloc(strlen(member) + 20);
@@ -1390,7 +1355,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           for (size_t j = 0; j < bennet_vector_size(cn_member_pair)(members); j++) {
             cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, j);
             if (strcmp(pair->name, type_member_name) == 0) {
-              args[i] = translate_term(s, pair->value);
+              args[i] = translate_term_aux(s, pair->value);
               found = true;
               break;
             }
@@ -1439,7 +1404,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_RECORD_MEMBER: {
       // Record member access - use tuple selector
-      sexp_t* record_smt = translate_term(s, iterm->data.record_member.record_term);
+      sexp_t* record_smt = translate_term_aux(s, iterm->data.record_member.record_term);
       const char* member = iterm->data.record_member.member_name;
 
       // Get the record's base type to find member index
@@ -1497,7 +1462,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       assert(arg_sexps);
       for (size_t i = 0; i < arg_count; i++) {
         cn_member_pair* pair = bennet_vector_get(cn_member_pair)(args_vec, i);
-        arg_sexps[i] = translate_term(s, pair->value);
+        arg_sexps[i] = translate_term_aux(s, pair->value);
         assert(arg_sexps[i]);
       }
 
@@ -1520,17 +1485,17 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_MAP_SET: {
       // Map set operation - use arr_store
-      sexp_t* map_smt = translate_term(s, iterm->data.map_set.map);
-      sexp_t* key_smt = translate_term(s, iterm->data.map_set.key);
-      sexp_t* value_smt = translate_term(s, iterm->data.map_set.value);
+      sexp_t* map_smt = translate_term_aux(s, iterm->data.map_set.map);
+      sexp_t* key_smt = translate_term_aux(s, iterm->data.map_set.key);
+      sexp_t* value_smt = translate_term_aux(s, iterm->data.map_set.value);
 
       return arr_store(map_smt, key_smt, value_smt);
     }
 
     case CN_TERM_MAP_GET: {
       // Map get operation - use arr_select
-      sexp_t* map_smt = translate_term(s, iterm->data.map_get.map);
-      sexp_t* key_smt = translate_term(s, iterm->data.map_get.key);
+      sexp_t* map_smt = translate_term_aux(s, iterm->data.map_get.map);
+      sexp_t* key_smt = translate_term_aux(s, iterm->data.map_get.key);
 
       return arr_select(map_smt, key_smt);
     }
@@ -1561,7 +1526,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         // Translate each argument term
         for (size_t i = 0; i < arg_count; i++) {
           cn_term* arg_term = *bennet_vector_get(cn_term_ptr)(args_vec, i);
-          args[i] = translate_term(s, arg_term);
+          args[i] = translate_term_aux(s, arg_term);
         }
       }
 
@@ -1591,7 +1556,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       assert(substituted_body);
 
       // Translate the substituted body
-      sexp_t* result = translate_term(s, substituted_body);
+      sexp_t* result = translate_term_aux(s, substituted_body);
 
       // Cleanup
       cn_free_subst_table(subst_table);
@@ -1603,7 +1568,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Pattern matching - translate to SMT-LIB match expression
 
       // Translate scrutinee
-      sexp_t* scrutinee_smt = translate_term(s, iterm->data.match_data.scrutinee);
+      sexp_t* scrutinee_smt = translate_term_aux(s, iterm->data.match_data.scrutinee);
       assert(scrutinee_smt);
 
       // Get cases vector
@@ -1687,7 +1652,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         }
 
         // Translate body term
-        alternatives[i].expr = translate_term(s, match_case->body_term);
+        alternatives[i].expr = translate_term_aux(s, match_case->body_term);
         assert(alternatives[i].expr);
       }
 
@@ -1735,22 +1700,18 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
   }
 }
 
-///////////////////////////
-/* OCaml function conversions */
-///////////////////////////
+/** Public wrapper for translate_term_aux */
+sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
+  cn_arena* arena = cn_arena_create(0);
+  cn_arena_push_alloc(arena);
 
-// cn_arg_binder is now defined in the header file
+  sexp_t* result = translate_term_aux(s, iterm);
 
-// Simplified wrapper function (now cn_base_type has all the detail we need)
-static sexp_t* translate_cn_base_type(cn_base_type bt) {
-  return translate_base_type(bt);
+  cn_test_pop_alloc();
+  cn_arena_destroy(arena);
+
+  return result;
 }
-
-/* let declare_fun s name args_bts res_bt =
-  let sname = CN_Names.fn_name name in
-  let args_ts = List.map translate_base_type args_bts in
-  let res_t = translate_base_type res_bt in
-  ack_command s (SMT.declare_fun sname args_ts res_t) */
 
 void cn_declare_fun(struct cn_smt_solver* s,
     cn_sym name,
@@ -1761,6 +1722,8 @@ void cn_declare_fun(struct cn_smt_solver* s,
   if (!sname)
     return;
 
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
   // Translate argument base types
   sexp_t** args_ts = NULL;
   if (args_count > 0) {
@@ -1769,12 +1732,12 @@ void cn_declare_fun(struct cn_smt_solver* s,
   }
 
   for (size_t i = 0; i < args_count; i++) {
-    args_ts[i] = translate_cn_base_type(args_bts[i]);
+    args_ts[i] = translate_base_type(args_bts[i]);
     assert(args_ts[i]);
   }
 
   // Translate result type
-  sexp_t* res_t = translate_cn_base_type(res_bt);
+  sexp_t* res_t = translate_base_type(res_bt);
   assert(res_t);
 
   // Create SMT declare_fun command
@@ -1782,21 +1745,14 @@ void cn_declare_fun(struct cn_smt_solver* s,
   assert(decl_cmd);
   ack_command(s, decl_cmd);
 
+  cn_bump_free_after(frame);
+
   // Cleanup
   for (size_t i = 0; i < args_count; i++) {
   }
   cn_test_free(args_ts);
   cn_test_free(sname);
 }
-
-/* let define_fun s name arg_binders res_bt body =
-  let sname = CN_Names.fn_name name in
-  let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
-  let args = List.map mk_arg arg_binders in
-  let ret_t = translate_base_type res_bt in
-  ack_command s (SMT.define_fun sname args ret_t (translate_term s body)) */
-
-/* let declare_variable solver (sym, bt) = declare_fun solver sym [] bt */
 
 void cn_declare_variable(struct cn_smt_solver* solver, cn_sym sym, cn_base_type bt) {
   cn_declare_fun(solver, sym, NULL, 0, bt);

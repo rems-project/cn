@@ -106,6 +106,18 @@ void cn_arena_free(cn_arena* arena, void* ptr);
 void cn_arena_set_default_alloc(cn_arena* arena);
 
 /**
+ * Push the current allocator onto the stack and configure the test allocator
+ * to use this arena.
+ *
+ * After calling this function, cn_test_malloc, cn_test_calloc, etc. will
+ * allocate from the specified arena. The previous allocator can be restored
+ * by calling cn_test_pop_alloc().
+ *
+ * @param arena The arena to use for test allocations. Must not be NULL.
+ */
+void cn_arena_push_alloc(cn_arena* arena);
+
+/**
  * Get the current frame ID for checkpoint/restore operations.
  *
  * @param arena The arena. Must not be NULL.

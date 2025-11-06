@@ -322,3 +322,15 @@ void cn_arena_set_default_alloc(cn_arena* arena) {
       (void (*)(void*, void*))cn_arena_free,
       (void (*)(void*))cn_arena_free_all);
 }
+
+void cn_arena_push_alloc(cn_arena* arena) {
+  assert(arena != NULL);
+
+  cn_test_push_alloc(arena,
+      (void* (*)(void*, size_t))cn_arena_malloc,
+      (void* (*)(void*, size_t, size_t))cn_arena_calloc,
+      (void* (*)(void*, void*, size_t))cn_arena_realloc,
+      (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
+      (void (*)(void*, void*))cn_arena_free,
+      (void (*)(void*))cn_arena_free_all);
+}
