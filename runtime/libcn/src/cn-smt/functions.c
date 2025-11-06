@@ -6,6 +6,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <cn-smt/functions.h>
+#include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
@@ -75,6 +76,8 @@ void cn_register_func(cn_sym name,
   // Now define the function in SMT solver
   // This is the logic from cn_define_fun in to_smt.c
 
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
   // Create parameter list for SMT define_fun
   sexp_t** args = NULL;
   if (arg_count > 0) {
@@ -115,6 +118,8 @@ void cn_register_func(cn_sym name,
 
   // Send command
   ack_command(s, def_cmd);
+
+  cn_bump_free_after(frame);
 
   // Cleanup
   for (size_t i = 0; i < arg_count; i++) {

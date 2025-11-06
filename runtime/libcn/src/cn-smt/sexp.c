@@ -172,8 +172,8 @@ sexp_t *sexp_let(sexp_t **bindings, size_t binding_count, sexp_t *e) {
 
 /** Non-negative numeric constant. */
 sexp_t *sexp_nat_k(int x) {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%d", x);
+  char *buffer = malloc(32);
+  snprintf(buffer, 32, "%d", x);
   return sexp_atom(buffer);
 }
 
