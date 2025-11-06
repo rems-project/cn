@@ -164,7 +164,7 @@ void std_free_all(void) {
   std_free_all_aux(&g_std_alloc);
 }
 
-void std_set_as_default(void) {
+void std_set_default_alloc(void) {
   ensure_initialized();
 
   cn_test_set_alloc(&g_std_alloc,

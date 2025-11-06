@@ -7,7 +7,7 @@
 class CnSmtEvalTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    std_set_as_default();
+    std_set_default_alloc();
   }
 
   void TearDown() override {

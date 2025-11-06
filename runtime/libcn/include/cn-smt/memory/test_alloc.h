@@ -64,6 +64,7 @@ void cn_test_free_all(void);
 
 /**
  * Configure the test allocator with custom function pointers.
+ * This resets the allocator stack.
  *
  * @param data Context data to pass to the allocator functions.
  * @param malloc_fn Function pointer for malloc.
@@ -80,6 +81,40 @@ void cn_test_set_alloc(void* data,
     void* (*aligned_alloc_fn)(void* data, size_t alignment, size_t size),
     void (*free_fn)(void* data, void* ptr),
     void (*free_all_fn)(void* data));
+
+/**
+ * Push current allocator onto stack and configure a new test allocator.
+ *
+ * @param data Context data to pass to the allocator functions.
+ * @param malloc_fn Function pointer for malloc.
+ * @param calloc_fn Function pointer for calloc.
+ * @param realloc_fn Function pointer for realloc.
+ * @param aligned_alloc_fn Function pointer for aligned_alloc.
+ * @param free_fn Function pointer for free.
+ * @param free_all_fn Function pointer for free_all.
+ */
+void cn_test_push_alloc(void* data,
+    void* (*malloc_fn)(void* data, size_t size),
+    void* (*calloc_fn)(void* data, size_t count, size_t size),
+    void* (*realloc_fn)(void* data, void* ptr, size_t size),
+    void* (*aligned_alloc_fn)(void* data, size_t alignment, size_t size),
+    void (*free_fn)(void* data, void* ptr),
+    void (*free_all_fn)(void* data));
+
+/**
+ * Pop allocator from stack and restore previous allocator configuration.
+ */
+void cn_test_pop_alloc(void);
+
+/**
+ * Move allocated data from current allocator to previous allocator on stack.
+ * Allocates new memory in the previous allocator, copies data, and frees original.
+ *
+ * @param ptr Pointer to data allocated in current allocator.
+ * @param size Number of bytes to copy.
+ * @return Pointer to data in previous allocator.
+ */
+void* cn_test_move_to_prev(void* ptr, size_t size);
 
 #ifdef __cplusplus
 }
