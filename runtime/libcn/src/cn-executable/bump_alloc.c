@@ -103,11 +103,12 @@ void* bump_by(size_t nbytes) {
         "Attempted to bump allocate larger than maximum allocation size %d.\n",
         BUMP_BLOCK_SIZE);
     cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
-    return 0;
+    return NULL;
   }
 
   if (!bump_can_fit(nbytes)) {
     if (!bump_expand()) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
       return NULL;
     }
   }
@@ -129,6 +130,7 @@ void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
     size_t padding = (alignment - (uintptr_t)bump_curr % alignment) % alignment;
     if (!bump_can_fit(padding + nbytes)) {
       if (!bump_expand()) {
+        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
         return NULL;
       }
       padding = (alignment - (uintptr_t)bump_curr % alignment) % alignment;
@@ -138,6 +140,7 @@ void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
     void* res = bump_by(padding);
     if (res == NULL) {
       bump_curr = prev;
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
       return NULL;
     }
   }
