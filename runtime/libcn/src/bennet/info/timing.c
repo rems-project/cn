@@ -86,6 +86,7 @@ void bennet_info_timing_set_function_under_test(const char* function_name) {
     // Create new empty stats table for this function
     bennet_info_timing_stats_table* stats_table =
         malloc(sizeof(bennet_info_timing_stats_table));
+    assert(stats_table);
     bennet_hash_table_init(const_str, pointer)(stats_table, string_hash, string_equal);
     bennet_hash_table_set(const_str, pointer)(
         &function_to_timing, current_function, stats_table);
@@ -118,6 +119,7 @@ void bennet_info_timing_start(const char* event_name) {
   if (bennet_optional_is_none(stats_opt)) {
     // Create new stats for this event
     stats = malloc(sizeof(timing_stats_t));
+    assert(stats);
     stats->min = INT64_MAX;
     stats->max = 0;
     stats->total = 0;
@@ -209,6 +211,7 @@ timing_events_t* bennet_info_timing_get_last(void) {
 
   // Create new hashtable for last timing values
   last_timing_events = malloc(sizeof(timing_events_t));
+  assert(last_timing_events);
   bennet_hash_table_init(const_str, int64_t)(
       last_timing_events, string_hash, string_equal);
 
@@ -262,6 +265,7 @@ void bennet_info_timing_print_info(void) {
 
     // Collect timing entries for sorting
     timing_entry_t* entries = malloc(event_count * sizeof(timing_entry_t));
+    assert(entries);
     size_t idx = 0;
     for (size_t j = 0; j < stats_table->capacity; ++j) {
       if (stats_table->entries[j].occupied) {

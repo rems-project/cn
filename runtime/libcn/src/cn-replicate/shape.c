@@ -21,6 +21,7 @@ static struct hash_table* alloc_sizes;
 
 void* cn_replica_alloc_get_parent(void* ptr) {
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)ptr;
 
   size_t* old_sz = ht_get(alloc_sizes, key);
@@ -49,6 +50,7 @@ size_t cn_replica_alloc_get(void* ptr) {
   uintptr_t dist = (uintptr_t)ptr - (uintptr_t)parent;
 
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)parent;
 
   size_t* value = ht_get(alloc_sizes, key);
@@ -67,11 +69,13 @@ void cn_analyze_shape_owned(void* ptr, size_t sz) {
   sz += dist;
 
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)parent;
 
   size_t* old_sz = ht_get(alloc_sizes, key);
   if (old_sz == NULL) {
     size_t* new_sz = malloc(sizeof(size_t));
+    assert(new_sz);
     *new_sz = sz;
 
     ht_set(alloc_sizes, key, new_sz);
@@ -103,6 +107,7 @@ static const char* cn_replicate_get(void* p) {
   p = cn_replica_alloc_get_parent(p);
 
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)p;
 
   char* name = ht_get(allocated, key);
@@ -113,6 +118,7 @@ static const char* cn_replicate_get(void* p) {
   }
 
   name = malloc(22);
+  assert(name);
   snprintf(name, 22, "p%d", pointer_count++);
 
   ht_set(allocated, key, name);
@@ -123,6 +129,7 @@ static const char* cn_replicate_get(void* p) {
 
   size_t bytes = 6 + strlen(name) + 10 + 20 + 3;
   char* buf = malloc(bytes);
+  assert(buf);
   snprintf(buf, bytes, "void* %s = malloc(%" PRIuPTR ");", name, sz);
 
   cn_replica_lines_append(buf);
@@ -133,6 +140,7 @@ static const char* cn_replicate_get(void* p) {
 void cn_replicate_owned(char* addr_str, char* value_str) {
   size_t bytes = strlen(addr_str) + 3 + strlen(value_str) + 3;
   char* buf = malloc(bytes);
+  assert(buf);
   snprintf(buf, bytes, "%s = %s;", addr_str, value_str);
 
   cn_replica_lines_append(buf);
@@ -143,6 +151,7 @@ char* cn_replicate_owned_cn_pointer_aux(cn_pointer* q) {
 
   if (p == NULL) {
     char* buf = malloc(5);
+    assert(buf);
     snprintf(buf, 5, "NULL");
     return buf;
   }
@@ -150,6 +159,7 @@ char* cn_replicate_owned_cn_pointer_aux(cn_pointer* q) {
   size_t sz = cn_replica_alloc_get(p);
   if (sz == -1) {
     char* buf = malloc(24);
+    assert(buf);
     snprintf(buf, 24, "%" PRIxPTR, (uintptr_t)p);
     return buf;
   }
@@ -163,12 +173,14 @@ char* cn_replicate_owned_cn_pointer_aux(cn_pointer* q) {
   if (dist == 0) {
     size_t bytes = 11 + strlen(name) + 1;
     char* buf = malloc(bytes);
+    assert(buf);
     snprintf(buf, bytes, "%s", name);
     return buf;
   }
 
   size_t bytes = 12 + strlen(name) + 3 + 24 + 2;
   char* buf = malloc(bytes);
+  assert(buf);
   snprintf(buf, bytes, "((uintptr_t)%s + %" PRIxPTR ")", name, dist);
   return buf;
 }
@@ -194,6 +206,7 @@ static void init_decimal_places() {
                                                                                          \
     size_t bytes = decimal_places + 1;                                                   \
     char* buf = malloc(bytes);                                                           \
+    assert(buf);                                                                         \
     snprintf(buf,                                                                        \
         bytes,                                                                           \
         "%" PRI##ty,                                                                     \

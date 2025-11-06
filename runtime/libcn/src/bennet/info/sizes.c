@@ -77,6 +77,7 @@ void bennet_info_sizes_set_function_under_test(const char* function_name) {
     if (bennet_optional_is_none(size_table_opt)) {
       // Create new empty counter for this function
       bennet_info_sizes_table* size_table = malloc(sizeof(bennet_info_sizes_table));
+      assert(size_table);
       bennet_hash_table_init(size_t, size_t)(
           size_table, bennet_hash_size_t, bennet_eq_size_t);
       bennet_hash_table_set(const_str, pointer)(
@@ -146,6 +147,7 @@ void bennet_info_sizes_print_info(void) {
 
     // Collect size/count pairs for sorting
     size_count_entry_t* entries = malloc(size_count * sizeof(size_count_entry_t));
+    assert(entries);
     size_t idx = 0;
     for (size_t j = 0; j < size_table->capacity; ++j) {
       if (size_table->entries[j].occupied) {

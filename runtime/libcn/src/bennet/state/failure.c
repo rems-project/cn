@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <bennet/internals/size.h>
@@ -63,6 +64,7 @@ void bennet_failure_set_failure_type(enum bennet_failure_type type) {
     }                                                                                    \
                                                                                          \
     struct name_list* new_node = (struct name_list*)malloc(sizeof(struct name_list));    \
+    assert(new_node);                                                                    \
     *new_node = (struct name_list){.id = id, .domain = new_domain, .next = 0};           \
                                                                                          \
     if (failure.blamed == NULL) {                                                        \
@@ -196,6 +198,7 @@ int bennet_failure_remap_blamed_many(const char* from[], const char* to[]) {
   }
 
   char** toUnique = malloc(number_of_remaps * sizeof(char*));
+  assert(toUnique);
 
   int successes = 1;
   for (int i = 0; from[i] != 0; i++) {
@@ -204,6 +207,7 @@ int bennet_failure_remap_blamed_many(const char* from[], const char* to[]) {
 
     // Copy the desired variable name
     toUnique[i] = (char*)malloc(len + 2);
+    assert(toUnique[i]);
     strcpy(toUnique[i], to[i]);
 
     // Give it an impossible name, but unique

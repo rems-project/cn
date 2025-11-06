@@ -92,6 +92,7 @@ static struct bennet_int_tree* insert_tree(
   if (is_leaf(tree)) {
     struct bennet_int_tree* res =
         (struct bennet_int_tree*)malloc(sizeof(struct bennet_int_tree));
+    assert(res);
     res->weight = tree->weight + leaf->weight;
     res->left = tree;
     res->right = leaf;
@@ -111,6 +112,7 @@ static struct bennet_int_tree* insert_tree(
 void urn_insert(struct bennet_int_urn* urn, uint64_t weight, uint64_t value) {
   struct bennet_int_tree* leaf =
       (struct bennet_int_tree*)malloc(sizeof(struct bennet_int_tree));
+  assert(leaf);
   leaf->weight = weight;
   leaf->value = value;
   leaf->left = NULL;
@@ -123,6 +125,7 @@ void urn_insert(struct bennet_int_urn* urn, uint64_t weight, uint64_t value) {
 struct bennet_int_urn* urn_from_array(uint64_t elems[], uint8_t len) {
   struct bennet_int_urn* urn =
       (struct bennet_int_urn*)malloc(sizeof(struct bennet_int_urn));
+  assert(urn);
   urn->size = 0;
   urn->tree = NULL;
   for (uint16_t i = 0; i < 2 * (uint16_t)len; i += 2) {

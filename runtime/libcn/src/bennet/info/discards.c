@@ -110,6 +110,7 @@ void bennet_info_discards_set_function_under_test(const char* function_name) {
       // Create new empty counter for this function
       bennet_info_discards_table* discard_table =
           malloc(sizeof(bennet_info_discards_table));
+      assert(discard_table);
       bennet_hash_table_init(failure_type_t, uint64_t)(
           discard_table, failure_type_hash, failure_type_equal);
       bennet_hash_table_set(const_str, pointer)(
@@ -174,6 +175,7 @@ void bennet_info_discards_print_info(void) {
     // Collect failure type/count pairs for sorting
     discard_count_entry_t* entries =
         malloc(failure_type_count * sizeof(discard_count_entry_t));
+    assert(entries);
     size_t idx = 0;
     for (size_t j = 0; j < discard_table->capacity; ++j) {
       if (discard_table->entries[j].occupied) {
