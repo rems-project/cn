@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include <bennet/utils/hash_table.h>
+#include <cn-executable/utils.h>
 #include <cn-smt/memory/std_alloc.h>
 #include <cn-smt/memory/test_alloc.h>
 
@@ -51,6 +52,8 @@ static void* std_malloc_aux(std_alloc_data* data, size_t size) {
   void* ptr = malloc(size);
   if (ptr != NULL) {
     bennet_hash_table_set(voidptr, size_t)(&data->table, ptr, size);
+  } else if (size != 0) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
   }
   return ptr;
 }
@@ -59,6 +62,8 @@ static void* std_calloc_aux(std_alloc_data* data, size_t count, size_t size) {
   void* ptr = calloc(count, size);
   if (ptr != NULL) {
     bennet_hash_table_set(voidptr, size_t)(&data->table, ptr, count * size);
+  } else if (count != 0 && size != 0) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
   }
   return ptr;
 }
@@ -98,6 +103,8 @@ static void* std_aligned_alloc_aux(std_alloc_data* data, size_t alignment, size_
   void* ptr = aligned_alloc(alignment, size);
   if (ptr != NULL) {
     bennet_hash_table_set(voidptr, size_t)(&data->table, ptr, size);
+  } else if (size != 0) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
   }
   return ptr;
 }
