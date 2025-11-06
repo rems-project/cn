@@ -151,5 +151,5 @@ bool cn_func_exists(const char* func_name) {
 
 // Reset the function registry
 void cn_smt_func_registry_reset(void) {
-  g_func_registry_initialized = false;
+  bennet_hash_table_free(const_char_ptr, void_ptr)(&g_func_registry);
 }

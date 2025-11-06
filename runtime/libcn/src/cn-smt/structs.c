@@ -131,5 +131,5 @@ bool cn_struct_type_exists(const char* struct_name) {
 
 // Reset the struct registry
 void cn_smt_struct_registry_reset(void) {
-  g_struct_data_initialized = false;
+  bennet_hash_table_free(const_char_ptr, void_ptr)(&g_struct_data);
 }
