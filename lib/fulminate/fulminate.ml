@@ -337,7 +337,52 @@ let gen_single_stat_control_flow_injs statement =
     else
       b
   in
-  let rec aux_stmt (A.{ node = s_; _ } as stmt) =
+  let rec aux_expr (A.AnnotatedExpression (_, _, _, e_)) =
+    match e_ with
+    | AilEcompound _ -> []
+    | AilEgcc_statement (_, ss) -> List.concat (List.map aux_stmt ss)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      []
+    | AilEsizeof_expr e
+    | AilErvalue e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      aux_expr e1 @ aux_expr e2
+    | AilEcond (e1, Some e2, e3) -> aux_expr e1 @ aux_expr e2 @ aux_expr e3
+    | AilEcall (e, es) -> aux_expr e @ List.concat (List.map aux_expr es)
+    | AilEgeneric (e, _, gas) ->
+      let injs =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      aux_expr e @ List.concat injs
+    | AilEarray (_, _, xs) ->
+      let injs = List.map (function None -> [] | Some e -> aux_expr e) xs in
+      List.concat injs
+    | AilEstruct (_, xs) ->
+      let injs = List.map (function _, None -> [] | _, Some e -> aux_expr e) xs in
+      List.concat injs
+  and aux_stmt (A.{ node = s_; _ } as stmt) =
     let is_forloop_body A.{ desug_info; _ } = desug_info.is_forloop_body in
     (if is_forloop_body stmt then
        fun z -> gen_curly_braces_inj stmt.loc @ z
@@ -345,30 +390,49 @@ let gen_single_stat_control_flow_injs statement =
        Fun.id)
       (match s_ with
        | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
-       | AilSif (_, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
-         let inj1 =
+       | AilSif (e, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
+         let inj_e = aux_expr e in
+         let inj_true =
            if is_valid_single_stat s1 then
-             gen_curly_braces_inj loc1
+             gen_curly_braces_inj loc1 @ aux_stmt s1
            else
              aux_stmt s1
          in
-         let inj2 =
+         let inj_false =
            if is_valid_single_stat s2 then
-             gen_curly_braces_inj loc2
+             gen_curly_braces_inj loc2 @ aux_stmt s2
            else
              aux_stmt s2
          in
-         inj1 @ inj2
-       | AilSwhile (_, (A.{ loc; _ } as s), _)
-       | AilSdo ((A.{ loc; _ } as s), _, _)
-       | AilSswitch (_, (A.{ loc; _ } as s))
-       | AilScase (_, (A.{ loc; _ } as s))
-       | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s)) ->
-         if is_valid_single_stat s then gen_curly_braces_inj loc else aux_stmt s
-       | AilSlabel _ | AilSdefault _ -> []
-       | AilSreturn _ | AilSexpr _ | AilSreg_store (_, _) -> []
+         inj_e @ inj_true @ inj_false
+       | AilSwhile (e, (A.{ loc; _ } as s), _)
+       | AilSdo ((A.{ loc; _ } as s), e, _)
+       | AilSswitch (e, (A.{ loc; _ } as s)) ->
+         let inj_e = aux_expr e in
+         let inj_s =
+           if is_valid_single_stat s then
+             gen_curly_braces_inj loc @ aux_stmt s
+           else
+             aux_stmt s
+         in
+         inj_e @ inj_s
+       | AilScase (_, (A.{ loc; _ } as s)) | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
+         ->
+         if is_valid_single_stat s then
+           gen_curly_braces_inj loc @ aux_stmt s
+         else
+           aux_stmt s
+       | AilSdeclaration xs ->
+         let injs =
+           List.map
+             (fun (_, e_opt) -> match e_opt with None -> [] | Some e -> aux_expr e)
+             xs
+         in
+         List.concat injs
+       | AilSlabel (_, s, _) | AilSdefault s -> aux_stmt s
+       | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
        | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
-       | AilSmarker _ | AilSdeclaration _ ->
+       | AilSmarker _ ->
          [])
   in
   aux_stmt statement
