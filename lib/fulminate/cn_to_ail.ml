@@ -519,7 +519,8 @@ let gen_bump_alloc_bs_and_ss () =
   let frame_id_ctype =
     mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh "cn_bump_frame_id") ] Void
   in
-  let frame_id_var_sym = Sym.fresh "cn_frame_id" in
+  let frame_id_var_str = "__cn_bump_count_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())) in
+  let frame_id_var_sym = Sym.fresh frame_id_var_str in
   let frame_id_var_expr_ = A.(AilEident frame_id_var_sym) in
   let frame_id_binding = create_binding frame_id_var_sym frame_id_ctype in
   let start_fn_call =
@@ -4249,23 +4250,31 @@ let cn_to_ail_loop_inv
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
+    let bump_alloc_decl, bump_alloc_assign =
+      match bump_alloc_start_stat_ with
+      | A.(AilSdeclaration [ (frame_id_var_sym, Some start_fn_call) ]) ->
+        ( A.AilSdeclaration [ (frame_id_var_sym, None) ],
+          A.AilSexpr
+            (mk_expr (AilEassign (mk_expr (AilEident frame_id_var_sym), start_fn_call)))
+        )
+      | _ -> failwith "Bump alloc pattern match failed"
+    in
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
     let stats =
-      (bump_alloc_start_stat_ :: loop_ownership_state.assign :: cond_ss)
+      (bump_alloc_assign :: loop_ownership_state.assign :: cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
       @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
-    let ail_gcc_stat_as_expr =
-      A.(AilEgcc_statement ([ bump_alloc_binding ], List.map mk_stmt stats))
-    in
+    let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
       { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
         loop_loc;
         loop_entry =
-          (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss);
+          ( (bump_alloc_binding :: loop_ownership_state.binding) @ loop_bs,
+            bump_alloc_decl :: loop_ownership_state.decl :: loop_ss );
         loop_exit = ([], [ bump_alloc_end_stat_ ])
       })
   else
