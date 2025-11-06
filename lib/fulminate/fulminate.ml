@@ -347,14 +347,6 @@ let gen_single_stat_control_flow_injs statement =
      else
        Fun.id)
       (match s_ with
-       (* | AilSblock
-          ( _,
-            ([ A.{ node = AilSdeclaration _; _ }; A.{ node = A.AilSwhile (_, s, _); _ } ]
-             as ss) ) ->
-        if is_forloop stmt then
-          aux_stmt ~parent_for_loop:true s
-        else
-          List.concat (List.map (aux_stmt ~parent_for_loop:false) ss) *)
        | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
        | AilSif (_, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
          let inj1 =
@@ -371,7 +363,6 @@ let gen_single_stat_control_flow_injs statement =
          in
          inj1 @ inj2
        | AilSwhile (_, (A.{ loc; _ } as s), _)
-       (* if is_forloop_body s then gen_curly_braces_inj loc :: aux_stmt s else aux_stmt s *)
        | AilSdo ((A.{ loc; _ } as s), _, _)
        | AilSswitch (_, (A.{ loc; _ } as s))
        | AilScase (_, (A.{ loc; _ } as s))
