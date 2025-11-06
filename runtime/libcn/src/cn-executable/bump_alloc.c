@@ -145,7 +145,15 @@ void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
     }
   }
 
-  return bump_by(nbytes);
+  void* prev = bump_curr;
+  void* res = bump_by(nbytes);
+  if (res == NULL) {
+    bump_curr = prev;
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    return NULL;
+  }
+
+  return res;
 }
 
 void* cn_bump_malloc(size_t nbytes) {
