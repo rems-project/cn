@@ -337,10 +337,7 @@ let gen_single_stat_control_flow_injs statement =
     else
       b
   in
-  let rec aux_stmt (* ?(parent_for_loop = false) *) (A.{ node = s_; _ } as stmt) =
-    (* let is_forloop A.{ desug_info; _ } =
-      match desug_info.desug_case with Some Desug_forloop -> true | _ -> false
-    in *)
+  let rec aux_stmt (A.{ node = s_; _ } as stmt) =
     let is_forloop_body A.{ desug_info; _ } = desug_info.is_forloop_body in
     (if is_forloop_body stmt then
        fun z -> gen_curly_braces_inj stmt.loc @ z
@@ -642,7 +639,9 @@ let main
     let rec aux acc = function
       | [] -> acc
       | (p, strs) :: xs ->
-        let (par, static_prec) = if List.equal String.equal strs [ "{" ]  then ('}', 1) else (')', 0)  in
+        let par, static_prec =
+          if List.equal String.equal strs [ "{" ] then ('}', 1) else (')', 0)
+        in
         let injs, xs, p', closing_expr = look_for_closing_parenthesis par [] xs in
         let pos_x, pos_y =
           match Cerb_location.to_cartesian_user p' with
@@ -653,7 +652,9 @@ let main
         (* '}': 0, ')': 1, '(': 2, '{': 3 *)
         let a = (Cartesian ((true, pos_x, pos_y), static_prec lxor 3), (p, strs)) in
         let cs = give_precedence_map Bot injs in
-        let b = (Cartesian ((false, pos_x, pos_y), static_prec), (p', [ closing_expr ])) in
+        let b =
+          (Cartesian ((false, pos_x, pos_y), static_prec), (p', [ closing_expr ]))
+        in
         let cs' = a :: b :: cs in
         aux (cs' @ acc) xs
     in

@@ -84,8 +84,8 @@ let compare_precedence p1 p2 =
   | Bot, Bot -> 0
   | Bot, Cartesian _ -> -1
   | Cartesian _, Bot -> 1
-  | Cartesian((true, _, _), _), Cartesian((false, _, _), _) -> -1
-  | Cartesian((false, _, _), _), Cartesian((true, _, _), _) -> 1
+  | Cartesian ((true, _, _), _), Cartesian ((false, _, _), _) -> -1
+  | Cartesian ((false, _, _), _), Cartesian ((true, _, _), _) -> 1
   | Cartesian ((s, x1, y1), pre1), Cartesian ((_, x2, y2), pre2) ->
     let coef = if s then -1 else 1 in
     let cmp = Stdlib.compare x1 x2 in

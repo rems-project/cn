@@ -5,7 +5,7 @@ type precedence =
   (* Cartesian (sign, x, y): ordered in (reverse if sign is true) lexicographic
     order (larger x/y ==> smaller in ordering, i.e. higher precedence, and vice
   versa) *)
-   (* the final int represents static precedence for different parentheses such
+  (* the final int represents static precedence for different parentheses such
    as '(' vs '{' *)
   | Cartesian of (bool * int * int) * int
 
