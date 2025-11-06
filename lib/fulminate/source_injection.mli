@@ -2,7 +2,12 @@ open Cerb_frontend
 
 type precedence =
   | Bot
-  | Cartesian of (int * int)
+  (* Cartesian (sign, x, y): ordered in (reverse if sign is true) lexicographic
+    order (larger x/y ==> smaller in ordering, i.e. higher precedence, and vice
+  versa) *)
+   (* the final int represents static precedence for different parentheses such
+   as '(' vs '{' *)
+  | Cartesian of (bool * int * int) * int
 
 type 'a cn_injection =
   { orig_filename : string; (** The original file before preprocessing *)

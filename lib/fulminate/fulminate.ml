@@ -633,25 +633,27 @@ let main
   **This function is designed specifically for memory access injections and ghost arg injections, so adding a different kind of injections may require modification.**
   *)
   let give_parenthesis_aware_precedence_map l =
-    let rec look_for_closing_parenthesis acc = function
+    let rec look_for_closing_parenthesis par acc = function
       | [] -> assert false
-      | (p, [ s ]) :: xs when Char.equal (String.get s (String.length s - 1)) ')' ->
+      | (p, [ s ]) :: xs when Char.equal (String.get s (String.length s - 1)) par ->
         (acc, xs, p, s)
-      | x :: xs -> look_for_closing_parenthesis (x :: acc) xs
+      | x :: xs -> look_for_closing_parenthesis par (x :: acc) xs
     in
     let rec aux acc = function
       | [] -> acc
       | (p, strs) :: xs ->
-        let injs, xs, p', closing_expr = look_for_closing_parenthesis [] xs in
-        let pos =
+        let (par, static_prec) = if List.equal String.equal strs [ "{" ]  then ('}', 1) else (')', 0)  in
+        let injs, xs, p', closing_expr = look_for_closing_parenthesis par [] xs in
+        let pos_x, pos_y =
           match Cerb_location.to_cartesian_user p' with
           | Some (start_pos, _) -> start_pos
           | _ -> failwith "error"
         in
         let open Source_injection in
-        let a = (Cartesian pos, (p, strs)) in
+        (* '}': 0, ')': 1, '(': 2, '{': 3 *)
+        let a = (Cartesian ((true, pos_x, pos_y), static_prec lxor 3), (p, strs)) in
         let cs = give_precedence_map Bot injs in
-        let b = (Bot, (p', [ closing_expr ])) in
+        let b = (Cartesian ((false, pos_x, pos_y), static_prec), (p', [ closing_expr ])) in
         let cs' = a :: b :: cs in
         aux (cs' @ acc) xs
     in
@@ -662,7 +664,7 @@ let main
   in
   let bot = Source_injection.Bot in
   let in_stmt_injs =
-    give_precedence_map bot control_flow_curly_brace_injs
+    give_parenthesis_aware_precedence_map control_flow_curly_brace_injs
     @ give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
     @ give_precedence_map bot toplevel_injections
