@@ -426,6 +426,8 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | IOpMul -> IT.mul_ (x, y) loc
       | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (IT.get_bt x) y here) loc
       | IOpShr -> IT.arith_binop Terms.ShiftRight (x, IT.cast_ (IT.get_bt x) y here) loc
+      | IOpDiv -> failwith "TODO division operator"
+      | IOpRem_t -> failwith "TODO remainder operator"
     in
     do_wrapI loc (Integer ity) it
   | PEcfunction pe ->
