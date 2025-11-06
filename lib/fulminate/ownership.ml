@@ -307,8 +307,8 @@ let rec get_c_control_flow_ownership_injs_aux
       bindings
       s
   | AilSgoto _ ->
-    (match desug_info with
-     | Desug_continue ->
+    (match desug_info.desug_case with
+     | Some Desug_continue ->
        let loc_before_continue = get_start_loc loc in
        [ { loc = loc_before_continue;
            bs_and_ss = ([], List.map generate_c_local_ownership_exit continue_vars);
@@ -511,7 +511,9 @@ let get_c_block_entry_exit_injs_aux bindings s =
            (function _, None -> empty_block_local_injs | _, Some e -> aux_expr e)
            xs)
   and aux_stmt bindings A.{ loc; desug_info; node = s_; _ } : block_local_injs =
-    let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
+    let is_forloop =
+      match desug_info.desug_case with Some Desug_forloop -> true | _ -> false
+    in
     match s_ with
     | A.(AilSdeclaration decls) ->
       let injs = generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings in

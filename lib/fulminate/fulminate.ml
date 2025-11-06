@@ -338,7 +338,9 @@ let gen_single_stat_control_flow_injs statement =
       b
   in
   let rec aux_stmt A.{ desug_info; node = s_; _ } =
-    let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
+    let is_forloop =
+      match desug_info.desug_case with Some Desug_forloop -> true | _ -> false
+    in
     match s_ with
     | AilSblock
         ( _,
