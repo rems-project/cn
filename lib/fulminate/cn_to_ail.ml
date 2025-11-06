@@ -519,7 +519,8 @@ let gen_bump_alloc_bs_and_ss () =
   let frame_id_ctype =
     mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh "cn_bump_frame_id") ] Void
   in
-  let frame_id_var_sym = Sym.fresh "cn_frame_id" in
+  let frame_id_var_str = "__cn_bump_count_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())) in
+  let frame_id_var_sym = Sym.fresh frame_id_var_str in
   let frame_id_var_expr_ = A.(AilEident frame_id_var_sym) in
   let frame_id_binding = create_binding frame_id_var_sym frame_id_ctype in
   let start_fn_call =
@@ -661,14 +662,18 @@ let cn_to_ail_const const basetype =
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
 
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit : ail_bindings_and_statements
+  }
+
 type ail_executable_spec =
   { pre : ail_bindings_and_statements;
     post : ail_bindings_and_statements;
     in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops :
-      ((Locations.t * ail_bindings_and_statements)
-      * (Locations.t * ail_bindings_and_statements))
-        list
+    loops : loop_info list
   }
 
 let empty_ail_executable_spec =
@@ -4095,6 +4100,7 @@ let rec cn_to_ail_loop_inv_aux
           loop_ownership_sym
           spec_mode_opt
           (contains_user_spec, cond_loc, loop_loc, at)
+  : loop_info
   =
   match at with
   | AT.Computational ((sym, bt), _, at') ->
@@ -4104,7 +4110,7 @@ let rec cn_to_ail_loop_inv_aux
         (ESE.sym_subst (sym, bt, cn_sym))
         (contains_user_spec, cond_loc, loop_loc, at')
     in
-    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+    let loop_info =
       cn_to_ail_loop_inv_aux
         ~without_lemma_checks
         filename
@@ -4115,7 +4121,12 @@ let rec cn_to_ail_loop_inv_aux
         spec_mode_opt
         subst_loop
     in
-    ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
+    let _, (cond_bs, cond_ss) = loop_info.cond in
+    { cond = (cond_loc, (cond_bs, cond_ss));
+      loop_loc;
+      loop_entry = loop_info.loop_entry;
+      loop_exit = ([], [])
+    }
   | AT.Ghost _ ->
     failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
   | L lat ->
@@ -4162,7 +4173,11 @@ let rec cn_to_ail_loop_inv_aux
         lat
     in
     let decls, modified_stats = modify_decls_for_loop [] [] ss in
-    ((cond_loc, (bs, modified_stats)), (loop_loc, (bs, decls)))
+    { cond = (cond_loc, (bs, modified_stats));
+      loop_loc;
+      loop_entry = (bs, decls);
+      loop_exit = ([], [])
+    }
 
 
 type loop_ownership =
@@ -4207,7 +4222,7 @@ let cn_to_ail_loop_inv
   =
   if contains_user_spec then (
     let loop_ownership_state = get_loop_ownership_bs_and_ss () in
-    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+    let loop_info =
       cn_to_ail_loop_inv_aux
         ~without_lemma_checks
         filename
@@ -4218,6 +4233,8 @@ let cn_to_ail_loop_inv
         (Some Loop)
         loop
     in
+    let _, (cond_bs, cond_ss) = loop_info.cond in
+    let loop_bs, loop_ss = loop_info.loop_entry in
     let cn_loop_put_call =
       A.AilSexpr
         (mk_expr
@@ -4233,23 +4250,33 @@ let cn_to_ail_loop_inv
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
     in
+    let bump_alloc_decl, bump_alloc_assign =
+      match bump_alloc_start_stat_ with
+      | A.(AilSdeclaration [ (frame_id_var_sym, Some start_fn_call) ]) ->
+        ( A.AilSdeclaration [ (frame_id_var_sym, None) ],
+          A.AilSexpr
+            (mk_expr (AilEassign (mk_expr (AilEident frame_id_var_sym), start_fn_call)))
+        )
+      | _ -> failwith "Bump alloc pattern match failed"
+    in
     let cn_ownership_leak_check_call =
       A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident OE.cn_loop_leak_check_sym), [])))
     in
     let stats =
-      (bump_alloc_start_stat_ :: loop_ownership_state.assign :: cond_ss)
+      (bump_alloc_assign :: loop_ownership_state.assign :: cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
-      @ [ cn_loop_put_call; bump_alloc_end_stat_; dummy_expr_as_stat ]
+      @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
-    let ail_gcc_stat_as_expr =
-      A.(AilEgcc_statement ([ bump_alloc_binding ], List.map mk_stmt stats))
-    in
+    let ail_gcc_stat_as_expr = A.(AilEgcc_statement ([], List.map mk_stmt stats)) in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
-      ( (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ])),
-        ( loop_loc,
-          (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss)
-        ) ))
+      { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
+        loop_loc;
+        loop_entry =
+          ( (bump_alloc_binding :: loop_ownership_state.binding) @ loop_bs,
+            bump_alloc_decl :: loop_ownership_state.decl :: loop_ss );
+        loop_exit = ([], [ bump_alloc_end_stat_ ])
+      })
   else
     (* Produce no runtime loop invariant statements if the user has not written any spec for this loop*)
     None

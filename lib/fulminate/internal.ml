@@ -98,25 +98,32 @@ let generate_c_loop_invariants
     []
   else (
     let ail_loop_invariants = ail_executable_spec.loops in
-    let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
     (* A bit of a hack *)
-    let ail_cond_injs =
+    let injs =
       List.map
-        (fun (loc, bs_and_ss) ->
-           ( get_start_loc loc,
-             Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
-        ail_cond_stats
+        (fun (loop_info : Cn_to_ail.loop_info) ->
+           let loc, bs_and_ss = loop_info.cond in
+           let cond_inj =
+             ( get_start_loc loc,
+               Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ]
+             )
+           in
+           let decl_inj =
+             ( get_start_loc loop_info.loop_loc,
+               "{" :: generate_ail_stat_strs loop_info.loop_entry )
+           in
+           let end_internal_inj =
+             ( get_end_loc ~offset:(-1) loop_info.loop_loc,
+               generate_ail_stat_strs loop_info.loop_exit )
+           in
+           let end_external_inj =
+             ( get_end_loc loop_info.loop_loc,
+               generate_ail_stat_strs loop_info.loop_exit @ [ "}" ] )
+           in
+           [ cond_inj; decl_inj; end_internal_inj; end_external_inj ])
+        ail_loop_invariants
     in
-    let ail_loop_decl_injs =
-      List.map
-        (fun (loc, bs_and_ss) ->
-           (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
-        ail_loop_decls
-    in
-    let ail_loop_close_block_injs =
-      List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
-    in
-    ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
+    List.concat injs)
 
 
 let generate_fn_call_ghost_args_injs
