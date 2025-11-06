@@ -75,7 +75,7 @@ void std_free_all(void);
  * After calling this function, cn_test_malloc, cn_test_calloc, etc. will
  * use the standard library functions while tracking allocations.
  */
-void std_set_as_default(void);
+void std_set_default_alloc(void);
 
 #ifdef __cplusplus
 }

@@ -315,7 +315,7 @@ void bennet_reset(void);
 void cn_smt_reset(void);
 
 #define CN_TEST_INIT()                                                                   \
-  std_set_as_default();                                                                  \
+  std_set_default_alloc();                                                               \
   cn_test_free_all();                                                                    \
   reset_fulminate();                                                                     \
   bennet_reset();                                                                        \
