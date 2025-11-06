@@ -663,7 +663,10 @@ type ail_bindings_and_statements =
 
 type loop_info =
   { cond : Locations.t * ail_bindings_and_statements;
-    loop_entry : Locations.t * ail_bindings_and_statements
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit_internal : ail_bindings_and_statements;
+    loop_exit_external : ail_bindings_and_statements
   }
 
 type ail_executable_spec =
@@ -4119,8 +4122,12 @@ let rec cn_to_ail_loop_inv_aux
         subst_loop
     in
     let _, (cond_bs, cond_ss) = loop_info.cond in
-    let _, (loop_bs, loop_ss) = loop_info.loop_entry in
-    { cond = (cond_loc, (cond_bs, cond_ss)); loop_entry = (loop_loc, (loop_bs, loop_ss)) }
+    { cond = (cond_loc, (cond_bs, cond_ss));
+      loop_loc;
+      loop_entry = loop_info.loop_entry;
+      loop_exit_internal = ([], []);
+      loop_exit_external = ([], [])
+    }
   | AT.Ghost _ ->
     failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
   | L lat ->
@@ -4167,7 +4174,12 @@ let rec cn_to_ail_loop_inv_aux
         lat
     in
     let decls, modified_stats = modify_decls_for_loop [] [] ss in
-    { cond = (cond_loc, (bs, modified_stats)); loop_entry = (loop_loc, (bs, decls)) }
+    { cond = (cond_loc, (bs, modified_stats));
+      loop_loc;
+      loop_entry = (bs, decls);
+      loop_exit_internal = ([], []);
+      loop_exit_external = ([], [])
+    }
 
 
 type loop_ownership =
@@ -4224,7 +4236,7 @@ let cn_to_ail_loop_inv
         loop
     in
     let _, (cond_bs, cond_ss) = loop_info.cond in
-    let _, (loop_bs, loop_ss) = loop_info.loop_entry in
+    let loop_bs, loop_ss = loop_info.loop_entry in
     let cn_loop_put_call =
       A.AilSexpr
         (mk_expr
@@ -4254,10 +4266,11 @@ let cn_to_ail_loop_inv
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
       { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
+        loop_loc;
         loop_entry =
-          ( loop_loc,
-            (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss)
-          )
+          (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss);
+        loop_exit_internal = ([], []);
+        loop_exit_external = ([], [])
       })
   else
     (* Produce no runtime loop invariant statements if the user has not written any spec for this loop*)

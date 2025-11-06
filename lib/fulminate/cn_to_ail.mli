@@ -56,7 +56,10 @@ type ail_bindings_and_statements =
 
 type loop_info =
   { cond : Locations.t * ail_bindings_and_statements;
-    loop_entry : Locations.t * ail_bindings_and_statements
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit_internal : ail_bindings_and_statements;
+    loop_exit_external : ail_bindings_and_statements
   }
 
 type ail_executable_spec =

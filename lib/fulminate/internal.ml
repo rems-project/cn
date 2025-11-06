@@ -110,15 +110,14 @@ let generate_c_loop_invariants
     let ail_loop_decl_injs =
       List.map
         (fun (loop_info : Cn_to_ail.loop_info) ->
-           let loc, bs_and_ss = loop_info.loop_entry in
-           (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
+           ( get_start_loc loop_info.loop_loc,
+             "{" :: generate_ail_stat_strs loop_info.loop_entry ))
         ail_loop_invariants
     in
     let ail_loop_close_block_injs =
       List.map
         (fun (loop_info : Cn_to_ail.loop_info) ->
-           let loc, _ = loop_info.loop_entry in
-           (get_end_loc loc, [ "}" ]))
+           (get_end_loc loop_info.loop_loc, [ "}" ]))
         ail_loop_invariants
     in
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
