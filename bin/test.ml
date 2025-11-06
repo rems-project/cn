@@ -77,7 +77,7 @@ let run_tests
       print_discard_info
       print_timing_info
       just_reset_solver
-      disable_smt_skewing
+      smt_skewing_mode
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -164,7 +164,7 @@ let run_tests
           print_discard_info;
           print_timing_info;
           just_reset_solver;
-          disable_smt_skewing
+          smt_skewing_mode
         }
       in
       TestGeneration.set_config config;
@@ -610,9 +610,17 @@ module Flags = struct
     Arg.(value & flag & info [ "just-reset-solver" ] ~doc)
 
 
-  let disable_smt_skewing =
-    let doc = "Disable soft assertions for variable skewing in symbolic mode" in
-    Arg.(value & flag & info [ "disable-smt-skewing" ] ~doc)
+  let smt_skewing_mode =
+    let doc =
+      "Set SMT skewing mode for symbolic test generation. Options: uniform (uniform \
+       random values), sized (default, size-based values), none (no skewing)"
+    in
+    Arg.(
+      value
+      & opt
+          (enum TestGeneration.Options.smt_skewing_mode)
+          TestGeneration.default_cfg.smt_skewing_mode
+      & info [ "smt-skewing" ] ~docv:"MODE" ~doc)
 
 
   let symbolic =
@@ -712,7 +720,7 @@ let cmd =
     $ Flags.print_discard_info
     $ Flags.print_timing_info
     $ Flags.just_reset_solver
-    $ Flags.disable_smt_skewing
+    $ Flags.smt_skewing_mode
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

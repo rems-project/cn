@@ -132,7 +132,14 @@ enum cn_smt_solver_result cn_smt_context_model(
     struct cn_smt_solver* smt_solver, const cn_constraint_context* ctx);
 
 // SMT skewing control
-void cn_set_smt_skewing_enabled(bool enabled);
+typedef enum {
+  CN_SMT_SKEWING_NONE,    // No skewing (equivalent to --disable-smt-skewing)
+  CN_SMT_SKEWING_SIZED,   // Sized skewing (default, uses bennet_arbitrary_sized_*)
+  CN_SMT_SKEWING_UNIFORM  // Uniform skewing (uses bennet_uniform_*)
+} cn_smt_skewing_mode;
+
+void cn_set_smt_skewing_mode(cn_smt_skewing_mode mode);
+cn_smt_skewing_mode cn_get_smt_skewing_mode(void);
 
 #ifdef __cplusplus
 }

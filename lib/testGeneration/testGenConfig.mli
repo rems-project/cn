@@ -31,6 +31,11 @@ type inline_mode =
   | NonRecursive
   | Everything
 
+type smt_skewing_mode =
+  | Uniform
+  | Sized
+  | None
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -81,7 +86,7 @@ type t =
     print_discard_info : bool;
     print_timing_info : bool;
     just_reset_solver : bool;
-    disable_smt_skewing : bool;
+    smt_skewing_mode : smt_skewing_mode;
     smt_logging : string option
   }
 
@@ -99,6 +104,8 @@ module Options : sig
   val sizing_strategy : (string * sizing_strategy) list
 
   val inline_mode : (string * inline_mode) list
+
+  val smt_skewing_mode : (string * smt_skewing_mode) list
 end
 
 val initialize : t -> unit
@@ -205,6 +212,6 @@ val is_use_solver_eval : unit -> bool
 
 val is_just_reset_solver : unit -> bool
 
-val is_disable_smt_skewing : unit -> bool
+val get_smt_skewing_mode : unit -> smt_skewing_mode
 
 val get_smt_logging : unit -> string option

@@ -6,6 +6,7 @@
 
 #include <bennet/internals/domains/sized.h>
 #include <bennet/state/rand_alloc.h>
+#include <cn-smt/context.h>
 #include <cn-smt/gather.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/solver.h>
@@ -141,84 +142,135 @@ cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type) 
   cn_sym sym = {.name = cn_test_strdup(name), .id = cn_gather_context->counter};
   cn_term* res = cn_smt_sym(sym, type);
 
-  // Generate skew value based on type
+  // Generate skew value based on type and skewing mode
   cn_term* skew = NULL;
+  cn_smt_skewing_mode mode = cn_get_smt_skewing_mode();
 
-  // For pointers and bitvectors, generate skew values using bennet_arbitrary
-  switch (type.tag) {
-    case CN_BASE_LOC: {
-      // Generate an arbitrary pointer value as skew
-      uintptr_t generated_ptr = bennet_arbitrary_sized_uintptr_t_top();
-      skew = cn_smt_pointer(generated_ptr);
-      break;
-    }
-
-    case CN_BASE_BITS: {
-      cn_bits_info bits_info = cn_base_type_get_bits_info(type);
-
-      if (bits_info.is_signed) {
-        // Handle signed bitvectors
-        switch (bits_info.size_bits) {
-          case 8: {
-            int8_t generated_val = bennet_arbitrary_sized_int8_t_top();
-            skew = cn_smt_bits(true, 8, generated_val);
-            break;
-          }
-          case 16: {
-            int16_t generated_val = bennet_arbitrary_sized_int16_t_top();
-            skew = cn_smt_bits(true, 16, generated_val);
-            break;
-          }
-          case 32: {
-            int32_t generated_val = bennet_arbitrary_sized_int32_t_top();
-            skew = cn_smt_bits(true, 32, generated_val);
-            break;
-          }
-          case 64: {
-            int64_t generated_val = bennet_arbitrary_sized_int64_t_top();
-            skew = cn_smt_bits(true, 64, generated_val);
-            break;
-          }
-
-          default:
-            assert(false);  // Unreachable
+  // Skip skew generation if mode is NONE
+  if (mode == CN_SMT_SKEWING_NONE) {
+    skew = NULL;
+  } else {
+    // For pointers and bitvectors, generate skew values
+    switch (type.tag) {
+      case CN_BASE_LOC: {
+        // Generate a pointer value as skew
+        uintptr_t generated_ptr;
+        if (mode == CN_SMT_SKEWING_UNIFORM) {
+          generated_ptr = bennet_uniform_uintptr_t(0);
+        } else {  // CN_SMT_SKEWING_SIZED
+          generated_ptr = bennet_arbitrary_sized_uintptr_t_top();
         }
-      } else {
-        // Handle unsigned bitvectors
-        switch (bits_info.size_bits) {
-          case 8: {
-            uint8_t generated_val = bennet_arbitrary_sized_uint8_t_top();
-            skew = cn_smt_bits(false, 8, generated_val);
-            break;
-          }
-          case 16: {
-            uint16_t generated_val = bennet_arbitrary_sized_uint16_t_top();
-            skew = cn_smt_bits(false, 16, generated_val);
-            break;
-          }
-          case 32: {
-            uint32_t generated_val = bennet_arbitrary_sized_uint32_t_top();
-            skew = cn_smt_bits(false, 32, generated_val);
-            break;
-          }
-          case 64: {
-            uint64_t generated_val = bennet_arbitrary_sized_uint64_t_top();
-            skew = cn_smt_bits(false, 64, generated_val);
-            break;
-          }
-
-          default:
-            assert(false);  // Unreachable
-        }
+        skew = cn_smt_pointer(generated_ptr);
+        break;
       }
-      break;
-    }
 
-    default:
-      printf("DEBUG: Unhandled type tag in cn_smt_gather_create_symbolic_var: %d\n",
-          type.tag);
-      fflush(stdout);
-      assert(false);  // Unreachable
+      case CN_BASE_BITS: {
+        cn_bits_info bits_info = cn_base_type_get_bits_info(type);
+
+        if (bits_info.is_signed) {
+          // Handle signed bitvectors
+          switch (bits_info.size_bits) {
+            case 8: {
+              int8_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_int8_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_int8_t_top();
+              }
+              skew = cn_smt_bits(true, 8, generated_val);
+              break;
+            }
+            case 16: {
+              int16_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_int16_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_int16_t_top();
+              }
+              skew = cn_smt_bits(true, 16, generated_val);
+              break;
+            }
+            case 32: {
+              int32_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_int32_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_int32_t_top();
+              }
+              skew = cn_smt_bits(true, 32, generated_val);
+              break;
+            }
+            case 64: {
+              int64_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_int64_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_int64_t_top();
+              }
+              skew = cn_smt_bits(true, 64, generated_val);
+              break;
+            }
+
+            default:
+              assert(false);  // Unreachable
+          }
+        } else {
+          // Handle unsigned bitvectors
+          switch (bits_info.size_bits) {
+            case 8: {
+              uint8_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_uint8_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_uint8_t_top();
+              }
+              skew = cn_smt_bits(false, 8, generated_val);
+              break;
+            }
+            case 16: {
+              uint16_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_uint16_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_uint16_t_top();
+              }
+              skew = cn_smt_bits(false, 16, generated_val);
+              break;
+            }
+            case 32: {
+              uint32_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_uint32_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_uint32_t_top();
+              }
+              skew = cn_smt_bits(false, 32, generated_val);
+              break;
+            }
+            case 64: {
+              uint64_t generated_val;
+              if (mode == CN_SMT_SKEWING_UNIFORM) {
+                generated_val = bennet_uniform_uint64_t(0);
+              } else {  // CN_SMT_SKEWING_SIZED
+                generated_val = bennet_arbitrary_sized_uint64_t_top();
+              }
+              skew = cn_smt_bits(false, 64, generated_val);
+              break;
+            }
+
+            default:
+              assert(false);  // Unreachable
+          }
+        }
+        break;
+      }
+
+      default:
+        printf("DEBUG: Unhandled type tag in cn_smt_gather_create_symbolic_var: %d\n",
+            type.tag);
+        fflush(stdout);
+        assert(false);  // Unreachable
+    }
   }
 
   // Add variable with its skew to the context
