@@ -154,5 +154,5 @@ bool cn_record_type_exists(record_hash_t record_hash) {
 
 // Reset the record registry
 void cn_smt_record_registry_reset(void) {
-  g_record_data_initialized = false;
+  bennet_hash_table_free(record_hash_t, void_ptr)(&g_record_data);
 }

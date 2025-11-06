@@ -185,5 +185,5 @@ cn_datatype_destructor_fn cn_get_datatype_destructor(const char* datatype_name) 
 
 // Reset the datatype registry
 void cn_smt_datatype_registry_reset(void) {
-  g_datatype_registry_initialized = false;
+  bennet_hash_table_free(const_char_ptr, void_ptr)(&g_datatype_registry);
 }
