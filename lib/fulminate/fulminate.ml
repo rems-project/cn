@@ -429,7 +429,7 @@ let gen_single_stat_control_flow_injs statement =
              xs
          in
          List.concat injs
-       | AilSlabel (_, s, _) | AilSdefault s -> aux_stmt s
+       | AilSlabel (_, _s, _) | AilSdefault _s -> []
        | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
        | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
        | AilSmarker _ ->
