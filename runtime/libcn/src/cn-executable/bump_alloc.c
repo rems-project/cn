@@ -120,6 +120,8 @@ void* bump_by(size_t nbytes) {
 }
 
 void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
+  assert((alignment > 0) && ((alignment & (alignment - 1)) == 0));
+
   if (nbytes == 0) {
     return NULL;
   }
