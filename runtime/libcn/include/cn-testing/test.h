@@ -216,8 +216,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       bennet_info_backtracks_end_run(test_input.log_all_backtracks);                     \
       bennet_info_unsatisfied_end_run(test_input.log_all_backtracks);                    \
                                                                                          \
-      assume_##FuncName(__VA_ARGS__);                                                    \
       (void)Init(res);                                                                   \
+      assume_##FuncName(__VA_ARGS__);                                                    \
       if (test_input.replicas || test_input.output_tyche) {                              \
         cn_replica_alloc_reset();                                                        \
         cn_replica_lines_reset();                                                        \
