@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-executable/utils.h>
 #include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/test_alloc.h>
 
@@ -48,6 +49,7 @@ static cn_arena_block* cn_arena_allocate_block(size_t size) {
   /* Allocate block header plus data */
   cn_arena_block* block = (cn_arena_block*)malloc(sizeof(cn_arena_block) + size);
   if (!block) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 
@@ -86,14 +88,13 @@ cn_arena* cn_arena_create(size_t block_size) {
 
   /* Allocate arena structure */
   cn_arena* arena = (cn_arena*)malloc(sizeof(cn_arena));
-  if (!arena) {
-    return NULL;
-  }
+  assert(arena);
 
   /* Allocate first block */
   cn_arena_block* first_block = cn_arena_allocate_block(block_size);
   if (!first_block) {
     free(arena);
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 
@@ -129,6 +130,7 @@ void* cn_arena_calloc(cn_arena* arena, size_t count, size_t size) {
 
   /* Check for overflow */
   if (count > 0 && size > SIZE_MAX / count) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 
@@ -177,6 +179,7 @@ void* cn_arena_aligned_alloc(cn_arena* arena, size_t alignment, size_t size) {
 
   cn_arena_block* new_block = cn_arena_allocate_block(new_block_size);
   if (!new_block) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 
@@ -291,6 +294,7 @@ void* cn_arena_realloc(cn_arena* arena, void* ptr, size_t size) {
   /* Allocate new memory */
   void* new_ptr = cn_arena_malloc(arena, size);
   if (new_ptr == NULL) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 
