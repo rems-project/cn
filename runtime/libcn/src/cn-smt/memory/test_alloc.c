@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <cn-smt/memory/test_alloc.h>
 
@@ -48,6 +49,15 @@ void* cn_test_aligned_alloc(size_t alignment, size_t size) {
 void cn_test_free(void* ptr) {
   assert(cn_test_allocator.free != NULL);
   cn_test_allocator.free(cn_test_allocator.data, ptr);
+}
+
+char* cn_test_strdup(const char* str) {
+  assert(str != NULL);
+  size_t len = strlen(str) + 1;
+  char* dup = (char*)cn_test_malloc(len);
+  assert(dup != NULL);
+  strcpy(dup, str);
+  return dup;
 }
 
 void cn_test_free_all(void) {

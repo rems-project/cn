@@ -50,6 +50,14 @@ void* cn_test_aligned_alloc(size_t alignment, size_t size);
 void cn_test_free(void* ptr);
 
 /**
+ * Duplicate a string using the configured test allocator.
+ *
+ * @param str The string to duplicate.
+ * @return A pointer to the duplicated string, or NULL if allocation fails.
+ */
+char* cn_test_strdup(const char* str);
+
+/**
  * Free all tracked allocations using the configured test allocator.
  */
 void cn_test_free_all(void);

@@ -6,6 +6,7 @@
 #include <cn-smt/eval.h>
 #include <cn-smt/from_smt.h>
 #include <cn-smt/gather.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/to_smt.h>
 
@@ -34,7 +35,7 @@ cn_term* cn_smt_concretize_lookup_symbolic_var(
   // Increment the counter in the context
   cn_concretize_var_count++;
 
-  cn_sym sym = {.name = strdup(name), .id = cn_concretize_var_count};
+  cn_sym sym = {.name = cn_test_strdup(name), .id = cn_concretize_var_count};
 
   sexp_t* sym_smt = translate_term(smt_solver, cn_smt_sym(sym, type));
 

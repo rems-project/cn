@@ -252,7 +252,7 @@ void cn_arena_restore_frame(cn_arena* arena, cn_arena_frame_id frame) {
   arena->current_block = target_block;
 }
 
-void cn_arena_reset(cn_arena* arena) {
+void cn_arena_free_all(cn_arena* arena) {
   assert(arena != NULL);
 
   /* Free all blocks except the first */
@@ -320,5 +320,5 @@ void cn_arena_set_default_alloc(cn_arena* arena) {
       (void* (*)(void*, void*, size_t))cn_arena_realloc,
       (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
       (void (*)(void*, void*))cn_arena_free,
-      (void (*)(void*))cn_arena_reset);
+      (void (*)(void*))cn_arena_free_all);
 }

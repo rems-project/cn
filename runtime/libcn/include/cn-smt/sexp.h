@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include <bennet/utils/optional.h>
+#include <cn-smt/memory/test_alloc.h>
 
 #ifdef __cplusplus
 extern "C" {

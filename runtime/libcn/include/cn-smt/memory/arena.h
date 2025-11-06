@@ -128,7 +128,7 @@ void cn_arena_restore_frame(cn_arena* arena, cn_arena_frame_id frame);
  *
  * @param arena The arena to reset. Must not be NULL.
  */
-void cn_arena_reset(cn_arena* arena);
+void cn_arena_free_all(cn_arena* arena);
 
 /**
  * Get the total number of bytes allocated from the arena.
