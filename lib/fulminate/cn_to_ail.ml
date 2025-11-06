@@ -665,8 +665,7 @@ type loop_info =
   { cond : Locations.t * ail_bindings_and_statements;
     loop_loc : Locations.t;
     loop_entry : ail_bindings_and_statements;
-    loop_exit_internal : ail_bindings_and_statements;
-    loop_exit_external : ail_bindings_and_statements
+    loop_exit : ail_bindings_and_statements
   }
 
 type ail_executable_spec =
@@ -4125,8 +4124,7 @@ let rec cn_to_ail_loop_inv_aux
     { cond = (cond_loc, (cond_bs, cond_ss));
       loop_loc;
       loop_entry = loop_info.loop_entry;
-      loop_exit_internal = ([], []);
-      loop_exit_external = ([], [])
+      loop_exit = ([], [])
     }
   | AT.Ghost _ ->
     failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
@@ -4177,8 +4175,7 @@ let rec cn_to_ail_loop_inv_aux
     { cond = (cond_loc, (bs, modified_stats));
       loop_loc;
       loop_entry = (bs, decls);
-      loop_exit_internal = ([], []);
-      loop_exit_external = ([], [])
+      loop_exit = ([], [])
     }
 
 
@@ -4258,7 +4255,7 @@ let cn_to_ail_loop_inv
     let stats =
       (bump_alloc_start_stat_ :: loop_ownership_state.assign :: cond_ss)
       @ (if with_loop_leak_checks then [ cn_ownership_leak_check_call ] else [])
-      @ [ cn_loop_put_call; bump_alloc_end_stat_; dummy_expr_as_stat ]
+      @ [ cn_loop_put_call; dummy_expr_as_stat ]
     in
     let ail_gcc_stat_as_expr =
       A.(AilEgcc_statement ([ bump_alloc_binding ], List.map mk_stmt stats))
@@ -4269,8 +4266,7 @@ let cn_to_ail_loop_inv
         loop_loc;
         loop_entry =
           (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss);
-        loop_exit_internal = ([], []);
-        loop_exit_external = ([], [])
+        loop_exit = ([], [ bump_alloc_end_stat_ ])
       })
   else
     (* Produce no runtime loop invariant statements if the user has not written any spec for this loop*)
