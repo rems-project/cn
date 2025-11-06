@@ -98,23 +98,28 @@ let generate_c_loop_invariants
     []
   else (
     let ail_loop_invariants = ail_executable_spec.loops in
-    let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
     (* A bit of a hack *)
     let ail_cond_injs =
       List.map
-        (fun (loc, bs_and_ss) ->
+        (fun (loop_info : Cn_to_ail.loop_info) ->
+           let loc, bs_and_ss = loop_info.cond in
            ( get_start_loc loc,
              Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
-        ail_cond_stats
+        ail_loop_invariants
     in
     let ail_loop_decl_injs =
       List.map
-        (fun (loc, bs_and_ss) ->
+        (fun (loop_info : Cn_to_ail.loop_info) ->
+           let loc, bs_and_ss = loop_info.loop_entry in
            (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
-        ail_loop_decls
+        ail_loop_invariants
     in
     let ail_loop_close_block_injs =
-      List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
+      List.map
+        (fun (loop_info : Cn_to_ail.loop_info) ->
+           let loc, _ = loop_info.loop_entry in
+           (get_end_loc loc, [ "}" ]))
+        ail_loop_invariants
     in
     ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
 

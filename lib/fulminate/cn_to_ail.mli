@@ -54,14 +54,16 @@ val wrap_with_convert_from_cn_bool
 type ail_bindings_and_statements =
   AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
 
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_entry : Locations.t * ail_bindings_and_statements
+  }
+
 type ail_executable_spec =
   { pre : ail_bindings_and_statements;
     post : ail_bindings_and_statements;
     in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops :
-      ((Locations.t * ail_bindings_and_statements)
-      * (Locations.t * ail_bindings_and_statements))
-        list
+    loops : loop_info list
   }
 
 val extract_global_variables

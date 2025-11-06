@@ -661,14 +661,16 @@ let cn_to_ail_const const basetype =
 type ail_bindings_and_statements =
   A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
 
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_entry : Locations.t * ail_bindings_and_statements
+  }
+
 type ail_executable_spec =
   { pre : ail_bindings_and_statements;
     post : ail_bindings_and_statements;
     in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops :
-      ((Locations.t * ail_bindings_and_statements)
-      * (Locations.t * ail_bindings_and_statements))
-        list
+    loops : loop_info list
   }
 
 let empty_ail_executable_spec =
@@ -4095,6 +4097,7 @@ let rec cn_to_ail_loop_inv_aux
           loop_ownership_sym
           spec_mode_opt
           (contains_user_spec, cond_loc, loop_loc, at)
+  : loop_info
   =
   match at with
   | AT.Computational ((sym, bt), _, at') ->
@@ -4104,7 +4107,7 @@ let rec cn_to_ail_loop_inv_aux
         (ESE.sym_subst (sym, bt, cn_sym))
         (contains_user_spec, cond_loc, loop_loc, at')
     in
-    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+    let loop_info =
       cn_to_ail_loop_inv_aux
         ~without_lemma_checks
         filename
@@ -4115,7 +4118,9 @@ let rec cn_to_ail_loop_inv_aux
         spec_mode_opt
         subst_loop
     in
-    ((cond_loc, (cond_bs, cond_ss)), (loop_loc, (loop_bs, loop_ss)))
+    let _, (cond_bs, cond_ss) = loop_info.cond in
+    let _, (loop_bs, loop_ss) = loop_info.loop_entry in
+    { cond = (cond_loc, (cond_bs, cond_ss)); loop_entry = (loop_loc, (loop_bs, loop_ss)) }
   | AT.Ghost _ ->
     failwith "TODO Fulminate: Ghost arguments for loops not yet supported at runtime"
   | L lat ->
@@ -4162,7 +4167,7 @@ let rec cn_to_ail_loop_inv_aux
         lat
     in
     let decls, modified_stats = modify_decls_for_loop [] [] ss in
-    ((cond_loc, (bs, modified_stats)), (loop_loc, (bs, decls)))
+    { cond = (cond_loc, (bs, modified_stats)); loop_entry = (loop_loc, (bs, decls)) }
 
 
 type loop_ownership =
@@ -4207,7 +4212,7 @@ let cn_to_ail_loop_inv
   =
   if contains_user_spec then (
     let loop_ownership_state = get_loop_ownership_bs_and_ss () in
-    let (_, (cond_bs, cond_ss)), (_, (loop_bs, loop_ss)) =
+    let loop_info =
       cn_to_ail_loop_inv_aux
         ~without_lemma_checks
         filename
@@ -4218,6 +4223,8 @@ let cn_to_ail_loop_inv
         (Some Loop)
         loop
     in
+    let _, (cond_bs, cond_ss) = loop_info.cond in
+    let _, (loop_bs, loop_ss) = loop_info.loop_entry in
     let cn_loop_put_call =
       A.AilSexpr
         (mk_expr
@@ -4246,10 +4253,12 @@ let cn_to_ail_loop_inv
     in
     let ail_stat_as_expr_stat = A.(AilSexpr (mk_expr ail_gcc_stat_as_expr)) in
     Some
-      ( (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ])),
-        ( loop_loc,
-          (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss)
-        ) ))
+      { cond = (cond_loc, (cond_bs, [ ail_stat_as_expr_stat ]));
+        loop_entry =
+          ( loop_loc,
+            (loop_ownership_state.binding @ loop_bs, loop_ownership_state.decl :: loop_ss)
+          )
+      })
   else
     (* Produce no runtime loop invariant statements if the user has not written any spec for this loop*)
     None
