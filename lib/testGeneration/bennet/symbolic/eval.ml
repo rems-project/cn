@@ -27,7 +27,7 @@ module Make (AD : Domain.T) = struct
         ^^ !^struct_name
         ^^ !^"* result"
         ^^^ equals
-        ^^^ (!^"malloc" ^^ parens (!^"sizeof" ^^ parens !^struct_name))
+        ^^^ (!^"cn_bump_malloc" ^^ parens (!^"sizeof" ^^ parens !^struct_name))
         ^^ semi
         ^^ hardline
         ^^ List.fold_left
@@ -116,7 +116,7 @@ module Make (AD : Domain.T) = struct
         ^^ hardline
         ^^ !^"  "
         ^^ !^struct_name
-        ^^ !^"* result = malloc(sizeof("
+        ^^ !^"* result = cn_bump_malloc(sizeof("
         ^^ !^struct_name
         ^^ !^"));"
         ^^ hardline
@@ -172,7 +172,7 @@ module Make (AD : Domain.T) = struct
       ^^ !^struct_name
       ^^ !^"* result"
       ^^^ equals
-      ^^^ (!^"malloc" ^^ parens (!^"sizeof" ^^ parens !^struct_name))
+      ^^^ (!^"cn_bump_malloc" ^^ parens (!^"sizeof" ^^ parens !^struct_name))
       ^^ semi
       ^^ hardline
       ^^ List.fold_left
@@ -259,7 +259,7 @@ module Make (AD : Domain.T) = struct
       ^^ hardline
       ^^ !^"  "
       ^^ !^struct_name
-      ^^ !^"* result = malloc(sizeof("
+      ^^ !^"* result = cn_bump_malloc(sizeof("
       ^^ !^struct_name
       ^^ !^"));"
       ^^ hardline
@@ -294,7 +294,7 @@ module Make (AD : Domain.T) = struct
       ^^ hardline
       ^^ !^"  "
       ^^ !^struct_name
-      ^^ !^"* result = malloc(sizeof("
+      ^^ !^"* result = cn_bump_malloc(sizeof("
       ^^ !^struct_name
       ^^ !^"));"
       ^^ hardline
@@ -427,7 +427,7 @@ module Make (AD : Domain.T) = struct
                            (* Allocate datatype struct *)
                            ^^ !^"  "
                            ^^ !^struct_name
-                           ^^ !^"* result = malloc(sizeof("
+                           ^^ !^"* result = cn_bump_malloc(sizeof("
                            ^^ !^struct_name
                            ^^ !^"));"
                            ^^ hardline
@@ -439,7 +439,7 @@ module Make (AD : Domain.T) = struct
                            (* Allocate and populate constructor payload struct *)
                            ^^ !^"  result->u."
                            ^^ !^ctor_name_lower
-                           ^^ !^" = malloc(sizeof(struct "
+                           ^^ !^" = cn_bump_malloc(sizeof(struct "
                            ^^ !^ctor_name_lower
                            ^^ !^"));"
                            ^^ hardline
