@@ -650,9 +650,14 @@ let main
         in
         let open Source_injection in
         (*  ')': 1, '(': 2, '{': 3 *)
-        let a = if static_prec = 1 then (Normal (-1), (p, strs))  else (Cartesian ((true, pos_x, pos_y)), (p, strs)) in
+        let a =
+          if static_prec = 1 then
+            (Normal (-1), (p, strs))
+          else
+            (Cartesian (true, pos_x, pos_y), (p, strs))
+        in
         let cs = give_precedence_map (Normal 0) injs in
-        let b = (Cartesian ((false, pos_x, pos_y)), (p', [ closing_expr ])) in
+        let b = (Cartesian (false, pos_x, pos_y), (p', [ closing_expr ])) in
         let cs' = a :: b :: cs in
         aux (cs' @ acc) xs
     in

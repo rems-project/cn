@@ -84,9 +84,9 @@ let compare_precedence p1 p2 =
   | Normal x, Normal y -> Stdlib.compare x y
   | Normal _, Cartesian _ -> -1
   | Cartesian _, Normal _ -> 1
-  | Cartesian((true, _, _)), Cartesian((false, _, _)) -> -1
-  | Cartesian((false, _, _)), Cartesian((true, _, _)) -> 1
-  | Cartesian ((s, x1, y1)), Cartesian ((_, x2, y2)) ->
+  | Cartesian (true, _, _), Cartesian (false, _, _) -> -1
+  | Cartesian (false, _, _), Cartesian (true, _, _) -> 1
+  | Cartesian (s, x1, y1), Cartesian (_, x2, y2) ->
     let coef = if s then -1 else 1 in
     let cmp = Stdlib.compare x1 x2 in
     let r = if cmp = 0 then Stdlib.compare y1 y2 else cmp in
@@ -467,7 +467,7 @@ let return_injs xs =
              let* e_start_pos, e_end_pos = Pos.of_location loc in
              Ok
                ({ footprint = { start_pos; end_pos = e_start_pos };
-                  kind = InStmt ( Normal 0, 1, "{ __cn_ret = ")
+                  kind = InStmt (Normal 0, 1, "{ __cn_ret = ")
                 }
                 :: { footprint = { start_pos = e_end_pos; end_pos };
                      kind =
