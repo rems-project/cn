@@ -337,40 +337,44 @@ let gen_single_stat_control_flow_injs statement =
     else
       b
   in
-  let rec aux_stmt A.{ desug_info; node = s_; _ } =
-    let is_forloop =
+  let rec aux_stmt ?(parent_for_loop = false) (A.{ node = s_; _ } as stmt) =
+    let is_forloop A.{ desug_info; _ } =
       match desug_info.desug_case with Some Desug_forloop -> true | _ -> false
     in
-    match s_ with
-    | AilSblock
-        ( _,
-          ([ A.{ node = AilSdeclaration _; _ }; A.{ node = A.AilSwhile (_, s, _); _ } ] as
-           ss) ) ->
-      if is_forloop then
-        aux_stmt s
-      else
-        List.concat (List.map aux_stmt ss)
-    | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
-    | AilSif (_, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
-      let inj1 =
-        if is_valid_single_stat s1 then gen_curly_braces_inj loc1 else aux_stmt s1
-      in
-      let inj2 =
-        if is_valid_single_stat s2 then gen_curly_braces_inj loc2 else aux_stmt s2
-      in
-      inj1 @ inj2
-    | AilSwhile (_, (A.{ loc; _ } as s), _)
-    | AilSdo ((A.{ loc; _ } as s), _, _)
-    | AilSswitch (_, (A.{ loc; _ } as s))
-    | AilScase (_, (A.{ loc; _ } as s))
-    | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
-    | AilSlabel (_, (A.{ loc; _ } as s), _) ->
-      if is_valid_single_stat s then gen_curly_braces_inj loc else aux_stmt s
-    | AilSdefault _ -> []
-    | AilSreturn _ | AilSexpr _ | AilSreg_store (_, _) -> []
-    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
-    | AilSmarker _ | AilSdeclaration _ ->
+    let is_forloop_body A.{ desug_info; _ } = desug_info.is_forloop_body in
+    if parent_for_loop && not (is_forloop_body stmt) then
       []
+    else (
+      match s_ with
+      | AilSblock
+          ( _,
+            ([ A.{ node = AilSdeclaration _; _ }; A.{ node = A.AilSwhile (_, s, _); _ } ]
+             as ss) ) ->
+        if is_forloop stmt then
+          aux_stmt ~parent_for_loop:true s
+        else
+          List.concat (List.map (aux_stmt ~parent_for_loop:false) ss)
+      | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
+      | AilSif (_, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
+        let inj1 =
+          if is_valid_single_stat s1 then gen_curly_braces_inj loc1 else aux_stmt s1
+        in
+        let inj2 =
+          if is_valid_single_stat s2 then gen_curly_braces_inj loc2 else aux_stmt s2
+        in
+        inj1 @ inj2
+      | AilSwhile (_, (A.{ loc; _ } as s), _)
+      | AilSdo ((A.{ loc; _ } as s), _, _)
+      | AilSswitch (_, (A.{ loc; _ } as s))
+      | AilScase (_, (A.{ loc; _ } as s))
+      | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
+      | AilSlabel (_, (A.{ loc; _ } as s), _) ->
+        if is_valid_single_stat s then gen_curly_braces_inj loc else aux_stmt s
+      | AilSdefault _ -> []
+      | AilSreturn _ | AilSexpr _ | AilSreg_store (_, _) -> []
+      | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+      | AilSmarker _ | AilSdeclaration _ ->
+        [])
   in
   aux_stmt statement
 
