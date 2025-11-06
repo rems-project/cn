@@ -67,7 +67,7 @@ void cn_register_func(cn_sym name,
   assert(func_name);
 
   // Store handler in registry (duplicate the name for stable storage)
-  char* stored_name = strdup(func_name);
+  char* stored_name = cn_test_strdup(func_name);
   assert(stored_name);
   bennet_hash_table_set(const_char_ptr, void_ptr)(
       &g_func_registry, stored_name, (void_ptr)handler);

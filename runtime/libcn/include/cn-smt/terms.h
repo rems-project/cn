@@ -12,6 +12,7 @@
 #include <bennet/utils/optional.h>
 #include <bennet/utils/vector.h>
 #include <cn-executable/bump_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 
 #ifdef __cplusplus
 extern "C" {
