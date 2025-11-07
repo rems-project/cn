@@ -141,6 +141,7 @@
     cn-smt/from_smt.o
     cn-smt/functions.o
     cn-smt/gather.o
+    cn-smt/intern.o
     cn-smt/prelude.o
     cn-smt/sexp.o
     cn-smt/sexp_parsing.o
