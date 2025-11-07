@@ -8,6 +8,7 @@
 #include <bennet/state/rand_alloc.h>
 #include <cn-smt/context.h>
 #include <cn-smt/gather.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/to_smt.h>
@@ -139,7 +140,7 @@ cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type) 
   // Increment the counter in the context
   cn_gather_context->counter++;
 
-  cn_sym sym = {.name = cn_test_strdup(name), .id = cn_gather_context->counter};
+  cn_sym sym = {.name = cn_intern_string(name), .id = cn_gather_context->counter};
   cn_term* res = cn_smt_sym(sym, type);
 
   // Generate skew value based on type and skewing mode

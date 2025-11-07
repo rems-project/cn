@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <cn-executable/bump_alloc.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/sexp.h>
 
 ////////////////
@@ -18,10 +19,7 @@ sexp_t *sexp_atom(const char *str) {
   assert(sexp);
 
   sexp->type = SEXP_ATOM;
-  sexp->data.atom = cn_bump_malloc(strlen(str) + 1);
-  assert(sexp->data.atom);
-
-  strcpy(sexp->data.atom, str);
+  sexp->data.atom = cn_intern_string(str);
 
   return sexp;
 }
@@ -267,18 +265,23 @@ const char *quote_symbol(const char *s) {
   assert(s);
 
   if (is_simple_symbol(s)) {
-    // Return a copy of the original string
+    // Return the original string
     return s;
   } else {
     // Return quoted version: |s|
     size_t len = strlen(s);
-    char *result = cn_bump_malloc(len + 3);  // +2 for pipes, +1 for null terminator
-    assert(result);
+    char *temp = cn_bump_malloc(len + 3);  // +2 for pipes, +1 for null terminator
+    assert(temp);
 
-    result[0] = '|';
-    strcpy(result + 1, s);
-    result[len + 1] = '|';
-    result[len + 2] = '\0';
+    temp[0] = '|';
+    strcpy(temp + 1, s);
+    temp[len + 1] = '|';
+    temp[len + 2] = '\0';
+
+    // Intern the quoted symbol
+    const char *result = cn_intern_string(temp);
+    // Note: temp is allocated with cn_bump_malloc, so we don't free it
+    // (bump allocator doesn't support individual frees)
     return result;
   }
 }

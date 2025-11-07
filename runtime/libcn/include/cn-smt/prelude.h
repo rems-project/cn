@@ -9,6 +9,7 @@
 #include <cn-smt/from_smt.h>
 #include <cn-smt/functions.h>
 #include <cn-smt/gather.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/path_selector.h>
 #include <cn-smt/records.h>
 #include <cn-smt/sexp.h>

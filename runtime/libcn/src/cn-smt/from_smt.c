@@ -7,6 +7,7 @@
 
 #include <cn-smt/datatypes.h>
 #include <cn-smt/from_smt.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/structs.h>
 
@@ -725,8 +726,12 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
              strcmp(constructor_name + name_len - suffix_len, struct_suffix) == 0);
 
       // Extract struct tag
-      char* struct_tag = strndup(constructor_name, name_len - suffix_len);
-      assert(struct_tag);
+      char* struct_tag_temp = strndup(constructor_name, name_len - suffix_len);
+      assert(struct_tag_temp);
+
+      // Intern the struct tag so it stays alive after we free struct_tag_temp
+      const char* struct_tag = cn_intern_string(struct_tag_temp);
+      free(struct_tag_temp);  // Free the temporary string
 
       // Get struct declaration
       cn_struct_data* struct_data = cn_get_struct_data(struct_tag);
@@ -753,7 +758,6 @@ static cn_term* get_value_impl(cn_base_type bt, sexp_t* sexp) {
       // Cleanup
       cn_test_free(member_names);
       cn_test_free(member_values);
-      cn_test_free(struct_tag);
       free_constructor_result(&con_result);
 
       return result;
