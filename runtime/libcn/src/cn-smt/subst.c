@@ -36,11 +36,7 @@ static cn_term* deep_copy_term(cn_term* term) {
       // For string constants, we need to duplicate the string
       if (term->data.const_val.type == CN_CONST_CTYPE_CONST &&
           term->data.const_val.data.ctype_name) {
-        size_t len = strlen(term->data.const_val.data.ctype_name);
-        char* dup = cn_bump_malloc(len + 1);
-        assert(dup);
-        strcpy(dup, term->data.const_val.data.ctype_name);
-        copy->data.const_val.data.ctype_name = dup;
+        copy->data.const_val.data.ctype_name = term->data.const_val.data.ctype_name;
       }
       break;
 
