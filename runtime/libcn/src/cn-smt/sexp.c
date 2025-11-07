@@ -263,16 +263,12 @@ bool is_simple_symbol(const char *s) {
 }
 
 /** Quote a symbol if needed for SMTLIB */
-char *quote_symbol(const char *s) {
+const char *quote_symbol(const char *s) {
   assert(s);
 
   if (is_simple_symbol(s)) {
     // Return a copy of the original string
-    size_t len = strlen(s);
-    char *result = cn_bump_malloc(len + 1);
-    assert(result);
-    strcpy(result, s);
-    return result;
+    return s;
   } else {
     // Return quoted version: |s|
     size_t len = strlen(s);
@@ -292,7 +288,7 @@ char *quote_symbol(const char *s) {
 sexp_t *symbol(const char *x) {
   assert(x);
 
-  char *quoted = quote_symbol(x);
+  const char *quoted = quote_symbol(x);
   assert(quoted);
 
   sexp_t *result = sexp_atom(quoted);

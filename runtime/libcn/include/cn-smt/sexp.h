@@ -62,7 +62,7 @@ sexp_t *sexp_named(const char *name, sexp_t *e);
 // Symbol handling functions
 bool allowed_simple_char(char c);
 bool is_simple_symbol(const char *s);
-char *quote_symbol(const char *s);
+const char *quote_symbol(const char *s);
 sexp_t *symbol(const char *x);
 
 // Boolean and arithmetic functions
