@@ -11,6 +11,7 @@
 
 #include <cn-smt/datatypes.h>
 #include <cn-smt/memory/arena.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
@@ -317,11 +318,10 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
     dt_info_t *dt_info = &datatype_infos[i];
 
     // Create datatype name using CN_Names.datatype_name
-    char *datatype_name = cn_test_malloc(strlen(dt_name) + 20);
-    assert(datatype_name);
-    sprintf(datatype_name, "%s_dt", dt_name);  // Simplified naming
+    char dt_buffer[256];
+    snprintf(dt_buffer, sizeof(dt_buffer), "%s_dt", dt_name);
 
-    datatypes[i].name = datatype_name;
+    datatypes[i].name = cn_intern_string(dt_buffer);
     datatypes[i].type_params = NULL;
     datatypes[i].type_param_count = 0;
 
@@ -336,11 +336,10 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
       dt_constr_info_t *ci = constr_infos[i * dt_info->constr_count + c];
 
       // Create constructor name using CN_Names.datatype_con_name
-      char *con_name = cn_test_malloc(strlen(constr_name) + 20);
-      assert(con_name);
-      sprintf(con_name, "%s_con", constr_name);  // Simplified naming
+      char con_buffer[256];
+      snprintf(con_buffer, sizeof(con_buffer), "%s_con", constr_name);
 
-      datatypes[i].constructors[c].name = con_name;
+      datatypes[i].constructors[c].name = cn_intern_string(con_buffer);
       datatypes[i].constructors[c].field_count = ci->param_count;
 
       // Build constructor fields for SMT
@@ -353,11 +352,10 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
           dt_param_t *param = &ci->params[f];
 
           // Create field name using CN_Names.datatype_field_name
-          char *field_name = cn_test_malloc(strlen(param->label) + 20);
-          assert(field_name);
-          sprintf(field_name, "%s_data_fld", param->label);
+          char field_buffer[256];
+          snprintf(field_buffer, sizeof(field_buffer), "%s_data_fld", param->label);
 
-          datatypes[i].constructors[c].fields[f].name = field_name;
+          datatypes[i].constructors[c].fields[f].name = cn_intern_string(field_buffer);
           datatypes[i].constructors[c].fields[f].type =
               translate_base_type(param->base_type);
         }
@@ -396,13 +394,9 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
   cn_bump_free_after(frame);
 
   // Cleanup
+  // Note: datatype names, constructor names, and field names are interned, don't free them
   for (size_t i = 0; i < name_count; i++) {
-    cn_test_free((char *)datatypes[i].name);
     for (size_t c = 0; c < datatypes[i].constructor_count; c++) {
-      cn_test_free((char *)datatypes[i].constructors[c].name);
-      for (size_t f = 0; f < datatypes[i].constructors[c].field_count; f++) {
-        cn_test_free((char *)datatypes[i].constructors[c].fields[f].name);
-      }
       cn_test_free(datatypes[i].constructors[c].fields);
     }
     cn_test_free(datatypes[i].constructors);
@@ -532,7 +526,7 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
   cn_bump_frame_id frame = cn_bump_get_frame_id();
 
   // Create struct constructor name using CN_Names.struct_con_name
-  char *con_name = struct_con_name(name);
+  const char *con_name = struct_con_name(name);
   assert(con_name);
   // Build constructor fields
   con_field_t *fields = NULL;
@@ -547,17 +541,16 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
       struct_member_t *member = &struct_decl->members[i];
 
       // Create field name using CN_Names.struct_field_name
-      char *field_name = cn_test_malloc(strlen(member->label) + 20);
-      assert(field_name);
-      sprintf(field_name, "%s_struct_fld", member->label);
+      char field_buffer[256];
+      snprintf(field_buffer, sizeof(field_buffer), "%s_struct_fld", member->label);
 
-      fields[i].name = field_name;
+      fields[i].name = cn_intern_string(field_buffer);
       fields[i].type = translate_base_type(member->base_type);
     }
   }
 
   // Create struct name using CN_Names.struct_name
-  char *struct_name = cn_smt_struct_name(name);
+  const char *struct_name = cn_smt_struct_name(name);
 
   // Create constructor
   constructor_t constructor;
@@ -576,12 +569,8 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
   cn_bump_free_after(frame);
 
   // Cleanup
-  cn_test_free(con_name);
-  cn_test_free(struct_name);
+  // con_name, struct_name, and field names are interned, no need to free
   if (fields) {
-    for (size_t i = 0; i < field_count; i++) {
-      cn_test_free((char *)fields[i].name);
-    }
     cn_test_free(fields);
   }
 }
@@ -613,7 +602,7 @@ void cn_structs_declare(struct cn_smt_solver *s,
 /** Declare a datatype for a tuple */
 void cn_tuple_declare(struct cn_smt_solver *solver) {
   for (int arity = 1; arity <= CN_TUPLE_MAX_ARITY; arity++) {
-    char *name = cn_tuple_constructor_name(arity);
+    const char *name = cn_tuple_constructor_name(arity);
 
     cn_bump_frame_id frame = cn_bump_get_frame_id();
 
@@ -622,10 +611,9 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
     type_params = cn_test_malloc(arity * sizeof(char *));
     assert(type_params);
     for (int i = 0; i < arity; i++) {
-      char *param = cn_test_malloc(12);  // enough for "a" + int (max 10 digits) + null
-      assert(param);
-      sprintf(param, "a%d", i);
-      type_params[i] = param;
+      char buffer[32];
+      snprintf(buffer, sizeof(buffer), "a%d", i);
+      type_params[i] = cn_intern_string(buffer);
     }
 
     // Create constructor fields
@@ -653,14 +641,11 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
 
     // Clean up
     if (arity > 0) {
-      for (int i = 0; i < arity; i++) {
-        cn_test_free((char *)type_params[i]);
-        cn_test_free((char *)fields[i].name);
-      }
+      // Type params and field names are interned, only free the arrays
       cn_test_free(type_params);
       cn_test_free(fields);
     }
-    cn_test_free(name);
+    // name is interned, no need to free
   }
 }
 

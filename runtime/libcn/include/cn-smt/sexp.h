@@ -20,7 +20,7 @@ typedef enum {
 typedef struct sexp {
   sexp_type_t type;
   union {
-    char *atom;
+    const char *atom;
     struct {
       struct sexp **elements;
       size_t count;

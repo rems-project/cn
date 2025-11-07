@@ -107,17 +107,18 @@ size_t cn_intern_count(void) {
 }
 
 void cn_intern_destroy(void) {
-  if (table != NULL) {
-    // Free the hash table entries
-    bennet_hash_table_free(const_char_ptr, const_char_ptr)(&table->ht);
+  // NOTE: We intentionally don't free the table or its entries here because:
+  // 1. cn_test_free_all() already frees all test-allocated memory (including table)
+  // 2. This function is called AFTER cn_test_free_all() in the test cleanup flow
+  // 3. Trying to free table here would be a double-free
+  // The only thing we need to free here is the arena, which was allocated
+  // separately with malloc (not cn_test_malloc).
 
-    // Free the table structure itself
-    cn_test_free(table);
-    table = NULL;
-  }
+  // Just clear the table pointer (don't free it - already freed by cn_test_free_all)
+  table = NULL;
 
+  // Destroy the arena (this frees all interned strings)
   if (arena != NULL) {
-    // Destroy the arena (this frees all interned strings)
     cn_arena_destroy(arena);
     arena = NULL;
   }

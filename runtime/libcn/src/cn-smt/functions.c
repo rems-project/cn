@@ -28,8 +28,8 @@ static void init_func_registry(void) {
 }
 
 // Helper function from to_smt.c - gets function name with _func suffix
-extern char* fn_def_name(cn_sym sym);
-extern char* fn_name(cn_sym sym);
+extern const char* fn_def_name(cn_sym sym);
+extern const char* fn_name(cn_sym sym);
 extern sexp_t* translate_cn_base_type(cn_base_type bt);
 extern sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm);
 extern sexp_t* define_fun(const char* name,
@@ -64,14 +64,12 @@ void cn_register_func(cn_sym name,
   init_func_registry();
 
   // Get function name for registry (use _func suffix)
-  char* func_name = fn_def_name(name);
+  const char* func_name = fn_def_name(name);
   assert(func_name);
 
-  // Store handler in registry (duplicate the name for stable storage)
-  char* stored_name = cn_test_strdup(func_name);
-  assert(stored_name);
+  // Store handler in registry
   bennet_hash_table_set(const_char_ptr, void_ptr)(
-      &g_func_registry, stored_name, (void_ptr)handler);
+      &g_func_registry, func_name, (void_ptr)handler);
 
   // Now define the function in SMT solver
   // This is the logic from cn_define_fun in to_smt.c
@@ -87,7 +85,7 @@ void cn_register_func(cn_sym name,
 
   for (size_t i = 0; i < arg_count; i++) {
     // mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt)
-    char* arg_name = fn_name(arg_binders[i].sym);
+    const char* arg_name = fn_name(arg_binders[i].sym);
     assert(arg_name);
 
     sexp_t* arg_type = translate_base_type(arg_binders[i].bt);
@@ -96,8 +94,6 @@ void cn_register_func(cn_sym name,
     // Create parameter as (name type)
     sexp_t* name_atom = sexp_atom(arg_name);
     assert(name_atom);
-
-    cn_test_free(arg_name);
 
     sexp_t* param_elements[] = {name_atom, arg_type};
     args[i] = sexp_list(param_elements, 2);

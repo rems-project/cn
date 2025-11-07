@@ -12,6 +12,7 @@
 #include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/functions.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/records.h>
 #include <cn-smt/structs.h>
@@ -1483,10 +1484,9 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
       assert(base_function_name);
 
       // Construct full function name with "_func" suffix (matching fn_def_name)
-      size_t name_len = strlen(base_function_name) + 6;  // +5 for "_func" +1 for null
-      char* function_name = cn_test_malloc(name_len);
-      assert(function_name);
-      sprintf(function_name, "%s_func", base_function_name);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_func", base_function_name);
+      const char* function_name = cn_intern_string(buffer);
 
       // Get argument count from the term
       bennet_vector(cn_term_ptr)* args_vec = &term->data.apply.args;
@@ -1514,7 +1514,6 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
 
       // Cleanup and return
       cn_test_free(evaluated_args);
-      cn_test_free(function_name);
       return result;
     }
 

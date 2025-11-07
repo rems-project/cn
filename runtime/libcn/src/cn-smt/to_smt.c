@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include <cn-smt/memory/arena.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
@@ -38,110 +39,77 @@ uint64_t sym_num(cn_sym sym) {
 
 // Helper function to get string from Id
 const char* id_get_string(int id) {
-  size_t bytes = CHAR_BIT * sizeof(int) / 2;
-  char* buffer = malloc(bytes);
-  snprintf(buffer, bytes, "id_%d", id);
-  return buffer;
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "id_%d", id);
+  return cn_intern_string(buffer);
 }
 
-char* fn_name(cn_sym x) {
+const char* fn_name(cn_sym x) {
   assert(x.name);
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_%" PRIu64, base_name, num);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_%" PRIu64, base_name, num);
+  return cn_intern_string(buffer);
 }
 
 // Function definition name - just append _func without number
-char* fn_def_name(cn_sym x) {
+const char* fn_def_name(cn_sym x) {
   assert(x.name);
   const char* base_name = sym_pp_string_no_nums(x);
 
-  // Append _func suffix
-  size_t len = strlen(base_name) + 6;  // +5 for "_func" +1 for null
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_func", base_name);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_func", base_name);
+  return cn_intern_string(buffer);
 }
 
 const char* named_expr_name(void) {
   return "_cn_named";
 }
 
-char* cn_smt_struct_name(const char* name) {
-  // Calculate required buffer size: base_name + "_struct" + null terminator
-  size_t len = strlen(name) + snprintf(NULL, 0, "_struct") + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_struct", name);
-  return result;
+const char* cn_smt_struct_name(const char* name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_struct", name);
+  return cn_intern_string(buffer);
 }
 
-char* struct_con_name(const char* name) {
-  // Calculate required buffer size: name + "_struct_con" + null terminator
-  size_t len = strlen(name) + snprintf(NULL, 0, "_struct_con") + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_struct_con", name);
-  return result;
+const char* struct_con_name(const char* name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_struct_con", name);
+  return cn_intern_string(buffer);
 }
 
-char* struct_field_name(const char* member_name) {
-  // Calculate required buffer size: member_name + "_struct_fld" + null terminator
-  size_t len = strlen(member_name) + strlen("_struct_fld") + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_struct_fld", member_name);
-  return result;
+const char* struct_field_name(const char* member_name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_struct_fld", member_name);
+  return cn_intern_string(buffer);
 }
 
-char* datatype_name(cn_sym x) {
+const char* datatype_name(cn_sym x) {
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_%" PRIu64, base_name, num);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_%" PRIu64, base_name, num);
+  return cn_intern_string(buffer);
 }
 
-char* datatype_con_name(cn_sym x) {
+const char* datatype_con_name(cn_sym x) {
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_%" PRIu64, base_name, num);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_%" PRIu64, base_name, num);
+  return cn_intern_string(buffer);
 }
 
-char* datatype_field_name(int x) {
+const char* datatype_field_name(int x) {
   const char* base_name = id_get_string(x);
 
-  // Calculate required buffer size: base_name + "_data_fld" + null terminator
-  size_t len = strlen(base_name) + strlen("_data_fld") + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_data_fld", base_name);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_data_fld", base_name);
+  return cn_intern_string(buffer);
 }
 
 // Global counter for fresh name generation
@@ -165,48 +133,38 @@ char* fresh_name(const char* x) {
 const int CN_TUPLE_MAX_ARITY =
     15; /* TODO: compute required arity based on the input program. */
 
-static char* cn_tuple_name(int arity) {
+static const char* cn_tuple_name(int arity) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
 
-  // Calculate required buffer size: "cn_tuple_" + arity + null terminator
-  size_t len = strlen("cn_tuple_") + snprintf(NULL, 0, "%d", arity) + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "cn_tuple_%d", arity);
-  return result;
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "cn_tuple_%d", arity);
+  return cn_intern_string(buffer);
 }
 
-static char* cn_tuple_selector(int arity, int field) {
+static const char* cn_tuple_selector(int arity, int field) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
 
-  // Calculate required buffer size: "cn_get_" + field + "_of_" + arity + null terminator
-  size_t len = strlen("cn_get_") + snprintf(NULL, 0, "%d", field) + strlen("_of_") +
-               snprintf(NULL, 0, "%d", arity) + 1;
-  char* result = cn_test_malloc(len);
-  assert(result);
-
-  sprintf(result, "cn_get_%d_of_%d", field, arity);
-  return result;
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "cn_get_%d_of_%d", field, arity);
+  return cn_intern_string(buffer);
 }
 
 /** A tuple type with the given list of types */
 sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count) {
   int arity = (int)type_count;
-  char* name = cn_tuple_name(arity);
+  const char* name = cn_tuple_name(arity);
   sexp_t* result = sexp_app_str(name, types, type_count);
-  cn_test_free(name);
   return result;
 }
 
 /** Make a tuple value */
-char* cn_tuple_constructor_name(int arity) {
+const char* cn_tuple_constructor_name(int arity) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
   return cn_tuple_name(arity);
 }
 
 /** Get a field of a tuple */
-char* cn_tuple_get_selector_name(int arity, int field) {
+const char* cn_tuple_get_selector_name(int arity, int field) {
   return cn_tuple_selector(arity, field);
 }
 
@@ -244,15 +202,13 @@ sexp_t* cn_option_some(sexp_t* x) {
 /** Test if an option value is Some */
 sexp_t* cn_option_is_some(sexp_t* x) {
   // Generate "is-cn_some" predicate name
-  size_t len = strlen("is-") + strlen(cn_option_some_name) + 1;
-  char* predicate_name = cn_test_malloc(len);
-  assert(predicate_name);
-  sprintf(predicate_name, "is-%s", cn_option_some_name);
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "is-%s", cn_option_some_name);
+  const char* predicate_name = cn_intern_string(buffer);
 
   sexp_t* args[] = {x};
   sexp_t* result = sexp_app_str(predicate_name, args, 1);
 
-  cn_test_free(predicate_name);
   return result;
 }
 
@@ -375,11 +331,10 @@ sexp_t* translate_base_type(cn_base_type bt) {
     case CN_BASE_STRUCT: {
       // Struct tag -> SMT.atom (CN_Names.struct_name tag)
       // Convert int tag to cn_sym (assuming tag is symbol id)
-      char* struct_name_str = cn_smt_struct_name(bt.data.struct_tag.tag);
+      const char* struct_name_str = cn_smt_struct_name(bt.data.struct_tag.tag);
       assert(struct_name_str);
 
       sexp_t* result = sexp_atom(struct_name_str);
-      cn_test_free(struct_name_str);
       return result;
     }
 
@@ -389,13 +344,10 @@ sexp_t* translate_base_type(cn_base_type bt) {
       assert(tag_name);
 
       // Create datatype SMT name: tag_name + "_dt"
-      size_t len = strlen(tag_name) + 4;  // "_dt" + null terminator
-      char* datatype_name_str = cn_test_malloc(len);
-      assert(datatype_name_str);
-      snprintf(datatype_name_str, len, "%s_dt", tag_name);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_dt", tag_name);
 
-      sexp_t* result = sexp_atom(datatype_name_str);
-      cn_test_free(datatype_name_str);
+      sexp_t* result = sexp_atom(buffer);
       return result;
     }
 
@@ -471,12 +423,12 @@ sexp_t* translate_const(void* s, cn_const* co) {
       assert(tuple_type);
 
       // Create type-annotated tuple constructor
-      char* tuple_name = cn_tuple_constructor_name(0);
+      const char* tuple_name = cn_tuple_constructor_name(0);
       sexp_t* constructor_atom = sexp_atom(tuple_name);
       sexp_t* result = sexp_as_type(constructor_atom, tuple_type);
 
       // Cleanup
-      cn_test_free(tuple_name);
+      // tuple_name is interned, no need to free
 
       return result;
     }
@@ -723,9 +675,8 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       return translate_const(s, &iterm->data.const_val);
 
     case CN_TERM_SYM: {
-      char* name = fn_name(iterm->data.sym);
+      const char* name = fn_name(iterm->data.sym);
       sexp_t* result = sexp_atom(name);
-      cn_test_free(name);
       return result;
     }
 
@@ -1228,17 +1179,17 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
         // LOC is represented as a bitvector of width CHAR_BIT * sizeof(uintptr_t)
         // Use (_ int2bv n) to convert integer to n-bit bitvector
         int ptr_width = CHAR_BIT * sizeof(uintptr_t);
-        char* int2bv_op = malloc(64);
-        snprintf(int2bv_op, 64, "(_ int2bv %d)", ptr_width);
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "(_ int2bv %d)", ptr_width);
         sexp_t* args[] = {smt_term};
-        return sexp_app_str(int2bv_op, args, 1);
+        return sexp_app_str(buffer, args, 1);
       } else if (source_bt.tag == CN_BASE_INTEGER && target_bt.tag == CN_BASE_BITS) {
         // Integer -> Bits: Convert integer to bitvector of target width
         int target_width = target_bt.data.bits.size_bits;
-        char* int2bv_op = malloc(64);
-        snprintf(int2bv_op, 64, "(_ int2bv %d)", target_width);
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "(_ int2bv %d)", target_width);
         sexp_t* args[] = {smt_term};
-        return sexp_app_str(int2bv_op, args, 1);
+        return sexp_app_str(buffer, args, 1);
       } else {
         // Other casts
         assert(false);
@@ -1267,7 +1218,7 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       const char* tag = iterm->data.struct_val.tag;
 
       // Create constructor name using struct_con_name
-      char* con_name = struct_con_name(tag);
+      const char* con_name = struct_con_name(tag);
 
       // Get member count from vector
       bennet_vector(cn_member_pair)* members = &iterm->data.struct_val.members;
@@ -1291,7 +1242,7 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, arg_count);
 
       // Cleanup
-      cn_test_free(con_name);
+      // con_name is interned, no need to free
       if (args) {
         cn_test_free(args);
       }
@@ -1304,13 +1255,12 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* struct_smt = translate_term_aux(s, iterm->data.struct_member.struct_term);
       const char* member = iterm->data.struct_member.member_name;
 
-      char* fn_name = struct_field_name(member);
+      const char* fn_name = struct_field_name(member);
 
       sexp_t* fn_atom = sexp_atom(fn_name);
       sexp_t* args[] = {struct_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      cn_test_free(fn_name);
       return result;
     }
 
@@ -1320,15 +1270,13 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* value_smt = translate_term_aux(s, iterm->data.struct_update.new_value);
       const char* member = iterm->data.struct_update.member_name;
 
-      char* fn_name = cn_test_malloc(strlen(member) + 20);
-      assert(fn_name);
-      sprintf(fn_name, "set_%s", member);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "set_%s", member);
 
-      sexp_t* fn_atom = sexp_atom(fn_name);
+      sexp_t* fn_atom = sexp_atom(buffer);
       sexp_t* args[] = {struct_smt, value_smt};
       sexp_t* result = sexp_app(fn_atom, args, 2);
 
-      cn_test_free(fn_name);
       return result;
     }
 
@@ -1381,7 +1329,7 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       assert(tuple_type);
 
       // Create type-annotated tuple constructor
-      char* tuple_con_name = cn_tuple_constructor_name(member_count);
+      const char* tuple_con_name = cn_tuple_constructor_name(member_count);
       sexp_t* constructor_atom = sexp_atom(tuple_con_name);
       sexp_t* typed_constructor = sexp_as_type(constructor_atom, tuple_type);
 
@@ -1389,7 +1337,6 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(typed_constructor, args, member_count);
 
       // Cleanup
-      cn_test_free(tuple_con_name);
       if (element_types) {
         for (size_t i = 0; i < member_count; i++) {
         }
@@ -1424,14 +1371,13 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       assert(found);  // Member should exist in the record type
 
       // Get the tuple selector name (e.g., "cn_get_0_of_2")
-      char* selector_name =
+      const char* selector_name =
           cn_tuple_get_selector_name(record_bt.data.record.count, member_index);
 
       sexp_t* fn_atom = sexp_atom(selector_name);
       sexp_t* args[] = {record_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      cn_test_free(selector_name);
       return result;
     }
 
@@ -1440,10 +1386,8 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       const char* ctor = iterm->data.constructor.constructor_name;
 
       // Add _con suffix to constructor name
-      size_t ctor_len = strlen(ctor);
-      char* ctor_smt = cn_test_malloc(ctor_len + 5);  // +4 for "_con" +1 for null
-      assert(ctor_smt);
-      sprintf(ctor_smt, "%s_con", ctor);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_con", ctor);
 
       // Get the arguments vector
       bennet_vector(cn_member_pair)* args_vec = &iterm->data.constructor.args;
@@ -1451,9 +1395,8 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
 
       if (arg_count == 0) {
         // Nullary constructor
-        sexp_t* fn_atom = sexp_atom(ctor_smt);
+        sexp_t* fn_atom = sexp_atom(buffer);
         sexp_t* result = sexp_app(fn_atom, NULL, 0);
-        cn_test_free(ctor_smt);
         return result;
       }
 
@@ -1467,14 +1410,13 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       }
 
       // Build constructor application
-      sexp_t* fn_atom = sexp_atom(ctor_smt);
+      sexp_t* fn_atom = sexp_atom(buffer);
       sexp_t* result = sexp_app(fn_atom, arg_sexps, arg_count);
 
       // Cleanup
       for (size_t i = 0; i < arg_count; i++) {
       }
       cn_test_free(arg_sexps);
-      cn_test_free(ctor_smt);
 
       return result;
     }
@@ -1505,13 +1447,10 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       const char* fn_name = iterm->data.apply.function_name;
 
       // Append _func suffix to get SMT name
-      size_t len = strlen(fn_name) + 6;  // +5 for "_func" +1 for null
-      char* smt_fn_name = cn_test_malloc(len);
-      assert(smt_fn_name);
-      sprintf(smt_fn_name, "%s_func", fn_name);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_func", fn_name);
 
-      sexp_t* fn_atom = sexp_atom(smt_fn_name);
-      cn_test_free(smt_fn_name);
+      sexp_t* fn_atom = sexp_atom(buffer);
 
       // Get argument count from vector
       bennet_vector(cn_term_ptr)* args_vec = &iterm->data.apply.args;
@@ -1585,7 +1524,7 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
       assert(alternatives);
 
       // Track allocated strings for cleanup
-      char*** var_names_arrays = cn_test_malloc(sizeof(char**) * case_count);
+      const char*** var_names_arrays = cn_test_malloc(sizeof(const char**) * case_count);
       assert(var_names_arrays);
 
       // Build each alternative
@@ -1600,12 +1539,12 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
           if (match_case->pattern_var_count == 1 &&
               match_case->pattern_vars[0].name != NULL) {
             // Single variable binding
-            char* var_name = fn_name(match_case->pattern_vars[0]);
+            const char* var_name = fn_name(match_case->pattern_vars[0]);
             assert(var_name);
             alternatives[i].pattern.data.var_name = var_name;
 
             // Track for cleanup (1 variable)
-            var_names_arrays[i] = cn_test_malloc(sizeof(char*));
+            var_names_arrays[i] = cn_test_malloc(sizeof(const char*));
             var_names_arrays[i][0] = var_name;
           } else {
             // Wildcard pattern
@@ -1617,11 +1556,9 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
           alternatives[i].pattern.type = PAT_CON;
 
           // Add _con suffix to match datatype constructor naming convention
-          size_t tag_len = strlen(match_case->constructor_tag);
-          char* con_name = cn_test_malloc(tag_len + 5);  // "_con" + null terminator
-          assert(con_name);
-          sprintf(con_name, "%s_con", match_case->constructor_tag);
-          alternatives[i].pattern.data.con.con_name = con_name;
+          char con_buffer[256];
+          snprintf(con_buffer, sizeof(con_buffer), "%s_con", match_case->constructor_tag);
+          alternatives[i].pattern.data.con.con_name = cn_intern_string(con_buffer);
 
           alternatives[i].pattern.data.con.var_count = match_case->pattern_var_count;
 
@@ -1643,7 +1580,7 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
             }
 
             alternatives[i].pattern.data.con.var_names = var_names;
-            var_names_arrays[i] = (char**)var_names;
+            var_names_arrays[i] = var_names;
           } else {
             // Constructor with no arguments
             alternatives[i].pattern.data.con.var_names = NULL;
@@ -1664,24 +1601,14 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
 
       for (size_t i = 0; i < case_count; i++) {
         if (var_names_arrays[i] != NULL) {
-          cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
-
           if (alternatives[i].pattern.type == PAT_VAR) {
-            // Free single variable name (not wildcard)
-            cn_test_free(var_names_arrays[i][0]);
-            cn_test_free(var_names_arrays[i]);
+            // Variable names are interned, only free the array
+            cn_test_free((void*)var_names_arrays[i]);
           } else {
-            // PAT_CON - free constructor variable names and constructor name
-            for (size_t j = 0; j < match_case->pattern_var_count; j++) {
-              // Only free if it was allocated (not wildcard "_")
-              if (match_case->pattern_vars[j].name != NULL) {
-                cn_test_free((char*)alternatives[i].pattern.data.con.var_names[j]);
-              }
-            }
-            cn_test_free((char**)alternatives[i].pattern.data.con.var_names);
+            // PAT_CON - variable names are interned, only free the array
+            cn_test_free((void*)alternatives[i].pattern.data.con.var_names);
 
-            // Free the allocated constructor name (with _con suffix)
-            cn_test_free((char*)alternatives[i].pattern.data.con.con_name);
+            // Constructor name is interned, no need to free
           }
         }
       }
@@ -1718,7 +1645,7 @@ void cn_declare_fun(struct cn_smt_solver* s,
     cn_base_type* args_bts,
     size_t args_count,
     cn_base_type res_bt) {
-  char* sname = fn_name(name);
+  const char* sname = fn_name(name);
   if (!sname)
     return;
 
@@ -1751,7 +1678,7 @@ void cn_declare_fun(struct cn_smt_solver* s,
   for (size_t i = 0; i < args_count; i++) {
   }
   cn_test_free(args_ts);
-  cn_test_free(sname);
+  // sname is interned, no need to free
 }
 
 void cn_declare_variable(struct cn_smt_solver* solver, cn_sym sym, cn_base_type bt) {
