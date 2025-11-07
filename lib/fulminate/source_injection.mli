@@ -1,8 +1,11 @@
 open Cerb_frontend
 
 type precedence =
-  | Bot
-  | Cartesian of (int * int)
+  | Normal of int
+  (* Cartesian (sign, x, y): ordered in (reverse if sign is true) lexicographic
+    order (larger x/y ==> smaller in ordering, i.e. higher precedence, and vice
+  versa) *)
+  | Cartesian of (bool * int * int)
 
 type 'a cn_injection =
   { orig_filename : string; (** The original file before preprocessing *)

@@ -43,7 +43,7 @@ let[@warning "-32" (* unused-value-declaration *)] rm_cn_expr (Cn.CNExpr (_, cn_
 let mk_stmt stmt_ =
   A.
     { loc = Cerb_location.unknown;
-      desug_info = Desug_none;
+      desug_info = { is_forloop_body = false; desug_case = None };
       attrs = CF.Annot.Attrs [];
       node = stmt_
     }
