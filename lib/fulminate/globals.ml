@@ -116,7 +116,7 @@ let accessors filename (cabs_tunit : CF.Cabs.translation_unit) (prog5 : unit Muc
   : A.sigma_declaration list
     * CF.GenTypes.genTypeCategory A.sigma_function_definition list
   =
-  Cn_to_ail.extract_global_variables cabs_tunit prog5
+  Cn_to_ail.extract_global_variables ~prune_unused:true cabs_tunit prog5
   |> List.map (fun (sym, ct) ->
     let sct = Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct in
     accessor filename sym sct)
