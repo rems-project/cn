@@ -78,6 +78,8 @@ let run_tests
       print_timing_info
       just_reset_solver
       smt_skewing_mode
+      max_bump_blocks
+      bump_block_size
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -164,7 +166,9 @@ let run_tests
           print_discard_info;
           print_timing_info;
           just_reset_solver;
-          smt_skewing_mode
+          smt_skewing_mode;
+          max_bump_blocks;
+          bump_block_size
         }
       in
       TestGeneration.set_config config;
@@ -191,6 +195,8 @@ let run_tests
            ~experimental_ownership_stack_mode
            ~with_testing:true
            ~skip_and_only:(skip_fulminate, only_fulminate)
+           ?max_bump_blocks
+           ?bump_block_size
            filename
            cc
            pp_file
@@ -721,6 +727,8 @@ let cmd =
     $ Flags.print_timing_info
     $ Flags.just_reset_solver
     $ Flags.smt_skewing_mode
+    $ Instrument.Flags.max_bump_blocks
+    $ Instrument.Flags.bump_block_size
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

@@ -87,7 +87,9 @@ type t =
     print_timing_info : bool;
     just_reset_solver : bool;
     smt_skewing_mode : smt_skewing_mode;
-    smt_logging : string option
+    smt_logging : string option;
+    max_bump_blocks : int option;
+    bump_block_size : int option
   }
 
 let default =
@@ -139,7 +141,9 @@ let default =
     print_timing_info = false;
     just_reset_solver = false;
     smt_skewing_mode = Sized;
-    smt_logging = None
+    smt_logging = None;
+    max_bump_blocks = None;
+    bump_block_size = None
   }
 
 
@@ -336,3 +340,7 @@ let is_just_reset_solver () = (Option.get !instance).just_reset_solver
 let get_smt_skewing_mode () = (Option.get !instance).smt_skewing_mode
 
 let get_smt_logging () = (Option.get !instance).smt_logging
+
+let has_max_bump_blocks () = (Option.get !instance).max_bump_blocks
+
+let has_bump_block_size () = (Option.get !instance).bump_block_size

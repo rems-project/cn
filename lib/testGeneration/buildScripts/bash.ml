@@ -223,6 +223,14 @@ let run () =
        @ (Config.get_smt_logging ()
           |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
           |> Option.to_list
+          |> List.flatten)
+       @ (Config.has_max_bump_blocks ()
+          |> Option.map (fun n -> [ "--max-bump-blocks"; string_of_int n ])
+          |> Option.to_list
+          |> List.flatten)
+       @ (Config.has_bump_block_size ()
+          |> Option.map (fun n -> [ "--bump-block-size"; string_of_int n ])
+          |> Option.to_list
           |> List.flatten))
   in
   !^"# Run"
