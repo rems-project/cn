@@ -909,8 +909,9 @@ module Make (AD : Domain.T) = struct
       |> String.to_seq
       |> Seq.map (fun c -> match c with 'a' .. 'z' | 'A' .. 'Z' | '_' -> c | _ -> '_')
       |> String.of_seq
-      |> String.capitalize_ascii
-      |> fun x -> x ^ "_H" |> Pp.string
+      |> String.uppercase_ascii
+      |> Fun.flip ( ^ ) "_GEN_H"
+      |> Pp.string
     in
     let harnesses =
       let open Pp in

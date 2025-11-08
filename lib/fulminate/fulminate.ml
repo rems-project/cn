@@ -542,6 +542,8 @@ let main
       ~experimental_ownership_stack_mode
       ~with_testing
       ~skip_and_only
+      ?max_bump_blocks
+      ?bump_block_size
       filename
       _cc
       in_filename (* WARNING: this file will be deleted after this function *)
@@ -749,6 +751,8 @@ let main
         generate_global_assignments
           ~exec_c_locs_mode
           ~experimental_ownership_stack_mode
+          ?max_bump_blocks
+          ?bump_block_size
           cabs_tunit
           sigm
           prog5

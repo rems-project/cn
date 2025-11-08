@@ -647,6 +647,8 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 let generate_global_assignments
       ?(exec_c_locs_mode = false)
       ?(experimental_ownership_stack_mode = false)
+      ?max_bump_blocks
+      ?bump_block_size
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -676,7 +678,13 @@ let generate_global_assignments
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
-    let assignments = OE.get_ownership_global_init_stats ~ghost_array_size () in
+    let assignments =
+      OE.get_ownership_global_init_stats
+        ~ghost_array_size
+        ?max_bump_blocks
+        ?bump_block_size
+        ()
+    in
     let init_and_global_mapping_str =
       generate_ail_stat_strs
         ( [],

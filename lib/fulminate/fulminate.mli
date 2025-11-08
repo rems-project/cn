@@ -17,6 +17,8 @@ val main
   experimental_ownership_stack_mode:bool ->
   with_testing:bool ->
   skip_and_only:string list * string list ->
+  ?max_bump_blocks:int ->
+  ?bump_block_size:int ->
   String.t ->
   String.t ->
   String.t ->

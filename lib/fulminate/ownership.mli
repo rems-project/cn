@@ -29,6 +29,8 @@ val cn_loop_leak_check_sym : Sym.t
 
 val get_ownership_global_init_stats
   :  ?ghost_array_size:int ->
+  ?max_bump_blocks:int ->
+  ?bump_block_size:int ->
   unit ->
   GenTypes.genTypeCategory AilSyntax.statement_ list
 

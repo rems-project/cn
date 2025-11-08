@@ -87,7 +87,9 @@ type t =
     print_timing_info : bool;
     just_reset_solver : bool;
     smt_skewing_mode : smt_skewing_mode;
-    smt_logging : string option
+    smt_logging : string option;
+    max_bump_blocks : int option;
+    bump_block_size : int option
   }
 
 val default : t
@@ -215,3 +217,7 @@ val is_just_reset_solver : unit -> bool
 val get_smt_skewing_mode : unit -> smt_skewing_mode
 
 val get_smt_logging : unit -> string option
+
+val has_max_bump_blocks : unit -> int option
+
+val has_bump_block_size : unit -> int option

@@ -12,8 +12,8 @@
 #include <cn-executable/bump_alloc.h>
 #include <cn-executable/utils.h>
 
-#define BUMP_BLOCK_SIZE       (1024 * 1024 * 8)
-#define BUMP_INITIAL_CAPACITY 256
+static size_t bump_block_size = (1024 * 1024 * 8);  // 8MB default
+static size_t max_bump_blocks = 256;                // Default maximum blocks
 static char** bump_blocks;
 static size_t bump_blocks_capacity;
 static uint16_t bump_curr_block;
@@ -40,7 +40,7 @@ void cn_bump_print() {}
 void cn_bump_init() {
   if (bump_curr == NULL) {
     // Allocate initial array of block pointers
-    bump_blocks_capacity = BUMP_INITIAL_CAPACITY;
+    bump_blocks_capacity = max_bump_blocks;
     bump_blocks = fulm_malloc(bump_blocks_capacity * sizeof(char*), &fulm_default_alloc);
 
     // Initialize all pointers to NULL
@@ -49,17 +49,17 @@ void cn_bump_init() {
     }
 
     // Allocate first block
-    bump_blocks[0] = fulm_malloc(BUMP_BLOCK_SIZE, &fulm_default_alloc);
+    bump_blocks[0] = fulm_malloc(bump_block_size, &fulm_default_alloc);
     bump_curr = bump_blocks[0];
   }
 }
 
 bool bump_can_fit(size_t nbytes) {
-  if (nbytes > BUMP_BLOCK_SIZE) {
+  if (nbytes > bump_block_size) {
     return 0;
   }
 
-  if (bump_curr + nbytes > bump_blocks[bump_curr_block] + BUMP_BLOCK_SIZE) {
+  if (bump_curr + nbytes > bump_blocks[bump_curr_block] + bump_block_size) {
     return 0;
   }
 
@@ -67,6 +67,15 @@ bool bump_can_fit(size_t nbytes) {
 }
 
 bool bump_expand() {
+  // Check if we've reached the maximum number of blocks
+  if (bump_curr_block + 1 >= max_bump_blocks) {
+    cn_printf(CN_LOGGING_INFO,
+        "Reached maximum number of bump allocator blocks (%zu).\\n",
+        max_bump_blocks);
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    return false;
+  }
+
   // Check if we need to grow the block array
   if (bump_curr_block + 1 >= bump_blocks_capacity) {
     size_t new_capacity = bump_blocks_capacity * 2;
@@ -89,7 +98,7 @@ bool bump_expand() {
   bump_curr_block++;
 
   if (bump_blocks[bump_curr_block] == NULL) {
-    bump_blocks[bump_curr_block] = fulm_malloc(BUMP_BLOCK_SIZE, &fulm_default_alloc);
+    bump_blocks[bump_curr_block] = fulm_malloc(bump_block_size, &fulm_default_alloc);
   }
 
   bump_curr = bump_blocks[bump_curr_block];
@@ -98,10 +107,10 @@ bool bump_expand() {
 }
 
 void* bump_by(size_t nbytes) {
-  if (nbytes > BUMP_BLOCK_SIZE) {
+  if (nbytes > bump_block_size) {
     cn_printf(CN_LOGGING_INFO,
-        "Attempted to bump allocate larger than maximum allocation size %d.\n",
-        BUMP_BLOCK_SIZE);
+        "Attempted to bump allocate larger than maximum allocation size %zu.\n",
+        bump_block_size);
     cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
@@ -204,4 +213,35 @@ void cn_bump_free_after(cn_bump_frame_id frame_id) {
 // Needed for bump allocator struct
 void cn_bump_free(void* dummy) {
   return;
+}
+
+void cn_bump_set_max_blocks(size_t max) {
+  if (max == 0) {
+    fprintf(
+        stderr, "Error: Maximum number of bump allocator blocks must be at least 1.\n");
+    exit(1);
+  }
+  max_bump_blocks = max;
+}
+
+void cn_bump_set_block_size(size_t size) {
+  // Validate: minimum 1KB, maximum 1GB
+  const size_t MIN_BLOCK_SIZE = 1024;                // 1KB
+  const size_t MAX_BLOCK_SIZE = 1024 * 1024 * 1024;  // 1GB
+
+  if (size < MIN_BLOCK_SIZE) {
+    fprintf(stderr,
+        "Error: Bump allocator block size must be at least %zu bytes (1KB).\n",
+        MIN_BLOCK_SIZE);
+    exit(1);
+  }
+
+  if (size > MAX_BLOCK_SIZE) {
+    fprintf(stderr,
+        "Error: Bump allocator block size must be at most %zu bytes (1GB).\n",
+        MAX_BLOCK_SIZE);
+    exit(1);
+  }
+
+  bump_block_size = size;
 }

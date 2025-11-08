@@ -97,6 +97,8 @@ val has_main : GenTypes.genTypeCategory AilSyntax.sigma -> bool
 val generate_global_assignments
   :  ?exec_c_locs_mode:bool ->
   ?experimental_ownership_stack_mode:bool ->
+  ?max_bump_blocks:int ->
+  ?bump_block_size:int ->
   Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
