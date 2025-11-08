@@ -295,18 +295,24 @@ let compile_test_file
   ^^ pp_label "Static Wrappers" static_wrappers_defs
   ^^ pp_label "Constant function tests" constant_tests_defs
   ^^ pp_label "Generator-based tests" generator_tests_defs
-  ^^ pp_label
-       "Main function"
-       (!^"int main"
-        ^^ parens !^"int argc, char* argv[]"
-        ^/^ braces
-              (nest
-                 2
-                 (hardline
-                  ^^ separate_map hardline compile_test all_tests
-                  ^^ twice hardline
-                  ^^ !^"return cn_test_main(argc, argv);")
-               ^^ hardline))
+  ^^ (!^"int main"
+      ^^ parens !^"int argc, char* argv[]"
+      ^/^ braces
+            (nest
+               2
+               (hardline
+                ^^ pp_label
+                     "Allocator Configuration"
+                     (!^"fulm_default_alloc.malloc = std_malloc;"
+                      ^/^ !^"fulm_default_alloc.calloc = std_calloc;"
+                      ^/^ !^"fulm_default_alloc.free = std_free;")
+                ^^ hardline
+                ^/^ pp_label
+                      "Test Registration"
+                      (separate_map hardline compile_test all_tests
+                       ^^ twice hardline
+                       ^^ !^"return cn_test_main(argc, argv);"))
+             ^^ hardline))
   ^^ hardline
   ^^ !^(String.concat
           " "

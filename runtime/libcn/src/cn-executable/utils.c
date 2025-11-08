@@ -29,14 +29,29 @@ static signed long WILDCARD_DEPTH = INT_MIN + 1;
 static allocator bump_alloc = (allocator){
     .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
 
-void reset_fulminate(void) {
+static _Bool fulminate_initialized = false;
+
+void fulminate_destroy(void) {
+  if (!fulminate_initialized) {
+    return;  // Already destroyed or never initialized
+  }
+
   cn_bump_free_all();
   free_ownership_ghost_state();
-  reset_error_msg_info();
+  free_error_msg_info();
+
+  fulminate_initialized = false;
+}
+
+void fulminate_init(void) {
+  assert(!fulminate_initialized && "Fulminate already initialized - destroy first");
+
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
   initialise_exec_c_locs_mode(0);
   initialise_ownership_stack_mode(0);
+
+  fulminate_initialized = true;
 }
 
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;

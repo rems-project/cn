@@ -21,11 +21,19 @@
 #include <cn-smt/trie.h>
 
 /**
- * @brief Reset all CN-SMT registries.
+ * @brief Destroy all CN-SMT registries and free associated memory.
  *
- * This function resets all CN-SMT registries by setting their initialization
- * flags to false, allowing them to be re-initialized on next use.
+ * This function frees all CN-SMT registries and sets the initialization
+ * flag to false. Safe to call multiple times (idempotent).
  */
-void cn_smt_reset(void);
+void cn_smt_destroy(void);
+
+/**
+ * @brief Initialize CN-SMT subsystem.
+ *
+ * This function marks CN-SMT as initialized. The actual registry initialization
+ * is lazy and happens on first use. Asserts if already initialized.
+ */
+void cn_smt_init(void);
 
 #endif  // CN_SMT_PRELUDE_H

@@ -666,10 +666,6 @@ static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result) {
 static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
   assert(s && iterm);
 
-  // Get location (placeholder - would need actual location from term)
-  // cn_location loc = cn_term_get_loc(iterm);
-  // struct_decls would be extracted from 's' parameter
-
   switch (iterm->type) {
     case CN_TERM_CONST:
       return translate_const(s, &iterm->data.const_val);
@@ -1199,17 +1195,16 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Placeholder for additional cases still to be implemented:
       // - EachI loops
-      // - Tuple operations
-      // - Struct operations
       // - List operations
       // - Map operations
-      // - Pattern matching
       // - Option types
       // And many more cases from the original OCaml code
 
     case CN_TERM_EACHI: {
       // Universal quantification - for now, return a default boolean
       // TODO: Implement proper quantification
+      assert(false);
+
       return bool_k(true);
     }
 
