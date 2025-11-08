@@ -438,7 +438,7 @@ let gen_single_stat_control_flow_injs statement =
   aux_stmt statement
 
 
-let get_c_control_flow_extra_curly_braces
+let _get_c_control_flow_extra_curly_braces
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   sigm.function_definitions
@@ -729,13 +729,13 @@ let main
     in
     aux [] l
   in
-  let control_flow_curly_brace_injs =
+  (* let control_flow_curly_brace_injs =
     get_c_control_flow_extra_curly_braces filtered_sigm
-  in
+  in *)
   let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
-    give_parenthesis_aware_precedence_map control_flow_curly_brace_injs
-    @ give_precedence_map bot executable_spec.in_stmt
+    (* give_parenthesis_aware_precedence_map control_flow_curly_brace_injs @ *)
+    give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
     @ give_precedence_map bot toplevel_injections
     @ give_precedence_map bot tag_def_injs
