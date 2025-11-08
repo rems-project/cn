@@ -31,7 +31,8 @@ enum spec_mode {
 };
 
 /* Error handlers */
-void reset_fulminate(void);
+void fulminate_destroy(void);
+void fulminate_init(void);
 
 enum cn_logging_level {
   CN_LOGGING_NONE = 0,

@@ -451,14 +451,6 @@ enum cn_smt_solver_result cn_smt_context_model(
           sexp_t* max_bound_assert = assume(max_bound_expr);
           ack_command(smt_solver, max_bound_assert);
 
-          // CRITICAL: Prevent bitvector overflow by ensuring start_addr doesn't get too close to max
-          // Add constraint: start_addr + 65536 <= max_ptr (leave safe margin)
-          sexp_t* safety_margin = loc_k(65536);
-          sexp_t* start_plus_margin = bv_add(start_addr_smt, safety_margin);
-          sexp_t* overflow_guard_expr = bv_uleq(start_plus_margin, max_ptr_smt);
-          sexp_t* overflow_guard_assert = assume(overflow_guard_expr);
-          ack_command(smt_solver, overflow_guard_assert);
-
           // Ensure start_addr <= end_addr (prevents overflow and ensures validity)
           sexp_t* validity_expr = bv_uleq(start_addr_smt, end_addr_smt);
           sexp_t* validity_assert = assume(validity_expr);

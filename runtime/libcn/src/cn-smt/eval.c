@@ -356,12 +356,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_i8_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_i8_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_i8_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_i8_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_i8_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_i8_xor(left, right);
@@ -398,12 +402,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_i16_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_i16_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_i16_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_i16_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_i16_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_i16_xor(left, right);
@@ -440,12 +448,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_i32_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_i32_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_i32_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_i32_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_i32_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_i32_xor(left, right);
@@ -482,12 +494,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_i64_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_i64_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_i64_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_i64_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_i64_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_i64_xor(left, right);
@@ -528,12 +544,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_u8_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_u8_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_u8_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_u8_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_u8_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_u8_xor(left, right);
@@ -570,12 +590,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_u16_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_u16_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_u16_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_u16_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_u16_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_u16_xor(left, right);
@@ -612,12 +636,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_u32_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_u32_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_u32_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_u32_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_u32_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_u32_xor(left, right);
@@ -654,12 +682,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
                 case CN_BINOP_SUB:
                   return cn_bits_u64_sub(left, right);
                 case CN_BINOP_MUL:
+                case CN_BINOP_MULNOSMT:
                   return cn_bits_u64_multiply(left, right);
                 case CN_BINOP_DIV:
+                case CN_BINOP_DIVNOSMT:
                   return cn_bits_u64_divide(left, right);
                 case CN_BINOP_REM:
+                case CN_BINOP_REMNOSMT:
                   return cn_bits_u64_rem(left, right);
                 case CN_BINOP_MOD:
+                case CN_BINOP_MODNOSMT:
                   return cn_bits_u64_mod(left, right);
                 case CN_BINOP_BW_XOR:
                   return cn_bits_u64_xor(left, right);
@@ -698,12 +730,16 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
           case CN_BINOP_SUB:
             return cn_integer_sub((cn_integer*)left_val, (cn_integer*)right_val);
           case CN_BINOP_MUL:
+          case CN_BINOP_MULNOSMT:
             return cn_integer_multiply((cn_integer*)left_val, (cn_integer*)right_val);
           case CN_BINOP_DIV:
+          case CN_BINOP_DIVNOSMT:
             return cn_integer_divide((cn_integer*)left_val, (cn_integer*)right_val);
           case CN_BINOP_REM:
+          case CN_BINOP_REMNOSMT:
             return cn_integer_rem((cn_integer*)left_val, (cn_integer*)right_val);
           case CN_BINOP_MOD:
+          case CN_BINOP_MODNOSMT:
             return cn_integer_mod((cn_integer*)left_val, (cn_integer*)right_val);
           case CN_BINOP_LT:
             return cn_integer_lt((cn_integer*)left_val, (cn_integer*)right_val);
@@ -749,11 +785,7 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
           case CN_BINOP_SET_MEMBER:
           case CN_BINOP_SUBSET:
             assert(false);
-          // No-SMT variants - placeholders
-          case CN_BINOP_MULNOSMT:
-          case CN_BINOP_DIVNOSMT:
-          case CN_BINOP_REMNOSMT:
-          case CN_BINOP_MODNOSMT:
+            // No-SMT variants - placeholders
           case CN_BINOP_EXP:
           case CN_BINOP_EXPNOSMT:
             assert(false);

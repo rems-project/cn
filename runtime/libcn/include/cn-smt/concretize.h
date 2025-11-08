@@ -48,7 +48,7 @@ void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* ter
         cn_smt_concretize_eval_term(smt_solver, pointer_term));                          \
     size_t bytes = sizeof(ty);                                                           \
     if (!bennet_ownership_check(cn_smt_concretize_addr, bytes)) {                        \
-      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);                            \
                                                                                          \
       return NULL;                                                                       \
     }                                                                                    \

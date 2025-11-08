@@ -16,6 +16,8 @@ class UrnTest : public LibBennet {
       urn_free(test_urn);
       test_urn = nullptr;
     }
+
+    LibBennet::TearDown();
   }
 
   struct bennet_int_urn* test_urn = nullptr;

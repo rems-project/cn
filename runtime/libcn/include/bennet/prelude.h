@@ -28,7 +28,8 @@
 extern "C" {
 #endif
 
-void bennet_reset(void);
+void bennet_destroy(void);
+void bennet_init(void);
 
 #ifdef __cplusplus
 }
