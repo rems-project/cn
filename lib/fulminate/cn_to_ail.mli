@@ -69,7 +69,8 @@ type ail_executable_spec =
   }
 
 val extract_global_variables
-  :  Cabs.translation_unit ->
+  :  ?prune_unused:bool ->
+  Cabs.translation_unit ->
   _ Mucore.file ->
   (Sym.t * Cerb_frontend.Ctype.ctype) list
 

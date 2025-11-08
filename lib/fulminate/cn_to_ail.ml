@@ -3352,51 +3352,62 @@ let rec generate_record_opt pred_sym bt =
 
 
 let extract_global_variables
+      ?(prune_unused = false)
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
   =
-  (* Collect free variables from resource predicates *)
-  let referenced_syms =
-    let from_predicates =
-      prog5.resource_predicates
-      |> List.map (fun (_sym, (pred : Definition.Predicate.t)) ->
-        Definition.Predicate.free_vars pred)
-      |> List.fold_left Sym.Set.union Sym.Set.empty
-    in
-    let from_annotations =
-      fst (Extract.collect_instrumentation cabs_tunit prog5)
-      |> List.map (fun (inst : Extract.instrumentation) -> inst.internal)
-      |> List.filter_map (fun x -> x)
-      |> List.map
-           (AT.free_vars (fun (rt, (statements, loops)) ->
-              let from_statements =
-                statements
-                |> List.map snd
-                |> List.flatten
-                |> List.map (Cnprog.free_vars Cnstatement.free_vars)
-              in
-              let from_loops =
-                loops
-                |> List.map (fun (_, _, _, at) -> at)
-                |> List.map (AT.map (List.map snd))
-                |> List.map (AT.map List.flatten)
-                |> List.map (AT.free_vars (Cnprog.free_vars_list Cnstatement.free_vars))
-              in
-              List.fold_left Sym.Set.union (RT.free_vars rt) (from_statements @ from_loops)))
-      |> List.fold_left Sym.Set.union Sym.Set.empty
-    in
-    let from_lemmata =
-      prog5.lemmata
-      |> List.map snd
-      |> List.map snd
-      |> List.map (AT.free_vars LRT.free_vars)
-      |> List.fold_left Sym.Set.union Sym.Set.empty
-    in
-    List.fold_left Sym.Set.union from_predicates [ from_annotations; from_lemmata ]
+  let filter_fn =
+    if prune_unused then (
+      (* Collect free variables from resource predicates *)
+      let referenced_syms =
+        let from_predicates =
+          prog5.resource_predicates
+          |> List.map (fun (_sym, (pred : Definition.Predicate.t)) ->
+            Definition.Predicate.free_vars pred)
+          |> List.fold_left Sym.Set.union Sym.Set.empty
+        in
+        let from_annotations =
+          fst (Extract.collect_instrumentation cabs_tunit prog5)
+          |> List.map (fun (inst : Extract.instrumentation) -> inst.internal)
+          |> List.filter_map (fun x -> x)
+          |> List.map
+               (AT.free_vars (fun (rt, (statements, loops)) ->
+                  let from_statements =
+                    statements
+                    |> List.map snd
+                    |> List.flatten
+                    |> List.map (Cnprog.free_vars Cnstatement.free_vars)
+                  in
+                  let from_loops =
+                    loops
+                    |> List.map (fun (_, _, _, at) -> at)
+                    |> List.map (AT.map (List.map snd))
+                    |> List.map (AT.map List.flatten)
+                    |> List.map
+                         (AT.free_vars (Cnprog.free_vars_list Cnstatement.free_vars))
+                  in
+                  List.fold_left
+                    Sym.Set.union
+                    (RT.free_vars rt)
+                    (from_statements @ from_loops)))
+          |> List.fold_left Sym.Set.union Sym.Set.empty
+        in
+        let from_lemmata =
+          prog5.lemmata
+          |> List.map snd
+          |> List.map snd
+          |> List.map (AT.free_vars LRT.free_vars)
+          |> List.fold_left Sym.Set.union Sym.Set.empty
+        in
+        List.fold_left Sym.Set.union from_predicates [ from_annotations; from_lemmata ]
+      in
+      (* Filter globals to only those referenced in resource predicates *)
+      fun (sym, _) -> Sym.Set.mem sym referenced_syms)
+    else
+      fun _ -> true
   in
-  (* Filter globals to only those referenced in resource predicates *)
   prog5.globs
-  |> List.filter (fun (sym, _) -> Sym.Set.mem sym referenced_syms)
+  |> List.filter filter_fn
   |> List.map (fun (sym, glob) ->
     match glob with
     | Mucore.GlobalDef (sct, _) | GlobalDecl sct -> (sym, Sctypes.to_ctype sct))
