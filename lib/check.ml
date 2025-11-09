@@ -968,7 +968,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)
     let@ () = WellTyped.check_ct loc (Integer ity) in
-    assert (Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity);
+    assert (
+      Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity);
     let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity)) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
     let@ () = WellTyped.ensure_bits_type loc expect in

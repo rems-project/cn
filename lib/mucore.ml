@@ -58,13 +58,9 @@ type integerType = Cerb_frontend.Ctype.integerType
 
 type iop = Cerb_frontend.Core.iop
 
-let is_div_iop = function
- | Cerb_frontend.Core.IOpDiv -> true
- | _ -> false
+let is_div_iop = function Cerb_frontend.Core.IOpDiv -> true | _ -> false
 
-let is_remt_iop = function
- | Cerb_frontend.Core.IOpRem_t -> true
- | _ -> false
+let is_remt_iop = function Cerb_frontend.Core.IOpRem_t -> true | _ -> false
 
 type 'TY pexpr_ =
   | PEsym of Sym.t
