@@ -510,7 +510,6 @@ let valid_for_deref loc pointer ct =
 
 
 let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
-  let orig_pe = pe in
   let (Mu.Pexpr (loc, _, expect, pe_)) = pe in
   let provable loc =
     let@ provable = Typing.provable loc in
@@ -767,10 +766,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
             msg = WellTyped (Mismatch { has = BT.pp ty; expect = !^"comparable type" })
           })
     in
-    let not_yet x =
-      Pp.debug 1 (lazy (Pp.item "not yet restored" (Pp_mucore_ast.pp_pexpr orig_pe)));
-      failwith ("todo: " ^ x)
-    in
     (match op with
      | OpDiv ->
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
@@ -778,30 +773,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in
        let@ v1 = check_pexpr path_cs pe1 in
        let@ v2 = check_pexpr path_cs pe2 in
-       let@ provable = provable loc in
-       let v2_bt = Mu.bt_of_pexpr pe2 in
-       let here = Locations.other __LOC__ in
-       (match provable (LC.T (ne_ (v2, int_lit_ 0 v2_bt here) here)) with
-        | `True -> return (div_ (v1, v2) loc)
-        | `False ->
-          let@ model = model () in
-          let ub = CF.Undefined.UB045a_division_by_zero in
-          fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
-     | OpRem_t ->
-       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
-       let@ () = WellTyped.ensure_bits_type loc expect in
-       let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in
-       let@ v1 = check_pexpr path_cs pe1 in
-       let@ v2 = check_pexpr path_cs pe2 in
-       let@ provable = provable loc in
-       let v2_bt = Mu.bt_of_pexpr pe2 in
-       let here = Locations.other __LOC__ in
-       (match provable (LC.T (ne_ (v2, int_lit_ 0 v2_bt here) here)) with
-        | `True -> return (rem_ (v1, v2) loc)
-        | `False ->
-          let@ model = model () in
-          let ub = CF.Undefined.UB045b_modulo_by_zero in
-          fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
+       return (div_ (v1, v2) loc)
      | OpEq ->
        let@ () = WellTyped.ensure_base_type loc ~expect Bool in
        let@ () =
@@ -835,7 +807,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ v2 = check_pexpr path_cs pe2 in
        let fn_ = match op with OpAnd -> and_ | OpOr -> or_ | _ -> assert false in
        return (fn_ [ v1; v2 ] loc)
-     | OpAdd -> not_yet "OpAdd"
+     | OpRem_t -> assert false
+     | OpAdd -> assert false
      | OpSub ->
        let@ () = WellTyped.ensure_bits_type loc expect in
        let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
@@ -843,9 +816,9 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ v1 = check_pexpr path_cs pe1 in
        let@ v2 = check_pexpr path_cs pe2 in
        return (sub_ (v1, v2) loc)
-     | OpMul -> not_yet "OpMul"
-     | OpRem_f -> not_yet "OpRem_f"
-     | OpExp -> not_yet "OpExp")
+     | OpMul -> assert false
+     | OpRem_f -> assert false
+     | OpExp -> assert false)
   | PEconv_int (ct_expr, pe)
   | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
     ->
@@ -1001,7 +974,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)
     let@ () = WellTyped.check_ct loc (Integer ity) in
-    assert (Sctypes.is_unsigned_integer_type ity);
+    assert (
+      Mu.is_div_iop iop || Mu.is_remt_iop iop || Sctypes.is_unsigned_integer_type ity);
     let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity)) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
     let@ () = WellTyped.ensure_bits_type loc expect in
@@ -1033,8 +1007,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
             IT.int_lit_ 0 expect loc,
             arith_binop Terms.ShiftRight (arg1, cast_ (IT.get_bt arg1) arg2 loc) loc )
           loc
-      | IOpDiv -> failwith "TODO division operator"
-      | IOpRem_t -> failwith "TODO remainder operator"
+      | IOpDiv -> div_ (arg1, arg2) loc
+      | IOpRem_t -> rem_ (arg1, arg2) loc
     in
     return x
   | PEcatch_exceptional_condition (ity, iop, pe1, pe2) ->

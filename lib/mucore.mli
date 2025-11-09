@@ -57,9 +57,15 @@ val bt_of_pattern : 'a pattern -> 'a
 
 val loc_of_pattern : 'a pattern -> Locations.t
 
+type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
+
 type integerType = Cerb_frontend.Ctype.integerType
 
-type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
+type iop = Cerb_frontend.Core.iop
+
+val is_div_iop : iop -> bool
+
+val is_remt_iop : iop -> bool
 
 type 'TY pexpr_ =
   | PEsym of Sym.t
@@ -70,9 +76,8 @@ type 'TY pexpr_ =
   | PEctor of ctor * 'TY pexpr list
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
   | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
-  | PEcatch_exceptional_condition of
-      integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
-  | PEwrapI of integerType * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
+  | PEcatch_exceptional_condition of integerType * iop * 'TY pexpr * 'TY pexpr
+  | PEwrapI of integerType * iop * 'TY pexpr * 'TY pexpr
   | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
