@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -36,7 +37,12 @@ static void bennet_rand_alloc_init() {
   }
 
   global_rand_alloc.buffer = malloc(RAND_ALLOC_MEM_SIZE);
-  assert(global_rand_alloc.buffer);
+  if (!global_rand_alloc.buffer) {
+    fprintf(stderr,
+        "CRITICAL: Failed to allocate %d MB for rand_alloc buffer!\n",
+        RAND_ALLOC_MEM_SIZE / (1024 * 1024));
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+  }
   global_rand_alloc.buffer_len = RAND_ALLOC_MEM_SIZE;
   bennet_vector_init(rand_alloc_region)(&global_rand_alloc.regions);
 }

@@ -42,6 +42,9 @@ void cn_bump_init() {
     // Allocate initial array of block pointers
     bump_blocks_capacity = max_bump_blocks;
     bump_blocks = fulm_malloc(bump_blocks_capacity * sizeof(char*), &fulm_default_alloc);
+    if (!bump_blocks) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    }
 
     // Initialize all pointers to NULL
     for (size_t i = 0; i < bump_blocks_capacity; i++) {
@@ -50,6 +53,9 @@ void cn_bump_init() {
 
     // Allocate first block
     bump_blocks[0] = fulm_malloc(bump_block_size, &fulm_default_alloc);
+    if (!bump_blocks[0]) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    }
     bump_curr = bump_blocks[0];
   }
 }
@@ -80,6 +86,10 @@ bool bump_expand() {
   if (bump_curr_block + 1 >= bump_blocks_capacity) {
     size_t new_capacity = bump_blocks_capacity * 2;
     char** new_blocks = fulm_malloc(new_capacity * sizeof(char*), &fulm_default_alloc);
+    if (!new_blocks) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      return false;
+    }
 
     // Copy existing block pointers
     memcpy(new_blocks, bump_blocks, bump_blocks_capacity * sizeof(char*));
@@ -99,6 +109,10 @@ bool bump_expand() {
 
   if (bump_blocks[bump_curr_block] == NULL) {
     bump_blocks[bump_curr_block] = fulm_malloc(bump_block_size, &fulm_default_alloc);
+    if (!bump_blocks[bump_curr_block]) {
+      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      return false;
+    }
   }
 
   bump_curr = bump_blocks[bump_curr_block];
