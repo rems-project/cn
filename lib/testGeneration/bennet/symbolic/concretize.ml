@@ -141,22 +141,31 @@ module Make (AD : Domain.T) = struct
               _,
               _ ) )
       when Sym.equal x x' && Sym.equal x' x'' ->
+      (* Add constraint to ensure array range doesn't exceed max_array_length *)
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let max_len_constraint =
+        let here = Locations.other __LOC__ in
+        let array_len =
+          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        in
+        let max_len_term =
+          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        in
+        LC.T (IT.le_ (array_len, max_len_term) here)
+      in
+      let assert_stmt =
+        !^"CN_SMT_CONCRETIZE_ASSERT"
+        ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
+      in
       (* Array assignment: claim ownership of memory locations *)
       let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
-      let it_min, it_max = (f it_min, f it_max) in
-      let max_array_length =
-        match (it_min, it_max) with
-        | IT (Const (Bits (_, min)), _, _), IT (Const (Bits (_, max)), _, _) ->
-          let len = Z.to_int (Z.add (Z.sub max min) Z.one) in
-          assert (len > 0);
-          len
-        | _, IT (Const (Bits ((Signed, _), max)), _, _) -> Z.to_int max + 1
-        | _ -> TestGenConfig.get_max_array_length ()
-      in
+      let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let prefix = Printf.sprintf "%s_%d_map_value" (Sym.pp_string x) (Sym.num x) in
       let elem_names =
-        max_array_length |> List.range 0 |> List.map (Printf.sprintf "%s_%d" prefix)
+        max_array_length
+        |> Z.to_int
+        |> List.range 0
+        |> List.map (Printf.sprintf "%s_%d" prefix)
       in
       let elem_docs = List.map Pp.string elem_names in
       let value_bt_doc = Smt.convert_basetype v_bt in
@@ -220,7 +229,7 @@ module Make (AD : Domain.T) = struct
           ^^^ parens cond_doc
           ^^^ braces (assign_doc ^^ !^";" ^/^ update_doc ^^ !^";"))
       in
-      { statements = values_stmts @ (map_init_stmt :: conditional_stmts);
+      { statements = (assert_stmt :: values_stmts) @ (map_init_stmt :: conditional_stmts);
         expression = map_var_doc
       }
     | `Map _ -> failwith "TODO: Map"

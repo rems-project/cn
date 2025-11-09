@@ -97,16 +97,13 @@ module Make (AD : Domain.T) = struct
       in
       let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
       let it_min, it_max = (f it_min, f it_max) in
-      let max_array_length =
-        match (it_min, it_max) with
-        | IT (Const (Bits (_, min)), _, _), IT (Const (Bits (_, max)), _, _) ->
-          Z.to_int (Z.add (Z.sub max min) Z.one)
-        | _, IT (Const (Bits ((Signed, _), max)), _, _) -> Z.to_int max + 1
-        | _ -> TestGenConfig.get_max_array_length ()
-      in
+      let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let elem_names =
         let prefix = Printf.sprintf "%s_%d_map_value" (Sym.pp_string x) (Sym.num x) in
-        List.map (Printf.sprintf "%s_%d" prefix) (List.range 0 max_array_length)
+        max_array_length
+        |> Z.to_int
+        |> List.range 0
+        |> List.map (Printf.sprintf "%s_%d" prefix)
       in
       let elem_docs = List.map Pp.string elem_names in
       let values_stmts =
