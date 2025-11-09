@@ -1737,15 +1737,6 @@ module BaseTyping = struct
           in
           return (Struct nm, PEstruct (nm, nm_pes))
         | PEcall
-            ( (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")) as f),
-              [ pe_ct; pe ] ) ->
-          let@ pe = infer_pexpr pe in
-          let@ pe_ct = check_pexpr CType pe_ct in
-          return (bt_of_pexpr pe, PEcall (f, [ pe_ct; pe ]))
-        | PEcall (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")), pes) ->
-          let has = List.length pes in
-          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
-        | PEcall
             ((Sym (Symbol (_, _, SD_Id "is_representable_integer")) as f), [ pe; pe_ct ])
           ->
           let@ pe = infer_pexpr pe in
