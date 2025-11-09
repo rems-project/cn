@@ -1246,4 +1246,19 @@ module Make (AD : Domain.T) = struct
       let body_term = convert_indexterm sigma body in
       !^"cn_logical_constraint_create_forall"
       ^^ parens (var_name ^^ comma ^^^ var_type ^^ comma ^^^ body_term)
+
+
+  let get_max_array_length_of (i_sym, i_bt) it_perm =
+    let max_array_length_setting = Z.of_int (TestGenConfig.get_max_array_length ()) in
+    let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+    let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+    let it_min, it_max = (f it_min, f it_max) in
+    let basic_length =
+      match (it_min, it_max) with
+      | IT (Const (Bits (_, min)), _, _), IT (Const (Bits (_, max)), _, _) ->
+        Z.add (Z.sub max min) Z.one
+      | _, IT (Const (Bits ((Unsigned, _), max)), _, _) -> Z.add max Z.one
+      | _ -> max_array_length_setting
+    in
+    Z.max Z.zero (Z.min basic_length max_array_length_setting)
 end
