@@ -153,6 +153,8 @@ module Make (Config : CONFIG) = struct
     | IOpMul -> Pp.star
     | IOpShl -> Pp.langle () ^^ Pp.langle ()
     | IOpShr -> Pp.rangle () ^^ Pp.rangle ()
+    | IOpDiv -> Pp.slash
+    | IOpRem_t -> Pp.bquote ^^ !^"rem_t" ^^ Pp.bquote
 
 
   let pp_polarity = function
