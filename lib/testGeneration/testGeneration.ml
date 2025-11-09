@@ -24,6 +24,7 @@ let filename_base fn = fn |> Filename.basename |> Filename.remove_extension
 let compile_assumes
       ~(without_ownership_checking : bool)
       filename
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (insts : (bool * FExtract.instrumentation) list)
@@ -45,9 +46,14 @@ let compile_assumes
            filename
            prog5.resource_predicates
            sigma.cn_datatypes
-           (CtA.extract_global_variables prog5.globs)
+           (CtA.extract_global_variables cabs_tunit prog5)
            prog5.resource_predicates
-       @ ESpecInternal.generate_c_assume_pres_internal filename insts sigma prog5)
+       @ ESpecInternal.generate_c_assume_pres_internal
+           filename
+           insts
+           cabs_tunit
+           sigma
+           prog5)
   in
   let open Pp in
   CF.Pp_ail.(
@@ -190,6 +196,7 @@ let compile_test (test : Test.t) =
 let compile_test_file
       ~(without_ownership_checking : bool)
       ~(filename : string)
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (tests : Test.t list)
@@ -212,10 +219,10 @@ let compile_test_file
   let open ESpecInternal in
   let c_datatype_defs = generate_c_datatypes sigma in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename prog5 sigma
+    generate_c_functions filename cabs_tunit prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename prog5 sigma
+    generate_c_predicates filename cabs_tunit prog5 sigma
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigma
@@ -282,7 +289,7 @@ let compile_test_file
   ^^ twice hardline
   ^^ pp_label
        "Assume Ownership Functions"
-       (compile_assumes ~without_ownership_checking filename sigma prog5 insts)
+       (compile_assumes ~without_ownership_checking filename cabs_tunit sigma prog5 insts)
   ^^ pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
   ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts)
   ^^ pp_label "Static Wrappers" static_wrappers_defs
@@ -331,6 +338,7 @@ let save ?(perm = 0o666) (output_dir : string) (filename : string) (doc : Pp.doc
 let save_generators
       ~output_dir
       ~filename
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (paused : _ Typing.pause)
@@ -350,7 +358,7 @@ let save_generators
       Pp.(
         separate
           hardline
-          ([ string (Fulminate.Globals.accessors_prototypes filename prog5) ]
+          ([ string (Fulminate.Globals.accessors_prototypes filename cabs_tunit prog5) ]
            @ [ Bennet.synthesize filename sigma prog5 paused tests_for_generators ]))
     in
     let generators_fn = filename_base ^ ".gen.h" in
@@ -361,6 +369,7 @@ let save_tests
       ~output_dir
       ~filename
       ~without_ownership_checking
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (tests : Test.t list)
@@ -370,7 +379,13 @@ let save_tests
     let open Pp in
     Bennet.test_setup ()
     ^/^ hardline
-    ^^ compile_test_file ~without_ownership_checking ~filename sigma prog5 tests
+    ^^ compile_test_file
+         ~without_ownership_checking
+         ~filename
+         cabs_tunit
+         sigma
+         prog5
+         tests
   in
   save output_dir (filename_base filename ^ ".test.c") tests_doc
 
@@ -460,7 +475,14 @@ let run
   =
   Cerb_debug.begin_csv_timing ();
   let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 paused in
-  save_generators ~output_dir ~filename sigma prog5 paused insts;
-  save_tests ~output_dir ~filename ~without_ownership_checking sigma prog5 insts;
+  save_generators ~output_dir ~filename cabs_tunit sigma prog5 paused insts;
+  save_tests
+    ~output_dir
+    ~filename
+    ~without_ownership_checking
+    cabs_tunit
+    sigma
+    prog5
+    insts;
   BuildScripts.generate_and_save ~output_dir ~filename build_tool;
   Cerb_debug.end_csv_timing "specification test generation"

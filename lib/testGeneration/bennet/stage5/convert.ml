@@ -97,10 +97,11 @@ module Make (AD : Domain.T) = struct
     aux [] Sym.Set.empty gt
 
 
-  let transform_gd ({ filename; recursive; spec; name; iargs; oarg; body } : Stage4.Def.t)
+  let transform_gd
+        ({ filename; recursive; spec; name; iargs; oarg; c_types; body } : Stage4.Def.t)
     : Def.t
     =
-    { filename; recursive; spec; name; iargs; oarg; body = body |> transform_gt }
+    { filename; recursive; spec; name; iargs; oarg; c_types; body = body |> transform_gt }
 
 
   let transform (ctx : Stage4.Ctx.t) : Ctx.t = List.map_snd transform_gd ctx

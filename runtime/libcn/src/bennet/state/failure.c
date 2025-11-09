@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <bennet/internals/size.h>
@@ -63,6 +64,7 @@ void bennet_failure_set_failure_type(enum bennet_failure_type type) {
     }                                                                                    \
                                                                                          \
     struct name_list* new_node = (struct name_list*)malloc(sizeof(struct name_list));    \
+    assert(new_node);                                                                    \
     *new_node = (struct name_list){.id = id, .domain = new_domain, .next = 0};           \
                                                                                          \
     if (failure.blamed == NULL) {                                                        \
@@ -184,44 +186,4 @@ int bennet_failure_remap_blamed(const void* from, const void* to) {
     curr = curr->next;
   }
   return 0;
-}
-
-int bennet_failure_remap_blamed_many(const char* from[], const char* to[]) {
-  int number_of_remaps = 0;
-  for (int i = 0; from[i] != 0; i++) {
-    number_of_remaps += 1;
-  }
-  if (number_of_remaps == 0) {
-    return 1;
-  }
-
-  char** toUnique = malloc(number_of_remaps * sizeof(char*));
-
-  int successes = 1;
-  for (int i = 0; from[i] != 0; i++) {
-    // Get length of string
-    size_t len = strlen(to[i]);
-
-    // Copy the desired variable name
-    toUnique[i] = (char*)malloc(len + 2);
-    strcpy(toUnique[i], to[i]);
-
-    // Give it an impossible name, but unique
-    (toUnique[i][len]) = '$';
-    (toUnique[i][len + 1]) = '\0';
-
-    // We do this indirection in case there's a duplicate between `from` and `to`
-    successes &= bennet_failure_remap_blamed(from[i], toUnique[i]);
-  }
-
-  for (int i = 0; from[i] != 0; i++) {
-    successes &= bennet_failure_remap_blamed(toUnique[i], to[i]);
-  }
-
-  for (int i = 0; i < number_of_remaps; i++) {
-    free(toUnique[i]);
-  }
-  free(toUnique);
-
-  return successes;
 }

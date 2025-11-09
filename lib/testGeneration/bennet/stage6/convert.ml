@@ -224,7 +224,8 @@ module Make (AD : Domain.T) = struct
     | `Call (fsym, iargs) ->
       (match Stage5.Ctx.find_opt fsym ctx with
        | Some _ -> ()
-       | None -> failwith (Sym.pp_string fsym));
+       | None ->
+         failwith (Printf.sprintf "Function %s not found in context" (Sym.pp_string fsym)));
       let sym = GenUtils.get_mangled_name fsym in
       let bs, ss, es =
         iargs
@@ -275,7 +276,8 @@ module Make (AD : Domain.T) = struct
     | `CallSized (fsym, iargs, (n, sym_size)) ->
       (match Stage5.Ctx.find_opt fsym ctx with
        | Some _ -> ()
-       | None -> failwith (Sym.pp_string fsym));
+       | None ->
+         failwith (Printf.sprintf "Function %s not found in context" (Sym.pp_string fsym)));
       let sym = GenUtils.get_mangled_name fsym in
       let bs, ss, es =
         iargs
@@ -806,23 +808,87 @@ module Make (AD : Domain.T) = struct
     (sigma_decl, sigma_def)
 
 
-  let transform (sigma : CF.GenTypes.genTypeCategory A.sigma) (ctx : Stage5.Ctx.t)
+  let transform
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (prog5 : unit Mucore.file)
+        (ctx : Stage5.Ctx.t)
     : Pp.document
     =
-    let typedef_docs =
+    let struct_defs =
       ctx
       |> List.filter_map (fun ((name, def) : Sym.t * Stage5.Def.t) ->
-        let bt = def.oarg in
-        match bt with
-        | BT.Record _ ->
-          let struct_name = Sym.fresh ("cn_test_generator_" ^ Sym.pp_string name) in
-          let new_tag = Option.get (CtA.generate_record_tag struct_name bt) in
-          let typedef_doc tag =
-            let open Pp in
-            !^"typedef struct" ^^^ Sym.pp tag ^^^ Sym.pp new_tag ^^ semi
+        (* Generate struct definitions for spec functions only *)
+        if not def.spec then
+          None
+        else
+          let open Pp in
+          let struct_name = "cn_test_generator_" ^ Sym.pp_string name ^ "_record" in
+          (* Get parameter C types from def *)
+          let c_types = Option.get def.c_types in
+          let param_name_strings =
+            c_types |> List.map (fun (param_name, _) -> Sym.pp_string param_name)
           in
-          Some (typedef_doc (CtA.lookup_records_map_with_default bt))
-        | _ -> None)
+          let param_field_docs =
+            c_types
+            |> List.map (fun (param_name, ctype) ->
+              let field_ty_doc =
+                CF.Pp_ail.(
+                  with_executable_spec (pp_ctype ~is_human:false C.no_qualifiers) ctype)
+              in
+              field_ty_doc ^^^ Sym.pp param_name ^^ semi)
+          in
+          (* Determine which oarg fields are globals (not in param_names or iargs) *)
+          let global_field_docs =
+            let inputs_outputs =
+              match def.oarg with
+              | BT.Record fields ->
+                fields |> List.map (fun (id, bt) -> (Id.get_string id, bt))
+              | _ -> []
+            in
+            let it_param_names =
+              List.map (fun (sym, _bt) -> Sym.pp_string sym) def.iargs
+            in
+            let all_param_names = it_param_names @ param_name_strings in
+            let global_fields =
+              inputs_outputs
+              |> List.filter (fun (field_name, _bt) ->
+                not (List.exists (String.equal field_name) all_param_names))
+            in
+            global_fields
+            |> List.filter_map (fun (global_name, _bt) ->
+              (* Look up in globals using string comparison *)
+              match
+                prog5.globs
+                |> List.find_opt (fun (global_sym, _) ->
+                  String.equal (Sym.pp_string global_sym) global_name)
+              with
+              | Some (global_sym, Mucore.GlobalDecl sct)
+              | Some (global_sym, Mucore.GlobalDef (sct, _)) ->
+                (* Globals are stored as pointers in the struct *)
+                let ctype = C.mk_ctype_pointer C.no_qualifiers (Sctypes.to_ctype sct) in
+                let field_ty_doc =
+                  CF.Pp_ail.(
+                    with_executable_spec (pp_ctype ~is_human:false C.no_qualifiers) ctype)
+                in
+                Some (field_ty_doc ^^^ Sym.pp global_sym ^^ semi)
+              | None ->
+                failwith
+                  (Printf.sprintf
+                     "Could not find C type for global %s in function %s"
+                     global_name
+                     (Sym.pp_string name)))
+          in
+          let field_docs = param_field_docs @ global_field_docs in
+          Some
+            (!^"struct"
+             ^^^ !^struct_name
+             ^^^ braces (nest 2 (hardline ^^ separate hardline field_docs) ^^ hardline)
+             ^^ semi
+             ^^ hardline
+             ^^ !^"typedef struct"
+             ^^^ !^struct_name
+             ^^^ !^struct_name
+             ^^ semi))
     in
     let defs =
       List.map
@@ -843,21 +909,97 @@ module Make (AD : Domain.T) = struct
       |> String.to_seq
       |> Seq.map (fun c -> match c with 'a' .. 'z' | 'A' .. 'Z' | '_' -> c | _ -> '_')
       |> String.of_seq
-      |> String.capitalize_ascii
-      |> fun x -> x ^ "_H" |> Pp.string
+      |> String.uppercase_ascii
+      |> Fun.flip ( ^ ) "_GEN_H"
+      |> Pp.string
     in
     let harnesses =
+      let open Pp in
       ctx
       |> List.filter (fun ((_, gr) : _ * Stage5.Def.t) -> gr.spec)
-      |> List.map fst
-      |> List.map Sym.pp_string
-      |> List.map (fun name ->
-        Printf.sprintf
-          "%s* %s(void**) { return bennet_%s(); }"
-          ("cn_test_generator_" ^ name ^ "_record")
-          ("cn_test_generator_" ^ name)
-          name)
-      |> String.concat "\n\n"
+      |> List.map (fun ((name, def) : Sym.t * Stage5.Def.t) ->
+        let struct_name = "cn_test_generator_" ^ Sym.pp_string name ^ "_record" in
+        let bennet_name = "bennet_" ^ Sym.pp_string name in
+        (* Extract fields from the Record type that bennet_* returns *)
+        let inputs_outputs =
+          match def.oarg with
+          | BT.Record fields ->
+            fields |> List.map (fun (id, bt) -> (Sym.fresh (Id.get_string id), bt))
+          | _ -> []
+        in
+        (* Compute CN Record struct tag for accessing bennet_* return value *)
+        let bt_record = def.oarg in
+        let cn_struct_tag = CtA.lookup_records_map_with_default bt_record in
+        (* Generate harness function that converts from CN types to C types *)
+        !^"struct"
+        ^^^ !^struct_name
+        ^^ star
+        ^^^ !^("cn_test_generator_" ^ Sym.pp_string name)
+        ^^ parens (!^"void**" ^^^ !^"gen_state")
+        ^^^ braces
+              (nest
+                 2
+                 (hardline
+                  ^^ !^"/* Call bennet function to get CN-typed result */"
+                  ^^ hardline
+                  ^^ !^"struct"
+                  ^^^ Sym.pp cn_struct_tag
+                  ^^ star
+                  ^^^ !^"cn_result"
+                  ^^^ equals
+                  ^^^ !^bennet_name
+                  ^^ parens empty
+                  ^^ semi
+                  ^^ twice hardline
+                  ^^ !^"if"
+                  ^^^ parens (!^"cn_result" ^^^ !^"==" ^^^ !^"NULL")
+                  ^^^ !^"return"
+                  ^^^ !^"NULL"
+                  ^^ semi
+                  ^^ twice hardline
+                  ^^ !^"/* Allocate C-typed result struct */"
+                  ^^ hardline
+                  ^^ !^"struct"
+                  ^^^ !^struct_name
+                  ^^ star
+                  ^^^ !^"result"
+                  ^^^ equals
+                  ^^^ !^"malloc"
+                  ^^ parens (!^"sizeof" ^^ parens (!^"struct" ^^^ !^struct_name))
+                  ^^ semi
+                  ^^ hardline
+                  ^^ !^"if"
+                  ^^^ parens (!^"result" ^^^ !^"==" ^^^ !^"NULL")
+                  ^^^ !^"return"
+                  ^^^ !^"NULL"
+                  ^^ semi
+                  ^^ twice hardline
+                  ^^ !^"/* Convert fields from CN types to C types */"
+                  ^^ hardline
+                  ^^ separate
+                       hardline
+                       (inputs_outputs
+                        |> List.map (fun (field_name, bt) ->
+                          let field_str = Sym.pp_string field_name in
+                          let conversion_expr =
+                            match CtA.get_conversion_from_fn_str bt with
+                            | Some conv_fn ->
+                              !^conv_fn ^^ parens (!^"cn_result->" ^^ !^field_str)
+                            | None ->
+                              (* No conversion needed for this type *)
+                              !^"cn_result->" ^^ !^field_str
+                          in
+                          !^"result->"
+                          ^^ !^field_str
+                          ^^^ equals
+                          ^^^ conversion_expr
+                          ^^ semi))
+                  ^^ twice hardline
+                  ^^ !^"return"
+                  ^^^ !^"result"
+                  ^^ semi)
+               ^^ hardline))
+      |> separate (twice hardline)
     in
     let open Pp in
     (!^"#ifndef" ^^^ include_guard_name)
@@ -871,9 +1013,9 @@ module Make (AD : Domain.T) = struct
     ^^ hardline
     ^^ !^record_defs
     ^^ twice hardline
-    ^^ !^"/* TYPEDEFS */"
+    ^^ !^"/* STRUCT DEFINITIONS */"
     ^^ hardline
-    ^^ separate hardline typedef_docs
+    ^^ separate hardline struct_defs
     ^^ twice hardline
     ^^ !^"/* FUNCTION DECLARATIONS */"
     ^^ hardline
@@ -887,7 +1029,7 @@ module Make (AD : Domain.T) = struct
     ^^ hardline
     ^^ CF.Pp_ail.(with_executable_spec (pp_program ~show_include:true) (None, sigma))
     ^^ hardline
-    ^^ !^harnesses
+    ^^ harnesses
     ^^ hardline
     ^^ (!^"#endif //" ^^^ include_guard_name)
     ^^ hardline

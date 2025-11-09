@@ -58,13 +58,4 @@ bool bennet_failure_is_blamed(const void* id);
  */
 int bennet_failure_remap_blamed(const void* from, const void* to);
 
-/**
- * @brief Remaps multiple relevant variables
- *
- * @param from A NULL-terminated list of `char*`
- * @param to A NULL-terminated list of `char*` of the same length as `from`
- * @return int How many remappings were successful?
- */
-int bennet_failure_remap_blamed_many(const char* from[], const char* to[]);
-
 #endif  // BENNET_FAILURE_H

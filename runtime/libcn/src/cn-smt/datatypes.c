@@ -9,6 +9,7 @@
 #include <bennet/utils/optional.h>
 #include <bennet/utils/vector.h>
 #include <cn-smt/datatypes.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/terms.h>
 
 // Global registry of all datatype data (mapping datatype name to datatype data)
@@ -38,7 +39,7 @@ static cn_datatype_data* get_or_create_datatype_data(const char* datatype_name) 
   }
 
   // Create new datatype data
-  cn_datatype_data* data = malloc(sizeof(cn_datatype_data));
+  cn_datatype_data* data = cn_test_malloc(sizeof(cn_datatype_data));
   assert(data);
 
   // Initialize the constructors hash table
@@ -68,7 +69,8 @@ void cn_register_datatype_constructor(const char* datatype_name,
   cn_datatype_data* datatype_data = get_or_create_datatype_data(datatype_name);
 
   // Allocate constructor data
-  cn_datatype_constructor_data* ctor_data = malloc(sizeof(cn_datatype_constructor_data));
+  cn_datatype_constructor_data* ctor_data =
+      cn_test_malloc(sizeof(cn_datatype_constructor_data));
   assert(ctor_data);
 
   ctor_data->fn = constructor_fn;
@@ -76,7 +78,7 @@ void cn_register_datatype_constructor(const char* datatype_name,
 
   // Copy field metadata if provided
   if (field_count > 0 && fields) {
-    ctor_data->fields = malloc(sizeof(cn_datatype_field_info) * field_count);
+    ctor_data->fields = cn_test_malloc(sizeof(cn_datatype_field_info) * field_count);
     assert(ctor_data->fields);
     memcpy(ctor_data->fields, fields, sizeof(cn_datatype_field_info) * field_count);
   } else {
@@ -179,4 +181,9 @@ cn_datatype_destructor_fn cn_get_datatype_destructor(const char* datatype_name) 
   assert(datatype_data->destructor);  // Destructor must be registered
 
   return datatype_data->destructor;
+}
+
+// Reset the datatype registry
+void cn_smt_datatype_registry_reset(void) {
+  bennet_hash_table_free(const_char_ptr, void_ptr)(&g_datatype_registry);
 }

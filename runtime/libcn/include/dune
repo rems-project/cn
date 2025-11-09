@@ -86,6 +86,10 @@
   (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
   (cn-smt/to_smt.h as runtime/include/cn-smt/to_smt.h)
   (cn-smt/trie.h as runtime/include/cn-smt/trie.h)
+  (cn-smt/memory/arena.h as runtime/include/cn-smt/memory/arena.h)
+  (cn-smt/memory/intern.h as runtime/include/cn-smt/memory/intern.h)
+  (cn-smt/memory/std_alloc.h as runtime/include/cn-smt/memory/std_alloc.h)
+  (cn-smt/memory/test_alloc.h as runtime/include/cn-smt/memory/test_alloc.h)
   ; Counterexample program synthesis prototype
   (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
   (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)

@@ -126,4 +126,9 @@ cn_record_data* cn_get_record_data(record_hash_t record_hash);
  */
 bool cn_record_type_exists(record_hash_t record_hash);
 
+/**
+ * @brief Reset the record registry.
+ */
+void cn_smt_record_registry_reset(void);
+
 #endif  // CN_SMT_RECORDS_H

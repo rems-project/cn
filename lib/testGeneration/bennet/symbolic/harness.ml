@@ -164,19 +164,23 @@ module Make (AD : Domain.T) = struct
       ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
       ^^ !^";"
     in
-    (* Generate struct building and return - create default values for all fields *)
+    (* Generate struct building and return - convert from CN types to C types *)
     let struct_fields =
       def.iargs
       |> List.map (fun (sym, bt) ->
-        dot
-        ^^ Sym.pp sym
-        ^^^ equals
-        ^^^ parens
-              CF.Pp_ail.(
-                with_executable_spec (pp_ctype C.no_qualifiers) (CtA.bt_to_ail_ctype bt))
-        ^^ !^"cn_smt_concretize_eval_term"
-        ^^ parens (!^"smt_solver" ^^ comma ^^^ Sym.pp sym ^^ !^"_val")
-        ^^ comma)
+        let cn_value_expr =
+          parens
+            CF.Pp_ail.(
+              with_executable_spec (pp_ctype C.no_qualifiers) (CtA.bt_to_ail_ctype bt))
+          ^^ !^"cn_smt_concretize_eval_term"
+          ^^ parens (!^"smt_solver" ^^ comma ^^^ Sym.pp sym ^^ !^"_val")
+        in
+        let converted_expr =
+          match CtA.get_conversion_from_fn_str bt with
+          | Some conv_fn -> !^conv_fn ^^ parens cn_value_expr
+          | None -> cn_value_expr
+        in
+        dot ^^ Sym.pp sym ^^^ equals ^^^ converted_expr ^^ comma)
       |> Pp.separate Pp.hardline
     in
     let stop_solver = !^"stop_solver(smt_solver);" in

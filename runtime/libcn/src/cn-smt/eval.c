@@ -12,6 +12,8 @@
 #include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/functions.h>
+#include <cn-smt/memory/intern.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/records.h>
 #include <cn-smt/structs.h>
 
@@ -39,11 +41,11 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term);
 
 // Static stack operation functions for eval context
 static cn_eval_context_stack* create_eval_context_stack(void) {
-  cn_eval_context_stack* stack = malloc(sizeof(cn_eval_context_stack));
+  cn_eval_context_stack* stack = cn_test_malloc(sizeof(cn_eval_context_stack));
   assert(stack);
 
   // Allocate and initialize the first node
-  cn_eval_context_node* node = malloc(sizeof(cn_eval_context_node));
+  cn_eval_context_node* node = cn_test_malloc(sizeof(cn_eval_context_node));
   assert(node);
 
   bennet_hash_table_init(cn_sym, void_ptr)(
@@ -64,17 +66,17 @@ static void free_eval_context_stack(cn_eval_context_stack* stack) {
     cn_eval_context_node* node = stack->head;
     stack->head = node->next;
     bennet_hash_table_free(cn_sym, void_ptr)(&node->table);
-    free(node);
+    cn_test_free(node);
   }
 
-  free(stack);
+  cn_test_free(stack);
 }
 
 static void push_eval_context(cn_eval_context_stack* stack) {
   assert(stack);
 
   // Allocate and initialize new node
-  cn_eval_context_node* node = malloc(sizeof(cn_eval_context_node));
+  cn_eval_context_node* node = cn_test_malloc(sizeof(cn_eval_context_node));
   assert(node);
 
   bennet_hash_table_init(cn_sym, void_ptr)(
@@ -95,7 +97,7 @@ static void pop_eval_context(cn_eval_context_stack* stack) {
 
   // Free the node's table and the node itself
   bennet_hash_table_free(cn_sym, void_ptr)(&node->table);
-  free(node);
+  cn_test_free(node);
 }
 
 static void set_eval_binding(cn_eval_context_stack* stack, cn_sym key, void* value) {
@@ -1358,8 +1360,8 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
       }
 
       // Collect member names and types for hash computation
-      const char** member_names = malloc(member_count * sizeof(const char*));
-      cn_base_type* member_types = malloc(member_count * sizeof(cn_base_type));
+      const char** member_names = cn_test_malloc(member_count * sizeof(const char*));
+      cn_base_type* member_types = cn_test_malloc(member_count * sizeof(cn_base_type));
 
       for (size_t i = 0; i < member_count; i++) {
         cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
@@ -1391,8 +1393,8 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
       void* result = cn_smt_record_create(record_hash, &member_values);
 
       // Cleanup temporary memory and hash table
-      free(member_names);
-      free(member_types);
+      cn_test_free(member_names);
+      cn_test_free(member_types);
       bennet_hash_table_free(const_char_ptr, void_ptr)(&member_values);
 
       return result;
@@ -1482,10 +1484,9 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
       assert(base_function_name);
 
       // Construct full function name with "_func" suffix (matching fn_def_name)
-      size_t name_len = strlen(base_function_name) + 6;  // +5 for "_func" +1 for null
-      char* function_name = malloc(name_len);
-      assert(function_name);
-      sprintf(function_name, "%s_func", base_function_name);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_func", base_function_name);
+      const char* function_name = cn_intern_string(buffer);
 
       // Get argument count from the term
       bennet_vector(cn_term_ptr)* args_vec = &term->data.apply.args;
@@ -1494,7 +1495,7 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
       // Allocate array for evaluated arguments
       void** evaluated_args = NULL;
       if (arg_count > 0) {
-        evaluated_args = malloc(arg_count * sizeof(void*));
+        evaluated_args = cn_test_malloc(arg_count * sizeof(void*));
         assert(evaluated_args);
       }
 
@@ -1512,8 +1513,7 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
       void* result = handler(evaluated_args);
 
       // Cleanup and return
-      free(evaluated_args);
-      free(function_name);
+      cn_test_free(evaluated_args);
       return result;
     }
 
@@ -1565,7 +1565,7 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
         void* result = cn_eval_term_aux(context, match_case->body_term);
 
         // Cleanup
-        free(members);
+        cn_test_free(members);
         pop_eval_context(context);
 
         return result;

@@ -14,6 +14,7 @@
 #include <cn-replicate/shape.h>
 #include <cn-smt/branch_history.h>
 #include <cn-smt/concretize.h>
+#include <cn-smt/context.h>
 #include <cn-smt/solver.h>
 
 #define cn_printf(level, ...)                                                            \
@@ -281,10 +282,28 @@ int cn_test_main(int argc, char* argv[]) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {
       cn_set_use_solver_eval(true);
-    } else if (strcmp("--disable-smt-skewing", arg) == 0) {
-      cn_set_smt_skewing_enabled(false);
+    } else if (strcmp("--smt-skewing", arg) == 0) {
+      char* next = argv[i + 1];
+      if (strcmp("uniform", next) == 0) {
+        cn_set_smt_skewing_mode(CN_SMT_SKEWING_UNIFORM);
+      } else if (strcmp("sized", next) == 0) {
+        cn_set_smt_skewing_mode(CN_SMT_SKEWING_SIZED);
+      } else if (strcmp("none", next) == 0) {
+        cn_set_smt_skewing_mode(CN_SMT_SKEWING_NONE);
+      } else {
+        fprintf(stderr, "Error: Invalid --smt-skewing mode: %s\n", next);
+        fprintf(stderr, "Valid modes: uniform, sized, none\n");
+        exit(1);
+      }
+      i++;
     } else if (strcmp("--smt-logging", arg) == 0) {
       cn_smt_set_log_file_path(argv[i + 1]);
+      i++;
+    } else if (strcmp("--max-bump-blocks", arg) == 0) {
+      cn_bump_set_max_blocks(strtoul(argv[i + 1], NULL, 10));
+      i++;
+    } else if (strcmp("--bump-block-size", arg) == 0) {
+      cn_bump_set_block_size(strtoul(argv[i + 1], NULL, 10));
       i++;
     }
   }

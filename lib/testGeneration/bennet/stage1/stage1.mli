@@ -7,5 +7,10 @@ module Make (AD : Domain.T) : sig
 
   module Ctx : module type of Ctx.Make (AD)
 
-  val transform : string -> unit Mucore.file -> Test.t list -> Ctx.t
+  val transform
+    :  string ->
+    Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
+    unit Mucore.file ->
+    Test.t list ->
+    Ctx.t
 end

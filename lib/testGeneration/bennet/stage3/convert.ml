@@ -28,10 +28,12 @@ module Make (AD : Domain.T) = struct
     Annot (gt_, (), bt, loc)
 
 
-  let transform_gd ({ filename; recursive; spec; name; iargs; oarg; body } : Stage2.Def.t)
+  let transform_gd
+        ({ filename; recursive; spec; name; iargs; oarg; c_types; body } : Stage2.Def.t)
     : Def.t
     =
-    Def.{ filename; recursive; spec; name; iargs; oarg; body = transform_gt body }
+    Def.
+      { filename; recursive; spec; name; iargs; oarg; c_types; body = transform_gt body }
 
 
   let transform (ctx : Stage2.Ctx.t) : Ctx.t = List.map_snd transform_gd ctx

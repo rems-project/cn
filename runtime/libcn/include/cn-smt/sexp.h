@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include <bennet/utils/optional.h>
+#include <cn-smt/memory/test_alloc.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +20,7 @@ typedef enum {
 typedef struct sexp {
   sexp_type_t type;
   union {
-    char *atom;
+    const char *atom;
     struct {
       struct sexp **elements;
       size_t count;
@@ -61,7 +62,7 @@ sexp_t *sexp_named(const char *name, sexp_t *e);
 // Symbol handling functions
 bool allowed_simple_char(char c);
 bool is_simple_symbol(const char *s);
-char *quote_symbol(const char *s);
+const char *quote_symbol(const char *s);
 sexp_t *symbol(const char *x);
 
 // Boolean and arithmetic functions

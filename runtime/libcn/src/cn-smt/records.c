@@ -7,6 +7,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <cn-smt/eval.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/records.h>
 #include <cn-smt/solver.h>
 
@@ -74,7 +75,7 @@ void cn_register_record(record_hash_t record_hash, const cn_record_data* record_
   init_record_data();
 
   // Allocate record data on heap to get stable pointer and copy the input data
-  cn_record_data* data = malloc(sizeof(cn_record_data));
+  cn_record_data* data = cn_test_malloc(sizeof(cn_record_data));
   *data = *record_data;  // Copy all function pointers
 
   // Initialize and copy the members vector (deep copy)
@@ -149,4 +150,9 @@ void* cn_smt_record_update_member(
 bool cn_record_type_exists(record_hash_t record_hash) {
   init_record_data();
   return bennet_hash_table_contains(record_hash_t, void_ptr)(&g_record_data, record_hash);
+}
+
+// Reset the record registry
+void cn_smt_record_registry_reset(void) {
+  bennet_hash_table_free(record_hash_t, void_ptr)(&g_record_data);
 }

@@ -31,6 +31,11 @@ type inline_mode =
   | NonRecursive
   | Everything
 
+type smt_skewing_mode =
+  | Uniform
+  | Sized
+  | None
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -81,8 +86,10 @@ type t =
     print_discard_info : bool;
     print_timing_info : bool;
     just_reset_solver : bool;
-    disable_smt_skewing : bool;
-    smt_logging : string option
+    smt_skewing_mode : smt_skewing_mode;
+    smt_logging : string option;
+    max_bump_blocks : int option;
+    bump_block_size : int option
   }
 
 let default =
@@ -133,8 +140,10 @@ let default =
     print_discard_info = false;
     print_timing_info = false;
     just_reset_solver = false;
-    disable_smt_skewing = false;
-    smt_logging = None
+    smt_skewing_mode = Sized;
+    smt_logging = None;
+    max_bump_blocks = None;
+    bump_block_size = None
   }
 
 
@@ -167,6 +176,10 @@ let string_of_inline_mode (inline_mode : inline_mode) =
   | Everything -> "everything"
 
 
+let string_of_smt_skewing_mode (mode : smt_skewing_mode) =
+  match mode with Uniform -> "uniform" | Sized -> "sized" | None -> "none"
+
+
 module Options = struct
   let build_tool = [ ("bash", Bash); ("make", Make) ]
 
@@ -194,6 +207,12 @@ module Options = struct
     List.map
       (fun mode -> (string_of_inline_mode mode, mode))
       [ Nothing; NonRecursive; Everything ]
+
+
+  let smt_skewing_mode : (string * smt_skewing_mode) list =
+    List.map
+      (fun mode -> (string_of_smt_skewing_mode mode, mode))
+      [ Uniform; Sized; None ]
 end
 
 let instance : t option ref = ref Option.None
@@ -318,6 +337,10 @@ let is_use_solver_eval () = (Option.get !instance).use_solver_eval
 
 let is_just_reset_solver () = (Option.get !instance).just_reset_solver
 
-let is_disable_smt_skewing () = (Option.get !instance).disable_smt_skewing
+let get_smt_skewing_mode () = (Option.get !instance).smt_skewing_mode
 
 let get_smt_logging () = (Option.get !instance).smt_logging
+
+let has_max_bump_blocks () = (Option.get !instance).max_bump_blocks
+
+let has_bump_block_size () = (Option.get !instance).bump_block_size

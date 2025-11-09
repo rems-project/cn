@@ -98,11 +98,11 @@ module MakeOptional (GT : GenTerms.T) = struct
 
   let drop_nones (ctx : t) : Make(GT).t =
     List.filter_map
-      (fun (_, GD.{ filename; recursive; spec; name; iargs; oarg; body }) ->
+      (fun (_, GD.{ filename; recursive; spec; name; iargs; oarg; c_types; body }) ->
          match body with
          | Some body ->
            let module GD' = GenDefinitions.Make (GT) in
-           Some (name, GD'.{ filename; recursive; spec; name; iargs; oarg; body })
+           Some (name, GD'.{ filename; recursive; spec; name; iargs; oarg; c_types; body })
          | None -> None)
       ctx
 

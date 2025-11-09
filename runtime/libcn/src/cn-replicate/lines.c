@@ -1,5 +1,6 @@
 #include "cn-replicate/lines.h"
 
+#include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
 #include <stddef.h>
@@ -38,6 +39,7 @@ char *cn_replica_lines_to_str() {
   }
 
   char *res = malloc(sz + 1);  // +1 for string terminator
+  assert(res);
   res[0] = '\0';
   for (size_t i = 0; i < num_lines; i++) {
     const char *line = *bennet_vector_get(str)(&lines_vec, i);
@@ -66,6 +68,7 @@ char *cn_replica_lines_to_json_literal() {
   }
 
   char *res = malloc(sz + 1);
+  assert(res);
   res[0] = '\0';
   for (size_t i = 0; i < num_lines; i++) {
     const char *line = *bennet_vector_get(str)(&lines_vec, i);

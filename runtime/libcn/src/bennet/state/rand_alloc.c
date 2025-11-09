@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@ static void bennet_rand_alloc_init() {
   }
 
   global_rand_alloc.buffer = malloc(RAND_ALLOC_MEM_SIZE);
+  assert(global_rand_alloc.buffer);
   global_rand_alloc.buffer_len = RAND_ALLOC_MEM_SIZE;
   bennet_vector_init(rand_alloc_region)(&global_rand_alloc.regions);
 }
@@ -56,7 +58,12 @@ static bool overlaps(size_t offset, size_t length) {
 void *bennet_rand_alloc(size_t bytes) {
   bennet_rand_alloc_init();
 
-  if (bytes == 0 || bytes > global_rand_alloc.buffer_len) {
+  if (bytes == 0) {
+    return NULL;
+  }
+
+  if (bytes > global_rand_alloc.buffer_len) {
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
     return NULL;
   }
 

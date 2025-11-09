@@ -98,33 +98,41 @@ let generate_c_loop_invariants
     []
   else (
     let ail_loop_invariants = ail_executable_spec.loops in
-    let ail_cond_stats, ail_loop_decls = List.split ail_loop_invariants in
     (* A bit of a hack *)
-    let ail_cond_injs =
+    let injs =
       List.map
-        (fun (loc, bs_and_ss) ->
-           ( get_start_loc loc,
-             Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ] ))
-        ail_cond_stats
+        (fun (loop_info : Cn_to_ail.loop_info) ->
+           let loc, bs_and_ss = loop_info.cond in
+           let cond_inj =
+             ( get_start_loc loc,
+               Utils.remove_last_semicolon (generate_ail_stat_strs bs_and_ss) @ [ ", " ]
+             )
+           in
+           let decl_inj =
+             ( get_start_loc loop_info.loop_loc,
+               "{" :: generate_ail_stat_strs loop_info.loop_entry )
+           in
+           let end_internal_inj =
+             ( get_end_loc ~offset:(-1) loop_info.loop_loc,
+               generate_ail_stat_strs loop_info.loop_exit )
+           in
+           let end_external_inj =
+             ( get_end_loc loop_info.loop_loc,
+               generate_ail_stat_strs loop_info.loop_exit @ [ "}" ] )
+           in
+           [ cond_inj; decl_inj; end_internal_inj; end_external_inj ])
+        ail_loop_invariants
     in
-    let ail_loop_decl_injs =
-      List.map
-        (fun (loc, bs_and_ss) ->
-           (get_start_loc loc, "{" :: generate_ail_stat_strs bs_and_ss))
-        ail_loop_decls
-    in
-    let ail_loop_close_block_injs =
-      List.map (fun (loc, _) -> (get_end_loc loc, [ "}" ])) ail_loop_decls
-    in
-    ail_cond_injs @ ail_loop_decl_injs @ ail_loop_close_block_injs)
+    List.concat injs)
 
 
 let generate_fn_call_ghost_args_injs
       filename
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
   let dts = sigm.cn_datatypes in
   List.concat
     (List.map
@@ -162,6 +170,7 @@ let generate_c_specs_from_cn_internal
       without_lemma_checks
       filename
       (instrumentation : Extract.instrumentation)
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   : cn_spec_inj_info
@@ -173,7 +182,7 @@ let generate_c_specs_from_cn_internal
     | _, _, A.Decl_function (_, (_, ret_ty), _, _, _, _) -> ret_ty
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
-  let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
   let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
@@ -218,6 +227,7 @@ let generate_c_specs_internal
       without_lemma_checks
       filename
       (instrumentation : Extract.instrumentation)
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : _ CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -235,6 +245,7 @@ let generate_c_specs_internal
         without_lemma_checks
         filename
         instrumentation
+        cabs_tunit
         sigm
         prog5
     else
@@ -265,6 +276,7 @@ let generate_c_specs_internal
 let generate_c_assume_pres_internal
       filename
       (insts : (bool * Extract.instrumentation) list)
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -279,7 +291,7 @@ let generate_c_assume_pres_internal
         List.map (fun ((x, bt), ct) -> (x, (bt, ct))) (List.combine arg_names arg_cts)
       | _ -> failwith ("unreachable @ " ^ __LOC__)
     in
-    let globals = Cn_to_ail.extract_global_variables prog5.globs in
+    let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
     let fsym =
       if is_static then
         Sym.fresh (Utils.static_prefix filename ^ "_" ^ Sym.pp_string inst.fn)
@@ -309,6 +321,7 @@ let generate_c_specs
       without_lemma_checks
       filename
       instrumentation_list
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   : executable_spec
@@ -321,6 +334,7 @@ let generate_c_specs
       without_lemma_checks
       filename
       instrumentation
+      cabs_tunit
       sigm
       prog5
   in
@@ -475,6 +489,7 @@ let generate_fun_def_and_decl_docs funs =
 
 let generate_c_functions
       filename
+      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -484,6 +499,7 @@ let generate_c_functions
          Cn_to_ail.cn_to_ail_function
            filename
            cn_f
+           cabs_tunit
            prog5
            sigm.cn_datatypes
            sigm.cn_functions)
@@ -509,6 +525,7 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 
 let generate_c_predicates
       filename
+      (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
@@ -517,7 +534,7 @@ let generate_c_predicates
       prog5.resource_predicates
       filename
       sigm.cn_datatypes
-      (Cn_to_ail.extract_global_variables prog5.globs)
+      (Cn_to_ail.extract_global_variables cabs_tunit prog5)
       sigm.cn_predicates
   in
   let locs_and_decls, defs = List.split ail_funs in
@@ -530,10 +547,11 @@ let generate_c_predicates
 
 let generate_c_lemmas
       filename
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
-  let globals = Cn_to_ail.extract_global_variables prog5.globs in
+  let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
   let ail_funs =
     Cn_to_ail.cn_to_ail_lemmas
       filename
@@ -629,6 +647,9 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 let generate_global_assignments
       ?(exec_c_locs_mode = false)
       ?(experimental_ownership_stack_mode = false)
+      ?max_bump_blocks
+      ?bump_block_size
+      (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
   =
@@ -653,11 +674,17 @@ let generate_global_assignments
   match get_main sigm with
   | [] -> []
   | (main_sym, _) :: _ ->
-    let globals = Cn_to_ail.extract_global_variables prog5.globs in
+    let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
-    let assignments = OE.get_ownership_global_init_stats ~ghost_array_size () in
+    let assignments =
+      OE.get_ownership_global_init_stats
+        ~ghost_array_size
+        ?max_bump_blocks
+        ?bump_block_size
+        ()
+    in
     let init_and_global_mapping_str =
       generate_ail_stat_strs
         ( [],
@@ -670,7 +697,16 @@ let generate_global_assignments
           @ global_map_stmts_ )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
-    let global_unmapping_str = generate_ail_stat_strs ([], global_unmapping_stmts_) in
+    let free_ghost_array_fn_str = "free_ghost_array" in
+    let free_ghost_array_decl =
+      A.(
+        AilSexpr
+          (mk_expr
+             (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_array_fn_str)), []))))
+    in
+    let global_unmapping_str =
+      generate_ail_stat_strs ([], global_unmapping_stmts_ @ [ free_ghost_array_decl ])
+    in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
 
 

@@ -213,12 +213,23 @@ let run () =
             [ "--use-solver-eval" ]
           else
             [])
-       @ (if Config.is_disable_smt_skewing () then
-            [ "--disable-smt-skewing" ]
-          else
-            [])
+       @ (let mode_str =
+            match Config.get_smt_skewing_mode () with
+            | Config.Uniform -> "uniform"
+            | Config.Sized -> "sized"
+            | Config.None -> "none"
+          in
+          [ "--smt-skewing"; mode_str ])
        @ (Config.get_smt_logging ()
           |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
+          |> Option.to_list
+          |> List.flatten)
+       @ (Config.has_max_bump_blocks ()
+          |> Option.map (fun n -> [ "--max-bump-blocks"; string_of_int n ])
+          |> Option.to_list
+          |> List.flatten)
+       @ (Config.has_bump_block_size ()
+          |> Option.map (fun n -> [ "--bump-block-size"; string_of_int n ])
           |> Option.to_list
           |> List.flatten))
   in

@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cn-smt/memory/arena.h>
+#include <cn-smt/memory/intern.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/sexp.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/subst.h>
@@ -36,110 +39,77 @@ uint64_t sym_num(cn_sym sym) {
 
 // Helper function to get string from Id
 const char* id_get_string(int id) {
-  // This would need to be implemented based on the actual Id module
-  static char buffer[256];
+  char buffer[64];
   snprintf(buffer, sizeof(buffer), "id_%d", id);
-  return buffer;
+  return cn_intern_string(buffer);
 }
 
-char* fn_name(cn_sym x) {
+const char* fn_name(cn_sym x) {
   assert(x.name);
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_%" PRIu64, base_name, num);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_%" PRIu64, base_name, num);
+  return cn_intern_string(buffer);
 }
 
 // Function definition name - just append _func without number
-char* fn_def_name(cn_sym x) {
+const char* fn_def_name(cn_sym x) {
   assert(x.name);
   const char* base_name = sym_pp_string_no_nums(x);
 
-  // Append _func suffix
-  size_t len = strlen(base_name) + 6;  // +5 for "_func" +1 for null
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_func", base_name);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_func", base_name);
+  return cn_intern_string(buffer);
 }
 
 const char* named_expr_name(void) {
   return "_cn_named";
 }
 
-char* cn_smt_struct_name(const char* name) {
-  // Calculate required buffer size: base_name + "_struct" + null terminator
-  size_t len = strlen(name) + snprintf(NULL, 0, "_struct") + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_struct", name);
-  return result;
+const char* cn_smt_struct_name(const char* name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_struct", name);
+  return cn_intern_string(buffer);
 }
 
-char* struct_con_name(const char* name) {
-  // Calculate required buffer size: name + "_struct_con" + null terminator
-  size_t len = strlen(name) + snprintf(NULL, 0, "_struct_con") + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_struct_con", name);
-  return result;
+const char* struct_con_name(const char* name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_struct_con", name);
+  return cn_intern_string(buffer);
 }
 
-char* struct_field_name(const char* member_name) {
-  // Calculate required buffer size: member_name + "_struct_fld" + null terminator
-  size_t len = strlen(member_name) + strlen("_struct_fld") + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_struct_fld", member_name);
-  return result;
+const char* struct_field_name(const char* member_name) {
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_struct_fld", member_name);
+  return cn_intern_string(buffer);
 }
 
-char* datatype_name(cn_sym x) {
+const char* datatype_name(cn_sym x) {
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_%" PRIu64, base_name, num);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_%" PRIu64, base_name, num);
+  return cn_intern_string(buffer);
 }
 
-char* datatype_con_name(cn_sym x) {
+const char* datatype_con_name(cn_sym x) {
   const char* base_name = sym_pp_string_no_nums(x);
   uint64_t num = sym_num(x);
 
-  // Calculate required buffer size: base_name + "_" + num + null terminator
-  size_t len = strlen(base_name) + 1 + snprintf(NULL, 0, "%" PRIu64, num) + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_%" PRIu64, base_name, num);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_%" PRIu64, base_name, num);
+  return cn_intern_string(buffer);
 }
 
-char* datatype_field_name(int x) {
+const char* datatype_field_name(int x) {
   const char* base_name = id_get_string(x);
 
-  // Calculate required buffer size: base_name + "_data_fld" + null terminator
-  size_t len = strlen(base_name) + strlen("_data_fld") + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "%s_data_fld", base_name);
-  return result;
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "%s_data_fld", base_name);
+  return cn_intern_string(buffer);
 }
 
 // Global counter for fresh name generation
@@ -149,7 +119,7 @@ static int fresh_counter = 0;
 char* fresh_name(const char* x) {
   // Calculate required buffer size: x + "_" + fresh_counter + null terminator
   size_t len = strlen(x) + 1 + snprintf(NULL, 0, "%d", fresh_counter) + 1;
-  char* result = malloc(len);
+  char* result = cn_test_malloc(len);
   assert(result);
 
   sprintf(result, "%s_%d", x, fresh_counter);
@@ -163,48 +133,38 @@ char* fresh_name(const char* x) {
 const int CN_TUPLE_MAX_ARITY =
     15; /* TODO: compute required arity based on the input program. */
 
-static char* cn_tuple_name(int arity) {
+static const char* cn_tuple_name(int arity) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
 
-  // Calculate required buffer size: "cn_tuple_" + arity + null terminator
-  size_t len = strlen("cn_tuple_") + snprintf(NULL, 0, "%d", arity) + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "cn_tuple_%d", arity);
-  return result;
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "cn_tuple_%d", arity);
+  return cn_intern_string(buffer);
 }
 
-static char* cn_tuple_selector(int arity, int field) {
+static const char* cn_tuple_selector(int arity, int field) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
 
-  // Calculate required buffer size: "cn_get_" + field + "_of_" + arity + null terminator
-  size_t len = strlen("cn_get_") + snprintf(NULL, 0, "%d", field) + strlen("_of_") +
-               snprintf(NULL, 0, "%d", arity) + 1;
-  char* result = malloc(len);
-  assert(result);
-
-  sprintf(result, "cn_get_%d_of_%d", field, arity);
-  return result;
+  char buffer[64];
+  snprintf(buffer, sizeof(buffer), "cn_get_%d_of_%d", field, arity);
+  return cn_intern_string(buffer);
 }
 
 /** A tuple type with the given list of types */
 sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count) {
   int arity = (int)type_count;
-  char* name = cn_tuple_name(arity);
+  const char* name = cn_tuple_name(arity);
   sexp_t* result = sexp_app_str(name, types, type_count);
-  free(name);
   return result;
 }
 
 /** Make a tuple value */
-char* cn_tuple_constructor_name(int arity) {
+const char* cn_tuple_constructor_name(int arity) {
   assert(arity <= CN_TUPLE_MAX_ARITY);
   return cn_tuple_name(arity);
 }
 
 /** Get a field of a tuple */
-char* cn_tuple_get_selector_name(int arity, int field) {
+const char* cn_tuple_get_selector_name(int arity, int field) {
   return cn_tuple_selector(arity, field);
 }
 
@@ -242,15 +202,13 @@ sexp_t* cn_option_some(sexp_t* x) {
 /** Test if an option value is Some */
 sexp_t* cn_option_is_some(sexp_t* x) {
   // Generate "is-cn_some" predicate name
-  size_t len = strlen("is-") + strlen(cn_option_some_name) + 1;
-  char* predicate_name = malloc(len);
-  assert(predicate_name);
-  sprintf(predicate_name, "is-%s", cn_option_some_name);
+  char buffer[256];
+  snprintf(buffer, sizeof(buffer), "is-%s", cn_option_some_name);
+  const char* predicate_name = cn_intern_string(buffer);
 
   sexp_t* args[] = {x};
   sexp_t* result = sexp_app_str(predicate_name, args, 1);
 
-  free(predicate_name);
   return result;
 }
 
@@ -345,7 +303,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
     case CN_BASE_TUPLE: {
       // Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
 
-      sexp_t** translated_types = malloc(bt.data.tuple.count * sizeof(sexp_t*));
+      sexp_t** translated_types = cn_test_malloc(bt.data.tuple.count * sizeof(sexp_t*));
       if (!translated_types) {
         return NULL;
       }
@@ -356,7 +314,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
           // Clean up on failure
           for (size_t j = 0; j < i; j++) {
           }
-          free(translated_types);
+          cn_test_free(translated_types);
           return NULL;
         }
       }
@@ -366,18 +324,17 @@ sexp_t* translate_base_type(cn_base_type bt) {
       // Clean up
       for (size_t i = 0; i < bt.data.tuple.count; i++) {
       }
-      free(translated_types);
+      cn_test_free(translated_types);
       return result;
     }
 
     case CN_BASE_STRUCT: {
       // Struct tag -> SMT.atom (CN_Names.struct_name tag)
       // Convert int tag to cn_sym (assuming tag is symbol id)
-      char* struct_name_str = cn_smt_struct_name(bt.data.struct_tag.tag);
+      const char* struct_name_str = cn_smt_struct_name(bt.data.struct_tag.tag);
       assert(struct_name_str);
 
       sexp_t* result = sexp_atom(struct_name_str);
-      free(struct_name_str);
       return result;
     }
 
@@ -387,13 +344,10 @@ sexp_t* translate_base_type(cn_base_type bt) {
       assert(tag_name);
 
       // Create datatype SMT name: tag_name + "_dt"
-      size_t len = strlen(tag_name) + 4;  // "_dt" + null terminator
-      char* datatype_name_str = malloc(len);
-      assert(datatype_name_str);
-      snprintf(datatype_name_str, len, "%s_dt", tag_name);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_dt", tag_name);
 
-      sexp_t* result = sexp_atom(datatype_name_str);
-      free(datatype_name_str);
+      sexp_t* result = sexp_atom(buffer);
       return result;
     }
 
@@ -448,8 +402,8 @@ sexp_t* translate_const(void* s, cn_const* co) {
 
     case CN_CONST_Q: {
       // Q q -> SMT.real_k q
-      char buffer[64];
-      snprintf(buffer, sizeof(buffer), "%.15g", co->data.q);
+      char* buffer = malloc(64);
+      snprintf(buffer, 64, "%.15g", co->data.q);
       return sexp_atom(buffer);
     }
 
@@ -469,12 +423,12 @@ sexp_t* translate_const(void* s, cn_const* co) {
       assert(tuple_type);
 
       // Create type-annotated tuple constructor
-      char* tuple_name = cn_tuple_constructor_name(0);
+      const char* tuple_name = cn_tuple_constructor_name(0);
       sexp_t* constructor_atom = sexp_atom(tuple_name);
       sexp_t* result = sexp_as_type(constructor_atom, tuple_type);
 
       // Cleanup
-      free(tuple_name);
+      // tuple_name is interned, no need to free
 
       return result;
     }
@@ -681,15 +635,6 @@ static sexp_t* bv_ctz_count(int result_w, int w, sexp_t* e) {
   }
 }
 
-// Forward declarations for translate_term helper functions
-sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm);
-static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result);
-static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
-    cn_term* iterm,
-    cn_term* e1,
-    cn_term* e2,
-    const char* (*name_fn)(cn_base_type));
-
 // Helper function names from OCaml CN_Names module
 const char* mul_name(cn_base_type bt) {
   return "cn_mul";
@@ -717,25 +662,8 @@ static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result) {
   return bennet_optional_none(sexp_ptr);  // None
 }
 
-/** Binary uninterpreted function with same type for arguments and result */
-static sexp_t* uninterp_same_type(struct cn_smt_solver* s,
-    cn_term* iterm,
-    cn_term* e1,
-    cn_term* e2,
-    const char* (*name_fn)(cn_base_type)) {
-  sexp_t* s1 = translate_term(s, e1);
-  sexp_t* s2 = translate_term(s, e2);
-  const char* fn_name = name_fn(iterm->base_type);
-
-  sexp_t* fn_atom = sexp_atom(fn_name);
-  sexp_t* args[] = {s1, s2};
-  sexp_t* result = sexp_app(fn_atom, args, 2);
-
-  return result;
-}
-
 /** Translate a CN term to SMT */
-sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
+static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
   assert(s && iterm);
 
   // Get location (placeholder - would need actual location from term)
@@ -747,9 +675,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       return translate_const(s, &iterm->data.const_val);
 
     case CN_TERM_SYM: {
-      char* name = fn_name(iterm->data.sym);
+      const char* name = fn_name(iterm->data.sym);
       sexp_t* result = sexp_atom(name);
-      free(name);
       return result;
     }
 
@@ -779,7 +706,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // Create ite_(eq_zero, 0, add_one)
           cn_term* ite_term = cn_smt_ite(eq_zero, zero, add_one);
 
-          sexp_t* result = translate_term(s, ite_term);
+          sexp_t* result = translate_term_aux(s, ite_term);
 
           return result;
         }
@@ -809,18 +736,18 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // Create ite_(eq_zero, 0, sub_term)
           cn_term* ite_term = cn_smt_ite(eq_zero, zero, sub_term);
 
-          sexp_t* result = translate_term(s, ite_term);
+          sexp_t* result = translate_term_aux(s, ite_term);
 
           return result;
         }
 
         case CN_UNOP_NOT: {
-          sexp_t* operand_smt = translate_term(s, e1);
+          sexp_t* operand_smt = translate_term_aux(s, e1);
           return bool_not(operand_smt);
         }
 
         case CN_UNOP_NEGATE: {
-          sexp_t* operand_smt = translate_term(s, e1);
+          sexp_t* operand_smt = translate_term_aux(s, e1);
 
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS:
@@ -835,7 +762,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         }
 
         case CN_UNOP_BW_COMPL: {
-          sexp_t* operand_smt = translate_term(s, e1);
+          sexp_t* operand_smt = translate_term_aux(s, e1);
 
           if (iterm->base_type.tag == CN_BASE_BITS) {
             return bv_compl(operand_smt);
@@ -851,16 +778,16 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
             // Helper function wrapper for bv_clz
             sexp_t* operand_smt;
-            if (sexp_is_atom(translate_term(s, e1))) {
-              operand_smt = bv_clz(w, w, translate_term(s, e1));
+            if (sexp_is_atom(translate_term_aux(s, e1))) {
+              operand_smt = bv_clz(w, w, translate_term_aux(s, e1));
             } else {
               char* x = fresh_name(named_expr_name());
               sexp_t* x_atom = sexp_atom(x);
               sexp_t* result_expr = bv_clz(w, w, x_atom);
               sexp_t* bindings[] = {
-                  sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
+                  sexp_list((sexp_t*[]){x_atom, translate_term_aux(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
-              free(x);
+              cn_test_free(x);
               operand_smt = result;
             }
 
@@ -877,16 +804,16 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
             // Helper function wrapper for bv_ctz
             sexp_t* operand_smt;
-            if (sexp_is_atom(translate_term(s, e1))) {
-              operand_smt = bv_ctz(w, w, translate_term(s, e1));
+            if (sexp_is_atom(translate_term_aux(s, e1))) {
+              operand_smt = bv_ctz(w, w, translate_term_aux(s, e1));
             } else {
               char* x = fresh_name(named_expr_name());
               sexp_t* x_atom = sexp_atom(x);
               sexp_t* result_expr = bv_ctz(w, w, x_atom);
               sexp_t* bindings[] = {
-                  sexp_list((sexp_t*[]){x_atom, translate_term(s, e1)}, 2)};
+                  sexp_list((sexp_t*[]){x_atom, translate_term_aux(s, e1)}, 2)};
               sexp_t* result = sexp_let(bindings, 1, result_expr);
-              free(x);
+              cn_test_free(x);
               operand_smt = result;
             }
 
@@ -906,10 +833,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       cn_term* e1 = iterm->data.binop.left;
       cn_term* e2 = iterm->data.binop.right;
 
-      sexp_t* s1 = translate_term(s, e1);
+      sexp_t* s1 = translate_term_aux(s, e1);
       assert(s1);
 
-      sexp_t* s2 = translate_term(s, e2);
+      sexp_t* s2 = translate_term_aux(s, e2);
       assert(s2);
 
       switch (iterm->data.binop.op) {
@@ -950,7 +877,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_MUL: {
+        case CN_BINOP_MUL:
+        case CN_BINOP_MULNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS:
               return bv_mul(s1, s2);
@@ -963,10 +891,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_MULNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, mul_name);
-
-        case CN_BINOP_DIV: {
+        case CN_BINOP_DIV:
+        case CN_BINOP_DIVNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS: {
               if (iterm->base_type.data.bits.is_signed) {
@@ -984,10 +910,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_DIVNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, div_name);
-
-        case CN_BINOP_EXP: {
+        case CN_BINOP_EXP:
+        case CN_BINOP_EXPNOSMT: {
           // Check if both operands are numeric literals
           int64_t z1, z2;
           bennet_optional(sexp_ptr) opt1 = get_num_z(e1, &z1);
@@ -1001,17 +925,15 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
             }
 
             cn_term* result_term = cn_smt_num(e1->base_type, result);
-            return translate_term(s, result_term);
+            return translate_term_aux(s, result_term);
           } else {
             assert(false);  // "Exp"
             return NULL;
           }
         }
 
-        case CN_BINOP_EXPNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, exp_name);
-
-        case CN_BINOP_REM: {
+        case CN_BINOP_REM:
+        case CN_BINOP_REMNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS: {
               if (iterm->base_type.data.bits.is_signed) {
@@ -1028,10 +950,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           }
         }
 
-        case CN_BINOP_REMNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, rem_name);
-
-        case CN_BINOP_MOD: {
+        case CN_BINOP_MOD:
+        case CN_BINOP_MODNOSMT: {
           switch (iterm->base_type.tag) {
             case CN_BASE_BITS: {
               if (iterm->base_type.data.bits.is_signed) {
@@ -1047,9 +967,6 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               return NULL;
           }
         }
-
-        case CN_BINOP_MODNOSMT:
-          return uninterp_same_type(s, iterm, e1, e2, mod_name);
 
         case CN_BINOP_BW_XOR: {
           if (iterm->base_type.tag == CN_BASE_BITS) {
@@ -1153,7 +1070,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // translate_term s (ite_ (le_ (e1, e2) loc, e1, e2) loc)
           cn_term* le_term = cn_smt_le(e1, e2);
           cn_term* ite_term = cn_smt_ite(le_term, e1, e2);
-          return translate_term(s, ite_term);
+          return translate_term_aux(s, ite_term);
         }
 
         case CN_BINOP_MAX: {
@@ -1161,7 +1078,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           // translate_term s (ite_ (ge_ (e1, e2) loc, e1, e2) loc)
           cn_term* ge_term = cn_smt_ge(e1, e2);
           cn_term* ite_term = cn_smt_ite(ge_term, e1, e2);
-          return translate_term(s, ite_term);
+          return translate_term_aux(s, ite_term);
         }
 
         case CN_BINOP_EQ:
@@ -1173,7 +1090,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               cn_base_type_bits(false, 64);  // Memory.uintptr_bt equivalent
           cn_term* cast_e1 = cn_smt_cast(uintptr_bt, e1);
           cn_term* cast_e2 = cn_smt_cast(uintptr_bt, e2);
-          return translate_term(s, cn_smt_lt(cast_e1, cast_e2));
+          return translate_term_aux(s, cn_smt_lt(cast_e1, cast_e2));
         }
 
         case CN_BINOP_LE_POINTER: {
@@ -1182,7 +1099,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
               cn_base_type_bits(false, 64);  // Memory.uintptr_bt equivalent
           cn_term* cast_e1 = cn_smt_cast(uintptr_bt, e1);
           cn_term* cast_e2 = cn_smt_cast(uintptr_bt, e2);
-          return translate_term(s, cn_smt_le(cast_e1, cast_e2));
+          return translate_term_aux(s, cn_smt_le(cast_e1, cast_e2));
         }
 
         case CN_BINOP_SET_UNION:
@@ -1207,22 +1124,22 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
     }
 
     case CN_TERM_ITE: {
-      sexp_t* cond_smt = translate_term(s, iterm->data.ite.cond);
-      sexp_t* then_smt = translate_term(s, iterm->data.ite.then_term);
-      sexp_t* else_smt = translate_term(s, iterm->data.ite.else_term);
+      sexp_t* cond_smt = translate_term_aux(s, iterm->data.ite.cond);
+      sexp_t* then_smt = translate_term_aux(s, iterm->data.ite.then_term);
+      sexp_t* else_smt = translate_term_aux(s, iterm->data.ite.else_term);
       return ite(cond_smt, then_smt, else_smt);
     }
 
     case CN_TERM_MEMBER_SHIFT: {
-      sexp_t* ptr_smt = translate_term(s, iterm->data.member_shift.base);
+      sexp_t* ptr_smt = translate_term_aux(s, iterm->data.member_shift.base);
 
       return bv_add(ptr_smt, loc_k(iterm->data.member_shift.offset));
     }
 
     case CN_TERM_ARRAY_SHIFT: {
-      sexp_t* base_smt = translate_term(s, iterm->data.array_shift.base);
+      sexp_t* base_smt = translate_term_aux(s, iterm->data.array_shift.base);
       sexp_t* offset_smt = bv_mul(loc_k(iterm->data.array_shift.element_size),
-          translate_term(s, iterm->data.array_shift.index));
+          translate_term_aux(s, iterm->data.array_shift.index));
 
       return bv_add(base_smt, offset_smt);
     }
@@ -1233,7 +1150,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       cn_base_type target_bt = iterm->base_type;
       cn_base_type source_bt = t->base_type;
 
-      sexp_t* smt_term = translate_term(s, t);
+      sexp_t* smt_term = translate_term_aux(s, t);
 
       // Handle different cast combinations - simplified version
       if (source_bt.tag == CN_BASE_BITS && target_bt.tag == CN_BASE_LOC) {
@@ -1262,17 +1179,17 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         // LOC is represented as a bitvector of width CHAR_BIT * sizeof(uintptr_t)
         // Use (_ int2bv n) to convert integer to n-bit bitvector
         int ptr_width = CHAR_BIT * sizeof(uintptr_t);
-        char int2bv_op[64];
-        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", ptr_width);
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "(_ int2bv %d)", ptr_width);
         sexp_t* args[] = {smt_term};
-        return sexp_app_str(int2bv_op, args, 1);
+        return sexp_app_str(buffer, args, 1);
       } else if (source_bt.tag == CN_BASE_INTEGER && target_bt.tag == CN_BASE_BITS) {
         // Integer -> Bits: Convert integer to bitvector of target width
         int target_width = target_bt.data.bits.size_bits;
-        char int2bv_op[64];
-        snprintf(int2bv_op, sizeof(int2bv_op), "(_ int2bv %d)", target_width);
+        char buffer[64];
+        snprintf(buffer, sizeof(buffer), "(_ int2bv %d)", target_width);
         sexp_t* args[] = {smt_term};
-        return sexp_app_str(int2bv_op, args, 1);
+        return sexp_app_str(buffer, args, 1);
       } else {
         // Other casts
         assert(false);
@@ -1301,7 +1218,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       const char* tag = iterm->data.struct_val.tag;
 
       // Create constructor name using struct_con_name
-      char* con_name = struct_con_name(tag);
+      const char* con_name = struct_con_name(tag);
 
       // Get member count from vector
       bennet_vector(cn_member_pair)* members = &iterm->data.struct_val.members;
@@ -1310,13 +1227,13 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Allocate array for translated member arguments
       sexp_t** args = NULL;
       if (arg_count > 0) {
-        args = malloc(sizeof(sexp_t*) * arg_count);
+        args = cn_test_malloc(sizeof(sexp_t*) * arg_count);
 
         // Translate each member term
         for (size_t i = 0; i < arg_count; i++) {
           cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, i);
           cn_term* member_term = pair->value;
-          args[i] = translate_term(s, member_term);
+          args[i] = translate_term_aux(s, member_term);
         }
       }
 
@@ -1325,9 +1242,9 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(fn_atom, args, arg_count);
 
       // Cleanup
-      free(con_name);
+      // con_name is interned, no need to free
       if (args) {
-        free(args);
+        cn_test_free(args);
       }
 
       return result;
@@ -1335,34 +1252,31 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_STRUCT_MEMBER: {
       // Struct member access
-      sexp_t* struct_smt = translate_term(s, iterm->data.struct_member.struct_term);
+      sexp_t* struct_smt = translate_term_aux(s, iterm->data.struct_member.struct_term);
       const char* member = iterm->data.struct_member.member_name;
 
-      char* fn_name = struct_field_name(member);
+      const char* fn_name = struct_field_name(member);
 
       sexp_t* fn_atom = sexp_atom(fn_name);
       sexp_t* args[] = {struct_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      free(fn_name);
       return result;
     }
 
     case CN_TERM_STRUCT_UPDATE: {
       // Struct update - create uninterpreted function call
-      sexp_t* struct_smt = translate_term(s, iterm->data.struct_update.struct_term);
-      sexp_t* value_smt = translate_term(s, iterm->data.struct_update.new_value);
+      sexp_t* struct_smt = translate_term_aux(s, iterm->data.struct_update.struct_term);
+      sexp_t* value_smt = translate_term_aux(s, iterm->data.struct_update.new_value);
       const char* member = iterm->data.struct_update.member_name;
 
-      char* fn_name = malloc(strlen(member) + 20);
-      assert(fn_name);
-      sprintf(fn_name, "set_%s", member);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "set_%s", member);
 
-      sexp_t* fn_atom = sexp_atom(fn_name);
+      sexp_t* fn_atom = sexp_atom(buffer);
       sexp_t* args[] = {struct_smt, value_smt};
       sexp_t* result = sexp_app(fn_atom, args, 2);
 
-      free(fn_name);
       return result;
     }
 
@@ -1377,7 +1291,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Allocate array for translated member arguments in type order
       sexp_t** args = NULL;
       if (member_count > 0) {
-        args = malloc(sizeof(sexp_t*) * member_count);
+        args = cn_test_malloc(sizeof(sexp_t*) * member_count);
         assert(args);
 
         // For each member in the base type (in canonical order), find its value
@@ -1389,7 +1303,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           for (size_t j = 0; j < bennet_vector_size(cn_member_pair)(members); j++) {
             cn_member_pair* pair = bennet_vector_get(cn_member_pair)(members, j);
             if (strcmp(pair->name, type_member_name) == 0) {
-              args[i] = translate_term(s, pair->value);
+              args[i] = translate_term_aux(s, pair->value);
               found = true;
               break;
             }
@@ -1401,7 +1315,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Compute element types for type annotation
       sexp_t** element_types = NULL;
       if (member_count > 0) {
-        element_types = malloc(sizeof(sexp_t*) * member_count);
+        element_types = cn_test_malloc(sizeof(sexp_t*) * member_count);
         assert(element_types);
 
         for (size_t i = 0; i < member_count; i++) {
@@ -1415,7 +1329,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       assert(tuple_type);
 
       // Create type-annotated tuple constructor
-      char* tuple_con_name = cn_tuple_constructor_name(member_count);
+      const char* tuple_con_name = cn_tuple_constructor_name(member_count);
       sexp_t* constructor_atom = sexp_atom(tuple_con_name);
       sexp_t* typed_constructor = sexp_as_type(constructor_atom, tuple_type);
 
@@ -1423,14 +1337,13 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       sexp_t* result = sexp_app(typed_constructor, args, member_count);
 
       // Cleanup
-      free(tuple_con_name);
       if (element_types) {
         for (size_t i = 0; i < member_count; i++) {
         }
-        free(element_types);
+        cn_test_free(element_types);
       }
       if (args) {
-        free(args);
+        cn_test_free(args);
       }
 
       return result;
@@ -1438,7 +1351,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_RECORD_MEMBER: {
       // Record member access - use tuple selector
-      sexp_t* record_smt = translate_term(s, iterm->data.record_member.record_term);
+      sexp_t* record_smt = translate_term_aux(s, iterm->data.record_member.record_term);
       const char* member = iterm->data.record_member.member_name;
 
       // Get the record's base type to find member index
@@ -1458,14 +1371,13 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       assert(found);  // Member should exist in the record type
 
       // Get the tuple selector name (e.g., "cn_get_0_of_2")
-      char* selector_name =
+      const char* selector_name =
           cn_tuple_get_selector_name(record_bt.data.record.count, member_index);
 
       sexp_t* fn_atom = sexp_atom(selector_name);
       sexp_t* args[] = {record_smt};
       sexp_t* result = sexp_app(fn_atom, args, 1);
 
-      free(selector_name);
       return result;
     }
 
@@ -1474,10 +1386,8 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       const char* ctor = iterm->data.constructor.constructor_name;
 
       // Add _con suffix to constructor name
-      size_t ctor_len = strlen(ctor);
-      char* ctor_smt = malloc(ctor_len + 5);  // +4 for "_con" +1 for null
-      assert(ctor_smt);
-      sprintf(ctor_smt, "%s_con", ctor);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_con", ctor);
 
       // Get the arguments vector
       bennet_vector(cn_member_pair)* args_vec = &iterm->data.constructor.args;
@@ -1485,30 +1395,28 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       if (arg_count == 0) {
         // Nullary constructor
-        sexp_t* fn_atom = sexp_atom(ctor_smt);
+        sexp_t* fn_atom = sexp_atom(buffer);
         sexp_t* result = sexp_app(fn_atom, NULL, 0);
-        free(ctor_smt);
         return result;
       }
 
       // Translate arguments in the order they are provided
-      sexp_t** arg_sexps = malloc(sizeof(sexp_t*) * arg_count);
+      sexp_t** arg_sexps = cn_test_malloc(sizeof(sexp_t*) * arg_count);
       assert(arg_sexps);
       for (size_t i = 0; i < arg_count; i++) {
         cn_member_pair* pair = bennet_vector_get(cn_member_pair)(args_vec, i);
-        arg_sexps[i] = translate_term(s, pair->value);
+        arg_sexps[i] = translate_term_aux(s, pair->value);
         assert(arg_sexps[i]);
       }
 
       // Build constructor application
-      sexp_t* fn_atom = sexp_atom(ctor_smt);
+      sexp_t* fn_atom = sexp_atom(buffer);
       sexp_t* result = sexp_app(fn_atom, arg_sexps, arg_count);
 
       // Cleanup
       for (size_t i = 0; i < arg_count; i++) {
       }
-      free(arg_sexps);
-      free(ctor_smt);
+      cn_test_free(arg_sexps);
 
       return result;
     }
@@ -1519,17 +1427,17 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_MAP_SET: {
       // Map set operation - use arr_store
-      sexp_t* map_smt = translate_term(s, iterm->data.map_set.map);
-      sexp_t* key_smt = translate_term(s, iterm->data.map_set.key);
-      sexp_t* value_smt = translate_term(s, iterm->data.map_set.value);
+      sexp_t* map_smt = translate_term_aux(s, iterm->data.map_set.map);
+      sexp_t* key_smt = translate_term_aux(s, iterm->data.map_set.key);
+      sexp_t* value_smt = translate_term_aux(s, iterm->data.map_set.value);
 
       return arr_store(map_smt, key_smt, value_smt);
     }
 
     case CN_TERM_MAP_GET: {
       // Map get operation - use arr_select
-      sexp_t* map_smt = translate_term(s, iterm->data.map_get.map);
-      sexp_t* key_smt = translate_term(s, iterm->data.map_get.key);
+      sexp_t* map_smt = translate_term_aux(s, iterm->data.map_get.map);
+      sexp_t* key_smt = translate_term_aux(s, iterm->data.map_get.key);
 
       return arr_select(map_smt, key_smt);
     }
@@ -1539,13 +1447,10 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       const char* fn_name = iterm->data.apply.function_name;
 
       // Append _func suffix to get SMT name
-      size_t len = strlen(fn_name) + 6;  // +5 for "_func" +1 for null
-      char* smt_fn_name = malloc(len);
-      assert(smt_fn_name);
-      sprintf(smt_fn_name, "%s_func", fn_name);
+      char buffer[256];
+      snprintf(buffer, sizeof(buffer), "%s_func", fn_name);
 
-      sexp_t* fn_atom = sexp_atom(smt_fn_name);
-      free(smt_fn_name);
+      sexp_t* fn_atom = sexp_atom(buffer);
 
       // Get argument count from vector
       bennet_vector(cn_term_ptr)* args_vec = &iterm->data.apply.args;
@@ -1554,13 +1459,13 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Allocate array for translated arguments
       sexp_t** args = NULL;
       if (arg_count > 0) {
-        args = malloc(sizeof(sexp_t*) * arg_count);
+        args = cn_test_malloc(sizeof(sexp_t*) * arg_count);
         assert(args);
 
         // Translate each argument term
         for (size_t i = 0; i < arg_count; i++) {
           cn_term* arg_term = *bennet_vector_get(cn_term_ptr)(args_vec, i);
-          args[i] = translate_term(s, arg_term);
+          args[i] = translate_term_aux(s, arg_term);
         }
       }
 
@@ -1569,7 +1474,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Cleanup
       if (args) {
-        free(args);
+        cn_test_free(args);
       }
 
       return result;
@@ -1590,7 +1495,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       assert(substituted_body);
 
       // Translate the substituted body
-      sexp_t* result = translate_term(s, substituted_body);
+      sexp_t* result = translate_term_aux(s, substituted_body);
 
       // Cleanup
       cn_free_subst_table(subst_table);
@@ -1602,7 +1507,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       // Pattern matching - translate to SMT-LIB match expression
 
       // Translate scrutinee
-      sexp_t* scrutinee_smt = translate_term(s, iterm->data.match_data.scrutinee);
+      sexp_t* scrutinee_smt = translate_term_aux(s, iterm->data.match_data.scrutinee);
       assert(scrutinee_smt);
 
       // Get cases vector
@@ -1615,11 +1520,11 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
       }
 
       // Allocate alternatives array
-      match_alt_t* alternatives = malloc(sizeof(match_alt_t) * case_count);
+      match_alt_t* alternatives = cn_test_malloc(sizeof(match_alt_t) * case_count);
       assert(alternatives);
 
       // Track allocated strings for cleanup
-      char*** var_names_arrays = malloc(sizeof(char**) * case_count);
+      const char*** var_names_arrays = cn_test_malloc(sizeof(const char**) * case_count);
       assert(var_names_arrays);
 
       // Build each alternative
@@ -1634,12 +1539,12 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           if (match_case->pattern_var_count == 1 &&
               match_case->pattern_vars[0].name != NULL) {
             // Single variable binding
-            char* var_name = fn_name(match_case->pattern_vars[0]);
+            const char* var_name = fn_name(match_case->pattern_vars[0]);
             assert(var_name);
             alternatives[i].pattern.data.var_name = var_name;
 
             // Track for cleanup (1 variable)
-            var_names_arrays[i] = malloc(sizeof(char*));
+            var_names_arrays[i] = cn_test_malloc(sizeof(const char*));
             var_names_arrays[i][0] = var_name;
           } else {
             // Wildcard pattern
@@ -1651,18 +1556,16 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
           alternatives[i].pattern.type = PAT_CON;
 
           // Add _con suffix to match datatype constructor naming convention
-          size_t tag_len = strlen(match_case->constructor_tag);
-          char* con_name = malloc(tag_len + 5);  // "_con" + null terminator
-          assert(con_name);
-          sprintf(con_name, "%s_con", match_case->constructor_tag);
-          alternatives[i].pattern.data.con.con_name = con_name;
+          char con_buffer[256];
+          snprintf(con_buffer, sizeof(con_buffer), "%s_con", match_case->constructor_tag);
+          alternatives[i].pattern.data.con.con_name = cn_intern_string(con_buffer);
 
           alternatives[i].pattern.data.con.var_count = match_case->pattern_var_count;
 
           // Convert pattern variables to name strings
           if (match_case->pattern_var_count > 0) {
             const char** var_names =
-                malloc(sizeof(const char*) * match_case->pattern_var_count);
+                cn_test_malloc(sizeof(const char*) * match_case->pattern_var_count);
             assert(var_names);
 
             for (size_t j = 0; j < match_case->pattern_var_count; j++) {
@@ -1677,7 +1580,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
             }
 
             alternatives[i].pattern.data.con.var_names = var_names;
-            var_names_arrays[i] = (char**)var_names;
+            var_names_arrays[i] = var_names;
           } else {
             // Constructor with no arguments
             alternatives[i].pattern.data.con.var_names = NULL;
@@ -1686,7 +1589,7 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
         }
 
         // Translate body term
-        alternatives[i].expr = translate_term(s, match_case->body_term);
+        alternatives[i].expr = translate_term_aux(s, match_case->body_term);
         assert(alternatives[i].expr);
       }
 
@@ -1698,30 +1601,20 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
 
       for (size_t i = 0; i < case_count; i++) {
         if (var_names_arrays[i] != NULL) {
-          cn_match_case* match_case = bennet_vector_get(cn_match_case)(cases_vec, i);
-
           if (alternatives[i].pattern.type == PAT_VAR) {
-            // Free single variable name (not wildcard)
-            free(var_names_arrays[i][0]);
-            free(var_names_arrays[i]);
+            // Variable names are interned, only free the array
+            cn_test_free((void*)var_names_arrays[i]);
           } else {
-            // PAT_CON - free constructor variable names and constructor name
-            for (size_t j = 0; j < match_case->pattern_var_count; j++) {
-              // Only free if it was allocated (not wildcard "_")
-              if (match_case->pattern_vars[j].name != NULL) {
-                free((char*)alternatives[i].pattern.data.con.var_names[j]);
-              }
-            }
-            free((char**)alternatives[i].pattern.data.con.var_names);
+            // PAT_CON - variable names are interned, only free the array
+            cn_test_free((void*)alternatives[i].pattern.data.con.var_names);
 
-            // Free the allocated constructor name (with _con suffix)
-            free((char*)alternatives[i].pattern.data.con.con_name);
+            // Constructor name is interned, no need to free
           }
         }
       }
 
-      free(var_names_arrays);
-      free(alternatives);
+      cn_test_free(var_names_arrays);
+      cn_test_free(alternatives);
 
       return result;
     }
@@ -1734,88 +1627,59 @@ sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
   }
 }
 
-///////////////////////////
-/* OCaml function conversions */
-///////////////////////////
+/** Public wrapper for translate_term_aux */
+sexp_t* translate_term(struct cn_smt_solver* s, cn_term* iterm) {
+  cn_arena* arena = cn_arena_create(0);
+  cn_arena_push_alloc(arena);
 
-// cn_arg_binder is now defined in the header file
+  sexp_t* result = translate_term_aux(s, iterm);
 
-// Simplified wrapper function (now cn_base_type has all the detail we need)
-static sexp_t* translate_cn_base_type(cn_base_type bt) {
-  return translate_base_type(bt);
+  cn_test_pop_alloc();
+  cn_arena_destroy(arena);
+
+  return result;
 }
-
-/* let declare_fun s name args_bts res_bt =
-  let sname = CN_Names.fn_name name in
-  let args_ts = List.map translate_base_type args_bts in
-  let res_t = translate_base_type res_bt in
-  ack_command s (SMT.declare_fun sname args_ts res_t) */
 
 void cn_declare_fun(struct cn_smt_solver* s,
     cn_sym name,
     cn_base_type* args_bts,
     size_t args_count,
     cn_base_type res_bt) {
-  char* sname = fn_name(name);
+  const char* sname = fn_name(name);
   if (!sname)
     return;
+
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
 
   // Translate argument base types
   sexp_t** args_ts = NULL;
   if (args_count > 0) {
-    args_ts = malloc(sizeof(sexp_t*) * args_count);
-    if (!args_ts) {
-      free(sname);
-      return;
-    }
+    args_ts = cn_test_malloc(sizeof(sexp_t*) * args_count);
+    assert(args_ts);
   }
 
   for (size_t i = 0; i < args_count; i++) {
-    args_ts[i] = translate_cn_base_type(args_bts[i]);
-
-    if (!args_ts[i]) {
-      // Cleanup on failure
-      for (size_t j = 0; j < i; j++) {
-      }
-      free(args_ts);
-      free(sname);
-      return;
-    }
+    args_ts[i] = translate_base_type(args_bts[i]);
+    assert(args_ts[i]);
   }
 
   // Translate result type
-  sexp_t* res_t = translate_cn_base_type(res_bt);
-
-  if (!res_t) {
-    for (size_t i = 0; i < args_count; i++) {
-    }
-    free(args_ts);
-    free(sname);
-    return;
-  }
+  sexp_t* res_t = translate_base_type(res_bt);
+  assert(res_t);
 
   // Create SMT declare_fun command
   sexp_t* decl_cmd = declare_fun(sname, args_ts, args_count, res_t);
-  if (decl_cmd) {
-    // Send command
-    ack_command(s, decl_cmd);
-  }
+  assert(decl_cmd);
+  ack_command(s, decl_cmd);
+
+  cn_bump_free_after(frame);
 
   // Cleanup
   for (size_t i = 0; i < args_count; i++) {
   }
-  free(args_ts);
-  free(sname);
+  cn_test_free(args_ts);
+  // sname is interned, no need to free
 }
-
-/* let define_fun s name arg_binders res_bt body =
-  let sname = CN_Names.fn_name name in
-  let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
-  let args = List.map mk_arg arg_binders in
-  let ret_t = translate_base_type res_bt in
-  ack_command s (SMT.define_fun sname args ret_t (translate_term s body)) */
-
-/* let declare_variable solver (sym, bt) = declare_fun solver sym [] bt */
 
 void cn_declare_variable(struct cn_smt_solver* solver, cn_sym sym, cn_base_type bt) {
   cn_declare_fun(solver, sym, NULL, 0, bt);

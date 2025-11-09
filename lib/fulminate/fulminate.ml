@@ -1,5 +1,6 @@
 module CF = Cerb_frontend
 module Cn_to_ail = Cn_to_ail
+module A = CF.AilSyntax
 module Extract = Extract
 module Globals = Globals
 module Internal = Internal
@@ -242,6 +243,210 @@ let memory_accesses_injections ail_prog =
   !acc
 
 
+(* Lifetime of compound literals can change if enclosed in a block via gen_single_stat_control_flow_injs, so need to check for any instances *)
+let contains_compound_literal s =
+  let rec aux_expr (A.AnnotatedExpression (_, _, _, e_)) =
+    match e_ with
+    | AilEcompound _ -> true
+    | AilEgcc_statement (_, ss) -> List.fold_left ( || ) false (List.map aux_stmt ss)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      false
+    | AilEsizeof_expr e
+    | AilErvalue e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      aux_expr e1 || aux_expr e2
+    | AilEcond (e1, Some e2, e3) -> aux_expr e1 || aux_expr e2 || aux_expr e3
+    | AilEcall (e, es) -> aux_expr e || List.fold_left ( || ) false (List.map aux_expr es)
+    | AilEgeneric (e, _, gas) ->
+      let bs =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      aux_expr e || List.fold_left ( || ) false bs
+    | AilEarray (_, _, xs) ->
+      let bs = List.map (function None -> false | Some e -> aux_expr e) xs in
+      List.fold_left ( || ) false bs
+    | AilEstruct (_, xs) ->
+      let bs = List.map (function _, None -> false | _, Some e -> aux_expr e) xs in
+      List.fold_left ( || ) false bs
+  and aux_stmt A.{ node = s_; _ } =
+    match s_ with
+    | A.(AilSdeclaration decls) ->
+      let bs =
+        List.map
+          (fun (_, e_opt) -> match e_opt with Some e -> aux_expr e | None -> false)
+          decls
+      in
+      List.fold_left ( || ) false bs
+    | AilSblock (_, ss) ->
+      let bs = List.map aux_stmt ss in
+      List.fold_left ( || ) false bs
+    | AilSif (e, s1, s2) -> aux_expr e || aux_stmt s1 || aux_stmt s2
+    | AilSwhile (e, s, _) | AilSdo (s, e, _) | AilSswitch (e, s) ->
+      aux_expr e || aux_stmt s
+    | AilScase (_, s) | AilScase_rangeGNU (_, _, s) | AilSdefault s | AilSlabel (_, s, _)
+      ->
+      aux_stmt s
+    | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
+    | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+    | AilSmarker _ ->
+      false
+  in
+  aux_stmt s
+
+
+let gen_single_stat_control_flow_injs statement =
+  let gen_curly_braces_inj loc =
+    [ (Utils.get_start_loc loc, [ "{" ]); (Utils.get_end_loc loc, [ "}" ]) ]
+  in
+  let is_valid_single_stat s =
+    let is_single_stat A.{ node = s_; _ } =
+      match s_ with
+      | A.(AilSexpr _)
+      | AilSreturn _ | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid
+        ->
+        true
+      | _ -> false
+    in
+    let b = is_single_stat s in
+    if b && contains_compound_literal s then
+      failwith
+        "Cannot enclose single statement with curly braces: compound literal found in \
+         statement"
+    else
+      b
+  in
+  let rec aux_expr (A.AnnotatedExpression (_, _, _, e_)) =
+    match e_ with
+    | AilEcompound _ -> []
+    | AilEgcc_statement (_, ss) -> List.concat (List.map aux_stmt ss)
+    | AilEunion (_, _, None)
+    | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+      []
+    | AilEsizeof_expr e
+    | AilErvalue e
+    | AilEunary (_, e)
+    | AilEcast (_, _, e)
+    | AilEassert e
+    | AilEunion (_, _, Some e)
+    | AilEmemberof (e, _)
+    | AilEmemberofptr (e, _)
+    | AilEannot (_, e)
+    | AilEva_start (e, _)
+    | AilEva_arg (e, _)
+    | AilEva_end e
+    | AilEprint_type e
+    | AilEbmc_assume e
+    | AilEarray_decay e
+    | AilEfunction_decay e
+    | AilEatomic e ->
+      aux_expr e
+    | AilEbinary (e1, _, e2)
+    | AilEcond (e1, None, e2)
+    | AilEva_copy (e1, e2)
+    | AilEassign (e1, e2)
+    | AilEcompoundAssign (e1, _, e2) ->
+      aux_expr e1 @ aux_expr e2
+    | AilEcond (e1, Some e2, e3) -> aux_expr e1 @ aux_expr e2 @ aux_expr e3
+    | AilEcall (e, es) -> aux_expr e @ List.concat (List.map aux_expr es)
+    | AilEgeneric (e, _, gas) ->
+      let injs =
+        List.map (function A.AilGAtype (_, _, e) | AilGAdefault e -> aux_expr e) gas
+      in
+      aux_expr e @ List.concat injs
+    | AilEarray (_, _, xs) ->
+      let injs = List.map (function None -> [] | Some e -> aux_expr e) xs in
+      List.concat injs
+    | AilEstruct (_, xs) ->
+      let injs = List.map (function _, None -> [] | _, Some e -> aux_expr e) xs in
+      List.concat injs
+  and aux_stmt (A.{ node = s_; _ } as stmt) =
+    let is_forloop_body A.{ desug_info; _ } = desug_info.is_forloop_body in
+    (if is_forloop_body stmt then
+       fun z -> gen_curly_braces_inj stmt.loc @ z
+     else
+       Fun.id)
+      (match s_ with
+       | A.AilSblock (_, ss) -> List.concat (List.map aux_stmt ss)
+       | AilSif (e, (A.{ loc = loc1; _ } as s1), (A.{ loc = loc2; _ } as s2)) ->
+         let inj_e = aux_expr e in
+         let inj_true =
+           if is_valid_single_stat s1 then
+             gen_curly_braces_inj loc1 @ aux_stmt s1
+           else
+             aux_stmt s1
+         in
+         let inj_false =
+           if is_valid_single_stat s2 then
+             gen_curly_braces_inj loc2 @ aux_stmt s2
+           else
+             aux_stmt s2
+         in
+         inj_e @ inj_true @ inj_false
+       | AilSwhile (e, (A.{ loc; _ } as s), _)
+       | AilSdo ((A.{ loc; _ } as s), e, _)
+       | AilSswitch (e, (A.{ loc; _ } as s)) ->
+         let inj_e = aux_expr e in
+         let inj_s =
+           if is_valid_single_stat s then
+             gen_curly_braces_inj loc @ aux_stmt s
+           else
+             aux_stmt s
+         in
+         inj_e @ inj_s
+       | AilScase (_, (A.{ loc; _ } as s)) | AilScase_rangeGNU (_, _, (A.{ loc; _ } as s))
+         ->
+         if is_valid_single_stat s then
+           gen_curly_braces_inj loc @ aux_stmt s
+         else
+           aux_stmt s
+       | AilSdeclaration xs ->
+         let injs =
+           List.map
+             (fun (_, e_opt) -> match e_opt with None -> [] | Some e -> aux_expr e)
+             xs
+         in
+         List.concat injs
+       | AilSlabel (_, s, _) | AilSdefault s -> aux_stmt s
+       | AilSreturn e | AilSexpr e | AilSreg_store (_, e) -> aux_expr e
+       | AilSgoto _ | AilScontinue | AilSbreak | AilSskip | AilSreturnVoid | AilSpar _
+       | AilSmarker _ ->
+         [])
+  in
+  aux_stmt statement
+
+
+let _get_c_control_flow_extra_curly_braces
+      (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
+  =
+  sigm.function_definitions
+  |> List.map (fun (_, (_, _, _, _, fn_body)) ->
+    gen_single_stat_control_flow_injs fn_body)
+  |> List.concat
+
+
 let filter_selected_fns
       (is_sym_selected : Sym.t -> bool)
       ( (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma),
@@ -300,25 +505,8 @@ let get_instrumented_filename filename =
 
 let get_filename_with_prefix output_dir filename = Filename.concat output_dir filename
 
-let main
-      ~without_ownership_checking
-      ~without_loop_invariants
-      ~with_loop_leak_checks
-      ~without_lemma_checks
-      ~exec_c_locs_mode
-      ~experimental_ownership_stack_mode
-      ~with_testing
-      ~skip_and_only
-      filename
-      cc
-      in_filename (* WARNING: this file will be deleted after this function *)
-      out_filename
-      output_dir
-      cabs_tunit
-      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
-       ail_prog)
-      prog5
-  =
+(* TODO: fix + add CLI flag *)
+let _gen_compile_commands_json cc output_dir out_filename =
   let compile_commands_json_oc =
     Stdlib.open_out (get_filename_with_prefix output_dir "compile_commands.json")
   in
@@ -342,8 +530,33 @@ let main
     ]
   in
   output_to_oc compile_commands_json_oc compile_commands_json_str;
-  close_out compile_commands_json_oc;
+  close_out compile_commands_json_oc
+
+
+let main
+      ~without_ownership_checking
+      ~without_loop_invariants
+      ~with_loop_leak_checks
+      ~without_lemma_checks
+      ~exec_c_locs_mode
+      ~experimental_ownership_stack_mode
+      ~with_testing
+      ~skip_and_only
+      ?max_bump_blocks
+      ?bump_block_size
+      filename
+      _cc
+      in_filename (* WARNING: this file will be deleted after this function *)
+      out_filename
+      output_dir
+      cabs_tunit
+      ((startup_sym_opt, (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)) as
+       ail_prog)
+      prog5
+  =
   let out_filename = get_filename_with_prefix output_dir out_filename in
+  (* disabled until fixed *)
+  (* _gen_compile_commands_json cc output_dir out_filename; *)
   let (full_instrumentation : Extract.instrumentation list), _ =
     Extract.collect_instrumentation cabs_tunit prog5
   in
@@ -367,21 +580,22 @@ let main
       without_lemma_checks
       filename
       filtered_instrumentation
+      cabs_tunit
       sigm
       prog5
   in
   let c_datatype_defs = generate_c_datatypes sigm in
   let c_function_defs, c_function_decls, _c_function_locs =
-    generate_c_functions filename prog5 sigm
+    generate_c_functions filename cabs_tunit prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename prog5 sigm
+    generate_c_predicates filename cabs_tunit prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
       ("", "")
     else
-      generate_c_lemmas filename sigm prog5
+      generate_c_lemmas filename cabs_tunit sigm prog5
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigm
@@ -394,7 +608,9 @@ let main
   let cn_converted_struct_defs = generate_cn_versions_of_structs ordered_ail_tag_defs in
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
-  let fn_call_ghost_args_injs = generate_fn_call_ghost_args_injs filename sigm prog5 in
+  let fn_call_ghost_args_injs =
+    generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
+  in
   let cn_ghost_enum = generate_ghost_enum prog5 in
   let cn_ghost_call_site_glob = generate_ghost_call_site_glob () in
   (* Forward declarations and CN types *)
@@ -416,7 +632,8 @@ let main
           (* TODO need to inject definitions for all the __cerbvars in cerberus
              builtins.lem. Hoisting/lowering doesn't affect needing to do this *)
           "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
-          "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n"
+          "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n";
+          "static const unsigned long long __cerbvar_SIZE_MAX = ~(0ULL);\n"
         ];
         [ c_tag_defs ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
@@ -470,12 +687,59 @@ let main
   (* Use order of tag definitions from source when injecting on them directly - no call to Internal.order_ail_tag_definitions *)
   let tag_def_injs = generate_tag_definition_injs sigm.tag_definitions in
   let give_precedence_map n = List.map (fun x -> (n, x)) in
+  (* workaround for https://github.com/rems-project/cn/issues/392
+  HK: This workaround is not so clean, which should be fixed later.
+  This is for handling the case where multiple insertions take place at the same location.
+  Previously, it was handled by using fixed "precedences", which is incorrect as pointed out in the above issue.
+  To address this issue, we assign precedences based on the position of the corresponding closing parenthesis for each "CN_LOAD(" or such.
+
+  **This function is designed specifically for memory access injections and ghost arg injections, so adding a different kind of injections may require modification.**
+  *)
+  let give_parenthesis_aware_precedence_map l =
+    let rec look_for_closing_parenthesis par acc = function
+      | [] -> assert false
+      | (p, [ s ]) :: xs when Char.equal (String.get s (String.length s - 1)) par ->
+        (acc, xs, p, s)
+      | x :: xs -> look_for_closing_parenthesis par (x :: acc) xs
+    in
+    let rec aux acc = function
+      | [] -> acc
+      | (p, strs) :: xs ->
+        let par, static_prec =
+          if List.equal String.equal strs [ "{" ] then ('}', 1) else (')', 0)
+        in
+        let injs, xs, p', closing_expr = look_for_closing_parenthesis par [] xs in
+        let pos_x, pos_y =
+          match Cerb_location.to_cartesian_user p' with
+          | Some (start_pos, _) -> start_pos
+          | _ -> failwith "error"
+        in
+        let open Source_injection in
+        (*  ')': 1, '(': 2, '{': 3 *)
+        let a =
+          if static_prec = 1 then
+            (Normal (-1), (p, strs))
+          else
+            (Cartesian (true, pos_x, pos_y), (p, strs))
+        in
+        let cs = give_precedence_map (Normal 0) injs in
+        let b = (Cartesian (false, pos_x, pos_y), (p', [ closing_expr ])) in
+        let cs' = a :: b :: cs in
+        aux (cs' @ acc) xs
+    in
+    aux [] l
+  in
+  (* let control_flow_curly_brace_injs =
+    get_c_control_flow_extra_curly_braces filtered_sigm
+  in *)
+  let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
-    give_precedence_map 0 executable_spec.in_stmt
-    @ give_precedence_map 1 accesses_stmt_injs
-    @ give_precedence_map 0 toplevel_injections
-    @ give_precedence_map 0 tag_def_injs
-    @ give_precedence_map 0 fn_call_ghost_args_injs
+    (* give_parenthesis_aware_precedence_map control_flow_curly_brace_injs @ *)
+    give_precedence_map bot executable_spec.in_stmt
+    @ give_parenthesis_aware_precedence_map accesses_stmt_injs
+    @ give_precedence_map bot toplevel_injections
+    @ give_precedence_map bot tag_def_injs
+    @ give_parenthesis_aware_precedence_map fn_call_ghost_args_injs
   in
   let pre_post_pairs =
     if with_testing || without_ownership_checking then
@@ -487,6 +751,9 @@ let main
         generate_global_assignments
           ~exec_c_locs_mode
           ~experimental_ownership_stack_mode
+          ?max_bump_blocks
+          ?bump_block_size
+          cabs_tunit
           sigm
           prog5
       in
@@ -507,7 +774,7 @@ let main
   output_string
     oc
     ("void* memcpy(void* dest, const void* src, __cerbty_size_t count );\n"
-     ^ Globals.accessors_prototypes filename prog5);
+     ^ Globals.accessors_prototypes filename cabs_tunit prog5);
   (match
      Source_injection.(
        output_injections
@@ -527,7 +794,7 @@ let main
    | Error str ->
      (* TODO(Christopher/Rini): maybe lift this error to the exception monad? *)
      prerr_endline str);
-  output_to_oc oc [ Globals.accessors_str filename prog5 ];
+  output_to_oc oc [ Globals.accessors_str filename cabs_tunit prog5 ];
   output_to_oc oc cn_defs_list;
   close_out oc;
   Stdlib.Sys.remove in_filename

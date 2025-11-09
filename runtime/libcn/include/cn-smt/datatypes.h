@@ -139,4 +139,9 @@ void cn_register_datatype_destructor(
  */
 cn_datatype_destructor_fn cn_get_datatype_destructor(const char* datatype_name);
 
+/**
+ * @brief Reset the datatype registry.
+ */
+void cn_smt_datatype_registry_reset(void);
+
 #endif  // CN_SMT_DATATYPES_H

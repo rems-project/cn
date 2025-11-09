@@ -33,14 +33,15 @@ uint64_t sym_num(cn_sym sym);
 const char* id_get_string(int id);
 
 // Name generation functions
-char* fn_name(cn_sym x);
+const char* fn_name(cn_sym x);
+const char* fn_def_name(cn_sym x);
 const char* named_expr_name(void);
-char* cn_smt_struct_name(const char* name);
-char* struct_con_name(const char* x);
-char* struct_field_name(const char* member_name);
-char* datatype_name(cn_sym x);
-char* datatype_con_name(cn_sym x);
-char* datatype_field_name(int x);
+const char* cn_smt_struct_name(const char* name);
+const char* struct_con_name(const char* x);
+const char* struct_field_name(const char* member_name);
+const char* datatype_name(cn_sym x);
+const char* datatype_con_name(cn_sym x);
+const char* datatype_field_name(int x);
 char* fresh_name(const char* x);
 
 // ================================
@@ -52,8 +53,8 @@ extern const int CN_TUPLE_MAX_ARITY;
 
 // Tuple type and constructor functions
 sexp_t* cn_tuple_type_name(sexp_t** types, size_t type_count);
-char* cn_tuple_constructor_name(int arity);
-char* cn_tuple_get_selector_name(int arity, int field);
+const char* cn_tuple_constructor_name(int arity);
+const char* cn_tuple_get_selector_name(int arity, int field);
 
 // ================================
 // CN Option module functionality

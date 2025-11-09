@@ -102,6 +102,8 @@ let generate_executable_specs
       experimental_unions
       mktemp
       print_steps
+      max_bump_blocks
+      bump_block_size
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -168,6 +170,8 @@ let generate_executable_specs
                 ~experimental_ownership_stack_mode
                 ~with_testing
                 ~skip_and_only:(skip, only)
+                ?max_bump_blocks
+                ?bump_block_size
                 filename
                 cc
                 pp_file
@@ -192,6 +196,42 @@ let generate_executable_specs
 
 
 open Cmdliner
+
+(* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
+let parse_size_value s =
+  let len = String.length s in
+  if len = 0 then
+    Error (`Msg "Size value cannot be empty")
+  else (
+    let last_char = String.get s (len - 1) in
+    let value_str, multiplier =
+      match last_char with
+      | 'k' | 'K' -> (String.sub s 0 (len - 1), 1024)
+      | 'm' | 'M' -> (String.sub s 0 (len - 1), 1024 * 1024)
+      | 'g' | 'G' -> (String.sub s 0 (len - 1), 1024 * 1024 * 1024)
+      | '0' .. '9' -> (s, 1)
+      | _ -> ("", 0)
+      (* Invalid suffix *)
+    in
+    if multiplier = 0 then
+      Error
+        (`Msg
+            (Printf.sprintf
+               "Invalid size suffix in '%s'. Use k/K, m/M, g/G, or no suffix."
+               s))
+    else (
+      match int_of_string_opt value_str with
+      | Some n when n > 0 ->
+        (* Check for overflow *)
+        if n > max_int / multiplier then
+          Error (`Msg (Printf.sprintf "Size value '%s' is too large" s))
+        else
+          Ok (n * multiplier)
+      | Some _ -> Error (`Msg (Printf.sprintf "Size value must be positive: '%s'" s))
+      | None -> Error (`Msg (Printf.sprintf "Invalid size value: '%s'" s))))
+
+
+let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
 module Flags = struct
   let output_dir =
@@ -298,6 +338,20 @@ module Flags = struct
   let experimental_unions =
     let doc = "(experimental) Handle unions from source" in
     Arg.(value & flag & info [ "experimental-unions" ] ~doc)
+
+
+  let max_bump_blocks =
+    let doc = "Maximum number of bump allocator blocks (default: 256)" in
+    Arg.(value & opt (some int) None & info [ "max-bump-blocks" ] ~doc)
+
+
+  let bump_block_size =
+    let doc =
+      "Size of each bump allocator block in bytes (default: 8388608 = 8m). Supports \
+       suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 8m, \
+       8192k, 8388608"
+    in
+    Arg.(value & opt (some size_converter) None & info [ "bump-block-size" ] ~doc)
 end
 
 let cmd =
@@ -341,6 +395,8 @@ let cmd =
     $ Flags.experimental_unions
     $ Flags.mktemp
     $ Flags.print_steps
+    $ Flags.max_bump_blocks
+    $ Flags.bump_block_size
   in
   let doc =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \

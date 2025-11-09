@@ -5,6 +5,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <cn-smt/eval.h>
+#include <cn-smt/memory/test_alloc.h>
 #include <cn-smt/solver.h>
 #include <cn-smt/structs.h>
 
@@ -45,7 +46,7 @@ void cn_register_struct(const char* struct_name, const cn_struct_data* struct_da
   init_struct_data();
 
   // Allocate struct data on heap to get stable pointer and copy the input data
-  cn_struct_data* data = malloc(sizeof(cn_struct_data));
+  cn_struct_data* data = cn_test_malloc(sizeof(cn_struct_data));
   *data = *struct_data;  // Copy all function pointers
 
   // Initialize and copy the members vector (deep copy)
@@ -126,4 +127,9 @@ bool cn_struct_type_exists(const char* struct_name) {
   init_struct_data();
   return bennet_hash_table_contains(const_char_ptr, void_ptr)(
       &g_struct_data, struct_name);
+}
+
+// Reset the struct registry
+void cn_smt_struct_registry_reset(void) {
+  bennet_hash_table_free(const_char_ptr, void_ptr)(&g_struct_data);
 }

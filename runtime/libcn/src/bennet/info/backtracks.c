@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -95,6 +96,7 @@ void bennet_info_backtracks_begin_run(void) {
       // Create new empty counter for this function
       bennet_info_backtrack_generators_counter* gen_counter =
           malloc(sizeof(bennet_info_backtrack_generators_counter));
+      assert(gen_counter);
       bennet_hash_table_init(const_str, uint64_t)(gen_counter, string_hash, string_equal);
       bennet_hash_table_set(const_str, pointer)(
           &function_to_generators, current_function, gen_counter);
@@ -150,6 +152,7 @@ void bennet_info_backtracks_end_run(bool record) {
           // Create new empty counter for this generator
           bennet_info_backtrack_locations_counter* loc_counter =
               malloc(sizeof(bennet_info_backtrack_locations_counter));
+          assert(loc_counter);
           bennet_hash_table_init(location_key_t, uint64_t)(
               loc_counter, location_hash, location_equal);
           bennet_hash_table_set(const_str, pointer)(
@@ -179,6 +182,7 @@ void bennet_info_backtracks_end_run(bool record) {
       if (bennet_optional_is_none(gen_counter_opt)) {
         // Create new counter for this function
         gen_counter = malloc(sizeof(bennet_info_backtrack_generators_counter));
+        assert(gen_counter);
         bennet_hash_table_init(const_str, uint64_t)(
             gen_counter, string_hash, string_equal);
         bennet_hash_table_set(const_str, pointer)(
@@ -223,6 +227,7 @@ void bennet_info_backtracks_end_run(bool record) {
       if (bennet_optional_is_none(loc_counter_opt)) {
         // Create new counter for this generator
         loc_counter = malloc(sizeof(bennet_info_backtrack_locations_counter));
+        assert(loc_counter);
         bennet_hash_table_init(location_key_t, uint64_t)(
             loc_counter, location_hash, location_equal);
         bennet_hash_table_set(const_str, pointer)(
@@ -275,6 +280,7 @@ void bennet_info_backtracks_log(
   if (bennet_optional_is_none(gen_counter_opt)) {
     // Create new counter for this function
     gen_counter = malloc(sizeof(bennet_info_backtrack_generators_counter));
+    assert(gen_counter);
     bennet_hash_table_init(const_str, uint64_t)(gen_counter, string_hash, string_equal);
     bennet_hash_table_set(const_str, pointer)(
         &function_to_generators_tmp, current_function, gen_counter);
@@ -298,6 +304,7 @@ void bennet_info_backtracks_log(
   if (bennet_optional_is_none(loc_counter_opt)) {
     // Create new counter for this generator
     loc_counter = malloc(sizeof(bennet_info_backtrack_locations_counter));
+    assert(loc_counter);
     bennet_hash_table_init(location_key_t, uint64_t)(
         loc_counter, location_hash, location_equal);
     bennet_hash_table_set(const_str, pointer)(
@@ -391,6 +398,7 @@ void bennet_info_backtracks_print_backtrack_info(void) {
 
     // Collect generator counts for sorting
     gen_count_entry_t* gen_entries = malloc(gen_count * sizeof(gen_count_entry_t));
+    assert(gen_entries);
     size_t idx = 0;
     for (size_t j = 0; j < gen_counter->capacity; ++j) {
       if (gen_counter->entries[j].occupied) {
@@ -453,6 +461,7 @@ void bennet_info_backtracks_print_backtrack_info(void) {
 
     // Collect location counts for sorting
     loc_count_entry_t* loc_entries = malloc(loc_count * sizeof(loc_count_entry_t));
+    assert(loc_entries);
     size_t idx = 0;
     for (size_t j = 0; j < loc_counter->capacity; ++j) {
       if (loc_counter->entries[j].occupied) {

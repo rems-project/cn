@@ -45,8 +45,28 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
    let c_declare_init_and_map_local_sym = Sym.fresh "c_declare_init_and_map_local"
 *)
 
-let get_ownership_global_init_stats ?(ghost_array_size = 100) () =
+let get_ownership_global_init_stats
+      ?(ghost_array_size = 100)
+      ?max_bump_blocks
+      ?bump_block_size
+      ()
+  =
   (* When no maximum number ghost arguments is supplied, default to 100 *)
+  let bump_config_calls =
+    let make_bump_config_call fn_name n =
+      mk_expr
+        A.(
+          AilEcall
+            ( mk_expr (AilEident (Sym.fresh fn_name)),
+              [ mk_expr
+                  (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None))))
+              ] ))
+    in
+    [ Option.map (make_bump_config_call "cn_bump_set_max_blocks") max_bump_blocks;
+      Option.map (make_bump_config_call "cn_bump_set_block_size") bump_block_size
+    ]
+    |> List.filter_map Fun.id
+  in
   let cn_ghost_state_init_fcall =
     mk_expr
       A.(
@@ -68,10 +88,11 @@ let get_ownership_global_init_stats ?(ghost_array_size = 100) () =
   in
   List.map
     (fun e -> A.(AilSexpr e))
-    [ cn_ghost_state_init_fcall;
-      cn_ghost_stack_depth_init_fcall;
-      cn_ghost_arg_array_alloc_fcall
-    ]
+    (bump_config_calls
+     @ [ cn_ghost_state_init_fcall;
+         cn_ghost_stack_depth_init_fcall;
+         cn_ghost_arg_array_alloc_fcall
+       ])
 
 
 let generate_c_local_cn_addr_var sym =
@@ -307,8 +328,8 @@ let rec get_c_control_flow_ownership_injs_aux
       bindings
       s
   | AilSgoto _ ->
-    (match desug_info with
-     | Desug_continue ->
+    (match desug_info.desug_case with
+     | Some Desug_continue ->
        let loc_before_continue = get_start_loc loc in
        [ { loc = loc_before_continue;
            bs_and_ss = ([], List.map generate_c_local_ownership_exit continue_vars);
@@ -395,48 +416,73 @@ let get_c_block_entry_exit_injs_aux bindings s =
     let stat_injs = List.map (fun s -> f_stmt_injs bs s) ss in
     concat_block_local_injs [ concat_block_local_injs stat_injs; exit_injs' ]
   in
-  let rec aux_expr (A.AnnotatedExpression (gtc, _, loc, e_)) =
+  let rec aux_expr (A.AnnotatedExpression (gtc, _, _, e_)) =
     match e_ with
     | AilEgcc_statement (bs, ss) ->
       (* implicit check that ss is non-empty *)
       (match List.last ss with
        | Some A.{ loc = loc'; desug_info = _; attrs = _; node = _ } ->
          let injs = concat_block_local_injs (List.map (aux_stmt bs) ss) in
-         let gcc_cn_ret_sym =
-           Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
-         in
-         let gcc_cn_ret_str =
-           Pp.plain CF.Pp_ail.(with_executable_spec pp_genTypeCategory gtc)
-           ^ " "
-           ^ Sym.pp_string gcc_cn_ret_sym
-           ^ " = "
-         in
-         let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
          let exit_injs =
            ret_standard_injs
              (List.map
                 (fun (b_sym, ((_, _, _), _, _, b_ctype)) ->
-                   ( get_end_loc ~offset:(-2) loc,
+                   ( get_end_loc loc',
                      [],
                      [ generate_c_local_ownership_exit (b_sym, b_ctype) ] ))
                 bs)
          in
-         let ret_inj_2 =
-           ret_standard_injs
-             [ ( get_end_loc ~offset:(-2) loc,
-                 [],
-                 [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
-             ]
+         let ret_injs =
+           match gtc with
+           | CF.GenTypes.GenLValueType (_, C.Ctype (_, C.Void), _) | GenRValueType GenVoid
+             ->
+             empty_block_local_injs
+           | _ ->
+             let gcc_cn_ret_sym =
+               Sym.fresh ("__cn_gcc_" ^ Pp.plain (Sym.pp (Sym.fresh_anon ())))
+             in
+             let qs, ctype =
+               (* Based on CF.Translation_aux.qualified_ctype_of *)
+               match
+                 CF.ErrorMonad.runErrorMonad
+                   (CF.GenTypesAux.interpret_genTypeCategory
+                      Cerb_location.unknown
+                      (CF.Implementation.integerImpl ())
+                      gtc)
+               with
+               | Right (CF.GenTypes.LValueType (qs, ty, _)) -> (qs, ty)
+               | Right (CF.GenTypes.RValueType ty) -> (CF.Ctype.no_qualifiers, ty)
+               | Left
+                   ( _,
+                     CF.TypingError.TError_MiscError
+                       (CF.TypingError.UntypableIntegerConstant _) ) ->
+                 failwith "untypeable integer constant"
+               | _ -> failwith "impossible case"
+             in
+             let gcc_cn_ret_str =
+               Pp.plain CF.Pp_ail.(with_executable_spec (pp_ctype qs) ctype)
+               ^ " "
+               ^ Sym.pp_string gcc_cn_ret_sym
+               ^ " = "
+             in
+             let ret_inj_1 = ret_gcc_injs [ (get_start_loc loc', [ gcc_cn_ret_str ]) ] in
+             let ret_inj_2 =
+               ret_standard_injs
+                 [ ( get_end_loc loc',
+                     [],
+                     [ A.(AilSexpr (mk_expr (AilEident gcc_cn_ret_sym))) ] )
+                 ]
+             in
+             concat_block_local_injs [ ret_inj_1; ret_inj_2 ]
          in
-         concat_block_local_injs [ ret_inj_1; injs; exit_injs; ret_inj_2 ]
+         concat_block_local_injs [ injs; exit_injs; ret_injs ]
        | None -> empty_block_local_injs)
     | AilEunion (_, _, None)
     | AilEoffsetof _ | AilEbuiltin _ | AilEstr _ | AilEconst _ | AilEident _
-    | AilEsizeof _ | AilEsizeof_expr _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
+    | AilEsizeof _ | AilEalignof _ | AilEreg_load _ | AilEinvalid _ ->
       empty_block_local_injs
-    | AilErvalue e ->
-      Printf.printf "AilErvalue\n";
-      aux_expr e
+    | AilEsizeof_expr e
+    | AilErvalue e
     | AilEunary (_, e)
     | AilEcast (_, _, e)
     | AilEassert e
@@ -486,7 +532,9 @@ let get_c_block_entry_exit_injs_aux bindings s =
            (function _, None -> empty_block_local_injs | _, Some e -> aux_expr e)
            xs)
   and aux_stmt bindings A.{ loc; desug_info; node = s_; _ } : block_local_injs =
-    let is_forloop = match desug_info with Desug_forloop -> true | _ -> false in
+    let is_forloop =
+      match desug_info.desug_case with Some Desug_forloop -> true | _ -> false
+    in
     match s_ with
     | A.(AilSdeclaration decls) ->
       let injs = generate_c_local_ownership_entry_inj ~is_forloop loc decls bindings in
@@ -556,55 +604,47 @@ let rec remove_duplicates ds = function
       l :: remove_duplicates (l :: ds) ls
 
 
-let get_c_block_local_ownership_checking_injs
-      A.({ loc = _; desug_info = _; attrs = _; node = fn_block } as statement)
-  =
-  match fn_block with
-  | A.(AilSblock _) ->
-    let injs, gcc_injs = get_c_block_entry_exit_injs statement in
-    let injs' = get_c_control_flow_ownership_injs statement in
-    let injs = injs @ injs' in
-    let locs = List.map (fun o_inj -> o_inj.loc) injs in
-    let locs = remove_duplicates [] locs in
-    let rec combine_injs_over_location loc = function
-      | [] -> []
-      | inj :: injs' ->
-        if
-          String.equal
-            (Cerb_location.location_to_string loc)
-            (Cerb_location.location_to_string inj.loc)
-        then (
-          let bs, ss = inj.bs_and_ss in
-          (bs, ss, inj.injection_kind) :: combine_injs_over_location loc injs')
-        else
-          combine_injs_over_location loc injs'
-    in
-    (* If any of the individual injections to be combined is a return injection, the entire combined injection becomes a return injection *)
-    let rec get_return_inj_kind = function
-      | [] -> NonReturnInj
-      | ReturnInj r :: _ -> ReturnInj r
-      | NonReturnInj :: xs -> get_return_inj_kind xs
-    in
-    (* Injections at the same location need to be grouped together *)
-    let combined_injs =
-      List.map
-        (fun l ->
-           let injs' = combine_injs_over_location l injs in
-           let bs_list, ss_list, inj_kind_list = Utils.list_split_three injs' in
-           let inj_kind = get_return_inj_kind inj_kind_list in
-           { loc = l;
-             bs_and_ss = (List.concat bs_list, List.concat ss_list);
-             injection_kind = inj_kind
-           })
-        locs
-    in
-    (combined_injs, gcc_injs)
-  | _ ->
-    Printf.printf "Ownership: function body is not a block";
-    ([], [])
+let get_c_block_local_ownership_checking_injs statement =
+  let injs, gcc_injs = get_c_block_entry_exit_injs statement in
+  let injs' = get_c_control_flow_ownership_injs statement in
+  let injs = injs @ injs' in
+  let locs = List.map (fun o_inj -> o_inj.loc) injs in
+  let locs = remove_duplicates [] locs in
+  let rec combine_injs_over_location loc = function
+    | [] -> []
+    | inj :: injs' ->
+      if
+        String.equal
+          (Cerb_location.location_to_string loc)
+          (Cerb_location.location_to_string inj.loc)
+      then (
+        let bs, ss = inj.bs_and_ss in
+        (bs, ss, inj.injection_kind) :: combine_injs_over_location loc injs')
+      else
+        combine_injs_over_location loc injs'
+  in
+  (* If any of the individual injections to be combined is a return injection, the entire combined injection becomes a return injection *)
+  let rec get_return_inj_kind = function
+    | [] -> NonReturnInj
+    | ReturnInj r :: _ -> ReturnInj r
+    | NonReturnInj :: xs -> get_return_inj_kind xs
+  in
+  (* Injections at the same location need to be grouped together *)
+  let combined_injs =
+    List.map
+      (fun l ->
+         let injs' = combine_injs_over_location l injs in
+         let bs_list, ss_list, inj_kind_list = Utils.list_split_three injs' in
+         let inj_kind = get_return_inj_kind inj_kind_list in
+         { loc = l;
+           bs_and_ss = (List.concat bs_list, List.concat ss_list);
+           injection_kind = inj_kind
+         })
+      locs
+  in
+  (combined_injs, gcc_injs)
 
 
-(* Ghost state *)
 let get_c_fn_local_ownership_checking_injs
       sym
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -618,6 +658,8 @@ let get_c_fn_local_ownership_checking_injs
     let param_types = List.map (fun (_, ctype, _) -> ctype) param_types in
     let params = List.combine param_syms param_types in
     let ownership_stats_pair = get_c_local_ownership_checking params in
-    let block_ownership_injs = get_c_block_local_ownership_checking_injs fn_body in
-    (Some ownership_stats_pair, block_ownership_injs)
+    let block_standard_injs, block_gcc_injs =
+      get_c_block_local_ownership_checking_injs fn_body
+    in
+    (Some ownership_stats_pair, (block_standard_injs, block_gcc_injs))
   | _, _ -> (None, ([], []))

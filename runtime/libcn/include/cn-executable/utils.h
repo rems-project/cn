@@ -581,7 +581,7 @@ void c_ownership_check(
 /* Ghost arguments */
 void alloc_ghost_array(int ghost_array_size);
 void add_to_ghost_array(int i, void* ptr_to_ghost_arg);
-void clear_ghost_array(int ghost_array_size);
+void free_ghost_array();
 void* load_from_ghost_array(int i);
 void cn_ghost_arg_failure(void);
 

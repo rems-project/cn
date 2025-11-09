@@ -2,8 +2,18 @@
 
 #include <cn-executable/utils.h>
 #include <cn-smt/eval.h>
+#include <cn-smt/memory/std_alloc.h>
 
-class CnSmtEvalTest : public ::testing::Test {};
+class CnSmtEvalTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    std_set_default_alloc();
+  }
+
+  void TearDown() override {
+    std_free_all();
+  }
+};
 
 TEST_F(CnSmtEvalTest, EvalIntegerConstant) {
   cn_term* term = cn_smt_z(42);

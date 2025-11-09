@@ -86,4 +86,7 @@ cn_struct_data* cn_get_struct_data(const char* struct_name);
 // Check if struct type is registered
 bool cn_struct_type_exists(const char* struct_name);
 
+// Reset the struct registry
+void cn_smt_struct_registry_reset(void);
+
 #endif  // CN_SMT_STRUCTS_H

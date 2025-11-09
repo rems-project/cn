@@ -34,6 +34,10 @@ void cn_bump_free(void*);
 
 void cn_bump_print();
 
+void cn_bump_set_max_blocks(size_t max);
+
+void cn_bump_set_block_size(size_t size);
+
 #ifdef __cplusplus
 }
 #endif

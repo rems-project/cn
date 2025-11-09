@@ -12,6 +12,7 @@
 #include <bennet/utils/optional.h>
 #include <bennet/utils/vector.h>
 #include <cn-executable/bump_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -239,20 +240,14 @@ static inline cn_base_type cn_base_type_tuple(cn_base_type* types, size_t count)
 static inline cn_base_type cn_base_type_struct(const char* struct_tag) {
   cn_base_type bt;
   bt.tag = CN_BASE_STRUCT;
-  char* tag_copy = (char*)cn_bump_malloc(strlen(struct_tag) + 1);
-  assert(tag_copy);
-  strcpy(tag_copy, struct_tag);
-  bt.data.struct_tag.tag = tag_copy;
+  bt.data.struct_tag.tag = struct_tag;
   return bt;
 }
 
 static inline cn_base_type cn_base_type_datatype(const char* datatype_tag) {
   cn_base_type bt;
   bt.tag = CN_BASE_DATATYPE;
-  char* tag_copy = (char*)cn_bump_malloc(strlen(datatype_tag) + 1);
-  assert(tag_copy);
-  strcpy(tag_copy, datatype_tag);
-  bt.data.datatype_tag.tag = tag_copy;
+  bt.data.datatype_tag.tag = datatype_tag;
   return bt;
 }
 

@@ -1,5 +1,9 @@
 open Cerb_frontend
 
+val getter_str : string -> Sym.t -> string
+
+val setter_str : string -> Sym.t -> string
+
 val ownership_ctypes : Ctype.ctype list ref
 
 type spec_mode =
@@ -50,19 +54,25 @@ val wrap_with_convert_from_cn_bool
 type ail_bindings_and_statements =
   AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
 
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit : ail_bindings_and_statements
+  }
+
 type ail_executable_spec =
   { pre : ail_bindings_and_statements;
     post : ail_bindings_and_statements;
     in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops :
-      ((Locations.t * ail_bindings_and_statements)
-      * (Locations.t * ail_bindings_and_statements))
-        list
+    loops : loop_info list
   }
 
 val extract_global_variables
-  :  ('a * 'b Mucore.globs) list ->
-  ('a * Cerb_frontend.Ctype.ctype) list
+  :  ?prune_unused:bool ->
+  Cabs.translation_unit ->
+  _ Mucore.file ->
+  (Sym.t * Cerb_frontend.Ctype.ctype) list
 
 val generate_get_or_put_ownership_function
   :  without_ownership_checking:bool ->
@@ -187,6 +197,7 @@ val cn_to_ail_records
 val cn_to_ail_function
   :  string ->
   Sym.t * Definition.Function.t ->
+  Cabs.translation_unit ->
   _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
