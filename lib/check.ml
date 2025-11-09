@@ -848,15 +848,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     fail (fun _ -> { loc; msg = WellTyped err })
   | PEcall (f, pes) ->
     (match (f, pes) with
-     | Sym (Symbol (_, _, SD_Id "wrapI")), [ e1; e2 ] ->
-       let@ () = WellTyped.ensure_bits_type loc expect in
-       let@ ct = check_pexpr_good_ctype_const path_cs e1 in
-       let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr e2) in
-       let@ arg = check_pexpr path_cs e2 in
-       let bt = Memory.bt_of_sct ct in
-       let@ () = WellTyped.ensure_bits_type loc bt in
-       let@ () = WellTyped.ensure_base_type loc ~expect bt in
-       return (cast_ bt arg loc)
      | Sym (Symbol (_, _, SD_Id "ctype_width")), [ pe ] ->
        let@ () = WellTyped.ensure_bits_type loc expect in
        let@ ct = check_pexpr_good_ctype_const path_cs pe in
