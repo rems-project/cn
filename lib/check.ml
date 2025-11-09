@@ -809,7 +809,13 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        return (fn_ [ v1; v2 ] loc)
      | OpRem_t -> assert false
      | OpAdd -> assert false
-     | OpSub -> assert false
+     | OpSub ->
+       let@ () = WellTyped.ensure_bits_type loc expect in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
+       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe2) in
+       let@ v1 = check_pexpr path_cs pe1 in
+       let@ v2 = check_pexpr path_cs pe2 in
+       return (sub_ (v1, v2) loc)
      | OpMul -> assert false
      | OpRem_f -> assert false
      | OpExp -> assert false)
