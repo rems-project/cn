@@ -489,8 +489,7 @@ void cn_loop_get_ownership(
     void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
   uintptr_t ptr = (uintptr_t)generic_c_ptr;
   for (int i = 0; i < (int)size; i++) {
-    bool is_wildcard =
-        c_ownership_check("Precondition ownership check", ptr + i, cn_stack_depth);
+    bool is_wildcard = c_ownership_check("Loop ownership check", ptr + i, cn_stack_depth);
     if (!is_wildcard) {
       c_add_to_ghost_state_internal(
           ptr + i, 1, cn_stack_depth - 1, global_error_msg_info, PUSH);
@@ -514,7 +513,7 @@ void cn_put_ownership(void* generic_c_ptr, size_t size) {
   uintptr_t ptr = (uintptr_t)generic_c_ptr;
   for (int i = 0; i < (int)size; i++) {
     bool is_wildcard =
-        c_ownership_check("Precondition ownership check", ptr + i, cn_stack_depth);
+        c_ownership_check("Postcondition ownership check", ptr + i, cn_stack_depth);
     if (!is_wildcard) {
       c_add_to_ghost_state_internal(
           ptr + i, 1, cn_stack_depth - 1, global_error_msg_info, PUSH);
