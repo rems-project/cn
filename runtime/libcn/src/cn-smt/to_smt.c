@@ -1134,8 +1134,11 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_ARRAY_SHIFT: {
       sexp_t* base_smt = translate_term_aux(s, iterm->data.array_shift.base);
-      sexp_t* offset_smt = bv_mul(loc_k(iterm->data.array_shift.element_size),
-          translate_term_aux(s, iterm->data.array_shift.index));
+      sexp_t* index_smt = translate_term_aux(s, iterm->data.array_shift.index);
+      sexp_t* offset_smt =
+          (iterm->data.array_shift.element_size != 1)
+              ? bv_mul(loc_k(iterm->data.array_shift.element_size), index_smt)
+              : index_smt;
 
       return bv_add(base_smt, offset_smt);
     }
