@@ -835,25 +835,6 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     let has = List.length pes in
     let err = WT.Number_arguments { type_ = `Other; has; expect = 2 } in
     fail (fun _ -> { loc; msg = WellTyped err })
-  | PEcall (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")), [ pe_ct; pe ]) ->
-    let@ ct = check_pexpr_good_ctype_const path_cs pe_ct in
-    let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
-    let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe) in
-    let@ arg = check_pexpr path_cs pe in
-    let bt = Memory.bt_of_sct ct in
-    let@ () = WellTyped.ensure_bits_type loc bt in
-    let ity = Option.get (Sctypes.is_integer_type ct) in
-    let@ provable = provable loc in
-    (match provable (LC.T (is_representable_integer arg ity)) with
-     | `True -> return arg
-     | `False ->
-       let@ model = model () in
-       let ub = CF.Undefined.UB036_exceptional_condition in
-       fail (fun ctxt -> { loc; msg = Undefined_behaviour { ub; ctxt; model } }))
-  | PEcall (Sym (Symbol (_, _, SD_Id "catch_exceptional_condition")), pes) ->
-    let has = List.length pes in
-    let err = WT.Number_arguments { type_ = `Other; has; expect = 2 } in
-    fail (fun _ -> { loc; msg = WellTyped err })
   | PEcall (Sym (Symbol (_, _, SD_Id "is_representable_integer")), [ pe; pe_ct ]) ->
     let@ ct = check_pexpr_good_ctype_const path_cs pe_ct in
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
