@@ -1,3 +1,7 @@
+let cnBV = ref true
+
+
+
 type sign =
   | Signed
   | Unsigned
@@ -149,7 +153,10 @@ let make_map_bt abt rbt = Map (abt, rbt)
 
 let rec of_sct loc is_signed size_of = function
   | Sctypes.Void -> Unit
-  | Integer ity -> Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
+  | Integer ity -> 
+     if !cnBV 
+     then Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
+     else Integer
   | Array (sct, _) ->
     Map (uintptr_bt loc is_signed size_of, of_sct loc is_signed size_of sct)
   | Pointer sct -> Loc (loc sct)

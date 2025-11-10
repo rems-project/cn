@@ -76,7 +76,6 @@ and 'bt pattern =
       'bt pattern_ * 'bt * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
 [@@deriving eq, ord, map]
 
-(* over integers and reals *)
 type 'bt term =
   | Const of const
   | Sym of Sym.t
@@ -151,7 +150,7 @@ let rec pp_pattern (Pat (pat_, _bt, _)) =
 
 (* Precedences:
    Reference: https://en.cppreference.com/w/c/language/operator_precedence
-   The number we use are `16 - p` where `p` is the precedence in the table.
+   The numbers we use are `16 - p`, where `p` is the precedence in the table.
    We do this so bigger numbers are higher precedence.
 
    Highest
