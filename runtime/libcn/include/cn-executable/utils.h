@@ -544,26 +544,25 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-GEN_ALL_STACK(cn_source_location, char*);
+// GEN_ALL_STACK(cn_source_location, char*);
 
-typedef struct ownership_ghost_info {
-  int depth;
-  cn_source_location_stack*
-      source_loc_stack;  // set to null if ownership_stack_mode is disabled
-} ownership_ghost_info;
+// typedef struct ownership_ghost_info {
+//   int depth;
+//   cn_source_location_stack*
+//       source_loc_stack;  // set to null if ownership_stack_mode is disabled
+// } ownership_ghost_info;
 
-enum STACK_OP {
-  PUSH,
-  POP,
-  NO_OP
-};
+// enum STACK_OP {
+//   PUSH,
+//   POP,
+//   NO_OP
+// };
 
 int ownership_ghost_state_get_depth(int64_t address);
 void ownership_ghost_state_set(int64_t address,
     size_t size,
     int stack_depth_val,
-    struct cn_error_message_info* error_msg_info,
-    enum STACK_OP op);
+    struct cn_error_message_info* error_msg_info);
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
