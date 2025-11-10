@@ -339,7 +339,9 @@ void cn_loop_leak_check(void) {
       // if (ownership_stack_mode) {
       //   print_owned_calls_stack(info);
       // }
-      print_error_msg_info(global_error_msg_info);
+      if (global_error_msg_info) {
+        print_error_msg_info(global_error_msg_info);
+      }
       // XXX: This appears to print the *hashed* pointer?
       cn_printf(CN_LOGGING_ERROR,
           "Loop invariant leak check failed, ownership leaked for pointer " FMT_PTR "\n",
