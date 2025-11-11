@@ -14,6 +14,9 @@
 // Global flag to control SMT skewing mode
 static cn_smt_skewing_mode smt_skewing_mode = CN_SMT_SKEWING_SIZED;
 
+// Global flag for pointer ordering skewing
+bool cn_smt_skew_pointer_order = false;
+
 void cn_set_smt_skewing_mode(cn_smt_skewing_mode mode) {
   smt_skewing_mode = mode;
 }
@@ -500,6 +503,23 @@ enum cn_smt_solver_result cn_smt_context_model(
             sexp_t* non_overlap_expr = bool_or(cond1, cond2);
             sexp_t* non_overlap_assert = assume(non_overlap_expr);
             ack_command(smt_solver, non_overlap_assert);
+
+            // Randomize ordering
+            if (cn_smt_skew_pointer_order) {
+              uint8_t soft_ordering = bennet_uniform_uint8_t(3);
+              switch (soft_ordering) {
+                case 0:
+                  break;
+                case 1:
+                  ack_command(
+                      smt_solver, assume_soft(bv_ult(end_addr_smt, other_start_smt)));
+                  break;
+                case 2:
+                  ack_command(
+                      smt_solver, assume_soft(bv_ult(other_end_smt, start_addr_smt)));
+                  break;
+              }
+            }
           }
           cn_bump_free_after(frame_inner);
 
