@@ -90,6 +90,7 @@ type t =
     smt_logging : string option;
     max_bump_blocks : int option;
     bump_block_size : int option;
+    max_input_alloc : int option;
     smt_skew_pointer_order : bool
   }
 
@@ -222,5 +223,7 @@ val get_smt_logging : unit -> string option
 val has_max_bump_blocks : unit -> int option
 
 val has_bump_block_size : unit -> int option
+
+val has_max_input_alloc : unit -> int option
 
 val is_smt_skew_pointer_order : unit -> bool

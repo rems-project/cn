@@ -27,7 +27,7 @@ typedef struct {
 } rand_alloc;
 
 // Add a static buffer for the random allocator
-#define RAND_ALLOC_MEM_SIZE (1024 * 1024 * 16)
+static size_t rand_alloc_mem_size = (1024 * 1024 * 32);  // 32 MB default
 static rand_alloc global_rand_alloc;
 
 // Initialize the allocator
@@ -36,14 +36,14 @@ static void bennet_rand_alloc_init() {
     return;
   }
 
-  global_rand_alloc.buffer = malloc(RAND_ALLOC_MEM_SIZE);
+  global_rand_alloc.buffer = malloc(rand_alloc_mem_size);
   if (!global_rand_alloc.buffer) {
     fprintf(stderr,
-        "CRITICAL: Failed to allocate %d MB for rand_alloc buffer!\n",
-        RAND_ALLOC_MEM_SIZE / (1024 * 1024));
+        "CRITICAL: Failed to allocate %zu MB for rand_alloc buffer!\n",
+        rand_alloc_mem_size / (1024 * 1024));
     cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
   }
-  global_rand_alloc.buffer_len = RAND_ALLOC_MEM_SIZE;
+  global_rand_alloc.buffer_len = rand_alloc_mem_size;
   bennet_vector_init(rand_alloc_region)(&global_rand_alloc.regions);
 }
 
@@ -191,4 +191,15 @@ void bennet_rand_alloc_free(void *ptr) {
       return;
     }
   }
+}
+
+// Set the memory size for the random allocator (must be called before first allocation)
+void bennet_rand_alloc_set_mem_size(size_t size) {
+  if (global_rand_alloc.buffer != NULL) {
+    fprintf(stderr,
+        "Error: Cannot change rand_alloc memory size after allocator has been "
+        "initialized.\n");
+    exit(1);
+  }
+  rand_alloc_mem_size = size;
 }

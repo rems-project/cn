@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <bennet/prelude.h>
+#include <bennet/state/rand_alloc.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
 #include <cn-testing/test.h>
@@ -306,6 +307,9 @@ int cn_test_main(int argc, char* argv[]) {
       i++;
     } else if (strcmp("--bump-block-size", arg) == 0) {
       cn_bump_set_block_size(strtoul(argv[i + 1], NULL, 10));
+      i++;
+    } else if (strcmp("--max-input-alloc", arg) == 0) {
+      bennet_rand_alloc_set_mem_size(strtoul(argv[i + 1], NULL, 10));
       i++;
     }
   }
