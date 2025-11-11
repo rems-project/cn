@@ -89,7 +89,8 @@ type t =
     smt_skewing_mode : smt_skewing_mode;
     smt_logging : string option;
     max_bump_blocks : int option;
-    bump_block_size : int option
+    bump_block_size : int option;
+    smt_skew_pointer_order : bool
   }
 
 let default =
@@ -143,7 +144,8 @@ let default =
     smt_skewing_mode = Sized;
     smt_logging = None;
     max_bump_blocks = None;
-    bump_block_size = None
+    bump_block_size = None;
+    smt_skew_pointer_order = false
   }
 
 
@@ -344,3 +346,5 @@ let get_smt_logging () = (Option.get !instance).smt_logging
 let has_max_bump_blocks () = (Option.get !instance).max_bump_blocks
 
 let has_bump_block_size () = (Option.get !instance).bump_block_size
+
+let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order

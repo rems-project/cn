@@ -282,6 +282,8 @@ int cn_test_main(int argc, char* argv[]) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {
       cn_set_use_solver_eval(true);
+    } else if (strcmp("--smt-skew-pointer-order", arg) == 0) {
+      cn_smt_skew_pointer_order = true;
     } else if (strcmp("--smt-skewing", arg) == 0) {
       char* next = argv[i + 1];
       if (strcmp("uniform", next) == 0) {

@@ -80,6 +80,7 @@ let run_tests
       smt_skewing_mode
       max_bump_blocks
       bump_block_size
+      smt_skew_pointer_order
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -168,7 +169,8 @@ let run_tests
           just_reset_solver;
           smt_skewing_mode;
           max_bump_blocks;
-          bump_block_size
+          bump_block_size;
+          smt_skew_pointer_order
         }
       in
       TestGeneration.set_config config;
@@ -651,6 +653,11 @@ module Flags = struct
   let smt_logging =
     let doc = "Log SMT solver communication to specified file" in
     Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
+
+
+  let smt_skew_pointer_order =
+    let doc = "Enable pointer ordering skewing in SMT solver" in
+    Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
 end
 
 let cmd =
@@ -730,6 +737,7 @@ let cmd =
     $ Flags.smt_skewing_mode
     $ Instrument.Flags.max_bump_blocks
     $ Instrument.Flags.bump_block_size
+    $ Flags.smt_skew_pointer_order
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

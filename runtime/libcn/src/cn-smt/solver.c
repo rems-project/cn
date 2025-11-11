@@ -73,8 +73,10 @@ char *read_output(struct cn_smt_solver *solver) {
   }
 
   if (select_result == 0) {
-    fprintf(stderr, "Timeout waiting for SMT solver response\n");
-    assert(false);
+    // fprintf(stderr, "Timeout waiting for SMT solver response\n");
+    // assert(false);
+    // FIXME: Use an appropriate error
+    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
   }
 
   // Data is available, proceed with reading

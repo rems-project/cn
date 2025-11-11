@@ -213,6 +213,10 @@ let run () =
             [ "--use-solver-eval" ]
           else
             [])
+       @ (if Config.is_smt_skew_pointer_order () then
+            [ "--smt-skew-pointer-order" ]
+          else
+            [])
        @ (let mode_str =
             match Config.get_smt_skewing_mode () with
             | Config.Uniform -> "uniform"
