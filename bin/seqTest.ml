@@ -76,6 +76,7 @@ let run_seq_tests
              ~without_lemma_checks:false
              ~exec_c_locs_mode
              ~experimental_ownership_stack_mode
+             ~experimental_curly_braces:false
              ~with_testing:true
              ~skip_and_only:([], [])
              filename

@@ -100,6 +100,7 @@ let generate_executable_specs
       exec_c_locs_mode
       experimental_ownership_stack_mode
       experimental_unions
+      experimental_curly_braces
       mktemp
       print_steps
       max_bump_blocks
@@ -168,6 +169,7 @@ let generate_executable_specs
                 ~without_lemma_checks
                 ~exec_c_locs_mode
                 ~experimental_ownership_stack_mode
+                ~experimental_curly_braces
                 ~with_testing
                 ~skip_and_only:(skip, only)
                 ?max_bump_blocks
@@ -352,6 +354,11 @@ module Flags = struct
        8192k, 8388608"
     in
     Arg.(value & opt (some size_converter) None & info [ "bump-block-size" ] ~doc)
+
+
+  let experimental_curly_braces =
+    let doc = "(experimental) Insert curly braces for single-statement control flow" in
+    Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
 end
 
 let cmd =
@@ -393,6 +400,7 @@ let cmd =
     $ Flags.exec_c_locs_mode
     $ Flags.experimental_ownership_stack_mode
     $ Flags.experimental_unions
+    $ Flags.experimental_curly_braces
     $ Flags.mktemp
     $ Flags.print_steps
     $ Flags.max_bump_blocks
