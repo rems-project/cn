@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,8 +7,10 @@
 
 #include <bennet/internals/rand.h>
 #include <bennet/state/rand_alloc.h>
+#include <bennet/utils.h>
 #include <cn-smt/context.h>
 #include <cn-smt/memory/arena.h>
+#include <cn-smt/memory/intern.h>
 #include <cn-smt/subst.h>
 #include <cn-smt/to_smt.h>
 
@@ -17,12 +20,23 @@ static cn_smt_skewing_mode smt_skewing_mode = CN_SMT_SKEWING_SIZED;
 // Global flag for pointer ordering skewing
 bool cn_smt_skew_pointer_order = false;
 
+// Unsat core log path
+static const char* cn_smt_unsat_core_log_path = NULL;
+
 void cn_set_smt_skewing_mode(cn_smt_skewing_mode mode) {
   smt_skewing_mode = mode;
 }
 
 cn_smt_skewing_mode cn_get_smt_skewing_mode(void) {
   return smt_skewing_mode;
+}
+
+void cn_smt_set_unsat_core_log_path(const char* path) {
+  cn_smt_unsat_core_log_path = path;
+}
+
+const char* cn_smt_get_unsat_core_log_path(void) {
+  return cn_smt_unsat_core_log_path;
 }
 
 // Generate hash table implementation for uint64_t -> cn_term_ptr
@@ -36,6 +50,19 @@ BENNET_VECTOR_IMPL(cn_term_ptr)
 
 // Generate vector implementation for cn_sym
 BENNET_VECTOR_IMPL(cn_sym)
+
+// Type alias for string pointers (needed for hash table macros)
+typedef const char* const_str;
+
+// Declare optional type for const_str
+BENNET_OPTIONAL_DECL(const_str);
+
+// Declare and implement hash table type for (const_str -> const_str)
+BENNET_HASH_TABLE_DECL(const_str, const_str)
+BENNET_HASH_TABLE_IMPL(const_str, const_str)
+
+// Type alias for convenience
+typedef bennet_hash_table(const_str, const_str) constraint_name_map;
 
 // Context management functions
 cn_constraint_context* cn_context_create(void) {
@@ -330,10 +357,87 @@ void cn_context_print_summary(const cn_constraint_context* ctx) {
   }
 }
 
+// Parse unsat core S-expression and extract constraint names
+// Returns dynamically allocated array of strings (caller must free each string and array)
+static const char** cn_parse_unsat_core_names(sexp_t* core, size_t* count) {
+  *count = 0;
+  if (!core || core->type != SEXP_LIST) {
+    return NULL;
+  }
+
+  // Count how many names
+  size_t num_names = core->data.list.count;
+  if (num_names == 0) {
+    return NULL;
+  }
+
+  // Allocate array
+  const char** names = malloc(sizeof(char*) * num_names);
+  assert(names);
+
+  // Extract each name
+  for (size_t i = 0; i < num_names; i++) {
+    sexp_t* elem = core->data.list.elements[i];
+    if (elem && elem->type == SEXP_ATOM) {
+      names[i] = elem->data.atom;
+    } else {
+      names[i] = NULL;
+    }
+  }
+
+  *count = num_names;
+  return names;
+}
+
+// Log unsat core with human-readable constraint mappings
+static void cn_log_unsat_core_mapped(
+    FILE* log_file, sexp_t* unsat_core, constraint_name_map* name_map) {
+  size_t count;
+  const char** names = cn_parse_unsat_core_names(unsat_core, &count);
+
+  if (!names || count == 0) {
+    fprintf(log_file, "Unsat Core: (empty or unparseable)\n\n");
+    return;
+  }
+
+  fprintf(log_file, "Unsat Core (%zu constraints):\n", count);
+
+  for (size_t i = 0; i < count; i++) {
+    if (names[i]) {
+      // Look up the name in the hash table
+      bennet_optional(const_str) opt_sexp =
+          bennet_hash_table_get(const_str, const_str)(name_map, names[i]);
+
+      if (opt_sexp.is_some) {
+        fprintf(log_file, "  %s: %s\n", names[i], opt_sexp.body);
+      } else {
+        fprintf(log_file, "  %s: (mapping not found)\n", names[i]);
+      }
+    }
+  }
+
+  fprintf(log_file, "\n");
+  free(names);
+}
+
 enum cn_smt_solver_result cn_smt_context_model(
     struct cn_smt_solver* smt_solver, const cn_constraint_context* ctx) {
   assert(ctx != NULL);
   assert(ctx->variables != NULL);
+
+  // Check if we need to name assertions for unsat cores
+  bool enable_unsat_cores = (cn_smt_get_unsat_core_log_path() != NULL);
+
+  // Initialize hash table to map constraint names -> sexp strings
+  constraint_name_map name_to_sexp_map;
+  if (enable_unsat_cores) {
+    bennet_hash_table_init(const_str, const_str)(
+        &name_to_sexp_map, bennet_hash_const_char_ptr, bennet_eq_const_char_ptr);
+  }
+
+  uint64_t logical_counter = 0;
+  uint64_t resource_counter = 0;
+  char constraint_name[64];  // Buffer for generating names
 
   // Declare all variables in the context first
   for (size_t i = 0; i < ctx->variables->capacity; i++) {
@@ -410,6 +514,19 @@ enum cn_smt_solver_result cn_smt_context_model(
 
       if (smt_expr) {
         // Add the constraint as an assertion
+        if (enable_unsat_cores) {
+          // Generate name
+          snprintf(
+              constraint_name, sizeof(constraint_name), "c%" PRIu64, ++logical_counter);
+
+          // Store sexp string in hash table
+          bennet_hash_table_set(const_str, const_str)(&name_to_sexp_map,
+              cn_intern_string(constraint_name),
+              sexp_to_string(smt_expr));
+
+          // Wrap with name
+          smt_expr = sexp_named(constraint_name, smt_expr);
+        }
         sexp_t* assert_cmd = assume(smt_expr);
         ack_command(smt_solver, assert_cmd);
       }
@@ -438,6 +555,9 @@ enum cn_smt_solver_result cn_smt_context_model(
       sexp_t* max_ptr_smt = sexp_atom("bennet_max_ptr");
 
       while (resource_constraint != NULL) {
+        // Increment resource counter for this constraint
+        resource_counter++;
+
         // Convert start and end addresses to SMT terms
         sexp_t* start_addr_smt =
             translate_term(smt_solver, resource_constraint->start_addr);
@@ -447,16 +567,46 @@ enum cn_smt_solver_result cn_smt_context_model(
         {
           // Create assertion: `min_ptr <= start_addr`
           sexp_t* min_bound_expr = bv_uleq(min_ptr_smt, start_addr_smt);
+          if (enable_unsat_cores) {
+            snprintf(constraint_name,
+                sizeof(constraint_name),
+                "r%" PRIu64 "_min",
+                resource_counter);
+            bennet_hash_table_set(const_str, const_str)(&name_to_sexp_map,
+                cn_intern_string(constraint_name),
+                sexp_to_string(min_bound_expr));
+            min_bound_expr = sexp_named(constraint_name, min_bound_expr);
+          }
           sexp_t* min_bound_assert = assume(min_bound_expr);
           ack_command(smt_solver, min_bound_assert);
 
           // Create assertion: `end_addr <= max_ptr`
           sexp_t* max_bound_expr = bv_uleq(end_addr_smt, max_ptr_smt);
+          if (enable_unsat_cores) {
+            snprintf(constraint_name,
+                sizeof(constraint_name),
+                "r%" PRIu64 "_max",
+                resource_counter);
+            bennet_hash_table_set(const_str, const_str)(&name_to_sexp_map,
+                cn_intern_string(constraint_name),
+                sexp_to_string(max_bound_expr));
+            max_bound_expr = sexp_named(constraint_name, max_bound_expr);
+          }
           sexp_t* max_bound_assert = assume(max_bound_expr);
           ack_command(smt_solver, max_bound_assert);
 
           // Ensure start_addr <= end_addr (prevents overflow and ensures validity)
           sexp_t* validity_expr = bv_uleq(start_addr_smt, end_addr_smt);
+          if (enable_unsat_cores) {
+            snprintf(constraint_name,
+                sizeof(constraint_name),
+                "r%" PRIu64 "_valid",
+                resource_counter);
+            bennet_hash_table_set(const_str, const_str)(&name_to_sexp_map,
+                cn_intern_string(constraint_name),
+                sexp_to_string(validity_expr));
+            validity_expr = sexp_named(constraint_name, validity_expr);
+          }
           sexp_t* validity_assert = assume(validity_expr);
           ack_command(smt_solver, validity_assert);
 
@@ -468,6 +618,16 @@ enum cn_smt_solver_result cn_smt_context_model(
             sexp_t* zero_smt = loc_k(0);
             sexp_t* alignment_expr =
                 sexp_list((sexp_t*[]){sexp_atom("="), start_mask_align, zero_smt}, 3);
+            if (enable_unsat_cores) {
+              snprintf(constraint_name,
+                  sizeof(constraint_name),
+                  "r%" PRIu64 "_align",
+                  resource_counter);
+              bennet_hash_table_set(const_str, const_str)(&name_to_sexp_map,
+                  cn_intern_string(constraint_name),
+                  sexp_to_string(alignment_expr));
+              alignment_expr = sexp_named(constraint_name, alignment_expr);
+            }
             sexp_t* alignment_assert = assume(alignment_expr);
             ack_command(smt_solver, alignment_assert);
           }
@@ -477,7 +637,10 @@ enum cn_smt_solver_result cn_smt_context_model(
         // Ensure exclusive ownership (non-overlapping)
         // For each other resource constraint, assert they don't overlap
         const cn_resource_constraint* other_resource = resource_constraint->next;
+        uint64_t other_counter = resource_counter;  // Start counting from current
         while (other_resource != NULL) {
+          other_counter++;  // Increment for each subsequent resource
+
           // Skip comparison with itself
           if (other_resource == resource_constraint) {
             other_resource = other_resource->next;
@@ -501,6 +664,17 @@ enum cn_smt_solver_result cn_smt_context_model(
 
             // Non-overlap constraint: cond1 || cond2
             sexp_t* non_overlap_expr = bool_or(cond1, cond2);
+            if (enable_unsat_cores) {
+              snprintf(constraint_name,
+                  sizeof(constraint_name),
+                  "r%" PRIu64 "_r%" PRIu64 "_nonoverlap",
+                  resource_counter,
+                  other_counter);
+              bennet_hash_table_set(const_str, const_str)(&name_to_sexp_map,
+                  cn_intern_string(constraint_name),
+                  sexp_to_string(non_overlap_expr));
+              non_overlap_expr = sexp_named(constraint_name, non_overlap_expr);
+            }
             sexp_t* non_overlap_assert = assume(non_overlap_expr);
             ack_command(smt_solver, non_overlap_assert);
 
@@ -533,5 +707,25 @@ enum cn_smt_solver_result cn_smt_context_model(
   }
 
   // Check satisfiability
-  return check(smt_solver);
+  enum cn_smt_solver_result result = check(smt_solver);
+
+  // If UNSAT and unsat core logging is enabled, log the unsat core
+  if (result == CN_SOLVER_UNSAT && enable_unsat_cores) {
+    sexp_t* unsat_core = get_unsat_core(smt_solver);
+    if (unsat_core != NULL) {
+      const char* log_path = cn_smt_get_unsat_core_log_path();
+      FILE* log_file = fopen(log_path, "a");
+      if (log_file != NULL) {
+        cn_log_unsat_core_mapped(log_file, unsat_core, &name_to_sexp_map);
+        fclose(log_file);
+      }
+    }
+  }
+
+  // Clean up hash table if it was used
+  if (enable_unsat_cores) {
+    bennet_hash_table_free(const_str, const_str)(&name_to_sexp_map);
+  }
+
+  return result;
 }

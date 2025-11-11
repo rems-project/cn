@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <cn-smt/context.h>
 #include <cn-smt/datatypes.h>
 #include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/intern.h>
@@ -205,6 +206,11 @@ enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
   return 0;
 }
 
+sexp_t *get_unsat_core(struct cn_smt_solver *solver) {
+  sexp_t *args[] = {sexp_atom("get-unsat-core")};
+  return send_command(solver, sexp_list(args, 1));
+}
+
 struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
   struct cn_smt_solver *solver = cn_test_malloc(sizeof(struct cn_smt_solver));
   assert(solver);
@@ -259,6 +265,11 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
 
   ack_command(solver, set_option(":print-success", "true"));
   ack_command(solver, set_option(":produce-models", "true"));
+
+  // Only enable unsat cores if logging is requested
+  if (cn_smt_get_unsat_core_log_path() != NULL) {
+    ack_command(solver, set_option(":produce-unsat-cores", "true"));
+  }
 
   switch (ext) {
     case SOLVER_CVC5:

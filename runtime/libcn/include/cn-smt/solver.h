@@ -77,6 +77,7 @@ sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp);
 void stop_solver(struct cn_smt_solver *solver);
 void ack_command(struct cn_smt_solver *solver, sexp_t *cmd);
 enum cn_smt_solver_result check(struct cn_smt_solver *solver);
+sexp_t *get_unsat_core(struct cn_smt_solver *solver);
 struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext);
 void cn_structs_declare(struct cn_smt_solver *s,
     const char **struct_names,

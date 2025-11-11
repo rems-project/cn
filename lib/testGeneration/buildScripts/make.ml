@@ -134,6 +134,10 @@ let define_test_flags () =
        |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
        |> Option.to_list
        |> List.flatten)
+    @ (Config.get_smt_log_unsat_cores ()
+       |> Option.map (fun log_file -> [ "--smt-log-unsat-cores"; log_file ])
+       |> Option.to_list
+       |> List.flatten)
     @ (Config.has_max_bump_blocks ()
        |> Option.map (fun n -> [ "--max-bump-blocks"; string_of_int n ])
        |> Option.to_list
