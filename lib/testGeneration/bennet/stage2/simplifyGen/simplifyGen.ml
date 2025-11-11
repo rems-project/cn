@@ -34,7 +34,7 @@ module Make (AD : Domain.T) = struct
           |> PartialEvaluation.transform_gt prog5
           |>
           if TestGenConfig.is_experimental_product_arg_destruction () then
-            fun ctx -> ctx
+            fun gt -> gt
           else
             MemberIndirection.transform_gt
         in

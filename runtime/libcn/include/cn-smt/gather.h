@@ -58,8 +58,19 @@ cn_term* cn_smt_gather_call_function(
 #define CN_SMT_GATHER_LET_SYMBOLIC(symbol, base_type)                                    \
   cn_term* symbol = cn_smt_gather_create_symbolic_var(#symbol, base_type);
 
-// Let macro - adds substitution to context
-#define CN_SMT_GATHER_LET_STAR(symbol, term) cn_term* symbol = term;
+/*
+#define CN_SMT_GATHER_LET_STAR(symbol, ...)                                              \
+  cn_term* symbol = ({                                                                   \
+    cn_term* tmp_term = __VA_ARGS__;                                                     \
+    cn_term* tmp_symbol =                                                                \
+        cn_smt_gather_create_symbolic_var(#symbol, tmp_term->base_type);                 \
+    cn_smt_gather_add_logical_term(cn_smt_eq(tmp_symbol, tmp_term));                     \
+                                                                                         \
+    tmp_symbol;                                                                          \
+  });
+*/
+
+#define CN_SMT_GATHER_LET_STAR(symbol, ...) cn_term* symbol = __VA_ARGS__;
 
 // Symbolic variable creation
 #define CN_SMT_GATHER_SYMBOLIC(base_type)                                                \

@@ -63,7 +63,18 @@ void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* ter
 #define CN_SMT_CONCRETIZE_LET_SYMBOLIC(symbol, base_type)                                \
   cn_term* symbol = cn_smt_concretize_lookup_symbolic_var(smt_solver, #symbol, base_type);
 
-#define CN_SMT_CONCRETIZE_LET_STAR(symbol, term) cn_term* symbol = term;
+/*
+#define CN_SMT_CONCRETIZE_LET_STAR(symbol, ...)                                          \
+   cn_term* symbol = ({                                                                   \
+     cn_term* tmp_term = __VA_ARGS__;                                                     \
+     cn_term* tmp_symbol =                                                                \
+         cn_smt_concretize_lookup_symbolic_var(smt_solver, #symbol, tmp_term->base_type); \
+                                                                                          \
+     tmp_symbol;                                                                          \
+   });
+*/
+
+#define CN_SMT_CONCRETIZE_LET_STAR(symbol, ...) cn_term* symbol = __VA_ARGS__;
 
 #define CN_SMT_CONCRETIZE_SYMBOLIC(base_type)                                            \
   cn_smt_concretize_lookup_symbolic_var(smt_solver, "_sym", base_type)

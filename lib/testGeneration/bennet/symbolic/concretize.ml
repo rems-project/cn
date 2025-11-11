@@ -87,7 +87,8 @@ module Make (AD : Domain.T) = struct
       let body_result = concretize_term sigma body_term in
       (* Generate let binding as statement *)
       let let_stmt =
-        !^"cn_term*" ^^^ !^var_name ^^^ !^"=" ^^^ binding_result.expression
+        !^"CN_SMT_CONCRETIZE_LET_STAR"
+        ^^ parens (!^var_name ^^ comma ^^^ binding_result.expression)
       in
       { statements = binding_result.statements @ (let_stmt :: body_result.statements);
         expression = body_result.expression
