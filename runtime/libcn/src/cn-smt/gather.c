@@ -148,7 +148,8 @@ cn_term* cn_smt_gather_create_symbolic_var(const char* name, cn_base_type type) 
   cn_smt_skewing_mode mode = cn_get_smt_skewing_mode();
 
   // Skip skew generation if mode is NONE
-  if (mode == CN_SMT_SKEWING_NONE) {
+  if (mode == CN_SMT_SKEWING_NONE ||
+      (type.tag != CN_BASE_LOC && type.tag != CN_BASE_BITS)) {
     skew = NULL;
   } else {
     // For pointers and bitvectors, generate skew values
