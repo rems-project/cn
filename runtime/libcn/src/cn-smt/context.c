@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/internals/rand.h>
 #include <bennet/state/rand_alloc.h>
 #include <cn-smt/context.h>
 #include <cn-smt/memory/arena.h>
@@ -472,7 +473,7 @@ enum cn_smt_solver_result cn_smt_context_model(
 
         // Ensure exclusive ownership (non-overlapping)
         // For each other resource constraint, assert they don't overlap
-        const cn_resource_constraint* other_resource = ctx->resource_constraints;
+        const cn_resource_constraint* other_resource = resource_constraint->next;
         while (other_resource != NULL) {
           // Skip comparison with itself
           if (other_resource == resource_constraint) {
