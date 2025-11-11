@@ -732,16 +732,16 @@ let main
   in
   let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
-    if experimental_curly_braces then
-      give_parenthesis_aware_precedence_map
-        (get_c_control_flow_extra_curly_braces filtered_sigm)
-    else
-      []
-      @ give_precedence_map bot executable_spec.in_stmt
-      @ give_parenthesis_aware_precedence_map accesses_stmt_injs
-      @ give_precedence_map bot toplevel_injections
-      @ give_precedence_map bot tag_def_injs
-      @ give_parenthesis_aware_precedence_map fn_call_ghost_args_injs
+    (if experimental_curly_braces then
+       give_parenthesis_aware_precedence_map
+         (get_c_control_flow_extra_curly_braces filtered_sigm)
+     else
+       [])
+    @ give_precedence_map bot executable_spec.in_stmt
+    @ give_parenthesis_aware_precedence_map accesses_stmt_injs
+    @ give_precedence_map bot toplevel_injections
+    @ give_precedence_map bot tag_def_injs
+    @ give_parenthesis_aware_precedence_map fn_call_ghost_args_injs
   in
   let pre_post_pairs =
     if with_testing || without_ownership_checking then
