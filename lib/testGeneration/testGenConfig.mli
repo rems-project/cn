@@ -88,6 +88,7 @@ type t =
     just_reset_solver : bool;
     smt_skewing_mode : smt_skewing_mode;
     smt_logging : string option;
+    smt_log_unsat_cores : string option;
     max_bump_blocks : int option;
     bump_block_size : int option;
     max_input_alloc : int option;
@@ -219,6 +220,8 @@ val is_just_reset_solver : unit -> bool
 val get_smt_skewing_mode : unit -> smt_skewing_mode
 
 val get_smt_logging : unit -> string option
+
+val get_smt_log_unsat_cores : unit -> string option
 
 val has_max_bump_blocks : unit -> int option
 

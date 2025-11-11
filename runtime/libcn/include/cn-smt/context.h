@@ -141,6 +141,10 @@ typedef enum {
 void cn_set_smt_skewing_mode(cn_smt_skewing_mode mode);
 cn_smt_skewing_mode cn_get_smt_skewing_mode(void);
 
+// Unsat core logging
+void cn_smt_set_unsat_core_log_path(const char* path);
+const char* cn_smt_get_unsat_core_log_path(void);
+
 // Global flag for pointer ordering skewing
 extern bool cn_smt_skew_pointer_order;
 

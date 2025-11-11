@@ -71,6 +71,7 @@ let run_tests
       symbolic_timeout
       use_solver_eval
       smt_logging
+      smt_log_unsat_cores
       print_size_info
       print_backtrack_info
       print_satisfaction_info
@@ -140,6 +141,7 @@ let run_tests
           symbolic_timeout;
           use_solver_eval;
           smt_logging;
+          smt_log_unsat_cores;
           max_unfolds;
           max_array_length;
           print_seed;
@@ -693,6 +695,12 @@ module Flags = struct
     Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
 
 
+  let smt_log_unsat_cores =
+    let doc = "Log unsat cores to specified file when constraints are unsatisfiable" in
+    Arg.(
+      value & opt (some string) None & info [ "smt-log-unsat-cores" ] ~doc ~docv:"FILE")
+
+
   let max_input_alloc =
     let doc =
       "Maximum memory size for the random input allocator (default: 32m). Supports \
@@ -775,6 +783,7 @@ let cmd =
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval
     $ Flags.smt_logging
+    $ Flags.smt_log_unsat_cores
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
