@@ -235,6 +235,10 @@ let run () =
        @ (Config.has_bump_block_size ()
           |> Option.map (fun n -> [ "--bump-block-size"; string_of_int n ])
           |> Option.to_list
+          |> List.flatten)
+       @ (Config.has_max_input_alloc ()
+          |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
+          |> Option.to_list
           |> List.flatten))
   in
   !^"# Run"

@@ -142,6 +142,10 @@ let define_test_flags () =
        |> Option.map (fun n -> [ "--bump-block-size"; string_of_int n ])
        |> Option.to_list
        |> List.flatten)
+    @ (Config.has_max_input_alloc ()
+       |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
+       |> Option.to_list
+       |> List.flatten)
   in
   !^"TEST_FLAGS := " ^^ separate_map space string flags ^^ hardline
 

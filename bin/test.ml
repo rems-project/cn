@@ -80,6 +80,7 @@ let run_tests
       smt_skewing_mode
       max_bump_blocks
       bump_block_size
+      max_input_alloc
       smt_skew_pointer_order
   =
   (* flags *)
@@ -170,6 +171,7 @@ let run_tests
           smt_skewing_mode;
           max_bump_blocks;
           bump_block_size;
+          max_input_alloc;
           smt_skew_pointer_order
         }
       in
@@ -235,6 +237,42 @@ let run_tests
 
 
 open Cmdliner
+
+(* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
+let parse_size_value s =
+  let len = String.length s in
+  if len = 0 then
+    Error (`Msg "Size value cannot be empty")
+  else (
+    let last_char = String.get s (len - 1) in
+    let value_str, multiplier =
+      match last_char with
+      | 'k' | 'K' -> (String.sub s 0 (len - 1), 1024)
+      | 'm' | 'M' -> (String.sub s 0 (len - 1), 1024 * 1024)
+      | 'g' | 'G' -> (String.sub s 0 (len - 1), 1024 * 1024 * 1024)
+      | '0' .. '9' -> (s, 1)
+      | _ -> ("", 0)
+      (* Invalid suffix *)
+    in
+    if multiplier = 0 then
+      Error
+        (`Msg
+            (Printf.sprintf
+               "Invalid size suffix in '%s'. Use k/K, m/M, g/G, or no suffix."
+               s))
+    else (
+      match int_of_string_opt value_str with
+      | Some n when n > 0 ->
+        (* Check for overflow *)
+        if n > max_int / multiplier then
+          Error (`Msg (Printf.sprintf "Size value '%s' is too large" s))
+        else
+          Ok (n * multiplier)
+      | Some _ -> Error (`Msg (Printf.sprintf "Size value must be positive: '%s'" s))
+      | None -> Error (`Msg (Printf.sprintf "Invalid size value: '%s'" s))))
+
+
+let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
 module Flags = struct
   let print_steps =
@@ -655,6 +693,15 @@ module Flags = struct
     Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
 
 
+  let max_input_alloc =
+    let doc =
+      "Maximum memory size for the random input allocator (default: 32m). Supports \
+       suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 32m, \
+       33554432, 64m"
+    in
+    Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
+
+
   let smt_skew_pointer_order =
     let doc = "Enable pointer ordering skewing in SMT solver" in
     Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
@@ -737,6 +784,7 @@ let cmd =
     $ Flags.smt_skewing_mode
     $ Instrument.Flags.max_bump_blocks
     $ Instrument.Flags.bump_block_size
+    $ Flags.max_input_alloc
     $ Flags.smt_skew_pointer_order
   in
   let doc =
