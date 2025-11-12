@@ -1,5 +1,6 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
+module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
@@ -906,10 +907,37 @@ module Make (AD : Domain.T) = struct
         Sym.Set.empty
         ctx
     in
-    (* Filter logical_functions to only those that are actually used *)
+    (* Build function dependency graph to find transitive function calls *)
+    let get_function_calls (fn_def : Definition.Function.t) : Sym.Set.t =
+      match fn_def.Definition.Function.body with
+      | Definition.Function.Def body | Definition.Function.Rec_Def body ->
+        IT.preds_of body
+      | Definition.Function.Uninterp -> Sym.Set.empty
+    in
+    let module G = Graph.Persistent.Digraph.Concrete (Sym) in
+    let func_graph =
+      List.fold_left
+        (fun g (fn_sym, fn_def) ->
+           Sym.Set.fold
+             (fun called_sym g' -> G.add_edge g' fn_sym called_sym)
+             (get_function_calls fn_def)
+             g)
+        G.empty
+        prog5.logical_predicates
+    in
+    (* Compute transitive closure *)
+    let module Oper = Graph.Oper.P (G) in
+    let closure = Oper.transitive_closure func_graph in
+    (* Filter logical_functions to include directly used + transitively called *)
     let logical_functions =
       List.filter
-        (fun (fn_sym, _) -> Sym.Set.mem fn_sym used_functions)
+        (fun (fn_sym, _) ->
+           (* Include if directly used *)
+           Sym.Set.mem fn_sym used_functions
+           (* OR if transitively called from any used function *)
+           || Sym.Set.exists
+                (fun used_sym -> G.mem_edge closure used_sym fn_sym)
+                used_functions)
         prog5.logical_predicates
     in
     if List.length logical_functions = 0 then
