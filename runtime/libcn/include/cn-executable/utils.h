@@ -30,6 +30,12 @@ enum spec_mode {
   NON_SPEC = 6
 };
 
+enum region_owned {
+  NO_WILDCARD,
+  SOME_WILDCARD,
+  FULL_WILDCARD,
+};
+
 /* Error handlers */
 void fulminate_destroy(void);
 void fulminate_init(void);
@@ -575,8 +581,8 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
 /* C ownership checking */
 void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth);
 void c_remove_from_ghost_state(void* ptr_to_local, size_t size);
-bool c_ownership_check(
-    char* access_kind, uintptr_t generic_c_ptr, signed long expected_stack_depth);
+enum region_owned c_ownership_check(
+    char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth);
 
 /* Ghost arguments */
 void alloc_ghost_array(int ghost_array_size);
@@ -614,10 +620,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
   ({                                                                                     \
     typeof(LV)* __tmp = &(LV);                                                           \
     update_cn_error_message_info_access_check(0);                                        \
-    for (int __tmp_i = 0; __tmp_i < (int)sizeof(typeof(LV)); __tmp_i++) {                \
-      bool w =                                                                           \
-          c_ownership_check("Load", (uintptr_t)__tmp + __tmp_i, get_cn_stack_depth());   \
-    }                                                                                    \
+    c_ownership_check("Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());          \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
     *__tmp;                                                                              \
   })
@@ -627,10 +630,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
-    for (int __tmp_i = 0; __tmp_i < (int)sizeof(typeof(LV)); __tmp_i++) {                \
-      bool w =                                                                           \
-          c_ownership_check("Store", (uintptr_t)__tmp + __tmp_i, get_cn_stack_depth());  \
-    }                                                                                    \
+    c_ownership_check("Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());         \
     cn_store(__tmp, sizeof(typeof(LV)));                                                 \
     *__tmp op## = (X);                                                                   \
   })
@@ -642,10 +642,8 @@ static inline void cn_postfix(void* ptr, size_t size) {
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
-    for (int __tmp_i = 0; __tmp_i < (int)sizeof(typeof(LV)); __tmp_i++) {                \
-      bool w = c_ownership_check(                                                        \
-          "Postfix operation", (uintptr_t)__tmp + __tmp_i, get_cn_stack_depth());        \
-    }                                                                                    \
+    c_ownership_check(                                                                   \
+        "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());           \
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
     (*__tmp) OP;                                                                         \
   })
