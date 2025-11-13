@@ -255,8 +255,8 @@ module Make (GT : T) = struct
   let rec free_vars_bts_ (gt_ : GT.t_) : BT.t Sym.Map.t =
     match gt_ with
     | `Arbitrary | `ArbitraryDomain _ | `Symbolic -> Sym.Map.empty
-    | `Call (_, iargs) -> IT.free_vars_bts_list iargs
-    | `Asgn ((it_addr, _), it_val, gt') ->
+    | `Call (_, iargs) | `CallSized (_, iargs, _) -> IT.free_vars_bts_list iargs
+    | `Asgn ((it_addr, _), it_val, gt') | `AsgnElab (_, ((_, it_addr), _), it_val, gt') ->
       Sym.Map.union
         (fun _ bt1 bt2 ->
            assert (BT.equal bt1 bt2);
@@ -285,7 +285,7 @@ module Make (GT : T) = struct
            Some bt1)
         (IT.free_vars_bts it_if)
         (free_vars_bts_list [ gt_then; gt_else ])
-    | `Map ((i, _bt, it_perm), gt') ->
+    | `Map ((i, _, it_perm), gt') | `MapElab ((i, _, _, it_perm), gt') ->
       Sym.Map.remove
         i
         (Sym.Map.union
@@ -295,7 +295,9 @@ module Make (GT : T) = struct
            (IT.free_vars_bts it_perm)
            (free_vars_bts gt'))
     | `Pick gts -> free_vars_bts_list gts
-    | _ -> failwith ("TODO @ " ^ __LOC__)
+    | `PickSized wgts | `PickSizedElab (_, wgts) ->
+      wgts |> List.map snd |> free_vars_bts_list
+    | `SplitSize (_, gt') | `SplitSizeElab (_, _, gt') -> free_vars_bts gt'
 
 
   and free_vars_bts (Annot (gt_, _, _, _) : GT.t) : BT.t Sym.Map.t = free_vars_bts_ gt_
