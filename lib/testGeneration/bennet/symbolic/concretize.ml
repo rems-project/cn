@@ -45,7 +45,15 @@ module Make (AD : Domain.T) = struct
       let args_list =
         separate_map (comma ^^^ space) (fun x -> x) (Sym.pp fsym :: args_smt)
       in
-      { statements = []; expression = !^"CN_SMT_CONCRETIZE_CALL" ^^ parens args_list }
+      let tmp_var = Sym.fresh_make_uniq ("tmp_" ^ Sym.pp_string fsym) in
+      let call_stmt =
+        !^"cn_term*"
+        ^^^ Sym.pp tmp_var
+        ^^^ equals
+        ^^^ !^"CN_SMT_CONCRETIZE_CALL"
+        ^^ parens args_list
+      in
+      { statements = [ call_stmt ]; expression = Sym.pp tmp_var }
     | `SplitSize (_, next_term) ->
       (* Split size - just process the next term *)
       concretize_term sigma next_term
@@ -86,13 +94,19 @@ module Make (AD : Domain.T) = struct
       let binding_result = concretize_term sigma binding_term in
       let body_result = concretize_term sigma body_term in
       (* Generate let binding as statement *)
-      let let_stmt =
-        !^"CN_SMT_CONCRETIZE_LET_STAR"
-        ^^ parens (!^var_name ^^ comma ^^^ binding_result.expression)
+      let statements =
+        binding_result.statements
+        @
+        if Sym.Set.mem var_sym (Term.free_vars body_term) then (
+          let let_stmt =
+            !^"CN_SMT_CONCRETIZE_LET_STAR"
+            ^^ parens (!^var_name ^^ comma ^^^ binding_result.expression)
+          in
+          let_stmt :: body_result.statements)
+        else
+          body_result.statements
       in
-      { statements = binding_result.statements @ (let_stmt :: body_result.statements);
-        expression = body_result.expression
-      }
+      { statements; expression = body_result.expression }
     | `Return it ->
       (* Monadic return - just return the expression, no return statement needed *)
       let term_smt = Smt.convert_indexterm sigma it in

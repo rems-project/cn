@@ -146,15 +146,11 @@ cn_term* cn_smt_bits(bool is_signed, int size_bits, intmax_t value) {
   return term;
 }
 
-cn_term* cn_smt_loc(uintptr_t value) {
-  return cn_smt_bits(false, CHAR_BIT * sizeof(uintptr_t), value);
-}
-
 cn_term* cn_smt_num(cn_base_type bt, intmax_t value) {
   if (bt.tag == CN_BASE_BITS) {
     return cn_smt_bits(bt.data.bits.is_signed, bt.data.bits.size_bits, value);
   } else if (bt.tag == CN_BASE_LOC) {
-    return cn_smt_loc(value);
+    return cn_smt_pointer(value);
   } else if (bt.tag == CN_BASE_INTEGER) {
     return cn_smt_z(value);
   }
