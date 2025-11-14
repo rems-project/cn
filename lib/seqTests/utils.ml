@@ -303,8 +303,7 @@ let analyze_results
       else
         []
     in
-    let results = run_tests 0
-    in
+    let results = run_tests 0 in
     let tests_and_msgs = List.combine prev_and_tests results in
     let rec analyze_results_h
               (tests_and_msgs : ((int * T.call) option * Unix.process_status) list)

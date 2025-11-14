@@ -28,7 +28,6 @@ let run_seq_tests
       num_calls
       backtrack_attempts
       num_tests
-      num_tests
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -131,7 +130,6 @@ module Flags = struct
     let doc = "Maximum number of calls per test" in
     Arg.(
       value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
-      value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
 
 
   let gen_backtrack_attempts =
@@ -145,9 +143,6 @@ module Flags = struct
       & info [ "max-backtrack-attempts" ] ~doc)
 
 
-  let num_tests =
-    let doc = "Number of tests to generate" in
-    Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
   let num_tests =
     let doc = "Number of tests to generate" in
     Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)

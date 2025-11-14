@@ -58,7 +58,8 @@ let shrink
                match name with
                | None -> false
                | Some name ->
-                 List.mem String.equal (Sym.pp_string name) names || List.mem String.equal ("&" ^ (Sym.pp_string name)) names)
+                 List.mem String.equal (Sym.pp_string name) names
+                 || List.mem String.equal ("&" ^ Sym.pp_string name) names)
             graph
         in
         List.fold_left (dfs graph) (node :: visited) succs)
@@ -133,9 +134,7 @@ let shrink
                                         | None -> false
                                         | Some name2 ->
                                           (String.equal name1) (Sym.pp_string name2)
-                                          || String.equal
-                                               name1
-                                               ("&" ^ (Sym.pp_string name2)))
+                                          || String.equal name1 ("&" ^ Sym.pp_string name2))
                                      arg
                                      deps))
                              args)
@@ -179,16 +178,18 @@ let shrink
           shrunken_sequence
         else
           shrink_1 (List.nth shrunken_sequences i)
-      | None -> 
+      | None ->
         (* tests *)
-        match 
-        List.find_index
-          (fun result ->
-             match result with Some `OtherFailure  -> true | _ -> false)
-          results
-          with 
-          Some i -> (Pp.print stdout (SUtils.ctx_to_tests filename (List.nth shrunken_sequences i))); print_string (SUtils.ctx_to_string rev_dep_graph); failwith "Unexpected failure during shrinking"
-        | None -> tests
+        (match
+           List.find_index
+             (fun result -> match result with Some `OtherFailure -> true | _ -> false)
+             results
+         with
+         | Some i ->
+           Pp.print stdout (SUtils.ctx_to_tests filename (List.nth shrunken_sequences i));
+           print_string (SUtils.ctx_to_string rev_dep_graph);
+           failwith "Unexpected failure during shrinking"
+         | None -> tests)
     in
     let rec shrink_2 ((prev, next) : T.context * T.context) : T.context =
       let shrink_arg ((ty, arg_name) : C.ctype * string) : string list =
