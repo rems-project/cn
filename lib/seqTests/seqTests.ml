@@ -7,9 +7,6 @@ module FExtract = Fulminate.Extract
 module T = Types
 module SUtils = Utils
 module Shrink = Shrink
-module T = Types
-module SUtils = Utils
-module Shrink = Shrink
 
 let callable
       (ctx : T.context)

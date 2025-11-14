@@ -424,18 +424,56 @@ void c_remove_from_ghost_state_internal(uintptr_t ptr_to_local, size_t size) {
   ownership_ghost_state_remove(ptr_to_local, size);
 }
 
-void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg, enum spec_mode spec_mode) {
+void cn_get_ownership(void* generic_c_ptr, size_t size) {
   /* Used for precondition and loop invariant taking/getting of ownership */
-  c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1, spec_mode);
-  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
+  enum region_owned owned = c_ownership_check(
+      "Precondition ownership check", generic_c_ptr, size, cn_stack_depth - 1);
+  if (owned == NO_WILDCARD)
+    c_add_to_ghost_state_internal(
+        (uintptr_t)generic_c_ptr, size, cn_stack_depth, global_error_msg_info);
+  else
+    assert(owned == FULL_WILDCARD);  // INCOMPLETE
 }
 
-void cn_put_ownership(void* generic_c_ptr, size_t size, enum spec_mode spec_mode) {
+void cn_loop_get_ownership(
+    void* generic_c_ptr, size_t size, struct loop_ownership* loop_ownership) {
+  enum region_owned owned =
+      c_ownership_check("Loop ownership check", generic_c_ptr, size, cn_stack_depth);
+  if (owned == NO_WILDCARD) {
+    c_add_to_ghost_state_internal(
+        (uintptr_t)generic_c_ptr, size, cn_stack_depth - 1, global_error_msg_info);
+    if (loop_ownership) {
+      cn_add_to_loop_ownership_state(generic_c_ptr, size, loop_ownership);
+    } else {
+      // Should never be triggered if Fulminate implementation is correct
+      cn_printf(CN_LOGGING_ERROR, "******** FULMINATE ERROR *********\n");
+      cn_printf(CN_LOGGING_ERROR, "No loop ownership state found.\n");
+      cn_printf(CN_LOGGING_ERROR,
+          "Please open a pull request at https://github.com/rems-project/cn\n");
+      exit(1);
+    }
+  } else
+    assert(owned == FULL_WILDCARD);  // INCOMPLETE
+}
+
+void cn_put_ownership(void* generic_c_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: returning ownership] " FMT_PTR_2 ", size: %lu\n", generic_c_ptr, size);
   //// print_error_msg_info();
-  c_ownership_check(
-      "Postcondition ownership check", generic_c_ptr, (int)size, cn_stack_depth, spec_mode);
-  c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
+  enum region_owned owned = c_ownership_check(
+      "Postcondition ownership check", generic_c_ptr, size, cn_stack_depth);
+  if (owned == NO_WILDCARD)
+    c_add_to_ghost_state_internal(
+        (uintptr_t)generic_c_ptr, size, cn_stack_depth - 1, global_error_msg_info);
+  else
+    assert(owned == FULL_WILDCARD);  // INCOMPLETE
+}
+
+void fulminate_assume_ownership(
+    void* generic_c_ptr, unsigned long size, char* fun, _Bool wildcard) {
+  signed long depth = wildcard ? WILDCARD_DEPTH : cn_stack_depth;
+  ownership_ghost_state_set((uintptr_t)generic_c_ptr, size, depth, global_error_msg_info);
+  /* // cn_printf(CN_LOGGING_INFO, "CN: Assuming ownership for %lu (function: %s)\n",  */
+  /*        ((uintptr_t) generic_c_ptr) + i, fun); */
 }
 
 void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun) {
@@ -449,54 +487,45 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
     size_t size,
     struct loop_ownership* loop_ownership) {
   nr_owned_predicates++;
-  switch (spec_mode) {
-    case PRE: {
-      cn_get_ownership(generic_c_ptr, size, "Precondition ownership check", PRE);
-      break;
-    }
-    case POST: {
-      cn_put_ownership(generic_c_ptr, size, POST);
-      break;
-    }
-    case LOOP: {
-      cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check", LOOP);
-    }
-    default: {
-      break;
+  if (!is_wildcard(generic_c_ptr, (int)size)) {
+    switch (spec_mode) {
+      case PRE: {
+        cn_get_ownership(generic_c_ptr, size);
+        break;
+      }
+      case POST: {
+        cn_put_ownership(generic_c_ptr, size);
+        break;
+      }
+      case LOOP: {
+        cn_loop_get_ownership(generic_c_ptr, size, loop_ownership);
+      }
+      default: {
+        break;
+      }
     }
   }
 }
 
-void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth) {
-  // cn_printf(CN_LOGGING_INFO, "[C access checking] add local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
-  for (int i = 0; i < size; i++) {
-    int64_t address_key = (uintptr_t)ptr_to_local + i;
-    /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
-    ownership_ghost_state_set(&address_key, stack_depth);
-  }
-}
+enum region_owned c_ownership_check(
+    char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth) {
+  if (size < 1)
+    return FULL_WILDCARD;  // Arbitrary...
 
-void c_remove_from_ghost_state(void* ptr_to_local, size_t size) {
-  // cn_printf(CN_LOGGING_INFO, "[C access checking] remove local:" FMT_PTR ", size: %lu\n", ptr_to_local, size);
-  for (int i = 0; i < size; i++) {
-    int64_t address_key = (uintptr_t)ptr_to_local + i;
-    /* // cn_printf(CN_LOGGING_INFO, " off: %d [" FMT_PTR "]\n", i, *address_key); */
-    ownership_ghost_state_remove(&address_key);
-  }
-}
+  uintptr_t address = (uintptr_t)generic_c_ptr;
+  rmap_range_res_t res = ownership_ghost_state_extrema(address, size);
 
-void c_ownership_check(char* access_kind,
-    void* generic_c_ptr,
-    int offset,
-    signed long expected_stack_depth,
-    enum spec_mode spec_mode) {
-  int64_t address_key = 0;
-  // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
-  for (int i = 0; i < offset; i++) {
-    address_key = (uintptr_t)generic_c_ptr + i;
-    int curr_depth = ownership_ghost_state_get(&address_key);
-    if (curr_depth != expected_stack_depth) {
-      print_error_msg_info(error_msg_info);
+  if (res.defined && res.min == res.max) {
+    if (res.max == WILDCARD_DEPTH)
+      return FULL_WILDCARD;
+    else if (res.max == expected_stack_depth)
+      return NO_WILDCARD;
+  }
+
+  for (size_t addr = address; addr < address + size; addr++) {
+    int depth = ownership_ghost_state_get(addr);
+    if (depth != expected_stack_depth && depth != WILDCARD_DEPTH) {
+      print_error_msg_info(global_error_msg_info);
       cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
       if (depth == UNMAPPED_VAL) {
         cn_printf(CN_LOGGING_ERROR,
@@ -514,7 +543,7 @@ void c_ownership_check(char* access_kind,
             expected_stack_depth);
         cn_printf(CN_LOGGING_ERROR, "  ==> (owned at stack depth: %d)\n", depth);
       }
-      cn_failure(CN_FAILURE_CHECK_OWNERSHIP, spec_mode);
+      cn_failure(CN_FAILURE_CHECK_OWNERSHIP, C_ACCESS);
     }
   }
 
@@ -813,8 +842,12 @@ void* cn_unsafe_calloc(size_t num, size_t size) {
 void cn_free_sized(void* malloced_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: freeing ownership] " FMT_PTR ", size: %lu\n", (uintptr_t) malloced_ptr, size);
   if (malloced_ptr != NULL) {
-    c_ownership_check("Free", malloced_ptr, (int)size, cn_stack_depth, C_ACCESS);
-    c_remove_from_ghost_state(malloced_ptr, size);
+    enum region_owned owned =
+        c_ownership_check("Free", malloced_ptr, size, cn_stack_depth);
+    if (owned == NO_WILDCARD)
+      c_remove_from_ghost_state_internal((uintptr_t)malloced_ptr, size);
+    else
+      assert(owned == FULL_WILDCARD);  // INCOMPLETE
   }
 }
 

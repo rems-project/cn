@@ -89,7 +89,9 @@ let run_seq_tests
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
-             { print_steps;
+             { 
+               cc;
+               print_steps;
                disable_shrink;
                num_calls;
                max_backtracks = backtrack_attempts;
@@ -173,7 +175,6 @@ let cmd =
     $ Flags.disable_shrink
     $ Flags.gen_num_calls
     $ Flags.gen_backtrack_attempts
-    $ Flags.num_tests
     $ Flags.num_tests
   in
   let doc =

@@ -752,7 +752,6 @@ let cmd =
     $ Flags.gen_backtrack_attempts
     $ Flags.gen_max_unfolds
     $ Flags.max_array_length
-    $ Flags.disable_shrink
     $ Flags.build_tool
     $ Term.product Flags.sanitize Flags.no_sanitize
     $ Flags.print_seed

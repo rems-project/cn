@@ -572,16 +572,24 @@ void ownership_ghost_state_set(int64_t address,
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
-void cn_get_ownership(void *generic_c_ptr, size_t size, char *check_msg, enum spec_mode spec_mode);
-void cn_put_ownership(void *generic_c_ptr, size_t size, enum spec_mode spec_mode);
-void cn_assume_ownership(void *generic_c_ptr, unsigned long size, char *fun);
-void cn_get_or_put_ownership(enum spec_mode spec_mode, void *generic_c_ptr, size_t size);
+void cn_assume_ownership(void* generic_c_ptr, unsigned long size, char* fun);
+void cn_get_or_put_ownership(enum spec_mode spec_mode,
+    void* generic_c_ptr,
+    size_t size,
+    struct loop_ownership* loop_ownership);
 
 /* C ownership checking */
-void c_add_to_ghost_state(void *ptr_to_local, size_t size, signed long stack_depth);
-void c_remove_from_ghost_state(void *ptr_to_local, size_t size);
-void c_ownership_check(
-    char *access_kind, void *generic_c_ptr, int offset, signed long expected_stack_depth, enum spec_mode spec_mode);
+void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth);
+void c_remove_from_ghost_state(void* ptr_to_local, size_t size);
+enum region_owned c_ownership_check(
+    char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth);
+
+/* Ghost arguments */
+void alloc_ghost_array(int ghost_array_size);
+void add_to_ghost_array(int i, void* ptr_to_ghost_arg);
+void free_ghost_array();
+void* load_from_ghost_array(int i);
+void cn_ghost_arg_failure(void);
 
 // Unused
 #define c_concat_with_mapping_stat(STAT, CTYPE, VAR_NAME, GHOST_STATE, STACK_DEPTH)      \
@@ -612,7 +620,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
   ({                                                                                     \
     typeof(LV)* __tmp = &(LV);                                                           \
     update_cn_error_message_info_access_check(0);                                        \
-    c_ownership_check("Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);          \
+    c_ownership_check("Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());          \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
     *__tmp;                                                                              \
   })
@@ -622,7 +630,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
-    c_ownership_check("Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);         \
+    c_ownership_check("Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());         \
     cn_store(__tmp, sizeof(typeof(LV)));                                                 \
     *__tmp op## = (X);                                                                   \
   })
@@ -635,7 +643,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
     c_ownership_check(                                                                   \
-        "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth(), C_ACCESS);           \
+        "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());           \
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
     (*__tmp) OP;                                                                         \
   })
