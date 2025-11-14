@@ -195,16 +195,11 @@ let rem_def = ("rem", Sym.fresh "rem", mk_arg2 IT.rem_)
 
 let mod_def = ("mod", Sym.fresh "mod", mk_arg2 IT.mod_)
 
-let nth_list_def = ("nth_list", Sym.fresh "nth_list", mk_arg3 IT.nthList_)
+let is_some_def = ("is_some", Sym.fresh "is_some", mk_arg1 IT.isSome_)
 
-let array_to_list_def =
-  ( "array_to_list",
-    Sym.fresh "array_to_list",
-    mk_arg3_err (fun (arr, i, len) loc ->
-      match SBT.is_map_bt (IT.get_bt arr) with
-      | None -> fail { loc; msg = Array_to_list arr }
-      | Some (_, bt) -> return (IT.array_to_list_ (arr, i, len) bt loc)) )
+let is_none_def = ("is_none", Sym.fresh "is_none", mk_arg1 IT.isNone_)
 
+let get_opt_def = ("get_opt", Sym.fresh "get_opt", mk_arg1 IT.getOpt_)
 
 let builtin_funs =
   [ mul_uf_def;
@@ -224,9 +219,10 @@ let builtin_funs =
     power_def;
     rem_def;
     mod_def;
-    nth_list_def;
-    array_to_list_def;
-    has_alloc_id_def
+    has_alloc_id_def;
+    is_some_def;
+    is_none_def;
+    get_opt_def
   ]
 
 
@@ -238,6 +234,29 @@ let apply_builtin_funs fsym args loc =
   match List.find_opt (fun (_, fsym', _) -> Sym.equal fsym fsym') builtin_funs with
   | None -> return None
   | Some (_, _, mk) -> Result.bind (mk args loc) (fun t -> return (Some t))
+
+
+let apply_builtin_fun_defs fsym args _loc =
+  match List.find_opt (fun (_, fsym', _) -> Sym.equal fsym fsym') builtin_fun_defs with
+  | None -> None
+  | Some (_, _, fn_def) ->
+    let body =
+      match fn_def.Definition.Function.body with
+      | Definition.Function.Def body -> body
+      | Definition.Function.Rec_Def body -> body
+      | Definition.Function.Uninterp -> failwith "Builtin function must have a body"
+    in
+    let formal_args = fn_def.Definition.Function.args in
+    (* Create list of (formal_sym, actual_arg) pairs *)
+    let subst_list =
+      List.map2
+        (fun (formal_sym, _) actual_arg -> (formal_sym, actual_arg))
+        formal_args
+        args
+    in
+    (* Create and apply substitution *)
+    let subst = IT.make_subst subst_list in
+    Some (IT.subst subst body)
 
 
 (* This list of names is later passed to the frontend in bin/main.ml so that

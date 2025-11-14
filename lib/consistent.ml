@@ -110,7 +110,7 @@ let argumentTypes i_welltyped i_pp kind loc at : unit Typing.t =
 
 let pure_and_no_initial_resources loc m =
   pure
-    (let@ (), _ = map_and_fold_resources loc (fun _re () -> (Deleted, ())) () in
+    (let@ () = map_and_fold_resources loc (fun _re () -> (Deleted, ())) () in
      m)
 
 
@@ -195,8 +195,8 @@ let procedure : Loc.t -> _ Mucore.args_and_body -> unit Typing.t =
        PmapM.iterM
          (fun _sym def ->
             match def with
-            | Mucore.Return _ -> return ()
-            | Label (loc, label_args_and_body, _annots, _parsed_spec, _loop_info) ->
+            | Mucore.Non_inlined _ | Return _ -> return ()
+            | Loop (loc, label_args_and_body, _annots, _parsed_spec, _loop_info) ->
               pure_and_no_initial_resources
                 loc
                 (arguments
@@ -212,7 +212,9 @@ let procedure : Loc.t -> _ Mucore.args_and_body -> unit Typing.t =
 
 let predicate pred =
   let module Def = Definition in
-  let Def.Predicate.{ loc; pointer; iargs; oarg = _; clauses } = pred in
+  let Def.Predicate.{ loc; pointer; iargs; oarg = _; clauses; recursive = _; attrs = _ } =
+    pred
+  in
   (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
   pure
     (let@ () = add_l pointer BaseTypes.(Loc ()) (loc, lazy (Pp.string "ptr-var")) in

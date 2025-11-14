@@ -2,7 +2,7 @@
 static int x;
 
 int always_fail()
-/*@ require true; @*/
+/*@ requires true; @*/
 {
   return x;
 }

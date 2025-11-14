@@ -17,20 +17,31 @@ type 'a exec_result =
   | Compute of IT.t * 'a
   | If_Else of IT.t * 'a exec_result * 'a exec_result
 
-let val_to_it loc (Mu.V ((bt : BT.t), v)) =
-  match v with
-  | Vunit -> Some (IT.unit_ loc)
-  | Vtrue -> Some (IT.bool_ true loc)
-  | Vfalse -> Some (IT.bool_ false loc)
-  | Vobject (OV (_, OVinteger iv)) -> Some (IT.num_lit_ (Memory.z_of_ival iv) bt loc)
-  | Vobject (OV (_, OVpointer ptr_val)) ->
+let ov_to_it loc (Mu.OV (bt, ov)) =
+  match ov with
+  | OVinteger iv -> Some (IT.num_lit_ (Memory.z_of_ival iv) bt loc)
+  | OVpointer ptr_val ->
     CF.Impl_mem.case_ptrval
       ptr_val
       (fun _ -> Some (IT.null_ loc))
       (function None -> None | Some sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc)))
       (fun _prov _p -> (* how to correctly convert provenance? *) None)
+  | _ -> None
+
+
+let lv_to_it loc = function
+  | Mu.LVspecified ov -> ov_to_it loc ov
+  | Mu.LVunspecified _ -> None
+
+
+let val_to_it loc (Mu.V (_, v)) =
+  match v with
+  | Vunit -> Some (IT.unit_ loc)
+  | Vtrue -> Some (IT.bool_ true loc)
+  | Vfalse -> Some (IT.bool_ false loc)
+  | Vobject ov -> ov_to_it loc ov
+  | Vloaded lv -> lv_to_it loc lv
   | Vctype ct -> Option.map (fun ct -> IT.const_ctype_ ct loc) (Sctypes.of_ctype ct)
-  | Vfunction_addr sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc))
   | _ -> None
 
 
@@ -137,6 +148,7 @@ let rec add_pattern p v var_map =
   match pattern with
   | CaseBase (Some s, _) -> return (Sym.Map.add s v var_map)
   | CaseBase (None, _) -> return var_map
+  | CaseCtor (Cspecified, [ p ]) -> add_pattern p v var_map
   | CaseCtor (Ctuple, ps) ->
     let@ vs =
       match v with
@@ -188,45 +200,40 @@ let bool_rep_ty = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
 
 let bool_ite_1_0 bt b loc = IT.ite_ (b, IT.int_lit_ 1 bt loc, IT.int_lit_ 0 bt loc) loc
 
-(* FIXME: find a home for this, also needed in check, needs the Typing monad *)
-let eval_fun f args orig_pexpr =
-  let (Mu.Pexpr (loc, _, bt, _pe)) = orig_pexpr in
-  match Mu.evaluate_fun f args with
-  | Some (`Result_IT it) -> return it
-  | Some (`Result_Integer z) ->
-    let@ () = WellTyped.ensure_bits_type loc bt in
-    let bits_info = Option.get (BT.is_bits_bt bt) in
-    if BT.fits_range bits_info z then
-      return (IT.num_lit_ z bt loc)
-    else
-      fail_n
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 "function application result out of range"
-                 (Pp_mucore_ast.pp_pexpr orig_pexpr
-                  ^^ Pp.hardline
-                  ^^ Pp.typ (Pp.z z) (BT.pp bt)))
-            [@alert "-deprecated"]
-        }
-  | None ->
+let return_z_within_range loc z bt orig_pexpr =
+  let@ () = WellTyped.ensure_bits_type loc bt in
+  let bits_info = Option.get (BT.is_bits_bt bt) in
+  if BT.fits_range bits_info z then
+    return (IT.num_lit_ z bt loc)
+  else
     fail_n
       { loc;
         msg =
           Generic
             (Pp.item
-               "cannot evaluate mucore function app"
+               "function application result out of range"
                (Pp_mucore_ast.pp_pexpr orig_pexpr
                 ^^ Pp.hardline
-                ^^ !^"arg vals:"
-                ^^^ Pp.brackets (Pp.list IT.pp args)))
+                ^^ Pp.typ (Pp.z z) (BT.pp bt)))
+          [@alert "-deprecated"]
+      }
+
+
+let must_be_ct_const loc ct_it =
+  match IT.is_const ct_it with
+  | Some (IT.CType_const ct, _) -> return ct
+  | Some _ -> assert false (* shouldn't be possible given type *)
+  | None ->
+    fail_n
+      { loc;
+        msg =
+          Generic (Pp.item "expr from C syntax: non-constant type" (IT.pp ct_it))
           [@alert "-deprecated"]
       }
 
 
 let rec symb_exec_pexpr ctxt var_map pexpr =
-  let (Mu.Pexpr (loc, annots, _, pe)) = pexpr in
+  let (Mu.Pexpr (loc, annots, bt, pe)) = pexpr in
   let opt_bt =
     WellTyped.integer_annot annots
     |> Option.map (fun ity -> Memory.bt_of_sct (Sctypes.Integer ity))
@@ -328,49 +335,14 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
      | _, _, _ ->
        let@ res = simp_const_pe (f x_v y_v) in
        return res)
-  | PEbitwise_unop (unop, pe1) ->
-    let@ x = self var_map pe1 in
-    let@ unop =
-      match unop with
-      | BW_CTZ -> return IT.BW_CTZ_NoSMT
-      | BW_FFS -> return IT.BW_FFS_NoSMT
-      | _ -> unsupported "unary op" !^""
-    in
-    simp_const_pe (IT.arith_unop unop x loc)
-  | PEbitwise_binop (binop, pe1, pe2) ->
-    let@ x = self var_map pe1 in
-    let@ y = self var_map pe2 in
-    let binop =
-      match binop with BW_AND -> IT.BW_And | BW_OR -> IT.BW_Or | BW_XOR -> IT.BW_Xor
-    in
-    simp_const_pe (IT.arith_binop binop (x, y) loc)
-  | PEbool_to_integer pe ->
-    let@ x = self var_map pe in
-    return (bool_ite_1_0 signed_int_ty x loc)
   | PEnot pe ->
     let@ x = self var_map pe in
     return (IT.not_ x loc)
-  | PEapply_fun (f, pes) ->
-    let@ xs = ListM.mapM (self var_map) pes in
-    eval_fun f xs pexpr
-  | PEctor (Ctuple, pes) ->
-    let@ xs = ListM.mapM (self var_map) pes in
-    return (IT.tuple_ xs loc)
-  | PEconv_int (ct_expr, pe) | PEconv_loaded_int (ct_expr, pe) ->
+  | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
+  | PEconv_int (ct_expr, pe) ->
     let@ x = self var_map pe in
     let@ ct_it = self var_map ct_expr in
-    let@ ct =
-      match IT.is_const ct_it with
-      | Some (IT.CType_const ct, _) -> return ct
-      | Some _ -> assert false (* shouldn't be possible given type *)
-      | None ->
-        fail_n
-          { loc;
-            msg =
-              Generic (Pp.item "expr from C syntax: non-constant type" (IT.pp ct_it))
-              [@alert "-deprecated"]
-          }
-    in
+    let@ ct = must_be_ct_const loc ct_it in
     (match ct with
      | Sctypes.Integer Sctypes.IntegerTypes.Bool ->
        let here = Locations.other __LOC__ in
@@ -380,13 +352,61 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
             (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
             loc)
      | _ -> do_wrapI loc ct x)
-  | PEwrapI (act, pe) ->
-    let@ x = self var_map pe in
-    do_wrapI loc act.ct x
-  | PEcatch_exceptional_condition (act, pe) ->
-    let@ x = self var_map pe in
-    do_wrapI loc act.ct x
-  | PEbounded_binop (bk, op, pe_x, pe_y) ->
+  | PEcall (f, pes) ->
+    let@ xs = ListM.mapM (self var_map) pes in
+    (match (f, xs) with
+     | Sym (Symbol (_, _, SD_Id "ctype_width")), [ x ]
+       when Option.is_some (IT.is_ctype_const x) ->
+       let ct = Option.get (IT.is_ctype_const x) in
+       return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
+     | Sym (Symbol (_, _, SD_Id "params_length")), [ x ] ->
+       (match IT.dest_list x with
+        | Some xs -> return (IT.int_ (List.length xs) loc)
+        | None -> unsupported "pure-expression type" !^"")
+     | Sym (Symbol (_, _, SD_Id "params_nth")), [ x; y ] ->
+       (match (IT.dest_list x, IT.is_z y) with
+        | Some its, Some i -> return (List.nth its (Z.to_int i))
+        | _ -> unsupported "pure-expression type" !^"")
+     | _ -> unsupported "pure-expression type" !^"")
+  | PEare_compatible (pe1, pe2) ->
+    let@ x1 = self var_map pe1 in
+    let@ x2 = self var_map pe2 in
+    (match (IT.is_ctype_const x1, IT.is_ctype_const x2) with
+     | Some ct1, Some ct2 -> return (IT.bool_ (Sctypes.equal ct1 ct2) loc)
+     | _ -> unsupported "are-compatible applied to non-constants" !^"")
+  | PEctor (ctor, pes) ->
+    let@ xs = ListM.mapM (self var_map) pes in
+    (match (ctor, xs) with
+     | Ctuple, _ -> return (IT.tuple_ xs loc)
+     | Civsizeof, [ e ] ->
+       let@ ct = must_be_ct_const loc e in
+       return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct)) bt pexpr
+     | Civalignof, [ e ] ->
+       let@ ct = must_be_ct_const loc e in
+       return_z_within_range loc (Z.of_int (Memory.align_of_ctype ct)) bt pexpr
+     | (Civmax | Civmin), [ e ] ->
+       let@ ct = must_be_ct_const loc e in
+       let ity = Option.get (Sctypes.is_integer_type ct) in
+       let z =
+         match ctor with
+         | Civmax -> Memory.max_integer_type ity
+         | Civmin -> Memory.min_integer_type ity
+         | _ -> assert false
+       in
+       return_z_within_range loc z bt pexpr
+     | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+       let@ _ct = must_be_ct_const loc e1 in
+       let bop =
+         match ctor with
+         | CivAND -> IT.BW_And
+         | CivOR -> IT.BW_Or
+         | CivXOR -> IT.BW_Xor
+         | _ -> assert false
+       in
+       return (IT.arith_binop bop (e2, e3) loc)
+     | Cspecified, [ x ] -> return x
+     | _ -> unsupported "pure-expression type" !^"")
+  | PEcatch_exceptional_condition (ity, op, pe_x, pe_y) | PEwrapI (ity, op, pe_x, pe_y) ->
     let@ x = self var_map pe_x in
     let@ y = self var_map pe_y in
     let here = Locations.other __LOC__ in
@@ -397,8 +417,10 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | IOpMul -> IT.mul_ (x, y) loc
       | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (IT.get_bt x) y here) loc
       | IOpShr -> IT.arith_binop Terms.ShiftRight (x, IT.cast_ (IT.get_bt x) y here) loc
+      | IOpDiv -> failwith "TODO division operator"
+      | IOpRem_t -> failwith "TODO remainder operator"
     in
-    do_wrapI loc (Mu.bound_kind_act bk).ct it
+    do_wrapI loc (Integer ity) it
   | PEcfunction pe ->
     let@ x = self var_map pe in
     let sig_it =
@@ -491,24 +513,7 @@ let rec symb_exec_expr ctxt state_vars expr =
         return (If_Else (t, r_x, r_y))
     in
     cont1 state [] exps
-  | Erun (sym, args, gargs) ->
-    let fail_fun_it msg =
-      fail_n
-        { loc;
-          msg =
-            Generic
-              (Pp.item
-                 ("getting expr from C syntax: run val: " ^ msg)
-                 (Pp_mucore.pp_expr expr))
-            [@alert "-deprecated"]
-        }
-    in
-    let@ () =
-      if not (List.is_empty gargs) then
-        fail_fun_it "cannot translate runs with ghost arguments yet"
-      else
-        return ()
-    in
+  | Erun (sym, args) ->
     let@ arg_vs = ListM.mapM (symb_exec_pexpr ctxt var_map) args in
     (match Pmap.lookup sym ctxt.label_defs with
      | Some (Return _) ->
@@ -568,7 +573,18 @@ let rec symb_exec_expr ctxt state_vars expr =
                   (Pp_mucore.pp_expr expr))
              [@alert "-deprecated"]
          })
-  | Eccall (_act, fun_pe, args_pe, gargs) ->
+  | Eproc (Impl (BuiltinFunction (("ctz" | "generic_ffs") as fn)), [ pe1 ]) ->
+    let@ x = symb_exec_pexpr ctxt var_map pe1 in
+    let unop =
+      match fn with
+      | "ctz" -> IT.BW_CTZ_NoSMT
+      | "generic_ffs" -> IT.BW_FFS_NoSMT
+      | _ -> assert false
+    in
+    let t = IT.arith_unop unop x loc in
+    let@ v = simp_const loc (lazy (Pp_mucore.pp_pexpr pe1)) t in
+    return (Compute (v, state))
+  | Eccall (_act, fun_pe, args_pe, gargs_opt) ->
     let@ fun_it = symb_exec_pexpr ctxt var_map fun_pe in
     let@ args_its = ListM.mapM (symb_exec_pexpr ctxt var_map) args_pe in
     let fail_fun_it msg =
@@ -583,6 +599,7 @@ let rec symb_exec_expr ctxt state_vars expr =
         }
     in
     let@ () =
+      let gargs = match gargs_opt with None -> [] | Some (_, gargs) -> gargs in
       if not (List.is_empty gargs) then
         fail_fun_it "cannot translate function calls with ghost arguments yet"
       else

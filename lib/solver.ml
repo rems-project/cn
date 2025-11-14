@@ -2,34 +2,20 @@ module SMT = Simple_smt
 module IT = IndexTerms
 open IT
 module LC = LogicalConstraints
-
-module Int_BT_Table = Map.Make (struct
-    type t = int * BT.t
-
-    let compare (int1, bt1) (int2, bt2) =
-      let cmp = Int.compare int1 int2 in
-      if cmp != 0 then cmp else BT.compare bt1 bt2
-  end)
-
-module IntWithHash = struct
-  (* For compatability with older ocamls *)
-  include Int
-
-  let hash x = x
-end
-
-module Int_Table = Hashtbl.Make (IntWithHash)
 module CTypeMap = Map.Make (Sctypes)
+module IntMap = Map.Make (Int)
 open Global
 open Pp
 
+let inc_enabled = ref true
+
+let inc_timeout = ref None
+
 (** Functions that pick names for things. *)
 module CN_Names = struct
-  let var_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let named_expr_name = "_cn_named"
-
-  let uninterpreted_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
@@ -42,70 +28,41 @@ module CN_Names = struct
   let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
 
   let datatype_field_name x = Id.get_string x ^ "_data_fld"
-end
 
-(** Names for constants that may be uninterpreted.  See [bt_uninterpreted] *)
-module CN_Constant = struct
-  let default = ("default_uf", 0)
+  let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
 
-  let mul = ("mul_uf", 1)
+  let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
 
-  let div = ("div_uf", 2)
+  let exp bt = "exp_uf_" ^ Pp.plain (BT.pp bt)
 
-  let exp = ("exp_uf", 3)
+  let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
 
-  let rem = ("rem_uf", 4)
-
-  let mod' = ("mod_uf", 5)
-
-  let nth_list = ("nth_list_uf", 6)
-
-  let array_to_list = ("array_to_list_uf", 7)
+  let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
 end
 
 type solver_frame =
-  { mutable commands : SMT.sexp list; (** Ack-style SMT commands, most recent first. *)
-    mutable uninterpreted : SMT.sexp Sym.Map.t;
-      (** Uninterpreted functions and variables that we've declared. *)
-    mutable bt_uninterpreted : SMT.sexp Int_BT_Table.t;
-      (** Uninterpreted constants, indexed by base type. *)
-    mutable ctypes : int CTypeMap.t
-      (** Declarations for C types. Each C type is assigned a unique integer. *)
-  }
+  { mutable commands : SMT.sexp list (** Ack-style SMT commands, most recent first. *) }
 
-let empty_solver_frame () =
-  { commands = [];
-    uninterpreted = Sym.Map.empty;
-    bt_uninterpreted = Int_BT_Table.empty;
-    ctypes = CTypeMap.empty
-  }
-
-
-let copy_solver_frame f = { f with commands = f.commands }
+let empty_solver_frame () = { commands = [] }
 
 type solver =
   { smt_solver : SMT.solver; (** The SMT solver connection. *)
     cur_frame : solver_frame ref;
     prev_frames : solver_frame list ref;
       (** Push/pop model. Current frame, and previous frames. *)
-    name_seed : int ref; (** Used to generate names. *)
-    (* ISD: This could, perhaps, go in the frame. Then when we pop frames, we'd go back to
-       the old numbers, which should be OK, I think? *)
-    globals : Global.t
+    globals : Global.t;
+    ctypes : int CTypeMap.t;
+    ctypes_rev : Sctypes.t IntMap.t;
+      (** Declarations for C types. Each C type is assigned a unique integer.
+          Unlike previously, this mapping is fixed (constant) from the start. *)
+    model_smt_solver : SMT.solver (* The SMT solver used for model evaluation. *)
   }
 
 module Debug = struct
   let dump_frame (f : solver_frame) =
     let to_string = Sexplib.Sexp.to_string_hum in
     let append str doc = doc ^/^ !^str in
-    let dump_sym k v rest = rest ^/^ bar ^^^ Sym.pp k ^^^ !^"|->" ^^^ !^(to_string v) in
-    let dump_bts (_, k) v rest =
-      rest ^/^ bar ^^^ BT.pp k ^^^ !^"|->" ^^^ !^(to_string v)
-    in
-    !^"# Symbols"
-    |> Sym.Map.fold dump_sym f.uninterpreted
-    |> append "# Basetypes "
-    |> Int_BT_Table.fold dump_bts f.bt_uninterpreted
+    Pp.separate_map hardline (fun cmd -> !^(to_string cmd)) f.commands
     |> append "+---------------------------------"
 
 
@@ -115,34 +72,9 @@ module Debug = struct
     ^/^ !^"|~~~~~~ End Solver Dump ~~~~~~~~~|"
 end
 
-(** Lookup something in one of the existing frames *)
-let search_frames s f = List.find_map f (!(s.cur_frame) :: !(s.prev_frames))
-
-(** Lookup the `int` corresponding to a C type in the current stack.
-    If it is not found, add it to the current frame, and return the new int. *)
-let find_c_type s ty =
-  let rec search count frames =
-    match frames with
-    | f :: more ->
-      (match CTypeMap.find_opt ty f.ctypes with
-       | Some n -> n
-       | None -> search (CTypeMap.cardinal f.ctypes + count) more)
-    | [] ->
-      let f = !(s.cur_frame) in
-      f.ctypes <- CTypeMap.add ty count f.ctypes;
-      count
-  in
-  search 0 (!(s.cur_frame) :: !(s.prev_frames))
-
-
-(** Compute a table mapping ints to C types.  We use this to map SMT results
-    back to terms. *)
-let get_ctype_table s =
-  let table = Int_Table.create 50 in
-  let add_entry t n = Int_Table.add table n t in
-  let do_frame f = CTypeMap.iter add_entry f.ctypes in
-  List.iter do_frame (!(s.cur_frame) :: !(s.prev_frames));
-  table
+let get_commands s =
+  let frames = !(s.cur_frame) :: !(s.prev_frames) in
+  List.concat_map (fun f -> f.commands) frames
 
 
 let debug_ack_command s cmd =
@@ -188,48 +120,12 @@ let ack_command s cmd =
   f.commands <- cmd :: f.commands
 
 
-(** Generate a fersh name *)
-let fresh_name s x =
-  let n = !(s.name_seed) in
-  s.name_seed := n + 1;
-  let res = x ^ "_" ^ string_of_int n in
-  res
+(** Generate a fresh name *)
+let fresh_name x = x ^ "_" ^ string_of_int (Sym.fresh_int ())
 
-
-(** Declare an uninterpreted function. *)
-let declare_uninterpreted s name args_ts res_t =
-  let check f = Sym.Map.find_opt name f.uninterpreted in
-  match search_frames s check with
-  | Some e -> e
-  | None ->
-    let sname = CN_Names.uninterpreted_name name in
-    ack_command s (SMT.declare_fun sname args_ts res_t);
-    let e = SMT.atom sname in
-    let f = !(s.cur_frame) in
-    f.uninterpreted <- Sym.Map.add name e f.uninterpreted;
-    e
-
-
-(** Declare an uninterpreted function, indexed by a base type. *)
-let declare_bt_uninterpreted s (name, k) bt args_ts res_t =
-  let check f = Int_BT_Table.find_opt (k, bt) f.bt_uninterpreted in
-  match search_frames s check with
-  | Some e -> e
-  | None ->
-    let sname = fresh_name s name in
-    ack_command s (SMT.declare_fun sname args_ts res_t);
-    let e = SMT.atom sname in
-    let top_map = !(s.cur_frame).bt_uninterpreted in
-    !(s.cur_frame).bt_uninterpreted <- Int_BT_Table.add (k, bt) e top_map;
-    e
-
-
-(* Note: CVC5 has support for arbitrary tuples without declaring them. Also, instead of
-   declaring a fixed number of tuples ahead of time, we could declare the types on demand
-   when we need them, with another piece of state in the solver to track which ones we
-   have declared. *)
+(* Note: CVC5 would have support for arbitrary tuples without declaring them. *)
 module CN_Tuple = struct
-  let max_arity = 15
+  let max_arity = 15 (* TODO: compute required arity based on the input program. *)
 
   let name arity =
     assert (arity <= max_arity);
@@ -247,7 +143,7 @@ module CN_Tuple = struct
     SMT.app_ (name arity) tys
 
 
-  (** Declare a datatype for a struct *)
+  (** Declare a datatype for a tuple *)
   let declare s =
     for arity = 0 to max_arity do
       let name = name arity in
@@ -271,7 +167,7 @@ module CN_Tuple = struct
 end
 
 module CN_AllocId = struct
-  (** The type to use  for allocation ids *)
+  (** The type to use for allocation ids *)
   let t () = if !use_vip then SMT.t_int else CN_Tuple.t []
 
   (** Parse an allocation id from an S-expression *)
@@ -279,6 +175,36 @@ module CN_AllocId = struct
 
   (** Convert an allocation id to an S-expression *)
   let to_sexp s = if !use_vip then SMT.int_zk s else CN_Tuple.con []
+end
+
+module CN_Option = struct
+  let name = "cn_option"
+
+  let none_name = "cn_none"
+
+  let some_name = "cn_some"
+
+  let val_name = "cn_val"
+
+  let t a = SMT.app_ name [ a ]
+
+  let declare s =
+    let a = SMT.atom "a" in
+    ack_command
+      s
+      (SMT.declare_datatype
+         name
+         [ "a" ]
+         [ (none_name, []); (some_name, [ (val_name, a) ]) ])
+
+
+  let none elT = SMT.as_type (SMT.atom none_name) (t elT)
+
+  let some x = SMT.app_ some_name [ x ]
+
+  let is_some x = SMT.app_ ("is-" ^ some_name) [ x ]
+
+  let val_ x = SMT.app_ val_name [ x ]
 end
 
 module CN_MemByte = struct
@@ -306,7 +232,9 @@ module CN_MemByte = struct
          name
          []
          [ ( alloc_id_value_name,
-             [ (alloc_id_name, CN_AllocId.t ()); (value_name, SMT.t_bits width) ] )
+             [ (alloc_id_name, CN_Option.t (CN_AllocId.t ()));
+               (value_name, SMT.t_bits width)
+             ] )
          ])
 end
 
@@ -465,12 +393,9 @@ module CN_List = struct
 
   let cons x xs = SMT.app_ cons_name [ x; xs ]
 
-  let head xs orelse =
-    SMT.ite (SMT.is_con cons_name xs) (SMT.app_ head_name [ xs ]) orelse
+  let head xs = SMT.app_ head_name [ xs ]
 
-
-  let tail xs orelse =
-    SMT.ite (SMT.is_con cons_name xs) (SMT.app_ tail_name [ xs ]) orelse
+  let tail xs = SMT.app_ tail_name [ xs ]
 end
 
 (** {1 Type to SMT} *)
@@ -492,9 +417,8 @@ let rec translate_base_type = function
   | Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
   | Struct tag -> SMT.atom (CN_Names.struct_name tag)
   | Datatype tag -> SMT.atom (CN_Names.datatype_name tag)
-  | Record members ->
-    let get_val (_, v) = v in
-    translate_base_type (Tuple (List.map get_val members))
+  | Option bt -> CN_Option.t (translate_base_type bt)
+  | Record members -> translate_base_type (Tuple (List.map snd members))
 
 
 (** {1 SMT to Term} *)
@@ -516,7 +440,12 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
   | MemByte ->
     (match SMT.to_con sexp with
      | con, [ salloc_id; svalue ] when String.equal con CN_MemByte.alloc_id_value_name ->
-       let alloc_id = CN_AllocId.from_sexp salloc_id in
+       let alloc_id =
+         match get_value gs ctys (Option Alloc_id) salloc_id with
+         | CN_None _ -> None
+         | CN_Some (IT (Const (Alloc_id z), _, _)) -> Some z
+         | _ -> failwith "Memory byte alloc ID is not bits option"
+       in
        let value =
          match get_value gs ctys (BT.Bits (Unsigned, CN_MemByte.width)) svalue with
          | Const (Bits (_, z)) -> z
@@ -538,8 +467,8 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
      | _ -> failwith "Loc")
   | Alloc_id -> Const (Alloc_id (CN_AllocId.from_sexp sexp))
   | CType ->
-    (try Const (CType_const (Int_Table.find ctys (Z.to_int (SMT.to_z sexp)))) with
-     | Not_found -> Const (Default bt))
+    let n = Z.to_int (SMT.to_z sexp) in
+    Const (CType_const (IntMap.find n ctys))
   | List elT ->
     (match SMT.to_con sexp with
      | con, [] when String.equal con CN_List.nil_name -> Nil elT
@@ -587,6 +516,14 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     let _con, vals = SMT.to_con sexp in
     let mk_field (l, bt) e = (l, get_ivalue gs ctys bt e) in
     Record (List.map2 mk_field members vals)
+  | Option bt ->
+    (match SMT.to_con sexp with
+     | con, [ svalue ] when String.equal con CN_Option.some_name ->
+       CN_Some (get_ivalue gs ctys bt svalue)
+     | con, [] when String.equal con CN_Option.none_name -> CN_None bt
+     | "as", [ Sexplib.Sexp.Atom con; _ ] when String.equal con CN_Option.none_name ->
+       CN_None bt
+     | _ -> failwith (Sexplib.Sexp.to_string_hum sexp ^ " -- option is not some or none"))
 
 
 (** {1 Term to SMT} *)
@@ -598,9 +535,12 @@ let translate_const s co =
   | Bits ((_, w), z) -> SMT.bv_k w z
   | Q q -> SMT.real_k q
   | MemByte b ->
-    CN_MemByte.con
-      ~alloc_id:(CN_AllocId.to_sexp b.alloc_id)
-      ~value:(SMT.bv_k CN_MemByte.width b.value)
+    let alloc_id =
+      match b.alloc_id with
+      | None -> CN_Option.none (CN_AllocId.t ())
+      | Some z -> CN_Option.some (CN_AllocId.to_sexp z)
+    in
+    CN_MemByte.con ~alloc_id ~value:(SMT.bv_k CN_MemByte.width b.value)
   | Pointer p ->
     CN_Pointer.con_aia
       ~alloc_id:(CN_AllocId.to_sexp p.alloc_id)
@@ -609,9 +549,8 @@ let translate_const s co =
   | Bool b -> SMT.bool_k b
   | Unit -> SMT.atom (CN_Tuple.name 0)
   | Null -> CN_Pointer.con_null
-  | CType_const ct -> SMT.int_k (find_c_type s ct)
-  | Default t ->
-    declare_bt_uninterpreted s CN_Constant.default t [] (translate_base_type t)
+  | CType_const ct -> SMT.int_k (CTypeMap.find ct s.ctypes)
+  | Default t -> CN_Option.val_ (CN_Option.none (translate_base_type t))
 
 
 (** Casting between bit-vector types *)
@@ -674,20 +613,6 @@ let bv_ctz result_w =
   count
 
 
-(** Translate a variable to SMT.  Declare if needed. *)
-let translate_var s name bt =
-  let check f = Sym.Map.find_opt name f.uninterpreted in
-  match search_frames s check with
-  | Some e -> e
-  | None ->
-    let sname = CN_Names.var_name name in
-    ack_command s (SMT.declare sname (translate_base_type bt));
-    let e = SMT.atom sname in
-    let f = !(s.cur_frame) in
-    f.uninterpreted <- Sym.Map.add name e f.uninterpreted;
-    e
-
-
 (** Translate a CN term to SMT *)
 let rec translate_term s iterm =
   let loc = IT.get_loc iterm in
@@ -696,7 +621,7 @@ let rec translate_term s iterm =
     if SMT.is_atom e then
       k e
     else (
-      let x = fresh_name s CN_Names.named_expr_name in
+      let x = fresh_name CN_Names.named_expr_name in
       SMT.let_ [ (x, e) ] (k (SMT.atom x)))
   in
   let default bt =
@@ -705,7 +630,7 @@ let rec translate_term s iterm =
   in
   match IT.get_term iterm with
   | Const c -> translate_const s c
-  | Sym x -> translate_var s x (IT.get_bt iterm)
+  | Sym x -> SMT.atom (CN_Names.fn_name x)
   | Unop (op, e1) ->
     (match op with
      | BW_FFS_NoSMT ->
@@ -754,9 +679,7 @@ let rec translate_term s iterm =
     (* binary uninterpreted function, same type for arguments and result. *)
     let uninterp_same_type k =
       let bt = IT.get_bt iterm in
-      let smt_t = translate_base_type bt in
-      let f = declare_bt_uninterpreted s k bt [ smt_t; smt_t ] smt_t in
-      SMT.app f [ s1; s2 ]
+      SMT.app (Atom (k bt)) [ s1; s2 ]
     in
     (match op with
      | And -> SMT.bool_and s1 s2
@@ -777,34 +700,34 @@ let rec translate_term s iterm =
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Integer | BT.Real -> SMT.num_mul s1 s2
         | _ -> failwith "Mul")
-     | MulNoSMT -> uninterp_same_type CN_Constant.mul
+     | MulNoSMT -> uninterp_same_type CN_Names.mul
      | Div ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
         | BT.Integer | BT.Real -> SMT.num_div s1 s2
         | _ -> failwith "Div")
-     | DivNoSMT -> uninterp_same_type CN_Constant.div
+     | DivNoSMT -> uninterp_same_type CN_Names.div
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
           translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (IT.get_bt e1) loc)
         | _, _ -> failwith "Exp")
-     | ExpNoSMT -> uninterp_same_type CN_Constant.exp
+     | ExpNoSMT -> uninterp_same_type CN_Names.exp
      | Rem ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_rem s1 s2 (* CVC5 ?? *)
         | _ -> failwith "Rem")
-     | RemNoSMT -> uninterp_same_type CN_Constant.rem
+     | RemNoSMT -> uninterp_same_type CN_Names.rem
      | Mod ->
        (match IT.get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_mod s1 s2
         | _ -> failwith "Mod")
-     | ModNoSMT -> uninterp_same_type CN_Constant.mod'
+     | ModNoSMT -> uninterp_same_type CN_Names.mod'
      | BW_Xor ->
        (match IT.get_bt iterm with
         | BT.Bits _ -> SMT.bv_xor s1 s2
@@ -955,26 +878,8 @@ let rec translate_term s iterm =
   (* Lists *)
   | Nil bt -> CN_List.nil (translate_base_type bt)
   | Cons (e1, e2) -> CN_List.cons (translate_term s e1) (translate_term s e2)
-  | Head e1 ->
-    maybe_name (translate_term s e1) (fun xs ->
-      CN_List.head xs (translate_term s (default_ (IT.get_bt iterm) loc)))
-  | Tail e1 ->
-    maybe_name (translate_term s e1) (fun xs ->
-      CN_List.tail xs (translate_term s (default_ (IT.get_bt iterm) loc)))
-  | NthList (x, y, z) ->
-    let arg x = (translate_base_type (IT.get_bt x), translate_term s x) in
-    let arg_ts, args = List.split (List.map arg [ x; y; z ]) in
-    let bt = IT.get_bt iterm in
-    let res_t = translate_base_type bt in
-    let f = declare_bt_uninterpreted s CN_Constant.nth_list bt arg_ts res_t in
-    SMT.app f args
-  | ArrayToList (x, y, z) ->
-    let arg x = (translate_base_type (IT.get_bt x), translate_term s x) in
-    let arg_ts, args = List.split (List.map arg [ x; y; z ]) in
-    let bt = IT.get_bt iterm in
-    let res_t = translate_base_type bt in
-    let f = declare_bt_uninterpreted s CN_Constant.array_to_list bt arg_ts res_t in
-    SMT.app f args
+  | Head e1 -> CN_List.head (translate_term s e1)
+  | Tail e1 -> CN_List.tail (translate_term s e1)
   | SizeOf ct ->
     translate_term s (IT.int_lit_ (Memory.size_of_ctype ct) (IT.get_bt iterm) loc)
   | Representable (ct, t) -> translate_term s (representable struct_decls ct t loc)
@@ -1000,21 +905,12 @@ let rec translate_term s iterm =
     SMT.arr_store (translate_term s mp) (translate_term s k) (translate_term s v)
   | MapGet (mp, k) -> SMT.arr_select (translate_term s mp) (translate_term s k)
   | MapDef _ -> failwith "MapDef"
-  | Apply (name, args) ->
-    let def = Option.get (get_logical_function_def s.globals name) in
-    (match def.body with
-     | Def body -> translate_term s (Definition.Function.open_ def.args body args)
-     | _ ->
-       let do_arg arg = translate_base_type (IT.get_bt arg) in
-       let args_ts = List.map do_arg args in
-       let res_t = translate_base_type def.return_bt in
-       let fu = declare_uninterpreted s name args_ts res_t in
-       SMT.app fu (List.map (translate_term s) args))
+  | Apply (fn, args) ->
+    SMT.(app (atom (CN_Names.fn_name fn)) (List.map (translate_term s) args))
   | Let ((x, e1), e2) ->
     let se1 = translate_term s e1 in
-    let name = CN_Names.var_name x in
     let se2 = translate_term s e2 in
-    SMT.let_ [ (name, se1) ] se2
+    SMT.let_ [ (CN_Names.fn_name x, se1) ] se2
   (* Datatypes *)
   (* Assumes the fields are in the correct order *)
   | Constructor (c, fields) ->
@@ -1026,7 +922,7 @@ let rec translate_term s iterm =
   | Match (e1, alts) ->
     let rec match_pat v (Pat (pat, _, _)) =
       match pat with
-      | PSym x -> (None, [ (CN_Names.var_name x, v) ])
+      | PSym x -> (None, [ (CN_Names.fn_name x, v) ])
       | PWild -> (None, [])
       | PConstructor (c, fs) ->
         let field (f, nested) =
@@ -1047,7 +943,7 @@ let rec translate_term s iterm =
         let k = SMT.let_ binds (translate_term s rhs) in
         (match mb_cond with Some cond -> SMT.ite cond k (do_alts v more) | None -> k)
     in
-    let x = fresh_name s "match" in
+    let x = fresh_name "match" in
     SMT.let_ [ (x, translate_term s e1) ] (do_alts (SMT.atom x) alts)
   (* Casts *)
   | WrapI (ity, arg) ->
@@ -1084,116 +980,134 @@ let rec translate_term s iterm =
            bv_cast ~to_:cbt ~from:(BT.Bits (Unsigned, 8)) x
        in
        maybe_cast (SMT.app_ CN_MemByte.value_name [ smt_term ])
-     | MemByte, Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
+     | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term
      | Integer, Real -> SMT.int_to_real smt_term
      | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term
      | _ -> assert false)
+  | CN_None t -> CN_Option.none (translate_base_type t)
+  | CN_Some t -> CN_Option.some (translate_term s t)
+  | IsSome t -> CN_Option.is_some (translate_term s t)
+  | GetOpt t -> CN_Option.val_ (translate_term s t)
 
 
-(** Add an assertion.  Quantified predicates are ignored. *)
-let add_assumption solver global lc =
-  let s1 = { solver with globals = global } in
-  match lc with
-  | LC.T it -> ack_command solver (SMT.assume (translate_term s1 it))
-  | Forall _ -> ()
+let declare_fun s name args_bts res_bt =
+  let sname = CN_Names.fn_name name in
+  let args_ts = List.map translate_base_type args_bts in
+  let res_t = translate_base_type res_bt in
+  ack_command s (SMT.declare_fun sname args_ts res_t)
 
 
-(** Goals are translated to this type *)
-type reduction =
-  { expr : SMT.sexp; (* translation of `it` *)
-    qs : (Sym.t * BT.t) list; (* quantifier instantiation *)
-    extra : SMT.sexp list (* additional assumptions *)
-  }
-
-let translate_goal solver assumptions lc =
-  let here = Locations.other __LOC__ in
-  let instantiated =
-    match lc with
-    | LC.T it -> { expr = translate_term solver it; qs = []; extra = [] }
-    | Forall ((s, bt), it) ->
-      let v_s, v = IT.fresh_same bt s here in
-      let it = IT.subst (make_subst [ (s, v) ]) it in
-      { expr = translate_term solver it; qs = [ (v_s, bt) ]; extra = [] }
-  in
-  let add_asmps acc0 (s, bt) =
-    let v = sym_ (s, bt, here) in
-    let check_asmp lc acc =
-      match lc with
-      | LC.Forall ((s', bt'), it') when BT.equal bt bt' ->
-        let new_asmp = IT.subst (make_subst [ (s', v) ]) it' in
-        translate_term solver new_asmp :: acc
-      | _ -> acc
-    in
-    LC.Set.fold check_asmp assumptions acc0
-  in
-  { instantiated with extra = List.fold_left add_asmps [] instantiated.qs }
+let define_fun s name arg_binders res_bt body =
+  let sname = CN_Names.fn_name name in
+  let mk_arg (sym, bt) = (CN_Names.fn_name sym, translate_base_type bt) in
+  let args = List.map mk_arg arg_binders in
+  let ret_t = translate_base_type res_bt in
+  ack_command s (SMT.define_fun sname args ret_t (translate_term s body))
 
 
-(* as similarly suggested by Robbert *)
-let shortcut simp_ctxt lc =
-  let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
-  match lc with LC.T (IT (Const (Bool true), _, _)) -> `True | _ -> `No_shortcut lc
-
+let declare_variable solver (sym, bt) = declare_fun solver sym [] bt
 
 (** {1 Solver Initialization} *)
 
-(** Declare a group of (possibly) mutually recursive datatypes *)
-let declare_datatype_group s names =
-  let mk_con_field (l, t) = (CN_Names.datatype_field_name l, translate_base_type t) in
-  let mk_con c =
-    let ci = Sym.Map.find c s.globals.datatype_constrs in
-    (CN_Names.datatype_con_name c, List.map mk_con_field ci.params)
-  in
-  let cons (info : BT.dt_info) = List.map mk_con info.constrs in
-  let to_smt (x : Sym.t) =
-    let info = Sym.Map.find x s.globals.datatypes in
-    (CN_Names.datatype_name x, [], cons info)
-  in
-  ack_command s (SMT.declare_datatypes (List.map to_smt names))
+module CN_Datatypes = struct
+  (** Declare a group of (possibly) mutually recursive datatypes *)
+  let declare_datatype_group s names =
+    let mk_con_field (l, t) = (CN_Names.datatype_field_name l, translate_base_type t) in
+    let mk_con c =
+      let ci = Sym.Map.find c s.globals.datatype_constrs in
+      (CN_Names.datatype_con_name c, List.map mk_con_field ci.params)
+    in
+    let cons (info : BT.dt_info) = List.map mk_con info.constrs in
+    let to_smt (x : Sym.t) =
+      let info = Sym.Map.find x s.globals.datatypes in
+      (CN_Names.datatype_name x, [], cons info)
+    in
+    ack_command s (SMT.declare_datatypes (List.map to_smt names))
 
+
+  let declare s =
+    List.iter (declare_datatype_group s) (Option.get s.globals.datatype_order)
+end
 
 (** Declare a struct type and all struct types that it depends on.
     The `done_struct` keeps track of which structs we've already declared. *)
-let rec declare_struct s done_struct name decl =
-  let mp = !done_struct in
-  if Sym.Set.mem name mp then
-    ()
-  else (
-    done_struct := Sym.Set.add name mp;
-    let mk_field (l, t) =
-      let rec declare_nested ty =
-        match ty with
-        | BT.Struct name' ->
-          let decl = Sym.Map.find name' s.globals.struct_decls in
-          declare_struct s done_struct name' decl
-        | Map (_, el) -> declare_nested el
-        | _ -> ()
+module CN_Structs = struct
+  let rec declare_struct s done_struct name decl =
+    let mp = !done_struct in
+    if Sym.Set.mem name mp then
+      ()
+    else (
+      done_struct := Sym.Set.add name mp;
+      let mk_field (l, t) =
+        let rec declare_nested ty =
+          match ty with
+          | BT.Struct name' ->
+            let decl = Sym.Map.find name' s.globals.struct_decls in
+            declare_struct s done_struct name' decl
+          | Map (_, el) -> declare_nested el
+          | _ -> ()
+        in
+        let ty = Memory.bt_of_sct t in
+        declare_nested ty;
+        (CN_Names.struct_field_name l, translate_base_type ty)
       in
-      let ty = Memory.bt_of_sct t in
-      declare_nested ty;
-      (CN_Names.struct_field_name l, translate_base_type ty)
-    in
-    let mk_piece (x : Memory.struct_piece) = Option.map mk_field x.member_or_padding in
-    ack_command
-      s
-      (SMT.declare_datatype
-         (CN_Names.struct_name name)
-         []
-         [ (CN_Names.struct_con_name name, List.filter_map mk_piece decl) ]))
+      let mk_piece (x : Memory.struct_piece) = Option.map mk_field x.member_or_padding in
+      ack_command
+        s
+        (SMT.declare_datatype
+           (CN_Names.struct_name name)
+           []
+           [ (CN_Names.struct_con_name name, List.filter_map mk_piece decl) ]))
 
+
+  let declare s =
+    let done_structs = ref Sym.Set.empty in
+    Sym.Map.iter (declare_struct s done_structs) s.globals.struct_decls
+end
+
+module CN_Functions = struct
+  let declare_arith_uf_functions s =
+    let bit_bts_of_size sz = BT.[ Bits (Signed, sz); Bits (Unsigned, sz) ] in
+    let sizes = [ 8; 16; 32; 64; 128 ] in
+    (* as currently supported in the CN parser *)
+    let bit_bts = List.concat_map bit_bts_of_size sizes in
+    let bts = BT.Integer :: bit_bts in
+    let declare_per_bt fn bt =
+      let t = translate_base_type bt in
+      ack_command s (SMT.declare_fun (fn bt) [ t; t ] t)
+    in
+    let declare fn = List.iter (declare_per_bt fn) bts in
+    List.iter declare CN_Names.[ mul; div; exp; rem; mod' ]
+
+
+  let declare_or_define_function s fn =
+    let def = Sym.Map.find fn s.globals.logical_functions in
+    match def.body with
+    | Uninterp | Rec_Def _ -> declare_fun s fn (List.map snd def.args) def.return_bt
+    | Def body -> define_fun s fn def.args def.return_bt body
+
+
+  let declare_function_group s group = List.iter (declare_or_define_function s) group
+
+  let declare s =
+    declare_arith_uf_functions s;
+    List.iter (declare_function_group s) (Option.get s.globals.logical_function_order)
+end
 
 (** Declare various types always available to the solver. *)
-let declare_solver_basics s =
+let declare_solver_basics s variable_bindings =
   CN_Tuple.declare s;
   CN_List.declare s;
+  CN_Option.declare s;
   CN_MemByte.declare s;
   CN_Pointer.declare s;
   (* structs may depend only on other structs. datatypes may depend on other datatypes and
      structs. *)
-  let done_structs = ref Sym.Set.empty in
-  Sym.Map.iter (declare_struct s done_structs) s.globals.struct_decls;
-  List.iter (declare_datatype_group s) (Option.get s.globals.datatype_order)
+  CN_Structs.declare s;
+  CN_Datatypes.declare s;
+  List.iter (declare_variable s) variable_bindings;
+  CN_Functions.declare s
 
 
 (* Logging *)
@@ -1247,144 +1161,110 @@ let solver_type = ref (None : SMT.solver_extensions option)
 
 let solver_flags = ref (None : string list option)
 
+let select_solver_type () =
+  let default = SMT.Z3 in
+  match !solver_type with
+  | Some typ -> typ
+  | None ->
+    (match !solver_path with
+     | None -> default
+     | Some path ->
+       (match Filename.basename path with
+        | "z3" -> SMT.Z3
+        | "cvc5" -> SMT.CVC5
+        | _ -> default))
+
+
 (** Make a new solver instance *)
-let make globals =
-  let cfg =
-    ref
-      (match !solver_type with
-       | Some t ->
-         (match t with
-          | SMT.Z3 -> SMT.z3
-          | SMT.CVC5 -> SMT.cvc5
-          | SMT.Other -> failwith "Unsupported solver.")
-       | None ->
-         (match !solver_path with
-          | None -> SMT.z3
-          | Some path ->
-            (match Filename.basename path with
-             | "z3" -> SMT.z3
-             | "cvc5" -> SMT.cvc5
-             | _ -> failwith "Please specify solver type")))
+let make globals variable_bindings =
+  let base_cfg =
+    match select_solver_type () with
+    | Z3 -> SMT.z3
+    | CVC5 -> SMT.cvc5
+    | Other -> failwith "Unsupported solver type."
   in
-  (match !solver_path with Some path -> cfg := { !cfg with SMT.exe = path } | None -> ());
-  (match !solver_flags with Some opts -> cfg := { !cfg with SMT.opts } | None -> ());
-  cfg
-  := { !cfg with
-       log =
-         Logger.make
-           (match !cfg.exts with
-            | SMT.Z3 -> "z3"
-            | SMT.CVC5 -> "cvc5"
-            | SMT.Other -> "other")
-     };
-  let s =
-    { smt_solver = SMT.new_solver !cfg;
-      cur_frame = ref (empty_solver_frame ());
-      prev_frames = ref [];
-      name_seed = ref 0;
-      globals
+  let cfg =
+    { base_cfg with
+      exe = Option.value ~default:base_cfg.exe !solver_path;
+      opts = Option.value ~default:base_cfg.opts !solver_flags;
+      log = Logger.make (SMT.string_of_solver_extension base_cfg.exts)
     }
   in
-  declare_solver_basics s;
+  let model_cfg = { cfg with log = Logger.make "model" } in
+  let _, ctypes, ctypes_rev =
+    let open WellTyped in
+    CTS.fold
+      (fun ct (i, m, m_rev) -> (i + 1, CTypeMap.add ct i m, IntMap.add i ct m_rev))
+      (get_cts ())
+      (0, CTypeMap.empty, IntMap.empty)
+  in
+  let s =
+    { smt_solver = SMT.new_solver cfg;
+      cur_frame = ref (empty_solver_frame ());
+      prev_frames = ref [];
+      ctypes;
+      ctypes_rev;
+      globals;
+      model_smt_solver = SMT.new_solver model_cfg
+    }
+  in
+  List.iter (SMT.ack_command s.model_smt_solver) (SMT.incremental model_cfg);
+  (* "empty model loaded" using 'push' *)
+  SMT.ack_command s.model_smt_solver (SMT.push 1);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.incremental cfg);
+  List.iter (SMT.ack_command s.smt_solver) (SMT.otimeout cfg !inc_timeout);
+  declare_solver_basics s variable_bindings;
   s
 
 
 (* ---------------------------------------------------------------------------*)
-(* GLOBAL STATE: Models *)
+(* Models *)
 (* ---------------------------------------------------------------------------*)
 
-type model = int
-
-type model_fn = IT.t -> IT.t option
+type model = IT.t -> IT.t option
 
 type model_with_q = model * (Sym.t * BaseTypes.t) list
 
-type model_table = (model, model_fn) Hashtbl.t
+let empty_model = fun it -> Some it
 
-let models_tbl : model_table = Hashtbl.create 1
+let model_state = ref (None : model_with_q option)
 
-let empty_model =
-  let model = Option.some in
-  Hashtbl.add models_tbl 0 model;
-  0
+let model () = Option.get !model_state
 
-
-type model_state =
-  | Model of model_with_q
-  | No_model
-
-let model_state = ref No_model
-
-let model () = match !model_state with No_model -> assert false | Model mo -> mo
-
-(** Evaluate terms in the context of a model computed by the solver. *)
-let model_evaluator, reset_model_evaluator_state =
-  (* internal state for the model evaluator, reuses the solver across consecutive calls for efficiency *)
-  let model_evaluator_solver : Simple_smt.solver option ref = ref None in
-  let currently_loaded_model = ref 0 in
-  let model_id = ref 0 in
-  let new_model_id () =
-    (* Start with 1, as 0 is the id of the empty model *)
-    model_id := !model_id + 1;
-    !model_id
-  in
-  let reset_model_evaluator_state () =
-    currently_loaded_model := 0;
-    model_evaluator_solver := None;
-    model_id := 0
-  in
-  let model_evaluator solver mo =
-    match SMT.to_list mo with
-    | None -> failwith "model is an atom"
-    | Some defs ->
-      let scfg = solver.smt_solver.config in
-      let cfg = { scfg with log = Logger.make "model" } in
-      let smt_solver, new_solver =
-        match !model_evaluator_solver with
-        | Some smt_solver -> (smt_solver, false)
-        | None ->
-          let s = SMT.new_solver cfg in
-          model_evaluator_solver := Some s;
-          (s, true)
-      in
-      let model_id = new_model_id () in
-      let gs = solver.globals in
-      let evaluator =
-        { smt_solver;
-          cur_frame = ref (empty_solver_frame ());
-          prev_frames =
-            ref
-              (List.map copy_solver_frame (!(solver.cur_frame) :: !(solver.prev_frames)))
-            (* We keep the prev_frames because things that were declared, would now be
-               defined by the model. Also, we need the infromation about the C type
-               mapping. *);
-          name_seed = solver.name_seed;
-          globals = gs
-        }
-      in
-      if new_solver then (
-        declare_solver_basics evaluator;
-        push evaluator);
-      let model_fn e =
-        if not (!currently_loaded_model = model_id) then (
-          currently_loaded_model := model_id;
-          pop evaluator 1;
-          push evaluator;
-          List.iter (debug_ack_command evaluator) defs);
-        let inp = translate_term evaluator e in
-        match SMT.check smt_solver with
-        | SMT.Sat ->
-          let res = SMT.get_expr smt_solver inp in
-          let ctys = get_ctype_table evaluator in
-          Some (get_ivalue gs ctys (get_bt e) (SMT.no_let res))
-        | _ -> None
-      in
-      Hashtbl.add models_tbl model_id model_fn;
-      model_id
-  in
-  (model_evaluator, reset_model_evaluator_state)
+(** Load a model into the model solver, by running [cmds], followed by
+    `check-sat`. *)
+let load_model solver cmds =
+  let msmt = solver.model_smt_solver in
+  SMT.ack_command msmt (SMT.pop 1);
+  SMT.ack_command msmt (SMT.push 1);
+  List.iter (SMT.ack_command msmt) cmds;
+  match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually SAT"
 
 
+(** Models are `IT.t -> IT.t option` [evaluator] functions, each assigned a
+    unique ID. An evaluator checks, using the ID, if the model is currently
+    loaded; if not it loads the model into the model solver by running the
+    [cmds], previously extracted from the regular solver. *)
+let record_model =
+  let loaded_id = ref (None : int option) in
+  fun solver cmds qs ->
+    let id = Sym.fresh_int () in
+    let evaluator e =
+      if not (Option.equal Int.equal !loaded_id (Some id)) then (
+        loaded_id := Some id;
+        load_model solver cmds);
+      let t = translate_term solver e in
+      let res = SMT.get_expr solver.model_smt_solver t in
+      let res = SMT.no_let res in
+      Some (get_ivalue solver.globals solver.ctypes_rev (get_bt e) res)
+    in
+    model_state := Some (evaluator, qs)
+
+
+let clear_model () = model_state := None
+
+(* ---------------------------------------------------------------------------*)
+(* Try hard *)
 (* ---------------------------------------------------------------------------*)
 
 module TryHard = struct
@@ -1401,7 +1281,7 @@ module TryHard = struct
     let qs_ =
       List.map
         (fun (s, bt) ->
-           let name = CN_Names.var_name s in
+           let name = CN_Names.fn_name s in
            let sort = translate_base_type bt in
            (SMT.atom name, sort))
         qs
@@ -1441,72 +1321,87 @@ end
 
 let try_hard = ref false
 
-let provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc =
-  let _ = loc in
-  let set_model smt_solver qs =
-    let defs = SMT.get_model smt_solver in
-    let model = model_evaluator solver defs in
-    model_state := Model (model, qs)
-  in
-  match shortcut simp_ctxt lc with
-  | `True ->
-    model_state := No_model;
-    `True
-  | `No_shortcut lc ->
-    let { expr; qs; extra } = translate_goal solver assumptions lc in
-    let nexpr = SMT.bool_not expr in
-    let inc = solver.smt_solver in
-    debug_ack_command solver (SMT.push 1);
-    debug_ack_command solver (SMT.assume (SMT.bool_ands (nexpr :: extra)));
-    (match SMT.check inc with
-     | SMT.Unsat ->
-       debug_ack_command solver (SMT.pop 1);
-       model_state := No_model;
-       `True
-     | SMT.Sat when !try_hard ->
-       debug_ack_command solver (SMT.pop 1);
-       let assumptions = LC.Set.elements assumptions in
-       let foralls = TryHard.translate_foralls solver assumptions in
-       let functions = TryHard.translate_functions solver in
-       debug_ack_command solver (SMT.push 1);
-       debug_ack_command
-         solver
-         (SMT.assume (SMT.bool_ands ((nexpr :: foralls) @ functions)));
-       Pp.(debug 3 (lazy !^"***** try-hard *****"));
-       (match SMT.check inc with
-        | SMT.Unsat ->
-          debug_ack_command solver (SMT.pop 1);
-          model_state := No_model;
-          Pp.(debug 3 (lazy !^"***** try-hard: provable *****"));
-          `True
-        | SMT.Sat ->
-          set_model inc qs;
-          debug_ack_command solver (SMT.pop 1);
-          Pp.(debug 3 (lazy !^"***** try-hard: unprovable *****"));
-          `Unknown (*TODO CHT*)
-        | SMT.Unknown ->
-          set_model inc qs;
-          debug_ack_command solver (SMT.pop 1);
-          Pp.(debug 3 (lazy !^"***** try-hard: unknown *****"));
-          `False)
-     | SMT.Sat ->
-       set_model inc qs;
-       debug_ack_command solver (SMT.pop 1);
+let _unused_try_hard = (TryHard.translate_functions, TryHard.translate_foralls)
+
+(* ---------------------------------------------------------------------------*)
+(* Provable *)
+(* ---------------------------------------------------------------------------*)
+
+(** Goals are translated to this type *)
+type reduction =
+  { qs : (Sym.t * BT.t) list; (* quantifier instantiation *)
+    expr : IT.t; (* translation of goal *)
+    extra : IT.t list (* additional assumptions *)
+  }
+
+(** TODO: maybe we should not have `extra` any more. *)
+let reduce_goal assumptions = function
+  | LC.T expr -> { expr; qs = []; extra = [] }
+  | Forall ((s, bt), expr) ->
+    let s, expr = IT.alpha_rename s expr in
+    let mk_extra = function
+      | LC.Forall ((s', bt'), expr') when BT.equal bt bt' ->
+        Some (IT.subst (make_rename ~from:s' ~to_:s) expr')
+      | _ -> None
+    in
+    let extra = List.filter_map mk_extra (LC.Set.elements assumptions) in
+    { expr; qs = [ (s, bt) ]; extra }
+
+
+(** Add an assertion. Quantified assertions are ignored. *)
+let assume solver lc =
+  clear_model ();
+  match lc with
+  | LC.T it -> ack_command solver (SMT.assume (translate_term solver it))
+  | Forall _ -> ()
+
+
+let check_new_solver cfg cmds =
+  let s = SMT.new_solver cfg in
+  List.iter (SMT.ack_command s) cmds;
+  let result = SMT.check s in
+  s.stop ();
+  result
+
+
+let provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc =
+  clear_model ();
+  (* shortcut, as similarly suggested by Robbert *)
+  match Simplify.LogicalConstraints.simp simp_ctxt lc with
+  | LC.T (IT (Const (Bool true), _, _)) -> `True
+  | lc ->
+    push solver;
+    let { qs; expr; extra } = reduce_goal assumptions lc in
+    List.iter (declare_variable solver) qs;
+    List.iter (fun t -> assume solver (T t)) (not_ expr loc :: extra);
+    let cmds = List.rev (get_commands solver) in
+    let answer =
+      match if !inc_enabled then SMT.check solver.smt_solver else Unknown with
+      | Unknown -> check_new_solver solver.smt_solver.config cmds
+      | a -> a
+    in
+    pop solver 1;
+    (match answer with
+     | Unsat -> `True
+     | Sat ->
+       record_model solver cmds qs;
        `False
-     | SMT.Unknown ->
-       debug_ack_command solver (SMT.pop 1);
-       failwith "Unknown")
+     | Unknown ->
+       record_model solver cmds qs;
+       `Unknown)
 
 
 (** The main way to query the solver. *)
-let provable ~loc ~solver ~assumptions ~simp_ctxt lc =
-  match provableWithUnknown ~loc ~solver ~assumptions ~simp_ctxt lc with
-  | `True -> `True
-  | `False -> `False
-  | `Unknown -> `False
+let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
+  let start_time = Pp.time_start () in
+  let result =
+    match provable_or_unknown ~loc ~solver ~assumptions ~simp_ctxt lc with
+    | `True -> `True
+    | `False -> `False
+    | `Unknown -> `False
+  in
+  Pp.time_end "provable" ~info1:purpose ~info2:(lazy (LC.pp lc)) start_time;
+  result
 
 
-(* ISD: Could these globs be different from the saved ones? *)
-let eval mo t =
-  let model_fn = Hashtbl.find models_tbl mo in
-  model_fn t
+let eval mo t = mo t

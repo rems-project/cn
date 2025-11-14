@@ -124,6 +124,10 @@ Inductive term (bt : Type) : Type :=
   | TLet : (sym * annot bt) -> annot bt -> term bt
   | TMatch : annot bt -> list (pattern bt * annot bt) -> term bt
   | Cast : BaseTypes.t -> annot bt -> term bt
+  | CN_None : BaseTypes.t -> term bt
+  | CN_Some : annot bt -> term bt
+  | IsSome : annot bt -> term bt
+  | GetOpt : annot bt -> term bt
 
 with annot (bt : Type) : Type :=
   | IT : term bt -> bt -> Locations.t -> annot bt.
@@ -199,6 +203,10 @@ Theorem term_ind_set (ty : Type) (P : term ty -> Type) (P' : annot ty -> Type) :
   (forall (p : sym * annot ty) (a : annot ty), P' (snd p) -> P' a -> P (TLet ty p a)) ->
   (forall (a : annot ty) (l : list (pattern ty * annot ty)), P' a -> Forall_type (fun '(_, a) => P' a) l -> P (TMatch ty a l)) ->
   (forall (bt : BaseTypes.t) (a : annot ty), P' a -> P (Cast ty bt a)) ->
+  (forall (bt : BaseTypes.t), P (CN_None ty bt)) ->
+  (forall (a : annot ty), P' a -> P (CN_Some ty a)) ->
+  (forall (a : annot ty), P' a -> P (IsSome ty a)) ->
+  (forall (a : annot ty), P' a -> P (GetOpt ty a)) ->
   (forall (t : term ty) (tt : ty) (lc : Locations.t), P t -> P' (IT ty t tt lc)) ->
   forall t : term ty, P t.
 Proof.
@@ -207,7 +215,7 @@ Proof.
          HConstructor HMemberShift HArrayShift HCopyAllocId HHasAllocId
          HSizeOf HOffsetOf HNil HCons HHead HTail HNthList HArrayToList
          HRepresentable HGood HAligned HWrapI HMapConst HMapSet HMapGet
-         HMapDef HApply HTLet HTMatch HCast HIT.
+         HMapDef HApply HTLet HTMatch HCast HCN_None HCN_Some HIsSome HGetOpt HIT.
   fix IH 1.
   intros t.
   destruct t.
@@ -350,6 +358,16 @@ Proof.
   - clear - HCast HIT IH.
     destruct a.
     apply HCast; apply HIT, IH.
+  - apply HCN_None.
+  - clear - HCN_Some HIT IH.
+    destruct a.
+    apply HCN_Some; apply HIT, IH.
+  - clear - HIsSome HIT IH.
+    destruct a.
+    apply HIsSome; apply HIT, IH.
+  - clear - HGetOpt HIT IH.
+    destruct a.
+    apply HGetOpt; apply HIT, IH.
 Defined.
 
 Module Const_as_MiniDecidableType <: MiniDecidableType.
@@ -650,6 +668,7 @@ Module Term_as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType) <
       destruct (Sym_t_as_MiniDecidableType.eq_dec s s0) as [E | ?]; try (right; congruence).
       inversion E; subst; clear E.
       left; reflexivity.
+    (* Nil *)
     - intros bt t0.
       destruct t0; try (right; discriminate).
       destruct (BasetTypes_t_as_MiniDecidableType.eq_dec bt t) as [E | ?]; try (right; congruence).
@@ -774,6 +793,27 @@ Module Term_as_MiniDecidableType (Ty_as_MiniDecidableType : MiniDecidableType) <
       destruct t0; try (right; discriminate).
       destruct (BasetTypes_t_as_MiniDecidableType.eq_dec bt t) as [E | ?]; try (right; congruence).
       inversion E; subst; clear E.
+      destruct (IHa a0); try (right; congruence); subst.
+      left; reflexivity.
+    (* CN_None *)
+    - intros bt t0.
+      destruct t0; try (right; discriminate).
+      destruct (BasetTypes_t_as_MiniDecidableType.eq_dec bt t) as [E | ?]; try (right; congruence).
+      inversion E; subst; clear E.
+      left; reflexivity.
+    (* CN_Some *)
+    - intros a IHa t0.
+      destruct t0; try (right; discriminate).
+      destruct (IHa a0); try (right; congruence); subst.
+      left; reflexivity.
+    (* IsSome *)
+    - intros a IHa t0.
+      destruct t0; try (right; discriminate).
+      destruct (IHa a0); try (right; congruence); subst.
+      left; reflexivity.
+    (* GetOpt *)
+    - intros a IHa t0.
+      destruct t0; try (right; discriminate).
       destruct (IHa a0); try (right; congruence); subst.
       left; reflexivity.
     - intros t tt lc IHt a.

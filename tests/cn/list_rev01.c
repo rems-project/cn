@@ -6,7 +6,7 @@ struct node {
 };
 
 /*@
-predicate {integer len} List (pointer p) {
+predicate [rec] {integer len} List (pointer p) {
   if ( is_null(p) ) {
     return { len: 0 };
   }
@@ -33,10 +33,10 @@ rev_list (struct node *p)
   /* FIXME: apparently we need to initialise all loop vars */
   p2 = NULL;
   while (p)
-  /*@ inv is_null(p) || !addr_eq(p, NULL); @*/
-  /*@ inv is_null(rev) || !addr_eq(rev, NULL); @*/
-  /*@ inv take R2 = List(p); @*/
-  /*@ inv take R3 = List(rev); @*/
+  /*@ inv is_null(p) || !addr_eq(p, NULL);
+          is_null(rev) || !addr_eq(rev, NULL);
+          take R2 = List(p);
+          take R3 = List(rev); @*/
   {
     p2 = p->next;
     p->next = rev;

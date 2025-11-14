@@ -214,6 +214,8 @@ val term_col : int
 
 val int : int -> document
 
+val int64 : int64 -> document
+
 val z : Z.t -> document
 
 val bool : bool -> document
@@ -235,20 +237,6 @@ val langle : unit -> document
 val rangle : unit -> document
 
 val angles : document -> document
-
-val times : (out_channel * string * int) option ref
-
-val wrap : string -> string
-
-val write_time_log_start : string -> string -> unit
-
-val write_time_log_end : float option -> unit
-
-val write_time_log_final : unit -> unit
-
-val maybe_open_times_channel : (string * String.t) option -> unit
-
-val maybe_close_times_channel : unit -> unit
 
 val print : PPrint.ToChannel.channel -> document -> unit
 
@@ -316,15 +304,15 @@ val debug : int -> document Lazy.t -> unit
 
 val warn_noloc : Cerb_pp_prelude.P.document -> unit
 
-val time_f_elapsed : ('a -> 'b) -> 'a -> float * 'b
+val times : (out_channel * string) option ref
 
-val time_f_debug : int -> string -> ('a -> 'b) -> 'a -> 'b
+val maybe_open_times_channel : (string * String.t) option -> unit
 
-val time_log_start : string -> string -> float
+val maybe_close_times_channel : unit -> unit
 
-val time_log_end : float -> unit
+val time_start : unit -> float
 
-val time_f_logs : Locations.t -> int -> string -> ('a -> 'b) -> 'a -> 'b
+val time_end : string -> ?info1:string -> ?info2:document Lazy.t -> float -> unit
 
 val error : Locations.t -> document -> document list -> unit
 
@@ -351,3 +339,7 @@ val of_total : int -> int -> string
 val document_to_yojson : document -> Yojson.Safe.t
 
 val document_of_yojson : Yojson.Safe.t -> (document, string) Result.t
+
+val escape_lines : document -> document
+
+val underscores : document -> document

@@ -27,7 +27,7 @@ SOFTWARE.
 
 */
 
-#include "alloc.h"
+#include "fulminate_alloc.h"
 #include "rts_deps.h"
 
 #ifdef __cplusplus
@@ -45,11 +45,12 @@ struct hash_table {
   ht_entry* entries;  // hash slots
   int capacity;       // size of _entries array
   int length;         // number of items in hash table
+  allocator* alloc;   // the allocator
 };
 
 typedef struct hash_table hash_table;
 
-hash_table* ht_create(void);
+hash_table* ht_create(allocator*);
 
 void ht_destroy(hash_table* table);
 
@@ -71,7 +72,7 @@ typedef struct {
 
 hash_table_iterator ht_iterator(hash_table* table);
 
-_Bool ht_next(hash_table_iterator* it);
+bool ht_next(hash_table_iterator* it);
 
 #ifdef __cplusplus
 }

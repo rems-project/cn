@@ -7,8 +7,6 @@
 extern "C" {
 #endif
 
-typedef uint64_t seed;
-
 enum cn_test_result {
   CN_TEST_PASS,
   CN_TEST_FAIL,

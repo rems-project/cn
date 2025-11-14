@@ -11,7 +11,7 @@ struct int_tree {
         Tree_Leaf {},
         Tree_Node { i32 key, datatype binary_tree left, datatype binary_tree right }
     }
-    predicate (datatype binary_tree) IntTree(pointer p) {
+    predicate [rec] (datatype binary_tree) IntTree(pointer p) {
         if (is_null(p)) {
             return Tree_Leaf {};
         } else {

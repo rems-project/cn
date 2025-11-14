@@ -51,13 +51,14 @@ char* cn_replicate_owned_cn_bits_u64_aux(cn_pointer* p);
 #define cn_replicate_owned_array_aux(member_owned_aux, arr, n)                           \
   ({                                                                                     \
     char* buf = malloc(5);                                                               \
-    sprintf(buf, "{ ");                                                                  \
+    snprintf(buf, 5, "{ ");                                                              \
     for (int i = 0; i < n; i++) {                                                        \
       char* mem_buf = member_owned_aux(convert_to_cn_pointer(&arr[i]));                  \
       buf = realloc(buf, strlen(buf) + strlen(mem_buf) + 1);                             \
       strcat(buf, mem_buf);                                                              \
       free(mem_buf);                                                                     \
     }                                                                                    \
+    buf = realloc(buf, strlen(buf) + strlen(" }") + 1);                                  \
     strcat(buf, " }");                                                                   \
     buf;                                                                                 \
   })

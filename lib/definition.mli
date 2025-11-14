@@ -47,6 +47,8 @@ module Clause : sig
   val lrt : IndexTerms.t -> IndexTerms.t LogicalArgumentTypes.t -> LogicalReturnTypes.t
 
   val explicit_negative_guards : t list -> t list
+
+  val free_vars : t -> Sym.Set.t
 end
 
 module Predicate : sig
@@ -55,8 +57,14 @@ module Predicate : sig
       pointer : Sym.t;
       iargs : (Sym.t * BaseTypes.t) list;
       oarg : Locations.t * BaseTypes.t;
-      clauses : Clause.t list option
+      clauses : Clause.t list option;
+      recursive : bool;
+      attrs : Id.t list
     }
+
+  val is_nounfold : t -> bool
+
+  val is_multiclause : t -> bool
 
   val pp : t -> Pp.document
 
@@ -70,6 +78,8 @@ module Predicate : sig
     Clause.t option
 
   val given_to_solver : t -> bool
+
+  val free_vars : t -> Sym.Set.t
 end
 
 val alloc : Predicate.t

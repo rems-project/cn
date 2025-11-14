@@ -28,6 +28,8 @@ let loc_pp = ref Dec
 
 let int i = string (string_of_int i)
 
+let int64 i = string (Int64.to_string i)
+
 let z i = string (Z.to_string i)
 
 let bool b = if b then string "true" else string "false"
@@ -49,76 +51,6 @@ let langle () = if !html_escapes then html_langle else PPrint.langle
 let rangle () = if !html_escapes then html_rangle else PPrint.rangle
 
 let angles doc = langle () ^^ doc ^^ rangle ()
-
-let times = ref (None : (out_channel * string * int) option)
-
-let wrap s = "\"" ^ String.escaped s ^ "\""
-
-let write_time_log_start kind detail =
-  match !times with
-  | Some (channel, "log", i) ->
-    if i == 0 (* parent object opened, no contents yet *) then
-      Printf.fprintf channel ",\n  %s: [\n" (wrap "contents")
-    else
-      Printf.fprintf channel ",\n";
-    Printf.fprintf channel "{\n  %s: %s" (wrap "name") (wrap kind);
-    if String.length detail > 0 then
-      Printf.fprintf channel ",\n  %s: %s" (wrap "details") (wrap detail)
-    else
-      ();
-    (* this object is opened with no contents yet *)
-    times := Some (channel, "log", 0);
-    flush channel
-  | _ -> ()
-
-
-let write_time_log_end d =
-  match !times with
-  | Some (channel, "log", i) ->
-    if i != 0 (* open contents to be closed *) then
-      Printf.fprintf channel "\n  ]"
-    else
-      ();
-    (match d with
-     | None -> ()
-     | Some elapsed -> Printf.fprintf channel ",\n  %s: %f" (wrap "time") elapsed);
-    Printf.fprintf channel "\n}";
-    (* now returned to parent object which must have contents *)
-    times := Some (channel, "log", 1);
-    flush channel
-  | _ -> ()
-
-
-let write_time_log_final () =
-  match !times with
-  | Some (channel, "log", i) ->
-    if i != 0 (* open contents to be closed *) then
-      Printf.fprintf channel "\n  ]"
-    else
-      ();
-    Printf.fprintf channel "\n}\n"
-  | _ -> ()
-
-
-let maybe_open_times_channel = function
-  | None -> ()
-  | Some (filename, style) ->
-    let channel = open_out filename in
-    times := Some (channel, style, 0);
-    if String.equal style "csv" then
-      Printf.fprintf channel "lineF, lineT, trace length, time\n"
-    else
-      Printf.fprintf channel "{\n  %s: %s" (wrap "name") (wrap "timing")
-
-
-let maybe_close_times_channel () =
-  match !times with
-  | None -> ()
-  | Some (channel, _, _) ->
-    write_time_log_final ();
-    flush channel;
-    close_out channel
-
 
 (* from run_pp *)
 let print channel doc =
@@ -222,54 +154,43 @@ let debug l pp =
 
 let warn_noloc pp = print stderr (format [ Bold; Yellow ] "Warning:" ^^^ pp)
 
-let time_f_elapsed f x =
-  let start = Unix.gettimeofday () in
-  let y = f x in
-  let fin = Unix.gettimeofday () in
-  let d = fin -. start in
-  (d, y)
+let times = ref (None : (out_channel * string) option)
 
+let time_start () = Unix.gettimeofday ()
 
-let time_f_debug level msg f x =
-  if !print_level >= level then (
-    let d, y = time_f_elapsed f x in
-    debug level (lazy (format [] (msg ^ ": elapsed: " ^ Float.to_string d)));
-    y)
-  else
-    f x
-
-
-let time_log_start kind detail =
+let time_end descr ?(info1 = "") ?(info2 = lazy PPrint.empty) start_time =
+  let end_time = Unix.gettimeofday () in
+  let diff = end_time -. start_time in
   match !times with
-  | Some (_channel, "log", _) ->
-    write_time_log_start kind detail;
-    Unix.gettimeofday ()
-  | _ -> 0.0
-
-
-let time_log_end prev_time =
-  match !times with
-  | Some (_channel, "log", _) ->
-    let fin_time = Unix.gettimeofday () in
-    let d = fin_time -. prev_time in
-    write_time_log_end (Some d)
+  | Some (channel, "csv") ->
+    Printf.fprintf
+      channel
+      "%s; %s; \"%s\"; %.6f\n"
+      descr
+      info1
+      (plain (Lazy.force info2))
+      diff
   | _ -> ()
 
 
-let time_f_logs (loc : Locations.t) level msg f x =
+let maybe_open_times_channel = function
+  | None -> ()
+  | Some (filename, style) ->
+    let channel = open_out filename in
+    times := Some (channel, style);
+    if String.equal style "csv" then (
+      Printf.fprintf channel "sep=;\n";
+      Printf.fprintf channel "description; information; extra information; time\n")
+    else
+      warn_noloc !^"unknown time-logging style -- not logging"
+
+
+let maybe_close_times_channel () =
   match !times with
-  | Some (channel, style, _) ->
-    let _ = time_log_start msg "" in
-    let d, y = time_f_elapsed f x in
-    (match (Locations.line_numbers loc, style) with
-     | Some (l1, l2), "csv" -> Printf.fprintf channel "%d, %d, %f\n" l1 l2 d
-     | _, "csv" -> Printf.fprintf channel "None, None, %f\n" d
-     | _, "log" -> write_time_log_end (Some d)
-     | _ -> ());
+  | None -> ()
+  | Some (channel, _) ->
     flush channel;
-    debug level (lazy (format [] (msg ^ ": elapsed: " ^ Float.to_string d)));
-    y
-  | _ -> time_f_debug level msg f x
+    close_out channel
 
 
 (* stealing some logic from pp_errors *)
@@ -361,3 +282,11 @@ let string str =
     string str)
   else
     string str
+
+
+let escape_lines doc =
+  separate hardline (List.map (fun l -> l ^^ backslash) (lines (plain doc)))
+
+
+(* underscores is used for enum member generation for runtime checking of ghost arguments: *)
+let underscores x = enclose underscore underscore x

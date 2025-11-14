@@ -25,6 +25,7 @@ let call_situation = function
 let checking_situation = function
   | Access _ -> !^"checking access"
   | Call s -> call_situation s
+  | Unpacking -> !^"unpacking"
 
 
 let for_access = function
@@ -34,11 +35,12 @@ let for_access = function
   | Store -> !^"for writing"
   | Free -> !^"for free-ing"
   | To_bytes -> !^"for converting to bytes"
-  | From_bytes -> !^"for convering from bytes"
+  | From_bytes -> !^"for converting from bytes"
 
 
 let for_situation = function
   | Access access -> for_access access
+  | Unpacking -> !^"for unpacking"
   | Call s ->
     (match s with
      | FunctionCall fsym -> !^"for calling function" ^^^ Sym.pp fsym
@@ -88,6 +90,7 @@ type message =
   | Compile of Compile.message
   | Global of Global.message
   | WellTyped of WellTyped.message
+  | Parse of Parse.message
   | Missing_resource of
       { requests : RequestChain.t;
         situation : situation;
@@ -172,7 +175,6 @@ type message =
         ctxt : Context.t * Explain.log
       } [@deprecated "Please add a specific constructor"]
   | Unsupported of document
-  | Parser of Cerb_frontend.Errors.cparser_cause
   | Empty_provenance
   | Inconsistent_assumptions of string * (Context.t * Explain.log)
   | Byte_conv_needs_owned
@@ -180,13 +182,22 @@ type message =
       { fname : Sym.t;
         orig_loc : Locations.t
       }
-  | Requires_after_ensures of { ens_loc : Locations.t }
   | Unsupported_byte_conv_ct of Sctypes.ctype
   | Number_spec_args of
       { spec : int;
         decl : int
       }
   | Not_impl_ghost_args_in_pure_C_function
+  | Unspecified_byte_to_int of
+      { constr : LC.t;
+        ctxt : Context.t * Explain.log;
+        model : Solver.model_with_q
+      }
+  | Converting_from_unspecified_bytes of
+      { constr : LC.t;
+        ctxt : Context.t * Explain.log;
+        model : Solver.model_with_q
+      }
 
 type t =
   { loc : Locations.t;
@@ -358,6 +369,25 @@ let pp_builtins : Builtins.message -> _ = function
     { short; descr = None; state = None }
 
 
+let pp_parse : Parse.message -> _ = function
+  | Parser err ->
+    let short = !^(Cerb_frontend.Pp_errors.string_of_cparser_cause err) in
+    { short; descr = None; state = None }
+  | Split_spec loc ->
+    let short = !^"Cannot split specifications across multiple magic comments" in
+    let head, pos = Locations.head_pos_of_location loc in
+    let descr =
+      Some
+        (!^"previous magic comment starts here"
+         ^^^ !^head
+         ^/^ !^pos
+         ^/^ parens
+               !^"deprecated, for backwards compatibility use \
+                  --allow-split-magic-comments")
+    in
+    { short; descr; state = None }
+
+
 let pp_compile : Compile.message -> _ = function
   | ((Generic err) [@alert "-deprecated"]) ->
     let short = err in
@@ -424,6 +454,7 @@ let pp_message = function
   | WellTyped msg -> pp_welltyped msg
   | Compile msg -> pp_compile msg
   | Builtins msg -> pp_builtins msg
+  | Parse msg -> pp_parse msg
   | Missing_resource { requests; situation; ctxt; model } ->
     let short = !^"Missing resource" ^^^ for_situation situation in
     let descr = RequestChain.pp requests in
@@ -594,9 +625,6 @@ let pp_message = function
   | Unsupported err ->
     let short = err in
     { short; descr = None; state = None }
-  | Parser err ->
-    let short = !^(Cerb_frontend.Pp_errors.string_of_cparser_cause err) in
-    { short; descr = None; state = None }
   | Empty_provenance ->
     let short = !^"Empty provenance" in
     { short; descr = None; state = None }
@@ -612,11 +640,6 @@ let pp_message = function
     let short = !^"double specification of" ^^^ Sym.pp fname in
     let head, pos = Locations.head_pos_of_location orig_loc in
     let descr = Some (!^"first specification at" ^^^ !^head ^/^ !^pos) in
-    { short; descr; state = None }
-  | Requires_after_ensures { ens_loc } ->
-    let short = !^"all requires clauses must come before any ensures clauses" in
-    let head, pos = Locations.head_pos_of_location ens_loc in
-    let descr = Some (!^"ensures clause at" ^^^ !^head ^/^ !^pos) in
     { short; descr; state = None }
   | Unsupported_byte_conv_ct ct ->
     let short =
@@ -638,6 +661,18 @@ let pp_message = function
       !^"Cannot lift a pure C function which uses ghost arguments (not implemented)."
     in
     { short; descr = None; state = None }
+  | Unspecified_byte_to_int { constr; ctxt; model } ->
+    let short = !^"Cannot convert unspecified byte to integer" in
+    let state =
+      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    { short; descr = None; state = Some state }
+  | Converting_from_unspecified_bytes { constr; ctxt; model } ->
+    let short = !^"Cannot convert from unspecified bytes" in
+    let state =
+      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    { short; descr = None; state = Some state }
 
 
 (** Convert a possibly-relative filepath into an absolute one. *)
@@ -770,11 +805,11 @@ let report_json
   in
   let json =
     `Assoc
-      [ ("loc", Locations.json_loc loc);
+      [ ("loc", (Cerb_location.to_json loc :> Yojson.t));
         ("short", `String (plain report.short));
         ("descr", descr);
         ("state", state_error_file);
         ("report", report_file)
       ]
   in
-  Yojson.Safe.to_channel ~std:true stderr json
+  Yojson.to_channel ~std:true stderr json

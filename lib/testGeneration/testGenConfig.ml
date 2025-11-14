@@ -2,6 +2,10 @@ type build_tool =
   | Bash
   | Make
 
+type generation_mode =
+  | Concrete (* Backtracking random search *)
+  | Symbolic (* Symbolic constraint-based generation *)
+
 type logging_level =
   | None
   | Error
@@ -19,18 +23,42 @@ type progress_level =
 
 type sizing_strategy =
   | Uniform
-  | Quartile
+  | Constant
   | QuickCheck
+
+type inline_mode =
+  | Nothing
+  | NonRecursive
+  | Everything
+
+type smt_skewing_mode =
+  | Uniform
+  | Sized
+  | None
 
 type t =
   { (* Compile time *)
+    skip_and_only : string list * string list;
+    cc : string;
     print_steps : bool;
     num_samples : int;
     max_backtracks : int;
-    max_unfolds : int option;
-    max_array_length : int;
     build_tool : build_tool;
     sanitizers : string option * string option;
+    inline : inline_mode;
+    experimental_struct_asgn_destruction : bool;
+    experimental_product_arg_destruction : bool;
+    experimental_learning : bool;
+    static_absint : string list;
+    smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_remove_redundant_assertions : bool;
+    smt_pruning_at_runtime : bool;
+    symbolic : bool;
+    symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
+    max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
+    max_array_length : int; (* For symbolic execution *)
+    use_solver_eval : bool; (* Use solver-based evaluation *)
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -42,28 +70,53 @@ type t =
     until_timeout : int option;
     exit_fast : bool;
     max_stack_depth : int option;
-    allowed_depth_failures : int option;
     max_generator_size : int option;
     sizing_strategy : sizing_strategy option;
     random_size_splits : bool;
     allowed_size_split_backtracks : int option;
-    sized_null : bool;
     coverage : bool;
     disable_passes : string list;
     trap : bool;
     no_replays : bool;
     no_replicas : bool;
-    output_tyche : string option
+    output_tyche : string option;
+    print_size_info : bool;
+    print_backtrack_info : bool;
+    print_satisfaction_info : bool;
+    print_discard_info : bool;
+    print_timing_info : bool;
+    just_reset_solver : bool;
+    smt_skewing_mode : smt_skewing_mode;
+    smt_logging : string option;
+    smt_log_unsat_cores : string option;
+    max_bump_blocks : int option;
+    bump_block_size : int option;
+    max_input_alloc : int option;
+    smt_skew_pointer_order : bool
   }
 
 let default =
-  { print_steps = false;
+  { skip_and_only = ([], []);
+    cc = "cc";
+    print_steps = false;
     num_samples = 100;
     max_backtracks = 25;
-    max_unfolds = None;
-    max_array_length = 50;
     build_tool = Bash;
     sanitizers = (None, None);
+    inline = Nothing;
+    experimental_struct_asgn_destruction = false;
+    experimental_product_arg_destruction = false;
+    experimental_learning = false;
+    static_absint = [];
+    smt_pruning_before_absinst = `None;
+    smt_pruning_after_absinst = `None;
+    smt_pruning_remove_redundant_assertions = true;
+    smt_pruning_at_runtime = false;
+    symbolic = false;
+    symbolic_timeout = None;
+    max_unfolds = None;
+    max_array_length = 50;
+    use_solver_eval = false;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -74,18 +127,29 @@ let default =
     until_timeout = None;
     exit_fast = false;
     max_stack_depth = None;
-    allowed_depth_failures = None;
     max_generator_size = None;
     sizing_strategy = None;
     random_size_splits = false;
     allowed_size_split_backtracks = None;
-    sized_null = false;
     coverage = false;
     disable_passes = [];
     trap = false;
     no_replays = false;
     no_replicas = false;
-    output_tyche = Option.None
+    output_tyche = Option.None;
+    print_size_info = false;
+    print_backtrack_info = false;
+    print_satisfaction_info = false;
+    print_discard_info = false;
+    print_timing_info = false;
+    just_reset_solver = false;
+    smt_skewing_mode = Sized;
+    smt_logging = None;
+    smt_log_unsat_cores = None;
+    max_bump_blocks = None;
+    bump_block_size = None;
+    max_input_alloc = None;
+    smt_skew_pointer_order = false
   }
 
 
@@ -107,8 +171,19 @@ let string_of_progress_level (progress_level : progress_level) =
 let string_of_sizing_strategy (sizing_strategy : sizing_strategy) =
   match sizing_strategy with
   | Uniform -> "uniform"
-  | Quartile -> "quartile"
+  | Constant -> "constant"
   | QuickCheck -> "quickcheck"
+
+
+let string_of_inline_mode (inline_mode : inline_mode) =
+  match inline_mode with
+  | Nothing -> "nothing"
+  | NonRecursive -> "nonrec"
+  | Everything -> "everything"
+
+
+let string_of_smt_skewing_mode (mode : smt_skewing_mode) =
+  match mode with Uniform -> "uniform" | Sized -> "sized" | None -> "none"
 
 
 module Options = struct
@@ -131,81 +206,153 @@ module Options = struct
   let sizing_strategy : (string * sizing_strategy) list =
     List.map
       (fun strat -> (string_of_sizing_strategy strat, strat))
-      [ Uniform; Quartile; QuickCheck ]
+      [ Uniform; Constant; QuickCheck ]
+
+
+  let inline_mode : (string * inline_mode) list =
+    List.map
+      (fun mode -> (string_of_inline_mode mode, mode))
+      [ Nothing; NonRecursive; Everything ]
+
+
+  let smt_skewing_mode : (string * smt_skewing_mode) list =
+    List.map
+      (fun mode -> (string_of_smt_skewing_mode mode, mode))
+      [ Uniform; Sized; None ]
 end
 
-let instance = ref default
+let instance : t option ref = ref Option.None
 
-let initialize (cfg : t) = instance := cfg
+let initialize (cfg : t) = instance := Some cfg
 
-let is_print_steps () = !instance.print_steps
+let get_skip_and_only () = (Option.get !instance).skip_and_only
 
-let is_print_seed () = !instance.print_seed
+let get_cc () = (Option.get !instance).cc
 
-let get_num_samples () = !instance.num_samples
+let is_print_steps () = (Option.get !instance).print_steps
 
-let get_max_backtracks () = !instance.max_backtracks
+let is_print_seed () = (Option.get !instance).print_seed
 
-let get_max_unfolds () = !instance.max_unfolds
+let get_num_samples () = (Option.get !instance).num_samples
 
-let get_max_array_length () = !instance.max_array_length
+let get_max_backtracks () = (Option.get !instance).max_backtracks
 
-let get_build_tool () = !instance.build_tool
+let get_build_tool () = (Option.get !instance).build_tool
 
-let has_sanitizers () = !instance.sanitizers
+let has_sanitizers () = (Option.get !instance).sanitizers
 
-let has_input_timeout () = !instance.input_timeout
+let is_experimental_struct_asgn_destruction () =
+  (Option.get !instance).experimental_struct_asgn_destruction
 
-let has_null_in_every () = !instance.null_in_every
 
-let has_seed () = !instance.seed
+let is_experimental_product_arg_destruction () =
+  (Option.get !instance).experimental_product_arg_destruction
 
-let has_logging_level () = !instance.logging_level
 
-let has_logging_level_str () = Option.map string_of_logging_level !instance.logging_level
+let is_experimental_learning () = (Option.get !instance).experimental_learning
 
-let has_trace_granularity () = !instance.trace_granularity
+let has_static_absint () = (Option.get !instance).static_absint
+
+let has_smt_pruning_before_absinst () = (Option.get !instance).smt_pruning_before_absinst
+
+let has_smt_pruning_after_absinst () = (Option.get !instance).smt_pruning_after_absinst
+
+let is_smt_pruning_remove_redundant_assertions () =
+  (Option.get !instance).smt_pruning_remove_redundant_assertions
+
+
+let is_smt_pruning_at_runtime () = (Option.get !instance).smt_pruning_at_runtime
+
+let get_inline_mode () = (Option.get !instance).inline
+
+let has_input_timeout () = (Option.get !instance).input_timeout
+
+let has_null_in_every () = (Option.get !instance).null_in_every
+
+let has_seed () = (Option.get !instance).seed
+
+let has_logging_level () = (Option.get !instance).logging_level
+
+let has_logging_level_str () =
+  Option.map string_of_logging_level (Option.get !instance).logging_level
+
+
+let has_trace_granularity () = (Option.get !instance).trace_granularity
 
 let has_trace_granularity_str () =
-  Option.map string_of_trace_granularity !instance.trace_granularity
+  Option.map string_of_trace_granularity (Option.get !instance).trace_granularity
 
 
-let has_progress_level () = !instance.progress_level
+let has_progress_level () = (Option.get !instance).progress_level
 
 let has_progress_level_str () =
-  Option.map string_of_progress_level !instance.progress_level
+  Option.map string_of_progress_level (Option.get !instance).progress_level
 
 
-let is_until_timeout () = !instance.until_timeout
+let is_until_timeout () = (Option.get !instance).until_timeout
 
-let is_exit_fast () = !instance.exit_fast
+let is_exit_fast () = (Option.get !instance).exit_fast
 
-let has_max_stack_depth () = !instance.max_stack_depth
+let has_max_stack_depth () = (Option.get !instance).max_stack_depth
 
-let has_allowed_depth_failures () = !instance.allowed_depth_failures
+let has_max_generator_size () = (Option.get !instance).max_generator_size
 
-let has_max_generator_size () = !instance.max_generator_size
-
-let has_sizing_strategy () = !instance.sizing_strategy
+let has_sizing_strategy () = (Option.get !instance).sizing_strategy
 
 let has_sizing_strategy_str () =
-  Option.map string_of_sizing_strategy !instance.sizing_strategy
+  Option.map string_of_sizing_strategy (Option.get !instance).sizing_strategy
 
 
-let is_random_size_splits () = !instance.random_size_splits
+let is_random_size_splits () = (Option.get !instance).random_size_splits
 
-let has_allowed_size_split_backtracks () = !instance.allowed_size_split_backtracks
+let has_allowed_size_split_backtracks () =
+  (Option.get !instance).allowed_size_split_backtracks
 
-let is_sized_null () = !instance.sized_null
 
-let is_coverage () = !instance.coverage
+let is_coverage () = (Option.get !instance).coverage
 
-let has_pass s = not (List.mem String.equal s !instance.disable_passes)
+let has_pass s = not (List.mem String.equal s (Option.get !instance).disable_passes)
 
-let is_trap () = !instance.trap
+let is_trap () = (Option.get !instance).trap
 
-let has_no_replays () = !instance.no_replays
+let has_no_replays () = (Option.get !instance).no_replays
 
-let has_no_replicas () = !instance.no_replicas
+let has_no_replicas () = (Option.get !instance).no_replicas
 
-let get_output_tyche () = !instance.output_tyche
+let get_output_tyche () = (Option.get !instance).output_tyche
+
+let will_print_size_info () = (Option.get !instance).print_size_info
+
+let will_print_backtrack_info () = (Option.get !instance).print_backtrack_info
+
+let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_info
+
+let will_print_discard_info () = (Option.get !instance).print_discard_info
+
+let will_print_timing_info () = (Option.get !instance).print_timing_info
+
+let is_symbolic_enabled () = (Option.get !instance).symbolic
+
+let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
+
+let get_max_unfolds () = (Option.get !instance).max_unfolds
+
+let get_max_array_length () = (Option.get !instance).max_array_length
+
+let is_use_solver_eval () = (Option.get !instance).use_solver_eval
+
+let is_just_reset_solver () = (Option.get !instance).just_reset_solver
+
+let get_smt_skewing_mode () = (Option.get !instance).smt_skewing_mode
+
+let get_smt_logging () = (Option.get !instance).smt_logging
+
+let get_smt_log_unsat_cores () = (Option.get !instance).smt_log_unsat_cores
+
+let has_max_bump_blocks () = (Option.get !instance).max_bump_blocks
+
+let has_bump_block_size () = (Option.get !instance).bump_block_size
+
+let has_max_input_alloc () = (Option.get !instance).max_input_alloc
+
+let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order

@@ -3,7 +3,6 @@ open List
 module BT = BaseTypes
 module Res = Resource
 module LC = LogicalConstraints
-module IntMap = Map.Make (Int)
 
 type l_info = Locations.t * Pp.document Lazy.t
 
@@ -19,23 +18,10 @@ let bt_of = function BaseType bt -> bt | Value v -> IndexTerms.get_bt v
 
 let has_value = function BaseType _ -> false | Value _ -> true
 
-(* History information about the most recent read/write actions taken on a resource. These
-   are used to check for and report on concurrent races. The history is kept in a separate
-   map to the resource list, indexed by resource id, so that the final deletion of a
-   resource remains in the history. *)
-type resource_history =
-  { last_written : Locations.t;
-    reason_written : string;
-    last_written_id : int;
-    last_read : Locations.t;
-    last_read_id : int
-  }
-
 type t =
   { computational : (basetype_or_value * l_info) Sym.Map.t;
     logical : (basetype_or_value * l_info) Sym.Map.t;
-    resources : (Res.t * int) list * int;
-    resource_history : resource_history IntMap.t;
+    resources : Res.t list;
     constraints : LC.Set.t;
     global : Global.t;
     where : Where.t
@@ -49,15 +35,14 @@ let empty =
   in
   { computational = Sym.Map.empty;
     logical;
-    resources = ([], 0);
-    resource_history = IntMap.empty;
+    resources = [];
     constraints = LC.Set.empty;
     global = Global.empty;
     where = Where.empty
   }
 
 
-let get_rs (ctxt : t) = List.map fst (fst ctxt.resources)
+let get_rs (ctxt : t) = ctxt.resources
 
 let pp_basetype_or_value = function
   | BaseType bt -> BaseTypes.pp bt
@@ -160,108 +145,7 @@ let modify_where (f : Where.t -> Where.t) ctxt = { ctxt with where = f ctxt.wher
 (*       { label with trace = i :: label.trace} *)
 (*     ) ctxt *)
 
-let pp_history h =
-  Pp.braces
-    (Pp.list
-       (fun (nm, v) -> Pp.typ (Pp.string nm) v)
-       [ ("last read", Pp.int h.last_read_id);
-         ("last read at", Locations.pp h.last_read);
-         ("last written", Pp.int h.last_written_id);
-         ("last written at", Locations.pp h.last_written)
-       ])
-
-
-let set_map_history id h m =
-  (* Pp.debug 10 (lazy (Pp.item ("setting resource history of " ^ Int.to_string id)
-     (pp_history h))); *)
-  IntMap.add id h m
-
-
-let set_history id h (ctxt : t) =
-  let m = set_map_history id h ctxt.resource_history in
-  { ctxt with resource_history = m }
-
-
-let add_r loc r (ctxt : t) =
-  let rs, ix = ctxt.resources in
-  let resources = ((r, ix) :: rs, ix + 1) in
-  let h =
-    { last_written = loc;
-      reason_written = "created";
-      last_written_id = ix;
-      last_read = loc;
-      last_read_id = ix
-    }
-  in
-  set_history ix h { ctxt with resources }
-
-
-let res_map_history m id =
-  match IntMap.find_opt id m with
-  | Some h -> h
-  | None ->
-    let here = Locations.other __LOC__ in
-    { last_written = here;
-      reason_written = "unknown";
-      last_written_id = id;
-      last_read = here;
-      last_read_id = id
-    }
-
-
-let res_history (ctxt : t) id = res_map_history ctxt.resource_history id
-
-let res_read loc id (ix, m) =
-  let h = { (res_map_history m id) with last_read = loc; last_read_id = ix } in
-  (ix + 1, set_map_history id h m)
-
-
-let res_written loc id reason (ix, m) =
-  let h =
-    { (res_map_history m id) with
-      last_written_id = ix;
-      last_written = loc;
-      reason_written = reason
-    }
-  in
-  (ix + 1, set_map_history id h m)
-
-
-(* used during unfold, clone one history to a list of new ids *)
-let clone_history id ids m =
-  let h = res_map_history m id in
-  List.fold_right (fun id2 m -> set_map_history id2 h m) ids m
-
-
-let json (ctxt : t) : Yojson.Safe.t =
-  let basetype_or_value = function
-    | BaseType bt -> `Variant ("BaseType", Some (BT.json bt))
-    | Value it -> `Variant ("Value", Some (IndexTerms.json it))
-  in
-  let computational =
-    List.map
-      (fun (sym, (binding, _)) ->
-         `Assoc [ ("name", Sym.json sym); ("type", basetype_or_value binding) ])
-      (Sym.Map.bindings ctxt.computational)
-  in
-  let logical =
-    List.map
-      (fun (sym, (binding, _)) ->
-         `Assoc [ ("name", Sym.json sym); ("type", basetype_or_value binding) ])
-      (Sym.Map.bindings ctxt.logical)
-  in
-  let resources = List.map Res.json (get_rs ctxt) in
-  let constraints = List.map LC.json (LC.Set.elements ctxt.constraints) in
-  let json_record =
-    `Assoc
-      [ ("computational", `List computational);
-        ("logical", `List logical);
-        ("resources", `List resources);
-        ("constraints", `List constraints)
-      ]
-  in
-  `Variant ("Context", Some json_record)
-
+let add_r _loc r (ctxt : t) = { ctxt with resources = r :: ctxt.resources }
 
 (* picks out universally quantified constraints, recursive functions,
    and resource predicates that will not be given to the solver *)

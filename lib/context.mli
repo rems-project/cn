@@ -10,19 +10,10 @@ val bt_of : basetype_or_value -> BaseTypes.t
 
 val has_value : basetype_or_value -> bool
 
-type resource_history =
-  { last_written : Locations.t;
-    reason_written : string;
-    last_written_id : int;
-    last_read : Locations.t;
-    last_read_id : int
-  }
-
 type t =
   { computational : (basetype_or_value * l_info) Sym.Map.t;
     logical : (basetype_or_value * l_info) Sym.Map.t;
-    resources : (Resource.t * int) list * int;
-    resource_history : resource_history Map.Make(Int).t;
+    resources : Resource.t list;
     constraints : LogicalConstraints.Set.t;
     global : Global.t;
     where : Where.t
@@ -68,38 +59,7 @@ val add_c : LogicalConstraints.Set.elt -> t -> t
 
 val modify_where : (Where.t -> Where.t) -> t -> t
 
-val pp_history : resource_history -> Pp.document
-
-val set_map_history : int -> 'a -> 'a Map.Make(Int).t -> 'a Map.Make(Int).t
-
-val set_history : int -> resource_history -> t -> t
-
 val add_r : Locations.t -> Resource.t -> t -> t
-
-val res_map_history : resource_history Map.Make(Int).t -> int -> resource_history
-
-val res_history : t -> int -> resource_history
-
-val res_read
-  :  Locations.t ->
-  int ->
-  int * resource_history Map.Make(Int).t ->
-  int * resource_history Map.Make(Int).t
-
-val res_written
-  :  Locations.t ->
-  int ->
-  string ->
-  int * resource_history Map.Make(Int).t ->
-  int * resource_history Map.Make(Int).t
-
-val clone_history
-  :  int ->
-  int list ->
-  resource_history Map.Make(Int).t ->
-  resource_history Map.Make(Int).t
-
-val json : t -> Yojson.Safe.t
 
 val not_given_to_solver
   :  t ->

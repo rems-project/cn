@@ -34,19 +34,18 @@ let pp_with_typf f it = Pp.typ (pp it) (f (get_bt it))
 
 let pp_with_typ = pp_with_typf BT.pp
 
-let pp_with_eval eval_f =
-  let open Cerb_pp_prelude in
-  let pp_v tm std_pp =
-    match eval_f tm with
-    | None -> !^"/* NO_EVAL */" ^^ std_pp
-    | Some (IT (_, BT.Struct _, _))
-    | Some (IT (_, BT.Record _, _))
-    | Some (IT (_, BT.Map (_, _), _)) ->
-      std_pp
-    | Some v -> !^"/*" ^^^ pp v ^^^ !^"*/" ^^ std_pp
-  in
-  pp ~f:pp_v
-
+(* let pp_with_eval eval_f = *)
+(*   let open Cerb_pp_prelude in *)
+(*   let pp_v tm std_pp = *)
+(*     match eval_f tm with *)
+(*     | None -> !^"/* NO_EVAL */" ^^ std_pp *)
+(*     | Some (IT (_, BT.Struct _, _)) *)
+(*     | Some (IT (_, BT.Record _, _)) *)
+(*     | Some (IT (_, BT.Map (_, _), _)) -> *)
+(*       std_pp *)
+(*     | Some v -> !^"/*" ^^^ pp v ^^^ !^"*/" ^^ std_pp *)
+(*   in *)
+(*   pp ~f:pp_v *)
 
 let rec bound_by_pattern (Pat (pat_, bt, _)) =
   match pat_ with
@@ -83,8 +82,6 @@ let rec free_vars_bts (it : 'a annot) : BT.t Sym.Map.t =
   | Cons (t1, t2) -> free_vars_bts_list [ t1; t2 ]
   | Head t -> free_vars_bts t
   | Tail t -> free_vars_bts t
-  | NthList (i, xs, d) -> free_vars_bts_list [ i; xs; d ]
-  | ArrayToList (arr, i, len) -> free_vars_bts_list [ arr; i; len ]
   | Representable (_sct, t) -> free_vars_bts t
   | Good (_sct, t) -> free_vars_bts t
   | WrapI (_ity, t) -> free_vars_bts t
@@ -120,6 +117,10 @@ let rec free_vars_bts (it : 'a annot) : BT.t Sym.Map.t =
     in
     aux (free_vars_bts e) cases
   | Constructor (_s, args) -> free_vars_bts_list (List.map snd args)
+  | CN_None _ -> Sym.Map.empty
+  | CN_Some t -> free_vars_bts t
+  | IsSome t -> free_vars_bts t
+  | GetOpt t -> free_vars_bts t
 
 
 and free_vars_bts_list : 'a annot list -> BT.t Sym.Map.t =
@@ -185,8 +186,6 @@ let rec fold_ f binders acc = function
   | Cons (t1, t2) -> fold_list f binders acc [ t1; t2 ]
   | Head t -> fold f binders acc t
   | Tail t -> fold f binders acc t
-  | NthList (i, xs, d) -> fold_list f binders acc [ i; xs; d ]
-  | ArrayToList (arr, i, len) -> fold_list f binders acc [ arr; i; len ]
   | Representable (_sct, t) -> fold f binders acc t
   | Good (_sct, t) -> fold f binders acc t
   | WrapI (_ity, t) -> fold f binders acc t
@@ -215,6 +214,10 @@ let rec fold_ f binders acc = function
     in
     aux acc' cases
   | Constructor (_sym, args) -> fold_list f binders acc (List.map snd args)
+  | CN_None _ -> acc
+  | CN_Some t -> fold f binders acc t
+  | IsSome t -> fold f binders acc t
+  | GetOpt t -> fold f binders acc t
 
 
 and fold f binders acc (IT (term_, _bt, loc)) =
@@ -271,8 +274,6 @@ let make_subst assoc =
   Subst.make free_vars_with_rename (List.map (fun (s, t) -> (s, `Term t)) assoc)
 
 
-let substitute_lets_flag = Sym.fresh "substitute_lets"
-
 let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)) =
   match it with
   | Sym sym ->
@@ -319,9 +320,6 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
   | Cons (it1, it2) -> IT (Cons (subst su it1, subst su it2), bt, loc)
   | Head it -> IT (Head (subst su it), bt, loc)
   | Tail it -> IT (Tail (subst su it), bt, loc)
-  | NthList (i, xs, d) -> IT (NthList (subst su i, subst su xs, subst su d), bt, loc)
-  | ArrayToList (arr, i, len) ->
-    IT (ArrayToList (subst su arr, subst su i, subst su len), bt, loc)
   | MapConst (arg_bt, t) -> IT (MapConst (arg_bt, subst su t), bt, loc)
   | MapSet (t1, t2, t3) -> IT (MapSet (subst su t1, subst su t2, subst su t3), bt, loc)
   | MapGet (it, arg) -> IT (MapGet (subst su it, subst su arg), bt, loc)
@@ -330,12 +328,8 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
     IT (MapDef ((s, abt), subst su body), bt, loc)
   | Apply (name, args) -> IT (Apply (name, List.map (subst su) args), bt, loc)
   | Let ((name, t1), t2) ->
-    if Sym.Set.mem substitute_lets_flag su.flags then (
-      let t1 = subst su t1 in
-      subst (Subst.add free_vars_with_rename (name, `Term t1) su) t2)
-    else (
-      let name, t2 = suitably_alpha_rename su.relevant name t2 in
-      IT (Let ((name, subst su t1), subst su t2), bt, loc))
+    let name, t2 = suitably_alpha_rename su.relevant name t2 in
+    IT (Let ((name, subst su t1), subst su t2), bt, loc)
   | Match (e, cases) ->
     let e = subst su e in
     let cases = List.map (subst_under_pattern su) cases in
@@ -343,6 +337,10 @@ let rec subst (su : [ `Term of t | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)
   | Constructor (s, args) ->
     let args = List.map (fun (id, e) -> (id, subst su e)) args in
     IT (Constructor (s, args), bt, loc)
+  | CN_None bt -> IT (CN_None bt, bt, loc)
+  | CN_Some it -> IT (CN_Some (subst su it), bt, loc)
+  | IsSome it -> IT (IsSome (subst su it), bt, loc)
+  | GetOpt it -> IT (GetOpt (subst su it), bt, loc)
 
 
 and alpha_rename s body =
@@ -380,14 +378,12 @@ and suitably_alpha_rename_pattern su (Pat (pat_, bt, loc), body) =
     (Pat (PConstructor (s, args), bt, loc), body)
 
 
-let substitute_lets =
-  let flags = Sym.Set.of_list [ substitute_lets_flag ] in
-  subst { (make_subst []) with flags }
+let is_const = function
+  | IT (Const const, bt, _loc) -> Option.Some (const, bt)
+  | _ -> None
 
 
-let is_const = function IT (Const const, bt, _loc) -> Some (const, bt) | _ -> None
-
-let is_z = function IT (Const (Z z), _bt, _loc) -> Some z | _ -> None
+let is_z = function IT (Const (Z z), _bt, _loc) -> Option.Some z | _ -> None
 
 let is_z_ it = Option.is_some (is_z it)
 
@@ -463,6 +459,10 @@ let rec is_const_val = function
 let is_pred_ = function IT (Apply (name, args), _, _) -> Some (name, args) | _ -> None
 
 let is_member = function IT (StructMember (it, id), _, _) -> Some (it, id) | _ -> None
+
+let is_ctype_const = function IT (Const (CType_const ct), _, _) -> Some ct | _ -> None
+
+let is_cast = function IT (Cast (bt, it), _, _) -> Some (bt, it) | _ -> None
 
 (* shorthands *)
 
@@ -657,26 +657,20 @@ let struct_ (tag, members) loc = IT (Struct (tag, members), BT.Struct tag, loc)
 
 let member_ ~member_bt (it, member) loc = IT (StructMember (it, member), member_bt, loc)
 
-let ( %. ) struct_decls t member =
-  let tag =
-    match get_bt t with
-    | BT.Struct tag -> tag
-    | _ -> Cerb_debug.error "illtyped index term. not a struct"
-  in
-  let member_bt =
-    match
-      List.assoc_opt Id.equal member (Memory.member_types (Sym.Map.find tag struct_decls))
-    with
-    | Some sct -> Memory.bt_of_sct sct
-    | None ->
-      Cerb_debug.error
-        ("struct " ^ Sym.pp_string tag ^ " does not have member " ^ Id.get_string member)
-  in
-  member_ ~member_bt (t, member)
-
-
 let record_ members loc =
-  IT (Record members, BT.Record (List.map (fun (s, t) -> (s, get_bt t)) members), loc)
+  let sorted_members =
+    List.sort_uniq (fun (id1, _) (id2, _) -> Id.compare id1 id2) members
+  in
+  if List.length sorted_members <> List.length members then
+    failwith
+      ("Record members are not allowed to include duplicates: "
+       ^ String.concat
+           ", "
+           (members |> List.map fst |> List.map Id.pp |> List.map Pp.plain));
+  IT
+    ( Record sorted_members,
+      BT.Record (List.map (fun (s, t) -> (s, get_bt t)) sorted_members),
+      loc )
 
 
 let recordMember_ ~member_bt (t, member) loc =
@@ -772,13 +766,9 @@ let head_ ~item_bt it loc = IT (Head it, item_bt, loc)
 
 let tail_ it loc = IT (Tail it, get_bt it, loc)
 
-let nthList_ (n, it, d) loc = IT (NthList (n, it, d), get_bt d, loc)
-
-let array_to_list_ (arr, i, len) bt loc = IT (ArrayToList (arr, i, len), bt, loc)
-
 let rec dest_list it =
   match get_term it with
-  | Nil _bt -> Some []
+  | Nil _bt -> Option.Some []
   | Cons (x, xs) -> Option.map (fun ys -> x :: ys) (dest_list xs)
   (* TODO: maybe include Tail, if we ever actually use it? *)
   | _ -> None
@@ -831,6 +821,28 @@ let map_get_ v arg loc =
 
 let map_def_ (s, abt) body loc =
   IT (MapDef ((s, abt), body), BT.Map (abt, get_bt body), loc)
+
+
+let none_ bt loc = IT (CN_None bt, BT.Option bt, loc)
+
+let some_ t loc = IT (CN_Some t, BT.Option (get_bt t), loc)
+
+let isNone_ t loc =
+  match get_bt t with
+  | BT.Option _ -> IT (Unop (Not, IT (IsSome t, Bool, loc)), Bool, loc)
+  | _ -> Cerb_debug.error "illtyped index term"
+
+
+let isSome_ t loc =
+  match get_bt t with
+  | BT.Option _ -> IT (IsSome t, Bool, loc)
+  | _ -> Cerb_debug.error "illtyped index term"
+
+
+let getOpt_ t loc =
+  match get_bt t with
+  | BT.Option bt -> IT (GetOpt t, bt, loc)
+  | _ -> Cerb_debug.error "illtyped index term"
 
 
 let make_array_ ~index_bt ~item_bt items (* assumed all of item_bt *) loc =
@@ -957,7 +969,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let open Memory in
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
-    | Void -> bool_ true loc
+    | Void | Byte -> bool_ true loc
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->
@@ -1012,93 +1024,6 @@ let representable = value_check `Representable
 
 let good_pointer = value_check_pointer `Good
 
-let promote_to_compare it it' loc =
-  let res_bt =
-    match (get_bt it, get_bt it') with
-    | bt1, bt2 when BT.equal bt1 bt2 -> bt1
-    | BT.Bits (_, sz), BT.Bits (_, sz') -> BT.Bits (BT.Signed, sz + sz' + 2)
-    | _ ->
-      failwith
-        ("promote to compare: impossible types to compare: "
-         ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]))
-  in
-  let cast it = if BT.equal (get_bt it) res_bt then it else cast_ res_bt it loc in
-  (cast it, cast it')
-
-
-let nth_array_to_list_fact n xs d =
-  let here = Locations.other __LOC__ in
-  match get_term xs with
-  | ArrayToList (arr, i, len) ->
-    let lt_n_len = lt_ (promote_to_compare n len here) here in
-    let lhs = nthList_ (n, xs, d) here in
-    let rhs =
-      ite_
-        ( and_ [ le_ (int_lit_ 0 (get_bt n) here, n) here; lt_n_len ] here,
-          map_get_ arr (add_ (i, cast_ (get_bt i) n here) here) here,
-          d )
-        here
-    in
-    Some (eq_ (lhs, rhs) here)
-  | _ -> None
-
-
-let rec wrap_bindings_match bs default_v v =
-  match (bs, v) with
-  | _, None -> None
-  | [], _ -> v
-  | (pat, x) :: bindings, _ ->
-    (match wrap_bindings_match bindings default_v v with
-     | None -> None
-     | Some v2 ->
-       let pat_ss = Sym.Set.of_list (List.map fst (bound_by_pattern pat)) in
-       if Sym.Set.is_empty (Sym.Set.inter pat_ss (free_vars v2)) then
-         Some v2
-       else (
-         match x with
-         | None -> None
-         | Some match_e ->
-           let here = Locations.other __LOC__ in
-           Some
-             (IT
-                ( Match
-                    ( match_e,
-                      [ (pat, v2); (Pat (PWild, get_bt match_e, here), default_v) ] ),
-                  get_bt v2,
-                  here ))))
-
-
-let nth_array_to_list_facts (binders_terms : (t_bindings * t) list) =
-  let here = Locations.other __LOC__ in
-  let nths =
-    List.filter_map
-      (fun (bs, it) ->
-         match get_term it with
-         | NthList (n, xs, d) -> Some (bs, (n, d, get_bt xs))
-         | _ -> None)
-      binders_terms
-  in
-  let arr_lists =
-    List.filter_map
-      (fun (bs, it) ->
-         match get_term it with ArrayToList _ -> Some (bs, (it, get_bt it)) | _ -> None)
-      binders_terms
-  in
-  List.concat_map
-    (fun (bs1, (n, d, bt1)) ->
-       List.filter_map
-         (fun (bs2, (xs, bt2)) ->
-            if BT.equal bt1 bt2 then
-              wrap_bindings_match
-                (bs1 @ bs2)
-                (bool_ true here)
-                (nth_array_to_list_fact n xs d)
-            else
-              None)
-         arr_lists)
-    nths
-
-
 let rec map_term_pre (f : t -> t) (it : t) : t =
   let (IT (it_, bt, here)) = f it in
   let loop = map_term_pre f in
@@ -1127,8 +1052,6 @@ let rec map_term_pre (f : t -> t) (it : t) : t =
     | Cons (it_head, it_tail) -> Cons (loop it_head, loop it_tail)
     | Head it' -> Head (loop it')
     | Tail it' -> Tail (loop it')
-    | NthList (i, xs, d) -> NthList (loop i, loop xs, loop d)
-    | ArrayToList (arr, i, len) -> ArrayToList (loop arr, loop i, loop len)
     | Representable (ct, it') -> Representable (ct, loop it')
     | Good (ct, it') -> Good (ct, loop it')
     | Aligned { t; align } -> Aligned { t = loop t; align = loop align }
@@ -1142,6 +1065,10 @@ let rec map_term_pre (f : t -> t) (it : t) : t =
     | Match (it', pits) -> Match (loop it', List.map_snd loop pits)
     | Cast (bt', it') -> Cast (bt', loop it')
     | HasAllocId it' -> HasAllocId (loop it')
+    | CN_None bt' -> CN_None bt'
+    | CN_Some it' -> CN_Some (loop it')
+    | IsSome it' -> IsSome (loop it')
+    | GetOpt it' -> GetOpt (loop it')
   in
   IT (it_, bt, here)
 
@@ -1175,8 +1102,6 @@ let rec map_term_post (f : t -> t) (it : t) : t =
     | Cons (it_head, it_tail) -> Cons (loop it_head, loop it_tail)
     | Head it' -> Head (loop it')
     | Tail it' -> Tail (loop it')
-    | NthList (i, xs, d) -> NthList (loop i, loop xs, loop d)
-    | ArrayToList (arr, i, len) -> ArrayToList (loop arr, loop i, loop len)
     | Representable (ct, it') -> Representable (ct, loop it')
     | Good (ct, it') -> Good (ct, loop it')
     | Aligned { t; align } -> Aligned { t = loop t; align = loop align }
@@ -1189,6 +1114,10 @@ let rec map_term_post (f : t -> t) (it : t) : t =
     | Let ((x, it_v), it_rest) -> Let ((x, loop it_v), loop it_rest)
     | Match (it', pits) -> Match (loop it', List.map_snd loop pits)
     | Cast (bt', it') -> Cast (bt', loop it')
+    | CN_None bt' -> CN_None bt'
+    | CN_Some it' -> CN_Some (loop it')
+    | IsSome it' -> IsSome (loop it')
+    | GetOpt it' -> GetOpt (loop it')
   in
   f (IT (it_, bt, here))
 
@@ -1296,6 +1225,10 @@ module Bounds = struct
     in
     get_upper_bound_opt (x, bt) it
     |> Option.value ~default:(num_lit_ max bt Cerb_location.unknown)
+
+
+  let get_bounds_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option * t option =
+    (get_lower_bound_opt (x, bt) it, get_upper_bound_opt (x, bt) it)
 
 
   let get_bounds ((x, bt) : Sym.t * BT.t) (it : t) : t * t =

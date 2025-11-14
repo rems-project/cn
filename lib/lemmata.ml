@@ -1103,20 +1103,6 @@ let it_to_coq loc global list_mono it =
       let@ () = ensure_datatype global list_mono loc info.datatype_tag in
       (* assuming here that the id's are in canonical order *)
       parensM (build ([ return (Sym.pp nm) ] @ List.map (f comp) (List.map snd id_args)))
-    | IT.NthList (n, xs, d) ->
-      let@ _, _, dest = ensure_list global list_mono loc (IT.get_bt xs) in
-      parensM (build [ rets "CN_Lib.nth_list_z"; return dest; aux n; aux xs; aux d ])
-    | IT.ArrayToList (arr, i, len) ->
-      let@ nil, cons, _ = ensure_list global list_mono loc (IT.get_bt t) in
-      parensM
-        (build
-           [ rets "CN_Lib.array_to_list";
-             return nil;
-             return cons;
-             aux arr;
-             aux i;
-             aux len
-           ])
     | IT.WrapI (ity, arg) ->
       assert (not (Sctypes.IntegerTypes.equal ity Sctypes.IntegerTypes.Bool));
       let maxInt = Memory.max_integer_type ity in

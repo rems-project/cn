@@ -16,16 +16,20 @@ type 'TY object_value_ =
   | OVinteger of Cerb_frontend.Impl_mem.integer_value
   | OVfloating of Cerb_frontend.Impl_mem.floating_value
   | OVpointer of Cerb_frontend.Impl_mem.pointer_value
-  | OVarray of 'TY object_value list
+  | OVarray of 'TY loaded_value list
   | OVstruct of Sym.t * (Id.t * Sctypes.t * Cerb_frontend.Impl_mem.mem_value) list
   | OVunion of Sym.t * Id.t * Cerb_frontend.Impl_mem.mem_value
 
 and 'TY object_value = OV of 'TY * 'TY object_value_
 
+and 'TY loaded_value =
+  | LVspecified of 'TY object_value
+  | LVunspecified of Cerb_frontend.Ctype.ctype
+
 and 'TY value_ =
   | Vobject of 'TY object_value
+  | Vloaded of 'TY loaded_value
   | Vctype of Cerb_frontend.Ctype.ctype
-  | Vfunction_addr of Sym.t
   | Vunit
   | Vtrue
   | Vfalse
@@ -38,11 +42,9 @@ val bt_of_value : 'a value -> 'a
 
 val bt_of_object_value : 'a object_value -> 'a
 
-type ctor =
-  | Cnil of Cerb_frontend.Core.core_base_type
-  | Ccons
-  | Ctuple
-  | Carray
+val bt_of_loaded_value : 'a loaded_value -> 'a
+
+type ctor = Cerb_frontend.Core.ctor
 
 type 'TY pattern_ =
   | CaseBase of (Sym.t option * Cerb_frontend.Core.core_base_type)
@@ -55,72 +57,39 @@ val bt_of_pattern : 'a pattern -> 'a
 
 val loc_of_pattern : 'a pattern -> Locations.t
 
-type mu_function =
-  | F_params_length
-  | F_params_nth
-  | F_are_compatible
-  | F_size_of
-  | F_align_of
-  | F_max_int
-  | F_min_int
-  | F_ctype_width
+type 'sym generic_name = 'sym Cerb_frontend.Core.generic_name
 
-val pp_function : mu_function -> Pp.document
+type integerType = Cerb_frontend.Ctype.integerType
 
-val fun_param_types : mu_function -> BaseTypes.t list
+type iop = Cerb_frontend.Core.iop
 
-val evaluate_fun
-  :  mu_function ->
-  IndexTerms.t list ->
-  [> `Result_IT of IndexTerms.t | `Result_Integer of Z.t ] Option.m
+val is_div_iop : iop -> bool
 
-type bw_binop =
-  | BW_OR
-  | BW_AND
-  | BW_XOR
-
-type bw_unop =
-  | BW_COMPL
-  | BW_CTZ
-  | BW_FFS
-
-(** What to do on out of bounds.
-    The annotated C type is the result type of the operation. *)
-type bound_kind =
-  | Bound_Wrap of act (** Wrap around (used for unsigned types) *)
-  | Bound_Except of act (** Report an exception, for signed types *)
-
-val bound_kind_act : bound_kind -> act
+val is_remt_iop : iop -> bool
 
 type 'TY pexpr_ =
   | PEsym of Sym.t
   | PEval of 'TY value
   | PEconstrained of (Cerb_frontend.Mem.mem_iv_constraint * 'TY pexpr) list
+  | PEundef of Locations.t * Cerb_frontend.Undefined.undefined_behaviour
+  | PEerror of string * 'TY pexpr
   | PEctor of ctor * 'TY pexpr list
-  | PEbitwise_unop of bw_unop * 'TY pexpr
-  | PEbitwise_binop of bw_binop * 'TY pexpr * 'TY pexpr
-  | Cfvfromint of 'TY pexpr
-  | Civfromfloat of act * 'TY pexpr
-  | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
   | PEmember_shift of 'TY pexpr * Sym.t * Id.t
+  | PEarray_shift of 'TY pexpr * Sctypes.t * 'TY pexpr
+  | PEcatch_exceptional_condition of integerType * iop * 'TY pexpr * 'TY pexpr
+  | PEwrapI of integerType * iop * 'TY pexpr * 'TY pexpr
+  | PEmemop of Cerb_frontend.Mem_common.pure_memop * 'TY pexpr
   | PEnot of 'TY pexpr
   | PEop of Cerb_frontend.Core.binop * 'TY pexpr * 'TY pexpr
-  | PEapply_fun of mu_function * 'TY pexpr list
+  | PEconv_int of 'TY pexpr * 'TY pexpr
   | PEstruct of Sym.t * (Id.t * 'TY pexpr) list
   | PEunion of Sym.t * Id.t * 'TY pexpr
   | PEcfunction of 'TY pexpr
   | PEmemberof of Sym.t * Id.t * 'TY pexpr
-  | PEbool_to_integer of 'TY pexpr
-  | PEconv_int of 'TY pexpr * 'TY pexpr
-  | PEconv_loaded_int of 'TY pexpr * 'TY pexpr
-  | PEwrapI of act * 'TY pexpr
-  | PEcatch_exceptional_condition of act * 'TY pexpr
-  | PEbounded_binop of bound_kind * Cerb_frontend.Core.iop * 'TY pexpr * 'TY pexpr
-  | PEis_representable_integer of 'TY pexpr * act
-  | PEundef of Locations.t * Cerb_frontend.Undefined.undefined_behaviour
-  | PEerror of string * 'TY pexpr
+  | PEcall of Sym.t generic_name * 'TY pexpr list
   | PElet of 'TY pattern * 'TY pexpr * 'TY pexpr
   | PEif of 'TY pexpr * 'TY pexpr * 'TY pexpr
+  | PEare_compatible of 'TY pexpr * 'TY pexpr
 
 and 'TY pexpr = Pexpr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY pexpr_
 
@@ -130,10 +99,7 @@ val bt_of_pexpr : 'TY pexpr -> 'TY
 
 val is_undef_or_error_pexpr : 'a pexpr -> bool
 
-val fun_return_type
-  :  mu_function ->
-  'a pexpr list ->
-  [> `Returns_BT of BaseTypes.t | `Returns_Integer ] Option.t
+val is_ctype_const : 'a pexpr -> Cerb_frontend.Ctype.ctype option
 
 type m_kill_kind =
   | Dynamic
@@ -177,35 +143,14 @@ type 'TY action = Action of Locations.t * 'TY action_
 
 type 'TY paction = Paction of Cerb_frontend.Core.polarity * 'TY action
 
-type 'TY memop =
-  | PtrEq of ('TY pexpr * 'TY pexpr)
-  | PtrNe of ('TY pexpr * 'TY pexpr)
-  | PtrLt of ('TY pexpr * 'TY pexpr)
-  | PtrGt of ('TY pexpr * 'TY pexpr)
-  | PtrLe of ('TY pexpr * 'TY pexpr)
-  | PtrGe of ('TY pexpr * 'TY pexpr)
-  | Ptrdiff of (act * 'TY pexpr * 'TY pexpr)
-  | IntFromPtr of (act * act * 'TY pexpr)
-  | PtrFromInt of (act * act * 'TY pexpr)
-  | PtrValidForDeref of (act * 'TY pexpr)
-  | PtrWellAligned of (act * 'TY pexpr)
-  | PtrArrayShift of ('TY pexpr * act * 'TY pexpr)
-  | PtrMemberShift of (Sym.t * Id.t * 'TY pexpr)
-  | Memcpy of ('TY pexpr * 'TY pexpr * 'TY pexpr)
-  | Memcmp of ('TY pexpr * 'TY pexpr * 'TY pexpr)
-  | Realloc of ('TY pexpr * 'TY pexpr * 'TY pexpr)
-  | Va_start of ('TY pexpr * 'TY pexpr)
-  | Va_copy of 'TY pexpr
-  | Va_arg of ('TY pexpr * act)
-  | Va_end of 'TY pexpr
-  | CopyAllocId of ('TY pexpr * 'TY pexpr)
-
 type 'TY expr_ =
   | Epure of 'TY pexpr
-  | Ememop of 'TY memop
+  | Ememop of Sym.t Cerb_frontend.Mem_common.generic_memop * 'TY pexpr list
   | Eaction of 'TY paction
   | Eskip
-  | Eccall of act * 'TY pexpr * 'TY pexpr list * IndexTerms.t list
+  | Eccall of
+      act * 'TY pexpr * 'TY pexpr list * (Locations.t * IndexTerms.t Cnprog.t list) option
+  | Eproc of Sym.t generic_name * 'TY pexpr list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
   | Ewseq of 'TY pattern * 'TY expr * 'TY expr
@@ -213,10 +158,10 @@ type 'TY expr_ =
   | Eif of 'TY pexpr * 'TY expr * 'TY expr
   | Ebound of 'TY expr
   | End of 'TY expr list
-  | Erun of Sym.t * 'TY pexpr list * IndexTerms.t list
+  | Erun of Sym.t * 'TY pexpr list
   | CN_progs of
       (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_statement list
-      * Cnprog.t list
+      * Cnstatement.statement Cnprog.t list
 
 and 'TY expr = Expr of Locations.t * Cerb_frontend.Annot.annot list * 'TY * 'TY expr_
 
@@ -277,13 +222,16 @@ type parse_ast_label_spec =
   { label_spec : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list }
 
 type 'TY label_def =
+  | Non_inlined of Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit arguments
+  (** This constructor is used when skipping label inlining, to
+                  make CN testing usable on programs with switches. *)
   | Return of Locations.t
-  | Label of
+  | Loop of
       Locations.t
       * 'TY expr arguments
       * Cerb_frontend.Annot.annot list
       * parse_ast_label_spec
-      * [ `Loop of Locations.t * Locations.t * bool ]
+      * [ `Aux_info of Locations.t * Locations.t * bool ]
 (* first loc is condition, second is whole loop *)
 (* loop condition location, for executable checking *)
 (* bool signifies whether any loop invariant was provided by the user, for executable checking *)

@@ -4,22 +4,26 @@ open Cn
 
 let well_formed
       filename
+      cc
       macros
+      permissive
       incl_dirs
       incl_files
       json
       json_trace
       output_dir
       csv_times
-      log_times
       astprints
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
   =
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check
     ~filename
+    ~cc
     ~macros
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~coq_export_file:None
@@ -27,12 +31,13 @@ let well_formed
     ~coq_proof_log:false
     ~coq_check_proof_log:false
     ~csv_times
-    ~log_times
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
+    ~allow_split_magic_comments
     ~save_cpp:None
     ~disable_linemarkers:false
+    ~skip_label_inlining:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
     ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused:_ ->
       Or_TypeError.return ())
@@ -45,17 +50,19 @@ let cmd =
   let wf_t =
     const well_formed
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
+    $ Common.Flags.permissive
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Verify.Flags.json
     $ Verify.Flags.json_trace
     $ Verify.Flags.output_dir
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
   in
   let doc =
     "Runs CN's well-formedness check\n\

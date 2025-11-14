@@ -3,6 +3,8 @@ module type S = sig
 
   val ensure_bits_type : Locations.t -> BaseTypes.t -> unit t
 
+  val ensure_z_fits_bits_type : Locations.t -> BaseTypes.sign * int -> Z.t -> unit t
+
   val ensure_base_type : Locations.t -> expect:BaseTypes.t -> BaseTypes.t -> unit t
 
   val ensure_same_argument_number
@@ -27,6 +29,8 @@ module type S = sig
   val default_quantifier_bt : BaseTypes.t
 
   val oarg_bt_of_pred : Locations.t -> Request.name -> BaseTypes.t t
+
+  val request : Locations.t -> Request.t -> Request.t t
 
   val logical_constraint : Locations.t -> LogicalConstraints.t -> LogicalConstraints.t t
 

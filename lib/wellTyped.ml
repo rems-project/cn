@@ -5,6 +5,22 @@ module Loc = Locations
 module IdSet = Set.Make (Id)
 open Pp.Infix
 
+(* Global state: the set of all C-types that might appear as values in Core
+   expressions (and so might make it into the SMT problem). We use this to
+   construct the C-type-to-integer mapping for the SMT solver. This should
+   probably become part of the monadic state of WellTyped instead. *)
+
+module CTS = Set.Make (Sctypes)
+
+let add_ct, get_cts =
+  let cts = ref CTS.empty in
+  let add_ct ct = cts := CTS.add ct !cts in
+  let get_cts () = !cts in
+  (add_ct, get_cts)
+
+
+let maybe_add_ct = function None -> () | Some ct -> add_ct ct
+
 let squotes, warn, dot, string, debug, item, colon, comma =
   Pp.(squotes, warn, dot, string, debug, item, colon, comma)
 
@@ -95,8 +111,6 @@ module NoSolver = struct
   let run ctxt x = x ctxt
 end
 
-let use_ity = ref true
-
 open NoSolver
 
 open Effectful.Make (NoSolver)
@@ -133,6 +147,21 @@ let ensure_z_fits_bits_type loc (sign, n) v =
     (fail { loc; msg = Generic err } [@alert "-deprecated"]))
 
 
+let ensure_integer_or_bits_type ~reason it =
+  let open BT in
+  match IT.get_bt it with
+  | Integer | Bits _ -> return ()
+  | _ ->
+    let expected = "integer or bitvector type" in
+    fail
+      (illtyped_index_term
+         (IT.get_loc it)
+         it
+         (IT.get_bt it)
+         ~expected
+         ~reason:(Either.Left reason))
+
+
 let ensure_arith_type ~reason it =
   let open BT in
   match IT.get_bt it with
@@ -151,7 +180,7 @@ let ensure_arith_type ~reason it =
 let ensure_set_type ~reason it =
   let open BT in
   match IT.get_bt it with
-  | Set bt -> return bt
+  | Set _ -> return ()
   | _ ->
     let expected = "set" in
     fail
@@ -184,6 +213,21 @@ let ensure_map_type ~reason it =
   | Map (abt, rbt) -> return (abt, rbt)
   | _ ->
     let expected = "map/array" in
+    fail
+      (illtyped_index_term
+         (IT.get_loc it)
+         it
+         (IT.get_bt it)
+         ~expected
+         ~reason:(Either.Left reason))
+
+
+let ensure_option_type ~reason it =
+  let open BT in
+  match IT.get_bt it with
+  | Option bt -> return bt
+  | _ ->
+    let expected = "option" in
     fail
       (illtyped_index_term
          (IT.get_loc it)
@@ -280,6 +324,9 @@ module WBT = struct
       | Set bt ->
         let@ bt = aux bt in
         return (Set bt)
+      | Option bt ->
+        let@ bt = aux bt in
+        return (Option bt)
     in
     fun bt -> aux bt
 
@@ -309,6 +356,7 @@ module WCT = struct
         let@ _struct_decl = get_struct_decl loc tag in
         return ()
       | Function ((_, rct), args, _) -> ListM.iterM aux (rct :: List.map fst args)
+      | Byte -> return ()
     in
     fun ct -> aux ct
 end
@@ -377,7 +425,8 @@ module WIT = struct
         match bt with
         | Unit | Bool | Integer | Bits _ | Real | Alloc_id
         | Loc ()
-        | MemByte | CType | Struct _ | Record _ | Map _ | List _ | Tuple _ | Set _ ->
+        | MemByte | CType | Struct _ | Record _ | Map _ | List _ | Tuple _ | Set _
+        | Option _ ->
           failwith "revisit for extended pattern language"
         | Datatype s ->
           let@ dt_info = get_datatype loc s in
@@ -459,6 +508,41 @@ module WIT = struct
     | IT (Cons (it, _), _, _) | it -> return @@ IT.get_loc it
 
 
+  let binop_nia_checks it =
+    match it with
+    | IT (Binop (bop, t, t'), _, loc) ->
+      (match (bop, IT.get_bt t, is_const t, is_const t') with
+       | Mul, Integer, None, None ->
+         let msg =
+           !^"Neither side of the integer multiplication"
+           ^^^ squotes (IT.pp it)
+           ^^^ !^"is a constant."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, None ->
+         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
+         let msg =
+           !^op ^^^ squotes (IT.pp it) ^^^ !^"does not have constant right-hand argument."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | (Div | Rem | Mod | ShiftLeft | ShiftRight), Integer, _, Some (Z z', _)
+         when Z.leq z' Z.zero ->
+         let op = match bop with ShiftLeft | ShiftRight -> "Shift" | _ -> "Division" in
+         let msg =
+           !^op ^^^ squotes (IT.pp it) ^^^ !^"does not have positive right-hand argument."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | Exp, (Integer | Bits _), None, _ | Exp, (Integer | Bits _), _, None ->
+         let msg =
+           !^"Exponentiation"
+           ^^^ squotes (IT.pp it)
+           ^^^ !^"does not have constant left and right-hand arguments."
+         in
+         (fail { loc; msg = Generic msg } [@alert "-deprecated"])
+       | _ -> return ())
+    | _ -> return ()
+
+
   (* NOTE: This cannot _check_ what the root type of term is (the type is
      universally quantified) and so is not suitable for catching incorrect
      type annotations. *)
@@ -497,7 +581,10 @@ module WIT = struct
         let@ bt = WBT.is_bt loc bt in
         return (IT (Const (Default bt), bt, loc))
       | Const Null -> return (IT (Const Null, BT.Loc (), loc))
-      | Const (CType_const ct) -> return (IT (Const (CType_const ct), BT.CType, loc))
+      | Const (CType_const ct) ->
+        let@ () = WCT.is_ct loc ct in
+        add_ct ct;
+        return (IT (Const (CType_const ct), BT.CType, loc))
       | Unop (unop, t) ->
         let@ t, ret_bt =
           match unop with
@@ -514,152 +601,35 @@ module WIT = struct
             return (t, IT.get_bt t)
         in
         return (IT (Unop (unop, t), ret_bt, loc))
-      | Binop (arith_op, t, t') ->
-        (match arith_op with
-         | Add ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Add, t, t'), IT.get_bt t, loc))
-         | Sub ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Sub, t, t'), IT.get_bt t, loc))
-         | Mul ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           (match (IT.get_bt t, is_const t, is_const t') with
-            | Integer, None, None ->
-              let msg =
-                !^"Both sides of the integer multiplication"
-                ^^^ squotes (IT.pp (mul_ (t, t') loc))
-                ^^^ !^"are not constants."
-                ^^^ !^"treating the term as uninterpreted."
-              in
-              warn loc msg;
-              return (IT (Binop (MulNoSMT, t, t'), IT.get_bt t, loc))
-            | _ -> return (IT (Binop (Mul, t, t'), IT.get_bt t, loc)))
-         | MulNoSMT ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (MulNoSMT, t, t'), IT.get_bt t, loc))
-         | Div ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           (match (IT.get_bt t, is_const t') with
-            | Integer, Some (Z z', _) when Z.leq z' Z.zero ->
-              let msg =
-                !^"Division"
-                ^^^ squotes (IT.pp (div_ (t, t') loc))
-                ^^^ !^"does not have positive right-hand argument."
-                ^^^ !^"Treating as uninterpreted."
-              in
-              warn loc msg;
-              return (IT (Binop (DivNoSMT, t, t'), IT.get_bt t, loc))
-            | Integer, None ->
-              let msg =
-                !^"Division"
-                ^^^ squotes (IT.pp (div_ (t, t') loc))
-                ^^^ !^"does not have constant as right-hand argument."
-                ^^^ !^"Treating as uninterpreted."
-              in
-              warn loc msg;
-              return (IT (Binop (DivNoSMT, t, t'), IT.get_bt t, loc))
-            | _ -> return (IT (Binop (Div, t, t'), IT.get_bt t, loc)))
-         | DivNoSMT ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (DivNoSMT, t, t'), IT.get_bt t, loc))
-         | Exp ->
-           let@ t = infer t in
-           let@ () = ensure_bits_type loc (IT.get_bt t) in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           let msg =
-             !^"Treating exponentiation"
-             ^^^ squotes (IT.pp (exp_ (t, t') loc))
-             ^^^ !^"as uninterpreted."
-           in
-           warn loc msg;
-           return (IT (Binop (ExpNoSMT, t, t'), IT.get_bt t, loc))
-         | ExpNoSMT | RemNoSMT | ModNoSMT | BW_Xor | BW_And | BW_Or | ShiftLeft
-         | ShiftRight | Rem | Mod ->
-           let@ t = infer t in
-           let@ () = ensure_bits_type loc (IT.get_bt t) in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (arith_op, t, t'), IT.get_bt t, loc))
-         | LT ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (LT, t, t'), BT.Bool, loc))
-         | LE ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (LE, t, t'), BT.Bool, loc))
-         | Min ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Min, t, t'), IT.get_bt t, loc))
-         | Max ->
-           let@ t = infer t in
-           let@ () = ensure_arith_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (Max, t, t'), IT.get_bt t, loc))
-         | EQ ->
-           let@ t = infer t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (EQ, t, t'), BT.Bool, loc))
-         | LTPointer ->
-           let@ t = check loc (Loc ()) t in
-           let@ t' = check loc (Loc ()) t' in
-           return (IT (Binop (LTPointer, t, t'), BT.Bool, loc))
-         | LEPointer ->
-           let@ t = check loc (Loc ()) t in
-           let@ t' = check loc (Loc ()) t' in
-           return (IT (Binop (LEPointer, t, t'), BT.Bool, loc))
-         | SetMember ->
-           let@ t = infer t in
-           let@ t' = check loc (Set (IT.get_bt t)) t' in
-           return (IT (Binop (SetMember, t, t'), BT.Bool, loc))
-         | SetUnion ->
-           let@ t = infer t in
-           let@ _itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (SetUnion, t, t'), IT.get_bt t, loc))
-         | SetIntersection ->
-           let@ t = infer t in
-           let@ _itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
-           return (IT (Binop (SetIntersection, t, t'), IT.get_bt t, loc))
-         | SetDifference ->
-           let@ t = infer t in
-           let@ itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check loc (Set itembt) t' in
-           return (IT (Binop (SetDifference, t, t'), BT.Set itembt, loc))
-         | Subset ->
-           let@ t = infer t in
-           let@ itembt = ensure_set_type ~reason:loc t in
-           let@ t' = check (IT.get_loc t) (Set itembt) t' in
-           return (IT (Binop (Subset, t, t'), BT.Bool, loc))
-         | And ->
-           let@ t = check loc Bool t in
-           let@ t' = check loc Bool t' in
-           return (IT (Binop (And, t, t'), Bool, loc))
-         | Or ->
-           let@ t = check loc Bool t in
-           let@ t' = check loc Bool t' in
-           return (IT (Binop (Or, t, t'), Bool, loc))
-         | Implies ->
-           let@ t = check loc Bool t in
-           let@ t' = check loc Bool t' in
-           return (IT (Binop (Implies, t, t'), Bool, loc)))
+      | Binop (SetMember, t, t') ->
+        let@ t = infer t in
+        let@ t' = check loc (Set (IT.get_bt t)) t' in
+        return (IT (Binop (SetMember, t, t'), BT.Bool, loc))
+      | Binop (bop, t, t') ->
+        let@ t = infer t in
+        let@ t' = check (IT.get_loc t) (IT.get_bt t) t' in
+        let arg_check, rbt =
+          match bop with
+          | Add | Sub | Mul | MulNoSMT | Div | DivNoSMT | Exp | ExpNoSMT | Min | Max ->
+            (ensure_arith_type ~reason:loc t, IT.get_bt t)
+          | Rem | RemNoSMT | Mod | ModNoSMT | ShiftLeft | ShiftRight ->
+            (ensure_integer_or_bits_type ~reason:loc t, IT.get_bt t)
+          | BW_And | BW_Or | BW_Xor -> (ensure_bits_type loc (IT.get_bt t), IT.get_bt t)
+          | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)
+          | EQ -> (return (), BT.Bool)
+          | LTPointer | LEPointer ->
+            (ensure_base_type loc ~expect:(Loc ()) (IT.get_bt t), BT.Bool)
+          | And | Or | Implies ->
+            (ensure_base_type loc ~expect:Bool (IT.get_bt t), BT.Bool)
+          | SetUnion | SetIntersection | SetDifference ->
+            (ensure_set_type ~reason:loc t, IT.get_bt t)
+          | Subset -> (ensure_set_type ~reason:loc t, BT.Bool)
+          | SetMember -> assert false
+        in
+        let@ () = arg_check in
+        let it = IT (Binop (bop, t, t'), rbt, loc) in
+        let@ () = binop_nia_checks it in
+        return it
       | ITE (t, t', t'') ->
         let@ t = check loc Bool t in
         let@ t' = infer t' in
@@ -820,7 +790,7 @@ module WIT = struct
           | Bits _, Loc () -> return ()
           | Loc (), Bits _ -> return ()
           | MemByte, Bits _ -> return ()
-          | MemByte, Alloc_id -> return ()
+          | MemByte, Option Alloc_id -> return ()
           | source, target ->
             let msg =
               !^"Unsupported cast from"
@@ -846,8 +816,8 @@ module WIT = struct
         let@ () = WCT.is_ct loc ct in
         let@ base = check loc (Loc ()) base in
         let@ index = infer index in
-        let index = cast_ Memory.uintptr_bt index loc in
         let@ () = ensure_bits_type loc (IT.get_bt index) in
+        let index = cast_ Memory.uintptr_bt index loc in
         return (IT (ArrayShift { base; ct; index }, BT.Loc (), loc))
       | CopyAllocId { addr; loc = ptr } ->
         let@ addr = check loc Memory.uintptr_bt addr in
@@ -927,34 +897,6 @@ module WIT = struct
         let@ t = infer t in
         let@ bt = ensure_list_type t ~reason:loc in
         return (IT (Tail t, BT.List bt, loc))
-      | NthList (i, xs, d) ->
-        let@ i = infer i in
-        let@ () = ensure_bits_type loc (IT.get_bt i) in
-        let@ xs = infer xs in
-        let@ bt = ensure_list_type xs ~reason:loc in
-        let@ d = check (IT.get_loc xs) bt d in
-        return (IT (NthList (i, xs, d), bt, loc))
-      | ArrayToList (arr, i, len) ->
-        let@ i = infer i in
-        let@ () = ensure_bits_type loc (IT.get_bt i) in
-        let@ len = check (IT.get_loc i) (IT.get_bt i) len in
-        let@ arr = infer arr in
-        let@ ix_bt, bt = ensure_map_type ~reason:loc arr in
-        let@ () =
-          if BT.equal ix_bt (IT.get_bt i) then
-            return ()
-          else
-            fail
-              { loc;
-                msg =
-                  Generic
-                    (Pp.item
-                       "array_to_list: index type disagreement"
-                       (Pp.list IT.pp_with_typ [ i; arr ]))
-                  [@alert "-deprecated"]
-              }
-        in
-        return (IT (ArrayToList (arr, i, len), BT.List bt, loc))
       | MapConst (index_bt, t) ->
         let@ index_bt = WBT.is_bt loc index_bt in
         let@ t = infer t in
@@ -1033,6 +975,20 @@ module WIT = struct
           | Some rbt -> return rbt
         in
         return (IT (Match (e, cases), rbt, loc))
+      | CN_None bt ->
+        let@ bt = WBT.is_bt loc bt in
+        return (IT (CN_None bt, Option bt, loc))
+      | CN_Some t ->
+        let@ t = infer t in
+        let bt = IT.get_bt t in
+        return (IT (CN_Some t, Option bt, loc))
+      | IsSome t ->
+        let@ t = infer t in
+        return (IT (IsSome t, Bool, loc))
+      | GetOpt t ->
+        let@ t = infer t in
+        let@ bt = ensure_option_type ~reason:loc t in
+        return (IT (GetOpt t, bt, loc))
     in
     Pp.debug 22 (lazy (Pp.item "Welltyped.WIT.infer: inferred" (IT.pp_with_typ result)));
     return result
@@ -1444,10 +1400,11 @@ module BaseTyping = struct
             }
       in
       let@ ctor, pats =
+        let open Cerb_frontend.Core in
         match (ctor, pats) with
         | Cnil cbt, [] ->
           let@ _item_bt = get_item_bt bt in
-          return (Mu.Cnil cbt, [])
+          return (Cnil cbt, [])
         | Cnil _, _ ->
           let type_ = `Other in
           let has = List.length pats in
@@ -1456,7 +1413,7 @@ module BaseTyping = struct
           let@ item_bt = get_item_bt bt in
           let@ p1 = check_and_bind_pattern item_bt p1 in
           let@ p2 = check_and_bind_pattern bt p2 in
-          return (Mu.Ccons, [ p1; p2 ])
+          return (Ccons, [ p1; p2 ])
         | Ccons, _ ->
           let type_ = `Other in
           let has = List.length pats in
@@ -1478,8 +1435,24 @@ module BaseTyping = struct
                 }
           in
           let@ pats = ListM.map2M check_and_bind_pattern bts pats in
-          return (Mu.Ctuple, pats)
-        | Carray, _ -> Cerb_debug.error "todo: array types"
+          return (Ctuple, pats)
+        | Carray, _ -> assert false
+        | Civmax, _ -> assert false
+        | Civmin, _ -> assert false
+        | Civsizeof, _ -> assert false
+        | Civalignof, _ -> assert false
+        | CivCOMPL, _ -> assert false
+        | CivAND, _ -> assert false
+        | CivOR, _ -> assert false
+        | CivXOR, _ -> assert false
+        | Cspecified, [ pat ] ->
+          let@ pat = check_and_bind_pattern bt pat in
+          return (Cspecified, [ pat ])
+        | Cspecified, _ -> assert false
+        | Cunspecified, _ -> assert false
+        | Cfvfromint, _ -> assert false
+        | Civfromfloat, _ -> assert false
+        | CivNULLcap _, _ -> assert false
       in
       return (Mu.CaseCtor (ctor, pats))
 
@@ -1511,7 +1484,7 @@ module BaseTyping = struct
       | OVfloating fv -> return (Real, Mu.OVfloating fv)
       | OVpointer pv -> return (Loc (), Mu.OVpointer pv)
       | OVarray xs ->
-        let@ _bt_xs = ListM.mapM (infer_object_value loc) xs in
+        let@ _xs = ListM.mapM (infer_loaded_value loc) xs in
         todo ()
       | OVstruct (nm, xs) -> return (Struct nm, Mu.OVstruct (nm, xs))
       | OVunion _ -> todo ()
@@ -1519,28 +1492,48 @@ module BaseTyping = struct
     return (Mu.OV (bt, ov))
 
 
-  let check_object_value
+  and infer_loaded_value loc = function
+    | Mu.LVspecified ov ->
+      let@ ov = infer_object_value loc ov in
+      return (Mu.LVspecified ov)
+    | LVunspecified _ -> assert false
+
+
+  let rec check_object_value
     : 'TY. Locations.t -> BT.t -> 'TY Mu.object_value -> BT.t Mu.object_value m
     =
-    fun loc bt (OV (_, ov) as ov_original) ->
+    fun loc bt ov ->
     match ov with
-    | OVinteger iv ->
+    | OV (_, OVinteger iv) ->
       let z = Memory.z_of_ival iv in
-      let@ () = ensure_bits_type loc bt in
-      if BT.fits_range (Option.get (BT.is_bits_bt bt)) z then
-        return (Mu.OV (bt, OVinteger iv))
-      else
-        fail
-          { loc;
-            msg =
-              Generic
-                (!^"Value " ^^^ Pp.z z ^^^ !^"does not fit in expected type" ^^^ BT.pp bt)
-              [@alert "-deprecated"]
-          }
+      let@ () =
+        match bt with
+        | Integer -> return ()
+        | Bits (sign, n) when BT.fits_range (sign, n) z -> return ()
+        | Bits _ ->
+          let msg =
+            !^"Value " ^^^ Pp.z z ^^^ !^"does not fit expected type" ^^^ BT.pp bt
+          in
+          fail { loc; msg = Generic msg [@alert "-deprecated"] }
+        | _ ->
+          fail
+            { loc;
+              msg = Mismatch { has = !^"bitvector/integer type"; expect = BT.pp bt }
+            }
+      in
+      return (Mu.OV (bt, OVinteger iv))
     | _ ->
-      let@ ov = infer_object_value loc ov_original in
+      let@ ov = infer_object_value loc ov in
       let@ () = ensure_base_type loc ~expect:bt (Mu.bt_of_object_value ov) in
       return ov
+
+
+  and check_loaded_value loc bt lv =
+    match lv with
+    | Mu.LVspecified ov ->
+      let@ ov = check_object_value loc bt ov in
+      return (Mu.LVspecified ov)
+    | LVunspecified _ -> assert false
 
 
   let rec infer_value : 'TY. Locations.t -> 'TY Mu.value -> BT.t Mu.value m =
@@ -1550,11 +1543,23 @@ module BaseTyping = struct
       | Mu.Vobject ov ->
         let@ ov = infer_object_value loc ov in
         return (Mu.bt_of_object_value ov, Mu.Vobject ov)
-      | Vctype ct -> return (CType, Mu.Vctype ct)
+      | Mu.Vloaded lv ->
+        let@ lv = infer_loaded_value loc lv in
+        return (Mu.bt_of_loaded_value lv, Mu.Vloaded lv)
+      | Vctype ct ->
+        let@ sct =
+          match Sctypes.of_ctype ct with
+          | None ->
+            let err = !^"Unsupported C-type" ^^^ CF.Pp_core_ctype.pp_ctype ct in
+            (fail { loc; msg = Generic err } [@alert "-deprecated"])
+          | Some ct -> return ct
+        in
+        let@ () = WCT.is_ct loc sct in
+        add_ct sct;
+        return (CType, Mu.Vctype ct)
       | Vunit -> return (Unit, Mu.Vunit)
       | Vtrue -> return (Bool, Mu.Vtrue)
       | Vfalse -> return (Bool, Mu.Vfalse)
-      | Vfunction_addr sym -> return (Loc (), Mu.Vfunction_addr sym)
       | Vlist (item_cbt, vals) ->
         let@ vals = ListM.mapM (infer_value loc) vals in
         let item_bt = Mu.bt_of_value (List.hd vals) in
@@ -1573,6 +1578,9 @@ module BaseTyping = struct
     | Vobject ov ->
       let@ ov = check_object_value loc expect ov in
       return (Mu.V (expect, Vobject ov))
+    | Vloaded lv ->
+      let@ lv = check_loaded_value loc expect lv in
+      return (Mu.V (expect, Vloaded lv))
     | _ ->
       let@ v = infer_value loc orig_v in
       let@ () = ensure_base_type loc ~expect (Mu.bt_of_value v) in
@@ -1610,7 +1618,7 @@ module BaseTyping = struct
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (Pp_mucore_ast.pp_pexpr pe)));
     let (Pexpr (loc, annots, _, pe_)) = pe in
     match integer_annot annots with
-    | Some ity when !use_ity ->
+    | Some ity ->
       check_pexpr (Memory.bt_of_sct (Integer ity)) (remove_integer_annot_pexpr pe)
     | _ ->
       let todo () =
@@ -1641,7 +1649,8 @@ module BaseTyping = struct
           in
           let bt = if casts_to_bool then Bool else bt_of_pexpr pe1 in
           return (bt, PEop (op, pe1, pe2))
-        | PEbounded_binop (bk, op, pe1, pe2) ->
+        | PEcatch_exceptional_condition (ity, op, pe1, pe2) | PEwrapI (ity, op, pe1, pe2)
+          ->
           let@ pe1 = infer_pexpr pe1 in
           (* Core i-binops are all ('a -> 'a -> 'a), except shifts which promote the
              rhs *)
@@ -1654,21 +1663,14 @@ module BaseTyping = struct
             else
               check_pexpr (bt_of_pexpr pe1) pe2
           in
-          return
-            (Memory.bt_of_sct (bound_kind_act bk).ct, PEbounded_binop (bk, op, pe1, pe2))
-        | PEbitwise_unop (unop, pe) ->
-          (* all the supported unops do arithmetic in the one (bitwise) type *)
-          let@ pe = infer_pexpr pe in
-          let bt = bt_of_pexpr pe in
-          let@ () = ensure_bits_type (loc_of_pexpr pe) bt in
-          return (bt, PEbitwise_unop (unop, pe))
-        | PEbitwise_binop (binop, pe1, pe2) ->
-          (* all the supported binops do arithmetic in the one (bitwise) type *)
-          let@ pe1 = infer_pexpr pe1 in
-          let bt = bt_of_pexpr pe1 in
-          let@ () = ensure_bits_type (loc_of_pexpr pe1) bt in
-          let@ pe2 = check_pexpr bt pe2 in
-          return (bt, PEbitwise_binop (binop, pe1, pe2))
+          let pe_ =
+            match pe_ with
+            | PEcatch_exceptional_condition _ ->
+              PEcatch_exceptional_condition (ity, op, pe1, pe2)
+            | PEwrapI _ -> PEwrapI (ity, op, pe1, pe2)
+            | _ -> assert false
+          in
+          return (Memory.bt_of_sct (Integer ity), pe_)
         | PEif (c_pe, pe1, pe2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, pe1, pe2 =
@@ -1691,62 +1693,37 @@ module BaseTyping = struct
         | PEmember_shift (pe, tag, member) ->
           let@ pe = infer_pexpr pe in
           return (Loc (), PEmember_shift (pe, tag, member))
-        | PEconv_int (Pexpr (l2, a2, _, PEval (V (_, Vctype ct))), pe) ->
-          let ct_pe = Pexpr (l2, a2, CType, PEval (V (CType, Vctype ct))) in
+        | PEcall
+            (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_pe; pe ])
+        | PEconv_int (ct_pe, pe) ->
+          let@ ct_pe, sct = check_pexpr_good_ctype_const ct_pe in
           let@ pe = infer_pexpr pe in
-          return
-            (Memory.bt_of_sct (Sctypes.of_ctype_unsafe loc ct), PEconv_int (ct_pe, pe))
-        | PEconv_loaded_int (Pexpr (l2, a2, _, PEval (V (_, Vctype ct))), pe) ->
-          let ct_pe = Pexpr (l2, a2, CType, PEval (V (CType, Vctype ct))) in
-          let@ pe = infer_pexpr pe in
-          return
-            ( Memory.bt_of_sct (Sctypes.of_ctype_unsafe loc ct),
-              PEconv_loaded_int (ct_pe, pe) )
-        | PEcatch_exceptional_condition (act, pe) ->
-          let@ pe = infer_pexpr pe in
-          return (bt_of_pexpr pe, PEcatch_exceptional_condition (act, pe))
-        | PEwrapI (act, pe) ->
-          let@ pe = infer_pexpr pe in
-          return (Memory.bt_of_sct act.ct, PEwrapI (act, pe))
-        | PEis_representable_integer (pe, act) ->
-          let@ pe = infer_pexpr pe in
-          return (Bool, PEis_representable_integer (pe, act))
-        | PEbool_to_integer pe ->
-          let@ pe = infer_pexpr pe in
-          (* FIXME: replace this with something derived from a ctype when that info is
-             available *)
-          let ity = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_) in
-          let bt = Memory.bt_of_sct (Sctypes.Integer ity) in
-          return (bt, PEbool_to_integer pe)
+          let@ () = ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+          let rbt = Memory.bt_of_sct sct in
+          let@ () = ensure_bits_type loc rbt in
+          let pe_ =
+            match pe_ with
+            | PEcall (f, _) -> PEcall (f, [ ct_pe; pe ])
+            | PEconv_int _ -> PEconv_int (ct_pe, pe)
+            | _ -> assert false
+          in
+          return (rbt, pe_)
+        | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), pes) ->
+          let has = List.length pes in
+          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
         | PEnot pe ->
           let@ pe = infer_pexpr pe in
           return (Bool, PEnot pe)
-        | PEctor (ctor, pes) ->
-          let@ pes = ListM.mapM infer_pexpr pes in
-          let@ bt =
-            match ctor with
-            | Cnil _ -> todo ()
-            | Ccons ->
-              (match pes with
-               | [ x; xs ] ->
-                 let ibt = bt_of_pexpr x in
-                 let@ () = ensure_base_type loc ~expect:(List ibt) (bt_of_pexpr xs) in
-                 return (bt_of_pexpr xs)
-               | _ ->
-                 let type_ = `Other in
-                 let has = List.length pes in
-                 fail { loc; msg = Number_arguments { type_; has; expect = 2 } })
-            | Ctuple -> return (BT.Tuple (List.map bt_of_pexpr pes))
-            | Carray ->
-              let ibt = bt_of_pexpr (List.hd pes) in
-              let@ () =
-                ListM.iterM
-                  (fun pe -> ensure_base_type loc ~expect:ibt (bt_of_pexpr pe))
-                  pes
-              in
-              return (Map (Memory.uintptr_bt, ibt))
-          in
-          return (bt, PEctor (ctor, pes))
+        | PEmemop (ByteFromInt, pe) ->
+          let@ pe = infer_pexpr pe in
+          let@ () = ensure_bits_type loc (bt_of_pexpr pe) in
+          return (Option MemByte, PEmemop (ByteFromInt, pe))
+        | PEmemop (IntFromByte, pe) ->
+          let@ pe = infer_pexpr pe in
+          let@ () = ensure_base_type loc ~expect:(Option MemByte) (bt_of_pexpr pe) in
+          return (Bits (Unsigned, 8), PEmemop (IntFromByte, pe))
+        | PEmemop (_, _) -> assert false
+        | PEctor (ctor, pes) -> infer_ctor ctor pes pe
         | PEcfunction pe ->
           let@ pe = infer_pexpr pe in
           return (Tuple [ CType; List CType; Bool; Bool ], PEcfunction pe)
@@ -1759,30 +1736,84 @@ module BaseTyping = struct
               nm_pes
           in
           return (Struct nm, PEstruct (nm, nm_pes))
-        | PEapply_fun (fname, pes) ->
-          let@ bt, pes = check_infer_apply_fun None fname pes pe in
-          return (bt, PEapply_fun (fname, pes))
-        | PEconstrained _ | Cfvfromint _
-        | Civfromfloat (_, _)
-        | PEunion (_, _, _)
+        | PEcall
+            ((Sym (Symbol (_, _, SD_Id "is_representable_integer")) as f), [ pe; pe_ct ])
+          ->
+          let@ pe = infer_pexpr pe in
+          let@ pe_ct = check_pexpr CType pe_ct in
+          return (Bool, PEcall (f, [ pe; pe_ct ]))
+        | PEcall (Sym (Symbol (_, _, SD_Id "is_representable_integer")), pes) ->
+          let has = List.length pes in
+          fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
+        | PEcall (f, pes) ->
+          (match (f, pes) with
+           | Sym (Symbol (_, _, SD_Id "ctype_width")), _ ->
+             Pp.debug 10 (lazy (item "untypeable" (Pp_mucore_ast.pp_pexpr pe)));
+             let err = !^"untypeable expression" in
+             fail { loc; msg = Generic err [@alert "-deprecated"] }
+           | Sym (Symbol (_, _, SD_Id "params_length")), [ e ] ->
+             let@ e = check_pexpr (List CType) e in
+             return (Integer, PEcall (f, [ e ]))
+           | Sym (Symbol (_, _, SD_Id "params_length")), _ ->
+             let has = List.length pes in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
+           | Sym (Symbol (_, _, SD_Id "params_nth")), [ e1; e2 ] ->
+             let@ e1 = check_pexpr (List CType) e1 in
+             let@ e2 = check_pexpr Integer e2 in
+             return (CType, PEcall (f, [ e1; e2 ]))
+           | Sym (Symbol (_, _, SD_Id "params_nth")), _ ->
+             let has = List.length pes in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 2 } }
+           | _ ->
+             fail
+               { loc; msg = Generic !^"Unsupported Core standard library function" }
+             [@alert "-deprecated"])
+        | PEare_compatible (pe1, pe2) ->
+          let@ pe1 = check_pexpr CType pe1 in
+          let@ pe2 = check_pexpr CType pe2 in
+          return (BT.Bool, PEare_compatible (pe1, pe2))
+        | PEconstrained _ -> todo ()
+        | PEunion (tag, member, pe) ->
+          if !Sym.experimental_unions then (
+            (* todo: make this proper when CN actually supports unions *)
+            let ct = Option.get (Sctypes.of_ctype (CF.Ctype.Ctype ([], Union tag))) in
+            let@ () = WCT.is_ct loc ct in
+            let@ pe = infer_pexpr pe in
+            return (Memory.bt_of_sct ct, PEunion (tag, member, pe)))
+          else
+            fail
+              { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
         | PEmemberof (_, _, _)
-        | PEconv_int (_, _)
-        | PEconv_loaded_int (_, _)
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
-        | PEerror (_, _)
-        | PEundef (_, _) ->
+        | PEerror (_, _) ->
           todo ()
+        | PEundef (loc, ub) ->
+          if !Sym.experimental_unions then
+            (* in the case of a well-formedness check when labels are not inlined
+             *      run ret_label ( undef(<<UB088_reached_end_of_function>>)))
+             * we may need to infer an type for PEundef, which in the absence of
+             * polymorphism is arbitrarily to Unit below *)
+            return (Unit, PEundef (loc, ub))
+          else
+            todo ()
       in
       return (Pexpr (loc, annots, bty, pe_))
+
+
+  and check_pexpr_good_ctype_const pe =
+    let@ pe = check_pexpr CType pe in
+    let ct = Option.get (Mu.is_ctype_const pe) in
+    let sct = Option.get (Sctypes.of_ctype ct) in
+    let@ () = WCT.is_ct (Mu.loc_of_pexpr pe) sct in
+    return (pe, sct)
 
 
   and check_pexpr (expect : BT.t) expr =
     let (Pexpr (loc, annots, _, pe_)) = expr in
     let@ () =
       match integer_annot annots with
-      | Some ity when !use_ity ->
-        ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
+      | Some ity -> ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
       | _ -> return ()
     in
     let annot bt pe_ = Mu.Pexpr (loc, annots, bt, pe_) in
@@ -1794,9 +1825,16 @@ module BaseTyping = struct
     | PEval v ->
       let@ v = check_value loc expect v in
       return (annot expect (Mu.PEval v))
-    | PEapply_fun (fname, pes) ->
-      let@ _bt, pes = check_infer_apply_fun (Some expect) fname pes expr in
-      return (annot expect (Mu.PEapply_fun (fname, pes)))
+    | PEcall ((Sym (Symbol (_, _, SD_Id "ctype_width")) as f), [ pe ]) ->
+      let@ pe, _sct = check_pexpr_good_ctype_const pe in
+      let@ () = ensure_bits_type loc expect in
+      return (annot expect (Mu.PEcall (f, [ pe ])))
+    | PEcall (Sym (Symbol (_, _, SD_Id "ctype_width")), pes) ->
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
+    | PEctor (ctor, pes) ->
+      let@ e = check_ctor expect ctor pes expr in
+      return (annot expect e)
     | _ ->
       let@ expr = infer_pexpr expr in
       (match Mu.bt_of_pexpr expr with
@@ -1809,55 +1847,264 @@ module BaseTyping = struct
       return expr
 
 
-  and check_infer_apply_fun (expect : BT.t option) fname pexps orig_pe =
-    let (Pexpr (loc, _annots, _, _)) = orig_pe in
-    let param_tys = Mucore.fun_param_types fname in
-    let@ () =
-      ensure_same_argument_number
-        loc
-        `Input
-        (List.length pexps)
-        ~expect:(List.length param_tys)
+  and infer_ctor ctor pes orig_pe =
+    let open Mu in
+    let loc = loc_of_pexpr orig_pe in
+    let@ pes = ListM.mapM infer_pexpr pes in
+    let missing_annotation () =
+      fail
+        { loc;
+          msg =
+            Generic !^"Could not infer bit-vector type of expression."
+            [@alert "-deprecated"]
+        }
     in
-    let@ pexps = ListM.map2M check_pexpr param_tys pexps in
     let@ bt =
-      match (Mucore.fun_return_type fname pexps, expect) with
-      | Some (`Returns_BT bt), _ -> return bt
-      | Some `Returns_Integer, Some bt ->
-        let@ () = ensure_bits_type loc bt in
-        return bt
-      | None, _ ->
-        fail
-          { loc;
-            msg =
-              Generic
-                (Pp.item "untypeable mucore function" (Pp_mucore_ast.pp_pexpr orig_pe))
-              [@alert "-deprecated"]
-          }
-      | Some `Returns_Integer, None ->
-        fail
-          { loc;
-            msg =
-              Generic
-                (Pp.item
-                   "mucore function requires type-annotation"
-                   (Pp_mucore_ast.pp_pexpr orig_pe))
-              [@alert "-deprecated"]
-          }
+      match (ctor, pes) with
+      | Cnil _, _ -> failwith "todo"
+      | Ccons, [ x; xs ] ->
+        let ibt = bt_of_pexpr x in
+        let@ () = ensure_base_type loc ~expect:(List ibt) (bt_of_pexpr xs) in
+        return (bt_of_pexpr xs)
+      | Ccons, _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+      | Ctuple, _ -> return (BT.Tuple (List.map bt_of_pexpr pes))
+      | Carray, _ ->
+        let ibt = bt_of_pexpr (List.hd pes) in
+        let@ () =
+          ListM.iterM (fun pe -> ensure_base_type loc ~expect:ibt (bt_of_pexpr pe)) pes
+        in
+        return (Map (Memory.uintptr_bt, ibt))
+      | (Civmax | Civmin), [ e ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
+        let ct = Option.get (Mu.is_ctype_const e) in
+        let sct = Option.get (Sctypes.of_ctype ct) in
+        let@ () = WCT.is_ct loc sct in
+        let rbt = Memory.bt_of_sct sct in
+        let@ () = ensure_bits_type loc rbt in
+        return rbt
+      | (Civmax | Civmin), _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+      | Civsizeof, [ e ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
+        return Memory.size_bt
+      | Civsizeof, _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+      | Civalignof, [ e ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
+        let@ expect = missing_annotation () in
+        let@ () = ensure_bits_type loc expect in
+        return expect
+      | Civalignof, _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+      | CivCOMPL, [ e1; e2 ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e1) in
+        let ct = Option.get (is_ctype_const e1) in
+        let sct = Option.get (Sctypes.of_ctype ct) in
+        let@ () = WCT.is_ct loc sct in
+        let rbt = Memory.bt_of_sct sct in
+        let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e2) in
+        let@ () = ensure_bits_type loc rbt in
+        return rbt
+      | CivCOMPL, _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+      | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+        let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e1) in
+        let ct = Option.get (is_ctype_const e1) in
+        let sct = Option.get (Sctypes.of_ctype ct) in
+        let@ () = WCT.is_ct loc sct in
+        let rbt = Memory.bt_of_sct sct in
+        let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e2) in
+        let@ () = ensure_base_type loc ~expect:rbt (bt_of_pexpr e3) in
+        let@ () = ensure_bits_type loc rbt in
+        return rbt
+      | (CivAND | CivOR | CivXOR), _ ->
+        let type_ = `Other in
+        let has = List.length pes in
+        fail { loc; msg = Number_arguments { type_; has; expect = 3 } }
+      | Cspecified, [ p ] -> return (Mu.bt_of_pexpr p)
+      | Cspecified, _ -> assert false
+      | _ -> assert false
     in
-    return (bt, pexps)
+    return (bt, PEctor (ctor, pes))
+
+
+  and check_ctor (expect : BT.t) ctor pes orig_pe =
+    let open Mu in
+    let loc = loc_of_pexpr orig_pe in
+    let expect_list_bt () =
+      match expect with
+      | List item_bt -> return item_bt
+      | _ ->
+        let msg = Mismatch { has = !^"list"; expect = BT.pp expect } in
+        fail { loc; msg }
+    in
+    let expect_tuple_bt () =
+      match expect with
+      | Tuple item_bts -> return item_bts
+      | _ ->
+        let msg = Mismatch { has = !^"tuple"; expect = BT.pp expect } in
+        fail { loc; msg }
+    in
+    let expect_map_bt () =
+      match expect with
+      | Map (index_bt, item_bt) -> return (index_bt, item_bt)
+      | _ ->
+        let msg = Mismatch { has = !^"array/map"; expect = BT.pp expect } in
+        fail { loc; msg }
+    in
+    match (ctor, pes) with
+    | Cnil _, _ -> failwith "todo"
+    | Ccons, [ x; xs ] ->
+      let@ item_bt = expect_list_bt () in
+      let@ x = check_pexpr item_bt x in
+      let@ xs = check_pexpr (List item_bt) xs in
+      return (PEctor (ctor, [ x; xs ]))
+    | Ccons, _ ->
+      let type_ = `Other in
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+    | Ctuple, _ ->
+      let@ item_bts = expect_tuple_bt () in
+      let@ () =
+        let expected = List.length item_bts in
+        let have = List.length pes in
+        if expected = have then
+          return ()
+        else (
+          let msg =
+            !^"Expected tuple with"
+            ^^^ Pp.int expected
+            ^^^ !^"components"
+            ^^ comma
+            ^^^ !^"found tuple with"
+            ^^^ Pp.int have
+            ^^^ !^"components"
+            ^^ dot
+          in
+          (fail { loc; msg = Generic msg } [@alert "-deprecated"]))
+      in
+      let@ pes = ListM.map2M check_pexpr item_bts pes in
+      return (PEctor (ctor, pes))
+    | Carray, _ ->
+      let@ index_bt, item_bt = expect_map_bt () in
+      let@ () = ensure_bits_type loc index_bt in
+      let@ pes = ListM.mapM (check_pexpr item_bt) pes in
+      return (PEctor (ctor, pes))
+    | (Civmax | Civmin), [ e ] ->
+      let@ e = check_pexpr CType e in
+      let ct = Option.get (Mu.is_ctype_const e) in
+      let sct = Option.get (Sctypes.of_ctype ct) in
+      let@ () = WCT.is_ct loc sct in
+      let rbt = Memory.bt_of_sct sct in
+      let@ () = ensure_bits_type loc rbt in
+      let@ () = ensure_base_type loc ~expect rbt in
+      return (PEctor (ctor, [ e ]))
+    | (Civmax | Civmin), _ ->
+      let type_ = `Other in
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+    | Civsizeof, [ e ] ->
+      let@ e = check_pexpr CType e in
+      let@ () = ensure_base_type loc ~expect Memory.size_bt in
+      return (PEctor (ctor, [ e ]))
+    | Civsizeof, _ ->
+      let type_ = `Other in
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+    | Civalignof, [ e ] ->
+      let@ e = check_pexpr CType e in
+      (* TODO: check z fits range, also elsewhere *)
+      let@ () = ensure_bits_type loc expect in
+      return (PEctor (ctor, [ e ]))
+    | Civalignof, _ ->
+      let type_ = `Other in
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
+    | CivCOMPL, [ e1; e2 ] ->
+      let@ e1 = check_pexpr CType e1 in
+      let ct = Option.get (is_ctype_const e1) in
+      let sct = Option.get (Sctypes.of_ctype ct) in
+      let@ () = WCT.is_ct loc sct in
+      let rbt = Memory.bt_of_sct sct in
+      let@ e2 = check_pexpr rbt e2 in
+      let@ () = ensure_bits_type loc rbt in
+      let@ () = ensure_base_type loc ~expect rbt in
+      return (PEctor (ctor, [ e1; e2 ]))
+    | CivCOMPL, _ ->
+      let type_ = `Other in
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_; has; expect = 2 } }
+    | (CivAND | CivOR | CivXOR), [ e1; e2; e3 ] ->
+      let@ e1 = check_pexpr CType e1 in
+      let ct = Option.get (is_ctype_const e1) in
+      let sct = Option.get (Sctypes.of_ctype ct) in
+      let@ () = WCT.is_ct loc sct in
+      let rbt = Memory.bt_of_sct sct in
+      let@ e2 = check_pexpr rbt e2 in
+      let@ e3 = check_pexpr rbt e3 in
+      let@ () = ensure_bits_type loc rbt in
+      let@ () = ensure_base_type loc ~expect rbt in
+      return (PEctor (ctor, [ e1; e2; e3 ]))
+    | (CivAND | CivOR | CivXOR), _ ->
+      let type_ = `Other in
+      let has = List.length pes in
+      fail { loc; msg = Number_arguments { type_; has; expect = 3 } }
+    | Cspecified, [ p ] ->
+      let@ p = check_pexpr expect p in
+      return (PEctor (ctor, [ p ]))
+    | Cspecified, _ -> assert false
+    | _ -> assert false
 
 
   let check_cn_statement loc stmt =
-    let open Cnprog in
-    Pp.debug
-      22
-      (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree_of_statement stmt))));
+    let open Cnstatement in
+    Pp.debug 22 (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree stmt))));
     match stmt with
-    | Pack_unpack (pack_unpack, pt) ->
+    | Pack_unpack (pack_unpack, Predicate pt) ->
       let@ p_pt = WReq.welltyped loc (P pt) in
       let[@warning "-8"] (Req.P pt) = p_pt in
-      return (Pack_unpack (pack_unpack, pt))
+      let@ () =
+        match pt.name with
+        | Owned _ ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with RW or W" [@alert "-deprecated"]
+            }
+        | PName n when Sym.equal n Alloc.Predicate.sym ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with Alloc" [@alert "-deprecated"]
+            }
+        | _ -> return ()
+      in
+      return (Pack_unpack (pack_unpack, Predicate pt))
+    | Pack_unpack (pack_unpack, PredicateName pn) ->
+      let@ _def =
+        match pn with
+        | Owned _ ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with RW or W" [@alert "-deprecated"]
+            }
+        | PName n when Sym.equal n Alloc.Predicate.sym ->
+          fail
+            { loc;
+              msg = Generic !^"Cannot use `un/pack` with Alloc" [@alert "-deprecated"]
+            }
+        | PName n -> get_resource_predicate_def loc n
+      in
+      return (Pack_unpack (pack_unpack, PredicateName pn))
     | To_from_bytes (to_from, pt) ->
       let@ pt = WReq.welltyped loc (P pt) in
       let[@warning "-8"] (Req.P pt) = pt in
@@ -1945,7 +2192,7 @@ module BaseTyping = struct
       return (Split_case lc)
 
 
-  let check_cnprog p =
+  let check_cnprog f p =
     let open Cnprog in
     let rec aux = function
       | Let (loc, (s, { ct; pointer }), p') ->
@@ -1954,9 +2201,9 @@ module BaseTyping = struct
         let@ () = add_l s (Memory.bt_of_sct ct) (loc, lazy (Sym.pp s)) in
         let@ p' = aux p' in
         return (Let (loc, (s, { ct; pointer }), p'))
-      | Statement (loc, stmt) ->
-        let@ stmt = check_cn_statement loc stmt in
-        return (Statement (loc, stmt))
+      | Pure (loc, x) ->
+        let@ x = f loc x in
+        return (Pure (loc, x))
     in
     pure (aux p)
 
@@ -1969,7 +2216,7 @@ module BaseTyping = struct
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (Pp_mucore_ast.pp_expr e)));
     let (Expr (loc, annots, _, e_)) = e in
     match integer_annot annots with
-    | Some ity when !use_ity ->
+    | Some ity ->
       check_expr
         label_context
         (Memory.bt_of_sct (Integer ity))
@@ -1984,78 +2231,58 @@ module BaseTyping = struct
         | Epure pe ->
           let@ pe = infer_pexpr pe in
           return (bt_of_pexpr pe, Epure pe)
-        | Ememop (PtrEq (pe1, pe2)) ->
+        | Ememop (((PtrEq | PtrNe | PtrLt | PtrGt | PtrLe | PtrGe) as memop), [ pe1; pe2 ])
+          ->
           let@ pe1 = check_pexpr (Loc ()) pe1 in
           let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrEq (pe1, pe2)))
-        | Ememop (PtrNe (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrNe (pe1, pe2)))
-        | Ememop (PtrLt (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrLt (pe1, pe2)))
-        | Ememop (PtrGt (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrGt (pe1, pe2)))
-        | Ememop (PtrLe (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrLe (pe1, pe2)))
-        | Ememop (PtrGe (pe1, pe2)) ->
-          let@ pe1 = check_pexpr (Loc ()) pe1 in
-          let@ pe2 = check_pexpr (Loc ()) pe2 in
-          return (Bool, Ememop (PtrGe (pe1, pe2)))
-        | Ememop (Ptrdiff (act, pe1, pe2)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Bool, Ememop (memop, [ pe1; pe2 ]))
+        | Ememop (Ptrdiff, [ pe_ct; pe1; pe2 ]) ->
+          let@ pe_ct, _ct = check_pexpr_good_ctype_const pe_ct in
           let@ pe1 = check_pexpr (Loc ()) pe1 in
           let@ pe2 = check_pexpr (Loc ()) pe2 in
           let bty = Memory.bt_of_sct (Integer Ptrdiff_t) in
-          return (bty, Ememop (Ptrdiff (act, pe1, pe2)))
-        | Ememop (IntFromPtr (act_from, act_to, pe)) ->
-          let@ () = WCT.is_ct act_from.loc act_from.ct in
-          let@ () = WCT.is_ct act_to.loc act_to.ct in
+          return (bty, Ememop (Ptrdiff, [ pe_ct; pe1; pe2 ]))
+        | Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]) ->
+          let@ pe_from_ct, _ = check_pexpr_good_ctype_const pe_from_ct in
+          let@ pe_to_ct, to_ct = check_pexpr_good_ctype_const pe_to_ct in
           let@ pe = check_pexpr (Loc ()) pe in
-          let bty = Memory.bt_of_sct act_to.ct in
-          return (bty, Ememop (IntFromPtr (act_from, act_to, pe)))
-        | Ememop (PtrFromInt (act_from, act_to, pe)) ->
-          let@ () = WCT.is_ct act_from.loc act_from.ct in
-          let@ () = WCT.is_ct act_to.loc act_to.ct in
-          let from_bt = Memory.bt_of_sct act_from.ct in
+          let bty = Memory.bt_of_sct to_ct in
+          return (bty, Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]))
+        | Ememop (PtrFromInt, [ pe_from_ct; pe_to_ct; pe ]) ->
+          let@ pe_from_ct, from_ct = check_pexpr_good_ctype_const pe_from_ct in
+          let@ pe_to_ct, _ = check_pexpr_good_ctype_const pe_to_ct in
+          let from_bt = Memory.bt_of_sct from_ct in
           let@ pe = check_pexpr from_bt pe in
           let@ () = ensure_bits_type (loc_of_pexpr pe) from_bt in
-          return (Loc (), Ememop (PtrFromInt (act_from, act_to, pe)))
-        | Ememop (PtrValidForDeref (act, pe)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Loc (), Ememop (PtrFromInt, [ pe_from_ct; pe_to_ct; pe ]))
+        | Ememop (PtrValidForDeref, [ pe_ct; pe ]) ->
+          let@ pe_ct, _ = check_pexpr_good_ctype_const pe_ct in
           let@ pe = check_pexpr (Loc ()) pe in
-          return (Bool, Ememop (PtrValidForDeref (act, pe)))
-        | Ememop (PtrWellAligned (act, pe)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Bool, Ememop (PtrValidForDeref, [ pe_ct; pe ]))
+        | Ememop (PtrWellAligned, [ pe_ct; pe ]) ->
+          let@ pe_ct, _ = check_pexpr_good_ctype_const pe_ct in
           let@ pe = check_pexpr (Loc ()) pe in
-          return (Bool, Ememop (PtrWellAligned (act, pe)))
-        | Ememop (PtrArrayShift (pe1, act, pe2)) ->
-          let@ () = WCT.is_ct act.loc act.ct in
+          return (Bool, Ememop (PtrWellAligned, [ pe_ct; pe ]))
+        | Ememop (PtrArrayShift, [ pe1; pe_ct; pe2 ]) ->
+          let@ pe_ct, _ = check_pexpr_good_ctype_const pe_ct in
           let@ pe1 = check_pexpr (Loc ()) pe1 in
           let@ pe2 = infer_pexpr pe2 in
           let@ () = ensure_bits_type (loc_of_pexpr pe2) (bt_of_pexpr pe2) in
-          return (Loc (), Ememop (PtrArrayShift (pe1, act, pe2)))
-        | Ememop (PtrMemberShift (tag_sym, memb_ident, pe)) ->
-          let@ _ = get_struct_member_type loc tag_sym memb_ident in
-          let@ pe = check_pexpr (Loc ()) pe in
-          return (Loc (), Ememop (PtrMemberShift (tag_sym, memb_ident, pe)))
-        | Ememop (Memcpy _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Memcmp _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Realloc _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Va_start _) (* (asym 'bty * asym 'bty) *) -> todo ()
-        | Ememop (Va_copy _) (* (asym 'bty) *) -> todo ()
-        | Ememop (Va_arg _) (* (asym 'bty * actype 'bty) *) -> todo ()
-        | Ememop (Va_end _) (* (asym 'bty) *) -> todo ()
-        | Ememop (CopyAllocId (pe1, pe2)) ->
+          return (Loc (), Ememop (PtrArrayShift, [ pe1; pe_ct; pe2 ]))
+        | Ememop (PtrMemberShift _, _) -> todo ()
+        | Ememop (Memcpy, _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Memcmp, _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Realloc, _) (* (asym 'bty * asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Va_start, _) (* (asym 'bty * asym 'bty) *) -> todo ()
+        | Ememop (Va_copy, _) (* (asym 'bty) *) -> todo ()
+        | Ememop (Va_arg, _) (* (asym 'bty * actype 'bty) *) -> todo ()
+        | Ememop (Va_end, _) (* (asym 'bty) *) -> todo ()
+        | Ememop (Copy_alloc_id, [ pe1; pe2 ]) ->
           let@ pe1 = check_pexpr Memory.uintptr_bt pe1 in
           let@ pe2 = check_pexpr BT.(Loc ()) pe2 in
-          return (Loc (), Ememop (CopyAllocId (pe1, pe2)))
+          return (Loc (), Ememop (Copy_alloc_id, [ pe1; pe2 ]))
+        | Ememop (CHERI_intrinsic _, _) -> todo ()
+        | Ememop _ -> assert false
         | Eaction (Paction (pol, Action (aloc, action_))) ->
           let@ bTy, action_ =
             match action_ with
@@ -2083,7 +2310,21 @@ module BaseTyping = struct
           in
           return (bTy, Eaction (Paction (pol, Action (aloc, action_))))
         | Eskip -> return (Unit, Eskip)
-        | Eccall (act, f_pe, pes, its) ->
+        | Eproc (name, es) ->
+          (match (name, es) with
+           | Impl (BuiltinFunction ("ctz" | "generic_ffs")), [ pe ] ->
+             let@ pe = infer_pexpr pe in
+             let bt = bt_of_pexpr pe in
+             let@ () = ensure_bits_type (loc_of_pexpr pe) bt in
+             return (bt, Eproc (name, [ pe ]))
+           | Impl (BuiltinFunction ("ctz" | "generic_ffs")), _ ->
+             let has = List.length es in
+             fail { loc; msg = Number_arguments { type_ = `Other; has; expect = 1 } }
+           | _ ->
+             fail
+               { loc; msg = Generic !^"Unsupported Core procedure" }
+             [@alert "-deprecated"])
+        | Eccall (act, f_pe, pes, gargs_opt) ->
           let@ () = WCT.is_ct act.loc act.ct in
           let@ ret_ct, arg_cts =
             match act.ct with
@@ -2099,13 +2340,16 @@ module BaseTyping = struct
                     [@alert "-deprecated"]
                 }
           in
+          List.iter add_ct (ret_ct :: arg_cts);
           let@ f_pe = check_pexpr (Loc ()) f_pe in
           (* TODO: we'd have to check the arguments against the function type, but we
              can't when f_pe is dynamic *)
           let arg_bt_specs = List.map (fun ct -> Memory.bt_of_sct ct) arg_cts in
           let@ pes = ListM.map2M check_pexpr arg_bt_specs pes in
-          let@ its = ListM.mapM WIT.infer its in
-          return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, its))
+          let its = match gargs_opt with None -> [] | Some (_, its) -> its in
+          let@ its = ListM.mapM (check_cnprog (fun _ it -> WIT.infer it)) its in
+          let gargs_opt = Option.map (fun (ghost_loc, _) -> (ghost_loc, its)) gargs_opt in
+          return (Memory.bt_of_sct ret_ct, Eccall (act, f_pe, pes, gargs_opt))
         | Eif (c_pe, e1, e2) ->
           let@ c_pe = check_pexpr Bool c_pe in
           let@ bt, e1, e2 =
@@ -2143,47 +2387,50 @@ module BaseTyping = struct
           let@ es = ListM.mapM (infer_expr label_context) es in
           let bts = List.map bt_of_expr es in
           return (Tuple bts, Eunseq es)
-        | Erun (l, pes, its) ->
-          (* copying from check.ml *)
-          let@ lt, _lkind =
-            match Sym.Map.find_opt l label_context with
-            | None ->
-              fail
-                { loc;
-                  msg =
-                    Generic (!^"undefined code label" ^/^ Sym.pp l) [@alert "-deprecated"]
-                }
-            | Some (lt, lkind, _) -> return (lt, lkind)
-          in
-          let@ pes, its =
-            let wrong_number_computational_args () =
-              let has = List.length pes in
-              let expect = AT.count_computational lt in
-              fail { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
-            in
-            let wrong_number_ghost_args () =
-              let has = List.length its in
-              let expect = AT.count_ghost lt in
-              fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
-            in
-            let rec check_args acc_pes acc_its lt pes its =
-              match (lt, pes, its) with
-              | AT.Computational ((_s, bt), _info, lt'), pe :: pes', _ ->
-                let@ pe = check_pexpr bt pe in
-                check_args (acc_pes @ [ pe ]) acc_its lt' pes' its
-              | AT.Ghost ((_s, bt), info, lt'), _, it :: its' ->
-                let@ it = WIT.check (fst info) bt it in
-                check_args acc_pes (acc_its @ [ it ]) lt' pes its'
-              | AT.L _lat, [], [] -> return (acc_pes, acc_its)
-              | AT.Computational _, [], _ | AT.L _, _ :: _, _ ->
-                wrong_number_computational_args ()
-              | AT.Ghost _, _, [] | AT.L _, _, _ :: _ -> wrong_number_ghost_args ()
-            in
-            check_args [] [] lt pes its
-          in
-          return (Unit, Erun (l, pes, its))
+        | Erun (l, pes) ->
+          (match Sym.Map.find_opt l label_context with
+           | None ->
+             if !Sym.experimental_unions then
+               let@ pes = ListM.mapM infer_pexpr pes in
+               return (Unit, Erun (l, pes))
+             else (* copying from check.ml *)
+               fail
+                 { loc;
+                   msg =
+                     Generic (!^"undefined code label" ^/^ Sym.pp l)
+                     [@alert "-deprecated"]
+                 }
+           | Some (lt, _lkind, _) ->
+             let@ pes =
+               let wrong_number_computational_args () =
+                 let has = List.length pes in
+                 let expect = AT.count_computational lt in
+                 fail
+                   { loc; msg = Number_arguments { type_ = `Computational; has; expect } }
+               in
+               let wrong_number_ghost_args () =
+                 let has = 0 in
+                 let expect = AT.count_ghost lt in
+                 fail { loc; msg = Number_arguments { type_ = `Ghost; has; expect } }
+               in
+               let rec check_args acc_pes lt pes =
+                 Pp.debug 1 (lazy (Pp.item __FUNCTION__ (AT.pp (fun _ -> Pp.empty) lt)));
+                 match (lt, pes) with
+                 | AT.Computational ((_s, bt), _info, lt'), pe :: pes' ->
+                   let@ pe = check_pexpr bt pe in
+                   check_args (acc_pes @ [ pe ]) lt' pes'
+                 | AT.L _lat, [] -> return acc_pes
+                 | AT.Computational _, [] | AT.L _, _ :: _ ->
+                   wrong_number_computational_args ()
+                 | AT.Ghost _, _ -> wrong_number_ghost_args ()
+               in
+               (* TODO: fix duplication wrt Check.check_expr, cf.
+                     https://github.com/rems-project/cn/issues/210 *)
+               check_args [] lt pes
+             in
+             return (Unit, Erun (l, pes)))
         | CN_progs (surfaceprog, cnprogs) ->
-          let@ cnprogs = ListM.mapM check_cnprog cnprogs in
+          let@ cnprogs = ListM.mapM (check_cnprog check_cn_statement) cnprogs in
           return (Unit, CN_progs (surfaceprog, cnprogs))
         | End _ -> todo ()
       in
@@ -2195,8 +2442,7 @@ module BaseTyping = struct
     let (Expr (loc, annots, _, e_)) = expr in
     let@ () =
       match integer_annot annots with
-      | Some ity when !use_ity ->
-        ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
+      | Some ity -> ensure_base_type loc ~expect (Memory.bt_of_sct (Integer ity))
       | _ -> return ()
     in
     match e_ with
@@ -2230,9 +2476,11 @@ module WProc = struct
       (fun sym def label_context ->
          let lt, kind, loc =
            match def with
+           | Non_inlined (loc, _name, label_annot, args) ->
+             (WLabel.typ args, label_annot, loc)
            | Return loc ->
              (AT.of_rt function_rt (LAT.I False.False), CF.Annot.LAreturn, loc)
-           | Label (loc, label_args_and_body, annots, _parsed_spec, _loop_info) ->
+           | Loop (loc, label_args_and_body, annots, _parsed_spec, _loop_info) ->
              let lt = WLabel.typ label_args_and_body in
              let kind = Option.get (CF.Annot.get_label_annot annots) in
              (lt, kind, loc)
@@ -2256,8 +2504,10 @@ module WProc = struct
            PmapM.mapM
              (fun _sym def ->
                 match def with
+                | Non_inlined (loc, name, annot, args) ->
+                  return (Non_inlined (loc, name, annot, args))
                 | Return loc -> return (Return loc)
-                | Label (loc, label_args_and_body, annots, parsed_spec, loop_info) ->
+                | Loop (loc, label_args_and_body, annots, parsed_spec, loop_info) ->
                   let@ label_args_and_body =
                     pure
                       (WArgs.welltyped
@@ -2267,8 +2517,7 @@ module WProc = struct
                          loc
                          label_args_and_body)
                   in
-                  return
-                    (Label (loc, label_args_and_body, annots, parsed_spec, loop_info)))
+                  return (Loop (loc, label_args_and_body, annots, parsed_spec, loop_info)))
              labels
              Sym.compare
          in
@@ -2282,7 +2531,7 @@ end
 module WRPD = struct
   module Def = Definition
 
-  let welltyped Def.Predicate.{ loc; pointer; iargs; oarg; clauses } =
+  let welltyped Def.Predicate.{ loc; pointer; iargs; oarg; clauses; recursive; attrs } =
     (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
     pure
       (let@ () = add_l pointer BT.(Loc ()) (loc, lazy (Pp.string "ptr-var")) in
@@ -2320,7 +2569,7 @@ module WRPD = struct
            return (Some clauses)
        in
        let oarg = (oarg_loc, oarg_bt) in
-       return Def.Predicate.{ loc; pointer; iargs; oarg; clauses })
+       return Def.Predicate.{ loc; pointer; iargs; oarg; clauses; recursive; attrs })
 
 
   module G = Graph.Persistent.Digraph.Concrete (Sym)
@@ -2570,6 +2819,8 @@ let logical_constraint = WLC.welltyped
 
 let oarg_bt_of_pred = WRS.oarg_bt_of_pred
 
+let request = WReq.welltyped
+
 let default_quantifier_bt = quantifier_bt
 
 let infer_term = WIT.infer
@@ -2581,6 +2832,8 @@ let check_ct = WCT.is_ct
 let ensure_same_argument_number = ensure_same_argument_number
 
 let ensure_bits_type = ensure_bits_type
+
+let ensure_z_fits_bits_type = ensure_z_fits_bits_type
 
 module type ErrorReader = sig
   type 'a t
@@ -2643,6 +2896,8 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
   let logical_constraint = lift2 logical_constraint
 
+  let request = lift2 request
+
   let oarg_bt_of_pred = lift2 oarg_bt_of_pred
 
   let default_quantifier_bt = default_quantifier_bt
@@ -2679,4 +2934,7 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
     (* assert (match bt with BT.Bits _ -> true | _ -> false); *)
     (* M.return ()                                            *)
     lift2 ensure_bits_type
+
+
+  let ensure_z_fits_bits_type = lift3 ensure_z_fits_bits_type
 end

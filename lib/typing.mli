@@ -1,3 +1,5 @@
+val unfold_multiclause_preds : bool ref
+
 type 'a t
 
 type 'a m = 'a t
@@ -11,8 +13,6 @@ val return : 'a -> 'a m
 val bind : 'a m -> ('a -> 'b m) -> 'b m
 
 val pure : 'a m -> 'a m
-
-val pure_persist_logical_variables : 'a m -> 'a m
 
 val ( let@ ) : 'a m -> ('a -> 'b m) -> 'b m
 
@@ -40,15 +40,15 @@ val simp_ctxt : unit -> Simplify.simp_ctxt m
 
 val all_resources : Locations.t -> Resource.t list m
 
-val all_resources_tagged : Locations.t -> ((Resource.t * int) list * int) m
-
-val provable : Locations.t -> (LogicalConstraints.t -> [> `True | `False ]) m
+val provable
+  :  Locations.t ->
+  (?purpose:string -> LogicalConstraints.t -> [> `True | `False ]) m
 
 val model : unit -> Solver.model_with_q m
 
-val model_with : Locations.t -> IndexTerms.t -> Solver.model_with_q option m
+(* val model_with : Locations.t -> IndexTerms.t -> Solver.model_with_q option m *)
 
-val prev_models_with : Locations.t -> IndexTerms.t -> Solver.model_with_q list m
+(* val prev_models_with : Locations.t -> IndexTerms.t -> Solver.model_with_q list m *)
 
 val bound_a : Sym.t -> bool m
 
@@ -82,8 +82,6 @@ val add_r : Locations.t -> Resource.t -> unit m
 
 val add_rs : Locations.t -> Resource.t list -> unit m
 
-val res_history : Locations.t -> int -> Context.resource_history m
-
 type changed =
   | Deleted
   | Unchanged
@@ -93,7 +91,7 @@ val map_and_fold_resources
   :  Locations.t ->
   (Resource.t -> 'acc -> changed * 'acc) ->
   'acc ->
-  ('acc * int list) m
+  'acc m
 
 module Global : sig
   val empty : Global.t
@@ -155,30 +153,26 @@ end
 
 (* val set_statement_locs : Locations.loc CStatements.LocMap.t -> (unit) m *)
 
-val value_eq_group : IndexTerms.t option -> IndexTerms.t -> EqTable.ITSet.t m
+(* val value_eq_group : IndexTerms.t option -> IndexTerms.t -> EqTable.ITSet.t m *)
 
-val test_value_eqs
-  :  Locations.t ->
-  IndexTerms.t option ->
-  IndexTerms.t ->
-  IndexTerms.t list ->
-  unit m
+(* val test_value_eqs *)
+(*   :  Locations.t -> *)
+(*   IndexTerms.t option -> *)
+(*   IndexTerms.t -> *)
+(*   IndexTerms.t list -> *)
+(*   unit m *)
 
 val lift : 'a Or_TypeError.t -> 'a m
 
-val make_return_record
-  :  Locations.t ->
-  string ->
-  BaseTypes.member_types ->
-  (IndexTerms.t * IndexTerms.t list) m
+(* val make_return_record *)
+(*   :  Locations.t -> *)
+(*   string -> *)
+(*   BaseTypes.member_types -> *)
+(*   (IndexTerms.t * IndexTerms.t list) m *)
 
-val bind_logical_return
-  :  Locations.t ->
-  IndexTerms.t list ->
-  LogicalReturnTypes.t ->
-  unit m
+val bind_logical_return : Locations.t -> string -> LogicalReturnTypes.t -> unit m
 
-val bind_return : Locations.t -> IndexTerms.t list -> ReturnTypes.t -> IndexTerms.t m
+(* val bind_return : Locations.t -> IndexTerms.t list -> ReturnTypes.t -> IndexTerms.t m *)
 
 val add_movable_index
   :  Locations.t ->

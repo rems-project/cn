@@ -20,6 +20,7 @@ type 'a t_gen =
   | List of 'a t_gen
   | Tuple of 'a t_gen list
   | Set of 'a t_gen
+  | Option of 'a t_gen
 [@@deriving eq, ord, map]
 
 and 'a member_types_gen = (Id.t * 'a t_gen) list
@@ -39,30 +40,50 @@ module Datatype = struct
     }
 end
 
-let rec pp pp_loc =
+let pp pp_loc =
+  let rec aux =
+    let open Pp in
+    function
+    | Unit -> !^"void"
+    | Bool -> !^"boolean"
+    | Integer -> !^"integer"
+    | MemByte -> !^"mem_byte"
+    | Bits (Signed, n) -> !^("i" ^ string_of_int n)
+    | Bits (Unsigned, n) -> !^("u" ^ string_of_int n)
+    | Real -> !^"real"
+    | Loc x -> pp_loc x
+    | Alloc_id -> !^"alloc_id"
+    | CType -> !^"ctype"
+    | Struct sym -> !^"struct" ^^^ Sym.pp sym
+    | Datatype sym -> !^"datatype" ^^^ Sym.pp sym
+    | Record members ->
+      braces (flow_map comma (fun (s, bt) -> aux bt ^^^ Id.pp s) members)
+    | Map (abt, rbt) -> !^"map" ^^ angles (aux abt ^^ comma ^^^ aux rbt)
+    | List bt -> !^"cn_list" ^^ angles (aux bt)
+    | Tuple nbts -> !^"cn_tuple" ^^ angles (flow_map underscore aux nbts)
+    | Set t -> !^"cn_set" ^^ angles (aux t)
+    | Option t -> !^"cn_option" ^^ angles (aux t)
+  in
+  aux
+
+
+let pp_executable_spec pp_loc =
   let open Pp in
-  function
-  | Unit -> !^"void"
-  | Bool -> !^"boolean"
-  | Integer -> !^"integer"
-  | MemByte -> !^"mem_byte"
-  | Bits (Signed, n) -> !^("i" ^ string_of_int n)
-  | Bits (Unsigned, n) -> !^("u" ^ string_of_int n)
-  | Real -> !^"real"
-  | Loc x -> pp_loc x
-  | Alloc_id -> !^"alloc_id"
-  | CType -> !^"ctype"
-  | Struct sym -> !^"struct" ^^^ Sym.pp sym
-  | Datatype sym -> !^"datatype" ^^^ Sym.pp sym
-  | Record members ->
-    braces (flow_map comma (fun (s, bt) -> pp pp_loc bt ^^^ Id.pp s) members)
-  | Map (abt, rbt) -> !^"map" ^^ angles (pp pp_loc abt ^^ comma ^^^ pp pp_loc rbt)
-  | List bt -> !^"cn_list" ^^ angles (pp pp_loc bt)
-  | Tuple nbts -> !^"cn_tuple" ^^ angles (flow_map comma (pp pp_loc) nbts)
-  | Set t -> !^"cn_set" ^^ angles (pp pp_loc t)
+  let rec aux bt =
+    match bt with
+    | Unit | Bool | Integer | MemByte | Bits _ | Real | Loc _ | Alloc_id | CType
+    | Struct _ | Datatype _ ->
+      pp pp_loc bt
+    | Record members ->
+      flow_map underscore (fun (s, bt) -> aux bt ^^ underscore ^^ Id.pp s) members
+    | Map (abt, rbt) -> !^"map" ^^ underscores (aux abt ^^ underscore ^^^ aux rbt)
+    | List bt -> !^"cn_list" ^^ underscores (aux bt)
+    | Tuple nbts -> !^"cn_tuple" ^^ underscores (flow_map underscore aux nbts)
+    | Set t -> !^"cn_set" ^^ underscores (aux t)
+    | Option t -> !^"cn_option" ^^ underscores (aux t)
+  in
+  aux
 
-
-(* | Option t -> !^"option" ^^ angles (pp t) *)
 
 let rec contained =
   let containeds bts = List.concat_map contained bts in
@@ -85,6 +106,7 @@ let rec contained =
   | List bt -> bt :: contained bt
   | Tuple bts -> bts @ containeds bts
   | Set bt -> bt :: contained bt
+  | Option bt -> bt :: contained bt
 
 
 let json pp_loc bt = `String (Pp.plain (pp pp_loc bt))
@@ -125,11 +147,6 @@ let is_bits_bt = function Bits (sign, n) -> Some (sign, n) | _ -> None
 
 let make_map_bt abt rbt = Map (abt, rbt)
 
-(* let option_bt = function *)
-(*   | Option bt -> bt  *)
-(*   | bt -> Cerb_debug.error  *)
-(*            ("illtyped index term: not an option type: " ^ Pp.plain (pp bt)) *)
-
 let rec of_sct loc is_signed size_of = function
   | Sctypes.Void -> Unit
   | Integer ity -> Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
@@ -137,6 +154,7 @@ let rec of_sct loc is_signed size_of = function
     Map (uintptr_bt loc is_signed size_of, of_sct loc is_signed size_of sct)
   | Pointer sct -> Loc (loc sct)
   | Struct tag -> Struct tag
+  | Byte -> Option MemByte
   | Function _ -> Cerb_debug.error "todo: function types"
 
 
@@ -168,6 +186,7 @@ let rec hash = function
   | Map (abt, rbt) -> 2000 + hash abt + hash rbt
   | Bits (Signed, n) -> 5000 + n
   | Bits (Unsigned, n) -> 6000 + n
+  | Option bt -> 7000 + hash bt
 
 
 (* checking/coercing numeric literals into bits range *)
@@ -249,6 +268,8 @@ module Surface = struct
 
   let pp : t -> _ = pp pp_loc
 
+  let pp_executable_spec : t -> _ = pp_executable_spec pp_loc
+
   let json (bt : t) = json pp_loc bt
 
   let is_map_bt = is_map_bt
@@ -263,7 +284,7 @@ module Surface = struct
 
   let of_sct = of_sct Option.some
 
-  let unintptr_bt = uintptr_bt Option.some
+  let uintptr_bt = uintptr_bt Option.some
 
   let intptr_bt = intptr_bt Option.some
 
@@ -290,6 +311,8 @@ module Unit = struct
   let pp_loc () = Pp.(!^"pointer")
 
   let pp = pp pp_loc
+
+  let pp_executable_spec = pp_executable_spec pp_loc
 
   let json = json pp_loc
 

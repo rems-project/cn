@@ -1,0 +1,5 @@
+return code: 1
+tests/cn/issue_113.error.c:4:18: error: Mismatched types.
+requires is_null(array_shift<unsigned char>(array_shift<unsigned char>(p, x), 1));
+                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+Expected value of type 'bitvector' but found value of type 'integer'

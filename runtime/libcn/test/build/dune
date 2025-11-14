@@ -1,0 +1,33 @@
+(rule
+ (target Makefile)
+ (deps
+  (package cn)
+  (alias_rec ../../install)
+  (file ../CMakeLists.txt))
+ (action
+  (run cmake ..)))
+
+(rule
+ (target libcn_tests)
+ (deps
+  (package cn)
+  (alias_rec ../../install)
+  (file Makefile)
+  (glob_files ../bennet/*.hpp)
+  (glob_files ../bennet/*.cpp)
+  (glob_files ../cn-smt/*.cpp))
+ (action
+  (run make)))
+
+(rule
+ (alias runtest)
+ (deps
+  (file libcn_tests))
+ (action
+  (setenv
+   UBSAN_OPTIONS
+   "halt_on_error=1"
+   (setenv
+    ASAN_OPTIONS
+    "allocator_may_return_null=1:detect_leaks=0"
+    (run ./libcn_tests)))))

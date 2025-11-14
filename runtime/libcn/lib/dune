@@ -15,16 +15,68 @@
     ar
     -rcs
     %{target}
-    cn-executable/alloc.o
+    cn-executable/fulminate_alloc.o
+    cn-executable/bump_alloc.o
     cn-executable/hash_table.o
+    cn-executable/rmap.o
     cn-executable/utils.o))))
+
+(rule
+ (target libbennet.a)
+ (deps
+  (:headers
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/bennet/*.h)
+   (glob_files ../include/bennet/info/*.h))
+  (:src
+   (glob_files ../src/bennet/*.c)
+   (glob_files ../src/bennet/dsl/*.c)
+   (glob_files ../src/bennet/internals/*.c)
+   (glob_files ../src/bennet/internals/domains/*.c)
+   (glob_files ../src/bennet/state/*.c)
+   (glob_files ../src/bennet/info/*.c)))
+ (action
+  (progn
+   (run mkdir -p bennet)
+   (chdir
+    bennet
+    (run ../compile.sh %{src}))
+   (run
+    ar
+    -rcs
+    %{target}
+    bennet/alloc.o
+    bennet/arbitrary.o
+    bennet/assign.o
+    bennet/backtrack.o
+    bennet/backtracks.o
+    bennet/discards.o
+    bennet/failure.o
+    bennet/ownership.o
+    bennet/prelude.o
+    bennet/products.o
+    bennet/rand.o
+    bennet/rand_alloc.o
+    bennet/size.o
+    bennet/sizes.o
+    bennet/sized.o
+    bennet/tnum.o
+    bennet/trivial.o
+    bennet/timing.o
+    bennet/tyche.o
+    bennet/unsatisfied.o
+    bennet/urn.o
+    bennet/wint.o))))
 
 (rule
  (target libcn_test.a)
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/cn-testing/*.h))
+   (glob_files ../include/cn-testing/*.h)
+   (glob_files ../include/bennet/*.h)
+   (glob_files ../include/bennet/info/*.h)
+   (glob_files ../include/bennet/internals/*.h))
   (:src
    (glob_files ../src/cn-testing/*.c)))
  (action
@@ -33,17 +85,7 @@
    (chdir
     cn-testing
     (run ../compile.sh %{src}))
-   (run
-    ar
-    -rcs
-    %{target}
-    cn-testing/alloc.o
-    cn-testing/backtrack.o
-    cn-testing/rand.o
-    cn-testing/size.o
-    cn-testing/test.o
-    cn-testing/uniform.o
-    cn-testing/urn.o))))
+   (run ar -rcs %{target} cn-testing/test.o))))
 
 (rule
  (target libcn_replica.a)
@@ -64,7 +106,53 @@
 (install
  (files
   (libcn_exec.a as runtime/libcn_exec.a)
+  (libbennet.a as runtime/libbennet.a)
   (libcn_test.a as runtime/libcn_test.a)
-  (libcn_replica.a as runtime/libcn_replica.a))
+  (libcn_replica.a as runtime/libcn_replica.a)
+  (libcn_smt.a as runtime/libcn_smt.a))
  (section lib)
  (package cn))
+
+(rule
+ (target libcn_smt.a)
+ (deps
+  (:headers
+   (glob_files ../include/cn-smt/*.h)
+   (glob_files ../include/cn-smt/memory/*.h)
+   (glob_files ../include/bennet/utils/*.h))
+  (:src
+   (glob_files ../src/cn-smt/*.c)
+   (glob_files ../src/cn-smt/memory/*.c)))
+ (action
+  (progn
+   (run mkdir -p cn-smt)
+   (chdir
+    cn-smt
+    (run ../compile.sh %{src}))
+   (run
+    ar
+    -rcs
+    %{target}
+    cn-smt/arena.o
+    cn-smt/branch_history.o
+    cn-smt/concretize.o
+    cn-smt/context.o
+    cn-smt/datatypes.o
+    cn-smt/eval.o
+    cn-smt/from_smt.o
+    cn-smt/functions.o
+    cn-smt/gather.o
+    cn-smt/intern.o
+    cn-smt/prelude.o
+    cn-smt/sexp.o
+    cn-smt/sexp_parsing.o
+    cn-smt/sexp_printing.o
+    cn-smt/solver.o
+    cn-smt/std_alloc.o
+    cn-smt/structs.o
+    cn-smt/records.o
+    cn-smt/subst.o
+    cn-smt/terms.o
+    cn-smt/test_alloc.o
+    cn-smt/to_smt.o
+    cn-smt/trie.o))))

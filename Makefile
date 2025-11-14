@@ -74,4 +74,4 @@ format:
 	@echo "[DUNE] format"
 	$(Q)dune fmt || exit 0
 	@echo "[CLANG] format"
-	$(Q)find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format -i
+	$(Q)find runtime/libcn/ -iname '*.h' -o -iname '*.c' -o -iname '*.hpp' -o -iname '*.cpp' | xargs clang-format -i

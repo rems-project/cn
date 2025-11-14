@@ -1,3 +1,7 @@
+module Private : sig
+  module Bennet = Bennet
+end
+
 type config = TestGenConfig.t
 
 val default_cfg : config
@@ -11,6 +15,7 @@ val functions_under_test
   Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
+  _ Typing.pause ->
   Test.t list
 
 val run
@@ -21,4 +26,5 @@ val run
   Cerb_frontend.Cabs.translation_unit ->
   Cerb_frontend.GenTypes.genTypeCategory Cerb_frontend.AilSyntax.sigma ->
   unit Mucore.file ->
+  _ Typing.pause ->
   unit

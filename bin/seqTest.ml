@@ -5,25 +5,29 @@ open Cn
 let run_seq_tests
       (* Common *)
         filename
+      cc
       macros
+      permissive
       incl_dirs
       incl_files
       debug_level
       print_level
       csv_times
-      log_times
       astprints
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       (* Executable spec *)
         without_ownership_checking
-      (* without_loop_invariants *)
+      exec_c_locs_mode
+      experimental_ownership_stack_mode
       (* Test Generation *)
         output_dir
       print_steps
       disable_shrink
       num_calls
       backtrack_attempts
+      num_tests
       num_tests
   =
   (* flags *)
@@ -44,7 +48,9 @@ let run_seq_tests
   let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_SEQ_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~csv_times
@@ -52,35 +58,31 @@ let run_seq_tests
     ~coq_mucore:false
     ~coq_proof_log:false
     ~coq_check_proof_log:false
-    ~log_times
     ~astprints
     ~no_inherit_loc
-    ~magic_comment_char_dollar (* Callbacks *)
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
+    ~skip_label_inlining:true
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       Cerb_colour.without_colour
         (fun () ->
-           let _, sigma = ail_prog in
-           if
-             List.is_empty
-               (TestGeneration.functions_under_test
-                  ~with_warning:true
-                  cabs_tunit
-                  sigma
-                  prog5)
-           then (
-             print_endline "No testable functions, trivially passing";
-             exit 0);
            let _, sigma = ail_prog in
            Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
            Fulminate.main
              ~without_ownership_checking
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
+             ~without_lemma_checks:false
+             ~exec_c_locs_mode
+             ~experimental_ownership_stack_mode
+             ~experimental_curly_braces:false
              ~with_testing:true
+             ~skip_and_only:([], [])
              filename
+             cc
              pp_file
              out_file
              output_dir
@@ -129,6 +131,7 @@ module Flags = struct
     let doc = "Maximum number of calls per test" in
     Arg.(
       value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
+      value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
 
 
   let gen_backtrack_attempts =
@@ -145,6 +148,9 @@ module Flags = struct
   let num_tests =
     let doc = "Number of tests to generate" in
     Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
+  let num_tests =
+    let doc = "Number of tests to generate" in
+    Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
 end
 
 let cmd =
@@ -152,22 +158,27 @@ let cmd =
   let test_t =
     const run_seq_tests
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
+    $ Common.Flags.permissive
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Common.Flags.debug_level
     $ Common.Flags.print_level
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
+    $ Instrument.Flags.exec_c_locs_mode
+    $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.output_dir
     $ Flags.print_steps
     $ Flags.disable_shrink
     $ Flags.gen_num_calls
     $ Flags.gen_backtrack_attempts
+    $ Flags.num_tests
     $ Flags.num_tests
   in
   let doc =

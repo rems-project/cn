@@ -2,6 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module Cn = CF.Cn
+module CP = Cerb_position
 
 let[@warning "-32" (* unused-value-declaration *)] const_qualifiers : C.qualifiers =
   { const = true; restrict = false; volatile = false }
@@ -42,7 +43,7 @@ let[@warning "-32" (* unused-value-declaration *)] rm_cn_expr (Cn.CNExpr (_, cn_
 let mk_stmt stmt_ =
   A.
     { loc = Cerb_location.unknown;
-      is_forloop = false;
+      desug_info = { is_forloop_body = false; desug_case = None };
       attrs = CF.Annot.Attrs [];
       node = stmt_
     }
@@ -51,10 +52,10 @@ let mk_stmt stmt_ =
 let rm_expr (A.AnnotatedExpression (_, _, _, expr_)) = expr_
 
 let[@warning "-32" (* unused-value-declaration *)] rm_stmt = function
-  | A.{ loc = _; is_forloop = _; attrs = _; node = stmt_ } -> stmt_
+  | A.{ loc = _; desug_info = _; attrs = _; node = stmt_ } -> stmt_
 
 
-let empty_ail_str = "empty_ail"
+let empty_ail_str = ";" (* horrible; TODO change *)
 
 let empty_ail_expr = A.(AilEident (Sym.fresh empty_ail_str))
 
@@ -195,11 +196,11 @@ let get_start_loc ?(offset = 0) = function
     let new_start_pos = Cerb_position.change_cnum start_pos offset in
     Cerb_location.point new_start_pos
   | Loc_regions (pos_list, _) ->
-    (match List.last pos_list with
-     | Some (_, start_pos) ->
+    (match pos_list with
+     | (start_pos, _) :: _ ->
        let new_start_pos = Cerb_position.change_cnum start_pos offset in
        Cerb_location.point new_start_pos
-     | None ->
+     | [] ->
        failwith
          "get_start_loc: Loc_regions has empty list of positions (should be non-empty)")
   | Loc_point pos -> Cerb_location.point (Cerb_position.change_cnum pos offset)
@@ -224,6 +225,27 @@ let get_end_loc ?(offset = 0) = function
     failwith "get_end_loc: Location should be Loc_region, Loc_regions or Loc_point"
 
 
+(* In the style of Cerb_location.line_numbers *)
+(* TODO: Move to Cerberus (Cerb_location.ml) *)
+let line_and_column_numbers = function
+  | Cerb_location.Loc_unknown -> None
+  | Loc_other _ -> None
+  | Loc_point p -> Some ((CP.line p, CP.line p), (CP.column p, CP.column p))
+  | Loc_region (p1, p2, _) -> Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
+  | Loc_regions ((p1, p2) :: _, _) ->
+    Some ((CP.line p1, CP.line p2), (CP.column p1, CP.column p2))
+  | Loc_regions ([], _) -> None
+
+
+let from_same_file = function
+  | Cerb_location.Loc_unknown, _ | Loc_other _, _ | Loc_regions ([], _), _ -> false
+  | Loc_point pos, Cerb_location.Loc_point pos'
+  | Loc_region (pos, _, _), Loc_region (pos', _, _)
+  | Loc_regions ((pos, _) :: _, _), Loc_regions ((pos', _) :: _, _) ->
+    String.equal (Cerb_position.file pos) (Cerb_position.file pos')
+  | _, _ -> false
+
+
 let concat_map_newline docs = PPrint.(concat_map (fun doc -> doc ^^ hardline) docs)
 
 let static_prefix filename =
@@ -234,3 +256,19 @@ let static_prefix filename =
      |> String.to_seq
      |> Seq.filter (function 'a' .. 'z' | 'A' .. 'Z' | '_' -> true | _ -> false)
      |> String.of_seq)
+
+
+let rec remove_last_semicolon =
+  let rec remove_last = function
+    | [] -> []
+    | [ _ ] -> []
+    | x :: xs -> x :: remove_last xs
+  in
+  function
+  | [] -> []
+  | [ x ] ->
+    let split_x = String.split_on_char ';' x in
+    let without_whitespace_x = remove_last split_x in
+    let res = String.concat ";" without_whitespace_x in
+    [ res ]
+  | x :: xs -> x :: remove_last_semicolon xs

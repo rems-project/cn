@@ -1,11 +1,16 @@
-module A = Cerb_frontend.Annot
-module Cn = Cerb_frontend.Cn
+module CF = Cerb_frontend
+module A = CF.Annot
+module Cn = CF.Cn
 
-type msg = Cerb_frontend.Errors.cparser_cause
+let allow_split_magic_comments = ref false
+
+type message =
+  | Parser of Cerb_frontend.Errors.cparser_cause
+  | Split_spec of Locations.t
 
 type err =
   { loc : Locations.t;
-    msg : msg
+    msg : message
   }
 
 module Monad = struct
@@ -66,7 +71,7 @@ let parse parser_start (loc, string) =
   | Exn.Result spec -> return spec
   | Exn.Exception (loc, Cerb_frontend.Errors.CPARSER err) ->
     Pp.debug 6 (lazy (debug_tokens loc string));
-    Monad.(fail { loc; msg = err })
+    Monad.(fail { loc; msg = Parser err })
   | Exn.Exception _ -> assert false
 
 
@@ -74,15 +79,76 @@ let cn_statements annots =
   annots |> A.get_cerb_magic_attr |> ListM.concat_mapM (parse C_parser.cn_statements)
 
 
+(* Combine magic-comment content str1 and str2 into a single string,
+   with whitespace-padding for the gap from loc1 to loc2. *)
+let join_snippets (loc1, str1) (loc2, str2) : Locations.t * string =
+  let module L = Cerb_location in
+  let module P = Cerb_position in
+  let adjust_end_column = -2 in
+  (* TODO: fix when column information is correct *)
+  let _size_of_magic_start = 3 in
+  let start_and_end = function
+    | L.Loc_point p -> (p, p)
+    | L.Loc_region (s, e, _) -> (s, e)
+    | L.Loc_unknown -> assert false
+    | L.Loc_other _ -> assert false
+    | L.Loc_regions _ -> assert false
+  in
+  let s1, e1 = start_and_end loc1 in
+  let s2, e2 = start_and_end loc2 in
+  let loc = L.region (s1, e2) NoCursor in
+  let str =
+    if P.line e1 = P.line s2 then (
+      let () = assert (P.column e1 + adjust_end_column < P.column s2) in
+      str1 ^ String.make (P.column s2 - (P.column e1 + adjust_end_column) - 1) ' ' ^ str2)
+    else (
+      let () = assert (P.line e1 < P.line s2) in
+      str1
+      ^ String.make (P.line s2 - P.line e1) '\n'
+      ^ String.make (P.column s2 - 1) ' '
+      ^ str2)
+  in
+  (loc, str)
+
+
+let join_snippets_list snippets =
+  List.fold_left
+    (fun acc snip' ->
+       match acc with None -> Some snip' | Some snip -> Some (join_snippets snip snip'))
+    None
+    snippets
+
+
+let not_too_many_snippets = function
+  | (first, _) :: (second, _) :: _ when not !allow_split_magic_comments ->
+    Monad.fail { loc = second; msg = Split_spec first }
+  | _ -> return ()
+
+
+let cn_ghost_args annots =
+  match A.get_cerb_magic_attr annots with
+  | [] -> return None
+  | [ (loc, str) ] ->
+    let@ args = (parse C_parser.cn_ghost_args) (loc, str) in
+    return (Some (loc, args))
+  | _ :: _ :: _ -> failwith "frontend should guarantee unreachable"
+
+
 let function_spec (A.Attrs attributes) =
-  [ A.Aattrs (Attrs (List.rev attributes)) ]
-  |> A.get_cerb_magic_attr
-  |> ListM.mapM (parse C_parser.fundef_spec)
+  let magic_attrs = A.get_cerb_magic_attr [ A.Aattrs (Attrs (List.rev attributes)) ] in
+  let@ () = not_too_many_snippets magic_attrs in
+  match join_snippets_list magic_attrs with
+  | None -> return None
+  | Some spec ->
+    let@ spec = parse C_parser.fundef_spec spec in
+    return (Some spec)
 
 
 let loop_spec attrs =
-  [ A.Aattrs attrs ]
-  |> A.get_cerb_magic_attr
-  |> ListM.concat_mapM (fun (loc, arg) ->
-    let@ (Cn.CN_inv (_loc, conds)) = parse C_parser.loop_spec (loc, arg) in
-    return conds)
+  let magic_attrs = A.get_cerb_magic_attr [ A.Aattrs attrs ] in
+  let@ () = not_too_many_snippets magic_attrs in
+  match join_snippets_list magic_attrs with
+  | None -> return []
+  | Some spec ->
+    let@ (Cn.CN_inv (_loc, conds)) = parse C_parser.loop_spec spec in
+    return conds

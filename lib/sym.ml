@@ -4,18 +4,22 @@ let print_nums = ref false
 
 let executable_spec_enabled = ref false
 
+let experimental_unions = ref false
+
 module Ord = struct
   type t = S.sym
 
+  let equal = S.symbolEquality
+
   let compare = S.symbol_compare
+
+  let hash = S.symbol_num
 end
 
 include Ord
-
-let equal = S.symbolEquality
-
 module Set = Set.Make (Ord)
 module Map = Map.Make (Ord)
+module Digraph = Graph.Persistent.Digraph.Concrete (Ord)
 
 let description = S.symbol_description
 
@@ -36,6 +40,8 @@ let pp sym = Pp.string (pp_string sym)
 let pp_debug sym = Pp.string (S.show_raw_less sym)
 
 let num = S.symbol_num
+
+let fresh_int = Cerb_fresh.int
 
 let fresh_anon () = S.fresh ()
 
@@ -72,5 +78,3 @@ let fresh_make_uniq name = fresh (make_uniq name)
 let fresh_make_uniq_kind ~prefix name = fresh (make_uniq prefix ^ "_" ^ name)
 
 let json sym = `String (pp_string sym)
-
-let hash = num

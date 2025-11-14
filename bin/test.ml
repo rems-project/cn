@@ -5,30 +5,35 @@ open Cn
 let run_tests
       (* Common *)
         filename
+      cc
       macros
+      permissive
       incl_dirs
       incl_files
       debug_level
       print_level
       csv_times
-      log_times
       astprints
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       (* Executable spec *)
         without_ownership_checking
+      exec_c_locs_mode
+      experimental_ownership_stack_mode
       (* without_loop_invariants *)
       (* Test Generation *)
         print_steps
       output_dir
       only
       skip
+      only_fulminate
+      skip_fulminate
       dont_run
       num_samples
       max_backtracks
       max_unfolds
       max_array_length
-      _with_static_hack
       build_tool
       sanitizers
       print_seed
@@ -41,23 +46,47 @@ let run_tests
       until_timeout
       exit_fast
       max_stack_depth
-      allowed_depth_failures
+      _allowed_depth_failures
       max_generator_size
       sizing_strategy
       random_size_splits
       allowed_size_split_backtracks
-      sized_null
+      _sized_null
       coverage
       disable_passes
       trap
       no_replays
       no_replicas
       output_tyche
+      inline
+      experimental_struct_asgn_destruction
+      experimental_product_arg_destruction
+      experimental_learning
+      static_absint
+      smt_pruning_before_absinst
+      smt_pruning_after_absinst
+      smt_pruning_keep_redundant_assertions
+      smt_pruning_at_runtime
+      symbolic
+      symbolic_timeout
+      use_solver_eval
+      smt_logging
+      smt_log_unsat_cores
+      print_size_info
+      print_backtrack_info
+      print_satisfaction_info
+      print_discard_info
+      print_timing_info
+      just_reset_solver
+      smt_skewing_mode
+      max_bump_blocks
+      bump_block_size
+      max_input_alloc
+      smt_skew_pointer_order
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.print_level := print_level;
-  Check.skip_and_only := (skip, only);
   Sym.executable_spec_enabled := true;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
@@ -71,7 +100,9 @@ let run_tests
   let out_file = Fulminate.get_instrumented_filename basefile in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~csv_times
@@ -79,22 +110,40 @@ let run_tests
     ~coq_mucore:false
     ~coq_proof_log:false
     ~coq_check_proof_log:false
-    ~log_times
     ~astprints
     ~no_inherit_loc
-    ~magic_comment_char_dollar (* Callbacks *)
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
+    ~skip_label_inlining:true
     ~handle_error
-    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
+    ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
-        { print_steps;
+        { skip_and_only = (skip, only);
+          cc;
+          print_steps;
           num_samples;
           max_backtracks;
-          max_unfolds;
-          max_array_length;
           build_tool;
           sanitizers;
+          inline;
+          experimental_struct_asgn_destruction;
+          experimental_product_arg_destruction;
+          experimental_learning;
+          static_absint;
+          smt_pruning_before_absinst;
+          smt_pruning_after_absinst;
+          smt_pruning_remove_redundant_assertions =
+            not smt_pruning_keep_redundant_assertions;
+          smt_pruning_at_runtime;
+          symbolic;
+          symbolic_timeout;
+          use_solver_eval;
+          smt_logging;
+          smt_log_unsat_cores;
+          max_unfolds;
+          max_array_length;
           print_seed;
           input_timeout;
           null_in_every;
@@ -105,70 +154,127 @@ let run_tests
           until_timeout;
           exit_fast;
           max_stack_depth;
-          allowed_depth_failures;
           max_generator_size;
           sizing_strategy;
           random_size_splits;
           allowed_size_split_backtracks;
-          sized_null;
           coverage;
           disable_passes;
           trap;
           no_replays;
           no_replicas;
-          output_tyche
+          output_tyche;
+          print_size_info;
+          print_backtrack_info;
+          print_satisfaction_info;
+          print_discard_info;
+          print_timing_info;
+          just_reset_solver;
+          smt_skewing_mode;
+          max_bump_blocks;
+          bump_block_size;
+          max_input_alloc;
+          smt_skew_pointer_order
         }
       in
       TestGeneration.set_config config;
       let _, sigma = ail_prog in
       if
         List.is_empty
-          (TestGeneration.functions_under_test ~with_warning:true cabs_tunit sigma prog5)
+          (TestGeneration.functions_under_test
+             ~with_warning:true
+             cabs_tunit
+             sigma
+             prog5
+             paused)
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
-      Cerb_colour.without_colour
-        (fun () ->
-           Fulminate.Cn_to_ail.augment_record_map (BaseTypes.Record []);
-           (try
-              Fulminate.main
-                ~without_ownership_checking
-                ~without_loop_invariants:true
-                ~with_loop_leak_checks:false
-                ~with_testing:true
-                filename
-                pp_file
-                out_file
-                output_dir
-                cabs_tunit
-                ail_prog
-                prog5
-            with
-            | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
-           (try
-              TestGeneration.run
-                ~output_dir
-                ~filename
-                ~without_ownership_checking
-                build_tool
-                cabs_tunit
-                sigma
-                prog5
-            with
-            | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
-           if not dont_run then (
-             Cerb_debug.maybe_close_csv_timing_file ();
-             match build_tool with
-             | Bash ->
-               Unix.execv (Filename.concat output_dir "run_tests.sh") (Array.of_list [])
-             | Make ->
-               Unix.chdir output_dir;
-               Unix.execvp "make" (Array.of_list [ "make" ])))
-        ();
-      Or_TypeError.return ())
+      Cerb_colour.do_colour := false;
+      (try
+         Fulminate.main
+           ~without_ownership_checking
+           ~without_loop_invariants:true
+           ~with_loop_leak_checks:false
+           ~without_lemma_checks:false
+           ~exec_c_locs_mode
+           ~experimental_ownership_stack_mode
+           ~experimental_curly_braces:false
+           ~with_testing:true
+           ~skip_and_only:(skip_fulminate, only_fulminate)
+           ?max_bump_blocks
+           ?bump_block_size
+           filename
+           cc
+           pp_file
+           out_file
+           output_dir
+           cabs_tunit
+           ail_prog
+           prog5
+       with
+       | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
+      (try
+         TestGeneration.run
+           ~output_dir
+           ~filename
+           ~without_ownership_checking
+           build_tool
+           cabs_tunit
+           sigma
+           prog5
+           paused
+       with
+       | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
+      if not dont_run then (
+        Cerb_debug.maybe_close_csv_timing_file ();
+        match build_tool with
+        | Bash ->
+          let build_script = Filename.concat output_dir "run_tests.sh" in
+          Unix.execv build_script (Array.of_list [ build_script ])
+        | Make ->
+          Unix.chdir output_dir;
+          Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
+      Result.ok ())
 
 
 open Cmdliner
+
+(* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
+let parse_size_value s =
+  let len = String.length s in
+  if len = 0 then
+    Error (`Msg "Size value cannot be empty")
+  else (
+    let last_char = String.get s (len - 1) in
+    let value_str, multiplier =
+      match last_char with
+      | 'k' | 'K' -> (String.sub s 0 (len - 1), 1024)
+      | 'm' | 'M' -> (String.sub s 0 (len - 1), 1024 * 1024)
+      | 'g' | 'G' -> (String.sub s 0 (len - 1), 1024 * 1024 * 1024)
+      | '0' .. '9' -> (s, 1)
+      | _ -> ("", 0)
+      (* Invalid suffix *)
+    in
+    if multiplier = 0 then
+      Error
+        (`Msg
+            (Printf.sprintf
+               "Invalid size suffix in '%s'. Use k/K, m/M, g/G, or no suffix."
+               s))
+    else (
+      match int_of_string_opt value_str with
+      | Some n when n > 0 ->
+        (* Check for overflow *)
+        if n > max_int / multiplier then
+          Error (`Msg (Printf.sprintf "Size value '%s' is too large" s))
+        else
+          Ok (n * multiplier)
+      | Some _ -> Error (`Msg (Printf.sprintf "Size value must be positive: '%s'" s))
+      | None -> Error (`Msg (Printf.sprintf "Invalid size value: '%s'" s))))
+
+
+let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
 module Flags = struct
   let print_steps =
@@ -185,12 +291,34 @@ module Flags = struct
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+    Term.(
+      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "only" ] ~doc))
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+    Term.(
+      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "skip" ] ~doc))
+
+
+  let only_fulminate =
+    let doc =
+      "Only check the pre- and post-conditions of this function (or comma-separated \
+       names)"
+    in
+    Term.(
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info [ "only-fulminate" ] ~doc))
+
+
+  let skip_fulminate =
+    let doc =
+      "Skip checking the pre- and post-conditions of this function (or comma-separated \
+       names)"
+    in
+    Term.(
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info [ "skip-fulminate" ] ~doc))
 
 
   let dont_run =
@@ -216,15 +344,14 @@ module Flags = struct
 
 
   let gen_max_unfolds =
-    let doc = "Set the maximum number of unfolds for recursive generators" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.max_unfolds
-      & info [ "max-unfolds" ] ~doc)
+    let doc =
+      "Maximum number of times to inline function calls in symbolic mode (default: 10)"
+    in
+    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~doc)
 
 
   let max_array_length =
-    let doc = "Set the maximum length for an array generated" in
+    let doc = "Maximum array length for symbolic mode" in
     Arg.(
       value
       & opt int TestGeneration.default_cfg.max_array_length
@@ -341,11 +468,9 @@ module Flags = struct
 
 
   let allowed_depth_failures =
-    let doc = "Maximum stack depth failures before discarding an attempt" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.allowed_depth_failures
-      & info [ "allowed-depth-failures" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after July 31." in
+    Arg.(value & opt (some int) None & info [ "allowed-depth-failures" ] ~deprecated ~doc)
 
 
   let max_generator_size =
@@ -383,10 +508,9 @@ module Flags = struct
 
 
   let sized_null =
-    let doc =
-      "Scale the likelihood of [NULL] proportionally for a desired size (1/n for size n)"
-    in
-    Arg.(value & flag & info [ "sized-null" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after July 31." in
+    Arg.(value & flag & info [ "sized-null" ] ~deprecated ~doc)
 
 
   let coverage =
@@ -432,6 +556,169 @@ module Flags = struct
       value
       & opt (some string) TestGeneration.default_cfg.output_tyche
       & info [ "output-tyche" ] ~doc)
+
+
+  let inline =
+    let doc =
+      "Set inlining mode: 'nothing' (no inlining, default), 'nonrec' (non-recursive \
+       only), 'rec' (recursive only), or 'everything' (both)"
+    in
+    Arg.(
+      value
+      & opt (enum TestGeneration.Options.inline_mode) TestGeneration.default_cfg.inline
+      & info [ "inline" ] ~doc)
+
+
+  let experimental_struct_asgn_destruction =
+    let doc = "Destructs struct assignments" in
+    Arg.(value & flag & info [ "experimental-struct-asgn-destruction" ] ~doc)
+
+
+  let experimental_product_arg_destruction =
+    let doc = "Destructs all records and structs arguments" in
+    Arg.(value & flag & info [ "experimental-product-arg-destruction" ] ~doc)
+
+
+  let experimental_learning =
+    let doc = "Use experimental domain learning" in
+    Arg.(value & flag & info [ "experimental-learning" ] ~doc)
+
+
+  let smt_pruning_before_absinst =
+    let doc =
+      "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
+       interpretation"
+    in
+    Arg.(
+      value
+      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
+      & info [ "smt-pruning-before-absint" ] ~doc)
+
+
+  let smt_pruning_after_absinst =
+    let doc =
+      "(Experimental) Use SMT solver to prune unsatisfiable branches after abstract \
+       interpretation"
+    in
+    Arg.(
+      value
+      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
+      & info [ "smt-pruning-after-absint" ] ~doc)
+
+
+  let smt_pruning_keep_redundant_assertions =
+    let doc =
+      "(Experimental) Keep assertions even if provably redundant during SMT pruning"
+    in
+    Arg.(value & flag & info [ "smt-pruning-keep-redundant-assertions" ] ~doc)
+
+
+  let smt_pruning_at_runtime =
+    let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
+    Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
+
+
+  let static_absint =
+    let doc =
+      "(Experimental) Use static abstract interpretation with specified domain (or a \
+       comma-separated list). (e.g., 'interval', 'wrapped_interval')"
+    in
+    Arg.(
+      value
+      & opt
+          (list
+             (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
+          []
+      & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+
+
+  let print_size_info =
+    let doc = "(Experimental) Print size info" in
+    Arg.(value & flag & info [ "print-size-info" ] ~doc)
+
+
+  let print_backtrack_info =
+    let doc = "(Experimental) Print backtracking info" in
+    Arg.(value & flag & info [ "print-backtrack-info" ] ~doc)
+
+
+  let print_satisfaction_info =
+    let doc = "(Experimental) Print satisfaction info" in
+    Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
+
+
+  let print_discard_info =
+    let doc = "(Experimental) Print discard info" in
+    Arg.(value & flag & info [ "print-discard-info" ] ~doc)
+
+
+  let print_timing_info =
+    let doc = "(Experimental) Print timing info" in
+    Arg.(value & flag & info [ "print-timing-info" ] ~doc)
+
+
+  let just_reset_solver =
+    let doc =
+      "Just reset the SMT solver instead of closing and creating a new one. WARNING: A \
+       bunch of stuff breaks."
+    in
+    Arg.(value & flag & info [ "just-reset-solver" ] ~doc)
+
+
+  let smt_skewing_mode =
+    let doc =
+      "Set SMT skewing mode for symbolic test generation. Options: uniform (uniform \
+       random values), sized (default, size-based values), none (no skewing)"
+    in
+    Arg.(
+      value
+      & opt
+          (enum TestGeneration.Options.smt_skewing_mode)
+          TestGeneration.default_cfg.smt_skewing_mode
+      & info [ "smt-skewing" ] ~docv:"MODE" ~doc)
+
+
+  let symbolic =
+    let doc =
+      "(Experimental) Use symbolic execution for test generation instead of concrete \
+       value generation."
+    in
+    Arg.(value & flag & info [ "symbolic" ] ~doc)
+
+
+  let symbolic_timeout =
+    let doc = "Set timeout for SMT solver in symbolic mode (seconds)" in
+    Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
+
+
+  let use_solver_eval =
+    let doc = "(Experimental) Use solver-based evaluation" in
+    Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
+
+
+  let smt_logging =
+    let doc = "Log SMT solver communication to specified file" in
+    Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
+
+
+  let smt_log_unsat_cores =
+    let doc = "Log unsat cores to specified file when constraints are unsatisfiable" in
+    Arg.(
+      value & opt (some string) None & info [ "smt-log-unsat-cores" ] ~doc ~docv:"FILE")
+
+
+  let max_input_alloc =
+    let doc =
+      "Maximum memory size for the random input allocator (default: 32m). Supports \
+       suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 32m, \
+       33554432, 64m"
+    in
+    Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
+
+
+  let smt_skew_pointer_order =
+    let doc = "Enable pointer ordering skewing in SMT solver" in
+    Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
 end
 
 let cmd =
@@ -439,21 +726,27 @@ let cmd =
   let test_t =
     const run_tests
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
+    $ Common.Flags.permissive
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Common.Flags.debug_level
     $ Common.Flags.print_level
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
+    $ Instrument.Flags.exec_c_locs_mode
+    $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.print_steps
     $ Flags.output_dir
     $ Flags.only
     $ Flags.skip
+    $ Flags.only_fulminate
+    $ Flags.skip_fulminate
     $ Flags.dont_run
     $ Flags.gen_num_samples
     $ Flags.gen_backtrack_attempts
@@ -484,6 +777,31 @@ let cmd =
     $ Flags.no_replays
     $ Flags.no_replicas
     $ Flags.output_tyche
+    $ Flags.inline
+    $ Flags.experimental_struct_asgn_destruction
+    $ Flags.experimental_product_arg_destruction
+    $ Flags.experimental_learning
+    $ Flags.static_absint
+    $ Flags.smt_pruning_before_absinst
+    $ Flags.smt_pruning_after_absinst
+    $ Flags.smt_pruning_keep_redundant_assertions
+    $ Flags.smt_pruning_at_runtime
+    $ Flags.symbolic
+    $ Flags.symbolic_timeout
+    $ Flags.use_solver_eval
+    $ Flags.smt_logging
+    $ Flags.smt_log_unsat_cores
+    $ Flags.print_size_info
+    $ Flags.print_backtrack_info
+    $ Flags.print_satisfaction_info
+    $ Flags.print_discard_info
+    $ Flags.print_timing_info
+    $ Flags.just_reset_solver
+    $ Flags.smt_skewing_mode
+    $ Instrument.Flags.max_bump_blocks
+    $ Instrument.Flags.bump_block_size
+    $ Flags.max_input_alloc
+    $ Flags.smt_skew_pointer_order
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

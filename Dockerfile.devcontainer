@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 # Install system packages
 RUN apt-get update
 RUN apt-get upgrade -y
-RUN apt-get install -y opam libgmp-dev libmpfr-dev software-properties-common
+RUN apt-get install -y opam libgmp-dev libmpfr-dev software-properties-common time
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
 RUN add-apt-repository "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
 RUN add-apt-repository "deb-src http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
@@ -21,7 +21,10 @@ RUN opam install --deps-only ./cn.opam
 RUN opam install z3
 RUN opam install ocaml-lsp-server ocamlformat
 
-RUN eval `opam env`
+# Added make install to make test CI pass
+# Not sure if appropriate for a dev container
+RUN eval `opam env` \
+  && make install
 
 WORKDIR /opt
 

@@ -6,7 +6,8 @@ module AT = ArgumentTypes
 
 type kind =
   | Constant (* Run function without arguments nor `accesses` once *)
-  | Generator (* Run function with random inputs satisfying the precondition *)
+  | RandomGenerator (* Run function with random inputs satisfying the precondition *)
+  | SymbolicGenerator (* Run function with symbolic inputs satisfying the precondition *)
 [@@deriving eq]
 
 type t =
@@ -24,6 +25,7 @@ type t =
 let of_instrumentation
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (paused : _ Typing.pause)
       (inst : Fulminate.Extract.instrumentation)
   : t
   =
@@ -38,7 +40,8 @@ let of_instrumentation
                    (fun _ -> Sym.Set.empty)
                    (AT.get_lat (Option.get inst.internal))) ->
       Constant
-    | Decl_function _ -> Generator
+    | Decl_function _ ->
+      if TestGenConfig.is_symbolic_enabled () then SymbolicGenerator else RandomGenerator
     | Decl_object _ -> failwith __LOC__
   in
   let suite = filename |> Filename.basename |> String.split_on_char '.' |> List.hd in
@@ -64,6 +67,30 @@ let of_instrumentation
          | _ -> false)
       decls
   in
+  let context =
+    Result.get_ok (Typing.run_from_pause (fun _ -> Typing.get_typing_context ()) paused)
+  in
+  let module WellTyped =
+    WellTyped.Lift (struct
+      type 'a t = ('a, WellTyped.error) Result.t
+
+      let return = Result.ok
+
+      let bind = Result.bind
+
+      let get_context () = return context
+
+      let lift x = x
+    end)
+  in
+  let internal =
+    let at = inst.internal |> Option.get in
+    match at |> AT.map fst |> WellTyped.function_type "function" inst.fn_loc with
+    | Ok at' -> at' |> AT.map (fun rt -> (rt, snd (AT.get_return at)))
+    | Error err ->
+      TypeErrors.report_pretty TypeErrors.{ loc = err.loc; msg = WellTyped err.msg };
+      exit 1
+  in
   { filename;
     kind;
     suite;
@@ -72,7 +99,7 @@ let of_instrumentation
     is_trusted = inst.trusted;
     fn = inst.fn;
     fn_loc = inst.fn_loc;
-    internal = Option.get inst.internal
+    internal
   }
 
 

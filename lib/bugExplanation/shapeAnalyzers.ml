@@ -138,7 +138,11 @@ let get_parent_and_size (sct : Sctypes.t) (arg : IT.t) loc =
         IT.add_
           (offset, IT.mul_ (IT.cast_ Memory.size_bt index loc, IT.sizeOf_ ct loc) loc)
           loc )
-    | IT (MemberShift _, _, _) -> failwith ("TODO (" ^ __LOC__ ^ ")")
+    | IT (MemberShift (base, tag, member), _, loc) ->
+      aux
+        (IT.pointer_offset_
+           (base, IT.(IT (OffsetOf (tag, member), Memory.size_bt, loc)))
+           loc)
     | IT (_, _, loc) -> (it, IT.num_lit_ Z.zero Memory.uintptr_bt loc)
   in
   let base, offset = aux arg in

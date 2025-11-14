@@ -8,11 +8,13 @@
 #include <stdio.h>
 #include <time.h>
 
+#include <bennet/prelude.h>
 #include <cn-executable/utils.h>
 #include <cn-testing/result.h>
-#include <cn-testing/uniform.h>
 #include <cn-replicate/lines.h>
 #include <cn-replicate/shape.h>
+#include <cn-smt/memory/std_alloc.h>
+#include <cn-smt/memory/test_alloc.h>
 
 enum cn_test_gen_progress {
   CN_TEST_GEN_PROGRESS_NONE = 0,
@@ -20,18 +22,13 @@ enum cn_test_gen_progress {
   CN_TEST_GEN_PROGRESS_ALL = 2
 };
 
-enum cn_gen_sizing_strategy {
-  CN_GEN_SIZE_UNIFORM = 0,
-  CN_GEN_SIZE_QUARTILE = 1,
-  CN_GEN_SIZE_QUICKCHECK = 2
-};
-
 struct cn_test_input {
   bool replay;
   enum cn_test_gen_progress progress_level;
-  enum cn_gen_sizing_strategy sizing_strategy;
+  enum bennet_sizing_strategy sizing_strategy;
   bool trap;
   bool replicas;
+  bool log_all_backtracks;
   bool output_tyche;
   FILE* tyche_output_stream;
   uint64_t begin_time;
@@ -46,9 +43,8 @@ void print_test_info(const char* suite, const char* name, int tests, int discard
 /** This function is called right before rerunning a failing test case. */
 void cn_trap(void);
 
-size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
+size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
     int max_tests,
-    size_t max_size,
     int max_discard_ratio,
     int successes,
     int recent_discards);
@@ -101,30 +97,32 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
   }                                                                                      \
                                                                                          \
   enum cn_test_result cn_test_gen_##FuncName(struct cn_test_input test_input) {          \
-    struct timeval start_time, end_time;                                                 \
-    cn_gen_rand_checkpoint checkpoint = cn_gen_rand_save();                              \
-    int i = 0, d = 0, recentDiscards = 0;                                                \
+    volatile bennet_rand_checkpoint checkpoint = bennet_rand_save();                     \
+    volatile int i = 0, d = 0, recentDiscards = 0;                                       \
+    volatile bool successful_gen = false;                                                \
+    volatile void* gen_state = NULL;                                                     \
     set_cn_failure_cb(&cn_test_gen_##FuncName##_fail);                                   \
     switch (setjmp(buf_##FuncName)) {                                                    \
       case CN_FAILURE_ASSERT:                                                            \
       case CN_FAILURE_CHECK_OWNERSHIP:                                                   \
       case CN_FAILURE_OWNERSHIP_LEAK:                                                    \
-        gettimeofday(&end_time, NULL);                                                   \
+      case CN_FAILURE_GHOST_ARGS:                                                        \
+        bennet_info_timing_end("execute:test");                                          \
+                                                                                         \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
                                                                                          \
-        if (test_input.replicas && test_input.output_tyche) {                            \
-          int64_t runtime = timediff_timeval(&start_time, &end_time);                    \
+        if (test_input.output_tyche) {                                                   \
           struct tyche_line_info line_info = {.test_suite = #Suite,                      \
               .test_name = #Name,                                                        \
               .status = "failed",                                                        \
+              .status_reason = "TODO: Fulminate error message",                          \
               .suite_begin_time = test_input.begin_time,                                 \
-              .representation = cn_replica_lines_to_json_literal(),                      \
-              .init_time = 0,                                                            \
-              .runtime = runtime};                                                       \
+              .representation = cn_replica_lines_to_json_literal()};                     \
           print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
         }                                                                                \
+                                                                                         \
         if (test_input.replicas) {                                                       \
           printf("********************** Failing input ***********************\n\n");    \
           printf("%s", cn_replica_lines_to_str());                                       \
@@ -133,8 +131,28 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
                                                                                          \
         return CN_TEST_FAIL;                                                             \
       case CN_FAILURE_ALLOC:                                                             \
+        bennet_info_timing_end("bennet");                                                \
+        bennet_info_timing_end("execute:test");                                          \
+                                                                                         \
         d++;                                                                             \
         recentDiscards++;                                                                \
+                                                                                         \
+        /* TODO: Add to discard data collection */                                       \
+                                                                                         \
+        bennet_info_backtracks_end_run(true);                                            \
+        bennet_info_unsatisfied_end_run(true);                                           \
+                                                                                         \
+        if (test_input.output_tyche) {                                                   \
+          struct tyche_line_info line_info = {.test_suite = #Suite,                      \
+              .test_name = #Name,                                                        \
+              .status = "gave_up",                                                       \
+              .status_reason = "Allocation failed",                                      \
+              .suite_begin_time = test_input.begin_time,                                 \
+              .representation =                                                          \
+                  (successful_gen) ? cn_replica_lines_to_json_literal() : ""};           \
+          print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
+        }                                                                                \
+                                                                                         \
         break;                                                                           \
     }                                                                                    \
     for (; i < Samples; i++) {                                                           \
@@ -149,29 +167,57 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
         return CN_TEST_GEN_FAIL;                                                         \
       }                                                                                  \
       if (!test_input.replay) {                                                          \
-        cn_gen_set_size(cn_gen_compute_size(test_input.sizing_strategy,                  \
-            Samples,                                                                     \
-            cn_gen_get_max_size(),                                                       \
-            10,                                                                          \
-            i,                                                                           \
-            recentDiscards));                                                            \
-        cn_gen_rand_replace(checkpoint);                                                 \
+        bennet_set_size(bennet_compute_size(                                             \
+            test_input.sizing_strategy, Samples, 10, i, recentDiscards));                \
+        bennet_rand_replace(checkpoint);                                                 \
       }                                                                                  \
       CN_TEST_INIT();                                                                    \
       if (!test_input.replay) {                                                          \
-        cn_gen_set_input_timer(cn_gen_get_milliseconds());                               \
+        bennet_set_input_timer(bennet_get_milliseconds());                               \
       } else {                                                                           \
-        cn_gen_set_input_timeout(0);                                                     \
+        bennet_set_input_timeout(0);                                                     \
       }                                                                                  \
-      cn_gen_##FuncName##_record* res = cn_gen_##FuncName();                             \
-      if (cn_gen_backtrack_type() != CN_GEN_BACKTRACK_NONE) {                            \
+                                                                                         \
+      bennet_info_backtracks_begin_run();                                                \
+      bennet_info_unsatisfied_begin_run();                                               \
+      successful_gen = false;                                                            \
+                                                                                         \
+      cn_test_generator_##FuncName##_record* res =                                       \
+          cn_test_generator_##FuncName((void**)&gen_state);                              \
+      bennet_info_timing_end("bennet");                                                  \
+                                                                                         \
+      if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                    \
         i--;                                                                             \
         d++;                                                                             \
         recentDiscards++;                                                                \
+                                                                                         \
+        bennet_info_discards_log(bennet_failure_get_failure_type());                     \
+                                                                                         \
+        bennet_info_backtracks_end_run(true);                                            \
+        bennet_info_unsatisfied_end_run(true);                                           \
+                                                                                         \
+        if (test_input.output_tyche) {                                                   \
+          struct tyche_line_info line_info = {.test_suite = #Suite,                      \
+              .test_name = #Name,                                                        \
+              .status = "gave_up",                                                       \
+              .status_reason =                                                           \
+                  (bennet_failure_get_failure_type() == BENNET_FAILURE_TIMEOUT)          \
+                      ? "Generation timed out"                                           \
+                      : "Generation backtracked all the way to the top",                 \
+              .suite_begin_time = test_input.begin_time,                                 \
+              .representation = ""};                                                     \
+          print_test_summary_tyche(test_input.tyche_output_stream, &line_info);          \
+        }                                                                                \
+                                                                                         \
         continue;                                                                        \
       }                                                                                  \
+      successful_gen = true;                                                             \
+      bennet_info_sizes_log();                                                           \
+      bennet_info_backtracks_end_run(test_input.log_all_backtracks);                     \
+      bennet_info_unsatisfied_end_run(test_input.log_all_backtracks);                    \
+                                                                                         \
+      (void)Init(res);                                                                   \
       assume_##FuncName(__VA_ARGS__);                                                    \
-      Init(res);                                                                         \
       if (test_input.replicas || test_input.output_tyche) {                              \
         cn_replica_alloc_reset();                                                        \
         cn_replica_lines_reset();                                                        \
@@ -183,22 +229,20 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
       if (test_input.trap) {                                                             \
         cn_trap();                                                                       \
       }                                                                                  \
-      gettimeofday(&start_time, NULL);                                                   \
+      bennet_info_timing_start("execute:test");                                          \
       (void)FuncName(__VA_ARGS__);                                                       \
+      bennet_info_timing_end("execute:test");                                            \
       if (test_input.replay) {                                                           \
         return CN_TEST_PASS;                                                             \
       }                                                                                  \
       recentDiscards = 0;                                                                \
-      if (!test_input.replay && test_input.output_tyche) {                               \
-        gettimeofday(&end_time, NULL);                                                   \
-        int64_t runtime = timediff_timeval(&start_time, &end_time);                      \
+      if (test_input.output_tyche) {                                                     \
         struct tyche_line_info line_info = {.test_suite = #Suite,                        \
             .test_name = #Name,                                                          \
             .status = "passed",                                                          \
+            .status_reason = "",                                                         \
             .suite_begin_time = test_input.begin_time,                                   \
-            .representation = cn_replica_lines_to_json_literal(),                        \
-            .init_time = 0,                                                              \
-            .runtime = runtime};                                                         \
+            .representation = cn_replica_lines_to_json_literal()};                       \
         print_test_summary_tyche(test_input.tyche_output_stream, &line_info);            \
       }                                                                                  \
     }                                                                                    \
@@ -250,12 +294,38 @@ size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
 #define CN_REGISTER_STATIC_RANDOM_TEST_CASE(Suite, Name, File)                           \
   cn_register_test_case(#Suite, #Name, &CN_STATIC_RANDOM_TEST_NAME(Name, File));
 
+#define CN_RANDOM_TEST_CASE(Suite, Name, FuncName, Samples, ...)                         \
+  CN_RANDOM_TEST_CASE_WITH_CUSTOM_INIT(Suite, Name, FuncName, Samples, , __VA_ARGS__)
+
+#define CN_EXTERN_SYMBOLIC_TEST_CASE(Suite, Name, Samples, ...)                          \
+  CN_RANDOM_TEST_CASE(Suite, Name, Name, Samples, __VA_ARGS__)
+
+#define CN_STATIC_SYMBOLIC_TEST_CASE(Suite, Name, File, Samples, ...)                    \
+  CN_RANDOM_TEST_CASE(Suite, Name, File##_##Name, Samples, __VA_ARGS__)
+
+#define CN_REGISTER_EXTERN_SYMBOLIC_TEST_CASE(Suite, Name)                               \
+  cn_register_test_case(#Suite, #Name, &CN_EXTERN_RANDOM_TEST_NAME(Name));
+
+#define CN_REGISTER_STATIC_SYMBOLIC_TEST_CASE(Suite, Name, File)                         \
+  cn_register_test_case(#Suite, #Name, &CN_STATIC_RANDOM_TEST_NAME(Name, File));
+
 int cn_test_main(int argc, char* argv[]);
 
+void fulminate_destroy(void);
+void fulminate_init(void);
+void bennet_destroy(void);
+void bennet_init(void);
+void cn_smt_destroy(void);
+void cn_smt_init(void);
+
 #define CN_TEST_INIT()                                                                   \
-  reset_fulminate();                                                                     \
-  cn_gen_backtrack_reset();                                                              \
-  cn_gen_alloc_reset();                                                                  \
-  cn_gen_ownership_reset();
+  std_set_default_alloc();                                                               \
+  cn_smt_destroy();                                                                      \
+  bennet_destroy();                                                                      \
+  fulminate_destroy();                                                                   \
+  cn_test_free_all();                                                                    \
+  fulminate_init();                                                                      \
+  bennet_init();                                                                         \
+  cn_smt_init();
 
 #endif  // CN_TEST_H

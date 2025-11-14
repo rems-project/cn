@@ -36,7 +36,7 @@ module PP = struct
                (fun fval -> !^(string_of_float fval)))
     | OVpointer ptrval ->
       Dleaf (pp_pure_ctor "OVpointer" ^^^ Impl_mem.pp_pointer_value ptrval)
-    | OVarray lvals -> Dnode (pp_pure_ctor "OVarray", List.map dtree_of_object_value lvals)
+    | OVarray lvals -> Dnode (pp_pure_ctor "OVarray", List.map dtree_of_loaded_value lvals)
     | OVstruct (_tag_sym, _xs) ->
       Dleaf (pp_pure_ctor "OVstruct" ^^^ !^(ansi_format [ Red ] "TODO"))
     | OVunion (_tag_sym, _membr_ident, _mval) ->
@@ -46,6 +46,7 @@ module PP = struct
   and dtree_of_value (V (_bty, v)) =
     match v with
     | Vobject oval -> Dnode (pp_pure_ctor "Vobject", [ dtree_of_object_value oval ])
+    | Vloaded lv -> Dnode (pp_pure_ctor "Vloaded", [ dtree_of_loaded_value lv ])
     | Vunit -> Dleaf (pp_pure_ctor "Vunit")
     | Vtrue -> Dleaf (pp_pure_ctor "Vtrue")
     | Vfalse -> Dleaf (pp_pure_ctor "Vfalse")
@@ -53,14 +54,17 @@ module PP = struct
       Dleaf (pp_pure_ctor "Vlist" ^^^ !^(ansi_format [ Red ] "TODO"))
     | Vtuple _cvals -> Dleaf (pp_pure_ctor "Vtuple" ^^^ !^(ansi_format [ Red ] "TODO"))
     | Vctype _ctype -> Dleaf (pp_pure_ctor "Vctype" ^^^ !^(ansi_format [ Red ] "TODO"))
-    | Vfunction_addr _sym ->
-      Dleaf (pp_pure_ctor "Vfunction_addr" ^^^ !^(ansi_format [ Red ] "TODO"))
+
+
+  and dtree_of_loaded_value = function
+    | LVspecified ov -> Dnode (pp_pure_ctor "LVspecified", [ dtree_of_object_value ov ])
+    | LVunspecified _ -> Dleaf (pp_pure_ctor "LVunspecified")
 
 
   let string_of_bop = Pp_core_ast.string_of_bop
 
   let dtree_of_pexpr (pexpr : 'ty pexpr) =
-    let rec self (Pexpr (loc, annot, _, pexpr_)) =
+    let rec self (Pexpr (loc, annot, _, pexpr_) as pexpr) =
       let pp_ctor str =
         pp_pure_ctor str ^^^ Cerb_location.pp_location ~clever:false loc
       in
@@ -88,6 +92,8 @@ module PP = struct
           Dleaf (pp_ctor "PEundef" ^^^ !^(ansi_format [ Red ] "TODO"))
         | PEerror (str, pe) ->
           Dnode (pp_ctor "PEerror" ^^^ P.dquotes !^(ansi_format [ Red ] str), [ self pe ])
+        | PEare_compatible (pe1, pe2) ->
+          Dnode (pp_ctor "PEare_compatible", [ self pe1; self pe2 ])
         | _ -> Dnode (pp_ctor "Pexpr(TODO)", [ Dleaf (Pp_mucore.pp_pexpr pexpr) ])
       in
       match (annot, without_annot) with
@@ -173,14 +179,11 @@ module PP = struct
         ( pp_ctor "Esseq" (* ^^^ P.group (Pp_core.Basic.pp_pattern pat) *),
           (*add_std_annot*)
           [ (* Dleaf (pp_ctor "TODO_pattern") ; *) dtree_of_expr e1; dtree_of_expr e2 ] )
-    | Erun (_l, asyms, its) ->
+    | Erun (_l, asyms) ->
       Dnode
-        ( pp_pure_ctor "Erun",
-          [ Dnode (pp_ctor "Args", List.map dtree_of_pexpr asyms);
-            Dnode (pp_ctor "Ghost args", List.map IndexTerms.dtree its)
-          ] )
+        (pp_pure_ctor "Erun", [ Dnode (pp_ctor "Args", List.map dtree_of_pexpr asyms) ])
     | Ebound e -> Dnode (pp_ctor "Ebound", [ dtree_of_expr e ])
-    | Ememop _ | Eccall (_, _, _, _) | Eunseq _ | End _ | CN_progs (_, _) ->
+    | Ememop _ | Eccall (_, _, _, _) | Eproc _ | Eunseq _ | End _ | CN_progs (_, _) ->
       Dnode (pp_ctor "TExpr(TODO)", [ Dleaf (Pp_mucore.pp_expr expr) ])
 
 
@@ -245,8 +248,14 @@ module PP = struct
 
   let dtree_of_label l def =
     match def with
+    | Non_inlined (loc, name, annot, args) ->
+      Dnode
+        ( pp_symbol name ^^^ Cerb_location.pp_location ~clever:false loc,
+          [ Dleaf !^(Pp_mucore.Basic.pp_str_label annot);
+            dtree_of_arguments (fun _ -> Dleaf P.empty) args
+          ] )
     | Return loc -> Dleaf (!^"return" ^^^ Cerb_location.pp_location ~clever:false loc)
-    | Label (loc, args_and_body, _, _, _) ->
+    | Loop (loc, args_and_body, _, _, _) ->
       Dnode
         ( pp_symbol l ^^^ Cerb_location.pp_location ~clever:false loc,
           [ dtree_of_arguments dtree_of_expr args_and_body ] )

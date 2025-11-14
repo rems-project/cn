@@ -9,7 +9,6 @@ function echo_and_err() {
 }
 
 QUIET=""
-UBSAN=""
 NO_CHECK_OWNERSHIP=""
 
 while getopts "hnqu" flag; do
@@ -26,7 +25,7 @@ while getopts "hnqu" flag; do
    ;;
    u)
    export UBSAN_OPTIONS=halt_on_error=1
-   UBSAN="-fsanitize=undefined"
+   export CFLAGS="-fsanitize=undefined ${CFLAGS:-}"
    ;;
    \?)
    echo_and_err "${USAGE}"
@@ -47,7 +46,7 @@ RUNTIME_PREFIX="$OPAM_SWITCH_PREFIX/lib/cn/runtime"
 
 # Instrument code with CN
 if cn instrument "${INPUT_FN}" \
-    --run --tmp --print-steps \
+    --run --no-debug-info --tmp --print-steps \
     --output="${INPUT_BASENAME}.exec.c" \
     ${NO_CHECK_OWNERSHIP}; then
   [ "${QUIET}" ] || echo "Success!"

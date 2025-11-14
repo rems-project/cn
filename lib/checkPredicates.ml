@@ -181,10 +181,6 @@ let rec get_var_cands (exp : IT.t) (candidate : IT.t)
   | Cons (h, tl), Cons (h', tl') -> map_from_IT_lists [ h; tl ] [ h'; tl' ]
   | Head l, Head l' -> get_var_cands l l'
   | Tail l, Tail l' -> get_var_cands l l'
-  | NthList (exp1, exp2, exp3), NthList (exp1', exp2', exp3') ->
-    map_from_IT_lists [ exp1; exp2; exp3 ] [ exp1'; exp2'; exp3' ]
-  | ArrayToList (exp1, exp2, exp3), ArrayToList (exp1', exp2', exp3') ->
-    map_from_IT_lists [ exp1; exp2; exp3 ] [ exp1'; exp2'; exp3' ]
   | Representable (cty, exp1), Representable (cty', exp1') ->
     map_with_guard_unknown (Sctypes.equal cty cty') [ exp1 ] [ exp1' ]
   | Good (cty, exp1), Good (cty', exp1') ->
@@ -237,8 +233,6 @@ let rec get_var_cands (exp : IT.t) (candidate : IT.t)
   | Cons _, _ -> default
   | Head _, _ -> default
   | Tail _, _ -> default
-  | NthList _, _ -> default
-  | ArrayToList _, _ -> default
   | Representable _, _ -> default
   | Good _, _ -> default
   | Aligned _, _ -> default
@@ -251,6 +245,10 @@ let rec get_var_cands (exp : IT.t) (candidate : IT.t)
   | Let _, _ -> default
   | Match _, _ -> default
   | Cast _, _ -> default
+  | CN_None _, _ -> default
+  | CN_Some _, _ -> default
+  | IsSome _, _ -> default
+  | GetOpt _, _ -> default
 
 
 let rec organize_lines_aux
@@ -283,10 +281,10 @@ let ask_solver g lcs =
   let simp_ctxt =
     Simplify.{ global = g; values = Sym.Map.empty; simp_hook = (fun _ -> None) }
   in
-  let s = Solver.make g in
-  List.fold_right (fun lc _ -> Solver.add_assumption s g lc) lcs ();
+  let s = Solver.make g [] in
+  List.fold_right (fun lc _ -> Solver.assume s lc) lcs ();
   let solver_res =
-    Solver.provableWithUnknown
+    Solver.provable_or_unknown
       ~loc:here
       ~solver:s
       ~assumptions:(LC.Set.of_list lcs)

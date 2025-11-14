@@ -15,7 +15,7 @@ jobs:
 
     name: OCamlFormat
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout CN
@@ -29,7 +29,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.opam
-          key: ${{ matrix.version }}
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
     
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -37,14 +37,14 @@ jobs:
           opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-          opam install --deps-only --yes ./cn.opam
+          opam install --deps-only --with-test --yes ./cn.opam z3
   
       - name: Save OPAM cache
         uses: actions/cache/save@v4
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         with:
           path: ~/.opam
-          key: ${{ matrix.version }}
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
   
       - name: Install OCamlFormat
         run: |
@@ -59,7 +59,7 @@ jobs:
   clang-format:
     name: ClangFormat
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout CN
@@ -75,7 +75,7 @@ jobs:
 
       - name: Check LibCN code formatting
         run: |
-          find runtime/libcn/ -iname '*.h' -o -iname '*.c' | xargs clang-format-19 --dry-run -Werror
+          find runtime/libcn/ -iname '*.h' -o -iname '*.c' -o -iname '*.hpp' -o -iname '*.cpp' | xargs clang-format-19 --dry-run -Werror
 
   c-warnings:
     strategy:
@@ -84,7 +84,7 @@ jobs:
 
     name: C compiler warnings
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout CN
@@ -110,10 +110,14 @@ jobs:
         run: |
           find runtime/libcn/ -iname '*.c' -exec ${{ matrix.compiler }} -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
 
+      - name: Check C++ compatibility
+        run: |
+          ${{ matrix.compiler }} -std=c++17 -Iruntime/libcn/include/ runtime/libcn/check_compat.cpp
+
   shellcheck:
     name: ShellCheck
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout CN

@@ -36,8 +36,6 @@ let rec add_records_to_map_from_it it =
   | Cons (t1, t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]
   | Head t -> add_records_to_map_from_it t
   | Tail t -> add_records_to_map_from_it t
-  | NthList (i, xs, d) -> List.iter add_records_to_map_from_it [ i; xs; d ]
-  | ArrayToList (arr, i, len) -> List.iter add_records_to_map_from_it [ arr; i; len ]
   | Representable (_sct, t) -> add_records_to_map_from_it t
   | Good (_sct, t) -> add_records_to_map_from_it t
   | WrapI (_ity, t) -> add_records_to_map_from_it t
@@ -50,6 +48,10 @@ let rec add_records_to_map_from_it it =
   | Let ((_, t1), t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]
   | Match (e, cases) -> List.iter add_records_to_map_from_it (e :: List.map snd cases)
   | Constructor (_sym, args) -> List.iter add_records_to_map_from_it (List.map snd args)
+  | CN_None _ -> ()
+  | CN_Some it -> add_records_to_map_from_it it
+  | IsSome it -> add_records_to_map_from_it it
+  | GetOpt it -> add_records_to_map_from_it it
 
 
 let add_records_to_map_from_resource = function
@@ -62,7 +64,7 @@ let add_records_to_map_from_lc = function
 
 
 let add_records_to_map_from_cn_statement = function
-  | Cnprog.Assert lc -> add_records_to_map_from_lc lc
+  | Cnstatement.Assert lc -> add_records_to_map_from_lc lc
   (* All other CN statements are (currently) no-ops at runtime *)
   | Pack_unpack _ | To_from_bytes _ | Have _ | Instantiate _ | Split_case _ | Extract _
   | Unfold _ | Apply _ | Inline _ | Print _ ->
@@ -74,7 +76,7 @@ let add_records_to_map_from_cnprogs (_, cn_progs) =
     | Cnprog.Let (_, (_, { ct = _; pointer }), prog) ->
       add_records_to_map_from_it pointer;
       aux prog
-    | Statement (_, stmt) -> add_records_to_map_from_cn_statement stmt
+    | Pure (_, stmt) -> add_records_to_map_from_cn_statement stmt
   in
   List.iter aux cn_progs
 

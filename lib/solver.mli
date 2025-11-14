@@ -20,11 +20,17 @@ val solver_flags : string list option ref
 
 val solver_type : Simple_smt.solver_extensions option ref
 
+val inc_enabled : bool ref
+
+val inc_timeout : int option ref
+
 (* Create a solver *)
-val make : Global.t -> solver
+val make : Global.t -> (Sym.t * BaseTypes.t) list -> solver
 
 (* Incrementally (and imperatively) add an assumption to the solver state *)
-val add_assumption : solver -> Global.t -> LogicalConstraints.t -> unit
+val assume : solver -> LogicalConstraints.t -> unit
+
+val declare_variable : solver -> Sym.t * BaseTypes.t -> unit
 
 (* Save / restore solver state, to support backtracking *)
 val push : solver -> unit
@@ -35,12 +41,9 @@ val pop : solver -> int -> unit
     but may be unnecessary https://github.com/rems-project/cerberus/issues/752 *)
 val num_scopes : solver -> int
 
-(* Resets internal state for the model evaluator *)
-val reset_model_evaluator_state : unit -> unit
-
 (* Run the solver. Note that we pass the assumptions explicitly even though they are also
    available in the solver context, because CN is going some simplification on its own. *)
-val provableWithUnknown
+val provable_or_unknown
   :  loc:Locations.t ->
   solver:solver ->
   assumptions:LogicalConstraints.Set.t ->
@@ -56,6 +59,7 @@ val provable
   solver:solver ->
   assumptions:LogicalConstraints.Set.t ->
   simp_ctxt:Simplify.simp_ctxt ->
+  ?purpose:string ->
   LogicalConstraints.t ->
   [> `True | `False ]
 

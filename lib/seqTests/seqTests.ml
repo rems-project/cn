@@ -7,8 +7,14 @@ module FExtract = Fulminate.Extract
 module T = Types
 module SUtils = Utils
 module Shrink = Shrink
+module T = Types
+module SUtils = Utils
+module Shrink = Shrink
 
 let callable
+      (ctx : T.context)
+      ((_, _, (_, args)) :
+        bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
       (ctx : T.context)
       ((_, _, (_, args)) :
         bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
@@ -146,9 +152,18 @@ let calc_score (ctx : T.context) (args : (SymSet.elt * C.ctype) list) : int =
 
 let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
   let generated_base_ty = SUtils.gen_val ty in
+let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
+  let generated_base_ty = SUtils.gen_val ty in
   let prev_call =
     let prev_calls =
       List.filter
+        (fun (name, _, ct, _, _) ->
+           Option.is_some name
+           && (SUtils.ty_eq ty ct
+               ||
+               match ty with
+               | Ctype (_, Pointer (_, ty)) -> SUtils.ty_eq ty ct
+               | _ -> false))
         (fun (name, _, ct, _, _) ->
            Option.is_some name
            && (SUtils.ty_eq ty ct
@@ -169,11 +184,20 @@ let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
          else
            [ Sym.pp_string name ]
        | None, _, _, _, _ -> failwith "impossible case")
+      (match List.nth prev_calls (Random.int n) with
+       | Some name, _, ty', _, _ ->
+         if not (SUtils.ty_eq ty' ty) then
+           (* only way they're not directly equal is if pointer*)
+           [ "&" ^ Sym.pp_string name ]
+         else
+           [ Sym.pp_string name ]
+       | None, _, _, _, _ -> failwith "impossible case")
   in
   let options = List.append generated_base_ty prev_call in
   match List.length options with
   | 0 ->
     failwith
+      ("unable to generate arg or reuse T.context for "
       ("unable to generate arg or reuse T.context for "
        ^ Sym.pp_string name
        ^ " of type "
@@ -201,6 +225,7 @@ let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.doc
            ^^
            let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
            separate_map hardline SUtils.stmt_to_doc init_ghost ^^ hardline ^^ sequence)
+           separate_map hardline SUtils.stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
 
 
@@ -208,11 +233,19 @@ let rec gen_sequence
           (funcs :
             (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
               list)
+          (funcs :
+            (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list))
+              list)
           (fuel : int)
+          (test_states : (int * Pp.document * T.context * T.test_stats) list)
           (test_states : (int * Pp.document * T.context * T.test_stats) list)
           (output_dir : string)
           (filename : string)
+          (filename : string)
           (fun_decls : Pp.document)
+  : [ `PostConditionViolation of Pp.document * T.test_stats
+    | `Success of Pp.document * T.test_stats
+    | `OtherFailure of Pp.document
   : [ `PostConditionViolation of Pp.document * T.test_stats
     | `Success of Pp.document * T.test_stats
     | `OtherFailure of Pp.document
@@ -362,10 +395,15 @@ let rec gen_sequence
 let compile_sequence
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (insts : FExtract.instrumentation list)
+      (insts : FExtract.instrumentation list)
       (num_samples : int)
       (output_dir : string)
       (filename : string)
+      (filename : string)
       (fun_decls : Pp.document)
+  : [ `PostConditionViolation of Pp.document * T.test_stats
+    | `Success of Pp.document * T.test_stats
+    | `OtherFailure of Pp.document
   : [ `PostConditionViolation of Pp.document * T.test_stats
     | `Success of Pp.document * T.test_stats
     | `OtherFailure of Pp.document
@@ -375,12 +413,19 @@ let compile_sequence
   let declarations : A.sigma_declaration list =
     insts
     |> List.map (fun (inst : FExtract.instrumentation) ->
+    |> List.map (fun (inst : FExtract.instrumentation) ->
       (inst.fn, List.assoc Sym.equal inst.fn sigma.declarations))
   in
   let args_map
     : (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
     =
+  let args_map
+    : (bool * SymSet.elt * ((C.qualifiers * C.ctype) * (SymSet.elt * C.ctype) list)) list
+    =
     List.map
+      (fun (inst : FExtract.instrumentation) ->
+         ( inst.is_static,
+           inst.fn,
       (fun (inst : FExtract.instrumentation) ->
          ( inst.is_static,
            inst.fn,
@@ -411,6 +456,7 @@ let compile_sequence
        (List.init (Config.get_num_tests ()) Fun.id))
     output_dir
     filename
+    filename
     fun_decls
 
 
@@ -419,11 +465,15 @@ let generate
       ~(filename : string)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (insts : FExtract.instrumentation list)
+      (insts : FExtract.instrumentation list)
   : int
   =
   if List.is_empty insts then failwith "No testable functions";
   let filename_base = filename |> Filename.basename |> Filename.chop_extension in
   let test_file = filename_base ^ ".test.c" in
+  let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
+  SUtils.save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
+  let fun_to_decl (inst : FExtract.instrumentation) =
   let script_doc' = BuildScript.generate_intermediate ~output_dir ~filename_base in
   SUtils.save ~perm:0o777 output_dir "run_tests_intermediate.sh" script_doc';
   let fun_to_decl (inst : FExtract.instrumentation) =
@@ -442,20 +492,44 @@ let generate
                        else
                          str) )
               | s -> s)
+             (match inst.fn with
+              | Symbol (s, n, SD_Id str) ->
+                Symbol
+                  ( s,
+                    n,
+                    SD_Id
+                      (if inst.is_static then
+                         Fulminate.Utils.static_prefix filename ^ "_" ^ str
+                       else
+                         str) )
+              | s -> s)
              (let _, _, decl = List.assoc Sym.equal inst.fn sigma.declarations in
               decl))
         ())
   in
   let open Pp in
-  let struct_decls = Fulminate.Internal.generate_c_struct_strs sigma.tag_definitions in
+  let ordered_ail_tag_defs =
+    Fulminate.Internal.order_ail_tag_definitions sigma.tag_definitions
+  in
+  let struct_decls = Fulminate.Internal.generate_c_tag_def_strs ordered_ail_tag_defs in
   let fun_decls =
     string struct_decls ^^ hardline ^^ separate_map hardline fun_to_decl insts
   in
   let compiled_seq =
     compile_sequence sigma insts (Config.get_num_calls ()) output_dir filename fun_decls
+    compile_sequence sigma insts (Config.get_num_calls ()) output_dir filename fun_decls
   in
   let exit_code, seq, output_msg =
     match compiled_seq with
+    | `OtherFailure seq ->
+      ( 139,
+        seq,
+        Printf.sprintf
+          "============================================\n\n\
+           FATAL ERROR:\n\
+           Failure occured while seq-testing %s\n\n\
+           ============================================"
+          filename )
     | `OtherFailure seq ->
       ( 139,
         seq,
@@ -473,11 +547,17 @@ let generate
         Printf.sprintf
           "============================================\n\n\
            Stats for nerds:\n\
+          "============================================\n\n\
+           Stats for nerds:\n\
            %d tests succeeded\n\
            POST-CONDITION VIOLATION DETECTED.\n\
            %d tests discarded after shrinking. (%.2f%% reduction)\n\n\
            ============================================"
+           %d tests discarded after shrinking. (%.2f%% reduction)\n\n\
+           ============================================"
           stats.successes
+          stats.discarded
+          (float_of_int stats.discarded /. float_of_int (stats.successes + 1) *. 100.0) )
           stats.discarded
           (float_of_int stats.discarded /. float_of_int (stats.successes + 1) *. 100.0) )
     | `Success (seq, stats) ->
@@ -517,6 +597,7 @@ let generate
   in
   print_endline output_msg;
   SUtils.save output_dir test_file seq;
+  SUtils.save output_dir test_file seq;
   exit_code
 
 
@@ -530,6 +611,7 @@ let set_seq_config = SeqTestGenConfig.initialize
 let needs_enum_hack
       ~(with_warning : bool)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
+      (inst : Fulminate.Extract.instrumentation)
       (inst : Fulminate.Extract.instrumentation)
   =
   match List.assoc Sym.equal inst.fn sigma.declarations with
@@ -575,17 +657,22 @@ let functions_under_test
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
   : Fulminate.Extract.instrumentation list
+  : Fulminate.Extract.instrumentation list
   =
   let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
     Check.select_functions
+      !Check.skip_and_only
       (Sym.Set.of_list
+         (List.map (fun (inst : Fulminate.Extract.instrumentation) -> inst.fn) insts))
          (List.map (fun (inst : Fulminate.Extract.instrumentation) -> inst.fn) insts))
   in
   insts
   |> List.filter (fun (inst : Fulminate.Extract.instrumentation) ->
+  |> List.filter (fun (inst : Fulminate.Extract.instrumentation) ->
     Option.is_some inst.internal
     && Sym.Set.mem inst.fn selected_fsyms
+    && not (needs_enum_hack ~with_warning sigma inst))
     && not (needs_enum_hack ~with_warning sigma inst))
 
 

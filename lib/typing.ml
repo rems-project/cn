@@ -1,10 +1,10 @@
-module BT = BaseTypes
 module Res = Resource
 module Req = Request
 module LC = LogicalConstraints
 module Loc = Locations
 module IT = IndexTerms
-module ITSet = Set.Make (IT)
+
+let unfold_multiclause_preds = ref false
 
 type solver = Solver.solver
 
@@ -12,10 +12,7 @@ type s =
   { typing_context : Context.t;
     solver : solver option;
     sym_eqs : IT.t Sym.Map.t;
-    past_models : (Solver.model_with_q * Context.t) list;
-    found_equalities : EqTable.table;
     movable_indices : (Req.name * IT.t) list;
-    unfold_resources_required : bool;
     log : Explain.log
   }
 
@@ -23,10 +20,7 @@ let empty_s (c : Context.t) =
   { typing_context = c;
     solver = None;
     sym_eqs = Sym.Map.empty;
-    past_models = [];
-    found_equalities = EqTable.empty;
     movable_indices = [];
-    unfold_resources_required = false;
     log = []
   }
 
@@ -74,23 +68,6 @@ let pure (m : 'a t) : 'a t =
   fun s ->
   Option.iter Solver.push s.solver;
   let outcome = match m s with Ok (a, _) -> Ok (a, s) | Error e -> Error e in
-  Option.iter (fun s -> Solver.pop s 1) s.solver;
-  outcome
-
-
-let pure_persist_logical_variables (m : 'a t) : 'a t =
-  fun s ->
-  Option.iter Solver.push s.solver;
-  let outcome =
-    match m s with
-    | Ok (a, s') ->
-      let typing_context =
-        let open Context in
-        { s.typing_context with logical = s'.typing_context.logical }
-      in
-      Ok (a, { s with typing_context })
-    | Error e -> Error e
-  in
   Option.iter (fun s -> Solver.pop s 1) s.solver;
   outcome
 
@@ -144,12 +121,13 @@ let simp_ctxt () =
 
 let make_provable loc ({ typing_context = s; solver; _ } as c) =
   let simp_ctxt = make_simp_ctxt c in
-  let f lc =
+  let f ?(purpose = "") lc =
     Solver.provable
       ~loc
       ~solver:(Option.get solver)
       ~assumptions:s.constraints
       ~simp_ctxt
+      ~purpose
       lc
   in
   f
@@ -336,21 +314,6 @@ let add_sym_eqs sym_eqs =
     { s with sym_eqs })
 
 
-let get_found_equalities () = inspect (fun s -> s.found_equalities)
-
-let set_found_equalities eqs = modify (fun s -> { s with found_equalities = eqs })
-
-let add_found_equalities lc =
-  let@ eqs = get_found_equalities () in
-  set_found_equalities (EqTable.add_lc_eqs eqs lc)
-
-
-let get_past_models () = inspect (fun s -> s.past_models)
-
-let set_past_models ms = modify (fun s -> { s with past_models = ms })
-
-let drop_past_models () = set_past_models []
-
 let bound_a sym = inspect_typing_context (fun s -> Context.bound_a sym s)
 
 let bound_l sym = inspect_typing_context (fun s -> Context.bound_l sym s)
@@ -361,13 +324,35 @@ let get_a sym = inspect_typing_context (fun s -> Context.get_a sym s)
 
 let get_l sym = inspect_typing_context (fun s -> Context.get_l sym s)
 
-let add_a sym bt info = modify_typing_context (fun s -> Context.add_a sym bt info s)
+(* If the solver exists, declare the variable. If not, these variables will be
+   declared when the solver is created (in [init_solver]). *)
+let maybe_declare_variable_in_solver sym bt =
+  let@ s = get () in
+  match s.solver with
+  | None -> return ()
+  | Some solver -> return (Solver.declare_variable solver (sym, bt))
 
+
+let add_a sym bt info =
+  let@ () = modify_typing_context (fun s -> Context.add_a sym bt info s) in
+  maybe_declare_variable_in_solver sym bt
+
+
+(* Don't need to be declared in solver. *)
 let add_a_value sym value info =
   modify_typing_context (fun s -> Context.add_a_value sym value info s)
 
 
-let add_l sym bt info = modify_typing_context (fun s -> Context.add_l sym bt info s)
+let add_l sym bt info =
+  let@ () = modify_typing_context (fun s -> Context.add_l sym bt info s) in
+  maybe_declare_variable_in_solver sym bt
+
+
+(* Don't need to be declared in solver. *)
+let add_l_value sym value info =
+  let@ () = modify_typing_context (fun s -> Context.add_l_value sym value info s) in
+  add_sym_eqs [ (sym, value) ]
+
 
 let rec add_ls = function
   | [] -> return ()
@@ -393,22 +378,21 @@ let remove_as = iterM remove_a
 
 (* similar but less boring functions, where components interact *)
 
-let set_unfold_resources () =
-  modify (fun s -> { s with unfold_resources_required = true })
-
-
-let add_l_value sym value info =
-  let@ () = modify_typing_context (fun s -> Context.add_l_value sym value info s) in
-  add_sym_eqs [ (sym, value) ]
-
-
 let get_solver () : solver t = inspect (fun s -> Option.get s.solver)
 
 let init_solver () =
   modify (fun s ->
     let c = s.typing_context in
-    let solver = Solver.make c.global in
-    LC.Set.iter (Solver.add_assumption solver c.global) c.constraints;
+    let to_declare =
+      let add_binding sym (binding, _info) acc =
+        match binding with
+        | Context.Value _ -> acc (* no need to declare *)
+        | Context.BaseType bt -> (sym, bt) :: acc
+      in
+      Sym.Map.fold add_binding c.logical (Sym.Map.fold add_binding c.computational [])
+    in
+    let solver = Solver.make c.global to_declare in
+    LC.Set.iter (Solver.assume solver) c.constraints;
     { s with solver = Some solver })
 
 
@@ -417,15 +401,13 @@ let get_movable_indices () = inspect (fun s -> s.movable_indices)
 let set_movable_indices ixs : unit m = modify (fun s -> { s with movable_indices = ixs })
 
 let add_c_internal lc =
-  let@ _ = drop_past_models () in
   let@ s = get_typing_context () in
   let@ solver = get_solver () in
   let@ simp_ctxt = simp_ctxt () in
   let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
   let s = Context.add_c lc s in
-  let () = Solver.add_assumption solver s.global lc in
+  let () = Solver.assume solver lc in
   let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
-  let@ _ = add_found_equalities lc in
   let@ () = set_typing_context s in
   return ()
 
@@ -445,176 +427,78 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   iterM (fun x -> add_c_internal (LC.T x)) pointer_facts
 
 
-let add_movable_index _loc (pred, ix) =
-  let@ ixs = get_movable_indices () in
-  let@ () = set_movable_indices ((pred, ix) :: ixs) in
-  set_unfold_resources ()
-
-
-let add_r loc re =
-  let@ () = add_r_internal loc re in
-  set_unfold_resources ()
-
-
-let add_rs loc rs =
-  let@ () = iterM (add_r_internal loc) rs in
-  set_unfold_resources ()
-
-
-let add_c _loc c =
-  let@ () = add_c_internal c in
-  set_unfold_resources ()
-
-
-let add_cs _loc cs =
-  let@ () = iterM add_c_internal cs in
-  set_unfold_resources ()
-
-
 (* functions to do with satisfying models *)
-
-let check_models = ref false
 
 let model () =
   let m = Solver.model () in
-  let@ ms = get_past_models () in
-  let@ c = get_typing_context () in
-  let@ () = set_past_models ((m, c) :: ms) in
   return m
 
 
-let get_just_models () =
-  let@ ms = get_past_models () in
-  return (List.map fst ms)
-
-
-let model_has_prop () =
+let _model_has_prop () =
   let is_some_true t = Option.is_some t && IT.is_true (Option.get t) in
   return (fun prop m -> is_some_true (Solver.eval (fst m) prop))
 
 
-let prove_or_model_with_past_model loc m =
-  let@ has_prop = model_has_prop () in
-  let@ p_f = provable_internal loc in
-  let loc = Locations.other __LOC__ in
-  let res lc =
-    match lc with
-    | LC.T t when has_prop (IT.not_ t loc) m -> `Counterex (lazy m)
-    | _ ->
-      (match p_f lc with `True -> `True | `False -> `Counterex (lazy (Solver.model ())))
-  in
-  let res2 lc = match res lc with `Counterex _m -> `False | `True -> `True in
-  return (res, res2)
+(* let prove_or_model_with_past_model loc m = *)
+(*   let@ has_prop = model_has_prop () in *)
+(*   let@ p_f = provable_internal loc in *)
+(*   let loc = Locations.other __LOC__ in *)
+(*   let res lc = *)
+(*     match lc with *)
+(*     | LC.T t when has_prop (IT.not_ t loc) m -> `Counterex (lazy m) *)
+(*     | _ -> *)
+(*       (match p_f lc with `True -> `True | `False -> `Counterex (lazy (Solver.model ()))) *)
+(*   in *)
+(*   let res2 lc = match res lc with `Counterex _m -> `False | `True -> `True in *)
+(*   return (res, res2) *)
 
-
-let do_check_model loc m prop =
-  Pp.warn loc (Pp.string "doing model consistency check");
-  let@ ctxt = get_typing_context () in
-  let vs =
-    Context.(
-      Sym.Map.bindings ctxt.computational @ Sym.Map.bindings ctxt.logical
-      |> List.filter (fun (_, (bt_or_v, _)) -> not (has_value bt_or_v))
-      |> List.map (fun (nm, (bt_or_v, (loc, _))) -> IT.sym_ (nm, bt_of bt_or_v, loc)))
-  in
-  let here = Locations.other __LOC__ in
-  let eqs =
-    List.filter_map
-      (fun v ->
-         match Solver.eval (fst m) v with
-         | None -> None
-         | Some x -> Some (IT.eq_ (v, x) here))
-      vs
-  in
-  let@ prover = provable_internal loc in
-  match prover (LogicalConstraints.T (IT.and_ (prop :: eqs) here)) with
-  | `False -> return ()
-  | `True ->
-    fail (fun _ ->
-      { loc;
-        msg = Generic (Pp.string "Solver model inconsistent") [@alert "-deprecated"]
-      })
-
-
-let cond_check_model loc m prop =
-  if !check_models then
-    do_check_model loc m prop
-  else
-    return ()
-
-
-let model_with_internal loc prop =
-  let@ ms = get_just_models () in
-  let@ has_prop = model_has_prop () in
-  match List.find_opt (has_prop prop) ms with
-  | Some m -> return (Some m)
-  | None ->
-    let@ prover = provable_internal loc in
-    let here = Locations.other __LOC__ in
-    (match prover (LC.T (IT.not_ prop here)) with
-     | `True -> return None
-     | `False ->
-       let@ m = model () in
-       let@ () = cond_check_model loc m prop in
-       return (Some m))
-
+(* let model_with_internal loc prop = *)
+(*   let@ ms = get_just_models () in *)
+(*   let@ has_prop = model_has_prop () in *)
+(*   match List.find_opt (has_prop prop) ms with *)
+(*   | Some m -> return (Some m) *)
+(*   | None -> *)
+(*     let@ prover = provable_internal loc in *)
+(*     let here = Locations.other __LOC__ in *)
+(*     (match prover (LC.T (IT.not_ prop here)) with *)
+(*      | `True -> return None *)
+(*      | `False -> *)
+(*        let@ m = model () in *)
+(*        let@ () = cond_check_model loc m prop in *)
+(*        return (Some m)) *)
 
 (* functions for binding return types and associated auxiliary functions *)
 
-let make_return_record loc (record_name : string) record_members =
-  let record_s = Sym.fresh_make_uniq record_name in
-  let record_bt = BT.Record record_members in
-  let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in
-  let record_it = IT.sym_ (record_s, record_bt, loc) in
-  let member_its =
-    List.map
-      (fun (s, member_bt) -> IT.recordMember_ ~member_bt (record_it, s) loc)
-      record_members
-  in
-  return (record_it, member_its)
-
+(* let make_return_record loc (record_name : string) record_members = *)
+(*   let record_s = Sym.fresh_make_uniq record_name in *)
+(*   let record_bt = BT.Record record_members in *)
+(*   let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in *)
+(*   let record_it = IT.sym_ (record_s, record_bt, loc) in *)
+(*   let member_its = *)
+(*     List.map *)
+(*       (fun (s, member_bt) -> IT.recordMember_ ~member_bt (record_it, s) loc) *)
+(*       record_members *)
+(*   in *)
+(*   return (record_it, member_its) *)
 
 (* This essentially pattern-matches a logical return type against a record pattern.
    `record_it` is the index term for the record, `members` the pattern for its members. *)
-let bind_logical_return_internal loc =
-  let rec aux members lrt =
-    match (members, lrt) with
-    | member :: members, LogicalReturnTypes.Define ((s, it), _, lrt) ->
-      let@ () =
-        WellTyped.ensure_base_type loc ~expect:(IT.get_bt it) (IT.get_bt member)
-      in
-      let@ () = add_c_internal (LC.T (IT.eq__ member it loc)) in
-      aux members (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    | member :: members, Resource ((s, (re, bt)), _, lrt) ->
-      let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in
-      let@ () = add_r_internal loc (re, Res.O member) in
-      aux members (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    | members, Constraint (lc, _, lrt) ->
+let bind_logical_return_internal loc prefix =
+  let rec aux lrt =
+    match lrt with
+    | LogicalReturnTypes.Define ((s, it), _, lrt) ->
+      aux (LogicalReturnTypes.subst (IT.make_subst [ (s, it) ]) lrt)
+    | Resource ((s, (re, bt)), _, lrt) ->
+      let s' = Sym.fresh_make_uniq_kind ~prefix (Sym.pp_string s) in
+      let@ () = add_l s' bt (loc, lazy (Sym.pp s')) in
+      let@ () = add_r_internal loc (re, Res.O (IT.sym_ (s', bt, loc))) in
+      aux (LogicalReturnTypes.subst (IT.make_rename ~from:s ~to_:s') lrt)
+    | Constraint (lc, _, lrt) ->
       let@ () = add_c_internal lc in
-      aux members lrt
-    | [], I -> return ()
-    | _ -> assert false
+      aux lrt
+    | I -> return ()
   in
-  fun members lrt -> aux members lrt
-
-
-let bind_logical_return loc members lrt =
-  let@ () = bind_logical_return_internal loc members lrt in
-  set_unfold_resources ()
-
-
-(* Same for return types *)
-let bind_return loc members (rt : ReturnTypes.t) =
-  match (members, rt) with
-  | member :: members, Computational ((s, bt), _, lrt) ->
-    let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in
-    let@ () =
-      bind_logical_return
-        loc
-        members
-        (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt)
-    in
-    return member
-  | _ -> assert false
+  fun lrt -> aux lrt
 
 
 (* functions for resource inference *)
@@ -628,93 +512,91 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
   =
   let@ s = get_typing_context () in
   let@ provable_f = provable_internal loc in
-  let resources, orig_ix = s.resources in
-  let orig_hist = s.resource_history in
-  let resources, ix, hist, changed_or_deleted, acc =
+  let resources = s.resources in
+  let resources, acc =
     List.fold_right
-      (fun (re, i) (resources, ix, hist, changed_or_deleted, acc) ->
+      (fun re (resources, acc) ->
          let changed, acc = f re acc in
          match changed with
-         | Deleted ->
-           let ix, hist = Context.res_written loc i "deleted" (ix, hist) in
-           (resources, ix, hist, i :: changed_or_deleted, acc)
-         | Unchanged -> ((re, i) :: resources, ix, hist, changed_or_deleted, acc)
+         | Deleted -> (resources, acc)
+         | Unchanged -> (re :: resources, acc)
          | Changed re ->
-           let ix, hist = Context.res_written loc i "changed" (ix, hist) in
            (match re with
             | Q { q; permission; _ }, _ ->
               let here = Locations.other __LOC__ in
-              (match provable_f (LC.forall_ q (IT.not_ permission here)) with
-               | `True -> (resources, ix, hist, i :: changed_or_deleted, acc)
-               | `False ->
-                 let ix, hist = Context.res_written loc ix "changed" (ix, hist) in
-                 ((re, ix) :: resources, ix + 1, hist, i :: changed_or_deleted, acc))
-            | _ ->
-              let ix, hist = Context.res_written loc ix "changed" (ix, hist) in
-              ((re, ix) :: resources, ix + 1, hist, i :: changed_or_deleted, acc)))
+              (match
+                 provable_f
+                   ~purpose:"map_and_fold_resources"
+                   (LC.forall_ q (IT.not_ permission here))
+               with
+               | `True -> (resources, acc)
+               | `False -> (re :: resources, acc))
+            | _ -> (re :: resources, acc)))
       resources
-      ([], orig_ix, orig_hist, [], acc)
+      ([], acc)
   in
-  let@ () =
-    set_typing_context { s with resources = (resources, ix); resource_history = hist }
-  in
-  return (acc, changed_or_deleted)
+  let@ () = set_typing_context { s with resources } in
+  return acc
 
 
 (* let get_movable_indices () = *)
 (*   inspect (fun s -> List.map (fun (pred, nm, _verb) -> (pred, nm)) s.movable_indices) *)
 
+let consistency_check_threshold = 10
+
 (* the main inference loop *)
 let do_unfold_resources loc =
-  let rec aux changed =
-    let open Prooflog in
+  let open Prooflog in
+  let here = Locations.other __LOC__ in
+  let start_time = Pp.time_start () in
+  let rec aux count changed =
     let@ s = get_typing_context () in
     let@ movable_indices = get_movable_indices () in
-    let@ _provable_f = provable_internal (Locations.other __LOC__) in
-    let resources, orig_ix = s.resources in
-    let _orig_hist = s.resource_history in
+    let@ provable_f = provable_internal here in
+    let provable_f = provable_f ~purpose:"do_unfold_resources" in
+    let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
-    let here = Locations.other __LOC__ in
-    let@ true_m = model_with_internal loc (IT.bool_ true here) in
-    match true_m with
-    | None -> return changed (* contradictory state *)
-    | Some model ->
-      let@ provable_m, provable_f2 = prove_or_model_with_past_model loc model in
+    let consistent_context () =
+      match provable_f (LC.T (IT.bool_ false here)) with `True -> false | `False -> true
+    in
+    match count < consistency_check_threshold || consistent_context () with
+    | false -> return changed (* contradictory state *)
+    | true ->
+      let count = if count < consistency_check_threshold then count else 0 in
       let keep, unpack, extract =
         List.fold_right
-          (fun (re, i) (keep, unpack, extract) ->
-             match Pack.unpack loc s.global provable_f2 re with
-             | Some unpackable -> (keep, (i, re, unpackable) :: unpack, extract)
+          (fun re (keep, unpack, extract) ->
+             match
+               Pack.unpack ~full:!unfold_multiclause_preds loc s.global provable_f re
+             with
+             | Some unpackable -> (keep, (re, unpackable) :: unpack, extract)
              | None ->
                let re_reduced, extracted =
-                 Pack.extractable_multiple provable_m movable_indices re
+                 Pack.extractable_multiple provable_f movable_indices re
                in
                let keep' =
                  match extracted with
-                 | [] -> (re_reduced, i) :: keep
+                 | [] -> re_reduced :: keep
                  | _ ->
-                   (match Pack.resource_empty provable_f2 re_reduced with
+                   (match Pack.resource_empty provable_f re_reduced with
                     | `Empty -> keep
-                    | `NonEmpty _ -> (re_reduced, i) :: keep)
+                    | `NonEmpty _ -> re_reduced :: keep)
                in
                (keep', unpack, extracted @ extract))
           resources
           ([], [], [])
       in
-      let@ () = set_typing_context { s with resources = (keep, orig_ix) } in
+      let@ () = set_typing_context { s with resources = keep } in
       let do_unpack = function
-        | _i, re, `LRT lrt ->
+        | re, `LRT lrt ->
           let pname = Req.get_name (fst re) in
-          let@ _, members =
-            make_return_record
-              loc
-              (* This string ends up as a solver variable (via Typing.make_return_record)
+          let prefix =
+            (* This string ends up as a solver variable (via Typing.make_return_record)
                  hence no "{<num>}" prefix should ever be printed. *)
-              ("unpack_" ^ Pp.plain (Req.pp_name ~no_nums:true pname))
-              (LogicalReturnTypes.binders lrt)
+            "unpack_" ^ Pp.plain (Req.pp_name ~no_nums:true pname)
           in
-          bind_logical_return_internal loc members lrt
-        | _i, re, `RES res ->
+          bind_logical_return_internal loc prefix lrt
+        | re, `RES res ->
           let pname = Req.get_name (fst re) in
           let is_owned = match pname with Owned _ -> true | _ -> false in
           iterM (add_r_internal ~derive_constraints:(not is_owned) loc) res
@@ -729,7 +611,7 @@ let do_unfold_resources loc =
            if Prooflog.is_enabled () then (
              let converted_unpack =
                List.map
-                 (fun (_, re, unpackable) ->
+                 (fun (re, unpackable) ->
                     match unpackable with
                     | `LRT lrt -> (re, UnpackLRT lrt)
                     | `RES res ->
@@ -748,11 +630,24 @@ let do_unfold_resources loc =
            else
              []
          in
-         aux changed')
+         let number_recursive_unfolds =
+           List.fold_left
+             (fun acc (re, _) ->
+                match Req.get_name (fst re) with
+                | PName pn when (Sym.Map.find pn s.global.resource_predicates).recursive
+                  ->
+                  acc + 1
+                | _ -> acc)
+             0
+             unpack
+         in
+         let number_extracted = List.length extract in
+         let count = count + number_recursive_unfolds + number_extracted in
+         aux count changed')
   in
   let@ c = get_typing_context () in
-  let@ changed = aux [] in
-  let@ () = modify (fun s -> { s with unfold_resources_required = false }) in
+  let@ changed = aux 0 [] in
+  Pp.time_end "resource unfolding" start_time;
   match changed with
   | [] -> return ()
   | _ ->
@@ -762,91 +657,65 @@ let do_unfold_resources loc =
     return ()
 
 
-let sync_unfold_resources loc =
-  let@ needed = inspect (fun s -> s.unfold_resources_required) in
-  if not needed then
-    return ()
-  else
-    do_unfold_resources loc
+let provable loc = provable_internal loc
+
+let add_movable_index loc (pred, ix) =
+  let@ ixs = get_movable_indices () in
+  let@ () = set_movable_indices ((pred, ix) :: ixs) in
+  do_unfold_resources loc
 
 
-(* functions exposed outside this module that may need to apply resource unfolding using
-   sync_unfold_resources *)
-
-let provable loc =
-  let@ () = sync_unfold_resources loc in
-  provable_internal loc
+let bind_logical_return loc prefix lrt =
+  let@ () = bind_logical_return_internal loc prefix lrt in
+  do_unfold_resources loc
 
 
-let all_resources_tagged loc =
-  let@ () = sync_unfold_resources loc in
-  let@ s = get_typing_context () in
-  return s.resources
+(* Same for return types *)
+(* let bind_return loc members (rt : ReturnTypes.t) = *)
+(*   match (members, rt) with *)
+(*   | member :: members, Computational ((s, bt), _, lrt) -> *)
+(*     let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in *)
+(*     let@ () = *)
+(*       bind_logical_return *)
+(*         loc *)
+(*         members *)
+(*         (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt) *)
+(*     in *)
+(*     return member *)
+(*   | _ -> assert false *)
+
+let add_r loc re =
+  let@ () = add_r_internal loc re in
+  do_unfold_resources loc
 
 
-let all_resources loc =
-  let@ () = sync_unfold_resources loc in
+let add_rs loc rs =
+  let@ () = iterM (add_r_internal loc) rs in
+  do_unfold_resources loc
+
+
+let add_c loc c =
+  let@ () = add_c_internal c in
+  do_unfold_resources loc
+
+
+let add_cs loc cs =
+  let@ () = iterM add_c_internal cs in
+  do_unfold_resources loc
+
+
+let all_resources _loc =
   let@ s = get_typing_context () in
   return (Context.get_rs s)
 
 
-let res_history loc i =
-  let@ () = sync_unfold_resources loc in
-  let@ s = get_typing_context () in
-  return (Context.res_history s i)
+let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 
+(* let prev_models_with _loc prop = *)
+(*   let@ ms = get_just_models () in *)
+(*   let@ has_prop = model_has_prop () in *)
+(*   return (List.filter (has_prop prop) ms) *)
 
-let map_and_fold_resources loc f acc =
-  let@ () = sync_unfold_resources loc in
-  map_and_fold_resources_internal loc f acc
-
-
-let prev_models_with loc prop =
-  let@ () = sync_unfold_resources loc in
-  let@ ms = get_just_models () in
-  let@ has_prop = model_has_prop () in
-  return (List.filter (has_prop prop) ms)
-
-
-let model_with loc prop =
-  let@ () = sync_unfold_resources loc in
-  model_with_internal loc prop
-
+(* let _model_with loc prop = model_with_internal loc prop *)
 
 (* auxiliary functions for diagnostics *)
-
-let value_eq_group guard x =
-  let@ eqs = get_found_equalities () in
-  return (EqTable.get_eq_vals eqs guard x)
-
-
-let test_value_eqs loc guard x ys =
-  let here = Locations.other __LOC__ in
-  let prop y =
-    match guard with
-    | None -> LC.T (IT.eq_ (x, y) here)
-    | Some t -> LC.T (IT.impl_ (t, IT.eq_ (x, y) here) here)
-  in
-  let@ prover = provable loc in
-  let guard_it = Option.value guard ~default:(IT.bool_ true here) in
-  let rec loop group ms = function
-    | [] -> return ()
-    | y :: ys ->
-      let@ has_prop = model_has_prop () in
-      let counterex = has_prop (IT.not_ (IT.eq_ (x, y) here) here) in
-      if ITSet.mem y group || List.exists counterex ms then
-        loop group ms ys
-      else (
-        match prover (prop y) with
-        | `True ->
-          let@ () = add_found_equalities (prop y) in
-          let@ group = value_eq_group guard x in
-          loop group ms ys
-        | `False ->
-          let@ _ = model () in
-          let@ ms = prev_models_with loc guard_it in
-          loop group ms ys)
-  in
-  let@ group = value_eq_group guard x in
-  let@ ms = prev_models_with loc guard_it in
-  loop group ms ys

@@ -7,7 +7,8 @@ val io : Cerb_backend.Pipeline.io_helpers
 val impl_name : string
 
 val conf
-  :  (string * string option) list ->
+  :  string ->
+  (string * string option) list ->
   string list ->
   string list ->
   bool ->

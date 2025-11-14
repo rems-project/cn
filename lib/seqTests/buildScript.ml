@@ -53,7 +53,7 @@ let compile ~filename_base =
   ^^ attempt
        (String.concat
           " "
-          ([ "cc";
+          ([ Config.get_cc ();
              "${CFLAGS}";
              "${CPPFLAGS}";
              "-c";
@@ -68,7 +68,7 @@ let compile ~filename_base =
       ^^ attempt
            (String.concat
               " "
-              ([ "cc";
+              ([ Config.get_cc ();
                  "${CFLAGS}";
                  "${CPPFLAGS}";
                  "-c";
@@ -92,7 +92,7 @@ let link ~filename_base =
   ^^ attempt
        (String.concat
           " "
-          ([ "cc";
+          ([ Config.get_cc ();
              "${CFLAGS}";
              "${CPPFLAGS}";
              "-o";

@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
+let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
@@ -19,13 +19,15 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
       ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
     exit 1);
   let flags =
+    let debug_info_flag = if no_debug_info then "" else " -g " in
     let cflags = Option.value ~default:"" (Sys.getenv_opt "CFLAGS") in
     let cppflags = Option.value ~default:"" (Sys.getenv_opt "CPPFLAGS") in
-    cflags ^ cppflags
+    String.concat " " [ debug_info_flag; cflags; cppflags ]
   in
   if
     Sys.command
-      ("cc -c "
+      (cc
+       ^ " -c "
        ^ flags
        ^ " "
        ^ includes
@@ -42,7 +44,8 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
     exit 1);
   if
     Sys.command
-      ("cc "
+      (cc
+       ^ " "
        ^ flags
        ^ " "
        ^ includes
@@ -64,7 +67,9 @@ let run_instrumented_file ~filename ~output ~output_dir ~print_steps =
 
 let generate_executable_specs
       filename
+      cc
       macros
+      permissive
       incl_dirs
       incl_files
       loc_pp
@@ -76,36 +81,42 @@ let generate_executable_specs
       skip
       diag
       csv_times
-      log_times
       astprints
       dont_use_vip
-      no_use_ity
       fail_fast
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       (* Executable spec *)
         output
       output_dir
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
+      without_lemma_checks
       with_testing
       run
+      no_debug_info
+      exec_c_locs_mode
+      experimental_ownership_stack_mode
+      experimental_unions
+      experimental_curly_braces
       mktemp
       print_steps
+      max_bump_blocks
+      bump_block_size
   =
-  (*flags *)
+  (* flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.loc_pp := loc_pp;
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
-  Check.skip_and_only := (skip, only);
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
-  WellTyped.use_ity := not no_use_ity;
   Sym.executable_spec_enabled := true;
+  Sym.experimental_unions := experimental_unions;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
     Pp.error e.loc report.short (Option.to_list report.descr);
@@ -119,7 +130,9 @@ let generate_executable_specs
   in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_INSTRUMENT", None) :: macros)
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~coq_export_file:None
@@ -127,12 +140,14 @@ let generate_executable_specs
     ~coq_proof_log:false
     ~coq_check_proof_log:false
     ~csv_times
-    ~log_times
     ~astprints
     ~no_inherit_loc
-    ~magic_comment_char_dollar (* Callbacks *)
+    ~magic_comment_char_dollar
+    ~allow_split_magic_comments (* Callbacks *)
     ~save_cpp:(Some pp_file)
-    ~disable_linemarkers:true
+    ~disable_linemarkers:exec_c_locs_mode
+      (* If output locations requested, disable linemarkers in preproc step *)
+    ~skip_label_inlining:true
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       if run && Option.is_none prog5.main then (
@@ -151,8 +166,16 @@ let generate_executable_specs
                 ~without_ownership_checking
                 ~without_loop_invariants
                 ~with_loop_leak_checks
+                ~without_lemma_checks
+                ~exec_c_locs_mode
+                ~experimental_ownership_stack_mode
+                ~experimental_curly_braces
                 ~with_testing
+                ~skip_and_only:(skip, only)
+                ?max_bump_blocks
+                ?bump_block_size
                 filename
+                cc
                 pp_file
                 out_file
                 output_dir
@@ -165,10 +188,52 @@ let generate_executable_specs
         ();
       Or_TypeError.return
         (if run then
-           run_instrumented_file ~filename ~output ~output_dir ~print_steps))
+           run_instrumented_file
+             ~filename
+             ~cc
+             ~no_debug_info
+             ~output
+             ~output_dir
+             ~print_steps))
 
 
 open Cmdliner
+
+(* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
+let parse_size_value s =
+  let len = String.length s in
+  if len = 0 then
+    Error (`Msg "Size value cannot be empty")
+  else (
+    let last_char = String.get s (len - 1) in
+    let value_str, multiplier =
+      match last_char with
+      | 'k' | 'K' -> (String.sub s 0 (len - 1), 1024)
+      | 'm' | 'M' -> (String.sub s 0 (len - 1), 1024 * 1024)
+      | 'g' | 'G' -> (String.sub s 0 (len - 1), 1024 * 1024 * 1024)
+      | '0' .. '9' -> (s, 1)
+      | _ -> ("", 0)
+      (* Invalid suffix *)
+    in
+    if multiplier = 0 then
+      Error
+        (`Msg
+            (Printf.sprintf
+               "Invalid size suffix in '%s'. Use k/K, m/M, g/G, or no suffix."
+               s))
+    else (
+      match int_of_string_opt value_str with
+      | Some n when n > 0 ->
+        (* Check for overflow *)
+        if n > max_int / multiplier then
+          Error (`Msg (Printf.sprintf "Size value '%s' is too large" s))
+        else
+          Ok (n * multiplier)
+      | Some _ -> Error (`Msg (Printf.sprintf "Size value must be positive: '%s'" s))
+      | None -> Error (`Msg (Printf.sprintf "Invalid size value: '%s'" s))))
+
+
+let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
 module Flags = struct
   let output_dir =
@@ -200,6 +265,11 @@ module Flags = struct
   let with_loop_leak_checks =
     let doc = "Enable leak checking across all runtime loop invariants" in
     Arg.(value & flag & info [ "with-loop-leak-checks" ] ~doc)
+
+
+  let without_lemma_checks =
+    let doc = "Disable runtime checking of lemmas" in
+    Arg.(value & flag & info [ "without-lemma-checks" ] ~doc)
 
 
   let with_test_gen =
@@ -244,6 +314,51 @@ module Flags = struct
   let skip =
     let doc = "Skip instrumenting this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+
+
+  let no_debug_info =
+    let doc = "Run the instrumented program without collecting debug information" in
+    Arg.(value & flag & info [ "no-debug-info" ] ~doc)
+
+
+  let exec_c_locs_mode =
+    let doc =
+      "At errors, report the location in the Fulminated output, not the source. This \
+       flag needs to be enabled for lldb to be usable on the instrumented binary."
+    in
+    Arg.(value & flag & info [ "exec-c-locs-mode" ] ~doc)
+
+
+  let experimental_ownership_stack_mode =
+    let doc =
+      "(experimental) Record (and report, in case of ownership error) the source \
+       locations where ownership was taken for Fulminate-tracked memory"
+    in
+    Arg.(value & flag & info [ "ownership-stack-mode" ] ~doc)
+
+
+  let experimental_unions =
+    let doc = "(experimental) Handle unions from source" in
+    Arg.(value & flag & info [ "experimental-unions" ] ~doc)
+
+
+  let max_bump_blocks =
+    let doc = "Maximum number of bump allocator blocks (default: 256)" in
+    Arg.(value & opt (some int) None & info [ "max-bump-blocks" ] ~doc)
+
+
+  let bump_block_size =
+    let doc =
+      "Size of each bump allocator block in bytes (default: 8388608 = 8m). Supports \
+       suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 8m, \
+       8192k, 8388608"
+    in
+    Arg.(value & opt (some size_converter) None & info [ "bump-block-size" ] ~doc)
+
+
+  let experimental_curly_braces =
+    let doc = "(experimental) Insert curly braces for single-statement control flow" in
+    Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
 end
 
 let cmd =
@@ -251,7 +366,9 @@ let cmd =
   let instrument_t =
     const generate_executable_specs
     $ Common.Flags.file
+    $ Common.Flags.cc
     $ Common.Flags.macros
+    $ Common.Flags.permissive
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Verify.Flags.loc_pp
@@ -263,24 +380,31 @@ let cmd =
     $ Flags.skip
     $ Verify.Flags.diag
     $ Common.Flags.csv_times
-    $ Common.Flags.log_times
     $ Common.Flags.astprints
     $ Verify.Flags.dont_use_vip
-    $ Common.Flags.no_use_ity
     $ Verify.Flags.fail_fast
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
+    $ Common.Flags.allow_split_magic_comments
     $ Flags.output
     $ Flags.output_dir
     $ Flags.without_ownership_checking
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
+    $ Flags.without_lemma_checks
     $ Term.map
         (fun (x, y) -> x || y)
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
+    $ Flags.no_debug_info
+    $ Flags.exec_c_locs_mode
+    $ Flags.experimental_ownership_stack_mode
+    $ Flags.experimental_unions
+    $ Flags.experimental_curly_braces
     $ Flags.mktemp
     $ Flags.print_steps
+    $ Flags.max_bump_blocks
+    $ Flags.bump_block_size
   in
   let doc =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \

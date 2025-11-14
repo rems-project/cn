@@ -1,5 +1,9 @@
 open Cerb_frontend
 
+val getter_str : string -> Sym.t -> string
+
+val setter_str : string -> Sym.t -> string
+
 val ownership_ctypes : Ctype.ctype list ref
 
 type spec_mode =
@@ -20,9 +24,16 @@ val records : Sym.t RecordMap.t ref
 
 val augment_record_map : ?cn_sym:Sym.t -> BaseTypes.t -> unit
 
+val lookup_records_map : BaseTypes.t -> Sym.t
+
 val lookup_records_map_opt : BaseTypes.t -> Sym.t option
 
+val lookup_records_map_with_default : ?cn_sym:Sym.t -> BaseTypes.t -> Sym.t
+
 val bt_to_ail_ctype : ?pred_sym:Sym.t option -> BaseTypes.t -> Ctype.ctype
+
+(** FIXME: Should use [wrap_with_convert_from] instead *)
+val get_conversion_from_fn_str : BaseTypes.t -> string option
 
 val wrap_with_convert_from
   :  ?sct:Sctypes.t ->
@@ -43,15 +54,25 @@ val wrap_with_convert_from_cn_bool
 type ail_bindings_and_statements =
   AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
 
+type loop_info =
+  { cond : Locations.t * ail_bindings_and_statements;
+    loop_loc : Locations.t;
+    loop_entry : ail_bindings_and_statements;
+    loop_exit : ail_bindings_and_statements
+  }
+
 type ail_executable_spec =
   { pre : ail_bindings_and_statements;
     post : ail_bindings_and_statements;
     in_stmt : (Locations.t * ail_bindings_and_statements) list;
-    loops :
-      ((Locations.t * ail_bindings_and_statements)
-      * (Locations.t * ail_bindings_and_statements))
-        list
+    loops : loop_info list
   }
+
+val extract_global_variables
+  :  ?prune_unused:bool ->
+  Cabs.translation_unit ->
+  _ Mucore.file ->
+  (Sym.t * Cerb_frontend.Ctype.ctype) list
 
 val generate_get_or_put_ownership_function
   :  without_ownership_checking:bool ->
@@ -176,6 +197,8 @@ val cn_to_ail_records
 val cn_to_ail_function
   :  string ->
   Sym.t * Definition.Function.t ->
+  Cabs.translation_unit ->
+  _ Mucore.file ->
   AilSyntax.sigma_cn_datatype list ->
   AilSyntax.sigma_cn_function list ->
   ((Locations.t * AilSyntax.sigma_declaration)
@@ -193,14 +216,26 @@ val cn_to_ail_predicates
     list
   * AilSyntax.sigma_tag_definition option list
 
+val cn_to_ail_lemmas
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Definition.Predicate.t) list ->
+  (Sym.t * Ctype.ctype) list ->
+  (Sym.t * (Cerb_location.t * ArgumentTypes.lemmat)) list ->
+  (AilSyntax.sigma_declaration
+  * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
+    list
+
 val cn_to_ail_pre_post
   :  without_ownership_checking:bool ->
   with_loop_leak_checks:bool ->
+  without_lemma_checks:bool ->
   string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
   Ctype.ctype ->
+  int option ->
   Extract.fn_args_and_body option ->
   ail_executable_spec
 
@@ -226,3 +261,19 @@ val cn_to_ail_assume_pre
   'a LogicalArgumentTypes.t ->
   AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition
+
+val gen_ghost_call_site_global_decl
+  : AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list
+
+val cn_to_ail_ghost_enum
+  :  unit BaseTypes.t_gen list list ->
+  IndexTerms.t Cnprog.t list list ->
+  AilSyntax.sigma_tag_definition
+
+val cn_to_ail_cnprog_ghost_args
+  :  string ->
+  AilSyntax.sigma_cn_datatype list ->
+  (Sym.t * Ctype.ctype) list ->
+  spec_mode option ->
+  IndexTerms.t Cnprog.t list ->
+  AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list

@@ -571,8 +571,10 @@ let rec pp_basetype pp_loc = function
   | BaseTypes.List t -> pp_constructor "BaseTypes.List" [ !^"unit"; pp_basetype pp_loc t ]
   | BaseTypes.Tuple ts ->
     pp_constructor "BaseTypes.Tuple" [ !^"unit"; pp_list (pp_basetype pp_loc) ts ]
-  | BaseTypes.Set t -> pp_constructor "BaseTypes.Set" [ !^"unit"; pp_basetype pp_loc t ]
+  | BaseTypes.Set t -> pp_constructor "BaseTypes.TSet" [ !^"unit"; pp_basetype pp_loc t ]
   | BaseTypes.Loc x -> pp_constructor "BaseTypes.Loc" [ !^"unit"; pp_unit x ]
+  | BaseTypes.Option t ->
+    pp_constructor "BaseTypes.Option" [ !^"unit"; pp_basetype pp_loc t ]
 
 
 let pp_integer_base_type = function
@@ -691,7 +693,8 @@ let rec pp_ctype (Ctype.Ctype (annots, ct)) =
          pp_constructor "Ctype.Pointer" [ pp_qualifiers quals; pp_ctype ct ]
        | Ctype.Atomic ct -> pp_constructor "Ctype.Atomic" [ pp_ctype ct ]
        | Ctype.Struct sym -> pp_constructor "Ctype.Struct" [ pp_symbol sym ]
-       | Ctype.Union sym -> pp_constructor "Ctype.Union" [ pp_symbol sym ])
+       | Ctype.Union sym -> pp_constructor "Ctype.Union" [ pp_symbol sym ]
+       | Ctype.Byte -> pp_constructor0 "Ctype.Byte")
     ]
 
 
@@ -726,6 +729,7 @@ let rec pp_sctype = function
             pp_bool variadic
           ]
       ]
+  | Sctypes.Byte -> pp_constructor0 "SCtypes.Byte"
 
 
 let rec pp_core_base_type = function
@@ -749,10 +753,23 @@ and pp_core_object_type = function
 
 
 let pp_ctor = function
-  | Mucore.Cnil bt -> pp_constructor "Cnil" [ pp_core_base_type bt ]
-  | Mucore.Ccons -> pp_constructor0 "Ccons"
-  | Mucore.Ctuple -> pp_constructor0 "Ctuple"
-  | Mucore.Carray -> pp_constructor0 "Carray"
+  | Core.Cnil bt -> pp_constructor "Cnil" [ pp_core_base_type bt ]
+  | Core.Ccons -> pp_constructor0 "Ccons"
+  | Core.Ctuple -> pp_constructor0 "Ctuple"
+  | Core.Carray -> pp_constructor0 "Carray"
+  | Core.Civmax -> pp_constructor0 "Civmax"
+  | Core.Civmin -> pp_constructor0 "Civmin"
+  | Core.Civsizeof -> pp_constructor0 "Civsizeof"
+  | Core.Civalignof -> pp_constructor0 "Civalignof"
+  | Core.CivCOMPL -> pp_constructor0 "CivCOMPL"
+  | Core.CivAND -> pp_constructor0 "CivAND"
+  | Core.CivOR -> pp_constructor0 "CivOR"
+  | Core.CivXOR -> pp_constructor0 "CivXOR"
+  | Core.Cspecified -> assert false
+  | Core.Cunspecified -> assert false
+  | Core.Cfvfromint -> assert false
+  | Core.Civfromfloat -> assert false
+  | Core.CivNULLcap _ -> assert false
 
 
 let pp_core_binop = function
@@ -807,17 +824,10 @@ let pp_binop = function
   | Terms.Subset -> pp_constructor0 "Terms.Subset"
 
 
-let pp_bw_binop = function
-  | BW_OR -> pp_constructor0 "BW_OR"
-  | BW_AND -> pp_constructor0 "BW_AND"
-  | BW_XOR -> pp_constructor0 "BW_XOR"
-
-
-let pp_bw_unop = function
-  | BW_COMPL -> pp_constructor0 "BW_COMPL"
-  | BW_CTZ -> pp_constructor0 "BW_CTZ"
-  | BW_FFS -> pp_constructor0 "BW_FFS"
-
+(* let pp_bw_binop = function *)
+(*   | BW_OR -> pp_constructor0 "BW_OR" *)
+(*   | BW_AND -> pp_constructor0 "BW_AND" *)
+(*   | BW_XOR -> pp_constructor0 "BW_XOR" *)
 
 let pp_core_iop = function
   | Core.IOpAdd -> pp_constructor0 "Core.IOpAdd"
@@ -825,6 +835,8 @@ let pp_core_iop = function
   | Core.IOpMul -> pp_constructor0 "Core.IOpMul"
   | Core.IOpShl -> pp_constructor0 "Core.IOpShl"
   | Core.IOpShr -> pp_constructor0 "Core.IOpShr"
+  | Core.IOpDiv -> pp_constructor0 "Core.IOpDiv"
+  | Core.IOpRem_t -> pp_constructor0 "Core.IOpRem_t"
 
 
 let rec pp_pattern_ pp_type = function
@@ -850,6 +862,13 @@ let pp_mem_value v =
     pp_ctype
     pp_identifier
     v
+
+
+let pp_pure_memop = function
+  | Mem_common.ByteFromInt -> !^"ByteFromInt"
+  | Mem_common.IntFromByte -> !^"IntFromByte"
+  | Mem_common.DeriveCap (_, _) | Mem_common.CapAssignValue | Mem_common.Ptr_tIntValue ->
+    !^""
 
 
 let rec pp_mem_constraint = function
@@ -893,15 +912,13 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEconstrained"
            [ pp_list (pp_pair pp_mem_constraint (pp_pexpr pp_type)) cs ]
-       | PEbitwise_unop (op, e) ->
-         pp_constructor1 "PEbitwise_unop" [ pp_bw_unop op; pp_pexpr pp_type e ]
-       | PEbitwise_binop (op, e1, e2) ->
-         pp_constructor1
-           "PEbitwise_binop"
-           [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | Cfvfromint e -> pp_constructor1 "Cfvfromint" [ pp_pexpr pp_type e ]
-       | Civfromfloat (act, e) ->
-         pp_constructor1 "Civfromfloat" [ pp_act act; pp_pexpr pp_type e ]
+       (* | PEbitwise_binop (op, e1, e2) -> *)
+       (*   pp_constructor1 *)
+       (*     "PEbitwise_binop" *)
+       (*     [ pp_bw_binop op; pp_pexpr pp_type e1; pp_pexpr pp_type e2 ] *)
+       (* | Cfvfromint e -> pp_constructor1 "Cfvfromint" [ pp_pexpr pp_type e ] *)
+       (* | Civfromfloat (act, e) -> *)
+       (*   pp_constructor1 "Civfromfloat" [ pp_act act; pp_pexpr pp_type e ] *)
        | PEarray_shift (base, ct, idx) ->
          pp_constructor1
            "PEarray_shift"
@@ -910,9 +927,19 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEmember_shift"
            [ pp_pexpr pp_type e; pp_symbol sym; pp_identifier id ]
+       | PEmemop (pure_memop, e) ->
+         pp_constructor1 "PEmemop" [ pp_pure_memop pure_memop; pp_pexpr pp_type e ]
        | PEnot e -> pp_constructor1 "PEnot" [ pp_pexpr pp_type e ]
-       | PEapply_fun (f, args) ->
-         pp_constructor1 "PEapply_fun" [ pp_function f; pp_list (pp_pexpr pp_type) args ]
+       | PEcall (f, args) ->
+         let fn =
+           match f with
+           | Sym s -> pp_constructor1 "Sym" [ Sym.pp s ]
+           | Impl s ->
+             pp_constructor1
+               "Impl"
+               [ !^(CF.Implementation.string_of_implementation_constant s) ]
+         in
+         pp_constructor1 "PEcall" [ fn; pp_list (pp_pexpr pp_type) args ]
        | PEstruct (sym, fields) ->
          pp_constructor1
            "PEstruct"
@@ -924,26 +951,24 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
          pp_constructor1
            "PEmemberof"
            [ pp_symbol sym; pp_identifier id; pp_pexpr pp_type e ]
-       | PEbool_to_integer e -> pp_constructor1 "PEbool_to_integer" [ pp_pexpr pp_type e ]
        | PEconv_int (e1, e2) ->
          pp_constructor1 "PEconv_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEconv_loaded_int (e1, e2) ->
-         pp_constructor1 "PEconv_loaded_int" [ pp_pexpr pp_type e1; pp_pexpr pp_type e2 ]
-       | PEwrapI (act, e) -> pp_constructor1 "PEwrapI" [ pp_act act; pp_pexpr pp_type e ]
-       | PEcatch_exceptional_condition (act, e) ->
+       | PEcatch_exceptional_condition (ity, op, e1, e2) | PEwrapI (ity, op, e1, e2) ->
+         let ctor =
+           match pe with
+           | PEcatch_exceptional_condition _ -> "PEcatch_exceptional_condition"
+           | PEwrapI _ -> "PEwrapI"
+           | _ -> assert false
+         in
          pp_constructor1
-           "PEcatch_exceptional_condition"
-           [ pp_act act; pp_pexpr pp_type e ]
-       | PEbounded_binop (kind, op, e1, e2) ->
-         pp_constructor1
-           "PEbounded_binop"
-           [ pp_bound_kind kind;
+           ctor
+           [ pp_sctype (Integer ity);
              pp_core_iop op;
              pp_pexpr pp_type e1;
              pp_pexpr pp_type e2
            ]
-       | PEis_representable_integer (e, act) ->
-         pp_constructor1 "PEis_representable_integer" [ pp_pexpr pp_type e; pp_act act ]
+       | PEare_compatible (pe1, pe2) ->
+         pp_constructor1 "PEare_compatible" [ pp_pexpr pp_type pe1; pp_pexpr pp_type pe2 ]
        | PEundef (loc, ub) ->
          pp_constructor1 "PEundef" [ pp_location loc; pp_undefined_behaviour ub ]
        | PEerror (msg, e) ->
@@ -957,11 +982,6 @@ and pp_pexpr pp_type (Pexpr (loc, annots, ty, pe)) =
            "PEif"
            [ pp_pexpr pp_type c; pp_pexpr pp_type t; pp_pexpr pp_type e ])
     ]
-
-
-and pp_bound_kind = function
-  | Bound_Wrap act -> pp_constructor "Bound_Wrap" [ pp_act act ]
-  | Bound_Except act -> pp_constructor "Bound_Except" [ pp_act act ]
 
 
 and pp_action pp_type (Action (loc, act)) =
@@ -1063,8 +1083,8 @@ and pp_value pp_type (V (ty, v)) =
     [ pp_type ty;
       (match v with
        | Vobject ov -> pp_constructor1 "Vobject" [ pp_object_value pp_type ov ]
+       | Vloaded lv -> pp_constructor1 "Vloaded" [ pp_loaded_value pp_type lv ]
        | Vctype t -> pp_constructor1 "Vctype" [ pp_ctype t ]
-       | Vfunction_addr s -> pp_constructor1 "Vfunction_addr" [ pp_symbol s ]
        | Vunit -> pp_constructor1 "Vunit" []
        | Vtrue -> pp_constructor1 "Vtrue" []
        | Vfalse -> pp_constructor1 "Vfalse" []
@@ -1072,6 +1092,11 @@ and pp_value pp_type (V (ty, v)) =
          pp_constructor1 "Vlist" [ pp_core_base_type bt; pp_list (pp_value pp_type) vs ]
        | Vtuple vs -> pp_constructor1 "Vtuple" [ pp_list (pp_value pp_type) vs ])
     ]
+
+
+and pp_loaded_value pp_type = function
+  | LVspecified ov -> pp_constructor1 "LVspecified" [ pp_object_value pp_type ov ]
+  | LVunspecified ct1 -> pp_constructor1 "LVunspecified" [ pp_ctype ct1 ]
 
 
 and pp_object_value pp_type (OV (ty, ov)) =
@@ -1084,7 +1109,7 @@ and pp_object_value pp_type (OV (ty, ov)) =
        | OVfloating f -> pp_constructor1 "OVfloating" [ pp_floating_value f ]
        | OVpointer p ->
          pp_constructor1 "OVpointer" [ Impl_mem.pp_pointer_value_for_coq pp_symbol p ]
-       | OVarray vs -> pp_constructor1 "OVarray" [ pp_list (pp_object_value pp_type) vs ]
+       | OVarray vs -> pp_constructor1 "OVarray" [ pp_list (pp_loaded_value pp_type) vs ]
        | OVstruct (sym, fields) ->
          pp_constructor1
            "OVstruct"
@@ -1132,7 +1157,7 @@ let pp_const = function
     pp_constructor "Terms.Bits" [ pp_pair (pp_pair pp_sign pp_nat) pp_Z (x, z) ]
   | Terms.Q q -> pp_constructor "Terms.Q" [ pp_Q q ]
   | Terms.MemByte { alloc_id; value } ->
-    pp_constructor "Terms.MemByte" [ pp_Z alloc_id; pp_Z value ]
+    pp_constructor "Terms.MemByte" [ pp_option pp_Z alloc_id; pp_Z value ]
   | Terms.Pointer { alloc_id; addr } ->
     pp_constructor "Terms.Pointer" [ pp_Z alloc_id; pp_Z addr ]
   | Terms.Alloc_id z -> pp_constructor "Terms.Alloc_id" [ pp_Z z ]
@@ -1202,12 +1227,6 @@ and pp_index_term_content = function
   | Cons (t1, t2) -> pp_constructor1 "Cons" [ pp_index_term t1; pp_index_term t2 ]
   | Head t -> pp_constructor1 "Head" [ pp_index_term t ]
   | Tail t -> pp_constructor1 "Tail" [ pp_index_term t ]
-  | NthList (i, xs, d) ->
-    pp_constructor1 "NthList" [ pp_index_term i; pp_index_term xs; pp_index_term d ]
-  | ArrayToList (arr, i, len) ->
-    pp_constructor1
-      "ArrayToList"
-      [ pp_index_term arr; pp_index_term i; pp_index_term len ]
   | Representable (ct, t) ->
     pp_constructor1 "Representable" [ pp_sctype ct; pp_index_term t ]
   | Good (ct, t) -> pp_constructor1 "Good" [ pp_sctype ct; pp_index_term t ]
@@ -1232,6 +1251,10 @@ and pp_index_term_content = function
       "TMatch"
       [ pp_index_term t; pp_list (pp_pair pp_terms_pattern pp_index_term) cases ]
   | Cast (bt, t) -> pp_constructor1 "Cast" [ pp_basetype pp_unit bt; pp_index_term t ]
+  | CN_None bt -> pp_constructor1 "CN_None" [ pp_basetype pp_unit bt ]
+  | CN_Some t -> pp_constructor1 "CN_Some" [ pp_index_term t ]
+  | IsSome t -> pp_constructor1 "IsSome" [ pp_index_term t ]
+  | GetOpt t -> pp_constructor1 "GetOpt" [ pp_index_term t ]
 
 
 let pp_request_init = function
@@ -1270,36 +1293,34 @@ and pp_request_name = function
     pp_constructor "Owned" [ pp_sctype ct; pp_request_init init ]
 
 
-let pp_memop pp_type m =
-  let pte = pp_pexpr pp_type in
-  match m with
-  | PtrEq e12 -> pp_constructor1 "MuCore.PtrEq" [ pp_pair pte pte e12 ]
-  | PtrNe e12 -> pp_constructor1 "MuCore.PtrNe" [ pp_pair pte pte e12 ]
-  | PtrLt e12 -> pp_constructor1 "MuCore.PtrLt" [ pp_pair pte pte e12 ]
-  | PtrGt e12 -> pp_constructor1 "MuCore.PtrGt" [ pp_pair pte pte e12 ]
-  | PtrLe e12 -> pp_constructor1 "MuCore.PtrLe" [ pp_pair pte pte e12 ]
-  | PtrGe e12 -> pp_constructor1 "MuCore.PtrGe" [ pp_pair pte pte e12 ]
-  | Ptrdiff e123 -> pp_constructor1 "MuCore.Ptrdiff" [ pp_triple pp_act pte pte e123 ]
-  | IntFromPtr e123 ->
-    pp_constructor1 "MuCore.IntFromPtr" [ pp_triple pp_act pp_act pte e123 ]
-  | PtrFromInt e123 ->
-    pp_constructor1 "MuCore.PtrFromInt" [ pp_triple pp_act pp_act pte e123 ]
-  | PtrValidForDeref e12 ->
-    pp_constructor1 "MuCore.PtrValidForDeref" [ pp_pair pp_act pte e12 ]
-  | PtrWellAligned e12 ->
-    pp_constructor1 "MuCore.PtrWellAligned" [ pp_pair pp_act pte e12 ]
-  | PtrArrayShift e123 ->
-    pp_constructor1 "MuCore.PtrArrayShift" [ pp_triple pte pp_act pte e123 ]
-  | PtrMemberShift e123 ->
-    pp_constructor1 "MuCore.PtrMemberShift" [ pp_triple pp_symbol pp_identifier pte e123 ]
-  | Memcpy e123 -> pp_constructor1 "MuCore.Memcpy" [ pp_triple pte pte pte e123 ]
-  | Memcmp e123 -> pp_constructor1 "MuCore.Memcmp" [ pp_triple pte pte pte e123 ]
-  | Realloc e123 -> pp_constructor1 "MuCore.Realloc" [ pp_triple pte pte pte e123 ]
-  | Va_start e12 -> pp_constructor1 "MuCore.Va_start" [ pp_pair pte pte e12 ]
-  | Va_copy e -> pp_constructor1 "MuCore.Va_copy" [ pte e ]
-  | Va_arg e12 -> pp_constructor1 "MuCore.Va_arg" [ pp_pair pte pp_act e12 ]
-  | Va_end e -> pp_constructor1 "MuCore.Va_end" [ pte e ]
-  | CopyAllocId e12 -> pp_constructor1 "MuCore.CopyAllocId" [ pp_pair pte pte e12 ]
+let pp_memop m =
+  let open Cerb_frontend.Mem_common in
+  let n =
+    match m with
+    | PtrEq -> "PtrEq"
+    | PtrNe -> "PtrNe"
+    | PtrLt -> "PtrLt"
+    | PtrGt -> "PtrGt"
+    | PtrLe -> "PtrLe"
+    | PtrGe -> "PtrGe"
+    | Ptrdiff -> "Ptrdiff"
+    | IntFromPtr -> "IntFromPtr"
+    | PtrFromInt -> "PtrFromInt"
+    | PtrValidForDeref -> "PtrValidForDeref"
+    | PtrWellAligned -> "PtrWellAligned"
+    | PtrArrayShift -> "PtrArrayShift"
+    | PtrMemberShift _ -> assert false
+    | Memcpy -> "Memcpy"
+    | Memcmp -> "Memcmp"
+    | Realloc -> "Realloc"
+    | Va_start -> "Va_start"
+    | Va_copy -> "Va_copy"
+    | Va_arg -> "Va_arg"
+    | Va_end -> "Va_end"
+    | Copy_alloc_id -> "Copy_alloc_id"
+    | CHERI_intrinsic _ -> assert false
+  in
+  pp_constructor1 ("Core." ^ n) []
 
 
 let pp_pack_unpack = function
@@ -1712,8 +1733,9 @@ let pp_cnprogs_extract (ids, extract, term) =
 
 
 let pp_cnprog_statement = function
-  | Cnprog.Pack_unpack (pu, pred) ->
+  | Cnstatement.Pack_unpack (pu, Predicate pred) ->
     pp_constructor "CNProgs.Pack_unpack" [ pp_pack_unpack pu; pp_request_ppredicate pred ]
+  | Cnstatement.Pack_unpack (_pu, PredicateName _) -> failwith "todo"
   | To_from_bytes (tf, pred) ->
     pp_constructor "CNProgs.To_from_bytes" [ pp_to_from tf; pp_request_ppredicate pred ]
   | Have lc -> pp_constructor "CNProgs.Have" [ pp_logical_constraint lc ]
@@ -1737,13 +1759,15 @@ let pp_cnprog_load (r : Cnprog.load) =
     [ ("CNProgs.ct", pp_sctype r.ct); ("CNProgs.pointer", pp_index_term r.pointer) ]
 
 
-let rec pp_cn_prog = function
+let rec pp_cn_prog f = function
   | Cnprog.Let (loc, (name, l), prog) ->
     pp_constructor
       "CNProgs.CLet"
-      [ pp_location loc; pp_tuple [ pp_symbol name; pp_cnprog_load l ]; pp_cn_prog prog ]
-  | Statement (loc, stmt) ->
-    pp_constructor "CNProgs.Statement" [ pp_location loc; pp_cnprog_statement stmt ]
+      [ pp_location loc;
+        pp_tuple [ pp_symbol name; pp_cnprog_load l ];
+        pp_cn_prog f prog
+      ]
+  | Pure (loc, x) -> pp_constructor "CNProgs" [ pp_location loc; f x ]
 
 
 let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
@@ -1752,6 +1776,7 @@ let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
     [ pp_location loc;
       (match stmt with
        | CN_pack_unpack (pu, pred, exprs) ->
+         let exprs = match exprs with Some exprs -> exprs | None -> failwith "todo" in
          pp_constructor2
            "CN_pack_unpack"
            [ pp_tuple
@@ -1811,19 +1836,33 @@ and pp_expr pp_type = function
         pp_type ty;
         (match e with
          | Epure pe -> pp_constructor1 "Epure" [ pp_pexpr pp_type pe ]
-         | Ememop m -> pp_constructor1 "Ememop" [ pp_memop pp_type m ]
+         | Ememop (m, pes) ->
+           pp_constructor1 "Ememop" (pp_memop m :: List.map (pp_pexpr pp_type) pes)
          | Eaction pa -> pp_constructor1 "Eaction" [ pp_paction pp_type pa ]
          | Eskip -> pp_constructor1 "Eskip" []
-         | Eccall (act, f, args, ghost_args) ->
+         | Eccall (act, f, args, gargs_opt) ->
+           let ghost_args =
+             match gargs_opt with None -> [] | Some (_loc, ghost_args) -> ghost_args
+           in
            pp_constructor1
              "Eccall"
              [ pp_tuple
                  [ pp_act act;
                    pp_pexpr pp_type f;
                    pp_list (pp_pexpr pp_type) args;
-                   pp_list pp_index_term ghost_args
+                   pp_list (pp_cn_prog pp_index_term) ghost_args
                  ]
              ]
+         | Eproc (f, args) ->
+           let fn =
+             match f with
+             | Sym s -> pp_constructor1 "Sym" [ Sym.pp s ]
+             | Impl s ->
+               pp_constructor1
+                 "Impl"
+                 [ !^(CF.Implementation.string_of_implementation_constant s) ]
+           in
+           pp_constructor1 "Eproc" [ fn; pp_list (pp_pexpr pp_type) args ]
          | Elet (pat, e1, e2) ->
            pp_constructor1
              "Elet"
@@ -1847,21 +1886,16 @@ and pp_expr pp_type = function
              [ pp_tuple [ pp_pexpr pp_type c; pp_expr pp_type t; pp_expr pp_type e ] ]
          | Ebound e -> pp_constructor1 "Ebound" [ pp_expr pp_type e ]
          | End exprs -> pp_constructor1 "End" [ pp_list (pp_expr pp_type) exprs ]
-         | Erun (sym, args, its) ->
+         | Erun (sym, args) ->
            pp_constructor1
              "Erun"
-             [ pp_tuple
-                 [ pp_symbol sym;
-                   pp_list (pp_pexpr pp_type) args;
-                   pp_list pp_index_term its
-                 ]
-             ]
+             [ pp_tuple [ pp_symbol sym; pp_list (pp_pexpr pp_type) args ] ]
          | CN_progs (stmts, progs) ->
            pp_constructor1
              "CN_progs"
              [ pp_tuple
                  [ pp_list (pp_cn_statement pp_symbol pp_ctype) stmts;
-                   pp_list pp_cn_prog progs
+                   pp_list (pp_cn_prog pp_cnprog_statement) progs
                  ]
              ])
       ]
@@ -1872,10 +1906,14 @@ let pp_parse_ast_label_spec (s : parse_ast_label_spec) =
 
 
 let pp_label_def pp_type = function
-  | Return loc -> pp_constructor1 "Return" [ pp_location loc ]
-  | Label (loc, args, annots, spec, `Loop (cond_loc, loop_loc, _)) ->
+  | Non_inlined (loc, name, annot, args) ->
     pp_constructor1
-      "Label"
+      "Non_inlined"
+      [ pp_location loc; pp_symbol name; pp_label_annot annot; pp_arguments pp_unit args ]
+  | Return loc -> pp_constructor1 "Return" [ pp_location loc ]
+  | Loop (loc, args, annots, spec, `Aux_info (cond_loc, loop_loc, _)) ->
+    pp_constructor1
+      "Loop"
       [ pp_location loc;
         pp_arguments (pp_expr pp_type) args;
         pp_list pp_annot_t annots;
@@ -2035,6 +2073,7 @@ let pp_situation (s : Error_common.situation) =
   match s with
   | Error_common.Access a -> pp_constructor "ErrorCommon.Access" [ pp_access a ]
   | Error_common.Call c -> pp_constructor "ErrorCommon.Call" [ pp_call_situation c ]
+  | Error_common.Unpacking -> failwith "todo: pp_situation Unpacking"
 
 
 let pp_init = function
@@ -2190,7 +2229,10 @@ let pp_context (c : Context.t) =
       ( "Context.logical",
         pp_sym_map (pp_pair pp_basetype_or_value pp_context_l_info) c.logical );
       ( "Context.resources",
-        pp_pair (pp_list (pp_pair pp_resource pp_int)) pp_int c.resources );
+        pp_pair
+          (pp_list (pp_pair pp_resource pp_int))
+          pp_int
+          (List.map (fun re -> (re, 0)) c.resources, 0) );
       (*      ("resource_history", pp_map pp_int pp_resource_history c.resource_history); Ignore for now *)
       ( "Context.constraints",
         let l = LogicalConstraints.Set.elements c.constraints in

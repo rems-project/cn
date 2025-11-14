@@ -1,7 +1,7 @@
 module IT = IndexTerms
 module Req = Request
 
-type output = O of IT.t [@@ocaml.unboxed]
+type output = O of IT.t [@@ocaml.unboxed] [@@deriving eq]
 
 let pp_output (O t) = IT.pp t
 
@@ -9,7 +9,7 @@ type predicate = Req.Predicate.t * output
 
 type qpredicate = Req.QPredicate.t * output
 
-type t = Req.t * output
+type t = Req.t * output [@@deriving eq]
 
 let pp (r, O output) = Req.pp_aux r (Some output)
 

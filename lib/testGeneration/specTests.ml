@@ -8,30 +8,6 @@ module Utils = Fulminate.Utils
 module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 
-let debug_log_file : out_channel option ref = ref None
-
-let init_debug () =
-  if Option.is_none !debug_log_file && !Cerb_debug.debug_level > 0 then
-    debug_log_file
-    := Some
-         (let open Stdlib in
-          open_out "generatorCompilation.log")
-
-
-let debug_log (str : string) : unit =
-  init_debug ();
-  match !debug_log_file with
-  | Some oc ->
-    output_string oc str;
-    flush oc
-  | None -> ()
-
-
-let debug_stage (stage : string) (str : string) : unit =
-  debug_log (stage ^ ":\n");
-  debug_log (str ^ "\n\n")
-
-
 let compile_constant_tests
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -78,37 +54,14 @@ let compile_constant_tests
   (tests, separate (twice hardline) docs ^^ twice hardline)
 
 
-let compile_generators
-      filename
-      (sigma : CF.GenTypes.genTypeCategory A.sigma)
-      (prog5 : unit Mucore.file)
-      (tests : Test.t list)
-  : Pp.document
-  =
-  let ctx = GenCompile.compile filename prog5.resource_predicates tests in
-  debug_stage "Compile" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenInline.inline in
-  debug_stage "Inline" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenNormalize.normalize prog5 in
-  debug_stage "Normalize" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenDistribute.distribute in
-  debug_stage "Distribute" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenOptimize.optimize prog5 in
-  debug_stage "Optimize" (ctx |> GenDefinitions.pp_context |> Pp.plain ~width:80);
-  let ctx = ctx |> GenElaboration.elaborate in
-  debug_stage "Elaborated" (ctx |> GenElaboration.pp |> Pp.plain ~width:80);
-  ctx |> GenCodeGen.compile sigma
-
-
-let convert_from ((x, ct) : Sym.t * C.ctype) =
+let convert_from ((x, _ct) : Sym.t * C.ctype) =
+  (* Just return raw field access - conversions now happen in harness *)
   CF.Pp_ail.pp_expression
     (Utils.mk_expr
-       (CtA.wrap_with_convert_from
-          A.(
-            AilEmemberofptr
-              ( Utils.mk_expr (AilEident (Sym.fresh "res")),
-                CF.Symbol.Identifier (Locations.other __LOC__, Sym.pp_string x) ))
-          (Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))))
+       A.(
+         AilEmemberofptr
+           ( Utils.mk_expr (AilEident (Sym.fresh "res")),
+             CF.Symbol.Identifier (Locations.other __LOC__, Sym.pp_string x) )))
 
 
 let compile_random_test_case
@@ -159,7 +112,12 @@ let compile_random_test_case
        ())
    ^^ hardline)
   ^^ (if List.is_empty globals then
-        !^(if is_static then
+        !^(if TestGenConfig.is_symbolic_enabled () then
+             if is_static then
+               "CN_STATIC_SYMBOLIC_TEST_CASE"
+             else
+               "CN_EXTERN_SYMBOLIC_TEST_CASE"
+           else if is_static then
              "CN_STATIC_RANDOM_TEST_CASE"
            else
              "CN_EXTERN_RANDOM_TEST_CASE")
@@ -177,7 +135,7 @@ let compile_random_test_case
         ^^ parens
              (!^(String.concat
                    "_"
-                   [ "cn_gen";
+                   [ "cn_test_generator";
                      (if is_static then
                         Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string fn
                       else
@@ -203,21 +161,21 @@ let compile_random_test_case
                           (ty ^^ star)
                           ^^^ tmp_doc
                           ^^^ equals
-                          ^^^ (!^"convert_from_cn_pointer"
-                               ^^ parens (!^"res->" ^^ Sym.pp sym)
-                               ^^ semi
-                               ^^ hardline
-                               ^^ !^"cn_assume_ownership"
-                               ^^ parens
-                                    (separate
-                                       (comma ^^ space)
-                                       [ !^(Fulminate.Globals.getter_str filename sym);
-                                         !^"sizeof" ^^ parens ty;
-                                         !^"(char*)" ^^ dquotes init_name
-                                       ]))
+                          ^^^ !^"res->"
+                          ^^ Sym.pp sym
                           ^^ semi
                           ^^ hardline
-                          ^^ !^(Fulminate.Globals.setter_str filename sym)
+                          ^^ !^"cn_assume_ownership"
+                          ^^ parens
+                               (separate
+                                  (comma ^^ space)
+                                  [ !^(CtA.getter_str filename sym);
+                                    !^"sizeof" ^^ parens ty;
+                                    !^"(char*)" ^^ dquotes init_name
+                                  ])
+                          ^^ semi
+                          ^^ hardline
+                          ^^ !^(CtA.setter_str filename sym)
                           ^^ parens tmp_doc
                           ^^ semi)
                        globals)

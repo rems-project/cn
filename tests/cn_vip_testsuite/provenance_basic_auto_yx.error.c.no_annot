@@ -2,12 +2,12 @@ return code: 1
 tests/cn_vip_testsuite/provenance_basic_auto_yx.error.c:10:17: warning: experimental keyword 'to_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
                 ^~~~~~~~ 
-tests/cn_vip_testsuite/provenance_basic_auto_yx.error.c:13:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
+tests/cn_vip_testsuite/provenance_basic_auto_yx.error.c:14:17: warning: experimental keyword 'from_bytes' (use of experimental features is discouraged)
   /*CN_VIP*//*@ from_bytes RW<int*>(&p); @*/
                 ^~~~~~~~~~ 
 [1/1]: main -- fail
-tests/cn_vip_testsuite/provenance_basic_auto_yx.error.c:19:5: error: Missing resource for writing
+tests/cn_vip_testsuite/provenance_basic_auto_yx.error.c:17:5: error: Missing resource for writing
     *p = 11;  // CN VIP UB
     ~~~^~~~ 
-Resource needed: W<signed int>(copy_alloc_id((u64)value, &x))
+Resource needed: W<signed int>(value)
 State file: file:///tmp/state__provenance_basic_auto_yx.error.c__main.html

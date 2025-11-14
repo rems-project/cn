@@ -13,17 +13,25 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: "<(cn-executable)/"
+  - Regex: "<(bennet(-exp)?)/"
     Priority: 3
     SortPriority: 3
     CaseSensitive: true
-  - Regex: "<(cn-testing)/"
+  - Regex: "<(cn-executable)/"
     Priority: 3
     SortPriority: 4
     CaseSensitive: true
-  - Regex: "<(cn-replicate)/"
+  - Regex: "<(cn-testing)/"
     Priority: 3
     SortPriority: 5
+    CaseSensitive: true
+  - Regex: "<(cn-replicate)/"
+    Priority: 3
+    SortPriority: 6
+    CaseSensitive: true
+  - Regex: "<(cn-smt)/"
+    Priority: 3
+    SortPriority: 7
     CaseSensitive: true
   - Regex: "<[[:alnum:].]+>"
     Priority: 2

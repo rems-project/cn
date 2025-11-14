@@ -1,12 +1,13 @@
 # Build a minimal cerberus release image
-FROM redhat/ubi9:9.4
+FROM redhat/ubi9:9.6
 
 # Install system packages
 RUN yum update -y && \
     yum install -y xz sudo gcc unzip \
     diffutils patch pkgconfig bzip2 \
     git perl wget ca-certificates \
-    mpfr-devel gmp-devel m4
+    mpfr-devel gmp-devel m4 time python3.11 && \
+    alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 2
 
 # Install OPAM
 # See https://opam.ocaml.org/doc/1.2/Install.html

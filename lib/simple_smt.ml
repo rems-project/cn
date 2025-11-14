@@ -15,6 +15,14 @@ let is_atom (f : sexp) = match f with Sexp.Atom _ -> true | Sexp.List _ -> false
 
 let to_list (f : sexp) = match f with Sexp.Atom _ -> None | Sexp.List xs -> Some xs
 
+let to_assert = function Sexp.(List [ Atom "assert"; e ]) -> Some e | _ -> None
+
+let to_define_fun = function
+  | Sexp.List [ Atom "define-fun"; fn; List args; rbt; value ] ->
+    Some (fn, args, rbt, value)
+  | _ -> None
+
+
 (** Apply a function to some arguments. *)
 let app f args = if List.is_empty args then f else list (f :: args)
 
@@ -323,6 +331,8 @@ type solver_extensions =
   | CVC5
   | Other
 
+let string_of_solver_extension = function Z3 -> "z3" | CVC5 -> "cvc5" | Other -> "other"
+
 (** [t_set t] is the type of sets with elements of type [t]. *)
 let t_set x = app_ "Set" [ x ]
 
@@ -497,7 +507,7 @@ type solver_log =
 type solver_config =
   { exe : string;
     opts : string list;
-    params : (string * string) list;
+    setup : Sexp.t list; (* setup commands *)
     (* (parameter name * setting) list, the name without leading colon *)
     exts : solver_extensions;
     log : solver_log
@@ -550,81 +560,83 @@ let check s =
     See also {!model_eval}. *)
 let get_model s =
   let ans = s.command (list [ atom "get-model" ]) in
-  match s.config.exts with
-  | CVC5 -> ans
-  | Other -> ans
-  | Z3 ->
-    (* Workaround for https://github.com/Z3Prover/z3/issues/7270:
-       remove `as-array` *)
-    let rec drop_as_array x =
-      match x with
-      | Sexp.List [ _; Sexp.Atom "as-array"; f ] -> f
-      | Sexp.List xs -> Sexp.List (List.map drop_as_array xs)
-      | _ -> x
-    in
-    (* Workaround for https://github.com/Z3Prover/z3/issues/7268:
-       rearrange defs in dep. order *)
-    let add_binder (bound, sort_or_terms) x =
-      match x with
-      | Sexp.List [ Sexp.Atom v; sort_or_term ] ->
-        (StrSet.add v bound, sort_or_term :: sort_or_terms)
-      | _ -> raise (UnexpectedSolverResponse x)
-    in
-    let add_bound = List.fold_left add_binder in
-    let rec free bound vars x =
-      match x with
-      | Sexp.Atom a -> if StrSet.mem a bound then vars else a :: vars
-      | Sexp.List [ Sexp.Atom q; Sexp.List vs; body ]
-        when String.equal q "forall" || String.equal q "exist" ->
-        let bound, _sorts = add_bound (bound, []) vs in
-        free bound vars body
-      | Sexp.List [ Sexp.Atom q; Sexp.List vs; body ] when String.equal q "let" ->
-        let bound_and_let_vars, terms = add_bound (bound, []) vs in
-        (* According to SMTLib spec, scoping for lets is parallel by default,
-         * so we use [bound] instead of [bound_and_let_vars] when gathering the
-         * free variables of the expressions they bind*)
-        let vars = List.fold_left (free bound) vars terms in
-        free bound_and_let_vars vars body
-      | Sexp.List xs -> List.fold_left (free bound) vars xs
-    in
-    let check_def x =
-      match x with
-      | Sexp.List [ _def_fun; Sexp.Atom name; Sexp.List args; _ret; def ] ->
-        let bound, _sorts = add_bound (StrSet.empty, []) args in
-        (name, free bound [] def, x)
-      | _ -> raise (UnexpectedSolverResponse ans)
-    in
-    (match ans with
-     | Sexp.Atom _ -> raise (UnexpectedSolverResponse ans)
-     | Sexp.List xs ->
-       let defs = List.map check_def xs in
-       let add_dep mp (x, xs, e) = StrMap.add x (xs, e) mp in
-       let deps = List.fold_left add_dep StrMap.empty defs in
-       let processing = ref StrSet.empty in
-       let processed = ref StrSet.empty in
-       let decls = ref [] in
-       let rec arrange todo =
-         match todo with
-         | x :: xs ->
-           if StrSet.mem x !processed then
-             arrange xs
-           else if StrSet.mem x !processing then
-             raise (UnexpectedSolverResponse ans) (* recursive *)
-           else (
-             match StrMap.find_opt x deps with
-             | None -> arrange xs
-             | Some (ds, e) ->
-               processing := StrSet.add x !processing;
-               arrange ds;
-               processing := StrSet.remove x !processing;
-               processed := StrSet.add x !processed;
-               decls := drop_as_array e :: !decls;
-               arrange xs)
-         | [] -> ()
-       in
-       arrange (List.map (fun (x, _, _) -> x) defs);
-       list @@ List.rev !decls)
+  ans
 
+
+(* match s.config.exts with *)
+(* | CVC5 -> ans *)
+(* | Other -> ans *)
+(* | Z3 -> *)
+(*   (\* Workaround for https://github.com/Z3Prover/z3/issues/7270: *)
+(*      remove `as-array` *\) *)
+(*   let rec drop_as_array x = *)
+(*     match x with *)
+(*     | Sexp.List [ _; Sexp.Atom "as-array"; f ] -> f *)
+(*     | Sexp.List xs -> Sexp.List (List.map drop_as_array xs) *)
+(*     | _ -> x *)
+(*   in *)
+(*   (\* Workaround for https://github.com/Z3Prover/z3/issues/7268: *)
+(*      rearrange defs in dep. order *\) *)
+(*   let add_binder (bound, sort_or_terms) x = *)
+(*     match x with *)
+(*     | Sexp.List [ Sexp.Atom v; sort_or_term ] -> *)
+(*       (StrSet.add v bound, sort_or_term :: sort_or_terms) *)
+(*     | _ -> raise (UnexpectedSolverResponse x) *)
+(*   in *)
+(*   let add_bound = List.fold_left add_binder in *)
+(*   let rec free bound vars x = *)
+(*     match x with *)
+(*     | Sexp.Atom a -> if StrSet.mem a bound then vars else a :: vars *)
+(*     | Sexp.List [ Sexp.Atom q; Sexp.List vs; body ] *)
+(*       when String.equal q "forall" || String.equal q "exist" -> *)
+(*       let bound, _sorts = add_bound (bound, []) vs in *)
+(*       free bound vars body *)
+(*     | Sexp.List [ Sexp.Atom q; Sexp.List vs; body ] when String.equal q "let" -> *)
+(*       let bound_and_let_vars, terms = add_bound (bound, []) vs in *)
+(*       (\* According to SMTLib spec, scoping for lets is parallel by default, *)
+(*        * so we use [bound] instead of [bound_and_let_vars] when gathering the *)
+(*        * free variables of the expressions they bind*\) *)
+(*       let vars = List.fold_left (free bound) vars terms in *)
+(*       free bound_and_let_vars vars body *)
+(*     | Sexp.List xs -> List.fold_left (free bound) vars xs *)
+(*   in *)
+(*   let check_def x = *)
+(*     match x with *)
+(*     | Sexp.List [ _def_fun; Sexp.Atom name; Sexp.List args; _ret; def ] -> *)
+(*       let bound, _sorts = add_bound (StrSet.empty, []) args in *)
+(*       (name, free bound [] def, x) *)
+(*     | _ -> raise (UnexpectedSolverResponse ans) *)
+(*   in *)
+(*   (match ans with *)
+(*    | Sexp.Atom _ -> raise (UnexpectedSolverResponse ans) *)
+(*    | Sexp.List xs -> *)
+(*      let defs = List.map check_def xs in *)
+(*      let add_dep mp (x, xs, e) = StrMap.add x (xs, e) mp in *)
+(*      let deps = List.fold_left add_dep StrMap.empty defs in *)
+(*      let processing = ref StrSet.empty in *)
+(*      let processed = ref StrSet.empty in *)
+(*      let decls = ref [] in *)
+(*      let rec arrange todo = *)
+(*        match todo with *)
+(*        | x :: xs -> *)
+(*          if StrSet.mem x !processed then *)
+(*            arrange xs *)
+(*          else if StrSet.mem x !processing then *)
+(*            raise (UnexpectedSolverResponse ans) (\* recursive *\) *)
+(*          else ( *)
+(*            match StrMap.find_opt x deps with *)
+(*            | None -> arrange xs *)
+(*            | Some (ds, e) -> *)
+(*              processing := StrSet.add x !processing; *)
+(*              arrange ds; *)
+(*              processing := StrSet.remove x !processing; *)
+(*              processed := StrSet.add x !processed; *)
+(*              decls := drop_as_array e :: !decls; *)
+(*              arrange xs) *)
+(*        | [] -> () *)
+(*      in *)
+(*      arrange (List.map (fun (x, _, _) -> x) defs); *)
+(*      list @@ List.rev !decls) *)
 
 (** Get the values of some s-expressions. Only valid after a [Sat] result.
     Throws {!UnexpectedSolverResponse}. *)
@@ -821,10 +833,8 @@ let new_solver (cfg : solver_config) : solver =
   in
   ack_command s (set_option ":print-success" "true");
   ack_command s (set_option ":produce-models" "true");
-  List.iter
-    (fun (name, setting) -> ack_command s (set_option (":" ^ name) setting))
-    cfg.params;
-  Gc.finalise (fun me -> me.stop ()) s;
+  List.iter (ack_command s) cfg.setup;
+  (* Gc.finalise (fun me -> me.stop ()) s; *)
   s
 
 
@@ -901,14 +911,40 @@ let cvc5 : solver_config =
   { exe = "cvc5";
     (* opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_AUFBVDTLIA" ]; *)
     (* NOTE cvc5 1.2.1 renamed --sets-ext to --sets-exp *)
-    opts = [ "--incremental"; "--sets-ext"; "--force-logic=QF_ALL" ];
-    params = [];
+    opts = [ "--sets-exp"; "--force-logic=QF_ALL" ];
+    setup = [];
     exts = CVC5;
     log = quiet_log
   }
 
 
 let z3 : solver_config =
-  (* let params = [ ("sat.smt", "true") ] in *)
-  let params = [ ("smt.relevancy", "0") ] in
-  { exe = "z3"; opts = [ "-in"; "-smt2" ]; params; exts = Z3; log = quiet_log }
+  let setup =
+    [ set_option ":auto_config" "false";
+      set_option ":model.completion" "true";
+      set_option ":smt.relevancy" "0"
+      (* set_option ":sat.smt" "true"; *)
+      (* not ready for use just yet -- see Z3 github issue tracker *)
+      (* set_option ":combined_solver.solver2_timeout" "500"; *)
+      (* set_option ":combined_solver.solver2_unknown" "2"; *)
+      (* list [atom "set-simplifier"; simple_command ["then"; "simplify"; "propagate-values"; "solve-eqs";]] *)
+    ]
+  in
+  { exe = "z3"; opts = [ "-in"; "-smt2" ]; setup; exts = Z3; log = quiet_log }
+
+
+let incremental cfg =
+  match cfg.exts with
+  | Z3 -> []
+  | CVC5 -> [ set_option ":incremental" "true" ]
+  | Other -> assert false
+
+
+let timeout cfg n =
+  match cfg.exts with
+  | Z3 -> [ set_option ":timeout" (string_of_int n) ]
+  | CVC5 -> [ set_option ":tlimit-per" (string_of_int n) ]
+  | Other -> assert false
+
+
+let otimeout cfg = function None -> [] | Some n -> timeout cfg n

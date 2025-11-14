@@ -21,6 +21,7 @@ static struct hash_table* alloc_sizes;
 
 void* cn_replica_alloc_get_parent(void* ptr) {
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)ptr;
 
   size_t* old_sz = ht_get(alloc_sizes, key);
@@ -49,6 +50,7 @@ size_t cn_replica_alloc_get(void* ptr) {
   uintptr_t dist = (uintptr_t)ptr - (uintptr_t)parent;
 
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)parent;
 
   size_t* value = ht_get(alloc_sizes, key);
@@ -67,11 +69,13 @@ void cn_analyze_shape_owned(void* ptr, size_t sz) {
   sz += dist;
 
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)parent;
 
   size_t* old_sz = ht_get(alloc_sizes, key);
   if (old_sz == NULL) {
     size_t* new_sz = malloc(sizeof(size_t));
+    assert(new_sz);
     *new_sz = sz;
 
     ht_set(alloc_sizes, key, new_sz);
@@ -103,6 +107,7 @@ static const char* cn_replicate_get(void* p) {
   p = cn_replica_alloc_get_parent(p);
 
   int64_t* key = malloc(sizeof(int64_t));
+  assert(key);
   *key = (int64_t)p;
 
   char* name = ht_get(allocated, key);
@@ -113,7 +118,8 @@ static const char* cn_replicate_get(void* p) {
   }
 
   name = malloc(22);
-  sprintf(name, "p%d", pointer_count++);
+  assert(name);
+  snprintf(name, 22, "p%d", pointer_count++);
 
   ht_set(allocated, key, name);
   free(key);
@@ -121,8 +127,10 @@ static const char* cn_replicate_get(void* p) {
   size_t sz = cn_replica_alloc_get(p);
   assert(sz != -1);
 
-  char* buf = malloc(6 + strlen(name) + 10 + 20 + 3);
-  sprintf(buf, "void* %s = malloc(%" PRIuPTR ");", name, sz);
+  size_t bytes = 6 + strlen(name) + 10 + 20 + 3;
+  char* buf = malloc(bytes);
+  assert(buf);
+  snprintf(buf, bytes, "void* %s = malloc(%" PRIuPTR ");", name, sz);
 
   cn_replica_lines_append(buf);
 
@@ -130,8 +138,10 @@ static const char* cn_replicate_get(void* p) {
 }
 
 void cn_replicate_owned(char* addr_str, char* value_str) {
-  char* buf = malloc(strlen(addr_str) + 3 + strlen(value_str) + 3);
-  sprintf(buf, "%s = %s;", addr_str, value_str);
+  size_t bytes = strlen(addr_str) + 3 + strlen(value_str) + 3;
+  char* buf = malloc(bytes);
+  assert(buf);
+  snprintf(buf, bytes, "%s = %s;", addr_str, value_str);
 
   cn_replica_lines_append(buf);
 }
@@ -141,14 +151,16 @@ char* cn_replicate_owned_cn_pointer_aux(cn_pointer* q) {
 
   if (p == NULL) {
     char* buf = malloc(5);
-    sprintf(buf, "NULL");
+    assert(buf);
+    snprintf(buf, 5, "NULL");
     return buf;
   }
 
   size_t sz = cn_replica_alloc_get(p);
   if (sz == -1) {
     char* buf = malloc(24);
-    sprintf(buf, "%" PRIxPTR, (uintptr_t)p);
+    assert(buf);
+    snprintf(buf, 24, "%" PRIxPTR, (uintptr_t)p);
     return buf;
   }
 
@@ -159,13 +171,17 @@ char* cn_replicate_owned_cn_pointer_aux(cn_pointer* q) {
   assert(name != NULL);
 
   if (dist == 0) {
-    char* buf = malloc(11 + strlen(name) + 1);
-    sprintf(buf, "%s", name);
+    size_t bytes = 11 + strlen(name) + 1;
+    char* buf = malloc(bytes);
+    assert(buf);
+    snprintf(buf, bytes, "%s", name);
     return buf;
   }
 
-  char* buf = malloc(12 + strlen(name) + 3 + 24 + 2);
-  sprintf(buf, "((uintptr_t)%s + %" PRIxPTR ")", name, dist);
+  size_t bytes = 12 + strlen(name) + 3 + 24 + 2;
+  char* buf = malloc(bytes);
+  assert(buf);
+  snprintf(buf, bytes, "((uintptr_t)%s + %" PRIxPTR ")", name, dist);
   return buf;
 }
 
@@ -175,7 +191,7 @@ static void init_decimal_places() {
   if (!decimal_places) {
     uintmax_t count = UINTMAX_MAX;
 
-    int log = 0;
+    int log = 1;
     while (count > 0) {
       count /= 10;
       log++;
@@ -188,8 +204,11 @@ static void init_decimal_places() {
   char* cn_replicate_owned_cn_bits_##ty##_aux(cn_pointer* p) {                           \
     init_decimal_places();                                                               \
                                                                                          \
-    char* buf = malloc(decimal_places);                                                  \
-    sprintf(buf,                                                                         \
+    size_t bytes = decimal_places + 1;                                                   \
+    char* buf = malloc(bytes);                                                           \
+    assert(buf);                                                                         \
+    snprintf(buf,                                                                        \
+        bytes,                                                                           \
         "%" PRI##ty,                                                                     \
         convert_from_cn_bits_##ty((cn_bits_##ty*)convert_from_cn_pointer(p)));           \
     return buf;                                                                          \
@@ -209,8 +228,8 @@ CN_REPLICATE_BITS(u64);
 
 void cn_replica_alloc_reset(void) {
   // First pass
-  alloc_sizes = ht_create();
+  alloc_sizes = ht_create(&fulm_default_alloc);
 
   // Second pass
-  allocated = ht_create();
+  allocated = ht_create(&fulm_default_alloc);
 }

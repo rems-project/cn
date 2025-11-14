@@ -1,0 +1,9 @@
+(include_subdirs qualified)
+
+(test
+ (name test_runner)
+ (deps
+  (package cn))
+ (libraries cn ounit2 qcheck qcheck-ounit zarith)
+ (action
+  (run ./test_runner.exe)))

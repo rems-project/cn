@@ -38,7 +38,10 @@ function exits_with_code() {
   local -a expected_exit_codes=$3
 
   printf "[%s]...\n" "$file"
-  timeout 60 "${action}" "$file"
+  # ${action} can be either "cn verify" or "make -C"
+  # both must be split as words intentionally
+  # shellcheck disable=SC2086
+  timeout 60 ${action} "$file"
   local result=$?
 
   for code in "${expected_exit_codes[@]}"; do

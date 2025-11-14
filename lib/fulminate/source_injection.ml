@@ -75,6 +75,24 @@ type state =
     last_indent : int
   }
 
+type precedence =
+  | Normal of int
+  | Cartesian of (bool * int * int)
+
+let compare_precedence p1 p2 =
+  match (p1, p2) with
+  | Normal x, Normal y -> Stdlib.compare x y
+  | Normal _, Cartesian _ -> -1
+  | Cartesian _, Normal _ -> 1
+  | Cartesian (true, _, _), Cartesian (false, _, _) -> -1
+  | Cartesian (false, _, _), Cartesian (true, _, _) -> 1
+  | Cartesian (s, x1, y1), Cartesian (_, x2, y2) ->
+    let coef = if s then -1 else 1 in
+    let cmp = Stdlib.compare x1 x2 in
+    let r = if cmp = 0 then Stdlib.compare y1 y2 else cmp in
+    coef * r
+
+
 let ident_of_line str =
   let rec aux i =
     match String.get str i with
@@ -158,7 +176,7 @@ let move_to ?(print = true) ?(no_ident = false) st pos =
 (* Various kinds of edits we can perform *)
 type injection_kind =
   (* Inject a statement in a function *)
-  | InStmt of int * string
+  | InStmt of precedence * int * string
   (* | Return of (Pos.t * Pos.t) option *)
   (* | Return of Pos.t option *)
 
@@ -196,7 +214,7 @@ let inject st inj =
   let st, _ = move_to st inj.footprint.start_pos in
   let st =
     match inj.kind with
-    | InStmt (_, str) ->
+    | InStmt (_, _, str) ->
       let st, _ = move_to ~no_ident:true ~print:false st inj.footprint.end_pos in
       do_output st str
     | Pre (strs, ret_ty, is_main) ->
@@ -209,7 +227,6 @@ let inject st inj =
          ^ indent
          ^ "/* EXECUTABLE CN PRECONDITION */"
          ^ "\n"
-         ^ "cn_bump_frame_id cn_frame_id = cn_bump_get_frame_id();\n"
          ^ indent
          ^ (if CF.AilTypesAux.is_void ret_ty then
               ""
@@ -246,12 +263,13 @@ let inject st inj =
          ^ indent
          ^ "/* EXECUTABLE CN POSTCONDITION */"
          ^ "\n__cn_epilogue:\n"
+         ^ (if List.is_empty strs then indent ^ ";\n" else "")
          ^ str
          ^
          if CF.AilTypesAux.is_void ret_ty then
-           indent ^ ";\n"
+           ""
          else
-           indent ^ "\ncn_bump_free_after(cn_frame_id);\n" ^ "\nreturn __cn_ret;\n\n")
+           indent ^ "\nreturn __cn_ret;\n\n")
     | DeleteMain pre ->
       if pre then do_output st "\n#if 0\n" else do_output st "\n#endif\n"
     | WrapStatic (prefix, decl) ->
@@ -319,11 +337,17 @@ let inject st inj =
 
 let sort_injects xs =
   let cmp inj1 inj2 =
-    let c = Pos.compare inj1.footprint.start_pos inj2.footprint.start_pos in
-    if c = 0 then
-      Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos
+    let c_start = Pos.compare inj1.footprint.start_pos inj2.footprint.start_pos in
+    let c_end = Pos.compare inj1.footprint.end_pos inj2.footprint.end_pos in
+    let c_precedence =
+      match (inj1.kind, inj2.kind) with
+      | InStmt (n1, _, _), InStmt (n2, _, _) -> compare_precedence n1 n2
+      | _ -> 0
+    in
+    if c_start = 0 then
+      if c_end = 0 then c_precedence else c_end
     else
-      c
+      c_start
   in
   let xs = List.sort cmp xs in
   (* List.iteri (fun i inj -> Printf.fprintf stderr "\x1b[35m[%d] -> %s @ %s\x1b[0\n" i
@@ -372,7 +396,7 @@ let _posOf_stmt stmt =
 
 let in_stmt_injs xs num_headers =
   mapM
-    (fun (loc, strs) ->
+    (fun (precedence, (loc, strs)) ->
        let* start_pos, end_pos = Pos.of_location loc in
        let num_headers = if num_headers != 0 then num_headers + 1 else num_headers in
        (* Printf.fprintf stderr "IN_STMT_INJS[%s], start: %s -- end: %s ---> [%s]\n"
@@ -384,7 +408,7 @@ let in_stmt_injs xs num_headers =
              { start_pos = Pos.increment_line start_pos num_headers;
                end_pos = Pos.v (end_pos.line + num_headers) end_pos.col
              };
-           kind = InStmt (List.length strs, String.concat "\n" strs)
+           kind = InStmt (precedence, List.length strs, String.concat "\n" strs)
          })
     xs
 
@@ -433,7 +457,9 @@ let return_injs xs =
                ({ footprint = { start_pos; end_pos };
                   kind =
                     InStmt
-                      (1, String.concat "" ("{ " :: inj_strs) ^ "goto __cn_epilogue; }\n")
+                      ( Normal 0,
+                        1,
+                        String.concat "" ("{ " :: inj_strs) ^ "goto __cn_epilogue; }\n" )
                 }
                 :: acc)
            | Some e ->
@@ -441,12 +467,14 @@ let return_injs xs =
              let* e_start_pos, e_end_pos = Pos.of_location loc in
              Ok
                ({ footprint = { start_pos; end_pos = e_start_pos };
-                  kind = InStmt (1, "{ __cn_ret = ")
+                  kind = InStmt (Normal 0, 1, "{ __cn_ret = ")
                 }
                 :: { footprint = { start_pos = e_end_pos; end_pos };
                      kind =
                        InStmt
-                         (1, "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }")
+                         ( Normal 0,
+                           1,
+                           "; " ^ String.concat "" inj_strs ^ "goto __cn_epilogue; }" )
                    }
                 :: acc)
          in
@@ -487,7 +515,7 @@ type 'a cn_injection =
     program : 'a A.ail_program;
     static_funcs : Sym.Set.t;
     pre_post : (Sym.t * (string list * string list)) list;
-    in_stmt : (Cerb_location.t * string list) list;
+    in_stmt : (precedence * (Cerb_location.t * string list)) list;
     returns : (Cerb_location.t * ('a A.expression option * string list)) list;
     inject_in_preproc : bool;
     with_testing : bool

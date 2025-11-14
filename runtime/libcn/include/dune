@@ -10,25 +10,89 @@
 
 (install
  (files
-  ;
-  (cn-executable/alloc.h as runtime/include/cn-executable/alloc.h)
+  ; Fulminate
+  (cn-executable/bump_alloc.h as runtime/include/cn-executable/bump_alloc.h)
+  (cn-executable/fulminate_alloc.h
+   as
+   runtime/include/cn-executable/fulminate_alloc.h)
   (cn-executable/hash_table.h as runtime/include/cn-executable/hash_table.h)
   (cn-executable/utils.h as runtime/include/cn-executable/utils.h)
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
-  ;
-  (cn-testing/alloc.h as runtime/include/cn-testing/alloc.h)
-  (cn-testing/backtrack.h as runtime/include/cn-testing/backtrack.h)
-  (cn-testing/dsl.h as runtime/include/cn-testing/dsl.h)
+  (cn-executable/stack.h as runtime/include/cn-executable/stack.h)
+  ; Bennet
+  (bennet/prelude.h as runtime/include/bennet/prelude.h)
+  (bennet/dsl/arbitrary.h as runtime/include/bennet/dsl/arbitrary.h)
+  (bennet/dsl/assert.h as runtime/include/bennet/dsl/assert.h)
+  (bennet/dsl/assign.h as runtime/include/bennet/dsl/assign.h)
+  (bennet/dsl/backtrack.h as runtime/include/bennet/dsl/backtrack.h)
+  (bennet/dsl.h as runtime/include/bennet/dsl.h)
+  (bennet/info/backtracks.h as runtime/include/bennet/info/backtracks.h)
+  (bennet/info/discards.h as runtime/include/bennet/info/discards.h)
+  (bennet/info/unsatisfied.h as runtime/include/bennet/info/unsatisfied.h)
+  (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
+  (bennet/info/timing.h as runtime/include/bennet/info/timing.h)
+  (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
+  (bennet/internals/domains/ownership.h
+   as
+   runtime/include/bennet/internals/domains/ownership.h)
+  (bennet/internals/domains/products.h
+   as
+   runtime/include/bennet/internals/domains/products.h)
+  (bennet/internals/domains/sized.h
+   as
+   runtime/include/bennet/internals/domains/sized.h)
+  (bennet/internals/domains/tnum.h
+   as
+   runtime/include/bennet/internals/domains/tnum.h)
+  (bennet/internals/domains/trivial.h
+   as
+   runtime/include/bennet/internals/domains/trivial.h)
+  (bennet/internals/domains/wint.h
+   as
+   runtime/include/bennet/internals/domains/wint.h)
+  (bennet/internals/domain.h as runtime/include/bennet/internals/domain.h)
+  (bennet/internals/rand.h as runtime/include/bennet/internals/rand.h)
+  (bennet/internals/size.h as runtime/include/bennet/internals/size.h)
+  (bennet/internals/urn.h as runtime/include/bennet/internals/urn.h)
+  (bennet/state/alloc.h as runtime/include/bennet/state/alloc.h)
+  (bennet/state/checkpoint.h as runtime/include/bennet/state/checkpoint.h)
+  (bennet/state/failure.h as runtime/include/bennet/state/failure.h)
+  (bennet/state/rand_alloc.h as runtime/include/bennet/state/rand_alloc.h)
+  (bennet/utils.h as runtime/include/bennet/utils.h)
+  (bennet/utils/hash_table.h as runtime/include/bennet/utils/hash_table.h)
+  (bennet/utils/optional.h as runtime/include/bennet/utils/optional.h)
+  (bennet/utils/vector.h as runtime/include/bennet/utils/vector.h)
+  ; CN Testing
   (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
-  (cn-testing/rand.h as runtime/include/cn-testing/rand.h)
   (cn-testing/result.h as runtime/include/cn-testing/result.h)
-  (cn-testing/size.h as runtime/include/cn-testing/size.h)
   (cn-testing/test.h as runtime/include/cn-testing/test.h)
-  (cn-testing/uniform.h as runtime/include/cn-testing/uniform.h)
-  (cn-testing/urn.h as runtime/include/cn-testing/urn.h)
-  ;
-  (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h)
-  (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h))
+  ; CN SMT
+  (cn-smt/branch_history.h as runtime/include/cn-smt/branch_history.h)
+  (cn-smt/concretize.h as runtime/include/cn-smt/concretize.h)
+  (cn-smt/context.h as runtime/include/cn-smt/context.h)
+  (cn-smt/eval.h as runtime/include/cn-smt/eval.h)
+  (cn-smt/from_smt.h as runtime/include/cn-smt/from_smt.h)
+  (cn-smt/functions.h as runtime/include/cn-smt/functions.h)
+  (cn-smt/gather.h as runtime/include/cn-smt/gather.h)
+  (cn-smt/path_selector.h as runtime/include/cn-smt/path_selector.h)
+  (cn-smt/prelude.h as runtime/include/cn-smt/prelude.h)
+  (cn-smt/sexp.h as runtime/include/cn-smt/sexp.h)
+  (cn-smt/solver.h as runtime/include/cn-smt/solver.h)
+  (cn-smt/structs.h as runtime/include/cn-smt/structs.h)
+  (cn-smt/records.h as runtime/include/cn-smt/records.h)
+  (cn-smt/datatypes.h as runtime/include/cn-smt/datatypes.h)
+  (cn-smt/subst.h as runtime/include/cn-smt/subst.h)
+  (cn-smt/terms.h as runtime/include/cn-smt/terms.h)
+  (cn-smt/to_smt.h as runtime/include/cn-smt/to_smt.h)
+  (cn-smt/trie.h as runtime/include/cn-smt/trie.h)
+  (cn-smt/memory/arena.h as runtime/include/cn-smt/memory/arena.h)
+  (cn-smt/memory/intern.h as runtime/include/cn-smt/memory/intern.h)
+  (cn-smt/memory/std_alloc.h as runtime/include/cn-smt/memory/std_alloc.h)
+  (cn-smt/memory/test_alloc.h as runtime/include/cn-smt/memory/test_alloc.h)
+  ; Counterexample program synthesis prototype
+  (cn-replicate/lines.h as runtime/include/cn-replicate/lines.h)
+  (cn-replicate/prelude.h as runtime/include/cn-replicate/prelude.h)
+  (cn-replicate/shape.h as runtime/include/cn-replicate/shape.h))
  (section lib)
  (package cn))

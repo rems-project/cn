@@ -84,12 +84,6 @@ let define_test_flags () =
        |> Option.map (fun sizing_strategy -> [ "--sizing-strategy"; sizing_strategy ])
        |> Option.to_list
        |> List.flatten)
-    @ (if Config.is_sized_null () then [ "--sized-null" ] else [])
-    @ (Config.has_allowed_depth_failures ()
-       |> Option.map (fun allowed_depth_failures ->
-         [ "--allowed-depth-failures"; string_of_int allowed_depth_failures ])
-       |> Option.to_list
-       |> List.flatten)
     @ (Config.has_allowed_size_split_backtracks ()
        |> Option.map (fun allowed_size_split_backtracks ->
          [ "--allowed-size-split-backtracks";
@@ -100,10 +94,62 @@ let define_test_flags () =
     @ (if Config.is_trap () then [ "--trap" ] else [])
     @ (if Config.has_no_replays () then [ "--no-replays" ] else [])
     @ (if Config.has_no_replicas () then [ "--no-replicas" ] else [])
-    @
-    match Config.get_output_tyche () with
-    | Some file -> [ "--output-tyche"; file ]
-    | None -> []
+    @ (match Config.get_output_tyche () with
+       | Some file -> [ "--output-tyche"; file ]
+       | None -> [])
+    @ (if Config.will_print_size_info () then [ "--print-size-info" ] else [])
+    @ (if Config.will_print_backtrack_info () then
+         [ "--print-backtrack-info" ]
+       else
+         [])
+    @ (if Config.will_print_satisfaction_info () then
+         [ "--print-satisfaction-info" ]
+       else
+         [])
+    @ (if Config.will_print_discard_info () then
+         [ "--print-discard-info" ]
+       else
+         [])
+    @ (if Config.will_print_timing_info () then [ "--print-timing-info" ] else [])
+    @ (if Config.is_smt_pruning_at_runtime () then
+         [ "--smt-pruning-at-runtime" ]
+       else
+         [])
+    @ (if Config.is_use_solver_eval () then
+         [ "--use-solver-eval" ]
+       else
+         [])
+    @ (if Config.is_smt_skew_pointer_order () then
+         [ "--smt-skew-pointer-order" ]
+       else
+         [])
+    @ (let mode_str =
+         match Config.get_smt_skewing_mode () with
+         | Config.Uniform -> "uniform"
+         | Config.Sized -> "sized"
+         | Config.None -> "none"
+       in
+       [ "--smt-skewing"; mode_str ])
+    @ (Config.get_smt_logging ()
+       |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
+       |> Option.to_list
+       |> List.flatten)
+    @ (Config.get_smt_log_unsat_cores ()
+       |> Option.map (fun log_file -> [ "--smt-log-unsat-cores"; log_file ])
+       |> Option.to_list
+       |> List.flatten)
+    @ (Config.has_max_bump_blocks ()
+       |> Option.map (fun n -> [ "--max-bump-blocks"; string_of_int n ])
+       |> Option.to_list
+       |> List.flatten)
+    @ (Config.has_bump_block_size ()
+       |> Option.map (fun n -> [ "--bump-block-size"; string_of_int n ])
+       |> Option.to_list
+       |> List.flatten)
+    @ (Config.has_max_input_alloc ()
+       |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
+       |> Option.to_list
+       |> List.flatten)
   in
   !^"TEST_FLAGS := " ^^ separate_map space string flags ^^ hardline
 
@@ -133,7 +179,7 @@ let coverage_rules ~filename_base =
 
 
 let rules ~filename_base =
-  !^".PHONY: all compile link run test clean coverage"
+  !^".PHONY: all compile test clean"
   ^^ twice hardline
   ^^ !^"# Run tests"
   ^^ hardline
@@ -144,7 +190,7 @@ let rules ~filename_base =
   ^^ hardline
   ^^ !^"\t./$< $(TEST_FLAGS)"
   ^^ (if Config.is_coverage () then
-        coverage_rules ~filename_base
+        hardline ^^ coverage_rules ~filename_base
       else
         twice hardline)
   ^^ !^"# Compilation rules"
@@ -178,8 +224,19 @@ let rules ~filename_base =
   ^^ !^"\t@"
   ^^ !^(if Config.is_print_steps () then "echo \"Linking object files\"" else ":")
   ^^ hardline
-  ^^ !^"\t$(CC) -o $@ $^ $(RUNTIME_PREFIX)/libcn_exec.a $(RUNTIME_PREFIX)/libcn_test.a \
-        $(RUNTIME_PREFIX)/libcn_replica.a $(CFLAGS_TEST)"
+  ^^ !^(String.concat
+          " "
+          [ "\t$(CC)";
+            "-o";
+            "$@";
+            "$^";
+            "$(RUNTIME_PREFIX)/libcn_test.a";
+            "$(RUNTIME_PREFIX)/libbennet.a";
+            "\"${RUNTIME_PREFIX}/libcn_smt.a\"";
+            "$(RUNTIME_PREFIX)/libcn_replica.a";
+            "$(RUNTIME_PREFIX)/libcn_exec.a";
+            "$(CFLAGS_TEST)"
+          ])
   ^^ twice hardline
 
 

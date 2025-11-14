@@ -1,5 +1,6 @@
 type t =
   { (* Compile time *)
+    cc : string;
     print_steps : bool;
     disable_shrink : bool;
     num_calls : int;
@@ -20,8 +21,11 @@ let instance = ref default
 
 let initialize (cfg : t) = instance := cfg
 
+let get_cc () = !instance.cc
+
 let is_print_steps () = !instance.print_steps
 
+let get_num_calls () = !instance.num_calls
 let get_num_calls () = !instance.num_calls
 
 let get_max_backtracks () = !instance.max_backtracks

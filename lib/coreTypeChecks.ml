@@ -35,12 +35,19 @@ let check_against_core_bt core_bt cn_bt =
   let rec check_object_type = function
     | OTy_integer, BT.Integer -> return ()
     | OTy_integer, BT.Bits _ -> return ()
+    | OTy_integer, BT.Option MemByte -> return ()
     | OTy_pointer, BT.Loc () -> return ()
     | OTy_array t, BT.Map (param_t, t2) ->
       let@ () = check_object_type (OTy_integer, param_t) in
       check_object_type (t, t2)
     | OTy_struct tag, BT.Struct tag2 when Sym.equal tag tag2 -> return ()
-    | OTy_union _tag, _ -> fail (Pp.string "unsupported: union types")
+    | (OTy_union _tag as core_obj_ty), bt ->
+      if !Sym.experimental_unions then (
+        match bt with
+        | Map (_, Option MemByte) -> return ()
+        | _ -> mismatch (BTy_object core_obj_ty) bt)
+      else
+        fail (Pp.string "unsupported: union types")
     | OTy_floating, _ -> fail (Pp.string "unsupported: floats")
     | core_obj_ty, bt -> mismatch (BTy_object core_obj_ty) bt
   in

@@ -80,6 +80,7 @@ type ctype =
       (qualifiers * ctype)
       * (ctype * (* is_register *) bool) list
       * (* is_variadic *) bool
+  | Byte
 [@@deriving eq, ord]
 
 type t = ctype
@@ -134,6 +135,8 @@ let char_ct = Integer Char
 
 let uchar_ct = Integer (Unsigned Ichar)
 
+let byte_ct = Byte
+
 let rec to_ctype (ct_ : ctype) =
   let ct_ =
     match ct_ with
@@ -142,6 +145,7 @@ let rec to_ctype (ct_ : ctype) =
     | Array (t, oi) -> Array (to_ctype t, Option.map Z.of_int oi)
     | Pointer t -> Pointer (Ctype.no_qualifiers, to_ctype t)
     | Struct t -> Struct t
+    | Byte -> Byte
     | Function ((ret_q, ret_ct), args, variadic) ->
       let args =
         List.map
@@ -154,7 +158,7 @@ let rec to_ctype (ct_ : ctype) =
   Ctype ([], ct_)
 
 
-let rec of_ctype (Ctype.Ctype (_, ct_)) =
+let rec of_ctype (Ctype.Ctype (_, ct_) as ct) =
   let open Option in
   match ct_ with
   | Ctype.Void -> return Void
@@ -184,7 +188,14 @@ let rec of_ctype (Ctype.Ctype (_, ct_)) =
     return (Pointer t)
   | Ctype.Atomic _ -> None
   | Ctype.Struct s -> return (Struct s)
-  | Union _ -> fail
+  | Byte -> return Byte
+  | Union _ ->
+    let int_of_ival iv = Z.to_int (Option.get (Mem.eval_integer_value iv)) in
+    let size = int_of_ival (Impl_mem.sizeof_ival ct) in
+    if !Sym.experimental_unions then
+      return (Array (Byte, Some size))
+    else
+      fail
 
 
 let of_ctype_unsafe loc ct =

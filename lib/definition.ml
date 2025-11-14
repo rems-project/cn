@@ -125,6 +125,14 @@ module Clause = struct
       (new_negated, cur)
     in
     snd (List.fold_left_map comb (IT.bool_ true here) cs)
+
+
+  let free_vars (c : t) : Sym.Set.t =
+    Sym.Set.union (IT.free_vars c.guard) (LAT.free_vars IT.free_vars c.packing_ft)
+
+
+  let free_vars_list (cs : t list) : Sym.Set.t =
+    cs |> List.map free_vars |> List.fold_left Sym.Set.union Sym.Set.empty
 end
 
 module Predicate = struct
@@ -133,8 +141,19 @@ module Predicate = struct
       pointer : Sym.t;
       iargs : (Sym.t * BaseTypes.t) list;
       oarg : Locations.t * BaseTypes.t;
-      clauses : Clause.t list option
+      clauses : Clause.t list option;
+      recursive : bool;
+      attrs : Id.t list
     }
+
+  let is_nounfold def =
+    let here = Locations.other __LOC__ in
+    List.mem Id.equal (Id.make here "nounfold") def.attrs
+
+
+  let is_multiclause def =
+    match def.clauses with Some (_ :: _ :: _) -> true | _ -> false
+
 
   let pp def =
     let open Pp in
@@ -193,6 +212,12 @@ module Predicate = struct
     | Some [] -> true
     | Some [ _ ] -> true
     | _ -> false
+
+
+  let free_vars (def : t) : Sym.Set.t =
+    let vars_in_body = def.clauses |> Option.value ~default:[] |> Clause.free_vars_list in
+    let args = def.iargs |> List.map fst |> List.cons def.pointer |> Sym.Set.of_list in
+    Sym.Set.diff vars_in_body args
 end
 
 let alloc =
@@ -201,7 +226,9 @@ let alloc =
       pointer = Sym.fresh "ptr";
       iargs = [];
       oarg = (Locations.other __LOC__, Alloc.History.value_bt);
-      clauses = None
+      clauses = None;
+      recursive = false;
+      attrs = []
     }
 
 

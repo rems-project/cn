@@ -4,7 +4,9 @@ open Cn
 
 let verify
       filename
+      cc
       macros
+      permissive
       incl_dirs
       incl_files
       loc_pp
@@ -24,20 +26,23 @@ let verify
       only
       skip
       csv_times
-      log_times
       solver_logging
       solver_flags
       solver_path
       solver_type
+      solver_inc_enabled
+      solver_inc_timeout
       astprints
       dont_use_vip
-      no_use_ity
       fail_fast
       quiet
       no_inherit_loc
       magic_comment_char_dollar
+      allow_split_magic_comments
       disable_resource_derived_constraints
       try_hard
+      disable_unfold_multiclause_preds
+      check_consistency
   =
   if json then (
     if debug_level > 0 then
@@ -59,18 +64,21 @@ let verify
   Solver.solver_type := solver_type;
   Solver.solver_flags := solver_flags;
   Solver.try_hard := try_hard;
-  Check.skip_and_only := (skip, only);
+  Solver.inc_enabled := solver_inc_enabled;
+  Solver.inc_timeout := solver_inc_timeout;
   IndexTerms.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
-  WellTyped.use_ity := not no_use_ity;
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
+  Typing.unfold_multiclause_preds := not disable_unfold_multiclause_preds;
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
+    ~cc
     ~macros:(("__CN_VERIFY", None) :: macros)
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~coq_export_file
@@ -78,17 +86,23 @@ let verify
     ~coq_proof_log
     ~coq_check_proof_log
     ~csv_times
-    ~log_times
     ~astprints
     ~no_inherit_loc
     ~magic_comment_char_dollar
+    ~allow_split_magic_comments
     ~save_cpp:None
     ~disable_linemarkers:false
+    ~skip_label_inlining:false
     ~handle_error:(Common.handle_type_error ~json ?output_dir ~serialize_json:json_trace)
     ~f:(fun ~cabs_tunit:_ ~prog5:_ ~ail_prog:_ ~statement_locs:_ ~paused ->
       let check (functions, global_var_constraints, lemmas) =
         let open Typing in
-        let@ errors = Check.time_check_c_functions (global_var_constraints, functions) in
+        let@ errors =
+          Check.time_check_c_functions
+            (skip, only)
+            check_consistency
+            (global_var_constraints, functions)
+        in
         if not quiet then
           List.iter
             (fun (fn, err) ->
@@ -158,6 +172,21 @@ module Flags = struct
       & info [ "solver-type" ] ~docv:"z3|cvc5" ~doc)
 
 
+  let solver_inc_enabled =
+    let doc = "Enable or disable incremental SMT solving." in
+    Arg.(value & opt bool !Solver.inc_enabled & info [ "incremental-solving" ] ~doc)
+
+
+  let solver_inc_timeout =
+    let doc =
+      "Timeout after which a non-incremental SMT solver replaces the incremental solver"
+    in
+    Arg.(
+      value
+      & opt (some int) !Solver.inc_timeout
+      & info [ "incremental-solver-timeout" ] ~doc)
+
+
   let try_hard =
     let doc = "Try undecidable SMT solving using full set of assumptions" in
     Arg.(value & flag & info [ "try-hard" ] ~doc)
@@ -197,6 +226,20 @@ module Flags = struct
   let disable_resource_derived_constraints =
     let doc = "disable resource-derived constraints" in
     Arg.(value & flag & info [ "disable-resource-derived-constraints" ] ~doc)
+
+
+  let disable_unfold_multiclause_preds =
+    let doc =
+      "do not automatically unfold predicates with multiple (if-then-else) clauses"
+    in
+    Arg.(value & flag & info [ "disable-multiclause-predicate-unfolding" ] ~doc)
+
+
+  let check_consistency =
+    let doc =
+      "check consistency of predicate definitions, function specifications, and lemmas"
+    in
+    Arg.(value & flag & info [ "check-consistency" ] ~doc)
 end
 
 module Lemma_flags = struct
@@ -233,7 +276,9 @@ let verify_t : unit Term.t =
   let open Term in
   const verify
   $ Common.Flags.file
+  $ Common.Flags.cc
   $ Common.Flags.macros
+  $ Common.Flags.permissive
   $ Common.Flags.incl_dirs
   $ Common.Flags.incl_files
   $ Flags.loc_pp
@@ -253,20 +298,23 @@ let verify_t : unit Term.t =
   $ Flags.only
   $ Flags.skip
   $ Common.Flags.csv_times
-  $ Common.Flags.log_times
   $ Flags.solver_logging
   $ Flags.solver_flags
   $ Flags.solver_path
   $ Flags.solver_type
+  $ Flags.solver_inc_enabled
+  $ Flags.solver_inc_timeout
   $ Common.Flags.astprints
   $ Flags.dont_use_vip
-  $ Common.Flags.no_use_ity
   $ Flags.fail_fast
   $ Flags.quiet
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar
+  $ Common.Flags.allow_split_magic_comments
   $ Flags.disable_resource_derived_constraints
   $ Flags.try_hard
+  $ Flags.disable_unfold_multiclause_preds
+  $ Flags.check_consistency
 
 
 let cmd =

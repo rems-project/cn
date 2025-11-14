@@ -39,11 +39,11 @@ let unfolded_array loc init (ict, olength) pointer =
     }
 
 
-let packing_ft loc global provable ret =
+let packing_ft ~full loc global provable ret =
   match ret with
   | P ret ->
     (match ret.name with
-     | Owned ((Void | Integer _ | Pointer _ | Function _), _init) -> None
+     | Owned ((Void | Integer _ | Pointer _ | Function _ | Byte), _init) -> None
      | Owned ((Array (ict, olength) as ct), init) ->
        let qpred = unfolded_array loc init (ict, olength) ret.pointer in
        let o_s, o = IT.fresh_named (Memory.bt_of_sct ct) "value" loc in
@@ -92,16 +92,19 @@ let packing_ft loc global provable ret =
        Some at
      | PName pn ->
        let def = Sym.Map.find pn global.resource_predicates in
-       (match Predicate.identify_right_clause provable def ret.pointer ret.iargs with
-        | None -> None
-        | Some right_clause -> Some right_clause.packing_ft))
+       if (not full) && (Predicate.is_multiclause def || Predicate.is_nounfold def) then
+         None
+       else (
+         match Predicate.identify_right_clause provable def ret.pointer ret.iargs with
+         | None -> None
+         | Some right_clause -> Some right_clause.packing_ft))
   | Q _ -> None
 
 
 let unpack_owned loc global (ct, init) pointer (O o) =
   let open Sctypes in
   match ct with
-  | Void | Integer _ | Pointer _ | Function _ -> None
+  | Void | Integer _ | Pointer _ | Function _ | Byte -> None
   | Array (ict, olength) -> Some [ (unfolded_array loc init (ict, olength) pointer, O o) ]
   | Struct tag ->
     let layout = Sym.Map.find tag global.Global.struct_decls in
@@ -137,19 +140,19 @@ let unpack_owned loc global (ct, init) pointer (O o) =
     Some res
 
 
-let unpack loc global provable (ret, O o) =
+let unpack ~full loc global provable (ret, O o) =
   match ret with
   | P { name = Owned (ct, init); pointer; iargs = [] } ->
     (match unpack_owned loc global (ct, init) pointer (O o) with
      | None -> None
      | Some re -> Some (`RES re))
   | _ ->
-    (match packing_ft loc global provable ret with
+    (match packing_ft ~full loc global provable ret with
      | None -> None
      | Some packing_ft -> Some (`LRT (Definition.Clause.lrt o packing_ft)))
 
 
-let extractable_one (* global *) prove_or_model (predicate_name, index) (ret, O o) =
+let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
   (* let tmsg hd tail =  *)
   (*   if verb *)
   (*   then Pp.print stdout (Pp.item hd (Request.pp ret ^^ Pp.hardline ^^ *)
@@ -162,7 +165,7 @@ let extractable_one (* global *) prove_or_model (predicate_name, index) (ret, O 
          && BT.equal (IT.get_bt index) (snd ret.q) ->
     let su = IT.make_subst [ (fst ret.q, index) ] in
     let index_permission = IT.subst su ret.permission in
-    (match prove_or_model (LC.T index_permission) with
+    (match provable (LC.T index_permission) with
      | `True ->
        let loc = Cerb_location.other __LOC__ in
        let at_index =
@@ -184,23 +187,7 @@ let extractable_one (* global *) prove_or_model (predicate_name, index) (ret, O 
        in
        (* tmsg "successfully extracted" (lazy (IT.pp index)); *)
        Some ((Q ret_reduced, O o), at_index)
-     | `Counterex _ ->
-       (* let eval_f = Solver.eval global (fst (Lazy.force m)) in *)
-       (* tmsg "could not extract, counterexample" *)
-       (*   (lazy (IndexTerms.pp_with_eval eval_f index_permission)); *)
-       None)
-  (* | Q qret -> *)
-  (*   if not (Request.equal_name predicate_name qret.name) *)
-  (*   then () *)
-  (*     (\* tmsg "not extracting, predicate name differs" *\) *)
-  (*     (\*   (lazy (Request.pp_predicate_name predicate_name)) *\) *)
-  (*   else if not (BT.equal (IT.get_bt index) (snd qret.q)) *)
-  (*   then  *)
-  (*     () *)
-  (*     (\* tmsg "not extracting, index type differs" *\) *)
-  (*     (\*   (lazy (Pp.typ (BT.pp (IT.get_bt index)) (BT.pp (snd qret.q)))) *\) *)
-  (*   else assert false; *)
-  (*   None *)
+     | `False -> None)
   | _ -> None
 
 

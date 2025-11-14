@@ -3,7 +3,7 @@ type const =
   | Bits of (BaseTypes.sign * int) * Z.t
   | Q of Q.t
   | MemByte of
-      { alloc_id : Z.t;
+      { alloc_id : Z.t option;
         value : Z.t
       }
   | Pointer of
@@ -16,8 +16,9 @@ type const =
   | Null
   | CType_const of Sctypes.ctype
   | Default of BaseTypes.t
-(* Default bt: equivalent to a unique variable of base type bt, that we know nothing about
-   other than Default bt = Default bt *)
+  (** Default bt: equivalent to a unique variable of
+                               base type bt, that we know nothing about other
+                               than Default bt = Default bt *)
 [@@deriving eq, ord]
 
 type unop =
@@ -110,8 +111,6 @@ type 'bt term =
   | Cons of 'bt annot * 'bt annot
   | Head of 'bt annot
   | Tail of 'bt annot
-  | NthList of 'bt annot * 'bt annot * 'bt annot
-  | ArrayToList of 'bt annot * 'bt annot * 'bt annot
   | Representable of Sctypes.t * 'bt annot
   | Good of Sctypes.t * 'bt annot
   | Aligned of
@@ -127,6 +126,10 @@ type 'bt term =
   | Let of (Sym.t * 'bt annot) * 'bt annot
   | Match of 'bt annot * ('bt pattern * 'bt annot) list
   | Cast of BaseTypes.t * 'bt annot
+  | CN_None of BaseTypes.t
+  | CN_Some of 'bt annot
+  | IsSome of 'bt annot
+  | GetOpt of 'bt annot
 
 and 'bt annot =
   | IT of 'bt term * 'bt * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
@@ -188,6 +191,7 @@ let pp
     let wrap_after tgt doc = if prec > tgt then parens doc else doc in
     let break_op x = break 1 ^^ x ^^ space in
     let alloc_id i = !^("@" ^ Z.to_string i) in
+    let opt_alloc_id i = Option.fold ~none:!^"@empty" ~some:alloc_id i in
     match it with
     | Const const ->
       (match const with
@@ -207,7 +211,7 @@ let pp
            ^^^ !^"*/"
        | Q q -> !^(Q.to_string q)
        | MemByte { alloc_id = id; value } ->
-         braces (alloc_id id ^^ semi ^^ space ^^ !^("0x" ^ Z.format "%x" value))
+         braces (opt_alloc_id id ^^ semi ^^ space ^^ !^("0x" ^ Z.format "%x" value))
        | Pointer { alloc_id = id; addr } ->
          braces (alloc_id id ^^ semi ^^ space ^^ !^("0x" ^ Z.format "%x" addr))
        | Alloc_id i -> !^("@" ^ Z.to_string i)
@@ -326,9 +330,6 @@ let pp
     | Tail o1 -> c_app !^"tl" [ aux 0 o1 ]
     | Nil bt -> !^"nil" ^^ angles (BaseTypes.pp bt)
     | Cons (t1, t2) -> c_app !^"cons" [ aux 0 t1; aux 0 t2 ]
-    | NthList (n, xs, d) -> c_app !^"nth_list" [ aux 0 n; aux 0 xs; aux 0 d ]
-    | ArrayToList (arr, i, len) ->
-      c_app !^"array_to_list" [ aux 0 arr; aux 0 i; aux 0 len ]
     | MapConst (_bt, t) -> c_app !^"const" [ aux 0 t ]
     | MapGet (t1, t2) -> wrap_after 15 (aux 15 t1 ^^ brackets (aux 0 t2))
     | MapSet (t1, t2, t3) ->
@@ -356,6 +357,10 @@ let pp
                (comma ^^ space)
                (fun (id, e) -> Id.pp id ^^ colon ^^^ aux 0 e)
                args)
+    | CN_None bt -> c_app !^"None" [ BaseTypes.pp bt ]
+    | CN_Some t -> c_app !^"Some" [ aux 0 t ]
+    | IsSome t -> c_app !^"is_some" [ aux 0 t ]
+    | GetOpt t -> c_app !^"get_opt" [ aux 0 t ]
   in
   fun (it : 'bt annot) -> aux prec it
 
@@ -379,22 +384,28 @@ let rec dtree (IT (it_, bt, loc)) =
   let open Cerb_frontend.Pp_ast in
   let open Pp.Infix in
   let alloc_id z = Dnode (pp_ctor "alloc_id", [ Dleaf !^(Z.to_string z) ]) in
+  let opt_alloc_id z =
+    let none = Dnode (pp_ctor "alloc_id", [ Dleaf !^"Empty" ]) in
+    Option.fold ~none ~some:alloc_id z
+  in
   let dtree =
     match it_ with
     | Sym s -> Dleaf (Sym.pp s)
-    | Const (Z z) -> Dleaf !^(Z.to_string z)
-    | Const (Bits _) -> Dleaf (pp (IT (it_, bt, loc)))
-    | Const (Q q) -> Dleaf !^(Q.to_string q)
-    | Const (MemByte { alloc_id = id; value }) ->
-      Dnode (pp_ctor "mem_byte", [ alloc_id id; Dleaf !^(Z.to_string value) ])
-    | Const (Pointer { alloc_id = id; addr }) ->
-      Dnode (pp_ctor "pointer", [ alloc_id id; Dleaf !^(Z.to_string addr) ])
-    | Const (Bool b) -> Dleaf !^(if b then "true" else "false")
-    | Const Unit -> Dleaf !^"unit"
-    | Const (Default _) -> Dleaf !^"default"
-    | Const Null -> Dleaf !^"null"
-    | Const (Alloc_id z) -> alloc_id z
-    | Const (CType_const ct) -> Dleaf (Sctypes.pp ct)
+    | Const const ->
+      (match const with
+       | Z z -> Dleaf !^(Z.to_string z)
+       | Bits _ -> Dleaf (pp (IT (it_, bt, loc)))
+       | Q q -> Dleaf !^(Q.to_string q)
+       | MemByte { alloc_id = id; value } ->
+         Dnode (pp_ctor "mem_byte", [ opt_alloc_id id; Dleaf !^(Z.to_string value) ])
+       | Pointer { alloc_id = id; addr } ->
+         Dnode (pp_ctor "pointer", [ alloc_id id; Dleaf !^(Z.to_string addr) ])
+       | Bool b -> Dleaf !^(if b then "true" else "false")
+       | Unit -> Dleaf !^"unit"
+       | Default _ -> Dleaf !^"default"
+       | Null -> Dleaf !^"null"
+       | Alloc_id z -> alloc_id z
+       | CType_const ct -> Dleaf (Sctypes.pp ct))
     | Unop (op, t1) -> Dnode (pp_ctor (show_unop op), [ dtree t1 ])
     | Binop (op, t1, t2) -> Dnode (pp_ctor (show_binop op), [ dtree t1; dtree t2 ])
     | ITE (t1, t2, t3) -> Dnode (pp_ctor "Implies", [ dtree t1; dtree t2; dtree t3 ])
@@ -465,15 +476,16 @@ let rec dtree (IT (it_, bt, loc)) =
     | Cons (t1, t2) -> Dnode (pp_ctor "Cons", [ dtree t1; dtree t2 ])
     | Head t -> Dnode (pp_ctor "Head", [ dtree t ])
     | Tail t -> Dnode (pp_ctor "Tail", [ dtree t ])
-    | NthList (t1, t2, t3) -> Dnode (pp_ctor "NthList", [ dtree t1; dtree t2; dtree t3 ])
-    | ArrayToList (t1, t2, t3) ->
-      Dnode (pp_ctor "ArrayToList", [ dtree t1; dtree t2; dtree t3 ])
     | WrapI (it, t) ->
       Dnode (pp_ctor "WrapI", [ Dleaf (Sctypes.pp (Integer it)); dtree t ])
     | SizeOf ct -> Dnode (pp_ctor "SizeOf", [ Dleaf (Sctypes.pp ct) ])
     | OffsetOf (tag, member) ->
       Dnode (pp_ctor "OffsetOf", [ Dleaf (Sym.pp tag); Dleaf (Id.pp member) ])
     | Let ((s, t1), t2) -> Dnode (pp_ctor "Let", [ Dleaf (Sym.pp s); dtree t1; dtree t2 ])
+    | CN_None _ -> Dleaf !^"None"
+    | CN_Some it -> Dnode (pp_ctor "Some", [ dtree it ])
+    | IsSome it -> Dnode (pp_ctor "IsSome", [ dtree it ])
+    | GetOpt it -> Dnode (pp_ctor "GetOpt", [ dtree it ])
   in
   let loc_doc = Pp.parens !^(Locations.to_string loc) in
   match dtree with

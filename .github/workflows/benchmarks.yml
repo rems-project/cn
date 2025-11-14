@@ -28,7 +28,7 @@ jobs:
         version: [4.14.1]
 
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
 
@@ -44,7 +44,7 @@ jobs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}
+        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
   
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -52,14 +52,14 @@ jobs:
         opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam install --deps-only --yes ./cn.opam
+        opam install --deps-only --with-test --yes ./cn.opam z3
       
     - name: Save OPAM cache
       uses: actions/cache/save@v4
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}
+        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
   
     # - name: Install Cerberus-lib
     #   run: |

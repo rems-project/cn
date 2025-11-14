@@ -1,0 +1,8 @@
+return code: 1
+tests/cn/ghost_bad_ordering.error.c:5:5: warning: experimental keyword 'cn_ghost' (use of experimental features is discouraged)
+    cn_ghost i32 n; true;
+    ^~~~~~~~ 
+tests/cn/ghost_bad_ordering.error.c:5:5: error: unexpected token after ';' and before 'cn_ghost'
+Please add error message for state 1698 to parsers/c/c_parser_error.messages
+    cn_ghost i32 n; true;
+    ^~~~~~~~ 

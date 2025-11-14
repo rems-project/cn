@@ -8,6 +8,8 @@ module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
 
+let pp_ctype = CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers
+
 let mk_expr = Utils.mk_expr
 
 let mk_stmt = Utils.mk_stmt
@@ -71,25 +73,32 @@ let rec buf_length (fmt : string list) (args : string list) : string list =
 let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
   let b_buf = Utils.create_binding buf_sym C.pointer_to_char in
   let e_args = List.map (fun x -> mk_expr (AilEident (Sym.fresh x))) args in
+  let buf_len_sym = Sym.fresh_anon () in
+  let b_buf_len = Utils.create_binding buf_len_sym C.size_t in
   let s =
     A.(
       [ AilSdeclaration
+          [ ( buf_len_sym,
+              Some
+                (mk_expr
+                   (AilEident
+                      (Sym.fresh (String.concat " + " (buf_length fmt args) ^ " + 1"))))
+            )
+          ];
+        AilSdeclaration
           [ ( buf_sym,
               Some
                 (mk_expr
                    (AilEcall
                       ( mk_expr (AilEident (Sym.fresh "malloc")),
-                        [ mk_expr
-                            (AilEident
-                               (Sym.fresh
-                                  (String.concat " + " (buf_length fmt args) ^ " + 1")))
-                        ] ))) )
+                        [ mk_expr (AilEident buf_len_sym) ] ))) )
           ];
         AilSexpr
           (mk_expr
              (AilEcall
-                ( mk_expr (AilEident (Sym.fresh "sprintf")),
+                ( mk_expr (AilEident (Sym.fresh "snprintf")),
                   [ mk_expr (AilEident buf_sym);
+                    mk_expr (AilEident buf_len_sym);
                     mk_expr (AilEstr (None, [ (Locations.other __LOC__, fmt) ]))
                   ]
                   @ e_args )))
@@ -100,7 +109,7 @@ let sprintf_to_buf (buf_sym : Sym.t) (fmt : string list) (args : string list) =
                (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "free")), [ e_arg ]))))
           e_args)
   in
-  ([ b_buf ], s)
+  ([ b_buf; b_buf_len ], s)
 
 
 let replicate_call (sct : Sctypes.t) e_arg =
@@ -122,6 +131,12 @@ let replicate_call (sct : Sctypes.t) e_arg =
     A.AilEcall
       ( mk_expr (AilEident (Sym.fresh "cn_replicate_owned_cn_pointer_aux")),
         [ mk_expr e_arg ] )
+  | Struct _ ->
+    let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
+    let e_arg =
+      CtA.wrap_with_convert_to (AilEunary (Address, mk_expr e_arg)) (BT.Loc ())
+    in
+    A.AilEcall (mk_expr (AilEident fsym), [ mk_expr e_arg ])
   | _ ->
     let bt = Memory.bt_of_sct sct in
     let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
@@ -158,6 +173,7 @@ let compile_sct_aux (prog5 : unit Mucore.file) (sct : Sctypes.t)
   let b1, s1 =
     match sct with
     | Void -> failwith __LOC__
+    | Byte -> failwith ("TODO: Byte case for " ^ __FUNCTION__)
     | Integer _ ->
       ( [ Utils.create_binding buf_sym C.pointer_to_char ],
         A.
@@ -333,7 +349,10 @@ let compile_sct (sct : Sctypes.t)
   let b_cast, s_cast =
     sprintf_to_buf
       cast_addr_str_sym
-      [ "*((" ^ Pp.plain (Sctypes.pp (Sctypes.pointer_ct sct)) ^ ")"; "%s"; ")" ]
+      [ "*((" ^ Pp.plain (pp_ctype (Sctypes.to_ctype (Sctypes.pointer_ct sct))) ^ ")";
+        "%s";
+        ")"
+      ]
       [ Sym.pp_string addr_str_sym ]
   in
   let s =
@@ -732,9 +751,7 @@ let compile_spec
           Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct)
         in
         let fsym = Sym.fresh ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux") in
-        let type_str =
-          Pp.plain (Sctypes.pp (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct))
-        in
+        let type_str = Pp.plain (pp_ctype ct) in
         let b_arg = [ Utils.create_binding arg_str_sym C.pointer_to_char ] in
         let s_arg =
           A.
@@ -747,7 +764,8 @@ let compile_spec
                          (AilEcall
                             ( mk_expr
                                 (AilEident
-                                   (Sym.fresh (Fulminate.Globals.getter_str filename arg))),
+                                   (Sym.fresh
+                                      (Fulminate.Cn_to_ail.getter_str filename arg))),
                               [] )) )
                  | _ -> AilEident arg
                in

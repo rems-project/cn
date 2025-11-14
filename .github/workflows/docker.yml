@@ -24,6 +24,8 @@ concurrency:
 jobs:
   build-and-release:
 
+    name: Docker -- Build and Release
+
     strategy:
       matrix:
         os: [ubuntu, redhat, devcontainer]
@@ -58,6 +60,8 @@ jobs:
 
   combine-multiplatform:
 
+    name: Docker -- Combine Multiplatform
+
     if: ${{ github.event_name != 'pull_request' }}
 
     strategy:
@@ -87,6 +91,8 @@ jobs:
 # Other CI is testing anyway - if need be, can run tests in Dockerfile itself
   test-docker-images:
 
+    name: Docker -- Test Docker Images
+
     if: ${{ github.event_name != 'pull_request' }}
 
     strategy:
@@ -101,4 +107,4 @@ jobs:
     - name: Run CI tests
       run: |
         docker pull ${{env.CN_IMAGE_ID}}:release-${{ matrix.os }}
-        docker run -v $PWD:/work -w /work ${{env.CN_IMAGE_ID}}:release-${{ matrix.os }} bash tests/run-cn.sh
+        docker run -v $PWD:/work -w /work ${{env.CN_IMAGE_ID}}:release-${{ matrix.os }} tests/diff-prog.py cn tests/cn/verify.json

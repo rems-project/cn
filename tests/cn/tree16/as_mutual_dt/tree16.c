@@ -29,7 +29,7 @@ function (datatype tree_list) array_to_tree_list (map<i32, datatype tree> arr, i
 
 function (map <i32, datatype tree>) default_children ()
 
-predicate {datatype tree t, i32 v, map <i32, datatype tree> children}
+predicate [rec] {datatype tree t, i32 v, map <i32, datatype tree> children}
   Tree (pointer p)
 {
   if (is_null(p)) {
@@ -46,7 +46,7 @@ predicate {datatype tree t, i32 v, map <i32, datatype tree> children}
   }
 }
 
-predicate (datatype tree) Indirect_Tree (pointer p) {
+predicate [rec] (datatype tree) Indirect_Tree (pointer p) {
   take V = RW<tree>(p);
   take T = Tree(V);
   return T.t;

@@ -7,13 +7,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/prelude.h>
+#include <bennet/state/rand_alloc.h>
 #include <cn-executable/utils.h>
-#include <cn-testing/alloc.h>
-#include <cn-testing/rand.h>
 #include <cn-testing/result.h>
-#include <cn-testing/size.h>
 #include <cn-testing/test.h>
 #include <cn-replicate/shape.h>
+#include <cn-smt/branch_history.h>
+#include <cn-smt/concretize.h>
+#include <cn-smt/context.h>
+#include <cn-smt/solver.h>
 
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
@@ -135,88 +138,39 @@ void cn_trap(void) {
   _cn_trap();
 }
 
-size_t cn_gen_compute_size(enum cn_gen_sizing_strategy strategy,
-    int max_tests,
-    size_t max_size,
-    int max_discard_ratio,
-    int successes,
-    int recent_discards) {
-  switch (strategy) {
-    case CN_GEN_SIZE_QUARTILE:
-      if (successes < max_tests / 4) {
-        max_size /= 4;
-      } else if (successes < max_tests / 2) {
-        max_size /= 2;
-      } else if (successes < 3 * (max_tests / 4)) {
-        max_size /= 4;
-        max_size *= 3;
-      }
-
-    case CN_GEN_SIZE_UNIFORM:;
-      size_t sz = cn_gen_uniform_u16(max_size + 1) + 1;
-      return sz;
-
-    case CN_GEN_SIZE_QUICKCHECK:;
-      size_t discard_divisor;
-      if (max_discard_ratio > 0) {
-        discard_divisor = (successes * max_discard_ratio / 3);
-        if (discard_divisor < 1) {
-          discard_divisor = 1;
-        } else if (discard_divisor > 10) {
-          discard_divisor = 10;
-        }
-      } else {
-        discard_divisor = 1;
-      }
-
-      size_t potential_size;
-      if ((successes / max_size) * max_size + max_size <= max_tests ||
-          successes >= max_tests || max_tests % max_size == 0) {
-        potential_size = (successes % max_tests + recent_discards / discard_divisor);
-      } else {
-        potential_size = (successes % max_size) * max_size / (successes % max_size) +
-                         recent_discards / discard_divisor;
-      }
-
-      if (potential_size < max_size) {
-        return potential_size + 1;
-      }
-
-      return max_size + 1;
-
-    default:
-      assert(false);
-  }
-}
-
 struct cn_test_reproduction {
   size_t size;
-  cn_gen_rand_checkpoint checkpoint;
+  bennet_rand_checkpoint checkpoint;
 };
 
 void cn_test_reproduce(struct cn_test_reproduction* repro) {
-  cn_gen_set_size(repro->size);
-  cn_gen_rand_restore(repro->checkpoint);
+  bennet_set_size(repro->size);
+  bennet_rand_restore(repro->checkpoint);
 }
 
 int cn_test_main(int argc, char* argv[]) {
-  uint64_t begin_time = cn_gen_get_microseconds();
+  uint64_t begin_time = bennet_get_microseconds();
   set_cn_logging_level(CN_LOGGING_NONE);
 
-  cn_gen_srand(cn_gen_get_milliseconds());
+  bennet_srand(bennet_get_milliseconds());
   enum cn_test_gen_progress progress_level = CN_TEST_GEN_PROGRESS_ALL;
-  uint64_t seed = cn_gen_rand();
+  uint64_t seed = bennet_rand();
   enum cn_logging_level logging_level = CN_LOGGING_ERROR;
   int timeout = 0;
   int input_timeout = 1000;
   int exit_fast = 0;
   int trap = 0;
-  enum cn_gen_sizing_strategy sizing_strategy = CN_GEN_SIZE_QUICKCHECK;
+  enum bennet_sizing_strategy sizing_strategy = BENNET_SIZE_QUICKCHECK;
   int replay = 1;
   int replicas = 1;
   int print_seed = 0;
   bool output_tyche = false;
   FILE* tyche_output_stream = NULL;
+  bool print_size_info = false;
+  bool print_backtrack_info = false;
+  bool print_satisfaction_info = false;
+  bool print_discard_info = false;
+  bool print_timing_info = false;
 
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
@@ -278,31 +232,26 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--exit-fast", arg) == 0) {
       exit_fast = 1;
     } else if (strcmp("--max-stack-depth", arg) == 0) {
-      cn_gen_set_max_depth(strtoul(argv[i + 1], NULL, 10));
+      bennet_set_max_depth(strtoul(argv[i + 1], NULL, 10));
       i++;
     } else if (strcmp("--max-generator-size", arg) == 0) {
       uint64_t sz = strtoul(argv[i + 1], NULL, 10);
       assert(sz != 0);
-      cn_gen_set_max_size(sz);
-      i++;
-    } else if (strcmp("--sized-null", arg) == 0) {
-      set_sized_null();
-    } else if (strcmp("--allowed-depth-failures", arg) == 0) {
-      cn_gen_set_depth_failures_allowed(strtoul(argv[i + 1], NULL, 10));
+      bennet_set_max_size(sz);
       i++;
     } else if (strcmp("--allowed-size-split-backtracks", arg) == 0) {
-      cn_gen_set_size_split_backtracks_allowed(strtoul(argv[i + 1], NULL, 10));
+      bennet_set_size_split_backtracks_allowed(strtoul(argv[i + 1], NULL, 10));
       i++;
     } else if (strcmp("--trap", arg) == 0) {
       trap = 1;
     } else if (strcmp("--sizing-strategy", arg) == 0) {
       char* next = argv[i + 1];
       if (strcmp("uniform", next) == 0) {
-        sizing_strategy = CN_GEN_SIZE_UNIFORM;
-      } else if (strcmp("quartile", next) == 0) {
-        sizing_strategy = CN_GEN_SIZE_QUARTILE;
+        sizing_strategy = BENNET_SIZE_UNIFORM;
+      } else if (strcmp("constant", next) == 0) {
+        sizing_strategy = BENNET_SIZE_CONSTANT;
       } else if (strcmp("quickcheck", next) == 0) {
-        sizing_strategy = CN_GEN_SIZE_QUICKCHECK;
+        sizing_strategy = BENNET_SIZE_QUICKCHECK;
       } else {
         sizing_strategy = strtoul(next, NULL, 10);
       }
@@ -320,7 +269,72 @@ int cn_test_main(int argc, char* argv[]) {
       if (tyche_output_stream != NULL) {
         output_tyche = true;
       }
+    } else if (strcmp("--print-backtrack-info", arg) == 0) {
+      print_backtrack_info = true;
+    } else if (strcmp("--print-satisfaction-info", arg) == 0) {
+      print_satisfaction_info = true;
+    } else if (strcmp("--print-size-info", arg) == 0) {
+      print_size_info = true;
+    } else if (strcmp("--print-discard-info", arg) == 0) {
+      print_discard_info = true;
+    } else if (strcmp("--print-timing-info", arg) == 0) {
+      print_timing_info = true;
+    } else if (strcmp("--smt-pruning-at-runtime", arg) == 0) {
+      cn_smt_pruning_at_runtime = true;
+    } else if (strcmp("--use-solver-eval", arg) == 0) {
+      cn_set_use_solver_eval(true);
+    } else if (strcmp("--smt-skew-pointer-order", arg) == 0) {
+      cn_smt_skew_pointer_order = true;
+    } else if (strcmp("--smt-skewing", arg) == 0) {
+      char* next = argv[i + 1];
+      if (strcmp("uniform", next) == 0) {
+        cn_set_smt_skewing_mode(CN_SMT_SKEWING_UNIFORM);
+      } else if (strcmp("sized", next) == 0) {
+        cn_set_smt_skewing_mode(CN_SMT_SKEWING_SIZED);
+      } else if (strcmp("none", next) == 0) {
+        cn_set_smt_skewing_mode(CN_SMT_SKEWING_NONE);
+      } else {
+        fprintf(stderr, "Error: Invalid --smt-skewing mode: %s\n", next);
+        fprintf(stderr, "Valid modes: uniform, sized, none\n");
+        exit(1);
+      }
+      i++;
+    } else if (strcmp("--smt-logging", arg) == 0) {
+      cn_smt_set_log_file_path(argv[i + 1]);
+      i++;
+    } else if (strcmp("--smt-log-unsat-cores", arg) == 0) {
+      cn_smt_set_unsat_core_log_path(argv[i + 1]);
+      i++;
+    } else if (strcmp("--max-bump-blocks", arg) == 0) {
+      cn_bump_set_max_blocks(strtoul(argv[i + 1], NULL, 10));
+      i++;
+    } else if (strcmp("--bump-block-size", arg) == 0) {
+      cn_bump_set_block_size(strtoul(argv[i + 1], NULL, 10));
+      i++;
+    } else if (strcmp("--max-input-alloc", arg) == 0) {
+      bennet_rand_alloc_set_mem_size(strtoul(argv[i + 1], NULL, 10));
+      i++;
     }
+  }
+
+  if (output_tyche || print_size_info) {
+    bennet_info_sizes_init();
+  }
+
+  if (output_tyche || print_backtrack_info) {
+    bennet_info_backtracks_init();
+  }
+
+  if (print_satisfaction_info) {
+    bennet_info_unsatisfied_init();
+  }
+
+  if (print_discard_info) {
+    bennet_info_discards_init();
+  }
+
+  if (output_tyche || print_timing_info) {
+    bennet_info_timing_init();
   }
 
   if (timeout != 0) {
@@ -331,8 +345,8 @@ int cn_test_main(int argc, char* argv[]) {
     printf("Using seed: %016" PRIx64 "\n", seed);
   }
 
-  cn_gen_srand(seed);
-  cn_gen_rand();  // Junk to get something to make a checkpoint from
+  bennet_srand(seed);
+  bennet_rand();  // Junk to get something to make a checkpoint from
 
   struct cn_test_reproduction repros[CN_TEST_MAX_TEST_CASES];
   enum cn_test_result results[CN_TEST_MAX_TEST_CASES];
@@ -346,17 +360,38 @@ int cn_test_main(int argc, char* argv[]) {
         continue;
       }
 
+      if (output_tyche || print_size_info) {
+        bennet_info_sizes_set_function_under_test(test_cases[i].name);
+      }
+
+      if (output_tyche || print_backtrack_info) {
+        bennet_info_backtracks_set_function_under_test(test_cases[i].name);
+      }
+
+      if (print_satisfaction_info) {
+        bennet_info_unsatisfied_set_function_under_test(test_cases[i].name);
+      }
+
+      if (print_discard_info) {
+        bennet_info_discards_set_function_under_test(test_cases[i].name);
+      }
+
+      if (output_tyche || print_timing_info) {
+        bennet_info_timing_set_function_under_test(test_cases[i].name);
+      }
+
       struct cn_test_case* test_case = &test_cases[i];
       if (progress_level == CN_TEST_GEN_PROGRESS_ALL) {
         print_test_info(test_case->suite, test_case->name, 0, 0);
       }
-      repros[i].checkpoint = cn_gen_rand_save();
-      cn_gen_set_input_timeout(input_timeout);
+      repros[i].checkpoint = bennet_rand_save();
+      bennet_set_input_timeout(input_timeout);
       struct cn_test_input test_input = {.replay = false,
           .progress_level = progress_level,
           .sizing_strategy = sizing_strategy,
           .trap = 0,
           .replicas = 0,
+          .log_all_backtracks = 0,
           .output_tyche = output_tyche,
           .tyche_output_stream = tyche_output_stream,
           .begin_time = begin_time};
@@ -364,7 +399,7 @@ int cn_test_main(int argc, char* argv[]) {
       if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
         results[i] = result;
       }
-      repros[i].size = cn_gen_get_size();
+      repros[i].size = bennet_get_size();
       if (progress_level == CN_TEST_GEN_PROGRESS_NONE) {
         continue;
       }
@@ -382,14 +417,11 @@ int cn_test_main(int argc, char* argv[]) {
             cn_printf(CN_LOGGING_ERROR, "\n");
 
             cn_test_reproduce(&repros[i]);
-            struct cn_test_input test_input = {.replay = true,
-                .progress_level = CN_TEST_GEN_PROGRESS_NONE,
-                .sizing_strategy = sizing_strategy,
-                .trap = trap,
-                .replicas = replicas,
-                .output_tyche = output_tyche,
-                .tyche_output_stream = tyche_output_stream,
-                .begin_time = begin_time};
+            test_input.replay = true;
+            test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
+            test_input.trap = trap;
+            test_input.replicas = replicas;
+            test_input.output_tyche = 0;
             enum cn_test_result replay_result = test_case->func(test_input);
 
             if (replay_result != CN_TEST_FAIL) {
@@ -419,7 +451,7 @@ int cn_test_main(int argc, char* argv[]) {
       }
 
       if (timeout != 0) {
-        timediff = (cn_gen_get_microseconds() - begin_time) / 1000000;
+        timediff = (bennet_get_microseconds() - begin_time) / 1000000;
       }
     }
     if (timediff < timeout) {
@@ -461,6 +493,36 @@ outside_loop:;
       failed,
       errored,
       skipped);
+
+  if (print_size_info) {
+    printf("\n");
+
+    bennet_info_sizes_print_info();
+  }
+
+  if (print_backtrack_info) {
+    printf("\n");
+
+    bennet_info_backtracks_print_backtrack_info();
+  }
+
+  if (print_satisfaction_info) {
+    printf("\n");
+
+    bennet_info_unsatisfied_print_info();
+  }
+
+  if (print_discard_info) {
+    printf("\n");
+
+    bennet_info_discards_print_info();
+  }
+
+  if (print_timing_info) {
+    printf("\n");
+
+    bennet_info_timing_print_info();
+  }
 
   return !(failed == 0 && errored == 0);
 }

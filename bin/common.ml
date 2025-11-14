@@ -25,14 +25,18 @@ let print_log_file =
 
 
 let frontend
+      ~cc
       ~macros
+      ~permissive
       ~incl_dirs
       ~incl_files
       ~astprints
       ~filename
       ~magic_comment_char_dollar
+      ~allow_split_magic_comments
       ~save_cpp
       ~disable_linemarkers
+      ~skip_label_inlining
   =
   Cerb_global.set_cerb_conf
     ~backend_name:"Cn"
@@ -41,7 +45,7 @@ let frontend
     ~concurrency:false
     (* error verbosity *) Basic
     ~defacto:false
-    ~permissive:false
+    ~permissive
     ~agnostic:false
     ~ignore_bitfields:false;
   CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
@@ -52,12 +56,13 @@ let frontend
         shift to the effectful version. "strict_pointer_relationals" is also
         assumed, but this does not affect elaboration. *)
      @ if magic_comment_char_dollar then [ "magic_comment_char_dollar" ] else []);
+  if allow_split_magic_comments then Parse.allow_split_magic_comments := true;
   let return = CF.Exception.except_return in
   let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
   let@ impl = load_core_impl stdlib impl_name in
   let conf =
-    Setup.conf macros incl_dirs incl_files disable_linemarkers astprints save_cpp
+    Setup.conf cc macros incl_dirs incl_files disable_linemarkers astprints save_cpp
   in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
@@ -80,7 +85,12 @@ let frontend
   CF.Tags.set_tagDefs prog0.CF.Core.tagDefs;
   let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
   let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
-  let prog3 = CF.Milicore_label_inline.rewrite_file prog2 in
+  let prog3 =
+    if skip_label_inlining then
+      prog2
+    else
+      CF.Milicore_label_inline.rewrite_file prog2
+  in
   let statement_locs = CStatements.search (snd ail_prog) in
   print_log_file ("original", `CORE prog0);
   print_log_file ("without_unspec", `CORE prog1);
@@ -123,8 +133,10 @@ let there_can_only_be_one =
 
 let with_well_formedness_check
       (* CLI arguments *)
+      ~cc
       ~filename
       ~macros
+      ~permissive
       ~incl_dirs
       ~incl_files
       ~coq_export_file
@@ -132,12 +144,13 @@ let with_well_formedness_check
       ~coq_proof_log
       ~coq_check_proof_log
       ~csv_times
-      ~log_times
       ~astprints
       ~no_inherit_loc
       ~magic_comment_char_dollar
+      ~allow_split_magic_comments
       ~save_cpp
       ~disable_linemarkers
+      ~skip_label_inlining
       ~(* Callbacks *)
        handle_error
       ~(f :
@@ -151,21 +164,22 @@ let with_well_formedness_check
   let cabs_tunit, prog, (markers_env, ail_prog), statement_locs =
     handle_frontend_error
       (frontend
+         ~cc
          ~macros
+         ~permissive
          ~incl_dirs
          ~incl_files
          ~astprints
          ~filename
          ~magic_comment_char_dollar
+         ~allow_split_magic_comments
          ~save_cpp
-         ~disable_linemarkers)
+         ~disable_linemarkers
+         ~skip_label_inlining)
   in
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel
-    (match (csv_times, log_times) with
-     | Some times, _ -> Some (times, "csv")
-     | _, Some times -> Some (times, "log")
-     | _ -> None);
+    (match csv_times with Some times -> Some (times, "csv") | _ -> None);
   try
     let result =
       let open Or_TypeError in
@@ -328,6 +342,11 @@ module Flags = struct
     Arg.(non_empty & pos_all non_dir_file [] & info [] ~docv:"FILE" ~doc)
 
 
+  let cc =
+    let doc = "C compiler to use" in
+    Arg.(value & opt string "cc" & info ~env:(Cmd.Env.info "CC") [ "cc" ] ~doc)
+
+
   (* copied from cerberus' executable (backend/driver/main.ml) *)
   let macros =
     let macro_pair =
@@ -357,6 +376,11 @@ module Flags = struct
       value
       & opt_all macro_pair []
       & info [ "D"; "define-macro" ] ~docv:"NAME[=VALUE]" ~doc)
+
+
+  let permissive =
+    let doc = "Enable permissive mode in Cerberus frontend" in
+    Arg.(value & flag & info [ "permissive" ] ~doc)
 
 
   let incl_dirs =
@@ -402,11 +426,6 @@ module Flags = struct
     Arg.(value & opt (some string) None & info [ "times" ] ~docv:"FILE" ~doc)
 
 
-  let log_times =
-    let doc = "file in which to output hierarchical timing information" in
-    Arg.(value & opt (some string) None & info [ "log-times" ] ~docv:"FILE" ~doc)
-
-
   (* copy-pasting from backend/driver/main.ml *)
   let astprints =
     let doc =
@@ -421,14 +440,6 @@ module Flags = struct
       & info [ "ast" ] ~docv:"LANG1,..." ~doc)
 
 
-  let no_use_ity =
-    let doc =
-      "(this switch should go away) in WellTyped.BaseTyping, do not use\n\
-      \  integer type annotations placed by the Core elaboration"
-    in
-    Arg.(value & flag & info [ "no-use-ity" ] ~doc)
-
-
   let no_inherit_loc =
     let doc =
       "debugging: stop mucore terms inheriting location information from parents"
@@ -439,4 +450,12 @@ module Flags = struct
   let magic_comment_char_dollar =
     let doc = "Override CN's default magic comment syntax to be \"/*\\$ ... \\$*/\"" in
     Arg.(value & flag & info [ "magic-comment-char-dollar" ] ~doc)
+
+
+  let allow_split_magic_comments =
+    let doc =
+      "Alloc function specifications and loop invariants to be split across multiple \
+       magic comments"
+    in
+    Arg.(value & flag & info [ "allow-split-magic-comments" ] ~doc)
 end
