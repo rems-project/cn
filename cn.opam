@@ -16,6 +16,7 @@ depends: [
   "cerberus-lib"
   "monomorphic"
   "ocaml" {>= "4.14.0"}
+  "yojson" {< "3.0.0"}
   "ppx_deriving"
   "ppx_deriving_yojson" {>= "3.8.0"}
   "cmdliner"

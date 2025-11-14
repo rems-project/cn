@@ -231,7 +231,7 @@ module Flags = struct
       & info [ "max-array-length" ] ~doc)
 
 
-  let with_static_hack =
+  let disable_shrink =
     let doc = "Does nothing." in
     let deprecated = "Will be removed after May 31." in
     Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
@@ -459,7 +459,7 @@ let cmd =
     $ Flags.gen_backtrack_attempts
     $ Flags.gen_max_unfolds
     $ Flags.max_array_length
-    $ Flags.with_static_hack
+    $ Flags.disable_shrink
     $ Flags.build_tool
     $ Term.product Flags.sanitize Flags.no_sanitize
     $ Flags.print_seed

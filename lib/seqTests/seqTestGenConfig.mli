@@ -1,9 +1,10 @@
 type t =
   { (* Compile time *)
     print_steps : bool;
+    disable_shrink : bool;
     num_calls : int;
     max_backtracks : int;
-    num_tests : int
+    num_tests : int;
   }
 
 val default : t
@@ -17,3 +18,5 @@ val get_num_calls : unit -> int
 val get_max_backtracks : unit -> int
 
 val get_num_tests : unit -> int
+
+val is_disable_shrink : unit -> bool

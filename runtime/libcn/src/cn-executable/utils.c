@@ -307,17 +307,17 @@ void dump_ownership_state() {
   // cn_printf(CN_LOGGING_INFO, "END\n");
 }
 
-void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg) {
+void cn_get_ownership(void* generic_c_ptr, size_t size, char* check_msg, enum spec_mode spec_mode) {
   /* Used for precondition and loop invariant taking/getting of ownership */
-  c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1);
+  c_ownership_check(check_msg, generic_c_ptr, (int)size, cn_stack_depth - 1, spec_mode);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth);
 }
 
-void cn_put_ownership(void* generic_c_ptr, size_t size) {
+void cn_put_ownership(void* generic_c_ptr, size_t size, enum spec_mode spec_mode) {
   // cn_printf(CN_LOGGING_INFO, "[CN: returning ownership] " FMT_PTR_2 ", size: %lu\n", generic_c_ptr, size);
   //// print_error_msg_info();
   c_ownership_check(
-      "Postcondition ownership check", generic_c_ptr, (int)size, cn_stack_depth);
+      "Postcondition ownership check", generic_c_ptr, (int)size, cn_stack_depth, spec_mode);
   c_add_to_ghost_state(generic_c_ptr, size, cn_stack_depth - 1);
 }
 
@@ -336,15 +336,15 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode, void* generic_c_ptr, size
   nr_owned_predicates++;
   switch (spec_mode) {
     case PRE: {
-      cn_get_ownership(generic_c_ptr, size, "Precondition ownership check");
+      cn_get_ownership(generic_c_ptr, size, "Precondition ownership check", PRE);
       break;
     }
     case POST: {
-      cn_put_ownership(generic_c_ptr, size);
+      cn_put_ownership(generic_c_ptr, size, POST);
       break;
     }
     case LOOP: {
-      cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check");
+      cn_get_ownership(generic_c_ptr, size, "Loop invariant ownership check", LOOP);
     }
     default: {
       break;
@@ -373,7 +373,8 @@ void c_remove_from_ghost_state(void* ptr_to_local, size_t size) {
 void c_ownership_check(char* access_kind,
     void* generic_c_ptr,
     int offset,
-    signed long expected_stack_depth) {
+    signed long expected_stack_depth,
+    enum spec_mode spec_mode) {
   int64_t address_key = 0;
   // cn_printf(CN_LOGGING_INFO, "C: Checking ownership for [ " FMT_PTR " .. " FMT_PTR " ] -- ", generic_c_ptr, generic_c_ptr + offset);
   for (int i = 0; i < offset; i++) {
@@ -398,7 +399,7 @@ void c_ownership_check(char* access_kind,
             expected_stack_depth);
         cn_printf(CN_LOGGING_ERROR, "  ==> (owned at stack depth: %d)\n", curr_depth);
       }
-      cn_failure(CN_FAILURE_CHECK_OWNERSHIP, C_ACCESS);
+      cn_failure(CN_FAILURE_CHECK_OWNERSHIP, spec_mode);
     }
   }
   // cn_printf(CN_LOGGING_INFO, "\n");
@@ -652,7 +653,7 @@ void* cn_calloc(size_t num, size_t size) {
 void cn_free_sized(void* malloced_ptr, size_t size) {
   // cn_printf(CN_LOGGING_INFO, "[CN: freeing ownership] " FMT_PTR ", size: %lu\n", (uintptr_t) malloced_ptr, size);
   if (malloced_ptr != NULL) {
-    c_ownership_check("Free", malloced_ptr, (int)size, cn_stack_depth);
+    c_ownership_check("Free", malloced_ptr, (int)size, cn_stack_depth, C_ACCESS);
     c_remove_from_ghost_state(malloced_ptr, size);
   }
 }
