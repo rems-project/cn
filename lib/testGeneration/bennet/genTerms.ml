@@ -11,6 +11,8 @@ module Base (AD : Domain.T) = struct
   type ('tag, 'recur) ast =
     [ `Arbitrary (** Generate arbitrary values *)
     | `Symbolic (** Generate symbolic values *)
+    | `ArbitrarySpecialized of (IT.t option * IT.t option) * (IT.t option * IT.t option)
+      (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
     | `ArbitraryDomain of AD.Relative.t
     | `Call of Sym.t * IT.t list
       (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
@@ -55,6 +57,13 @@ module type T = sig
   val arbitrary_ : tag_t -> BT.t -> Locations.t -> t
 
   val symbolic_ : tag_t -> BT.t -> Locations.t -> t
+
+  val arbitrary_specialized_
+    :  (IT.t option * IT.t option) * (IT.t option * IT.t option) ->
+    tag_t ->
+    BT.t ->
+    Locations.t ->
+    t
 
   val arbitrary_domain_ : AD.Relative.t -> tag_t -> BT.t -> Locations.t -> t
 
@@ -149,6 +158,17 @@ module Make (GT : T) = struct
     match tm_ with
     | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
     | `Symbolic -> !^"symbolic" ^^ angles (BT.pp bt) ^^ parens empty
+    | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
+      let pp_opt = function
+        | None -> !^"None"
+        | Some it -> !^"Some" ^^^ parens (IT.pp it)
+      in
+      !^"arbitrary_specialized"
+      ^^ angles (BT.pp bt)
+      ^^ parens
+           (parens (pp_opt min_inc ^^ comma ^^^ pp_opt min_ex)
+            ^^ comma
+            ^^^ parens (pp_opt max_inc ^^ comma ^^^ pp_opt max_ex))
     | `ArbitraryDomain d ->
       !^"arbitrary_domain" ^^ angles (BT.pp bt) ^^ parens (AD.Relative.pp d)
     | `Call (fsym, iargs) ->
@@ -255,6 +275,8 @@ module Make (GT : T) = struct
   let rec free_vars_bts_ (gt_ : GT.t_) : BT.t Sym.Map.t =
     match gt_ with
     | `Arbitrary | `ArbitraryDomain _ | `Symbolic -> Sym.Map.empty
+    | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
+      IT.free_vars_bts_list (List.filter_map Fun.id [ min_inc; min_ex; max_inc; max_ex ])
     | `Call (_, iargs) | `CallSized (_, iargs, _) -> IT.free_vars_bts_list iargs
     | `Asgn ((it_addr, _), it_val, gt') | `AsgnElab (_, ((_, it_addr), _), it_val, gt') ->
       Sym.Map.union
@@ -323,7 +345,8 @@ module Make (GT : T) = struct
   let rec contains_call (gt : GT.t) : bool =
     let (Annot (gt_, _, _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ -> false
+    | `Arbitrary | `ArbitraryDomain _ | `ArbitrarySpecialized _ | `Symbolic | `Return _ ->
+      false
     | `Call _ | `CallSized _ -> true
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
       contains_call gt1 || contains_call gt2
@@ -344,7 +367,8 @@ module Make (GT : T) = struct
   let rec contains_constraint (gt : GT.t) : bool =
     let (Annot (gt_, _, _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ -> false
+    | `Arbitrary | `ArbitraryDomain _ | `ArbitrarySpecialized _ | `Symbolic | `Return _ ->
+      false
     | `Asgn _ | `AsgnElab _ | `Assert _ | `AssertDomain _ -> true
     | `Call _ | `CallSized _ -> true (* Could be less conservative... *)
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
@@ -362,6 +386,11 @@ module Make (GT : T) = struct
       let (Annot (gt_, _, _, _)) = gt in
       match gt_ with
       | `Arbitrary | `Symbolic | `ArbitraryDomain _ -> Sym.Set.empty
+      | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
+        [ min_inc; min_ex; max_inc; max_ex ]
+        |> List.filter_map Fun.id
+        |> List.map IT.preds_of
+        |> List.fold_left Sym.Set.union Sym.Set.empty
       | `Return it -> IT.preds_of it
       | `Call (_, its) | `CallSized (_, its, _) ->
         its |> List.map IT.preds_of |> List.fold_left Sym.Set.union Sym.Set.empty
@@ -392,6 +421,13 @@ module Make (GT : T) = struct
     match gt_ with
     | `Arbitrary -> arbitrary_ tag bt loc
     | `Symbolic -> symbolic_ tag bt loc
+    | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
+      arbitrary_specialized_
+        ( (Option.map (IT.subst su) min_inc, Option.map (IT.subst su) min_ex),
+          (Option.map (IT.subst su) max_inc, Option.map (IT.subst su) max_ex) )
+        tag
+        bt
+        loc
     | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
     | `Call (fsym, iargs) -> call_ (fsym, List.map (IT.subst su) iargs) tag bt loc
     | `CallSized (fsym, iargs, sz) ->
@@ -460,6 +496,7 @@ module Make (GT : T) = struct
     match gt_ with
     | `Arbitrary -> arbitrary_ tag bt loc
     | `Symbolic -> symbolic_ tag bt loc
+    | `ArbitrarySpecialized bounds -> arbitrary_specialized_ bounds tag bt loc
     | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
     | `Call (fsym, its) -> call_ (fsym, its) tag bt loc
     | `CallSized (fsym, its, sz) -> call_sized_ (fsym, its, sz) tag bt loc
@@ -502,6 +539,7 @@ module Make (GT : T) = struct
       match gt_ with
       | `Arbitrary -> arbitrary_ tag bt loc
       | `Symbolic -> symbolic_ tag bt loc
+      | `ArbitrarySpecialized bounds -> arbitrary_specialized_ bounds tag bt loc
       | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
       | `Call (fsym, its) -> call_ (fsym, its) tag bt loc
       | `CallSized (fsym, its, sz) -> call_sized_ (fsym, its, sz) tag bt loc
@@ -544,6 +582,7 @@ module Make (GT : T) = struct
     match tm with
     | `Arbitrary -> `Arbitrary
     | `Symbolic -> `Symbolic
+    | `ArbitrarySpecialized bounds -> `ArbitrarySpecialized bounds
     | `ArbitraryDomain ad -> `ArbitraryDomain ad
     | `Call (fsym, iargs) -> `Call (fsym, iargs)
     | `CallSized (fsym, iargs, sz) -> `CallSized (fsym, iargs, sz)
@@ -576,6 +615,7 @@ module Make (GT : T) = struct
     match tm_ with
     | `Arbitrary -> arbitrary_ tag bt loc
     | `Symbolic -> symbolic_ tag bt loc
+    | `ArbitrarySpecialized bounds -> arbitrary_specialized_ bounds tag bt loc
     | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
     | `Call (fsym, iargs) -> call_ (fsym, iargs) tag bt loc
     | `CallSized (fsym, iargs, sz) -> call_sized_ (fsym, iargs, sz) tag bt loc
@@ -677,6 +717,8 @@ module Defaults (StageName : sig
   end) =
 struct
   let unsupported name = failwith (name ^ " not supported in " ^ StageName.name ^ " DSL")
+
+  let arbitrary_specialized_ _ _ _ _ = unsupported "arbitrary_specialized_"
 
   let arbitrary_domain_ _ _ _ _ = unsupported "arbitrary_domain_"
 

@@ -17,6 +17,9 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
+        | `ArbitrarySpecialized of
+            (IT.t option * IT.t option) * (IT.t option * IT.t option)
+          (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
         | `ArbitraryDomain of AD.Relative.t (** Generate arbitrary values from domain *)
         | `PickSized of (Z.t * 'recur annot) list
           (** Pick among a list of options, weighted by the provided [Z.t]s *)
@@ -55,6 +58,17 @@ module Make (AD : Domain.T) = struct
       include GenTerms.Defaults (struct
           let name = "Stage 4"
         end)
+
+      let arbitrary_specialized_
+            (((min_inc, min_ex), (max_inc, max_ex)) :
+              (IT.t option * IT.t option) * (IT.t option * IT.t option))
+            (tag : tag_t)
+            (bt : BT.t)
+            (loc : Locations.t)
+        : t
+        =
+        Annot (`ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)), tag, bt, loc)
+
 
       let arbitrary_domain_
             (d : AD.Relative.t)

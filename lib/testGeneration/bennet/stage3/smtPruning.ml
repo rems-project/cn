@@ -13,7 +13,8 @@ module Make (AD : Domain.T) = struct
       let here = Locations.other __LOC__ in
       let (Annot (tm_, (), bt, loc)) = tm in
       match tm_ with
-      | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ | `Call _ ->
+      | `Arbitrary | `ArbitraryDomain _ | `ArbitrarySpecialized _ | `Symbolic | `Return _
+      | `Call _ ->
         let@ check = provable loc in
         return
           (match check (LC.T (IT.bool_ false here)) with

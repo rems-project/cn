@@ -112,9 +112,9 @@ module IntervalBasis = struct
     else if is_top b then
       !^"⊤"
     else if Z.equal start stop then
-      !^(Z.to_string start)
+      z start
     else
-      brackets (!^(Z.to_string start) ^^ !^".." ^^ !^(Z.to_string stop))
+      brackets (z start ^^ !^".." ^^ z stop)
 
 
   let forward_abs_binop (op : IT.binop) (b1 : t) (b2 : t) : t option =

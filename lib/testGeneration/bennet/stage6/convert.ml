@@ -158,6 +158,39 @@ module Make (AD : Domain.T) = struct
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
              ]) )
+    | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
+      let sign, bits = Option.get (BT.is_bits_bt bt) in
+      let sign_char = match sign with Unsigned -> 'u' | Signed -> 'i' in
+      let cn_ty = Printf.sprintf "cn_bits_%c%d" sign_char bits in
+      (* Build argument expressions for bounds - NULL for None *)
+      let mk_bound_arg = function
+        | None -> mk_expr (AilEconst ConstantNull)
+        | Some it ->
+          let bs, ss, e = transform_it filename sigma name it in
+          mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
+      in
+      let free_vars_from_bounds =
+        List.fold_left
+          Sym.Set.union
+          Sym.Set.empty
+          (List.filter_map (Option.map IT.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
+      in
+      ( [],
+        [],
+        mk_expr
+          (string_call
+             "BENNET_SPECIALIZED"
+             ([ mk_expr (string_ident cn_ty);
+                mk_bound_arg min_ex;
+                mk_bound_arg min_inc;
+                mk_bound_arg max_inc;
+                mk_bound_arg max_ex;
+                mk_expr (AilEident last_var)
+              ]
+              @ List.map
+                  (fun x -> mk_expr (AilEident x))
+                  (List.of_seq (Sym.Set.to_seq free_vars_from_bounds))
+              @ [ mk_expr (AilEconst ConstantNull) ])) )
     | `PickSizedElab (choice_var, wgts) ->
       let var = Sym.fresh_anon () in
       let bs, ss =
@@ -428,6 +461,62 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Bits (_, _), _)), _) ->
       failwith "TODO: LetStar Symbolic"
     | `LetStar
+        ( ( x,
+            GenTerms.Annot
+              ( `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)),
+                _,
+                (Bits (sign, bits) as x_bt),
+                _ ) ),
+          gt_rest ) ->
+      let func_name =
+        match sign with
+        | Unsigned -> "BENNET_LET_SPECIALIZED_UNSIGNED"
+        | Signed -> "BENNET_LET_SPECIALIZED_SIGNED"
+      in
+      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
+      let mk_bound_arg = function
+        | None -> mk_expr (AilEconst ConstantNull)
+        | Some it ->
+          let bs, ss, e = transform_it filename sigma name it in
+          mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
+      in
+      let free_vars_from_bounds =
+        List.fold_left
+          Sym.Set.union
+          Sym.Set.empty
+          (List.filter_map (Option.map IT.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
+      in
+      let s_let =
+        [ A.AilSexpr
+            (mk_expr
+               (AilEcall
+                  ( mk_expr (string_ident func_name),
+                    [ mk_expr
+                        (AilEconst
+                           (ConstantInteger
+                              (IConstant
+                                 ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                   Decimal,
+                                   None ))));
+                      mk_expr
+                        (AilEconst
+                           (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))));
+                      mk_expr (AilEident x);
+                      mk_expr (AilEident last_var);
+                      mk_bound_arg min_ex;
+                      mk_bound_arg min_inc;
+                      mk_bound_arg max_inc;
+                      mk_bound_arg max_ex
+                    ]
+                    @ List.map
+                        (fun x -> mk_expr (AilEident x))
+                        (List.of_seq (Sym.Set.to_seq free_vars_from_bounds))
+                    @ [ mk_expr (AilEconst ConstantNull) ] )))
+        ]
+      in
+      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      (b_let @ b_rest, s_let @ s_rest, e_rest)
+    | `LetStar
         ( (x, GenTerms.Annot (`ArbitraryDomain d, _, (Bits (sign, bits) as x_bt), _)),
           gt_rest ) ->
       let func_name =
@@ -475,6 +564,54 @@ module Make (AD : Domain.T) = struct
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Loc (), _)), _) ->
       failwith "TODO: LetStar Symbolic Loc"
+    | `LetStar
+        ( ( x,
+            GenTerms.Annot
+              ( `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)),
+                _,
+                (Loc () as x_bt),
+                _ ) ),
+          gt_rest ) ->
+      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
+      let mk_bound_arg = function
+        | None -> mk_expr (AilEconst ConstantNull)
+        | Some it ->
+          let bs, ss, e = transform_it filename sigma name it in
+          mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
+      in
+      let free_vars_from_bounds =
+        List.fold_left
+          Sym.Set.union
+          Sym.Set.empty
+          (List.filter_map (Option.map IT.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
+      in
+      let s_let =
+        [ A.AilSexpr
+            (mk_expr
+               (AilEcall
+                  ( mk_expr (string_ident "BENNET_LET_SPECIALIZED_POINTER"),
+                    [ mk_expr
+                        (AilEconst
+                           (ConstantInteger
+                              (IConstant
+                                 ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                   Decimal,
+                                   None ))));
+                      mk_expr (AilEident x);
+                      mk_expr (AilEident last_var);
+                      mk_bound_arg min_ex;
+                      mk_bound_arg min_inc;
+                      mk_bound_arg max_inc;
+                      mk_bound_arg max_ex
+                    ]
+                    @ List.map
+                        (fun x -> mk_expr (AilEident x))
+                        (List.of_seq (Sym.Set.to_seq free_vars_from_bounds))
+                    @ [ mk_expr (AilEconst ConstantNull) ] )))
+        ]
+      in
+      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+      (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((x, GenTerms.Annot (`Arbitrary, _, (Loc () as x_bt), _)), gt_rest) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
@@ -529,6 +666,8 @@ module Make (AD : Domain.T) = struct
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((_, GenTerms.Annot (`ArbitraryDomain _, _, bt, _)), _) ->
+      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
+    | `LetStar ((_, GenTerms.Annot (`ArbitrarySpecialized _, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
       let b_value, s_value, e_value = transform_it filename sigma name it in

@@ -46,6 +46,7 @@
   int##sm##_t bennet_arbitrary_wint_int##sm##_t(bennet_domain_wint(int##sm##_t) * d) {   \
     int##sm##_t start = d->start;                                                        \
     int##sm##_t end = d->end;                                                            \
+    int##sm##_t orig_end = end;                                                          \
                                                                                          \
     if (start == end) {                                                                  \
       return start;                                                                      \
@@ -58,7 +59,7 @@
     bool offset = false;                                                                 \
     if (start <= end) {                                                                  \
       offset = true;                                                                     \
-      start -= (end == INT##sm##_MAX);                                                   \
+      start -= (orig_end == INT##sm##_MAX);                                              \
     }                                                                                    \
                                                                                          \
     int32_t sz = (int32_t)bennet_get_size();                                             \
@@ -108,7 +109,7 @@
     uint##sm##_t res = bennet_uniform_uint##sm##_t(width);                               \
                                                                                          \
     if (offset) {                                                                        \
-      res += (end == INT##sm##_MAX);                                                     \
+      res += (orig_end == INT##sm##_MAX);                                                \
     }                                                                                    \
                                                                                          \
     if (start <= end) {                                                                  \
