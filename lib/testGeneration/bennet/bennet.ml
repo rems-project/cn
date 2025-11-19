@@ -3,6 +3,7 @@ module A = CF.AilSyntax
 
 module Private = struct
   module AbstractDomains = AbstractDomains
+  module Stage1 = Stage1
 end
 
 let debug_log_file : out_channel option ref = ref None

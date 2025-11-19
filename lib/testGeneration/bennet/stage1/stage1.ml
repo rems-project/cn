@@ -1,3 +1,13 @@
+module Private = struct
+  module Convert = Convert
+  module DestructProducts = DestructProducts
+  module Unfold = Unfold
+  module Term = Term
+  module Def = Def
+  module Ctx = Ctx
+  module DestructArbitrary = DestructArbitrary
+end
+
 module Make (AD : Domain.T) = struct
   module DestructArbitrary = DestructArbitrary.Make (AD)
 

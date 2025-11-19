@@ -49,6 +49,7 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
+    experimental_arg_pruning : bool;
     static_absint : string list;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
@@ -138,6 +139,8 @@ val is_experimental_struct_asgn_destruction : unit -> bool
 val is_experimental_product_arg_destruction : unit -> bool
 
 val is_experimental_learning : unit -> bool
+
+val is_experimental_arg_pruning : unit -> bool
 
 val has_static_absint : unit -> string list
 
