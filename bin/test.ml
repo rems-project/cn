@@ -62,6 +62,7 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
+      experimental_arg_pruning
       static_absint
       smt_pruning_before_absinst
       smt_pruning_after_absinst
@@ -131,6 +132,7 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
+          experimental_arg_pruning;
           static_absint;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
@@ -578,6 +580,11 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
 
 
+  let experimental_arg_pruning =
+    let doc = "Enable experimental unused argument pruning optimization" in
+    Arg.(value & flag & info [ "experimental-arg-pruning" ] ~doc)
+
+
   let smt_pruning_before_absinst =
     let doc =
       "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
@@ -774,6 +781,7 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
+    $ Flags.experimental_arg_pruning
     $ Flags.static_absint
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
