@@ -7,7 +7,7 @@ module Make (GT : GenTerms.T) = struct
   module Term = GenTerms.Make (GT)
 
   type kind =
-    | Struct of Sym.t * (Id.t * Sym.t) list
+    | Struct of (Id.t * Sym.t) list
     | Record of (Id.t * Sym.t) list
     | Tuple of Sym.t list
 
@@ -30,7 +30,7 @@ module Make (GT : GenTerms.T) = struct
       | Struct (tag, xits) -> IT.Struct (tag, List.map_snd repl xits)
       | StructMember (it', x) ->
         (match (k, IT.is_sym it') with
-         | Struct (_tag, dict), Some (y, _y_bt) when Sym.equal y sym ->
+         | Struct dict, Some (y, _y_bt) when Sym.equal y sym ->
            IT.Sym (List.assoc Id.equal x dict)
          | _ -> IT.StructMember (repl it', x))
       | StructUpdate ((it_struct, x), it_val) ->
@@ -112,7 +112,7 @@ module Make (GT : GenTerms.T) = struct
         in
         let k =
           match bt with
-          | Struct tag -> Struct (tag, indirect_map)
+          | Struct _ -> Struct indirect_map
           | Record _ -> Record indirect_map
           | _ -> failwith __LOC__
         in

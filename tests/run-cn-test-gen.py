@@ -223,7 +223,7 @@ def main():
         alt_configs = [
             "--coverage --sizing-strategy=quickcheck",
             "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow",
-            "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
+            "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
             "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
         ]
 

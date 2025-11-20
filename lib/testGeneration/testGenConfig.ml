@@ -50,6 +50,7 @@ type t =
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
     experimental_arg_pruning : bool;
+    experimental_return_pruning : bool;
     static_absint : string list;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
@@ -109,6 +110,7 @@ let default =
     experimental_product_arg_destruction = false;
     experimental_learning = false;
     experimental_arg_pruning = false;
+    experimental_return_pruning = false;
     static_absint = [];
     smt_pruning_before_absinst = `None;
     smt_pruning_after_absinst = `None;
@@ -254,6 +256,8 @@ let is_experimental_product_arg_destruction () =
 let is_experimental_learning () = (Option.get !instance).experimental_learning
 
 let is_experimental_arg_pruning () = (Option.get !instance).experimental_arg_pruning
+
+let is_experimental_return_pruning () = (Option.get !instance).experimental_return_pruning
 
 let has_static_absint () = (Option.get !instance).static_absint
 

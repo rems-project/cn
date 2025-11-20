@@ -2,6 +2,7 @@ module Private : sig
   module Convert = Convert
   module DestructProducts = DestructProducts
   module PruneArgs = PruneArgs
+  module PruneReturns = PruneReturns
   module Unfold = Unfold
   module Term = Term
   module Def = Def
