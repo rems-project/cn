@@ -2,6 +2,7 @@ module Private = struct
   module Convert = Convert
   module DestructProducts = DestructProducts
   module PruneArgs = PruneArgs
+  module PruneReturns = PruneReturns
   module Unfold = Unfold
   module Term = Term
   module Def = Def
@@ -16,6 +17,7 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module DestructProducts = DestructProducts.Make (AD)
     module PruneArgs = PruneArgs.Make (AD)
+    module PruneReturns = PruneReturns.Make (AD)
     module Unfold = Unfold.Make (AD)
   end
 
@@ -33,6 +35,10 @@ module Make (AD : Domain.T) = struct
     |> DestructArbitrary.transform prog5
     |> (if TestGenConfig.is_experimental_product_arg_destruction () then
           DestructProducts.transform prog5
+        else
+          fun ctx -> ctx)
+    |> (if TestGenConfig.is_experimental_return_pruning () then
+          PruneReturns.transform prog5
         else
           fun ctx -> ctx)
     |> (if TestGenConfig.is_experimental_arg_pruning () then

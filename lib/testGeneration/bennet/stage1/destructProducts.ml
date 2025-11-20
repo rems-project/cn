@@ -44,14 +44,14 @@ module Make (AD : Domain.T) = struct
 
 
   type new_args =
-    | Struct of Sym.t * (Id.t * (Sym.t * new_args)) list
+    | Struct of (Id.t * (Sym.t * new_args)) list
     | Record of (Id.t * (Sym.t * new_args)) list
     | Tuple of (Sym.t * new_args) list
     | Leaf of (Sym.t * BT.t)
 
   let rec args_list_of (na : new_args) : (Sym.t * BT.t) list =
     match na with
-    | Struct (_, members) ->
+    | Struct members ->
       members |> List.map snd |> List.map snd |> List.map args_list_of |> List.flatten
     | Record members ->
       members |> List.map snd |> List.map snd |> List.map args_list_of |> List.flatten
@@ -61,7 +61,7 @@ module Make (AD : Domain.T) = struct
 
   let replace_kind_of (na : new_args) : MemberIndirection.kind option =
     match na with
-    | Struct (tag, members) -> Some (Struct (tag, List.map_snd fst members))
+    | Struct members -> Some (Struct (List.map_snd fst members))
     | Record members -> Some (Record (List.map_snd fst members))
     | Tuple members -> Some (Tuple (List.map fst members))
     | Leaf _ -> None
@@ -83,7 +83,7 @@ module Make (AD : Domain.T) = struct
                (member, (get_member_new_name arg_sym member, Memory.bt_of_sct sct)))
              |> List.map_snd (fun (sym, bt) -> (sym, aux sym bt))
            in
-           Struct (tag, members)
+           Struct members
          | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found"))
       | BT.Record members ->
         let members =
@@ -170,7 +170,7 @@ module Make (AD : Domain.T) = struct
     let iargs = xds |> List.map snd |> List.map args_list_of |> List.flatten in
     let rec replace_member_of (tm_rest : Term.t) ((x, na) : Sym.t * new_args) : Term.t =
       match na with
-      | Struct (_, members) | Record members ->
+      | Struct members | Record members ->
         let k = Option.get (replace_kind_of na) in
         List.fold_left
           (fun tm_rest' (_, xna') -> replace_member_of tm_rest' xna')
