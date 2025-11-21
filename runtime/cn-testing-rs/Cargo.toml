@@ -1,0 +1,21 @@
+[package]
+edition = "2021"
+name = "cn-testing-rs"
+rust-version = "1.70"
+version = "0.1.0"
+
+[lib]
+crate-type = ["staticlib"]
+name = "cn_testing_rs"
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+bindgen = "0.70"
+cbindgen = "0.27"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3

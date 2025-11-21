@@ -19,6 +19,12 @@ enum bennet_sizing_strategy {
 size_t bennet_get_size(void);
 void bennet_set_size(size_t sz);
 
+size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
+    int max_tests,
+    int max_discard_ratio,
+    int successes,
+    int recent_discards);
+
 size_t bennet_get_max_size(void);
 void bennet_set_max_size(size_t sz);
 
