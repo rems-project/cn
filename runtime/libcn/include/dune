@@ -8,6 +8,39 @@
 ;  (section lib)
 ;  (package cn))
 
+; Generate C headers from Rust code using cbindgen
+
+(rule
+ (targets test_gen.h result_gen.h prelude_gen.h)
+ (deps
+  (source_tree ../../cn-testing-rs)
+  cn-testing-macros.h
+  cn-testing-typedefs.h)
+ (action
+  (progn
+   (chdir
+    ../../cn-testing-rs
+    (run
+     cbindgen
+     --config
+     cbindgen.toml
+     --output
+     ../libcn/include/test_gen_base.h))
+   ; Combine cbindgen output with C macros
+   ; 1. Remove the incomplete forward declaration and fix struct usage
+   ; 2. Insert typedefs after includes but before any #ifdef __cplusplus
+   ; 3. Append the macros and close the include guard
+   (bash
+    "{ head -n 13 test_gen_base.h; echo ''; cat cn-testing-typedefs.h; echo ''; sed -n '14,$p' test_gen_base.h | sed -e '/typedef struct cn_Option_CnTestCaseFn/d' -e 's/struct cn_Option_CnTestCaseFn/cn_Option_CnTestCaseFn/g' -e '$d'; cat cn-testing-macros.h; echo '#endif  // CN_TEST_H'; } > test_gen.h")
+   ; Create result.h as a simple enum wrapper
+   (write-file
+    result_gen.h
+    "#ifndef CN_TEST_RESULT_H\n#define CN_TEST_RESULT_H\n\n#include <stdint.h>\n\n#ifdef __cplusplus\nextern \"C\" {\n#endif\n\nenum cn_test_result {\n  CN_TEST_PASS,\n  CN_TEST_FAIL,\n  CN_TEST_GEN_FAIL,\n  CN_TEST_SKIP\n};\n\n#ifdef __cplusplus\n}\n#endif\n\n#endif  // CN_TEST_RESULT_H\n")
+   ; Create prelude.h as a convenience header
+   (write-file
+    prelude_gen.h
+    "#ifndef CN_TESTING_PRELUDE_H\n#define CN_TESTING_PRELUDE_H\n\n#include <cn-testing/result.h>\n#include <cn-testing/test.h>\n\n#endif  // CN_TESTING_PRELUDE_H\n"))))
+
 (install
  (files
   ; Fulminate
@@ -63,10 +96,10 @@
   (bennet/utils/hash_table.h as runtime/include/bennet/utils/hash_table.h)
   (bennet/utils/optional.h as runtime/include/bennet/utils/optional.h)
   (bennet/utils/vector.h as runtime/include/bennet/utils/vector.h)
-  ; CN Testing
-  (cn-testing/prelude.h as runtime/include/cn-testing/prelude.h)
-  (cn-testing/result.h as runtime/include/cn-testing/result.h)
-  (cn-testing/test.h as runtime/include/cn-testing/test.h)
+  ; CN Testing (generated from Rust via cbindgen)
+  (prelude_gen.h as runtime/include/cn-testing/prelude.h)
+  (result_gen.h as runtime/include/cn-testing/result.h)
+  (test_gen.h as runtime/include/cn-testing/test.h)
   ; CN SMT
   (cn-smt/branch_history.h as runtime/include/cn-smt/branch_history.h)
   (cn-smt/concretize.h as runtime/include/cn-smt/concretize.h)

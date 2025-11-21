@@ -71,21 +71,21 @@
 (rule
  (target libcn_test.a)
  (deps
-  (:headers
-   (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/cn-testing/*.h)
-   (glob_files ../include/bennet/*.h)
-   (glob_files ../include/bennet/info/*.h)
-   (glob_files ../include/bennet/internals/*.h))
-  (:src
-   (glob_files ../src/cn-testing/*.c)))
+  (source_tree ../../cn-testing-rs)
+  libcn_exec.a
+  libbennet.a
+  libcn_smt.a
+  libcn_replica.a)
  (action
   (progn
-   (run mkdir -p cn-testing)
+   (run mkdir -p cn-testing-rs-target)
    (chdir
-    cn-testing
-    (run ../compile.sh %{src}))
-   (run ar -rcs %{target} cn-testing/test.o))))
+    ../../cn-testing-rs
+    (setenv
+     CARGO_TARGET_DIR
+     ../libcn/lib/cn-testing-rs-target
+     (run cargo build --release)))
+   (run cp cn-testing-rs-target/release/libcn_testing_rs.a %{target}))))
 
 (rule
  (target libcn_replica.a)
