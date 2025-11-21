@@ -1783,7 +1783,17 @@ let rec cn_to_ail_expr_aux
                    }
                in
                let e1_transformed = transform_switch_expr e1 in
-               let ail_case_stmts = List.map build_case dt.cn_dt_cases in
+               let ail_case_stmts =
+                 List.map build_case dt.cn_dt_cases
+                 @ [ mk_stmt
+                       (AilSdefault
+                          (mk_stmt
+                             (AilSreturn
+                                (mk_expr
+                                   (AilEconst
+                                      (ConstantInteger (IConstant (Z.zero, Decimal, None))))))))
+                   ]
+               in
                let switch =
                  A.(
                    AilSswitch
