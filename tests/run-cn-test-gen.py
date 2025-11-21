@@ -198,7 +198,12 @@ def main():
 
     # Set environment variables for stricter CI and sanitizers
     env = os.environ.copy()
-    env['CPPFLAGS'] = env.get('CPPFLAGS', '') + ' -Werror -Wno-unused-value'
+    env['CPPFLAGS'] = ' '.join([env.get('CPPFLAGS', ''), '-Werror', '-Wall',
+                               '-Wno-unused-value',
+                                '-Wno-unused-variable',
+                                '-Wno-unused-but-set-variable',
+                                '-Wno-unused-label',
+                                '-Wno-unused-function'])
     env['UBSAN_OPTIONS'] = 'halt_on_error=1'
     env['ASAN_OPTIONS'] = 'allocator_may_return_null=1:detect_leaks=0'
     os.environ.update(env)
