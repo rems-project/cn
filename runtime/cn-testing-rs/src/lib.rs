@@ -13,6 +13,7 @@ mod registry;
 mod executor;
 mod cli;
 mod utils;
+pub mod info;
 
 pub use types::*;
 pub use registry::cn_register_test_case;

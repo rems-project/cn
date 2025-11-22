@@ -1,6 +1,6 @@
 language = "C"
 # Note: Include guard is manually managed - opening in header, closing is added by dune after macros
-header = "#ifndef CN_TEST_H\n#define CN_TEST_H\n\n#include <bennet/prelude.h>"
+header = "#ifndef CN_TEST_H\n#define CN_TEST_H\n\n#include <bennet/prelude.h>\n#include <stdio.h>\ntypedef FILE cn_FILE;"
 trailer = ""
 # Don't use include_guard to avoid automatic #endif generation
 no_includes = false
@@ -16,6 +16,7 @@ exclude = ["bennet_*", "cn_smt_*", "cn_replica_*", "fulminate_*"]
 
 [export.rename]
 "bindings::bennet_sizing_strategy" = "enum bennet_sizing_strategy"
+"FILE" = "FILE"
 
 [defines]
 "target_os = windows" = "CN_PLATFORM_WINDOWS"

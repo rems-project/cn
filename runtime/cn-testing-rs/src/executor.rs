@@ -6,6 +6,7 @@ use libc::{c_char, c_int};
 use std::ffi::CStr;
 use crate::bindings;
 use crate::cli::TestConfig;
+use crate::info;
 use crate::registry;
 use crate::types::{CnTestInput, CnTestReproduction, CnTestResult, CN_TEST_MAX_TEST_CASES};
 
@@ -29,23 +30,23 @@ pub unsafe extern "C" fn cn_test_main(argc: c_int, argv: *mut *mut c_char) -> c_
 
     // Initialize info collection subsystems
     if config.output_tyche || config.print_size_info {
-        bindings::bennet_info_sizes_init();
+        info::bennet_info_sizes_init();
     }
 
     if config.output_tyche || config.print_backtrack_info {
-        bindings::bennet_info_backtracks_init();
+        info::bennet_info_backtracks_init();
     }
 
     if config.print_satisfaction_info {
-        bindings::bennet_info_unsatisfied_init();
+        info::bennet_info_unsatisfied_init();
     }
 
     if config.print_discard_info {
-        bindings::bennet_info_discards_init();
+        info::bennet_info_discards_init();
     }
 
     if config.output_tyche || config.print_timing_info {
-        bindings::bennet_info_timing_init();
+        info::bennet_info_timing_init();
     }
 
     // Print initial info
@@ -103,23 +104,23 @@ pub unsafe extern "C" fn cn_test_main(argc: c_int, argv: *mut *mut c_char) -> c_
 
             // Set function under test for info collection
             if config.output_tyche || config.print_size_info {
-                bindings::bennet_info_sizes_set_function_under_test(test_case.name);
+                info::bennet_info_sizes_set_function_under_test(test_case.name);
             }
 
             if config.output_tyche || config.print_backtrack_info {
-                bindings::bennet_info_backtracks_set_function_under_test(test_case.name);
+                info::bennet_info_backtracks_set_function_under_test(test_case.name);
             }
 
             if config.print_satisfaction_info {
-                bindings::bennet_info_unsatisfied_set_function_under_test(test_case.name);
+                info::bennet_info_unsatisfied_set_function_under_test(test_case.name);
             }
 
             if config.print_discard_info {
-                bindings::bennet_info_discards_set_function_under_test(test_case.name);
+                info::bennet_info_discards_set_function_under_test(test_case.name);
             }
 
             if config.output_tyche || config.print_timing_info {
-                bindings::bennet_info_timing_set_function_under_test(test_case.name);
+                info::bennet_info_timing_set_function_under_test(test_case.name);
             }
 
             // Print initial test info
@@ -281,27 +282,27 @@ pub unsafe extern "C" fn cn_test_main(argc: c_int, argv: *mut *mut c_char) -> c_
     // Print info if requested
     if config.print_size_info {
         println!();
-        bindings::bennet_info_sizes_print_info();
+        info::bennet_info_sizes_print_info();
     }
 
     if config.print_backtrack_info {
         println!();
-        bindings::bennet_info_backtracks_print_backtrack_info();
+        info::bennet_info_backtracks_print_backtrack_info();
     }
 
     if config.print_satisfaction_info {
         println!();
-        bindings::bennet_info_unsatisfied_print_info();
+        info::bennet_info_unsatisfied_print_info();
     }
 
     if config.print_discard_info {
         println!();
-        bindings::bennet_info_discards_print_info();
+        info::bennet_info_discards_print_info();
     }
 
     if config.print_timing_info {
         println!();
-        bindings::bennet_info_timing_print_info();
+        info::bennet_info_timing_print_info();
     }
 
     // Return non-zero exit code if there were failures or errors

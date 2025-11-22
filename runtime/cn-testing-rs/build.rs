@@ -17,6 +17,7 @@ fn main() {
 #ifndef BENNET_WRAPPER_H
 #define BENNET_WRAPPER_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -60,45 +61,8 @@ void bennet_set_size_split_backtracks_allowed(uint64_t allowed);
 enum bennet_failure_type bennet_failure_get_failure_type(void);
 void bennet_rand_alloc_set_mem_size(uint64_t size);
 
-// Info collection functions
-void bennet_info_sizes_init(void);
-void bennet_info_sizes_set_function_under_test(const char* name);
-void bennet_info_sizes_log(void);
-void bennet_info_sizes_print_info(void);
-
-void bennet_info_backtracks_init(void);
-void bennet_info_backtracks_set_function_under_test(const char* name);
-void bennet_info_backtracks_begin_run(void);
-void bennet_info_backtracks_end_run(_Bool);
-void bennet_info_backtracks_print_backtrack_info(void);
-
-void bennet_info_unsatisfied_init(void);
-void bennet_info_unsatisfied_set_function_under_test(const char* name);
-void bennet_info_unsatisfied_begin_run(void);
-void bennet_info_unsatisfied_end_run(_Bool);
-void bennet_info_unsatisfied_print_info(void);
-
-void bennet_info_discards_init(void);
-void bennet_info_discards_set_function_under_test(const char* name);
-void bennet_info_discards_log(enum bennet_failure_type);
-void bennet_info_discards_print_info(void);
-
-void bennet_info_timing_init(void);
-void bennet_info_timing_set_function_under_test(const char* name);
-void bennet_info_timing_start(const char* label);
-void bennet_info_timing_end(const char* label);
-void bennet_info_timing_print_info(void);
-
-struct tyche_line_info {
-  char *test_suite;
-  char *test_name;
-  char *status;
-  char *status_reason;
-  uint64_t suite_begin_time;
-  char *representation;
-};
-
-void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info);
+// Ownership size function (for info/sizes.rs to call)
+size_t bennet_ownership_size(void);
 
 #endif
 "#;

@@ -26,15 +26,13 @@
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
-   (glob_files ../include/bennet/*.h)
-   (glob_files ../include/bennet/info/*.h))
+   (glob_files ../include/bennet/*.h))
   (:src
    (glob_files ../src/bennet/*.c)
    (glob_files ../src/bennet/dsl/*.c)
    (glob_files ../src/bennet/internals/*.c)
    (glob_files ../src/bennet/internals/domains/*.c)
-   (glob_files ../src/bennet/state/*.c)
-   (glob_files ../src/bennet/info/*.c)))
+   (glob_files ../src/bennet/state/*.c)))
  (action
   (progn
    (run mkdir -p bennet)
@@ -49,8 +47,6 @@
     bennet/arbitrary.o
     bennet/assign.o
     bennet/backtrack.o
-    bennet/backtracks.o
-    bennet/discards.o
     bennet/failure.o
     bennet/ownership.o
     bennet/prelude.o
@@ -58,13 +54,9 @@
     bennet/rand.o
     bennet/rand_alloc.o
     bennet/size.o
-    bennet/sizes.o
     bennet/sized.o
     bennet/tnum.o
     bennet/trivial.o
-    bennet/timing.o
-    bennet/tyche.o
-    bennet/unsatisfied.o
     bennet/urn.o
     bennet/wint.o))))
 
