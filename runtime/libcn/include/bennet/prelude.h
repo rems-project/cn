@@ -2,12 +2,6 @@
 #define BENNET_PRELUDE_H
 
 #include <bennet/dsl.h>
-#include <bennet/info/backtracks.h>
-#include <bennet/info/discards.h>
-#include <bennet/info/sizes.h>
-#include <bennet/info/timing.h>
-#include <bennet/info/tyche.h>
-#include <bennet/info/unsatisfied.h>
 #include <bennet/internals/domain.h>
 #include <bennet/internals/domains/ownership.h>
 #include <bennet/internals/domains/products.h>
