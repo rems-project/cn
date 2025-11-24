@@ -8,6 +8,62 @@ on:
       - main
 
 jobs:
+  dev-build:
+
+    name: Dev build
+
+    strategy:
+      matrix:
+        version: [4.14.1]
+        compiler: [gcc, clang-19]
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
+
+      - name: System dependencies (ubuntu)
+        run: |
+          sudo apt-get install build-essential libgmp-dev z3 opam
+
+      - name: Install Clang
+        if: ${{ matrix.compiler != 'gcc' }}
+        run: |
+          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo apt-get update
+          sudo apt-get install clang-19
+
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam install --deps-only --with-test --yes ./cn.opam z3
+
+      - name: Save OPAM cache
+        uses: actions/cache/save@v4
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+
+      - name: Build CN
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          dune build cn.install --profile=dev
+
   ounit-tests:
     strategy:
       matrix:
