@@ -29,7 +29,7 @@ full-build:
 .PHONY: cn
 cn:
 	@echo "[DUNE] $@"
-	$(Q)dune build -p cn --profile=$(PROFILE)
+	$(Q)dune build cn.install --profile=$(PROFILE)
 
 .PHONY: clean
 clean:
@@ -50,7 +50,7 @@ uninstall:
 .PHONY: cn-coq
 cn-coq:
 	@echo "[DUNE] cn-coq"
-	$(Q)dune build -p cn-coq --profile=$(PROFILE)
+	$(Q)dune build cn-coq.install --profile=$(PROFILE)
 
 .PHONY: cn-coq-install
 cn-coq-install: cn-coq
@@ -60,14 +60,14 @@ cn-coq-install: cn-coq
 .PHONY: cn-with-coq
 cn-with-coq:
 	@echo "[DUNE] cn,cn-coq"
-	$(Q)dune build -p cn,cn-coq --profile=$(PROFILE)
+	$(Q)dune build cn.install cn-coq.install --profile=$(PROFILE)
 
 # Development target to watch for changes in cn/lib and rebuild
 # e.g. to be used with vscode IDE
 .PHONY: cn-dev-watch
 cn-dev-watch:
 	@echo "[DUNE] cn-dev-watch"
-	$(Q)dune build --watch -p cn,cn-coq --profile=$(PROFILE)
+	$(Q)dune build --watch cn.install cn-coq.install --profile=$(PROFILE)
 
 .PHONY: format
 format:
