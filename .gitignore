@@ -36,3 +36,6 @@ cn.code-workspace
 .vscode/tasks.json
 .cursorignore
 cerb_times.csv
+
+# lua stuff
+runtime/lua/src/*.o
