@@ -32,36 +32,38 @@ let debug_stage (stage : string) (str : string) : unit =
 
 
 let parse_domain (s : string list) : (module Domain.T) =
-  let domain_names =
-    s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
-  in
-  (* Parse individual domain names *)
-  let parse_single_domain (name : string) : (module Domain.T) option =
-    match name with
-    | _ when String.equal name AbstractDomains.Ownership.name ->
-      Pp.(warn_noloc !^"Ownership abstract domain is always included");
-      None
-    | _ when String.equal name AbstractDomains.Interval.name ->
-      Some (module AbstractDomains.Interval)
-    | _ when String.equal name AbstractDomains.WrappedInterval.name ->
-      Some (module AbstractDomains.WrappedInterval)
-    | _ ->
-      Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
-      None
-  in
-  match domain_names with
-  | [] ->
-    (* No domains specified - return ownership domain *)
-    (module AbstractDomains.Ownership)
-  | additional_domains ->
-    (* Parse additional domains and filter out ownership if already specified *)
-    let parsed_additional = List.filter_map parse_single_domain additional_domains in
-    let ownership_module = (module AbstractDomains.Ownership : Domain.T) in
-    (* Check if ownership is already in the list *)
-    let all_domains = ownership_module :: parsed_additional in
-    (match all_domains with
-     | [ single ] -> single (* If only ownership, return it directly *)
-     | multiple -> AbstractDomains.product_domains multiple)
+  if List.is_empty s then (* Default *)
+    AbstractDomains.product_domains
+      [ (module AbstractDomains.Ownership); (module AbstractDomains.Interval) ]
+  else (
+    let domain_names =
+      s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
+    in
+    (* Parse individual domain names *)
+    let parse_single_domain (name : string) : (module Domain.T) option =
+      match name with
+      | _ when String.equal name AbstractDomains.Ownership.name -> None
+      | _ when String.equal name AbstractDomains.Interval.name ->
+        Some (module AbstractDomains.Interval)
+      | _ when String.equal name AbstractDomains.WrappedInterval.name ->
+        Some (module AbstractDomains.WrappedInterval)
+      | _ ->
+        Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
+        None
+    in
+    match domain_names with
+    | [] ->
+      (* No domains specified - return ownership domain *)
+      (module AbstractDomains.Ownership)
+    | additional_domains ->
+      (* Parse additional domains and filter out ownership if already specified *)
+      let parsed_additional = List.filter_map parse_single_domain additional_domains in
+      let ownership_module = (module AbstractDomains.Ownership : Domain.T) in
+      (* Check if ownership is already in the list *)
+      let all_domains = ownership_module :: parsed_additional in
+      (match all_domains with
+       | [ single ] -> single (* If only ownership, return it directly *)
+       | multiple -> AbstractDomains.product_domains multiple))
 
 
 let test_setup () : Pp.document =

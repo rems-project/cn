@@ -720,9 +720,9 @@ module WrappedIntervalBasis = struct
     else if is_top b then
       !^"⊤"
     else if Z.equal start stop then
-      !^(Z.to_string start)
+      z start
     else
-      brackets (!^(Z.to_string start) ^^ !^".." ^^ !^(Z.to_string stop))
+      brackets (z start ^^ !^".." ^^ z stop)
 
 
   (* Bitwise operation helpers *)

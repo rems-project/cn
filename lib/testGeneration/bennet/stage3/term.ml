@@ -15,6 +15,9 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
+        | `ArbitrarySpecialized of
+            (IT.t option * IT.t option) * (IT.t option * IT.t option)
+          (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
         | `ArbitraryDomain of AD.Relative.t
         | `Call of Sym.t * IT.t list
           (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
@@ -58,6 +61,16 @@ module Make (AD : Domain.T) = struct
         : t
         =
         Annot (`ArbitraryDomain d, tag, bt, loc)
+
+
+      let arbitrary_specialized_
+            ((mins, maxs) : (IT.t option * IT.t option) * (IT.t option * IT.t option))
+            (tag : tag_t)
+            (bt : BT.t)
+            (loc : Locations.t)
+        : t
+        =
+        Annot (`ArbitrarySpecialized (mins, maxs), tag, bt, loc)
 
 
       let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =

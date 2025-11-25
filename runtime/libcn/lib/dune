@@ -27,6 +27,7 @@
   (:headers
    (glob_files ../include/cn-executable/*.h)
    (glob_files ../include/bennet/*.h)
+   (glob_files ../include/bennet/dsl/*.h)
    (glob_files ../include/bennet/info/*.h))
   (:src
    (glob_files ../src/bennet/*.c)
@@ -60,6 +61,7 @@
     bennet/size.o
     bennet/sizes.o
     bennet/sized.o
+    bennet/specialized.o
     bennet/tnum.o
     bennet/trivial.o
     bennet/timing.o

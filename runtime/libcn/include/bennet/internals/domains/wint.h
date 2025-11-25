@@ -57,11 +57,13 @@ extern "C" {
 
 #define bennet_arbitrary_wint_of(cty, s, e)                                              \
   ({                                                                                     \
-    ((e) - (s) == 1) ? bennet_arbitrary_wint_top(cty) : ({                               \
-      bennet_domain_wint(cty) bennet_arbitrary_wint_tmp = (bennet_domain_wint(cty)){     \
-          .top = false, .bottom = false, .start = s, .end = e};                          \
-      bennet_arbitrary_wint_##cty(&bennet_arbitrary_wint_tmp);                           \
-    });                                                                                  \
+    ((s) - (e) == 1 || (s == BV_MIN(cty) && e == BV_MAX(cty)))                           \
+        ? bennet_arbitrary_wint_top(cty)                                                 \
+        : ({                                                                             \
+            bennet_domain_wint(cty) bennet_arbitrary_wint_tmp = (bennet_domain_wint(     \
+                cty)){.top = false, .bottom = false, .start = s, .end = e};              \
+            bennet_arbitrary_wint_##cty(&bennet_arbitrary_wint_tmp);                     \
+          });                                                                            \
   })
 
 BENNET_DOMAIN_WINT_DECL(uint8_t)

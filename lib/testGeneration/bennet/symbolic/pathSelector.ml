@@ -22,6 +22,8 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let (GenTerms.Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
+    | `ArbitrarySpecialized _ ->
+      failwith "ArbitrarySpecialized not supported in symbolic mode"
     | `Arbitrary | `ArbitraryDomain _ | `Symbolic | `Return _ | `Map _ -> empty
     | `SplitSize (_, next_term) ->
       (* Split size - process the next term *)
@@ -79,7 +81,7 @@ module Make (AD : Domain.T) = struct
       (* Generate the choices array: weight1, index1, weight2, index2, ... *)
       let choices =
         choice_terms
-        |> List.mapi (fun i (weight, _) -> [ !^(Z.to_string weight); int i ])
+        |> List.mapi (fun i (weight, _) -> [ z weight; int i ])
         |> List.flatten
         |> separate (comma ^^ space)
       in

@@ -406,7 +406,7 @@ module Make (AD : Domain.T) = struct
   and convert_const (c : Terms.const) : Pp.document =
     let open Pp in
     match c with
-    | Z n -> !^"cn_smt_z" ^^ parens !^(Z.to_string n)
+    | Z n -> !^"cn_smt_z" ^^ parens (z n)
     | Q q -> !^"cn_smt_q" ^^ parens !^(Q.to_string q)
     | Bits ((sign, width), value) ->
       let sign_str =
@@ -457,7 +457,7 @@ module Make (AD : Domain.T) = struct
     | Null -> !^"cn_smt_null()"
     | CType_const ct -> !^"cn_smt_ctype_const" ^^ parens (Sctypes.pp ct)
     | Default bt -> !^"cn_smt_default" ^^ parens (convert_basetype bt)
-    | Alloc_id id -> !^"cn_smt_alloc_id" ^^ parens !^(Z.to_string id)
+    | Alloc_id id -> !^"cn_smt_alloc_id" ^^ parens (z id)
 
 
   and convert_unop
