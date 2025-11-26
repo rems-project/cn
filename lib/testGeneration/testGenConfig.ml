@@ -36,6 +36,10 @@ type smt_skewing_mode =
   | Sized
   | None
 
+type smt_solver =
+  | Z3
+  | CVC5
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -61,6 +65,7 @@ type t =
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
     use_solver_eval : bool; (* Use solver-based evaluation *)
+    smt_solver : smt_solver;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -121,6 +126,7 @@ let default =
     max_unfolds = None;
     max_array_length = 50;
     use_solver_eval = false;
+    smt_solver = Z3;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -190,6 +196,10 @@ let string_of_smt_skewing_mode (mode : smt_skewing_mode) =
   match mode with Uniform -> "uniform" | Sized -> "sized" | None -> "none"
 
 
+let string_of_smt_solver (solver : smt_solver) =
+  match solver with Z3 -> "z3" | CVC5 -> "cvc5"
+
+
 module Options = struct
   let build_tool = [ ("bash", Bash); ("make", Make) ]
 
@@ -223,6 +233,10 @@ module Options = struct
     List.map
       (fun mode -> (string_of_smt_skewing_mode mode, mode))
       [ Uniform; Sized; None ]
+
+
+  let smt_solver : (string * smt_solver) list =
+    List.map (fun solver -> (string_of_smt_solver solver, solver)) [ Z3; CVC5 ]
 end
 
 let instance : t option ref = ref Option.None
@@ -348,6 +362,8 @@ let get_max_unfolds () = (Option.get !instance).max_unfolds
 let get_max_array_length () = (Option.get !instance).max_array_length
 
 let is_use_solver_eval () = (Option.get !instance).use_solver_eval
+
+let get_smt_solver () = (Option.get !instance).smt_solver
 
 let is_just_reset_solver () = (Option.get !instance).just_reset_solver
 

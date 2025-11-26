@@ -22,6 +22,7 @@ jobs:
       matrix:
         version: [4.14.1]
         compiler: [gcc, clang-19]
+        solver: [z3, cvc5]
 
     runs-on: ubuntu-24.04
 
@@ -31,7 +32,7 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
-          sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
+          sudo apt-get install build-essential libgmp-dev z3 cvc5 opam cmake lcov
 
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
@@ -77,4 +78,4 @@ jobs:
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-test-gen.py -s
+          cd tests; ./run-cn-test-gen.py -s --solver-type=${{ matrix.solver }}

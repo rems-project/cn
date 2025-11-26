@@ -36,6 +36,10 @@ type smt_skewing_mode =
   | Sized
   | None
 
+type smt_solver =
+  | Z3
+  | CVC5
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -61,6 +65,7 @@ type t =
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
     use_solver_eval : bool; (* Use solver-based evaluation *)
+    smt_solver : smt_solver;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -113,6 +118,8 @@ module Options : sig
   val inline_mode : (string * inline_mode) list
 
   val smt_skewing_mode : (string * smt_skewing_mode) list
+
+  val smt_solver : (string * smt_solver) list
 end
 
 val initialize : t -> unit
@@ -220,6 +227,8 @@ val get_max_unfolds : unit -> int option
 val get_max_array_length : unit -> int
 
 val is_use_solver_eval : unit -> bool
+
+val get_smt_solver : unit -> smt_solver
 
 val is_just_reset_solver : unit -> bool
 
