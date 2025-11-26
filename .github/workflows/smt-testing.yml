@@ -43,7 +43,7 @@ jobs:
         uses: robinraju/release-downloader@v1
         with:
           repository: cvc5/cvc5
-          tag: cvc5-1.3.0
+          tag: cvc5-1.3.1
           fileName: cvc5-Linux-x86_64-static.zip
 
       - name: Unzip and install cvc5
