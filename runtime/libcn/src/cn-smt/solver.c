@@ -249,6 +249,13 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
   solver->ext = ext;
   solver->pid = pid;
 
+  // Check CVC5 + skewing compatibility
+  if (ext == SOLVER_CVC5 && cn_get_smt_skewing_mode() != CN_SMT_SKEWING_NONE) {
+    fprintf(stderr,
+        "\033[33mWarning: CVC5 does not support skewing; disabling skewing.\033[0m\n");
+    cn_set_smt_skewing_mode(CN_SMT_SKEWING_NONE);
+  }
+
   // Close unused pipe ends in parent
   close(pipe_fd_in[0]);
   close(pipe_fd_out[1]);
