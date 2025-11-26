@@ -738,17 +738,17 @@ void initialise_error_msg_info_(
       make_error_message_info_entry(function_name, file_name, line_number, 0, NULL);
 }
 
-void reset_error_msg_info() {
+void reset_error_msg_info(void) {
   global_error_msg_info = NULL;
 }
 
-void free_error_msg_info() {
+void free_error_msg_info(void) {
   while (global_error_msg_info != NULL) {
     cn_pop_msg_info();
   }
 }
 
-void cn_pop_msg_info() {
+void cn_pop_msg_info(void) {
   struct cn_error_message_info* old = global_error_msg_info;
   global_error_msg_info = old->parent;
   if (global_error_msg_info) {
@@ -872,7 +872,7 @@ void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
   ghost_arg_array[i] = ptr_to_ghost_arg;
 }
 
-void free_ghost_array() {
+void free_ghost_array(void) {
   fulm_free(ghost_arg_array, &fulm_default_alloc);
 }
 
