@@ -28,13 +28,13 @@ void cn_bump_fprint(FILE* file) {
       bump_curr);
 }
 
-void cn_bump_print() {
+void cn_bump_print(void) {
   cn_bump_fprint(stdout);
 }
 #else
 void cn_bump_fprint(FILE* file) {}
 
-void cn_bump_print() {}
+void cn_bump_print(void) {}
 #endif
 
 void cn_bump_init(void) {
