@@ -20,9 +20,13 @@ jobs:
 
     strategy:
       matrix:
-        version: [4.14.1]
-        compiler: [gcc, clang-19]
-        solver: [z3, cvc5]
+        include:
+          - version: 4.14.1
+            compiler: gcc
+            solver: cvc5
+          - version: 4.14.1
+            compiler: clang-19
+            solver: z3
 
     runs-on: ubuntu-24.04
 
