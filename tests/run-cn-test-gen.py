@@ -167,6 +167,8 @@ def main():
                         help='Use symbolic execution configurations')
     parser.add_argument('--mode', choices=['testing', 'benchmarking'], default='testing',
                         help='Execution mode: testing (parallel, minimal output) or benchmarking (sequential, detailed timing)')
+    parser.add_argument('--solver-type', choices=['z3', 'cvc5'],
+                        help='SMT solver to use for the test run (default: solver executable in PATH)')
     parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
                         help='Build tool to use: bash, make, or both (default: both)')
     parser.add_argument('--only', type=str,
@@ -209,6 +211,8 @@ def main():
     os.environ.update(env)
 
     # Base configuration
+    solver_config = f" --solver-type={args.solver_type}" if args.solver_type else ""
+
     base_config = (
         f"-I{opam_prefix}/lib/cerberus-lib/runtime/libc/include/posix "
         "--input-timeout=1000 "
@@ -216,6 +220,7 @@ def main():
         "--sanitize=address,undefined "
         "--allow-split-magic-comments "
         "--print-seed"
+        f"{solver_config}"
     )
 
     # Set configurations based on symbolic option

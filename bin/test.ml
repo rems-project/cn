@@ -72,6 +72,7 @@ let run_tests
       symbolic
       symbolic_timeout
       use_solver_eval
+      smt_solver
       smt_logging
       smt_log_unsat_cores
       print_size_info
@@ -144,6 +145,7 @@ let run_tests
           symbolic;
           symbolic_timeout;
           use_solver_eval;
+          smt_solver;
           smt_logging;
           smt_log_unsat_cores;
           max_unfolds;
@@ -699,6 +701,16 @@ module Flags = struct
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
 
 
+  let smt_solver =
+    let doc =
+      "Choose SMT solver backend for symbolic test generation (z3, cvc5 is unsupported)."
+    in
+    Arg.(
+      value
+      & opt (enum TestGeneration.Options.smt_solver) TestGeneration.default_cfg.smt_solver
+      & info [ "solver-type" ] ~docv:"SOLVER" ~doc)
+
+
   let use_solver_eval =
     let doc = "(Experimental) Use solver-based evaluation" in
     Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
@@ -798,6 +810,7 @@ let cmd =
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval
+    $ Flags.smt_solver
     $ Flags.smt_logging
     $ Flags.smt_log_unsat_cores
     $ Flags.print_size_info
