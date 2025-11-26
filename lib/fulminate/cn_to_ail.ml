@@ -1784,7 +1784,9 @@ let rec cn_to_ail_expr_aux
                in
                let e1_transformed = transform_switch_expr e1 in
                let unreachable =
-              A.AilSexpr (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "abort")),[])))   in
+                 A.AilSexpr
+                   (mk_expr (AilEcall (mk_expr (AilEident (Sym.fresh "abort")), [])))
+               in
                let ail_case_stmts =
                  List.map build_case dt.cn_dt_cases
                  @ [ mk_stmt (AilSdefault (mk_stmt unreachable)) ]
