@@ -32,7 +32,22 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
-          sudo apt-get install build-essential libgmp-dev z3 cvc5 opam cmake lcov
+          sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
+
+      - name: Download cvc5 release
+        if: ${{ matrix.solver == 'cvc5' }}
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: cvc5/cvc5
+          tag: cvc5-1.3.0
+          fileName: cvc5-Linux-x86_64-static.zip
+
+      - name: Unzip and install cvc5
+        if: ${{ matrix.solver == 'cvc5' }}
+        run: |
+          unzip cvc5-Linux-x86_64-static.zip
+          chmod +x cvc5-Linux-x86_64-static/bin/cvc5
+          sudo cp cvc5-Linux-x86_64-static/bin/cvc5 /usr/local/bin/
 
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
