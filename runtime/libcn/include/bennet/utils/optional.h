@@ -64,7 +64,7 @@ BENNET_OPTIONAL_DECL(size_t);
 #define bennet_optional_equal(ty) bennet_optional_equal_##ty
 
 #define BENNET_OPTIONAL_EQUAL_IMPL(ty)                                                   \
-  static inline bool bennet_optional_equal(ty)(                                          \
+  __attribute__((unused)) static inline bool bennet_optional_equal(ty)(                  \
       bennet_optional(ty) * o1, bennet_optional(ty) * o2) {                              \
     if (o1->is_some) {                                                                   \
       return o2->is_some && o1->body == o2->body;                                        \
@@ -89,7 +89,8 @@ BENNET_OPTIONAL_EQUAL_IMPL(uintmax_t);
 #define bennet_optional_unwrap_or(ty) bennet_optional_unwrap_or_##ty
 
 #define BENNET_OPTIONAL_UNWRAP_OR_IMPL(ty)                                               \
-  static inline ty bennet_optional_unwrap_or(ty)(bennet_optional(ty) * o, ty alt) {      \
+  __attribute__((unused)) static inline ty bennet_optional_unwrap_or(ty)(                \
+      bennet_optional(ty) * o, ty alt) {                                                 \
     if (o->is_some) {                                                                    \
       return o->body;                                                                    \
     }                                                                                    \
