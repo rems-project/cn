@@ -5,7 +5,7 @@
 
 #include <bennet/internals/domain.h>
 #include <bennet/utils/optional.h>
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 
 #ifdef __cplusplus
 extern "C" {

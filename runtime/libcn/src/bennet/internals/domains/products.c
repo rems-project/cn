@@ -4,7 +4,7 @@
 #include <bennet/internals/rand.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/rand_alloc.h>
-#include <cn-executable/utils.h>
+#include <fulminate/api.h>
 
 #define BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(cty)                                          \
   cty bennet_domain_ownership_wint_arbitrary_##cty(                                      \

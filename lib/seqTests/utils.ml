@@ -189,7 +189,7 @@ let create_intermediate_test_file
           "#include <stdlib.h>\n";
           "#endif\n";
           "#include <stdint.h>\n";
-          "#include <cn-executable/utils.h>\n";
+          "#include <fulminate/internals.h>\n";
           "#include <cn-executable/cerb_types.h>\n"
         ])
    ^^ twice hardline

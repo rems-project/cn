@@ -25,15 +25,24 @@
  (target libcn_exec.a)
  (deps
   (:headers
-   (glob_files ../include/cn-executable/*.h))
-  (:src
-   (glob_files ../src/cn-executable/*.c)))
+   (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/fulminate/*.h))
+  (:cn_exec_src
+   (glob_files ../src/cn-executable/*.c))
+  (:fulminate_src
+   (glob_files ../src/fulminate/*.c)))
  (action
   (progn
-   (run mkdir -p cn-executable)
-   (chdir
-    cn-executable
-    (run %{cc} -I ../../include -c %{src}))
+   (progn
+    (run mkdir -p cn-executable)
+    (chdir
+     cn-executable
+     (run %{cc} -I ../../include -c %{cn_exec_src})))
+   (progn
+    (run mkdir -p fulminate)
+    (chdir
+     fulminate
+     (run %{cc} -I ../../include -c %{fulminate_src})))
    (run
     ar
     -rcs
@@ -41,14 +50,17 @@
     cn-executable/fulminate_alloc.o
     cn-executable/bump_alloc.o
     cn-executable/hash_table.o
-    cn-executable/rmap.o
-    cn-executable/utils.o))))
+    cn-executable/utils.o
+    cn-executable/eval.o
+    fulminate/errors.o
+    fulminate/rmap.o))))
 
 (rule
  (target libbennet.a)
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/fulminate/*.h)
    (glob_files ../include/bennet/*.h)
    (glob_files ../include/bennet/dsl/*.h)
    (glob_files ../include/bennet/info/*.h))
@@ -98,6 +110,7 @@
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/fulminate/*.h)
    (glob_files ../include/cn-testing/*.h)
    (glob_files ../include/bennet/*.h)
    (glob_files ../include/bennet/info/*.h)
@@ -117,6 +130,7 @@
  (deps
   (:headers
    (glob_files ../include/cn-executable/*.h)
+   (glob_files ../include/fulminate/*.h)
    (glob_files ../include/cn-replicate/*.h))
   (:src
    (glob_files ../src/cn-replicate/*.c)))

@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include <cn-executable/bump_alloc.h>
-#include <cn-executable/utils.h>
+#include <fulminate/api.h>
 
 static size_t bump_block_size = (1024 * 1024 * 8);  // 8MB default
 static size_t max_bump_blocks = 256;                // Default maximum blocks

@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 
 #ifdef __cplusplus
 extern "C" {

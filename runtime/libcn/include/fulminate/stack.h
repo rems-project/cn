@@ -1,4 +1,7 @@
-#include "fulminate_alloc.h"
+#ifndef FULMINATE_STACK_H
+#define FULMINATE_STACK_H
+
+#include <cn-executable/fulminate_alloc.h>
 
 #define NODE_DEF(NAME, CTYPE)                                                            \
   typedef struct NAME##_node {                                                           \
@@ -61,3 +64,5 @@
   STACK_PUSH(NAME, CTYPE)                                                                \
   STACK_POP(NAME, CTYPE)                                                                 \
   STACK_SIZE(NAME)
+
+#endif  // FULMINATE_STACK_H

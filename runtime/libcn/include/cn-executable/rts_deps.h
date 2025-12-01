@@ -25,8 +25,12 @@
   #define int32_t   __cerbty_int32_t
   #define int64_t   __cerbty_int64_t
   #define intptr_t  __cerbty_intptr_t
-  #define alignof   _Alignof
-  #define bool      _Bool
+
+  #define alignof _Alignof
+
+  #define bool  _Bool
+  #define true  1
+  #define false 0
 
 #else
   #include <stdalign.h>

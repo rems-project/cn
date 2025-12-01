@@ -138,7 +138,7 @@ let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.doc
   let open Pp in
   fun_decls
   ^^ twice hardline
-  ^^ string "#include <cn-executable/utils.h>"
+  ^^ string "#include <fulminate/internals.h>\n"
   ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")

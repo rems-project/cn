@@ -6,14 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <cn-executable/rmap.h>
 #include <cn-executable/utils.h>
+#include <fulminate/internals.h>
 
 typedef rmap ownership_ghost_state;
 
 ownership_ghost_state cn_ownership_global_ghost_state;
 
-struct cn_error_message_info* global_error_msg_info;
+extern struct cn_error_message_info* global_error_msg_info;
 
 struct cn_error_message_info* no_error_msg_info = 0;
 
@@ -26,9 +26,6 @@ _Bool ownership_stack_mode;
 
 static signed long UNMAPPED_VAL = -1;
 static signed long WILDCARD_DEPTH = INT_MIN + 1;
-
-static allocator bump_alloc = (allocator){
-    .malloc = &cn_bump_malloc, .calloc = &cn_bump_calloc, .free = &cn_bump_free};
 
 static _Bool fulminate_initialized = false;
 
@@ -181,60 +178,12 @@ int* create_ownership_ghost_state_entry(int depth) {
   return ghost_state_entry;
 }
 
-cn_bool* convert_to_cn_bool(_Bool b) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  if (!res)
-    exit(1);
-  res->val = b;
-  return res;
-}
-
-_Bool convert_from_cn_bool(cn_bool* b) {
-  return b->val;
-}
-
 void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode) {
   // cn_printf(CN_LOGGING_INFO, "[CN: assertion] function %s, file %s, line %d\n", error_msg_info.function_name, error_msg_info.file_name, error_msg_info.line_number);
   if (!(cn_b->val)) {
     print_error_msg_info(global_error_msg_info);
     cn_failure(CN_FAILURE_ASSERT, spec_mode);
   }
-}
-
-cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = b1->val && b2->val;
-  return res;
-}
-
-cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = b1->val || b2->val;
-  return res;
-}
-
-cn_bool* cn_bool_implies(cn_bool* b1, cn_bool* b2) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = !b1->val || b2->val;
-  return res;
-}
-
-cn_bool* cn_bool_not(cn_bool* b) {
-  cn_bool* res = cn_bump_malloc(sizeof(cn_bool));
-  res->val = !(b->val);
-  return res;
-}
-
-cn_bool* cn_bool_equality(cn_bool* b1, cn_bool* b2) {
-  return convert_to_cn_bool(b1->val == b2->val);
-}
-
-void* cn_ite(cn_bool* b, void* e1, void* e2) {
-  return b->val ? e1 : e2;
-}
-
-cn_map* map_create(void) {
-  return ht_create(&bump_alloc);
 }
 
 void initialise_ownership_ghost_state(void) {
@@ -318,8 +267,7 @@ struct loop_ownership {
 // No destructors: expects to be dropped by the bump allocator _in a timely
 // manner_.
 struct loop_ownership* initialise_loop_ownership_state(void) {
-  struct loop_ownership* loop_ownership =
-      bump_alloc.malloc(sizeof(struct loop_ownership));
+  struct loop_ownership* loop_ownership = cn_bump_malloc(sizeof(struct loop_ownership));
   assert(loop_ownership);
   *loop_ownership = (struct loop_ownership){.head = NULL};
   return loop_ownership;
@@ -334,7 +282,7 @@ void cn_add_to_loop_ownership_state(
   if (hd && addr == (hd->addr + hd->size))
     hd->size += size;
   else {
-    loop_ownership_nd* newhd = bump_alloc.malloc(sizeof(loop_ownership_nd));
+    loop_ownership_nd* newhd = cn_bump_malloc(sizeof(loop_ownership_nd));
     assert(newhd);
     *newhd = (loop_ownership_nd){.addr = addr, .size = size, .next = hd};
     loop_ownership->head = newhd;
@@ -593,192 +541,6 @@ _Bool is_mapped(void* ptr) {
 
 //     va_end(args);
 // }
-
-cn_map* cn_map_set(cn_map* m, cn_integer* key, void* value) {
-  ht_set(m, &key->val, value);
-  return m;
-}
-
-cn_map* cn_map_deep_copy(cn_map* m1) {
-  cn_map* m2 = map_create();
-
-  hash_table_iterator hti = ht_iterator(m1);
-
-  while (ht_next(&hti)) {
-    int64_t* curr_key = hti.key;
-    void* val = ht_get(m1, curr_key);
-    ht_set(m2, curr_key, val);
-  }
-
-  return m2;
-}
-
-cn_map* default_cn_map(void) {
-  return map_create();
-}
-
-cn_bool* default_cn_bool(void) {
-  return convert_to_cn_bool(false);
-}
-
-cn_bool* cn_pointer_equality(void* i1, void* i2) {
-  return convert_to_cn_bool((((cn_pointer*)i1)->ptr) == (((cn_pointer*)i2)->ptr));
-}
-
-cn_bool* cn_pointer_is_null(cn_pointer* p) {
-  return convert_to_cn_bool(p->ptr == NULL);
-}
-
-cn_bool* cn_pointer_lt(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr < p2->ptr);
-}
-
-cn_bool* cn_pointer_le(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr <= p2->ptr);
-}
-
-cn_bool* cn_pointer_gt(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr > p2->ptr);
-}
-
-cn_bool* cn_pointer_ge(cn_pointer* p1, cn_pointer* p2) {
-  return convert_to_cn_bool(p1->ptr >= p2->ptr);
-}
-
-cn_pointer* cast_cn_pointer_to_cn_pointer(cn_pointer* p) {
-  return p;
-}
-
-// Check if m2 is a subset of m1
-cn_bool* cn_map_subset(
-    cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*)) {
-  if (ht_size(m1) != ht_size(m2))
-    return convert_to_cn_bool(0);
-
-  hash_table_iterator hti1 = ht_iterator(m1);
-
-  while (ht_next(&hti1)) {
-    int64_t* curr_key = hti1.key;
-    void* val1 = ht_get(m1, curr_key);
-    void* val2 = ht_get(m2, curr_key);
-
-    /* Check if other map has this key at all */
-    if (!val2)
-      return convert_to_cn_bool(0);
-
-    if (convert_from_cn_bool(cn_bool_not(value_equality_fun(val1, val2)))) {
-      // cn_printf(CN_LOGGING_INFO, "Values not equal!\n");
-      return convert_to_cn_bool(0);
-    }
-  }
-
-  return convert_to_cn_bool(1);
-}
-
-cn_bool* cn_map_equality(
-    cn_map* m1, cn_map* m2, cn_bool*(value_equality_fun)(void*, void*)) {
-  return cn_bool_and(cn_map_subset(m1, m2, value_equality_fun),
-      cn_map_subset(m2, m1, value_equality_fun));
-}
-
-cn_pointer* convert_to_cn_pointer(const void* ptr) {
-  cn_pointer* res = (cn_pointer*)cn_bump_malloc(sizeof(cn_pointer));
-  res->ptr = (void*)ptr;  // Carries around an address
-  return res;
-}
-
-void* convert_from_cn_pointer(cn_pointer* cn_ptr) {
-  return cn_ptr->ptr;
-}
-
-cn_pointer* cn_pointer_min(cn_pointer* p, cn_pointer* q) {
-  uintptr_t p_raw = (uintptr_t)convert_from_cn_pointer(p);
-  uintptr_t q_raw = (uintptr_t)convert_from_cn_pointer(q);
-  return convert_to_cn_pointer((void*)(p_raw < q_raw ? p_raw : q_raw));
-}
-
-cn_pointer* cn_pointer_max(cn_pointer* p, cn_pointer* q) {
-  uintptr_t p_raw = (uintptr_t)convert_from_cn_pointer(p);
-  uintptr_t q_raw = (uintptr_t)convert_from_cn_pointer(q);
-  return convert_to_cn_pointer((void*)(p_raw > q_raw ? p_raw : q_raw));
-}
-
-cn_pointer* cn_pointer_mod(cn_pointer* ptr, cn_pointer* n) {
-  uintptr_t ptr_raw = (uintptr_t)convert_from_cn_pointer(ptr);
-  uintptr_t n_raw = (uintptr_t)convert_from_cn_pointer(n);
-  return convert_to_cn_pointer((void*)(ptr_raw % n_raw));
-}
-
-struct cn_error_message_info* make_error_message_info_entry(const char* function_name,
-    char* file_name,
-    int line_number,
-    char* cn_source_loc,
-    struct cn_error_message_info* parent) {
-  struct cn_error_message_info* entry =
-      fulm_malloc(sizeof(struct cn_error_message_info), &fulm_default_alloc);
-  entry->function_name = function_name;
-  entry->file_name = file_name;
-  entry->line_number = line_number;
-  entry->cn_source_loc = cn_source_loc;
-  entry->parent = parent;
-  entry->child = NULL;
-  if (parent) {
-    parent->child = entry;
-  }
-  return entry;
-}
-
-void update_error_message_info_(
-    const char* function_name, char* file_name, int line_number, char* cn_source_loc) {
-  global_error_msg_info = make_error_message_info_entry(
-      function_name, file_name, line_number, cn_source_loc, global_error_msg_info);
-}
-
-void initialise_error_msg_info_(
-    const char* function_name, char* file_name, int line_number) {
-  // cn_printf(CN_LOGGING_INFO, "Initialising error message info\n");
-  global_error_msg_info =
-      make_error_message_info_entry(function_name, file_name, line_number, 0, NULL);
-}
-
-void reset_error_msg_info(void) {
-  global_error_msg_info = NULL;
-}
-
-void free_error_msg_info(void) {
-  while (global_error_msg_info != NULL) {
-    cn_pop_msg_info();
-  }
-}
-
-void cn_pop_msg_info(void) {
-  struct cn_error_message_info* old = global_error_msg_info;
-  global_error_msg_info = old->parent;
-  if (global_error_msg_info) {
-    global_error_msg_info->child = NULL;
-  }
-  fulm_free(old, &fulm_default_alloc);
-}
-
-static uint32_t cn_fls(uint32_t x) {
-  return x ? sizeof(x) * 8 - __builtin_clz(x) : 0;
-}
-
-static uint64_t cn_flsl(uint64_t x) {
-  return x ? sizeof(x) * 8 - __builtin_clzl(x) : 0;
-}
-
-cn_bits_u32* cn_bits_u32_fls(cn_bits_u32* i1) {
-  cn_bits_u32* res = (cn_bits_u32*)cn_bump_malloc(sizeof(cn_bits_u32));
-  res->val = cn_fls(i1->val);
-  return res;
-}
-
-cn_bits_u64* cn_bits_u64_flsl(cn_bits_u64* i1) {
-  cn_bits_u64* res = (cn_bits_u64*)cn_bump_malloc(sizeof(cn_bits_u64));
-  res->val = cn_flsl(i1->val);
-  return res;
-}
 
 void* cn_aligned_alloc_aux(size_t align, size_t size, _Bool wildcard) {
   void* p = aligned_alloc(align, size);
