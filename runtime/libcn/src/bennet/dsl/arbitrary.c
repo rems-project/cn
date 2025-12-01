@@ -9,7 +9,6 @@
 #include <bennet/internals/size.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/failure.h>
-#include <cn-executable/utils.h>
 
 #define BENNET_ARBITRARY_IMPL(cn_ty, c_ty)                                               \
   cn_ty* bennet_arbitrary_##cn_ty(bennet_domain(c_ty) * cs) {                            \

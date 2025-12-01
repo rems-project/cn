@@ -8,6 +8,7 @@
 #include <bennet/internals/size.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/rand_alloc.h>
+#include <fulminate/api.h>
 
 #define OWNERSHIP_FROM_ASSIGN(cty, min, max)                                             \
   bennet_domain_ownership(cty) * bennet_domain_ownership_from_assignment_##cty(          \
