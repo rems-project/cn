@@ -69,6 +69,7 @@ let run_tests
       smt_pruning_after_absinst
       smt_pruning_keep_redundant_assertions
       smt_pruning_at_runtime
+      runtime_assert_domain
       symbolic
       symbolic_timeout
       use_solver_eval
@@ -142,6 +143,7 @@ let run_tests
           smt_pruning_remove_redundant_assertions =
             not smt_pruning_keep_redundant_assertions;
           smt_pruning_at_runtime;
+          runtime_assert_domain;
           symbolic;
           symbolic_timeout;
           use_solver_eval;
@@ -628,6 +630,11 @@ module Flags = struct
     Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
 
 
+  let runtime_assert_domain =
+    let doc = "Enable assert_domain checks at runtime (disabled by default)" in
+    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
+
+
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
@@ -807,6 +814,7 @@ let cmd =
     $ Flags.smt_pruning_after_absinst
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
+    $ Flags.runtime_assert_domain
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval

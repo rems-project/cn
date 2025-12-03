@@ -60,6 +60,7 @@ type t =
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
+    runtime_assert_domain : bool;
     symbolic : bool;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
@@ -161,6 +162,8 @@ val has_smt_pruning_after_absinst : unit -> [ `None | `Fast | `Slow ]
 val is_smt_pruning_remove_redundant_assertions : unit -> bool
 
 val is_smt_pruning_at_runtime : unit -> bool
+
+val is_runtime_assert_domain : unit -> bool
 
 val has_input_timeout : unit -> int option
 

@@ -48,6 +48,8 @@ module type BASIS = sig
   val pp_args : t -> string
 
   val definitions : unit -> Pp.document
+
+  val to_it : Sym.t -> t -> IT.t
 end
 
 module Make (B : BASIS) = struct
@@ -149,6 +151,12 @@ module Make (B : BASIS) = struct
     match od with
     | Some d -> Sym.Set.of_seq (List.to_seq (List.map fst (Sym.Map.bindings d)))
     | None -> Sym.Set.empty
+
+
+  let free_vars_bts (od : t) : (Sym.t * BT.t) list =
+    match od with
+    | Some d -> Sym.Map.bindings d |> List.map (fun (sym, basis) -> (sym, B.bt basis))
+    | None -> []
 
 
   let pp (od : t) : Pp.document =
@@ -635,4 +643,14 @@ module Make (B : BASIS) = struct
   let pp_params = B.pp_params
 
   let pp_args = B.pp_sym_args
+
+  let to_it (od : t) : IT.t =
+    let loc = Locations.other __LOC__ in
+    match od with
+    | None -> IT.bool_ false loc (* bottom = unsatisfiable *)
+    | Some d ->
+      let constraints =
+        Sym.Map.fold (fun sym basis acc -> B.to_it sym basis :: acc) d []
+      in
+      IT.and_ constraints loc (* conjunction of all basis constraints *)
 end
