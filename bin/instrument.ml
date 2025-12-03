@@ -2,6 +2,14 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
+let build_lua ~lua_src_dir ~print_steps =
+  let cmd = Printf.sprintf "make -C %s liblua.a" lua_src_dir in
+  if print_steps then Printf.printf "Building Lua: %s\n%!" cmd;
+  if Sys.command cmd <> 0 then (
+    Printf.eprintf "Failed to build Lua in %s\n%!" lua_src_dir;
+    exit 1
+  )
+
 let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
@@ -13,7 +21,14 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
   in
   let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
   let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
-  let includes = "-I" ^ runtime_prefix ^ "/include/" in
+
+  let lua_src_dir = Sys.getcwd() ^ "/runtime/lua/src" in
+  build_lua ~lua_src_dir ~print_steps;
+
+  let includes =
+    "-I" ^ runtime_prefix ^ "/include/ -I" ^ lua_src_dir
+  in
+  
   if not (Sys.file_exists runtime_prefix) then (
     print_endline
       ("Could not find CN's runtime directory (looked at: '" ^ runtime_prefix ^ "')");
@@ -54,7 +69,10 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
        ^ " "
        ^ in_folder ~ext:".o" instrumented_filename
        ^ " "
-       ^ Filename.concat runtime_prefix "libcn_exec.a")
+       ^ Filename.concat runtime_prefix "libcn_exec.a"
+       ^ " "
+       ^ Filename.concat lua_src_dir "liblua.a"
+       ^ " -ldl -lm")
     == 0
   then (
     if print_steps then
