@@ -130,7 +130,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         }                                                                                \
                                                                                          \
         return CN_TEST_FAIL;                                                             \
-      case CN_FAILURE_ALLOC:                                                             \
+      case CN_FAILURE_FULM_ALLOC:                                                        \
         bennet_info_timing_end("bennet");                                                \
         bennet_info_timing_end("execute:test");                                          \
                                                                                          \

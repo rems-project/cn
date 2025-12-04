@@ -77,7 +77,7 @@ char *read_output(struct cn_smt_solver *solver) {
     // fprintf(stderr, "Timeout waiting for SMT solver response\n");
     // assert(false);
     // FIXME: Use an appropriate error
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
 
   // Data is available, proceed with reading
