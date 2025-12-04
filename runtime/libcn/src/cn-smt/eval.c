@@ -8,7 +8,7 @@
 #include <bennet/utils/hash_table.h>
 #include <bennet/utils/optional.h>
 #include <bennet/utils/vector.h>
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 #include <cn-smt/datatypes.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/functions.h>

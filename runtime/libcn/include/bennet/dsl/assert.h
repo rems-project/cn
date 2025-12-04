@@ -6,7 +6,6 @@
 #include <bennet/info/backtracks.h>
 #include <bennet/state/failure.h>
 #include <bennet/utils/optional.h>
-#include <cn-executable/utils.h>
 
 #ifdef __cplusplus
 extern "C" {

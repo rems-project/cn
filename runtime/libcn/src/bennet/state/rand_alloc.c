@@ -9,6 +9,7 @@
 #include <bennet/internals/rand.h>
 #include <bennet/state/rand_alloc.h>
 #include <bennet/utils/vector.h>
+#include <fulminate/api.h>
 
 // Struct to represent an allocated region
 typedef struct {

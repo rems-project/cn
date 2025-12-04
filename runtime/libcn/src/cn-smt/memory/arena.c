@@ -4,9 +4,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <cn-executable/utils.h>
 #include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/test_alloc.h>
+#include <fulminate/api.h>
 
 /* Default block size: 8MB */
 #define CN_ARENA_DEFAULT_BLOCK_SIZE (8 * 1024 * 1024)

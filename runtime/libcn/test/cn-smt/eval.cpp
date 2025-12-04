@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/memory/std_alloc.h>
 
