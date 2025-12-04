@@ -301,7 +301,7 @@ int64_t to_bits(int w, bool signed_val, sexp_t* exp) {
     unexpected_solver_response(exp, "to_bits - expected # prefix");
   }
 
-  int64_t result;
+  int64_t result = 0;
   if (s[1] == 'b') {
     // Binary format
     if (len - 2 != w) {
