@@ -452,6 +452,7 @@ let functions_under_test
   let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
   let selected_fsyms =
     Check.select_functions
+      ~strict:true
       (TestGenConfig.get_skip_and_only ())
       (Sym.Set.of_list
          (List.map (fun (inst : FExtract.instrumentation) -> inst.fn) insts))
