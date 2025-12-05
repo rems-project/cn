@@ -71,8 +71,11 @@ void cn_failure_default(enum cn_failure_mode failure_mode, enum spec_mode spec_m
   int exit_code =
       spec_mode;  // Might need to differentiate between failure modes via this exit code in the future
   switch (failure_mode) {
-    case CN_FAILURE_ALLOC:
-      printf("Out of memory!");
+    case CN_FAILURE_USER_ALLOC:
+      cn_printf(CN_LOGGING_INFO, "User allocation failed\n");
+      break;
+    case CN_FAILURE_FULM_ALLOC:
+      cn_printf(CN_LOGGING_INFO, "Out of memory!\n");
       fallthrough;
     case CN_FAILURE_ASSERT:
     case CN_FAILURE_CHECK_OWNERSHIP:
@@ -779,14 +782,14 @@ cn_bits_u64* cn_bits_u64_flsl(cn_bits_u64* i1) {
 
 void* cn_aligned_alloc_aux(size_t align, size_t size, _Bool wildcard) {
   void* p = aligned_alloc(align, size);
-  char str[] = "cn_aligned_alloc";
   if (p) {
+    char str[] = "cn_aligned_alloc";
     fulminate_assume_ownership((void*)p, size, str, wildcard);
-    return p;
-  } else {
-    cn_printf(CN_LOGGING_INFO, "aligned_alloc failed\n");
-    return p;
+  } else if (size != 0) {
+    cn_failure(CN_FAILURE_USER_ALLOC, NON_SPEC);
   }
+
+  return p;
 }
 
 void* cn_aligned_alloc(size_t align, size_t size) {
@@ -799,14 +802,14 @@ void* cn_unsafe_aligned_alloc(size_t align, size_t size) {
 
 void* cn_malloc_aux(unsigned long size, _Bool wildcard) {
   void* p = malloc(size);
-  char str[] = "cn_malloc";
   if (p) {
+    char str[] = "cn_malloc";
     fulminate_assume_ownership((void*)p, size, str, wildcard);
-    return p;
-  } else {
-    cn_printf(CN_LOGGING_INFO, "malloc failed\n");
-    return p;
+  } else if (size != 0) {
+    cn_failure(CN_FAILURE_USER_ALLOC, NON_SPEC);
   }
+
+  return p;
 }
 
 void* cn_malloc(unsigned long size) {
@@ -819,14 +822,14 @@ void* cn_unsafe_malloc(unsigned long size) {
 
 void* cn_calloc_aux(size_t num, size_t size, _Bool wildcard) {
   void* p = calloc(num, size);
-  char str[] = "cn_calloc";
   if (p) {
+    char str[] = "cn_calloc";
     fulminate_assume_ownership((void*)p, num * size, str, wildcard);
-    return p;
-  } else {
-    cn_printf(CN_LOGGING_INFO, "calloc failed\n");
-    return p;
+  } else if (size != 0) {
+    cn_failure(CN_FAILURE_USER_ALLOC, NON_SPEC);
   }
+
+  return p;
 }
 
 void* cn_calloc(size_t num, size_t size) {

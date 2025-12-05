@@ -53,7 +53,7 @@ static void* std_malloc_aux(std_alloc_data* data, size_t size) {
   if (ptr != NULL) {
     bennet_hash_table_set(voidptr, size_t)(&data->table, ptr, size);
   } else if (size != 0) {
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
   return ptr;
 }
@@ -63,7 +63,7 @@ static void* std_calloc_aux(std_alloc_data* data, size_t count, size_t size) {
   if (ptr != NULL) {
     bennet_hash_table_set(voidptr, size_t)(&data->table, ptr, count * size);
   } else if (count != 0 && size != 0) {
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
   return ptr;
 }
@@ -104,7 +104,7 @@ static void* std_aligned_alloc_aux(std_alloc_data* data, size_t alignment, size_
   if (ptr != NULL) {
     bennet_hash_table_set(voidptr, size_t)(&data->table, ptr, size);
   } else if (size != 0) {
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
   return ptr;
 }

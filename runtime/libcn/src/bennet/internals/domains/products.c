@@ -15,14 +15,14 @@
     if (d1->before != 0 || d1->after != 0) {                                             \
       size_t bytes = d1->before + d1->after;                                             \
       if (bytes < d1->before || bytes < d1->after) {                                     \
-        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);                                          \
+        cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
       }                                                                                  \
                                                                                          \
       void* p = (d2->top) ? bennet_rand_alloc(bytes)                                     \
                           : bennet_rand_alloc_bounded(                                   \
                                 bytes, d2->start - d1->before, d2->end - d1->before);    \
       if (!p) {                                                                          \
-        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);                                          \
+        cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
       }                                                                                  \
       bennet_alloc_record(p, bytes);                                                     \
                                                                                          \
@@ -50,14 +50,14 @@ uintptr_t bennet_domain_ownership_wint_arbitrary_uintptr_t(
   if (d1->before != 0 || d1->after != 0) {
     size_t bytes = d1->before + d1->after;
     if (bytes < d1->before || bytes < d1->after) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
 
     void* p = (d2->top) ? bennet_rand_alloc(bytes)
                         : bennet_rand_alloc_bounded(
                               bytes, d2->start - d1->before, d2->end - d1->before);
     if (!p) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
     bennet_alloc_record(p, bytes);
 
