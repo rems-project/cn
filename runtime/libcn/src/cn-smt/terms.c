@@ -291,7 +291,8 @@ cn_term* cn_smt_map_get(cn_term* map, cn_term* key, cn_base_type result_type) {
 cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value) {
   assert(map && key && value);
 
-  cn_term* term = cn_term_alloc(CN_TERM_MAP_SET, cn_base_type_simple(CN_BASE_MAP));
+  // Propagate the map type from the input map
+  cn_term* term = cn_term_alloc(CN_TERM_MAP_SET, map->base_type);
   assert(term);
 
   term->data.map_set.map = map;
