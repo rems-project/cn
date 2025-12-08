@@ -9,7 +9,7 @@
    -Wall
    -fdiagnostics-color=always
    -Werror
-   -Wcast-function-type
+   -Wcast-function-type-mismatch
    -Werror=date-time
    -Werror=implicit-function-declaration
    -Werror=implicit-int
