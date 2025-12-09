@@ -61,7 +61,7 @@ def run_cn_test(cn_path, test_file, config):
     return return_code, elapsed, test_output
 
 
-def run_single_test(test_file, cn_path, base_config, alt_configs, build_tools, _symbolic):
+def run_single_test(test_file: Path, cn_path, base_config, alt_configs, build_tools, symbolic):
     """Run a single test file with all configurations."""
     # Track failures and times for this test
     num_failed = 0
@@ -73,6 +73,9 @@ def run_single_test(test_file, cn_path, base_config, alt_configs, build_tools, _
     for alt_config in alt_configs:
         for build_tool in build_tools:
             full_config = f"{base_config} {alt_config} --build-tool={build_tool}"
+
+            if symbolic and str(os.path.basename(test_file)) == "ini_queue.fail.c":
+                full_config += ' --exit-fast'
 
             output_buffer += separator()
             output_buffer += f'Running CI with CLI config "{full_config}"\n'
@@ -284,7 +287,6 @@ def main():
     if args.symbolic:
         # For symbolic mode, exclude unsupported tests
         smt_test_unsupported = [
-            "ini_queue.fail.c",
             "ini_queue.pass.c",
             "mkm.pass.c",
             "range.fail.c",
