@@ -277,10 +277,10 @@ cn_term* cn_smt_cast(cn_base_type target_type, cn_term* value) {
   return term;
 }
 
-cn_term* cn_smt_map_get(cn_term* map, cn_term* key, cn_base_type result_type) {
+cn_term* cn_smt_map_get(cn_term* map, cn_term* key) {
   assert(map && key);
 
-  cn_term* term = cn_term_alloc(CN_TERM_MAP_GET, result_type);
+  cn_term* term = cn_term_alloc(CN_TERM_MAP_GET, *map->base_type.data.map.value_type);
   assert(term);
 
   term->data.map_get.map = map;

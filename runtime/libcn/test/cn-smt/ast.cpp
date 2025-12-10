@@ -318,23 +318,24 @@ TEST_F(CnSmtTest, TypeOperations) {
 
 // Test map operations
 TEST_F(CnSmtTest, MapOperations) {
-  cn_term* default_val = cn_smt_z(0);
+  // Create a proper map type (Map<Integer, Integer>)
+  cn_base_type map_type = create_map_type(
+      cn_base_type_simple(CN_BASE_INTEGER), cn_base_type_simple(CN_BASE_INTEGER));
+  cn_term* default_map = cn_smt_default(map_type);
 
   // Test map_set
   cn_term* key = cn_smt_z(5);
   cn_term* value = cn_smt_z(42);
-  cn_term* map = cn_smt_map_get(
-      default_val, key, cn_base_type_simple(CN_BASE_MAP));  // Create a dummy map
-  cn_term* map_set = cn_smt_map_set(map, key, value);
+  cn_term* map_set = cn_smt_map_set(default_map, key, value);
   ASSERT_NE(map_set, nullptr);
   EXPECT_EQ(map_set->type, CN_TERM_MAP_SET);
   EXPECT_TRUE(cn_base_type_is(map_set->base_type, CN_BASE_MAP));
-  EXPECT_EQ(map_set->data.map_set.map, map);
+  EXPECT_EQ(map_set->data.map_set.map, default_map);
   EXPECT_EQ(map_set->data.map_set.key, key);
   EXPECT_EQ(map_set->data.map_set.value, value);
 
   // Test map_get
-  cn_term* map_get = cn_smt_map_get(map_set, key, cn_base_type_simple(CN_BASE_INTEGER));
+  cn_term* map_get = cn_smt_map_get(map_set, key);
   ASSERT_NE(map_get, nullptr);
   EXPECT_EQ(map_get->type, CN_TERM_MAP_GET);
   EXPECT_TRUE(cn_base_type_is(map_get->base_type, CN_BASE_INTEGER));
