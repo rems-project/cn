@@ -39,3 +39,7 @@ cerb_times.csv
 
 # lua stuff
 runtime/lua/src/*.o
+runtime/lua/src/.a
+
+# fulminate output directory
+output/
