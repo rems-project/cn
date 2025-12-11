@@ -1,12 +1,12 @@
 #pragma once
 
-// assume this also defines things like cn_handle and creation/registration
+// assume this also defines things like lua_cn_handle and creation/registration
 // of them (example def of handle provided below)
 #include <cn-executable/utils.h>
 
-typedef struct { int lua_ref; } cn_handle;
+typedef struct { int lua_ref; } lua_cn_handle;
 
-cn_handle lua_append(cn_handle xs, cn_handle ys) {
+lua_cn_handle lua_append(lua_cn_handle xs, lua_cn_handle ys) {
     lua_getglobal(L, "append");
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, xs.lua_ref);
@@ -15,10 +15,10 @@ cn_handle lua_append(cn_handle xs, cn_handle ys) {
     lua_call(L, 2, 1);
 
     int ref = luaL_ref(L, LUA_REGISTRY_INDEX);
-    return lua_create_cn_handle(ref);
+    return lua_create_lua_cn_handle(ref);
 }
 
-cn_handle lua_IntList(cn_handle handle, int mode) {
+lua_cn_handle lua_IntList(lua_cn_handle handle, int mode) {
     lua_getglobal(L, "IntList");
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, handle.lua_ref);
@@ -27,10 +27,10 @@ cn_handle lua_IntList(cn_handle handle, int mode) {
     lua_call(L, 2, 1);
 
     int ref = luaL_ref(L, LUA_REGISTRYINDEX);
-    return lua_create_cn_handle(ref);
+    return lua_create_lua_cn_handle(ref);
 }
 
-bool lua_seq_equal(cn_handle a, cn_handle b) {
+bool lua_seq_equal(lua_cn_handle a, lua_cn_handle b) {
     lua_getglobal(L, "seq_equal");
 
     lua_rawgeti(L, LUA_REGISTRYINDEX, a.lua_ref);
