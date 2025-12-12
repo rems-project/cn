@@ -180,6 +180,7 @@ type 'i arguments_l =
   | Resource of (Sym.t * (Request.t * BaseTypes.t)) * Locations.info * 'i arguments_l
   | Constraint of LogicalConstraints.t * Locations.info * 'i arguments_l
   | I of 'i
+[@@deriving map]
 
 val mDefine : (Sym.t * IndexTerms.t) * Locations.info -> 'a arguments_l -> 'a arguments_l
 
@@ -207,6 +208,9 @@ type 'i arguments =
   | Computational of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | Ghost of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | L of 'i arguments_l
+[@@deriving map]
+
+val param_of_arguments : 'a arguments -> 'a
 
 val mComputational
   :  (Sym.t * BaseTypes.t) * Locations.info ->
@@ -226,9 +230,11 @@ type 'a label_payload =
   | MyExpr of 'a expr
 
 type 'TY label_def =
-  (* | Non_inlined of Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit arguments *)
   | Non_inlined of
-      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * 'TY label_payload arguments
+      Locations.t
+      * Sym.t
+      * Cerb_frontend.Annot.label_annot
+      * BaseTypes.t label_payload arguments
   (** This constructor is used when skipping label inlining, to
                   make CN testing usable on programs with switches. *)
   | Return of Locations.t

@@ -936,7 +936,7 @@ let normalise_label
       (accesses, (loop_attributes : CF.Annot.loop_attributes))
       (env : Translate.env)
       st
-      _label_name
+      label_name
       label
   =
   match label with
@@ -947,17 +947,16 @@ let normalise_label
      | Some label_annot ->
        let handle_loop_label loc error_msg =
          if !Sym.executable_spec_enabled then
-           let@ _label_args =
+           let@ label_args =
              make_label_args
-               (fun _ _ -> return ())
+               (fun _ _ -> return Mu.Skipped)
                loc
                env
                st
                (List.combine lt label_args)
                ([], [])
            in
-           (* return (Mu.Non_inlined (loc, label_name, label_annot, label_args)) *)
-           failwith "TODO"
+           return (Mu.Non_inlined (loc, label_name, label_annot, label_args))
          else
            assert_error loc error_msg
        in
