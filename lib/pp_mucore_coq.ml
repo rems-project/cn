@@ -1911,8 +1911,7 @@ let pp_label_def pp_type = function
     let pp_args =
       match param with
       | Skipped -> pp_arguments pp_unit (map_arguments (fun _ -> ()) args)
-      (* | MyExpr expr -> pp_arguments (pp_expr pp_type) (map_arguments (fun _ -> expr) args) *)
-      | MyExpr _expr -> failwith "todo"
+      | MyExpr expr -> pp_arguments (pp_expr pp_type) (map_arguments (fun _ -> expr) args)
     in
     pp_constructor1
       "Non_inlined"

@@ -274,10 +274,7 @@ type 'a label_payload =
 
 type 'TY label_def =
   | Non_inlined of
-      Locations.t
-      * Sym.t
-      * Cerb_frontend.Annot.label_annot
-      * BaseTypes.t label_payload arguments
+      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * 'TY label_payload arguments
   | Return of Locations.t
   | Loop of
       Locations.t

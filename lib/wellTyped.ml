@@ -2494,7 +2494,45 @@ module WProc = struct
 
   let typ p = WArgs.typ (fun (_body, _labels, rt) -> rt) p
 
-  let welltyped : type a. Loc.t -> a Mu.args_and_body -> _ Mu.args_and_body m =
+  let rec foo
+    : type a.
+      BaseTyping.label_context ->
+      a Mu.label_payload Mu.arguments ->
+      BaseTypes.t Mu.label_payload Mu.arguments m
+    =
+    fun label_context -> function
+    | Computational ((name, bt), info, at) ->
+      let@ at = foo label_context at in
+      return (Computational ((name, bt), info, at))
+    | Ghost ((name, bt), info, at) ->
+      let@ at = foo label_context at in
+      return (Ghost ((name, bt), info, at))
+    | L at ->
+      let rec aux (t : a Mu.label_payload Mu.arguments_l)
+        : BaseTypes.t Mu.label_payload Mu.arguments_l m
+        =
+        match t with
+        | Define (bound, info, args) ->
+          let@ args' = aux args in
+          return (Define (bound, info, args'))
+        | Resource (bound, info, args) ->
+          let@ args' = aux args in
+          return (Resource (bound, info, args'))
+        | Constraint (lc, info, args) ->
+          let@ args' = aux args in
+          return (Constraint (lc, info, args'))
+        | I lp ->
+          (match lp with
+           | Skipped -> return (I Skipped)
+           | MyExpr expr ->
+             let@ expr' = BaseTyping.infer_expr label_context expr in
+             return (I (MyExpr expr')))
+      in
+      let@ at' = aux at in
+      return (L at')
+
+
+  let welltyped : type a. Loc.t -> a Mu.args_and_body -> BaseTypes.t Mu.args_and_body m =
     fun (loc : Loc.t) (at : a Mu.args_and_body) ->
     WArgs.welltyped
       (fun (body, labels, rt) ->
@@ -2505,6 +2543,8 @@ module WProc = struct
              (fun _sym def ->
                 match def with
                 | Non_inlined (loc, name, annot, args) ->
+                  let@ args = foo label_context args in
+                  (* let@ args = WArgs.welltyped (function Skipped -> _ | MyExpr expr -> BaseTyping.infer_expr label_context expr) "label" loc args in *)
                   let param = Mu.param_of_arguments args in
                   (match param with
                    | Skipped -> return (Non_inlined (loc, name, annot, args))

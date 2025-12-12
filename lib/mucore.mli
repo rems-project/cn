@@ -231,10 +231,7 @@ type 'a label_payload =
 
 type 'TY label_def =
   | Non_inlined of
-      Locations.t
-      * Sym.t
-      * Cerb_frontend.Annot.label_annot
-      * BaseTypes.t label_payload arguments
+      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * 'TY label_payload arguments
   (** This constructor is used when skipping label inlining, to
                   make CN testing usable on programs with switches. *)
   | Return of Locations.t
