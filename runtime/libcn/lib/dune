@@ -52,7 +52,7 @@
     cn-executable/hash_table.o
     cn-executable/utils.o
     cn-executable/eval.o
-    fulminate/errors.o
+    fulminate/error.o
     fulminate/rmap.o))))
 
 (rule

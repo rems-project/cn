@@ -20,7 +20,7 @@
   (cn-executable/rts_deps.h as runtime/include/cn-executable/rts_deps.h)
   (cn-executable/cerb_types.h as runtime/include/cn-executable/cerb_types.h)
   (cn-executable/eval.h as runtime/include/cn-executable/eval.h)
-  (fulminate/errors.h as runtime/include/fulminate/errors.h)
+  (fulminate/error.h as runtime/include/fulminate/error.h)
   (fulminate/internals.h as runtime/include/fulminate/internals.h)
   (fulminate/rmap.h as runtime/include/fulminate/rmap.h)
   (fulminate/stack.h as runtime/include/fulminate/stack.h)

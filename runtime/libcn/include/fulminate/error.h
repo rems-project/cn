@@ -1,5 +1,5 @@
-#ifndef CN_ERRORS_H
-#define CN_ERRORS_H
+#ifndef CN_ERROR_H
+#define CN_ERROR_H
 
 struct cn_error_message_info {
   const char* function_name;
@@ -30,4 +30,4 @@ void cn_pop_msg_info(void);
 #define update_cn_error_message_info_access_check(x)                                     \
   update_error_message_info_(__func__, __FILE__, __LINE__, x)
 
-#endif  // CN_ERRORS_H
+#endif  // CN_ERROR_H

@@ -2,7 +2,7 @@
 #define FULMINATE_INTERNALS_H
 
 #include "api.h"
-#include "errors.h"
+#include "error.h"
 #include "rmap.h"
 #include "stack.h"
 #include "user.h"

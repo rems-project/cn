@@ -1,5 +1,5 @@
 #include <cn-executable/fulminate_alloc.h>
-#include <fulminate/errors.h>
+#include <fulminate/error.h>
 
 struct cn_error_message_info* global_error_msg_info;
 
