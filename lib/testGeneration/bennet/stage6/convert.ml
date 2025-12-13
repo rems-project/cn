@@ -751,9 +751,79 @@ module Make (AD : Domain.T) = struct
       in
       let b2, s2, e2 = transform_term filename sigma ctx name gt_rest in
       (b1 @ b2, s1 @ s_assert @ s2, e2)
-    | `AssertDomain (_, gt_rest) ->
-      (* FIXME: Domain assertions are dropped in code generation, just process continuation *)
-      transform_term filename sigma ctx name gt_rest
+    | `AssertDomain (ad, gt_rest) ->
+      if not (TestGenConfig.is_runtime_assert_domain ()) then
+        (* Skip assert_domain, just process the rest *)
+        transform_term filename sigma ctx name gt_rest
+      else (
+        (* Filter abstract domain to only include in-scope variables *)
+        let it = AD.to_it ad in
+        let b_cond, s_cond, e_cond = transform_it filename sigma name it in
+        let s_begin =
+          A.
+            [ AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_BEGIN"),
+                        [ e_cond; mk_expr (AilEconst ConstantNull) ] )))
+            ]
+        in
+        (* Generate blame_domain calls for each variable *)
+        let s_blame =
+          AD.free_vars_bts ad
+          |> List.filter_map (fun (x, x_bt) ->
+            (* Only generate for bits/pointer types *)
+            match x_bt with
+            | BT.Bits (sign, bits) ->
+              let cty =
+                match sign with
+                | BT.Signed -> Printf.sprintf "int%d_t" bits
+                | BT.Unsigned -> Printf.sprintf "uint%d_t" bits
+              in
+              let rel = AD.relative_to x x_bt ad in
+              let domain_expr = Pp.plain (pp_relative x_bt rel) in
+              Some
+                (A.AilSexpr
+                   (mk_expr
+                      (AilEcall
+                         ( mk_expr (string_ident "bennet_failure_blame_domain"),
+                           [ mk_expr (AilEident (Sym.fresh cty));
+                             mk_expr (AilEunary (Address, mk_expr (AilEident x)));
+                             mk_expr
+                               (AilEident
+                                  (Sym.fresh
+                                     ("(bennet_domain(" ^ cty ^ ")*)" ^ domain_expr)))
+                           ] ))))
+            | BT.Loc () ->
+              let cty = "uintptr_t" in
+              let rel = AD.relative_to x x_bt ad in
+              let domain_expr = Pp.plain (pp_relative x_bt rel) in
+              Some
+                (A.AilSexpr
+                   (mk_expr
+                      (AilEcall
+                         ( mk_expr (string_ident "bennet_failure_blame_domain"),
+                           [ mk_expr (AilEident (Sym.fresh cty));
+                             mk_expr (AilEunary (Address, mk_expr (AilEident x)));
+                             mk_expr
+                               (AilEident
+                                  (Sym.fresh
+                                     ("(bennet_domain(" ^ cty ^ ")*)" ^ domain_expr)))
+                           ] ))))
+            | _ -> None)
+        in
+        let s_end =
+          A.
+            [ AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_END"),
+                        [ mk_expr (AilEident last_var); mk_expr (AilEconst ConstantNull) ]
+                      )))
+            ]
+        in
+        let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
+        (b_cond @ b_rest, s_cond @ s_begin @ s_blame @ s_end @ s_rest, e_rest))
     | `ITE (it_if, gt_then, gt_else) ->
       let b_if, s_if, e_if = transform_it filename sigma name it_if in
       let b_then, s_then, e_then = transform_term filename sigma ctx name gt_then in
