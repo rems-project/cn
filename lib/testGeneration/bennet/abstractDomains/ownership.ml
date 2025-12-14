@@ -221,4 +221,9 @@ module Inner = struct
     match d with
     | None -> IT.bool_ false loc (* bottom = unsatisfiable *)
     | Some _ -> IT.bool_ true loc (* ownership has no numeric constraints to express *)
+
+
+  let is_meet_assoc = true
+
+  let is_join_assoc = true
 end

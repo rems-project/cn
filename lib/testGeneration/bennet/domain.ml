@@ -90,6 +90,12 @@ module type T = sig
 
   (** Check truthiness *)
   val to_it : t -> IT.t
+
+  (** Whether meet is associative (allows optimization) *)
+  val is_meet_assoc : bool
+
+  (** Whether join is associative (allows optimization) *)
+  val is_join_assoc : bool
 end
 
 module CodeGen (CInt : C_INTERFACE) = struct

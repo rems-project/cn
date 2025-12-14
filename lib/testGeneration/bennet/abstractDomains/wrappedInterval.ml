@@ -444,6 +444,10 @@ module WrappedIntervalBasis = struct
         wrapped_complement bigger_gap)
 
 
+  let is_meet_assoc = false
+
+  let is_join_assoc = false
+
   (* Check if operation would cause wrapped overflow *)
   let is_wrapped_overflow_add_sub bt card1 card2 =
     let width = get_width bt in

@@ -94,6 +94,10 @@ module IntervalBasis = struct
     | h :: t -> List.fold_left meet h t
 
 
+  let is_meet_assoc = true
+
+  let is_join_assoc = true
+
   let handle_overflow bt start stop =
     let min, max = get_extrema bt in
     let stop = if Z.lt start min then max else stop in

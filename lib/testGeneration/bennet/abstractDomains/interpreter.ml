@@ -8,6 +8,38 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
     module Ctx = GenContext.Make (GT)
   end
 
+  (* Optimized domain accumulation helpers for associative meet operations *)
+  let domain_cons d d_list =
+    if AD.is_meet_assoc then (
+      match d_list with
+      | [] -> [ d ]
+      | [ d_acc ] -> [ AD.meet d d_acc ]
+      | _ -> [ AD.meet d (AD.meet_many d_list) ])
+    else
+      d :: d_list
+
+
+  let domain_finalize d_list =
+    if AD.is_meet_assoc then (
+      match d_list with [ d ] -> d | _ -> AD.meet_many d_list)
+    else
+      AD.meet_many d_list
+
+
+  let domain_map_remove sym d_list =
+    if AD.is_meet_assoc then
+      [ AD.remove sym (domain_finalize d_list) ]
+    else
+      List.map (AD.remove sym) d_list
+
+
+  let domain_map_rename ~from ~to_ d_list =
+    if AD.is_meet_assoc then
+      [ AD.rename ~from ~to_ (domain_finalize d_list) ]
+    else
+      List.map (AD.rename ~from ~to_) d_list
+
+
   let annotate_gd (abs_ctx : AD.t Sym.Map.t) (defs_ctx : Ctx.t) (gd : Def.t)
     : GT.t * AD.t list
     =
@@ -61,29 +93,29 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let d' = I.abs_assert (LC.T it_perm) d in
         let gt_inner, d_list = aux abs_ctx defs_ctx gt_inner d' should_assert in
         ( GT.map_ ((i_sym, i_bt, it_perm), gt_inner) tag loc,
-          List.map (AD.remove i_sym) d_list )
+          domain_map_remove i_sym d_list )
       | `MapElab ((i_sym, i_bt, it_bounds, it_perm), gt_inner) ->
         let d' = I.abs_assert (LC.T it_perm) d in
         let gt_inner, d_list = aux abs_ctx defs_ctx gt_inner d' should_assert in
         ( GT.map_elab_ ((i_sym, i_bt, it_bounds, it_perm), gt_inner) tag loc,
-          List.map (AD.remove i_sym) d_list )
+          domain_map_remove i_sym d_list )
       | `Asgn ((it_addr, sct), it_val, gt') ->
         let d' = I.abs_assign ((it_addr, sct), it_val) d in
         let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
-        (GT.asgn_ ((it_addr, sct), it_val, gt') tag loc, d' :: d_list)
+        (GT.asgn_ ((it_addr, sct), it_val, gt') tag loc, domain_cons d' d_list)
       | `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_val, gt') ->
         let d' = I.abs_assign ((it_addr, sct), it_val) d in
         let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
         ( GT.asgn_elab_ (backtrack_var, ((pointer, it_addr), sct), it_val, gt') tag loc,
-          d' :: d_list )
+          domain_cons d' d_list )
       | `Assert (lc, gt') ->
         let d' = I.abs_assert lc d in
         let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
-        (GT.assert_ (lc, gt') tag loc, d' :: d_list)
+        (GT.assert_ (lc, gt') tag loc, domain_cons d' d_list)
       | `AssertDomain (ad, gt') ->
         (* Delete `assert_domain` to avoid dupes *)
         let gt', d_list = aux abs_ctx defs_ctx gt' (AD.meet ad d) should_assert in
-        (gt', ad :: d_list)
+        (gt', domain_cons ad d_list)
       | `SplitSize (syms, gt') ->
         let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
         (GT.split_size_ (syms, gt') tag loc, d_list)
@@ -92,11 +124,11 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         (GT.split_size_elab_ (marker_var, syms, gt') tag loc, d_list)
       | `LetStar ((x, gt1), gt2) ->
         let gt1, d_list1 = aux abs_ctx defs_ctx gt1 d false in
-        let d_list1' = List.map (AD.rename ~from:Domain.ret_sym ~to_:x) d_list1 in
+        let d_list1' = domain_map_rename ~from:Domain.ret_sym ~to_:x d_list1 in
         let gt2, d_list2 =
-          aux abs_ctx defs_ctx gt2 (AD.meet_many d_list1') should_assert
+          aux abs_ctx defs_ctx gt2 (domain_finalize d_list1') should_assert
         in
-        (GT.let_star_ ((x, gt1), gt2) tag loc, List.map (AD.remove x) d_list2)
+        (GT.let_star_ ((x, gt1), gt2) tag loc, domain_map_remove x d_list2)
       | `ITE (it_if, gt_then, gt_else) ->
         let gt_then, d_then_list =
           let d' = I.abs_assert (LC.T it_if) d in
@@ -107,8 +139,8 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
           let d' = I.abs_assert (LC.T not_it_if) d in
           aux abs_ctx defs_ctx gt_else d' should_assert
         in
-        let d_then = AD.meet_many d_then_list in
-        let d_else = AD.meet_many d_else_list in
+        let d_then = domain_finalize d_then_list in
+        let d_else = domain_finalize d_else_list in
         if AD.equal d_then AD.bottom then
           (GT.assert_ (T not_it_if, gt_else) tag loc, d_else_list)
         else if AD.equal d_else AD.bottom then
@@ -121,7 +153,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
           gts
           |> List.filter_map (fun gt ->
             let gt, d_list = aux abs_ctx defs_ctx gt d should_assert in
-            let d_meet = AD.meet_many d_list in
+            let d_meet = domain_finalize d_list in
             (* Prune branches that require bottom *)
             if AD.equal d_meet AD.bottom then None else Some (gt, d_meet))
         in
@@ -133,7 +165,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
           wgts
           |> List.filter_map (fun (w, gt) ->
             let gt, d_list = aux abs_ctx defs_ctx gt d should_assert in
-            let d_meet = AD.meet_many d_list in
+            let d_meet = domain_finalize d_list in
             (* Prune branches that require bottom *)
             if AD.equal d_meet AD.bottom then None else Some ((w, gt), d_meet))
         in
@@ -145,7 +177,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
           wgts
           |> List.filter_map (fun (w, gt) ->
             let gt, d_list = aux abs_ctx defs_ctx gt d should_assert in
-            let d_meet = AD.meet_many d_list in
+            let d_meet = domain_finalize d_list in
             (* Prune branches that require bottom *)
             if AD.equal d_meet AD.bottom then None else Some ((w, gt), d_meet))
         in
@@ -155,7 +187,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
     in
     let rec loop d =
       let gt, d_list = aux abs_ctx defs_ctx gd.body d true in
-      let d' = AD.meet_many (d :: d_list) in
+      let d' = domain_finalize (domain_cons d d_list) in
       if AD.equal d d' then (gt, d_list) else loop d'
     in
     loop (Option.value ~default:AD.top (Sym.Map.find_opt gd.name abs_ctx))
@@ -173,7 +205,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let gd = Ctx.find fsym ctx in
         let existing_d = Option.value ~default:AD.top (Sym.Map.find_opt fsym abs_ctx) in
         let gt, d_list = annotate_gd abs_ctx ctx gd in
-        let d = AD.meet_many d_list in
+        let d = domain_finalize d_list in
         let worklist'' =
           if AD.equal existing_d d then
             worklist'
