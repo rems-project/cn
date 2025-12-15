@@ -29,6 +29,10 @@ module type BASIS = sig
 
   val meet_many : t list -> t
 
+  val is_meet_assoc : bool
+
+  val is_join_assoc : bool
+
   val of_interval : BT.t -> Z.t -> Z.t -> t
 
   val forward_abs_it : IT.t -> t list -> t option
@@ -653,4 +657,9 @@ module Make (B : BASIS) = struct
         Sym.Map.fold (fun sym basis acc -> B.to_it sym basis :: acc) d []
       in
       IT.and_ constraints loc (* conjunction of all basis constraints *)
+
+
+  let is_meet_assoc = B.is_meet_assoc
+
+  let is_join_assoc = B.is_join_assoc
 end

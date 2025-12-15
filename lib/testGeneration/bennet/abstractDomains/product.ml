@@ -780,6 +780,14 @@ let product_domains (domains : (module Domain.T) list) =
           |> List.map (fun comp -> match comp with DPack ((module D), s) -> D.to_it s)
         in
         IT.and_ constraints loc
+
+
+      let is_meet_assoc =
+        List.for_all (fun (module D : Domain.T) -> D.is_meet_assoc) domains
+
+
+      let is_join_assoc =
+        List.for_all (fun (module D : Domain.T) -> D.is_join_assoc) domains
     end
     in
     (module ProductDomain : Domain.T)
