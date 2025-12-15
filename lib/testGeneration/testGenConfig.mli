@@ -56,6 +56,7 @@ type t =
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     static_absint : string list;
+    local_iterations : int;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
@@ -154,6 +155,8 @@ val is_experimental_arg_pruning : unit -> bool
 val is_experimental_return_pruning : unit -> bool
 
 val has_static_absint : unit -> string list
+
+val get_local_iterations : unit -> int
 
 val has_smt_pruning_before_absinst : unit -> [ `None | `Fast | `Slow ]
 

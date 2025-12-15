@@ -624,7 +624,7 @@ module Make (B : BASIS) = struct
         let d' = meet d d' in
         if equal d d' then d' else aux d' (fuel - 1))
     in
-    aux d 10
+    aux d (TestGenConfig.get_local_iterations ())
 
 
   let abs_assert (lc : LC.t) (d : t) : t =

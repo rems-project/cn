@@ -65,6 +65,7 @@ let run_tests
       experimental_arg_pruning
       experimental_return_pruning
       static_absint
+      local_iterations
       smt_pruning_before_absinst
       smt_pruning_after_absinst
       smt_pruning_keep_redundant_assertions
@@ -138,6 +139,7 @@ let run_tests
           experimental_arg_pruning;
           experimental_return_pruning;
           static_absint;
+          local_iterations;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
           smt_pruning_remove_redundant_assertions =
@@ -649,6 +651,14 @@ module Flags = struct
       & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
 
 
+  let local_iterations =
+    let doc = "Maximum iterations for local abstract interpretation refinement" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.local_iterations
+      & info [ "local-iterations" ] ~doc)
+
+
   let print_size_info =
     let doc = "(Experimental) Print size info" in
     Arg.(value & flag & info [ "print-size-info" ] ~doc)
@@ -810,6 +820,7 @@ let cmd =
     $ Flags.experimental_arg_pruning
     $ Flags.experimental_return_pruning
     $ Flags.static_absint
+    $ Flags.local_iterations
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
     $ Flags.smt_pruning_keep_redundant_assertions
