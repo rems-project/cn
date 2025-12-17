@@ -16,6 +16,7 @@ val main
   exec_c_locs_mode:bool ->
   experimental_ownership_stack_mode:bool ->
   experimental_curly_braces:bool ->
+  experimental_lua_runtime:bool ->
   with_testing:bool ->
   skip_and_only:string list * string list ->
   ?max_bump_blocks:int ->

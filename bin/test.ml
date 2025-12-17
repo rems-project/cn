@@ -212,6 +212,7 @@ let run_tests
            ~exec_c_locs_mode
            ~experimental_ownership_stack_mode
            ~experimental_curly_braces:false
+           ~experimental_lua_runtime:false
            ~with_testing:true
            ~skip_and_only:(skip_fulminate, only_fulminate)
            ?max_bump_blocks
