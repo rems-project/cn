@@ -65,10 +65,12 @@ let run_tests
       experimental_arg_pruning
       experimental_return_pruning
       static_absint
+      local_iterations
       smt_pruning_before_absinst
       smt_pruning_after_absinst
       smt_pruning_keep_redundant_assertions
       smt_pruning_at_runtime
+      runtime_assert_domain
       symbolic
       symbolic_timeout
       use_solver_eval
@@ -137,11 +139,13 @@ let run_tests
           experimental_arg_pruning;
           experimental_return_pruning;
           static_absint;
+          local_iterations;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
           smt_pruning_remove_redundant_assertions =
             not smt_pruning_keep_redundant_assertions;
           smt_pruning_at_runtime;
+          runtime_assert_domain;
           symbolic;
           symbolic_timeout;
           use_solver_eval;
@@ -206,6 +210,7 @@ let run_tests
            ~exec_c_locs_mode
            ~experimental_ownership_stack_mode
            ~experimental_curly_braces:false
+           ~experimental_lua_runtime:false
            ~with_testing:true
            ~skip_and_only:(skip_fulminate, only_fulminate)
            ?max_bump_blocks
@@ -628,6 +633,11 @@ module Flags = struct
     Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
 
 
+  let runtime_assert_domain =
+    let doc = "Enable assert_domain checks at runtime (disabled by default)" in
+    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
+
+
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
@@ -640,6 +650,14 @@ module Flags = struct
              (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
           []
       & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+
+
+  let local_iterations =
+    let doc = "Maximum iterations for local abstract interpretation refinement" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.local_iterations
+      & info [ "local-iterations" ] ~doc)
 
 
   let print_size_info =
@@ -803,10 +821,12 @@ let cmd =
     $ Flags.experimental_arg_pruning
     $ Flags.experimental_return_pruning
     $ Flags.static_absint
+    $ Flags.local_iterations
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
+    $ Flags.runtime_assert_domain
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval

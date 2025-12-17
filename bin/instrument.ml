@@ -10,7 +10,7 @@ let build_lua ~lua_src_dir ~print_steps =
     exit 1
   )
 
-let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps =
+let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps ~experimental_lua_runtime =
   let instrumented_filename =
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
@@ -22,12 +22,15 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
   let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
   let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
 
-  let lua_src_dir = Sys.getcwd() ^ "/runtime/lua/src" in
-  build_lua ~lua_src_dir ~print_steps;
-
-  let includes =
-    "-I" ^ runtime_prefix ^ "/include/ -I" ^ lua_src_dir
+  let lua_src_dir, lua_inc_flags, lua_link_flags =
+    if not experimental_lua_runtime then ("", "", "") else
+    let src_dir = Sys.getcwd() ^ "/runtime/lua/src" in
+    (src_dir, " -I" ^ src_dir, Filename.concat src_dir "liblua.a -ldl -lm")
   in
+
+  if experimental_lua_runtime then build_lua ~lua_src_dir ~print_steps;
+
+  let includes = "-I" ^ runtime_prefix ^ "/include/" ^ lua_inc_flags in
   
   if not (Sys.file_exists runtime_prefix) then (
     print_endline
@@ -71,8 +74,7 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
        ^ " "
        ^ Filename.concat runtime_prefix "libcn_exec.a"
        ^ " "
-       ^ Filename.concat lua_src_dir "liblua.a"
-       ^ " -ldl -lm")
+       ^ lua_link_flags)
     == 0
   then (
     if print_steps then
@@ -119,6 +121,7 @@ let generate_executable_specs
       experimental_ownership_stack_mode
       experimental_unions
       experimental_curly_braces
+      experimental_lua_runtime
       mktemp
       print_steps
       max_bump_blocks
@@ -188,6 +191,7 @@ let generate_executable_specs
                 ~exec_c_locs_mode
                 ~experimental_ownership_stack_mode
                 ~experimental_curly_braces
+                ~experimental_lua_runtime
                 ~with_testing
                 ~skip_and_only:(skip, only)
                 ?max_bump_blocks
@@ -212,7 +216,8 @@ let generate_executable_specs
              ~no_debug_info
              ~output
              ~output_dir
-             ~print_steps))
+             ~print_steps
+             ~experimental_lua_runtime))
 
 
 open Cmdliner
@@ -377,6 +382,10 @@ module Flags = struct
   let experimental_curly_braces =
     let doc = "(experimental) Insert curly braces for single-statement control flow" in
     Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
+
+  let experimental_lua_runtime =
+    let doc = "(experimental) Use Lua as the runtime environment for Fulminate" in
+    Arg.(value & flag & info [ "experimental-lua-runtime" ] ~doc)
 end
 
 let cmd =
@@ -419,6 +428,7 @@ let cmd =
     $ Flags.experimental_ownership_stack_mode
     $ Flags.experimental_unions
     $ Flags.experimental_curly_braces
+    $ Flags.experimental_lua_runtime
     $ Flags.mktemp
     $ Flags.print_steps
     $ Flags.max_bump_blocks

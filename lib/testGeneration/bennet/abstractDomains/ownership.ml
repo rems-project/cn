@@ -147,6 +147,12 @@ module Inner = struct
     | None -> Sym.Set.empty
 
 
+  let free_vars_bts (od : t) : (Sym.t * BaseTypes.t) list =
+    match od with
+    | Some d -> Sym.Map.bindings d |> List.map (fun (sym, _) -> (sym, BaseTypes.Loc ()))
+    | None -> []
+
+
   let pp d =
     let open Pp in
     match d with
@@ -209,4 +215,15 @@ module Inner = struct
   let pp_params () = "size_t before, size_t after"
 
   let pp_args () = "before, after"
+
+  let to_it (d : t) : IT.t =
+    let loc = Locations.other __LOC__ in
+    match d with
+    | None -> IT.bool_ false loc (* bottom = unsatisfiable *)
+    | Some _ -> IT.bool_ true loc (* ownership has no numeric constraints to express *)
+
+
+  let is_meet_assoc = true
+
+  let is_join_assoc = true
 end
