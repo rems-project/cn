@@ -128,7 +128,7 @@ int main(void)
 // Lua CN File-specific wrapper Implementations
 
 /**
- * See append.cn-types.lua for more info on this.
+ * See append.cn.lua for more info on this.
  */
 static int lua_cn_read_int_list() {
   lua_State* L = get_global_lua_state();
