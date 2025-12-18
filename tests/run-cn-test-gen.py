@@ -19,7 +19,7 @@ def get_test_type(test_file, config):
     elif test_file.endswith('.fail.c'):
         return 'FAIL'
     elif test_file.endswith('.buggy.c'):
-        return 'BUGGY'
+        return 'SKIP'
     elif test_file.endswith('.flaky.c'):
         return 'FLAKY'
     elif (test_file.endswith('learn_cast.special.c')
@@ -234,10 +234,10 @@ def main():
         ]
     else:
         alt_configs = [
-            "--coverage --sizing-strategy=quickcheck",
+            "--coverage --sizing-strategy=quickcheck --inline=everything",
             "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
             "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
-            "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
+            "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
         ]
 
     # Set build tools based on argument

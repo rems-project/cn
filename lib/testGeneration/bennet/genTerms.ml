@@ -518,16 +518,18 @@ module Make (GT : T) = struct
       map_ ((i, i_bt, it_perm), map_gen_pre f gt') tag loc
     | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
       map_elab_ ((i, i_bt, (it_min, it_max), it_perm), map_gen_pre f gt') tag loc
-    | `Pick gts -> pick_ (List.map (map_gen_pre f) gts) tag bt loc
+    | `Pick gts ->
+      let new_gts = List.map (map_gen_pre f) gts in
+      let new_bt = match new_gts with [] -> bt | hd :: _ -> basetype hd in
+      pick_ new_gts tag new_bt loc
     | `PickSized choices ->
-      pick_sized_ (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices) tag bt loc
+      let new_choices = List.map (fun (w, g) -> (w, map_gen_pre f g)) choices in
+      let new_bt = match new_choices with [] -> bt | (_, hd) :: _ -> basetype hd in
+      pick_sized_ new_choices tag new_bt loc
     | `PickSizedElab (pick_var, choices) ->
-      pick_sized_elab_
-        pick_var
-        (List.map (fun (w, g) -> (w, map_gen_pre f g)) choices)
-        tag
-        bt
-        loc
+      let new_choices = List.map (fun (w, g) -> (w, map_gen_pre f g)) choices in
+      let new_bt = match new_choices with [] -> bt | (_, hd) :: _ -> basetype hd in
+      pick_sized_elab_ pick_var new_choices tag new_bt loc
     | `SplitSize (syms, gt') -> split_size_ (syms, map_gen_pre f gt') tag loc
     | `SplitSizeElab (split_var, syms, gt') ->
       split_size_elab_ (split_var, syms, map_gen_pre f gt') tag loc
@@ -561,16 +563,18 @@ module Make (GT : T) = struct
         map_ ((i, i_bt, it_perm), map_gen_post f gt') tag loc
       | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
         map_elab_ ((i, i_bt, (it_min, it_max), it_perm), map_gen_post f gt') tag loc
-      | `Pick gts -> pick_ (List.map (map_gen_post f) gts) tag bt loc
+      | `Pick gts ->
+        let new_gts = List.map (map_gen_post f) gts in
+        let new_bt = match new_gts with [] -> bt | hd :: _ -> basetype hd in
+        pick_ new_gts tag new_bt loc
       | `PickSized choices ->
-        pick_sized_ (List.map (fun (w, g) -> (w, map_gen_post f g)) choices) tag bt loc
+        let new_choices = List.map (fun (w, g) -> (w, map_gen_post f g)) choices in
+        let new_bt = match new_choices with [] -> bt | (_, hd) :: _ -> basetype hd in
+        pick_sized_ new_choices tag new_bt loc
       | `PickSizedElab (pick_var, choices) ->
-        pick_sized_elab_
-          pick_var
-          (List.map (fun (w, g) -> (w, map_gen_post f g)) choices)
-          tag
-          bt
-          loc
+        let new_choices = List.map (fun (w, g) -> (w, map_gen_post f g)) choices in
+        let new_bt = match new_choices with [] -> bt | (_, hd) :: _ -> basetype hd in
+        pick_sized_elab_ pick_var new_choices tag new_bt loc
       | `SplitSize (syms, gt') -> split_size_ (syms, map_gen_post f gt') tag loc
       | `SplitSizeElab (split_var, syms, gt') ->
         split_size_elab_ (split_var, syms, map_gen_post f gt') tag loc
