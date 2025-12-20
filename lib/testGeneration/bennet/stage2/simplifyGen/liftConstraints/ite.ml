@@ -46,7 +46,7 @@ module Make (AD : Domain.T) = struct
     | Forall ((i, i_bt), IT (Binop (Implies, it_perm, it_body), _, loc_implies)) ->
       let it_perm = transform_it it_perm in
       let it_body = transform_it it_body in
-      LC.Forall ((i, i_bt), IT.arith_binop Implies (it_perm, it_body) loc_implies)
+      LC.Forall ((i, i_bt), IT.impl_ (it_perm, it_body) loc_implies)
     | _ -> failwith __LOC__
 
 

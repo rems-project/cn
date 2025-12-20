@@ -149,21 +149,53 @@ let addr_eq_def : builtin_fn_def =
    LogicalFunction.definition types because they implicitly require basetype polymorphism.
    For example, the `mod` function allows inputs of any sign and size, but such a function cannot be defined
    yet with an index term *)
-let mul_uf_def = ("mul_uf", Sym.fresh "mul_uf", mk_arg2 IT.mul_no_smt_)
+let mul_uf_def =
+  ( "mul_uf",
+    Sym.fresh "mul_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop MulNoSMT (it, it') loc (IT.get_bt it)) )
 
-let div_uf_def = ("div_uf", Sym.fresh "div_uf", mk_arg2 IT.div_no_smt_)
 
-let power_uf_def = ("power_uf", Sym.fresh "power_uf", mk_arg2 IT.exp_no_smt_)
+let div_uf_def =
+  ( "div_uf",
+    Sym.fresh "div_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop DivNoSMT (it, it') loc (IT.get_bt it)) )
 
-let rem_uf_def = ("rem_uf", Sym.fresh "rem_uf", mk_arg2 IT.rem_no_smt_)
 
-let mod_uf_def = ("mod_uf", Sym.fresh "mod_uf", mk_arg2 IT.mod_no_smt_)
+let power_uf_def =
+  ( "power_uf",
+    Sym.fresh "power_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop ExpNoSMT (it, it') loc (IT.get_bt it)) )
 
-let xor_uf_def = ("xor_uf", Sym.fresh "xor_uf", mk_arg2 (IT.arith_binop BW_Xor))
 
-let bw_and_uf_def = ("bw_and_uf", Sym.fresh "bw_and_uf", mk_arg2 (IT.arith_binop BW_And))
+let rem_uf_def =
+  ( "rem_uf",
+    Sym.fresh "rem_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop RemNoSMT (it, it') loc (IT.get_bt it)) )
 
-let bw_or_uf_def = ("bw_or_uf", Sym.fresh "bw_or_uf", mk_arg2 (IT.arith_binop BW_Or))
+
+let mod_uf_def =
+  ( "mod_uf",
+    Sym.fresh "mod_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop ModNoSMT (it, it') loc (IT.get_bt it)) )
+
+
+let xor_uf_def =
+  ( "xor_uf",
+    Sym.fresh "xor_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop BW_Xor (it, it') loc (IT.get_bt it)) )
+
+
+let bw_and_uf_def =
+  ( "bw_and_uf",
+    Sym.fresh "bw_and_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop BW_And (it, it') loc (IT.get_bt it)) )
+
+
+let bw_or_uf_def =
+  ( "bw_or_uf",
+    Sym.fresh "bw_or_uf",
+    mk_arg2 (fun (it, it') loc -> IT.binop BW_Or (it, it') loc (IT.get_bt it)) )
+
 
 let bw_clz_uf_def =
   ("bw_clz_uf", Sym.fresh "bw_clz_uf", mk_arg1 (IT.arith_unop BW_CLZ_NoSMT))
@@ -182,18 +214,34 @@ let bw_fls_uf_def =
 
 
 let shift_left_def =
-  ("shift_left", Sym.fresh "shift_left", mk_arg2 (IT.arith_binop ShiftLeft))
+  ( "shift_left",
+    Sym.fresh "shift_left",
+    mk_arg2 (fun (it, it') loc -> IT.binop ShiftLeft (it, it') loc (IT.get_bt it)) )
 
 
 let shift_right_def =
-  ("shift_right", Sym.fresh "shift_right", mk_arg2 (IT.arith_binop ShiftRight))
+  ( "shift_right",
+    Sym.fresh "shift_right",
+    mk_arg2 (fun (it, it') loc -> IT.binop ShiftRight (it, it') loc (IT.get_bt it)) )
 
 
-let power_def = ("power", Sym.fresh "power", mk_arg2 IT.exp_)
+let power_def =
+  ( "power",
+    Sym.fresh "power",
+    mk_arg2 (fun (it, it') loc -> IT.binop Exp (it, it') loc (IT.get_bt it)) )
 
-let rem_def = ("rem", Sym.fresh "rem", mk_arg2 IT.rem_)
 
-let mod_def = ("mod", Sym.fresh "mod", mk_arg2 IT.mod_)
+let rem_def =
+  ( "rem",
+    Sym.fresh "rem",
+    mk_arg2 (fun (it, it') loc -> IT.binop Rem (it, it') loc (IT.get_bt it)) )
+
+
+let mod_def =
+  ( "mod",
+    Sym.fresh "mod",
+    mk_arg2 (fun (it, it') loc -> IT.binop Mod (it, it') loc (IT.get_bt it)) )
+
 
 let is_some_def = ("is_some", Sym.fresh "is_some", mk_arg1 IT.isSome_)
 
@@ -201,7 +249,14 @@ let is_none_def = ("is_none", Sym.fresh "is_none", mk_arg1 IT.isNone_)
 
 let get_opt_def = ("get_opt", Sym.fresh "get_opt", mk_arg1 IT.getOpt_)
 
-let builtin_funs =
+let builtin_funs
+  : (string
+    * Sym.t
+    * (BaseTypes.Surface.t IT.annot list ->
+      Locations.t ->
+      (BaseTypes.Surface.t IT.annot, err) result))
+      list
+  =
   [ mul_uf_def;
     div_uf_def;
     power_uf_def;

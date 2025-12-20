@@ -107,7 +107,7 @@ module Make (AD : Domain.T) = struct
             (it_and
                (IT.subst
                   (IT.make_rename ~from:i ~to_:new_i)
-                  (IT.arith_binop Implies (it_perm, it_body) loc_implies)))
+                  (IT.impl_ (it_perm, it_body) loc_implies)))
               res
           in
           if delete then
