@@ -101,7 +101,8 @@ type t =
     max_bump_blocks : int option;
     bump_block_size : int option;
     max_input_alloc : int option;
-    smt_skew_pointer_order : bool
+    smt_skew_pointer_order : bool;
+    dsl_log_dir : string option
   }
 
 let default =
@@ -163,7 +164,8 @@ let default =
     max_bump_blocks = None;
     bump_block_size = None;
     max_input_alloc = None;
-    smt_skew_pointer_order = false
+    smt_skew_pointer_order = false;
+    dsl_log_dir = None
   }
 
 
@@ -388,3 +390,5 @@ let has_bump_block_size () = (Option.get !instance).bump_block_size
 let has_max_input_alloc () = (Option.get !instance).max_input_alloc
 
 let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order
+
+let get_dsl_log_dir () = (Option.get !instance).dsl_log_dir
