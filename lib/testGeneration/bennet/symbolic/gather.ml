@@ -159,8 +159,7 @@ module Make (AD : Domain.T) = struct
         let here = Locations.other __LOC__ in
         elem_docs
         |> List.mapi (fun idx value_doc ->
-          ( f (IT.add_check_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here),
-            value_doc ))
+          (f (IT.add_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here), value_doc))
       in
       let actual_map =
         List.fold_left
