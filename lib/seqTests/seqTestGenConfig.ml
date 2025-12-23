@@ -9,8 +9,7 @@ type t =
   }
 
 let default =
-  { 
-    cc = "cc";
+  { cc = "cc";
     print_steps = false;
     disable_shrink = false;
     num_calls = 30;

@@ -89,8 +89,7 @@ let run_seq_tests
              ail_prog
              prog5;
            let config : SeqTests.seq_config =
-             { 
-               cc;
+             { cc;
                print_steps;
                disable_shrink;
                num_calls;
