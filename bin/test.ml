@@ -368,13 +368,7 @@ module Flags = struct
       value
       & opt int TestGeneration.default_cfg.max_array_length
       & info [ "max-array-length" ] ~doc)
-
-
-  let disable_shrink =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after May 31." in
-    Arg.(value & flag & info [ "with-static-hack" ] ~deprecated ~doc)
-
+      
 
   let build_tool =
     let doc = "Set which build tool to use." in
