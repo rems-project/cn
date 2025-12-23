@@ -28,22 +28,22 @@ void cn_bump_fprint(FILE* file) {
       bump_curr);
 }
 
-void cn_bump_print() {
+void cn_bump_print(void) {
   cn_bump_fprint(stdout);
 }
 #else
 void cn_bump_fprint(FILE* file) {}
 
-void cn_bump_print() {}
+void cn_bump_print(void) {}
 #endif
 
-void cn_bump_init() {
+void cn_bump_init(void) {
   if (bump_curr == NULL) {
     // Allocate initial array of block pointers
     bump_blocks_capacity = max_bump_blocks;
     bump_blocks = fulm_malloc(bump_blocks_capacity * sizeof(char*), &fulm_default_alloc);
     if (!bump_blocks) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
 
     // Initialize all pointers to NULL
@@ -54,7 +54,7 @@ void cn_bump_init() {
     // Allocate first block
     bump_blocks[0] = fulm_malloc(bump_block_size, &fulm_default_alloc);
     if (!bump_blocks[0]) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
     bump_curr = bump_blocks[0];
   }
@@ -72,13 +72,13 @@ bool bump_can_fit(size_t nbytes) {
   return 1;
 }
 
-bool bump_expand() {
+bool bump_expand(void) {
   // Check if we've reached the maximum number of blocks
   if (bump_curr_block + 1 >= max_bump_blocks) {
     cn_printf(CN_LOGGING_INFO,
         "Reached maximum number of bump allocator blocks (%zu).\\n",
         max_bump_blocks);
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     return false;
   }
 
@@ -87,7 +87,7 @@ bool bump_expand() {
     size_t new_capacity = bump_blocks_capacity * 2;
     char** new_blocks = fulm_malloc(new_capacity * sizeof(char*), &fulm_default_alloc);
     if (!new_blocks) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
       return false;
     }
 
@@ -110,7 +110,7 @@ bool bump_expand() {
   if (bump_blocks[bump_curr_block] == NULL) {
     bump_blocks[bump_curr_block] = fulm_malloc(bump_block_size, &fulm_default_alloc);
     if (!bump_blocks[bump_curr_block]) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
       return false;
     }
   }
@@ -125,13 +125,13 @@ void* bump_by(size_t nbytes) {
     cn_printf(CN_LOGGING_INFO,
         "Attempted to bump allocate larger than maximum allocation size %zu.\n",
         bump_block_size);
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     return NULL;
   }
 
   if (!bump_can_fit(nbytes)) {
     if (!bump_expand()) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
       return NULL;
     }
   }
@@ -155,7 +155,7 @@ void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
     size_t padding = (alignment - (uintptr_t)bump_curr % alignment) % alignment;
     if (!bump_can_fit(padding + nbytes)) {
       if (!bump_expand()) {
-        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+        cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
         return NULL;
       }
       padding = (alignment - (uintptr_t)bump_curr % alignment) % alignment;
@@ -165,7 +165,7 @@ void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
     void* res = bump_by(padding);
     if (res == NULL) {
       bump_curr = prev;
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
       return NULL;
     }
   }
@@ -174,7 +174,7 @@ void* cn_bump_aligned_alloc(size_t alignment, size_t nbytes) {
   void* res = bump_by(nbytes);
   if (res == NULL) {
     bump_curr = prev;
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     return NULL;
   }
 

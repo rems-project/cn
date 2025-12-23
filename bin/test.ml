@@ -62,14 +62,19 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
+      experimental_arg_pruning
+      experimental_return_pruning
       static_absint
+      local_iterations
       smt_pruning_before_absinst
       smt_pruning_after_absinst
       smt_pruning_keep_redundant_assertions
       smt_pruning_at_runtime
+      runtime_assert_domain
       symbolic
       symbolic_timeout
       use_solver_eval
+      smt_solver
       smt_logging
       smt_log_unsat_cores
       print_size_info
@@ -83,6 +88,7 @@ let run_tests
       bump_block_size
       max_input_alloc
       smt_skew_pointer_order
+      dsl_log_dir
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -131,15 +137,20 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
+          experimental_arg_pruning;
+          experimental_return_pruning;
           static_absint;
+          local_iterations;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
           smt_pruning_remove_redundant_assertions =
             not smt_pruning_keep_redundant_assertions;
           smt_pruning_at_runtime;
+          runtime_assert_domain;
           symbolic;
           symbolic_timeout;
           use_solver_eval;
+          smt_solver;
           smt_logging;
           smt_log_unsat_cores;
           max_unfolds;
@@ -174,7 +185,8 @@ let run_tests
           max_bump_blocks;
           bump_block_size;
           max_input_alloc;
-          smt_skew_pointer_order
+          smt_skew_pointer_order;
+          dsl_log_dir
         }
       in
       TestGeneration.set_config config;
@@ -584,6 +596,16 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
 
 
+  let experimental_arg_pruning =
+    let doc = "Enable experimental unused argument pruning optimization" in
+    Arg.(value & flag & info [ "experimental-arg-pruning" ] ~doc)
+
+
+  let experimental_return_pruning =
+    let doc = "Enable experimental unused return value pruning optimization" in
+    Arg.(value & flag & info [ "experimental-return-pruning" ] ~doc)
+
+
   let smt_pruning_before_absinst =
     let doc =
       "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
@@ -618,6 +640,11 @@ module Flags = struct
     Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
 
 
+  let runtime_assert_domain =
+    let doc = "Enable assert_domain checks at runtime (disabled by default)" in
+    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
+
+
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
@@ -630,6 +657,14 @@ module Flags = struct
              (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
           []
       & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+
+
+  let local_iterations =
+    let doc = "Maximum iterations for local abstract interpretation refinement" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.local_iterations
+      & info [ "local-iterations" ] ~doc)
 
 
   let print_size_info =
@@ -691,6 +726,16 @@ module Flags = struct
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
 
 
+  let smt_solver =
+    let doc =
+      "Choose SMT solver backend for symbolic test generation (z3, cvc5 is unsupported)."
+    in
+    Arg.(
+      value
+      & opt (enum TestGeneration.Options.smt_solver) TestGeneration.default_cfg.smt_solver
+      & info [ "solver-type" ] ~docv:"SOLVER" ~doc)
+
+
   let use_solver_eval =
     let doc = "(Experimental) Use solver-based evaluation" in
     Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
@@ -719,6 +764,14 @@ module Flags = struct
   let smt_skew_pointer_order =
     let doc = "Enable pointer ordering skewing in SMT solver" in
     Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
+
+
+  let dsl_log_dir =
+    let doc =
+      "Write generator DSL intermediate representations to separate stage files in this \
+       directory"
+    in
+    Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
 end
 
 let cmd =
@@ -780,14 +833,19 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
+    $ Flags.experimental_arg_pruning
+    $ Flags.experimental_return_pruning
     $ Flags.static_absint
+    $ Flags.local_iterations
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
+    $ Flags.runtime_assert_domain
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval
+    $ Flags.smt_solver
     $ Flags.smt_logging
     $ Flags.smt_log_unsat_cores
     $ Flags.print_size_info
@@ -801,6 +859,7 @@ let cmd =
     $ Instrument.Flags.bump_block_size
     $ Flags.max_input_alloc
     $ Flags.smt_skew_pointer_order
+    $ Flags.dsl_log_dir
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

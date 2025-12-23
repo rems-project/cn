@@ -16,6 +16,8 @@ a.out
 /.ignore
 /cerb.prof
 
+compile_commands.json
+
 # Coq generated files
 *.vo
 *.vok

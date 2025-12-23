@@ -29,6 +29,8 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let (GenTerms.Annot (tm_, (), bt, loc)) = tm in
     match tm_ with
+    | `ArbitrarySpecialized _ ->
+      failwith "ArbitrarySpecialized not supported in symbolic mode"
     | `Arbitrary | `Symbolic ->
       (* Generate symbolic value of the given base type *)
       { statements = [];

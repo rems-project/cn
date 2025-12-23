@@ -3,64 +3,67 @@ module A = CF.AilSyntax
 
 module Private = struct
   module AbstractDomains = AbstractDomains
+  module Stage1 = Stage1
 end
 
-let debug_log_file : out_channel option ref = ref None
-
-let init_debug () =
-  if Option.is_none !debug_log_file && !Cerb_debug.debug_level > 0 then
-    debug_log_file
-    := Some
-         (let open Stdlib in
-          open_out "generatorCompilation.log")
+let ensure_dir_exists (dir : string) : unit =
+  if not (Sys.file_exists dir) then Unix.mkdir dir 0o755
 
 
-let debug_log (str : string) : unit =
-  init_debug ();
-  match !debug_log_file with
-  | Some oc ->
-    output_string oc str;
-    flush oc
-  | None -> ()
+let normalize_stage_name (stage : string) : string =
+  stage
+  |> String.lowercase_ascii
+  |> String.map (fun c -> if Char.equal c ' ' then '_' else c)
+
+
+let write_stage_file (dir : string) (stage : string) (str : string) : unit =
+  ensure_dir_exists dir;
+  let normalized_name = normalize_stage_name stage in
+  let filename = Filename.concat dir (normalized_name ^ ".log") in
+  let oc = open_out filename in
+  output_string oc str;
+  close_out oc
 
 
 let debug_stage (stage : string) (str : string) : unit =
-  Cerb_debug.print_debug 2 [] (fun () -> stage);
-  debug_log (stage ^ ":\n");
-  debug_log (str ^ "\n\n")
+  match TestGenConfig.get_dsl_log_dir () with
+  | Some dir -> write_stage_file dir stage str
+  | None -> ()
 
 
 let parse_domain (s : string list) : (module Domain.T) =
-  let domain_names =
-    s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
-  in
-  (* Parse individual domain names *)
-  let parse_single_domain (name : string) : (module Domain.T) option =
-    match name with
-    | _ when String.equal name AbstractDomains.Ownership.name ->
-      Pp.(warn_noloc !^"Ownership abstract domain is always included");
-      None
-    | _ when String.equal name AbstractDomains.Interval.name ->
-      Some (module AbstractDomains.Interval)
-    | _ when String.equal name AbstractDomains.WrappedInterval.name ->
-      Some (module AbstractDomains.WrappedInterval)
-    | _ ->
-      Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
-      None
-  in
-  match domain_names with
-  | [] ->
-    (* No domains specified - return ownership domain *)
-    (module AbstractDomains.Ownership)
-  | additional_domains ->
-    (* Parse additional domains and filter out ownership if already specified *)
-    let parsed_additional = List.filter_map parse_single_domain additional_domains in
-    let ownership_module = (module AbstractDomains.Ownership : Domain.T) in
-    (* Check if ownership is already in the list *)
-    let all_domains = ownership_module :: parsed_additional in
-    (match all_domains with
-     | [ single ] -> single (* If only ownership, return it directly *)
-     | multiple -> AbstractDomains.product_domains multiple)
+  if List.is_empty s then (* Default *)
+    AbstractDomains.product_domains
+      [ (module AbstractDomains.Ownership); (module AbstractDomains.Interval) ]
+  else (
+    let domain_names =
+      s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
+    in
+    (* Parse individual domain names *)
+    let parse_single_domain (name : string) : (module Domain.T) option =
+      match name with
+      | _ when String.equal name AbstractDomains.Ownership.name -> None
+      | _ when String.equal name AbstractDomains.Interval.name ->
+        Some (module AbstractDomains.Interval)
+      | _ when String.equal name AbstractDomains.WrappedInterval.name ->
+        Some (module AbstractDomains.WrappedInterval)
+      | _ ->
+        Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
+        None
+    in
+    match domain_names with
+    | [] ->
+      (* No domains specified - return ownership domain *)
+      (module AbstractDomains.Ownership)
+    | additional_domains ->
+      (* Parse additional domains and filter out ownership if already specified *)
+      let parsed_additional = List.filter_map parse_single_domain additional_domains in
+      let ownership_module = (module AbstractDomains.Ownership : Domain.T) in
+      (* Check if ownership is already in the list *)
+      let all_domains = ownership_module :: parsed_additional in
+      (match all_domains with
+       | [ single ] -> single (* If only ownership, return it directly *)
+       | multiple -> AbstractDomains.product_domains multiple))
 
 
 let test_setup () : Pp.document =

@@ -18,7 +18,6 @@ module Make (AD : Domain.T) = struct
   let transform (prog5 : unit Mucore.file) (ctx : Stage1.Ctx.t) : Ctx.t =
     ctx
     |> Convert.transform
-    |> SimplifyGen.MemberIndirection.transform
     |> SimplifyGen.transform prog5
     |> InlineGen.transform prog5
     |> (if TestGenConfig.is_symbolic_enabled () then fun x -> x else EachFusion.transform)

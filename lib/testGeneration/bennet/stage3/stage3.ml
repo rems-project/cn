@@ -1,6 +1,7 @@
 module Make (AD : Domain.T) = struct
   open struct
     module Convert = Convert.Make (AD)
+    module Specialize = Specialize.Make (AD)
     module SpecializeDomain = SpecializeDomain.Make (AD)
     module SmtPruning = SmtPruning.Make (AD)
     module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
@@ -19,6 +20,10 @@ module Make (AD : Domain.T) = struct
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
+    |> (if TestGenConfig.is_symbolic_enabled () then
+          fun ctx -> ctx
+        else
+          Specialize.Integer.transform)
     |> (if List.non_empty (TestGenConfig.has_static_absint ()) then
           fun ctx -> ctx |> AI.annotate |> SpecializeDomain.transform
         else

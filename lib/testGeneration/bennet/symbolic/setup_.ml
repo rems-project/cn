@@ -386,25 +386,7 @@ module Make (AD : Domain.T) = struct
              let member_names =
                List.map (fun (id, _) -> "\"" ^ Id.get_string id ^ "\"") members
              in
-             (* For member type arrays, we need proper constructor function calls *)
-             let simple_basetype_name bt =
-               match bt with
-               | BaseTypes.Unit -> "cn_base_type_simple(CN_BASE_UNIT)"
-               | BaseTypes.Bool -> "cn_base_type_simple(CN_BASE_BOOL)"
-               | BaseTypes.Integer -> "cn_base_type_simple(CN_BASE_INTEGER)"
-               | BaseTypes.Bits (BaseTypes.Signed, w) ->
-                 "cn_base_type_bits(true, " ^ string_of_int w ^ ")"
-               | BaseTypes.Bits (BaseTypes.Unsigned, w) ->
-                 "cn_base_type_bits(false, " ^ string_of_int w ^ ")"
-               | BaseTypes.Loc _ -> "cn_base_type_simple(CN_BASE_LOC)"
-               | BaseTypes.Record _ -> "cn_base_type_simple(CN_BASE_RECORD)"
-               | BaseTypes.Struct _ -> "cn_base_type_simple(CN_BASE_STRUCT)"
-               | BaseTypes.Datatype _ -> "cn_base_type_simple(CN_BASE_DATATYPE)"
-               | BaseTypes.Map _ -> "cn_base_type_simple(CN_BASE_MAP)"
-               | BaseTypes.List _ -> "cn_base_type_simple(CN_BASE_LIST)"
-               | BaseTypes.Tuple _ -> "cn_base_type_simple(CN_BASE_TUPLE)"
-               | _ -> "cn_base_type_simple(CN_BASE_UNKNOWN)"
-             in
+             let simple_basetype_name bt = Pp.plain (Smt.convert_basetype bt) in
              let member_types =
                List.map (fun (_, bt) -> simple_basetype_name bt) members
              in

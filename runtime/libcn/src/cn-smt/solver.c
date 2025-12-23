@@ -77,7 +77,7 @@ char *read_output(struct cn_smt_solver *solver) {
     // fprintf(stderr, "Timeout waiting for SMT solver response\n");
     // assert(false);
     // FIXME: Use an appropriate error
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
 
   // Data is available, proceed with reading
@@ -248,6 +248,13 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
 
   solver->ext = ext;
   solver->pid = pid;
+
+  // Check CVC5 + skewing compatibility
+  if (ext == SOLVER_CVC5 && cn_get_smt_skewing_mode() != CN_SMT_SKEWING_NONE) {
+    fprintf(stderr,
+        "\033[33mWarning: CVC5 does not support skewing; disabling skewing.\033[0m\n");
+    cn_set_smt_skewing_mode(CN_SMT_SKEWING_NONE);
+  }
 
   // Close unused pipe ends in parent
   close(pipe_fd_in[0]);
