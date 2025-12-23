@@ -1,9 +1,7 @@
 #ifndef _RMAP_H
 #define _RMAP_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <cn-executable/rts_deps.h>
 
 #ifdef _RMAP_DEBUG
   #include <stdio.h>

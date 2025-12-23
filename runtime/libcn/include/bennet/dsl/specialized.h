@@ -1,7 +1,7 @@
 #ifndef BENNET_SPECIALIZED_H
 #define BENNET_SPECIALIZED_H
 
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 
 cn_pointer* bennet_specialized_cn_pointer(cn_pointer* lower_bound_ex,
     cn_pointer* lower_bound_inc,

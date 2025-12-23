@@ -1,7 +1,7 @@
 #include <stdlib.h>
 
 #include <cn-executable/fulminate_alloc.h>
-#include <cn-executable/utils.h>
+#include <fulminate/api.h>
 
 allocator fulm_default_alloc =
     (allocator){.malloc = &malloc, .calloc = &calloc, .free = &free};

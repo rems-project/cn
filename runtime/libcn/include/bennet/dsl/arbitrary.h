@@ -2,7 +2,7 @@
 #define BENNET_ARBITRARY_H
 
 #include <bennet/internals/domain.h>
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 
 uint8_t get_null_in_every(void);
 void set_null_in_every(uint8_t n);

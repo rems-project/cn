@@ -11,7 +11,6 @@
 #include <bennet/state/rand_alloc.h>
 #include <bennet/utils.h>
 #include <bennet/utils/hash_table.h>
-#include <cn-executable/utils.h>
 #include <cn-testing/result.h>
 #include <cn-testing/test.h>
 #include <cn-replicate/shape.h>
@@ -19,6 +18,7 @@
 #include <cn-smt/concretize.h>
 #include <cn-smt/context.h>
 #include <cn-smt/solver.h>
+#include <fulminate/api.h>
 
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
