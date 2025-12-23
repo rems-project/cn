@@ -16,9 +16,7 @@ module Make (GT : GenTerms.T) = struct
     Sym.print_nums := true;
     let ret =
       let open Pp in
-      ctx
-      |> List.map snd
-      |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket GD.pp
+      ctx |> List.map snd |> separate_map (semi ^^ twice hardline) GD.pp
     in
     Sym.executable_spec_enabled := true;
     Sym.print_nums := false;
@@ -30,7 +28,9 @@ module Make (GT : GenTerms.T) = struct
       let rec aux (gt : GT.t) : Sym.Set.t =
         let (Annot (gt_, _, _, _)) = gt in
         match gt_ with
-        | `Arbitrary | `Symbolic | `ArbitraryDomain _ | `Return _ -> Sym.Set.empty
+        | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _
+        | `Return _ ->
+          Sym.Set.empty
         | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
         | `PickSized wgts | `PickSizedElab (_, wgts) ->
           wgts
@@ -78,9 +78,7 @@ module MakeOptional (GT : GenTerms.T) = struct
 
   let pp (ctx : t) : Pp.document =
     let open Pp in
-    ctx
-    |> List.map snd
-    |> surround_separate_map 2 1 empty lbracket (semi ^^ twice hardline) rbracket GD.pp
+    ctx |> List.map snd |> separate_map (semi ^^ twice hardline) GD.pp
 
 
   let add (gd : GD.t) (ctx : t) : t =

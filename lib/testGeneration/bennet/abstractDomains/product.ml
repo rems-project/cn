@@ -518,7 +518,7 @@ let product_domains (domains : (module Domain.T) list) =
 
         open Pp
 
-        let is_top p = Array.exists (fun (RPack ((module R), r)) -> R.is_top r) p
+        let is_top p = Array.for_all (fun (RPack ((module R), r)) -> R.is_top r) p
 
         let is_bottom p = Array.exists (fun (RPack ((module R), r)) -> R.is_bottom r) p
 
@@ -717,6 +717,21 @@ let product_domains (domains : (module Domain.T) list) =
         |> Array.fold_left Sym.Set.union Sym.Set.empty
 
 
+      let free_vars_bts product =
+        product
+        |> Array.to_list
+        |> List.concat_map (fun comp ->
+          match comp with DPack ((module D), s) -> D.free_vars_bts s)
+        |> List.fold_left
+             (fun acc (sym, bt) ->
+                if List.exists (fun (s, _) -> Sym.equal s sym) acc then
+                  acc
+                else
+                  (sym, bt) :: acc)
+             []
+        |> List.rev
+
+
       let pp product =
         let open Pp in
         parens
@@ -756,6 +771,23 @@ let product_domains (domains : (module Domain.T) list) =
         domains
         |> List.map (fun (module D : Domain.T) -> D.pp_args ())
         |> String.concat ", "
+
+
+      let to_it (product : t) : IT.t =
+        let loc = Locations.other __LOC__ in
+        let constraints =
+          Array.to_list product
+          |> List.map (fun comp -> match comp with DPack ((module D), s) -> D.to_it s)
+        in
+        IT.and_ constraints loc
+
+
+      let is_meet_assoc =
+        List.for_all (fun (module D : Domain.T) -> D.is_meet_assoc) domains
+
+
+      let is_join_assoc =
+        List.for_all (fun (module D : Domain.T) -> D.is_join_assoc) domains
     end
     in
     (module ProductDomain : Domain.T)

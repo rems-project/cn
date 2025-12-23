@@ -1,3 +1,5 @@
+module CF = Cerb_frontend
+module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
 
@@ -92,6 +94,10 @@ module IntervalBasis = struct
     | h :: t -> List.fold_left meet h t
 
 
+  let is_meet_assoc = true
+
+  let is_join_assoc = true
+
   let handle_overflow bt start stop =
     let min, max = get_extrema bt in
     let stop = if Z.lt start min then max else stop in
@@ -112,9 +118,9 @@ module IntervalBasis = struct
     else if is_top b then
       !^"⊤"
     else if Z.equal start stop then
-      !^(Z.to_string start)
+      z start
     else
-      brackets (!^(Z.to_string start) ^^ !^".." ^^ !^(Z.to_string stop))
+      brackets (z start ^^ !^".." ^^ z stop)
 
 
   let forward_abs_binop (op : IT.binop) (b1 : t) (b2 : t) : t option =
@@ -364,20 +370,70 @@ module IntervalBasis = struct
 
   let pp_args { bt; is_bottom; start; stop } =
     assert (not is_bottom);
-    let const v =
-      let macro =
-        match bt with
-        | Loc () -> "UINTMAX_C"
-        | Bits (Signed, sz) -> Printf.sprintf "INT%d_C" sz
-        | Bits (Unsigned, sz) -> Printf.sprintf "UINT%d_C" sz
-        | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
-      in
-      macro ^ Printf.sprintf "(%s)" v
+    let sign, width =
+      match bt with
+      | Loc () -> (BT.Unsigned, Memory.uintptr_bt |> BT.is_bits_bt |> Option.get |> snd)
+      | Bits (sign, sz) -> (sign, sz)
+      | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
     in
-    Printf.sprintf "%s, %s" (const (Z.to_string start)) (const (Z.to_string stop))
+    let z_min, _ = BT.bits_range (sign, width) in
+    let suffix =
+      let size_of = Memory.size_of_integer_type in
+      match sign with
+      | Unsigned ->
+        if width <= size_of (Unsigned Int_) then
+          Some A.U
+        else if width <= size_of (Unsigned Long) then
+          Some A.UL
+        else
+          Some A.ULL
+      | Signed ->
+        if width <= size_of (Signed Int_) then
+          None
+        else if width <= size_of (Signed Long) then
+          Some A.L
+        else
+          Some A.LL
+    in
+    let mk_ail_const value =
+      Fulminate.Utils.mk_expr
+        (let k a = A.(AilEconst (ConstantInteger (IConstant (a, Decimal, suffix)))) in
+         if Z.equal value z_min && BT.equal_sign sign BT.Signed then
+           A.(
+             AilEbinary
+               ( Fulminate.Utils.mk_expr (k (Z.neg (Z.sub (Z.neg value) Z.one))),
+                 Arithmetic Sub,
+                 Fulminate.Utils.mk_expr (k Z.one) ))
+         else
+           k value)
+    in
+    let open Pp in
+    plain
+      (CF.Pp_ail.pp_expression (mk_ail_const start)
+       ^^ comma
+       ^^ space
+       ^^ CF.Pp_ail.pp_expression (mk_ail_const stop))
 
 
   let definitions () = Pp.empty
+
+  let to_it (sym : Sym.t) (t : t) : IT.t =
+    let loc = Locations.other __LOC__ in
+    if is_bottom t then
+      IT.bool_ false loc
+    else if is_top t then
+      IT.bool_ true loc
+    else (
+      let bt', sym_it =
+        match t.bt with
+        | BT.Loc () ->
+          (* Cast pointer to uintptr_t and compare as integers *)
+          (Memory.uintptr_bt, IT.cast_ Memory.uintptr_bt (IT.sym_ (sym, t.bt, loc)) loc)
+        | _ -> (t.bt, IT.sym_ (sym, t.bt, loc))
+      in
+      let start_it = IT.num_lit_ t.start bt' loc in
+      let stop_it = IT.num_lit_ t.stop bt' loc in
+      IT.and_ [ IT.le_ (start_it, sym_it) loc; IT.le_ (sym_it, stop_it) loc ] loc)
 end
 
 module Inner : Domain.T = NonRelational.Make (IntervalBasis)

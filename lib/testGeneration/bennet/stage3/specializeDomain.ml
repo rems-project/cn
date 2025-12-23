@@ -9,7 +9,9 @@ module Make (AD : Domain.T) = struct
     let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t * AD.t =
       let (Annot (gt_, tag, bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Symbolic | `ArbitraryDomain _ | `Call _ | `Return _ -> (gt, AD.top)
+      | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _ | `Call _
+      | `Return _ ->
+        (gt, AD.top)
       | `Pick gts ->
         let gts, ds = List.split (List.map (aux vars) gts) in
         (Term.pick_ gts tag bt loc, AD.join_many ds)

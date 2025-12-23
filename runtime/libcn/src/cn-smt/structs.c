@@ -10,11 +10,11 @@
 #include <cn-smt/structs.h>
 
 // Hash and equality functions for void_ptr (pointer comparison)
-static inline size_t bennet_hash_void_ptr(void_ptr ptr) {
+__attribute__((unused)) static inline size_t bennet_hash_void_ptr(void_ptr ptr) {
   return (size_t)ptr;
 }
 
-static inline bool bennet_eq_void_ptr(void_ptr a, void_ptr b) {
+__attribute__((unused)) static inline bool bennet_eq_void_ptr(void_ptr a, void_ptr b) {
   return a == b;
 }
 

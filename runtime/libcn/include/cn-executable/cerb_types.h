@@ -22,5 +22,6 @@ typedef unsigned long __cerbty_size_t;
 typedef signed int __cerbty_wchar_t;
 
 #define __cerbvar_MAX_ALIGNMENT 16
+#define __cerbvar_NULL          0
 
 #endif

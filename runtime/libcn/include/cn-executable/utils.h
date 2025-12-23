@@ -8,6 +8,8 @@
 #include "rts_deps.h"
 #include "stack.h"
 
+#define fallthrough __attribute__((__fallthrough__))
+
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
     printf(__VA_ARGS__);                                                                 \
@@ -80,13 +82,13 @@ void initialise_error_msg_info_(
 #define initialise_error_msg_info()                                                      \
   initialise_error_msg_info_(__func__, __FILE__, __LINE__)
 
-void reset_error_msg_info();
-void free_error_msg_info();
+void reset_error_msg_info(void);
+void free_error_msg_info(void);
 
 void update_error_message_info_(
     const char* function_name, char* file_name, int line_number, char* cn_source_loc);
 
-void cn_pop_msg_info();
+void cn_pop_msg_info(void);
 
 #define update_cn_error_message_info(x)                                                  \
   update_error_message_info_(__func__, __FILE__, __LINE__ + 1, x)
@@ -183,7 +185,8 @@ enum cn_failure_mode {
   CN_FAILURE_ASSERT = 1,
   CN_FAILURE_CHECK_OWNERSHIP,
   CN_FAILURE_OWNERSHIP_LEAK,
-  CN_FAILURE_ALLOC,
+  CN_FAILURE_FULM_ALLOC,
+  CN_FAILURE_USER_ALLOC,
   CN_FAILURE_GHOST_ARGS
 };
 
@@ -587,7 +590,7 @@ enum region_owned c_ownership_check(
 /* Ghost arguments */
 void alloc_ghost_array(int ghost_array_size);
 void add_to_ghost_array(int i, void* ptr_to_ghost_arg);
-void free_ghost_array();
+void free_ghost_array(void);
 void* load_from_ghost_array(int i);
 void cn_ghost_arg_failure(void);
 

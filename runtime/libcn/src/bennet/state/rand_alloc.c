@@ -31,7 +31,7 @@ static size_t rand_alloc_mem_size = (1024 * 1024 * 32);  // 32 MB default
 static rand_alloc global_rand_alloc;
 
 // Initialize the allocator
-static void bennet_rand_alloc_init() {
+static void bennet_rand_alloc_init(void) {
   if (global_rand_alloc.buffer != NULL) {
     return;
   }
@@ -41,7 +41,7 @@ static void bennet_rand_alloc_init() {
     fprintf(stderr,
         "CRITICAL: Failed to allocate %zu MB for rand_alloc buffer!\n",
         rand_alloc_mem_size / (1024 * 1024));
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
   global_rand_alloc.buffer_len = rand_alloc_mem_size;
   bennet_vector_init(rand_alloc_region)(&global_rand_alloc.regions);
@@ -69,7 +69,7 @@ void *bennet_rand_alloc(size_t bytes) {
   }
 
   if (bytes > global_rand_alloc.buffer_len) {
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     return NULL;
   }
 
@@ -95,7 +95,7 @@ void *bennet_rand_alloc(size_t bytes) {
   }
 
   // No available region found
-  cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+  cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   return NULL;
 }
 
@@ -146,7 +146,7 @@ void *bennet_rand_alloc_bounded(
   size_t max_offset = (size_t)(high - buf_start);  // Inclusive
   size_t available_bytes = max_offset - min_offset + 1;
   if (max_offset < min_offset || available_bytes < bytes) {
-    cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     return NULL;
   }
 
@@ -172,7 +172,7 @@ void *bennet_rand_alloc_bounded(
   }
 
   // No available region found
-  cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+  cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   return NULL;
 }
 

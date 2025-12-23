@@ -204,7 +204,7 @@ module Make (AD : Domain.T) = struct
         if IT.is_false it_perm || IT.is_true it_body then
           LC.T (IT.bool_ true loc_implies)
         else
-          LC.Forall ((i, i_bt), IT.arith_binop Implies (it_perm, it_body) loc_implies)
+          LC.Forall ((i, i_bt), IT.impl_ (it_perm, it_body) loc_implies)
       | _ -> failwith __LOC__
 
 

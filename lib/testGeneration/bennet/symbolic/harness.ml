@@ -58,6 +58,11 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let generator_name = Sym.pp_string def.name in
     let record_type = !^("cn_test_generator_" ^ generator_name ^ "_record") in
+    let solver_extension =
+      match TestGenConfig.get_smt_solver () with
+      | TestGenConfig.Z3 -> !^"SOLVER_Z3"
+      | TestGenConfig.CVC5 -> !^"SOLVER_CVC5"
+    in
     let state_init =
       !^"assert(gen_state != NULL);"
       ^/^ !^"if"
@@ -69,7 +74,9 @@ module Make (AD : Domain.T) = struct
       !^"struct branch_history_queue branch_hist;"
       ^/^ !^"branch_history_init(&branch_hist);"
       ^/^ !^"bennet_rand_checkpoint checkpoint = bennet_rand_save();"
-      ^/^ !^"struct cn_smt_solver* smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+      ^/^ !^"struct cn_smt_solver* smt_solver = cn_smt_new_solver("
+      ^^ solver_extension
+      ^^ !^");"
     in
     let select_path =
       !^"cn_smt_path_selector_"
@@ -97,7 +104,10 @@ module Make (AD : Domain.T) = struct
       if TestGenConfig.is_just_reset_solver () then
         !^"cn_smt_solver_reset(smt_solver);"
       else
-        !^"stop_solver(smt_solver);" ^/^ !^"smt_solver = cn_smt_new_solver(SOLVER_Z3);"
+        !^"stop_solver(smt_solver);"
+        ^/^ !^"smt_solver = cn_smt_new_solver("
+        ^^ solver_extension
+        ^^ !^");"
     in
     let solver_setup = !^"cn_smt_solver_setup(smt_solver);" in
     let gather_constraints =

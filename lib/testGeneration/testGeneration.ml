@@ -449,22 +449,27 @@ let functions_under_test
       (paused : _ Typing.pause)
   : Test.t list
   =
-  let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
+  let insts =
+    FExtract.collect_instrumentation cabs_tunit prog5
+    |> fst
+    |> List.filter (fun (inst : FExtract.instrumentation) ->
+      CtA.has_cn_spec inst
+      && (match prog5.main with
+          | Some main_fn -> not (Sym.equal main_fn inst.fn)
+          | None -> true)
+      && Option.is_some inst.internal
+      && not (needs_enum_hack ~with_warning sigma inst))
+  in
   let selected_fsyms =
     Check.select_functions
+      ~strict:true
       (TestGenConfig.get_skip_and_only ())
       (Sym.Set.of_list
          (List.map (fun (inst : FExtract.instrumentation) -> inst.fn) insts))
   in
   insts
   |> List.filter (fun (inst : FExtract.instrumentation) ->
-    CtA.has_cn_spec inst
-    && (match prog5.main with
-        | Some main_fn -> not (Sym.equal main_fn inst.fn)
-        | None -> true)
-    && Option.is_some inst.internal
-    && Sym.Set.mem inst.fn selected_fsyms
-    && not (needs_enum_hack ~with_warning sigma inst))
+    Sym.Set.mem inst.fn selected_fsyms)
   |> List.map (Test.of_instrumentation cabs_tunit sigma paused)
 
 

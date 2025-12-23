@@ -36,6 +36,10 @@ type smt_skewing_mode =
   | Sized
   | None
 
+type smt_solver =
+  | Z3
+  | CVC5
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -49,16 +53,21 @@ type t =
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
     experimental_learning : bool;
+    experimental_arg_pruning : bool;
+    experimental_return_pruning : bool;
     static_absint : string list;
+    local_iterations : int;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
+    runtime_assert_domain : bool;
     symbolic : bool;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
     use_solver_eval : bool; (* Use solver-based evaluation *)
+    smt_solver : smt_solver;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -92,7 +101,8 @@ type t =
     max_bump_blocks : int option;
     bump_block_size : int option;
     max_input_alloc : int option;
-    smt_skew_pointer_order : bool
+    smt_skew_pointer_order : bool;
+    dsl_log_dir : string option
   }
 
 let default =
@@ -107,16 +117,21 @@ let default =
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
     experimental_learning = false;
+    experimental_arg_pruning = false;
+    experimental_return_pruning = false;
     static_absint = [];
+    local_iterations = 10;
     smt_pruning_before_absinst = `None;
     smt_pruning_after_absinst = `None;
     smt_pruning_remove_redundant_assertions = true;
     smt_pruning_at_runtime = false;
+    runtime_assert_domain = false;
     symbolic = false;
     symbolic_timeout = None;
     max_unfolds = None;
     max_array_length = 50;
     use_solver_eval = false;
+    smt_solver = Z3;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -149,7 +164,8 @@ let default =
     max_bump_blocks = None;
     bump_block_size = None;
     max_input_alloc = None;
-    smt_skew_pointer_order = false
+    smt_skew_pointer_order = false;
+    dsl_log_dir = None
   }
 
 
@@ -186,6 +202,10 @@ let string_of_smt_skewing_mode (mode : smt_skewing_mode) =
   match mode with Uniform -> "uniform" | Sized -> "sized" | None -> "none"
 
 
+let string_of_smt_solver (solver : smt_solver) =
+  match solver with Z3 -> "z3" | CVC5 -> "cvc5"
+
+
 module Options = struct
   let build_tool = [ ("bash", Bash); ("make", Make) ]
 
@@ -219,6 +239,10 @@ module Options = struct
     List.map
       (fun mode -> (string_of_smt_skewing_mode mode, mode))
       [ Uniform; Sized; None ]
+
+
+  let smt_solver : (string * smt_solver) list =
+    List.map (fun solver -> (string_of_smt_solver solver, solver)) [ Z3 ]
 end
 
 let instance : t option ref = ref Option.None
@@ -251,7 +275,13 @@ let is_experimental_product_arg_destruction () =
 
 let is_experimental_learning () = (Option.get !instance).experimental_learning
 
+let is_experimental_arg_pruning () = (Option.get !instance).experimental_arg_pruning
+
+let is_experimental_return_pruning () = (Option.get !instance).experimental_return_pruning
+
 let has_static_absint () = (Option.get !instance).static_absint
+
+let get_local_iterations () = (Option.get !instance).local_iterations
 
 let has_smt_pruning_before_absinst () = (Option.get !instance).smt_pruning_before_absinst
 
@@ -262,6 +292,8 @@ let is_smt_pruning_remove_redundant_assertions () =
 
 
 let is_smt_pruning_at_runtime () = (Option.get !instance).smt_pruning_at_runtime
+
+let is_runtime_assert_domain () = (Option.get !instance).runtime_assert_domain
 
 let get_inline_mode () = (Option.get !instance).inline
 
@@ -341,6 +373,8 @@ let get_max_array_length () = (Option.get !instance).max_array_length
 
 let is_use_solver_eval () = (Option.get !instance).use_solver_eval
 
+let get_smt_solver () = (Option.get !instance).smt_solver
+
 let is_just_reset_solver () = (Option.get !instance).just_reset_solver
 
 let get_smt_skewing_mode () = (Option.get !instance).smt_skewing_mode
@@ -356,3 +390,5 @@ let has_bump_block_size () = (Option.get !instance).bump_block_size
 let has_max_input_alloc () = (Option.get !instance).max_input_alloc
 
 let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order
+
+let get_dsl_log_dir () = (Option.get !instance).dsl_log_dir

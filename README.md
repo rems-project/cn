@@ -98,6 +98,8 @@ and its dependencies.
    `cerberus-lib` to stay in sync, by re-running the `opam install`
    step above.)
 
+   CN needs clang >= 13.0.0 or gcc >= 8.1 for development.
+
 ## Contributing
 
 Please see our [contributing

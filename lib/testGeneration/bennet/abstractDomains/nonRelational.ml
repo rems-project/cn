@@ -29,6 +29,10 @@ module type BASIS = sig
 
   val meet_many : t list -> t
 
+  val is_meet_assoc : bool
+
+  val is_join_assoc : bool
+
   val of_interval : BT.t -> Z.t -> Z.t -> t
 
   val forward_abs_it : IT.t -> t list -> t option
@@ -48,6 +52,8 @@ module type BASIS = sig
   val pp_args : t -> string
 
   val definitions : unit -> Pp.document
+
+  val to_it : Sym.t -> t -> IT.t
 end
 
 module Make (B : BASIS) = struct
@@ -149,6 +155,12 @@ module Make (B : BASIS) = struct
     match od with
     | Some d -> Sym.Set.of_seq (List.to_seq (List.map fst (Sym.Map.bindings d)))
     | None -> Sym.Set.empty
+
+
+  let free_vars_bts (od : t) : (Sym.t * BT.t) list =
+    match od with
+    | Some d -> Sym.Map.bindings d |> List.map (fun (sym, basis) -> (sym, B.bt basis))
+    | None -> []
 
 
   let pp (od : t) : Pp.document =
@@ -612,7 +624,7 @@ module Make (B : BASIS) = struct
         let d' = meet d d' in
         if equal d d' then d' else aux d' (fuel - 1))
     in
-    aux d 10
+    aux d (TestGenConfig.get_local_iterations ())
 
 
   let abs_assert (lc : LC.t) (d : t) : t =
@@ -625,7 +637,7 @@ module Make (B : BASIS) = struct
     assert (Z.lt bytes max);
     let loc = Locations.other __LOC__ in
     local_iteration
-      ((IT.lePointer_
+      ((IT.le_
           ( IT.cast_ Memory.uintptr_bt it_addr loc,
             IT.num_lit_ (Z.sub max bytes) Memory.uintptr_bt loc ))
          (Locations.other __LOC__))
@@ -635,4 +647,19 @@ module Make (B : BASIS) = struct
   let pp_params = B.pp_params
 
   let pp_args = B.pp_sym_args
+
+  let to_it (od : t) : IT.t =
+    let loc = Locations.other __LOC__ in
+    match od with
+    | None -> IT.bool_ false loc (* bottom = unsatisfiable *)
+    | Some d ->
+      let constraints =
+        Sym.Map.fold (fun sym basis acc -> B.to_it sym basis :: acc) d []
+      in
+      IT.and_ constraints loc (* conjunction of all basis constraints *)
+
+
+  let is_meet_assoc = B.is_meet_assoc
+
+  let is_join_assoc = B.is_join_assoc
 end

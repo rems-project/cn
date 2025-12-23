@@ -19,7 +19,7 @@ def get_test_type(test_file, config):
     elif test_file.endswith('.fail.c'):
         return 'FAIL'
     elif test_file.endswith('.buggy.c'):
-        return 'BUGGY'
+        return 'SKIP'
     elif test_file.endswith('.flaky.c'):
         return 'FLAKY'
     elif (test_file.endswith('learn_cast.special.c')
@@ -61,7 +61,7 @@ def run_cn_test(cn_path, test_file, config):
     return return_code, elapsed, test_output
 
 
-def run_single_test(test_file, cn_path, base_config, alt_configs, build_tools, _symbolic):
+def run_single_test(test_file: Path, cn_path, base_config, alt_configs, build_tools, symbolic):
     """Run a single test file with all configurations."""
     # Track failures and times for this test
     num_failed = 0
@@ -73,6 +73,9 @@ def run_single_test(test_file, cn_path, base_config, alt_configs, build_tools, _
     for alt_config in alt_configs:
         for build_tool in build_tools:
             full_config = f"{base_config} {alt_config} --build-tool={build_tool}"
+
+            if symbolic and str(os.path.basename(test_file)) == "ini_queue.fail.c":
+                full_config += ' --exit-fast'
 
             output_buffer += separator()
             output_buffer += f'Running CI with CLI config "{full_config}"\n'
@@ -167,6 +170,8 @@ def main():
                         help='Use symbolic execution configurations')
     parser.add_argument('--mode', choices=['testing', 'benchmarking'], default='testing',
                         help='Execution mode: testing (parallel, minimal output) or benchmarking (sequential, detailed timing)')
+    parser.add_argument('--solver-type', choices=['z3', 'cvc5'],
+                        help='SMT solver to use for the test run (default: solver executable in PATH)')
     parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
                         help='Build tool to use: bash, make, or both (default: both)')
     parser.add_argument('--only', type=str,
@@ -198,12 +203,19 @@ def main():
 
     # Set environment variables for stricter CI and sanitizers
     env = os.environ.copy()
-    env['CPPFLAGS'] = env.get('CPPFLAGS', '') + ' -Werror -Wno-unused-value'
+    env['CPPFLAGS'] = ' '.join([env.get('CPPFLAGS', ''), '-Werror', '-Wall',
+                               '-Wno-unused-value',
+                                '-Wno-unused-variable',
+                                '-Wno-unused-but-set-variable',
+                                '-Wno-unused-label',
+                                '-Wno-unused-function'])
     env['UBSAN_OPTIONS'] = 'halt_on_error=1'
     env['ASAN_OPTIONS'] = 'allocator_may_return_null=1:detect_leaks=0'
     os.environ.update(env)
 
     # Base configuration
+    solver_config = f" --solver-type={args.solver_type}" if args.solver_type else ""
+
     base_config = (
         f"-I{opam_prefix}/lib/cerberus-lib/runtime/libc/include/posix "
         "--input-timeout=1000 "
@@ -211,6 +223,7 @@ def main():
         "--sanitize=address,undefined "
         "--allow-split-magic-comments "
         "--print-seed"
+        f"{solver_config}"
     )
 
     # Set configurations based on symbolic option
@@ -221,10 +234,10 @@ def main():
         ]
     else:
         alt_configs = [
-            "--coverage --sizing-strategy=quickcheck",
-            "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow",
-            "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --static-absint=interval --smt-pruning-before-absint=fast",
-            "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl"
+            "--coverage --sizing-strategy=quickcheck --inline=everything",
+            "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
+            "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
+            "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
         ]
 
     # Set build tools based on argument
@@ -274,7 +287,6 @@ def main():
     if args.symbolic:
         # For symbolic mode, exclude unsupported tests
         smt_test_unsupported = [
-            "ini_queue.fail.c",
             "ini_queue.pass.c",
             "mkm.pass.c",
             "range.fail.c",

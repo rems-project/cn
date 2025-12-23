@@ -26,6 +26,7 @@
   (bennet/dsl/assert.h as runtime/include/bennet/dsl/assert.h)
   (bennet/dsl/assign.h as runtime/include/bennet/dsl/assign.h)
   (bennet/dsl/backtrack.h as runtime/include/bennet/dsl/backtrack.h)
+  (bennet/dsl/specialized.h as runtime/include/bennet/dsl/specialized.h)
   (bennet/dsl.h as runtime/include/bennet/dsl.h)
   (bennet/info/backtracks.h as runtime/include/bennet/info/backtracks.h)
   (bennet/info/discards.h as runtime/include/bennet/info/discards.h)
