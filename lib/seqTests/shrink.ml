@@ -43,6 +43,7 @@ let shrink
   : int * Pp.document
   =
   let open Pp in
+  (* print_endline "entering shrink"; *)
   match seq with
   | [] -> (0, empty)
   | start :: seq as seq' ->
@@ -56,14 +57,16 @@ let shrink
             (fun (name, _, _, _, _) ->
                match name with
                | None -> false
-               | Some name -> List.mem String.equal (Sym.pp_string name) names)
+               | Some name ->
+                 List.mem String.equal (Sym.pp_string name) names
+                 || List.mem String.equal ("&" ^ Sym.pp_string name) names)
             graph
         in
-        List.fold_left (dfs seq) (node :: visited) succs)
+        List.fold_left (dfs graph) (node :: visited) succs)
       else
         visited
     in
-    let rev_dep_graph =
+    let rev_dep_graph : T.context =
       List.map
         (fun (name, is_static, ret_ty, f, _) ->
            ( name,
@@ -81,7 +84,9 @@ let shrink
                  (List.filter
                     (fun (_, _, _, _, args) ->
                        List.mem
-                         (fun name (_, var) -> String.equal (Sym.pp_string name) var)
+                         (fun name (_, var) ->
+                            String.equal (Sym.pp_string name) var
+                            || String.equal ("&" ^ Sym.pp_string name) var)
                          name
                          args)
                     seq') ))
@@ -128,7 +133,8 @@ let shrink
                                         match name2 with
                                         | None -> false
                                         | Some name2 ->
-                                          (String.equal name1) (Sym.pp_string name2))
+                                          (String.equal name1) (Sym.pp_string name2)
+                                          || String.equal name1 ("&" ^ Sym.pp_string name2))
                                      arg
                                      deps))
                              args)
@@ -154,8 +160,7 @@ let shrink
              (Fun.const
                 (Some (-1, (None, false, C.Ctype ([], Basic (Integer Char)), elt, [])))))
           (List.map
-             (fun tests ->
-                SUtils.ctx_to_tests filename tests ^^ hardline ^^ string "return 0;")
+             (fun tests -> SUtils.ctx_to_tests filename tests ^^ hardline)
              shrunken_sequences)
           filename
           output_dir
@@ -173,7 +178,18 @@ let shrink
           shrunken_sequence
         else
           shrink_1 (List.nth shrunken_sequences i)
-      | None -> tests
+      | None ->
+        (* tests *)
+        (match
+           List.find_index
+             (fun result -> match result with Some `OtherFailure -> true | _ -> false)
+             results
+         with
+         | Some i ->
+           Pp.print stdout (SUtils.ctx_to_tests filename (List.nth shrunken_sequences i));
+           print_string (SUtils.ctx_to_string rev_dep_graph);
+           failwith "Unexpected failure during shrinking"
+         | None -> tests)
     in
     let rec shrink_2 ((prev, next) : T.context * T.context) : T.context =
       let shrink_arg ((ty, arg_name) : C.ctype * string) : string list =
