@@ -57,7 +57,7 @@ for CONFIG in "${CONFIGS[@]}"; do
       OUTPUT="${OUTPUT}\n$TEST -- Tests passed unexpectedly\n"
       NUM_FAILED=$(($NUM_FAILED + 1))
       FAILED="$FAILED ($ALT_CONFIG)"
-    elif [[ "$RET" != 123 ]]; then
+    elif [[ "$RET" != 2 ]]; then
       OUTPUT="${OUTPUT}${THIS_OUTPUT}\n$TEST -- Tests failed unnaturally\n"
       NUM_FAILED=$(($NUM_FAILED + 1))
       FAILED="$FAILED ($ALT_CONFIG)"
