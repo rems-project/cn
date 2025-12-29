@@ -1,4 +1,4 @@
-local CN = require("cn_runtime_core")
+local CN = require("lua_cn_runtime_core")
 
 --[[
 C calls. Will be linked by the embedded C Code
@@ -19,28 +19,23 @@ our Lua state (right now in main() -> extrapolate to whichever place we setup ou
 Lua runtime).
 --]] 
 CN.C.read_int_list = {}
+CN.IntList_append = {}
 
 --[[
 CN code mapping
 --]]
 local Seq = {}
 
-local function Seq.Nil()
+function Seq.Nil()
     return { tag="Nil" }
 end
 
-local function Seq.Cons(head, tail)
+function Seq.Cons(head, tail)
     return { tag="Cons", head=head, tail=tail }
 end
 
-local function Seq.Equals(a, b)
-    --[[
-    this will be a core util function that can generically compare any
-    two user-defined types (since each user-defined type in Lua will be a table,
-    a deepEquals lua algo should work generically I think. Example like this:
-    https://github.com/luvit/luvit/blob/master/tests/libs/deep-equal.lua)
-    --]]
-    return CN.DeepEqual(a, b)
+function Seq.Equals(a, b)
+    return CN.equals(a, b)
 end
 
 local function Append(xs, ys)
@@ -62,7 +57,7 @@ local function IntList(p, spec_mode)
     CN.Error.Pop()
 
     CN.Error.Push("take tl = IntList(H.tail)")
-    local tl = IntList(tail_addr, mode)
+    local tl = IntList(tail_addr, spec_mode)
     CN.Error.Pop()
 
     return Seq.Cons(H, tl)
@@ -84,6 +79,8 @@ function CN.IntList_append.Precondition(xs, ys)
     CN.Error.Push("requires take L2 = IntList(ys)")
     CN.Frame.SetLocal("L2", IntList(ys, CN.spec_mode.PRE))
     CN.Error.Pop()
+
+    print("Precondition Passed in Lua ")
 end
 
 function CN.IntList_append.Postcondition(ret)
@@ -103,5 +100,8 @@ function CN.IntList_append.Postcondition(ret)
 
     CN.Frame.Pop()
 
+    print("Post Condition Passed in Lua")
     -- Do Post condition Leak Check here
 end
+
+return CN

@@ -1,4 +1,4 @@
-#include <lua_cn_runtime_core_wrappers.h>
+#include "lua_cn_runtime_core_wrappers.h"
 
 #include <assert.h>
 
@@ -26,9 +26,17 @@ lua_State* lua_get_state() { return lua_state; }
 void lua_cn_load_runtime(const char* filename) {
     assert(lua_state != NULL);
 
+    lua_getglobal(lua_state, "package");
+    lua_getfield(lua_state, -1, "path"); // get package.path
+    const char *current_path = lua_tostring(lua_state, -1);
+    lua_pop(lua_state, 1);
+    char new_path[1024];
+    snprintf(new_path, sizeof(new_path), "%s;%s/?.lua", current_path, "./lua_output");
+    lua_pushstring(lua_state, new_path);
+    lua_setfield(lua_state, -2, "path");
+
     if (luaL_dofile(lua_state, filename) != LUA_OK) {
         fprintf(stderr, "Unable to load lua cn runtime: %s\n", lua_tostring(lua_state, -1));
-        exit(1);
     }
 
     lua_cn_runtime_ref = luaL_ref(lua_state, LUA_REGISTRYINDEX);

@@ -24,7 +24,7 @@
  * I've tried to take any and all common logic and put it here so that the file specific work is as minimal as
  * possible.
  */
-#include <lua_cn_runtime_core_wrappers.h>
+#include "lua_cn_runtime_core_wrappers.h"
 
 /**
  * TBD on how much of these stay relevant
@@ -99,7 +99,7 @@ int main(void)
   signed int ret = 0;
 
   lua_init();
-  lua_cn_load_runtime("append.cn-types.lua");
+  lua_cn_load_runtime("./lua_output/append.lua");
   lua_cn_register_c_func("read_int_list", lua_cn_read_int_list);
   
   struct int_list i1 = {.head = 2, .tail = 0};

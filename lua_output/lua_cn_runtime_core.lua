@@ -1,3 +1,5 @@
+local DeepCompare = require("fast_deep_compare")
+
 --[[
 Our CN runtime state. This exists as nested tables, each corresponding
 to a main part of our CN runtime that we're implementing in Lua:
@@ -25,7 +27,12 @@ local CN = {
     spec_mode = {
         PRE  = 0,
         POST = 1
-    }
+    },
+    equals = DeepCompare,
+    Error = {},
+    Frame = {},
+    Ghost = {},
+    C = {}
 }
 
 --[[
@@ -41,11 +48,7 @@ function CN.Error.Pop()
 end
 
 function CN.Error.Dump()
-    local error_stack = ""
-    for i, msg in ipairs(CN.error_stack) do
-        error_stack = error_stack ... (i .. ": " .. msg .. "\n")
-    end
-    error(error_stack)
+    error(table.concat(CN.error_stack, '\n'))
 end
 
 --[[
@@ -107,7 +110,7 @@ function CN.Ghost.Remove(base_addr, size)
 end
 
 function CN.Ghost.UpdateDepth(base_addr, stack_depth)
-    for _, r in ipairs(CN.ghost_state) do
+    for i, r in ipairs(CN.ghost_state) do
         if r.base == base_addr then
             CN.ghost_state[i].depth = stack_depth
             return
@@ -138,9 +141,9 @@ end
 
 function CN.Ghost.GetOrPutOwnership(base_addr, spec_mode)
     if spec_mode == CN.spec_mode.PRE then
-        CN.GetOwnership(base_addr)
-    elseif 
-        CN.PutOwnership(base_addr)
+        CN.Ghost.GetOwnership(base_addr)
+    elseif spec_mode == CN.spec_mode.POST then
+        CN.Ghost.PutOwnership(base_addr)
     else
         -- do loop ownership stuff
     end

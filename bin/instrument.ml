@@ -25,7 +25,11 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
   let lua_src_dir, lua_inc_flags, lua_link_flags =
     if not experimental_lua_runtime then ("", "", "") else
     let src_dir = Sys.getcwd() ^ "/runtime/lua/src" in
-    (src_dir, " -I" ^ src_dir, Filename.concat src_dir "liblua.a -ldl -lm")
+    let lua_output_dir = Sys.getcwd() ^ "/lua_output/" in
+    let wrapper_o = Filename.concat lua_output_dir "lua_cn_runtime_core_wrappers.o" in
+    (src_dir, 
+    " -I" ^ src_dir, 
+    Printf.sprintf "%s %s/liblua.a -ldl -lm" wrapper_o src_dir)
   in
 
   if experimental_lua_runtime then build_lua ~lua_src_dir ~print_steps;
@@ -388,55 +392,110 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-lua-runtime" ] ~doc)
 end
 
-let cmd =
-  let open Term in
-  let instrument_t =
-    const generate_executable_specs
-    $ Common.Flags.file
+let output_dir_required =
+  Term.(const (function
+    | Some d -> d
+    | None -> failwith "--output-dir is required")
+  $ Flags.output_dir)
+
+let one_file =
+  Term.map Common.there_can_only_be_one Common.Flags.file
+
+let run_existing
+    cc
+    output_dir
+    print_steps
+    experimental_lua_runtime
+    filename
+  =
+  run_instrumented_file
+    ~filename
+    ~cc
+    ~no_debug_info:false
+    ~output:None
+    ~output_dir
+    ~print_steps
+    ~experimental_lua_runtime
+let run_existing_term =
+  Term.(
+    const run_existing
     $ Common.Flags.cc
-    $ Common.Flags.macros
-    $ Common.Flags.permissive
-    $ Common.Flags.incl_dirs
-    $ Common.Flags.incl_files
-    $ Verify.Flags.loc_pp
-    $ Common.Flags.debug_level
-    $ Common.Flags.print_level
-    $ Common.Flags.print_sym_nums
-    $ Common.Flags.no_timestamps
-    $ Flags.only
-    $ Flags.skip
-    $ Verify.Flags.diag
-    $ Common.Flags.csv_times
-    $ Common.Flags.astprints
-    $ Verify.Flags.dont_use_vip
-    $ Verify.Flags.fail_fast
-    $ Common.Flags.no_inherit_loc
-    $ Common.Flags.magic_comment_char_dollar
-    $ Common.Flags.allow_split_magic_comments
-    $ Flags.output
-    $ Flags.output_dir
-    $ Flags.without_ownership_checking
-    $ Flags.without_loop_invariants
-    $ Flags.with_loop_leak_checks
-    $ Flags.without_lemma_checks
-    $ Term.map
-        (fun (x, y) -> x || y)
-        (Term.product Flags.with_test_gen Flags.with_testing)
-    $ Flags.run
-    $ Flags.no_debug_info
-    $ Flags.exec_c_locs_mode
-    $ Flags.experimental_ownership_stack_mode
-    $ Flags.experimental_unions
-    $ Flags.experimental_curly_braces
-    $ Flags.experimental_lua_runtime
-    $ Flags.mktemp
+    $ output_dir_required
     $ Flags.print_steps
-    $ Flags.max_bump_blocks
-    $ Flags.bump_block_size
+    $ Flags.experimental_lua_runtime
+    $ one_file
+  )
+
+let run_existing_cmd =
+  let doc =
+    "Run an already-instrumented CN executable C file"
   in
+  let info =
+    Cmd.info "run-existing" ~doc
+  in
+  Cmd.v info run_existing_term
+
+let instrument_term =
+  let open Term in
+  const generate_executable_specs
+  $ Common.Flags.file
+  $ Common.Flags.cc
+  $ Common.Flags.macros
+  $ Common.Flags.permissive
+  $ Common.Flags.incl_dirs
+  $ Common.Flags.incl_files
+  $ Verify.Flags.loc_pp
+  $ Common.Flags.debug_level
+  $ Common.Flags.print_level
+  $ Common.Flags.print_sym_nums
+  $ Common.Flags.no_timestamps
+  $ Flags.only
+  $ Flags.skip
+  $ Verify.Flags.diag
+  $ Common.Flags.csv_times
+  $ Common.Flags.astprints
+  $ Verify.Flags.dont_use_vip
+  $ Verify.Flags.fail_fast
+  $ Common.Flags.no_inherit_loc
+  $ Common.Flags.magic_comment_char_dollar
+  $ Common.Flags.allow_split_magic_comments
+  $ Flags.output
+  $ Flags.output_dir
+  $ Flags.without_ownership_checking
+  $ Flags.without_loop_invariants
+  $ Flags.with_loop_leak_checks
+  $ Flags.without_lemma_checks
+  $ Term.map
+      (fun (x, y) -> x || y)
+      (Term.product Flags.with_test_gen Flags.with_testing)
+  $ Flags.run
+  $ Flags.no_debug_info
+  $ Flags.exec_c_locs_mode
+  $ Flags.experimental_ownership_stack_mode
+  $ Flags.experimental_unions
+  $ Flags.experimental_curly_braces
+  $ Flags.experimental_lua_runtime
+  $ Flags.mktemp
+  $ Flags.print_steps
+  $ Flags.max_bump_blocks
+  $ Flags.bump_block_size
+
+let instrument_cmd =
   let doc =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \
      CN specifications.\n"
   in
   let info = Cmd.info "instrument" ~doc in
-  Cmd.v info instrument_t
+  Cmd.v info instrument_term
+
+let cmd =
+  let doc =
+    "Instrument C files with CN runtime checks, or run an already-instrumented file."
+  in
+  let info = Cmd.info "instrument" ~doc in
+  Cmd.group info
+    ~default:instrument_term
+    [
+      instrument_cmd;
+      run_existing_cmd;
+    ]
