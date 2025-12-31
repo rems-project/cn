@@ -65,14 +65,14 @@ void lua_cn_ghost_add(void* ptr, size_t size) {
     int64_t addr = lua_convert_ptr_to_int(ptr);
 
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_runtime_ref);
-    lua_getfield(lua_state, -1, "Ghost");
+    lua_getfield(lua_state, -1, "ghost_state");
     lua_getfield(lua_state, -1, "Add");
 
     lua_pushinteger(lua_state, addr);
     lua_pushinteger(lua_state, size);
 
     if (lua_pcall(lua_state, 2, 0, 0) != LUA_OK) {
-        fprintf(stderr, "Error calling CN.Ghost.Add: %s\n", lua_tostring(lua_state, -1));
+        fprintf(stderr, "Error calling CN.ghost_state.Add: %s\n", lua_tostring(lua_state, -1));
         lua_pop(lua_state, 1);
     }
 
@@ -83,14 +83,14 @@ void lua_cn_ghost_remove(void* ptr, size_t size) {
     int64_t addr = lua_convert_ptr_to_int(ptr);
 
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_runtime_ref);
-    lua_getfield(lua_state, -1, "Ghost");
+    lua_getfield(lua_state, -1, "ghost_state");
     lua_getfield(lua_state, -1, "Remove");
 
     lua_pushinteger(lua_state, addr);
     lua_pushinteger(lua_state, size);
 
     if (lua_pcall(lua_state, 2, 0, 0) != LUA_OK) {
-        fprintf(stderr, "Error calling CN.Ghost.Remove: %s\n", lua_tostring(lua_state, -1));
+        fprintf(stderr, "Error calling CN.ghost_state.Remove: %s\n", lua_tostring(lua_state, -1));
         lua_pop(lua_state, 1);
     }
 
@@ -100,13 +100,13 @@ void lua_cn_ghost_remove(void* ptr, size_t size) {
 // Lua CN Error Handling
 void lua_cn_error_push(const char* msg) {
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_runtime_ref);
-    lua_getfield(lua_state, -1, "Error");
+    lua_getfield(lua_state, -1, "error_stack");
     lua_getfield(lua_state, -1, "Push");
 
     lua_pushstring(lua_state, msg);
 
     if (lua_pcall(lua_state, 1, 0, 0) != LUA_OK) {
-        fprintf(stderr, "Error calling CN.Error.Push: %s\n", lua_tostring(lua_state, -1));
+        fprintf(stderr, "Error calling CN.error_stack.Push: %s\n", lua_tostring(lua_state, -1));
         lua_pop(lua_state, 1);
     }
 
@@ -115,11 +115,11 @@ void lua_cn_error_push(const char* msg) {
 
 void lua_cn_error_pop() {
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_runtime_ref);
-    lua_getfield(lua_state, -1, "Error");
+    lua_getfield(lua_state, -1, "error_stack");
     lua_getfield(lua_state, -1, "Pop");
 
     if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
-        fprintf(stderr, "Error calling CN.Error.Pop: %s\n", lua_tostring(lua_state, -1));
+        fprintf(stderr, "Error calling CN.error_stack.Pop: %s\n", lua_tostring(lua_state, -1));
         lua_pop(lua_state, 1);
     }
 

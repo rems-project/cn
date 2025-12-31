@@ -10,8 +10,8 @@ let build_lua ~lua_src_dir ~print_steps =
     exit 1
   )
 
-let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps ~experimental_lua_runtime =
-  let instrumented_filename =
+let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~print_steps ~experimental_lua_runtime ~is_handwritten =
+  let instrumented_filename = if is_handwritten then filename else
     Option.value ~default:(Fulminate.get_instrumented_filename filename) output
   in
   let in_folder ?ext fn =
@@ -214,6 +214,8 @@ let generate_executable_specs
         ();
       Or_TypeError.return
         (if run then
+           let is_handwritten = false in
+
            run_instrumented_file
              ~filename
              ~cc
@@ -221,8 +223,8 @@ let generate_executable_specs
              ~output
              ~output_dir
              ~print_steps
-             ~experimental_lua_runtime))
-
+             ~experimental_lua_runtime
+             ~is_handwritten))
 
 open Cmdliner
 
@@ -392,22 +394,15 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-lua-runtime" ] ~doc)
 end
 
-let output_dir_required =
-  Term.(const (function
-    | Some d -> d
-    | None -> failwith "--output-dir is required")
-  $ Flags.output_dir)
-
-let one_file =
-  Term.map Common.there_can_only_be_one Common.Flags.file
-
 let run_existing
     cc
-    output_dir
     print_steps
     experimental_lua_runtime
     filename
   =
+  let is_handwritten = true in
+  let output_dir = "" in
+
   run_instrumented_file
     ~filename
     ~cc
@@ -416,11 +411,15 @@ let run_existing
     ~output_dir
     ~print_steps
     ~experimental_lua_runtime
+    ~is_handwritten
+
 let run_existing_term =
+  let one_file =
+    Term.map Common.there_can_only_be_one Common.Flags.file in
+
   Term.(
     const run_existing
     $ Common.Flags.cc
-    $ output_dir_required
     $ Flags.print_steps
     $ Flags.experimental_lua_runtime
     $ one_file

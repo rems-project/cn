@@ -29,25 +29,21 @@ local CN = {
         POST = 1
     },
     equals = DeepCompare,
-    Error = {},
-    Frame = {},
-    Ghost = {},
-    C = {}
 }
 
 --[[
 ERROR HANDLING
 --]]
 
-function CN.Error.Push(msg)
+function CN.error_stack.Push(msg)
     table.insert(CN.error_stack, msg)
 end
 
-function CN.Error.Pop()
+function CN.error_stack.Pop()
     table.remove(CN.error_stack)
 end
 
-function CN.Error.Dump()
+function CN.error_stack.Dump()
     error(table.concat(CN.error_stack, '\n'))
 end
 
@@ -55,12 +51,12 @@ end
 FRAME
 --]]
 
-function CN.Frame.Push()
+function CN.frames.Push()
     CN.current_stack_depth = CN.current_stack_depth + 1
     CN.frames[#CN.frames + 1] = {}
 end
 
-function CN.Frame.Pop()
+function CN.frames.Pop()
     CN.frames[#CN.frames] = nil
     CN.current_stack_depth = CN.current_stack_depth - 1
 end
@@ -69,11 +65,11 @@ local function GetCurrentFrame()
     return CN.frames[#CN.frames]
 end
 
-function CN.Frame.SetLocal(name, value)
+function CN.frames.SetLocal(name, value)
     GetCurrentFrame()[name] = value
 end
 
-function CN.Frame.GetLocal(name)
+function CN.frames.GetLocal(name)
     return GetCurrentFrame()[name]
 end
 
@@ -81,10 +77,10 @@ end
 OWNERSHIP GHOST STATE
 --]]
 
-function CN.Ghost.Add(base_addr, size)    
-    if CN.Ghost.IsOwned(base_addr, size, CN.current_stack_depth) then
-        CN.Error.Push("duplicate ownership of address " .. base_addr)
-        CN.Error.Dump()  
+function CN.ghost_state.Add(base_addr, size)    
+    if CN.ghost_state.IsOwned(base_addr, size, CN.current_stack_depth) then
+        CN.error_stack.Push("duplicate ownership of address " .. base_addr)
+        CN.error_stack.Dump()  
     end
 
     -- Range Map-ish entry. Alternative would be to add an entry per
@@ -97,7 +93,7 @@ function CN.Ghost.Add(base_addr, size)
     })
 end
 
-function CN.Ghost.Remove(base_addr, size)
+function CN.ghost_state.Remove(base_addr, size)
     for i, r in ipairs(CN.ghost_state) do
         if r.base == base_addr and r.size == size then
             table.remove(CN.ghost_state, i)
@@ -105,11 +101,11 @@ function CN.Ghost.Remove(base_addr, size)
         end
     end
 
-    CN.Error.Push("removing non-owned region " .. addr)
-    CN.Error.Dump()
+    CN.error_stack.Push("removing non-owned region " .. addr)
+    CN.error_stack.Dump()
 end
 
-function CN.Ghost.UpdateDepth(base_addr, stack_depth)
+function CN.ghost_state.UpdateDepth(base_addr, stack_depth)
     for i, r in ipairs(CN.ghost_state) do
         if r.base == base_addr then
             CN.ghost_state[i].depth = stack_depth
@@ -117,11 +113,11 @@ function CN.Ghost.UpdateDepth(base_addr, stack_depth)
         end
     end
 
-    CN.Error.Push("cannot update non-owned region " .. base_addr)
-    CN.Error.Dump()
+    CN.error_stack.Push("cannot update non-owned region " .. base_addr)
+    CN.error_stack.Dump()
 end
 
-function CN.Ghost.IsOwned(addr, size, stack_depth)
+function CN.ghost_state.IsOwned(addr, size, stack_depth)
     for _, r in ipairs(CN.ghost_state) do
       if addr >= r.base and addr < (r.base + r.size) and stack_depth == r.depth then
         return true
@@ -131,19 +127,19 @@ function CN.Ghost.IsOwned(addr, size, stack_depth)
     return false
 end
 
-function CN.Ghost.GetOwnership(base_addr)
-    CN.Ghost.UpdateDepth(base_addr, CN.current_stack_depth)
+function CN.ghost_state.GetOwnership(base_addr)
+    CN.ghost_state.UpdateDepth(base_addr, CN.current_stack_depth)
 end
 
-function CN.Ghost.PutOwnership(base_addr)
-    CN.Ghost.UpdateDepth(base_addr, CN.current_stack_depth - 1)
+function CN.ghost_state.PutOwnership(base_addr)
+    CN.ghost_state.UpdateDepth(base_addr, CN.current_stack_depth - 1)
 end
 
-function CN.Ghost.GetOrPutOwnership(base_addr, spec_mode)
+function CN.ghost_state.GetOrPutOwnership(base_addr, spec_mode)
     if spec_mode == CN.spec_mode.PRE then
-        CN.Ghost.GetOwnership(base_addr)
+        CN.ghost_state.GetOwnership(base_addr)
     elseif spec_mode == CN.spec_mode.POST then
-        CN.Ghost.PutOwnership(base_addr)
+        CN.ghost_state.PutOwnership(base_addr)
     else
         -- do loop ownership stuff
     end
