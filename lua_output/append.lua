@@ -33,15 +33,15 @@ local function IntList(p, spec_mode)
         return seq.nill()
     end
 
-    local f1, s1, f2, s2, size = cn.c.read_int_list(p);
+    local m1, s1, m2, s2, size = cn.c.read_int_list(p);
 
     cn.error_stack.push("take H = RW<struct int_list>(p) " .. p)
     cn.ghost_state.get_or_put_ownership(spec_mode, p, size)
-    local H = cn.c.get_integer(f1);
+    local H = cn.c.get_integer(m1);
     cn.error_stack.pop()
 
     cn.error_stack.push("take tl = IntList(H.tail)")
-    local tl = IntList(cn.c.get_pointer(f2), spec_mode)
+    local tl = IntList(cn.c.get_pointer(m2), spec_mode)
     cn.error_stack.pop()
 
     return seq.cons(H, tl)
