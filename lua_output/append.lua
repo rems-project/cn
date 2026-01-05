@@ -33,6 +33,21 @@ local function IntList(p, spec_mode)
         return seq.nill()
     end
 
+    --[[
+    This is one of the trickiest parts of building the CN runtime in Lua.
+    Virtually every CN pre/post condition will require checking the actual C
+    state, which means having to talk across language boundaries (in some ways,
+    it's similar to how owned_struct_int_list in the C runtime is the one place
+    where we talk between the C state and the CN runtime. This is similar, but with
+    the added caveat that the CN runtime now also lives in a different language environment
+    so it becomes even more complex).
+
+    Last time David and I talked, we figured that the most reasonable approach would be to generate
+    a function that returned every member's address and its size. And then read off whichever member
+    we need for the CN condition. We'd also need some way in the generation to track the type of each
+    member (if primitive, then reading those, if structs, then interrogating the struct recursively to 
+    get to the member needed for the condition).
+    --]] 
     local m1, s1, m2, s2, size = cn.c.read_int_list(p);
 
     cn.error_stack.push("take H = RW<struct int_list>(p) " .. p)
