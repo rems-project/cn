@@ -2,11 +2,21 @@ module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let build_lua ~lua_src_dir ~print_steps =
-  let cmd = Printf.sprintf "make -C %s liblua.a" lua_src_dir in
-  if print_steps then Printf.printf "Building Lua: %s\n%!" cmd;
-  if Sys.command cmd <> 0 then (
-    Printf.eprintf "Failed to build Lua in %s\n%!" lua_src_dir;
+let build_lua ~lua_root_dir ~print_steps =
+  let src_dir = lua_root_dir ^ "/src" in
+  let cn_dir = lua_root_dir ^ "/cn" in
+
+  let src_cmd = Printf.sprintf "make -C %s liblua.a" src_dir in
+  if print_steps then Printf.printf "Building Lua source: %s\n%!" src_cmd;
+  if Sys.command src_cmd <> 0 then (
+    Printf.eprintf "Failed to build Lua source in %s\n%!" src_dir;
+    exit 1
+  );
+
+  let cn_cmd = Printf.sprintf "make -C %s lua_wrappers.a" cn_dir in
+  if print_steps then Printf.printf "Building Lua cn wrappers: %s\n%!" cn_cmd;
+  if Sys.command cn_cmd <> 0 then (
+    Printf.eprintf "Failed to build Lua cn wrappers in %s\n%!" cn_dir;
     exit 1
   )
 
@@ -22,17 +32,23 @@ let run_instrumented_file ~filename ~cc ~no_debug_info ~output ~output_dir ~prin
   let opam_switch_prefix = Sys.getenv "OPAM_SWITCH_PREFIX" in
   let runtime_prefix = opam_switch_prefix ^ "/lib/cn/runtime" in
 
-  let lua_src_dir, lua_inc_flags, lua_link_flags =
+  let lua_root_dir, lua_inc_flags, lua_link_flags =
     if not experimental_lua_runtime then ("", "", "") else
-    let src_dir = Sys.getcwd() ^ "/runtime/lua/src" in
-    let lua_output_dir = Sys.getcwd() ^ "/lua_output/" in
-    let wrapper_o = Filename.concat lua_output_dir "lua_cn_runtime_core_wrappers.o" in
-    (src_dir, 
-    " -I" ^ src_dir, 
-    Printf.sprintf "%s %s/liblua.a -ldl -lm" wrapper_o src_dir)
+
+    let root_dir = Sys.getcwd() ^ "/runtime/lua" in
+    let src_dir = root_dir ^ "/src" in
+    let cn_dir = root_dir ^ "/cn" in
+    
+    let combined_includes = " -I" ^ src_dir ^ " -I" ^ cn_dir in
+
+    let src_link = Printf.sprintf " %s/liblua.a" src_dir in
+    let cn_wrapper_link = Printf.sprintf " %s/lua_wrappers.a" cn_dir in
+    let combined_links = Printf.sprintf "%s %s -ldl -lm" src_link cn_wrapper_link in
+
+    (root_dir, combined_includes, combined_links)
   in
 
-  if experimental_lua_runtime then build_lua ~lua_src_dir ~print_steps;
+  if experimental_lua_runtime then build_lua ~lua_root_dir ~print_steps;
 
   let includes = "-I" ^ runtime_prefix ^ "/include/" ^ lua_inc_flags in
   

@@ -760,6 +760,10 @@ void cn_pop_msg_info(void) {
   fulm_free(old, &fulm_default_alloc);
 }
 
+void cn_dump_error_msgs(void) {
+  print_error_msg_info(global_error_msg_info);
+}
+
 static uint32_t cn_fls(uint32_t x) {
   return x ? sizeof(x) * 8 - __builtin_clz(x) : 0;
 }

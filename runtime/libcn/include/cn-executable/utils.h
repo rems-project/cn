@@ -90,6 +90,8 @@ void update_error_message_info_(
 
 void cn_pop_msg_info(void);
 
+void cn_dump_error_msgs(void);
+
 #define update_cn_error_message_info(x)                                                  \
   update_error_message_info_(__func__, __FILE__, __LINE__ + 1, x)
 

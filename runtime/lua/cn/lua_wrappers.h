@@ -16,8 +16,9 @@ int  lua_cn_get_runtime_ref();
 void lua_cn_register_c_func(const char* func_name, lua_CFunction func);
 
 // Lua CN Ghost State
-void lua_cn_ghost_add(void* ptr, size_t size);
+void lua_cn_ghost_add(void* ptr, size_t size, signed long stack_depth);
 void lua_cn_ghost_remove(void* ptr, size_t size);
+signed long lua_cn_get_stack_depth();
 
 // Lua CN Error Handling
 void lua_cn_error_push(const char* msg);
