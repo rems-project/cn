@@ -8,7 +8,7 @@
    -g
    -Wall
    -fdiagnostics-color=always
-   ;-Werror
+   -Werror
    -Wcast-function-type
    -Werror=date-time
    -Werror=implicit-function-declaration
