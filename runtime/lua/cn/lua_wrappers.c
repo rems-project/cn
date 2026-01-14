@@ -58,15 +58,13 @@ static int c_get_or_put_ownership_wrapper() {
     int64_t spec_mode = (int64_t)luaL_checkinteger(lua_state, 1);
     int64_t addr  = (int64_t)luaL_checkinteger(lua_state, 2);
     int64_t size = (int64_t)luaL_checkinteger(lua_state, 3);
+    int64_t loop_ownership = (int64_t)luaL_checkinteger(lua_state, 4);
 
-    //@note for now, we're not using loop ownershio. 
-    // But we will as soon as I start looking at other
-    // testcases.
     cn_get_or_put_ownership(
         (enum spec_mode)spec_mode, 
         (void*)addr, 
         (size_t)size,
-        0
+        (struct loop_ownership*)loop_ownership
     );
 
     return 0;
@@ -118,6 +116,28 @@ static int c_get_pointer() {
     return 1;
 }
 
+static int c_get_integer_size() {
+    lua_pushinteger(lua_state, sizeof(int));
+    return 1;
+}
+
+static int c_get_pointer_size() {
+    lua_pushinteger(lua_state, sizeof(void*));
+    return 1;
+}
+
+static int c_initialise_loop_ownership_state() {
+    struct loop_ownership* state = initialise_loop_ownership_state();
+    lua_pushinteger(lua_state, lua_convert_ptr_to_int(state));
+    return 1;
+}
+
+static int c_loop_put_back_ownership() {
+    struct loop_ownership* state = (struct loop_ownership*)luaL_checkinteger(lua_state, 1);
+    cn_loop_put_back_ownership(state);
+    return 0;
+}
+
 void bind_cn_c_functions() {
     // C assert
     lua_cn_register_c_func("assert", c_assert_wrapper);
@@ -138,6 +158,12 @@ void bind_cn_c_functions() {
     // C type reading
     lua_cn_register_c_func("get_integer", c_get_integer);
     lua_cn_register_c_func("get_pointer", c_get_pointer);
+    lua_cn_register_c_func("get_integer_size", c_get_integer_size);
+    lua_cn_register_c_func("get_pointer_size", c_get_pointer_size);
+
+    // C loop checks
+    lua_cn_register_c_func("initialise_loop_ownership_state", c_initialise_loop_ownership_state);
+    lua_cn_register_c_func("loop_put_back_ownership", c_loop_put_back_ownership);
 }
 
 void lua_cn_load_runtime(const char* filename) {
@@ -221,26 +247,52 @@ void lua_cn_error_pop() {
 }
 
 // Lua CN Frames
-void lua_cn_frame_push() {
+void lua_cn_frame_push_function() {
   lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_get_runtime_ref());
   lua_getfield(lua_state, -1, "frames");
-  lua_getfield(lua_state, -1, "push");
+  lua_getfield(lua_state, -1, "push_function");
 
   if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
-      fprintf(stderr, "Error calling cn.frames.push: %s\n", lua_tostring(lua_state, -1));
+      fprintf(stderr, "Error calling cn.frames.push_function: %s\n", lua_tostring(lua_state, -1));
       lua_pop(lua_state, 1);
   }
 
   lua_pop(lua_state, 2);
 }
 
-void lua_cn_frame_pop() {
+void lua_cn_frame_pop_function() {
     lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_get_runtime_ref());
     lua_getfield(lua_state, -1, "frames");
-    lua_getfield(lua_state, -1, "pop");
+    lua_getfield(lua_state, -1, "pop_function");
 
     if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
-        fprintf(stderr, "Error calling cn.frames.pop: %s\n", lua_tostring(lua_state, -1));
+        fprintf(stderr, "Error calling cn.frames.pop_function: %s\n", lua_tostring(lua_state, -1));
+        lua_pop(lua_state, 1);
+    }
+
+    lua_pop(lua_state, 2);
+}
+
+void lua_cn_frame_push_loop() {
+  lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_get_runtime_ref());
+  lua_getfield(lua_state, -1, "frames");
+  lua_getfield(lua_state, -1, "push_loop");
+
+  if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
+      fprintf(stderr, "Error calling cn.frames.push_loop: %s\n", lua_tostring(lua_state, -1));
+      lua_pop(lua_state, 1);
+  }
+
+  lua_pop(lua_state, 2);
+}
+
+void lua_cn_frame_pop_loop() {
+    lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_get_runtime_ref());
+    lua_getfield(lua_state, -1, "frames");
+    lua_getfield(lua_state, -1, "pop_loop");
+
+    if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
+        fprintf(stderr, "Error calling cn.frames.pop_loop: %s\n", lua_tostring(lua_state, -1));
         lua_pop(lua_state, 1);
     }
 

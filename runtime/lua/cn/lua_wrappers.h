@@ -25,8 +25,10 @@ void lua_cn_error_push(const char* msg);
 void lua_cn_error_pop();
 
 // Lua CN Frames
-void lua_cn_frame_push();
-void lua_cn_frame_pop();
+void lua_cn_frame_push_function();
+void lua_cn_frame_pop_function();
+void lua_cn_frame_push_loop();
+void lua_cn_frame_pop_loop();
 
 // Types Utils
 int64_t lua_convert_ptr_to_int(void* ptr);
