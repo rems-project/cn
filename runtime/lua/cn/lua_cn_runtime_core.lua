@@ -121,7 +121,11 @@ OWNERSHIP GHOST STATE
 --]]
 
 function cn.ghost_state.get_or_put_ownership(mode, base_addr, size, loop_ownership)
-    cn.c.get_or_put_ownership(mode, base_addr, size, loop_ownership)
+    if loop_ownership == nil then
+        cn.c.get_or_put_ownership(mode, base_addr, size, 0)
+    else
+        cn.c.get_or_put_ownership(mode, base_addr, size, loop_ownership)
+    end
 end
 
 function cn.ghost_state.stack_depth_incr()
