@@ -51,7 +51,7 @@ local function IntList(p, spec_mode)
     local m1, s1, m2, s2, size = cn.c.read_int_list(p);
 
     cn.error_stack.push("take H = RW<struct int_list>(p) " .. p)
-    cn.ghost_state.get_or_put_ownership(spec_mode, p, size)
+    cn.ghost_state.get_or_put_ownership(spec_mode, p, size, 0)
     local H = cn.c.get_integer(m1);
     cn.error_stack.pop()
 
