@@ -27,6 +27,15 @@ lua_State* lua_get_state() { return lua_state; }
 
 // C wrappers
 
+static int c_assert_wrapper() {
+    bool cond  = lua_toboolean(lua_state, 1);
+    int64_t spec_mode = (int64_t)luaL_checkinteger(lua_state, 2);
+
+    cn_assert(convert_to_cn_bool(cond), (enum spec_mode)spec_mode);
+
+    return 0;
+}
+
 static int c_add_to_ghost_state_wrapper() {
     int64_t addr  = (int64_t)luaL_checkinteger(lua_state, 1);
     int64_t size = (int64_t)luaL_checkinteger(lua_state, 2);
@@ -110,6 +119,9 @@ static int c_get_pointer() {
 }
 
 void bind_cn_c_functions() {
+    // C assert
+    lua_cn_register_c_func("assert", c_assert_wrapper);
+
     // C ghost state
     lua_cn_register_c_func("add_to_ghost_state", c_add_to_ghost_state_wrapper);
     lua_cn_register_c_func("remove_from_ghost_state", c_remove_from_ghost_state_wrapper);
@@ -206,6 +218,33 @@ void lua_cn_error_push(const char* msg) {
 void lua_cn_error_pop() {
     //@note: Kept in C for now
     cn_pop_msg_info();
+}
+
+// Lua CN Frames
+void lua_cn_frame_push() {
+  lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_get_runtime_ref());
+  lua_getfield(lua_state, -1, "frames");
+  lua_getfield(lua_state, -1, "push");
+
+  if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
+      fprintf(stderr, "Error calling cn.frames.push: %s\n", lua_tostring(lua_state, -1));
+      lua_pop(lua_state, 1);
+  }
+
+  lua_pop(lua_state, 2);
+}
+
+void lua_cn_frame_pop() {
+    lua_rawgeti(lua_state, LUA_REGISTRYINDEX, lua_cn_get_runtime_ref());
+    lua_getfield(lua_state, -1, "frames");
+    lua_getfield(lua_state, -1, "pop");
+
+    if (lua_pcall(lua_state, 0, 0, 0) != LUA_OK) {
+        fprintf(stderr, "Error calling cn.frames.pop: %s\n", lua_tostring(lua_state, -1));
+        lua_pop(lua_state, 1);
+    }
+
+    lua_pop(lua_state, 2);
 }
 
 // Types Utils

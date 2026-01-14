@@ -24,5 +24,9 @@ signed long lua_cn_get_stack_depth();
 void lua_cn_error_push(const char* msg);
 void lua_cn_error_pop();
 
+// Lua CN Frames
+void lua_cn_frame_push();
+void lua_cn_frame_pop();
+
 // Types Utils
 int64_t lua_convert_ptr_to_int(void* ptr);

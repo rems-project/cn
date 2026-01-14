@@ -23,13 +23,19 @@ local cn = {
     error_stack = {},
     frames = {},
     ghost_state = {},
-    current_stack_depth = 0,
     spec_mode = {
         PRE  = 1,
-        POST = 2
+        POST = 2,
+        LOOP = 3,
+        STATEMENT = 4,
+        C_ACCESS = 5,
+        NON_SPEC = 6
     },
     equals = deep_compare,
     c = {
+        -- c asserts
+        assert = {},
+
         -- c ghost state
         add_to_ghost_state = {},
         remove_from_ghost_state = {},
@@ -48,6 +54,10 @@ local cn = {
         get_pointer = {}
     }
 }
+
+function cn.assert(cond, spec_mode)
+    cn.c.assert(cond, spec_mode);
+end
 
 --[[
 ERROR HANDLING
@@ -70,13 +80,14 @@ FRAME
 --]]
 
 function cn.frames.push()
-    cn.current_stack_depth = cn.current_stack_depth + 1
     cn.frames[#cn.frames + 1] = {}
+    cn.c.ghost_state_depth_incr()
 end
 
 function cn.frames.pop()
+    cn.c.ghost_state_depth_decr()
+    cn.c.postcondition_leak_check()
     cn.frames[#cn.frames] = nil
-    cn.current_stack_depth = cn.current_stack_depth - 1
 end
 
 local function get_current_frame()

@@ -71,10 +71,6 @@ NOTE how much more closely these align to actual CN
 cn.IntList_append = {}
 
 function cn.IntList_append.precondition(xs, ys)
-    cn.frames.push()
-
-    cn.ghost_state.stack_depth_incr();
-
     cn.error_stack.push("requires take L1 = IntList(xs)")
     cn.frames.set_local("L1", IntList(xs, cn.spec_mode.PRE))
     cn.error_stack.pop()
@@ -94,19 +90,13 @@ function cn.IntList_append.postcondition(ret)
     cn.error_stack.push("ensures L3 == append(L1, L2)")
     -- I think this can be made easier to read by using a metatable that calls seq.Equals
     -- for using the == operator. Not sure if that's worth the generation complexity though
-    if not seq.equals(
-        cn.frames.get_local("L3"), 
-        append(cn.frames.get_local("L1"), cn.frames.get_local("L2"))) then
-            cn.error_stack.dump()
-            return
-    end
+    cn.assert(
+        seq.equals(
+            cn.frames.get_local("L3"), 
+            append(cn.frames.get_local("L1"), cn.frames.get_local("L2"))), 
+        cn.spec_mode.POST);
+        
     cn.error_stack.pop()
-
-    cn.ghost_state.stack_depth_decr();
-
-    cn.ghost_state.postcondition_leak_check();
-
-    cn.frames.pop()
 
     print("Postcondition Passed in Lua")
 end

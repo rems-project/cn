@@ -41,6 +41,8 @@ struct int_list* IntList_append(struct int_list* xs, struct int_list* ys)
     ensures take L3 = IntList(return);
             L3 == append(L1, L2); @*/
 {
+  lua_cn_frame_push();
+
   struct int_list* ret;
 
   /* EXECUTABLE CN PRECONDITION */
@@ -76,6 +78,8 @@ struct int_list* IntList_append(struct int_list* xs, struct int_list* ys)
 
   /* EXECUTABLE CN POSTCONDITION */
   lua_cn_IntList_append_postcondition(ret);
+
+  lua_cn_frame_pop();
 
   return ret;
 }

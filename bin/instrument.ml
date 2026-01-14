@@ -503,14 +503,4 @@ let instrument_cmd =
   let info = Cmd.info "instrument" ~doc in
   Cmd.v info instrument_term
 
-let cmd =
-  let doc =
-    "Instrument C files with CN runtime checks, or run an already-instrumented file."
-  in
-  let info = Cmd.info "instrument" ~doc in
-  Cmd.group info
-    ~default:instrument_term
-    [
-      instrument_cmd;
-      run_existing_cmd;
-    ]
+let cmds = [ instrument_cmd; run_existing_cmd ]
