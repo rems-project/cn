@@ -88,6 +88,7 @@ let run_tests
       bump_block_size
       max_input_alloc
       smt_skew_pointer_order
+      dsl_log_dir
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -184,7 +185,8 @@ let run_tests
           max_bump_blocks;
           bump_block_size;
           max_input_alloc;
-          smt_skew_pointer_order
+          smt_skew_pointer_order;
+          dsl_log_dir
         }
       in
       TestGeneration.set_config config;
@@ -757,6 +759,14 @@ module Flags = struct
   let smt_skew_pointer_order =
     let doc = "Enable pointer ordering skewing in SMT solver" in
     Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
+
+
+  let dsl_log_dir =
+    let doc =
+      "Write generator DSL intermediate representations to separate stage files in this \
+       directory"
+    in
+    Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
 end
 
 let cmd =
@@ -844,6 +854,7 @@ let cmd =
     $ Instrument.Flags.bump_block_size
     $ Flags.max_input_alloc
     $ Flags.smt_skew_pointer_order
+    $ Flags.dsl_log_dir
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

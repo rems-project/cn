@@ -593,42 +593,43 @@ let eachI_ (i1, (s, bt), i2) t loc = IT (EachI ((i1, (s, bt), i2), t), BT.Bool, 
 (* arith_op *)
 let negate it loc = IT (Unop (Negate, it), get_bt it, loc)
 
-let add_ (it, it') loc = IT (Binop (Add, it, it'), get_bt it, loc)
-
-let sub_ (it, it') loc = IT (Binop (Sub, it, it'), get_bt it, loc)
-
-let mul_ (it, it') loc =
-  if BT.equal (get_bt it) (get_bt it') then
-    IT (Binop (Mul, it, it'), get_bt it, loc)
-  else
-    failwith ("mul_: type mismatch: " ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]))
+let arith_binop op (it, it') loc =
+  assert (BT.equal (get_bt it) (get_bt it'));
+  assert (match get_bt it with Integer | Real | Bits _ -> true | _ -> false);
+  IT (Binop (op, it, it'), get_bt it, loc)
 
 
-let mul_no_smt_ (it, it') loc = IT (Binop (MulNoSMT, it, it'), get_bt it, loc)
+let add_ = arith_binop Add
 
-let div_ (it, it') loc = IT (Binop (Div, it, it'), get_bt it, loc)
+let sub_ = arith_binop Sub
 
-let div_no_smt_ (it, it') loc = IT (Binop (DivNoSMT, it, it'), get_bt it, loc)
+let mul_ = arith_binop Mul
 
-let exp_ (it, it') loc = IT (Binop (Exp, it, it'), get_bt it, loc)
+let mul_no_smt_ = arith_binop MulNoSMT
 
-let exp_no_smt_ (it, it') loc = IT (Binop (ExpNoSMT, it, it'), get_bt it, loc)
+let div_ = arith_binop Div
 
-let rem_ (it, it') loc = IT (Binop (Rem, it, it'), get_bt it, loc)
+let div_no_smt_ = arith_binop DivNoSMT
 
-let rem_no_smt_ (it, it') loc = IT (Binop (RemNoSMT, it, it'), get_bt it, loc)
+let exp_ = arith_binop Exp
 
-let mod_ (it, it') loc = IT (Binop (Mod, it, it'), get_bt it, loc)
+let exp_no_smt_ = arith_binop ExpNoSMT
 
-let mod_no_smt_ (it, it') loc = IT (Binop (ModNoSMT, it, it'), get_bt it, loc)
+let rem_ = arith_binop Rem
+
+let rem_no_smt_ = arith_binop RemNoSMT
+
+let mod_ = arith_binop Mod
+
+let mod_no_smt_ = arith_binop ModNoSMT
 
 let divisible_ (it, it') loc = eq_ (mod_ (it, it') loc, int_lit_ 0 (get_bt it) loc) loc
 
 let rem_f_ (it, it') loc = mod_ (it, it') loc
 
-let min_ (it, it') loc = IT (Binop (Min, it, it'), get_bt it, loc)
+let min_ = arith_binop Min
 
-let max_ (it, it') loc = IT (Binop (Max, it, it'), get_bt it, loc)
+let max_ = arith_binop Max
 
 let intToReal_ it loc = IT (Cast (Real, it), BT.Real, loc)
 
@@ -636,16 +637,7 @@ let realToInt_ it loc = IT (Cast (Integer, it), BT.Integer, loc)
 
 let binop op (it, it') loc ret = IT (Binop (op, it, it'), ret, loc)
 
-let arith_binop op (it, it') loc = get_bt it |> binop op (it, it') loc
-
 let arith_unop op it loc = IT (Unop (op, it), get_bt it, loc)
-
-let arith_binop_check op (it, it') loc =
-  assert (BT.equal (get_bt it) (get_bt it'));
-  arith_binop op (it, it') loc
-
-
-let add_check_ = arith_binop_check Add
 
 (* tuple_op *)
 let tuple_ its loc = IT (Tuple its, BT.Tuple (List.map get_bt its), loc)

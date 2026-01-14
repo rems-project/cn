@@ -6,29 +6,29 @@ module Private = struct
   module Stage1 = Stage1
 end
 
-let debug_log_file : out_channel option ref = ref None
-
-let init_debug () =
-  if Option.is_none !debug_log_file && !Cerb_debug.debug_level > 0 then
-    debug_log_file
-    := Some
-         (let open Stdlib in
-          open_out "generatorCompilation.log")
+let ensure_dir_exists (dir : string) : unit =
+  if not (Sys.file_exists dir) then Unix.mkdir dir 0o755
 
 
-let debug_log (str : string) : unit =
-  init_debug ();
-  match !debug_log_file with
-  | Some oc ->
-    output_string oc str;
-    flush oc
-  | None -> ()
+let normalize_stage_name (stage : string) : string =
+  stage
+  |> String.lowercase_ascii
+  |> String.map (fun c -> if Char.equal c ' ' then '_' else c)
+
+
+let write_stage_file (dir : string) (stage : string) (str : string) : unit =
+  ensure_dir_exists dir;
+  let normalized_name = normalize_stage_name stage in
+  let filename = Filename.concat dir (normalized_name ^ ".log") in
+  let oc = open_out filename in
+  output_string oc str;
+  close_out oc
 
 
 let debug_stage (stage : string) (str : string) : unit =
-  Cerb_debug.print_debug 2 [] (fun () -> stage);
-  debug_log (stage ^ ":\n");
-  debug_log (str ^ "\n\n")
+  match TestGenConfig.get_dsl_log_dir () with
+  | Some dir -> write_stage_file dir stage str
+  | None -> ()
 
 
 let parse_domain (s : string list) : (module Domain.T) =

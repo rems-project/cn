@@ -101,7 +101,8 @@ type t =
     max_bump_blocks : int option;
     bump_block_size : int option;
     max_input_alloc : int option;
-    smt_skew_pointer_order : bool
+    smt_skew_pointer_order : bool;
+    dsl_log_dir : string option
   }
 
 val default : t
@@ -251,3 +252,5 @@ val has_bump_block_size : unit -> int option
 val has_max_input_alloc : unit -> int option
 
 val is_smt_skew_pointer_order : unit -> bool
+
+val get_dsl_log_dir : unit -> string option

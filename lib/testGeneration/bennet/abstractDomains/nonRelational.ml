@@ -637,7 +637,7 @@ module Make (B : BASIS) = struct
     assert (Z.lt bytes max);
     let loc = Locations.other __LOC__ in
     local_iteration
-      ((IT.lePointer_
+      ((IT.le_
           ( IT.cast_ Memory.uintptr_bt it_addr loc,
             IT.num_lit_ (Z.sub max bytes) Memory.uintptr_bt loc ))
          (Locations.other __LOC__))
