@@ -141,21 +141,11 @@ let free_vars (it : 'a annot) : Sym.Set.t =
   it |> free_vars_bts |> Sym.Map.bindings |> List.map fst |> Sym.Set.of_list
 
 
-let free_vars_ (t_ : 'a term) : Sym.Set.t =
-  IT (t_, Unit, Locations.other "")
-  |> free_vars_bts
-  |> Sym.Map.bindings
-  |> List.map fst
-  |> Sym.Set.of_list
-
-
 let free_vars_list (its : 'a annot list) : Sym.Set.t =
   its |> free_vars_bts_list |> Sym.Map.bindings |> List.map fst |> Sym.Set.of_list
 
 
 type 'bt bindings = ('bt pattern * 'bt annot option) list
-
-type t_bindings = BT.t bindings
 
 let rec fold_ f binders acc = function
   | Sym _s -> acc
@@ -413,15 +403,6 @@ let is_sym = function IT (Sym sym, bt, _) -> Some (sym, bt) | _ -> None
 
 let is_bool = function IT (Const (Bool b), _, _) -> Some b | _ -> None
 
-let is_q = function IT (Const (Q q), _, _) -> Some q | _ -> None
-
-let is_map_get = function IT (MapGet (f, arg), _, _) -> Some (f, arg) | _ -> None
-
-let zero_frac = function
-  | IT (Const (Q q), _, _) when Q.equal Q.zero q -> true
-  | _ -> false
-
-
 let is_true = function IT (Const (Bool true), _, _) -> true | _ -> false
 
 let is_false = function IT (Const (Bool false), _, _) -> true | _ -> false
@@ -430,39 +411,9 @@ let is_eq = function IT (Binop (EQ, lhs, rhs), _, _) -> Some (lhs, rhs) | _ -> N
 
 let is_and = function IT (Binop (And, it, it'), _, _) -> Some (it, it') | _ -> None
 
-let is_or = function IT (Binop (Or, it, it'), _, _) -> Some (it, it') | _ -> None
-
-let is_implies = function
-  | IT (Binop (Implies, it, it'), _, _) -> Some (it, it')
-  | _ -> None
-
-
-let is_not = function IT (Unop (Not, it), _, _) -> Some it | _ -> None
-
-let is_negate = function IT (Unop (Negate, it), _, _) -> Some it | _ -> None
-
-let is_lt = function IT (Binop (LT, x, y), _, _) -> Some (x, y) | _ -> None
-
-let is_le = function IT (Binop (LE, x, y), _, _) -> Some (x, y) | _ -> None
-
-let rec split_and it =
-  match is_and it with Some (it1, it2) -> split_and it1 @ split_and it2 | None -> [ it ]
-
-
-let rec is_const_val = function
-  | IT (Const _, _, _) -> true
-  | IT (Nil _, _, _) -> true
-  | IT (Cons (hd, tl), _, _) -> is_const_val hd && is_const_val tl
-  | _ -> false
-
-
 let is_pred_ = function IT (Apply (name, args), _, _) -> Some (name, args) | _ -> None
 
-let is_member = function IT (StructMember (it, id), _, _) -> Some (it, id) | _ -> None
-
 let is_ctype_const = function IT (Const (CType_const ct), _, _) -> Some ct | _ -> None
-
-let is_cast = function IT (Cast (bt, it), _, _) -> Some (bt, it) | _ -> None
 
 (* shorthands *)
 
@@ -562,33 +513,9 @@ let ne_ (it, it') loc = not_ (eq_ (it, it') loc) loc
 
 let ne__ it it' = ne_ (it, it')
 
-let eq_sterm_ (it, it') loc = IT (Binop (EQ, it, it'), BT.Bool, loc)
-
-let bool_sterm_ b loc = IT (Const (Bool b), BT.Bool, loc)
-
-let and2_sterm_ (it, it') loc = IT (Binop (And, it, it'), BT.Bool, loc)
-
-let and_sterm_ its loc =
-  vargs_binop (bool_sterm_ true loc) (Tools.curry (fun p -> and2_sterm_ p loc)) its
-
-
-let or2_sterm_ (it, it') loc = IT (Binop (Or, it, it'), BT.Bool, loc)
-
-let or_sterm_ its loc =
-  vargs_binop (bool_sterm_ true loc) (Tools.curry (fun p -> or2_sterm_ p loc)) its
-
-
 let let_ ((nm, x), y) loc = IT (Let ((nm, x), y), get_bt y, loc)
 
-(* let disperse_not_ it = *)
-(*   match term it with *)
-(*   | And xs -> or_ (List.map not_ xs) *)
-(*   | Or xs -> and_ (List.map not_ xs) *)
-(*   | Implies (x, y) -> and_ [x; not_ y] *)
-(*   | _ -> not_ it *)
-
 let eachI_ (i1, (s, bt), i2) t loc = IT (EachI ((i1, (s, bt), i2), t), BT.Bool, loc)
-(* let existsI_ (i1, s, i2) t = not_ (eachI_ (i1, s, i2) (not_ t)) *)
 
 (* arith_op *)
 let negate it loc = IT (Unop (Negate, it), get_bt it, loc)
@@ -630,10 +557,6 @@ let rem_f_ (it, it') loc = mod_ (it, it') loc
 let min_ = arith_binop Min
 
 let max_ = arith_binop Max
-
-let intToReal_ it loc = IT (Cast (Real, it), BT.Real, loc)
-
-let realToInt_ it loc = IT (Cast (Integer, it), BT.Integer, loc)
 
 let binop op (it, it') loc ret = IT (Binop (op, it, it'), ret, loc)
 
@@ -695,11 +618,12 @@ let addr_ it loc =
 
 
 let upper_bound addr ct loc =
-  let range_size ct =
+  let range_size =
     let size = Memory.size_of_ctype ct in
     num_lit_ (Z.of_int size) Memory.uintptr_bt loc
   in
-  add_ (addr, range_size ct) loc
+  assert (BT.equal (get_bt addr) (get_bt range_size));
+  add_ (addr, range_size) loc
 
 
 (* for integer-mode: cast_ Integer it *)
@@ -710,8 +634,17 @@ let memberShift_ (base, tag, member) loc =
   IT (MemberShift (base, tag, member), BT.Loc (), loc)
 
 
+let right_integer_type_for_mode bt =
+  let open BT in
+  match bt with
+  | Bits _ -> !cnBV
+  | Integer -> not !cnBV
+  | _ -> assert false
+
+
 (* invariant of ArrayShift: index must have type uintptr_bt *)
 let arrayShift_ ~base ~index ct loc =
+  assert (right_integer_type_for_mode (get_bt index));
   let index = cast_ Memory.uintptr_bt index loc in
   IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
 
@@ -766,14 +699,6 @@ let rec dest_list it =
   | _ -> None
 
 
-(* set_op *)
-let setMember_ (it, it') loc = IT (Binop (SetMember, it, it'), BT.Bool, loc)
-
-(* let setUnion_ its = IT (Set_op (SetUnion its), bt (hd its))
- * let setIntersection_ its = IT (Set_op (SetIntersection its), bt (hd its)) *)
-let setDifference_ (it, it') loc = IT (Binop (SetDifference, it, it'), get_bt it, loc)
-
-let subset_ (it, it') loc = IT (Binop (Subset, it, it'), BT.Bool, loc)
 
 (* ct_pred *)
 let representable_ (t, it) loc = IT (Representable (t, it), BT.Bool, loc)
@@ -781,6 +706,7 @@ let representable_ (t, it) loc = IT (Representable (t, it), BT.Bool, loc)
 let good_ (sct, it) loc = IT (Good (sct, it), BT.Bool, loc)
 
 let wrapI_ (ity, arg) loc =
+  assert (right_integer_type_for_mode (get_bt arg));
   IT (WrapI (ity, arg), Memory.bt_of_sct (Sctypes.Integer ity), loc)
 
 
@@ -809,10 +735,6 @@ let map_get_ v arg loc =
       failwith ("mag_get_: type mismatch: " ^ Pp.plain (Pp.list pp_with_typ [ v; arg ]));
     IT (MapGet (v, arg), rbt, loc)
   | _ -> Cerb_debug.error "illtyped index term"
-
-
-let map_def_ (s, abt) body loc =
-  IT (MapDef ((s, abt), body), BT.Map (abt, get_bt body), loc)
 
 
 let none_ bt loc = IT (CN_None bt, BT.Option bt, loc)
@@ -874,10 +796,10 @@ let in_range within (min, max) loc =
 
 
 let rec in_z_range within (min_z, max_z) loc =
-  match get_bt within with
+  let the_bt = get_bt within in
+  match the_bt with
   | BT.Integer -> in_range within (z_ min_z loc, z_ max_z loc) loc
   | BT.Bits (sign, sz) ->
-    let the_bt = get_bt within in
     let min_possible, max_possible = BT.bits_range (sign, sz) in
     let min_c =
       if Z.leq min_z min_possible then
@@ -932,26 +854,17 @@ let const_of_c_sig (c_sig : Sctypes.c_concrete_sig) loc =
 (* TODO: are the constraints `0<about` and `about+pointee_size-1 <= max-pointer`
    required? *)
 let value_check_pointer mode ~pointee_ct about loc =
-  match mode with
-  | `Representable -> bool_ true loc
-  | `Good ->
-    (* let about_int = addr_ about loc in *)
-    (* let pointee_size = match pointee_ct with *)
-    (*   | Sctypes.Void -> 1 *)
-    (*   | Function _ -> 1 *)
-    (*   | _ -> Memory.size_of_ctype pointee_ct *)
-    (* in *)
-    and_
-      (List.filter_map
-         Fun.id
-         [ (* Some (le_ (intptr_int_ 0 loc, about_int) loc); *)
-           (* Some (le_ (sub_ (add_ (about_int, intptr_int_ pointee_size loc) loc,
-              intptr_int_ 1 loc) loc, *)
-           (*         intptr_const_ Memory.max_pointer loc) loc); *)
-           (* if !use_vip then None else Some (non_vip_constraint about loc); *)
-           Some (aligned_ (about, pointee_ct) loc)
-         ])
-      loc
+  let good = match mode with
+    | `Good -> true
+    | `Representable -> false
+  in
+  and_
+    (List.concat
+       [ (* if !use_vip then None else Some (non_vip_constraint about loc); *)
+         if BT.(!cnBV) then [] else [ in_z_range (addr_ about loc) (Z.zero, Memory.max_pointer) loc];
+         if good then [(aligned_ (about, pointee_ct) loc)] else []
+    ])
+    loc
 
 
 let value_check_array_size_warning = ref 100
@@ -961,7 +874,8 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let open Memory in
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
-    | Void | Byte -> bool_ true loc
+    | Void -> bool_ true loc
+    | Byte -> if BT.(!cnBV) then bool_ true loc else failwith "todo: Byte value_check"
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->
@@ -975,7 +889,6 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
         value_check_array_size_warning := n)
       else
         ();
-      (* let partiality = partiality_check_array ~length:n ~item_ct about in *)
       let ix_bt =
         match BT.is_map_bt (get_bt about) with
         | Some (abt, _) -> abt
