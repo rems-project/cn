@@ -136,32 +136,58 @@ module Make (AD : Domain.T) = struct
     let (Annot (tm_, (path_vars, last_var), bt, _)) = tm in
     match tm_ with
     | `Arbitrary ->
-      let sign, bits = Option.get (BT.is_bits_bt bt) in
-      let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
-      ( [],
-        [],
-        mk_expr
-          (string_call
-             ("BENNET_ARBITRARY_" ^ sign_str)
-             [ mk_expr
-                 (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
-             ]) )
+      (match bt with
+       | Loc () -> ([], [], mk_expr (string_call "BENNET_ARBITRARY_POINTER" []))
+       | Bits (sign, bits) ->
+         let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
+         ( [],
+           [],
+           mk_expr
+             (string_call
+                ("BENNET_ARBITRARY_" ^ sign_str)
+                [ mk_expr
+                    (AilEconst
+                       (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
+                ]) )
+       | _ ->
+         failwith
+           (Printf.sprintf
+              "Arbitrary: only pointer and bitvector types are supported, got %s"
+              (Pp.plain (BT.pp bt))))
     | `Symbolic -> failwith "TODO"
     | `ArbitraryDomain _ ->
-      let sign, bits = Option.get (BT.is_bits_bt bt) in
-      let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
-      ( [],
-        [],
-        mk_expr
-          (string_call
-             ("BENNET_ARBITRARY_" ^ sign_str)
-             [ mk_expr
-                 (AilEconst (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
-             ]) )
+      (match bt with
+       | Loc () -> ([], [], mk_expr (string_call "BENNET_ARBITRARY_POINTER" []))
+       | Bits (sign, bits) ->
+         let sign_str = match sign with Unsigned -> "UNSIGNED" | Signed -> "SIGNED" in
+         ( [],
+           [],
+           mk_expr
+             (string_call
+                ("BENNET_ARBITRARY_" ^ sign_str)
+                [ mk_expr
+                    (AilEconst
+                       (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))))
+                ]) )
+       | _ ->
+         failwith
+           (Printf.sprintf
+              "ArbitraryDomain: only pointer and bitvector types are supported, got %s"
+              (Pp.plain (BT.pp bt))))
     | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
-      let sign, bits = Option.get (BT.is_bits_bt bt) in
-      let sign_char = match sign with Unsigned -> 'u' | Signed -> 'i' in
-      let cn_ty = Printf.sprintf "cn_bits_%c%d" sign_char bits in
+      let cn_ty =
+        match bt with
+        | Loc () -> "cn_pointer"
+        | Bits (sign, bits) ->
+          let sign_char = match sign with Unsigned -> 'u' | Signed -> 'i' in
+          Printf.sprintf "cn_bits_%c%d" sign_char bits
+        | _ ->
+          failwith
+            (Printf.sprintf
+               "ArbitrarySpecialized: only pointer and bitvector types are supported, \
+                got %s"
+               (Pp.plain (BT.pp bt)))
+      in
       (* Build argument expressions for bounds - NULL for None *)
       let mk_bound_arg = function
         | None -> mk_expr (AilEconst ConstantNull)
