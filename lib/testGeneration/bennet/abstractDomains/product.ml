@@ -719,17 +719,17 @@ let product_domains (domains : (module Domain.T) list) =
 
       let free_vars_bts product =
         product
-        |> Array.to_list
-        |> List.concat_map (fun comp ->
-          match comp with DPack ((module D), s) -> D.free_vars_bts s)
-        |> List.fold_left
-             (fun acc (sym, bt) ->
-                if List.exists (fun (s, _) -> Sym.equal s sym) acc then
-                  acc
-                else
-                  (sym, bt) :: acc)
-             []
-        |> List.rev
+        |> Array.fold_left
+             (fun acc comp ->
+                match comp with
+                | DPack ((module D), s) ->
+                  Sym.Map.union
+                    (fun _ bt1 bt2 ->
+                       assert (BaseTypes.equal bt1 bt2);
+                       Some bt1)
+                    acc
+                    (D.free_vars_bts s))
+             Sym.Map.empty
 
 
       let pp product =

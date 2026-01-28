@@ -771,6 +771,7 @@ module Make (AD : Domain.T) = struct
         (* Generate blame_domain calls for each variable *)
         let s_blame =
           AD.free_vars_bts ad
+          |> Sym.Map.bindings
           |> List.filter_map (fun (x, x_bt) ->
             (* Only generate for bits/pointer types *)
             match x_bt with

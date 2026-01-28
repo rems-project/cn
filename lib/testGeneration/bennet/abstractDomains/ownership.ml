@@ -147,10 +147,10 @@ module Inner = struct
     | None -> Sym.Set.empty
 
 
-  let free_vars_bts (od : t) : (Sym.t * BaseTypes.t) list =
+  let free_vars_bts (od : t) : BaseTypes.t Sym.Map.t =
     match od with
-    | Some d -> Sym.Map.bindings d |> List.map (fun (sym, _) -> (sym, BaseTypes.Loc ()))
-    | None -> []
+    | Some d -> Sym.Map.map (fun _ -> BaseTypes.Loc ()) d
+    | None -> Sym.Map.empty
 
 
   let pp d =
