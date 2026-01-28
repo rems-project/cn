@@ -75,7 +75,7 @@ module type T = sig
 
   val free_vars : t -> Sym.Set.t
 
-  val free_vars_bts : t -> (Sym.t * BaseTypes.t) list
+  val free_vars_bts : t -> BaseTypes.t Sym.Map.t
 
   val pp : t -> Pp.document
 
