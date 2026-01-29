@@ -4,7 +4,7 @@
   #include <stdio.h>
 #endif /* _RMAP_DEBUG */
 
-#include <cn-executable/rmap.h>
+#include <fulminate/rmap.h>
 
 /* The entire rmap structure is parameterised by the type of range-query
  * results, defined below. Changing these definitions changes what

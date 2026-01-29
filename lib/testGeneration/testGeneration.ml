@@ -241,7 +241,7 @@ let compile_test_file
           "#include <stdlib.h>\n";
           "#endif\n";
           "#include <stdint.h>\n";
-          "#include <cn-executable/utils.h>\n";
+          "#include <fulminate/api.h>\n";
           "#include <cn-executable/cerb_types.h>\n"
         ];
         [ c_struct_decls ];

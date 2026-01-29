@@ -13,7 +13,7 @@ AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex: "<(bennet(-exp)?)/"
+  - Regex: "<(bennet)/"
     Priority: 3
     SortPriority: 3
     CaseSensitive: true
@@ -32,6 +32,10 @@ IncludeCategories:
   - Regex: "<(cn-smt)/"
     Priority: 3
     SortPriority: 7
+    CaseSensitive: true
+  - Regex: "<(fulminate)/"
+    Priority: 3
+    SortPriority: 8
     CaseSensitive: true
   - Regex: "<[[:alnum:].]+>"
     Priority: 2

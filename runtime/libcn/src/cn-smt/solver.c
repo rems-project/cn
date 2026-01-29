@@ -18,6 +18,7 @@
 #include <cn-smt/solver.h>
 #include <cn-smt/terms.h>
 #include <cn-smt/to_smt.h>
+#include <fulminate/api.h>
 
 // SMT logging configuration (NULL = disabled)
 const char *cn_smt_log_file_path = NULL;

@@ -3,7 +3,7 @@
 
 #include <bennet/internals/domains/wint.h>
 #include <bennet/state/failure.h>
-#include <cn-executable/utils.h>
+#include <cn-executable/eval.h>
 
 #define BENNET_SPECIALIZED_IMPL(cn_ty, c_ty, min, max)                                   \
   cn_ty* bennet_specialized_##cn_ty(cn_ty* lower_bound_ex,                               \
