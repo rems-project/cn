@@ -36,7 +36,19 @@ def get_test_type(test_file, config):
     """Determine the expected test result type based on filename and config."""
     test_file = Path(test_file).name
 
-    if test_file.endswith('.pass.c'):
+    if (test_file.endswith('learn_cast.special.c')
+          or test_file.endswith('learn_multiple.special.c')
+          or test_file.endswith('pointer_ordering.special.c')):
+        if '--symbolic' in config:
+            return 'PASS'
+        else:
+            return 'SKIP'
+    elif test_file.endswith('tutorial_queue.pass.c'):
+        if '--lazy-gen' in config:
+            return 'SKIP'
+        else:
+            return 'PASS'
+    elif test_file.endswith('.pass.c'):
         return 'PASS'
     elif test_file.endswith('.fail.c'):
         return 'FAIL'
@@ -44,13 +56,6 @@ def get_test_type(test_file, config):
         return 'SKIP'
     elif test_file.endswith('.flaky.c'):
         return 'FLAKY'
-    elif (test_file.endswith('learn_cast.special.c')
-          or test_file.endswith('learn_multiple.special.c')
-          or test_file.endswith('pointer_ordering.special.c')):
-        if '--symbolic' in config:
-            return 'PASS'
-        else:
-            return 'SKIP'
     else:
         return 'UNKNOWN'
 
@@ -262,7 +267,7 @@ def main():
         alt_configs = [
             "--coverage --sizing-strategy=quickcheck --inline=everything",
             "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
-            "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
+            "--sizing-strategy=uniform --lazy-gen --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
             "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
         ]
 

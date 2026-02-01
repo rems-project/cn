@@ -10,6 +10,7 @@
 #include <bennet/dsl/assign.h>
 #include <bennet/dsl/backtrack.h>
 #include <bennet/dsl/specialized.h>
+#include <bennet/internals/lazy.h>
 #include <bennet/state/checkpoint.h>
 #include <bennet/state/failure.h>
 
@@ -361,10 +362,10 @@
   switch (convert_from_cn_bits_u64(tmp)) {                                               \
   /* Case per choice */
 
-#define BENNET_PICK_CASE_BEGIN(index) case index:
-
+#define BENNET_PICK_CASE_BEGIN(index) case index: {
 #define BENNET_PICK_CASE_END(var, e)                                                     \
   var = e;                                                                               \
+  }                                                                                      \
   break;
 
 #define BENNET_PICK_END(tmp)                                                             \
@@ -417,5 +418,276 @@
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
+
+#define BENNET_LET_LAZY(cn_ty, var)                                                      \
+  cn_ty* var = cn_bump_malloc(sizeof(cn_ty));                                            \
+  bennet_lazy_new(var);
+
+#define BENNET_INSTANTIATE_ARBITRARY_DOMAIN(                                             \
+    backtracks, backtrack_var, cn_ty, c_ty, var, last_var, ...)                          \
+  bool var##_instantiated_here = !bennet_lazy_is_instantiated(var);                      \
+  if (!var##_instantiated_here) {                                                        \
+    goto bennet_label_##backtrack_var##_skip;                                            \
+    /* Means following variables aren't used */                                          \
+  }                                                                                      \
+                                                                                         \
+  bool var##_restore_randomness = false;                                                 \
+  int var##_backtracks = backtracks;                                                     \
+  bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
+                                                                                         \
+  bennet_domain(c_ty)* var##_cs = __VA_ARGS__;                                           \
+  bennet_domain(c_ty)* var##_cs_tmp = var##_cs;                                          \
+                                                                                         \
+  bennet_label_##backtrack_var##_gen :;                                                  \
+  memcpy(var, bennet_arbitrary_##cn_ty(var##_cs_tmp), sizeof(cn_ty));                    \
+  bennet_lazy_mark(var);                                                                 \
+                                                                                         \
+  var##_cs_tmp = var##_cs;                                                               \
+                                                                                         \
+  if (var##_restore_randomness) {                                                        \
+    bennet_rand_restore(var##_rand_checkpoint_after);                                    \
+    var##_restore_randomness = false;                                                    \
+  }                                                                                      \
+  var##_rand_checkpoint_after = bennet_rand_save();                                      \
+                                                                                         \
+  if (0) {                                                                               \
+    bennet_label_##backtrack_var##_backtrack :;                                          \
+    BENNET_CHECK_TIMEOUT();                                                              \
+                                                                                         \
+    if (!var##_instantiated_here) {                                                      \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+                                                                                         \
+    bool var##_should_restore_randomness =                                               \
+        bennet_failure_get_failure_type() == BENNET_FAILURE_ASSIGN;                      \
+    bool var##_is_young = bennet_failure_is_young();                                     \
+    if (bennet_backtrack_arbitrary_##cn_ty(                                              \
+            &var##_backtracks, &var##_cs, &var##_cs_tmp, &var##_checkpoint, var)) {      \
+      var##_restore_randomness = var##_should_restore_randomness;                        \
+      if (!var##_restore_randomness) {                                                   \
+        var##_restore_randomness =                                                       \
+            !var##_is_young && !bennet_domain_equal(c_ty, var##_cs, var##_cs_tmp);       \
+      }                                                                                  \
+                                                                                         \
+      goto bennet_label_##backtrack_var##_gen;                                           \
+    } else {                                                                             \
+      bennet_lazy_unmark(var);                                                           \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+  }                                                                                      \
+                                                                                         \
+  bennet_label_##backtrack_var##_skip :;
+
+#define BENNET_INSTANTIATE_ARBITRARY_DOMAIN_POINTER(                                     \
+    backtracks, backtrack_var, var, last_var, ...)                                       \
+  BENNET_INSTANTIATE_ARBITRARY_DOMAIN(                                                   \
+      backtracks, backtrack_var, cn_pointer, uintptr_t, var, last_var, __VA_ARGS__)
+
+#define BENNET_INSTANTIATE_ARBITRARY_DOMAIN_UNSIGNED(                                    \
+    backtracks, backtrack_var, bits, var, last_var, ...)                                 \
+  BENNET_INSTANTIATE_ARBITRARY_DOMAIN(backtracks,                                        \
+      backtrack_var,                                                                     \
+      cn_bits_u##bits,                                                                   \
+      uint##bits##_t,                                                                    \
+      var,                                                                               \
+      last_var,                                                                          \
+      __VA_ARGS__)
+
+#define BENNET_INSTANTIATE_ARBITRARY_DOMAIN_SIGNED(                                      \
+    backtracks, backtrack_var, bits, var, last_var, ...)                                 \
+  BENNET_INSTANTIATE_ARBITRARY_DOMAIN(backtracks,                                        \
+      backtrack_var,                                                                     \
+      cn_bits_i##bits,                                                                   \
+      int##bits##_t,                                                                     \
+      var,                                                                               \
+      last_var,                                                                          \
+      __VA_ARGS__)
+
+#define BENNET_INSTANTIATE_ARBITRARY(                                                    \
+    backtracks, backtrack_var, cn_ty, c_ty, var, last_var)                               \
+  BENNET_INSTANTIATE_ARBITRARY_DOMAIN(                                                   \
+      backtracks, backtrack_var, cn_ty, c_ty, var, last_var, bennet_domain_top(c_ty))
+
+#define BENNET_INSTANTIATE_ARBITRARY_POINTER(backtracks, backtrack_var, var, last_var)   \
+  BENNET_INSTANTIATE_ARBITRARY(                                                          \
+      backtracks, backtrack_var, cn_pointer, uintptr_t, var, last_var)
+
+#define BENNET_INSTANTIATE_ARBITRARY_UNSIGNED(                                           \
+    backtracks, backtrack_var, bits, var, last_var)                                      \
+  BENNET_INSTANTIATE_ARBITRARY(                                                          \
+      backtracks, backtrack_var, cn_bits_u##bits, uint##bits##_t, var, last_var)
+
+#define BENNET_INSTANTIATE_ARBITRARY_SIGNED(                                             \
+    backtracks, backtrack_var, bits, var, last_var)                                      \
+  BENNET_INSTANTIATE_ARBITRARY(                                                          \
+      backtracks, backtrack_var, cn_bits_i##bits, int##bits##_t, var, last_var)
+
+#define BENNET_INSTANTIATE_SPECIALIZED(backtracks,                                       \
+    backtrack_var,                                                                       \
+    cn_ty,                                                                               \
+    c_ty,                                                                                \
+    var,                                                                                 \
+    last_var,                                                                            \
+    lower_bound_ex,                                                                      \
+    lower_bound_inc,                                                                     \
+    upper_bound_inc,                                                                     \
+    upper_bound_ex,                                                                      \
+    ...)                                                                                 \
+                                                                                         \
+  bool var##_instantiated_here = !bennet_lazy_is_instantiated(var);                      \
+  if (!var##_instantiated_here) {                                                        \
+    goto bennet_label_##backtrack_var##_skip;                                            \
+    /* Means following variables aren't used */                                          \
+  }                                                                                      \
+                                                                                         \
+  bool var##_restore_randomness = false;                                                 \
+  int var##_backtracks = backtracks;                                                     \
+  bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
+                                                                                         \
+  const void* var##_vars[] = {__VA_ARGS__};                                              \
+                                                                                         \
+  bennet_label_##backtrack_var##_gen :;                                                  \
+  memcpy(var,                                                                            \
+      bennet_specialized_##cn_ty(                                                        \
+          lower_bound_ex, lower_bound_inc, upper_bound_inc, upper_bound_ex, var##_vars), \
+      sizeof(cn_ty));                                                                    \
+  if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                        \
+    goto bennet_label_##last_var##_backtrack;                                            \
+  }                                                                                      \
+  bennet_lazy_mark(var);                                                                 \
+                                                                                         \
+  if (var##_restore_randomness) {                                                        \
+    bennet_rand_restore(var##_rand_checkpoint_after);                                    \
+    var##_restore_randomness = false;                                                    \
+  }                                                                                      \
+  var##_rand_checkpoint_after = bennet_rand_save();                                      \
+                                                                                         \
+  if (0) {                                                                               \
+    bennet_label_##backtrack_var##_backtrack :;                                          \
+    BENNET_CHECK_TIMEOUT();                                                              \
+                                                                                         \
+    if (!var##_instantiated_here) {                                                      \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+                                                                                         \
+    bool var##_should_restore_randomness =                                               \
+        bennet_failure_get_failure_type() == BENNET_FAILURE_ASSIGN;                      \
+    bennet_checkpoint_restore(&var##_checkpoint);                                        \
+    bennet_failure_mark_old();                                                           \
+    if (var##_backtracks > 0) {                                                          \
+      var##_backtracks--;                                                                \
+      var##_restore_randomness = var##_should_restore_randomness;                        \
+      bennet_failure_reset();                                                            \
+      goto bennet_label_##backtrack_var##_gen;                                           \
+    } else {                                                                             \
+      bennet_lazy_unmark(var);                                                           \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+  }                                                                                      \
+                                                                                         \
+  bennet_label_##backtrack_var##_skip :;
+
+#define BENNET_INSTANTIATE_SPECIALIZED_UNSIGNED(backtracks,                              \
+    backtrack_var,                                                                       \
+    bits,                                                                                \
+    var,                                                                                 \
+    last_var,                                                                            \
+    lower_bound_ex,                                                                      \
+    lower_bound_inc,                                                                     \
+    upper_bound_inc,                                                                     \
+    upper_bound_ex,                                                                      \
+    ...)                                                                                 \
+  BENNET_INSTANTIATE_SPECIALIZED(backtracks,                                             \
+      backtrack_var,                                                                     \
+      cn_bits_u##bits,                                                                   \
+      uint##bits##_t,                                                                    \
+      var,                                                                               \
+      last_var,                                                                          \
+      lower_bound_ex,                                                                    \
+      lower_bound_inc,                                                                   \
+      upper_bound_inc,                                                                   \
+      upper_bound_ex,                                                                    \
+      __VA_ARGS__)
+
+#define BENNET_INSTANTIATE_SPECIALIZED_SIGNED(backtracks,                                \
+    backtrack_var,                                                                       \
+    bits,                                                                                \
+    var,                                                                                 \
+    last_var,                                                                            \
+    lower_bound_ex,                                                                      \
+    lower_bound_inc,                                                                     \
+    upper_bound_inc,                                                                     \
+    upper_bound_ex,                                                                      \
+    ...)                                                                                 \
+  BENNET_INSTANTIATE_SPECIALIZED(backtracks,                                             \
+      backtrack_var,                                                                     \
+      cn_bits_i##bits,                                                                   \
+      int##bits##_t,                                                                     \
+      var,                                                                               \
+      last_var,                                                                          \
+      lower_bound_ex,                                                                    \
+      lower_bound_inc,                                                                   \
+      upper_bound_inc,                                                                   \
+      upper_bound_ex,                                                                    \
+      __VA_ARGS__)
+
+#define BENNET_INSTANTIATE_SPECIALIZED_POINTER(backtracks,                               \
+    backtrack_var,                                                                       \
+    var,                                                                                 \
+    last_var,                                                                            \
+    lower_bound_ex,                                                                      \
+    lower_bound_inc,                                                                     \
+    upper_bound_inc,                                                                     \
+    upper_bound_ex,                                                                      \
+    ...)                                                                                 \
+  BENNET_INSTANTIATE_SPECIALIZED(backtracks,                                             \
+      backtrack_var,                                                                     \
+      cn_pointer,                                                                        \
+      cn_pointer,                                                                        \
+      var,                                                                               \
+      last_var,                                                                          \
+      lower_bound_ex,                                                                    \
+      lower_bound_inc,                                                                   \
+      upper_bound_inc,                                                                   \
+      upper_bound_ex,                                                                    \
+      __VA_ARGS__)
+
+#define BENNET_INSTANTIATE_RETURN(backtrack_var, ty, var, expr, last_var, ...)           \
+  bool var##_instantiated_here = !bennet_lazy_is_instantiated(var);                      \
+  if (!var##_instantiated_here) {                                                        \
+    goto bennet_label_##backtrack_var##_skip;                                            \
+    /* Means following variables aren't used */                                          \
+  }                                                                                      \
+                                                                                         \
+  memcpy(var, expr, sizeof(ty));                                                         \
+  bennet_lazy_mark(var);                                                                 \
+                                                                                         \
+  if (0) {                                                                               \
+    bennet_label_##backtrack_var##_backtrack :;                                          \
+    BENNET_CHECK_TIMEOUT();                                                              \
+                                                                                         \
+    if (!var##_instantiated_here) {                                                      \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+                                                                                         \
+    bennet_lazy_unmark(var);                                                             \
+    if (bennet_failure_is_blamed(var)) {                                                 \
+      const void* toAdd[] = {__VA_ARGS__};                                               \
+      bool is_young = bennet_failure_is_young();                                         \
+      bennet_failure_remove_blame(var);                                                  \
+      bennet_failure_blame_many(toAdd);                                                  \
+      if (is_young) {                                                                    \
+        bennet_failure_mark_young();                                                     \
+      }                                                                                  \
+    }                                                                                    \
+                                                                                         \
+    goto bennet_label_##last_var##_backtrack;                                            \
+  }                                                                                      \
+                                                                                         \
+  bennet_label_##backtrack_var##_skip :;
 
 #endif  // BENNET_DSL_H

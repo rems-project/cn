@@ -47,6 +47,8 @@ module Make (GT : GenTerms.T) = struct
         | `SplitSize (_, gt')
         | `SplitSizeElab (_, _, gt') ->
           aux gt'
+        | `Instantiate ((_, gt_inner), gt') | `InstantiateElab (_, (_, gt_inner), gt') ->
+          Sym.Set.union (aux gt_inner) (aux gt')
         | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
           Sym.Set.union (aux gt1) (aux gt2)
       in

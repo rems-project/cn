@@ -147,6 +147,12 @@ module Make (AD : Domain.T) = struct
           (let open Option in
            let@ gt_inner in
            return (Term.map_ ((i, i_bt, it_perm), gt_inner) () loc))
+      | `Instantiate ((x, gt_inner), gt_rest) ->
+        let@ gt_rest = aux new_constraint gt_rest in
+        return
+          (let open Option in
+           let@ gt_rest in
+           return (Term.instantiate_ ((x, gt_inner), gt_rest) () loc))
     in
     let@ res = aux false tm in
     return (Option.get res)

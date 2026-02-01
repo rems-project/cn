@@ -91,7 +91,8 @@
     bennet/tyche.o
     bennet/unsatisfied.o
     bennet/urn.o
-    bennet/wint.o))))
+    bennet/wint.o
+    bennet/lazy.o))))
 
 (rule
  (target libcn_test.a)

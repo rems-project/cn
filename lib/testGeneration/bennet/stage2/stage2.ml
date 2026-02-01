@@ -7,7 +7,6 @@ module Make (AD : Domain.T) = struct
     module FlipIfs = FlipIfs.Make (AD)
     module Reorder = Reorder.Make (AD)
     module SpecializeEquality = SpecializeEquality.Make (AD)
-    module SimplifyNames = SimplifyNames.Make (AD)
   end
 
   module Stage1 = Stage1.Make (AD)
@@ -27,5 +26,4 @@ module Make (AD : Domain.T) = struct
     |> Reorder.transform
     |> SpecializeEquality.transform
     |> SimplifyGen.transform prog5
-    |> SimplifyNames.transform
 end

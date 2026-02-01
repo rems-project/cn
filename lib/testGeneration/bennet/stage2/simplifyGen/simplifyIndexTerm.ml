@@ -43,6 +43,9 @@ module Make (AD : Domain.T) = struct
       let aux (it : IT.t) : IT.t =
         let (IT.IT (it_, bt, loc)) = it in
         match it_ with
+        (* Fulminate ignores `good` already, so we will too for benefits to laziness *)
+        (* FIXME: Want a more formal guarantee from generators in future *)
+        | Good _ -> IT.bool_ true loc
         | Binop
             ( Add,
               IT (Binop (Add, it1, IT (Const (Bits (_, n1)), _, _)), _, _),

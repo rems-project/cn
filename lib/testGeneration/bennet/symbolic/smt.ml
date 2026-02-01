@@ -8,10 +8,10 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage4 = Stage4.Make (AD)
-  module Ctx = Stage4.Ctx
-  module Term = Stage4.Term
-  module Def = Stage4.Def
+  module Stage5 = Stage5.Make (AD)
+  module Ctx = Stage5.Ctx
+  module Term = Stage5.Term
+  module Def = Stage5.Def
   module StringMap = Map.Make (String)
   module StringSet = Set.Make (String)
   module IntMap = Map.Make (Int)

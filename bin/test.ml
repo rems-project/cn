@@ -89,6 +89,8 @@ let run_tests
       max_input_alloc
       smt_skew_pointer_order
       dsl_log_dir
+      lazy_gen
+      disable_specialization
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -151,6 +153,7 @@ let run_tests
           symbolic_timeout;
           use_solver_eval;
           smt_solver;
+          disable_specialization;
           smt_logging;
           smt_log_unsat_cores;
           max_unfolds;
@@ -186,7 +189,8 @@ let run_tests
           bump_block_size;
           max_input_alloc;
           smt_skew_pointer_order;
-          dsl_log_dir
+          dsl_log_dir;
+          lazy_gen
         }
       in
       TestGeneration.set_config config;
@@ -524,6 +528,11 @@ module Flags = struct
     Arg.(value & flag & info [ "coverage" ] ~doc)
 
 
+  let disable_specialization =
+    let doc = "Disable integer specialization in the generator pipeline" in
+    Arg.(value & flag & info [ "disable-specialization" ] ~doc)
+
+
   let disable_passes =
     let doc = "skip this optimization pass (or comma-separated names)" in
     Arg.(
@@ -766,6 +775,11 @@ module Flags = struct
        directory"
     in
     Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
+
+
+  let lazy_gen =
+    let doc = "Enable lazy generation" in
+    Arg.(value & flag & info [ "lazy-gen" ] ~doc)
 end
 
 let cmd =
@@ -854,6 +868,8 @@ let cmd =
     $ Flags.max_input_alloc
     $ Flags.smt_skew_pointer_order
     $ Flags.dsl_log_dir
+    $ Flags.lazy_gen
+    $ Flags.disable_specialization
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

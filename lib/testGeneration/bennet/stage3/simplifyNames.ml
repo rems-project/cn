@@ -72,6 +72,10 @@ module Make (AD : Domain.T) = struct
           | None -> (StringMap.add name 1 vars, i_sym, it_perm, gt_inner)
         in
         (vars, Term.map_ ((i_sym, i_bt, it_perm), gt_inner) () loc)
+      | `Instantiate ((x, gt_inner), gt') ->
+        let vars, gt_inner = aux vars gt_inner in
+        let vars, gt' = aux vars gt' in
+        (vars, Term.instantiate_ ((x, gt_inner), gt') () loc)
     in
     snd
       (aux

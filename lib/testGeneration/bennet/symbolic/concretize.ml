@@ -8,11 +8,11 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage4 = Stage4.Make (AD)
+  module Stage5 = Stage5.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage4.Ctx
-  module Term = Stage4.Term
-  module Def = Stage4.Def
+  module Ctx = Stage5.Ctx
+  module Term = Stage5.Term
+  module Def = Stage5.Def
 
   let bennet = Sym.fresh "bennet"
 
@@ -124,6 +124,7 @@ module Make (AD : Domain.T) = struct
     | `AssertDomain (_, next_term) ->
       (* Assert domain constraints - skip domain for now and continue *)
       concretize_term sigma next_term
+    | `Instantiate _ -> failwith ("unreachable @ " ^ __LOC__)
     | `ITE (it_if, then_term, else_term) ->
       (* Convert if-then-else to PickSized statement with recursive calls *)
       let wgts1 =
