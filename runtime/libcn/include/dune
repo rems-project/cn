@@ -53,6 +53,7 @@
    as
    runtime/include/bennet/internals/domains/wint.h)
   (bennet/internals/domain.h as runtime/include/bennet/internals/domain.h)
+  (bennet/internals/lazy.h as runtime/include/bennet/internals/lazy.h)
   (bennet/internals/rand.h as runtime/include/bennet/internals/rand.h)
   (bennet/internals/size.h as runtime/include/bennet/internals/size.h)
   (bennet/internals/urn.h as runtime/include/bennet/internals/urn.h)

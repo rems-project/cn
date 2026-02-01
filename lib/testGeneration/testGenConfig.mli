@@ -68,6 +68,7 @@ type t =
     max_array_length : int; (* For symbolic execution *)
     use_solver_eval : bool; (* Use solver-based evaluation *)
     smt_solver : smt_solver;
+    disable_specialization : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -102,7 +103,8 @@ type t =
     bump_block_size : int option;
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
-    dsl_log_dir : string option
+    dsl_log_dir : string option;
+    lazy_gen : bool
   }
 
 val default : t
@@ -254,3 +256,7 @@ val has_max_input_alloc : unit -> int option
 val is_smt_skew_pointer_order : unit -> bool
 
 val get_dsl_log_dir : unit -> string option
+
+val is_lazy_gen : unit -> bool
+
+val is_specialization_disabled : unit -> bool

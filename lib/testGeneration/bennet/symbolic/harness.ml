@@ -6,10 +6,10 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage4 = Stage4.Make (AD)
+  module Stage5 = Stage5.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage4.Ctx
-  module Def = Stage4.Def
+  module Ctx = Stage5.Ctx
+  module Def = Stage5.Def
 
   let arbitrary_of_bt (prog5 : unit Mucore.file) (bt : BT.t) =
     let module Stage1 = Stage1.Make (AD) in

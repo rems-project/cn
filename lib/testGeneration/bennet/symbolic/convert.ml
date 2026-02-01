@@ -4,14 +4,14 @@ module C = CF.Ctype
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage4 = Stage4.Make (AD)
+  module Stage5 = Stage5.Make (AD)
   module PathSelector = PathSelector.Make (AD)
   module Gather = Gather.Make (AD)
   module Concretize = Concretize.Make (AD)
   module Harness = Harness.Make (AD)
   module Setup = Setup_.Make (AD)
-  module Ctx = Stage4.Ctx
-  module Def = Stage4.Def
+  module Ctx = Stage5.Ctx
+  module Def = Stage5.Def
 
   (** Convert Stage 1 context with multiple definitions to a C source file *)
   let transform

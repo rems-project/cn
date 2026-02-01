@@ -7,11 +7,11 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage4 = Stage4.Make (AD)
+  module Stage5 = Stage5.Make (AD)
   module Smt = Smt.Make (AD)
-  module Ctx = Stage4.Ctx
-  module Term = Stage4.Term
-  module Def = Stage4.Def
+  module Ctx = Stage5.Ctx
+  module Term = Stage5.Term
+  module Def = Stage5.Def
 
   let bennet = Sym.fresh "bennet"
 
@@ -62,6 +62,7 @@ module Make (AD : Domain.T) = struct
       ^^ semi
     | `Asgn (_, _, next_term) | `Assert (_, next_term) | `AssertDomain (_, next_term) ->
       path_selector_term ctx last_branch next_term
+    | `Instantiate _ -> failwith ("unreachable @ " ^ __LOC__)
     | `LetStar ((_, binding_term), body_term) ->
       let binding_result = path_selector_term ctx last_branch binding_term in
       let body_result = path_selector_term ctx last_branch body_term in

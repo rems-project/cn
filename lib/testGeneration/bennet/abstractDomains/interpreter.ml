@@ -122,6 +122,14 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
       | `SplitSizeElab (marker_var, syms, gt') ->
         let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
         (GT.split_size_elab_ (marker_var, syms, gt') tag loc, d_list)
+      | `Instantiate ((x, gt_inner), gt') ->
+        (* Invisible to abstract interpreter *)
+        let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
+        (GT.instantiate_ ((x, gt_inner), gt') tag loc, d_list)
+      | `InstantiateElab (backtrack_var, (x, gt_inner), gt') ->
+        (* Invisible to abstract interpreter *)
+        let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
+        (GT.instantiate_elab_ (backtrack_var, (x, gt_inner), gt') tag loc, d_list)
       | `LetStar ((x, gt1), gt2) ->
         let gt1, d_list1 = aux abs_ctx defs_ctx gt1 d false in
         let d_list1' = domain_map_rename ~from:Domain.ret_sym ~to_:x d_list1 in
