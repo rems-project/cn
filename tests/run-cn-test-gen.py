@@ -4,10 +4,32 @@ import argparse
 import concurrent.futures
 import multiprocessing
 import os
+import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
+
+
+def red(text):
+    """Wrap text in ANSI red escape codes."""
+    return f"\033[91m{text}\033[0m"
+
+
+# Track active subprocesses so we can kill them on interrupt
+_active_procs = set()
+_active_procs_lock = threading.Lock()
+
+
+def _kill_active_procs():
+    """Kill all tracked subprocesses by process group."""
+    with _active_procs_lock:
+        for proc in _active_procs:
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
 
 
 def get_test_type(test_file, config):
@@ -44,13 +66,17 @@ def run_cn_test(cn_path, test_file, config):
 
     cmd = [cn_path, 'test', str(test_file)] + config.split()
     try:
-        result = subprocess.run(cmd, capture_output=True,
-                                text=True, timeout=None)
-        test_output = result.stdout + result.stderr
-        return_code = result.returncode
-    except subprocess.CalledProcessError as e:
-        test_output = e.stdout + e.stderr if e.stdout or e.stderr else str(e)
-        return_code = e.returncode
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, start_new_session=True)
+        with _active_procs_lock:
+            _active_procs.add(proc)
+        try:
+            stdout, stderr = proc.communicate()
+        finally:
+            with _active_procs_lock:
+                _active_procs.discard(proc)
+        test_output = stdout + stderr
+        return_code = proc.returncode
     except Exception as e:
         test_output = str(e)
         return_code = -1
@@ -343,39 +369,58 @@ def main():
             }
 
             # Collect results
-            for future in concurrent.futures.as_completed(future_to_test):
-                test_file, success, output = future.result()
-                if not success:
-                    failed_tests.append(test_file)
-                    print(f"FAILED: {test_file}")
-                    if output.strip():
-                        print(output)
-                else:
-                    print(f"PASSED: {test_file}")
+            completed_tests = set()
+            try:
+                for future in concurrent.futures.as_completed(future_to_test):
+                    test_file, success, output = future.result()
+                    completed_tests.add(test_file)
+                    if not success:
+                        failed_tests.append(test_file)
+                        print(f"FAILED: {test_file}")
+                        if output.strip():
+                            print(output)
+                    else:
+                        print(f"PASSED: {test_file}")
+            except KeyboardInterrupt:
+                executor.shutdown(wait=False, cancel_futures=True)
+                _kill_active_procs()
+                incomplete_tests = [t for t in test_files if t not in completed_tests]
+                print(red("\nTests interrupted early, the following tests did not complete:"))
+                for t in incomplete_tests:
+                    print(red(f"  {t}"))
+                os._exit(1)
 
     elif args.mode == 'benchmarking':
         # Benchmarking mode: Run tests sequentially with detailed timing
         import time as time_module
         total_start_time = time_module.time()
 
-        for i, test_file in enumerate(test_files, 1):
-            print(f"\n[{i}/{len(test_files)}] Running test: {test_file}")
-            test_start_time = time_module.time()
+        try:
+            for i, test_file in enumerate(test_files, 1):
+                print(f"\n[{i}/{len(test_files)}] Running test: {test_file}")
+                test_start_time = time_module.time()
 
-            test_file_result, success, output = run_single_test(
-                test_file, cn_path, base_config, alt_configs, build_tools, args.symbolic)
+                test_file_result, success, output = run_single_test(
+                    test_file, cn_path, base_config, alt_configs, build_tools, args.symbolic)
 
-            test_end_time = time_module.time()
-            test_elapsed = test_end_time - test_start_time
+                test_end_time = time_module.time()
+                test_elapsed = test_end_time - test_start_time
 
-            if not success:
-                failed_tests.append(test_file_result)
-                print(f"FAILED: {test_file} (took {test_elapsed:.3f}s)")
-                if output.strip():
+                if not success:
+                    failed_tests.append(test_file_result)
+                    print(f"FAILED: {test_file} (took {test_elapsed:.3f}s)")
+                    if output.strip():
+                        print(output)
+                else:
+                    print(f"PASSED: {test_file} (took {test_elapsed:.3f}s)")
                     print(output)
-            else:
-                print(f"PASSED: {test_file} (took {test_elapsed:.3f}s)")
-                print(output)
+        except KeyboardInterrupt:
+            _kill_active_procs()
+            incomplete_tests = test_files[i:]
+            print(red("\nTests interrupted early, the following tests did not complete:"))
+            for t in incomplete_tests:
+                print(red(f"  {t}"))
+            os._exit(1)
 
         total_end_time = time_module.time()
         total_elapsed = total_end_time - total_start_time
