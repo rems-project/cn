@@ -262,8 +262,8 @@ def main():
         alt_configs = [
             "--coverage --sizing-strategy=quickcheck --inline=everything",
             "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
-            "--sizing-strategy=uniform --random-size-splits --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
-            "--random-size-splits --experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
+            "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
+            "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
         ]
 
     # Set build tools based on argument
@@ -384,8 +384,10 @@ def main():
             except KeyboardInterrupt:
                 executor.shutdown(wait=False, cancel_futures=True)
                 _kill_active_procs()
-                incomplete_tests = [t for t in test_files if t not in completed_tests]
-                print(red("\nTests interrupted early, the following tests did not complete:"))
+                incomplete_tests = [
+                    t for t in test_files if t not in completed_tests]
+                print(
+                    red("\nTests interrupted early, the following tests did not complete:"))
                 for t in incomplete_tests:
                     print(red(f"  {t}"))
                 os._exit(1)
