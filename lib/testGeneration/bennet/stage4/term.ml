@@ -15,6 +15,7 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
+        | `Lazy (** Lazily generate values *)
         | `ArbitrarySpecialized of
             (IT.t option * IT.t option) * (IT.t option * IT.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
@@ -54,6 +55,10 @@ module Make (AD : Domain.T) = struct
       include GenTerms.Defaults (struct
           let name = "Stage 4"
         end)
+
+      let lazy_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+        Annot (`Lazy, tag, bt, loc)
+
 
       let arbitrary_domain_
             (d : AD.Relative.t)

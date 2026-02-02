@@ -12,6 +12,7 @@ module Make (AD : Domain.T) = struct
       match gt_ with
       | `Arbitrary -> `Arbitrary
       | `Symbolic -> `Symbolic
+      | `Lazy -> `Lazy
       | `Call (fsym, args) -> `Call (fsym, args)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         `Asgn ((it_addr, sct), it_val, transform_gt gt_rest)

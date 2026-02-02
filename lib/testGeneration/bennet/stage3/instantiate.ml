@@ -29,7 +29,7 @@ module Make (AD : Domain.T) = struct
     | `Pick _ -> Sym.Map.empty
     | `Instantiate _ -> failwith ("unreachable @ " ^ __LOC__)
     | `Return it -> IT.free_vars_bts it
-    | `Arbitrary | `Symbolic -> Sym.Map.empty
+    | `Arbitrary | `Symbolic | `Lazy -> Sym.Map.empty
     | `Call (_fsym, iargs) ->
       iargs
       |> List.filter (fun it -> Option.is_none (IT.is_sym it))
@@ -57,6 +57,7 @@ module Make (AD : Domain.T) = struct
         match gt_ with
         | `Arbitrary -> `Arbitrary
         | `Symbolic -> `Symbolic
+        | `Lazy -> `Lazy
         | `Call (fsym, its) -> `Call (fsym, its)
         | `Return it -> `Return it
         | `Asgn ((addr, sct), it, gt') -> `Asgn ((addr, sct), it, aux instantiated' gt')
@@ -66,8 +67,9 @@ module Make (AD : Domain.T) = struct
              an instantiate before its first use in the continuation. *)
           let next_instantiated =
             match gt1 with
-            | GenTerms.Annot (`Arbitrary, _, _, _) | GenTerms.Annot (`Symbolic, _, _, _)
-              ->
+            | GenTerms.Annot (`Arbitrary, _, _, _)
+            | GenTerms.Annot (`Symbolic, _, _, _)
+            | GenTerms.Annot (`Lazy, _, _, _) ->
               instantiated'
             | Annot ((`Call _ | `Return _ | `Map _), _, _, _) ->
               Sym.Set.add x instantiated'
