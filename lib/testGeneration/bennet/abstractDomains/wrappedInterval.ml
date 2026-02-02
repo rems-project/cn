@@ -1284,6 +1284,10 @@ module WrappedIntervalBasis = struct
         IT.and_ [ IT.le_ (start_it, sym_it) loc; IT.le_ (sym_it, stop_it) loc ] loc
       else (* Wrapped interval [start..max] ∪ [min..stop]: start <= X || X <= stop *)
         IT.or_ [ IT.le_ (start_it, sym_it) loc; IT.le_ (sym_it, stop_it) loc ] loc)
+
+
+  let to_lc (t : t) (sym : Sym.t) : LogicalConstraints.t =
+    LogicalConstraints.T (to_it sym t)
 end
 
 module Inner : Domain.T = NonRelational.Make (WrappedIntervalBasis)

@@ -657,6 +657,8 @@ module Make (B : BASIS) = struct
       IT.and_ constraints loc (* conjunction of all basis constraints *)
 
 
+  let to_lc (od : t) : LC.t = LC.T (to_it od)
+
   let is_meet_assoc = B.is_meet_assoc
 
   let is_join_assoc = B.is_join_assoc

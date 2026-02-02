@@ -69,7 +69,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
             (match Ctx.find_opt fsym defs_ctx with
              | Some callee_gd ->
                (* Convert callee's domain to a constraint *)
-               let callee_constraint = AD.to_it callee_d in
+               let callee_constraint = AD.to_lc callee_d in
                (* Create substitution: formal_param -> actual_arg *)
                let subst =
                  IT.make_subst
@@ -79,9 +79,9 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
                       actual_args)
                in
                (* Substitute to get constraint in caller's terms *)
-               let caller_constraint = IT.subst subst callee_constraint in
+               let caller_constraint = LC.subst subst callee_constraint in
                (* Propagate constraint to refine caller's domain *)
-               I.abs_assert (LC.T caller_constraint) d
+               I.abs_assert caller_constraint d
              | None -> AD.meet d callee_d)
           | None ->
             (* function has no ownership info *)
