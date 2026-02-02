@@ -22,6 +22,8 @@ module type RELATIVE_VIEW = sig
   val pp : t -> Pp.document
 
   val pp_args : t -> string
+
+  val to_lc : t -> Sym.t -> LC.t
 end
 
 module type T = sig
@@ -89,7 +91,7 @@ module type T = sig
   val abs_assign : (IT.t * Sctypes.t) * IT.t -> t -> t
 
   (** Check truthiness *)
-  val to_it : t -> IT.t
+  val to_lc : t -> LC.t
 
   (** Whether meet is associative (allows optimization) *)
   val is_meet_assoc : bool

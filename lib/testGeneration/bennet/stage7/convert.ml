@@ -861,8 +861,8 @@ module Make (AD : Domain.T) = struct
         transform_term filename sigma ctx name gt_rest
       else (
         (* Filter abstract domain to only include in-scope variables *)
-        let it = AD.to_it ad in
-        let b_cond, s_cond, e_cond = transform_it filename sigma name it in
+        let lc = AD.to_lc ad in
+        let b_cond, s_cond, e_cond = transform_lc filename sigma lc in
         let s_begin =
           A.
             [ AilSexpr
