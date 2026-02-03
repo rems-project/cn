@@ -68,15 +68,6 @@ module Make (AD : Domain.T) = struct
         let gt_inner = aux vars path_vars gt_inner in
         let gt_rest = aux vars path_vars gt_rest in
         GenTerms.Annot (`LetStar ((x, gt_inner), gt_rest), (path_vars, last_var), bt, loc)
-      | `LetStar
-          ( ( x,
-              (Annot ((`Arbitrary | `ArbitraryDomain _ | `ArbitrarySpecialized _), _, _, _)
-               as gt_inner) ),
-            gt_rest )
-        when TestGenConfig.is_lazy_gen () ->
-        let gt_inner = aux vars path_vars gt_inner in
-        let gt_rest = aux vars path_vars gt_rest in
-        GenTerms.Annot (`LetStar ((x, gt_inner), gt_rest), (path_vars, last_var), bt, loc)
       | `LetStar ((x, gt_inner), gt_rest) ->
         let gt_inner = aux vars path_vars gt_inner in
         let gt_rest = aux (x :: vars) path_vars gt_rest in

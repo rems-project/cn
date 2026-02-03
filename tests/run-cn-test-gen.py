@@ -43,11 +43,6 @@ def get_test_type(test_file, config):
             return 'PASS'
         else:
             return 'SKIP'
-    elif test_file.endswith('tutorial_queue.pass.c'):
-        if '--lazy-gen' in config:
-            return 'SKIP'
-        else:
-            return 'PASS'
     elif test_file.endswith('.pass.c'):
         return 'PASS'
     elif test_file.endswith('.fail.c'):
