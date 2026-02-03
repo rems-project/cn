@@ -67,12 +67,11 @@ module Make (AD : Domain.T) = struct
              an instantiate before its first use in the continuation. *)
           let next_instantiated =
             match gt1 with
+            | GenTerms.Annot (`Lazy, _, _, _) -> instantiated'
             | GenTerms.Annot (`Arbitrary, _, _, _)
-            | GenTerms.Annot (`Symbolic, _, _, _)
-            | GenTerms.Annot (`Lazy, _, _, _) ->
-              instantiated'
             | Annot ((`Call _ | `Return _ | `Map _), _, _, _) ->
               Sym.Set.add x instantiated'
+            | GenTerms.Annot (`Symbolic, _, _, _) -> failwith ("unsupported @ " ^ __LOC__)
             | _ -> failwith ("unreachable @ " ^ __LOC__)
           in
           `LetStar ((x, gt1), aux next_instantiated gt2)
