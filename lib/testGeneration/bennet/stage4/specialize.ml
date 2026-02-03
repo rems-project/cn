@@ -132,8 +132,8 @@ module Make (AD : Domain.T) = struct
       in
       let (Annot (gt_, _, _, _)) = gt in
       match gt_ with
-      | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _ | `Call _
-      | `Return _ ->
+      | `Arbitrary | `Symbolic | `Lazy | `ArbitrarySpecialized _ | `ArbitraryDomain _
+      | `Call _ | `Return _ ->
         empty_rep
       | `Pick gts ->
         (* Collect constraints from all branches *)
@@ -194,8 +194,8 @@ module Make (AD : Domain.T) = struct
     let rec specialize (vars : Sym.Set.t) (gt : Term.t) : Term.t =
       let (Annot (gt_, _, bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _ | `Call _
-      | `Return _ ->
+      | `Arbitrary | `Symbolic | `Lazy | `ArbitrarySpecialized _ | `ArbitraryDomain _
+      | `Call _ | `Return _ ->
         gt
       | `Pick gts -> Term.pick_ (List.map (specialize vars) gts) () bt loc
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->

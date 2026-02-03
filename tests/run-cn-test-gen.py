@@ -37,8 +37,8 @@ def get_test_type(test_file, config):
     test_file = Path(test_file).name
 
     if (test_file.endswith('learn_cast.special.c')
-          or test_file.endswith('learn_multiple.special.c')
-          or test_file.endswith('pointer_ordering.special.c')):
+        or test_file.endswith('learn_multiple.special.c')
+            or test_file.endswith('pointer_ordering.special.c')):
         if '--symbolic' in config:
             return 'PASS'
         else:
@@ -366,7 +366,7 @@ def main():
     if args.mode == 'testing':
         # Testing mode: Run tests in parallel with minimal output
         max_workers = multiprocessing.cpu_count()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers / 2) as executor:
             # Submit all test jobs
             future_to_test = {
                 executor.submit(run_single_test, test_file, cn_path, base_config, alt_configs, build_tools, args.symbolic): test_file

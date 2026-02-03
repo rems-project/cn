@@ -7,6 +7,7 @@
 module Make (AD : Domain.T) = struct
   open struct
     module Convert = Convert.Make (AD)
+    module Lazify = Lazify.Make (AD)
     module Instantiate = Instantiate.Make (AD)
     module SpecializeEquality = SpecializeEquality.Make (AD)
     module SimplifyNames = SimplifyNames.Make (AD)
@@ -22,7 +23,8 @@ module Make (AD : Domain.T) = struct
     |> Convert.transform
     |> SpecializeEquality.transform
     |> (if TestGenConfig.is_lazy_gen () then
-          fun ctx -> ctx |> Instantiate.transform |> SpecializeEquality.transform
+          fun ctx ->
+        ctx |> Lazify.transform |> Instantiate.transform |> SpecializeEquality.transform
         else
           Fun.id)
     |> SimplifyNames.transform

@@ -15,6 +15,7 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
+        | `Lazy (** Lazily generate values *)
         | `Call of Sym.t * IT.t list
           (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
         | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
@@ -49,6 +50,10 @@ module Make (AD : Domain.T) = struct
       include GenTerms.Defaults (struct
           let name = "Stage 3"
         end)
+
+      let lazy_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+        Annot (`Lazy, tag, bt, loc)
+
 
       let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =
         Annot (`Call (fsym, its), tag, bt, loc)
