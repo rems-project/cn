@@ -56,6 +56,7 @@ type t =
     experimental_learning : bool;
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
+    ad_pruning : bool;
     static_absint : string list;
     local_iterations : int;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
@@ -125,6 +126,7 @@ let default =
     experimental_learning = false;
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
+    ad_pruning = false;
     static_absint = [];
     local_iterations = 10;
     smt_pruning_before_absinst = `None;
@@ -289,6 +291,8 @@ let is_experimental_learning () = (Option.get !instance).experimental_learning
 let is_experimental_arg_pruning () = (Option.get !instance).experimental_arg_pruning
 
 let is_experimental_return_pruning () = (Option.get !instance).experimental_return_pruning
+
+let is_ad_pruning () = (Option.get !instance).ad_pruning
 
 let has_static_absint () = (Option.get !instance).static_absint
 
