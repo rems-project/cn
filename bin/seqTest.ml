@@ -24,6 +24,7 @@ let run_seq_tests
       (* Test Generation *)
         output_dir
       print_steps
+      disable_shrink
       num_calls
       backtrack_attempts
       num_tests
@@ -90,14 +91,18 @@ let run_seq_tests
            let config : SeqTests.seq_config =
              { cc;
                print_steps;
+               disable_shrink;
                num_calls;
                max_backtracks = backtrack_attempts;
                num_tests
              }
            in
            SeqTests.set_seq_config config;
-           if SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5 <> 0 then
-             exit 123)
+           let exit_code =
+             SeqTests.run_seq ~output_dir ~filename cabs_tunit sigma prog5
+           in
+           if exit_code <> 0 then
+             exit exit_code)
         ();
       Or_TypeError.return ())
 
@@ -115,6 +120,11 @@ module Flags = struct
       "Print successful stages, such as directory creation, compilation and linking."
     in
     Arg.(value & flag & info [ "print-steps" ] ~doc)
+
+
+  let disable_shrink =
+    let doc = "Disables shrinking." in
+    Arg.(value & flag & info [ "disable-shrink" ] ~doc)
 
 
   let gen_num_calls =
@@ -161,6 +171,7 @@ let cmd =
     $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.output_dir
     $ Flags.print_steps
+    $ Flags.disable_shrink
     $ Flags.gen_num_calls
     $ Flags.gen_backtrack_attempts
     $ Flags.num_tests
