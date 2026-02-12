@@ -661,13 +661,17 @@ module Flags = struct
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
-       comma-separated list). (e.g., 'interval', 'wrapped_interval')"
+       comma-separated list). (e.g., 'interval', 'wrapped_interval', 'tristate')"
     in
     Arg.(
       value
       & opt
           (list
-             (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
+             (enum
+                [ ("interval", "interval");
+                  ("wrapped_interval", "wrapped_interval");
+                  ("tristate", "tristate")
+                ]))
           []
       & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
 

@@ -182,13 +182,21 @@ let product_domains (domains : (module Domain.T) list) =
                  (fun (module D : Domain.T) -> String.equal name D.CInt.name)
                  domains)
           in
+          (* Get set of domain names in this product *)
+          let domain_names =
+            domains
+            |> List.map (fun (module D : Domain.T) -> D.CInt.name)
+            |> StringSet.of_list
+          in
           let arb_funcs =
             domains
             |> List.map (fun (module D : Domain.T) ->
               let res =
                 StringSetSet.fold
                   (fun g acc ->
-                     if StringSet.mem D.CInt.name g then (
+                     (* Only include specialized group if ALL its members are in our product *)
+                     if StringSet.mem D.CInt.name g && StringSet.subset g domain_names
+                     then (
                        match StringSetSet.elements acc with
                        | h :: _ when StringSet.cardinal h = StringSet.cardinal g ->
                          StringSetSet.add g acc
@@ -660,18 +668,28 @@ let product_domains (domains : (module Domain.T) list) =
           failwith "Cannot meet empty product domains";
         if Array.length p1 <> Array.length p2 then
           failwith "Product domain array length mismatch";
-        Array.map2
-          (fun c1 c2 ->
-             match (c1, c2) with
-             | DPack ((module D1), s1), DPack ((module D2), s2) ->
-               if String.equal D1.name D2.name then (
-                 let result = D1.meet s1 (Obj.magic s2) in
-                 DPack ((module D1), result))
-               else
-                 failwith
-                   ("Meeting products of different domains: " ^ D1.name ^ " vs " ^ D2.name))
-          p1
-          p2
+        let result =
+          Array.map2
+            (fun c1 c2 ->
+               match (c1, c2) with
+               | DPack ((module D1), s1), DPack ((module D2), s2) ->
+                 if String.equal D1.name D2.name then (
+                   let result = D1.meet s1 (Obj.magic s2) in
+                   DPack ((module D1), result))
+                 else
+                   failwith
+                     ("Meeting products of different domains: "
+                      ^ D1.name
+                      ^ " vs "
+                      ^ D2.name))
+            p1
+            p2
+        in
+        (* If any component is bottom, the whole product is unsatisfiable *)
+        let any_component_bottom =
+          Array.exists (fun (DPack ((module D), s)) -> D.equal s D.bottom) result
+        in
+        if any_component_bottom then bottom else result
 
 
       let join_many products = List.fold_left join bottom products
