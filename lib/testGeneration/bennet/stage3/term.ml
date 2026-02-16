@@ -15,10 +15,7 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
-        | `ArbitrarySpecialized of
-            (IT.t option * IT.t option) * (IT.t option * IT.t option)
-          (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
-        | `ArbitraryDomain of AD.Relative.t
+        | `Lazy (** Lazily generate values *)
         | `Call of Sym.t * IT.t list
           (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
         | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
@@ -27,10 +24,11 @@ module Make (AD : Domain.T) = struct
         | `Return of IT.t (** Monadic return *)
         | `Assert of LC.t * 'recur annot
           (** `Assert some [LC.t] are true, backtracking otherwise *)
-        | `AssertDomain of AD.t * 'recur annot
         | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
         | `Map of (Sym.t * BT.t * IT.t) * 'recur annot
         | `Pick of 'recur annot list
+        | `Instantiate of (Sym.t * 'recur annot) * 'recur annot
+          (** Instantiate a lazily-generated value, then continue with rest *)
         ]
       [@@deriving eq, ord]
 
@@ -53,24 +51,8 @@ module Make (AD : Domain.T) = struct
           let name = "Stage 3"
         end)
 
-      let arbitrary_domain_
-            (d : AD.Relative.t)
-            (tag : tag_t)
-            (bt : BT.t)
-            (loc : Locations.t)
-        : t
-        =
-        Annot (`ArbitraryDomain d, tag, bt, loc)
-
-
-      let arbitrary_specialized_
-            ((mins, maxs) : (IT.t option * IT.t option) * (IT.t option * IT.t option))
-            (tag : tag_t)
-            (bt : BT.t)
-            (loc : Locations.t)
-        : t
-        =
-        Annot (`ArbitrarySpecialized (mins, maxs), tag, bt, loc)
+      let lazy_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+        Annot (`Lazy, tag, bt, loc)
 
 
       let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =
@@ -98,10 +80,6 @@ module Make (AD : Domain.T) = struct
 
       let assert_ ((lc, gt') : LC.t * t) (tag : tag_t) (loc : Locations.t) : t =
         Annot (`Assert (lc, gt'), tag, basetype gt', loc)
-
-
-      let assert_domain_ ((ad, gt') : AD.t * t) (tag : tag_t) (loc : Locations.t) : t =
-        Annot (`AssertDomain (ad, gt'), tag, basetype gt', loc)
 
 
       let ite_ ((it_if, gt_then, gt_else) : IT.t * t * t) (tag : tag_t) loc : t =
@@ -133,6 +111,15 @@ module Make (AD : Domain.T) = struct
             gts
         in
         Annot (`Pick gts, tag, bt, loc)
+
+
+      let instantiate_
+            (((x, gt_inner), gt_rest) : (Sym.t * t) * t)
+            (tag : tag_t)
+            (loc : Locations.t)
+        : t
+        =
+        Annot (`Instantiate ((x, gt_inner), gt_rest), tag, basetype gt_rest, loc)
     end
   end
 

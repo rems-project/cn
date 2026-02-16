@@ -28,7 +28,7 @@ module Make (GT : GenTerms.T) = struct
       let rec aux (gt : GT.t) : Sym.Set.t =
         let (Annot (gt_, _, _, _)) = gt in
         match gt_ with
-        | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _
+        | `Arbitrary | `Symbolic | `Lazy | `ArbitrarySpecialized _ | `ArbitraryDomain _
         | `Return _ ->
           Sym.Set.empty
         | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
@@ -47,6 +47,8 @@ module Make (GT : GenTerms.T) = struct
         | `SplitSize (_, gt')
         | `SplitSizeElab (_, _, gt') ->
           aux gt'
+        | `Instantiate ((_, gt_inner), gt') | `InstantiateElab (_, (_, gt_inner), gt') ->
+          Sym.Set.union (aux gt_inner) (aux gt')
         | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
           Sym.Set.union (aux gt1) (aux gt2)
       in

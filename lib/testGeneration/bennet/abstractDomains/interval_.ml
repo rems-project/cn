@@ -434,6 +434,10 @@ module IntervalBasis = struct
       let start_it = IT.num_lit_ t.start bt' loc in
       let stop_it = IT.num_lit_ t.stop bt' loc in
       IT.and_ [ IT.le_ (start_it, sym_it) loc; IT.le_ (sym_it, stop_it) loc ] loc)
+
+
+  let to_lc (t : t) (sym : Sym.t) : LogicalConstraints.t =
+    LogicalConstraints.T (to_it sym t)
 end
 
 module Inner : Domain.T = NonRelational.Make (IntervalBasis)

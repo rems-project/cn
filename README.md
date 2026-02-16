@@ -16,6 +16,16 @@ It builds on the [Cerberus C semantics](https://github.com/rems-project/cerberus
 
 <ul>
 
+<li> <a name="bennet-oopsla2025"></a> 
+   <a href="https://zain-k-aamer.com/papers/bennet.pdf">Bennet: Randomized Specification Testing for Heap-Manipulating Programs</a>.
+ Zain K Aamer and Benjamin C. Pierce.
+ In OOPSLA 2025.
+[
+<a href="https://doi.org/10.1145/3764115">doi</a>&nbsp;| 
+<a href="https://zain-k-aamer.com/papers/bennet.pdf">pdf</a> 
+]
+</li>
+
 <li> <a name="fulminate-popl2025"></a> 
    <a href="http://www.cl.cam.ac.uk/users/pes20/cn-testing-popl2025.pdf">Fulminate: Testing CN Separation-Logic Specifications in C</a>.
  Rini Banerjee, Kayvan Memarian, Dhruv Makwana, Christopher Pulte, Neel Krishnaswami, and Peter Sewell.
@@ -131,3 +141,6 @@ This material is based upon work supported by the Air Force Research Laboratory
 No. FA8750-24-C-B044.  Any opinions, findings, and conclusions or 
 recommendations expressed in this material are those of the author(s) and do 
 not necessarily reflect the views of the AFRL and DARPA.
+
+This work was supported by the NSF under grant
+SHF: Medium: Usable Property-Based Testing, NSF #2402449.

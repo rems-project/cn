@@ -1,5 +1,6 @@
 #include <assert.h>
 
+#include <bennet/internals/lazy.h>
 #include <bennet/internals/size.h>
 #include <bennet/state/alloc.h>
 #include <bennet/state/failure.h>
@@ -16,6 +17,7 @@ void bennet_destroy(void) {
   bennet_alloc_destroy();
   bennet_ownership_destroy();
   bennet_rand_alloc_free_all();
+  bennet_lazy_reset();
 
   bennet_initialized = false;
 }

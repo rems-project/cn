@@ -535,6 +535,17 @@ let product_domains (domains : (module Domain.T) list) =
           |> Array.map (fun (RPack ((module R), r)) -> R.pp_args r)
           |> Array.to_list
           |> String.concat ", "
+
+
+        let to_lc (s : t) (sym : Sym.t) : LC.t =
+          let loc = Locations.other __LOC__ in
+          let constraints =
+            s
+            |> Array.to_list
+            |> List.filter_map (fun (RPack ((module R), r)) ->
+              match R.to_lc r sym with LC.T it -> Some it | _ -> failwith "TODO")
+          in
+          LC.T (IT.and_ constraints loc)
       end
 
       let name = name
@@ -719,17 +730,17 @@ let product_domains (domains : (module Domain.T) list) =
 
       let free_vars_bts product =
         product
-        |> Array.to_list
-        |> List.concat_map (fun comp ->
-          match comp with DPack ((module D), s) -> D.free_vars_bts s)
-        |> List.fold_left
-             (fun acc (sym, bt) ->
-                if List.exists (fun (s, _) -> Sym.equal s sym) acc then
-                  acc
-                else
-                  (sym, bt) :: acc)
-             []
-        |> List.rev
+        |> Array.fold_left
+             (fun acc comp ->
+                match comp with
+                | DPack ((module D), s) ->
+                  Sym.Map.union
+                    (fun _ bt1 bt2 ->
+                       assert (BaseTypes.equal bt1 bt2);
+                       Some bt1)
+                    acc
+                    (D.free_vars_bts s))
+             Sym.Map.empty
 
 
       let pp product =
@@ -773,13 +784,16 @@ let product_domains (domains : (module Domain.T) list) =
         |> String.concat ", "
 
 
-      let to_it (product : t) : IT.t =
+      let to_lc (product : t) : LC.t =
         let loc = Locations.other __LOC__ in
         let constraints =
           Array.to_list product
-          |> List.map (fun comp -> match comp with DPack ((module D), s) -> D.to_it s)
+          |> List.map (fun comp ->
+            match comp with
+            | DPack ((module D), s) ->
+              (match D.to_lc s with LC.T it -> it | _ -> failwith "TODO"))
         in
-        IT.and_ constraints loc
+        LC.T (IT.and_ constraints loc)
 
 
       let is_meet_assoc =

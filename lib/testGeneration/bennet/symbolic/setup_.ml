@@ -5,10 +5,10 @@ module IT = IndexTerms
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
   module Eval = Eval.Make (AD)
-  module Stage4 = Stage4.Make (AD)
-  module GT = Stage4.Term
-  module Ctx = Stage4.Ctx
-  module Def = Stage4.Def
+  module Stage5 = Stage5.Make (AD)
+  module GT = Stage5.Term
+  module Ctx = Stage5.Ctx
+  module Def = Stage5.Def
 
   let generate_struct_setup (prog5 : unit Mucore.file) : Pp.document * Pp.document =
     let open Pp in

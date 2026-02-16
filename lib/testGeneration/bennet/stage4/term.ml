@@ -1,9 +1,7 @@
-module CF = Cerb_frontend
-module A = CF.AilSyntax
 module BT = BaseTypes
 module IT = IndexTerms
 module LC = LogicalConstraints
-module StringMap = Map.Make (String)
+module CF = Cerb_frontend
 
 module Make (AD : Domain.T) = struct
   open struct
@@ -17,26 +15,25 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
+        | `Lazy (** Lazily generate values *)
         | `ArbitrarySpecialized of
             (IT.t option * IT.t option) * (IT.t option * IT.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
-        | `ArbitraryDomain of AD.Relative.t (** Generate arbitrary values from domain *)
-        | `PickSized of (Z.t * 'recur annot) list
-          (** Pick among a list of options, weighted by the provided [Z.t]s *)
+        | `ArbitraryDomain of AD.Relative.t
         | `Call of Sym.t * IT.t list
-          (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-        | `CallSized of Sym.t * IT.t list * (int * Sym.t)
-          (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
+          (** `Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
         | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
           (** Claim ownership and assign a value to a memory location *)
         | `LetStar of (Sym.t * 'recur annot) * 'recur annot (** Backtrack point *)
         | `Return of IT.t (** Monadic return *)
         | `Assert of LC.t * 'recur annot
-          (** Assert some [LC.t] are true, backtracking otherwise *)
-        | `AssertDomain of AD.t * 'recur annot (** Assert domain constraints *)
+          (** `Assert some [LC.t] are true, backtracking otherwise *)
+        | `AssertDomain of AD.t * 'recur annot
         | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
         | `Map of (Sym.t * BT.t * IT.t) * 'recur annot
-        | `SplitSize of Sym.Set.t * 'recur annot
+        | `Pick of 'recur annot list
+        | `Instantiate of (Sym.t * 'recur annot) * 'recur annot
+          (** Instantiate a lazily-evaluated value, then continue with rest *)
         ]
       [@@deriving eq, ord]
 
@@ -59,15 +56,8 @@ module Make (AD : Domain.T) = struct
           let name = "Stage 4"
         end)
 
-      let arbitrary_specialized_
-            (((min_inc, min_ex), (max_inc, max_ex)) :
-              (IT.t option * IT.t option) * (IT.t option * IT.t option))
-            (tag : tag_t)
-            (bt : BT.t)
-            (loc : Locations.t)
-        : t
-        =
-        Annot (`ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)), tag, bt, loc)
+      let lazy_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
+        Annot (`Lazy, tag, bt, loc)
 
 
       let arbitrary_domain_
@@ -78,6 +68,16 @@ module Make (AD : Domain.T) = struct
         : t
         =
         Annot (`ArbitraryDomain d, tag, bt, loc)
+
+
+      let arbitrary_specialized_
+            ((mins, maxs) : (IT.t option * IT.t option) * (IT.t option * IT.t option))
+            (tag : tag_t)
+            (bt : BT.t)
+            (loc : Locations.t)
+        : t
+        =
+        Annot (`ArbitrarySpecialized (mins, maxs), tag, bt, loc)
 
 
       let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =
@@ -130,30 +130,25 @@ module Make (AD : Domain.T) = struct
             loc )
 
 
-      let pick_sized_ (wgts : (Z.t * t) list) (tag : tag_t) bt (loc : Locations.t) : t =
+      let pick_ (gts : t list) (tag : tag_t) bt (loc : Locations.t) : t =
         let bt =
           List.fold_left
-            (fun bt (_, gt) ->
+            (fun bt gt ->
                assert (BT.equal bt (basetype gt));
                bt)
             bt
-            wgts
+            gts
         in
-        Annot (`PickSized wgts, tag, bt, loc)
+        Annot (`Pick gts, tag, bt, loc)
 
 
-      let split_size_ ((syms, gt') : Sym.Set.t * t) (tag : tag_t) (loc : Locations.t) : t =
-        Annot (`SplitSize (syms, gt'), tag, basetype gt', loc)
-
-
-      let call_sized_
-            ((fsym, its, sz) : Sym.t * IT.t list * (int * Sym.t))
+      let instantiate_
+            (((x, gt_inner), gt_rest) : (Sym.t * t) * t)
             (tag : tag_t)
-            (bt : BT.t)
             (loc : Locations.t)
         : t
         =
-        Annot (`CallSized (fsym, its, sz), tag, bt, loc)
+        Annot (`Instantiate ((x, gt_inner), gt_rest), tag, basetype gt_rest, loc)
     end
   end
 

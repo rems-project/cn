@@ -9,15 +9,10 @@ module Make (AD : Domain.T) = struct
     let rec aux (vars : Sym.Set.t) (gt : Term.t) : Term.t * AD.t =
       let (Annot (gt_, tag, bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _ | `Call _
-      | `Return _ ->
-        (gt, AD.top)
-      | `Pick gts ->
-        let gts, ds = List.split (List.map (aux vars) gts) in
-        (Term.pick_ gts tag bt loc, AD.join_many ds)
-      | `Asgn ((it_addr, sct), it_val, gt_rest) ->
-        let gt_rest, d = aux vars gt_rest in
-        (Term.asgn_ ((it_addr, sct), it_val, gt_rest) tag loc, d)
+      (* Important parts *)
+      | `LetStar ((x, (Annot (`Lazy, _, _, _) as gt_inner)), gt_rest) ->
+        let gt_rest, d = aux (Sym.Set.add x vars) gt_rest in
+        (Term.let_star_ ((x, gt_inner), gt_rest) tag loc, d)
       | `LetStar
           ((x, Annot ((`Arbitrary | `Symbolic), tag_inner, bt_inner, loc_inner)), gt_rest)
         ->
@@ -40,6 +35,33 @@ module Make (AD : Domain.T) = struct
           (Term.assert_domain_ (d_remove_x, gt') tag loc, d_remove_x)
         else
           (gt', d)
+      | `Instantiate ((x, (Annot (`Lazy, _, _, _) as gt_inner)), gt_rest) ->
+        let gt_rest, d = aux vars gt_rest in
+        (Term.instantiate_ ((x, gt_inner), gt_rest) tag loc, d)
+      | `Instantiate
+          ((x, Annot ((`Arbitrary | `Symbolic), tag_inner, bt_inner, loc_inner)), gt_rest)
+        ->
+        let gt_rest, d = aux vars gt_rest in
+        let d = AD.retain vars d in
+        let gt_inner =
+          Term.arbitrary_domain_
+            (AD.relative_to x bt_inner d)
+            tag_inner
+            bt_inner
+            loc_inner
+        in
+        let gt' = Term.instantiate_ ((x, gt_inner), gt_rest) tag loc in
+        (gt', d)
+        (* The rest *)
+      | `Arbitrary | `Symbolic | `Lazy | `ArbitrarySpecialized _ | `ArbitraryDomain _
+      | `Call _ | `Return _ ->
+        (gt, AD.top)
+      | `Pick gts ->
+        let gts, ds = List.split (List.map (aux vars) gts) in
+        (Term.pick_ gts tag bt loc, AD.join_many ds)
+      | `Asgn ((it_addr, sct), it_val, gt_rest) ->
+        let gt_rest, d = aux vars gt_rest in
+        (Term.asgn_ ((it_addr, sct), it_val, gt_rest) tag loc, d)
       | `LetStar ((x, gt_inner), gt_rest) ->
         let gt_inner, _ = aux vars gt_inner in
         let gt_rest, d = aux (Sym.Set.add x vars) gt_rest in
@@ -55,6 +77,10 @@ module Make (AD : Domain.T) = struct
       | `Map ((i, i_bt, it_perm), gt_inner) ->
         let gt_inner, d = aux (Sym.Set.add i vars) gt_inner in
         (Term.map_ ((i, i_bt, it_perm), gt_inner) tag loc, AD.remove i d)
+      | `Instantiate ((x, gt_inner), gt_rest) ->
+        let gt_inner, _ = aux vars gt_inner in
+        let gt_rest, d = aux vars gt_rest in
+        (Term.instantiate_ ((x, gt_inner), gt_rest) tag loc, d)
     in
     fst (aux vars gt)
 

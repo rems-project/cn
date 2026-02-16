@@ -157,10 +157,8 @@ module Make (B : BASIS) = struct
     | None -> Sym.Set.empty
 
 
-  let free_vars_bts (od : t) : (Sym.t * BT.t) list =
-    match od with
-    | Some d -> Sym.Map.bindings d |> List.map (fun (sym, basis) -> (sym, B.bt basis))
-    | None -> []
+  let free_vars_bts (od : t) : BT.t Sym.Map.t =
+    match od with Some d -> Sym.Map.map B.bt d | None -> Sym.Map.empty
 
 
   let pp (od : t) : Pp.document =
@@ -658,6 +656,8 @@ module Make (B : BASIS) = struct
       in
       IT.and_ constraints loc (* conjunction of all basis constraints *)
 
+
+  let to_lc (od : t) : LC.t = LC.T (to_it od)
 
   let is_meet_assoc = B.is_meet_assoc
 
