@@ -25,7 +25,8 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
-          sudo apt-get install build-essential libgmp-dev z3 opam
+          sudo apt-get update
+          sudo apt-get install -y build-essential libgmp-dev z3 opam zip
 
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
@@ -58,11 +59,61 @@ jobs:
           path: ~/.opam
           key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
 
-      - name: Build CN
+      - name: Build and Install CN
         run: |
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           dune build cn.install --profile=dev
+          dune install cn --profile=dev
+
+      - name: Package CN standalone binary
+        if: ${{ matrix.compiler == 'gcc' }}
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+
+          # Create package directory structure
+          mkdir -p cn-package/bin cn-package/lib
+
+          # Copy CN binary
+          cp $(which cn) cn-package/bin/
+
+          # Copy z3 binary
+          cp $(which z3) cn-package/bin/
+
+          # Copy cerberus-lib runtime files (libc headers, libcore, impls)
+          cp -r $OPAM_SWITCH_PREFIX/lib/cerberus-lib cn-package/lib/
+
+          # Copy CN runtime files
+          cp -r $OPAM_SWITCH_PREFIX/lib/cn cn-package/lib/
+
+          # Create setup script
+          echo '#!/bin/bash' > cn-package/setup-env.sh
+          echo 'export OPAM_SWITCH_PREFIX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' >> cn-package/setup-env.sh
+          echo 'export PATH="$OPAM_SWITCH_PREFIX/bin:$PATH"' >> cn-package/setup-env.sh
+          chmod +x cn-package/setup-env.sh
+
+          # Create README
+          echo 'CN Package' > cn-package/README.txt
+          echo '==========' >> cn-package/README.txt
+          echo '' >> cn-package/README.txt
+          echo 'Requirements: gcc, libgmp10' >> cn-package/README.txt
+          echo '' >> cn-package/README.txt
+          echo 'Usage:' >> cn-package/README.txt
+          echo '  1. Extract this archive' >> cn-package/README.txt
+          echo '  2. Source the setup script: source setup-env.sh' >> cn-package/README.txt
+          echo '  3. Run CN: cn verify <file.c>' >> cn-package/README.txt
+
+          # Create zip archive
+          zip -r cn-ubuntu-x86_64.zip cn-package
+
+      - name: Upload CN package
+        if: ${{ matrix.compiler == 'gcc' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cn-ubuntu-x86_64
+          path: cn-ubuntu-x86_64.zip
+          retention-days: 14
 
   ounit-tests:
     strategy:
