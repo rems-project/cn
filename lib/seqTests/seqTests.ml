@@ -23,8 +23,7 @@ let callable
            | Basic (Integer Bool)
            | Basic (Integer (Signed _))
            | Basic (Integer (Unsigned _))
-           | Basic (Floating _)
-           | Void ->
+           | Basic (Floating _) ->
              true
            | Pointer (_, ty) ->
              List.exists (fun (_, _, ct, _, _) -> SUtils.ty_eq ty ct) ctx
@@ -64,10 +63,31 @@ let rec update_tests
           | None -> (name, 1) :: stats.distrib
           | Some n -> (name, n + 1) :: List.remove_assoc name stats.distrib
         in
+        let used_args =
+          List.fold_left
+            (fun acc (ty, arg) ->
+               if
+                 String.starts_with ~prefix:"&x" arg
+                 || String.starts_with ~prefix:"x" arg
+                 || List.mem
+                      (fun arg (name2, _, _, _, _) ->
+                         match name2 with
+                         | None -> false
+                         | Some name2 -> (String.equal arg) (Sym.pp_string name2))
+                      arg
+                      ctx
+               then
+                 acc
+               else
+                 (Some (Sym.fresh arg), false, ty, f, []) :: acc)
+            []
+            args
+        in
+        (* print_string ("used args: " ^ SUtils.ctx_to_string used_args ^ "\n"); *)
         `Success
           ( prev',
             test_so_far ^^ SUtils.test_to_doc filename name is_static ret_ty f args,
-            call :: ctx,
+            List.append used_args (call :: ctx),
             { stats with successes = stats.successes + 1; distrib } )
       | Some (`PostConditionViolation ((_, _, _, f, _) as call)) ->
         let distrib =
@@ -88,11 +108,38 @@ let rec update_tests
 
 (* needs way more complexity here *)
 let calc_score (ctx : T.context) (args : (SymSet.elt * C.ctype) list) : int =
+  let calc_score_typebased = function
+    | C.Ctype (_, Basic (Integer itype)) ->
+      (match itype with
+       | Char | Bool -> 20
+       | Signed _ | Unsigned _ | Wchar_t | Wint_t -> 40
+       | Enum _ | Size_t | Ptrdiff_t | Ptraddr_t -> 30)
+    | C.Ctype (_, Basic (Floating _)) -> 40
+    | C.Ctype (_, Pointer (qual, ty)) ->
+      let const_modifier = if qual.const then -40 else 0 in
+      const_modifier
+      +
+        (match ty with
+        | C.Ctype (_, Pointer (_, _)) -> 120
+        | C.Ctype (_, Basic _) -> 60
+        | C.Ctype (_, Array _) -> 70
+        | C.Ctype (_, Function _) -> 70
+        | C.Ctype (_, Struct _) -> 50
+        | C.Ctype (_, Union _) -> 60
+        | C.Ctype (_, Void) -> 100
+        | _ -> 30)
+    | C.Ctype (_, Array _) -> 25
+    | C.Ctype (_, Struct _) -> 25
+    | C.Ctype (_, Union _) -> 30
+    | _ -> 20
+  in
+  let calc_score_reusable ty =
+    match List.find_opt (fun (_, _, ct, _, _) -> SUtils.ty_eq ty ct) ctx with
+    | Some _ -> 25
+    | None -> 0
+  in
   List.fold_left
-    (fun acc (_, ty) ->
-       match List.find_opt (fun (_, _, ct, _, _) -> SUtils.ty_eq ty ct) ctx with
-       | Some _ -> acc + 25
-       | None -> acc)
+    (fun acc (_, ty) -> acc + calc_score_typebased ty + calc_score_reusable ty)
     1
     args
 
@@ -129,6 +176,8 @@ let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
     failwith
       ("unable to generate arg or reuse T.context for "
        ^ Sym.pp_string name
+       ^ " of type "
+       ^ CF.String_core_ctype.string_of_ctype ty
        ^ " in T.context "
        ^ SUtils.ctx_to_string ctx)
   | n -> List.nth options (Random.int n)
@@ -136,7 +185,9 @@ let gen_arg (ctx : T.context) ((name, ty) : SymSet.elt * C.ctype) : string =
 
 let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.document =
   let open Pp in
-  fun_decls
+  string "#include <stddef.h>"
+  ^^ hardline
+  ^^ fun_decls
   ^^ twice hardline
   ^^ string "#include <cn-executable/utils.h>"
   ^^ twice hardline
@@ -179,17 +230,12 @@ let rec gen_sequence
                   | Some name ->
                     Some (Fulminate.Ownership.generate_c_local_ownership_exit (name, ret))
                   | None -> None)
-               ctx
+               (SUtils.extract_actual_ctx ctx)
            in
            let unmap_str =
              hardline ^^ separate_map hardline SUtils.stmt_to_doc unmap_stmt
            in
-           seq_so_far
-           ^^ unmap_str
-           ^^ hardline
-           ^^ string "printf(\"S\");"
-           ^^ hardline
-           ^^ string "return 0;")
+           seq_so_far ^^ unmap_str ^^ hardline ^^ string "printf(\"S\");")
         test_states
     in
     `Success
@@ -209,6 +255,7 @@ let rec gen_sequence
              (List.filter (callable ctx) funcs))
         test_states
     in
+    (* SUtils.print_scores (List.nth callables 0); *)
     let gen_test ()
       : [ `OtherFailure of int * document * T.context * T.test_stats
         | `PreConditionViolation of int * document * T.context * T.test_stats
@@ -265,7 +312,7 @@ let rec gen_sequence
     | `OtherFailure (_, _, ctx, _) ->
       `OtherFailure
         (create_test_file
-           (SUtils.ctx_to_tests filename ctx ^^ hardline ^^ string "return 123;")
+           (SUtils.ctx_to_tests filename ctx ^^ hardline ^^ string "return 139;")
            fun_decls)
     | _ ->
       let postcond_violations =
@@ -289,17 +336,24 @@ let rec gen_sequence
           List.hd
             (List.sort
                (fun (_, _, ctx1, _) (_, _, ctx2, _) ->
-                  Int.compare (List.length ctx1) (List.length ctx2))
+                  Int.compare (SUtils.ctx_length ctx1) (SUtils.ctx_length ctx2))
                postcond_violations)
         in
-        let num_left, seq = Shrink.shrink ctx output_dir filename fun_decls in
+        let num_left, seq =
+          if Config.is_disable_shrink () then (
+            let actual_ctx = SUtils.extract_actual_ctx ctx in
+            (List.length actual_ctx, SUtils.ctx_to_tests filename (List.rev actual_ctx)))
+          else
+            Shrink.shrink (SUtils.extract_actual_ctx ctx) output_dir filename fun_decls
+        in
+        (* print_string (SUtils.ctx_to_string ctx ^ "\n"); *)
         let combined_stats =
           SUtils.combine_stats
             (List.map (fun (_, _, _, stats) -> stats) test_states')
             T.empty_stats
         in
         `PostConditionViolation
-          ( create_test_file (seq ^^ hardline ^^ string "return 123;") fun_decls,
+          ( create_test_file (seq ^^ hardline ^^ string "return 2;") fun_decls,
             { combined_stats with discarded = combined_stats.successes + 1 - num_left } ))
       else
         gen_sequence funcs (fuel - 1) test_states' output_dir filename fun_decls)
@@ -350,7 +404,7 @@ let compile_sequence
     fuel
     (List.map
        (fun _ ->
-          ( 0,
+          ( 1,
             Pp.empty,
             [],
             { T.successes = 0; failures = 0; skipped = 0; discarded = 0; distrib = [] } ))
@@ -417,7 +471,7 @@ let generate
     | `PostConditionViolation (seq, stats) ->
       let script_doc = BuildScript.generate ~output_dir ~filename_base 1 in
       SUtils.save ~perm:0o777 output_dir "run_tests.sh" script_doc;
-      ( 123,
+      ( 2,
         seq,
         Printf.sprintf
           "============================================\n\n\
@@ -474,27 +528,6 @@ type seq_config = SeqTestGenConfig.t
 let default_seq_cfg : seq_config = SeqTestGenConfig.default
 
 let set_seq_config = SeqTestGenConfig.initialize
-
-(* let is_static (cabs_tunit : CF.Cabs.translation_unit) (inst : FExtract.instrumentation) =
-  let (TUnit decls) = cabs_tunit in
-  List.exists
-    (fun decl ->
-       match decl with
-       | CF.Cabs.EDecl_func
-           (FunDef
-              ( _,
-                _,
-                { storage_classes; _ },
-                Declarator
-                  (_, DDecl_function (DDecl_identifier (_, Identifier (_, fn')), _)),
-                _ ))
-         when String.equal (Sym.pp_string inst.fn) fn'
-              && List.exists
-                   (fun scs -> match scs with CF.Cabs.SC_static -> true | _ -> false)
-                   storage_classes ->
-         true
-       | _ -> false)
-    decls *)
 
 (** Workaround for https://github.com/rems-project/cerberus/issues/765 *)
 let needs_enum_hack
