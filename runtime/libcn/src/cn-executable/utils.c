@@ -518,6 +518,29 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
   }
 }
 
+void report_and_correct_missing_ownership(
+    int64_t addr, size_t size, int depth, int expected_stack_depth) {
+  if (depth == UNMAPPED_VAL || depth < expected_stack_depth) {
+    assert(size > 0);
+    // report missing ownership
+    if (global_error_msg_info)
+      print_error_msg_info_single(global_error_msg_info);
+    if (size == 1) {
+      cn_printf(CN_LOGGING_INFO,
+          "  ==> " FMT_PTR " missing ownership specification.\n",
+          (unsigned long)addr);
+    } else {
+      cn_printf(CN_LOGGING_INFO,
+          "  ==> " FMT_PTR "..." FMT_PTR " (%d bytes) missing ownership specification.\n",
+          (unsigned long)addr,
+          (unsigned long)addr + size - 1,
+          (int)size);
+    }
+    // correct entry in ghost state
+    ownership_ghost_state_set(addr, size, expected_stack_depth, 0);
+  }
+}
+
 enum region_owned c_ownership_check(
     char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth) {
   if (size < 1)
@@ -526,35 +549,45 @@ enum region_owned c_ownership_check(
   uintptr_t address = (uintptr_t)generic_c_ptr;
   rmap_range_res_t res = ownership_ghost_state_extrema(address, size);
 
+  // contiguous range mapped to a single stack depth
   if (res.defined && res.min == res.max) {
     if (res.max == WILDCARD_DEPTH)
       return FULL_WILDCARD;
     else if (res.max == expected_stack_depth)
       return NO_WILDCARD;
+    else if (correct_missing_ownership) {
+      report_and_correct_missing_ownership(address, size, res.max, expected_stack_depth);
+      return NO_WILDCARD;
+    }
   }
 
+  // ownership error handling
   for (size_t addr = address; addr < address + size; addr++) {
     int depth = ownership_ghost_state_get(addr);
     if (depth != expected_stack_depth && depth != WILDCARD_DEPTH) {
-      print_error_msg_info(global_error_msg_info);
-      cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
-      if (depth == UNMAPPED_VAL) {
-        cn_printf(CN_LOGGING_ERROR,
-            "  ==> " FMT_PTR "[%d] (" FMT_PTR ") not owned\n",
-            addr,
-            0,
-            addr);
+      if (correct_missing_ownership) {
+        report_and_correct_missing_ownership(addr, 1, depth, expected_stack_depth);
       } else {
-        cn_printf(CN_LOGGING_ERROR,
-            "  ==> " FMT_PTR "[%d] (" FMT_PTR
-            ") not owned at expected function call stack depth %ld\n",
-            addr,
-            0,
-            addr,
-            expected_stack_depth);
-        cn_printf(CN_LOGGING_ERROR, "  ==> (owned at stack depth: %d)\n", depth);
+        print_error_msg_info(global_error_msg_info);
+        cn_printf(CN_LOGGING_ERROR, "%s failed.\n", access_kind);
+        if (depth == UNMAPPED_VAL) {
+          cn_printf(CN_LOGGING_ERROR,
+              "  ==> " FMT_PTR "[%d] (" FMT_PTR ") not owned\n",
+              addr,
+              0,
+              addr);
+        } else {
+          cn_printf(CN_LOGGING_ERROR,
+              "  ==> " FMT_PTR "[%d] (" FMT_PTR
+              ") not owned at expected function call stack depth %ld\n",
+              addr,
+              0,
+              addr,
+              expected_stack_depth);
+          cn_printf(CN_LOGGING_ERROR, "  ==> (owned at stack depth: %d)\n", depth);
+        }
+        cn_failure(CN_FAILURE_CHECK_OWNERSHIP, C_ACCESS);
       }
-      cn_failure(CN_FAILURE_CHECK_OWNERSHIP, C_ACCESS);
     }
   }
 

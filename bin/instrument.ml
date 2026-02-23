@@ -365,8 +365,8 @@ module Flags = struct
 
   let correct_missing_ownership_mode =
     let doc =
-      "Self-correct missing ownership, recording addresses that needed correction and \
-       dumping them at end of test case execution"
+      "Self-correct missing ownership, dumping addresses that needed ownership \
+      during execution"
     in
     Arg.(value & flag & info [ "correct-missing-ownership" ] ~doc)
 end
