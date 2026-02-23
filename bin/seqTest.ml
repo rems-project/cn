@@ -20,6 +20,7 @@ let run_seq_tests
       (* Executable spec *)
         without_ownership_checking
       exec_c_locs_mode
+      correct_missing_ownership_mode
       experimental_ownership_stack_mode
       (* Test Generation *)
         output_dir
@@ -76,6 +77,7 @@ let run_seq_tests
              ~with_loop_leak_checks:false
              ~without_lemma_checks:false
              ~exec_c_locs_mode
+             ~correct_missing_ownership_mode
              ~experimental_ownership_stack_mode
              ~experimental_curly_braces:false
              ~with_testing:true
@@ -168,6 +170,7 @@ let cmd =
     $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
     $ Instrument.Flags.exec_c_locs_mode
+    $ Instrument.Flags.correct_missing_ownership_mode
     $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.output_dir
     $ Flags.print_steps

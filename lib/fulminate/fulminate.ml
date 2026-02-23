@@ -539,6 +539,7 @@ let main
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~exec_c_locs_mode
+      ~correct_missing_ownership_mode
       ~experimental_ownership_stack_mode
       ~experimental_curly_braces
       ~with_testing
@@ -753,6 +754,7 @@ let main
       let global_ownership_init_pair =
         generate_global_assignments
           ~exec_c_locs_mode
+          ~correct_missing_ownership_mode
           ~experimental_ownership_stack_mode
           ?max_bump_blocks
           ?bump_block_size

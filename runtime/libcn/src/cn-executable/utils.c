@@ -22,6 +22,7 @@ signed long cn_stack_depth;
 signed long nr_owned_predicates;
 
 _Bool exec_c_locs_mode;
+_Bool correct_missing_ownership;
 _Bool ownership_stack_mode;
 
 static signed long UNMAPPED_VAL = -1;
@@ -50,6 +51,7 @@ void fulminate_init(void) {
   initialise_ownership_ghost_state();
   initialise_ghost_stack_depth();
   initialise_exec_c_locs_mode(0);
+  initialise_correct_missing_ownership(0);
   initialise_ownership_stack_mode(0);
 
   fulminate_initialized = true;
@@ -258,6 +260,10 @@ void initialise_ghost_stack_depth(void) {
 
 void initialise_exec_c_locs_mode(_Bool flag) {
   exec_c_locs_mode = flag;
+}
+
+void initialise_correct_missing_ownership(_Bool flag) {
+  correct_missing_ownership = flag;
 }
 
 void initialise_ownership_stack_mode(_Bool flag) {
