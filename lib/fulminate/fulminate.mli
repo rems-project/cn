@@ -14,6 +14,7 @@ val main
   with_loop_leak_checks:bool ->
   without_lemma_checks:bool ->
   exec_c_locs_mode:bool ->
+  correct_missing_ownership_mode:bool ->
   experimental_ownership_stack_mode:bool ->
   experimental_curly_braces:bool ->
   with_testing:bool ->

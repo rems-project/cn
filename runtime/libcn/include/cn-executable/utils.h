@@ -156,6 +156,7 @@ void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
 void initialise_exec_c_locs_mode(bool flag);
+void initialise_correct_missing_ownership(bool flag);
 void initialise_ownership_stack_mode(bool flag);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);

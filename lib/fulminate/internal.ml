@@ -661,6 +661,7 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 
 let generate_global_assignments
       ?(exec_c_locs_mode = false)
+      ?(correct_missing_ownership_mode = false)
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
@@ -707,6 +708,7 @@ let generate_global_assignments
           @ List.map
               generate_flag_init_stat
               [ (exec_c_locs_mode, "exec_c_locs_mode");
+                (correct_missing_ownership_mode, "correct_missing_ownership");
                 (experimental_ownership_stack_mode, "ownership_stack_mode")
               ]
           @ global_map_stmts_ )

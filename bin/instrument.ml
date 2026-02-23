@@ -98,6 +98,7 @@ let generate_executable_specs
       run
       no_debug_info
       exec_c_locs_mode
+      correct_missing_ownership_mode
       experimental_ownership_stack_mode
       experimental_unions
       experimental_curly_braces
@@ -168,6 +169,7 @@ let generate_executable_specs
                 ~with_loop_leak_checks
                 ~without_lemma_checks
                 ~exec_c_locs_mode
+                ~correct_missing_ownership_mode
                 ~experimental_ownership_stack_mode
                 ~experimental_curly_braces
                 ~with_testing
@@ -359,6 +361,14 @@ module Flags = struct
   let experimental_curly_braces =
     let doc = "(experimental) Insert curly braces for single-statement control flow" in
     Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
+
+
+  let correct_missing_ownership_mode =
+    let doc =
+      "Self-correct missing ownership, recording addresses that needed correction and \
+       dumping them at end of test case execution"
+    in
+    Arg.(value & flag & info [ "correct-missing-ownership" ] ~doc)
 end
 
 let cmd =
@@ -398,6 +408,7 @@ let cmd =
     $ Flags.run
     $ Flags.no_debug_info
     $ Flags.exec_c_locs_mode
+    $ Flags.correct_missing_ownership_mode
     $ Flags.experimental_ownership_stack_mode
     $ Flags.experimental_unions
     $ Flags.experimental_curly_braces
