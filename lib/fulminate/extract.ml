@@ -152,15 +152,33 @@ let args_and_body_list_of_mucore prog5 =
 
 let ghost_args_and_their_call_locs prog5 =
   let exprs_of_mucore prog5 =
+    let maybe_expr_of_label_def ld =
+      match ld with
+      | Non_inlined (_, _, _, args) -> Some (param_of_arguments args)
+      | Return _ -> None
+      | Loop (_, arguments, _, _, _) ->
+        let expr = param_of_arguments arguments in
+        Some expr
+    in
+    let exprs_of_label_map lm =
+      Pmap.fold
+        (fun _ label acc ->
+           match maybe_expr_of_label_def label with
+           | Some expr -> expr :: acc
+           | None -> acc)
+        lm
+        []
+    in
     let args_and_body_list = args_and_body_list_of_mucore prog5 in
     let exprs =
       List.map
         (fun args_and_body ->
-           let expr, _, _ = Mucore.param_of_arguments args_and_body in
-           expr)
+           let expr, label_map, _ = param_of_arguments args_and_body in
+           let exprs = exprs_of_label_map label_map in
+           expr :: exprs)
         args_and_body_list
     in
-    exprs
+    List.flatten exprs
   in
   let exprs = exprs_of_mucore prog5 in
   let acc = ref [] in

@@ -945,16 +945,26 @@ let normalise_label
     (match CF.Annot.get_label_annot annots with
      | None -> assert_error loc !^"label without annotation"
      | Some label_annot ->
-       let handle_loop_label loc error_msg =
+       let handle_other_label loc error_msg =
          if !Sym.executable_spec_enabled then
            let@ label_args =
              make_label_args
-               (fun _ _ -> return Mu.Skipped)
+               (fun env st ->
+                  let@ expr =
+                    n_expr
+                      ~inherit_loc
+                      loc
+                      ( (env, Translate.C_vars.get_old_scopes st),
+                        (markers_env, precondition_cn_desugaring_state) )
+                      (global_types, visible_objects_env)
+                      label_body
+                  in
+                  return expr)
                loc
                env
                st
                (List.combine lt label_args)
-               ([], [])
+               (accesses, [])
            in
            return (Mu.Non_inlined (loc, label_name, label_annot, label_args))
          else
@@ -1015,15 +1025,14 @@ let normalise_label
         (* | Some (LAloop_body _loop_id) -> *)
         (*    assert_error loc !^"body label has not been inlined" *)
         | LAloop_continue _loop_id ->
-          handle_loop_label loc !^"continue label has not been inlined"
+          handle_other_label loc !^"continue label has not been inlined"
         | LAloop_break _loop_id ->
-          handle_loop_label loc !^"break label has not been inlined"
-        | LAreturn -> handle_loop_label loc !^"return label has not been inlined"
-        | LAswitch -> handle_loop_label loc !^"switch labels"
-        | LAcase -> handle_loop_label loc !^"case label has not been inlined"
-        | LAdefault -> handle_loop_label loc !^"default label has not been inlined"
-        | LAactual_label ->
-          handle_loop_label loc !^"todo: associate invariant with label or inline"))
+          handle_other_label loc !^"break label has not been inlined"
+        | LAreturn -> handle_other_label loc !^"return label has not been inlined"
+        | LAswitch -> handle_other_label loc !^"switch labels"
+        | LAcase -> handle_other_label loc !^"case label has not been inlined"
+        | LAdefault -> handle_other_label loc !^"default label has not been inlined"
+        | LAactual_label -> handle_other_label loc !^"default label has not been inlined"))
 
 
 module Spec = struct
