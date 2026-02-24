@@ -520,8 +520,11 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
 
 void report_and_correct_missing_ownership(
     int64_t addr, size_t size, int depth, int expected_stack_depth) {
+  // TODO: switch depth check depending on access kind
+  // see https://github.com/rems-project/cn-private/blob/main/notes/notes124-2025-09-02-fulminate-inferring-ownership.md
   if (depth == UNMAPPED_VAL || depth < expected_stack_depth) {
     assert(size > 0);
+
     // report missing ownership
     if (global_error_msg_info)
       print_error_msg_info_single(global_error_msg_info);
@@ -536,6 +539,7 @@ void report_and_correct_missing_ownership(
           (unsigned long)addr + size - 1,
           (int)size);
     }
+
     // correct entry in ghost state
     ownership_ghost_state_set(addr, size, expected_stack_depth, 0);
   }
