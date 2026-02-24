@@ -1907,8 +1907,7 @@ let pp_parse_ast_label_spec (s : parse_ast_label_spec) =
 
 let pp_label_def pp_type = function
   | Non_inlined (loc, name, annot, args) ->
-    let expr = param_of_arguments args in
-    let pp_args = pp_arguments (pp_expr pp_type) (map_arguments (fun _ -> expr) args) in
+    let pp_args = pp_arguments (pp_expr pp_type) args in
     pp_constructor1
       "Non_inlined"
       [ pp_location loc; pp_symbol name; pp_label_annot annot; pp_args ]

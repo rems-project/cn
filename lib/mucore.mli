@@ -180,7 +180,6 @@ type 'i arguments_l =
   | Resource of (Sym.t * (Request.t * BaseTypes.t)) * Locations.info * 'i arguments_l
   | Constraint of LogicalConstraints.t * Locations.info * 'i arguments_l
   | I of 'i
-[@@deriving map]
 
 val mDefine : (Sym.t * IndexTerms.t) * Locations.info -> 'a arguments_l -> 'a arguments_l
 
@@ -208,7 +207,6 @@ type 'i arguments =
   | Computational of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | Ghost of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | L of 'i arguments_l
-[@@deriving map]
 
 val param_of_arguments : 'a arguments -> 'a
 

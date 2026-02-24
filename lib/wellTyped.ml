@@ -2527,7 +2527,7 @@ module WProc = struct
                               label_body)
                          "label"
                          loc
-                         (map_arguments (fun _ -> expr) args))
+                         args)
                   in
                   return (Non_inlined (loc, name, annot, args))
                 | Return loc -> return (Return loc)

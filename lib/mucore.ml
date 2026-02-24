@@ -204,7 +204,6 @@ type 'i arguments_l =
   | Resource of (Sym.t * (Request.t * BaseTypes.t)) * Locations.info * 'i arguments_l
   | Constraint of LogicalConstraints.t * Locations.info * 'i arguments_l
   | I of 'i
-[@@deriving map]
 
 let mDefine (bound, info) t = Define (bound, info, t)
 
@@ -220,7 +219,6 @@ type 'i arguments =
   | Computational of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | Ghost of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | L of 'i arguments_l
-[@@deriving map]
 
 let rec param_of_arguments = function
   | Computational (_, _, args) -> param_of_arguments args
