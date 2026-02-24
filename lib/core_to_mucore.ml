@@ -1032,7 +1032,8 @@ let normalise_label
         | LAswitch -> handle_other_label loc !^"switch labels"
         | LAcase -> handle_other_label loc !^"case label has not been inlined"
         | LAdefault -> handle_other_label loc !^"default label has not been inlined"
-        | LAactual_label -> handle_other_label loc !^"default label has not been inlined"))
+        | LAactual_label ->
+          handle_other_label loc !^"todo: associate invariant with label or inline"))
 
 
 module Spec = struct
