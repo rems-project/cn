@@ -2505,16 +2505,8 @@ module WProc = struct
              (fun _sym def ->
                 match def with
                 | Non_inlined (loc, name, annot, args) ->
-                  let label_payload_welltyped label_context expr =
-                    let@ expr' = BaseTyping.infer_expr label_context expr in
-                    return expr'
-                  in
                   let@ args =
-                    WArgs.welltyped
-                      (label_payload_welltyped label_context)
-                      "label"
-                      loc
-                      args
+                    WArgs.welltyped (BaseTyping.infer_expr label_context) "label" loc args
                   in
                   let expr = Mu.param_of_arguments args in
                   let@ args =
