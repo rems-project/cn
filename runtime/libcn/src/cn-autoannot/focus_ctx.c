@@ -29,7 +29,7 @@ void push_focus_context(void) {
   cn_focus_global_context = new_context;
 }
 
-void initialise_focus_context() {
+void initialise_focus_context(void) {
   push_focus_context();
 }
 
@@ -54,7 +54,7 @@ void insert_focus(int64_t index, type_sig sig) {
   cn_focus_global_context->indices = new_set;
 }
 
-void clear_focus() {
+void clear_focus(void) {
   focus_set *cur_focus = cn_focus_global_context->indices;
   while (cur_focus) {
     focus_set *next = cur_focus->next;
@@ -68,34 +68,8 @@ void clear_focus() {
 ///  (i) is in a iterated resource
 ///  (ii) is not focused
 /// If (i) and (ii), it needs focus, and returns 1.
+/// Note: stub — full implementation requires hash_table-based ownership tracking.
 int needs_focus(uint64_t address, uint64_t size, int64_t *index_out, type_sig *sig_out) {
-  assert(cn_focus_global_context != NULL);
-  ownership_ghost_info * info = ownership_ghost_state_get(address);
-  if (!info) {
-    return 0;
-  }
-  struct cn_res* res_info = info->res_info_stack->top->cn_res_info;
-
-  if (res_info->type != CN_RES_ITER) {
-    return 0;
-  }
-  struct iter_res* res = &res_info->iter_res;
-
-  int64_t offset = address - res->ptr;
-  uint64_t index = offset / res->size;
-
-  // Case: an appropriate iterated resource is found
-  // (ii) search for focus
-  focus_set *cur_focus = cn_focus_global_context->indices;
-  while (cur_focus) {
-    if (cur_focus->info.index == index &&
-        strcmp(cur_focus->info.sig, res->sig) == 0) {
-      return 0;
-    }
-    cur_focus = cur_focus->next;
-  }
-  // The index is not focused
-  *index_out = index;
-  *sig_out = res->sig;
-  return 1;
+  (void)address; (void)size; (void)index_out; (void)sig_out;
+  return 0;
 }

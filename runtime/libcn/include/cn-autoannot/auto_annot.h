@@ -88,7 +88,7 @@ struct focus_context {
   struct focus_context *prev;
 };
 
-void initialise_focus_context();
+void initialise_focus_context(void);
 void push_focus_context(void);
 void pop_focus_context(void);
 void clear_focus(void);

@@ -576,7 +576,7 @@ CN_GEN_MAP_GET(cn_map)
 // };
 
 int ownership_ghost_state_get_depth(int64_t address);
-ownership_ghost_info* ownership_ghost_state_get(int64_t address);
+int ownership_ghost_state_get(int64_t address);
 
 void ownership_ghost_state_set(int64_t address,
     size_t size,

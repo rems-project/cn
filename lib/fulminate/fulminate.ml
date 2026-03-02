@@ -50,7 +50,10 @@ let collect_memory_accesses (_, sigm) =
   let acc = ref [] in
   (* list of scoped variables *)
   let scan_for_decls_and_update_env (bs, ss) env f_expr f_stmt =
-    let lookup_ty sym = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+    let lookup_ty sym =
+      let _, (_, _, _, ty) = List.find (fun (sym', _) -> Sym.equal sym sym') bs in
+      (sym, ty)
+    in
     let env_cell = ref env in
     List.iter
       (fun s ->

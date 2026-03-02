@@ -18,6 +18,6 @@ void initialize_auto_annot(const char *log_file) {
   initialise_focus_context();
 }
 
-void finalize_auto_annot() {
+void finalize_auto_annot(void) {
   fclose(auto_annot_log_file);
 }

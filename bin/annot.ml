@@ -8,6 +8,7 @@ let run_auto_annot
         filename
       cc
       macros
+      permissive
       incl_dirs
       incl_files
       debug_level
@@ -100,6 +101,7 @@ let run_auto_annot
     ~filename
     ~cc
     ~macros:(("__CN_TEST", None) :: ("__CN_INSTRUMENT", None) :: macros)
+    ~permissive
     ~incl_dirs
     ~incl_files
     ~csv_times
@@ -117,13 +119,18 @@ let run_auto_annot
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
-        { cc;
+        { TestGeneration.default_cfg with
+          cc;
           print_steps;
           num_samples;
           max_backtracks;
           build_tool;
           sanitizers;
-          inline_everything;
+          inline =
+            List.assoc
+              String.equal
+              (if inline_everything then "Everything" else "Nothing")
+              TestGeneration.Options.inline_mode;
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
@@ -183,7 +190,12 @@ let run_auto_annot
            ~without_ownership_checking
            ~without_loop_invariants:false
            ~with_loop_leak_checks:true
+           ~without_lemma_checks:false
+           ~exec_c_locs_mode:false
+           ~experimental_ownership_stack_mode:false
+           ~experimental_curly_braces:false
            ~with_testing:true
+           ~skip_and_only:(skip, only)
            filename
            cc
            pp_file
@@ -596,6 +608,7 @@ let cmd =
     $ Common.Flags.file
     $ Common.Flags.cc
     $ Common.Flags.macros
+    $ Common.Flags.permissive
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
     $ Common.Flags.debug_level

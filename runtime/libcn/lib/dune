@@ -159,7 +159,7 @@
    (run mkdir -p cn-smt)
    (chdir
     cn-smt
-    (run %{cc} -I ../../include -c %{src}))
+    (run %{cc} -Wno-cast-function-type -I ../../include -c %{src}))
    (run
     ar
     -rcs
