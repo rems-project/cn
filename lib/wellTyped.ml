@@ -2508,19 +2508,6 @@ module WProc = struct
                   let@ args =
                     WArgs.welltyped (BaseTyping.infer_expr label_context) "label" loc args
                   in
-                  let expr = Mu.param_of_arguments args in
-                  let@ args =
-                    pure
-                      (WArgs.welltyped
-                         (fun label_body ->
-                            BaseTyping.check_expr
-                              label_context
-                              (Mu.bt_of_expr expr)
-                              label_body)
-                         "label"
-                         loc
-                         args)
-                  in
                   return (Non_inlined (loc, name, annot, args))
                 | Return loc -> return (Return loc)
                 | Loop (loc, label_args_and_body, annots, parsed_spec, loop_info) ->

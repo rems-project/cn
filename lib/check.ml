@@ -2402,23 +2402,7 @@ let check_procedure
          (fun (lsym, def) ->
             pure
               (match def with
-               | Mu.Non_inlined (loc, _name, _annot, args) ->
-                 debug
-                   2
-                   (lazy
-                     (headline
-                        ("checking label "
-                         ^ Sym.pp_string lsym
-                         ^ " "
-                         ^ Locations.to_string loc)));
-                 let@ label_body, label_resources = bind_arguments loc args in
-                 let@ () = add_rs loc label_resources in
-                 let _, label_kind, loc = Sym.Map.find lsym label_context in
-                 let@ () =
-                   modify_where Where.(set_section (Label { loc; label = label_kind }))
-                 in
-                 check_expr_top loc label_context rt label_body
-               | Return _ -> return ()
+               | Mu.Non_inlined _ | Return _ -> return ()
                | Loop (loc, label_args_and_body, _annots, _, _loop_info) ->
                  debug
                    2
