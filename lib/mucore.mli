@@ -208,8 +208,6 @@ type 'i arguments =
   | Ghost of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | L of 'i arguments_l
 
-val param_of_arguments : 'a arguments -> 'a
-
 val mComputational
   :  (Sym.t * BaseTypes.t) * Locations.info ->
   'a arguments ->

@@ -220,19 +220,6 @@ type 'i arguments =
   | Ghost of (Sym.t * BaseTypes.t) * Locations.info * 'i arguments
   | L of 'i arguments_l
 
-let rec param_of_arguments = function
-  | Computational (_, _, args) -> param_of_arguments args
-  | Ghost (_, _, args) -> param_of_arguments args
-  | L args ->
-    let rec aux = function
-      | Define (_, _, args) -> aux args
-      | Resource (_, _, args) -> aux args
-      | Constraint (_, _, args) -> aux args
-      | I param -> param
-    in
-    aux args
-
-
 let mComputational (bound, info) t = Computational (bound, info, t)
 
 let dtree_of_arguments_l dtree_i =
