@@ -228,7 +228,7 @@ let rec param_of_arguments = function
       | Define (_, _, args) -> aux args
       | Resource (_, _, args) -> aux args
       | Constraint (_, _, args) -> aux args
-      | I expr -> expr
+      | I param -> param
     in
     aux args
 
