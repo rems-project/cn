@@ -1,6 +1,0 @@
-return code: 0
-tests/cn/ghost_arguments_and_labels.c:1:23: warning: experimental keyword 'cn_ghost' (use of experimental features is discouraged)
-void f() /*@ requires cn_ghost u64 size; true; @*/ {}
-                      ^~~~~~~~ 
-[1/2]: f -- pass
-[2/2]: main -- pass
