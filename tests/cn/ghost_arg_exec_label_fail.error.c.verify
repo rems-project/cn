@@ -1,13 +1,13 @@
 return code: 1
 tests/cn/ghost_arg_exec_label_fail.error.c:1:23: warning: experimental keyword 'cn_ghost' (use of experimental features is discouraged)
-void f() /*@ requires cn_ghost i32 size; true; ensures size < 10i32; @*/ {}
+void f() /*@ requires cn_ghost i32 size; size < 10i32; @*/ {}
                       ^~~~~~~~ 
-[1/2]: f -- fail
-[2/2]: main -- pass
-tests/cn/ghost_arg_exec_label_fail.error.c:1:1: error: Unprovable constraint
-void f() /*@ requires cn_ghost i32 size; true; ensures size < 10i32; @*/ {}
-~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
-Constraint from tests/cn/ghost_arg_exec_label_fail.error.c:1:56:
-void f() /*@ requires cn_ghost i32 size; true; ensures size < 10i32; @*/ {}
-                                                       ^~~~~~~~~~~~~ 
-State file: file:///tmp/state__ghost_arg_exec_label_fail.error.c__f.html
+[1/2]: f -- pass
+[2/2]: main -- fail
+tests/cn/ghost_arg_exec_label_fail.error.c:8:5: error: Unprovable constraint
+    f(/*@ h + 4i32 @*/);
+    ^~~~~~~~~~~~~~~~~~~ 
+Constraint from tests/cn/ghost_arg_exec_label_fail.error.c:1:42:
+void f() /*@ requires cn_ghost i32 size; size < 10i32; @*/ {}
+                                         ^~~~~~~~~~~~~ 
+State file: file:///tmp/state__ghost_arg_exec_label_fail.error.c__main.html
