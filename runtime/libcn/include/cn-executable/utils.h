@@ -588,10 +588,13 @@ enum region_owned c_ownership_check(
     char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth);
 
 /* Ghost arguments */
-void alloc_ghost_array(int ghost_array_size);
-void add_to_ghost_array(int i, void* ptr_to_ghost_arg);
-void free_ghost_array(void);
-void* load_from_ghost_array(int i);
+void alloc_ghost_call_stacks(int ghost_array_size);
+void push_ghost_call_frame(int ghost_call_site);
+void add_to_ghost_call_frame_arg(int i, void* ptr_to_ghost_arg);
+void* load_from_ghost_call_frame_arg(int i);
+int current_ghost_call_frame_tag(void);
+void pop_ghost_call_frame(void);
+void free_ghost_call_stacks(void);
 void cn_ghost_arg_failure(void);
 
 // Unused

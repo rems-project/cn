@@ -76,11 +76,11 @@ let get_ownership_global_init_stats
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
-  let cn_ghost_arg_array_alloc_fcall =
+  let cn_ghost_call_stack_alloc_fcall =
     mk_expr
       A.(
         AilEcall
-          ( mk_expr (AilEident (Sym.fresh "alloc_ghost_array")),
+          ( mk_expr (AilEident (Sym.fresh "alloc_ghost_call_stacks")),
             [ mk_expr
                 (AilEconst
                    (ConstantInteger (IConstant (Z.of_int ghost_array_size, Decimal, None))))
@@ -91,7 +91,7 @@ let get_ownership_global_init_stats
     (bump_config_calls
      @ [ cn_ghost_state_init_fcall;
          cn_ghost_stack_depth_init_fcall;
-         cn_ghost_arg_array_alloc_fcall
+         cn_ghost_call_stack_alloc_fcall
        ])
 
 
