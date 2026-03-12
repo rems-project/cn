@@ -869,22 +869,74 @@ void cn_print_nr_u64(int i, unsigned long u) {
 }
 
 // ghost arguments
-void** ghost_arg_array;
+struct ghost_call_frame {
+  int call_site;
+  void** ghost_args;
+  struct ghost_call_frame* parent;
+};
 
-void alloc_ghost_array(int ghost_array_size) {
-  ghost_arg_array = fulm_malloc(ghost_array_size * sizeof(void*), &fulm_default_alloc);
+static struct ghost_call_frame* ghost_call_frame_top;
+static int ghost_call_arg_array_size;
+
+void alloc_ghost_call_stacks(int ghost_array_size) {
+  ghost_call_frame_top = NULL;
+  ghost_call_arg_array_size = ghost_array_size;
 }
 
-void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
-  ghost_arg_array[i] = ptr_to_ghost_arg;
+void push_ghost_call_frame(int ghost_call_site) {
+  struct ghost_call_frame* frame =
+      fulm_malloc(sizeof(struct ghost_call_frame), &fulm_default_alloc);
+  frame->call_site = ghost_call_site;
+  frame->parent = ghost_call_frame_top;
+  if (ghost_call_arg_array_size == 0) {
+    frame->ghost_args = NULL;
+  } else {
+    frame->ghost_args =
+        fulm_malloc(ghost_call_arg_array_size * sizeof(void*), &fulm_default_alloc);
+  }
+  ghost_call_frame_top = frame;
 }
 
-void free_ghost_array(void) {
-  fulm_free(ghost_arg_array, &fulm_default_alloc);
+void add_to_ghost_call_frame_arg(int i, void* ptr_to_ghost_arg) {
+  if (ghost_call_frame_top == NULL) {
+    cn_ghost_arg_failure();
+    return;
+  }
+  ghost_call_frame_top->ghost_args[i] = ptr_to_ghost_arg;
 }
 
-void* load_from_ghost_array(int i) {
-  return ghost_arg_array[i];
+void* load_from_ghost_call_frame_arg(int i) {
+  if (ghost_call_frame_top == NULL) {
+    cn_ghost_arg_failure();
+    return NULL;
+  }
+  return ghost_call_frame_top->ghost_args[i];
+}
+
+int current_ghost_call_frame_tag(void) {
+  if (ghost_call_frame_top == NULL) {
+    return -1;
+  }
+  return ghost_call_frame_top->call_site;
+}
+
+void pop_ghost_call_frame(void) {
+  if (ghost_call_frame_top == NULL) {
+    return;
+  }
+  struct ghost_call_frame* frame = ghost_call_frame_top;
+  ghost_call_frame_top = frame->parent;
+  if (frame->ghost_args != NULL) {
+    fulm_free(frame->ghost_args, &fulm_default_alloc);
+  }
+  fulm_free(frame, &fulm_default_alloc);
+}
+
+void free_ghost_call_stacks(void) {
+  while (ghost_call_frame_top != NULL) {
+    pop_ghost_call_frame();
+  }
+  ghost_call_arg_array_size = 0;
 }
 
 void cn_ghost_arg_failure(void) {
