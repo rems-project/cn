@@ -45,7 +45,7 @@ val collect_instrumentation
 val args_and_body_list_of_mucore : 'a Mucore.file -> 'a Mucore.args_and_body list
 
 val ghost_args_and_their_call_locs
-  :  'a Mucore.file ->
+  :  unit Mucore.file ->
   (Cerb_location.t * IndexTerms.t Cnprog.t list) list
 
-val max_num_of_ghost_args : 'a Mucore.file -> int
+val max_num_of_ghost_args : unit Mucore.file -> int
