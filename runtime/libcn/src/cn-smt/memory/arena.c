@@ -315,26 +315,50 @@ void cn_arena_free(cn_arena* arena, void* ptr) {
   (void)ptr;
 }
 
+static void* cn_arena_malloc_void(void* arena, size_t size) {
+  return cn_arena_malloc((cn_arena*)arena, size);
+}
+
+static void* cn_arena_calloc_void(void* arena, size_t count, size_t size) {
+  return cn_arena_calloc((cn_arena*)arena, count, size);
+}
+
+static void* cn_arena_realloc_void(void* arena, void* ptr, size_t size) {
+  return cn_arena_realloc((cn_arena*)arena, ptr, size);
+}
+
+static void* cn_arena_aligned_alloc_void(void* arena, size_t alignment, size_t size) {
+  return cn_arena_aligned_alloc((cn_arena*)arena, alignment, size);
+}
+
+static void cn_arena_free_void(void* arena, void* ptr) {
+  cn_arena_free((cn_arena*)arena, ptr);
+}
+
+static void cn_arena_free_all_void(void* arena) {
+  cn_arena_free_all((cn_arena*)arena);
+}
+
 void cn_arena_set_default_alloc(cn_arena* arena) {
   assert(arena != NULL);
 
   cn_test_set_alloc(arena,
-      (void* (*)(void*, size_t))cn_arena_malloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_calloc,
-      (void* (*)(void*, void*, size_t))cn_arena_realloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
-      (void (*)(void*, void*))cn_arena_free,
-      (void (*)(void*))cn_arena_free_all);
+      cn_arena_malloc_void,
+      cn_arena_calloc_void,
+      cn_arena_realloc_void,
+      cn_arena_aligned_alloc_void,
+      cn_arena_free_void,
+      cn_arena_free_all_void);
 }
 
 void cn_arena_push_alloc(cn_arena* arena) {
   assert(arena != NULL);
 
   cn_test_push_alloc(arena,
-      (void* (*)(void*, size_t))cn_arena_malloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_calloc,
-      (void* (*)(void*, void*, size_t))cn_arena_realloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
-      (void (*)(void*, void*))cn_arena_free,
-      (void (*)(void*))cn_arena_free_all);
+      cn_arena_malloc_void,
+      cn_arena_calloc_void,
+      cn_arena_realloc_void,
+      cn_arena_aligned_alloc_void,
+      cn_arena_free_void,
+      cn_arena_free_all_void);
 }
