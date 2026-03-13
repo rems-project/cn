@@ -922,9 +922,9 @@ static struct ghost_call_frame* ghost_call_frame_top;
 static int ghost_call_arg_array_size;
 
 // TODO: hack to deal with ghost args being unimplemented for testing
-bool ghost_arguments_enabled = 0;
-void set_ghost_arguments_enabled(void) {
-  ghost_arguments_enabled = 1;
+bool ghost_args_enabled = 0;
+void set_ghost_args_enabled(void) {
+  ghost_args_enabled = 1;
 }
 
 void alloc_ghost_call_stacks(int ghost_array_size) {
@@ -970,7 +970,7 @@ int current_ghost_call_frame_tag(void) {
 }
 
 void pop_ghost_call_frame(void) {
-  if (ghost_arguments_enabled) {  // TODO: hack to deal with ghost args being unimplemented for testing
+  if (ghost_args_enabled) {  // TODO: hack to deal with ghost args being unimplemented for testing
     if (ghost_call_frame_top == NULL) {
       return;
     }
