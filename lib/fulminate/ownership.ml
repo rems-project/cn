@@ -86,12 +86,16 @@ let get_ownership_global_init_stats
                    (ConstantInteger (IConstant (Z.of_int ghost_array_size, Decimal, None))))
             ] ))
   in
+  let cn_set_ghost_args_enabled =
+    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "set_ghost_args_enabled")), []))
+  in
   List.map
     (fun e -> A.(AilSexpr e))
     (bump_config_calls
      @ [ cn_ghost_state_init_fcall;
          cn_ghost_stack_depth_init_fcall;
-         cn_ghost_call_stack_alloc_fcall
+         cn_ghost_call_stack_alloc_fcall;
+         cn_set_ghost_args_enabled
        ])
 
 

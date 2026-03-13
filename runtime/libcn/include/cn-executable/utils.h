@@ -589,6 +589,7 @@ enum region_owned c_ownership_check(
     char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth);
 
 /* Ghost arguments */
+void set_ghost_arguments_enabled(void);
 void alloc_ghost_call_stacks(int ghost_array_size);
 void push_ghost_call_frame(int ghost_call_site);
 void add_to_ghost_call_frame_arg(int i, void* ptr_to_ghost_arg);
