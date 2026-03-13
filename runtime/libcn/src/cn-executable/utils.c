@@ -874,7 +874,7 @@ struct ghost_call_frame {
 static struct ghost_call_frame* ghost_call_frame_top;
 static int ghost_call_arg_array_size;
 
- // TODO: hack to deal with ghost args being unimplemented for testing
+// TODO: hack to deal with ghost args being unimplemented for testing
 bool ghost_arguments_enabled = 0;
 void set_ghost_arguments_enabled(void) {
   ghost_arguments_enabled = 1;
