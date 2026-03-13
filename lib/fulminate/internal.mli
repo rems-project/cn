@@ -41,8 +41,6 @@ val generate_c_datatypes
 
 val generate_ghost_enum : unit Mucore.file -> string
 
-val generate_ghost_call_site_glob : unit -> string list
-
 val order_ail_tag_definitions
   :  (AilSyntax.ail_identifier
      * (Cerb_location.t * Annot.attributes * Ctype.tag_definition))
