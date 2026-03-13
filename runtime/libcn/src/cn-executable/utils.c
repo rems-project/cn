@@ -874,6 +874,12 @@ struct ghost_call_frame {
 static struct ghost_call_frame* ghost_call_frame_top;
 static int ghost_call_arg_array_size;
 
+ // TODO: hack to deal with ghost args being unimplemented for testing
+bool ghost_arguments_enabled = 0;
+void set_ghost_arguments_enabled(void) {
+  ghost_arguments_enabled = 1;
+}
+
 void alloc_ghost_call_stacks(int ghost_array_size) {
   ghost_call_frame_top = NULL;
   ghost_call_arg_array_size = ghost_array_size;
@@ -917,15 +923,17 @@ int current_ghost_call_frame_tag(void) {
 }
 
 void pop_ghost_call_frame(void) {
-  if (ghost_call_frame_top == NULL) {
-    return;
+  if (ghost_arguments_enabled) {  // TODO: hack to deal with ghost args being unimplemented for testing
+    if (ghost_call_frame_top == NULL) {
+      return;
+    }
+    struct ghost_call_frame* frame = ghost_call_frame_top;
+    ghost_call_frame_top = frame->parent;
+    if (frame->ghost_args != NULL) {
+      fulm_free(frame->ghost_args, &fulm_default_alloc);
+    }
+    fulm_free(frame, &fulm_default_alloc);
   }
-  struct ghost_call_frame* frame = ghost_call_frame_top;
-  ghost_call_frame_top = frame->parent;
-  if (frame->ghost_args != NULL) {
-    fulm_free(frame->ghost_args, &fulm_default_alloc);
-  }
-  fulm_free(frame, &fulm_default_alloc);
 }
 
 void free_ghost_call_stacks(void) {
