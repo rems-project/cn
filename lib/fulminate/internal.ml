@@ -456,10 +456,6 @@ let generate_ghost_enum prog5 =
   doc_to_pretty_string doc
 
 
-let generate_ghost_call_site_glob () =
-  generate_ail_stat_strs Cn_to_ail.gen_ghost_call_site_global_decl
-
-
 let generate_c_tag_def_strs c_structs =
   "\n/* ORIGINAL C STRUCTS AND UNIONS */\n\n" ^ generate_str_from_ail_structs c_structs
 

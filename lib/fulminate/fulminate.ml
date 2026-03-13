@@ -614,7 +614,6 @@ let main
     generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
   in
   let cn_ghost_enum = generate_ghost_enum prog5 in
-  let cn_ghost_call_site_glob = generate_ghost_call_site_glob () in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -656,8 +655,7 @@ let main
           c_predicate_decls;
           c_lemma_decls;
           cn_ghost_enum
-        ];
-        cn_ghost_call_site_glob
+        ]
       ]
   in
   (* Definitions for CN helper functions *)
