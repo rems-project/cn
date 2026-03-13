@@ -87,12 +87,7 @@ let get_ownership_global_init_stats
             ] ))
   in
   let cn_set_ghost_args_enabled =
-    mk_expr
-      (A.AilEassign
-         ( mk_expr (A.AilEident (Sym.fresh "ghost_args_enabled")),
-           mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 1, Decimal, None))))
-         ))
-    (* mk_expr A.( AilEcall ( mk_expr (AilEident (Sym.fresh "set_ghost_args_enabled")), [])) *)
+    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "set_ghost_args_enabled")), []))
   in
   List.map
     (fun e -> A.(AilSexpr e))
