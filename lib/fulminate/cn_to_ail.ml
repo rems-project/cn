@@ -4216,14 +4216,12 @@ let ail_of_enum_member_id enum_id =
   let sym = Sym.fresh str in
   mk_expr A.(AilEident sym)
 
+
 let cn_ghost_enum_sym = Sym.fresh "CN_GHOST_ENUM"
 
 let ghost_enum_type = mk_ctype C.(Basic (Integer (Enum cn_ghost_enum_sym)))
 
 let cleared_enum_member_id loc = Id.make loc "CLEARED"
-
-let gen_ghost_call_site_global_decl = ([], [])
-
 
 let cn_to_ail_ghost_enum spec_bts ghost_argss =
   (* cf. cn_to_ail_datatype *)
@@ -4947,9 +4945,7 @@ let rec cn_to_ail_pre_post_aux
            (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_call_frame")), [])))
     in
     let ail_executable_spec =
-      prepend_to_precondition
-        ail_executable_spec
-        ([], [ pop_ghost_call_frame_decl ])
+      prepend_to_precondition ail_executable_spec ([], [ pop_ghost_call_frame_decl ])
     in
     ([], ail_executable_spec)
 
