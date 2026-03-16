@@ -1,0 +1,6 @@
+return code: 0
+tests/cn/ghost_args_and_nested_function.c:1:27: warning: experimental keyword 'cn_ghost' (use of experimental features is discouraged)
+int f(int x)  /*@ requires cn_ghost u64 y; true; @*/
+                          ^~~~~~~~ 
+[1/2]: f -- pass
+[2/2]: main -- pass
