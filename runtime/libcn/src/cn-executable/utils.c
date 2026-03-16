@@ -940,11 +940,7 @@ void push_ghost_frame(int ghost_call_site_tag, int size) {
       fulm_malloc(sizeof(struct ghost_frame_stack), &fulm_default_alloc);
   frame->call_site = ghost_call_site_tag;
   frame->parent = ghost_frame_stack_top;
-  if (size == 0) {
-    frame->ghost_args = NULL;
-  } else {
-    frame->ghost_args = fulm_malloc(size * sizeof(void*), &fulm_default_alloc);
-  }
+  frame->ghost_args = fulm_malloc(size * sizeof(void*), &fulm_default_alloc);
   ghost_frame_stack_top = frame;
 }
 
