@@ -4943,19 +4943,22 @@ let rec cn_to_ail_pre_post_aux
         c_return_type
         lat
     in
-    let pop_ghost_frame_decl =
-      (* TODO: remove ghost_args_enabled part when Test mode supports ghost arguments *)
-      A.AilSif
-        ( mk_expr
-            (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "is_ghost_args_enabled")), [])),
-          mk_stmt
-            (A.AilSexpr
-               (mk_expr
-                  (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))),
-          mk_stmt A.AilSskip )
-    in
     let ail_executable_spec =
-      prepend_to_precondition ail_executable_spec ([], [ pop_ghost_frame_decl ])
+      if is_lemma then
+        ail_executable_spec
+      else (
+        let pop_ghost_frame_decl =
+          (* TODO: remove ghost_args_enabled part when Test mode supports ghost arguments *)
+          A.AilSif
+            ( mk_expr
+                (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "is_ghost_args_enabled")), [])),
+              mk_stmt
+                (A.AilSexpr
+                   (mk_expr
+                      (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))),
+              mk_stmt A.AilSskip )
+        in
+        prepend_to_precondition ail_executable_spec ([], [ pop_ghost_frame_decl ]))
     in
     ([], ail_executable_spec)
 
