@@ -183,7 +183,6 @@ let generate_c_specs_from_cn_internal
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
   let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
-  let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
@@ -194,7 +193,6 @@ let generate_c_specs_from_cn_internal
       preds
       globals
       c_return_type
-      (Some ghost_array_size)
       instrumentation.internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
@@ -688,13 +686,8 @@ let generate_global_assignments
     let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
-    let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
     let assignments =
-      OE.get_ownership_global_init_stats
-        ~ghost_array_size
-        ?max_bump_blocks
-        ?bump_block_size
-        ()
+      OE.get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size ()
     in
     let init_and_global_mapping_str =
       generate_ail_stat_strs

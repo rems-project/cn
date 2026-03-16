@@ -236,7 +236,6 @@ val cn_to_ail_pre_post
   (Sym.t * Definition.Predicate.t) list ->
   (Sym.t * Ctype.ctype) list ->
   Ctype.ctype ->
-  int option ->
   Extract.fn_args_and_body option ->
   ail_executable_spec
 
