@@ -70,8 +70,9 @@ let get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size () =
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
-  let cn_alloc_ghost_frame_stack_fcall =
-    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "alloc_ghost_frame_stack")), []))
+  let cn_initialise_ghost_frame_stack_fcall =
+    mk_expr
+      A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_frame_stack")), []))
   in
   let cn_set_ghost_args_enabled =
     mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "set_ghost_args_enabled")), []))
@@ -81,7 +82,7 @@ let get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size () =
     (bump_config_calls
      @ [ cn_ghost_state_init_fcall;
          cn_ghost_stack_depth_init_fcall;
-         cn_alloc_ghost_frame_stack_fcall;
+         cn_initialise_ghost_frame_stack_fcall;
          cn_set_ghost_args_enabled
        ])
 

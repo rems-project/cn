@@ -884,7 +884,7 @@ _Bool is_ghost_args_enabled(void) {
   return ghost_args_enabled;
 }
 
-void alloc_ghost_frame_stack(void) {
+void initialise_ghost_frame_stack(void) {
   ghost_frame_stack_top = NULL;
 }
 
