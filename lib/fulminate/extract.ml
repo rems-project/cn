@@ -220,20 +220,3 @@ let ghost_args_and_their_call_locs prog5 =
   in
   List.iter aux_expr exprs;
   !acc
-
-
-let max_num_of_ghost_args prog5 =
-  let count_spec_ghost_args args =
-    let rec aux n = function
-      | Mucore.Computational (_, _, args) -> aux n args
-      | Ghost (_, _, args) -> aux (n + 1) args
-      | L _ -> n
-    in
-    aux 0 args
-  in
-  let args_and_body_list = args_and_body_list_of_mucore prog5 in
-  let nums_of_spec_ghost_args = List.map count_spec_ghost_args args_and_body_list in
-  let nums_of_call_ghost_args =
-    List.map (fun (_, args) -> List.length args) (ghost_args_and_their_call_locs prog5)
-  in
-  List.fold_left max 0 (nums_of_spec_ghost_args @ nums_of_call_ghost_args)
