@@ -869,14 +869,14 @@ void cn_print_nr_u64(int i, unsigned long u) {
 }
 
 // ghost arguments
-struct ghost_call_frame {
+struct ghost_frame_stack {
   int call_site;
   void** ghost_args;
-  struct ghost_call_frame* parent;
+  struct ghost_frame_stack* parent;
 };
 
-static struct ghost_call_frame* ghost_call_frame_top;
-static int ghost_call_arg_array_size;
+static struct ghost_frame_stack* ghost_frame_stack_top;
+static int ghost_frame_size;
 
 // TODO: hack to deal with ghost args being unimplemented for testing
 bool ghost_args_enabled = false;
@@ -884,55 +884,55 @@ void set_ghost_args_enabled(void) {
   ghost_args_enabled = true;
 }
 
-void alloc_ghost_call_stacks(int ghost_array_size) {
-  ghost_call_frame_top = NULL;
-  ghost_call_arg_array_size = ghost_array_size;
+void alloc_ghost_frame_stack(int size) {
+  ghost_frame_stack_top = NULL;
+  ghost_frame_size = size;
 }
 
-void push_ghost_call_frame(int ghost_call_site) {
-  struct ghost_call_frame* frame =
-      fulm_malloc(sizeof(struct ghost_call_frame), &fulm_default_alloc);
-  frame->call_site = ghost_call_site;
-  frame->parent = ghost_call_frame_top;
-  if (ghost_call_arg_array_size == 0) {
+void push_ghost_frame(int ghost_call_site_tag) {
+  struct ghost_frame_stack* frame =
+      fulm_malloc(sizeof(struct ghost_frame_stack), &fulm_default_alloc);
+  frame->call_site = ghost_call_site_tag;
+  frame->parent = ghost_frame_stack_top;
+  if (ghost_frame_size == 0) {
     frame->ghost_args = NULL;
   } else {
     frame->ghost_args =
-        fulm_malloc(ghost_call_arg_array_size * sizeof(void*), &fulm_default_alloc);
+        fulm_malloc(ghost_frame_size * sizeof(void*), &fulm_default_alloc);
   }
-  ghost_call_frame_top = frame;
+  ghost_frame_stack_top = frame;
 }
 
-void add_to_ghost_call_frame_arg(int i, void* ptr_to_ghost_arg) {
-  if (ghost_call_frame_top == NULL) {
+void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg) {
+  if (ghost_frame_stack_top == NULL) {
     cn_ghost_arg_failure();
     return;
   }
-  ghost_call_frame_top->ghost_args[i] = ptr_to_ghost_arg;
+  ghost_frame_stack_top->ghost_args[i] = ptr_to_ghost_arg;
 }
 
-void* load_from_ghost_call_frame_arg(int i) {
-  if (ghost_call_frame_top == NULL) {
+void* load_arg_from_ghost_frame(int i) {
+  if (ghost_frame_stack_top == NULL) {
     cn_ghost_arg_failure();
     return NULL;
   }
-  return ghost_call_frame_top->ghost_args[i];
+  return ghost_frame_stack_top->ghost_args[i];
 }
 
-int current_ghost_call_frame_tag(void) {
-  if (ghost_call_frame_top == NULL) {
+int top_ghost_frame_tag(void) {
+  if (ghost_frame_stack_top == NULL) {
     return -1;
   }
-  return ghost_call_frame_top->call_site;
+  return ghost_frame_stack_top->call_site;
 }
 
-void pop_ghost_call_frame(void) {
+void pop_ghost_frame(void) {
   if (ghost_args_enabled) {  // TODO: hack to deal with ghost args being unimplemented for testing
-    if (ghost_call_frame_top == NULL) {
+    if (ghost_frame_stack_top == NULL) {
       return;
     }
-    struct ghost_call_frame* frame = ghost_call_frame_top;
-    ghost_call_frame_top = frame->parent;
+    struct ghost_frame_stack* frame = ghost_frame_stack_top;
+    ghost_frame_stack_top = frame->parent;
     if (frame->ghost_args != NULL) {
       fulm_free(frame->ghost_args, &fulm_default_alloc);
     }
@@ -940,11 +940,11 @@ void pop_ghost_call_frame(void) {
   }
 }
 
-void free_ghost_call_stacks(void) {
-  while (ghost_call_frame_top != NULL) {
-    pop_ghost_call_frame();
+void free_ghost_frame_stack(void) {
+  while (ghost_frame_stack_top != NULL) {
+    pop_ghost_frame();
   }
-  ghost_call_arg_array_size = 0;
+  ghost_frame_size = 0;
 }
 
 void cn_ghost_arg_failure(void) {

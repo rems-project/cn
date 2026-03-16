@@ -4183,16 +4183,16 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
-    let add_to_ghost_call_frame_arg_call =
+    let add_arg_to_ghost_frame_call =
       mk_expr
         (AilEcall
-           ( mk_expr (AilEident (Sym.fresh "add_to_ghost_call_frame_arg")),
+           ( mk_expr (AilEident (Sym.fresh "add_arg_to_ghost_frame")),
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
                e
              ] ))
     in
-    (bs, upd_s @ ss @ [ A.AilSexpr add_to_ghost_call_frame_arg_call ] @ pop_s)
+    (bs, upd_s @ ss @ [ A.AilSexpr add_arg_to_ghost_frame_call ] @ pop_s)
 
 
 let gen_ghost_enum_member_id bts =
@@ -4256,12 +4256,11 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
   let ghost_call_site_rhs =
     ail_of_enum_member_id (gen_ghost_enum_member_id_ghost_args ghost_args)
   in
-  let push_ghost_call_frame_decl =
+  let push_ghost_frame_decl =
     A.AilSexpr
       (mk_expr
          (A.AilEcall
-            ( mk_expr (A.AilEident (Sym.fresh "push_ghost_call_frame")),
-              [ ghost_call_site_rhs ] )))
+            (mk_expr (A.AilEident (Sym.fresh "push_ghost_frame")), [ ghost_call_site_rhs ])))
   in
   let bs, ss =
     List.split
@@ -4280,7 +4279,7 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
       ( List.concat bs,
         List.map
           mk_stmt
-          ([ push_ghost_call_frame_decl ] @ List.concat ss @ [ dummy_expr_as_stat ]) )
+          ([ push_ghost_frame_decl ] @ List.concat ss @ [ dummy_expr_as_stat ]) )
   in
   ([], [ A.AilSexpr (mk_expr ail_gcc_stmt) ])
 
@@ -4891,20 +4890,20 @@ let rec cn_to_ail_pre_post_aux
          let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
          let cn_ctype = bt_to_ail_ctype bt in
          let binding = create_binding cn_sym cn_ctype in
-         let gen_load_from_ghost_call_frame_arg cn_ctype ghost_idx =
+         let gen_load_arg_from_ghost_frame cn_ctype ghost_idx =
            A.AilEcast
              ( C.no_qualifiers,
                cn_ctype,
                mk_expr
                  (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh "load_from_ghost_call_frame_arg")),
+                    ( mk_expr (AilEident (Sym.fresh "load_arg_from_ghost_frame")),
                       [ mk_expr
                           (AilEconst
                              (ConstantInteger
                                 (IConstant (Z.of_int ghost_idx, Decimal, None))))
                       ] )) )
          in
-         let rhs = gen_load_from_ghost_call_frame_arg cn_ctype ghost_idx in
+         let rhs = gen_load_arg_from_ghost_frame cn_ctype ghost_idx in
          let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
          (cn_sym, (binding, decl))
        in
@@ -4939,13 +4938,12 @@ let rec cn_to_ail_pre_post_aux
         c_return_type
         lat
     in
-    let pop_ghost_call_frame_decl =
+    let pop_ghost_frame_decl =
       A.AilSexpr
-        (mk_expr
-           (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_call_frame")), [])))
+        (mk_expr (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))
     in
     let ail_executable_spec =
-      prepend_to_precondition ail_executable_spec ([], [ pop_ghost_call_frame_decl ])
+      prepend_to_precondition ail_executable_spec ([], [ pop_ghost_frame_decl ])
     in
     ([], ail_executable_spec)
 
@@ -4984,23 +4982,20 @@ let cn_to_ail_pre_post
         ail_executable_spec
       | Some _ ->
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
-        let current_ghost_call_frame_tag_expr =
+        let top_ghost_frame_tag_expr =
           mk_expr
             (A.AilEcast
                ( C.no_qualifiers,
                  ghost_enum_type,
                  mk_expr
                    (A.AilEcall
-                      ( mk_expr (A.AilEident (Sym.fresh "current_ghost_call_frame_tag")),
-                        [] )) ))
+                      (mk_expr (A.AilEident (Sym.fresh "top_ghost_frame_tag")), [])) ))
         in
         let ghost_type_checking_stat =
           A.AilSif
             ( mk_expr
                 (A.AilEbinary
-                   ( mk_expr (A.AilEident ghost_spec_sym),
-                     A.Ne,
-                     current_ghost_call_frame_tag_expr )),
+                   (mk_expr (A.AilEident ghost_spec_sym), A.Ne, top_ghost_frame_tag_expr)),
               mk_stmt
                 (A.AilSexpr
                    (mk_expr
