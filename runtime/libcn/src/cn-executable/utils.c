@@ -908,7 +908,6 @@ void push_ghost_frame(int ghost_call_site_tag, int size) {
 void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg) {
   if (ghost_frame_stack_top == NULL) {
     cn_ghost_arg_failure();
-    return;
   }
   ghost_frame_stack_top->ghost_args[i] = ptr_to_ghost_arg;
 }
@@ -916,7 +915,6 @@ void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg) {
 void* load_arg_from_ghost_frame(int i) {
   if (ghost_frame_stack_top == NULL) {
     cn_ghost_arg_failure();
-    return NULL;
   }
   return ghost_frame_stack_top->ghost_args[i];
 }
@@ -930,7 +928,7 @@ int top_ghost_frame_tag(void) {
 
 void pop_ghost_frame(void) {
   if (ghost_frame_stack_top == NULL) {
-    return;
+    cn_ghost_arg_failure();
   }
   struct ghost_frame_stack* frame = ghost_frame_stack_top;
   ghost_frame_stack_top = frame->parent;
