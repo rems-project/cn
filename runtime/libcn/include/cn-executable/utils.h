@@ -591,13 +591,13 @@ enum region_owned c_ownership_check(
 
 /* Ghost arguments */
 void set_ghost_args_enabled(void);
-void alloc_ghost_call_stacks(int ghost_array_size);
-void push_ghost_call_frame(int ghost_call_site);
-void add_to_ghost_call_frame_arg(int i, void* ptr_to_ghost_arg);
-void* load_from_ghost_call_frame_arg(int i);
-int current_ghost_call_frame_tag(void);
-void pop_ghost_call_frame(void);
-void free_ghost_call_stacks(void);
+void alloc_ghost_frame_stack(int size);
+void push_ghost_frame(int ghost_frame_tag);
+void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg);
+void* load_arg_from_ghost_frame(int i);
+int top_ghost_frame_tag(void);
+void pop_ghost_frame(void);
+void free_ghost_frame_stack(void);
 void cn_ghost_arg_failure(void);
 
 // Unused
