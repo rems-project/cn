@@ -922,7 +922,6 @@ struct ghost_frame_stack {
 };
 
 static struct ghost_frame_stack* ghost_frame_stack_top;
-static int ghost_frame_size;
 
 // TODO: hack to deal with ghost args being unimplemented for testing
 void set_ghost_args_enabled(void) {
@@ -932,21 +931,19 @@ _Bool is_ghost_args_enabled(void) {
   return ghost_args_enabled;
 }
 
-void alloc_ghost_frame_stack(int size) {
+void alloc_ghost_frame_stack(void) {
   ghost_frame_stack_top = NULL;
-  ghost_frame_size = size;
 }
 
-void push_ghost_frame(int ghost_call_site_tag) {
+void push_ghost_frame(int ghost_call_site_tag, int size) {
   struct ghost_frame_stack* frame =
       fulm_malloc(sizeof(struct ghost_frame_stack), &fulm_default_alloc);
   frame->call_site = ghost_call_site_tag;
   frame->parent = ghost_frame_stack_top;
-  if (ghost_frame_size == 0) {
+  if (size == 0) {
     frame->ghost_args = NULL;
   } else {
-    frame->ghost_args =
-        fulm_malloc(ghost_frame_size * sizeof(void*), &fulm_default_alloc);
+    frame->ghost_args = fulm_malloc(size * sizeof(void*), &fulm_default_alloc);
   }
   ghost_frame_stack_top = frame;
 }
@@ -990,7 +987,6 @@ void free_ghost_frame_stack(void) {
   while (ghost_frame_stack_top != NULL) {
     pop_ghost_frame();
   }
-  ghost_frame_size = 0;
 }
 
 void cn_ghost_arg_failure(void) {
