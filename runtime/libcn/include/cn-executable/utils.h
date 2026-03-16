@@ -591,6 +591,7 @@ enum region_owned c_ownership_check(
 
 /* Ghost arguments */
 void set_ghost_args_enabled(void);
+bool is_ghost_args_enabled(void);
 void alloc_ghost_frame_stack(int size);
 void push_ghost_frame(int ghost_frame_tag);
 void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg);
