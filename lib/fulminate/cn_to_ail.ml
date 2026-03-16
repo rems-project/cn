@@ -4838,6 +4838,7 @@ let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
+          is_lemma
           filename
           dts
           preds
@@ -4861,6 +4862,7 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        is_lemma
         filename
         dts
         preds
@@ -4871,7 +4873,7 @@ let rec cn_to_ail_pre_post_aux
     in
     (ghost_bts, prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.Ghost ((sym, bt), _info, at) ->
-    if without_lemma_checks then
+    if is_lemma then
       (* For lemmas,
           ghost parameters are already translated specially
           in cn_to_ail_lemma using AT.get_ghost,
@@ -4880,6 +4882,7 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        is_lemma
         filename
         dts
         preds
@@ -4916,6 +4919,7 @@ let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
+          is_lemma
           filename
           dts
           preds
@@ -4960,6 +4964,7 @@ let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~is_lemma
       filename
       dts
       preds
@@ -4972,6 +4977,7 @@ let cn_to_ail_pre_post
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        is_lemma
         filename
         dts
         preds
@@ -4981,7 +4987,7 @@ let cn_to_ail_pre_post
         internal
     in
     let ail_executable_spec =
-      if without_lemma_checks then
+      if is_lemma then
         ail_executable_spec
       else (
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
@@ -5070,6 +5076,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
+      ~is_lemma:true
       filename
       dts
       preds
