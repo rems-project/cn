@@ -875,9 +875,12 @@ static struct ghost_frame_stack* ghost_frame_stack_top;
 static int ghost_frame_size;
 
 // TODO: hack to deal with ghost args being unimplemented for testing
-bool ghost_args_enabled = false;
+_Bool ghost_args_enabled = false;
 void set_ghost_args_enabled(void) {
   ghost_args_enabled = true;
+}
+_Bool is_ghost_args_enabled(void) {
+  return ghost_args_enabled;
 }
 
 void alloc_ghost_frame_stack(int size) {
@@ -923,17 +926,15 @@ int top_ghost_frame_tag(void) {
 }
 
 void pop_ghost_frame(void) {
-  if (ghost_args_enabled) {  // TODO: hack to deal with ghost args being unimplemented for testing
-    if (ghost_frame_stack_top == NULL) {
-      return;
-    }
-    struct ghost_frame_stack* frame = ghost_frame_stack_top;
-    ghost_frame_stack_top = frame->parent;
-    if (frame->ghost_args != NULL) {
-      fulm_free(frame->ghost_args, &fulm_default_alloc);
-    }
-    fulm_free(frame, &fulm_default_alloc);
+  if (ghost_frame_stack_top == NULL) {
+    return;
   }
+  struct ghost_frame_stack* frame = ghost_frame_stack_top;
+  ghost_frame_stack_top = frame->parent;
+  if (frame->ghost_args != NULL) {
+    fulm_free(frame->ghost_args, &fulm_default_alloc);
+  }
+  fulm_free(frame, &fulm_default_alloc);
 }
 
 void free_ghost_frame_stack(void) {

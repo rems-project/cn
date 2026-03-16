@@ -4585,8 +4585,15 @@ let rec cn_to_ail_pre_post_aux
         lat
     in
     let pop_ghost_frame_decl =
-      A.AilSexpr
-        (mk_expr (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))
+      (* TODO: remove ghost_args_enabled part when Test mode supports ghost arguments *)
+      A.AilSif
+        ( mk_expr
+            (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "is_ghost_args_enabled")), [])),
+          mk_stmt
+            (A.AilSexpr
+               (mk_expr
+                  (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))),
+          mk_stmt A.AilSskip )
     in
     let ail_executable_spec =
       prepend_to_precondition ail_executable_spec ([], [ pop_ghost_frame_decl ])
@@ -4623,9 +4630,6 @@ let cn_to_ail_pre_post
     let ail_executable_spec =
       match ghost_array_size_opt with
       | None -> ail_executable_spec
-      | Some 0 ->
-        (* TODO: This case should be removed when Bennet supports ghost arguments *)
-        ail_executable_spec
       | Some _ ->
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
         let top_ghost_frame_tag_expr =
@@ -4638,10 +4642,19 @@ let cn_to_ail_pre_post
                       (mk_expr (A.AilEident (Sym.fresh "top_ghost_frame_tag")), [])) ))
         in
         let ghost_type_checking_stat =
+          (* TODO: remove ghost_args_enabled part when Test mode supports ghost arguments *)
           A.AilSif
             ( mk_expr
                 (A.AilEbinary
-                   (mk_expr (A.AilEident ghost_spec_sym), A.Ne, top_ghost_frame_tag_expr)),
+                   ( mk_expr
+                       (A.AilEcall
+                          (mk_expr (A.AilEident (Sym.fresh "is_ghost_args_enabled")), [])),
+                     A.And,
+                     mk_expr
+                       (A.AilEbinary
+                          ( mk_expr (A.AilEident ghost_spec_sym),
+                            A.Ne,
+                            top_ghost_frame_tag_expr )) )),
               mk_stmt
                 (A.AilSexpr
                    (mk_expr
