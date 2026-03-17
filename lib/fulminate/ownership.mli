@@ -30,7 +30,6 @@ val cn_loop_leak_check_sym : Sym.t
 val get_ownership_global_init_stats
   :  ?max_bump_blocks:int ->
   ?bump_block_size:int ->
-  ?test_mode:bool ->
   unit ->
   GenTypes.genTypeCategory AilSyntax.statement_ list
 
