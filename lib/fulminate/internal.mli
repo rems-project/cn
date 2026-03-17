@@ -20,7 +20,8 @@ val generate_c_assume_pres_internal
     list
 
 val generate_c_specs
-  :  bool ->
+  :  ?test_mode:bool ->
+  bool ->
   bool ->
   bool ->
   bool ->

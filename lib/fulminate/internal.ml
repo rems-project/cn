@@ -164,6 +164,7 @@ let empty_cn_spec_inj_info : cn_spec_inj_info =
 
 
 let generate_c_specs_from_cn_internal
+      ?test_mode
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -189,6 +190,7 @@ let generate_c_specs_from_cn_internal
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~is_lemma:false
+      ?test_mode
       filename
       dts
       preds
@@ -220,6 +222,7 @@ let generate_c_specs_from_cn_internal
 
 
 let generate_c_specs_internal
+      ?test_mode
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -238,6 +241,7 @@ let generate_c_specs_internal
   let cn_spec_inj_info =
     if contains_user_spec then
       generate_c_specs_from_cn_internal
+        ?test_mode
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
@@ -314,6 +318,7 @@ let generate_c_assume_pres_internal
 
 (* Extract.instrumentation list -> executable_spec *)
 let generate_c_specs
+      ?test_mode
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -327,6 +332,7 @@ let generate_c_specs
   =
   let generate_c_spec (instrumentation : Extract.instrumentation) =
     generate_c_specs_internal
+      ?test_mode
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks

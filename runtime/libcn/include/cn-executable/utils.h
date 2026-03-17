@@ -588,8 +588,6 @@ enum region_owned c_ownership_check(
     char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth);
 
 /* Ghost arguments */
-void set_ghost_args_enabled(void);
-bool is_ghost_args_enabled(void);
 void initialise_ghost_frame_stack(void);
 void push_ghost_frame(int ghost_frame_tag, int size);
 void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg);

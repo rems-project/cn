@@ -876,14 +876,6 @@ struct ghost_frame_stack {
 
 static struct ghost_frame_stack* ghost_frame_stack_top;
 
-// TODO: hack to deal with ghost args being unimplemented for testing
-void set_ghost_args_enabled(void) {
-  ghost_args_enabled = true;
-}
-_Bool is_ghost_args_enabled(void) {
-  return ghost_args_enabled;
-}
-
 void initialise_ghost_frame_stack(void) {
   ghost_frame_stack_top = NULL;
 }
