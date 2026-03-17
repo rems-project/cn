@@ -2480,7 +2480,7 @@ module WProc = struct
              (WLabel.typ args, label_annot, loc)
            | Return loc ->
              (AT.of_rt function_rt (LAT.I False.False), CF.Annot.LAreturn, loc)
-           | Loop (loc, label_args_and_body, annots, _parsed_spec, _loop_info) ->
+           | Loop (loc, label_args_and_body, annots, _loop_info) ->
              let lt = WLabel.typ label_args_and_body in
              let kind = Option.get (CF.Annot.get_label_annot annots) in
              (lt, kind, loc)
@@ -2507,7 +2507,7 @@ module WProc = struct
                 | Non_inlined (loc, name, annot, args) ->
                   return (Non_inlined (loc, name, annot, args))
                 | Return loc -> return (Return loc)
-                | Loop (loc, label_args_and_body, annots, parsed_spec, loop_info) ->
+                | Loop (loc, label_args_and_body, annots, loop_info) ->
                   let@ label_args_and_body =
                     pure
                       (WArgs.welltyped
@@ -2517,7 +2517,7 @@ module WProc = struct
                          loc
                          label_args_and_body)
                   in
-                  return (Loop (loc, label_args_and_body, annots, parsed_spec, loop_info)))
+                  return (Loop (loc, label_args_and_body, annots, loop_info)))
              labels
              Sym.compare
          in

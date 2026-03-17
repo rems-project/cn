@@ -84,7 +84,6 @@ let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
       ( _loc,
         label_args_and_body,
         _annots,
-        _,
         `Aux_info (loop_condition_loc, loop_loc, contains_user_spec) ) ->
     let label_args_and_body = Core_to_mucore.at_of_arguments Fun.id label_args_and_body in
     let label_args_and_statements = ArgumentTypes.map stmts_in_expr label_args_and_body in
@@ -168,7 +167,7 @@ let ghost_args_and_their_call_locs prog5 =
       match ld with
       | Non_inlined (_, _, _, args) -> Some (param_of_arguments args)
       | Return _ -> None
-      | Loop (_, arguments, _, _, _) ->
+      | Loop (_, arguments, _, _) ->
         let expr = param_of_arguments arguments in
         Some expr
     in

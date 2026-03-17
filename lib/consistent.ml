@@ -196,7 +196,7 @@ let procedure : Loc.t -> _ Mucore.args_and_body -> unit Typing.t =
          (fun _sym def ->
             match def with
             | Mucore.Non_inlined _ | Return _ -> return ()
-            | Loop (loc, label_args_and_body, _annots, _parsed_spec, _loop_info) ->
+            | Loop (loc, label_args_and_body, _annots, _loop_info) ->
               pure_and_no_initial_resources
                 loc
                 (arguments

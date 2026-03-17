@@ -308,18 +308,12 @@ Inductive arguments (i : Type) : Type :=
   | Computational : (Sym.t * BaseTypes.t) * Locations.info * arguments i -> arguments i
   | L : arguments_l i -> arguments i.
 
-(* Label specification *)
-Record parse_ast_label_spec := mk_parse_ast_label_spec {
-  label_spec : list (cn_condition Symbol.t Ctype.ctype)
-}.
-
 (* Label definition *)
 Inductive label_def (TY : Type) : Type :=
   | Return : Locations.t -> label_def TY
   | Label : Locations.t -> 
            arguments (expr TY) ->
            list Annot.annot ->
-           parse_ast_label_spec ->
            (Locations.t * Locations.t) -> (* Loop locations *)
            label_def TY.
 

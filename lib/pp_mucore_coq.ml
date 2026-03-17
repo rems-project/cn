@@ -1901,10 +1901,6 @@ and pp_expr pp_type = function
       ]
 
 
-let pp_parse_ast_label_spec (s : parse_ast_label_spec) =
-  pp_record [ ("label_spec", pp_list (pp_cn_condition pp_symbol pp_ctype) s.label_spec) ]
-
-
 let pp_label_def pp_type = function
   | Non_inlined (loc, name, annot, args) ->
     let pp_args = pp_arguments (pp_expr pp_type) args in
@@ -1912,13 +1908,12 @@ let pp_label_def pp_type = function
       "Non_inlined"
       [ pp_location loc; pp_symbol name; pp_label_annot annot; pp_args ]
   | Return loc -> pp_constructor1 "Return" [ pp_location loc ]
-  | Loop (loc, args, annots, spec, `Aux_info (cond_loc, loop_loc, _)) ->
+  | Loop (loc, args, annots, `Aux_info (cond_loc, loop_loc, _)) ->
     pp_constructor1
       "Loop"
       [ pp_location loc;
         pp_arguments (pp_expr pp_type) args;
         pp_list pp_annot_t annots;
-        pp_parse_ast_label_spec spec;
         pp_pair pp_location pp_location (cond_loc, loop_loc)
       ]
 
