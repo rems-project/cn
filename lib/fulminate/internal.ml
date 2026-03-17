@@ -666,6 +666,7 @@ let generate_global_assignments
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
+      ?(test_mode = false)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -718,8 +719,11 @@ let generate_global_assignments
              (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_frame_stack_fn_str)), []))))
     in
     let global_unmapping_str =
-      generate_ail_stat_strs
-        ([], global_unmapping_stmts_ @ [ free_ghost_frame_stack_decl ])
+      if test_mode then
+        generate_ail_stat_strs ([], global_unmapping_stmts_)
+      else
+        generate_ail_stat_strs
+          ([], global_unmapping_stmts_ @ [ free_ghost_frame_stack_decl ])
     in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
 

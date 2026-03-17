@@ -761,6 +761,7 @@ let main
           ~experimental_ownership_stack_mode
           ?max_bump_blocks
           ?bump_block_size
+          ?test_mode:(Some test_mode)
           cabs_tunit
           sigm
           prog5

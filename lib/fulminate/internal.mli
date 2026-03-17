@@ -101,6 +101,7 @@ val generate_global_assignments
   ?experimental_ownership_stack_mode:bool ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
+  ?test_mode:bool ->
   Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
