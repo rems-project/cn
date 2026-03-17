@@ -23,7 +23,6 @@ signed long nr_owned_predicates;
 
 _Bool exec_c_locs_mode;
 _Bool ownership_stack_mode;
-_Bool ghost_args_enabled;
 
 static signed long UNMAPPED_VAL = -1;
 static signed long WILDCARD_DEPTH = INT_MIN + 1;
@@ -54,8 +53,6 @@ void fulminate_init(void) {
   initialise_ownership_stack_mode(0);
 
   fulminate_initialized = true;
-
-  ghost_args_enabled = false;
 }
 
 static enum cn_logging_level logging_level = CN_LOGGING_INFO;
