@@ -4835,6 +4835,7 @@ let rec cn_to_ail_lat_2
 
 
 let rec cn_to_ail_pre_post_aux
+          ?(test_mode = false)
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4859,6 +4860,7 @@ let rec cn_to_ail_pre_post_aux
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
+        ?test_mode:(Some test_mode)
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4879,6 +4881,7 @@ let rec cn_to_ail_pre_post_aux
           in cn_to_ail_lemma using AT.get_ghost,
           so we may skip them here *)
       cn_to_ail_pre_post_aux
+        ?test_mode:(Some test_mode)
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4916,6 +4919,7 @@ let rec cn_to_ail_pre_post_aux
       let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
       let ghost_bts, ail_executable_spec =
         cn_to_ail_pre_post_aux
+          ?test_mode:(Some test_mode)
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4944,19 +4948,13 @@ let rec cn_to_ail_pre_post_aux
         lat
     in
     let ail_executable_spec =
-      if is_lemma then
+      if is_lemma || test_mode then
         ail_executable_spec
       else (
         let pop_ghost_frame_decl =
-          (* TODO: remove ghost_args_enabled part when Test mode supports ghost arguments *)
-          A.AilSif
-            ( mk_expr
-                (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "is_ghost_args_enabled")), [])),
-              mk_stmt
-                (A.AilSexpr
-                   (mk_expr
-                      (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))),
-              mk_stmt A.AilSskip )
+          A.AilSexpr
+            (mk_expr
+               (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))
         in
         prepend_to_precondition ail_executable_spec ([], [ pop_ghost_frame_decl ]))
     in
@@ -4968,6 +4966,7 @@ let cn_to_ail_pre_post
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~is_lemma
+      ?(test_mode = false)
       filename
       dts
       preds
@@ -4977,6 +4976,7 @@ let cn_to_ail_pre_post
   | Some internal ->
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
+        ?test_mode:(Some test_mode)
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4990,7 +4990,7 @@ let cn_to_ail_pre_post
         internal
     in
     let ail_executable_spec =
-      if is_lemma then
+      if test_mode || is_lemma then
         ail_executable_spec
       else (
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
@@ -5004,19 +5004,10 @@ let cn_to_ail_pre_post
                       (mk_expr (A.AilEident (Sym.fresh "top_ghost_frame_tag")), [])) ))
         in
         let ghost_type_checking_stat =
-          (* TODO: remove ghost_args_enabled part when Test mode supports ghost arguments *)
           A.AilSif
             ( mk_expr
                 (A.AilEbinary
-                   ( mk_expr
-                       (A.AilEcall
-                          (mk_expr (A.AilEident (Sym.fresh "is_ghost_args_enabled")), [])),
-                     A.And,
-                     mk_expr
-                       (A.AilEbinary
-                          ( mk_expr (A.AilEident ghost_spec_sym),
-                            A.Ne,
-                            top_ghost_frame_tag_expr )) )),
+                   (mk_expr (A.AilEident ghost_spec_sym), A.Ne, top_ghost_frame_tag_expr)),
               mk_stmt
                 (A.AilSexpr
                    (mk_expr
