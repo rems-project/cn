@@ -4251,7 +4251,6 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
   (cn_ghost_enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition))
 
 
-(* GHOST ARGUMENTS *)
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
   let ghost_call_site_rhs =
     ail_of_enum_member_id (gen_ghost_enum_member_id_ghost_args ghost_args)
@@ -4875,7 +4874,7 @@ let rec cn_to_ail_pre_post_aux
     in
     (ghost_bts, prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.Ghost ((sym, bt), _info, at) ->
-    if is_lemma then
+    if is_lemma || test_mode then
       (* For lemmas,
           ghost parameters are already translated specially
           in cn_to_ail_lemma using AT.get_ghost,
