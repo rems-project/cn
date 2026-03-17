@@ -255,7 +255,7 @@ module PP = struct
             dtree_of_arguments (fun _ -> Dleaf P.empty) args
           ] )
     | Return loc -> Dleaf (!^"return" ^^^ Cerb_location.pp_location ~clever:false loc)
-    | Loop (loc, args_and_body, _, _, _) ->
+    | Loop (loc, args_and_body, _, _) ->
       Dnode
         ( pp_symbol l ^^^ Cerb_location.pp_location ~clever:false loc,
           [ dtree_of_arguments dtree_of_expr args_and_body ] )

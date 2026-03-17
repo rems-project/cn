@@ -218,9 +218,6 @@ val dtree_of_arguments
   'a arguments ->
   Cerb_frontend.Pp_ast.doc_tree
 
-type parse_ast_label_spec =
-  { label_spec : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list }
-
 type 'TY label_def =
   | Non_inlined of
       Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit expr arguments
@@ -231,7 +228,6 @@ type 'TY label_def =
       Locations.t
       * 'TY expr arguments
       * Cerb_frontend.Annot.annot list
-      * parse_ast_label_spec
       * [ `Aux_info of Locations.t * Locations.t * bool ]
 (* first loc is condition, second is whole loop *)
 (* loop condition location, for executable checking *)
