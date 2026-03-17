@@ -696,7 +696,11 @@ let generate_global_assignments
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let assignments =
-      OE.get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size ()
+      OE.get_ownership_global_init_stats
+        ?max_bump_blocks
+        ?bump_block_size
+        ?test_mode:(Some test_mode)
+        ()
     in
     let init_and_global_mapping_str =
       generate_ail_stat_strs
