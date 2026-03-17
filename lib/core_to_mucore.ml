@@ -476,7 +476,7 @@ let rec n_expr
     let@ ghost_args =
       match parsed_ghosts with
       | None -> return None
-      | Some (ghost_loc, args) ->
+      | Some (ghost_loc, (args, _)) ->
         let marker_id = Option.get (CF.Annot.get_marker annots) in
         let marker_id_object_types =
           Option.get (CF.Annot.get_marker_object_types annots)
@@ -1015,13 +1015,7 @@ let normalise_label
           (*       False.False *)
           (*     ) label_args_and_body  *)
           (* in *)
-          return
-            (Mu.Loop
-               ( loc,
-                 label_args_and_body,
-                 annots,
-                 { label_spec = desugared_inv },
-                 `Aux_info loop_info ))
+          return (Mu.Loop (loc, label_args_and_body, annots, `Aux_info loop_info))
         (* | Some (LAloop_body _loop_id) -> *)
         (*    assert_error loc !^"body label has not been inlined" *)
         | LAloop_continue _loop_id ->
