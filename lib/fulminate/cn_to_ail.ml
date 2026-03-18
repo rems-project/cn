@@ -4252,7 +4252,7 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
 
 
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
-  let ghost_call_site_rhs =
+  let ghost_args_type_tag_rhs =
     ail_of_enum_member_id (gen_ghost_enum_member_id_ghost_args ghost_args)
   in
   let push_ghost_frame_decl =
@@ -4260,7 +4260,7 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
       (mk_expr
          (A.AilEcall
             ( mk_expr (A.AilEident (Sym.fresh "push_ghost_frame")),
-              [ ghost_call_site_rhs;
+              [ ghost_args_type_tag_rhs;
                 mk_expr
                   (AilEconst
                      (ConstantInteger
