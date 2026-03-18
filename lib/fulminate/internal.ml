@@ -164,7 +164,7 @@ let empty_cn_spec_inj_info : cn_spec_inj_info =
 
 
 let generate_c_specs_from_cn_internal
-      ?test_mode
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -190,7 +190,7 @@ let generate_c_specs_from_cn_internal
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~is_lemma:false
-      ?test_mode
+      ?disable_ghost_args
       filename
       dts
       preds
@@ -222,7 +222,7 @@ let generate_c_specs_from_cn_internal
 
 
 let generate_c_specs_internal
-      ?test_mode
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -241,7 +241,7 @@ let generate_c_specs_internal
   let cn_spec_inj_info =
     if contains_user_spec then
       generate_c_specs_from_cn_internal
-        ?test_mode
+        ?disable_ghost_args
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
@@ -318,7 +318,7 @@ let generate_c_assume_pres_internal
 
 (* Extract.instrumentation list -> executable_spec *)
 let generate_c_specs
-      ?test_mode
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -332,7 +332,7 @@ let generate_c_specs
   =
   let generate_c_spec (instrumentation : Extract.instrumentation) =
     generate_c_specs_internal
-      ?test_mode
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -650,7 +650,7 @@ let generate_global_assignments
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
-      ?(test_mode = false)
+      ?(disable_ghost_args = false)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -683,7 +683,7 @@ let generate_global_assignments
       OE.get_ownership_global_init_stats
         ?max_bump_blocks
         ?bump_block_size
-        ?test_mode:(Some test_mode)
+        ?disable_ghost_args:(Some disable_ghost_args)
         ()
     in
     let init_and_global_mapping_str =
@@ -706,7 +706,7 @@ let generate_global_assignments
              (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_frame_stack_fn_str)), []))))
     in
     let global_unmapping_str =
-      if test_mode then
+      if disable_ghost_args then
         generate_ail_stat_strs ([], global_unmapping_stmts_)
       else
         generate_ail_stat_strs

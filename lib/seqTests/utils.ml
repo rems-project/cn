@@ -193,7 +193,7 @@ let create_intermediate_test_file
              ^^
              let init_ghost =
                Fulminate.Ownership.get_ownership_global_init_stats
-                 ?test_mode:(Some true)
+                 ?disable_ghost_args:(Some true)
                  ()
              in
              separate_map hardline stmt_to_doc init_ghost

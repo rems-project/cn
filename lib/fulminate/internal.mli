@@ -20,7 +20,7 @@ val generate_c_assume_pres_internal
     list
 
 val generate_c_specs
-  :  ?test_mode:bool ->
+  :  ?disable_ghost_args:bool ->
   bool ->
   bool ->
   bool ->
@@ -98,7 +98,7 @@ val generate_global_assignments
   ?experimental_ownership_stack_mode:bool ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
-  ?test_mode:bool ->
+  ?disable_ghost_args:bool ->
   Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->
