@@ -48,7 +48,7 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
 let get_ownership_global_init_stats
       ?max_bump_blocks
       ?bump_block_size
-      ?(test_mode = false)
+      ?(disable_ghost_args = false)
       ()
   =
   let bump_config_calls =
@@ -81,7 +81,10 @@ let get_ownership_global_init_stats
   in
   let fcalls = [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ] in
   let fcalls =
-    if test_mode then fcalls else fcalls @ [ cn_initialise_ghost_frame_stack_fcall ]
+    if disable_ghost_args then
+      fcalls
+    else
+      fcalls @ [ cn_initialise_ghost_frame_stack_fcall ]
   in
   List.map (fun e -> A.(AilSexpr e)) (bump_config_calls @ fcalls)
 

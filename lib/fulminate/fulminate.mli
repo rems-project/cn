@@ -20,7 +20,7 @@ val main
   skip_and_only:string list * string list ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
-  ?test_mode:bool ->
+  ?disable_ghost_args:bool ->
   String.t ->
   String.t ->
   String.t ->
