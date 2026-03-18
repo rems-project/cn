@@ -892,7 +892,7 @@ let rec translate_term s iterm =
   | MapConst (bt, e1) ->
     (match IT.get_term e1 with
      (* This is a work-around for the fact the CVC5 only supports `const` on
-        value, not vairables (see #11485 in the CVC5 repo).  Until this is
+        value, not variables (see #11485 in the CVC5 repo).  Until this is
         fixed, with translate `MapConst Default` as just `Default`.  Hopefully,
         this is OK, as we are getting a weaker term (i.e., we can't assume that
         all elements of the array are the same, but they might be). *)
