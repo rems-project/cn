@@ -866,7 +866,7 @@ void cn_print_nr_u64(int i, unsigned long u) {
 
 // ghost arguments
 struct ghost_frame_stack {
-  int call_site;
+  int ghost_args_type_tag;
   void** ghost_args;
   struct ghost_frame_stack* parent;
 };
@@ -877,10 +877,10 @@ void initialise_ghost_frame_stack(void) {
   ghost_frame_stack_top = NULL;
 }
 
-void push_ghost_frame(int ghost_call_site_tag, int size) {
+void push_ghost_frame(int tag, int size) {
   struct ghost_frame_stack* frame =
       fulm_malloc(sizeof(struct ghost_frame_stack), &fulm_default_alloc);
-  frame->call_site = ghost_call_site_tag;
+  frame->ghost_args_type_tag = tag;
   frame->parent = ghost_frame_stack_top;
   frame->ghost_args = fulm_malloc(size * sizeof(void*), &fulm_default_alloc);
   ghost_frame_stack_top = frame;
@@ -904,7 +904,7 @@ int top_ghost_frame_tag(void) {
   if (ghost_frame_stack_top == NULL) {
     return -1;
   }
-  return ghost_frame_stack_top->call_site;
+  return ghost_frame_stack_top->ghost_args_type_tag;
 }
 
 void pop_ghost_frame(void) {
