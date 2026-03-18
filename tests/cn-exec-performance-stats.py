@@ -290,34 +290,34 @@ if args.iterate:
 stats_dict['instr_generation_time'] = generation_times
 stats_dict['instr_compilation_time'] = compilation_times['instrumented']
 stats_dict['instr_linking_time'] = link_times['instrumented']
-stats_dict['instr_executable_time'] = executable_times['instrumented']
+stats_dict['instr_median_executable_time'] = executable_times['instrumented']
 
 stats_dict['instr_generation_space'] = generation_space
 stats_dict['instr_compilation_space'] = compilation_space['instrumented']
 stats_dict['instr_linking_space'] = link_space['instrumented']
-stats_dict['instr_executable_space'] = executable_space['instrumented']
+stats_dict['instr_median_executable_space'] = executable_space['instrumented']
 if args.track_owned:
     stats_dict['nr_owned_predicates'] = nr_owned_predicates
 
 stats_dict['uninstr_compilation_time'] = compilation_times['uninstrumented']
 stats_dict['uninstr_linking_time'] = link_times['uninstrumented']
-stats_dict['uninstr_executable_time'] = executable_times['uninstrumented']
+stats_dict['uninstr_median_executable_time'] = executable_times['uninstrumented']
 
 stats_dict['uninstr_compilation_space'] = compilation_space['uninstrumented']
 stats_dict['uninstr_linking_space'] = link_space['uninstrumented']
-stats_dict['uninstr_executable_space'] = executable_space['uninstrumented']
+stats_dict['uninstr_median_executable_space'] = executable_space['uninstrumented']
 
 full_df = pd.DataFrame.from_dict(stats_dict)
 
 # Total time and space
-full_df["instr_total_time"] = full_df[['instr_generation_time', 'instr_compilation_time', 'instr_linking_time', 'instr_executable_time']].sum(axis=1)
-full_df["instr_total_space"] = full_df[['instr_generation_space', 'instr_compilation_space', 'instr_linking_space', 'instr_executable_space']].sum(axis=1)
-full_df["uninstr_total_time"] = full_df[['uninstr_compilation_time', 'uninstr_linking_time', 'uninstr_executable_time']].sum(axis=1)
-full_df["uninstr_total_space"] = full_df[['uninstr_compilation_space', 'uninstr_linking_space', 'uninstr_executable_space']].sum(axis=1)
+# full_df["instr_total_time"] = full_df[['instr_generation_time', 'instr_compilation_time', 'instr_linking_time', 'instr_executable_time']].sum(axis=1)
+# full_df["instr_total_space"] = full_df[['instr_generation_space', 'instr_compilation_space', 'instr_linking_space', 'instr_executable_space']].sum(axis=1)
+# full_df["uninstr_total_time"] = full_df[['uninstr_compilation_time', 'uninstr_linking_time', 'uninstr_executable_time']].sum(axis=1)
+# full_df["uninstr_total_space"] = full_df[['uninstr_compilation_space', 'uninstr_linking_space', 'uninstr_executable_space']].sum(axis=1)
 
 # Differences in executable time and space
-full_df["executable_time_difference"] = full_df['instr_executable_time'] - full_df['uninstr_executable_time']
-full_df["executable_space_difference"] = full_df['instr_executable_space'] - full_df['uninstr_executable_space']
+full_df["executable_time_difference"] = full_df['instr_median_executable_time'] - full_df['uninstr_median_executable_time']
+full_df["executable_space_difference"] = full_df['instr_median_executable_space'] - full_df['uninstr_median_executable_space']
 
 print(full_df)
 
