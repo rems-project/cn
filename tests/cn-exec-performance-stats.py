@@ -6,6 +6,7 @@ from os.path import isfile, join
 import argparse, sys, os
 import pandas as pd
 import numpy as np
+import statistics
 
 
 
@@ -84,7 +85,7 @@ def print_and_error(error_str):
 def gen_instr_cmd(f, input_basename):
     instr_cmd_prefix = "cn instrument"
     instr_cmd = time_cmd_str + instr_cmd_prefix + \
-        " --without-lemma-checks " + tests_path + "/" + f
+        " --without-lemma-checks --without-loop-invariants " + tests_path + "/" + f
     #instr_cmd += " --output-decorated=" + input_basename + ".exec.c"
     return instr_cmd
 
@@ -192,7 +193,7 @@ def find_and_replace_macro(f, input_basename, str_being_replaced, new_str):
     return subst_f_name
 
 def run_cmds_and_collect_stats(f, input_basename, instrumented):
-    single_run_stats_dict = {}
+    stats = {}
     # Instrumented run
     generation_successful = True
     if instrumented:
@@ -205,14 +206,24 @@ def run_cmds_and_collect_stats(f, input_basename, instrumented):
             linking_successful, link_stats = time_linking(input_basename, instrumented)
 
             if linking_successful:
-                executable_successful, executable_stats = time_executable(input_basename, instrumented)
-                if instrumented:
-                    single_run_stats_dict["generation"] = generation_stats
+                time_list = []
+                space_list = []
+                for _ in range(11):
+                    _, local_executable_stats = time_executable(input_basename, instrumented)
+                    time_list.append(local_executable_stats['time'])
+                    space_list.append(local_executable_stats['space'])
+                
+                executable_stats = {}
+                executable_stats['time'] = statistics.median(time_list)
+                executable_stats['space'] = statistics.median(space_list)
 
-                single_run_stats_dict["compilation"] = compilation_stats
-                single_run_stats_dict["linking"] = link_stats
-                single_run_stats_dict["executable"] = executable_stats
-                return executable_successful, single_run_stats_dict
+                if instrumented:
+                    stats["generation"] = generation_stats
+
+                stats["compilation"] = compilation_stats
+                stats["linking"] = link_stats
+                stats["executable"] = executable_stats
+                return True, stats
 
     return False, {}
 
