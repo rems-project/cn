@@ -209,7 +209,7 @@ def run_cmds_and_collect_stats(f, input_basename, instrumented):
                 time_list = []
                 space_list = []
                 for _ in range(11):
-                    _, local_executable_stats = time_executable(input_basename, instrumented)
+                    local_executable_success, local_executable_stats = time_executable(input_basename, instrumented)
                     time_list.append(local_executable_stats['time'])
                     space_list.append(local_executable_stats['space'])
                 
@@ -223,7 +223,7 @@ def run_cmds_and_collect_stats(f, input_basename, instrumented):
                 stats["compilation"] = compilation_stats
                 stats["linking"] = link_stats
                 stats["executable"] = executable_stats
-                return True, stats
+                return local_executable_success, stats
 
     return False, {}
 
