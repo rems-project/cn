@@ -195,7 +195,7 @@ def main():
         alt_configs = [
             "--coverage --sizing-strategy=quickcheck --inline=everything",
             "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
-            "--sizing-strategy=uniform --lazy-gen --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
+            "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
             "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
         ]
 
