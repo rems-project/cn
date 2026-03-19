@@ -40,20 +40,76 @@ def _has_systemd_run():
 
 
 def _get_rss_bytes(pid):
-    """Get RSS in bytes for a process. Returns None on failure."""
+    """Get total RSS in bytes for a process and all its descendants. Returns None on failure."""
     try:
         if sys.platform == 'linux':
-            with open(f'/proc/{pid}/statm') as f:
-                return int(f.read().split()[1]) * os.sysconf('SC_PAGE_SIZE')
+            # Sum RSS for the entire process group (parent + children)
+            page_size = os.sysconf('SC_PAGE_SIZE')
+            total_rss = 0
+            found = False
+            # Read the main process
+            try:
+                with open(f'/proc/{pid}/statm') as f:
+                    total_rss += int(f.read().split()[1]) * page_size
+                    found = True
+            except (FileNotFoundError, ProcessLookupError):
+                pass
+            # Read all children via /proc/[pid]/task/*/children recursively
+            try:
+                children = _get_descendant_pids_linux(pid)
+                for cpid in children:
+                    try:
+                        with open(f'/proc/{cpid}/statm') as f:
+                            total_rss += int(f.read().split()[1]) * page_size
+                            found = True
+                    except (FileNotFoundError, ProcessLookupError):
+                        pass
+            except OSError:
+                pass
+            return total_rss if found else None
         else:
+            # macOS: use ps to get RSS for the entire process group
             out = subprocess.check_output(
-                ['ps', '-o', 'rss=', '-p', str(pid)],
+                ['ps', '-o', 'rss=', '-g', str(pid)],
                 text=True, stderr=subprocess.DEVNULL
             )
-            return int(out.strip()) * 1024
+            total_rss = sum(int(line.strip()) * 1024
+                           for line in out.strip().splitlines() if line.strip())
+            return total_rss if total_rss > 0 else None
     except (FileNotFoundError, ProcessLookupError, ValueError,
             subprocess.CalledProcessError, OSError):
         return None
+
+
+def _get_descendant_pids_linux(pid):
+    """Get all descendant PIDs of a process on Linux."""
+    descendants = []
+    try:
+        children_dir = Path(f'/proc/{pid}/task/{pid}/children')
+        if children_dir.exists():
+            child_pids = children_dir.read_text().split()
+        else:
+            # Fallback: scan /proc for processes with this parent
+            child_pids = []
+            for entry in os.listdir('/proc'):
+                if not entry.isdigit():
+                    continue
+                try:
+                    with open(f'/proc/{entry}/stat') as f:
+                        stat = f.read()
+                    # Field 4 is PPID (after pid, comm, state)
+                    parts = stat.rsplit(')', 1)[-1].split()
+                    if len(parts) >= 2 and parts[1] == str(pid):
+                        child_pids.append(entry)
+                except (FileNotFoundError, ProcessLookupError):
+                    pass
+        for cpid_str in child_pids:
+            cpid = int(cpid_str)
+            descendants.append(cpid)
+            descendants.extend(_get_descendant_pids_linux(cpid))
+    except (FileNotFoundError, ProcessLookupError, OSError):
+        pass
+    return descendants
 
 
 def _get_total_memory_bytes():
