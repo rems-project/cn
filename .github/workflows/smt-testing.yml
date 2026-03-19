@@ -81,4 +81,4 @@ jobs:
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-test-gen.py -s
+          cd tests; ./run-cn-test-gen.py -s --memory-limit=4g
