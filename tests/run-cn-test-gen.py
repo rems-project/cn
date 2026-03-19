@@ -8,8 +8,8 @@ import subprocess
 import sys
 import threading
 import time
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from pathlib import Path
 
 from tqdm import tqdm
@@ -54,6 +54,39 @@ def _get_rss_bytes(pid):
     except (FileNotFoundError, ProcessLookupError, ValueError,
             subprocess.CalledProcessError, OSError):
         return None
+
+
+def _get_total_memory_bytes():
+    """Detect total system memory in bytes. Returns None on failure."""
+    try:
+        if sys.platform == 'linux':
+            with open('/proc/meminfo') as f:
+                for line in f:
+                    if line.startswith('MemTotal:'):
+                        return int(line.split()[1]) * 1024  # /proc/meminfo reports in kB
+            # Fallback
+            return os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')
+        elif sys.platform == 'darwin':
+            result = subprocess.run(
+                ['sysctl', '-n', 'hw.memsize'],
+                capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                return int(result.stdout.strip())
+    except (FileNotFoundError, ValueError, OSError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
+def format_size(nbytes):
+    """Format bytes as human-readable string like '1.0g', '512.0m'."""
+    if nbytes >= 1024**3:
+        return f"{nbytes / 1024**3:.1f}g"
+    elif nbytes >= 1024**2:
+        return f"{nbytes / 1024**2:.1f}m"
+    elif nbytes >= 1024:
+        return f"{nbytes / 1024:.1f}k"
+    return f"{nbytes}b"
 
 
 def _drain_pipe(pipe, output_list):
@@ -397,33 +430,92 @@ def main():
     print(
         f"Running {len(jobs)} jobs across {len(test_files)} test files ({mode_str} mode)")
 
-    # Execute all jobs in parallel
+    # Execute jobs with budget-aware scheduling
     max_workers = args.jobs or max(1, multiprocessing.cpu_count() // 2)
+
+    # Budget initialization
+    if memory_limit is not None:
+        total_budget = memory_limit
+    else:
+        detected = _get_total_memory_bytes()
+        # Reserve 1 GiB for OS/overhead when auto-detecting
+        total_budget = max(detected - 1024**3, 1024**3) if detected else None
+
+    per_job_limit = total_budget // max_workers if total_budget else None
+
+    # Build pending jobs with per-job memory limits
+    pending = deque((tf, cfg, tt, per_job_limit) for tf, cfg, tt in jobs)
+    running = {}       # future -> (tf, cfg, tt, job_mem_limit)
+    retry_history = {}  # (str(tf), cfg) -> [(limit_bytes, result_str)]
+
     results = []
     completed_files = set()
     num_failed = 0
     num_oom = 0
+    num_retries = 0
 
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(run_job, cn_path, tf, cfg, tt, memory_limit): (tf, cfg, tt)
-                for tf, cfg, tt in jobs
-            }
-
             with tqdm(total=len(jobs), unit="job") as pbar:
-                for future in as_completed(futures):
-                    result = future.result()
-                    results.append(result)
-                    tf, _, result_str, _, _ = result
-                    completed_files.add(str(tf))
-                    if result_str == 'oom':
-                        num_oom += 1
-                        pbar.set_postfix(failed=num_failed, oom=num_oom)
-                    elif result_str == 'fail':
-                        num_failed += 1
-                        pbar.set_postfix(failed=num_failed, oom=num_oom)
-                    pbar.update(1)
+                available_budget = total_budget
+
+                while pending or running:
+                    # Dispatch phase: fill up to max_workers slots
+                    submitted_this_round = True
+                    while submitted_this_round and pending and len(running) < max_workers:
+                        submitted_this_round = False
+                        for i in range(len(pending)):
+                            tf, cfg, tt, jml = pending[i]
+                            if total_budget is None or jml <= available_budget:
+                                del pending[i]
+                                if total_budget is not None:
+                                    available_budget -= jml
+                                fut = executor.submit(run_job, cn_path, tf, cfg, tt, jml)
+                                running[fut] = (tf, cfg, tt, jml)
+                                submitted_this_round = True
+                                break
+
+                    if not running:
+                        break  # Nothing running, nothing dispatchable
+
+                    # Wait for at least one completion
+                    done, _ = wait(running.keys(), return_when=FIRST_COMPLETED)
+                    for fut in done:
+                        tf, cfg, tt, jml = running.pop(fut)
+                        result = fut.result()
+                        _, _, result_str, elapsed, output = result
+
+                        # Return budget
+                        if total_budget is not None and jml is not None:
+                            available_budget += jml
+
+                        key = (str(tf), cfg)
+
+                        # OOM retry logic
+                        if result_str == 'oom' and total_budget is not None:
+                            retry_history.setdefault(key, []).append((jml, 'oom'))
+                            new_limit = min(jml * 2, total_budget)
+                            if new_limit > jml:
+                                # Re-queue with doubled limit
+                                pending.append((tf, cfg, tt, new_limit))
+                                num_retries += 1
+                                pbar.set_postfix(failed=num_failed, oom=num_oom,
+                                                 retries=num_retries)
+                                continue  # Don't record as final result yet
+
+                        # Final result (pass, fail, or final OOM)
+                        if key in retry_history:
+                            retry_history[key].append((jml, result_str))
+
+                        results.append(result)
+                        completed_files.add(str(tf))
+                        if result_str == 'oom':
+                            num_oom += 1
+                        elif result_str == 'fail':
+                            num_failed += 1
+                        pbar.set_postfix(failed=num_failed, oom=num_oom,
+                                         retries=num_retries)
+                        pbar.update(1)
 
     except KeyboardInterrupt:
         executor.shutdown(wait=False, cancel_futures=True)
@@ -437,18 +529,21 @@ def main():
                 print(red(f"  {t}"))
 
         # Still print results for what we have
-        _print_results(results, test_files)
+        _print_results(results, test_files, retry_history)
         os._exit(1)
 
-    _print_results(results, test_files)
+    _print_results(results, test_files, retry_history)
 
     # Exit 1 if any failures or OOMs
     if any(r != 'pass' for _, _, r, _, _ in results):
         sys.exit(1)
 
 
-def _print_results(results, test_files):
+def _print_results(results, test_files, retry_history=None):
     """Print aggregated results grouped by test file."""
+    if retry_history is None:
+        retry_history = {}
+
     # Group results by test file
     by_file = defaultdict(list)
     for tf, cfg, result_str, elapsed, output in results:
@@ -512,6 +607,19 @@ def _print_results(results, test_files):
             print(f"  OOM:    {tf}")
     else:
         print(f"\nAll {total} test file(s) passed")
+
+    # Print retry history summary
+    if retry_history:
+        print(f"\nMemory limit adjustments:")
+        for (tf_str, cfg), history in retry_history.items():
+            parts = cfg.split("--build-tool=")
+            bt = parts[1].split()[0] if len(parts) > 1 else "?"
+            steps = []
+            for limit_bytes, result_str in history:
+                size_str = format_size(limit_bytes) if limit_bytes else "?"
+                steps.append(f"{size_str} ({result_str.upper()})")
+            print(f"  {Path(tf_str).name} (config: ...--build-tool={bt}):")
+            print(f"    {' -> '.join(steps)}")
 
 
 if __name__ == "__main__":
