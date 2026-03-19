@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import concurrent.futures
 import multiprocessing
 import os
 import signal
@@ -9,7 +8,11 @@ import subprocess
 import sys
 import threading
 import time
+from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+
+from tqdm import tqdm
 
 
 def red(text):
@@ -55,11 +58,6 @@ def get_test_type(test_file, config):
         return 'UNKNOWN'
 
 
-def separator():
-    """Return a separator string for output formatting."""
-    return '\n===========================================================\n\n'
-
-
 def run_cn_test(cn_path, test_file, config):
     """Run CN test with given configuration and return (return_code, elapsed_time, test_output)."""
     start_time = time.time()
@@ -81,121 +79,56 @@ def run_cn_test(cn_path, test_file, config):
         test_output = str(e)
         return_code = -1
 
-    end_time = time.time()
-    elapsed = end_time - start_time
-
+    elapsed = time.time() - start_time
     return return_code, elapsed, test_output
 
 
-def run_single_test(test_file: Path, cn_path, base_config, alt_configs, build_tools, symbolic):
-    """Run a single test file with all configurations."""
-    # Track failures and times for this test
-    num_failed = 0
-    failed_configs = []
-    times = []
-    output_buffer = ""
+def run_job(cn_path, test_file, full_config, test_type):
+    """Run one test job. Returns (test_file, full_config, passed, elapsed, output)."""
+    build_tool = "bash"
+    for part in full_config.split():
+        if part.startswith("--build-tool="):
+            build_tool = part.split("=", 1)[1]
 
-    # Run tests for each configuration
-    for alt_config in alt_configs:
-        for build_tool in build_tools:
-            full_config = f"{base_config} {alt_config} --build-tool={build_tool}"
+    if test_type == "PASS":
+        ret_code, elapsed, output = run_cn_test(
+            cn_path, test_file, full_config)
+        passed = ret_code == 0
+        return (test_file, full_config, passed, elapsed, output)
 
-            if symbolic and str(os.path.basename(test_file)) == "ini_queue.fail.c":
-                full_config += ' --exit-fast'
+    elif test_type in ("FAIL", "BUGGY"):
+        ret_code, elapsed, output = run_cn_test(
+            cn_path, test_file, full_config)
+        if ret_code == 0:
+            passed = False
+        elif build_tool == "bash" and ret_code != 1:
+            passed = False
+        else:
+            passed = True
+        return (test_file, full_config, passed, elapsed, output)
 
-            output_buffer += separator()
-            output_buffer += f'Running CI with CLI config "{full_config}"\n'
-            output_buffer += separator()
+    elif test_type == "FLAKY":
+        total_elapsed = 0
+        for _ in range(3):
+            ret_code, elapsed, output = run_cn_test(
+                cn_path, test_file, full_config)
+            total_elapsed += elapsed
+            if ret_code != 0:
+                if build_tool == "bash" and ret_code != 1:
+                    return (test_file, full_config, False, total_elapsed, output)
+                return (test_file, full_config, True, total_elapsed, output)
+        return (test_file, full_config, False, total_elapsed, output)
 
-            test_type = get_test_type(test_file, full_config)
-
-            if test_type == "PASS":
-                ret_code, elapsed, test_output = run_cn_test(
-                    cn_path, test_file, full_config)
-                times.append(f"{elapsed:.3f}s")
-                output_buffer += test_output
-
-                if ret_code != 0:
-                    output_buffer += f"\n{test_file} -- Tests failed unexpectedly\n"
-                    num_failed += 1
-                    failed_configs.append(
-                        f"({alt_config} --build-tool={build_tool})")
-                else:
-                    output_buffer += f"\n{test_file} -- Tests passed successfully\n"
-
-            elif test_type in ["FAIL", "BUGGY"]:
-                ret_code, elapsed, test_output = run_cn_test(
-                    cn_path, test_file, full_config)
-                times.append(f"{elapsed:.3f}s")
-
-                if ret_code == 0:
-                    output_buffer += f"\n{test_file} -- Tests passed unexpectedly\n"
-                    num_failed += 1
-                    failed_configs.append(f"({alt_config})")
-                elif build_tool == "bash" and ret_code != 1:
-                    output_buffer += test_output
-                    output_buffer += f"\n{test_file} -- Tests failed unnaturally\n"
-                    num_failed += 1
-                    failed_configs.append(f"({alt_config})")
-                else:
-                    output_buffer += f"\n{test_file} -- Tests failed successfully\n"
-
-            elif test_type == "FLAKY":
-                ret_code, elapsed, test_output = run_cn_test(
-                    cn_path, test_file, full_config)
-
-                # Run three times since flaky
-                if ret_code == 0:
-                    ret_code, elapsed_extra, test_output = run_cn_test(
-                        cn_path, test_file, full_config)
-                    elapsed += elapsed_extra
-
-                if ret_code == 0:
-                    ret_code, elapsed_extra, test_output = run_cn_test(
-                        cn_path, test_file, full_config)
-                    elapsed += elapsed_extra
-
-                times.append(f"{elapsed:.3f}s")
-
-                if ret_code == 0:
-                    output_buffer += f"\n{test_file} -- Tests passed unexpectedly\n"
-                    num_failed += 1
-                    failed_configs.append(f"({alt_config})")
-                elif build_tool == "bash" and ret_code != 1:
-                    output_buffer += test_output
-                    output_buffer += f"\n{test_file} -- Tests failed unnaturally\n"
-                    num_failed += 1
-                    failed_configs.append(f"({alt_config})")
-                else:
-                    output_buffer += f"\n{test_file} -- Tests failed successfully"
-
-            elif test_type == "SKIP":
-                # Skip this test configuration
-                continue
-
-            elif test_type == "UNKNOWN":
-                return test_file, False, f"{test_file} -- Unknown test type"
-
-            output_buffer += separator()
-
-    # Format times
-    times_str = ", ".join(times)
-
-    # Report results
-    if not failed_configs:
-        return test_file, True, f"{test_file} - all configs passed. ({times_str})"
-    else:
-        output_buffer += f"{test_file} - {num_failed} configs failed:\n  {' '.join(failed_configs)}"
-        output_buffer += f"\nTimes: ({times_str})"
-        return test_file, False, output_buffer
+    else:  # UNKNOWN
+        return (test_file, full_config, False, 0.0, f"Unknown test type for {test_file}")
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run CN test generation')
     parser.add_argument('-s', '--symbolic', action='store_true',
                         help='Use symbolic execution configurations')
-    parser.add_argument('--mode', choices=['testing', 'benchmarking'], default='testing',
-                        help='Execution mode: testing (parallel, minimal output) or benchmarking (sequential, detailed timing)')
+    parser.add_argument('-j', '--jobs', type=int, default=None,
+                        help='Number of parallel workers (default: cpu_count)')
     parser.add_argument('--solver-type', choices=['z3', 'cvc5'],
                         help='SMT solver to use for the test run (default: solver executable in PATH)')
     parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
@@ -274,168 +207,173 @@ def main():
     else:  # 'both'
         build_tools = ["bash", "make"]
 
-    # If a single test file is specified, run just that test
+    # Determine test files
     if args.test_file:
         test_file = Path(args.test_file)
         if not test_file.exists():
             print(
                 f"Error: Test file {test_file} does not exist", file=sys.stderr)
             sys.exit(1)
-
-        mode_str = "symbolic" if args.symbolic else "random"
-        print(
-            f"Running single test: {test_file} ({mode_str} mode, {args.mode} mode)")
-
-        if args.mode == 'benchmarking':
-            import time as time_module
-            test_start_time = time_module.time()
-
-        _, success, output = run_single_test(
-            test_file, cn_path, base_config, alt_configs, build_tools, args.symbolic)
-
-        if args.mode == 'benchmarking':
-            test_end_time = time_module.time()
-            test_elapsed = test_end_time - test_start_time
-            status = "PASSED" if success else "FAILED"
-            print(f"{status}: {test_file} (took {test_elapsed:.3f}s)")
-
-        print(output)
-        sys.exit(0 if success else 1)
-
-    # Otherwise, find test files to run
-    src_dir = Path("./src")
-    if not src_dir.exists():
-        print(
-            f"Error: Source directory {src_dir} does not exist", file=sys.stderr)
-        sys.exit(1)
-
-    # First, determine the normal set of test files based on mode
-    if args.symbolic:
-        # For symbolic mode, exclude unsupported tests
-        smt_test_unsupported = [
-            "ini_queue.pass.c",
-            "mkm.pass.c",
-            "range.fail.c",
-            "range.pass.c",
-            "sized_array.pass.c",
-        ]
-        # Get all .c files and filter out unsupported ones
-        all_test_files = list(src_dir.glob("**/*.c"))
-        test_files = [
-            test_file for test_file in all_test_files
-            if test_file.name not in smt_test_unsupported
-        ]
+        test_files = [test_file]
     else:
-        # For non-symbolic mode, use all .c files
-        test_files = list(src_dir.glob("**/*.c"))
+        src_dir = Path("./src")
+        if not src_dir.exists():
+            print(
+                f"Error: Source directory {src_dir} does not exist", file=sys.stderr)
+            sys.exit(1)
 
-    # Filter to only requested files if --only is specified
-    if args.only:
-        only_files = [f.strip() for f in args.only.split(",")]
-        # Convert test_files to a set of filenames for quick lookup
-        available_files = {
-            test_file.name: test_file for test_file in test_files}
+        if args.symbolic:
+            smt_test_unsupported = [
+                "ini_queue.pass.c",
+                "mkm.pass.c",
+                "range.fail.c",
+                "range.pass.c",
+                "sized_array.pass.c",
+            ]
+            all_test_files = list(src_dir.glob("**/*.c"))
+            test_files = [
+                tf for tf in all_test_files
+                if tf.name not in smt_test_unsupported
+            ]
+        else:
+            test_files = list(src_dir.glob("**/*.c"))
 
-        filtered_test_files = []
-        for test_name in only_files:
-            if test_name in available_files:
-                filtered_test_files.append(available_files[test_name])
-            else:
-                mode_str = "symbolic" if args.symbolic else "random"
-                print(
-                    f"Error: Test file {test_name} not found in {mode_str} mode test set", file=sys.stderr)
-                sys.exit(1)
+        # Filter to only requested files if --only is specified
+        if args.only:
+            only_files = [f.strip() for f in args.only.split(",")]
+            available_files = {tf.name: tf for tf in test_files}
 
-        test_files = filtered_test_files
+            filtered_test_files = []
+            for test_name in only_files:
+                if test_name in available_files:
+                    filtered_test_files.append(available_files[test_name])
+                else:
+                    mode_str = "symbolic" if args.symbolic else "random"
+                    print(
+                        f"Error: Test file {test_name} not found in {mode_str} mode test set", file=sys.stderr)
+                    sys.exit(1)
+
+            test_files = filtered_test_files
 
     if not test_files:
         print("No test files found")
         return
 
+    # Build flat job list
+    jobs = []
+    for tf in test_files:
+        for alt_config in alt_configs:
+            for build_tool in build_tools:
+                full_config = f"{base_config} {alt_config} --build-tool={build_tool}"
+
+                if args.symbolic and Path(tf).name == "ini_queue.fail.c":
+                    full_config += ' --exit-fast'
+
+                test_type = get_test_type(tf, full_config)
+                if test_type == 'SKIP':
+                    continue
+                jobs.append((tf, full_config, test_type))
+
+    if not jobs:
+        print("No testable jobs after filtering")
+        return
+
     mode_str = "symbolic" if args.symbolic else "random"
     print(
-        f"Found {len(test_files)} test files for {mode_str} mode ({args.mode} mode)")
+        f"Running {len(jobs)} jobs across {len(test_files)} test files ({mode_str} mode)")
 
-    failed_tests = []
+    # Execute all jobs in parallel
+    max_workers = args.jobs or max(1, multiprocessing.cpu_count() // 2)
+    results = []
+    completed_files = set()
+    num_failed = 0
 
-    if args.mode == 'testing':
-        # Testing mode: Run tests in parallel with minimal output
-        max_workers = multiprocessing.cpu_count()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers / 2) as executor:
-            # Submit all test jobs
-            future_to_test = {
-                executor.submit(run_single_test, test_file, cn_path, base_config, alt_configs, build_tools, args.symbolic): test_file
-                for test_file in test_files
+    try:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(run_job, cn_path, tf, cfg, tt): (tf, cfg, tt)
+                for tf, cfg, tt in jobs
             }
 
-            # Collect results
-            completed_tests = set()
-            try:
-                for future in concurrent.futures.as_completed(future_to_test):
-                    test_file, success, output = future.result()
-                    completed_tests.add(test_file)
-                    if not success:
-                        failed_tests.append(test_file)
-                        print(f"FAILED: {test_file}")
-                        if output.strip():
-                            print(output)
-                    else:
-                        print(f"PASSED: {test_file}")
-            except KeyboardInterrupt:
-                executor.shutdown(wait=False, cancel_futures=True)
-                _kill_active_procs()
-                incomplete_tests = [
-                    t for t in test_files if t not in completed_tests]
-                print(
-                    red("\nTests interrupted early, the following tests did not complete:"))
-                for t in incomplete_tests:
-                    print(red(f"  {t}"))
-                os._exit(1)
+            with tqdm(total=len(jobs), unit="job") as pbar:
+                for future in as_completed(futures):
+                    result = future.result()
+                    results.append(result)
+                    tf, _, passed, _, _ = result
+                    completed_files.add(str(tf))
+                    if not passed:
+                        num_failed += 1
+                        pbar.set_postfix(failed=num_failed)
+                    pbar.update(1)
 
-    elif args.mode == 'benchmarking':
-        # Benchmarking mode: Run tests sequentially with detailed timing
-        import time as time_module
-        total_start_time = time_module.time()
+    except KeyboardInterrupt:
+        executor.shutdown(wait=False, cancel_futures=True)
+        _kill_active_procs()
 
-        try:
-            for i, test_file in enumerate(test_files, 1):
-                print(f"\n[{i}/{len(test_files)}] Running test: {test_file}")
-                test_start_time = time_module.time()
-
-                test_file_result, success, output = run_single_test(
-                    test_file, cn_path, base_config, alt_configs, build_tools, args.symbolic)
-
-                test_end_time = time_module.time()
-                test_elapsed = test_end_time - test_start_time
-
-                if not success:
-                    failed_tests.append(test_file_result)
-                    print(f"FAILED: {test_file} (took {test_elapsed:.3f}s)")
-                    if output.strip():
-                        print(output)
-                else:
-                    print(f"PASSED: {test_file} (took {test_elapsed:.3f}s)")
-                    print(output)
-        except KeyboardInterrupt:
-            _kill_active_procs()
-            incomplete_tests = test_files[i:]
-            print(red("\nTests interrupted early, the following tests did not complete:"))
-            for t in incomplete_tests:
+        incomplete = [str(tf)
+                      for tf in test_files if str(tf) not in completed_files]
+        if incomplete:
+            print(red("\nInterrupted. Incomplete tests:"))
+            for t in incomplete:
                 print(red(f"  {t}"))
-            os._exit(1)
 
-        total_end_time = time_module.time()
-        total_elapsed = total_end_time - total_start_time
-        print(f"\nTotal benchmarking time: {total_elapsed:.3f}s")
+        # Still print results for what we have
+        _print_results(results, test_files)
+        os._exit(1)
 
-    # Exit with error if any tests failed
-    if failed_tests:
-        print(f"\n{len(failed_tests)} test(s) failed:")
-        for test_file in failed_tests:
-            print(f"  {test_file}")
+    _print_results(results, test_files)
+
+    # Exit 1 if any failures
+    if any(not passed for _, _, passed, _, _ in results):
         sys.exit(1)
+
+
+def _print_results(results, test_files):
+    """Print aggregated results grouped by test file."""
+    # Group results by test file
+    by_file = defaultdict(list)
+    for tf, cfg, passed, elapsed, output in results:
+        by_file[str(tf)].append((cfg, passed, elapsed, output))
+
+    failed_files = []
+
+    print(f"\n{'='*60}")
+    for tf in test_files:
+        key = str(tf)
+        if key not in by_file:
+            continue
+
+        file_results = by_file[key]
+        all_passed = all(p for _, p, _, _ in file_results)
+        total_time = sum(e for _, _, e, _ in file_results)
+
+        if all_passed:
+            print(f"PASSED: {tf} [{total_time:.1f}s]")
+        else:
+            failed_configs = [cfg for cfg, p, _, _ in file_results if not p]
+            print(f"FAILED: {tf} [{total_time:.1f}s]")
+            for cfg in failed_configs:
+                # Extract the distinguishing parts (alt_config + build_tool)
+                parts = cfg.split("--build-tool=")
+                bt = parts[1].split()[0] if len(parts) > 1 else "?"
+                print(f"         config: ...--build-tool={bt}")
+
+            # Print output from failed jobs
+            for cfg, p, _, output in file_results:
+                if not p and output.strip():
+                    print(output)
+            failed_files.append(tf)
+
+    print(f"{'='*60}")
+
+    total = len(by_file)
+    failed = len(failed_files)
+    if failed:
+        print(f"\n{failed}/{total} test file(s) failed:")
+        for tf in failed_files:
+            print(f"  {tf}")
     else:
-        print(f"\nAll {len(test_files)} test(s) passed")
+        print(f"\nAll {total} test file(s) passed")
 
 
 if __name__ == "__main__":

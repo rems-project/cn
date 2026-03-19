@@ -33,6 +33,10 @@ jobs:
         run: |
           sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
 
+      - name: Install Python dependencies
+        run: |
+          pip install tqdm
+
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
         run: |
