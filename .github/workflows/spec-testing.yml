@@ -8,6 +8,8 @@ on:
 
 env:
   CERBERUS_IMAGE_ID: ghcr.io/rems-project/cerberus/cn:release
+  ACTIONS_RUNNER_DEBUG: true
+  ACTIONS_STEP_DEBUG: true
 
 # cancel in-progress job when a new push is performed
 concurrency:
