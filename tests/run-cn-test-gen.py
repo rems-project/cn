@@ -28,10 +28,10 @@ _use_systemd = None
 
 
 def _has_systemd_run():
-    """Check if systemd-run is available (Linux cgroup memory limits)."""
+    """Check if systemd-run --scope is usable (Linux cgroup memory limits)."""
     try:
         result = subprocess.run(
-            ["systemd-run", "--version"],
+            ["systemd-run", "--scope", "-q", "--", "true"],
             capture_output=True, timeout=5
         )
         return result.returncode == 0

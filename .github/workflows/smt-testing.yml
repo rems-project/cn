@@ -56,7 +56,7 @@ jobs:
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         run: |
-          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          opam init --yes --no-setup --disable-sandboxing --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
           opam install --deps-only --with-test --yes ./cn.opam z3
@@ -81,4 +81,4 @@ jobs:
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-test-gen.py -s --memory-limit=4g
+          cd tests; ./run-cn-test-gen.py -s --memory-limit=3g -j1
