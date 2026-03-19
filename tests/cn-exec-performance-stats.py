@@ -86,7 +86,7 @@ def print_and_error(error_str):
 def gen_instr_cmd(f, input_basename):
     instr_cmd_prefix = "cn instrument"
     instr_cmd = time_cmd_str + instr_cmd_prefix + \
-        " --without-lemma-checks" + ("" if args.with_loop_invs else " --without-loop-invariants ") + tests_path + "/" + f
+        " --without-lemma-checks " + ("" if args.with_loop_invs else "--without-loop-invariants ") + tests_path + "/" + f
     #instr_cmd += " --output-decorated=" + input_basename + ".exec.c"
     return instr_cmd
 
