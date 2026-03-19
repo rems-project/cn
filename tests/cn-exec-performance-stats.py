@@ -21,6 +21,7 @@ parser.add_argument("--iterate", help="Iterate up to 2**(n-1)")
 parser.add_argument("--buddy_path", help="Collect statistics for pKVM buddy allocator - provide path to buddy")
 parser.add_argument("--preprocess", action='store_true', help='Preprocess input file before generating executable')
 parser.add_argument("--track_owned", action='store_true', help='Track number of Owned predicates dynamically')
+parser.add_argument("--with_loop_invs", action='store_true', help='Instrument source with loop invariant checks')
 parser.set_defaults(preprocess=False)
 parser.set_defaults(track_owned=False)
 
@@ -85,7 +86,7 @@ def print_and_error(error_str):
 def gen_instr_cmd(f, input_basename):
     instr_cmd_prefix = "cn instrument"
     instr_cmd = time_cmd_str + instr_cmd_prefix + \
-        " --without-lemma-checks --without-loop-invariants " + tests_path + "/" + f
+        " --without-lemma-checks" + ("" if args.with_loop_invs else " --without-loop-invariants ") + tests_path + "/" + f
     #instr_cmd += " --output-decorated=" + input_basename + ".exec.c"
     return instr_cmd
 
