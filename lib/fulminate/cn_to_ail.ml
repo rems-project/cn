@@ -539,7 +539,15 @@ let gen_bump_alloc_bs_and_ss () =
   (frame_id_binding, start_stat_, end_stat_)
 
 
-let gen_bool_while_loop sym bt start_expr while_cond ?(if_cond_opt = None) (bs, ss, e) =
+let gen_bool_while_loop
+      sym
+      bt
+      start_expr
+      (end_sym, end_expr)
+      while_cond
+      ?(if_cond_opt = None)
+      (bs, ss, e)
+  =
   (*
      Input:
      each (bt sym; start_expr <= sym && while_cond) {t}
@@ -553,6 +561,8 @@ let gen_bool_while_loop sym bt start_expr while_cond ?(if_cond_opt = None) (bs, 
   let incr_var = A.(AilEident sym) in
   let incr_var_binding = create_binding sym (bt_to_ail_ctype bt) in
   let start_decl = A.(AilSdeclaration [ (sym, Some (mk_expr start_expr)) ]) in
+  let end_binding = create_binding end_sym (bt_to_ail_ctype bt) in
+  let end_decl = A.(AilSdeclaration [ (end_sym, Some (mk_expr end_expr)) ]) in
   let typedef_name = get_typedef_string (bt_to_ail_ctype bt) in
   let incr_func_name =
     match typedef_name with Some str -> str ^ "_increment" | None -> ""
@@ -589,7 +599,10 @@ let gen_bool_while_loop sym bt start_expr while_cond ?(if_cond_opt = None) (bs, 
     A.(AilSwhile (while_cond_with_conversion, mk_stmt (AilSblock (bs, loop_body)), 0))
   in
   let block =
-    A.(AilSblock ([ incr_var_binding ], List.map mk_stmt [ start_decl; while_loop ]))
+    A.(
+      AilSblock
+        ( [ incr_var_binding; end_binding ],
+          List.map mk_stmt [ start_decl; end_decl; while_loop ] ))
   in
   ([ b_binding ], [ b_decl; block ], mk_expr b_ident)
 
@@ -1078,6 +1091,8 @@ let rec cn_to_ail_expr_aux
     let mk_int_const n = IT.(IT (Const (Z (Z.of_int n)), bt', Cerb_location.unknown)) in
     let start_const_it = mk_int_const r_start in
     let end_const_it = mk_int_const r_end in
+    let end_sym = Sym.fresh_anon () in
+    let end_it = IT.sym_ (end_sym, bt', Cerb_location.unknown) in
     let incr_var = IT.(IT (Sym sym, bt', Cerb_location.unknown)) in
     let _, _, start_int_const =
       cn_to_ail_expr_aux
@@ -1090,8 +1105,19 @@ let rec cn_to_ail_expr_aux
         start_const_it
         PassBack
     in
+    let _, _, end_int_const =
+      cn_to_ail_expr_aux
+        filename
+        const_prop
+        pred_name
+        dts
+        globals
+        spec_mode_opt
+        end_const_it
+        PassBack
+    in
     let while_cond_it =
-      IT.(IT (Binop (LT, incr_var, end_const_it), bt', Cerb_location.unknown))
+      IT.(IT (Binop (LT, incr_var, end_it), bt', Cerb_location.unknown))
     in
     let _, _, while_cond =
       cn_to_ail_expr_aux
@@ -1116,7 +1142,13 @@ let rec cn_to_ail_expr_aux
         PassBack
     in
     let bs, ss, e =
-      gen_bool_while_loop sym bt' (rm_expr start_int_const) while_cond translated_t
+      gen_bool_while_loop
+        sym
+        bt'
+        (rm_expr start_int_const)
+        (end_sym, rm_expr end_int_const)
+        while_cond
+        translated_t
     in
     dest d spec_mode_opt (bs, ss, e)
   (* add Z3's Distinct for separation facts *)
@@ -2882,7 +2914,7 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   (* Translation of q.pointer *)
   let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
   (* Start of range *)
-  let start_expr =
+  let lower_bound =
     if BT.equal_sign (fst (Option.get (BT.is_bits_bt i_bt))) BT.Unsigned then
       IndexTerms.Bounds.get_lower_bound (i_sym, i_bt) it
     else (
@@ -2902,11 +2934,11 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   in
   let start_expr =
     IT.IT
-      ( IT.Cast (IT.get_bt start_expr, start_expr),
-        IT.get_bt start_expr,
+      ( IT.Cast (IT.get_bt lower_bound, lower_bound),
+        IT.get_bt lower_bound,
         Cerb_location.unknown )
   in
-  let start_cond =
+  let _start_cond =
     match start_expr with
     | IT (Binop (Add, start_expr', IT (Const (Bits (_, n)), _, _)), _, _)
       when Z.equal n Z.one ->
@@ -2914,7 +2946,7 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
     | _ -> IT.le_ (start_expr, i_it) Cerb_location.unknown
   in
   (* End of range *)
-  let end_expr =
+  let upper_bound =
     match IndexTerms.Bounds.get_upper_bound_opt (i_sym, i_bt) it with
     | Some e -> e
     | None ->
@@ -2929,14 +2961,17 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
         ();
       exit 2
   in
-  let end_cond =
-    match end_expr with
+  (* end_sym will be set to end_expr' at call site after this function *)
+  let end_sym = Sym.fresh_anon () in
+  let end_it = IT.sym_ (end_sym, IT.get_bt upper_bound, Cerb_location.unknown) in
+  let end_expr, end_cond =
+    match upper_bound with
     | IT (Binop (Sub, end_expr', IT (Const (Bits (_, n)), _, _)), _, _)
       when Z.equal n Z.one ->
-      IT.lt_ (i_it, end_expr') Cerb_location.unknown
-    | _ -> IT.le_ (i_it, end_expr) Cerb_location.unknown
+      (end_expr', IT.lt_ (i_it, end_it) Cerb_location.unknown)
+    | _ -> (upper_bound, IT.le_ (i_it, end_it) Cerb_location.unknown)
   in
-  (start_expr, end_expr, IT.and2_ (start_cond, end_cond) Cerb_location.unknown)
+  (start_expr, (end_sym, end_expr), end_cond)
 
 
 let cn_to_ail_resource
@@ -3079,9 +3114,14 @@ let cn_to_ail_resource
     }
     *)
     let i_sym, i_bt = q.q in
-    let start_expr, _, while_loop_cond = get_while_bounds_and_cond q.q q.permission in
+    let start_expr, (end_sym, end_expr), while_loop_cond =
+      get_while_bounds_and_cond q.q q.permission
+    in
     let _, _, e_start =
       cn_to_ail_expr filename dts globals spec_mode_opt start_expr PassBack
+    in
+    let _, _, e_end =
+      cn_to_ail_expr filename dts globals spec_mode_opt end_expr PassBack
     in
     let _, _, while_cond_expr =
       cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
@@ -3104,6 +3144,8 @@ let cn_to_ail_resource
     in
     let start_binding = create_binding i_sym cn_integer_ptr_ctype in
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
+    let end_binding = create_binding end_sym cn_integer_ptr_ctype in
+    let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
     let return_ctype, _return_bt = calculate_resource_return_type preds loc q.name in
     (* Translation of q.pointer *)
     let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
@@ -3197,7 +3239,10 @@ let cn_to_ail_resource
                 0 ))
         in
         let ail_block =
-          A.(AilSblock ([ start_binding ], List.map mk_stmt [ start_assign; while_loop ]))
+          A.(
+            AilSblock
+              ( [ start_binding; end_binding ],
+                List.map mk_stmt [ start_assign; end_assign; while_loop ] ))
         in
         ([], [ ail_block ])
       | _ ->
@@ -3253,7 +3298,10 @@ let cn_to_ail_resource
                 0 ))
         in
         let ail_block =
-          A.(AilSblock ([ start_binding ], List.map mk_stmt [ start_assign; while_loop ]))
+          A.(
+            AilSblock
+              ( [ start_binding; end_binding ],
+                List.map mk_stmt [ start_assign; end_assign; while_loop ] ))
         in
         ([ sym_binding ], [ sym_decl; ail_block ])
     in
@@ -3302,9 +3350,14 @@ let cn_to_ail_logical_constraint_aux
           
           assign/return/assert/passback b
        *)
-       let start_expr, _, while_loop_cond = get_while_bounds_and_cond (sym, bt) cond_it in
+       let start_expr, (end_sym, end_expr), while_loop_cond =
+         get_while_bounds_and_cond (sym, bt) cond_it
+       in
        let _, _, e_start =
          cn_to_ail_expr filename dts globals spec_mode_opt start_expr PassBack
+       in
+       let _, _, e_end =
+         cn_to_ail_expr filename dts globals spec_mode_opt end_expr PassBack
        in
        let _, _, while_cond_expr =
          cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
@@ -3318,6 +3371,7 @@ let cn_to_ail_logical_constraint_aux
            sym
            bt
            (rm_expr e_start)
+           (end_sym, rm_expr e_end)
            while_cond_expr
            ~if_cond_opt:(Some if_cond_expr)
            t_translated
@@ -4980,9 +5034,14 @@ let cn_to_ail_assume_resource
       }
     *)
     let i_sym, i_bt = q.q in
-    let start_expr, _, while_loop_cond = get_while_bounds_and_cond q.q q.permission in
+    let start_expr, (end_sym, end_expr), while_loop_cond =
+      get_while_bounds_and_cond q.q q.permission
+    in
     let _, _, e_start =
       cn_to_ail_expr filename dts globals spec_mode_opt start_expr PassBack
+    in
+    let _, _, e_end =
+      cn_to_ail_expr filename dts globals spec_mode_opt end_expr PassBack
     in
     let _, _, while_cond_expr =
       cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
@@ -5005,6 +5064,8 @@ let cn_to_ail_assume_resource
     in
     let start_binding = create_binding i_sym cn_integer_ptr_ctype in
     let start_assign = A.(AilSdeclaration [ (i_sym, Some e_start) ]) in
+    let end_binding = create_binding end_sym cn_integer_ptr_ctype in
+    let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
     let return_ctype, _return_bt = calculate_return_type q.name in
     (* Translation of q.pointer *)
     let i_it = IT.IT (IT.(Sym i_sym), i_bt, Cerb_location.unknown) in
@@ -5096,7 +5157,10 @@ let cn_to_ail_assume_resource
                 0 ))
         in
         let ail_block =
-          A.(AilSblock ([ start_binding ], List.map mk_stmt [ start_assign; while_loop ]))
+          A.(
+            AilSblock
+              ( [ start_binding; end_binding ],
+                List.map mk_stmt [ start_assign; end_assign; while_loop ] ))
         in
         ([], [ ail_block ])
       | _ ->
@@ -5152,7 +5216,10 @@ let cn_to_ail_assume_resource
                 0 ))
         in
         let ail_block =
-          A.(AilSblock ([ start_binding ], List.map mk_stmt [ start_assign; while_loop ]))
+          A.(
+            AilSblock
+              ( [ start_binding; end_binding ],
+                List.map mk_stmt [ start_assign; end_assign; while_loop ] ))
         in
         ([ sym_binding ], [ sym_decl; ail_block ])
     in
