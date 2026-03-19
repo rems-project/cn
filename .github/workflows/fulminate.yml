@@ -1,4 +1,4 @@
-name: Fulminate Testing
+name: Fulminate
 
 on:
   pull_request:
@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   fulminate:
-    name: Fulminate CI
+    name: Fulminate
 
     strategy:
       matrix:
