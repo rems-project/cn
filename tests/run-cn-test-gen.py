@@ -15,6 +15,52 @@ from pathlib import Path
 from tqdm import tqdm
 
 
+def parse_size(s):
+    """Parse size string like '4g', '512m' to bytes."""
+    s = s.strip().lower()
+    multipliers = {'k': 1024, 'm': 1024**2, 'g': 1024**3}
+    if s[-1] in multipliers:
+        return int(s[:-1]) * multipliers[s[-1]]
+    return int(s)
+
+
+_use_systemd = None
+
+
+def _has_systemd_run():
+    """Check if systemd-run is available (Linux cgroup memory limits)."""
+    try:
+        result = subprocess.run(
+            ["systemd-run", "--version"],
+            capture_output=True, timeout=5
+        )
+        return result.returncode == 0
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+
+
+def _get_rss_bytes(pid):
+    """Get RSS in bytes for a process. Returns None on failure."""
+    try:
+        if sys.platform == 'linux':
+            with open(f'/proc/{pid}/statm') as f:
+                return int(f.read().split()[1]) * os.sysconf('SC_PAGE_SIZE')
+        else:
+            out = subprocess.check_output(
+                ['ps', '-o', 'rss=', '-p', str(pid)],
+                text=True, stderr=subprocess.DEVNULL
+            )
+            return int(out.strip()) * 1024
+    except (FileNotFoundError, ProcessLookupError, ValueError,
+            subprocess.CalledProcessError, OSError):
+        return None
+
+
+def _drain_pipe(pipe, output_list):
+    """Read all data from a pipe into output_list."""
+    output_list.append(pipe.read())
+
+
 def red(text):
     """Wrap text in ANSI red escape codes."""
     return f"\033[91m{text}\033[0m"
@@ -58,18 +104,55 @@ def get_test_type(test_file, config):
         return 'UNKNOWN'
 
 
-def run_cn_test(cn_path, test_file, config):
-    """Run CN test with given configuration and return (return_code, elapsed_time, test_output)."""
+def run_cn_test(cn_path, test_file, config, memory_limit=None):
+    """Run CN test with given configuration and return (return_code, elapsed_time, test_output, oom)."""
     start_time = time.time()
 
     cmd = [cn_path, 'test', str(test_file)] + config.split()
+
+    # Wrap with systemd-run for cgroup memory limits on Linux
+    use_systemd = memory_limit is not None and _use_systemd
+    if use_systemd:
+        cmd = ["systemd-run", "--scope", "-q",
+               f"--property=MemoryMax={memory_limit}", "--"] + cmd
+
+    oom = False
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, start_new_session=True)
         with _active_procs_lock:
             _active_procs.add(proc)
         try:
-            stdout, stderr = proc.communicate()
+            if memory_limit is not None and not use_systemd:
+                # RSS polling fallback (macOS or no systemd)
+                stdout_buf, stderr_buf = [], []
+                t1 = threading.Thread(target=_drain_pipe, args=(proc.stdout, stdout_buf), daemon=True)
+                t2 = threading.Thread(target=_drain_pipe, args=(proc.stderr, stderr_buf), daemon=True)
+                t1.start()
+                t2.start()
+
+                while proc.poll() is None:
+                    rss = _get_rss_bytes(proc.pid)
+                    if rss is not None and rss > memory_limit:
+                        try:
+                            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                        except (ProcessLookupError, OSError):
+                            pass
+                        oom = True
+                        break
+                    time.sleep(0.5)
+
+                t1.join(timeout=5)
+                t2.join(timeout=5)
+                stdout = stdout_buf[0] if stdout_buf else ""
+                stderr = stderr_buf[0] if stderr_buf else ""
+                if proc.poll() is None:
+                    proc.wait()
+            else:
+                stdout, stderr = proc.communicate()
+                # systemd-run sends SIGKILL (exit 137) on cgroup OOM
+                if use_systemd and proc.returncode == 137:
+                    oom = True
         finally:
             with _active_procs_lock:
                 _active_procs.discard(proc)
@@ -80,47 +163,66 @@ def run_cn_test(cn_path, test_file, config):
         return_code = -1
 
     elapsed = time.time() - start_time
-    return return_code, elapsed, test_output
+    return return_code, elapsed, test_output, oom
 
 
-def run_job(cn_path, test_file, full_config, test_type):
-    """Run one test job. Returns (test_file, full_config, passed, elapsed, output)."""
+def run_job(cn_path, test_file, full_config, test_type, memory_limit=None):
+    """Run one test job. Returns (test_file, full_config, result, elapsed, output).
+
+    result is one of: 'pass', 'fail', 'oom'.
+    """
     build_tool = "bash"
     for part in full_config.split():
         if part.startswith("--build-tool="):
             build_tool = part.split("=", 1)[1]
 
+    def _run():
+        return run_cn_test(cn_path, test_file, full_config, memory_limit=memory_limit)
+
+    def _check_oom(oom, ret_code, elapsed, output):
+        if oom:
+            limit_str = f"{memory_limit}" if memory_limit else "?"
+            return (test_file, full_config, 'oom', elapsed,
+                    output + f"\nOOM: exceeded {limit_str} byte memory limit\n")
+        return None
+
     if test_type == "PASS":
-        ret_code, elapsed, output = run_cn_test(
-            cn_path, test_file, full_config)
-        passed = ret_code == 0
-        return (test_file, full_config, passed, elapsed, output)
+        ret_code, elapsed, output, oom = _run()
+        oom_result = _check_oom(oom, ret_code, elapsed, output)
+        if oom_result:
+            return oom_result
+        result = 'pass' if ret_code == 0 else 'fail'
+        return (test_file, full_config, result, elapsed, output)
 
     elif test_type in ("FAIL", "BUGGY"):
-        ret_code, elapsed, output = run_cn_test(
-            cn_path, test_file, full_config)
+        ret_code, elapsed, output, oom = _run()
+        oom_result = _check_oom(oom, ret_code, elapsed, output)
+        if oom_result:
+            return oom_result
         if ret_code == 0:
-            passed = False
+            result = 'fail'
         elif build_tool == "bash" and ret_code != 1:
-            passed = False
+            result = 'fail'
         else:
-            passed = True
-        return (test_file, full_config, passed, elapsed, output)
+            result = 'pass'
+        return (test_file, full_config, result, elapsed, output)
 
     elif test_type == "FLAKY":
         total_elapsed = 0
         for _ in range(3):
-            ret_code, elapsed, output = run_cn_test(
-                cn_path, test_file, full_config)
+            ret_code, elapsed, output, oom = _run()
             total_elapsed += elapsed
+            oom_result = _check_oom(oom, ret_code, total_elapsed, output)
+            if oom_result:
+                return oom_result
             if ret_code != 0:
                 if build_tool == "bash" and ret_code != 1:
-                    return (test_file, full_config, False, total_elapsed, output)
-                return (test_file, full_config, True, total_elapsed, output)
-        return (test_file, full_config, False, total_elapsed, output)
+                    return (test_file, full_config, 'fail', total_elapsed, output)
+                return (test_file, full_config, 'pass', total_elapsed, output)
+        return (test_file, full_config, 'fail', total_elapsed, output)
 
     else:  # UNKNOWN
-        return (test_file, full_config, False, 0.0, f"Unknown test type for {test_file}")
+        return (test_file, full_config, 'fail', 0.0, f"Unknown test type for {test_file}")
 
 
 def main():
@@ -131,6 +233,8 @@ def main():
                         help='Number of parallel workers (default: cpu_count)')
     parser.add_argument('--solver-type', choices=['z3', 'cvc5'],
                         help='SMT solver to use for the test run (default: solver executable in PATH)')
+    parser.add_argument('--memory-limit', type=str, default=None,
+                        help='Per-test memory limit (e.g., 512m, 4g)')
     parser.add_argument('--build-tool', choices=['bash', 'make', 'both'], default='both',
                         help='Build tool to use: bash, make, or both (default: both)')
     parser.add_argument('--only', type=str,
@@ -139,6 +243,17 @@ def main():
                         help='Single test file to run (optional)')
 
     args = parser.parse_args()
+
+    # Parse and cache memory limit settings
+    global _use_systemd
+    memory_limit = None
+    if args.memory_limit is not None:
+        memory_limit = parse_size(args.memory_limit)
+        _use_systemd = _has_systemd_run()
+        if _use_systemd:
+            print(f"Memory limit: {args.memory_limit} (enforced via systemd-run)")
+        else:
+            print(f"Memory limit: {args.memory_limit} (enforced via RSS polling)")
 
     # Get CN path from OPAM
     opam_prefix = os.environ.get('OPAM_SWITCH_PREFIX')
@@ -195,7 +310,7 @@ def main():
         alt_configs = [
             "--coverage --sizing-strategy=quickcheck --inline=everything",
             "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
-            "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
+            "--sizing-strategy=uniform --lazy-gen --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
             "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec"
         ]
 
@@ -287,11 +402,12 @@ def main():
     results = []
     completed_files = set()
     num_failed = 0
+    num_oom = 0
 
     try:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(run_job, cn_path, tf, cfg, tt): (tf, cfg, tt)
+                executor.submit(run_job, cn_path, tf, cfg, tt, memory_limit): (tf, cfg, tt)
                 for tf, cfg, tt in jobs
             }
 
@@ -299,11 +415,14 @@ def main():
                 for future in as_completed(futures):
                     result = future.result()
                     results.append(result)
-                    tf, _, passed, _, _ = result
+                    tf, _, result_str, _, _ = result
                     completed_files.add(str(tf))
-                    if not passed:
+                    if result_str == 'oom':
+                        num_oom += 1
+                        pbar.set_postfix(failed=num_failed, oom=num_oom)
+                    elif result_str == 'fail':
                         num_failed += 1
-                        pbar.set_postfix(failed=num_failed)
+                        pbar.set_postfix(failed=num_failed, oom=num_oom)
                     pbar.update(1)
 
     except KeyboardInterrupt:
@@ -323,8 +442,8 @@ def main():
 
     _print_results(results, test_files)
 
-    # Exit 1 if any failures
-    if any(not passed for _, _, passed, _, _ in results):
+    # Exit 1 if any failures or OOMs
+    if any(r != 'pass' for _, _, r, _, _ in results):
         sys.exit(1)
 
 
@@ -332,10 +451,11 @@ def _print_results(results, test_files):
     """Print aggregated results grouped by test file."""
     # Group results by test file
     by_file = defaultdict(list)
-    for tf, cfg, passed, elapsed, output in results:
-        by_file[str(tf)].append((cfg, passed, elapsed, output))
+    for tf, cfg, result_str, elapsed, output in results:
+        by_file[str(tf)].append((cfg, result_str, elapsed, output))
 
     failed_files = []
+    oom_files = []
 
     print(f"\n{'='*60}")
     for tf in test_files:
@@ -344,23 +464,33 @@ def _print_results(results, test_files):
             continue
 
         file_results = by_file[key]
-        all_passed = all(p for _, p, _, _ in file_results)
+        all_passed = all(r == 'pass' for _, r, _, _ in file_results)
+        any_oom = any(r == 'oom' for _, r, _, _ in file_results)
         total_time = sum(e for _, _, e, _ in file_results)
 
         if all_passed:
             print(f"PASSED: {tf} [{total_time:.1f}s]")
+        elif any_oom:
+            print(f"OOM:    {tf} [{total_time:.1f}s] — exceeded memory limit")
+            for cfg, r, _, _ in file_results:
+                if r == 'oom':
+                    parts = cfg.split("--build-tool=")
+                    bt = parts[1].split()[0] if len(parts) > 1 else "?"
+                    print(f"         config: ...--build-tool={bt}")
+            for cfg, r, _, output in file_results:
+                if r == 'oom' and output.strip():
+                    print(output)
+            oom_files.append(tf)
         else:
-            failed_configs = [cfg for cfg, p, _, _ in file_results if not p]
+            failed_configs = [cfg for cfg, r, _, _ in file_results if r != 'pass']
             print(f"FAILED: {tf} [{total_time:.1f}s]")
             for cfg in failed_configs:
-                # Extract the distinguishing parts (alt_config + build_tool)
                 parts = cfg.split("--build-tool=")
                 bt = parts[1].split()[0] if len(parts) > 1 else "?"
                 print(f"         config: ...--build-tool={bt}")
 
-            # Print output from failed jobs
-            for cfg, p, _, output in file_results:
-                if not p and output.strip():
+            for cfg, r, _, output in file_results:
+                if r != 'pass' and output.strip():
                     print(output)
             failed_files.append(tf)
 
@@ -368,10 +498,18 @@ def _print_results(results, test_files):
 
     total = len(by_file)
     failed = len(failed_files)
-    if failed:
-        print(f"\n{failed}/{total} test file(s) failed:")
+    oom = len(oom_files)
+    if failed or oom:
+        parts = []
+        if failed:
+            parts.append(f"{failed} failed")
+        if oom:
+            parts.append(f"{oom} hit memory limit")
+        print(f"\n{total} test file(s): {', '.join(parts)}")
         for tf in failed_files:
-            print(f"  {tf}")
+            print(f"  FAILED: {tf}")
+        for tf in oom_files:
+            print(f"  OOM:    {tf}")
     else:
         print(f"\nAll {total} test file(s) passed")
 
