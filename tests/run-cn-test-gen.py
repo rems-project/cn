@@ -558,7 +558,7 @@ def main():
                         # OOM retry logic
                         if result_str == 'oom' and total_budget is not None:
                             retry_history.setdefault(
-                                key, []).append((jml, 'oom'))
+                                key, []).append((jml, 'oom', san_disabled))
                             new_limit = min(jml * 2, total_budget)
                             if new_limit > jml:
                                 # Re-queue with doubled limit
@@ -582,7 +582,7 @@ def main():
 
                         # Final result (pass, fail, or final OOM)
                         if key in retry_history:
-                            retry_history[key].append((jml, result_str))
+                            retry_history[key].append((jml, result_str, san_disabled))
 
                         results.append(result)
                         completed_files.add(str(tf))
@@ -693,9 +693,12 @@ def _print_results(results, test_files, retry_history=None):
             parts = cfg.split("--build-tool=")
             bt = parts[1].split()[0] if len(parts) > 1 else "?"
             steps = []
-            for limit_bytes, result_str in history:
+            for limit_bytes, result_str, san_off in history:
                 size_str = format_size(limit_bytes) if limit_bytes else "?"
-                steps.append(f"{size_str} ({result_str.upper()})")
+                label = f"{size_str} ({result_str.upper()})"
+                if san_off:
+                    label = f"{size_str} ({result_str.upper()}, no ASan)"
+                steps.append(label)
             print(f"  {Path(tf_str).name} (config: ...--build-tool={bt}):")
             print(f"    {' -> '.join(steps)}")
 
