@@ -501,8 +501,8 @@ def main():
     per_job_limit = total_budget // max_workers if total_budget else None
 
     # Build pending jobs with per-job memory limits
-    pending = deque((tf, cfg, tt, per_job_limit) for tf, cfg, tt in jobs)
-    running = {}       # future -> (tf, cfg, tt, job_mem_limit)
+    pending = deque((tf, cfg, tt, per_job_limit, False) for tf, cfg, tt in jobs)
+    running = {}       # future -> (tf, cfg, tt, job_mem_limit, san_disabled)
     retry_history = {}  # (str(tf), cfg) -> [(limit_bytes, result_str)]
 
     results = []
@@ -522,13 +522,13 @@ def main():
                     while submitted_this_round and pending and len(running) < max_workers:
                         submitted_this_round = False
                         for i in range(len(pending)):
-                            tf, cfg, tt, jml = pending[i]
+                            tf, cfg, tt, jml, san_disabled = pending[i]
                             if total_budget is None or jml <= available_budget:
                                 del pending[i]
                                 if total_budget is not None:
                                     available_budget -= jml
                                 fut = executor.submit(run_job, cn_path, tf, cfg, tt, jml)
-                                running[fut] = (tf, cfg, tt, jml)
+                                running[fut] = (tf, cfg, tt, jml, san_disabled)
                                 submitted_this_round = True
                                 break
 
@@ -538,7 +538,7 @@ def main():
                     # Wait for at least one completion
                     done, _ = wait(running.keys(), return_when=FIRST_COMPLETED)
                     for fut in done:
-                        tf, cfg, tt, jml = running.pop(fut)
+                        tf, cfg, tt, jml, san_disabled = running.pop(fut)
                         result = fut.result()
                         _, _, result_str, elapsed, output = result
 
@@ -554,11 +554,21 @@ def main():
                             new_limit = min(jml * 2, total_budget)
                             if new_limit > jml:
                                 # Re-queue with doubled limit
-                                pending.append((tf, cfg, tt, new_limit))
+                                pending.append((tf, cfg, tt, new_limit, san_disabled))
                                 num_retries += 1
                                 pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                  retries=num_retries)
                                 continue  # Don't record as final result yet
+                            elif not san_disabled:
+                                # Retry without address sanitizer (reduces memory overhead)
+                                new_cfg = cfg.replace(
+                                    '--sanitize=address,undefined', '--sanitize=undefined')
+                                if new_cfg != cfg:
+                                    pending.append((tf, new_cfg, tt, jml, True))
+                                    num_retries += 1
+                                    pbar.set_postfix(failed=num_failed, oom=num_oom,
+                                                     retries=num_retries)
+                                    continue
 
                         # Final result (pass, fail, or final OOM)
                         if key in retry_history:
