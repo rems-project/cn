@@ -5,6 +5,7 @@
 #include <bennet/internals/size.h>
 
 static size_t global_max_size = 25;
+static size_t global_size = 20;
 
 size_t bennet_get_max_size(void) {
   return global_max_size;
@@ -14,9 +15,11 @@ void bennet_set_max_size(size_t sz) {
   assert(sz != 0);
 
   global_max_size = sz;
-}
 
-static size_t global_size = 20;
+  if (global_size > global_max_size) {
+    global_size = global_max_size;
+  }
+}
 
 size_t bennet_get_size(void) {
   return global_size;
@@ -166,6 +169,10 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
       } else {
         potential_size = (successes % max_size) * max_size / (max_tests % max_size) +
                          recent_discards / discard_divisor;
+      }
+
+      if (potential_size > max_size) {
+        potential_size = max_size;
       }
 
       if (potential_size < max_size) {
