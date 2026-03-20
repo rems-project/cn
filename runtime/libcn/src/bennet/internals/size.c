@@ -164,7 +164,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
           successes >= max_tests || max_tests % max_size == 0) {
         potential_size = (successes % max_tests + recent_discards / discard_divisor);
       } else {
-        potential_size = (successes % max_size) * max_size / (successes % max_size) +
+        potential_size = (successes % max_size) * max_size / (max_tests % max_size) +
                          recent_discards / discard_divisor;
       }
 
