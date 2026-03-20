@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from collections import defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 
 from tqdm import tqdm
@@ -74,7 +74,7 @@ def _get_rss_bytes(pid):
                 text=True, stderr=subprocess.DEVNULL
             )
             total_rss = sum(int(line.strip()) * 1024
-                           for line in out.strip().splitlines() if line.strip())
+                            for line in out.strip().splitlines() if line.strip())
             return total_rss if total_rss > 0 else None
     except (FileNotFoundError, ProcessLookupError, ValueError,
             subprocess.CalledProcessError, OSError):
@@ -119,7 +119,8 @@ def _get_total_memory_bytes():
             with open('/proc/meminfo') as f:
                 for line in f:
                     if line.startswith('MemTotal:'):
-                        return int(line.split()[1]) * 1024  # /proc/meminfo reports in kB
+                        # /proc/meminfo reports in kB
+                        return int(line.split()[1]) * 1024
             # Fallback
             return os.sysconf('SC_PHYS_PAGES') * os.sysconf('SC_PAGE_SIZE')
         elif sys.platform == 'darwin':
@@ -215,8 +216,10 @@ def run_cn_test(cn_path, test_file, config, memory_limit=None):
             if memory_limit is not None and not use_systemd:
                 # RSS polling fallback (macOS or no systemd)
                 stdout_buf, stderr_buf = [], []
-                t1 = threading.Thread(target=_drain_pipe, args=(proc.stdout, stdout_buf), daemon=True)
-                t2 = threading.Thread(target=_drain_pipe, args=(proc.stderr, stderr_buf), daemon=True)
+                t1 = threading.Thread(target=_drain_pipe, args=(
+                    proc.stdout, stdout_buf), daemon=True)
+                t2 = threading.Thread(target=_drain_pipe, args=(
+                    proc.stderr, stderr_buf), daemon=True)
                 t1.start()
                 t2.start()
 
@@ -340,9 +343,11 @@ def main():
         memory_limit = parse_size(args.memory_limit)
         _use_systemd = _has_systemd_run()
         if _use_systemd:
-            print(f"Memory limit: {args.memory_limit} (enforced via systemd-run)")
+            print(
+                f"Memory limit: {args.memory_limit} (enforced via systemd-run)")
         else:
-            print(f"Memory limit: {args.memory_limit} (enforced via RSS polling)")
+            print(
+                f"Memory limit: {args.memory_limit} (enforced via RSS polling)")
 
     # Get CN path from OPAM
     opam_prefix = os.environ.get('OPAM_SWITCH_PREFIX')
@@ -501,7 +506,8 @@ def main():
     per_job_limit = total_budget // max_workers if total_budget else None
 
     # Build pending jobs with per-job memory limits
-    pending = deque((tf, cfg, tt, per_job_limit, False) for tf, cfg, tt in jobs)
+    pending = deque((tf, cfg, tt, per_job_limit, False)
+                    for tf, cfg, tt in jobs)
     running = {}       # future -> (tf, cfg, tt, job_mem_limit, san_disabled)
     retry_history = {}  # (str(tf), cfg) -> [(limit_bytes, result_str)]
 
@@ -527,7 +533,8 @@ def main():
                                 del pending[i]
                                 if total_budget is not None:
                                     available_budget -= jml
-                                fut = executor.submit(run_job, cn_path, tf, cfg, tt, jml)
+                                fut = executor.submit(
+                                    run_job, cn_path, tf, cfg, tt, jml)
                                 running[fut] = (tf, cfg, tt, jml, san_disabled)
                                 submitted_this_round = True
                                 break
@@ -550,11 +557,13 @@ def main():
 
                         # OOM retry logic
                         if result_str == 'oom' and total_budget is not None:
-                            retry_history.setdefault(key, []).append((jml, 'oom'))
+                            retry_history.setdefault(
+                                key, []).append((jml, 'oom'))
                             new_limit = min(jml * 2, total_budget)
                             if new_limit > jml:
                                 # Re-queue with doubled limit
-                                pending.append((tf, cfg, tt, new_limit, san_disabled))
+                                pending.append(
+                                    (tf, cfg, tt, new_limit, san_disabled))
                                 num_retries += 1
                                 pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                  retries=num_retries)
@@ -564,7 +573,8 @@ def main():
                                 new_cfg = cfg.replace(
                                     '--sanitize=address,undefined', '--sanitize=undefined')
                                 if new_cfg != cfg:
-                                    pending.append((tf, new_cfg, tt, jml, True))
+                                    pending.append(
+                                        (tf, new_cfg, tt, jml, True))
                                     num_retries += 1
                                     pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                      retries=num_retries)
@@ -644,7 +654,8 @@ def _print_results(results, test_files, retry_history=None):
                     print(output)
             oom_files.append(tf)
         else:
-            failed_configs = [cfg for cfg, r, _, _ in file_results if r != 'pass']
+            failed_configs = [cfg for cfg, r, _,
+                              _ in file_results if r != 'pass']
             print(f"FAILED: {tf} [{total_time:.1f}s]")
             for cfg in failed_configs:
                 parts = cfg.split("--build-tool=")
