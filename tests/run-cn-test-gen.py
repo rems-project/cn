@@ -385,6 +385,7 @@ def main():
         "--progress-level=function "
         "--sanitize=address,undefined "
         "--allow-split-magic-comments "
+        "--max-generator-size=16 "
         "--print-seed"
         f"{solver_config}"
     )
