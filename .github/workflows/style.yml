@@ -2,7 +2,7 @@
 name: Style
 
 on:
-  pull_request:
+  # pull_request:
   push:
     branches:
       - main
@@ -30,7 +30,7 @@ jobs:
         with:
           path: ~/.opam
           key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
-    
+
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         run: |
@@ -38,14 +38,14 @@ jobs:
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
           opam install --deps-only --with-test --yes ./cn.opam z3
-  
+
       - name: Save OPAM cache
         uses: actions/cache/save@v4
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         with:
           path: ~/.opam
           key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
-  
+
       - name: Install OCamlFormat
         run: |
           eval $(opam env --switch=${{ matrix.version }})

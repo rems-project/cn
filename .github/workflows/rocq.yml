@@ -2,7 +2,7 @@
 name: Rocq
 
 on:
-  pull_request:
+  # pull_request:
   push:
     branches:
       - main
@@ -18,9 +18,8 @@ concurrency:
 
 jobs:
   build:
-
     name: Rocq
-    
+
     strategy:
       matrix:
         version: [5.2.0]
@@ -28,48 +27,47 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
 
-    - name: Checkout CN
-      uses: actions/checkout@v4
+      - name: System dependencies (Ubuntu)
+        run: |
+          sudo apt-get install build-essential libgmp-dev z3 opam
 
-    - name: System dependencies (Ubuntu)
-      run: |
-        sudo apt-get install build-essential libgmp-dev z3 opam
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
 
-    - name: Restore OPAM cache
-      id: cache-opam-restore
-      uses: actions/cache/restore@v4
-      with:
-        path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
-  
-    - name: Setup OPAM
-      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
-      run: |
-        opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
-        opam switch create ${{ matrix.version }}-with-coq ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }}-with-coq)
-        opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
-        opam install --deps-only --yes ./cn.opam
-      
-    - name: Save OPAM cache
-      uses: actions/cache/save@v4
-      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
-      with:
-        path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          opam switch create ${{ matrix.version }}-with-coq ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }}-with-coq)
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
+          opam install --deps-only --yes ./cn.opam
 
-    - name: Install CN (with Coq)
-      run: |
-        opam switch ${{ matrix.version }}-with-coq
-        eval $(opam env --switch=${{ matrix.version }}-with-coq )
-        opam pin --yes --no-action add cn .
-        opam pin --yes --no-action add cn-coq .
-        opam install --yes cn cn-coq
+      - name: Save OPAM cache
+        uses: actions/cache/save@v4
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
 
-    - name: Run CN-Coq tests
-      run: |
-        opam switch ${{ matrix.version }}-with-coq
-        eval $(opam env --switch=${{ matrix.version }}-with-coq )
-        ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
+      - name: Install CN (with Coq)
+        run: |
+          opam switch ${{ matrix.version }}-with-coq
+          eval $(opam env --switch=${{ matrix.version }}-with-coq )
+          opam pin --yes --no-action add cn .
+          opam pin --yes --no-action add cn-coq .
+          opam install --yes cn cn-coq
+
+      - name: Run CN-Coq tests
+        run: |
+          opam switch ${{ matrix.version }}-with-coq
+          eval $(opam env --switch=${{ matrix.version }}-with-coq )
+          ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)

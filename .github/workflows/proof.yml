@@ -2,7 +2,7 @@
 name: Proof
 
 on:
-  pull_request:
+  # pull_request:
   push:
     branches:
       - main
@@ -17,9 +17,8 @@ concurrency:
 
 jobs:
   build:
-
     name: Proof
-    
+
     strategy:
       matrix:
         # version: [4.12.0, 4.14.1]
@@ -28,91 +27,88 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
+      - name: Checkout CN
+        uses: actions/checkout@v4
 
-    - name: Checkout CN
-      uses: actions/checkout@v4
+      - name: System dependencies (Ubuntu)
+        run: |
+          sudo apt-get install build-essential libgmp-dev z3 opam
 
-    - name: System dependencies (Ubuntu)
-      run: |
-        sudo apt-get install build-essential libgmp-dev z3 opam
+      - name: Restore OPAM cache
+        id: cache-opam-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
 
-    - name: Restore OPAM cache
-      id: cache-opam-restore
-      uses: actions/cache/restore@v4
-      with:
-        path: ~/.opam
-        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
-  
-    - name: Setup OPAM
-      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
-      run: |
-        opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }})
-        opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam install --deps-only --with-test --yes ./cn.opam z3
+      - name: Setup OPAM
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        run: |
+          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
+          opam install --deps-only --with-test --yes ./cn.opam z3
 
-    - name: Save OPAM cache
-      uses: actions/cache/save@v4
-      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
-      with:
-        path: ~/.opam
-        key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
+      - name: Save OPAM cache
+        uses: actions/cache/save@v4
+        if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+        with:
+          path: ~/.opam
+          key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
 
-    # - name: Download z3 release
-    #   uses: robinraju/release-downloader@v1
-    #   with:
-    #     repository: z3prover/z3
-    #     tag: z3-4.15.2
-    #     fileName: z3-4.15.2-x64-glibc-2.39.zip
+      # - name: Download z3 release
+      #   uses: robinraju/release-downloader@v1
+      #   with:
+      #     repository: z3prover/z3
+      #     tag: z3-4.15.2
+      #     fileName: z3-4.15.2-x64-glibc-2.39.zip
 
+      # - name: Unzip and install z3
+      #   run: |
+      #     unzip z3-4.15.2-x64-glibc-2.39.zip
+      #     chmod +x z3-4.15.2-x64-glibc-2.39/bin/z3
+      #     sudo cp z3-4.15.2-x64-glibc-2.39/bin/z3 /usr/local/bin/
 
-    # - name: Unzip and install z3
-    #   run: |
-    #     unzip z3-4.15.2-x64-glibc-2.39.zip
-    #     chmod +x z3-4.15.2-x64-glibc-2.39/bin/z3
-    #     sudo cp z3-4.15.2-x64-glibc-2.39/bin/z3 /usr/local/bin/
+      - name: Download cvc5 release
+        uses: robinraju/release-downloader@v1
+        with:
+          repository: cvc5/cvc5
+          tag: cvc5-1.3.0
+          fileName: cvc5-Linux-x86_64-static.zip
 
+      - name: Unzip and install cvc5
+        run: |
+          unzip cvc5-Linux-x86_64-static.zip
+          chmod +x cvc5-Linux-x86_64-static/bin/cvc5
+          sudo cp cvc5-Linux-x86_64-static/bin/cvc5 /usr/local/bin/
 
-    - name: Download cvc5 release
-      uses: robinraju/release-downloader@v1
-      with:
-        repository: cvc5/cvc5
-        tag: cvc5-1.3.0
-        fileName: cvc5-Linux-x86_64-static.zip
+      - name: Install CN
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          opam pin --yes --no-action add cn .
+          opam install --yes cn
 
-    - name: Unzip and install cvc5
-      run: |
-        unzip cvc5-Linux-x86_64-static.zip
-        chmod +x cvc5-Linux-x86_64-static/bin/cvc5
-        sudo cp cvc5-Linux-x86_64-static/bin/cvc5 /usr/local/bin/
+      - name: Checkout cn-tutorial
+        uses: actions/checkout@v4
+        with:
+          repository: rems-project/cn-tutorial
+          path: cn-tutorial
 
-    - name: Install CN
-      run: |
-        opam switch ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }})
-        opam pin --yes --no-action add cn .
-        opam install --yes cn
+      - name: Run CN tests
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          ./tests/diff-prog.py cn tests/cn/verify.json 2> diff.patch || (cat diff.patch; exit 1)
 
-    - name: Checkout cn-tutorial
-      uses: actions/checkout@v4
-      with:
-        repository: rems-project/cn-tutorial
-        path: cn-tutorial
+      - name: Run CN Tutorial tests
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          tests/run-cn-tutorial-ci.sh cn-tutorial
 
-    - name: Run CN tests
-      run: |
-        opam switch ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }})
-        ./tests/diff-prog.py cn tests/cn/verify.json 2> diff.patch || (cat diff.patch; exit 1)
-
-    - name: Run CN Tutorial tests
-      run: |
-        opam switch ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }})
-        tests/run-cn-tutorial-ci.sh cn-tutorial
-
-    - name: Run CN VIP tests
-      run: |
-        opam switch ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }})
-        tests/run-cn-vip.sh
+      - name: Run CN VIP tests
+        run: |
+          opam switch ${{ matrix.version }}
+          eval $(opam env --switch=${{ matrix.version }})
+          tests/run-cn-vip.sh
