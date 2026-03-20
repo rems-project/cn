@@ -3,6 +3,7 @@
 import argparse
 import multiprocessing
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -495,6 +496,17 @@ def main():
     # Execute jobs with budget-aware scheduling
     max_workers = args.jobs or max(1, multiprocessing.cpu_count() // 2)
 
+    def _apply_reduced_knobs(cfg):
+        """Reduce --num-samples and --max-bump-blocks for OOM retry."""
+        m = re.search(r'--num-samples=(\d+)', cfg)
+        if m:
+            cfg = cfg.replace(m.group(), f'--num-samples={int(m.group(1)) // 2}')
+        else:
+            cfg += ' --num-samples=50'
+        if '--max-bump-blocks=' not in cfg:
+            cfg += ' --max-bump-blocks=64'
+        return cfg
+
     # Budget initialization
     if memory_limit is not None:
         total_budget = memory_limit
@@ -506,9 +518,9 @@ def main():
     per_job_limit = total_budget // max_workers if total_budget else None
 
     # Build pending jobs with per-job memory limits
-    pending = deque((tf, cfg, tt, per_job_limit, False)
+    pending = deque((tf, cfg, tt, per_job_limit, False, False)
                     for tf, cfg, tt in jobs)
-    running = {}       # future -> (tf, cfg, tt, job_mem_limit, san_disabled)
+    running = {}       # future -> (tf, cfg, tt, job_mem_limit, san_disabled, knobs_reduced)
     retry_history = {}  # (str(tf), cfg) -> [(limit_bytes, result_str)]
 
     results = []
@@ -528,14 +540,14 @@ def main():
                     while submitted_this_round and pending and len(running) < max_workers:
                         submitted_this_round = False
                         for i in range(len(pending)):
-                            tf, cfg, tt, jml, san_disabled = pending[i]
+                            tf, cfg, tt, jml, san_disabled, knobs_reduced = pending[i]
                             if total_budget is None or jml <= available_budget:
                                 del pending[i]
                                 if total_budget is not None:
                                     available_budget -= jml
                                 fut = executor.submit(
                                     run_job, cn_path, tf, cfg, tt, jml)
-                                running[fut] = (tf, cfg, tt, jml, san_disabled)
+                                running[fut] = (tf, cfg, tt, jml, san_disabled, knobs_reduced)
                                 submitted_this_round = True
                                 break
 
@@ -545,7 +557,7 @@ def main():
                     # Wait for at least one completion
                     done, _ = wait(running.keys(), return_when=FIRST_COMPLETED)
                     for fut in done:
-                        tf, cfg, tt, jml, san_disabled = running.pop(fut)
+                        tf, cfg, tt, jml, san_disabled, knobs_reduced = running.pop(fut)
                         result = fut.result()
                         _, _, result_str, elapsed, output = result
 
@@ -558,12 +570,12 @@ def main():
                         # OOM retry logic
                         if result_str == 'oom' and total_budget is not None:
                             retry_history.setdefault(
-                                key, []).append((jml, 'oom', san_disabled))
+                                key, []).append((jml, 'oom', san_disabled, knobs_reduced))
                             new_limit = min(jml * 2, total_budget)
                             if new_limit > jml:
                                 # Re-queue with doubled limit
                                 pending.append(
-                                    (tf, cfg, tt, new_limit, san_disabled))
+                                    (tf, cfg, tt, new_limit, san_disabled, knobs_reduced))
                                 num_retries += 1
                                 pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                  retries=num_retries)
@@ -574,15 +586,24 @@ def main():
                                     '--sanitize=address,undefined', '--sanitize=undefined')
                                 if new_cfg != cfg:
                                     pending.append(
-                                        (tf, new_cfg, tt, jml, True))
+                                        (tf, new_cfg, tt, jml, True, knobs_reduced))
                                     num_retries += 1
                                     pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                      retries=num_retries)
                                     continue
+                            elif not knobs_reduced:
+                                # Last resort: reduce test workload
+                                new_cfg = _apply_reduced_knobs(cfg)
+                                pending.append(
+                                    (tf, new_cfg, tt, jml, san_disabled, True))
+                                num_retries += 1
+                                pbar.set_postfix(failed=num_failed, oom=num_oom,
+                                                 retries=num_retries)
+                                continue
 
                         # Final result (pass, fail, or final OOM)
                         if key in retry_history:
-                            retry_history[key].append((jml, result_str, san_disabled))
+                            retry_history[key].append((jml, result_str, san_disabled, knobs_reduced))
 
                         results.append(result)
                         completed_files.add(str(tf))
@@ -693,12 +714,15 @@ def _print_results(results, test_files, retry_history=None):
             parts = cfg.split("--build-tool=")
             bt = parts[1].split()[0] if len(parts) > 1 else "?"
             steps = []
-            for limit_bytes, result_str, san_off in history:
+            for limit_bytes, result_str, san_off, knobs_red in history:
                 size_str = format_size(limit_bytes) if limit_bytes else "?"
-                label = f"{size_str} ({result_str.upper()})"
+                tags = []
                 if san_off:
-                    label = f"{size_str} ({result_str.upper()}, no ASan)"
-                steps.append(label)
+                    tags.append("no ASan")
+                if knobs_red:
+                    tags.append("reduced")
+                suffix = f", {', '.join(tags)}" if tags else ""
+                steps.append(f"{size_str} ({result_str.upper()}{suffix})")
             print(f"  {Path(tf_str).name} (config: ...--build-tool={bt}):")
             print(f"    {' -> '.join(steps)}")
 
