@@ -371,7 +371,7 @@ def main():
 
     # Set environment variables for stricter CI and sanitizers
     env = os.environ.copy()
-    env['CPPFLAGS'] = ' '.join([env.get('CPPFLAGS', ''), '-Werror', '-Wall',
+    env['CFLAGS'] = ' '.join([env.get('CFLAGS', ''), '-O3', '-Werror', '-Wall',
                                '-Wno-unused-value',
                                 '-Wno-unused-variable',
                                 '-Wno-unused-but-set-variable',
