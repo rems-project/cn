@@ -101,7 +101,7 @@
   int var##_backtracks = backtracks;                                                     \
   bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
-  bennet_rand_checkpoint var##_rand_checkpoint_after = var##_rand_checkpoint_before;     \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
   bennet_domain(c_ty)* var##_cs = __VA_ARGS__;                                           \
   bennet_domain(c_ty)* var##_cs_tmp = var##_cs;                                          \
@@ -176,7 +176,7 @@
   int var##_backtracks = backtracks;                                                     \
   bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
-  bennet_rand_checkpoint var##_rand_checkpoint_after = var##_rand_checkpoint_before;     \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
   const void* var##_vars[] = {__VA_ARGS__};                                              \
                                                                                          \
@@ -435,7 +435,7 @@
   int var##_backtracks = backtracks;                                                     \
   bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
-  bennet_rand_checkpoint var##_rand_checkpoint_after = var##_rand_checkpoint_before;     \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
   bennet_domain(c_ty)* var##_cs = __VA_ARGS__;                                           \
   bennet_domain(c_ty)* var##_cs_tmp = var##_cs;                                          \
@@ -546,7 +546,7 @@
   int var##_backtracks = backtracks;                                                     \
   bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
   bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
-  bennet_rand_checkpoint var##_rand_checkpoint_after = var##_rand_checkpoint_before;     \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
                                                                                          \
   const void* var##_vars[] = {__VA_ARGS__};                                              \
                                                                                          \
