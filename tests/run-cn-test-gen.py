@@ -497,14 +497,21 @@ def main():
     max_workers = args.jobs or max(1, multiprocessing.cpu_count() // 2)
 
     def _apply_reduced_knobs(cfg):
-        """Reduce --num-samples and --max-bump-blocks for OOM retry."""
+        """Reduce --num-samples, --max-bump-blocks, and --max-generator-size for OOM retry."""
         m = re.search(r'--num-samples=(\d+)', cfg)
         if m:
-            cfg = cfg.replace(m.group(), f'--num-samples={int(m.group(1)) // 2}')
+            cfg = cfg.replace(
+                m.group(), f'--num-samples={int(m.group(1)) // 2}')
         else:
             cfg += ' --num-samples=50'
         if '--max-bump-blocks=' not in cfg:
             cfg += ' --max-bump-blocks=64'
+        m = re.search(r'--max-generator-size=(\d+)', cfg)
+        if m:
+            cfg = cfg.replace(
+                m.group(), f'--max-generator-size={int(m.group(1)) // 2}')
+        else:
+            cfg += ' --max-generator-size=16'
         return cfg
 
     # Budget initialization
@@ -520,7 +527,8 @@ def main():
     # Build pending jobs with per-job memory limits
     pending = deque((tf, cfg, tt, per_job_limit, False, False)
                     for tf, cfg, tt in jobs)
-    running = {}       # future -> (tf, cfg, tt, job_mem_limit, san_disabled, knobs_reduced)
+    # future -> (tf, cfg, tt, job_mem_limit, san_disabled, knobs_reduced)
+    running = {}
     retry_history = {}  # (str(tf), cfg) -> [(limit_bytes, result_str)]
 
     results = []
@@ -547,7 +555,8 @@ def main():
                                     available_budget -= jml
                                 fut = executor.submit(
                                     run_job, cn_path, tf, cfg, tt, jml)
-                                running[fut] = (tf, cfg, tt, jml, san_disabled, knobs_reduced)
+                                running[fut] = (
+                                    tf, cfg, tt, jml, san_disabled, knobs_reduced)
                                 submitted_this_round = True
                                 break
 
@@ -557,7 +566,8 @@ def main():
                     # Wait for at least one completion
                     done, _ = wait(running.keys(), return_when=FIRST_COMPLETED)
                     for fut in done:
-                        tf, cfg, tt, jml, san_disabled, knobs_reduced = running.pop(fut)
+                        tf, cfg, tt, jml, san_disabled, knobs_reduced = running.pop(
+                            fut)
                         result = fut.result()
                         _, _, result_str, elapsed, output = result
 
@@ -603,7 +613,8 @@ def main():
 
                         # Final result (pass, fail, or final OOM)
                         if key in retry_history:
-                            retry_history[key].append((jml, result_str, san_disabled, knobs_reduced))
+                            retry_history[key].append(
+                                (jml, result_str, san_disabled, knobs_reduced))
 
                         results.append(result)
                         completed_files.add(str(tf))
