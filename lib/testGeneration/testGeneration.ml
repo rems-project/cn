@@ -244,6 +244,10 @@ let compile_test_file
           "#include <cn-executable/utils.h>\n";
           "#include <cn-executable/cerb_types.h>\n"
         ];
+        (if Config.with_auto_annot () then
+           [ "#include <cn-autoannot/auto_annot.h>\n" ]
+         else
+           []);
         [ c_struct_decls ];
         [ (* (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else ""); *)
           (*  record_defs; *)
@@ -284,6 +288,13 @@ let compile_test_file
     |> Pp.(separate hardline)
   in
   let open Pp in
+  let initialize_auto_annot, finalize_auto_annot =
+    if Config.with_auto_annot () then
+      ( string ("initialize_auto_annot(\"" ^ !AutoAnnot.log_filename ^ "\");") ^^ hardline,
+        string "finalize_auto_annot();" ^^ hardline )
+    else
+      (string "", string "")
+  in
   !^(String.concat " " cn_header_decls_list)
   ^^ compile_includes ~filename ~generators:(List.non_empty generator_tests)
   ^^ twice hardline
@@ -295,24 +306,28 @@ let compile_test_file
   ^^ pp_label "Static Wrappers" static_wrappers_defs
   ^^ pp_label "Constant function tests" constant_tests_defs
   ^^ pp_label "Generator-based tests" generator_tests_defs
-  ^^ (!^"int main"
-      ^^ parens !^"int argc, char* argv[]"
-      ^/^ braces
-            (nest
-               2
-               (hardline
-                ^^ pp_label
-                     "Allocator Configuration"
-                     (!^"fulm_default_alloc.malloc = std_malloc;"
-                      ^/^ !^"fulm_default_alloc.calloc = std_calloc;"
-                      ^/^ !^"fulm_default_alloc.free = std_free;")
-                ^^ hardline
-                ^/^ pp_label
-                      "Test Registration"
-                      (separate_map hardline compile_test all_tests
-                       ^^ twice hardline
-                       ^^ !^"return cn_test_main(argc, argv);"))
-             ^^ hardline))
+  ^^ pp_label
+       "Main function"
+       (!^"int main"
+        ^^ parens !^"int argc, char* argv[]"
+        ^/^ braces
+              (nest
+                 2
+                 (hardline
+                  ^^ pp_label
+                       "Allocator Configuration"
+                       (!^"fulm_default_alloc.malloc = std_malloc;"
+                        ^/^ !^"fulm_default_alloc.calloc = std_calloc;"
+                        ^/^ !^"fulm_default_alloc.free = std_free;")
+                  ^^ hardline
+                  ^/^ initialize_auto_annot
+                  ^^ separate_map hardline compile_test all_tests
+                  ^^ twice hardline
+                  ^^ !^"int cn_test_main_ret = cn_test_main(argc, argv);"
+                  ^^ hardline
+                  ^^ finalize_auto_annot
+                  ^^ !^"return cn_test_main_ret;")
+               ^^ hardline))
   ^^ hardline
   ^^ !^(String.concat
           " "

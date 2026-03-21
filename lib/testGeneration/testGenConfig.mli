@@ -104,7 +104,8 @@ type t =
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
-    lazy_gen : bool
+    lazy_gen : bool;
+    with_auto_annot : bool
   }
 
 val default : t
@@ -260,3 +261,5 @@ val get_dsl_log_dir : unit -> string option
 val is_lazy_gen : unit -> bool
 
 val is_specialization_disabled : unit -> bool
+
+val with_auto_annot : unit -> bool

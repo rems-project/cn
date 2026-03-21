@@ -644,6 +644,13 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
   List.non_empty (get_main sigm)
 
 
+let finalize_auto_annot () =
+  let cn_finalize_auto_annot_fcall =
+    mk_expr A.(AilEcall (mk_expr (AilEident (Sym.fresh "finalize_auto_annot")), []))
+  in
+  A.(AilSexpr cn_finalize_auto_annot_fcall)
+
+
 let generate_global_assignments
       ?(exec_c_locs_mode = false)
       ?(experimental_ownership_stack_mode = false)
@@ -703,6 +710,13 @@ let generate_global_assignments
         AilSexpr
           (mk_expr
              (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_array_fn_str)), []))))
+    in
+    let global_unmapping_stmts_ =
+      if !Config.with_auto_annot then (
+        let finalize_stmt = finalize_auto_annot () in
+        finalize_stmt :: global_unmapping_stmts_)
+      else
+        global_unmapping_stmts_
     in
     let global_unmapping_str =
       generate_ail_stat_strs ([], global_unmapping_stmts_ @ [ free_ghost_array_decl ])

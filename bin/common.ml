@@ -285,6 +285,7 @@ type subcommand =
   | Instrument
   | Test
   | SeqTest
+  | AutoAnnot
 
 let tool_name cmd =
   match cmd with
@@ -292,6 +293,7 @@ let tool_name cmd =
   | Instrument -> "Fulminate"
   | Test -> "Bennet"
   | SeqTest -> "CN-Seq-Test"
+  | AutoAnnot -> "AutoAnnot"
 
 
 open Cmdliner

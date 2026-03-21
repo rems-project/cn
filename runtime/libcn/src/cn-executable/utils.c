@@ -24,7 +24,7 @@ signed long nr_owned_predicates;
 _Bool exec_c_locs_mode;
 _Bool ownership_stack_mode;
 
-static signed long UNMAPPED_VAL = -1;
+    static signed long UNMAPPED_VAL = -1;
 static signed long WILDCARD_DEPTH = INT_MIN + 1;
 
 static allocator bump_alloc = (allocator){

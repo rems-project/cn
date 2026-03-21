@@ -1,8 +1,9 @@
+(* Almost a copy of test.ml. Might be better to extract common parts. *)
 module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_tests
+let run_auto_annot
       (* Common *)
         filename
       cc
@@ -19,16 +20,12 @@ let run_tests
       allow_split_magic_comments
       (* Executable spec *)
         without_ownership_checking
-      exec_c_locs_mode
-      experimental_ownership_stack_mode
       (* without_loop_invariants *)
       (* Test Generation *)
         print_steps
       output_dir
       only
       skip
-      only_fulminate
-      skip_fulminate
       dont_run
       num_samples
       max_backtracks
@@ -58,43 +55,25 @@ let run_tests
       no_replays
       no_replicas
       output_tyche
-      inline
+      inline_everything
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
-      experimental_arg_pruning
-      experimental_return_pruning
       static_absint
-      local_iterations
       smt_pruning_before_absinst
       smt_pruning_after_absinst
-      smt_pruning_keep_redundant_assertions
       smt_pruning_at_runtime
-      runtime_assert_domain
       symbolic
       symbolic_timeout
-      use_solver_eval
-      smt_solver
-      smt_logging
-      smt_log_unsat_cores
       print_size_info
       print_backtrack_info
       print_satisfaction_info
       print_discard_info
-      print_timing_info
-      just_reset_solver
-      smt_skewing_mode
-      max_bump_blocks
-      bump_block_size
-      max_input_alloc
-      smt_skew_pointer_order
-      dsl_log_dir
-      lazy_gen
-      disable_specialization
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
   Pp.print_level := print_level;
+  Check.skip_and_only := (skip, only);
   Sym.executable_spec_enabled := true;
   let handle_error (e : TypeErrors.t) =
     let report = TypeErrors.pp_message e.msg in
@@ -102,10 +81,22 @@ let run_tests
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
-  let output_dir = Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true Test output_dir in
+  let output_dir =
+    Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true AutoAnnot output_dir
+  in
+  Pp.(debug 2 (lazy (item "Output directory" (string output_dir))));
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
+  let log_file = AutoAnnot.get_log_filename basefile in
+  (* Clear the log file if it already exists *)
+  (try
+     if Sys.file_exists log_file then (
+       let oc = open_out_gen [ Open_wronly; Open_creat; Open_trunc ] 0o644 log_file in
+       close_out oc)
+   with
+   | _ -> ());
+  AutoAnnot.log_filename := log_file;
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
     ~cc
@@ -128,34 +119,27 @@ let run_tests
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
-        { skip_and_only = (skip, only);
+        { TestGeneration.default_cfg with
           cc;
           print_steps;
           num_samples;
           max_backtracks;
           build_tool;
           sanitizers;
-          inline;
+          inline =
+            List.assoc
+              String.equal
+              (if inline_everything then "Everything" else "Nothing")
+              TestGeneration.Options.inline_mode;
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
-          experimental_arg_pruning;
-          experimental_return_pruning;
           static_absint;
-          local_iterations;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
-          smt_pruning_remove_redundant_assertions =
-            not smt_pruning_keep_redundant_assertions;
           smt_pruning_at_runtime;
-          runtime_assert_domain;
           symbolic;
           symbolic_timeout;
-          use_solver_eval;
-          smt_solver;
-          disable_specialization;
-          smt_logging;
-          smt_log_unsat_cores;
           max_unfolds;
           max_array_length;
           print_seed;
@@ -182,16 +166,7 @@ let run_tests
           print_backtrack_info;
           print_satisfaction_info;
           print_discard_info;
-          print_timing_info;
-          just_reset_solver;
-          smt_skewing_mode;
-          max_bump_blocks;
-          bump_block_size;
-          max_input_alloc;
-          smt_skew_pointer_order;
-          dsl_log_dir;
-          lazy_gen;
-          with_auto_annot = false
+          with_auto_annot = true
         }
       in
       TestGeneration.set_config config;
@@ -207,20 +182,20 @@ let run_tests
       then (
         print_endline "No testable functions, trivially passing";
         exit 0);
+      (* Enable additional instrumentations for auto-annot *)
+      Fulminate.Config.enable_auto_annot ();
       Cerb_colour.do_colour := false;
       (try
          Fulminate.main
            ~without_ownership_checking
-           ~without_loop_invariants:true
-           ~with_loop_leak_checks:false
+           ~without_loop_invariants:false
+           ~with_loop_leak_checks:true
            ~without_lemma_checks:false
-           ~exec_c_locs_mode
-           ~experimental_ownership_stack_mode
+           ~exec_c_locs_mode:false
+           ~experimental_ownership_stack_mode:false
            ~experimental_curly_braces:false
            ~with_testing:true
-           ~skip_and_only:(skip_fulminate, only_fulminate)
-           ?max_bump_blocks
-           ?bump_block_size
+           ~skip_and_only:(skip, only)
            filename
            cc
            pp_file
@@ -245,54 +220,36 @@ let run_tests
        | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
       if not dont_run then (
         Cerb_debug.maybe_close_csv_timing_file ();
-        match build_tool with
-        | Bash ->
-          let build_script = Filename.concat output_dir "run_tests.sh" in
-          Unix.execv build_script (Array.of_list [ build_script ])
-        | Make ->
-          Unix.chdir output_dir;
-          Unix.putenv "CC" cc;
-          Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
+        Pp.(debug 10 (lazy (item "wait for auto-annotation" (string log_file))));
+        (* Run tests as a child process and wait, so we can continue afterwards *)
+        let status =
+          match build_tool with
+          | Bash ->
+            let prog = Filename.concat output_dir "run_tests.sh" in
+            let pid =
+              Unix.create_process prog [| prog |] Unix.stdin Unix.stdout Unix.stderr
+            in
+            snd (Unix.waitpid [] pid)
+          | Make ->
+            let pid =
+              Unix.create_process
+                "make"
+                [| "make"; "-C"; output_dir |]
+                Unix.stdin
+                Unix.stdout
+                Unix.stderr
+            in
+            snd (Unix.waitpid [] pid)
+        in
+        match status with
+        | Unix.WEXITED 0 -> AutoAnnot.run_autoannot (Filename.concat output_dir log_file)
+        | Unix.WEXITED n -> Pp.(debug 5 (lazy (item "Test runner exit code" (int n))))
+        | Unix.WSIGNALED n -> Pp.(debug 5 (lazy (item "Test runner signaled" (int n))))
+        | Unix.WSTOPPED n -> Pp.(debug 5 (lazy (item "Test runner stopped" (int n)))));
       Result.ok ())
 
 
 open Cmdliner
-
-(* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
-let parse_size_value s =
-  let len = String.length s in
-  if len = 0 then
-    Error (`Msg "Size value cannot be empty")
-  else (
-    let last_char = String.get s (len - 1) in
-    let value_str, multiplier =
-      match last_char with
-      | 'k' | 'K' -> (String.sub s 0 (len - 1), 1024)
-      | 'm' | 'M' -> (String.sub s 0 (len - 1), 1024 * 1024)
-      | 'g' | 'G' -> (String.sub s 0 (len - 1), 1024 * 1024 * 1024)
-      | '0' .. '9' -> (s, 1)
-      | _ -> ("", 0)
-      (* Invalid suffix *)
-    in
-    if multiplier = 0 then
-      Error
-        (`Msg
-            (Printf.sprintf
-               "Invalid size suffix in '%s'. Use k/K, m/M, g/G, or no suffix."
-               s))
-    else (
-      match int_of_string_opt value_str with
-      | Some n when n > 0 ->
-        (* Check for overflow *)
-        if n > max_int / multiplier then
-          Error (`Msg (Printf.sprintf "Size value '%s' is too large" s))
-        else
-          Ok (n * multiplier)
-      | Some _ -> Error (`Msg (Printf.sprintf "Size value must be positive: '%s'" s))
-      | None -> Error (`Msg (Printf.sprintf "Invalid size value: '%s'" s))))
-
-
-let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
 module Flags = struct
   let print_steps =
@@ -309,34 +266,12 @@ module Flags = struct
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
-    Term.(
-      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "only" ] ~doc))
+    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
-    Term.(
-      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "skip" ] ~doc))
-
-
-  let only_fulminate =
-    let doc =
-      "Only check the pre- and post-conditions of this function (or comma-separated \
-       names)"
-    in
-    Term.(
-      const List.concat
-      $ Arg.(value & opt_all (list string) [] & info [ "only-fulminate" ] ~doc))
-
-
-  let skip_fulminate =
-    let doc =
-      "Skip checking the pre- and post-conditions of this function (or comma-separated \
-       names)"
-    in
-    Term.(
-      const List.concat
-      $ Arg.(value & opt_all (list string) [] & info [ "skip-fulminate" ] ~doc))
+    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
 
 
   let dont_run =
@@ -362,18 +297,15 @@ module Flags = struct
 
 
   let gen_max_unfolds =
-    let doc =
-      "Maximum number of times to inline function calls in symbolic mode (default: 10)"
-    in
-    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~deprecated ~doc)
 
 
   let max_array_length =
-    let doc = "Maximum array length for symbolic mode" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_array_length
-      & info [ "max-array-length" ] ~doc)
+    let doc = "Does nothing." in
+    let deprecated = "Will be removed after June 31." in
+    Arg.(value & opt int 0 & info [ "max-array-length" ] ~deprecated ~doc)
 
 
   let build_tool =
@@ -530,11 +462,6 @@ module Flags = struct
     Arg.(value & flag & info [ "coverage" ] ~doc)
 
 
-  let disable_specialization =
-    let doc = "Disable integer specialization in the generator pipeline" in
-    Arg.(value & flag & info [ "disable-specialization" ] ~doc)
-
-
   let disable_passes =
     let doc = "skip this optimization pass (or comma-separated names)" in
     Arg.(
@@ -575,15 +502,9 @@ module Flags = struct
       & info [ "output-tyche" ] ~doc)
 
 
-  let inline =
-    let doc =
-      "Set inlining mode: 'nothing' (no inlining, default), 'nonrec' (non-recursive \
-       only), 'rec' (recursive only), or 'everything' (both)"
-    in
-    Arg.(
-      value
-      & opt (enum TestGeneration.Options.inline_mode) TestGeneration.default_cfg.inline
-      & info [ "inline" ] ~doc)
+  let inline_everything =
+    let doc = "Maximally inline everything" in
+    Arg.(value & flag & info [ "inline-everything" ] ~doc)
 
 
   let experimental_struct_asgn_destruction =
@@ -599,16 +520,6 @@ module Flags = struct
   let experimental_learning =
     let doc = "Use experimental domain learning" in
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
-
-
-  let experimental_arg_pruning =
-    let doc = "Enable experimental unused argument pruning optimization" in
-    Arg.(value & flag & info [ "experimental-arg-pruning" ] ~doc)
-
-
-  let experimental_return_pruning =
-    let doc = "Enable experimental unused return value pruning optimization" in
-    Arg.(value & flag & info [ "experimental-return-pruning" ] ~doc)
 
 
   let smt_pruning_before_absinst =
@@ -633,21 +544,9 @@ module Flags = struct
       & info [ "smt-pruning-after-absint" ] ~doc)
 
 
-  let smt_pruning_keep_redundant_assertions =
-    let doc =
-      "(Experimental) Keep assertions even if provably redundant during SMT pruning"
-    in
-    Arg.(value & flag & info [ "smt-pruning-keep-redundant-assertions" ] ~doc)
-
-
   let smt_pruning_at_runtime =
     let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
     Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
-
-
-  let runtime_assert_domain =
-    let doc = "Enable assert_domain checks at runtime (disabled by default)" in
-    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
 
 
   let static_absint =
@@ -662,14 +561,6 @@ module Flags = struct
              (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
           []
       & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
-
-
-  let local_iterations =
-    let doc = "Maximum iterations for local abstract interpretation refinement" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.local_iterations
-      & info [ "local-iterations" ] ~doc)
 
 
   let print_size_info =
@@ -692,32 +583,6 @@ module Flags = struct
     Arg.(value & flag & info [ "print-discard-info" ] ~doc)
 
 
-  let print_timing_info =
-    let doc = "(Experimental) Print timing info" in
-    Arg.(value & flag & info [ "print-timing-info" ] ~doc)
-
-
-  let just_reset_solver =
-    let doc =
-      "Just reset the SMT solver instead of closing and creating a new one. WARNING: A \
-       bunch of stuff breaks."
-    in
-    Arg.(value & flag & info [ "just-reset-solver" ] ~doc)
-
-
-  let smt_skewing_mode =
-    let doc =
-      "Set SMT skewing mode for symbolic test generation. Options: uniform (uniform \
-       random values), sized (default, size-based values), none (no skewing)"
-    in
-    Arg.(
-      value
-      & opt
-          (enum TestGeneration.Options.smt_skewing_mode)
-          TestGeneration.default_cfg.smt_skewing_mode
-      & info [ "smt-skewing" ] ~docv:"MODE" ~doc)
-
-
   let symbolic =
     let doc =
       "(Experimental) Use symbolic execution for test generation instead of concrete \
@@ -731,63 +596,15 @@ module Flags = struct
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
 
 
-  let smt_solver =
-    let doc =
-      "Choose SMT solver backend for symbolic test generation (z3, cvc5 is unsupported)."
-    in
-    Arg.(
-      value
-      & opt (enum TestGeneration.Options.smt_solver) TestGeneration.default_cfg.smt_solver
-      & info [ "solver-type" ] ~docv:"SOLVER" ~doc)
-
-
-  let use_solver_eval =
-    let doc = "(Experimental) Use solver-based evaluation" in
-    Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
-
-
-  let smt_logging =
-    let doc = "Log SMT solver communication to specified file" in
-    Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
-
-
-  let smt_log_unsat_cores =
-    let doc = "Log unsat cores to specified file when constraints are unsatisfiable" in
-    Arg.(
-      value & opt (some string) None & info [ "smt-log-unsat-cores" ] ~doc ~docv:"FILE")
-
-
-  let max_input_alloc =
-    let doc =
-      "Maximum memory size for the random input allocator (default: 32m). Supports \
-       suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 32m, \
-       33554432, 64m"
-    in
-    Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
-
-
-  let smt_skew_pointer_order =
-    let doc = "Enable pointer ordering skewing in SMT solver" in
-    Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
-
-
-  let dsl_log_dir =
-    let doc =
-      "Write generator DSL intermediate representations to separate stage files in this \
-       directory"
-    in
-    Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
-
-
-  let lazy_gen =
-    let doc = "Enable lazy generation" in
-    Arg.(value & flag & info [ "lazy-gen" ] ~doc)
+  let max_path_length =
+    let doc = "Set maximum symbolic path length for exploration" in
+    Arg.(value & opt (some int) None & info [ "max-path-length" ] ~doc)
 end
 
 let cmd =
   let open Term in
   let test_t =
-    const run_tests
+    const run_auto_annot
     $ Common.Flags.file
     $ Common.Flags.cc
     $ Common.Flags.macros
@@ -802,14 +619,10 @@ let cmd =
     $ Common.Flags.magic_comment_char_dollar
     $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
-    $ Instrument.Flags.exec_c_locs_mode
-    $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.print_steps
     $ Flags.output_dir
     $ Flags.only
     $ Flags.skip
-    $ Flags.only_fulminate
-    $ Flags.skip_fulminate
     $ Flags.dont_run
     $ Flags.gen_num_samples
     $ Flags.gen_backtrack_attempts
@@ -839,46 +652,23 @@ let cmd =
     $ Flags.no_replays
     $ Flags.no_replicas
     $ Flags.output_tyche
-    $ Flags.inline
+    $ Flags.inline_everything
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
-    $ Flags.experimental_arg_pruning
-    $ Flags.experimental_return_pruning
     $ Flags.static_absint
-    $ Flags.local_iterations
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
-    $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
-    $ Flags.runtime_assert_domain
     $ Flags.symbolic
     $ Flags.symbolic_timeout
-    $ Flags.use_solver_eval
-    $ Flags.smt_solver
-    $ Flags.smt_logging
-    $ Flags.smt_log_unsat_cores
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
     $ Flags.print_discard_info
-    $ Flags.print_timing_info
-    $ Flags.just_reset_solver
-    $ Flags.smt_skewing_mode
-    $ Instrument.Flags.max_bump_blocks
-    $ Instrument.Flags.bump_block_size
-    $ Flags.max_input_alloc
-    $ Flags.smt_skew_pointer_order
-    $ Flags.dsl_log_dir
-    $ Flags.lazy_gen
-    $ Flags.disable_specialization
   in
   let doc =
-    "Generates tests for all functions in [FILE] with CN specifications.\n\
-    \    The tests use randomized inputs, which are guaranteed to satisfy the CN \
-     precondition.\n\
-    \    A script [run_tests.sh] for building and running the tests will be placed in \
-     [output-dir]."
+    "Generates proof annotations such as `unfold` and `focus` from testing executions."
   in
-  let info = Cmd.info "test" ~doc in
+  let info = Cmd.info "auto-annot" ~doc in
   Cmd.v info test_t
