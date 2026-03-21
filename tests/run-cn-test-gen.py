@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse
+import hashlib
+import json
 import multiprocessing
 import os
 import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from collections import defaultdict, deque
@@ -145,6 +148,57 @@ def format_size(nbytes):
     elif nbytes >= 1024:
         return f"{nbytes / 1024:.1f}k"
     return f"{nbytes}b"
+
+
+CACHE_VERSION = 1
+
+
+def _config_hash(config_str):
+    """Short SHA-256 hash of config string for cache key."""
+    return hashlib.sha256(config_str.encode()).hexdigest()[:12]
+
+
+def _cache_key(test_file, config_str):
+    """Generate cache key from test file and config."""
+    return f"{Path(test_file).name}::{_config_hash(config_str)}"
+
+
+def _load_cache(cache_path):
+    """Load memory cache from JSON file. Returns entries dict."""
+    try:
+        with open(cache_path) as f:
+            data = json.load(f)
+        if data.get("version") != CACHE_VERSION:
+            return {}
+        entries = data.get("entries", {})
+        if not isinstance(entries, dict):
+            return {}
+        return entries
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, TypeError):
+        return {}
+
+
+def _save_cache(cache_path, entries):
+    """Save memory cache to JSON file atomically."""
+    if not entries:
+        return
+    data = {"version": CACHE_VERSION, "entries": entries}
+    tmp_path = None
+    try:
+        dir_path = os.path.dirname(os.path.abspath(cache_path))
+        with tempfile.NamedTemporaryFile(
+            mode='w', dir=dir_path, suffix='.tmp', delete=False
+        ) as tmp:
+            tmp_path = tmp.name
+            json.dump(data, tmp, indent=2, sort_keys=True)
+        os.replace(tmp_path, cache_path)
+    except OSError as e:
+        print(f"Warning: failed to save cache: {e}", file=sys.stderr)
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def _drain_pipe(pipe, output_list):
@@ -332,6 +386,10 @@ def main():
                         help='Build tool to use: bash, make, or both (default: both)')
     parser.add_argument('--only', type=str,
                         help='Comma-separated list of specific test files to run (e.g., "bst.pass.c,bst.fail.c")')
+    parser.add_argument('--cache-file', type=str, default=None,
+                        help='Path to memory settings cache file (default: tests/.test-gen-cache.json)')
+    parser.add_argument('--no-cache', action='store_true',
+                        help='Disable loading and saving memory settings cache')
     parser.add_argument('test_file', nargs='?',
                         help='Single test file to run (optional)')
 
@@ -524,12 +582,57 @@ def main():
 
     per_job_limit = total_budget // max_workers if total_budget else None
 
-    # Build pending jobs with per-job memory limits
-    pending = deque((tf, cfg, tt, per_job_limit, False, False)
-                    for tf, cfg, tt in jobs)
-    # future -> (tf, cfg, tt, job_mem_limit, san_disabled, knobs_reduced)
+    # Load memory settings cache
+    cache_path = None
+    cache_entries = {}
+    cache_hits = 0
+    cache_applied = 0
+    if not args.no_cache:
+        if args.cache_file is not None:
+            cache_path = args.cache_file
+        else:
+            cache_path = str(script_dir / '.test-gen-cache.json')
+        cache_entries = _load_cache(cache_path)
+
+    # Build pending jobs with per-job memory limits, applying cached settings
+    # Tuple: (tf, cfg, tt, jml, san_disabled, knobs_reduced, orig_cfg)
+    pending = deque()
+    for tf, cfg, tt in jobs:
+        orig_cfg = cfg
+        ck = _cache_key(tf, cfg)
+        cached = cache_entries.get(ck)
+        if cached:
+            cache_hits += 1
+            jml = per_job_limit
+            san_disabled = cached.get("san_disabled", False)
+            knobs_reduced = cached.get("knobs_reduced", False)
+            cached_mem = cached.get("memory_limit")
+            if cached_mem is not None and total_budget is not None:
+                jml = min(cached_mem, total_budget)
+            elif cached_mem is not None:
+                jml = cached_mem
+            if san_disabled or knobs_reduced or (jml != per_job_limit):
+                cache_applied += 1
+            if san_disabled:
+                cfg = cfg.replace(
+                    '--sanitize=address,undefined', '--sanitize=undefined')
+            if knobs_reduced:
+                cfg = _apply_reduced_knobs(cfg)
+        else:
+            jml = per_job_limit
+            san_disabled = False
+            knobs_reduced = False
+        pending.append(
+            (tf, cfg, tt, jml, san_disabled, knobs_reduced, orig_cfg))
+
+    if cache_hits:
+        print(f"Cache: {cache_hits} hits ({cache_applied} applied), "
+              f"{len(jobs) - cache_hits} misses")
+
+    # future -> (tf, cfg, tt, job_mem_limit, san_disabled, knobs_reduced, orig_cfg)
     running = {}
     retry_history = {}  # (str(tf), cfg) -> [(limit_bytes, result_str)]
+    cache_updates = {}  # cache_key -> {memory_limit, san_disabled, knobs_reduced}
 
     results = []
     completed_files = set()
@@ -548,7 +651,7 @@ def main():
                     while submitted_this_round and pending and len(running) < max_workers:
                         submitted_this_round = False
                         for i in range(len(pending)):
-                            tf, cfg, tt, jml, san_disabled, knobs_reduced = pending[i]
+                            tf, cfg, tt, jml, san_disabled, knobs_reduced, orig_cfg = pending[i]
                             if total_budget is None or jml <= available_budget:
                                 del pending[i]
                                 if total_budget is not None:
@@ -556,7 +659,7 @@ def main():
                                 fut = executor.submit(
                                     run_job, cn_path, tf, cfg, tt, jml)
                                 running[fut] = (
-                                    tf, cfg, tt, jml, san_disabled, knobs_reduced)
+                                    tf, cfg, tt, jml, san_disabled, knobs_reduced, orig_cfg)
                                 submitted_this_round = True
                                 break
 
@@ -566,7 +669,7 @@ def main():
                     # Wait for at least one completion
                     done, _ = wait(running.keys(), return_when=FIRST_COMPLETED)
                     for fut in done:
-                        tf, cfg, tt, jml, san_disabled, knobs_reduced = running.pop(
+                        tf, cfg, tt, jml, san_disabled, knobs_reduced, orig_cfg = running.pop(
                             fut)
                         result = fut.result()
                         _, _, result_str, elapsed, output = result
@@ -585,7 +688,7 @@ def main():
                             if new_limit > jml:
                                 # Re-queue with doubled limit
                                 pending.append(
-                                    (tf, cfg, tt, new_limit, san_disabled, knobs_reduced))
+                                    (tf, cfg, tt, new_limit, san_disabled, knobs_reduced, orig_cfg))
                                 num_retries += 1
                                 pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                  retries=num_retries)
@@ -596,7 +699,7 @@ def main():
                                     '--sanitize=address,undefined', '--sanitize=undefined')
                                 if new_cfg != cfg:
                                     pending.append(
-                                        (tf, new_cfg, tt, jml, True, knobs_reduced))
+                                        (tf, new_cfg, tt, jml, True, knobs_reduced, orig_cfg))
                                     num_retries += 1
                                     pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                      retries=num_retries)
@@ -605,7 +708,7 @@ def main():
                                 # Last resort: reduce test workload
                                 new_cfg = _apply_reduced_knobs(cfg)
                                 pending.append(
-                                    (tf, new_cfg, tt, jml, san_disabled, True))
+                                    (tf, new_cfg, tt, jml, san_disabled, True, orig_cfg))
                                 num_retries += 1
                                 pbar.set_postfix(failed=num_failed, oom=num_oom,
                                                  retries=num_retries)
@@ -615,6 +718,19 @@ def main():
                         if key in retry_history:
                             retry_history[key].append(
                                 (jml, result_str, san_disabled, knobs_reduced))
+
+                        # Track settings for cache (only non-default or retried jobs)
+                        ck = _cache_key(tf, orig_cfg)
+                        if result_str != 'oom' and (
+                            san_disabled or knobs_reduced
+                            or jml != per_job_limit
+                            or ck in cache_entries
+                        ):
+                            cache_updates[ck] = {
+                                "memory_limit": jml,
+                                "san_disabled": san_disabled,
+                                "knobs_reduced": knobs_reduced,
+                            }
 
                         results.append(result)
                         completed_files.add(str(tf))
@@ -637,9 +753,22 @@ def main():
             for t in incomplete:
                 print(red(f"  {t}"))
 
+        # Save cache with partial results
+        if cache_path and cache_updates:
+            merged = dict(cache_entries)
+            merged.update(cache_updates)
+            _save_cache(cache_path, merged)
+
         # Still print results for what we have
         _print_results(results, test_files, retry_history)
         os._exit(1)
+
+    # Save cache
+    if cache_path and cache_updates:
+        merged = dict(cache_entries)
+        merged.update(cache_updates)
+        _save_cache(cache_path, merged)
+        print(f"Cache: saved {len(cache_updates)} entries to {cache_path}")
 
     _print_results(results, test_files, retry_history)
 
