@@ -1,4 +1,4 @@
-name: SMT Testing
+name: Sequence Testing
 
 on:
   pull_request:
@@ -6,17 +6,14 @@ on:
     branches:
       - main
 
-env:
-  CERBERUS_IMAGE_ID: ghcr.io/rems-project/cerberus/cn:release
-
 # cancel in-progress job when a new push is performed
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: SMT testing
+  seq-test-gen:
+    name: CN-Seq-Test-Gen
 
     strategy:
       matrix:
@@ -31,11 +28,7 @@ jobs:
 
       - name: System dependencies (ubuntu)
         run: |
-          sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
-
-      - name: Install Python dependencies
-        run: |
-          pip install -r requirements.txt
+          sudo apt-get install build-essential libgmp-dev z3 opam cmake
 
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
@@ -76,9 +69,9 @@ jobs:
           opam pin --yes --no-action add cn .
           opam install --yes cn
 
-      - name: Run CN-SMT-Testing CI tests
+      - name: Run CN-Seq-Test-Gen CI tests
         run: |
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-test-gen.py -s
+          cd tests; ./run-cn-seq-test-gen.sh

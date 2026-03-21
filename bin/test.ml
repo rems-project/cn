@@ -250,6 +250,7 @@ let run_tests
           Unix.execv build_script (Array.of_list [ build_script ])
         | Make ->
           Unix.chdir output_dir;
+          Unix.putenv "CC" cc;
           Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
       Result.ok ())
 

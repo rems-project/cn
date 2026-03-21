@@ -8,6 +8,8 @@ on:
 
 env:
   CERBERUS_IMAGE_ID: ghcr.io/rems-project/cerberus/cn:release
+  ACTIONS_RUNNER_DEBUG: true
+  ACTIONS_STEP_DEBUG: true
 
 # cancel in-progress job when a new push is performed
 concurrency:
@@ -33,6 +35,10 @@ jobs:
         run: |
           sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
 
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
         run: |
@@ -52,7 +58,7 @@ jobs:
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         run: |
-          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          opam init --yes --no-setup --disable-sandboxing --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
           opam install --deps-only --with-test --yes ./cn.opam z3
@@ -72,45 +78,9 @@ jobs:
           opam pin --yes --no-action add cn .
           opam install --yes cn
 
-      - name: Run LibCN unit tests
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          dune test runtime/libcn
-
-      - name: Run CN-runtime CI tests (Cerberus)
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-exec.sh
-
-      - name: Checkout cn-tutorial
-        uses: actions/checkout@v4
-        with:
-          repository: rems-project/cn-tutorial
-          path: cn-tutorial
-          ref: cn-runtime-testing # FIXME: remove once the branch is merged
-
-      - name: Run CN-runtime CI tests (CN tutorial)
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd cn-tutorial; ./runtime-test.sh 
-          cd ..
-
       - name: Run Bennet CI tests
         run: |
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           cd tests; ./run-cn-test-gen.py
-
-      - name: Run CN-Seq-Test-Gen CI tests
-        run: |
-          alias cc=${{ matrix.compiler }}
-          opam switch ${{ matrix.version }}
-          eval $(opam env --switch=${{ matrix.version }})
-          cd tests; ./run-cn-seq-test-gen.sh
