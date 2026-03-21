@@ -76,9 +76,24 @@ jobs:
           opam pin --yes --no-action add cn .
           opam install --yes cn
 
+      - name: Restore test gen cache
+        uses: actions/cache/restore@v4
+        with:
+          path: tests/.test-gen-cache.json
+          key: test-gen-cache-smt-${{ matrix.compiler }}-${{ hashFiles('tests/run-cn-test-gen.py', 'tests/cn-test-gen/src/**/*.c') }}
+          restore-keys: |
+            test-gen-cache-smt-${{ matrix.compiler }}-
+
       - name: Run CN-SMT-Testing CI tests
         run: |
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           cd tests; ./run-cn-test-gen.py -s
+
+      - name: Save test gen cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: tests/.test-gen-cache.json
+          key: test-gen-cache-smt-${{ matrix.compiler }}-${{ hashFiles('tests/run-cn-test-gen.py', 'tests/cn-test-gen/src/**/*.c') }}
