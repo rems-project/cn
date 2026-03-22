@@ -3221,22 +3221,30 @@ let cn_to_ail_resource
       match rm_ctype return_ctype with
       | C.Void ->
         let void_pred_call = A.(AilSexpr rhs) in
-        let if_stat =
-          A.(
-            AilSif
-              ( wrap_with_convert_from_cn_bool if_cond_expr,
-                mk_stmt
-                  (AilSblock
-                     ( [ ptr_add_binding ],
-                       List.map mk_stmt [ ptr_add_stat; void_pred_call ] )),
-                mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
+        let loop_body_bs, loop_body_ss =
+          ([ ptr_add_binding ], [ ptr_add_stat; void_pred_call ])
+        in
+        let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
+        (* Optimise Fulminate output if permission only consists of bounds *)
+        let loop_body =
+          if permission_only_bounds then
+            A.(
+              AilSblock
+                (loop_body_bs, List.map mk_stmt (loop_body_ss @ [ increment_stat ])))
+          else (
+            let if_stat =
+              A.(
+                AilSif
+                  ( wrap_with_convert_from_cn_bool if_cond_expr,
+                    mk_stmt (AilSblock (loop_body_bs, List.map mk_stmt loop_body_ss)),
+                    mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
+            in
+            AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ]))
         in
         let while_loop =
           A.(
             AilSwhile
-              ( wrap_with_convert_from_cn_bool while_cond_expr,
-                mk_stmt (AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ])),
-                0 ))
+              (wrap_with_convert_from_cn_bool while_cond_expr, mk_stmt loop_body, 0))
         in
         let ail_block =
           A.(
@@ -3278,24 +3286,30 @@ let cn_to_ail_resource
               ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
                 List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
         in
-        let if_stat =
-          A.(
-            AilSif
-              ( wrap_with_convert_from_cn_bool if_cond_expr,
-                mk_stmt
-                  (AilSblock
-                     ( ptr_add_binding :: b4,
-                       List.map
-                         mk_stmt
-                         (s4 @ [ ptr_add_stat; AilSexpr (mk_expr map_set_expr_) ]) )),
-                mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
+        let loop_body_bs, loop_body_ss =
+          (ptr_add_binding :: b4, s4 @ [ ptr_add_stat; AilSexpr (mk_expr map_set_expr_) ])
+        in
+        let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
+        (* Optimise Fulminate output if permission only consists of bounds *)
+        let loop_body =
+          if permission_only_bounds then
+            A.(
+              AilSblock
+                (loop_body_bs, List.map mk_stmt (loop_body_ss @ [ increment_stat ])))
+          else (
+            let if_stat =
+              A.(
+                AilSif
+                  ( wrap_with_convert_from_cn_bool if_cond_expr,
+                    mk_stmt (AilSblock (loop_body_bs, List.map mk_stmt loop_body_ss)),
+                    mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
+            in
+            A.(AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ])))
         in
         let while_loop =
           A.(
             AilSwhile
-              ( wrap_with_convert_from_cn_bool while_cond_expr,
-                mk_stmt A.(AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ])),
-                0 ))
+              (wrap_with_convert_from_cn_bool while_cond_expr, mk_stmt loop_body, 0))
         in
         let ail_block =
           A.(
@@ -3362,8 +3376,15 @@ let cn_to_ail_logical_constraint_aux
        let _, _, while_cond_expr =
          cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
        in
-       let _, _, if_cond_expr =
-         cn_to_ail_expr filename dts globals spec_mode_opt cond_it PassBack
+       let cond_is_only_bounds = IndexTerms.Bounds.it_only_bounds (sym, bt) cond_it in
+       let if_cond_opt =
+         if cond_is_only_bounds then
+           None
+         else (
+           let _, _, if_cond_expr =
+             cn_to_ail_expr filename dts globals spec_mode_opt cond_it PassBack
+           in
+           Some if_cond_expr)
        in
        let t_translated = cn_to_ail_expr filename dts globals spec_mode_opt t PassBack in
        let bs, ss, e =
@@ -3373,7 +3394,7 @@ let cn_to_ail_logical_constraint_aux
            (rm_expr e_start)
            (end_sym, rm_expr e_end)
            while_cond_expr
-           ~if_cond_opt:(Some if_cond_expr)
+           ~if_cond_opt
            t_translated
        in
        dest d spec_mode_opt (bs, ss, e))
