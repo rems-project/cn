@@ -48,8 +48,10 @@ let compile_assumes
            sigma.cn_datatypes
            (CtA.extract_global_variables cabs_tunit prog5)
            prog5.resource_predicates
+           without_ownership_checking
        @ ESpecInternal.generate_c_assume_pres_internal
            filename
+           without_ownership_checking
            insts
            cabs_tunit
            sigma
@@ -222,7 +224,7 @@ let compile_test_file
     generate_c_functions filename cabs_tunit prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename cabs_tunit prog5 sigma
+    generate_c_predicates filename without_ownership_checking cabs_tunit prog5 sigma
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigma

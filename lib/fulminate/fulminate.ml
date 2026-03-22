@@ -590,7 +590,7 @@ let main
     generate_c_functions filename cabs_tunit prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename cabs_tunit prog5 sigm
+    generate_c_predicates filename without_ownership_checking cabs_tunit prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then

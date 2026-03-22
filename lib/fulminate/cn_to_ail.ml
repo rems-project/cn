@@ -778,7 +778,8 @@ let generate_get_or_put_ownership_function ~without_ownership_checking ctype
   =
   let ctype_str = str_of_ctype ctype in
   let ctype_str = String.concat "_" (String.split_on_char ' ' ctype_str) in
-  let fn_sym = Sym.fresh ("owned_" ^ ctype_str) in
+  let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
+  let fn_sym = Sym.fresh (fn_prefix ^ ctype_str) in
   let param1_sym = Sym.fresh "cn_ptr" in
   let here = Locations.other __LOC__ in
   let cast_expr =
@@ -2984,6 +2985,7 @@ let cn_to_ail_resource
       spec_mode_opt
         (* used to check whether spec_mode enum should be pretty-printed or whether it's an inner call with the spec_mode enum parameter *)
       loc
+      without_ownership_checking
   =
   let calculate_resource_return_type (preds : (Sym.t * Definition.Predicate.t) list) loc
     = function
@@ -3030,10 +3032,11 @@ let cn_to_ail_resource
       in
       (ctype, snd pred_def'.oarg)
   in
-  let generate_owned_fn_name sct =
+  let generate_owned_fn_name ~without_ownership_checking sct =
     let ct_str = str_of_ctype (Sctypes.to_ctype sct) in
     let ct_str = String.concat "_" (String.split_on_char ' ' ct_str) in
-    "owned_" ^ ct_str
+    let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
+    fn_prefix ^ ct_str
   in
   let enum_sym = sym_of_spec_mode_opt spec_mode_opt in
   let it_zero_const = IT.(IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown)) in
@@ -3048,7 +3051,7 @@ let cn_to_ail_resource
       match p.name with
       | Owned (sct, _) ->
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
-        let owned_fn_name = generate_owned_fn_name sct in
+        let owned_fn_name = generate_owned_fn_name ~without_ownership_checking sct in
         (* Hack with enum as sym *)
         let enum_val_get = IT.(IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
         let loop_ownership_arg =
@@ -3163,7 +3166,7 @@ let cn_to_ail_resource
       match q.name with
       | Owned (sct, _) ->
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
-        let owned_fn_name = generate_owned_fn_name sct in
+        let owned_fn_name = generate_owned_fn_name ~without_ownership_checking sct in
         let ptr_add_it = IT.(IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
         (* Hack with enum as sym *)
         let enum_val_get = IT.(IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
@@ -3597,7 +3600,15 @@ let cn_to_ail_function
   (((loc, decl), def), ail_record_opt)
 
 
-let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = function
+let rec cn_to_ail_lat
+          filename
+          dts
+          pred_sym_opt
+          globals
+          preds
+          spec_mode_opt
+          without_ownership_checking
+  = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (IT.get_bt it) in
     let binding = create_binding name ctype in
@@ -3613,7 +3624,15 @@ let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = fu
         (AssignVar name)
     in
     let b2, s2 =
-      cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_lat
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
@@ -3629,10 +3648,19 @@ let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = fu
         (Some loop_ownership_sym)
         spec_mode_opt
         loc
+        without_ownership_checking
         ret
     in
     let b2, s2 =
-      cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_lat
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LAT.Constraint (lc, (loc, _str_opt), lat) ->
@@ -3648,7 +3676,15 @@ let rec cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt = fu
       | None -> s
     in
     let b2, s2 =
-      cn_to_ail_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_lat
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2, ss @ s2)
   | LAT.I it ->
@@ -3671,6 +3707,7 @@ let cn_to_ail_predicate
       globals
       preds
       cn_preds
+      without_ownership_checking
       (pred_sym, (rp_def : Definition.Predicate.t))
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
@@ -3679,7 +3716,15 @@ let cn_to_ail_predicate
     | [] -> ([], [])
     | c :: cs ->
       let bs, ss =
-        cn_to_ail_lat filename dts (Some pred_sym) globals preds None c.packing_ft
+        cn_to_ail_lat
+          filename
+          dts
+          (Some pred_sym)
+          globals
+          preds
+          None
+          without_ownership_checking
+          c.packing_ft
       in
       (match c.guard with
        | IT (Const (Bool true), _, _) ->
@@ -3764,17 +3809,33 @@ let cn_to_ail_predicate
   (((loc, decl), def), ail_record_opt)
 
 
-let cn_to_ail_predicates preds filename dts globals cn_preds
+let cn_to_ail_predicates preds filename dts globals cn_preds without_ownership_checking
   : ((Locations.t * A.sigma_declaration)
     * CF.GenTypes.genTypeCategory A.sigma_function_definition)
       list
     * A.sigma_tag_definition option list
   =
-  List.split (List.map (cn_to_ail_predicate filename dts globals preds cn_preds) preds)
+  List.split
+    (List.map
+       (cn_to_ail_predicate
+          filename
+          dts
+          globals
+          preds
+          cn_preds
+          without_ownership_checking)
+       preds)
 
 
 (* TODO: Add destination passing? *)
-let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
+let rec cn_to_ail_post_aux
+          filename
+          dts
+          globals
+          preds
+          spec_mode_opt
+          without_ownership_checking
+  = function
   | LRT.Define ((name, it), (_loc, _), t) ->
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let new_lrt =
@@ -3785,17 +3846,45 @@ let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
     let b1, s1 =
       cn_to_ail_expr filename dts globals spec_mode_opt it (AssignVar new_name)
     in
-    let b2, s2 = cn_to_ail_post_aux filename dts globals preds spec_mode_opt new_lrt in
+    let b2, s2 =
+      cn_to_ail_post_aux
+        filename
+        dts
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        new_lrt
+    in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LRT.Resource ((name, (re, bt)), (loc, _str_opt), t) ->
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let b1, s1 =
-      cn_to_ail_resource filename new_name dts globals preds None spec_mode_opt loc re
+      cn_to_ail_resource
+        filename
+        new_name
+        dts
+        globals
+        preds
+        None
+        spec_mode_opt
+        loc
+        without_ownership_checking
+        re
     in
     let new_lrt = LogicalReturnTypes.subst (ESE.sym_subst (name, bt, new_name)) t in
-    let b2, s2 = cn_to_ail_post_aux filename dts globals preds spec_mode_opt new_lrt in
+    let b2, s2 =
+      cn_to_ail_post_aux
+        filename
+        dts
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        new_lrt
+    in
     (b1 @ b2, upd_s @ s1 @ pop_s @ s2)
   | LRT.Constraint (lc, (loc, _str_opt), t) ->
     let b1, s, e = cn_to_ail_logical_constraint filename dts globals spec_mode_opt lc in
@@ -3809,7 +3898,16 @@ let rec cn_to_ail_post_aux filename dts globals preds spec_mode_opt = function
         upd_s @ s @ (assert_stmt :: pop_s)
       | None -> s
     in
-    let b2, s2 = cn_to_ail_post_aux filename dts globals preds spec_mode_opt t in
+    let b2, s2 =
+      cn_to_ail_post_aux
+        filename
+        dts
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        t
+    in
     (b1 @ b2, ss @ s2)
   | LRT.I -> ([], [])
 
@@ -3819,9 +3917,12 @@ let cn_to_ail_post
       dts
       globals
       preds
+      without_ownership_checking
       (ReturnTypes.Computational (_bound, _oinfo, t))
   =
-  let bs, ss = cn_to_ail_post_aux filename dts globals preds (Some Post) t in
+  let bs, ss =
+    cn_to_ail_post_aux filename dts globals preds (Some Post) without_ownership_checking t
+  in
   (bs, List.map mk_stmt ss)
 
 
@@ -4091,6 +4192,7 @@ let cn_to_ail_statements
 
 let rec cn_to_ail_lat_internal_loop
           ~without_lemma_checks
+          ~without_ownership_checking
           filename
           dts
           globals
@@ -4106,6 +4208,7 @@ let rec cn_to_ail_lat_internal_loop
     let b2, s2 =
       cn_to_ail_lat_internal_loop
         ~without_lemma_checks
+        ~without_ownership_checking
         filename
         dts
         globals
@@ -4128,11 +4231,13 @@ let rec cn_to_ail_lat_internal_loop
         (Some loop_ownership_sym)
         spec_mode_opt
         loc
+        without_ownership_checking
         ret
     in
     let b2, s2 =
       cn_to_ail_lat_internal_loop
         ~without_lemma_checks
+        ~without_ownership_checking
         filename
         dts
         globals
@@ -4157,6 +4262,7 @@ let rec cn_to_ail_lat_internal_loop
     let b2, s2 =
       cn_to_ail_lat_internal_loop
         ~without_lemma_checks
+        ~without_ownership_checking
         filename
         dts
         globals
@@ -4186,6 +4292,7 @@ let rec cn_to_ail_lat_internal_loop
 
 let rec cn_to_ail_loop_inv_aux
           ~without_lemma_checks
+          ~without_ownership_checking
           filename
           dts
           globals
@@ -4206,6 +4313,7 @@ let rec cn_to_ail_loop_inv_aux
     let loop_info =
       cn_to_ail_loop_inv_aux
         ~without_lemma_checks
+        ~without_ownership_checking
         filename
         dts
         globals
@@ -4257,6 +4365,7 @@ let rec cn_to_ail_loop_inv_aux
     let bs, ss =
       cn_to_ail_lat_internal_loop
         ~without_lemma_checks
+        ~without_ownership_checking
         filename
         dts
         globals
@@ -4306,6 +4415,7 @@ let get_loop_ownership_bs_and_ss () =
 
 let cn_to_ail_loop_inv
       ~without_lemma_checks
+      ~without_ownership_checking
       filename
       dts
       globals
@@ -4318,6 +4428,7 @@ let cn_to_ail_loop_inv
     let loop_info =
       cn_to_ail_loop_inv_aux
         ~without_lemma_checks
+        ~without_ownership_checking
         filename
         dts
         globals
@@ -4426,7 +4537,17 @@ let rec cn_to_ail_lat_2
     let pop_s = generate_cn_pop_msg_info in
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let b1, s1 =
-      cn_to_ail_resource filename new_name dts globals preds None spec_mode_opt loc ret
+      cn_to_ail_resource
+        filename
+        new_name
+        dts
+        globals
+        preds
+        None
+        spec_mode_opt
+        loc
+        without_ownership_checking
+        ret
     in
     let new_lat = ESE.fn_largs_and_body_subst (ESE.sym_subst (name, bt, new_name)) lat in
     let ail_executable_spec =
@@ -4525,6 +4646,7 @@ let rec cn_to_ail_lat_2
       List.map
         (cn_to_ail_loop_inv
            ~without_lemma_checks
+           ~without_ownership_checking
            filename
            dts
            globals
@@ -4533,7 +4655,9 @@ let rec cn_to_ail_lat_2
         loop
     in
     let ail_loop_invariants = List.filter_map Fun.id ail_loop_invariants in
-    let post_bs, post_ss = cn_to_ail_post filename dts globals preds post in
+    let post_bs, post_ss =
+      cn_to_ail_post filename dts globals preds without_ownership_checking post
+    in
     let ownership_stats_ =
       if without_ownership_checking then
         []
@@ -4856,7 +4980,8 @@ let generate_assume_ownership_function ~without_ownership_checking ctype
   =
   let ctype_str = str_of_ctype ctype in
   let ctype_str = String.concat "_" (String.split_on_char ' ' ctype_str) in
-  let fn_sym = Sym.fresh ("assume_owned_" ^ ctype_str) in
+  let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
+  let fn_sym = Sym.fresh ("assume_" ^ fn_prefix ^ ctype_str) in
   let param1_sym = Sym.fresh "cn_ptr" in
   let here = Locations.other __LOC__ in
   let cast_expr =
@@ -4936,6 +5061,7 @@ let cn_to_ail_assume_resource
       (preds : (Sym.t * Definition.Predicate.t) list)
       loc
       spec_mode_opt
+      without_ownership_checking
   =
   let calculate_return_type = function
     | Request.Owned (sct, _) ->
@@ -4981,6 +5107,12 @@ let cn_to_ail_assume_resource
       in
       (ctype, snd pred_def'.oarg)
   in
+  let generate_owned_fn_name ~without_ownership_checking sct =
+    let ct_str = str_of_ctype (Sctypes.to_ctype sct) in
+    let ct_str = String.concat "_" (String.split_on_char ' ' ct_str) in
+    let fn_prefix = if without_ownership_checking then "deref_" else "owned_" in
+    fn_prefix ^ ct_str
+  in
   function
   | Request.P p ->
     let ctype, bt = calculate_return_type p.name in
@@ -4989,9 +5121,9 @@ let cn_to_ail_assume_resource
       match p.name with
       | Owned (sct, _) ->
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
-        let ct_str = str_of_ctype (Sctypes.to_ctype sct) in
-        let ct_str = String.concat "_" (String.split_on_char ' ' ct_str) in
-        let owned_fn_name = "assume_owned_" ^ ct_str in
+        let owned_fn_name =
+          "assume_" ^ generate_owned_fn_name ~without_ownership_checking sct
+        in
         (* Hack with enum as sym *)
         let fn_call_it =
           IT.IT
@@ -5104,9 +5236,9 @@ let cn_to_ail_assume_resource
       match q.name with
       | Owned (sct, _) ->
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
-        let sct_str = str_of_ctype (Sctypes.to_ctype sct) in
-        let sct_str = String.concat "_" (String.split_on_char ' ' sct_str) in
-        let owned_fn_name = "assume_owned_" ^ sct_str in
+        let owned_fn_name =
+          "assume_" ^ generate_owned_fn_name ~without_ownership_checking sct
+        in
         let ptr_add_it = IT.(IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
         (* Hack with enum as sym *)
         let fn_call_it =
@@ -5247,7 +5379,14 @@ let cn_to_ail_assume_resource
     (b1 @ b2 @ b3 @ bs' @ bs, s1 @ s2 @ s3 @ ss @ ss')
 
 
-let rec cn_to_ail_assume_lat filename dts pred_sym_opt globals preds spec_mode_opt
+let rec cn_to_ail_assume_lat
+          filename
+          dts
+          pred_sym_opt
+          globals
+          preds
+          spec_mode_opt
+          without_ownership_checking
   = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (IT.get_bt it) in
@@ -5264,20 +5403,53 @@ let rec cn_to_ail_assume_lat filename dts pred_sym_opt globals preds spec_mode_o
         (AssignVar name)
     in
     let b2, s2 =
-      cn_to_ail_assume_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_assume_lat
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let b1, s1 =
-      cn_to_ail_assume_resource filename name dts globals preds loc spec_mode_opt ret
+      cn_to_ail_assume_resource
+        filename
+        name
+        dts
+        globals
+        preds
+        loc
+        spec_mode_opt
+        without_ownership_checking
+        ret
     in
     let b2, s2 =
-      cn_to_ail_assume_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_assume_lat
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2, s1 @ s2)
   | LAT.Constraint (_lc, (_loc, _str_opt), lat) ->
     let b2, s2 =
-      cn_to_ail_assume_lat filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_assume_lat
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b2, s2)
   | LAT.I it ->
@@ -5304,6 +5476,7 @@ let cn_to_ail_assume_predicate
       globals
       preds
       spec_mode_opt
+      without_ownership_checking
   =
   let ret_type = bt_to_ail_ctype ~pred_sym:(Some pred_sym) (snd rp_def.oarg) in
   let rec clause_translate (clauses : Definition.Clause.t list) =
@@ -5318,6 +5491,7 @@ let cn_to_ail_assume_predicate
           globals
           preds
           spec_mode_opt
+          without_ownership_checking
           c.packing_ft
       in
       (match c.guard with
@@ -5378,18 +5552,42 @@ let cn_to_ail_assume_predicate
   (decl, def)
 
 
-let rec cn_to_ail_assume_predicates filename pred_def_list dts globals preds
+let rec cn_to_ail_assume_predicates
+          filename
+          pred_def_list
+          dts
+          globals
+          preds
+          without_ownership_checking
   : (A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition) list
   =
   match pred_def_list with
   | [] -> []
   | p :: ps ->
-    let d = cn_to_ail_assume_predicate filename p dts globals preds None in
-    let ds = cn_to_ail_assume_predicates filename ps dts globals preds in
+    let d =
+      cn_to_ail_assume_predicate
+        filename
+        p
+        dts
+        globals
+        preds
+        None
+        without_ownership_checking
+    in
+    let ds =
+      cn_to_ail_assume_predicates filename ps dts globals preds without_ownership_checking
+    in
     d :: ds
 
 
-let rec cn_to_ail_assume_lat_2 filename dts pred_sym_opt globals preds spec_mode_opt
+let rec cn_to_ail_assume_lat_2
+          filename
+          dts
+          pred_sym_opt
+          globals
+          preds
+          spec_mode_opt
+          without_ownership_checking
   = function
   | LAT.Define ((name, it), _info, lat) ->
     let ctype = bt_to_ail_ctype (IT.get_bt it) in
@@ -5406,26 +5604,67 @@ let rec cn_to_ail_assume_lat_2 filename dts pred_sym_opt globals preds spec_mode
         (AssignVar name)
     in
     let b2, s2 =
-      cn_to_ail_assume_lat_2 filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_assume_lat_2
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let b1, s1 =
-      cn_to_ail_assume_resource filename name dts globals preds loc spec_mode_opt ret
+      cn_to_ail_assume_resource
+        filename
+        name
+        dts
+        globals
+        preds
+        loc
+        spec_mode_opt
+        without_ownership_checking
+        ret
     in
     let b2, s2 =
-      cn_to_ail_assume_lat_2 filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_assume_lat_2
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b1 @ b2, s1 @ s2)
   | LAT.Constraint (_lc, (_loc, _str_opt), lat) ->
     let b2, s2 =
-      cn_to_ail_assume_lat_2 filename dts pred_sym_opt globals preds spec_mode_opt lat
+      cn_to_ail_assume_lat_2
+        filename
+        dts
+        pred_sym_opt
+        globals
+        preds
+        spec_mode_opt
+        without_ownership_checking
+        lat
     in
     (b2, s2)
   | LAT.I _ -> ([], [ A.AilSreturnVoid ])
 
 
-let cn_to_ail_assume_pre filename dts sym args globals preds lat
+let cn_to_ail_assume_pre
+      filename
+      dts
+      sym
+      args
+      globals
+      preds
+      without_ownership_checking
+      lat
   : A.sigma_declaration * CF.GenTypes.genTypeCategory A.sigma_function_definition
   =
   let open Option in
@@ -5463,7 +5702,17 @@ let cn_to_ail_assume_pre filename dts sym args globals preds lat
       lat
   in
   (* Generate function *)
-  let bs', ss' = cn_to_ail_assume_lat_2 filename dts (Some sym) globals preds None lat in
+  let bs', ss' =
+    cn_to_ail_assume_lat_2
+      filename
+      dts
+      (Some sym)
+      globals
+      preds
+      None
+      without_ownership_checking
+      lat
+  in
   let decl : A.sigma_declaration =
     ( fsym,
       ( Locations.other __LOC__,
