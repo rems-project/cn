@@ -275,6 +275,7 @@ let generate_c_specs_internal
 
 let generate_c_assume_pres_internal
       filename
+      without_ownership_checking
       (insts : (bool * Extract.instrumentation) list)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -305,6 +306,7 @@ let generate_c_assume_pres_internal
       args
       globals
       preds
+      without_ownership_checking
       (AT.get_lat (Option.get inst.internal))
   in
   insts
@@ -525,6 +527,7 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 
 let generate_c_predicates
       filename
+      without_ownership_checking
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -536,6 +539,7 @@ let generate_c_predicates
       sigm.cn_datatypes
       (Cn_to_ail.extract_global_variables cabs_tunit prog5)
       sigm.cn_predicates
+      without_ownership_checking
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in

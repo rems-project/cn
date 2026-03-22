@@ -211,6 +211,7 @@ val cn_to_ail_predicates
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->
   AilSyntax.sigma_cn_predicate list ->
+  bool ->
   ((Locations.t * AilSyntax.sigma_declaration)
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
@@ -247,6 +248,7 @@ val cn_to_ail_assume_predicates
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->
   (Sym.t * Definition.Predicate.t) list ->
+  bool ->
   (AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition)
     list
@@ -258,6 +260,7 @@ val cn_to_ail_assume_pre
   (Ctype.union_tag * (BaseTypes.t * Ctype.ctype)) list ->
   (Ctype.union_tag * Ctype.ctype) list ->
   (Ctype.union_tag * Definition.Predicate.t) list ->
+  bool ->
   'a LogicalArgumentTypes.t ->
   AilSyntax.sigma_declaration
   * GenTypes.genTypeCategory AilSyntax.sigma_function_definition

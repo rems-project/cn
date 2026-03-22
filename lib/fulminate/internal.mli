@@ -11,6 +11,7 @@ type executable_spec =
 
 val generate_c_assume_pres_internal
   :  string ->
+  bool ->
   (bool * Extract.instrumentation) list ->
   Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
@@ -73,6 +74,7 @@ val generate_c_functions
 
 val generate_c_predicates
   :  string ->
+  bool ->
   Cabs.translation_unit ->
   _ Mucore.file ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
