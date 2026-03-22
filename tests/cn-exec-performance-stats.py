@@ -353,6 +353,5 @@ if args.csv_clean:
         clean_df.to_csv(args.csv_clean, index=False) 
 
 
-
 print("Number of error files:")
 print(num_error_files)
