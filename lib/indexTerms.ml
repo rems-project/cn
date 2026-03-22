@@ -1219,6 +1219,31 @@ module Bounds = struct
     |> Option.value ~default:(num_lit_ max bt Cerb_location.unknown)
 
 
+  (* used for optimisation of Fulminate output when possible *)
+  let it_only_bounds ((x, _) : Sym.t * BT.t) (it : t) : bool =
+    match it with
+    | IT (Binop (EQ, IT (Sym x', _, _), _), _, _)
+    | IT (Binop (EQ, _, IT (Sym x', _, _)), _, _) ->
+      Sym.equal x x'
+    | IT (Binop (And, tm1, tm2), _, _) ->
+      let is_lower_bound it =
+        match it with
+        | IT (Binop (LE, _, IT (Sym x', _, _)), _, _)
+        | IT (Binop (LT, _, IT (Sym x', _, _)), _, _) ->
+          Sym.equal x x'
+        | _ -> false
+      in
+      let is_upper_bound it =
+        match it with
+        | IT (Binop (LE, IT (Sym x', _, _), _), _, _)
+        | IT (Binop (LT, IT (Sym x', _, _), _), _, _) ->
+          Sym.equal x x'
+        | _ -> false
+      in
+      is_lower_bound tm1 && is_upper_bound tm2
+    | _ -> false
+
+
   let get_bounds_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option * t option =
     (get_lower_bound_opt (x, bt) it, get_upper_bound_opt (x, bt) it)
 
