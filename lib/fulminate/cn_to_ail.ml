@@ -3179,12 +3179,16 @@ let cn_to_ail_resource
     let ptr_add_stat =
       A.(AilSexpr (mk_expr (AilEassign (mk_expr (AilEident ptr_add_sym), e4))))
     in
+    let ptr_add_decl_no_rhs = A.(AilSdeclaration [ (ptr_add_sym, None) ]) in
+    (* if permission only contains bounds, the range of memory is contiguous we can assert ownership over entire range in one call for `Owned` *)
+    let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
     let rhs, bs, ss, opt_bs, opt_ss =
       match q.name with
       | Owned (sct, _) ->
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
-        (* perf optimisation: dereference inside loop, assert ownership separately *)
-        let deref_fn_name = generate_owned_fn_name ~without_ownership_checking:true sct in
+        let owned_or_deref_fn_name =
+          generate_owned_fn_name ~without_ownership_checking:permission_only_bounds sct
+        in
         let ptr_add_it = IT.(IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
         (* Hack with enum as sym *)
         let enum_val_get = IT.(IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
@@ -3197,66 +3201,80 @@ let cn_to_ail_resource
         let fn_call_it =
           IT.IT
             ( Apply
-                (Sym.fresh deref_fn_name, [ ptr_add_it; enum_val_get; loop_ownership_arg ]),
+                ( Sym.fresh owned_or_deref_fn_name,
+                  [ ptr_add_it; enum_val_get; loop_ownership_arg ] ),
               BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' =
           cn_to_ail_expr filename dts globals spec_mode_opt fn_call_it PassBack
         in
-        (* optimisation: assert ownership separately *)
-        let ownership_fn_str = "cn_get_or_put_ownership" in
-        let ail_sizeof_expr =
-          mk_expr A.(AilEsizeof (CF.Ctype.no_qualifiers, Sctypes.to_ctype sct))
+        let opt_bs, opt_ss =
+          if permission_only_bounds then (
+            (* optimisation: assert ownership separately *)
+            let ownership_fn_str = "cn_get_or_put_ownership" in
+            let ail_sizeof_expr =
+              mk_expr A.(AilEsizeof (CF.Ctype.no_qualifiers, Sctypes.to_ctype sct))
+            in
+            let range_it =
+              IT.sub_
+                ( IT.sym_ (end_sym, i_bt, Cerb_location.unknown),
+                  IT.sym_ (i_sym, i_bt, Cerb_location.unknown) )
+                Cerb_location.unknown
+            in
+            let _, _, range_expr =
+              cn_to_ail_expr filename dts globals spec_mode_opt range_it PassBack
+            in
+            let _, _, enum_expr =
+              cn_to_ail_expr filename dts globals spec_mode_opt enum_val_get PassBack
+            in
+            let _, _, loop_ownership_expr =
+              cn_to_ail_expr
+                filename
+                dts
+                globals
+                spec_mode_opt
+                loop_ownership_arg
+                PassBack
+            in
+            let ptr_bs, ptr_ss, ptr_expr =
+              cn_to_ail_expr filename dts globals spec_mode_opt ptr_add_it PassBack
+            in
+            let ownership_assert_fn_expr_ = A.(AilEident (Sym.fresh ownership_fn_str)) in
+            let mul_expr =
+              mk_expr
+                A.(
+                  AilEbinary
+                    ( ail_sizeof_expr,
+                      A.(Arithmetic Mul),
+                      mk_expr (wrap_with_convert_from (rm_expr range_expr) i_bt) ))
+            in
+            let ptr_member_of =
+              mk_expr A.(AilEmemberofptr (ptr_expr, Id.make Cerb_location.unknown "ptr"))
+            in
+            let ptr_arg =
+              mk_expr
+                A.(
+                  AilEcast
+                    ( CF.Ctype.no_qualifiers,
+                      void_ptr_type,
+                      mk_expr
+                        (AilEcast
+                           ( CF.Ctype.no_qualifiers,
+                             CF.Ctype.(
+                               mk_ctype_pointer no_qualifiers (Sctypes.to_ctype sct)),
+                             ptr_member_of )) ))
+            in
+            let args = [ enum_expr; ptr_arg; mul_expr; loop_ownership_expr ] in
+            let ownership_assert_expr =
+              mk_expr A.(AilEcall (mk_expr ownership_assert_fn_expr_, args))
+            in
+            let opt_main_ss = [ ptr_add_decl; A.(AilSexpr ownership_assert_expr) ] in
+            (ptr_add_binding :: ptr_bs, ptr_ss @ opt_main_ss))
+          else
+            ([ ptr_add_binding ], [ ptr_add_decl_no_rhs ])
         in
-        let range_it =
-          IT.sub_
-            ( IT.sym_ (end_sym, i_bt, Cerb_location.unknown),
-              IT.sym_ (i_sym, i_bt, Cerb_location.unknown) )
-            Cerb_location.unknown
-        in
-        let _, _, range_expr =
-          cn_to_ail_expr filename dts globals spec_mode_opt range_it PassBack
-        in
-        let _, _, enum_expr =
-          cn_to_ail_expr filename dts globals spec_mode_opt enum_val_get PassBack
-        in
-        let _, _, loop_ownership_expr =
-          cn_to_ail_expr filename dts globals spec_mode_opt loop_ownership_arg PassBack
-        in
-        let ptr_bs, ptr_ss, ptr_expr =
-          cn_to_ail_expr filename dts globals spec_mode_opt ptr_add_it PassBack
-        in
-        let ownership_assert_fn_expr_ = A.(AilEident (Sym.fresh ownership_fn_str)) in
-        let mul_expr =
-          mk_expr
-            A.(
-              AilEbinary
-                ( ail_sizeof_expr,
-                  A.(Arithmetic Mul),
-                  mk_expr (wrap_with_convert_from (rm_expr range_expr) i_bt) ))
-        in
-        let ptr_member_of =
-          mk_expr A.(AilEmemberofptr (ptr_expr, Id.make Cerb_location.unknown "ptr"))
-        in
-        let ptr_arg =
-          mk_expr
-            A.(
-              AilEcast
-                ( CF.Ctype.no_qualifiers,
-                  void_ptr_type,
-                  mk_expr
-                    (AilEcast
-                       ( CF.Ctype.no_qualifiers,
-                         CF.Ctype.(mk_ctype_pointer no_qualifiers (Sctypes.to_ctype sct)),
-                         ptr_member_of )) ))
-        in
-        let args = [ enum_expr; ptr_arg; mul_expr; loop_ownership_expr ] in
-        let ownership_assert_expr =
-          mk_expr A.(AilEcall (mk_expr ownership_assert_fn_expr_, args))
-        in
-        let opt_main_ss = [ ptr_add_decl; A.(AilSexpr ownership_assert_expr) ] in
-        (e', bs', ss', ptr_add_binding :: ptr_bs, ptr_ss @ opt_main_ss)
+        (e', bs', ss', opt_bs, opt_ss)
       | PName pname ->
         let bs, ss, es =
           list_split_three
@@ -3280,7 +3298,7 @@ let cn_to_ail_resource
           List.concat bs,
           List.concat ss,
           [ ptr_add_binding ],
-          [ ptr_add_decl ] )
+          [ ptr_add_decl_no_rhs ] )
     in
     let typedef_name = get_typedef_string (bt_to_ail_ctype i_bt) in
     let incr_func_name =
@@ -3294,34 +3312,38 @@ let cn_to_ail_resource
              (AilEcall
                 (mk_expr (AilEident increment_fn_sym), [ mk_expr (AilEident i_sym) ]))))
     in
+    let gen_conj_loop ~permission_only_bounds (bs, ss) if_cond while_cond incr_stat =
+      let loop_body =
+        if permission_only_bounds then
+          (* Optimise Fulminate output if permission only consists of bounds *)
+          A.(AilSblock (bs, List.map mk_stmt (ss @ [ incr_stat ])))
+        else (
+          let if_stat =
+            A.(
+              AilSif
+                ( wrap_with_convert_from_cn_bool if_cond,
+                  mk_stmt (AilSblock (bs, List.map mk_stmt ss)),
+                  mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
+          in
+          AilSblock ([], List.map mk_stmt [ if_stat; incr_stat ]))
+      in
+      A.(AilSwhile (wrap_with_convert_from_cn_bool while_cond, mk_stmt loop_body, 0))
+    in
     let bs', ss' =
       match rm_ctype return_ctype with
       | C.Void ->
+        (* For optimisation, map is not constructed anyway in this case since return type is Void, which is also never the case for Owned. Therefore, there are less checks to do in this case *)
         let void_pred_call = A.(AilSexpr rhs) in
         let loop_body_bs, loop_body_ss =
           ([ ptr_add_binding ], [ ptr_add_stat; void_pred_call ])
         in
-        let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
-        (* Optimise Fulminate output if permission only consists of bounds *)
-        let loop_body =
-          if permission_only_bounds then
-            A.(
-              AilSblock
-                (loop_body_bs, List.map mk_stmt (loop_body_ss @ [ increment_stat ])))
-          else (
-            let if_stat =
-              A.(
-                AilSif
-                  ( wrap_with_convert_from_cn_bool if_cond_expr,
-                    mk_stmt (AilSblock (loop_body_bs, List.map mk_stmt loop_body_ss)),
-                    mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
-            in
-            AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ]))
-        in
         let while_loop =
-          A.(
-            AilSwhile
-              (wrap_with_convert_from_cn_bool while_cond_expr, mk_stmt loop_body, 0))
+          gen_conj_loop
+            ~permission_only_bounds
+            (loop_body_bs, loop_body_ss)
+            if_cond_expr
+            while_cond_expr
+            increment_stat
         in
         let ail_block =
           A.(
@@ -3333,16 +3355,6 @@ let cn_to_ail_resource
         ([], [ ail_block ])
       | _ ->
         (* TODO: Change to mostly use index terms rather than Ail directly - avoids duplication between these functions and cn_to_ail *)
-        let cn_map_type =
-          mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh "cn_map") ] C.Void
-        in
-        let sym_binding =
-          create_binding sym (mk_ctype C.(Pointer (C.no_qualifiers, cn_map_type)))
-        in
-        let create_call =
-          A.(AilEcall (mk_expr (AilEident (Sym.fresh "map_create")), []))
-        in
-        let sym_decl = A.(AilSdeclaration [ (sym, Some (mk_expr create_call)) ]) in
         let i_ident_expr = A.(AilEident i_sym) in
         let i_bt_str =
           match get_typedef_string (bt_to_ail_ctype i_bt) with
@@ -3358,45 +3370,64 @@ let cn_to_ail_resource
                 ( mk_expr (AilEident (Sym.fresh ("cast_" ^ i_bt_str ^ "_to_cn_integer"))),
                   [ mk_expr i_ident_expr ] ))
         in
-        let map_set_expr_ =
-          A.(
-            AilEcall
-              ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
-                List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
+        let is_contiguous_owned_optimised =
+          permission_only_bounds && match q.name with Owned _ -> true | _ -> false
         in
-        let loop_body_bs, loop_body_ss =
-          (ptr_add_binding :: b4, s4 @ [ ptr_add_stat; AilSexpr (mk_expr map_set_expr_) ])
-        in
-        let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
-        (* Optimise Fulminate output if permission only consists of bounds *)
-        let loop_body =
-          if permission_only_bounds then
-            A.(
-              AilSblock
-                (loop_body_bs, List.map mk_stmt (loop_body_ss @ [ increment_stat ])))
+        let sym_binding, sym_decl, while_loop =
+          if not is_used then
+            if is_contiguous_owned_optimised then
+              ([], [], [])
+            else (
+              let loop_body_bs, loop_body_ss =
+                (ptr_add_binding :: b4, s4 @ [ ptr_add_stat; AilSexpr rhs ])
+              in
+              let while_loop =
+                gen_conj_loop
+                  ~permission_only_bounds
+                  (loop_body_bs, loop_body_ss)
+                  if_cond_expr
+                  while_cond_expr
+                  increment_stat
+              in
+              ([], [], [ while_loop ]))
           else (
-            let if_stat =
-              A.(
-                AilSif
-                  ( wrap_with_convert_from_cn_bool if_cond_expr,
-                    mk_stmt (AilSblock (loop_body_bs, List.map mk_stmt loop_body_ss)),
-                    mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ))
+            let cn_map_type =
+              mk_ctype ~annots:[ CF.Annot.Atypedef (Sym.fresh "cn_map") ] C.Void
             in
-            A.(AilSblock ([], List.map mk_stmt [ if_stat; increment_stat ])))
-        in
-        let while_loop =
-          A.(
-            AilSwhile
-              (wrap_with_convert_from_cn_bool while_cond_expr, mk_stmt loop_body, 0))
+            let sym_binding =
+              create_binding sym (mk_ctype C.(Pointer (C.no_qualifiers, cn_map_type)))
+            in
+            let create_call =
+              A.(AilEcall (mk_expr (AilEident (Sym.fresh "map_create")), []))
+            in
+            let sym_decl = A.(AilSdeclaration [ (sym, Some (mk_expr create_call)) ]) in
+            let map_set_expr_ =
+              A.(
+                AilEcall
+                  ( mk_expr (AilEident (Sym.fresh "cn_map_set")),
+                    List.map mk_expr [ AilEident sym; i_expr ] @ [ rhs ] ))
+            in
+            let loop_body_bs, loop_body_ss =
+              ( ptr_add_binding :: b4,
+                s4 @ [ ptr_add_stat; AilSexpr (mk_expr map_set_expr_) ] )
+            in
+            let while_loop =
+              gen_conj_loop
+                ~permission_only_bounds
+                (loop_body_bs, loop_body_ss)
+                if_cond_expr
+                while_cond_expr
+                increment_stat
+            in
+            ([ sym_binding ], [ sym_decl ], [ while_loop ]))
         in
         let ail_block =
           A.(
             AilSblock
               ( [ start_binding; end_binding ] @ opt_bs,
-                List.map mk_stmt ([ start_assign; end_assign ] @ opt_ss @ [ while_loop ])
-              ))
+                List.map mk_stmt ([ start_assign; end_assign ] @ opt_ss @ while_loop) ))
         in
-        ([ sym_binding ], [ sym_decl; ail_block ])
+        (sym_binding, sym_decl @ [ ail_block ])
     in
     (b1 @ b2 @ b3 @ bs' @ bs, s1 @ s2 @ s3 @ ss @ ss')
 
