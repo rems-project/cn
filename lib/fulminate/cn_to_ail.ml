@@ -2981,6 +2981,7 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
                 Cerb_location.unknown ))
         | None -> IT.int_ 1 Cerb_location.unknown
       in
+      (* need to make it an explicit < check rather than <= for optimisation that asserts ownership over contiguous memory in one go -- assumes particular shape of bounds *)
       let upper_bound_plus_one = IT.add_ (upper_bound, one_const) Cerb_location.unknown in
       (upper_bound_plus_one, IT.lt_ (i_it, end_it) Cerb_location.unknown)
   in
