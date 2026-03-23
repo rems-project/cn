@@ -1968,12 +1968,13 @@ let cn_to_ail_records map_bindings =
   List.map (generate_struct_definition ~lc:false) flipped_bindings
 
 
+let void_ptr_type = C.(mk_ctype_pointer C.no_qualifiers (mk_ctype Void))
+
 (* Generic map get for structs, datatypes and records *)
 (* Used in generate_struct_map_get, generate_datatype_map_get and generate_record_map_get *)
 let generate_map_get sym =
   let ctype_str = "struct_" ^ Sym.pp_string sym in
   let fn_str = "cn_map_get_" ^ ctype_str in
-  let void_ptr_type = C.(mk_ctype_pointer C.no_qualifiers (mk_ctype Void)) in
   let param1_sym = Sym.fresh "m" in
   let param2_sym = Sym.fresh "key" in
   let param_syms = [ param1_sym; param2_sym ] in
@@ -3161,12 +3162,16 @@ let cn_to_ail_resource
     let ptr_add_sym = Sym.fresh_anon () in
     let cn_pointer_return_type = bt_to_ail_ctype BT.(Loc ()) in
     let ptr_add_binding = create_binding ptr_add_sym cn_pointer_return_type in
-    let ptr_add_stat = A.(AilSdeclaration [ (ptr_add_sym, Some e4) ]) in
-    let rhs, bs, ss =
+    let ptr_add_decl = A.(AilSdeclaration [ (ptr_add_sym, Some e4) ]) in
+    let ptr_add_stat =
+      A.(AilSexpr (mk_expr (AilEassign (mk_expr (AilEident ptr_add_sym), e4))))
+    in
+    let rhs, bs, ss, opt_bs, opt_ss =
       match q.name with
       | Owned (sct, _) ->
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
-        let owned_fn_name = generate_owned_fn_name ~without_ownership_checking sct in
+        (* perf optimisation: dereference inside loop, assert ownership separately *)
+        let deref_fn_name = generate_owned_fn_name ~without_ownership_checking:true sct in
         let ptr_add_it = IT.(IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
         (* Hack with enum as sym *)
         let enum_val_get = IT.(IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
@@ -3179,14 +3184,66 @@ let cn_to_ail_resource
         let fn_call_it =
           IT.IT
             ( Apply
-                (Sym.fresh owned_fn_name, [ ptr_add_it; enum_val_get; loop_ownership_arg ]),
+                (Sym.fresh deref_fn_name, [ ptr_add_it; enum_val_get; loop_ownership_arg ]),
               BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct,
               Cerb_location.unknown )
         in
         let bs', ss', e' =
           cn_to_ail_expr filename dts globals spec_mode_opt fn_call_it PassBack
         in
-        (e', bs', ss')
+        (* optimisation: assert ownership separately *)
+        let ownership_fn_str = "cn_get_or_put_ownership" in
+        let ail_sizeof_expr =
+          mk_expr A.(AilEsizeof (CF.Ctype.no_qualifiers, Sctypes.to_ctype sct))
+        in
+        let range_it =
+          IT.sub_
+            ( IT.sym_ (end_sym, i_bt, Cerb_location.unknown),
+              IT.sym_ (i_sym, i_bt, Cerb_location.unknown) )
+            Cerb_location.unknown
+        in
+        let _, _, range_expr =
+          cn_to_ail_expr filename dts globals spec_mode_opt range_it PassBack
+        in
+        let _, _, enum_expr =
+          cn_to_ail_expr filename dts globals spec_mode_opt enum_val_get PassBack
+        in
+        let _, _, loop_ownership_expr =
+          cn_to_ail_expr filename dts globals spec_mode_opt loop_ownership_arg PassBack
+        in
+        let ptr_bs, ptr_ss, ptr_expr =
+          cn_to_ail_expr filename dts globals spec_mode_opt ptr_add_it PassBack
+        in
+        let ownership_assert_fn_expr_ = A.(AilEident (Sym.fresh ownership_fn_str)) in
+        let mul_expr =
+          mk_expr
+            A.(
+              AilEbinary
+                ( ail_sizeof_expr,
+                  A.(Arithmetic Mul),
+                  mk_expr (wrap_with_convert_from (rm_expr range_expr) i_bt) ))
+        in
+        let ptr_member_of =
+          mk_expr A.(AilEmemberofptr (ptr_expr, Id.make Cerb_location.unknown "ptr"))
+        in
+        let ptr_arg =
+          mk_expr
+            A.(
+              AilEcast
+                ( CF.Ctype.no_qualifiers,
+                  void_ptr_type,
+                  mk_expr
+                    (AilEcast
+                       ( CF.Ctype.no_qualifiers,
+                         CF.Ctype.(mk_ctype_pointer no_qualifiers (Sctypes.to_ctype sct)),
+                         ptr_member_of )) ))
+        in
+        let args = [ enum_expr; ptr_arg; mul_expr; loop_ownership_expr ] in
+        let ownership_assert_expr =
+          mk_expr A.(AilEcall (mk_expr ownership_assert_fn_expr_, args))
+        in
+        let opt_main_ss = [ ptr_add_decl; A.(AilSexpr ownership_assert_expr) ] in
+        (e', bs', ss', ptr_add_binding :: ptr_bs, ptr_ss @ opt_main_ss)
       | PName pname ->
         let bs, ss, es =
           list_split_three
@@ -3206,7 +3263,11 @@ let cn_to_ail_resource
                 (mk_expr (AilEident ptr_add_sym) :: es)
                 @ List.map mk_expr [ AilEident enum_sym; loop_ownership_expr_ ] ))
         in
-        (mk_expr fcall, List.concat bs, List.concat ss)
+        ( mk_expr fcall,
+          List.concat bs,
+          List.concat ss,
+          [ ptr_add_binding ],
+          [ ptr_add_decl ] )
     in
     let typedef_name = get_typedef_string (bt_to_ail_ctype i_bt) in
     let incr_func_name =
@@ -3252,8 +3313,9 @@ let cn_to_ail_resource
         let ail_block =
           A.(
             AilSblock
-              ( [ start_binding; end_binding ],
-                List.map mk_stmt [ start_assign; end_assign; while_loop ] ))
+              ( [ start_binding; end_binding ] @ opt_bs,
+                List.map mk_stmt ([ start_assign; end_assign ] @ opt_ss @ [ while_loop ])
+              ))
         in
         ([], [ ail_block ])
       | _ ->
@@ -3317,8 +3379,9 @@ let cn_to_ail_resource
         let ail_block =
           A.(
             AilSblock
-              ( [ start_binding; end_binding ],
-                List.map mk_stmt [ start_assign; end_assign; while_loop ] ))
+              ( [ start_binding; end_binding ] @ opt_bs,
+                List.map mk_stmt ([ start_assign; end_assign ] @ opt_ss @ [ while_loop ])
+              ))
         in
         ([ sym_binding ], [ sym_decl; ail_block ])
     in
