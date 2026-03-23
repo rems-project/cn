@@ -2971,7 +2971,20 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
     | IT (Binop (Sub, end_expr', IT (Const (Bits (_, n)), _, _)), _, _)
       when Z.equal n Z.one ->
       (end_expr', IT.lt_ (i_it, end_it) Cerb_location.unknown)
-    | _ -> (upper_bound, IT.le_ (i_it, end_it) Cerb_location.unknown)
+    | _ ->
+      (* assume type is int if not bitvector *)
+      let one_const =
+        match BT.is_bits_bt i_bt with
+        | Some (sign, n) ->
+          IT.(
+            IT
+              ( Const (Bits ((sign, n), Z.of_int 1)),
+                BT.(Bits (sign, n)),
+                Cerb_location.unknown ))
+        | None -> IT.int_ 1 Cerb_location.unknown
+      in
+      let upper_bound_plus_one = IT.add_ (upper_bound, one_const) Cerb_location.unknown in
+      (upper_bound_plus_one, IT.lt_ (i_it, end_it) Cerb_location.unknown)
   in
   (start_expr, (end_sym, end_expr), end_cond)
 
@@ -3701,6 +3714,7 @@ let rec cn_to_ail_lat
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
+    (* TODO: analysis on `lat` to see if `name` appears *)
     let b1, s1 =
       cn_to_ail_resource
         filename
