@@ -201,6 +201,7 @@ cn_bool* convert_to_cn_bool(bool b);
 bool convert_from_cn_bool(cn_bool* b);
 void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
 cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2);
+void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool* b2);
 cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2);
 cn_bool* cn_bool_not(cn_bool* b);
 cn_bool* cn_bool_implies(cn_bool* b1, cn_bool* b2);

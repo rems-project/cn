@@ -567,13 +567,11 @@ let gen_bool_while_loop
   let incr_func_name =
     match typedef_name with Some str -> str ^ "_increment" | None -> ""
   in
-  let cn_bool_and_sym = Sym.fresh "cn_bool_and" in
-  let rhs_and_expr_ =
-    A.(AilEcall (mk_expr (AilEident cn_bool_and_sym), [ mk_expr b_ident; e ]))
+  let cn_bool_inplace_and_sym = Sym.fresh "cn_bool_inplace_and" in
+  let inplace_and_expr_ =
+    A.(AilEcall (mk_expr (AilEident cn_bool_inplace_and_sym), [ mk_expr b_ident; e ]))
   in
-  let b_assign =
-    A.(AilSexpr (mk_expr (AilEassign (mk_expr b_ident, mk_expr rhs_and_expr_))))
-  in
+  let inplace_and_stat = A.(AilSexpr (mk_expr inplace_and_expr_)) in
   let incr_stat =
     A.(
       AilSexpr
@@ -589,11 +587,11 @@ let gen_bool_while_loop
         [ A.(
             AilSif
               ( wrap_with_convert_from_cn_bool if_cond_expr,
-                mk_stmt (AilSblock ([], List.map mk_stmt (ss @ [ b_assign ]))),
+                mk_stmt (AilSblock ([], List.map mk_stmt (ss @ [ inplace_and_stat ]))),
                 mk_stmt (AilSblock ([], [ mk_stmt AilSskip ])) ));
           incr_stat
         ]
-    | None -> List.map mk_stmt (ss @ [ b_assign; incr_stat ])
+    | None -> List.map mk_stmt (ss @ [ inplace_and_stat; incr_stat ])
   in
   let while_loop =
     A.(AilSwhile (while_cond_with_conversion, mk_stmt (AilSblock (bs, loop_body)), 0))
