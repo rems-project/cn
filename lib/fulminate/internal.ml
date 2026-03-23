@@ -579,15 +579,26 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
         x :: remove_duplicates (x :: ret_list) xs
   in
   let ctypes = remove_duplicates [] ownership_ctypes in
-  let ail_funs =
+  let deref_funs =
     List.map
       (fun ctype ->
          Cn_to_ail.generate_get_or_put_ownership_function
-           ~without_ownership_checking
+           ~without_ownership_checking:true
            ctype)
       ctypes
   in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ail_funs in
+  let owned_funs =
+    if not without_ownership_checking then
+      List.map
+        (fun ctype ->
+           Cn_to_ail.generate_get_or_put_ownership_function
+             ~without_ownership_checking:false
+             ctype)
+        ctypes
+    else
+      []
+  in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (owned_funs @ deref_funs) in
   let comment = "\n/* OWNERSHIP FUNCTIONS */\n\n" in
   (comment ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
