@@ -1219,7 +1219,7 @@ module Bounds = struct
     |> Option.value ~default:(num_lit_ max bt Cerb_location.unknown)
 
 
-  (* used for optimisation of Fulminate output when possible *)
+  (* used for Fulminate optimisation *)
   let it_only_bounds ((x, _) : Sym.t * BT.t) (it : t) : bool =
     match it with
     | IT (Binop (EQ, IT (Sym x', _, _), _), _, _)
