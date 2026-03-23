@@ -253,7 +253,73 @@ module Make (AD : Domain.T) = struct
       { statements = (assert_stmt :: values_stmts) @ (map_init_stmt :: conditional_stmts);
         expression = map_var_doc
       }
-    | `Map _ -> failwith "TODO: Map"
+    | `Map ((i_sym, i_bt, it_perm), body_term) ->
+      (* Generic pure-value map: no memory assignment, just builds a map value *)
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let max_len_constraint =
+        let here = Locations.other __LOC__ in
+        let array_len =
+          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        in
+        let max_len_term =
+          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        in
+        LC.T (IT.le_ (array_len, max_len_term) here)
+      in
+      let assert_stmt =
+        !^"CN_SMT_CONCRETIZE_ASSERT"
+        ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
+      in
+      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
+      let result_ty = Smt.convert_basetype bt in
+      let here = Locations.other __LOC__ in
+      let prefix =
+        Printf.sprintf "%s_%d_pure_map" (Sym.pp_string i_sym) (Sym.num i_sym)
+      in
+      let map_var_name = prefix ^ "_acc" in
+      let map_var_doc = Pp.string map_var_name in
+      let map_init_stmt =
+        !^"cn_term*" ^^^ map_var_doc ^^^ !^"=" ^^^ !^"cn_smt_default" ^^ parens result_ty
+      in
+      let per_element =
+        max_array_length
+        |> Z.to_int
+        |> List.range 0
+        |> List.map (fun idx ->
+          let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
+          let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
+          let subst_body = Term.subst (IT.make_subst [ (i_sym, idx_it) ]) body_term in
+          let body_result = concretize_term sigma subst_body in
+          let elem_var = Pp.string (Printf.sprintf "%s_elem_%d" prefix idx) in
+          let elem_stmt =
+            !^"cn_term*" ^^^ elem_var ^^^ !^"=" ^^^ body_result.expression
+          in
+          let cond_doc =
+            !^"convert_from_cn_bool"
+            ^^ parens
+                 (!^"cn_smt_concretize_eval_term"
+                  ^^ parens
+                       (!^"smt_solver" ^^ comma ^^^ Smt.convert_indexterm sigma guard_it)
+                 )
+          in
+          let key_doc = Smt.convert_indexterm sigma idx_it in
+          let update_doc =
+            map_var_doc
+            ^^^ !^"="
+            ^^^ !^"cn_smt_map_set"
+            ^^ parens (separate (comma ^^ space) [ map_var_doc; key_doc; elem_var ])
+          in
+          let conditional_stmt =
+            !^"if" ^^^ parens cond_doc ^^^ braces (update_doc ^^ !^";")
+          in
+          (body_result.statements @ [ elem_stmt ], conditional_stmt))
+      in
+      let all_body_stmts = List.concat_map fst per_element in
+      let conditional_stmts = List.map snd per_element in
+      { statements = (assert_stmt :: all_body_stmts) @ (map_init_stmt :: conditional_stmts);
+        expression = map_var_doc
+      }
     | `PickSized choice_terms ->
       (* Weighted choice selection using CN_SMT_PICK macros *)
       let result_var = Sym.fresh_anon () in
