@@ -239,7 +239,49 @@ module Make (AD : Domain.T) = struct
         | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
       in
       gather_term sigma (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
-    | `Map _ -> failwith "TODO"
+    | `Map ((i_sym, i_bt, it_perm), body_term) ->
+      (* Generic pure-value map: no memory assignment, just builds a map value *)
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let max_len_constraint =
+        let here = Locations.other __LOC__ in
+        let array_len =
+          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        in
+        let max_len_term =
+          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        in
+        LC.T (IT.le_ (array_len, max_len_term) here)
+      in
+      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let it_min = f it_min in
+      let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
+      let result_ty = Smt.convert_basetype bt in
+      let here = Locations.other __LOC__ in
+      let per_element =
+        max_array_length
+        |> Z.to_int
+        |> List.range 0
+        |> List.map (fun idx ->
+          let idx_it = f (IT.add_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here) in
+          let subst_body = Term.subst (IT.make_subst [ (i_sym, idx_it) ]) body_term in
+          let body_result = gather_term sigma subst_body in
+          (idx_it, body_result))
+      in
+      let all_stmts = List.concat_map (fun (_, r) -> r.statements) per_element in
+      let actual_map =
+        List.fold_left
+          (fun m (key_it, r) ->
+             let key_doc = Smt.convert_indexterm sigma key_it in
+             !^"cn_smt_map_set"
+             ^^ parens (separate (comma ^^ space) [ m; key_doc; r.expression ]))
+          (!^"cn_smt_default" ^^ parens result_ty)
+          per_element
+      in
+      let assert_stmt =
+        !^"CN_SMT_GATHER_ASSERT"
+        ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
+      in
+      { statements = assert_stmt :: all_stmts; expression = actual_map }
     | `PickSized choice_terms ->
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)

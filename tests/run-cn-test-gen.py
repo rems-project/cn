@@ -494,7 +494,6 @@ def main():
         if args.symbolic:
             smt_test_unsupported = [
                 "ini_queue.pass.c",
-                "mkm.pass.c",
                 "range.fail.c",
                 "range.pass.c",
                 "sized_array.pass.c",
@@ -537,6 +536,9 @@ def main():
 
                 if args.symbolic and Path(tf).name == "ini_queue.fail.c":
                     full_config += ' --exit-fast'
+
+                if args.symbolic and Path(tf).name == "mkm.pass.c":
+                    full_config += ' --max-array-length=1024'
 
                 test_type = get_test_type(tf, full_config)
                 if test_type == 'SKIP':
