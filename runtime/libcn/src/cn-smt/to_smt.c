@@ -1118,6 +1118,17 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
     case CN_TERM_ARRAY_SHIFT: {
       sexp_t* base_smt = translate_term_aux(s, iterm->data.array_shift.base);
       sexp_t* index_smt = translate_term_aux(s, iterm->data.array_shift.index);
+
+      // Cast index to pointer width if it's a narrower bitvector
+      cn_base_type index_type = iterm->data.array_shift.index->base_type;
+      bool idx_signed;
+      int idx_sz;
+      cn_base_type loc_bt = cn_base_type_bits(false, CHAR_BIT * sizeof(uintptr_t));
+      if (is_bits_type(index_type, &idx_signed, &idx_sz) &&
+          idx_sz != CHAR_BIT * (int)sizeof(uintptr_t)) {
+        index_smt = bv_cast(loc_bt, index_type, index_smt);
+      }
+
       sexp_t* offset_smt =
           (iterm->data.array_shift.element_size != 1)
               ? bv_mul(loc_k(iterm->data.array_shift.element_size), index_smt)
