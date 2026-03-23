@@ -10,6 +10,13 @@ type statements = statement list
 
 let statements_subst subst = List.map (statement_subst subst)
 
+let statements_free_vars statements =
+  List.map snd statements
+  |> List.concat
+  |> List.map (Cnprog.free_vars Cnstatement.free_vars)
+  |> List.fold_left Sym.Set.union Sym.Set.empty
+
+
 type loop = bool * Locations.t * Locations.t * statements ArgumentTypes.t
 
 let loop_subst subst ((contains_user_spec, cond_loc, loop_loc, at) : loop) =

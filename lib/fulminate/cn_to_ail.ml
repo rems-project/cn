@@ -2989,6 +2989,7 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
 
 
 let cn_to_ail_resource
+      ~is_used (* optimise away construction of resource if never used *)
       filename
       sym
       dts
@@ -3675,6 +3676,7 @@ let cn_to_ail_function
   (((loc, decl), def), ail_record_opt)
 
 
+(* only used in cn_to_ail_predicate *)
 let rec cn_to_ail_lat
           filename
           dts
@@ -3713,9 +3715,11 @@ let rec cn_to_ail_lat
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
-    (* TODO: analysis on `lat` to see if `name` appears *)
+    let free_vars_in_rest = LAT.free_vars IT.free_vars lat in
+    let is_used = Sym.Set.mem name free_vars_in_rest in
     let b1, s1 =
       cn_to_ail_resource
+        ~is_used
         filename
         name
         dts
@@ -3934,11 +3938,15 @@ let rec cn_to_ail_post_aux
     in
     (b1 @ b2 @ [ binding ], (decl :: s1) @ s2)
   | LRT.Resource ((name, (re, bt)), (loc, _str_opt), t) ->
+    let free_vars_in_rest = LRT.free_vars t in
+    let is_used = Sym.Set.mem name free_vars_in_rest in
     let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
+    let new_lrt = LogicalReturnTypes.subst (ESE.sym_subst (name, bt, new_name)) t in
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let b1, s1 =
       cn_to_ail_resource
+        ~is_used
         filename
         new_name
         dts
@@ -3950,7 +3958,6 @@ let rec cn_to_ail_post_aux
         without_ownership_checking
         re
     in
-    let new_lrt = LogicalReturnTypes.subst (ESE.sym_subst (name, bt, new_name)) t in
     let b2, s2 =
       cn_to_ail_post_aux
         filename
@@ -4273,6 +4280,7 @@ let rec cn_to_ail_lat_internal_loop
           dts
           globals
           preds
+          cn_stats
           loop_ownership_sym
           spec_mode_opt
   = function
@@ -4289,6 +4297,7 @@ let rec cn_to_ail_lat_internal_loop
         dts
         globals
         preds
+        cn_stats
         loop_ownership_sym
         spec_mode_opt
         lat
@@ -4297,8 +4306,14 @@ let rec cn_to_ail_lat_internal_loop
   | LAT.Resource ((name, (ret, _bt)), (loc, _str_opt), lat) ->
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
+    let free_vars_in_rest_of_inv = LAT.free_vars ESE.statements_free_vars lat in
+    let free_vars_in_cn_stats = ESE.statements_free_vars cn_stats in
+    let is_used =
+      Sym.Set.mem name (Sym.Set.union free_vars_in_rest_of_inv free_vars_in_cn_stats)
+    in
     let b1, s1 =
       cn_to_ail_resource
+        ~is_used
         filename
         name
         dts
@@ -4318,6 +4333,7 @@ let rec cn_to_ail_lat_internal_loop
         dts
         globals
         preds
+        cn_stats
         loop_ownership_sym
         spec_mode_opt
         lat
@@ -4343,6 +4359,7 @@ let rec cn_to_ail_lat_internal_loop
         dts
         globals
         preds
+        cn_stats
         loop_ownership_sym
         spec_mode_opt
         lat
@@ -4373,6 +4390,7 @@ let rec cn_to_ail_loop_inv_aux
           dts
           globals
           preds
+          stats
           loop_ownership_sym
           spec_mode_opt
           (contains_user_spec, cond_loc, loop_loc, at)
@@ -4394,6 +4412,7 @@ let rec cn_to_ail_loop_inv_aux
         dts
         globals
         preds
+        stats
         loop_ownership_sym
         spec_mode_opt
         subst_loop
@@ -4446,6 +4465,7 @@ let rec cn_to_ail_loop_inv_aux
         dts
         globals
         preds
+        stats
         loop_ownership_sym
         spec_mode_opt
         lat
@@ -4496,6 +4516,7 @@ let cn_to_ail_loop_inv
       dts
       globals
       preds
+      stats
       with_loop_leak_checks
       ((contains_user_spec, cond_loc, loop_loc, _) as loop)
   =
@@ -4509,6 +4530,7 @@ let cn_to_ail_loop_inv
         dts
         globals
         preds
+        stats
         loop_ownership_state.sym
         (Some Loop)
         loop
@@ -4558,7 +4580,7 @@ let cn_to_ail_loop_inv
         loop_exit = ([], [ bump_alloc_end_stat_ ])
       })
   else
-    (* Produce no runtime loop invariant statements if the user has not written any spec for this loop*)
+    (* Produce no runtime loop invariant statements if the user has not written any spec for this loop *)
     None
 
 
@@ -4572,6 +4594,7 @@ let append_to_postcondition ail_executable_spec (b2, s2) =
   { ail_executable_spec with post = (b1 @ b2, s1 @ s2) }
 
 
+(* Used to translate function-level specification *)
 let rec cn_to_ail_lat_2
           without_ownership_checking
           with_loop_leak_checks
@@ -4608,12 +4631,31 @@ let rec cn_to_ail_lat_2
     in
     prepend_to_precondition ail_executable_spec (binding :: b1, decl :: s1)
   | LAT.Resource ((name, (ret, bt)), (loc, _str_opt), lat) ->
+    let free_vars_in_rest =
+      LAT.free_vars
+        (fun (post, (stats, loops)) ->
+           let post_free_vars = RT.free_vars post in
+           let stats_free_vars = ESE.statements_free_vars stats in
+           let loop_free_vars =
+             List.map (fun (_, _, _, at) -> at) loops
+             |> List.map (AT.free_vars ESE.statements_free_vars)
+             |> List.fold_left Sym.Set.union Sym.Set.empty
+           in
+           List.fold_left
+             Sym.Set.union
+             Sym.Set.empty
+             [ post_free_vars; stats_free_vars; loop_free_vars ])
+        lat
+    in
+    let is_used = Sym.Set.mem name free_vars_in_rest in
+    let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
+    let new_lat = ESE.fn_largs_and_body_subst (ESE.sym_subst (name, bt, new_name)) lat in
     let spec_mode_opt = Some Pre in
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
-    let new_name = generate_sym_with_suffix ~suffix:"_cn" name in
     let b1, s1 =
       cn_to_ail_resource
+        ~is_used
         filename
         new_name
         dts
@@ -4625,7 +4667,6 @@ let rec cn_to_ail_lat_2
         without_ownership_checking
         ret
     in
-    let new_lat = ESE.fn_largs_and_body_subst (ESE.sym_subst (name, bt, new_name)) lat in
     let ail_executable_spec =
       cn_to_ail_lat_2
         without_ownership_checking
@@ -4666,7 +4707,7 @@ let rec cn_to_ail_lat_2
     in
     prepend_to_precondition ail_executable_spec (b1, ss)
   (* Postcondition *)
-  | LAT.I (post, (stats, loop)) ->
+  | LAT.I (post, (stats, loops)) ->
     let rec remove_duplicates locs stats =
       match stats with
       | [] -> []
@@ -4727,8 +4768,9 @@ let rec cn_to_ail_lat_2
            dts
            globals
            preds
+           stats
            with_loop_leak_checks)
-        loop
+        loops
     in
     let ail_loop_invariants = List.filter_map Fun.id ail_loop_invariants in
     let post_bs, post_ss =
