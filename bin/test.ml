@@ -458,9 +458,7 @@ module Flags = struct
 
 
   let until_timeout =
-    let doc =
-      "Keep rerunning tests until the given timeout (in seconds) has been reached"
-    in
+    let doc = "Run tests until the given timeout (in seconds) has been reached" in
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.until_timeout

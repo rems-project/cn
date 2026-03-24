@@ -395,122 +395,125 @@ int cn_test_main(int argc, char* argv[]) {
   assert(results);
   memset(results, CN_TEST_SKIP, CN_TEST_MAX_TEST_CASES * sizeof(enum cn_test_result));
 
-  int timediff = 0;
+  // Compute per-test deadlines for --until-timeout
+  bool has_filter = bennet_hash_table_size(const_char_ptr, uint8_t)(&test_filter) > 0;
+  int num_active = 0;
+  for (int i = 0; i < num_test_cases; i++) {
+    if (has_filter && !bennet_hash_table_contains(const_char_ptr, uint8_t)(
+                          &test_filter, test_cases[i].name)) {
+      continue;
+    }
+    num_active++;
+  }
 
-  do {
-    for (int i = 0; i < num_test_cases; i++) {
-      if (results[i] == CN_TEST_FAIL) {
-        continue;
-      }
+  uint64_t per_test_us = (timeout > 0 && num_active > 0)
+                             ? ((uint64_t)timeout * 1000000ULL) / (uint64_t)num_active
+                             : 0;
 
-      // Skip tests not in the filter if filter is non-empty
-      if (bennet_hash_table_size(const_char_ptr, uint8_t)(&test_filter) > 0) {
-        if (!bennet_hash_table_contains(const_char_ptr, uint8_t)(
-                &test_filter, test_cases[i].name)) {
-          continue;
-        }
-      }
+  int active_idx = 0;
+  for (int i = 0; i < num_test_cases; i++) {
+    // Skip tests not in the filter if filter is non-empty
+    if (has_filter && !bennet_hash_table_contains(const_char_ptr, uint8_t)(
+                          &test_filter, test_cases[i].name)) {
+      continue;
+    }
 
-      if (output_tyche || print_size_info) {
-        bennet_info_sizes_set_function_under_test(test_cases[i].name);
-      }
+    uint64_t test_deadline =
+        (per_test_us > 0) ? begin_time + (uint64_t)(active_idx + 1) * per_test_us : 0;
 
-      if (output_tyche || print_backtrack_info) {
-        bennet_info_backtracks_set_function_under_test(test_cases[i].name);
-      }
+    if (output_tyche || print_size_info) {
+      bennet_info_sizes_set_function_under_test(test_cases[i].name);
+    }
 
-      if (print_satisfaction_info) {
-        bennet_info_unsatisfied_set_function_under_test(test_cases[i].name);
-      }
+    if (output_tyche || print_backtrack_info) {
+      bennet_info_backtracks_set_function_under_test(test_cases[i].name);
+    }
 
-      if (print_discard_info) {
-        bennet_info_discards_set_function_under_test(test_cases[i].name);
-      }
+    if (print_satisfaction_info) {
+      bennet_info_unsatisfied_set_function_under_test(test_cases[i].name);
+    }
 
-      if (output_tyche || print_timing_info) {
-        bennet_info_timing_set_function_under_test(test_cases[i].name);
-      }
+    if (print_discard_info) {
+      bennet_info_discards_set_function_under_test(test_cases[i].name);
+    }
 
-      struct cn_test_case* test_case = &test_cases[i];
-      if (progress_level == CN_TEST_GEN_PROGRESS_ALL) {
-        print_test_info(test_case->suite, test_case->name, 0, 0);
-      }
-      repros[i].checkpoint = bennet_rand_save();
-      bennet_set_input_timeout(input_timeout);
-      struct cn_test_input test_input = {.replay = false,
-          .progress_level = progress_level,
-          .sizing_strategy = sizing_strategy,
-          .trap = 0,
-          .replicas = 0,
-          .log_all_backtracks = 0,
-          .output_tyche = output_tyche,
-          .tyche_output_stream = tyche_output_stream,
-          .begin_time = begin_time};
-      enum cn_test_result result = test_case->func(test_input);
-      if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
-        results[i] = result;
-      }
-      repros[i].size = bennet_get_size();
-      if (progress_level == CN_TEST_GEN_PROGRESS_NONE) {
-        continue;
-      }
+    if (output_tyche || print_timing_info) {
+      bennet_info_timing_set_function_under_test(test_cases[i].name);
+    }
 
-      printf("\n");
-      switch (result) {
-        case CN_TEST_PASS:
-          printf("PASSED\n");
-          break;
-        case CN_TEST_FAIL:
-          printf("FAILED\n");
+    struct cn_test_case* test_case = &test_cases[i];
+    if (progress_level == CN_TEST_GEN_PROGRESS_ALL) {
+      print_test_info(test_case->suite, test_case->name, 0, 0);
+    }
+    repros[i].checkpoint = bennet_rand_save();
+    bennet_set_input_timeout(input_timeout);
+    struct cn_test_input test_input = {.replay = false,
+        .progress_level = progress_level,
+        .sizing_strategy = sizing_strategy,
+        .trap = 0,
+        .replicas = 0,
+        .log_all_backtracks = 0,
+        .output_tyche = output_tyche,
+        .tyche_output_stream = tyche_output_stream,
+        .begin_time = begin_time,
+        .deadline = test_deadline};
+    enum cn_test_result result = test_case->func(test_input);
+    if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
+      results[i] = result;
+    }
+    repros[i].size = bennet_get_size();
+    active_idx++;
 
-          if (replay) {
-            set_cn_logging_level(logging_level);
-            cn_printf(CN_LOGGING_ERROR, "\n");
+    if (progress_level == CN_TEST_GEN_PROGRESS_NONE) {
+      continue;
+    }
 
-            cn_test_reproduce(&repros[i]);
-            test_input.replay = true;
-            test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
-            test_input.trap = trap;
-            test_input.replicas = replicas;
-            test_input.output_tyche = 0;
-            enum cn_test_result replay_result = test_case->func(test_input);
+    printf("\n");
+    switch (result) {
+      case CN_TEST_PASS:
+        printf("PASSED\n");
+        break;
+      case CN_TEST_FAIL:
+        printf("FAILED\n");
 
-            if (replay_result != CN_TEST_FAIL) {
-              if (get_cn_logging_level() < CN_LOGGING_ERROR) {
-                printf("\n");
-              }
-              fprintf(stderr,
-                  "Replay of failure did not fail (result = %d).\n",
-                  replay_result);
-              abort();
+        if (replay) {
+          set_cn_logging_level(logging_level);
+          cn_printf(CN_LOGGING_ERROR, "\n");
+
+          cn_test_reproduce(&repros[i]);
+          test_input.replay = true;
+          test_input.progress_level = CN_TEST_GEN_PROGRESS_NONE;
+          test_input.trap = trap;
+          test_input.replicas = replicas;
+          test_input.output_tyche = 0;
+          test_input.deadline = 0;
+          enum cn_test_result replay_result = test_case->func(test_input);
+
+          if (replay_result != CN_TEST_FAIL) {
+            if (get_cn_logging_level() < CN_LOGGING_ERROR) {
+              printf("\n");
             }
-
-            set_cn_logging_level(CN_LOGGING_NONE);
+            fprintf(
+                stderr, "Replay of failure did not fail (result = %d).\n", replay_result);
+            abort();
           }
 
-          break;
-        case CN_TEST_GEN_FAIL:
-          printf("FAILED TO GENERATE VALID INPUT\n");
-          break;
-        case CN_TEST_SKIP:
-          printf("SKIPPED\n");
-          break;
-      }
+          set_cn_logging_level(CN_LOGGING_NONE);
+        }
 
-      if (exit_fast && result == CN_TEST_FAIL) {
-        goto outside_loop;
-      }
-
-      if (timeout != 0) {
-        timediff = (bennet_get_microseconds() - begin_time) / 1000000;
-      }
+        break;
+      case CN_TEST_GEN_FAIL:
+        printf("FAILED TO GENERATE VALID INPUT\n");
+        break;
+      case CN_TEST_SKIP:
+        printf("SKIPPED\n");
+        break;
     }
-    if (timediff < timeout) {
-      printf("\n%d seconds remaining, rerunning tests\n\n", timeout - timediff);
-    }
-  } while (timediff < timeout);
 
-outside_loop:;
+    if (exit_fast && result == CN_TEST_FAIL) {
+      break;
+    }
+  }
   if (tyche_output_stream != NULL) {
     fclose(tyche_output_stream);
   }
