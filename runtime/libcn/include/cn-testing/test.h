@@ -32,6 +32,7 @@ struct cn_test_input {
   bool output_tyche;
   FILE* tyche_output_stream;
   uint64_t begin_time;
+  uint64_t deadline;
 };
 
 typedef enum cn_test_result cn_test_case_fn(struct cn_test_input test_input);
@@ -155,12 +156,14 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
         break;                                                                           \
     }                                                                                    \
-    for (; i < Samples; i++) {                                                           \
+    for (; (test_input.deadline > 0) ? (bennet_get_microseconds() < test_input.deadline) \
+                                     : (i < Samples);                                    \
+        i++) {                                                                           \
       if (test_input.progress_level == CN_TEST_GEN_PROGRESS_ALL) {                       \
         printf("\r");                                                                    \
         print_test_info(#Suite, #Name, i, d);                                            \
       }                                                                                  \
-      if (d == 10 * Samples) {                                                           \
+      if (d >= 10 * ((test_input.deadline > 0) ? (i + 1) : Samples)) {                   \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \

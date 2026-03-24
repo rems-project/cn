@@ -809,9 +809,7 @@ def _print_results(results, test_files, retry_history=None):
             print(f"OOM:    {tf} [{total_time:.1f}s] — exceeded memory limit")
             for cfg, r, _, _ in file_results:
                 if r == 'oom':
-                    parts = cfg.split("--build-tool=")
-                    bt = parts[1].split()[0] if len(parts) > 1 else "?"
-                    print(f"         config: ...--build-tool={bt}")
+                    print(f"         config: {cfg}")
             for cfg, r, _, output in file_results:
                 if r == 'oom' and output.strip():
                     print(output)
@@ -821,9 +819,7 @@ def _print_results(results, test_files, retry_history=None):
                               _ in file_results if r != 'pass']
             print(f"FAILED: {tf} [{total_time:.1f}s]")
             for cfg in failed_configs:
-                parts = cfg.split("--build-tool=")
-                bt = parts[1].split()[0] if len(parts) > 1 else "?"
-                print(f"         config: ...--build-tool={bt}")
+                print(f"         config: {cfg}")
 
             for cfg, r, _, output in file_results:
                 if r != 'pass' and output.strip():
@@ -853,8 +849,6 @@ def _print_results(results, test_files, retry_history=None):
     if retry_history:
         print(f"\nMemory limit adjustments:")
         for (tf_str, cfg), history in retry_history.items():
-            parts = cfg.split("--build-tool=")
-            bt = parts[1].split()[0] if len(parts) > 1 else "?"
             steps = []
             for limit_bytes, result_str, san_off, knobs_red in history:
                 size_str = format_size(limit_bytes) if limit_bytes else "?"
@@ -865,7 +859,7 @@ def _print_results(results, test_files, retry_history=None):
                     tags.append("reduced")
                 suffix = f", {', '.join(tags)}" if tags else ""
                 steps.append(f"{size_str} ({result_str.upper()}{suffix})")
-            print(f"  {Path(tf_str).name} (config: ...--build-tool={bt}):")
+            print(f"  {Path(tf_str).name} (config: {cfg}):")
             print(f"    {' -> '.join(steps)}")
 
 
