@@ -50,17 +50,19 @@ module Make (AD : Domain.T) = struct
     | _ -> failwith __LOC__
 
 
-  let rec is_external (gt : Term.t) : bool =
+  let rec is_external (ext : Sym.Set.t) (gt : Term.t) : bool =
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
-    | `Arbitrary | `Symbolic | `Return _ -> false
+    | `Arbitrary | `Symbolic -> false
+    | `Return it -> not (Sym.Set.disjoint ext (IT.free_vars it))
     | `Call _ -> true
-    | `Pick gts -> gts |> List.exists is_external
-    | `Asgn (_, _, gt_rest) -> is_external gt_rest
-    | `LetStar ((_, gt_inner), gt_rest) -> is_external gt_inner || is_external gt_rest
-    | `Assert (_, gt_rest) -> is_external gt_rest
-    | `ITE (_, gt_then, gt_else) -> is_external gt_then || is_external gt_else
-    | `Map (_, gt_inner) -> is_external gt_inner
+    | `Pick gts -> gts |> List.exists (is_external ext)
+    | `Asgn (_, _, gt_rest) -> is_external ext gt_rest
+    | `LetStar ((_, gt_inner), gt_rest) ->
+      is_external ext gt_inner || is_external ext gt_rest
+    | `Assert (_, gt_rest) -> is_external ext gt_rest
+    | `ITE (_, gt_then, gt_else) -> is_external ext gt_then || is_external ext gt_else
+    | `Map (_, gt_inner) -> is_external ext gt_inner
 
 
   let transform_gt_ext_aware (gt : Term.t) : Term.t =
@@ -73,10 +75,7 @@ module Make (AD : Domain.T) = struct
         Term.asgn_ ((it_addr, sct), it_val, aux ext gt_rest) () loc
       | `LetStar ((x, gt_inner), gt_rest) ->
         let gt_inner = aux ext gt_inner in
-        let is_ext =
-          is_external gt_inner || not (Sym.Set.disjoint ext (Term.free_vars gt_inner))
-        in
-        let ext = if is_ext then Sym.Set.add x ext else ext in
+        let ext = if is_external ext gt_inner then Sym.Set.add x ext else ext in
         Term.let_star_ ((x, gt_inner), aux ext gt_rest) () loc
       | `Assert (lc, gt') ->
         let gt' = aux ext gt' in
