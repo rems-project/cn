@@ -3144,7 +3144,13 @@ let cn_to_ail_resource
       cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
     in
     let _, _, if_cond_expr =
-      cn_to_ail_expr filename dts globals spec_mode_opt q.permission PassBack
+      cn_to_ail_expr
+        filename
+        dts
+        globals
+        spec_mode_opt
+        (IndexTerms.Bounds.it_non_bounds q.q q.permission)
+        PassBack
     in
     let cn_integer_ptr_ctype = bt_to_ail_ctype i_bt in
     let b2, s2, _e2 =
