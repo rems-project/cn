@@ -865,22 +865,64 @@ void cn_print_nr_u64(int i, unsigned long u) {
 }
 
 // ghost arguments
-void** ghost_arg_array;
+struct ghost_frame_stack {
+  int ghost_args_type_tag;
+  void** ghost_args;
+  struct ghost_frame_stack* parent;
+};
 
-void alloc_ghost_array(int ghost_array_size) {
-  ghost_arg_array = fulm_malloc(ghost_array_size * sizeof(void*), &fulm_default_alloc);
+static struct ghost_frame_stack* ghost_frame_stack_top;
+
+void initialise_ghost_frame_stack(void) {
+  ghost_frame_stack_top = NULL;
 }
 
-void add_to_ghost_array(int i, void* ptr_to_ghost_arg) {
-  ghost_arg_array[i] = ptr_to_ghost_arg;
+void push_ghost_frame(int tag, int size) {
+  struct ghost_frame_stack* frame =
+      fulm_malloc(sizeof(struct ghost_frame_stack), &fulm_default_alloc);
+  frame->ghost_args_type_tag = tag;
+  frame->parent = ghost_frame_stack_top;
+  frame->ghost_args = fulm_malloc(size * sizeof(void*), &fulm_default_alloc);
+  ghost_frame_stack_top = frame;
 }
 
-void free_ghost_array(void) {
-  fulm_free(ghost_arg_array, &fulm_default_alloc);
+void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg) {
+  if (ghost_frame_stack_top == NULL) {
+    cn_ghost_arg_failure();
+  }
+  ghost_frame_stack_top->ghost_args[i] = ptr_to_ghost_arg;
 }
 
-void* load_from_ghost_array(int i) {
-  return ghost_arg_array[i];
+void* load_arg_from_ghost_frame(int i) {
+  if (ghost_frame_stack_top == NULL) {
+    cn_ghost_arg_failure();
+  }
+  return ghost_frame_stack_top->ghost_args[i];
+}
+
+int top_ghost_frame_tag(void) {
+  if (ghost_frame_stack_top == NULL) {
+    return -1;
+  }
+  return ghost_frame_stack_top->ghost_args_type_tag;
+}
+
+void pop_ghost_frame(void) {
+  if (ghost_frame_stack_top == NULL) {
+    cn_ghost_arg_failure();
+  }
+  struct ghost_frame_stack* frame = ghost_frame_stack_top;
+  ghost_frame_stack_top = frame->parent;
+  if (frame->ghost_args != NULL) {
+    fulm_free(frame->ghost_args, &fulm_default_alloc);
+  }
+  fulm_free(frame, &fulm_default_alloc);
+}
+
+void free_ghost_frame_stack(void) {
+  while (ghost_frame_stack_top != NULL) {
+    pop_ghost_frame();
+  }
 }
 
 void cn_ghost_arg_failure(void) {

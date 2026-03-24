@@ -164,6 +164,7 @@ let empty_cn_spec_inj_info : cn_spec_inj_info =
 
 
 let generate_c_specs_from_cn_internal
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -183,18 +184,18 @@ let generate_c_specs_from_cn_internal
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
   let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
-  let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~is_lemma:false
+      ?disable_ghost_args
       filename
       dts
       preds
       globals
       c_return_type
-      (Some ghost_array_size)
       instrumentation.internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
@@ -221,6 +222,7 @@ let generate_c_specs_from_cn_internal
 
 
 let generate_c_specs_internal
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -239,6 +241,7 @@ let generate_c_specs_internal
   let cn_spec_inj_info =
     if contains_user_spec then
       generate_c_specs_from_cn_internal
+        ?disable_ghost_args
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
@@ -315,6 +318,7 @@ let generate_c_assume_pres_internal
 
 (* Extract.instrumentation list -> executable_spec *)
 let generate_c_specs
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -328,6 +332,7 @@ let generate_c_specs
   =
   let generate_c_spec (instrumentation : Extract.instrumentation) =
     generate_c_specs_internal
+      ?disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -452,10 +457,6 @@ let generate_ghost_enum prog5 =
   let ail_ghost_enum = Cn_to_ail.cn_to_ail_ghost_enum bts ghost_argss in
   let doc = generate_doc_from_ail_struct ail_ghost_enum in
   doc_to_pretty_string doc
-
-
-let generate_ghost_call_site_glob () =
-  generate_ail_stat_strs Cn_to_ail.gen_ghost_call_site_global_decl
 
 
 let generate_c_tag_def_strs c_structs =
@@ -649,6 +650,7 @@ let generate_global_assignments
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
+      ?(disable_ghost_args = false)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -677,12 +679,11 @@ let generate_global_assignments
     let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
-    let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
     let assignments =
       OE.get_ownership_global_init_stats
-        ~ghost_array_size
         ?max_bump_blocks
         ?bump_block_size
+        ?disable_ghost_args:(Some disable_ghost_args)
         ()
     in
     let init_and_global_mapping_str =
@@ -697,15 +698,19 @@ let generate_global_assignments
           @ global_map_stmts_ )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
-    let free_ghost_array_fn_str = "free_ghost_array" in
-    let free_ghost_array_decl =
+    let free_ghost_frame_stack_fn_str = "free_ghost_frame_stack" in
+    let free_ghost_frame_stack_decl =
       A.(
         AilSexpr
           (mk_expr
-             (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_array_fn_str)), []))))
+             (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_frame_stack_fn_str)), []))))
     in
     let global_unmapping_str =
-      generate_ail_stat_strs ([], global_unmapping_stmts_ @ [ free_ghost_array_decl ])
+      if disable_ghost_args then
+        generate_ail_stat_strs ([], global_unmapping_stmts_)
+      else
+        generate_ail_stat_strs
+          ([], global_unmapping_stmts_ @ [ free_ghost_frame_stack_decl ])
     in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
 

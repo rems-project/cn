@@ -20,7 +20,8 @@ val generate_c_assume_pres_internal
     list
 
 val generate_c_specs
-  :  bool ->
+  :  ?disable_ghost_args:bool ->
+  bool ->
   bool ->
   bool ->
   bool ->
@@ -40,8 +41,6 @@ val generate_c_datatypes
   (Cerb_location.t * string) list
 
 val generate_ghost_enum : unit Mucore.file -> string
-
-val generate_ghost_call_site_glob : unit -> string list
 
 val order_ail_tag_definitions
   :  (AilSyntax.ail_identifier
@@ -99,6 +98,7 @@ val generate_global_assignments
   ?experimental_ownership_stack_mode:bool ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
+  ?disable_ghost_args:bool ->
   Cabs.translation_unit ->
   GenTypes.genTypeCategory AilSyntax.sigma ->
   unit Mucore.file ->

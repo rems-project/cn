@@ -222,6 +222,7 @@ let run_tests
            ~skip_and_only:(skip_fulminate, only_fulminate)
            ?max_bump_blocks
            ?bump_block_size
+           ?disable_ghost_args:(Some true)
            filename
            cc
            pp_file
