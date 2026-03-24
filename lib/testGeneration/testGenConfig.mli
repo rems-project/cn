@@ -69,6 +69,7 @@ type t =
     use_solver_eval : bool; (* Use solver-based evaluation *)
     smt_solver : smt_solver;
     disable_specialization : bool;
+    only_top_level_ite_lifting : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -260,3 +261,5 @@ val get_dsl_log_dir : unit -> string option
 val is_lazy_gen : unit -> bool
 
 val is_specialization_disabled : unit -> bool
+
+val is_only_top_level_ite_lifting : unit -> bool

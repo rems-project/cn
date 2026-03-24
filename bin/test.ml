@@ -91,6 +91,7 @@ let run_tests
       dsl_log_dir
       lazy_gen
       disable_specialization
+      only_top_level_ite_lifting
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -154,6 +155,7 @@ let run_tests
           use_solver_eval;
           smt_solver;
           disable_specialization;
+          only_top_level_ite_lifting;
           smt_logging;
           smt_log_unsat_cores;
           max_unfolds;
@@ -534,6 +536,11 @@ module Flags = struct
     Arg.(value & flag & info [ "disable-specialization" ] ~doc)
 
 
+  let only_top_level_ite_lifting =
+    let doc = "Only lift top-level ITE expressions" in
+    Arg.(value & flag & info [ "only-top-level-ite-lifting" ] ~doc)
+
+
   let disable_passes =
     let doc = "skip this optimization pass (or comma-separated names)" in
     Arg.(
@@ -871,6 +878,7 @@ let cmd =
     $ Flags.dsl_log_dir
     $ Flags.lazy_gen
     $ Flags.disable_specialization
+    $ Flags.only_top_level_ite_lifting
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\
