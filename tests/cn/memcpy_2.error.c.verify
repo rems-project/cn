@@ -1,0 +1,33 @@
+return code: 1
+tests/cn/memcpy_2.error.c:21:19: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+/*@ requires take dstStart_half_1 = each (i32 j; 0i32 <= j && j < n && j % 2i32 == 0i32)
+                  ^
+tests/cn/memcpy_2.error.c:23:19: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+             take dstStart_half_2 = each (i32 j; 0i32 <= j && j < n && j % 2i32 == 1i32)
+                  ^
+tests/cn/memcpy_2.error.c:25:19: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+             take srcStart = each (i32 j; 0i32 <= j && j < n)
+                  ^
+tests/cn/memcpy_2.error.c:27:18: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+    ensures take dstEnd = each (i32 j; 0i32 <= j && j < n)
+                 ^
+tests/cn/memcpy_2.error.c:29:18: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+            take srcEnd = each (i32 j; 0i32 <= j && j < n)
+                 ^
+tests/cn/memcpy_2.error.c:37:16: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+  /*@ inv take dstInv = each (i32 j; 0i32 <= j && j < n)
+               ^
+tests/cn/memcpy_2.error.c:39:16: warning: 'each' prefers a 'u64', but 'j' has type 'i32'.
+          take srcInv = each (i32 j; 0i32 <= j && j < n)
+               ^
+tests/cn/memcpy_2.error.c:48:25: warning: 'focus' prefers a 'u64', but '(i32)read_&i0' has type 'i32'.
+    /*@ focus RW<char>, (i32)i; @*/
+                        ^~~~~~ 
+[1/1]: naive_memcpy -- fail
+tests/cn/memcpy_2.error.c:36:3: error: Missing resource for loop
+  for (i = 0; i < n; i = i + 1)
+  ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~ 
+Resource needed: each(i32 j; 0'i32 <= j && j < n)
+{RW<char>(dst + j @ char)}
+      tests/cn/memcpy_2.error.c:37:16: (arg dstInv)
+State file: file:///tmp/state__memcpy_2.error.c__naive_memcpy.html
