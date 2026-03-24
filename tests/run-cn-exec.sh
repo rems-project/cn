@@ -103,7 +103,7 @@ SUCCESS=$(find cn -name '*.c' \
 )
 
 # Include files which cause error for proof but not testing
-SUCCESS+=("cn/merging_arrays.error.c" "cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c")
+SUCCESS+=("cn/merging_arrays.error.c" "cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c" "cn/memcpy_2.error.c")
 
 NO_MAIN="\
        cn/b_or.c \
@@ -175,6 +175,7 @@ SHOULD_FAIL=$(find cn -name '*.error.c' \
   ! -name "before_from_bytes.error.c" \
   ! -name "partial_init_bytes.error.c" \
   ! -name "before_to_bytes.error.c" \
+  ! -name "memcpy_2.error.c" \
 )
 
 FAILED=""
