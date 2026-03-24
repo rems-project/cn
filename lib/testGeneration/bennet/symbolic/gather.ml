@@ -163,20 +163,29 @@ module Make (AD : Domain.T) = struct
         |> List.mapi (fun idx value_doc ->
           (f (IT.add_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here), value_doc))
       in
-      let actual_map =
-        List.fold_left
-          (fun m (key_it, value_doc) ->
+      let map_var = Sym.fresh_make_uniq "map_acc" in
+      let map_var_doc = Sym.pp map_var in
+      let map_init_stmt =
+        !^"cn_term*" ^^^ map_var_doc ^^^ !^"=" ^^^ !^"cn_smt_default" ^^ parens result_ty
+      in
+      let map_set_stmts =
+        List.map
+          (fun (key_it, value_doc) ->
              let key_doc = Smt.convert_indexterm sigma key_it in
-             !^"cn_smt_map_set"
-             ^^ parens (separate (comma ^^ space) [ m; key_doc; value_doc ]))
-          (!^"cn_smt_default" ^^ parens result_ty)
+             map_var_doc
+             ^^^ !^"="
+             ^^^ !^"cn_smt_map_set"
+             ^^ parens (separate (comma ^^ space) [ map_var_doc; key_doc; value_doc ]))
           elem_entries
       in
       let assert_stmt =
         !^"CN_SMT_GATHER_ASSERT"
         ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
       in
-      { statements = assert_stmt :: assign_stmt :: values_stmts; expression = actual_map }
+      { statements =
+          (assert_stmt :: assign_stmt :: values_stmts) @ (map_init_stmt :: map_set_stmts);
+        expression = map_var_doc
+      }
     | `LetStar
         ((var_sym, Annot ((`Arbitrary | `Symbolic | `Lazy), _, bt_arb, _)), body_term) ->
       (* Let binding *)
@@ -268,20 +277,28 @@ module Make (AD : Domain.T) = struct
           (idx_it, body_result))
       in
       let all_stmts = List.concat_map (fun (_, r) -> r.statements) per_element in
-      let actual_map =
-        List.fold_left
-          (fun m (key_it, r) ->
+      let map_var = Sym.fresh_make_uniq "map_acc" in
+      let map_var_doc = Sym.pp map_var in
+      let map_init_stmt =
+        !^"cn_term*" ^^^ map_var_doc ^^^ !^"=" ^^^ !^"cn_smt_default" ^^ parens result_ty
+      in
+      let map_set_stmts =
+        List.map
+          (fun (key_it, r) ->
              let key_doc = Smt.convert_indexterm sigma key_it in
-             !^"cn_smt_map_set"
-             ^^ parens (separate (comma ^^ space) [ m; key_doc; r.expression ]))
-          (!^"cn_smt_default" ^^ parens result_ty)
+             map_var_doc
+             ^^^ !^"="
+             ^^^ !^"cn_smt_map_set"
+             ^^ parens (separate (comma ^^ space) [ map_var_doc; key_doc; r.expression ]))
           per_element
       in
       let assert_stmt =
         !^"CN_SMT_GATHER_ASSERT"
         ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
       in
-      { statements = assert_stmt :: all_stmts; expression = actual_map }
+      { statements = (assert_stmt :: all_stmts) @ (map_init_stmt :: map_set_stmts);
+        expression = map_var_doc
+      }
     | `PickSized choice_terms ->
       let result_var = Sym.fresh_anon () in
       (* Generate the pick begin macro call *)
