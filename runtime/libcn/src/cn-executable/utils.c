@@ -520,7 +520,9 @@ enum region_owned c_ownership_check(
   uintptr_t address = (uintptr_t)generic_c_ptr;
   rmap_range_res_t res = ownership_ghost_state_extrema(address, size);
 
-  if (res.defined && res.min == res.max) {
+  if (res.defined && res.min == res.max &&
+      rmap_is_fully_covered(
+          address, address + size - 1, cn_ownership_global_ghost_state)) {
     if (res.max == WILDCARD_DEPTH)
       return FULL_WILDCARD;
     else if (res.max == expected_stack_depth)

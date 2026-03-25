@@ -305,6 +305,76 @@ rmap_range_res_t rmap_find_range(rmap_key_t k0, rmap_key_t k1, rmap map) {
   return res_is_empty(&res) ? NONE_RESULT : SOME_RESULT(res.min, res.max);
 }
 
+static bool subtree_is_full(const struct node *node, rmap map) {
+  switch (node->state) {
+    case EMPTY:
+      return false;
+    case LEAF:
+      return true;
+    case INNER:
+      for (size_t i = 0; i < asize(map); i++)
+        if (!subtree_is_full(&node->inner.children[i], map))
+          return false;
+      return true;
+    case SKIP:
+      return false;
+    default:
+      assert(false);
+  }
+}
+
+static bool is_fully_covered(
+    bits_t bits, rmap_key_t k0, rmap_key_t k1, const struct node *node, rmap map) {
+  size_t i0, i1;
+  switch (node->state) {
+    case EMPTY:
+      return false;
+    case LEAF:
+      return true;
+    case INNER:
+      if (complete_range(bits, k0, k1))
+        return subtree_is_full(node, map);
+
+      i0 = key_to_i(bits, map->radix, k0);
+      i1 = key_to_i(bits, map->radix, k1);
+      bits += map->radix;
+      for (size_t i = i0; i <= i1; ++i) {
+        struct node *n = &node->inner.children[i];
+        bool covered;
+        if (i == i0 && i == i1)
+          covered = is_fully_covered(bits, k0, k1, n, map);
+        else if (i == i0)
+          covered = is_fully_covered(bits, k0, max_key(bits, k0), n, map);
+        else if (i == i1)
+          covered = is_fully_covered(bits, min_key(bits, k1), k1, n, map);
+        else
+          covered = subtree_is_full(n, map);
+        if (!covered)
+          return false;
+      }
+      return true;
+    case SKIP: {
+      rmap_key_t path = node->skip.path;
+      bits_t radix = node->skip.radix;
+
+      if (key_to_i(bits, radix, k0) != path || key_to_i(bits, radix, k1) != path)
+        return false;
+      k0 = max_k(k0, min_key(bits + radix, i_to_key(bits, k0, radix, path)));
+      k1 = min_k(k1, max_key(bits + radix, i_to_key(bits, k1, radix, path)));
+      return is_fully_covered(bits + radix, k0, k1, node->skip.child, map);
+    }
+    default:
+      assert(false);
+  }
+}
+
+bool rmap_is_fully_covered(rmap_key_t k0, rmap_key_t k1, rmap map) {
+  if (k0 == k1)
+    return rmap_find(k0, map).defined;
+  assert(k0 < k1);
+  return is_fully_covered(0, k0, k1, &map->root, map);
+}
+
 static inline bool eq_fringe_node(const struct node *n1, const struct node *n2) {
   switch (n1->state) {
     case EMPTY:
