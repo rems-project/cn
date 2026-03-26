@@ -194,3 +194,13 @@ val modify_where : (Where.t -> Where.t) -> unit m
 val init_solver : unit -> unit m
 
 module WellTyped : WellTyped_intf.S with type 'a t := 'a t
+
+val init_promoted : Sym.t -> unit m
+
+val is_promoted : Sym.t -> bool m
+
+val fast_load : Sym.t -> IndexTerms.t option option m
+
+val fast_store : Sym.t -> IndexTerms.t -> bool m
+
+val fast_kill : Sym.t -> bool m

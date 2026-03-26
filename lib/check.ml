@@ -1249,7 +1249,17 @@ let all_empty loc _original_resources =
       { loc; msg = Unused_resource { resource; ctxt; model } })
 
 
-let load loc pointer ct =
+let is_promotable_create = function
+  | Mu.Esseq
+      ( Mu.Pattern (_, _, _, CaseBase (Some sym, _)),
+        Expr (_, _, _, Eaction (Paction (_, Action (_, Create _)))),
+        _ ) ->
+    let@ promoted = is_promoted sym in
+    return promoted
+  | _ -> return false
+
+
+let load_r loc pointer ct =
   let@ point, O value =
     RI.Special.predicate_request
       loc
@@ -1259,6 +1269,63 @@ let load loc pointer ct =
   let@ () = add_r loc (P point, O value) in
   let@ () = record_action (Read (pointer, value), loc) in
   return value
+
+
+let load loc pointer ct =
+  let sym_opt = is_sym pointer in
+  match sym_opt with
+  | None -> load_r loc pointer ct
+  | Some (sym, _bt) ->
+    let@ fast = fast_load sym in
+    (match fast with
+     | None -> load_r loc pointer ct
+     | Some None -> assert false
+     | Some (Some t) -> return t)
+
+
+let store_r loc parg ct varg =
+  let@ _ =
+    RI.Special.predicate_request
+      loc
+      (Access Store)
+      ({ name = Owned (ct, Uninit); pointer = parg; iargs = [] }, None)
+  in
+  add_r loc (P { name = Owned (ct, Init); pointer = parg; iargs = [] }, O varg)
+
+
+let store loc parg ct varg =
+  let sym_opt = is_sym parg in
+  match sym_opt with
+  | None -> store_r loc parg ct varg
+  | Some (sym, _bt) ->
+    let@ did = fast_store sym varg in
+    if did then
+      return ()
+    else
+      store_r loc parg ct varg
+
+
+let kill_r loc arg ct =
+  let@ _ =
+    RI.Special.predicate_request
+      loc
+      (Access Kill)
+      ({ name = Owned (ct, Uninit); pointer = arg; iargs = [] }, None)
+  in
+  let@ _ = RI.Special.predicate_request loc (Access Kill) (Req.make_alloc arg, None) in
+  return ()
+
+
+let kill loc arg ct =
+  let sym_opt = is_sym arg in
+  match sym_opt with
+  | None -> kill_r loc arg ct
+  | Some (sym, _bt) ->
+    let@ did = fast_kill sym in
+    if did then
+      return ()
+    else
+      kill_r loc arg ct
 
 
 let instantiate loc filter arg =
@@ -1833,15 +1900,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        check_pexpr pe (fun arg ->
-         let@ _ =
-           RI.Special.predicate_request
-             loc
-             (Access Kill)
-             ({ name = Owned (ct, Uninit); pointer = arg; iargs = [] }, None)
-         in
-         let@ _ =
-           RI.Special.predicate_request loc (Access Kill) (Req.make_alloc arg, None)
-         in
+         let@ () = kill loc arg ct in
          let@ () = record_action (Kill arg, loc) in
          k (unit_ loc))
      | Store (_is_locking, act, p_pe, v_pe, _mo) ->
@@ -1876,17 +1935,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                  in
                  { loc; msg })
            in
-           let@ _ =
-             RI.Special.predicate_request
-               loc
-               (Access Store)
-               ({ name = Owned (act.ct, Uninit); pointer = parg; iargs = [] }, None)
-           in
-           let@ () =
-             add_r
-               loc
-               (P { name = Owned (act.ct, Init); pointer = parg; iargs = [] }, O varg)
-           in
+           let@ () = store_r loc parg act.ct varg in
            let@ () = record_action (Write (parg, varg), loc) in
            k (unit_ loc)))
      | Load (act, p_pe, _mo) ->
@@ -2293,11 +2342,15 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         ~expect:(Mu.bt_of_expr e1)
         (Mu.bt_of_pattern p)
     in
-    check_expr labels e1 (fun it ->
-      let@ bound_a, _path_cs = check_and_match_pattern p it in
-      check_expr labels e2 (fun it2 ->
-        let@ () = remove_as bound_a in
-        k it2))
+    let@ promoted_create = is_promotable_create e_ in
+    if promoted_create then
+      check_expr labels e2 (fun it2 -> k it2)
+    else
+      check_expr labels e1 (fun it ->
+        let@ bound_a, _path_cs = check_and_match_pattern p it in
+        check_expr labels e2 (fun it2 ->
+          let@ () = remove_as bound_a in
+          k it2))
   | Erun (label_sym, pes) ->
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     let@ lt, lkind =
@@ -2396,6 +2449,7 @@ let check_procedure
          (let@ () = add_rs loc initial_resources in
           let@ pre_state = get_typing_context () in
           let@ () = modify_where (Where.set_section Body) in
+          let@ () = init_promoted fsym in
           let@ () = check_expr_top loc label_context rt body in
           return ((), pre_state))
      in

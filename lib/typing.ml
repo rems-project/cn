@@ -306,6 +306,46 @@ end
 
 module WellTyped = WellTyped.Lift (ErrorReader)
 
+let fast_load sym =
+  let@ ctxt = get_typing_context () in
+  return (Sym.Map.find_opt sym ctxt.promoted)
+
+
+let is_promoted sym =
+  let@ ctxt = get_typing_context () in
+  return (Sym.Map.mem sym ctxt.promoted)
+
+
+let init_promoted f_sym =
+  let@ ctxt = get_typing_context () in
+  let here = Locations.other __LOC__ in
+  let@ _, _, _, promotable = Global.get_fun_decl here f_sym in
+  let promoted =
+    List.fold_left (fun map sym -> Sym.Map.add sym None map) Sym.Map.empty promotable
+  in
+  set_typing_context { ctxt with promoted }
+
+
+let fast_store sym varg =
+  let@ ctxt = get_typing_context () in
+  if Sym.Map.mem sym ctxt.promoted then (
+    let promoted = Sym.Map.update sym (fun _ -> Some (Some varg)) ctxt.promoted in
+    let@ () = set_typing_context { ctxt with promoted } in
+    return true)
+  else
+    return false
+
+
+let fast_kill sym =
+  let@ ctxt = get_typing_context () in
+  if Sym.Map.mem sym ctxt.promoted then (
+    let promoted = Sym.Map.remove sym ctxt.promoted in
+    let@ () = set_typing_context { ctxt with promoted } in
+    return true)
+  else
+    return false
+
+
 let add_sym_eqs sym_eqs =
   modify (fun s ->
     let sym_eqs =

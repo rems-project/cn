@@ -50,7 +50,7 @@ let frontend
     ~ignore_bitfields:false;
   CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
   CF.Switches.set
-    ([ "inner_arg_temps"; "at_magic_comments" ]
+    ([ "inner_arg_temps"; "at_magic_comments"; "copy_prop"; "mem2reg" ]
      (* TODO (DCM, VIP) figure out how to support liveness checks for read-only
         resources and then switch on "strict_pointer_arith" to elaborate array
         shift to the effectful version. "strict_pointer_relationals" is also
