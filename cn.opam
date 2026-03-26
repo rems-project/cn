@@ -27,7 +27,7 @@ depends: [
   "qcheck-ounit" {with-test}
 ]
 pin-depends: [
-  ["cerberus-lib.dev" "git+https://github.com/rems-project/cerberus.git#e88d46c"]
+  ["cerberus-lib.dev" "git+https://github.com/dc-mak/cerberus.git#63e182c"]
 ]
 build: [
   ["dune" "subst"] {pinned}
