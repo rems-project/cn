@@ -118,7 +118,7 @@ let check_ptrval (loc : Locations.t) ~(expect : BT.t) (ptrval : pointer_value) :
         unsupported loc !^"invalid function pointer"
       | Some sym ->
         (* just to make sure it exists *)
-        let@ _fun_loc, _, _ = Global.get_fun_decl loc sym in
+        let@ _fun_loc, _, _, _promotable = Global.get_fun_decl loc sym in
         (* the symbol of a function is the same as the symbol of its address *)
         let here = Locations.other __LOC__ in
         return (sym_ (sym, BT.(Loc ()), here)))
@@ -370,7 +370,7 @@ let known_function_pointer loc p =
     let@ global_funs = Global.get_fun_decls () in
     let function_addrs =
       List.map
-        (fun (sym, (loc, _, _)) ->
+        (fun (sym, (loc, _, _, _)) ->
            let t = IT.sym_ (sym, BT.(Loc ()), loc) in
            (sym, t))
         global_funs
@@ -931,7 +931,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | `Inconsistent_context -> assert false
      | `Known sym ->
        (* need to conjure up the characterising 4-tuple *)
-       let@ _, _, c_sig = Global.get_fun_decl loc sym in
+       let@ _, _, c_sig, _ = Global.get_fun_decl loc sym in
        (match IT.const_of_c_sig c_sig loc with
         | Some it -> return it
         | None ->
@@ -1948,7 +1948,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
       match known with
       | `Inconsistent_context -> return ()
       | `Known fsym ->
-        let@ _loc, opt_ft, _ = Global.get_fun_decl loc fsym in
+        let@ _loc, opt_ft, _, _ = Global.get_fun_decl loc fsym in
         let@ ft =
           match opt_ft with
           | Some ft -> return ft
@@ -2621,13 +2621,15 @@ let wf_check_and_record_functions funs call_sigs =
     (fun i fsym def (trusted, checked) ->
        add_cts fsym;
        match def with
-       | Mu.Proc { loc; args_and_body; trusted = tr; _ } ->
+       | Mu.Proc { loc; args_and_body; trusted = tr; promotable } ->
          welltyped_ping i fsym;
          let@ args_and_body = WellTyped.procedure loc args_and_body in
          let ft = WellTyped.to_argument_type args_and_body in
          debug 6 (lazy (!^"function type" ^^^ Sym.pp fsym));
          debug 6 (lazy (CF.Pp_ast.pp_doc_tree (AT.dtree RT.dtree ft)));
-         let@ () = Global.add_fun_decl fsym (loc, Some ft, Pmap.find fsym call_sigs) in
+         let@ () =
+           Global.add_fun_decl fsym (loc, Some ft, Pmap.find fsym call_sigs, promotable)
+         in
          (match tr with
           | Trusted _ -> return ((fsym, (loc, ft)) :: trusted, checked)
           | Checked -> return (trusted, (fsym, (loc, args_and_body)) :: checked))
@@ -2640,7 +2642,7 @@ let wf_check_and_record_functions funs call_sigs =
              let@ ft = WellTyped.function_type "function" loc ft in
              return (Some ft)
          in
-         let@ () = Global.add_fun_decl fsym (loc, oft, Pmap.find fsym call_sigs) in
+         let@ () = Global.add_fun_decl fsym (loc, oft, Pmap.find fsym call_sigs, []) in
          return (trusted, checked))
     funs
     ([], [])
@@ -2881,7 +2883,7 @@ let add_stdlib_spec =
     Pp.debug
       2
       (lazy (Pp.headline ("adding builtin spec for procedure " ^ Sym.pp_string fsym)));
-    Global.add_fun_decl fsym (Locations.other __LOC__, Some ft, ct)
+    Global.add_fun_decl fsym (Locations.other __LOC__, Some ft, ct, [])
   in
   fun call_sigs fsym ->
     match
@@ -2981,7 +2983,7 @@ let time_check_c_functions
       in
       let@ () =
         Sym.Map.fold
-          (fun _ (loc, def, _) acc ->
+          (fun _ (loc, def, _, _) acc ->
              match def with
              | None -> acc
              | Some def ->

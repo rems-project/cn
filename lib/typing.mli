@@ -107,7 +107,7 @@ module Global : sig
   val get_fun_decl
     :  Locations.t ->
     Sym.t ->
-    (Locations.t * Global.AT.ft option * Sctypes.c_concrete_sig) m
+    (Locations.t * Global.AT.ft option * Sctypes.c_concrete_sig * Sym.t list) m
 
   val add_lemma : Sym.t -> Locations.t * ArgumentTypes.lemmat -> unit m
 
@@ -121,7 +121,7 @@ module Global : sig
 
   val add_fun_decl
     :  Sym.t ->
-    Locations.t * ArgumentTypes.ft option * Sctypes.c_concrete_sig ->
+    Locations.t * ArgumentTypes.ft option * Sctypes.c_concrete_sig * Sym.t list ->
     unit m
 
   val set_datatype_order : Sym.t list list option -> unit m
@@ -148,7 +148,9 @@ module Global : sig
 
   val get_fun_decls
     :  unit ->
-    (Sym.t * (Locations.t * Global.AT.ft option * Sctypes.c_concrete_sig)) list m
+    (Sym.t * (Locations.t * Global.AT.ft option * Sctypes.c_concrete_sig * Sym.t list))
+      list
+      m
 end
 
 (* val set_statement_locs : Locations.loc CStatements.LocMap.t -> (unit) m *)
