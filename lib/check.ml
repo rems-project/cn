@@ -1255,8 +1255,11 @@ let is_promotable_create = function
         Expr (_, _, _, Eaction (Paction (_, Action (_, Create _)))),
         _ ) ->
     let@ promoted = is_promoted sym in
-    return promoted
-  | _ -> return false
+    if promoted then
+      return (Some sym)
+    else
+      return None
+  | _ -> return None
 
 
 let load_r loc pointer ct =
@@ -1935,7 +1938,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                  in
                  { loc; msg })
            in
-           let@ () = store_r loc parg act.ct varg in
+           let@ () = store loc parg act.ct varg in
            let@ () = record_action (Write (parg, varg), loc) in
            k (unit_ loc)))
      | Load (act, p_pe, _mo) ->
@@ -2343,8 +2346,12 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         (Mu.bt_of_pattern p)
     in
     let@ promoted_create = is_promotable_create e_ in
-    if promoted_create then
-      check_expr labels e2 (fun it2 -> k it2)
+    if Option.is_some promoted_create then (
+      let sym = Option.get promoted_create in
+      let@ () = add_a sym (BT.Loc ()) (loc, lazy (Sym.pp sym)) in
+      check_expr labels e2 (fun it2 ->
+        let@ () = remove_as [ sym ] in
+        k it2))
     else
       check_expr labels e1 (fun it ->
         let@ bound_a, _path_cs = check_and_match_pattern p it in

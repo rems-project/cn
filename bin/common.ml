@@ -50,7 +50,7 @@ let frontend
     ~ignore_bitfields:false;
   CF.Ocaml_implementation.set CF.Ocaml_implementation.HafniumImpl.impl;
   CF.Switches.set
-    ([ "inner_arg_temps"; "at_magic_comments"; "copy_prop"; "mem2reg" ]
+    ([ "inner_arg_temps"; "at_magic_comments" ]
      (* TODO (DCM, VIP) figure out how to support liveness checks for read-only
         resources and then switch on "strict_pointer_arith" to elaborate array
         shift to the effectful version. "strict_pointer_relationals" is also
@@ -83,7 +83,10 @@ let frontend
   let cabs_tunit = Option.get cabs_tunit_opt in
   let markers_env, ail_prog = Option.get ail_prog_opt in
   CF.Tags.set_tagDefs prog0.CF.Core.tagDefs;
-  let prog1 = CF.Remove_unspecs.rewrite_file prog0 in
+  let prog1 =
+    prog0 |> CF.Remove_unspecs.rewrite_file |> CF.Copy_propagation.transform_file
+    (* |> CF.Core_mem2reg.transform_file *)
+  in
   let prog2 = CF.Milicore.core_to_micore__file Locations.update prog1 in
   let prog3 =
     if skip_label_inlining then
