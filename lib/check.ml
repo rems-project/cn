@@ -118,7 +118,7 @@ let check_ptrval (loc : Locations.t) ~(expect : BT.t) (ptrval : pointer_value) :
         unsupported loc !^"invalid function pointer"
       | Some sym ->
         (* just to make sure it exists *)
-        let@ _fun_loc, _, _ = Global.get_fun_decl loc sym in
+        let@ _fun_loc, _, _, _promotable = Global.get_fun_decl loc sym in
         (* the symbol of a function is the same as the symbol of its address *)
         let here = Locations.other __LOC__ in
         return (sym_ (sym, BT.(Loc ()), here)))
@@ -370,7 +370,7 @@ let known_function_pointer loc p =
     let@ global_funs = Global.get_fun_decls () in
     let function_addrs =
       List.map
-        (fun (sym, (loc, _, _)) ->
+        (fun (sym, (loc, _, _, _)) ->
            let t = IT.sym_ (sym, BT.(Loc ()), loc) in
            (sym, t))
         global_funs
@@ -931,7 +931,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
      | `Inconsistent_context -> assert false
      | `Known sym ->
        (* need to conjure up the characterising 4-tuple *)
-       let@ _, _, c_sig = Global.get_fun_decl loc sym in
+       let@ _, _, c_sig, _ = Global.get_fun_decl loc sym in
        (match IT.const_of_c_sig c_sig loc with
         | Some it -> return it
         | None ->
@@ -1249,7 +1249,20 @@ let all_empty loc _original_resources =
       { loc; msg = Unused_resource { resource; ctxt; model } })
 
 
-let load loc pointer ct =
+let is_promotable_create = function
+  | Mu.Esseq
+      ( Mu.Pattern (_, _, _, CaseBase (Some sym, _)),
+        Expr (_, _, _, Eaction (Paction (_, Action (_, Create _)))),
+        _ ) ->
+    let@ promoted = is_promoted sym in
+    if promoted then
+      return (Some sym)
+    else
+      return None
+  | _ -> return None
+
+
+let load_r loc pointer ct =
   let@ point, O value =
     RI.Special.predicate_request
       loc
@@ -1259,6 +1272,63 @@ let load loc pointer ct =
   let@ () = add_r loc (P point, O value) in
   let@ () = record_action (Read (pointer, value), loc) in
   return value
+
+
+let load loc pointer ct =
+  let sym_opt = is_sym pointer in
+  match sym_opt with
+  | None -> load_r loc pointer ct
+  | Some (sym, _bt) ->
+    let@ fast = fast_load sym in
+    (match fast with
+     | None -> load_r loc pointer ct
+     | Some None -> assert false
+     | Some (Some t) -> return t)
+
+
+let store_r loc parg ct varg =
+  let@ _ =
+    RI.Special.predicate_request
+      loc
+      (Access Store)
+      ({ name = Owned (ct, Uninit); pointer = parg; iargs = [] }, None)
+  in
+  add_r loc (P { name = Owned (ct, Init); pointer = parg; iargs = [] }, O varg)
+
+
+let store loc parg ct varg =
+  let sym_opt = is_sym parg in
+  match sym_opt with
+  | None -> store_r loc parg ct varg
+  | Some (sym, _bt) ->
+    let@ did = fast_store sym varg in
+    if did then
+      return ()
+    else
+      store_r loc parg ct varg
+
+
+let kill_r loc arg ct =
+  let@ _ =
+    RI.Special.predicate_request
+      loc
+      (Access Kill)
+      ({ name = Owned (ct, Uninit); pointer = arg; iargs = [] }, None)
+  in
+  let@ _ = RI.Special.predicate_request loc (Access Kill) (Req.make_alloc arg, None) in
+  return ()
+
+
+let kill loc arg ct =
+  let sym_opt = is_sym arg in
+  match sym_opt with
+  | None -> kill_r loc arg ct
+  | Some (sym, _bt) ->
+    let@ did = fast_kill sym in
+    if did then
+      return ()
+    else
+      kill_r loc arg ct
 
 
 let instantiate loc filter arg =
@@ -1833,15 +1903,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        let@ () = WellTyped.ensure_base_type loc ~expect Unit in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe) in
        check_pexpr pe (fun arg ->
-         let@ _ =
-           RI.Special.predicate_request
-             loc
-             (Access Kill)
-             ({ name = Owned (ct, Uninit); pointer = arg; iargs = [] }, None)
-         in
-         let@ _ =
-           RI.Special.predicate_request loc (Access Kill) (Req.make_alloc arg, None)
-         in
+         let@ () = kill loc arg ct in
          let@ () = record_action (Kill arg, loc) in
          k (unit_ loc))
      | Store (_is_locking, act, p_pe, v_pe, _mo) ->
@@ -1876,17 +1938,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                  in
                  { loc; msg })
            in
-           let@ _ =
-             RI.Special.predicate_request
-               loc
-               (Access Store)
-               ({ name = Owned (act.ct, Uninit); pointer = parg; iargs = [] }, None)
-           in
-           let@ () =
-             add_r
-               loc
-               (P { name = Owned (act.ct, Init); pointer = parg; iargs = [] }, O varg)
-           in
+           let@ () = store loc parg act.ct varg in
            let@ () = record_action (Write (parg, varg), loc) in
            k (unit_ loc)))
      | Load (act, p_pe, _mo) ->
@@ -1948,7 +2000,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
       match known with
       | `Inconsistent_context -> return ()
       | `Known fsym ->
-        let@ _loc, opt_ft, _ = Global.get_fun_decl loc fsym in
+        let@ _loc, opt_ft, _, _ = Global.get_fun_decl loc fsym in
         let@ ft =
           match opt_ft with
           | Some ft -> return ft
@@ -2293,11 +2345,19 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         ~expect:(Mu.bt_of_expr e1)
         (Mu.bt_of_pattern p)
     in
-    check_expr labels e1 (fun it ->
-      let@ bound_a, _path_cs = check_and_match_pattern p it in
+    let@ promoted_create = is_promotable_create e_ in
+    if Option.is_some promoted_create then (
+      let sym = Option.get promoted_create in
+      let@ () = add_a sym (BT.Loc ()) (loc, lazy (Sym.pp sym)) in
       check_expr labels e2 (fun it2 ->
-        let@ () = remove_as bound_a in
+        let@ () = remove_as [ sym ] in
         k it2))
+    else
+      check_expr labels e1 (fun it ->
+        let@ bound_a, _path_cs = check_and_match_pattern p it in
+        check_expr labels e2 (fun it2 ->
+          let@ () = remove_as bound_a in
+          k it2))
   | Erun (label_sym, pes) ->
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
     let@ lt, lkind =
@@ -2396,6 +2456,7 @@ let check_procedure
          (let@ () = add_rs loc initial_resources in
           let@ pre_state = get_typing_context () in
           let@ () = modify_where (Where.set_section Body) in
+          let@ () = init_promoted fsym in
           let@ () = check_expr_top loc label_context rt body in
           return ((), pre_state))
      in
@@ -2621,13 +2682,15 @@ let wf_check_and_record_functions funs call_sigs =
     (fun i fsym def (trusted, checked) ->
        add_cts fsym;
        match def with
-       | Mu.Proc { loc; args_and_body; trusted = tr; _ } ->
+       | Mu.Proc { loc; args_and_body; trusted = tr; promotable } ->
          welltyped_ping i fsym;
          let@ args_and_body = WellTyped.procedure loc args_and_body in
          let ft = WellTyped.to_argument_type args_and_body in
          debug 6 (lazy (!^"function type" ^^^ Sym.pp fsym));
          debug 6 (lazy (CF.Pp_ast.pp_doc_tree (AT.dtree RT.dtree ft)));
-         let@ () = Global.add_fun_decl fsym (loc, Some ft, Pmap.find fsym call_sigs) in
+         let@ () =
+           Global.add_fun_decl fsym (loc, Some ft, Pmap.find fsym call_sigs, promotable)
+         in
          (match tr with
           | Trusted _ -> return ((fsym, (loc, ft)) :: trusted, checked)
           | Checked -> return (trusted, (fsym, (loc, args_and_body)) :: checked))
@@ -2640,7 +2703,7 @@ let wf_check_and_record_functions funs call_sigs =
              let@ ft = WellTyped.function_type "function" loc ft in
              return (Some ft)
          in
-         let@ () = Global.add_fun_decl fsym (loc, oft, Pmap.find fsym call_sigs) in
+         let@ () = Global.add_fun_decl fsym (loc, oft, Pmap.find fsym call_sigs, []) in
          return (trusted, checked))
     funs
     ([], [])
@@ -2881,7 +2944,7 @@ let add_stdlib_spec =
     Pp.debug
       2
       (lazy (Pp.headline ("adding builtin spec for procedure " ^ Sym.pp_string fsym)));
-    Global.add_fun_decl fsym (Locations.other __LOC__, Some ft, ct)
+    Global.add_fun_decl fsym (Locations.other __LOC__, Some ft, ct, [])
   in
   fun call_sigs fsym ->
     match
@@ -2981,7 +3044,7 @@ let time_check_c_functions
       in
       let@ () =
         Sym.Map.fold
-          (fun _ (loc, def, _) acc ->
+          (fun _ (loc, def, _, _) acc ->
              match def with
              | None -> acc
              | Some def ->
