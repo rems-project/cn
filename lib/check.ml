@@ -1119,6 +1119,58 @@ module Spine : sig
 
   val subtype : Locations.t -> LRT.t -> (unit -> unit m) -> unit m
 end = struct
+  let rec filter_promoted ftyp =
+    match ftyp with
+    | LAT.I _ -> return ftyp
+    | Define ((sym, it), loc, args) ->
+      let@ args = filter_promoted args in
+      return (LAT.Define ((sym, it), loc, args))
+    | Constraint (lc, loc, args) ->
+      let@ args = filter_promoted args in
+      (match lc with
+       | LC.T (IT (Good (_, pointer), _, _)) ->
+         let@ promoted =
+           let sym_opt = is_sym pointer in
+           match sym_opt with None -> return None | Some (sym, _bt) -> fast_load sym
+         in
+         (match promoted with
+          | None -> return (LAT.Constraint (lc, loc, args))
+          | Some _ -> return args)
+       | _ -> return (LAT.Constraint (lc, loc, args)))
+    | Resource ((s, (re, bt)), info, args) ->
+      (match re with
+       | P { name = Owned _; pointer; iargs = [] } ->
+         let sym_opt = is_sym pointer in
+         let@ promoted =
+           match sym_opt with None -> return None | Some (sym, _bt) -> fast_load sym
+         in
+         (match promoted with
+          | None | Some None (* not the best error msg, but consistent *) ->
+            let@ args = filter_promoted args in
+            return (LAT.Resource ((s, (re, bt)), info, args))
+          | Some (Some it) -> return (LAT.Define ((s, it), info, args)))
+       | P { name = PName maybe_alloc; pointer; iargs = [] } ->
+         if not (Sym.equal maybe_alloc Alloc.Predicate.sym) then
+           let@ args = filter_promoted args in
+           return (LAT.Resource ((s, (re, bt)), info, args))
+         else (
+           let sym_opt = is_sym pointer in
+           match sym_opt with
+           | None ->
+             let@ args = filter_promoted args in
+             return (LAT.Resource ((s, (re, bt)), info, args))
+           | Some (sym, _bt) ->
+             let@ fast = fast_load sym in
+             (match fast with
+              | None ->
+                let@ args = filter_promoted args in
+                return (LAT.Resource ((s, (re, bt)), info, args))
+              | Some _ -> filter_promoted args))
+       | _ ->
+         let@ args = filter_promoted args in
+         return (LAT.Resource ((s, (re, bt)), info, args)))
+
+
   let spine_l rt_subst rt_pp loc (situation : call_situation) ftyp k =
     let start_spine = time_start () in
     let@ original_resources = all_resources loc in
@@ -1130,6 +1182,7 @@ end = struct
             debug 6 (lazy (item "spec" (LAT.pp rt_pp ftyp))))
         in
         let uiinfo = ((Call situation : situation), []) in
+        let@ ftyp = filter_promoted ftyp in
         let@ ftyp =
           RI.General.ftyp_args_request_step rt_subst loc uiinfo original_resources ftyp
         in
@@ -1252,11 +1305,11 @@ let all_empty loc _original_resources =
 let is_promotable_create = function
   | Mu.Esseq
       ( Mu.Pattern (_, _, _, CaseBase (Some sym, _)),
-        Expr (_, _, _, Eaction (Paction (_, Action (_, Create _)))),
+        Expr (loc, _, _, Eaction (Paction (_, Action (_, Create _)))),
         _ ) ->
     let@ promoted = is_promoted sym in
     if promoted then
-      return (Some sym)
+      return (Some (sym, loc))
     else
       return None
   | _ -> return None
@@ -1302,8 +1355,9 @@ let store loc parg ct varg =
   | None -> store_r loc parg ct varg
   | Some (sym, _bt) ->
     let@ did = fast_store sym varg in
-    if did then
-      return ()
+    if did then (
+      debug 6 (lazy !^"did fast store");
+      return ())
     else
       store_r loc parg ct varg
 
@@ -1326,6 +1380,9 @@ let kill loc arg ct =
   | Some (sym, _bt) ->
     let@ did = fast_kill sym in
     if did then
+      (* let@ _ = *)
+      (* RI.Special.predicate_request loc (Access Kill) (Req.make_alloc arg, None) *)
+      (* in *)
       return ()
     else
       kill_r loc arg ct
@@ -1571,6 +1628,24 @@ let bytes_constraints
            here
        in
        return (and_ [ all_some; bytes_prov_eq; eq_ (value_addr, bytes_addr) here ] here))
+
+
+let add_alloc loc ret ct =
+  let here = Locations.other __LOC__ in
+  let lookup = Alloc.History.lookup_ptr ret here in
+  let value =
+    let size = Memory.size_of_ctype ct in
+    Alloc.History.make_value ~base:(addr_ ret here) ~size here
+  in
+  let@ () =
+    if !use_vip then
+      (* This is not backwards compatible because in the solver
+                 * Alloc_id maps to unit if not (!use_vip) *)
+      add_c loc (LC.T (eq_ (lookup, value) here))
+    else
+      return ()
+  in
+  add_r loc (P (Req.make_alloc ret), O lookup)
 
 
 let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
@@ -1854,7 +1929,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        check_pexpr pe (fun arg ->
          let ret_s, ret =
            match prefix with
-           | PrefSource (_loc, syms) ->
+           | CF.Symbol.PrefSource (_loc, syms) ->
              let syms = List.rev syms in
              (match syms with
               | Symbol (_, _, SD_ObjectAddress str) :: _ ->
@@ -1874,20 +1949,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
              ( P { name = Owned (act.ct, Uninit); pointer = ret; iargs = [] },
                O (default_ (Memory.bt_of_sct act.ct) loc) )
          in
-         let lookup = Alloc.History.lookup_ptr ret here in
-         let value =
-           let size = Memory.size_of_ctype act.ct in
-           Alloc.History.make_value ~base:(addr_ ret here) ~size here
-         in
-         let@ () =
-           if !use_vip then
-             (* This is not backwards compatible because in the solver
-                 * Alloc_id maps to unit if not (!use_vip) *)
-             add_c loc (LC.T (eq_ (lookup, value) here))
-           else
-             return ()
-         in
-         let@ () = add_r loc (P (Req.make_alloc ret), O lookup) in
+         let@ () = add_alloc loc ret act.ct in
          let@ () = record_action (Create ret, loc) in
          k ret)
      | CreateReadOnly (_sym1, _ct, _sym2, _prefix) ->
@@ -2347,8 +2409,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
     in
     let@ promoted_create = is_promotable_create e_ in
     if Option.is_some promoted_create then (
-      let sym = Option.get promoted_create in
-      let@ () = add_a sym (BT.Loc ()) (loc, lazy (Sym.pp sym)) in
+      let sym, create_loc = Option.get promoted_create in
+      let ret = IT.sym_ (sym, BT.Loc (), create_loc) in
+      let@ () = add_a sym (IT.get_bt ret) (loc, lazy (Pp.string "allocation")) in
       check_expr labels e2 (fun it2 ->
         let@ () = remove_as [ sym ] in
         k it2))
@@ -2411,8 +2474,35 @@ let bind_arguments (_loc : Locations.t) (full_args : _ Mu.arguments) =
       let@ () = add_c (fst info) lc in
       aux_l resources args
     | Resource ((s, (re, bt)), ((loc, _) as info), args) ->
+      let@ promoted =
+        match re with
+        | P { name = Owned _; pointer; iargs = [] } ->
+          let sym_opt = is_sym pointer in
+          (match sym_opt with
+           | None -> return false
+           | Some (sym, _bt) ->
+             let@ fast = fast_load sym in
+             (match fast with None -> return false | Some _ -> return true))
+        | P { name = PName maybe_alloc; pointer; iargs = [] } ->
+          if not (Sym.equal maybe_alloc Alloc.Predicate.sym) then
+            return false
+          else (
+            let sym_opt = is_sym pointer in
+            match sym_opt with
+            | None -> return false
+            | Some (sym, _bt) ->
+              let@ fast = fast_load sym in
+              (match fast with None -> return false | Some _ -> return true))
+        | _ -> return false
+      in
       let@ () = add_l s bt (fst info, lazy (Sym.pp s)) in
-      aux_l (resources @ [ (re, Resource.O (sym_ (s, bt, loc))) ]) args
+      let resources =
+        if promoted then
+          resources
+        else
+          resources @ [ (re, Resource.O (sym_ (s, bt, loc))) ]
+      in
+      aux_l resources args
     | I i -> return (i, resources)
   in
   let rec aux_a = function
@@ -2688,6 +2778,7 @@ let wf_check_and_record_functions funs call_sigs =
          let ft = WellTyped.to_argument_type args_and_body in
          debug 6 (lazy (!^"function type" ^^^ Sym.pp fsym));
          debug 6 (lazy (CF.Pp_ast.pp_doc_tree (AT.dtree RT.dtree ft)));
+         debug 6 (lazy (!^"promotable" ^^^ Sym.pp fsym ^^^ Pp.list Sym.pp promotable));
          let@ () =
            Global.add_fun_decl fsym (loc, Some ft, Pmap.find fsym call_sigs, promotable)
          in

@@ -327,7 +327,15 @@ let init_promoted f_sym =
 
 
 let fast_store sym varg =
+  Pp.(debug 6 (lazy (!^"fast store of" ^^^ Sym.pp sym)));
+  let@ simp_ctxt = simp_ctxt () in
+  let varg = Simplify.IndexTerms.simp simp_ctxt varg in
   let@ ctxt = get_typing_context () in
+  Pp.(
+    debug
+      6
+      (lazy
+        (!^"fast store" ^^^ Pp.list Sym.pp (List.map fst (Sym.Map.bindings ctxt.promoted)))));
   if Sym.Map.mem sym ctxt.promoted then (
     let promoted = Sym.Map.update sym (fun _ -> Some (Some varg)) ctxt.promoted in
     let@ () = set_typing_context { ctxt with promoted } in

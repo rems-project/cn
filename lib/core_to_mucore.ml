@@ -1202,6 +1202,7 @@ let normalise_fun_map_decl
        let _, defn_marker, _, ail_args, _ =
          List.assoc Sym.equal fname ail_prog.CF.AilSyntax.function_definitions
        in
+       let env = Compile.set_promoted env promotable in
        let@ env, d_st =
          Spec.setup_env_desugaring_state
            loc

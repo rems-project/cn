@@ -10,8 +10,8 @@ ensures
 
 int main()
 {
-    int x = 0;
+    int x = 0; void *p = &x;
     /*@ apply check_alloc(&x); @*/
-    int y = 1;
+    int y = 1; p = &y;
     /*@ apply check_alloc(&y); @*/
 }
