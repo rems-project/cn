@@ -20,9 +20,8 @@ void globals()
 
 int main()
 {
-    int p = 1;
-    int q = 2;
-
+    int p = 1; void *ptr = &p;
+    int q = 2; ptr = &q;
   /*@ assert((u64) &p != (u64) &q); @*/
 
   /*@ assert((u64)&p < (u64)&p + 4u64); @*/

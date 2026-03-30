@@ -101,7 +101,7 @@ let from_fn cabs_tunit (fn, decl) =
   match decl with
   | ProcDecl (fn_loc, _fn) ->
     { fn; fn_loc; internal = None; trusted = false; is_static = false }
-  | Proc { loc = fn_loc; args_and_body; trusted } ->
+  | Proc { loc = fn_loc; args_and_body; trusted; promotable = _ } ->
     let args_and_body = Core_to_mucore.at_of_arguments Fun.id args_and_body in
     let internal =
       ArgumentTypes.map

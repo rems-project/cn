@@ -1189,7 +1189,7 @@ let normalise_fun_map_decl
     let@ () = if variadic then unsupported loc !^"variadic functions" else return () in
     (match decl with
      | CF.Milicore.Mi_Fun (_bt, _args, _pe) -> assert false
-     | Mi_Proc (loc, _mrk, _ret_bt, args, body, labels) ->
+     | Mi_Proc (loc, _mrk, _ret_bt, args, body, labels, promotable) ->
        debug 2 (lazy (item "normalising procedure" (Sym.pp fname)));
        let@ parsed_defn_specs = Parse.function_spec attrs in
        let parsed_decl_spec =
@@ -1202,6 +1202,7 @@ let normalise_fun_map_decl
        let _, defn_marker, _, ail_args, _ =
          List.assoc Sym.equal fname ail_prog.CF.AilSyntax.function_definitions
        in
+       let env = Compile.set_promoted env promotable in
        let@ env, d_st =
          Spec.setup_env_desugaring_state
            loc
@@ -1263,7 +1264,7 @@ let normalise_fun_map_decl
            ghost_params
            requires
        in
-       return (Some (Mu.Proc { loc; args_and_body; trusted }, functions))
+       return (Some (Mu.Proc { loc; args_and_body; trusted; promotable }, functions))
      | Mi_ProcDecl (loc, ret_bt, _bts) ->
        (match Sym.Map.find_opt fname fun_specs with
         | Some parsed_decl_spec ->
