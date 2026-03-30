@@ -46,12 +46,11 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
 *)
 
 let get_ownership_global_init_stats
-      ?(ghost_array_size = 100)
       ?max_bump_blocks
       ?bump_block_size
+      ?(disable_ghost_args = false)
       ()
   =
-  (* When no maximum number ghost arguments is supplied, default to 100 *)
   let bump_config_calls =
     let make_bump_config_call fn_name n =
       mk_expr
@@ -76,23 +75,18 @@ let get_ownership_global_init_stats
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
-  let cn_ghost_arg_array_alloc_fcall =
+  let cn_initialise_ghost_frame_stack_fcall =
     mk_expr
-      A.(
-        AilEcall
-          ( mk_expr (AilEident (Sym.fresh "alloc_ghost_array")),
-            [ mk_expr
-                (AilEconst
-                   (ConstantInteger (IConstant (Z.of_int ghost_array_size, Decimal, None))))
-            ] ))
+      A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_frame_stack")), []))
   in
-  List.map
-    (fun e -> A.(AilSexpr e))
-    (bump_config_calls
-     @ [ cn_ghost_state_init_fcall;
-         cn_ghost_stack_depth_init_fcall;
-         cn_ghost_arg_array_alloc_fcall
-       ])
+  let fcalls = [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ] in
+  let fcalls =
+    if disable_ghost_args then
+      fcalls
+    else
+      fcalls @ [ cn_initialise_ghost_frame_stack_fcall ]
+  in
+  List.map (fun e -> A.(AilSexpr e)) (bump_config_calls @ fcalls)
 
 
 let generate_c_local_cn_addr_var sym =
