@@ -1,0 +1,5 @@
+return code: 1
+tests/cn/spec_after_def.error.c:2:10: error: spec has the wrong number of arguments
+/*@ spec foo(i32 a); @*/
+         ^
+spec has 1, but declaration has 2
