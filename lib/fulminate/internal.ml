@@ -189,7 +189,6 @@ let generate_c_specs_from_cn_internal
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
-      ~is_lemma:false
       ~disable_ghost_args
       filename
       dts

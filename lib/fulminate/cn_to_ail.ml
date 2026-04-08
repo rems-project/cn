@@ -4838,7 +4838,6 @@ let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
-          is_lemma
           filename
           dts
           preds
@@ -4863,7 +4862,6 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
-        is_lemma
         filename
         dts
         preds
@@ -4874,7 +4872,7 @@ let rec cn_to_ail_pre_post_aux
     in
     (ghost_bts, prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.Ghost ((sym, bt), _info, at) ->
-    if is_lemma || disable_ghost_args then
+    if disable_ghost_args then
       (* For lemmas,
           ghost parameters are already translated specially
           in cn_to_ail_lemma using AT.get_ghost,
@@ -4884,7 +4882,6 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
-        is_lemma
         filename
         dts
         preds
@@ -4922,7 +4919,6 @@ let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
-          is_lemma
           filename
           dts
           preds
@@ -4947,7 +4943,7 @@ let rec cn_to_ail_pre_post_aux
         lat
     in
     let ail_executable_spec =
-      if is_lemma || disable_ghost_args then
+      if disable_ghost_args then
         ail_executable_spec
       else (
         let pop_ghost_frame_decl =
@@ -4964,7 +4960,6 @@ let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
-      ~is_lemma
       ~disable_ghost_args
       filename
       dts
@@ -4979,7 +4974,6 @@ let cn_to_ail_pre_post
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
-        is_lemma
         filename
         dts
         preds
@@ -4989,7 +4983,7 @@ let cn_to_ail_pre_post
         internal
     in
     let ail_executable_spec =
-      if disable_ghost_args || is_lemma then
+      if disable_ghost_args then
         ail_executable_spec
       else (
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
@@ -5069,8 +5063,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
-      ~disable_ghost_args:false
-      ~is_lemma:true
+      ~disable_ghost_args:true
       filename
       dts
       preds
