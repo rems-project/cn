@@ -76,6 +76,7 @@ let run_seq_tests
              ~without_loop_invariants:true
              ~with_loop_leak_checks:false
              ~without_lemma_checks:false
+             ~without_inline_statements:false
              ~exec_c_locs_mode
              ~correct_missing_ownership_mode
              ~experimental_ownership_stack_mode

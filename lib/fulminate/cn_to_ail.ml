@@ -4636,6 +4636,7 @@ let rec cn_to_ail_lat_2
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
+          without_inline_statements
           filename
           dts
           globals
@@ -4659,6 +4660,7 @@ let rec cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         dts
         globals
@@ -4709,6 +4711,7 @@ let rec cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         dts
         globals
@@ -4735,6 +4738,7 @@ let rec cn_to_ail_lat_2
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         dts
         globals
@@ -4745,19 +4749,35 @@ let rec cn_to_ail_lat_2
     prepend_to_precondition ail_executable_spec (b1, ss)
   (* Postcondition *)
   | LAT.I (post, (stats, loops)) ->
-    let rec remove_duplicates locs stats =
-      match stats with
-      | [] -> []
-      | (loc, s) :: ss ->
-        let loc_equality x y =
-          String.equal
-            (Cerb_location.location_to_string x)
-            (Cerb_location.location_to_string y)
+    let ail_statements =
+      if without_inline_statements then
+        []
+      else (
+        let rec remove_duplicates locs stats =
+          match stats with
+          | [] -> []
+          | (loc, s) :: ss ->
+            let loc_equality x y =
+              String.equal
+                (Cerb_location.location_to_string x)
+                (Cerb_location.location_to_string y)
+            in
+            if List.mem loc_equality loc locs then
+              remove_duplicates locs ss
+            else
+              (loc, s) :: remove_duplicates (loc :: locs) ss
         in
-        if List.mem loc_equality loc locs then
-          remove_duplicates locs ss
-        else
-          (loc, s) :: remove_duplicates (loc :: locs) ss
+        let stats = remove_duplicates [] stats in
+        List.map
+          (fun stat_pair ->
+             cn_to_ail_statements
+               ~without_lemma_checks
+               filename
+               dts
+               globals
+               (Some Statement)
+               stat_pair)
+          stats)
     in
     let return_cn_binding, return_cn_decl =
       match rm_ctype c_return_type with
@@ -4782,19 +4802,6 @@ let rec cn_to_ail_lat_2
               ])
         in
         ([ return_cn_binding ], [ mk_stmt return_cn_decl ])
-    in
-    let stats = remove_duplicates [] stats in
-    let ail_statements =
-      List.map
-        (fun stat_pair ->
-           cn_to_ail_statements
-             ~without_lemma_checks
-             filename
-             dts
-             globals
-             (Some Statement)
-             stat_pair)
-        stats
     in
     let ail_loop_invariants =
       List.map
@@ -4838,6 +4845,7 @@ let rec cn_to_ail_pre_post_aux
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
+          without_inline_statements
           filename
           dts
           preds
@@ -4862,6 +4870,7 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         dts
         preds
@@ -4883,6 +4892,7 @@ let rec cn_to_ail_pre_post_aux
          without_ownership_checking
          with_loop_leak_checks
          without_lemma_checks
+         without_inline_statements
          filename
          dts
          preds
@@ -4920,6 +4930,7 @@ let rec cn_to_ail_pre_post_aux
            without_ownership_checking
            with_loop_leak_checks
            without_lemma_checks
+           without_inline_statements
            filename
            dts
            preds
@@ -4937,6 +4948,7 @@ let rec cn_to_ail_pre_post_aux
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         dts
         globals
@@ -4967,6 +4979,7 @@ let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~without_inline_statements
       filename
       dts
       preds
@@ -4980,6 +4993,7 @@ let cn_to_ail_pre_post
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         dts
         preds
@@ -5066,6 +5080,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
+      ~without_inline_statements:false
       filename
       dts
       preds

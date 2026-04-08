@@ -231,6 +231,7 @@ val cn_to_ail_pre_post
   :  without_ownership_checking:bool ->
   with_loop_leak_checks:bool ->
   without_lemma_checks:bool ->
+  without_inline_statements:bool ->
   string ->
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Definition.Predicate.t) list ->
