@@ -75,16 +75,17 @@ let get_ownership_global_init_stats
     mk_expr
       A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_stack_depth")), []))
   in
-  let cn_initialise_ghost_frame_stack_fcall =
-    mk_expr
-      A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_frame_stack")), []))
-  in
   let fcalls = [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ] in
   let fcalls =
     if disable_ghost_args then
       fcalls
-    else
-      fcalls @ [ cn_initialise_ghost_frame_stack_fcall ]
+    else (
+      let cn_initialise_ghost_frame_stack_fcall =
+        mk_expr
+          A.(
+            AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_frame_stack")), []))
+      in
+      fcalls @ [ cn_initialise_ghost_frame_stack_fcall ])
   in
   List.map (fun e -> A.(AilSexpr e)) (bump_config_calls @ fcalls)
 
