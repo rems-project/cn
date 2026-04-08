@@ -365,8 +365,8 @@ module Flags = struct
 
   let correct_missing_ownership_mode =
     let doc =
-      "Self-correct missing ownership, dumping addresses that needed ownership \
-      during execution"
+      "Self-correct missing ownership, dumping addresses that needed ownership during \
+       execution"
     in
     Arg.(value & flag & info [ "correct-missing-ownership" ] ~doc)
 end
