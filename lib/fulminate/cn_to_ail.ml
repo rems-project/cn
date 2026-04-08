@@ -5080,7 +5080,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
-      ~without_inline_statements:false
+      ~without_inline_statements:false (* Lemma has no inline statements anyway *)
       filename
       dts
       preds
