@@ -169,6 +169,7 @@ let generate_c_specs_from_cn_internal
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       (instrumentation : Extract.instrumentation)
       (cabs_tunit : CF.Cabs.translation_unit)
@@ -190,6 +191,7 @@ let generate_c_specs_from_cn_internal
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~disable_ghost_args
+      ~without_inline_statements
       filename
       dts
       preds
@@ -226,6 +228,7 @@ let generate_c_specs_internal
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       (instrumentation : Extract.instrumentation)
       (cabs_tunit : CF.Cabs.translation_unit)
@@ -245,6 +248,7 @@ let generate_c_specs_internal
         without_loop_invariants
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         instrumentation
         cabs_tunit
@@ -324,6 +328,7 @@ let generate_c_specs
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       instrumentation_list
       (cabs_tunit : CF.Cabs.translation_unit)
@@ -338,6 +343,7 @@ let generate_c_specs
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       instrumentation
       cabs_tunit
