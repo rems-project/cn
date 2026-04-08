@@ -4834,7 +4834,7 @@ let rec cn_to_ail_lat_2
 
 
 let rec cn_to_ail_pre_post_aux
-          ?(disable_ghost_args = false)
+          disable_ghost_args
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4859,7 +4859,7 @@ let rec cn_to_ail_pre_post_aux
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
-        ?disable_ghost_args:(Some disable_ghost_args)
+        disable_ghost_args
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4880,7 +4880,7 @@ let rec cn_to_ail_pre_post_aux
           in cn_to_ail_lemma using AT.get_ghost,
           so we may skip them here *)
       cn_to_ail_pre_post_aux
-        ?disable_ghost_args:(Some disable_ghost_args)
+        disable_ghost_args
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4918,7 +4918,7 @@ let rec cn_to_ail_pre_post_aux
       let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
       let ghost_bts, ail_executable_spec =
         cn_to_ail_pre_post_aux
-          ?disable_ghost_args:(Some disable_ghost_args)
+          disable_ghost_args
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4965,7 +4965,7 @@ let cn_to_ail_pre_post
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~is_lemma
-      ?(disable_ghost_args = false)
+      ~disable_ghost_args
       filename
       dts
       preds
@@ -4975,7 +4975,7 @@ let cn_to_ail_pre_post
   | Some internal ->
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
-        ?disable_ghost_args:(Some disable_ghost_args)
+        disable_ghost_args
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -5069,6 +5069,7 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
+      ~disable_ghost_args:false
       ~is_lemma:true
       filename
       dts

@@ -222,9 +222,9 @@ let run_tests
            ~experimental_curly_braces:false
            ~with_testing:true
            ~skip_and_only:(skip_fulminate, only_fulminate)
+           ~disable_ghost_args:true
            ?max_bump_blocks
            ?bump_block_size
-           ?disable_ghost_args:(Some true)
            filename
            cc
            pp_file

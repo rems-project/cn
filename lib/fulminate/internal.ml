@@ -164,7 +164,7 @@ let empty_cn_spec_inj_info : cn_spec_inj_info =
 
 
 let generate_c_specs_from_cn_internal
-      ?disable_ghost_args
+      disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -190,7 +190,7 @@ let generate_c_specs_from_cn_internal
       ~with_loop_leak_checks
       ~without_lemma_checks
       ~is_lemma:false
-      ?disable_ghost_args
+      ~disable_ghost_args
       filename
       dts
       preds
@@ -222,7 +222,7 @@ let generate_c_specs_from_cn_internal
 
 
 let generate_c_specs_internal
-      ?disable_ghost_args
+      disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -241,7 +241,7 @@ let generate_c_specs_internal
   let cn_spec_inj_info =
     if contains_user_spec then
       generate_c_specs_from_cn_internal
-        ?disable_ghost_args
+        disable_ghost_args
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
@@ -320,7 +320,7 @@ let generate_c_assume_pres_internal
 
 (* Extract.instrumentation list -> executable_spec *)
 let generate_c_specs
-      ?disable_ghost_args
+      disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -334,7 +334,7 @@ let generate_c_specs
   =
   let generate_c_spec (instrumentation : Extract.instrumentation) =
     generate_c_specs_internal
-      ?disable_ghost_args
+      disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -661,12 +661,12 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 
 
 let generate_global_assignments
+      ~disable_ghost_args
       ?(exec_c_locs_mode = false)
       ?(correct_missing_ownership_mode = false)
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
-      ?(disable_ghost_args = false)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
       (prog5 : unit Mucore.file)
@@ -697,9 +697,9 @@ let generate_global_assignments
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let assignments =
       OE.get_ownership_global_init_stats
+        ~disable_ghost_args
         ?max_bump_blocks
         ?bump_block_size
-        ?disable_ghost_args:(Some disable_ghost_args)
         ()
     in
     let init_and_global_mapping_str =

@@ -19,9 +19,9 @@ val main
   experimental_curly_braces:bool ->
   with_testing:bool ->
   skip_and_only:string list * string list ->
+  disable_ghost_args:bool ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
-  ?disable_ghost_args:bool ->
   String.t ->
   String.t ->
   String.t ->

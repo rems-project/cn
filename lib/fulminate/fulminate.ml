@@ -544,9 +544,9 @@ let main
       ~experimental_curly_braces
       ~with_testing
       ~skip_and_only
+      ~disable_ghost_args
       ?max_bump_blocks
       ?bump_block_size
-      ?(disable_ghost_args = false)
       filename
       _cc
       in_filename (* WARNING: this file will be deleted after this function *)
@@ -577,7 +577,7 @@ let main
   Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
-      ?disable_ghost_args:(Some disable_ghost_args)
+      disable_ghost_args
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -759,9 +759,9 @@ let main
           ~exec_c_locs_mode
           ~correct_missing_ownership_mode
           ~experimental_ownership_stack_mode
+          ~disable_ghost_args
           ?max_bump_blocks
           ?bump_block_size
-          ?disable_ghost_args:(Some disable_ghost_args)
           cabs_tunit
           sigm
           prog5

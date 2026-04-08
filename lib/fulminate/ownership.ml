@@ -46,9 +46,9 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
 *)
 
 let get_ownership_global_init_stats
+      ~disable_ghost_args
       ?max_bump_blocks
       ?bump_block_size
-      ?(disable_ghost_args = false)
       ()
   =
   let bump_config_calls =
