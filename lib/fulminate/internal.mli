@@ -25,6 +25,7 @@ val generate_c_specs
   bool ->
   bool ->
   bool ->
+  bool ->
   string ->
   Extract.instrumentation list ->
   Cabs.translation_unit ->

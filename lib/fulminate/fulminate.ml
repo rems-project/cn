@@ -538,6 +538,7 @@ let main
       ~without_loop_invariants
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~without_inline_statements
       ~exec_c_locs_mode
       ~correct_missing_ownership_mode
       ~experimental_ownership_stack_mode
@@ -580,6 +581,7 @@ let main
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       filtered_instrumentation
       cabs_tunit
