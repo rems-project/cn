@@ -4773,7 +4773,7 @@ let rec cn_to_ail_lat_2
         in
         ([ return_cn_binding ], [ mk_stmt return_cn_decl ])
     in
-    let ail_statements =
+    let gen_ail_statements stats =
       let rec remove_duplicates locs stats =
         match stats with
         | [] -> []
@@ -4800,7 +4800,9 @@ let rec cn_to_ail_lat_2
              stat_pair)
         stats
     in
-    let ail_statements = if without_inline_statements then [] else ail_statements in
+    let ail_statements =
+      if without_inline_statements then [] else gen_ail_statements stats
+    in
     let ail_loop_invariants =
       List.map
         (cn_to_ail_loop_inv
