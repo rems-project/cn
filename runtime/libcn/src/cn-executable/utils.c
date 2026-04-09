@@ -25,7 +25,7 @@ _Bool exec_c_locs_mode;
 _Bool correct_missing_ownership;
 _Bool ownership_stack_mode;
 
-static signed long UNMAPPED_VAL = -1;
+static signed long UNMAPPED_VAL = INT_MIN;
 static signed long WILDCARD_DEPTH = INT_MIN + 1;
 
 static allocator bump_alloc = (allocator){
@@ -246,7 +246,7 @@ cn_map* map_create(void) {
 void initialise_ownership_ghost_state(void) {
   nr_owned_predicates = 0;
   cn_ownership_global_ghost_state =
-      rmap_create(4, fulm_default_alloc.malloc, fulm_default_alloc.free);
+      rmap_create(2, fulm_default_alloc.malloc, fulm_default_alloc.free);
 }
 
 void free_ownership_ghost_state(void) {
@@ -293,7 +293,7 @@ void ghost_stack_depth_decr(void) {
 
 void cn_postcondition_leak_check(void) {
   rmap_range_res_t res = rmap_find_range(0UL, -1UL, cn_ownership_global_ghost_state);
-  if (res.defined && res.max > cn_stack_depth) {
+  if (res.max > cn_stack_depth) {
     print_error_msg_info(global_error_msg_info);
     // XXX TODO: scan for the failing address
     // cn_printf(CN_LOGGING_ERROR,
@@ -305,7 +305,7 @@ void cn_postcondition_leak_check(void) {
 
 void cn_loop_leak_check(void) {
   rmap_range_res_t res = rmap_find_range(0UL, -1UL, cn_ownership_global_ghost_state);
-  if (res.defined && res.max == cn_stack_depth) {
+  if (res.max == cn_stack_depth) {
     print_error_msg_info(global_error_msg_info);
     // XXX TODO: scan for the failing address
     // cn_printf(CN_LOGGING_ERROR,
@@ -358,8 +358,7 @@ void cn_loop_put_back_ownership(struct loop_ownership* loop_ownership) {
 }
 
 int ownership_ghost_state_get(int64_t address) {
-  rmap_value_opt_t res = rmap_find(address, cn_ownership_global_ghost_state);
-  return res.defined ? res.v : UNMAPPED_VAL;
+  return rmap_find(address, cn_ownership_global_ghost_state);
 }
 
 void ownership_ghost_state_set(int64_t address,
@@ -399,7 +398,7 @@ void ownership_ghost_state_remove(int64_t address, size_t size) {
 rmap_range_res_t ownership_ghost_state_extrema(int64_t address, size_t size) {
   if (size > 0)
     return rmap_find_range(address, address + size - 1, cn_ownership_global_ghost_state);
-  return (rmap_range_res_t){.defined = false};
+  return (rmap_range_res_t){.max = UNMAPPED_VAL, .min = UNMAPPED_VAL};
 }
 
 _Bool is_wildcard(void* generic_c_ptr, int size) {
@@ -407,7 +406,7 @@ _Bool is_wildcard(void* generic_c_ptr, int size) {
   if (size > 0) {
     rmap_range_res_t res =
         rmap_find_range(address, address + size - 1, cn_ownership_global_ghost_state);
-    return res.defined && res.max == WILDCARD_DEPTH;
+    return res.max == WILDCARD_DEPTH;
   }
   return true;
 }
@@ -554,7 +553,7 @@ enum region_owned c_ownership_check(
   rmap_range_res_t res = ownership_ghost_state_extrema(address, size);
 
   // contiguous range mapped to a single stack depth
-  if (res.defined && res.min == res.max) {
+  if (res.min == res.max) {
     if (res.max == WILDCARD_DEPTH)
       return FULL_WILDCARD;
     else if (res.max == expected_stack_depth)
