@@ -666,7 +666,6 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 
 
 let generate_global_assignments
-      ~disable_ghost_args
       ?(exec_c_locs_mode = false)
       ?(correct_missing_ownership_mode = false)
       ?(experimental_ownership_stack_mode = false)
@@ -701,11 +700,7 @@ let generate_global_assignments
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
     let assignments =
-      OE.get_ownership_global_init_stats
-        ~disable_ghost_args
-        ?max_bump_blocks
-        ?bump_block_size
-        ()
+      OE.get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size ()
     in
     let init_and_global_mapping_str =
       generate_ail_stat_strs
@@ -728,11 +723,8 @@ let generate_global_assignments
              (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_frame_stack_fn_str)), []))))
     in
     let global_unmapping_str =
-      if disable_ghost_args then
-        generate_ail_stat_strs ([], global_unmapping_stmts_)
-      else
-        generate_ail_stat_strs
-          ([], global_unmapping_stmts_ @ [ free_ghost_frame_stack_decl ])
+      generate_ail_stat_strs
+        ([], global_unmapping_stmts_ @ [ free_ghost_frame_stack_decl ])
     in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
 

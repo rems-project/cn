@@ -615,12 +615,9 @@ let main
   let record_fun_defs, record_fun_decls = Records.generate_c_record_funs sigm in
   let record_defs = Records.generate_all_record_strs () in
   let fn_call_ghost_args_injs =
-    if disable_ghost_args then
-      []
-    else
-      generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
+    generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
   in
-  let cn_ghost_enum = if disable_ghost_args then "" else generate_ghost_enum prog5 in
+  let cn_ghost_enum = generate_ghost_enum prog5 in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -761,7 +758,6 @@ let main
           ~exec_c_locs_mode
           ~correct_missing_ownership_mode
           ~experimental_ownership_stack_mode
-          ~disable_ghost_args
           ?max_bump_blocks
           ?bump_block_size
           cabs_tunit

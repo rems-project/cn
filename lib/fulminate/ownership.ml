@@ -45,12 +45,7 @@ let c_remove_ownership_fn_sym = Sym.fresh "c_remove_from_ghost_state"
    let c_declare_init_and_map_local_sym = Sym.fresh "c_declare_init_and_map_local"
 *)
 
-let get_ownership_global_init_stats
-      ~disable_ghost_args
-      ?max_bump_blocks
-      ?bump_block_size
-      ()
-  =
+let get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size () =
   let bump_config_calls =
     let make_bump_config_call fn_name n =
       mk_expr
@@ -77,15 +72,11 @@ let get_ownership_global_init_stats
   in
   let fcalls = [ cn_ghost_state_init_fcall; cn_ghost_stack_depth_init_fcall ] in
   let fcalls =
-    if disable_ghost_args then
-      fcalls
-    else (
-      let cn_initialise_ghost_frame_stack_fcall =
-        mk_expr
-          A.(
-            AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_frame_stack")), []))
-      in
-      fcalls @ [ cn_initialise_ghost_frame_stack_fcall ])
+    let cn_initialise_ghost_frame_stack_fcall =
+      mk_expr
+        A.(AilEcall (mk_expr (AilEident (Sym.fresh "initialise_ghost_frame_stack")), []))
+    in
+    fcalls @ [ cn_initialise_ghost_frame_stack_fcall ]
   in
   List.map (fun e -> A.(AilSexpr e)) (bump_config_calls @ fcalls)
 

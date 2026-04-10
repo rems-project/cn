@@ -97,8 +97,7 @@ val generate_conversion_and_equality_functions
 val has_main : GenTypes.genTypeCategory AilSyntax.sigma -> bool
 
 val generate_global_assignments
-  :  disable_ghost_args:bool ->
-  ?exec_c_locs_mode:bool ->
+  :  ?exec_c_locs_mode:bool ->
   ?correct_missing_ownership_mode:bool ->
   ?experimental_ownership_stack_mode:bool ->
   ?max_bump_blocks:int ->
