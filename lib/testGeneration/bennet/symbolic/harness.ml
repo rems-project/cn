@@ -233,7 +233,7 @@ module Make (AD : Domain.T) = struct
     ^/^ state_init
     ^/^ vars_decl
     ^/^ !^"int attempts = 0;"
-    ^/^ !^"enum cn_smt_solver_result result;"
+    ^/^ !^"enum cn_smt_solver_result result = CN_SOLVER_UNKNOWN;"
     ^/^ (!^"do"
          ^^^ braces
                (hardline
@@ -247,6 +247,7 @@ module Make (AD : Domain.T) = struct
                        ^/^ !^"branch_history_clear(&branch_hist);"
                        ^/^ !^"bennet_failure_reset();"
                        ^/^ !^"attempts++;"
+                       ^/^ !^"result = CN_SOLVER_UNKNOWN;"
                        ^/^ !^"continue;")
                 ^/^ !^"/* Gather constraints */"
                 ^/^ gather_section_with_timing
