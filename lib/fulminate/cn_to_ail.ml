@@ -4841,7 +4841,8 @@ let rec cn_to_ail_lat_2
 
 
 let rec cn_to_ail_pre_post_aux
-          disable_ghost_args
+          ~is_lemma
+          disable_ghost_arg_failure
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4866,7 +4867,8 @@ let rec cn_to_ail_pre_post_aux
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
-        disable_ghost_args
+        ~is_lemma
+        disable_ghost_arg_failure
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4881,13 +4883,14 @@ let rec cn_to_ail_pre_post_aux
     in
     (ghost_bts, prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.Ghost ((sym, bt), _info, at) ->
-    if disable_ghost_args then
+    if is_lemma then
       (* For lemmas,
           ghost parameters are already translated specially
           in cn_to_ail_lemma using AT.get_ghost,
           so we may skip them here *)
       cn_to_ail_pre_post_aux
-        disable_ghost_args
+        ~is_lemma
+        disable_ghost_arg_failure
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4925,7 +4928,8 @@ let rec cn_to_ail_pre_post_aux
       let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
       let ghost_bts, ail_executable_spec =
         cn_to_ail_pre_post_aux
-          disable_ghost_args
+          ~is_lemma
+          disable_ghost_arg_failure
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4955,7 +4959,7 @@ let rec cn_to_ail_pre_post_aux
         lat
     in
     let ail_executable_spec =
-      if disable_ghost_args then
+      if disable_ghost_arg_failure then
         ail_executable_spec
       else (
         let pop_ghost_frame_decl =
@@ -4972,7 +4976,8 @@ let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
-      ~disable_ghost_args
+      ~disable_ghost_arg_failure
+      ~is_lemma
       ~without_inline_statements
       filename
       dts
@@ -4983,7 +4988,8 @@ let cn_to_ail_pre_post
   | Some internal ->
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
-        disable_ghost_args
+        ~is_lemma
+        disable_ghost_arg_failure
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4997,7 +5003,7 @@ let cn_to_ail_pre_post
         internal
     in
     let ail_executable_spec =
-      if disable_ghost_args then
+      if disable_ghost_arg_failure then
         ail_executable_spec
       else (
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
@@ -5077,7 +5083,8 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
-      ~disable_ghost_args:true
+      ~disable_ghost_arg_failure:true
+      ~is_lemma:true
       ~without_inline_statements:false (* Lemma has no inline statements anyway *)
       filename
       dts

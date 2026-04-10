@@ -545,7 +545,7 @@ let main
       ~experimental_curly_braces
       ~with_testing
       ~skip_and_only
-      ~disable_ghost_args
+      ~disable_ghost_arg_failure
       ?max_bump_blocks
       ?bump_block_size
       filename
@@ -578,7 +578,7 @@ let main
   Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
-      disable_ghost_args
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks

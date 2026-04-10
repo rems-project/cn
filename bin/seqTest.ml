@@ -83,7 +83,7 @@ let run_seq_tests
              ~experimental_curly_braces:false
              ~with_testing:true
              ~skip_and_only:([], [])
-             ~disable_ghost_args:true
+             ~disable_ghost_arg_failure:true
              filename
              cc
              pp_file

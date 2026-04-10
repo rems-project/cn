@@ -176,7 +176,7 @@ let generate_executable_specs
                 ~experimental_curly_braces
                 ~with_testing
                 ~skip_and_only:(skip, only)
-                ~disable_ghost_args:false
+                ~disable_ghost_arg_failure:false
                 ?max_bump_blocks
                 ?bump_block_size
                 filename
