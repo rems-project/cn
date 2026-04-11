@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <limits.h>
 #include <string.h>
 #ifdef _RMAP_DEBUG
   #include <stdio.h>
@@ -12,30 +13,23 @@
  *
  * This type contains:
  *  - the type definition, result_t
- *  - a function `res_inject` lifting rmap_value_t into result_t
- *  - a constant `res_empty`, and a function `res_append`, which give an
- *    idempotent monoid over result_t (∀m, mm = m).
+ *  - a function `res_append`, giving an idempotent commutative semigroup over `result_`:
+ *    `a(bc) = (ab)c`, `ab = ba`, and `aa = a`.
+ *  - a function `res_inject` and a constant `res_none` which inject mapped
+ *    values and empty mappings respectively
  *  - debugging functions `res_eq` and `res_print`.
  *
  */
 
-typedef struct {
-  rmap_value_t min;
-  rmap_value_t max;
-} result_t;
+typedef rmap_range_res_t result_t;
 
-static const result_t res_empty = (result_t){.min = 1, .max = 0};
+static const rmap_value_t val_none = INT_MIN;
 
-static inline bool res_is_empty(const result_t *a) {
-  return a->min > a->max;
-}
+static const result_t res_none = (result_t){.min = val_none, .max = val_none};
 
-static inline result_t res_append(const result_t *a, const result_t *b) {
-  bool a_ok = !res_is_empty(a), b_ok = !res_is_empty(b);
-  if (a_ok && b_ok)
-    return (result_t){.min = (a->min < b->min) ? a->min : b->min,
-        .max = (a->max < b->max) ? b->max : a->max};
-  return a_ok ? *a : (b_ok ? *b : res_empty);
+static inline result_t res_append(result_t a, result_t b) {
+  return (result_t){
+      .min = (a.min < b.min) ? a.min : b.min, .max = (a.max < b.max) ? b.max : a.max};
 }
 
 static inline result_t res_inject(rmap_value_t v) {
@@ -44,16 +38,12 @@ static inline result_t res_inject(rmap_value_t v) {
 
 #ifdef _RMAP_DEBUG
 
-static inline bool res_eq(const result_t *a, const result_t *b) {
-  bool a_ok = !res_is_empty(a), b_ok = !res_is_empty(b);
-  return (!(a_ok || b_ok) || (a_ok && b_ok && a->max == b->max && a->min == b->min));
+static inline bool res_eq(result_t a, result_t b) {
+  return a.min == b.min && a.max == b.max;
 }
 
 static void res_print(FILE *stream, const result_t *a) {
-  if (res_is_empty(a))
-    fprintf(stream, "-");
-  else
-    fprintf(stream, "min = %d, max = %d", a->min, a->max);
+  fprintf(stream, "min = %d, max = %d", a->min, a->max);
 }
 
 #endif /* _RMAP_DEBUG */
@@ -204,44 +194,43 @@ static inline rmap_key_t max_k(rmap_key_t a, rmap_key_t b) {
   return (a < b) ? b : a;
 }
 
-static const rmap_value_opt_t NONE_VALUE = (rmap_value_opt_t){.defined = false};
-#define SOME_VALUE(x) ((rmap_value_opt_t){.defined = true, .v = x})
-
-rmap_value_opt_t rmap_find(rmap_key_t k, rmap map) {
+rmap_value_t rmap_find(rmap_key_t k, rmap map) {
   bits_t radix = map->radix, bits = 0;
   struct node *node = &map->root;
   while (bits <= KEY_BITS)
     switch (node->state) {
       case EMPTY:
-        return NONE_VALUE;
+        return val_none;
       case LEAF:
-        return SOME_VALUE(node->leaf);
+        return node->leaf;
       case INNER:
         node = &node->inner.children[key_to_i(bits, radix, k)];
         bits += radix;
         break;
       case SKIP:
         if (key_to_i(bits, node->skip.radix, k) != node->skip.path)
-          return NONE_VALUE;
+          return val_none;
         bits += node->skip.radix;
         node = node->skip.child;
         break;
       default:
         assert(false);
     }
-  return NONE_VALUE;
+  return val_none;
 }
+
+#define res_partial(x) res_append((x), res_none)
 
 static result_t node_inject(const struct node *n) {
   switch (n->state) {
     case EMPTY:
-      return res_empty;
+      return res_none;
     case LEAF:
       return res_inject(n->leaf);
     case INNER:
       return n->inner.qres;
     case SKIP:
-      return node_inject(n->skip.child);
+      return res_partial(node_inject(n->skip.child));
     default:
       assert(false);
   }
@@ -249,19 +238,17 @@ static result_t node_inject(const struct node *n) {
 
 static result_t find_range(
     bits_t bits, rmap_key_t k0, rmap_key_t k1, const struct node *node, rmap map) {
-  size_t i0, i1;
-  result_t acc = res_empty;
   switch (node->state) {
     case EMPTY:
-      return res_empty;
+      return res_none;
     case LEAF:
       return res_inject(node->leaf);
     case INNER:
       if (complete_range(bits, k0, k1))
         return node->inner.qres;
 
-      i0 = key_to_i(bits, map->radix, k0);
-      i1 = key_to_i(bits, map->radix, k1);
+      size_t i0 = key_to_i(bits, map->radix, k0), i1 = key_to_i(bits, map->radix, k1);
+      result_t acc;
       bits += map->radix;
       for (size_t i = i0; i <= i1; ++i) {
         struct node *n = &node->inner.children[i];
@@ -274,35 +261,38 @@ static result_t find_range(
           v = find_range(bits, min_key(bits, k1), k1, n, map);
         else
           v = node_inject(n);
-        acc = res_append(&acc, &v);
+        acc = (i == i0) ? v : res_append(acc, v);
       }
       return acc;
     case SKIP: {
       rmap_key_t path = node->skip.path;
       bits_t radix = node->skip.radix;
+      bits_t bits1 = bits + radix;
 
       if (key_to_i(bits, radix, k0) > path || key_to_i(bits, radix, k1) < path)
-        return res_empty;
-      k0 = max_k(k0, min_key(bits + radix, i_to_key(bits, k0, radix, path)));
-      k1 = min_k(k1, max_key(bits + radix, i_to_key(bits, k1, radix, path)));
-      return find_range(bits + radix, k0, k1, node->skip.child, map);
+        return res_none;
+
+      rmap_key_t kmin = min_key(bits1, i_to_key(bits, k0, radix, path)),
+                 kmax = max_key(bits1, i_to_key(bits, k1, radix, path));
+
+      if (kmin <= k0 && k1 <= kmax)
+        return find_range(bits1, k0, k1, node->skip.child, map);
+
+      return res_partial(
+          find_range(bits1, max_k(k0, kmin), min_k(k1, kmax), node->skip.child, map));
     }
     default:
       assert(false);
   }
 }
 
-static const rmap_range_res_t NONE_RESULT = (rmap_range_res_t){.defined = false};
-#define SOME_RESULT(a, b) ((rmap_range_res_t){.defined = true, .min = a, .max = b})
-
 rmap_range_res_t rmap_find_range(rmap_key_t k0, rmap_key_t k1, rmap map) {
   if (k0 == k1) {
-    rmap_value_opt_t res = rmap_find(k0, map);
-    return !res.defined ? NONE_RESULT : SOME_RESULT(res.v, res.v);
+    rmap_value_t res = rmap_find(k0, map);
+    return (rmap_range_res_t){.min = res, .max = res};
   }
   assert(k0 < k1);
-  result_t res = find_range(0, k0, k1, &map->root, map);
-  return res_is_empty(&res) ? NONE_RESULT : SOME_RESULT(res.min, res.max);
+  return find_range(0, k0, k1, &map->root, map);
 }
 
 static inline bool eq_fringe_node(const struct node *n1, const struct node *n2) {
@@ -358,17 +348,19 @@ static struct node new_skip(struct node *child, rmap_key_t path, bits_t rx, rmap
 
 #define NOWHERE (-1UL)
 
-static struct node new_inner(struct node *children, result_t q, bool collapse, rmap map) {
-  struct node node = INNER_NODE(children, q);
+static struct node new_inner(struct node *children, result_t *q, bool skip, rmap map) {
+  struct node node;
 
-  if (res_is_empty(&q)) {
+  if (q)
+    node = INNER_NODE(children, *q);
+  else {
     struct node node0 = children[0];
     result_t acc = node_inject(&node0);
     bool same = true;
 
     for (size_t i = 1; i < asize(map); i++) {
       result_t v = node_inject(&children[i]);
-      acc = res_append(&acc, &v);
+      acc = res_append(acc, v);
       same = same && eq_fringe_node(&node0, &children[i]);
     }
 
@@ -379,7 +371,7 @@ static struct node new_inner(struct node *children, result_t q, bool collapse, r
     node = INNER_NODE(children, acc);
   }
 
-  if (collapse && node.state == INNER) {
+  if (skip && node.state == INNER) {
     size_t j = NOWHERE;
     for (size_t i = 0; i < asize(map); i++)
       if (node.inner.children[i].state != EMPTY) {
@@ -392,11 +384,6 @@ static struct node new_inner(struct node *children, result_t q, bool collapse, r
       return new_skip(children_to_child(children, j, map), j, map->radix, map);
   }
   return node;
-}
-
-static inline result_t res_inject_2(rmap_value_t a, rmap_value_t b) {
-  result_t r1 = res_inject(a), r2 = res_inject(b);
-  return res_append(&r1, &r2);
 }
 
 static void put_leaf(bits_t bits,
@@ -455,14 +442,16 @@ static void put_leaf(bits_t bits,
     }
   }
 
+  result_t q;
   if (node->state == LEAF && newn->state == LEAF)
-    *node = new_inner(children, res_inject_2(node->leaf, newn->leaf), false, map);
+    *node = (q = res_append(res_inject(node->leaf), res_inject(newn->leaf)),
+        new_inner(children, &q, false, map));
   else if (node->state == LEAF && newn->state == EMPTY)
-    *node = new_inner(children, res_inject(node->leaf), true, map);
+    *node = (q = res_partial(res_inject(node->leaf)), new_inner(children, &q, true, map));
   else if (node->state == EMPTY && newn->state == LEAF)
-    *node = new_inner(children, res_inject(newn->leaf), true, map);
+    *node = (q = res_partial(res_inject(newn->leaf)), new_inner(children, &q, true, map));
   else if (node->state == INNER || node->state == SKIP)
-    *node = new_inner(children, res_empty, true, map);
+    *node = new_inner(children, NULL, true, map);
   else
     assert(false);
 }
@@ -504,7 +493,7 @@ static bool node_is_wf_1(struct node node, rmap map) {
 }
 
 static bool node_is_wf_2(struct node node, rmap map) {
-  result_t acc = res_empty;
+  result_t acc;
   switch (node.state) {
     case EMPTY:
     case LEAF:
@@ -512,9 +501,9 @@ static bool node_is_wf_2(struct node node, rmap map) {
     case INNER:
       for (size_t i = 0; i < asize(map); i++) {
         result_t v = node_inject(&node.inner.children[i]);
-        acc = res_append(&acc, &v);
+        acc = (i == 0) ? v : res_append(acc, v);
       }
-      if (!res_eq(&acc, &node.inner.qres))
+      if (!res_eq(acc, node.inner.qres))
         return false;
       for (size_t i = 0; i < asize(map); i++)
         if (!node_is_wf_2(node.inner.children[i], map))
