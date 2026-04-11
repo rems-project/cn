@@ -545,6 +545,7 @@ let main
       ~experimental_curly_braces
       ~with_testing
       ~skip_and_only
+      ~disable_ghost_arg_failure
       ?max_bump_blocks
       ?bump_block_size
       filename
@@ -577,6 +578,7 @@ let main
   Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
@@ -616,7 +618,6 @@ let main
     generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
   in
   let cn_ghost_enum = generate_ghost_enum prog5 in
-  let cn_ghost_call_site_glob = generate_ghost_call_site_glob () in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -658,8 +659,7 @@ let main
           c_predicate_decls;
           c_lemma_decls;
           cn_ghost_enum
-        ];
-        cn_ghost_call_site_glob
+        ]
       ]
   in
   (* Definitions for CN helper functions *)

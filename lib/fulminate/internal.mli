@@ -26,6 +26,7 @@ val generate_c_specs
   bool ->
   bool ->
   bool ->
+  bool ->
   string ->
   Extract.instrumentation list ->
   Cabs.translation_unit ->
@@ -42,8 +43,6 @@ val generate_c_datatypes
   (Cerb_location.t * string) list
 
 val generate_ghost_enum : unit Mucore.file -> string
-
-val generate_ghost_call_site_glob : unit -> string list
 
 val order_ail_tag_definitions
   :  (AilSyntax.ail_identifier

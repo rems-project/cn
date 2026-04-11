@@ -4183,16 +4183,16 @@ let rec cn_to_ail_cnprog_ghost_arg filename dts globals spec_mode_opt i = functi
     let upd_s = generate_error_msg_info_update_stats ~cn_source_loc_opt:(Some loc) () in
     let pop_s = generate_cn_pop_msg_info in
     let bs, ss, e = cn_to_ail_expr filename dts globals spec_mode_opt ghost_it PassBack in
-    let add_to_ghost_array_call =
+    let add_arg_to_ghost_frame_call =
       mk_expr
         (AilEcall
-           ( mk_expr (AilEident (Sym.fresh "add_to_ghost_array")),
+           ( mk_expr (AilEident (Sym.fresh "add_arg_to_ghost_frame")),
              [ mk_expr
                  (AilEconst (ConstantInteger (IConstant (Z.of_int i, Decimal, None))));
                e
              ] ))
     in
-    (bs, upd_s @ ss @ [ A.AilSexpr add_to_ghost_array_call ] @ pop_s)
+    (bs, upd_s @ ss @ [ A.AilSexpr add_arg_to_ghost_frame_call ] @ pop_s)
 
 
 let gen_ghost_enum_member_id bts =
@@ -4217,18 +4217,11 @@ let ail_of_enum_member_id enum_id =
   mk_expr A.(AilEident sym)
 
 
-let ghost_call_site_sym = Sym.fresh "ghost_call_site"
-
 let cn_ghost_enum_sym = Sym.fresh "CN_GHOST_ENUM"
 
 let ghost_enum_type = mk_ctype C.(Basic (Integer (Enum cn_ghost_enum_sym)))
 
 let cleared_enum_member_id loc = Id.make loc "CLEARED"
-
-let gen_ghost_call_site_global_decl =
-  let ghost_call_site_binding = create_binding ghost_call_site_sym ghost_enum_type in
-  ([ ghost_call_site_binding ], [ A.(AilSdeclaration [ (ghost_call_site_sym, None) ]) ])
-
 
 let cn_to_ail_ghost_enum spec_bts ghost_argss =
   (* cf. cn_to_ail_datatype *)
@@ -4258,15 +4251,21 @@ let cn_to_ail_ghost_enum spec_bts ghost_argss =
   (cn_ghost_enum_sym, (Cerb_location.unknown, attrs, enum_tag_definition))
 
 
-(* GHOST ARGUMENTS *)
 let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
-  let ghost_call_site_rhs =
+  let ghost_args_type_tag_rhs =
     ail_of_enum_member_id (gen_ghost_enum_member_id_ghost_args ghost_args)
   in
-  let ghost_call_site_decl =
+  let push_ghost_frame_decl =
     A.AilSexpr
       (mk_expr
-         (A.AilEassign (mk_expr (A.AilEident ghost_call_site_sym), ghost_call_site_rhs)))
+         (A.AilEcall
+            ( mk_expr (A.AilEident (Sym.fresh "push_ghost_frame")),
+              [ ghost_args_type_tag_rhs;
+                mk_expr
+                  (AilEconst
+                     (ConstantInteger
+                        (IConstant (Z.of_int (List.length ghost_args), Decimal, None))))
+              ] )))
   in
   let bs, ss =
     List.split
@@ -4285,7 +4284,7 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
       ( List.concat bs,
         List.map
           mk_stmt
-          ([ ghost_call_site_decl ] @ List.concat ss @ [ dummy_expr_as_stat ]) )
+          ([ push_ghost_frame_decl ] @ List.concat ss @ [ dummy_expr_as_stat ]) )
   in
   ([], [ A.AilSexpr (mk_expr ail_gcc_stmt) ])
 
@@ -4842,6 +4841,8 @@ let rec cn_to_ail_lat_2
 
 
 let rec cn_to_ail_pre_post_aux
+          ~is_lemma
+          disable_ghost_arg_failure
           without_ownership_checking
           with_loop_leak_checks
           without_lemma_checks
@@ -4852,7 +4853,6 @@ let rec cn_to_ail_pre_post_aux
           globals
           c_return_type
           ghost_idx
-          ghost_array_size_opt (* None case for lemmas *)
   = function
   | AT.Computational ((sym, bt), _info, at) ->
     let cn_to_ail_computational_at (sym, bt) =
@@ -4867,6 +4867,8 @@ let rec cn_to_ail_pre_post_aux
     let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
+        ~is_lemma
+        disable_ghost_arg_failure
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -4877,71 +4879,71 @@ let rec cn_to_ail_pre_post_aux
         globals
         c_return_type
         ghost_idx
-        ghost_array_size_opt
         subst_at
     in
     (ghost_bts, prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]))
   | AT.Ghost ((sym, bt), _info, at) ->
-    (match ghost_array_size_opt with
-     | None ->
-       (* For lemmas,
+    if is_lemma then
+      (* For lemmas,
           ghost parameters are already translated specially
           in cn_to_ail_lemma using AT.get_ghost,
           so we may skip them here *)
-       cn_to_ail_pre_post_aux
-         without_ownership_checking
-         with_loop_leak_checks
-         without_lemma_checks
-         without_inline_statements
-         filename
-         dts
-         preds
-         globals
-         c_return_type
-         ghost_idx
-         ghost_array_size_opt
-         at
-     | Some _ ->
-       let cn_to_ail_ghost_at (sym, bt) ghost_idx =
-         let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
-         let cn_ctype = bt_to_ail_ctype bt in
-         let binding = create_binding cn_sym cn_ctype in
-         let gen_load_from_ghost_array cn_ctype ghost_idx =
-           A.AilEcast
-             ( C.no_qualifiers,
-               cn_ctype,
-               mk_expr
-                 (AilEcall
-                    ( mk_expr (AilEident (Sym.fresh "load_from_ghost_array")),
-                      [ mk_expr
-                          (AilEconst
-                             (ConstantInteger
-                                (IConstant (Z.of_int ghost_idx, Decimal, None))))
-                      ] )) )
-         in
-         let rhs = gen_load_from_ghost_array cn_ctype ghost_idx in
-         let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
-         (cn_sym, (binding, decl))
-       in
-       let cn_sym, (binding, decl) = cn_to_ail_ghost_at (sym, bt) ghost_idx in
-       let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
-       let ghost_bts, ail_executable_spec =
-         cn_to_ail_pre_post_aux
-           without_ownership_checking
-           with_loop_leak_checks
-           without_lemma_checks
-           without_inline_statements
-           filename
-           dts
-           preds
-           globals
-           c_return_type
-           (ghost_idx + 1)
-           ghost_array_size_opt
-           subst_at
-       in
-       ( bt :: ghost_bts,
-         prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]) ))
+      cn_to_ail_pre_post_aux
+        ~is_lemma
+        disable_ghost_arg_failure
+        without_ownership_checking
+        with_loop_leak_checks
+        without_lemma_checks
+        without_inline_statements
+        filename
+        dts
+        preds
+        globals
+        c_return_type
+        ghost_idx
+        at
+    else (
+      let cn_to_ail_ghost_at (sym, bt) ghost_idx =
+        let cn_sym = generate_sym_with_suffix ~suffix:"_cn" sym in
+        let cn_ctype = bt_to_ail_ctype bt in
+        let binding = create_binding cn_sym cn_ctype in
+        let gen_load_arg_from_ghost_frame cn_ctype ghost_idx =
+          A.AilEcast
+            ( C.no_qualifiers,
+              cn_ctype,
+              mk_expr
+                (AilEcall
+                   ( mk_expr (AilEident (Sym.fresh "load_arg_from_ghost_frame")),
+                     [ mk_expr
+                         (AilEconst
+                            (ConstantInteger
+                               (IConstant (Z.of_int ghost_idx, Decimal, None))))
+                     ] )) )
+        in
+        let rhs = gen_load_arg_from_ghost_frame cn_ctype ghost_idx in
+        let decl = A.(AilSdeclaration [ (cn_sym, Some (mk_expr rhs)) ]) in
+        (cn_sym, (binding, decl))
+      in
+      let cn_sym, (binding, decl) = cn_to_ail_ghost_at (sym, bt) ghost_idx in
+      let subst_at = ESE.fn_args_and_body_subst (ESE.sym_subst (sym, bt, cn_sym)) at in
+      let ghost_bts, ail_executable_spec =
+        cn_to_ail_pre_post_aux
+          ~is_lemma
+          disable_ghost_arg_failure
+          without_ownership_checking
+          with_loop_leak_checks
+          without_lemma_checks
+          without_inline_statements
+          filename
+          dts
+          preds
+          globals
+          c_return_type
+          (ghost_idx + 1)
+          subst_at
+      in
+      ( bt :: ghost_bts,
+        prepend_to_precondition ail_executable_spec ([ binding ], [ decl ]) ))
   | AT.L lat ->
     let ail_executable_spec =
       cn_to_ail_lat_2
@@ -4956,21 +4958,16 @@ let rec cn_to_ail_pre_post_aux
         c_return_type
         lat
     in
-    let clear_ghost_call_site_binding =
-      create_binding ghost_call_site_sym ghost_enum_type
-    in
-    let here = Locations.other __LOC__ in
-    let clear_ghost_call_site_rhs = ail_of_enum_member_id (cleared_enum_member_id here) in
-    let clear_ghost_call_site_decl =
-      A.AilSexpr
-        (mk_expr
-           (A.AilEassign
-              (mk_expr (A.AilEident ghost_call_site_sym), clear_ghost_call_site_rhs)))
-    in
     let ail_executable_spec =
-      prepend_to_precondition
+      if disable_ghost_arg_failure then
         ail_executable_spec
-        ([ clear_ghost_call_site_binding ], [ clear_ghost_call_site_decl ])
+      else (
+        let pop_ghost_frame_decl =
+          A.AilSexpr
+            (mk_expr
+               (A.AilEcall (mk_expr (A.AilEident (Sym.fresh "pop_ghost_frame")), [])))
+        in
+        prepend_to_precondition ail_executable_spec ([], [ pop_ghost_frame_decl ]))
     in
     ([], ail_executable_spec)
 
@@ -4979,17 +4976,20 @@ let cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~disable_ghost_arg_failure
+      ~is_lemma
       ~without_inline_statements
       filename
       dts
       preds
       globals
       c_return_type
-      ghost_array_size_opt
   = function
   | Some internal ->
     let ghost_bts, ail_executable_spec =
       cn_to_ail_pre_post_aux
+        ~is_lemma
+        disable_ghost_arg_failure
         without_ownership_checking
         with_loop_leak_checks
         without_lemma_checks
@@ -5000,24 +5000,27 @@ let cn_to_ail_pre_post
         globals
         c_return_type
         0
-        ghost_array_size_opt
         internal
     in
     let ail_executable_spec =
-      match ghost_array_size_opt with
-      | None -> ail_executable_spec
-      | Some 0 ->
-        (* TODO: This case should be removed when Bennet supports ghost arguments *)
+      if disable_ghost_arg_failure then
         ail_executable_spec
-      | Some _ ->
+      else (
         let ghost_spec_sym = Sym.fresh "ghost_spec" in
+        let top_ghost_frame_tag_expr =
+          mk_expr
+            (A.AilEcast
+               ( C.no_qualifiers,
+                 ghost_enum_type,
+                 mk_expr
+                   (A.AilEcall
+                      (mk_expr (A.AilEident (Sym.fresh "top_ghost_frame_tag")), [])) ))
+        in
         let ghost_type_checking_stat =
           A.AilSif
             ( mk_expr
                 (A.AilEbinary
-                   ( mk_expr (A.AilEident ghost_spec_sym),
-                     A.Ne,
-                     mk_expr (A.AilEident ghost_call_site_sym) )),
+                   (mk_expr (A.AilEident ghost_spec_sym), A.Ne, top_ghost_frame_tag_expr)),
               mk_stmt
                 (A.AilSexpr
                    (mk_expr
@@ -5037,7 +5040,7 @@ let cn_to_ail_pre_post
         in
         prepend_to_precondition
           ail_executable_spec
-          ([ ghost_spec_binding ], [ ghost_spec_decl ])
+          ([ ghost_spec_binding ], [ ghost_spec_decl ]))
     in
     let ownership_stats_ =
       if without_ownership_checking then
@@ -5080,13 +5083,14 @@ let cn_to_ail_lemma filename dts preds globals (sym, (loc, lemmat)) =
       ~with_loop_leak_checks:true (* Value doesn't matter - no loop invariants here *)
       ~without_lemma_checks:false
         (* If this function is being called, then lemma checks have been enabled *)
+      ~disable_ghost_arg_failure:true
+      ~is_lemma:true
       ~without_inline_statements:false (* Lemma has no inline statements anyway *)
       filename
       dts
       preds
       globals
       ret_type
-      None
       (Some transformed_lemmat)
   in
   let pre_bs, pre_ss = ail_executable_spec.pre in
