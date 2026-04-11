@@ -24,8 +24,9 @@ while getopts "hnqu" flag; do
    QUIET=1
    ;;
    u)
+   export ASAN_OPTIONS="allocator_may_return_null=1:detect_leaks=0"
    export UBSAN_OPTIONS=halt_on_error=1
-   export CFLAGS="-fsanitize=undefined ${CFLAGS:-}"
+   export CFLAGS="-fsanitize=address,undefined ${CFLAGS:-}"
    ;;
    \?)
    echo_and_err "${USAGE}"
