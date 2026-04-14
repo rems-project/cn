@@ -5,12 +5,14 @@
 
 // C++ helper functions to replace C macros that use GCC statement expressions
 inline uint64_t arbitrary_tnum_u64(uint64_t value, uint64_t mask) {
-  struct bennet_domain_tnum_uint64_t tmp = {value, mask};
+  struct bennet_domain_tnum_uint64_t tmp = {
+      .top = false, .bottom = false, .value = value, .mask = mask};
   return bennet_arbitrary_tnum_uint64_t(&tmp);
 }
 
 inline int64_t arbitrary_tnum_i64(int64_t value, int64_t mask) {
-  struct bennet_domain_tnum_int64_t tmp = {value, mask};
+  struct bennet_domain_tnum_int64_t tmp = {
+      .top = false, .bottom = false, .value = value, .mask = mask};
   return bennet_arbitrary_tnum_int64_t(&tmp);
 }
 
