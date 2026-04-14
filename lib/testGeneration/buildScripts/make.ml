@@ -155,6 +155,11 @@ let define_test_flags () =
        |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
        |> Option.to_list
        |> List.flatten)
+    @
+    if Config.is_extrema_skew_disabled () then
+      [ "--disable-extrema-skew" ]
+    else
+      []
   in
   !^"TEST_FLAGS := " ^^ separate_map space string flags ^^ hardline
 

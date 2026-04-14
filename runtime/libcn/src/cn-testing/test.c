@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/internals/domains/sized.h>
 #include <bennet/internals/lazy.h>
 #include <bennet/prelude.h>
 #include <bennet/state/rand_alloc.h>
@@ -295,6 +296,8 @@ int cn_test_main(int argc, char* argv[]) {
       print_discard_info = true;
     } else if (strcmp("--print-timing-info", arg) == 0) {
       print_timing_info = true;
+    } else if (strcmp("--disable-extrema-skew", arg) == 0) {
+      bennet_set_extrema_skew_disabled(true);
     } else if (strcmp("--smt-pruning-at-runtime", arg) == 0) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {

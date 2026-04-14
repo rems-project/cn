@@ -248,7 +248,12 @@ let run () =
        @ (Config.has_max_input_alloc ()
           |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
           |> Option.to_list
-          |> List.flatten))
+          |> List.flatten)
+       @
+       if Config.is_extrema_skew_disabled () then
+         [ "--disable-extrema-skew" ]
+       else
+         [])
   in
   !^"# Run"
   ^^ hardline

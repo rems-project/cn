@@ -1,6 +1,7 @@
 #ifndef BENNET_DOMAINS_SIZED_H
 #define BENNET_DOMAINS_SIZED_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -43,6 +44,9 @@ BENNET_DOMAIN_SIZED_DECL(int32_t)
 BENNET_DOMAIN_SIZED_DECL(int64_t)
 
 BENNET_DOMAIN_SIZED_DECL(uintptr_t)
+
+void bennet_set_extrema_skew_disabled(bool disabled);
+bool bennet_get_extrema_skew_disabled(void);
 
 #ifdef __cplusplus
 }
