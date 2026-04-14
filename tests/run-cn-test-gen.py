@@ -540,6 +540,9 @@ def main():
                 if args.symbolic and Path(tf).name == "mkm.pass.c":
                     full_config += ' --max-array-length=1024'
 
+                if args.symbolic and Path(tf).name == "no_args.pass.c":
+                    full_config += ' --experimental-arg-pruning'
+
                 test_type = get_test_type(tf, full_config)
                 if test_type == 'SKIP':
                     continue

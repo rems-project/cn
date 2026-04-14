@@ -164,15 +164,14 @@ module Make (AD : Domain.T) = struct
       !^"bennet_rand_restore(checkpoint);" ^^^ !^"branch_history_rewind(&branch_hist);"
     in
     let concretize_call =
-      let conc_args =
-        def.iargs
-        |> List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_val"))
-        |> Pp.separate_map (!^"," ^^^ Pp.space) (fun x -> x)
+      let base_args = [ !^"smt_solver"; !^"&branch_hist" ] in
+      let iarg_args =
+        List.map (fun (sym, _) -> !^(Sym.pp_string sym ^ "_val")) def.iargs
       in
-      !^"cn_smt_concretize_"
-      ^^ !^generator_name
-      ^^ Pp.parens (!^"smt_solver" ^^ comma ^^^ !^"&branch_hist" ^^ comma ^^^ conc_args)
-      ^^ !^";"
+      let all_args =
+        Pp.separate_map (comma ^^ Pp.space) (fun x -> x) (base_args @ iarg_args)
+      in
+      !^"cn_smt_concretize_" ^^ !^generator_name ^^ Pp.parens all_args ^^ !^";"
     in
     (* Generate struct building and return - convert from CN types to C types *)
     let struct_fields =

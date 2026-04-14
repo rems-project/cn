@@ -356,18 +356,18 @@ module Make (AD : Domain.T) = struct
   (** Generate forward declaration for a concretize function *)
   let concretize_forward_decl (def : Def.t) : Pp.document =
     let open Pp in
-    let params =
-      List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
-      |> separate_map (comma ^^^ space) (fun x -> x)
+    let base_params =
+      [ !^"struct cn_smt_solver* smt_solver";
+        !^"struct branch_history_queue* branch_hist"
+      ]
     in
+    let iarg_params =
+      List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
+    in
+    let params = separate_map (comma ^^ space) (fun x -> x) (base_params @ iarg_params) in
     !^"static cn_term*"
     ^^^ !^("cn_smt_concretize_" ^ Pp.plain (Sym.pp def.name))
-    ^^ parens
-         (!^"struct cn_smt_solver* smt_solver"
-          ^^ comma
-          ^^^ !^"struct branch_history_queue* branch_hist"
-          ^^ comma
-          ^^^ params)
+    ^^ parens params
     ^^ semi
 
 
@@ -377,10 +377,15 @@ module Make (AD : Domain.T) = struct
     =
     let open Pp in
     let term_result = concretize_term sigma def.body in
-    let params =
-      List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
-      |> separate_map (comma ^^^ space) (fun x -> x)
+    let base_params =
+      [ !^"struct cn_smt_solver* smt_solver";
+        !^"struct branch_history_queue* branch_hist"
+      ]
     in
+    let iarg_params =
+      List.map (fun (sym, _bt) -> !^"cn_term*" ^^^ Sym.pp sym) def.iargs
+    in
+    let params = separate_map (comma ^^ space) (fun x -> x) (base_params @ iarg_params) in
     (* Generate statements with semicolons *)
     let statements =
       term_result.statements
@@ -396,12 +401,7 @@ module Make (AD : Domain.T) = struct
     in
     !^"static cn_term*"
     ^^^ !^("cn_smt_concretize_" ^ Pp.plain (Sym.pp def.name))
-    ^^ parens
-         (!^"struct cn_smt_solver* smt_solver"
-          ^^ comma
-          ^^^ !^"struct branch_history_queue* branch_hist"
-          ^^ comma
-          ^^^ params)
+    ^^ parens params
     ^^^ braces body
 
 
