@@ -247,6 +247,9 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--max-stack-depth", arg) == 0) {
       bennet_set_max_depth(strtoul(argv[i + 1], NULL, 10));
       i++;
+    } else if (strcmp("--max-depth-failures", arg) == 0) {
+      set_max_depth_failures(strtoul(argv[i + 1], NULL, 10));
+      i++;
     } else if (strcmp("--max-generator-size", arg) == 0) {
       uint64_t sz = strtoul(argv[i + 1], NULL, 10);
       assert(sz != 0);

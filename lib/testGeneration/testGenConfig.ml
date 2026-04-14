@@ -81,6 +81,7 @@ type t =
     until_timeout : int option;
     exit_fast : bool;
     max_stack_depth : int option;
+    max_depth_failures : int option;
     max_generator_size : int option;
     sizing_strategy : sizing_strategy option;
     random_size_splits : bool;
@@ -147,6 +148,7 @@ let default =
     until_timeout = None;
     exit_fast = false;
     max_stack_depth = None;
+    max_depth_failures = None;
     max_generator_size = None;
     sizing_strategy = None;
     random_size_splits = false;
@@ -332,6 +334,8 @@ let is_until_timeout () = (Option.get !instance).until_timeout
 let is_exit_fast () = (Option.get !instance).exit_fast
 
 let has_max_stack_depth () = (Option.get !instance).max_stack_depth
+
+let has_max_depth_failures () = (Option.get !instance).max_depth_failures
 
 let has_max_generator_size () = (Option.get !instance).max_generator_size
 

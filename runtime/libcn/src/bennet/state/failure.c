@@ -6,6 +6,30 @@
 #include <bennet/internals/size.h>
 #include <bennet/state/failure.h>
 
+static uint16_t depth_failures = 0;
+static uint16_t max_depth_failures = UINT16_MAX;
+
+bool has_depth_failures(void) {
+  return max_depth_failures == UINT16_MAX || depth_failures < max_depth_failures;
+}
+
+void add_depth_failure(void) {
+  if (max_depth_failures == UINT16_MAX) {
+    return;
+  }
+  if (depth_failures < max_depth_failures) {
+    depth_failures++;
+  }
+}
+
+void reset_depth_failures(void) {
+  depth_failures = 0;
+}
+
+void set_max_depth_failures(uint16_t max) {
+  max_depth_failures = max;
+}
+
 struct name_list {
   const void* id;
   void* domain;

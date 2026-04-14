@@ -18,6 +18,7 @@ void bennet_destroy(void) {
   bennet_ownership_destroy();
   bennet_rand_alloc_free_all();
   bennet_lazy_reset();
+  reset_depth_failures();
 
   bennet_initialized = false;
 }

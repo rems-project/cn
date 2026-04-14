@@ -28,6 +28,7 @@ extern "C" {
   bennet_increment_depth();                                                              \
   if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
     bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
+    add_depth_failure();                                                                 \
     goto bennet_label_bennet_backtrack;                                                  \
   }
 

@@ -6,6 +6,11 @@
 
 #include <bennet/internals/domain.h>
 
+bool has_depth_failures(void);
+void add_depth_failure(void);
+void reset_depth_failures(void);
+void set_max_depth_failures(uint16_t max);
+
 enum bennet_failure_type {
   BENNET_FAILURE_NONE,
   BENNET_FAILURE_ASSERT,

@@ -36,7 +36,12 @@
   BENNET_CHECK_TIMEOUT();                                                                \
   bennet_increment_depth();                                                              \
   if (bennet_rec_size <= 0 || bennet_get_depth() == bennet_max_depth()) {                \
-    bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
+    if (has_depth_failures()) {                                                          \
+      bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                             \
+      add_depth_failure();                                                               \
+    } else {                                                                             \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+    }                                                                                    \
     goto bennet_label_bennet_backtrack;                                                  \
   }
 
@@ -389,6 +394,7 @@
 #define BENNET_SPLIT_END(tmp, last_var, ...)                                             \
   if (count >= bennet_rec_size) {                                                        \
     bennet_failure_set_failure_type(BENNET_FAILURE_DEPTH);                               \
+    add_depth_failure();                                                                 \
     const void* toAdd[] = {__VA_ARGS__};                                                 \
     bennet_failure_blame_many(toAdd);                                                    \
     goto bennet_label_##last_var##_backtrack;                                            \
