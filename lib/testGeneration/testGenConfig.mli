@@ -105,7 +105,8 @@ type t =
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
-    lazy_gen : bool
+    lazy_gen : bool;
+    disable_extrema_skew : bool
   }
 
 val default : t
@@ -263,3 +264,5 @@ val is_lazy_gen : unit -> bool
 val is_specialization_disabled : unit -> bool
 
 val is_only_top_level_ite_lifting : unit -> bool
+
+val is_extrema_skew_disabled : unit -> bool

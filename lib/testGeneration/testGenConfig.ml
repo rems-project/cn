@@ -105,7 +105,8 @@ type t =
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
-    lazy_gen : bool
+    lazy_gen : bool;
+    disable_extrema_skew : bool
   }
 
 let default =
@@ -171,7 +172,8 @@ let default =
     max_input_alloc = None;
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
-    lazy_gen = false
+    lazy_gen = false;
+    disable_extrema_skew = false
   }
 
 
@@ -404,3 +406,5 @@ let is_lazy_gen () = (Option.get !instance).lazy_gen
 let is_specialization_disabled () = (Option.get !instance).disable_specialization
 
 let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
+
+let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew

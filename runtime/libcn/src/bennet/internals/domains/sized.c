@@ -1,8 +1,19 @@
 #include <assert.h>
+#include <stdbool.h>
 
 #include <bennet/internals/domains/sized.h>
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
+
+static bool extrema_skew_disabled = false;
+
+void bennet_set_extrema_skew_disabled(bool disabled) {
+  extrema_skew_disabled = disabled;
+}
+
+bool bennet_get_extrema_skew_disabled(void) {
+  return extrema_skew_disabled;
+}
 
 #define SIZED_GEN(sm)                                                                    \
   uint##sm##_t bennet_arbitrary_sized_uint##sm##_t(                                      \
@@ -14,7 +25,7 @@
     }                                                                                    \
                                                                                          \
     /* FIXME: Unsound, should move elsewhere */                                          \
-    if (sz <= 8 * sizeof(size_t)) {                                                      \
+    if (!extrema_skew_disabled && sz <= 8 * sizeof(size_t)) {                            \
       size_t extremes_likelihood = 1 << (sz / 2 + 1);                                    \
       if (!bennet_uniform_uint64_t(extremes_likelihood)) {                               \
         return (s == 0) ? UINT##sm##_MAX : (s - 1);                                      \
@@ -34,7 +45,7 @@
     }                                                                                    \
                                                                                          \
     /* FIXME: Unsound, should move elsewhere */                                          \
-    if (sz <= 8 * sizeof(size_t)) {                                                      \
+    if (!extrema_skew_disabled && sz <= 8 * sizeof(size_t)) {                            \
       size_t extremes_likelihood = 1 << (sz / 2 + 1);                                    \
       if (!bennet_uniform_uint64_t(extremes_likelihood)) {                               \
         switch (bennet_uniform_uint8_t(2)) {                                             \
@@ -64,7 +75,7 @@ uintptr_t bennet_arbitrary_sized_uintptr_t(bennet_domain_sized(uintptr_t) * d) {
   }
 
   /* FIXME: Unsound, should move elsewhere */
-  if (sz <= 8 * sizeof(size_t)) {
+  if (!extrema_skew_disabled && sz <= 8 * sizeof(size_t)) {
     size_t extremes_likelihood = 1 << (sz / 2 + 1);
     if (!bennet_uniform_uint64_t(extremes_likelihood)) {
       return (s == 0) ? UINTPTR_MAX : (s - 1);
