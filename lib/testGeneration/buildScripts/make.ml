@@ -135,6 +135,10 @@ let define_test_flags () =
          | Config.None -> "none"
        in
        [ "--smt-skewing"; mode_str ])
+    @ (Config.has_symbolic_timeout ()
+       |> Option.map (fun secs -> [ "--symbolic-timeout"; string_of_int secs ])
+       |> Option.to_list
+       |> List.flatten)
     @ (Config.get_smt_logging ()
        |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
        |> Option.to_list

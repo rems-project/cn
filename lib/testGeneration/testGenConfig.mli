@@ -63,7 +63,7 @@ type t =
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
     symbolic : bool;
-    symbolic_timeout : int option; (* SMT solver timeout for symbolic solving *)
+    symbolic_timeout : int option; (* SMT solver timeout for symbolic solving (ms) *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
     use_solver_eval : bool; (* Use solver-based evaluation *)

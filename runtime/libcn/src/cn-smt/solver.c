@@ -26,6 +26,13 @@ void cn_smt_set_log_file_path(const char *path) {
   cn_smt_log_file_path = path;
 }
 
+// Z3 solver timeout in milliseconds (0 = unset)
+static int cn_smt_solver_timeout_ms = 0;
+
+void cn_smt_set_solver_timeout_ms(int ms) {
+  cn_smt_solver_timeout_ms = ms;
+}
+
 void send_string(struct cn_smt_solver *solver, const char *str) {
   assert(solver && str);
   fprintf(solver->write_input, "%s\n", str);
@@ -286,6 +293,11 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
       ack_command(solver, set_option(":model.completion", "true"));
       ack_command(solver, set_option(":smt.relevancy", "0"));
       ack_command(solver, set_option(":smt.phase_selection", "5"));
+      if (cn_smt_solver_timeout_ms > 0) {
+        char timeout_buf[32];
+        snprintf(timeout_buf, sizeof(timeout_buf), "%d", cn_smt_solver_timeout_ms);
+        ack_command(solver, set_option(":timeout", timeout_buf));
+      }
   }
 
   return solver;
