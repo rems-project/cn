@@ -208,8 +208,8 @@ void bennet_shuffle(void* arr, size_t len, size_t size) {
   char* tmp = malloc(size);
   assert(tmp);
 
-  for (int i = len - 1; i >= 0; i--) {
-    uint8_t j = bennet_range_uint8_t(0, i + 1);
+  for (int i = len - 1; i > 0; i--) {
+    uint8_t j = bennet_range_uint8_t(0, i);
     memcpy(tmp, arr + i * size, size);
     memcpy(arr + i * size, arr + j * size, size);
     memcpy(arr + j * size, tmp, size);
