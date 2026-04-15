@@ -195,7 +195,13 @@ void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
 enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
   sexp_t *args[] = {sexp_atom("check-sat")};
   sexp_t *res = send_command(solver, sexp_list(args, 1));
-  assert(sexp_is_atom(res));
+
+  // Z3 can return `(error "... canceled")` when :timeout fires during check-sat
+  // rather than the atom `unknown`. Treat as UNKNOWN so the harness retries.
+  if (!sexp_is_atom(res)) {
+    fprintf(stderr, "check-sat returned non-atom: %s\n", sexp_to_string(res));
+    return CN_SOLVER_UNKNOWN;
+  }
 
   if (strcmp(res->data.atom, "sat") == 0) {
     return CN_SOLVER_SAT;
@@ -209,6 +215,7 @@ enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
     return CN_SOLVER_UNKNOWN;
   }
 
+  fprintf(stderr, "check-sat returned unexpected atom: %s\n", res->data.atom);
   assert(false);
   return 0;
 }
