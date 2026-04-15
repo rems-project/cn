@@ -88,7 +88,6 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "spec_null_shift.c" \
     ! -name "alloc_token.c" \
     ! -name "ptr_diff.c" \
-    ! -name "mask_ptr.c" \
     ! -name "previously_inconsistent_assumptions1.c" \
     ! -name "previously_inconsistent_assumptions2.c" \
     ! -name "ptr_relop.c" \
@@ -153,7 +152,6 @@ BUGGY="\
        cn/spec_null_shift.c \
        cn/alloc_token.c \
        cn/ptr_diff.c \
-       cn/mask_ptr.c \
        cn/ptr_relop.c \
        cn/ptr_relop.error.c \
        cn/int_to_ptr.c \
