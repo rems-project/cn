@@ -88,6 +88,7 @@ let run_tests
       max_bump_blocks
       bump_block_size
       max_input_alloc
+      fixed_alloc_base
       smt_skew_pointer_order
       dsl_log_dir
       lazy_gen
@@ -193,6 +194,7 @@ let run_tests
           max_bump_blocks;
           bump_block_size;
           max_input_alloc;
+          fixed_alloc_base;
           smt_skew_pointer_order;
           dsl_log_dir;
           lazy_gen;
@@ -779,6 +781,17 @@ module Flags = struct
     Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
 
 
+  let fixed_alloc_base =
+    let doc =
+      "Pin the random input allocator's buffer to a fixed virtual address (hex 0x... or \
+       decimal). Must be page-aligned. Enables pointer-value reproducibility across runs \
+       when combined with --seed. On Linux uses mmap MAP_FIXED_NOREPLACE; on macOS \
+       passes the address as a hint and verifies the kernel honored it. Aborts if the \
+       mapping cannot be placed at the requested address. Example: 0x100000000000"
+    in
+    Arg.(value & opt (some string) None & info [ "fixed-alloc-base" ] ~doc ~docv:"ADDR")
+
+
   let smt_skew_pointer_order =
     let doc = "Enable pointer ordering skewing in SMT solver" in
     Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
@@ -887,6 +900,7 @@ let cmd =
     $ Instrument.Flags.max_bump_blocks
     $ Instrument.Flags.bump_block_size
     $ Flags.max_input_alloc
+    $ Flags.fixed_alloc_base
     $ Flags.smt_skew_pointer_order
     $ Flags.dsl_log_dir
     $ Flags.lazy_gen

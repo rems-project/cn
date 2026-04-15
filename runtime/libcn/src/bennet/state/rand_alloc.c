@@ -1,9 +1,13 @@
+#include <sys/mman.h>
+
 #include <assert.h>
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <bennet/internals/domain.h>
 #include <bennet/internals/rand.h>
@@ -28,6 +32,7 @@ typedef struct {
 
 // Add a static buffer for the random allocator
 static size_t rand_alloc_mem_size = (1024 * 1024 * 32);  // 32 MB default
+static uintptr_t rand_alloc_fixed_base = 0;              // 0 = disabled
 static rand_alloc global_rand_alloc;
 
 // Initialize the allocator
@@ -36,12 +41,69 @@ static void bennet_rand_alloc_init(void) {
     return;
   }
 
-  global_rand_alloc.buffer = malloc(rand_alloc_mem_size);
-  if (!global_rand_alloc.buffer) {
-    fprintf(stderr,
-        "CRITICAL: Failed to allocate %zu MB for rand_alloc buffer!\n",
-        rand_alloc_mem_size / (1024 * 1024));
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
+  if (rand_alloc_fixed_base != 0) {
+    long page_size = sysconf(_SC_PAGESIZE);
+    assert(page_size > 0);
+    assert(rand_alloc_fixed_base % (uintptr_t)page_size == 0);
+
+    void *addr = (void *)rand_alloc_fixed_base;
+    void *mapped;
+#ifdef MAP_FIXED_NOREPLACE
+    mapped = mmap(addr,
+        rand_alloc_mem_size,
+        PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE,
+        -1,
+        0);
+    if (mapped == MAP_FAILED) {
+      fprintf(stderr,
+          "CRITICAL: mmap(MAP_FIXED_NOREPLACE) failed for %zu bytes at %p: %s\n",
+          rand_alloc_mem_size,
+          addr,
+          strerror(errno));
+      exit(1);
+    }
+    if (mapped != addr) {
+      munmap(mapped, rand_alloc_mem_size);
+      fprintf(stderr,
+          "CRITICAL: MAP_FIXED_NOREPLACE did not honor requested address %p (got %p)\n",
+          addr,
+          mapped);
+      exit(1);
+    }
+#else
+    // macOS: no MAP_FIXED_NOREPLACE. Pass addr as a hint (no MAP_FIXED) and
+    // verify the kernel honored it; if not, unmap and abort rather than
+    // silently relocating (which would defeat the point of pinning).
+    mapped = mmap(
+        addr, rand_alloc_mem_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if (mapped == MAP_FAILED) {
+      fprintf(stderr,
+          "CRITICAL: mmap failed for %zu bytes at %p: %s\n",
+          rand_alloc_mem_size,
+          addr,
+          strerror(errno));
+      exit(1);
+    }
+    if (mapped != addr) {
+      munmap(mapped, rand_alloc_mem_size);
+      fprintf(stderr,
+          "CRITICAL: kernel did not honor fixed-base hint %p (got %p); cannot pin "
+          "rand_alloc buffer. Try a different --fixed-alloc-base address.\n",
+          addr,
+          mapped);
+      exit(1);
+    }
+#endif
+    global_rand_alloc.buffer = (char *)mapped;
+  } else {
+    global_rand_alloc.buffer = malloc(rand_alloc_mem_size);
+    if (!global_rand_alloc.buffer) {
+      fprintf(stderr,
+          "CRITICAL: Failed to allocate %zu MB for rand_alloc buffer!\n",
+          rand_alloc_mem_size / (1024 * 1024));
+      exit(1);
+    }
   }
   global_rand_alloc.buffer_len = rand_alloc_mem_size;
   bennet_vector_init(rand_alloc_region)(&global_rand_alloc.regions);
@@ -202,4 +264,16 @@ void bennet_rand_alloc_set_mem_size(size_t size) {
     exit(1);
   }
   rand_alloc_mem_size = size;
+}
+
+// Pin the allocator buffer to a fixed virtual address (must be called before first
+// allocation). Setting to 0 disables pinning.
+void bennet_rand_alloc_set_fixed_base(uintptr_t addr) {
+  if (global_rand_alloc.buffer != NULL) {
+    fprintf(stderr,
+        "Error: Cannot set rand_alloc fixed base after allocator has been "
+        "initialized.\n");
+    exit(1);
+  }
+  rand_alloc_fixed_base = addr;
 }

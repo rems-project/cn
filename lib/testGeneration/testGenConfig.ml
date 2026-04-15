@@ -104,6 +104,7 @@ type t =
     max_bump_blocks : int option;
     bump_block_size : int option;
     max_input_alloc : int option;
+    fixed_alloc_base : string option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     lazy_gen : bool;
@@ -172,6 +173,7 @@ let default =
     max_bump_blocks = None;
     bump_block_size = None;
     max_input_alloc = None;
+    fixed_alloc_base = None;
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
     lazy_gen = false;
@@ -400,6 +402,8 @@ let has_max_bump_blocks () = (Option.get !instance).max_bump_blocks
 let has_bump_block_size () = (Option.get !instance).bump_block_size
 
 let has_max_input_alloc () = (Option.get !instance).max_input_alloc
+
+let has_fixed_alloc_base () = (Option.get !instance).fixed_alloc_base
 
 let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order
 
