@@ -28,6 +28,7 @@ void cn_set_use_solver_eval(bool value);
 void* cn_smt_concretize_lookup_symbolic_var(
     struct cn_smt_solver* smt_solver, const char* name, cn_base_type type);
 void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* term);
+cn_term* cn_smt_concretize_arbitrary(cn_base_type type);
 
 #define CN_SMT_CONCRETIZE_ASSERT(cond)                                                   \
   do {                                                                                   \
@@ -78,6 +79,8 @@ void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* ter
 
 #define CN_SMT_CONCRETIZE_SYMBOLIC(base_type)                                            \
   cn_smt_concretize_lookup_symbolic_var(smt_solver, "_sym", base_type)
+
+#define CN_SMT_CONCRETIZE_ARBITRARY(base_type) cn_smt_concretize_arbitrary(base_type)
 
 #define CN_SMT_CONCRETIZE_CALL(function_symbol, ...)                                     \
   cn_smt_concretize_##function_symbol(smt_solver, branch_hist, __VA_ARGS__)

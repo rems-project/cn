@@ -22,6 +22,100 @@ module Make (AD : Domain.T) = struct
       expression : Pp.document (* Final expression to return *)
     }
 
+  let unconstrained_array_side_effects
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (binding_term : Term.t)
+    : Pp.document list option
+    =
+    let open Pp in
+    match binding_term with
+    | Annot
+        ( `Map
+            ( (i_sym, i_bt, it_perm),
+              Annot
+                ( `LetStar
+                    ( ( x,
+                        Annot
+                          ((`Arbitrary | `ArbitraryDomain _ | `Symbolic | `Lazy), _, _, _)
+                      ),
+                      Annot
+                        ( `Asgn
+                            ( (it_addr, sct),
+                              IT (Sym x', _, _),
+                              Annot (`Return (IT (Sym x'', v_bt, _)), _, _, _) ),
+                          _,
+                          _,
+                          _ ) ),
+                  _,
+                  _,
+                  _ ) ),
+          _,
+          _,
+          _ )
+      when Sym.equal x x' && Sym.equal x' x'' && Term.is_arbitrary_supported_bt v_bt ->
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let max_len_constraint =
+        let here = Locations.other __LOC__ in
+        let array_len =
+          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        in
+        let max_len_term =
+          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        in
+        LC.T (IT.le_ (array_len, max_len_term) here)
+      in
+      let assert_stmt =
+        !^"CN_SMT_CONCRETIZE_ASSERT"
+        ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
+      in
+      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
+      let value_bt_doc = Smt.convert_basetype v_bt in
+      let here = Locations.other __LOC__ in
+      let ctype_doc =
+        CF.Pp_ail.(
+          with_executable_spec
+            (pp_ctype ~is_human:false C.no_qualifiers)
+            (Sctypes.to_ctype sct))
+      in
+      let convert_fn_doc =
+        !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
+      in
+      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let conditional_stmts =
+        max_array_length
+        |> Z.to_int
+        |> List.range 0
+        |> List.map (fun idx ->
+          let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
+          let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
+          let cond_doc =
+            !^"convert_from_cn_bool"
+            ^^ parens
+                 (!^"cn_smt_concretize_eval_term"
+                  ^^ parens
+                       (!^"smt_solver" ^^ comma ^^^ Smt.convert_indexterm sigma guard_it)
+                 )
+          in
+          let addr_doc = Smt.convert_indexterm sigma (subst_i_in_addr idx_it) in
+          let assign_doc =
+            !^"CN_SMT_CONCRETIZE_ASSIGN"
+            ^^ parens
+                 (ctype_doc
+                  ^^ comma
+                  ^^^ convert_fn_doc
+                  ^^ comma
+                  ^^^ addr_doc
+                  ^^ comma
+                  ^^^ !^"CN_SMT_CONCRETIZE_ARBITRARY"
+                  ^^ parens value_bt_doc)
+          in
+          !^"if" ^^^ parens cond_doc ^^^ braces (assign_doc ^^ !^";"))
+      in
+      Some (assert_stmt :: conditional_stmts)
+    | _ -> None
+
+
   (** Convert a generator term to CN-SMT symbolic execution statements and expression *)
   let rec concretize_term (sigma : CF.GenTypes.genTypeCategory A.sigma) (tm : Term.t)
     : result
@@ -81,9 +175,20 @@ module Make (AD : Domain.T) = struct
       { statements = assign_stmt :: next_result.statements;
         expression = next_result.expression
       }
-    | `LetStar
-        ((var_sym, Annot ((`Arbitrary | `Symbolic | `Lazy), _, bt_arb, _)), body_term) ->
-      (* Let binding with potential backtracking *)
+    | `LetStar ((var_sym, Annot (`Arbitrary, _, bt_arb, _)), body_term) ->
+      (* Let binding: targeted unconstrained optimization only for arbitrary *)
+      let body_result = concretize_term sigma body_term in
+      if Sym.Set.mem var_sym (Term.free_vars body_term) then
+        { statements =
+            (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
+             ^^ parens (Sym.pp var_sym ^^ comma ^^^ Smt.convert_basetype bt_arb))
+            :: body_result.statements;
+          expression = body_result.expression
+        }
+      else
+        body_result
+    | `LetStar ((var_sym, Annot ((`Symbolic | `Lazy), _, bt_arb, _)), body_term) ->
+      (* Preserve existing behavior for symbolic/lazy bindings *)
       let body_result = concretize_term sigma body_term in
       { statements =
           (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
@@ -98,16 +203,18 @@ module Make (AD : Domain.T) = struct
       let body_result = concretize_term sigma body_term in
       (* Generate let binding as statement *)
       let statements =
-        binding_result.statements
-        @
-        if Sym.Set.mem var_sym (Term.free_vars body_term) then (
+        if Sym.Set.mem var_sym (Term.free_vars body_term) then
+          binding_result.statements
+          @
           let let_stmt =
             !^"CN_SMT_CONCRETIZE_LET_STAR"
             ^^ parens (!^var_name ^^ comma ^^^ binding_result.expression)
           in
-          let_stmt :: body_result.statements)
-        else
-          body_result.statements
+          let_stmt :: body_result.statements
+        else (
+          match unconstrained_array_side_effects sigma binding_term with
+          | Some stmts -> stmts @ body_result.statements
+          | None -> binding_result.statements @ body_result.statements)
       in
       { statements; expression = body_result.expression }
     | `Return it ->

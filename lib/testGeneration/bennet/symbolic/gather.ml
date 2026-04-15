@@ -22,6 +22,87 @@ module Make (AD : Domain.T) = struct
       expression : Pp.document (* Final expression to return *)
     }
 
+  let unconstrained_array_side_effects
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (binding_term : Term.t)
+    : Pp.document list option
+    =
+    let open Pp in
+    match binding_term with
+    | Annot
+        ( `Map
+            ( (i_sym, i_bt, it_perm),
+              Annot
+                ( `LetStar
+                    ( ( x,
+                        Annot
+                          ((`Arbitrary | `ArbitraryDomain _ | `Symbolic | `Lazy), _, _, _)
+                      ),
+                      Annot
+                        ( `Asgn
+                            ( (it_addr, sct),
+                              IT (Sym x', _, _),
+                              Annot (`Return (IT (Sym x'', v_bt, _)), _, _, _) ),
+                          _,
+                          _,
+                          _ ) ),
+                  _,
+                  _,
+                  _ ) ),
+          _,
+          _,
+          _ )
+      when Sym.equal x x' && Sym.equal x' x'' && Term.is_arbitrary_supported_bt v_bt ->
+      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let max_len_constraint =
+        let here = Locations.other __LOC__ in
+        let array_len =
+          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        in
+        let max_len_term =
+          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        in
+        LC.T (IT.le_ (array_len, max_len_term) here)
+      in
+      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let it_min, it_max = (f it_min, f it_max) in
+      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let start_addr_smt = Smt.convert_indexterm sigma (subst_i_in_addr it_min) in
+      let end_addr_smt =
+        let here = Locations.other __LOC__ in
+        Smt.convert_indexterm
+          sigma
+          (f
+             (IT.arrayShift_
+                ~base:(subst_i_in_addr it_max)
+                ~index:
+                  (IT.num_lit_
+                     (Z.of_int (Memory.size_of_ctype sct - 1))
+                     Memory.uintptr_bt
+                     here)
+                Sctypes.char_ct
+                here))
+      in
+      let assign_stmt =
+        !^"CN_SMT_GATHER_ASSIGN_ARRAY"
+        ^^ parens
+             (CF.Pp_ail.(
+                with_executable_spec
+                  (pp_ctype ~is_human:false C.no_qualifiers)
+                  (Sctypes.to_ctype sct))
+              ^^ comma
+              ^^^ start_addr_smt
+              ^^ comma
+              ^^^ end_addr_smt)
+      in
+      let assert_stmt =
+        !^"CN_SMT_GATHER_ASSERT"
+        ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
+      in
+      Some [ assert_stmt; assign_stmt ]
+    | _ -> None
+
+
   (** Convert a generator term to CN-SMT symbolic execution statements and expression *)
   let rec gather_term (sigma : CF.GenTypes.genTypeCategory A.sigma) (tm : Term.t) : result
     =
@@ -186,9 +267,20 @@ module Make (AD : Domain.T) = struct
           (assert_stmt :: assign_stmt :: values_stmts) @ (map_init_stmt :: map_set_stmts);
         expression = map_var_doc
       }
-    | `LetStar
-        ((var_sym, Annot ((`Arbitrary | `Symbolic | `Lazy), _, bt_arb, _)), body_term) ->
-      (* Let binding *)
+    | `LetStar ((var_sym, Annot (`Arbitrary, _, bt_arb, _)), body_term) ->
+      (* Let binding: targeted unconstrained optimization only for arbitrary *)
+      let body_result = gather_term sigma body_term in
+      if Sym.Set.mem var_sym (Term.free_vars body_term) then
+        { statements =
+            (!^"CN_SMT_GATHER_LET_SYMBOLIC"
+             ^^ parens (Sym.pp var_sym ^^ comma ^^^ Smt.convert_basetype bt_arb))
+            :: body_result.statements;
+          expression = body_result.expression
+        }
+      else
+        body_result
+    | `LetStar ((var_sym, Annot ((`Symbolic | `Lazy), _, bt_arb, _)), body_term) ->
+      (* Preserve existing behavior for symbolic/lazy bindings *)
       let body_result = gather_term sigma body_term in
       { statements =
           (!^"CN_SMT_GATHER_LET_SYMBOLIC"
@@ -203,16 +295,18 @@ module Make (AD : Domain.T) = struct
       let body_result = gather_term sigma body_term in
       (* Generate let binding as statement *)
       let statements =
-        binding_result.statements
-        @
-        if Sym.Set.mem var_sym (Term.free_vars body_term) then (
+        if Sym.Set.mem var_sym (Term.free_vars body_term) then
+          binding_result.statements
+          @
           let let_stmt =
             !^"CN_SMT_GATHER_LET_STAR"
             ^^ parens (!^var_name ^^ comma ^^^ binding_result.expression)
           in
-          let_stmt :: body_result.statements)
-        else
-          body_result.statements
+          let_stmt :: body_result.statements
+        else (
+          match unconstrained_array_side_effects sigma binding_term with
+          | Some stmts -> stmts @ body_result.statements
+          | None -> binding_result.statements @ body_result.statements)
       in
       { statements; expression = body_result.expression }
     | `Return it ->
