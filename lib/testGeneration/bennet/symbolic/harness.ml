@@ -136,8 +136,8 @@ module Make (AD : Domain.T) = struct
       !^"if"
       ^^^ parens !^"result != CN_SOLVER_SAT"
       ^^^ braces
-            (!^"assert(result == CN_SOLVER_UNSAT);"
-             ^/^ !^"branch_history_update_trie(&branch_hist, unsat_paths);"
+            (!^"if (result == CN_SOLVER_UNSAT)"
+             ^^^ braces !^"branch_history_update_trie(&branch_hist, unsat_paths);"
              ^/^ !^"branch_history_clear(&branch_hist);"
              ^/^ reset_or_new_solver
              ^/^ !^"attempts++;")
