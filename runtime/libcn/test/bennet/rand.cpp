@@ -84,3 +84,25 @@ TEST_F(LibBennet, OverflowRangeI64) {
     EXPECT_FALSE(53 < val && val < INT64_MAX - 100);
   }
 }
+
+// Regression: bennet_shuffle previously called bennet_range_uint8_t(0, i+1),
+// which is inclusive on both ends, producing j == i+1 and writing one element
+// past the array. Run many small shuffles under ASan to catch any out-of-bounds
+// read/write, and verify the shuffle is a permutation of the original contents.
+TEST_F(LibBennet, ShuffleStaysInBounds) {
+  for (size_t n = 1; n <= 16; n++) {
+    for (int trial = 0; trial < 50; trial++) {
+      size_t arr[16];
+      for (size_t i = 0; i < n; i++) {
+        arr[i] = i;
+      }
+      bennet_shuffle(arr, n, sizeof(size_t));
+      size_t sum = 0;
+      for (size_t i = 0; i < n; i++) {
+        EXPECT_LT(arr[i], n);
+        sum += arr[i];
+      }
+      EXPECT_EQ(sum, n * (n - 1) / 2);
+    }
+  }
+}
