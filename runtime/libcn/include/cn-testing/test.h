@@ -163,7 +163,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         printf("\r");                                                                    \
         print_test_info(#Suite, #Name, i, d);                                            \
       }                                                                                  \
-      if (d >= 10 * ((test_input.deadline > 0) ? (i + 1) : Samples)) {                   \
+      if (test_input.deadline == 0 && d >= 10 * Samples) {                               \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
