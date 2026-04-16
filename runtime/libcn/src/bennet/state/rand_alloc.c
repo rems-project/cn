@@ -1,5 +1,15 @@
 #include <sys/mman.h>
 
+// Portable anonymous-mapping flag: prefer MAP_ANONYMOUS (POSIX), fall back to
+// MAP_ANON (macOS / older BSDs).
+#if defined(MAP_ANONYMOUS)
+  #define CN_MAP_ANON MAP_ANONYMOUS
+#elif defined(MAP_ANON)
+  #define CN_MAP_ANON MAP_ANON
+#else
+  #error "Neither MAP_ANONYMOUS nor MAP_ANON is defined"
+#endif
+
 #include <assert.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -52,7 +62,7 @@ static void bennet_rand_alloc_init(void) {
     mapped = mmap(addr,
         rand_alloc_mem_size,
         PROT_READ | PROT_WRITE,
-        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED_NOREPLACE,
+        MAP_PRIVATE | CN_MAP_ANON | MAP_FIXED_NOREPLACE,
         -1,
         0);
     if (mapped == MAP_FAILED) {
@@ -72,11 +82,15 @@ static void bennet_rand_alloc_init(void) {
       exit(1);
     }
 #else
-    // macOS: no MAP_FIXED_NOREPLACE. Pass addr as a hint (no MAP_FIXED) and
-    // verify the kernel honored it; if not, unmap and abort rather than
+    // Fallback: no MAP_FIXED_NOREPLACE. Pass addr as a hint (no MAP_FIXED)
+    // and verify the kernel honored it; if not, unmap and abort rather than
     // silently relocating (which would defeat the point of pinning).
-    mapped = mmap(
-        addr, rand_alloc_mem_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    mapped = mmap(addr,
+        rand_alloc_mem_size,
+        PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | CN_MAP_ANON,
+        -1,
+        0);
     if (mapped == MAP_FAILED) {
       fprintf(stderr,
           "CRITICAL: mmap failed for %zu bytes at %p: %s\n",
