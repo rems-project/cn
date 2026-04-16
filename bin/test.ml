@@ -94,6 +94,7 @@ let run_tests
       disable_specialization
       only_top_level_ite_lifting
       disable_extrema_skew
+      discard_factor
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -196,7 +197,8 @@ let run_tests
           smt_skew_pointer_order;
           dsl_log_dir;
           lazy_gen;
-          disable_extrema_skew
+          disable_extrema_skew;
+          discard_factor
         }
       in
       TestGeneration.set_config config;
@@ -800,6 +802,14 @@ module Flags = struct
   let disable_extrema_skew =
     let doc = "Disable extreme value (MIN/MAX) skewing in sized generators" in
     Arg.(value & flag & info [ "disable-extrema-skew" ] ~doc)
+
+
+  let discard_factor =
+    let doc = "Multiplier for maximum allowed discards (default: 10)" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.discard_factor
+      & info [ "discard-factor" ] ~doc)
 end
 
 let cmd =
@@ -893,6 +903,7 @@ let cmd =
     $ Flags.disable_specialization
     $ Flags.only_top_level_ite_lifting
     $ Flags.disable_extrema_skew
+    $ Flags.discard_factor
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

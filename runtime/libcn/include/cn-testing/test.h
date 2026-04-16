@@ -33,6 +33,7 @@ struct cn_test_input {
   FILE* tyche_output_stream;
   uint64_t begin_time;
   uint64_t deadline;
+  int discard_factor;
 };
 
 typedef enum cn_test_result cn_test_case_fn(struct cn_test_input test_input);
@@ -163,15 +164,18 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         printf("\r");                                                                    \
         print_test_info(#Suite, #Name, i, d);                                            \
       }                                                                                  \
-      if (test_input.deadline == 0 && d >= 10 * Samples) {                               \
+      if (test_input.deadline == 0 && d >= test_input.discard_factor * Samples) {        \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
         return CN_TEST_GEN_FAIL;                                                         \
       }                                                                                  \
       if (!test_input.replay) {                                                          \
-        bennet_set_size(bennet_compute_size(                                             \
-            test_input.sizing_strategy, Samples, 10, i, recentDiscards));                \
+        bennet_set_size(bennet_compute_size(test_input.sizing_strategy,                  \
+            Samples,                                                                     \
+            test_input.discard_factor,                                                   \
+            i,                                                                           \
+            recentDiscards));                                                            \
         bennet_rand_replace(checkpoint);                                                 \
       }                                                                                  \
       CN_TEST_INIT();                                                                    \
