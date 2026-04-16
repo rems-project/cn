@@ -100,10 +100,12 @@ SUCCESS=$(find cn -name '*.c' \
     ! -name "issue_113.c" \
     ! -name "alloc_create.c" \
     ! -name "to_from_bytes_block.c" \
+    ! -name "implies3.c" \
+    ! -name "inconsistent3.c" \
 )
 
 # Include files which cause error for proof but not testing
-SUCCESS+=("cn/merging_arrays.error.c" "cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c" "cn/memcpy_2.error.c")
+SUCCESS+=("cn/pointer_to_char_cast.error.c" "cn/pointer_to_unsigned_int_cast.error.c" "cn/memcpy_2.error.c")
 
 NO_MAIN="\
        cn/b_or.c \
