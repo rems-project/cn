@@ -25,7 +25,7 @@ void cn_smt_concretize_init(void);
 bool cn_get_use_solver_eval(void);
 void cn_set_use_solver_eval(bool value);
 
-void* cn_smt_concretize_lookup_symbolic_var(
+cn_term* cn_smt_concretize_lookup_symbolic_var(
     struct cn_smt_solver* smt_solver, const char* name, cn_base_type type);
 void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* term);
 cn_term* cn_smt_concretize_arbitrary(cn_base_type type);
