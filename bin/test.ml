@@ -740,7 +740,7 @@ module Flags = struct
 
 
   let symbolic_timeout =
-    let doc = "Set timeout for SMT solver in symbolic mode (seconds)" in
+    let doc = "Set timeout for SMT solver in symbolic mode (milliseconds)" in
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
 
 

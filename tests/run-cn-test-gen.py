@@ -457,7 +457,7 @@ def main():
     # Set configurations based on symbolic option
     if args.symbolic:
         alt_configs = [
-            "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-at-runtime",
+            "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-at-runtime --symbolic-timeout=2000",
             "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-before-absint=slow"
         ]
     else:

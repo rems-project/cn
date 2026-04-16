@@ -26,6 +26,13 @@ void cn_smt_set_log_file_path(const char *path) {
   cn_smt_log_file_path = path;
 }
 
+// Z3 solver timeout in milliseconds (0 = unset)
+static int cn_smt_solver_timeout_ms = 0;
+
+void cn_smt_set_solver_timeout_ms(int ms) {
+  cn_smt_solver_timeout_ms = ms;
+}
+
 void send_string(struct cn_smt_solver *solver, const char *str) {
   assert(solver && str);
   fprintf(solver->write_input, "%s\n", str);
@@ -188,7 +195,13 @@ void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
 enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
   sexp_t *args[] = {sexp_atom("check-sat")};
   sexp_t *res = send_command(solver, sexp_list(args, 1));
-  assert(sexp_is_atom(res));
+
+  // Z3 can return `(error "... canceled")` when :timeout fires during check-sat
+  // rather than the atom `unknown`. Treat as UNKNOWN so the harness retries.
+  if (!sexp_is_atom(res)) {
+    fprintf(stderr, "check-sat returned non-atom: %s\n", sexp_to_string(res));
+    return CN_SOLVER_UNKNOWN;
+  }
 
   if (strcmp(res->data.atom, "sat") == 0) {
     return CN_SOLVER_SAT;
@@ -202,6 +215,7 @@ enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
     return CN_SOLVER_UNKNOWN;
   }
 
+  fprintf(stderr, "check-sat returned unexpected atom: %s\n", res->data.atom);
   assert(false);
   return 0;
 }
@@ -286,6 +300,11 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
       ack_command(solver, set_option(":model.completion", "true"));
       ack_command(solver, set_option(":smt.relevancy", "0"));
       ack_command(solver, set_option(":smt.phase_selection", "5"));
+      if (cn_smt_solver_timeout_ms > 0) {
+        char timeout_buf[32];
+        snprintf(timeout_buf, sizeof(timeout_buf), "%d", cn_smt_solver_timeout_ms);
+        ack_command(solver, set_option(":timeout", timeout_buf));
+      }
   }
 
   return solver;

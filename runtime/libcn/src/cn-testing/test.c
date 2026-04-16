@@ -321,6 +321,9 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--smt-logging", arg) == 0) {
       cn_smt_set_log_file_path(argv[i + 1]);
       i++;
+    } else if (strcmp("--symbolic-timeout", arg) == 0) {
+      cn_smt_set_solver_timeout_ms((int)strtol(argv[i + 1], NULL, 10));
+      i++;
     } else if (strcmp("--smt-log-unsat-cores", arg) == 0) {
       cn_smt_set_unsat_core_log_path(argv[i + 1]);
       i++;
