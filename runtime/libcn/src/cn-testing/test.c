@@ -336,6 +336,9 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--max-input-alloc", arg) == 0) {
       bennet_rand_alloc_set_mem_size(strtoul(argv[i + 1], NULL, 10));
       i++;
+    } else if (strcmp("--fixed-alloc-base", arg) == 0) {
+      bennet_rand_alloc_set_fixed_base((uintptr_t)strtoull(argv[i + 1], NULL, 0));
+      i++;
     } else if (strcmp("--only", arg) == 0) {
       char* test_names = argv[i + 1];
       char* test_names_copy = strdup(test_names);

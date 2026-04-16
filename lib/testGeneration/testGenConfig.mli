@@ -104,6 +104,7 @@ type t =
     max_bump_blocks : int option;
     bump_block_size : int option;
     max_input_alloc : int option;
+    fixed_alloc_base : string option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     lazy_gen : bool;
@@ -257,6 +258,8 @@ val has_max_bump_blocks : unit -> int option
 val has_bump_block_size : unit -> int option
 
 val has_max_input_alloc : unit -> int option
+
+val has_fixed_alloc_base : unit -> string option
 
 val is_smt_skew_pointer_order : unit -> bool
 

@@ -31,4 +31,12 @@ void *bennet_rand_alloc_max_ptr(void);
 // Set the memory size for the random allocator (must be called before first allocation)
 void bennet_rand_alloc_set_mem_size(size_t size);
 
+// Pin the allocator buffer to a fixed virtual address (must be called before first
+// allocation). Setting to 0 disables pinning (default). When pinned, the buffer is
+// obtained via mmap at the given page-aligned address; on Linux MAP_FIXED_NOREPLACE
+// is used, on macOS the address is passed as a hint and the returned pointer is
+// verified. If the mapping cannot be placed at the requested address, initialization
+// aborts rather than silently overwriting existing mappings.
+void bennet_rand_alloc_set_fixed_base(uintptr_t addr);
+
 #endif  // BENNET_RAND_ALLOC_H
