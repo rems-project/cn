@@ -178,12 +178,12 @@ static rmap_key_t min_key(bits_t bits, rmap_key_t k) {
 
 static rmap_key_t max_key(bits_t bits, rmap_key_t k) {
   rmap_key_t m = mask(KEY_BITS - bits);
-  return ((~m) & k) | (m & -1ULL);
+  return ((~m) & k) | m;
 }
 
 static bool complete_range(bits_t bits, rmap_key_t k0, rmap_key_t k1) {
   rmap_key_t m = mask(KEY_BITS - bits);
-  return ((k0 & m) == 0UL) && ((k1 & m) == (-1UL & m));
+  return ((k0 & m) == 0UL) && ((k1 & m) == m);
 }
 
 static inline rmap_key_t min_k(rmap_key_t a, rmap_key_t b) {
