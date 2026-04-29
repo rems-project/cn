@@ -17,6 +17,16 @@ It builds on the [Cerberus C semantics](https://github.com/rems-project/cerberus
 <ul>
 
 <li>
+<a name="code-spec-test-debug-prove-pldi26">
+<a href="https://www.cl.cam.ac.uk/~pes20/pldi2026-paper155-supplementary.pdf">Code-Specify-Test-Debug-Prove: Flexibly Integrating Separation Logic Specification into Conventional Workflows</a>.
+Zain K Aamer*, Rini Banerjee*, Hiroyuki Katsura*, David Kaloper-Meršinjak*, Dimitrios J. Economou, Kayvan Memarian, Dhruv Makwana, Neel Krishnaswami, Benjamin C Pierce, Christopher Pulte, Peter Sewell. In PLDI 2026. *these authors contributed equally
+[
+<a href="https://dx.doi.org/10.1145/3808278">doi</a>&nbsp;| 
+<a href="https://www.cl.cam.ac.uk/~pes20/pldi2026-paper155-supplementary.pdf">pdf</a> 
+]
+</li>
+
+<li>
 <a name="seq-test-thesis">
 <a href="https://api.drum.lib.umd.edu/server/api/core/bitstreams/8425d7be-a500-4598-85f6-1b888712bbb3/content">Model-free Stateful Random Testing</a>.
 Ethan Chou. Thesis for MSc at the University of Maryland, 2025.
