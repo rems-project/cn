@@ -71,12 +71,16 @@ typedef struct {
 // SMT logging configuration
 void cn_smt_set_log_file_path(const char *path);
 
+// Z3 solver timeout (in milliseconds, 0 = unset)
+void cn_smt_set_solver_timeout_ms(int ms);
+
 // Function declarations
 void send_string(struct cn_smt_solver *solver, const char *str);
 sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp);
 void stop_solver(struct cn_smt_solver *solver);
 void ack_command(struct cn_smt_solver *solver, sexp_t *cmd);
 enum cn_smt_solver_result check(struct cn_smt_solver *solver);
+sexp_t *get_unsat_core(struct cn_smt_solver *solver);
 struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext);
 void cn_structs_declare(struct cn_smt_solver *s,
     const char **struct_names,

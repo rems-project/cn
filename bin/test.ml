@@ -20,6 +20,7 @@ let run_tests
       (* Executable spec *)
         without_ownership_checking
       exec_c_locs_mode
+      correct_missing_ownership_mode
       experimental_ownership_stack_mode
       (* without_loop_invariants *)
       (* Test Generation *)
@@ -46,7 +47,7 @@ let run_tests
       until_timeout
       exit_fast
       max_stack_depth
-      _allowed_depth_failures
+      max_depth_failures
       max_generator_size
       sizing_strategy
       random_size_splits
@@ -62,15 +63,21 @@ let run_tests
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
       experimental_learning
+      experimental_arg_pruning
+      experimental_return_pruning
       static_absint
+      local_iterations
       smt_pruning_before_absinst
       smt_pruning_after_absinst
       smt_pruning_keep_redundant_assertions
       smt_pruning_at_runtime
+      runtime_assert_domain
       symbolic
       symbolic_timeout
       use_solver_eval
+      smt_solver
       smt_logging
+      smt_log_unsat_cores
       print_size_info
       print_backtrack_info
       print_satisfaction_info
@@ -80,6 +87,13 @@ let run_tests
       smt_skewing_mode
       max_bump_blocks
       bump_block_size
+      max_input_alloc
+      smt_skew_pointer_order
+      dsl_log_dir
+      lazy_gen
+      disable_specialization
+      only_top_level_ite_lifting
+      disable_extrema_skew
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -128,16 +142,24 @@ let run_tests
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
           experimental_learning;
+          experimental_arg_pruning;
+          experimental_return_pruning;
           static_absint;
+          local_iterations;
           smt_pruning_before_absinst;
           smt_pruning_after_absinst;
           smt_pruning_remove_redundant_assertions =
             not smt_pruning_keep_redundant_assertions;
           smt_pruning_at_runtime;
+          runtime_assert_domain;
           symbolic;
           symbolic_timeout;
           use_solver_eval;
+          smt_solver;
+          disable_specialization;
+          only_top_level_ite_lifting;
           smt_logging;
+          smt_log_unsat_cores;
           max_unfolds;
           max_array_length;
           print_seed;
@@ -150,6 +172,7 @@ let run_tests
           until_timeout;
           exit_fast;
           max_stack_depth;
+          max_depth_failures;
           max_generator_size;
           sizing_strategy;
           random_size_splits;
@@ -168,7 +191,12 @@ let run_tests
           just_reset_solver;
           smt_skewing_mode;
           max_bump_blocks;
-          bump_block_size
+          bump_block_size;
+          max_input_alloc;
+          smt_skew_pointer_order;
+          dsl_log_dir;
+          lazy_gen;
+          disable_extrema_skew
         }
       in
       TestGeneration.set_config config;
@@ -191,10 +219,14 @@ let run_tests
            ~without_loop_invariants:true
            ~with_loop_leak_checks:false
            ~without_lemma_checks:false
+           ~without_inline_statements:false
            ~exec_c_locs_mode
+           ~correct_missing_ownership_mode
            ~experimental_ownership_stack_mode
+           ~experimental_curly_braces:false
            ~with_testing:true
            ~skip_and_only:(skip_fulminate, only_fulminate)
+           ~disable_ghost_arg_failure:true
            ?max_bump_blocks
            ?bump_block_size
            filename
@@ -227,11 +259,48 @@ let run_tests
           Unix.execv build_script (Array.of_list [ build_script ])
         | Make ->
           Unix.chdir output_dir;
+          Unix.putenv "CC" cc;
           Unix.execvp "make" (Array.of_list [ "make"; "-j" ]));
       Result.ok ())
 
 
 open Cmdliner
+
+(* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
+let parse_size_value s =
+  let len = String.length s in
+  if len = 0 then
+    Error (`Msg "Size value cannot be empty")
+  else (
+    let last_char = String.get s (len - 1) in
+    let value_str, multiplier =
+      match last_char with
+      | 'k' | 'K' -> (String.sub s 0 (len - 1), 1024)
+      | 'm' | 'M' -> (String.sub s 0 (len - 1), 1024 * 1024)
+      | 'g' | 'G' -> (String.sub s 0 (len - 1), 1024 * 1024 * 1024)
+      | '0' .. '9' -> (s, 1)
+      | _ -> ("", 0)
+      (* Invalid suffix *)
+    in
+    if multiplier = 0 then
+      Error
+        (`Msg
+            (Printf.sprintf
+               "Invalid size suffix in '%s'. Use k/K, m/M, g/G, or no suffix."
+               s))
+    else (
+      match int_of_string_opt value_str with
+      | Some n when n > 0 ->
+        (* Check for overflow *)
+        if n > max_int / multiplier then
+          Error (`Msg (Printf.sprintf "Size value '%s' is too large" s))
+        else
+          Ok (n * multiplier)
+      | Some _ -> Error (`Msg (Printf.sprintf "Size value must be positive: '%s'" s))
+      | None -> Error (`Msg (Printf.sprintf "Invalid size value: '%s'" s))))
+
+
+let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
 module Flags = struct
   let print_steps =
@@ -396,9 +465,7 @@ module Flags = struct
 
 
   let until_timeout =
-    let doc =
-      "Keep rerunning tests until the given timeout (in seconds) has been reached"
-    in
+    let doc = "Run tests until the given timeout (in seconds) has been reached" in
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.until_timeout
@@ -418,10 +485,12 @@ module Flags = struct
       & info [ "max-stack-depth" ] ~doc)
 
 
-  let allowed_depth_failures =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after July 31." in
-    Arg.(value & opt (some int) None & info [ "allowed-depth-failures" ] ~deprecated ~doc)
+  let max_depth_failures =
+    let doc = "Maximum number of depth failures allowed before giving up" in
+    Arg.(
+      value
+      & opt (some int) TestGeneration.default_cfg.max_depth_failures
+      & info [ "max-depth-failures" ] ~doc)
 
 
   let max_generator_size =
@@ -467,6 +536,16 @@ module Flags = struct
   let coverage =
     let doc = "(Experimental) Record coverage of tests via [lcov]" in
     Arg.(value & flag & info [ "coverage" ] ~doc)
+
+
+  let disable_specialization =
+    let doc = "Disable integer specialization in the generator pipeline" in
+    Arg.(value & flag & info [ "disable-specialization" ] ~doc)
+
+
+  let only_top_level_ite_lifting =
+    let doc = "Only lift top-level ITE expressions" in
+    Arg.(value & flag & info [ "only-top-level-ite-lifting" ] ~doc)
 
 
   let disable_passes =
@@ -535,6 +614,16 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-learning" ] ~doc)
 
 
+  let experimental_arg_pruning =
+    let doc = "Enable experimental unused argument pruning optimization" in
+    Arg.(value & flag & info [ "experimental-arg-pruning" ] ~doc)
+
+
+  let experimental_return_pruning =
+    let doc = "Enable experimental unused return value pruning optimization" in
+    Arg.(value & flag & info [ "experimental-return-pruning" ] ~doc)
+
+
   let smt_pruning_before_absinst =
     let doc =
       "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
@@ -569,6 +658,11 @@ module Flags = struct
     Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
 
 
+  let runtime_assert_domain =
+    let doc = "Enable assert_domain checks at runtime (disabled by default)" in
+    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
+
+
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
@@ -581,6 +675,14 @@ module Flags = struct
              (enum [ ("interval", "interval"); ("wrapped_interval", "wrapped_interval") ]))
           []
       & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+
+
+  let local_iterations =
+    let doc = "Maximum iterations for local abstract interpretation refinement" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.local_iterations
+      & info [ "local-iterations" ] ~doc)
 
 
   let print_size_info =
@@ -638,8 +740,18 @@ module Flags = struct
 
 
   let symbolic_timeout =
-    let doc = "Set timeout for SMT solver in symbolic mode (seconds)" in
+    let doc = "Set timeout for SMT solver in symbolic mode (milliseconds)" in
     Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
+
+
+  let smt_solver =
+    let doc =
+      "Choose SMT solver backend for symbolic test generation (z3, cvc5 is unsupported)."
+    in
+    Arg.(
+      value
+      & opt (enum TestGeneration.Options.smt_solver) TestGeneration.default_cfg.smt_solver
+      & info [ "solver-type" ] ~docv:"SOLVER" ~doc)
 
 
   let use_solver_eval =
@@ -650,6 +762,44 @@ module Flags = struct
   let smt_logging =
     let doc = "Log SMT solver communication to specified file" in
     Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
+
+
+  let smt_log_unsat_cores =
+    let doc = "Log unsat cores to specified file when constraints are unsatisfiable" in
+    Arg.(
+      value & opt (some string) None & info [ "smt-log-unsat-cores" ] ~doc ~docv:"FILE")
+
+
+  let max_input_alloc =
+    let doc =
+      "Maximum memory size for the random input allocator (default: 32m). Supports \
+       suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 32m, \
+       33554432, 64m"
+    in
+    Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
+
+
+  let smt_skew_pointer_order =
+    let doc = "Enable pointer ordering skewing in SMT solver" in
+    Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
+
+
+  let dsl_log_dir =
+    let doc =
+      "Write generator DSL intermediate representations to separate stage files in this \
+       directory"
+    in
+    Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
+
+
+  let lazy_gen =
+    let doc = "Enable lazy generation" in
+    Arg.(value & flag & info [ "lazy-gen" ] ~doc)
+
+
+  let disable_extrema_skew =
+    let doc = "Disable extreme value (MIN/MAX) skewing in sized generators" in
+    Arg.(value & flag & info [ "disable-extrema-skew" ] ~doc)
 end
 
 let cmd =
@@ -671,6 +821,7 @@ let cmd =
     $ Common.Flags.allow_split_magic_comments
     $ Instrument.Flags.without_ownership_checking
     $ Instrument.Flags.exec_c_locs_mode
+    $ Instrument.Flags.correct_missing_ownership_mode
     $ Instrument.Flags.experimental_ownership_stack_mode
     $ Flags.print_steps
     $ Flags.output_dir
@@ -695,7 +846,7 @@ let cmd =
     $ Flags.until_timeout
     $ Flags.exit_fast
     $ Flags.max_stack_depth
-    $ Flags.allowed_depth_failures
+    $ Flags.max_depth_failures
     $ Flags.max_generator_size
     $ Flags.sizing_strategy
     $ Flags.random_size_splits
@@ -711,15 +862,21 @@ let cmd =
     $ Flags.experimental_struct_asgn_destruction
     $ Flags.experimental_product_arg_destruction
     $ Flags.experimental_learning
+    $ Flags.experimental_arg_pruning
+    $ Flags.experimental_return_pruning
     $ Flags.static_absint
+    $ Flags.local_iterations
     $ Flags.smt_pruning_before_absinst
     $ Flags.smt_pruning_after_absinst
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
+    $ Flags.runtime_assert_domain
     $ Flags.symbolic
     $ Flags.symbolic_timeout
     $ Flags.use_solver_eval
+    $ Flags.smt_solver
     $ Flags.smt_logging
+    $ Flags.smt_log_unsat_cores
     $ Flags.print_size_info
     $ Flags.print_backtrack_info
     $ Flags.print_satisfaction_info
@@ -729,6 +886,13 @@ let cmd =
     $ Flags.smt_skewing_mode
     $ Instrument.Flags.max_bump_blocks
     $ Instrument.Flags.bump_block_size
+    $ Flags.max_input_alloc
+    $ Flags.smt_skew_pointer_order
+    $ Flags.dsl_log_dir
+    $ Flags.lazy_gen
+    $ Flags.disable_specialization
+    $ Flags.only_top_level_ite_lifting
+    $ Flags.disable_extrema_skew
   in
   let doc =
     "Generates tests for all functions in [FILE] with CN specifications.\n\

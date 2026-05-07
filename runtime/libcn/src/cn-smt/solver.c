@@ -9,6 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <cn-smt/context.h>
 #include <cn-smt/datatypes.h>
 #include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/intern.h>
@@ -23,6 +24,13 @@ const char *cn_smt_log_file_path = NULL;
 
 void cn_smt_set_log_file_path(const char *path) {
   cn_smt_log_file_path = path;
+}
+
+// Z3 solver timeout in milliseconds (0 = unset)
+static int cn_smt_solver_timeout_ms = 0;
+
+void cn_smt_set_solver_timeout_ms(int ms) {
+  cn_smt_solver_timeout_ms = ms;
 }
 
 void send_string(struct cn_smt_solver *solver, const char *str) {
@@ -73,8 +81,10 @@ char *read_output(struct cn_smt_solver *solver) {
   }
 
   if (select_result == 0) {
-    fprintf(stderr, "Timeout waiting for SMT solver response\n");
-    assert(false);
+    // fprintf(stderr, "Timeout waiting for SMT solver response\n");
+    // assert(false);
+    // FIXME: Use an appropriate error
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
   }
 
   // Data is available, proceed with reading
@@ -185,7 +195,13 @@ void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
 enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
   sexp_t *args[] = {sexp_atom("check-sat")};
   sexp_t *res = send_command(solver, sexp_list(args, 1));
-  assert(sexp_is_atom(res));
+
+  // Z3 can return `(error "... canceled")` when :timeout fires during check-sat
+  // rather than the atom `unknown`. Treat as UNKNOWN so the harness retries.
+  if (!sexp_is_atom(res)) {
+    fprintf(stderr, "check-sat returned non-atom: %s\n", sexp_to_string(res));
+    return CN_SOLVER_UNKNOWN;
+  }
 
   if (strcmp(res->data.atom, "sat") == 0) {
     return CN_SOLVER_SAT;
@@ -199,8 +215,14 @@ enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
     return CN_SOLVER_UNKNOWN;
   }
 
+  fprintf(stderr, "check-sat returned unexpected atom: %s\n", res->data.atom);
   assert(false);
   return 0;
+}
+
+sexp_t *get_unsat_core(struct cn_smt_solver *solver) {
+  sexp_t *args[] = {sexp_atom("get-unsat-core")};
+  return send_command(solver, sexp_list(args, 1));
 }
 
 struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
@@ -241,6 +263,13 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
   solver->ext = ext;
   solver->pid = pid;
 
+  // Check CVC5 + skewing compatibility
+  if (ext == SOLVER_CVC5 && cn_get_smt_skewing_mode() != CN_SMT_SKEWING_NONE) {
+    fprintf(stderr,
+        "\033[33mWarning: CVC5 does not support skewing; disabling skewing.\033[0m\n");
+    cn_set_smt_skewing_mode(CN_SMT_SKEWING_NONE);
+  }
+
   // Close unused pipe ends in parent
   close(pipe_fd_in[0]);
   close(pipe_fd_out[1]);
@@ -258,6 +287,11 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
   ack_command(solver, set_option(":print-success", "true"));
   ack_command(solver, set_option(":produce-models", "true"));
 
+  // Only enable unsat cores if logging is requested
+  if (cn_smt_get_unsat_core_log_path() != NULL) {
+    ack_command(solver, set_option(":produce-unsat-cores", "true"));
+  }
+
   switch (ext) {
     case SOLVER_CVC5:
       break;
@@ -266,6 +300,11 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
       ack_command(solver, set_option(":model.completion", "true"));
       ack_command(solver, set_option(":smt.relevancy", "0"));
       ack_command(solver, set_option(":smt.phase_selection", "5"));
+      if (cn_smt_solver_timeout_ms > 0) {
+        char timeout_buf[32];
+        snprintf(timeout_buf, sizeof(timeout_buf), "%d", cn_smt_solver_timeout_ms);
+        ack_command(solver, set_option(":timeout", timeout_buf));
+      }
   }
 
   return solver;

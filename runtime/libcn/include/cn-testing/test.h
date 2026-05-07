@@ -32,6 +32,7 @@ struct cn_test_input {
   bool output_tyche;
   FILE* tyche_output_stream;
   uint64_t begin_time;
+  uint64_t deadline;
 };
 
 typedef enum cn_test_result cn_test_case_fn(struct cn_test_input test_input);
@@ -130,7 +131,7 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         }                                                                                \
                                                                                          \
         return CN_TEST_FAIL;                                                             \
-      case CN_FAILURE_ALLOC:                                                             \
+      case CN_FAILURE_FULM_ALLOC:                                                        \
         bennet_info_timing_end("bennet");                                                \
         bennet_info_timing_end("execute:test");                                          \
                                                                                          \
@@ -155,12 +156,14 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
                                                                                          \
         break;                                                                           \
     }                                                                                    \
-    for (; i < Samples; i++) {                                                           \
+    for (; (test_input.deadline > 0) ? (bennet_get_microseconds() < test_input.deadline) \
+                                     : (i < Samples);                                    \
+        i++) {                                                                           \
       if (test_input.progress_level == CN_TEST_GEN_PROGRESS_ALL) {                       \
         printf("\r");                                                                    \
         print_test_info(#Suite, #Name, i, d);                                            \
       }                                                                                  \
-      if (d == 10 * Samples) {                                                           \
+      if (test_input.deadline == 0 && d >= 10 * Samples) {                               \
         if (test_input.progress_level == CN_TEST_GEN_PROGRESS_FINAL) {                   \
           print_test_info(#Suite, #Name, i, d);                                          \
         }                                                                                \
@@ -311,14 +314,21 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
 
 int cn_test_main(int argc, char* argv[]);
 
-void bennet_reset(void);
-void cn_smt_reset(void);
+void fulminate_destroy(void);
+void fulminate_init(void);
+void bennet_destroy(void);
+void bennet_init(void);
+void cn_smt_destroy(void);
+void cn_smt_init(void);
 
 #define CN_TEST_INIT()                                                                   \
   std_set_default_alloc();                                                               \
+  cn_smt_destroy();                                                                      \
+  bennet_destroy();                                                                      \
+  fulminate_destroy();                                                                   \
   cn_test_free_all();                                                                    \
-  reset_fulminate();                                                                     \
-  bennet_reset();                                                                        \
-  cn_smt_reset();
+  fulminate_init();                                                                      \
+  bennet_init();                                                                         \
+  cn_smt_init();
 
 #endif  // CN_TEST_H

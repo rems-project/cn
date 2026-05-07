@@ -37,13 +37,15 @@ extern "C" {
 
 // Macro to define vector functions for a given type 'ty'
 #define BENNET_VECTOR_IMPL(ty)                                                           \
-  static inline void bennet_vector_init(ty)(bennet_vector(ty) * vec) {                   \
+  __attribute__((unused)) static inline void bennet_vector_init(ty)(                     \
+      bennet_vector(ty) * vec) {                                                         \
     vec->data = NULL;                                                                    \
     vec->size = 0;                                                                       \
     vec->capacity = 0;                                                                   \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_vector_free(ty)(bennet_vector(ty) * vec) {                   \
+  __attribute__((unused)) static inline void bennet_vector_free(ty)(                     \
+      bennet_vector(ty) * vec) {                                                         \
     if (vec->data) {                                                                     \
       free(vec->data);                                                                   \
       vec->data = NULL;                                                                  \
@@ -52,7 +54,7 @@ extern "C" {
     vec->capacity = 0;                                                                   \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_vector_reserve(ty)(                                          \
+  __attribute__((unused)) static inline void bennet_vector_reserve(ty)(                  \
       bennet_vector(ty) * vec, size_t new_cap) {                                         \
     if (new_cap > vec->capacity) {                                                       \
       size_t cap = vec->capacity ? vec->capacity : 1;                                    \
@@ -66,30 +68,34 @@ extern "C" {
     }                                                                                    \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_vector_push(ty)(bennet_vector(ty) * vec, ty value) {         \
+  __attribute__((unused)) static inline void bennet_vector_push(ty)(                     \
+      bennet_vector(ty) * vec, ty value) {                                               \
     if (vec->size == vec->capacity) {                                                    \
       bennet_vector_reserve(ty)(vec, vec->capacity ? vec->capacity * 2 : 1);             \
     }                                                                                    \
     vec->data[vec->size++] = value;                                                      \
   }                                                                                      \
                                                                                          \
-  static inline ty bennet_vector_pop(ty)(bennet_vector(ty) * vec) {                      \
+  __attribute__((unused)) static inline ty bennet_vector_pop(ty)(                        \
+      bennet_vector(ty) * vec) {                                                         \
     assert(vec->size > 0);                                                               \
     return vec->data[--vec->size];                                                       \
   }                                                                                      \
                                                                                          \
-  static inline ty *bennet_vector_get(ty)(bennet_vector(ty) * vec, size_t idx) {         \
+  __attribute__((unused)) static inline ty *bennet_vector_get(ty)(                       \
+      bennet_vector(ty) * vec, size_t idx) {                                             \
     assert(idx < vec->size);                                                             \
     return &vec->data[idx];                                                              \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_vector_set(ty)(                                              \
+  __attribute__((unused)) static inline void bennet_vector_set(ty)(                      \
       bennet_vector(ty) * vec, size_t idx, ty value) {                                   \
     assert(idx < vec->size);                                                             \
     vec->data[idx] = value;                                                              \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_vector_delete(ty)(bennet_vector(ty) * vec, size_t idx) {     \
+  __attribute__((unused)) static inline void bennet_vector_delete(ty)(                   \
+      bennet_vector(ty) * vec, size_t idx) {                                             \
     assert(idx < vec->size);                                                             \
                                                                                          \
     for (size_t i = idx; i + 1 < vec->size; ++i) {                                       \
@@ -99,11 +105,13 @@ extern "C" {
     vec->size -= 1;                                                                      \
   }                                                                                      \
                                                                                          \
-  static inline size_t bennet_vector_size(ty)(bennet_vector(ty) * vec) {                 \
+  __attribute__((unused)) static inline size_t bennet_vector_size(ty)(                   \
+      bennet_vector(ty) * vec) {                                                         \
     return vec->size;                                                                    \
   }                                                                                      \
                                                                                          \
-  static inline size_t bennet_vector_capacity(ty)(bennet_vector(ty) * vec) {             \
+  __attribute__((unused)) static inline size_t bennet_vector_capacity(ty)(               \
+      bennet_vector(ty) * vec) {                                                         \
     return vec->capacity;                                                                \
   }
 

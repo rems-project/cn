@@ -1,13 +1,14 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
+module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)
   module Eval = Eval.Make (AD)
-  module Stage4 = Stage4.Make (AD)
-  module GT = Stage4.Term
-  module Ctx = Stage4.Ctx
-  module Def = Stage4.Def
+  module Stage5 = Stage5.Make (AD)
+  module GT = Stage5.Term
+  module Ctx = Stage5.Ctx
+  module Def = Stage5.Def
 
   let generate_struct_setup (prog5 : unit Mucore.file) : Pp.document * Pp.document =
     let open Pp in
@@ -385,25 +386,7 @@ module Make (AD : Domain.T) = struct
              let member_names =
                List.map (fun (id, _) -> "\"" ^ Id.get_string id ^ "\"") members
              in
-             (* For member type arrays, we need proper constructor function calls *)
-             let simple_basetype_name bt =
-               match bt with
-               | BaseTypes.Unit -> "cn_base_type_simple(CN_BASE_UNIT)"
-               | BaseTypes.Bool -> "cn_base_type_simple(CN_BASE_BOOL)"
-               | BaseTypes.Integer -> "cn_base_type_simple(CN_BASE_INTEGER)"
-               | BaseTypes.Bits (BaseTypes.Signed, w) ->
-                 "cn_base_type_bits(true, " ^ string_of_int w ^ ")"
-               | BaseTypes.Bits (BaseTypes.Unsigned, w) ->
-                 "cn_base_type_bits(false, " ^ string_of_int w ^ ")"
-               | BaseTypes.Loc _ -> "cn_base_type_simple(CN_BASE_LOC)"
-               | BaseTypes.Record _ -> "cn_base_type_simple(CN_BASE_RECORD)"
-               | BaseTypes.Struct _ -> "cn_base_type_simple(CN_BASE_STRUCT)"
-               | BaseTypes.Datatype _ -> "cn_base_type_simple(CN_BASE_DATATYPE)"
-               | BaseTypes.Map _ -> "cn_base_type_simple(CN_BASE_MAP)"
-               | BaseTypes.List _ -> "cn_base_type_simple(CN_BASE_LIST)"
-               | BaseTypes.Tuple _ -> "cn_base_type_simple(CN_BASE_TUPLE)"
-               | _ -> "cn_base_type_simple(CN_BASE_UNKNOWN)"
-             in
+             let simple_basetype_name bt = Pp.plain (Smt.convert_basetype bt) in
              let member_types =
                List.map (fun (_, bt) -> simple_basetype_name bt) members
              in
@@ -906,10 +889,37 @@ module Make (AD : Domain.T) = struct
         Sym.Set.empty
         ctx
     in
-    (* Filter logical_functions to only those that are actually used *)
+    (* Build function dependency graph to find transitive function calls *)
+    let get_function_calls (fn_def : Definition.Function.t) : Sym.Set.t =
+      match fn_def.Definition.Function.body with
+      | Definition.Function.Def body | Definition.Function.Rec_Def body ->
+        IT.preds_of body
+      | Definition.Function.Uninterp -> Sym.Set.empty
+    in
+    let module G = Graph.Persistent.Digraph.Concrete (Sym) in
+    let func_graph =
+      List.fold_left
+        (fun g (fn_sym, fn_def) ->
+           Sym.Set.fold
+             (fun called_sym g' -> G.add_edge g' fn_sym called_sym)
+             (get_function_calls fn_def)
+             g)
+        G.empty
+        prog5.logical_predicates
+    in
+    (* Compute transitive closure *)
+    let module Oper = Graph.Oper.P (G) in
+    let closure = Oper.transitive_closure func_graph in
+    (* Filter logical_functions to include directly used + transitively called *)
     let logical_functions =
       List.filter
-        (fun (fn_sym, _) -> Sym.Set.mem fn_sym used_functions)
+        (fun (fn_sym, _) ->
+           (* Include if directly used *)
+           Sym.Set.mem fn_sym used_functions
+           (* OR if transitively called from any used function *)
+           || Sym.Set.exists
+                (fun used_sym -> G.mem_edge closure used_sym fn_sym)
+                used_functions)
         prog5.logical_predicates
     in
     if List.length logical_functions = 0 then

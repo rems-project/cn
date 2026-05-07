@@ -25,9 +25,10 @@ void cn_smt_concretize_init(void);
 bool cn_get_use_solver_eval(void);
 void cn_set_use_solver_eval(bool value);
 
-void* cn_smt_concretize_lookup_symbolic_var(
+cn_term* cn_smt_concretize_lookup_symbolic_var(
     struct cn_smt_solver* smt_solver, const char* name, cn_base_type type);
 void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* term);
+cn_term* cn_smt_concretize_arbitrary(cn_base_type type);
 
 #define CN_SMT_CONCRETIZE_ASSERT(cond)                                                   \
   do {                                                                                   \
@@ -48,7 +49,7 @@ void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* ter
         cn_smt_concretize_eval_term(smt_solver, pointer_term));                          \
     size_t bytes = sizeof(ty);                                                           \
     if (!bennet_ownership_check(cn_smt_concretize_addr, bytes)) {                        \
-      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);                            \
                                                                                          \
       return NULL;                                                                       \
     }                                                                                    \
@@ -63,10 +64,23 @@ void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* ter
 #define CN_SMT_CONCRETIZE_LET_SYMBOLIC(symbol, base_type)                                \
   cn_term* symbol = cn_smt_concretize_lookup_symbolic_var(smt_solver, #symbol, base_type);
 
-#define CN_SMT_CONCRETIZE_LET_STAR(symbol, term) cn_term* symbol = term;
+/*
+#define CN_SMT_CONCRETIZE_LET_STAR(symbol, ...)                                          \
+   cn_term* symbol = ({                                                                   \
+     cn_term* tmp_term = __VA_ARGS__;                                                     \
+     cn_term* tmp_symbol =                                                                \
+         cn_smt_concretize_lookup_symbolic_var(smt_solver, #symbol, tmp_term->base_type); \
+                                                                                          \
+     tmp_symbol;                                                                          \
+   });
+*/
+
+#define CN_SMT_CONCRETIZE_LET_STAR(symbol, ...) cn_term* symbol = __VA_ARGS__;
 
 #define CN_SMT_CONCRETIZE_SYMBOLIC(base_type)                                            \
   cn_smt_concretize_lookup_symbolic_var(smt_solver, "_sym", base_type)
+
+#define CN_SMT_CONCRETIZE_ARBITRARY(base_type) cn_smt_concretize_arbitrary(base_type)
 
 #define CN_SMT_CONCRETIZE_CALL(function_symbol, ...)                                     \
   cn_smt_concretize_##function_symbol(smt_solver, branch_hist, __VA_ARGS__)

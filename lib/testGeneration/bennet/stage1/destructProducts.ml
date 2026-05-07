@@ -2,23 +2,10 @@ module BT = BaseTypes
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
+  module MemberIndirection = MemberIndirection.Make (Term.Make (AD))
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
-
-  type destruct_tree =
-    | Struct of Sym.t * (Id.t * destruct_tree) list
-    | Record of (Id.t * destruct_tree) list
-    | Tuple of destruct_tree list
-    | Leaf of Sym.t * BT.t (** New Name *)
-
-  let rec flatten_tree (t : destruct_tree) : (Sym.t * BT.t) list =
-    match t with
-    | Struct (_, xts) | Record xts ->
-      xts |> List.map snd |> List.map flatten_tree |> List.flatten
-    | Tuple ts -> ts |> List.map flatten_tree |> List.flatten
-    | Leaf (x, bt) -> [ (x, bt) ]
-
 
   let member_map = ref []
 
@@ -32,7 +19,9 @@ module Make (AD : Domain.T) = struct
     with
     | Some name -> name
     | None ->
-      let name = Sym.fresh Pp.(plain (Sym.pp parent ^^ underscore ^^ Id.pp member)) in
+      let name =
+        Sym.fresh_make_uniq Pp.(plain (Sym.pp parent ^^ underscore ^^ Id.pp member))
+      in
       member_map := (k, name) :: !member_map;
       name
 
@@ -49,13 +38,39 @@ module Make (AD : Domain.T) = struct
     with
     | Some name -> name
     | None ->
-      let name = Sym.fresh Pp.(plain (Sym.pp parent ^^ underscore ^^ int i)) in
+      let name = Sym.fresh_make_uniq Pp.(plain (Sym.pp parent ^^ underscore ^^ int i)) in
       item_map := (k, name) :: !item_map;
       name
 
 
-  let transform_iarg (prog5 : unit Mucore.file) (arg : Sym.t * BT.t) : destruct_tree =
-    let rec aux ((arg_sym, arg_bt) : Sym.t * BT.t) : destruct_tree =
+  type new_args =
+    | Struct of (Id.t * (Sym.t * new_args)) list
+    | Record of (Id.t * (Sym.t * new_args)) list
+    | Tuple of (Sym.t * new_args) list
+    | Leaf of (Sym.t * BT.t)
+
+  let rec args_list_of (na : new_args) : (Sym.t * BT.t) list =
+    match na with
+    | Struct members ->
+      members |> List.map snd |> List.map snd |> List.map args_list_of |> List.flatten
+    | Record members ->
+      members |> List.map snd |> List.map snd |> List.map args_list_of |> List.flatten
+    | Tuple members -> members |> List.map snd |> List.map args_list_of |> List.flatten
+    | Leaf arg -> [ arg ]
+
+
+  let replace_kind_of (na : new_args) : MemberIndirection.kind option =
+    match na with
+    | Struct members -> Some (Struct (List.map_snd fst members))
+    | Record members -> Some (Record (List.map_snd fst members))
+    | Tuple members -> Some (Tuple (List.map fst members))
+    | Leaf _ -> None
+
+
+  let transform_iarg (prog5 : unit Mucore.file) ((arg_sym, arg_bt) : Sym.t * BT.t)
+    : new_args
+    =
+    let rec aux (arg_sym : Sym.t) (arg_bt : BT.t) =
       match arg_bt with
       | BT.Struct tag ->
         (match Pmap.find tag prog5.tagDefs with
@@ -66,40 +81,34 @@ module Make (AD : Domain.T) = struct
                member_or_padding)
              |> List.map (fun (member, sct) ->
                (member, (get_member_new_name arg_sym member, Memory.bt_of_sct sct)))
-             |> List.map_snd aux
+             |> List.map_snd (fun (sym, bt) -> (sym, aux sym bt))
            in
-           Struct (tag, members)
+           Struct members
          | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found"))
       | BT.Record members ->
         let members =
           members
           |> List.map (fun (member, bt) ->
             (member, (get_member_new_name arg_sym member, bt)))
-          |> List.map_snd aux
+          |> List.map_snd (fun (sym, bt) -> (sym, aux sym bt))
         in
         Record members
       | BT.Tuple items ->
         let items =
           items
           |> List.mapi (fun i bt -> (get_item_new_name arg_sym i, bt))
-          |> List.map aux
+          |> List.map (fun (sym, bt) -> (sym, aux sym bt))
         in
         Tuple items
       | _ -> Leaf (arg_sym, arg_bt)
     in
-    aux arg
+    aux arg_sym arg_bt
 
 
   let transform_iargs (prog5 : unit Mucore.file) (args : (Sym.t * BT.t) list)
-    : (Sym.t * destruct_tree) list
+    : (Sym.t * new_args) list
     =
-    (* TODO: Ensure uniqueness of names *)
-    (* let assert_uniqueness args' =
-    let uniq = args' |> List.map fst |> Sym.Set.of_list in
-    assert (Sym.Set.cardinal uniq = List.length args');
-    args'
-  in *)
-    args |> List.map (fun (sym, bt) -> (sym, transform_iarg prog5 (sym, bt)))
+    List.map (fun (sym, bt) -> (sym, transform_iarg prog5 (sym, bt))) args
 
 
   let transform_it (prog5 : unit Mucore.file) ((it, bt) : IT.t * BT.t) : IT.t list =
@@ -157,29 +166,25 @@ module Make (AD : Domain.T) = struct
 
 
   let transform_gd (prog5 : unit Mucore.file) (ctx : Ctx.t) (gd : Def.t) : Def.t =
-    let t = transform_iargs prog5 gd.iargs in
-    let iargs = t |> List.map snd |> List.map flatten_tree |> List.flatten in
-    let rec assemble_product (t : destruct_tree) : IT.t =
-      match t with
-      | Struct (tag, members) ->
-        IT.struct_ (tag, List.map_snd assemble_product members) (Locations.other __LOC__)
-      | Record members ->
-        IT.record_ (List.map_snd assemble_product members) (Locations.other __LOC__)
-      | Tuple items ->
-        IT.tuple_ (List.map assemble_product items) (Locations.other __LOC__)
-      | Leaf (x, bt) -> IT.sym_ (x, bt, Locations.other __LOC__)
+    let xds = transform_iargs prog5 gd.iargs in
+    let iargs = xds |> List.map snd |> List.map args_list_of |> List.flatten in
+    let rec replace_member_of (tm_rest : Term.t) ((x, na) : Sym.t * new_args) : Term.t =
+      match na with
+      | Struct members | Record members ->
+        let k = Option.get (replace_kind_of na) in
+        List.fold_left
+          (fun tm_rest' (_, xna') -> replace_member_of tm_rest' xna')
+          (MemberIndirection.replace_memberof_gt k x tm_rest)
+          members
+      | Tuple members ->
+        let k = Option.get (replace_kind_of na) in
+        List.fold_left
+          (fun tm_rest' xna' -> replace_member_of tm_rest' xna')
+          (MemberIndirection.replace_memberof_gt k x tm_rest)
+          members
+      | Leaf _ -> tm_rest
     in
-    let body =
-      List.fold_left
-        (fun gt_rest (sym, t) ->
-           Term.let_star_
-             ( (sym, Term.return_ (assemble_product t) () (Locations.other __LOC__)),
-               gt_rest )
-             ()
-             (Locations.other __LOC__))
-        (transform_gt prog5 ctx gd.body)
-        t
-    in
+    let body = xds |> List.fold_left replace_member_of (transform_gt prog5 ctx gd.body) in
     { gd with iargs; body }
 
 

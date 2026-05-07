@@ -1,7 +1,9 @@
 module Make (AD : Domain.T) : sig
-  val transform
-    :  Cerb_frontend.GenTypes.genTypeCategory Convert.A.sigma ->
-    unit Mucore.file ->
-    Stage5.Make(AD).Ctx.t ->
-    Pp.document
+  module Term : module type of Term.Make (AD)
+
+  module Def : module type of Def.Make (AD)
+
+  module Ctx : module type of Ctx.Make (AD)
+
+  val transform : Stage5.Make(AD).Ctx.t -> Ctx.t
 end

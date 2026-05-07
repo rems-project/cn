@@ -40,12 +40,12 @@ BENNET_DOMAIN_TNUM_DECL(int64_t)
 
 #define BENNET_DOMAIN_TNUM_DEFAULT_IMPL(bits)                                            \
   static inline bennet_domain_tnum(uint##bits##_t)                                       \
-      bennet_domain_tnum_default_uint##bits##_t() {                                      \
+      bennet_domain_tnum_default_uint##bits##_t(void) {                                  \
     return (bennet_domain_tnum(uint##bits##_t)){.value = 0, .mask = UINT##bits##_MAX};   \
   }                                                                                      \
                                                                                          \
   static inline bennet_domain_tnum(int##bits##_t)                                        \
-      bennet_domain_tnum_default_int##bits##_t() {                                       \
+      bennet_domain_tnum_default_int##bits##_t(void) {                                   \
     return (bennet_domain_tnum(int##bits##_t)){                                          \
         .value = 0, .mask = (int##bits##_t)UINT##bits##_MAX};                            \
   }                                                                                      \

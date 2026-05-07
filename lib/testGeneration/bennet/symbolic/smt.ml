@@ -8,10 +8,10 @@ module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
 module Make (AD : Domain.T) = struct
-  module Stage4 = Stage4.Make (AD)
-  module Ctx = Stage4.Ctx
-  module Term = Stage4.Term
-  module Def = Stage4.Def
+  module Stage5 = Stage5.Make (AD)
+  module Ctx = Stage5.Ctx
+  module Term = Stage5.Term
+  module Def = Stage5.Def
   module StringMap = Map.Make (String)
   module StringSet = Set.Make (String)
   module IntMap = Map.Make (Int)
@@ -406,7 +406,7 @@ module Make (AD : Domain.T) = struct
   and convert_const (c : Terms.const) : Pp.document =
     let open Pp in
     match c with
-    | Z n -> !^"cn_smt_z" ^^ parens !^(Z.to_string n)
+    | Z n -> !^"cn_smt_z" ^^ parens (z n)
     | Q q -> !^"cn_smt_q" ^^ parens !^(Q.to_string q)
     | Bits ((sign, width), value) ->
       let sign_str =
@@ -457,7 +457,7 @@ module Make (AD : Domain.T) = struct
     | Null -> !^"cn_smt_null()"
     | CType_const ct -> !^"cn_smt_ctype_const" ^^ parens (Sctypes.pp ct)
     | Default bt -> !^"cn_smt_default" ^^ parens (convert_basetype bt)
-    | Alloc_id id -> !^"cn_smt_alloc_id" ^^ parens !^(Z.to_string id)
+    | Alloc_id id -> !^"cn_smt_alloc_id" ^^ parens (z id)
 
 
   and convert_unop
@@ -1246,4 +1246,19 @@ module Make (AD : Domain.T) = struct
       let body_term = convert_indexterm sigma body in
       !^"cn_logical_constraint_create_forall"
       ^^ parens (var_name ^^ comma ^^^ var_type ^^ comma ^^^ body_term)
+
+
+  let get_max_array_length_of (i_sym, i_bt) it_perm =
+    let max_array_length_setting = Z.of_int (TestGenConfig.get_max_array_length ()) in
+    let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+    let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+    let it_min, it_max = (f it_min, f it_max) in
+    let basic_length =
+      match (it_min, it_max) with
+      | IT (Const (Bits (_, min)), _, _), IT (Const (Bits (_, max)), _, _) ->
+        Z.add (Z.sub max min) Z.one
+      | _, IT (Const (Bits ((Unsigned, _), max)), _, _) -> Z.add max Z.one
+      | _ -> max_array_length_setting
+    in
+    Z.max Z.zero (Z.min basic_length max_array_length_setting)
 end

@@ -164,10 +164,12 @@ let empty_cn_spec_inj_info : cn_spec_inj_info =
 
 
 let generate_c_specs_from_cn_internal
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       (instrumentation : Extract.instrumentation)
       (cabs_tunit : CF.Cabs.translation_unit)
@@ -183,18 +185,19 @@ let generate_c_specs_from_cn_internal
     | _ -> failwith (__LOC__ ^ ": C function to be instrumented not found in Ail AST")
   in
   let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
-  let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
   let ail_executable_spec =
     Cn_to_ail.cn_to_ail_pre_post
       ~without_ownership_checking
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~disable_ghost_arg_failure
+      ~is_lemma:false
+      ~without_inline_statements
       filename
       dts
       preds
       globals
       c_return_type
-      (Some ghost_array_size)
       instrumentation.internal
   in
   let pre_str = generate_ail_stat_strs ail_executable_spec.pre in
@@ -221,10 +224,12 @@ let generate_c_specs_from_cn_internal
 
 
 let generate_c_specs_internal
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       (instrumentation : Extract.instrumentation)
       (cabs_tunit : CF.Cabs.translation_unit)
@@ -239,10 +244,12 @@ let generate_c_specs_internal
   let cn_spec_inj_info =
     if contains_user_spec then
       generate_c_specs_from_cn_internal
+        disable_ghost_arg_failure
         without_ownership_checking
         without_loop_invariants
         with_loop_leak_checks
         without_lemma_checks
+        without_inline_statements
         filename
         instrumentation
         cabs_tunit
@@ -275,6 +282,7 @@ let generate_c_specs_internal
 
 let generate_c_assume_pres_internal
       filename
+      without_ownership_checking
       (insts : (bool * Extract.instrumentation) list)
       (cabs_tunit : CF.Cabs.translation_unit)
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -305,6 +313,7 @@ let generate_c_assume_pres_internal
       args
       globals
       preds
+      without_ownership_checking
       (AT.get_lat (Option.get inst.internal))
   in
   insts
@@ -315,10 +324,12 @@ let generate_c_assume_pres_internal
 
 (* Extract.instrumentation list -> executable_spec *)
 let generate_c_specs
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       instrumentation_list
       (cabs_tunit : CF.Cabs.translation_unit)
@@ -328,10 +339,12 @@ let generate_c_specs
   =
   let generate_c_spec (instrumentation : Extract.instrumentation) =
     generate_c_specs_internal
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       instrumentation
       cabs_tunit
@@ -454,10 +467,6 @@ let generate_ghost_enum prog5 =
   doc_to_pretty_string doc
 
 
-let generate_ghost_call_site_glob () =
-  generate_ail_stat_strs Cn_to_ail.gen_ghost_call_site_global_decl
-
-
 let generate_c_tag_def_strs c_structs =
   "\n/* ORIGINAL C STRUCTS AND UNIONS */\n\n" ^ generate_str_from_ail_structs c_structs
 
@@ -525,6 +534,7 @@ let[@warning "-32" (* unused-value-declaration *)] rec remove_duplicates eq_fun 
 
 let generate_c_predicates
       filename
+      without_ownership_checking
       (cabs_tunit : CF.Cabs.translation_unit)
       (prog5 : _ Mucore.file)
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
@@ -536,6 +546,7 @@ let generate_c_predicates
       sigm.cn_datatypes
       (Cn_to_ail.extract_global_variables cabs_tunit prog5)
       sigm.cn_predicates
+      without_ownership_checking
   in
   let locs_and_decls, defs = List.split ail_funs in
   let locs, decls = List.split locs_and_decls in
@@ -575,15 +586,26 @@ let generate_ownership_functions without_ownership_checking ownership_ctypes =
         x :: remove_duplicates (x :: ret_list) xs
   in
   let ctypes = remove_duplicates [] ownership_ctypes in
-  let ail_funs =
+  let deref_funs =
     List.map
       (fun ctype ->
          Cn_to_ail.generate_get_or_put_ownership_function
-           ~without_ownership_checking
+           ~without_ownership_checking:true
            ctype)
       ctypes
   in
-  let defs_doc, decls_doc = generate_fun_def_and_decl_docs ail_funs in
+  let owned_funs =
+    if not without_ownership_checking then
+      List.map
+        (fun ctype ->
+           Cn_to_ail.generate_get_or_put_ownership_function
+             ~without_ownership_checking:false
+             ctype)
+        ctypes
+    else
+      []
+  in
+  let defs_doc, decls_doc = generate_fun_def_and_decl_docs (owned_funs @ deref_funs) in
   let comment = "\n/* OWNERSHIP FUNCTIONS */\n\n" in
   (comment ^ doc_to_pretty_string defs_doc, doc_to_pretty_string decls_doc)
 
@@ -646,6 +668,7 @@ let has_main (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma) =
 
 let generate_global_assignments
       ?(exec_c_locs_mode = false)
+      ?(correct_missing_ownership_mode = false)
       ?(experimental_ownership_stack_mode = false)
       ?max_bump_blocks
       ?bump_block_size
@@ -677,13 +700,8 @@ let generate_global_assignments
     let globals = Cn_to_ail.extract_global_variables cabs_tunit prog5 in
     let global_map_fcalls = List.map OE.generate_c_local_ownership_entry_fcall globals in
     let global_map_stmts_ = List.map (fun e -> A.AilSexpr e) global_map_fcalls in
-    let ghost_array_size = Extract.max_num_of_ghost_args prog5 in
     let assignments =
-      OE.get_ownership_global_init_stats
-        ~ghost_array_size
-        ?max_bump_blocks
-        ?bump_block_size
-        ()
+      OE.get_ownership_global_init_stats ?max_bump_blocks ?bump_block_size ()
     in
     let init_and_global_mapping_str =
       generate_ail_stat_strs
@@ -692,20 +710,22 @@ let generate_global_assignments
           @ List.map
               generate_flag_init_stat
               [ (exec_c_locs_mode, "exec_c_locs_mode");
+                (correct_missing_ownership_mode, "correct_missing_ownership");
                 (experimental_ownership_stack_mode, "ownership_stack_mode")
               ]
           @ global_map_stmts_ )
     in
     let global_unmapping_stmts_ = List.map OE.generate_c_local_ownership_exit globals in
-    let free_ghost_array_fn_str = "free_ghost_array" in
-    let free_ghost_array_decl =
+    let free_ghost_frame_stack_fn_str = "free_ghost_frame_stack" in
+    let free_ghost_frame_stack_decl =
       A.(
         AilSexpr
           (mk_expr
-             (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_array_fn_str)), []))))
+             (AilEcall (mk_expr (AilEident (Sym.fresh free_ghost_frame_stack_fn_str)), []))))
     in
     let global_unmapping_str =
-      generate_ail_stat_strs ([], global_unmapping_stmts_ @ [ free_ghost_array_decl ])
+      generate_ail_stat_strs
+        ([], global_unmapping_stmts_ @ [ free_ghost_frame_stack_decl ])
     in
     [ (main_sym, (init_and_global_mapping_str, global_unmapping_str)) ]
 

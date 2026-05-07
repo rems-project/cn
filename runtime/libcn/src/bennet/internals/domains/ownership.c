@@ -59,12 +59,12 @@ OWNERSHIP_FROM_ASSIGN(uintptr_t, 0, UINTPTR_MAX)
     if (d->before != 0 && d->after != 0) {                                               \
       size_t bytes = d->before + d->after;                                               \
       if (bytes < d->before || bytes < d->after) {                                       \
-        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);                                          \
+        cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
       }                                                                                  \
                                                                                          \
       void* p = bennet_rand_alloc(bytes);                                                \
       if (!p) {                                                                          \
-        cn_failure(CN_FAILURE_ALLOC, NON_SPEC);                                          \
+        cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
       }                                                                                  \
       bennet_alloc_record(p, bytes);                                                     \
                                                                                          \
@@ -92,12 +92,12 @@ uintptr_t bennet_domain_ownership_arbitrary_uintptr_t(
   if (d->before != 0 || d->after != 0) {
     size_t bytes = d->before + d->after;
     if (bytes < d->before || bytes < d->after) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
 
     void* p = bennet_rand_alloc(bytes);
     if (!p) {
-      cn_failure(CN_FAILURE_ALLOC, NON_SPEC);
+      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
 
     bennet_alloc_record(p, bytes);

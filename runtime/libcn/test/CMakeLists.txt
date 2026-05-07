@@ -18,7 +18,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(googletest)
 
 # Include directories
-include_directories($ENV{OPAM_SWITCH_PREFIX}/lib/cn/runtime/include)
+include_directories(../include)
 
 # Create test executable
 add_executable(libcn_tests
@@ -41,9 +41,9 @@ add_executable(libcn_tests
 include(CheckCCompilerFlag)
 check_c_compiler_flag(-Wc++11-narrowing HAS_NARROWING)
 
-if (HAS_NARROWING)
+if(HAS_NARROWING)
     target_compile_options(libcn_tests PRIVATE -Wno-c++11-narrowing)
-endif (HAS_NARROWING)
+endif(HAS_NARROWING)
 
 # Enable sanitizers
 target_compile_options(libcn_tests PRIVATE -fsanitize=address,undefined)

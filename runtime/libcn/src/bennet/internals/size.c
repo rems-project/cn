@@ -5,6 +5,7 @@
 #include <bennet/internals/size.h>
 
 static size_t global_max_size = 25;
+static size_t global_size = 20;
 
 size_t bennet_get_max_size(void) {
   return global_max_size;
@@ -14,9 +15,11 @@ void bennet_set_max_size(size_t sz) {
   assert(sz != 0);
 
   global_max_size = sz;
-}
 
-static size_t global_size = 20;
+  if (global_size > global_max_size) {
+    global_size = global_max_size;
+  }
+}
 
 size_t bennet_get_size(void) {
   return global_size;
@@ -32,7 +35,7 @@ void bennet_set_size(size_t sz) {
 static uint16_t stack_depth = 0;
 static uint16_t max_stack_depth = UINT8_MAX;
 
-uint16_t bennet_get_depth() {
+uint16_t bennet_get_depth(void) {
   return stack_depth;
 }
 
@@ -40,7 +43,7 @@ void bennet_set_depth(uint16_t depth) {
   stack_depth = depth;
 }
 
-uint16_t bennet_max_depth() {
+uint16_t bennet_max_depth(void) {
   return max_stack_depth;
 }
 
@@ -48,11 +51,11 @@ void bennet_set_max_depth(uint16_t msd) {
   max_stack_depth = msd;
 }
 
-void bennet_increment_depth() {
+void bennet_increment_depth(void) {
   stack_depth++;
 }
 
-void bennet_decrement_depth() {
+void bennet_decrement_depth(void) {
   stack_depth--;
 }
 
@@ -62,7 +65,7 @@ void bennet_set_size_split_backtracks_allowed(uint16_t allowed) {
   size_split_backtracks_allowed = allowed;
 }
 
-uint16_t bennet_get_size_split_backtracks_allowed() {
+uint16_t bennet_get_size_split_backtracks_allowed(void) {
   return size_split_backtracks_allowed;
 }
 
@@ -164,8 +167,12 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
           successes >= max_tests || max_tests % max_size == 0) {
         potential_size = (successes % max_tests + recent_discards / discard_divisor);
       } else {
-        potential_size = (successes % max_size) * max_size / (successes % max_size) +
+        potential_size = (successes % max_size) * max_size / (max_tests % max_size) +
                          recent_discards / discard_divisor;
+      }
+
+      if (potential_size > max_size) {
+        potential_size = max_size;
       }
 
       if (potential_size < max_size) {

@@ -15,7 +15,6 @@
 extern "C" {
 #endif
 
-// Forward declarations and types
 typedef const char* const_char_ptr;
 
 // Hash table for string -> sexp mapping (used in let-bindings)

@@ -627,10 +627,7 @@ module Make (AD : Domain.T) = struct
       | Forall ((i, i_bt), IT (Binop (Implies, it_perm, it_body), _, loc_implies)) ->
         LC.Forall
           ( (i, i_bt),
-            IT.arith_binop
-              Implies
-              (partial_eval_it it_perm, partial_eval_it it_body)
-              loc_implies )
+            IT.impl_ (partial_eval_it it_perm, partial_eval_it it_body) loc_implies )
       | _ -> failwith __LOC__
   end
 

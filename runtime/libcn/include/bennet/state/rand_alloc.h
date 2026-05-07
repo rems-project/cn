@@ -28,4 +28,7 @@ void *bennet_rand_alloc_min_ptr(void);
 // Returns the maximum (inclusive) pointer that can be generated
 void *bennet_rand_alloc_max_ptr(void);
 
+// Set the memory size for the random allocator (must be called before first allocation)
+void bennet_rand_alloc_set_mem_size(size_t size);
+
 #endif  // BENNET_RAND_ALLOC_H

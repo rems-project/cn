@@ -438,7 +438,7 @@ let gen_single_stat_control_flow_injs statement =
   aux_stmt statement
 
 
-let _get_c_control_flow_extra_curly_braces
+let get_c_control_flow_extra_curly_braces
       (sigm : CF.GenTypes.genTypeCategory CF.AilSyntax.sigma)
   =
   sigm.function_definitions
@@ -538,10 +538,14 @@ let main
       ~without_loop_invariants
       ~with_loop_leak_checks
       ~without_lemma_checks
+      ~without_inline_statements
       ~exec_c_locs_mode
+      ~correct_missing_ownership_mode
       ~experimental_ownership_stack_mode
+      ~experimental_curly_braces
       ~with_testing
       ~skip_and_only
+      ~disable_ghost_arg_failure
       ?max_bump_blocks
       ?bump_block_size
       filename
@@ -574,10 +578,12 @@ let main
   Records.populate_record_map filtered_instrumentation prog5;
   let executable_spec =
     generate_c_specs
+      disable_ghost_arg_failure
       without_ownership_checking
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       filename
       filtered_instrumentation
       cabs_tunit
@@ -589,7 +595,7 @@ let main
     generate_c_functions filename cabs_tunit prog5 sigm
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename cabs_tunit prog5 sigm
+    generate_c_predicates filename without_ownership_checking cabs_tunit prog5 sigm
   in
   let c_lemma_defs, c_lemma_decls =
     if without_lemma_checks then
@@ -612,7 +618,6 @@ let main
     generate_fn_call_ghost_args_injs filename cabs_tunit sigm prog5
   in
   let cn_ghost_enum = generate_ghost_enum prog5 in
-  let cn_ghost_call_site_glob = generate_ghost_call_site_glob () in
   (* Forward declarations and CN types *)
   let cn_header_decls_list =
     List.concat
@@ -633,7 +638,8 @@ let main
              builtins.lem. Hoisting/lowering doesn't affect needing to do this *)
           "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
           "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n";
-          "static const unsigned long long __cerbvar_SIZE_MAX = ~(0ULL);\n"
+          "static const unsigned long long __cerbvar_SIZE_MAX = ~(0ULL);\n";
+          "_Noreturn void abort(void);"
         ];
         [ c_tag_defs ];
         [ (if not (String.equal record_defs "") then "\n/* CN RECORDS */\n\n" else "");
@@ -653,8 +659,7 @@ let main
           c_predicate_decls;
           c_lemma_decls;
           cn_ghost_enum
-        ];
-        cn_ghost_call_site_glob
+        ]
       ]
   in
   (* Definitions for CN helper functions *)
@@ -729,13 +734,14 @@ let main
     in
     aux [] l
   in
-  (* let control_flow_curly_brace_injs =
-    get_c_control_flow_extra_curly_braces filtered_sigm
-  in *)
   let bot = Source_injection.Normal 0 in
   let in_stmt_injs =
-    (* give_parenthesis_aware_precedence_map control_flow_curly_brace_injs @ *)
-    give_precedence_map bot executable_spec.in_stmt
+    (if experimental_curly_braces then
+       give_parenthesis_aware_precedence_map
+         (get_c_control_flow_extra_curly_braces filtered_sigm)
+     else
+       [])
+    @ give_precedence_map bot executable_spec.in_stmt
     @ give_parenthesis_aware_precedence_map accesses_stmt_injs
     @ give_precedence_map bot toplevel_injections
     @ give_precedence_map bot tag_def_injs
@@ -750,6 +756,7 @@ let main
       let global_ownership_init_pair =
         generate_global_assignments
           ~exec_c_locs_mode
+          ~correct_missing_ownership_mode
           ~experimental_ownership_stack_mode
           ?max_bump_blocks
           ?bump_block_size

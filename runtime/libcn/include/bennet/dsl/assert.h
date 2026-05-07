@@ -25,6 +25,22 @@ extern "C" {
                                                                                          \
   bennet_info_unsatisfied_log(__FILE__, __LINE__, false);
 
+#define BENNET_ASSERT_DOMAIN_BEGIN(cond, ...)                                            \
+  if (!convert_from_cn_bool(cond)) {                                                     \
+    bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                        \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                               \
+                                                                                         \
+    bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                              \
+    const void* vars[] = {__VA_ARGS__};                                                  \
+    bennet_failure_blame_many(vars);
+
+#define BENNET_ASSERT_DOMAIN_END(last_var, ...)                                          \
+                                                                                         \
+  goto bennet_label_##last_var##_backtrack;                                              \
+  }                                                                                      \
+                                                                                         \
+  bennet_info_unsatisfied_log(__FILE__, __LINE__, false);
+
 #ifdef __cplusplus
 }
 #endif

@@ -34,11 +34,11 @@ module Make (AD : Domain.T) = struct
                Term.let_star_ ((x, gt_else), gt2) () loc_let )
              ()
              loc_ite
-         | Annot (`Pick wgts, (), bt, loc_pick) ->
+         | Annot (`Pick wgts, (), _bt, loc_pick) ->
            Term.pick_
              (List.map (fun gt' -> Term.let_star_ ((x, gt'), gt2) () loc_let) wgts)
              ()
-             bt
+             (Term.basetype gt2)
              loc_pick
          | _ -> gt)
       | _ -> gt

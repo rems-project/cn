@@ -187,7 +187,7 @@ char* cn_replicate_owned_cn_pointer_aux(cn_pointer* q) {
 
 static int decimal_places = 0;
 
-static void init_decimal_places() {
+static void init_decimal_places(void) {
   if (!decimal_places) {
     uintmax_t count = UINTMAX_MAX;
 

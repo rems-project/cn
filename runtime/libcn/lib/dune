@@ -1,3 +1,26 @@
+(env
+ (release
+  (c_flags -std=gnu11 -O2 -g -Wall -fdiagnostics-color=always))
+ (dev
+  (c_flags
+   -std=gnu11
+   -O2
+   -g
+   -Wall
+   -fdiagnostics-color=always
+   -Werror
+   -Wcast-function-type
+   -Werror=date-time
+   -Werror=implicit-function-declaration
+   -Werror=implicit-int
+   -Werror=incompatible-pointer-types
+   -Werror=return-type
+   -Werror=shadow
+   -Werror=strict-prototypes
+   -Wframe-larger-than=2048
+   -Wundef
+   -Wvla)))
+
 (rule
  (target libcn_exec.a)
  (deps
@@ -10,7 +33,7 @@
    (run mkdir -p cn-executable)
    (chdir
     cn-executable
-    (run ../compile.sh %{src}))
+    (run %{cc} -I ../../include -c %{src}))
    (run
     ar
     -rcs
@@ -18,6 +41,7 @@
     cn-executable/fulminate_alloc.o
     cn-executable/bump_alloc.o
     cn-executable/hash_table.o
+    cn-executable/rmap.o
     cn-executable/utils.o))))
 
 (rule
@@ -26,6 +50,7 @@
   (:headers
    (glob_files ../include/cn-executable/*.h)
    (glob_files ../include/bennet/*.h)
+   (glob_files ../include/bennet/dsl/*.h)
    (glob_files ../include/bennet/info/*.h))
   (:src
    (glob_files ../src/bennet/*.c)
@@ -39,7 +64,7 @@
    (run mkdir -p bennet)
    (chdir
     bennet
-    (run ../compile.sh %{src}))
+    (run %{cc} -I ../../include -c %{src}))
    (run
     ar
     -rcs
@@ -59,13 +84,15 @@
     bennet/size.o
     bennet/sizes.o
     bennet/sized.o
+    bennet/specialized.o
     bennet/tnum.o
     bennet/trivial.o
     bennet/timing.o
     bennet/tyche.o
     bennet/unsatisfied.o
     bennet/urn.o
-    bennet/wint.o))))
+    bennet/wint.o
+    bennet/lazy.o))))
 
 (rule
  (target libcn_test.a)
@@ -83,7 +110,7 @@
    (run mkdir -p cn-testing)
    (chdir
     cn-testing
-    (run ../compile.sh %{src}))
+    (run %{cc} -I ../../include -c %{src}))
    (run ar -rcs %{target} cn-testing/test.o))))
 
 (rule
@@ -99,7 +126,7 @@
    (run mkdir -p cn-replicate)
    (chdir
     cn-replicate
-    (run ../compile.sh %{src}))
+    (run %{cc} -I ../../include -c %{src}))
    (run ar -rcs %{target} cn-replicate/lines.o cn-replicate/shape.o))))
 
 (install
@@ -127,7 +154,7 @@
    (run mkdir -p cn-smt)
    (chdir
     cn-smt
-    (run ../compile.sh %{src}))
+    (run %{cc} -I ../../include -c %{src}))
    (run
     ar
     -rcs

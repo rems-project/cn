@@ -265,9 +265,8 @@ sexp_t* translate_base_type(cn_base_type bt) {
       // List bt -> CN_List.t (translate_base_type bt)
       assert(bt.data.list.element_type);
       sexp_t* element_sexp = translate_base_type(*bt.data.list.element_type);
-      if (!element_sexp) {
-        return NULL;
-      }
+      assert(element_sexp);
+
       sexp_t* result = cn_list_type(element_sexp);
       return result;
     }
@@ -276,25 +275,21 @@ sexp_t* translate_base_type(cn_base_type bt) {
       // Set bt -> CN_Set.t (translate_base_type bt)
       assert(bt.data.set.element_type);
       sexp_t* element_sexp = translate_base_type(*bt.data.set.element_type);
-      if (!element_sexp) {
-        return NULL;
-      }
+      assert(element_sexp);
+
       sexp_t* result = t_set(element_sexp);
       return result;
     }
 
     case CN_BASE_MAP: {
       // Map (k, v) -> SMT.t_array (translate_base_type k) (translate_base_type v)
-      if (!bt.data.map.key_type || !bt.data.map.value_type) {
-        return NULL;
-      }
+      assert(bt.data.map.key_type && bt.data.map.value_type);
 
       sexp_t* key_sexp = translate_base_type(*bt.data.map.key_type);
-      sexp_t* value_sexp = translate_base_type(*bt.data.map.value_type);
+      assert(key_sexp);
 
-      if (!key_sexp || !value_sexp) {
-        return NULL;
-      }
+      sexp_t* value_sexp = translate_base_type(*bt.data.map.value_type);
+      assert(value_sexp);
 
       sexp_t* result = t_array(key_sexp, value_sexp);
       return result;
@@ -304,19 +299,11 @@ sexp_t* translate_base_type(cn_base_type bt) {
       // Tuple bts -> CN_Tuple.t (List.map translate_base_type bts)
 
       sexp_t** translated_types = cn_test_malloc(bt.data.tuple.count * sizeof(sexp_t*));
-      if (!translated_types) {
-        return NULL;
-      }
+      assert(translated_types);
 
       for (size_t i = 0; i < bt.data.tuple.count; i++) {
         translated_types[i] = translate_base_type(bt.data.tuple.types[i]);
-        if (!translated_types[i]) {
-          // Clean up on failure
-          for (size_t j = 0; j < i; j++) {
-          }
-          cn_test_free(translated_types);
-          return NULL;
-        }
+        assert(translated_types[i]);
       }
 
       sexp_t* result = cn_tuple_type_name(translated_types, bt.data.tuple.count);
@@ -353,13 +340,11 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
     case CN_BASE_OPTION: {
       // Option bt -> CN_Option.t (translate_base_type bt)
-      if (!bt.data.option.element_type) {
-        return NULL;
-      }
+      assert(bt.data.option.element_type);
+
       sexp_t* element_sexp = translate_base_type(*bt.data.option.element_type);
-      if (!element_sexp) {
-        return NULL;
-      }
+      assert(element_sexp);
+
       sexp_t* result = cn_option_type(element_sexp);
       return result;
     }
@@ -375,6 +360,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
     }
 
     default:
+      assert(false);
       return NULL;
   }
 }
@@ -385,9 +371,7 @@ sexp_t* translate_base_type(cn_base_type bt) {
 
 /** Translate a constant to SMT */
 sexp_t* translate_const(void* s, cn_const* co) {
-  if (!co) {
-    return NULL;
-  }
+  assert(co);
 
   switch (co->type) {
     case CN_CONST_Z: {
@@ -573,9 +557,7 @@ static sexp_t* bv_clz_count(int result_w, int w, sexp_t* e) {
     be a bit-vector of width [w].  The result is a bit-vector of width [result_w].
     Note that this duplicates [e]. */
 sexp_t* bv_ctz(int result_w, int w, sexp_t* e) {
-  if (!e || w <= 0 || result_w <= 0) {
-    return NULL;
-  }
+  assert(e && w > 0 && result_w > 0);
 
   return bv_ctz_count(result_w, w, e);
 }
@@ -665,10 +647,6 @@ static bennet_optional(sexp_ptr) get_num_z(cn_term* term, int64_t* result) {
 /** Translate a CN term to SMT */
 static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
   assert(s && iterm);
-
-  // Get location (placeholder - would need actual location from term)
-  // cn_location loc = cn_term_get_loc(iterm);
-  // struct_decls would be extracted from 's' parameter
 
   switch (iterm->type) {
     case CN_TERM_CONST:
@@ -825,6 +803,7 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
         }
 
         default:
+          assert(false);
           return NULL;
       }
     }
@@ -1138,8 +1117,22 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
 
     case CN_TERM_ARRAY_SHIFT: {
       sexp_t* base_smt = translate_term_aux(s, iterm->data.array_shift.base);
-      sexp_t* offset_smt = bv_mul(loc_k(iterm->data.array_shift.element_size),
-          translate_term_aux(s, iterm->data.array_shift.index));
+      sexp_t* index_smt = translate_term_aux(s, iterm->data.array_shift.index);
+
+      // Cast index to pointer width if it's a narrower bitvector
+      cn_base_type index_type = iterm->data.array_shift.index->base_type;
+      bool idx_signed;
+      int idx_sz;
+      cn_base_type loc_bt = cn_base_type_bits(false, CHAR_BIT * sizeof(uintptr_t));
+      if (is_bits_type(index_type, &idx_signed, &idx_sz) &&
+          idx_sz != CHAR_BIT * (int)sizeof(uintptr_t)) {
+        index_smt = bv_cast(loc_bt, index_type, index_smt);
+      }
+
+      sexp_t* offset_smt =
+          (iterm->data.array_shift.element_size != 1)
+              ? bv_mul(loc_k(iterm->data.array_shift.element_size), index_smt)
+              : index_smt;
 
       return bv_add(base_smt, offset_smt);
     }
@@ -1199,17 +1192,16 @@ static sexp_t* translate_term_aux(struct cn_smt_solver* s, cn_term* iterm) {
 
       // Placeholder for additional cases still to be implemented:
       // - EachI loops
-      // - Tuple operations
-      // - Struct operations
       // - List operations
       // - Map operations
-      // - Pattern matching
       // - Option types
       // And many more cases from the original OCaml code
 
     case CN_TERM_EACHI: {
       // Universal quantification - for now, return a default boolean
       // TODO: Implement proper quantification
+      assert(false);
+
       return bool_k(true);
     }
 

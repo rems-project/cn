@@ -94,12 +94,15 @@ let generate_executable_specs
       without_loop_invariants
       with_loop_leak_checks
       without_lemma_checks
+      without_inline_statements
       with_testing
       run
       no_debug_info
       exec_c_locs_mode
+      correct_missing_ownership_mode
       experimental_ownership_stack_mode
       experimental_unions
+      experimental_curly_braces
       mktemp
       print_steps
       max_bump_blocks
@@ -166,10 +169,14 @@ let generate_executable_specs
                 ~without_loop_invariants
                 ~with_loop_leak_checks
                 ~without_lemma_checks
+                ~without_inline_statements
                 ~exec_c_locs_mode
+                ~correct_missing_ownership_mode
                 ~experimental_ownership_stack_mode
+                ~experimental_curly_braces
                 ~with_testing
                 ~skip_and_only:(skip, only)
+                ~disable_ghost_arg_failure:false
                 ?max_bump_blocks
                 ?bump_block_size
                 filename
@@ -270,6 +277,11 @@ module Flags = struct
     Arg.(value & flag & info [ "without-lemma-checks" ] ~doc)
 
 
+  let without_inline_statements =
+    let doc = "Disable runtime checking of CN statements (incl. assertions)" in
+    Arg.(value & flag & info [ "without-inline-statements" ] ~doc)
+
+
   let with_test_gen =
     let doc =
       "Generate CN executable specifications in the correct format for feeding into \n\
@@ -352,6 +364,19 @@ module Flags = struct
        8192k, 8388608"
     in
     Arg.(value & opt (some size_converter) None & info [ "bump-block-size" ] ~doc)
+
+
+  let experimental_curly_braces =
+    let doc = "(experimental) Insert curly braces for single-statement control flow" in
+    Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
+
+
+  let correct_missing_ownership_mode =
+    let doc =
+      "Self-correct missing ownership, dumping addresses that needed ownership during \
+       execution"
+    in
+    Arg.(value & flag & info [ "correct-missing-ownership" ] ~doc)
 end
 
 let cmd =
@@ -385,14 +410,17 @@ let cmd =
     $ Flags.without_loop_invariants
     $ Flags.with_loop_leak_checks
     $ Flags.without_lemma_checks
+    $ Flags.without_inline_statements
     $ Term.map
         (fun (x, y) -> x || y)
         (Term.product Flags.with_test_gen Flags.with_testing)
     $ Flags.run
     $ Flags.no_debug_info
     $ Flags.exec_c_locs_mode
+    $ Flags.correct_missing_ownership_mode
     $ Flags.experimental_ownership_stack_mode
     $ Flags.experimental_unions
+    $ Flags.experimental_curly_braces
     $ Flags.mktemp
     $ Flags.print_steps
     $ Flags.max_bump_blocks

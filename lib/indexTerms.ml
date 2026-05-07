@@ -520,55 +520,47 @@ let eachI_ (i1, (s, bt), i2) t loc = IT (EachI ((i1, (s, bt), i2), t), BT.Bool, 
 (* arith_op *)
 let negate it loc = IT (Unop (Negate, it), get_bt it, loc)
 
-let add_ (it, it') loc = IT (Binop (Add, it, it'), get_bt it, loc)
-
-let sub_ (it, it') loc = IT (Binop (Sub, it, it'), get_bt it, loc)
-
-let mul_ (it, it') loc =
-  if BT.equal (get_bt it) (get_bt it') then
-    IT (Binop (Mul, it, it'), get_bt it, loc)
-  else
-    failwith ("mul_: type mismatch: " ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]))
+let arith_binop op (it, it') loc =
+  assert (BT.equal (get_bt it) (get_bt it'));
+  assert (match get_bt it with Integer | Real | Bits _ -> true | _ -> false);
+  IT (Binop (op, it, it'), get_bt it, loc)
 
 
-let mul_no_smt_ (it, it') loc = IT (Binop (MulNoSMT, it, it'), get_bt it, loc)
+let add_ = arith_binop Add
 
-let div_ (it, it') loc = IT (Binop (Div, it, it'), get_bt it, loc)
+let sub_ = arith_binop Sub
 
-let div_no_smt_ (it, it') loc = IT (Binop (DivNoSMT, it, it'), get_bt it, loc)
+let mul_ = arith_binop Mul
 
-let exp_ (it, it') loc = IT (Binop (Exp, it, it'), get_bt it, loc)
+let mul_no_smt_ = arith_binop MulNoSMT
 
-let exp_no_smt_ (it, it') loc = IT (Binop (ExpNoSMT, it, it'), get_bt it, loc)
+let div_ = arith_binop Div
 
-let rem_ (it, it') loc = IT (Binop (Rem, it, it'), get_bt it, loc)
+let div_no_smt_ = arith_binop DivNoSMT
 
-let rem_no_smt_ (it, it') loc = IT (Binop (RemNoSMT, it, it'), get_bt it, loc)
+let exp_ = arith_binop Exp
 
-let mod_ (it, it') loc = IT (Binop (Mod, it, it'), get_bt it, loc)
+let exp_no_smt_ = arith_binop ExpNoSMT
 
-let mod_no_smt_ (it, it') loc = IT (Binop (ModNoSMT, it, it'), get_bt it, loc)
+let rem_ = arith_binop Rem
+
+let rem_no_smt_ = arith_binop RemNoSMT
+
+let mod_ = arith_binop Mod
+
+let mod_no_smt_ = arith_binop ModNoSMT
 
 let divisible_ (it, it') loc = eq_ (mod_ (it, it') loc, int_lit_ 0 (get_bt it) loc) loc
 
 let rem_f_ (it, it') loc = mod_ (it, it') loc
 
-let min_ (it, it') loc = IT (Binop (Min, it, it'), get_bt it, loc)
+let min_ = arith_binop Min
 
-let max_ (it, it') loc = IT (Binop (Max, it, it'), get_bt it, loc)
+let max_ = arith_binop Max
 
 let binop op (it, it') loc ret = IT (Binop (op, it, it'), ret, loc)
 
-let arith_binop op (it, it') loc = get_bt it |> binop op (it, it') loc
-
 let arith_unop op it loc = IT (Unop (op, it), get_bt it, loc)
-
-let arith_binop_check op (it, it') loc =
-  assert (BT.equal (get_bt it) (get_bt it'));
-  arith_binop op (it, it') loc
-
-
-let add_check_ = arith_binop_check Add
 
 (* tuple_op *)
 let tuple_ its loc = IT (Tuple its, BT.Tuple (List.map get_bt its), loc)
@@ -1138,6 +1130,60 @@ module Bounds = struct
     in
     get_upper_bound_opt (x, bt) it
     |> Option.value ~default:(num_lit_ max bt Cerb_location.unknown)
+
+
+  (* used for Fulminate optimisation *)
+  let is_eq_bound ((x_sym, _) : Sym.t * BT.t) (it : t) : bool =
+    match it with
+    | IT (Binop (EQ, IT (Sym x_sym', _, _), _), _, _)
+    | IT (Binop (EQ, _, IT (Sym x_sym', _, _)), _, _) ->
+      Sym.equal x_sym x_sym'
+    | _ -> false
+
+
+  let is_lower_bound ((x, _) : Sym.t * BT.t) (it : t) : bool =
+    match it with
+    | IT (Binop (LE, _, IT (Sym x', _, _)), _, _)
+    | IT (Binop (LT, _, IT (Sym x', _, _)), _, _) ->
+      Sym.equal x x'
+    | _ -> false
+
+
+  let is_upper_bound ((x, _) : Sym.t * BT.t) (it : t) : bool =
+    match it with
+    | IT (Binop (LE, IT (Sym x', _, _), _), _, _)
+    | IT (Binop (LT, IT (Sym x', _, _), _), _, _) ->
+      Sym.equal x x'
+    | _ -> false
+
+
+  let is_bound (x : Sym.t * BT.t) (it : t) : bool =
+    is_eq_bound x it || is_lower_bound x it || is_upper_bound x it
+
+
+  let it_only_bounds (x : Sym.t * BT.t) (it : t) : bool =
+    match it with
+    | IT (Binop (EQ, IT (Sym _, _, _), _), _, _) -> is_eq_bound x it
+    | IT (Binop (And, tm1, tm2), _, _) -> is_lower_bound x tm1 && is_upper_bound x tm2
+    | _ -> false
+
+
+  let it_non_bounds (x : Sym.t * BT.t) (it : t) : t =
+    let true_const = bool_ true Cerb_location.unknown in
+    let rec aux it =
+      match it with
+      | IT (Binop (And, tm1, tm2), bt, loc) ->
+        if is_bound x tm1 && is_bound x tm2 then
+          true_const
+        else if is_bound x tm1 then
+          aux tm2
+        else if is_bound x tm2 then
+          aux tm1
+        else
+          IT (Binop (And, aux tm1, aux tm2), bt, loc)
+      | _ -> it
+    in
+    aux it
 
 
   let get_bounds_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option * t option =

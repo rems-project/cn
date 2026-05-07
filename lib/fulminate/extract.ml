@@ -10,6 +10,13 @@ type statements = statement list
 
 let statements_subst subst = List.map (statement_subst subst)
 
+let statements_free_vars statements =
+  List.map snd statements
+  |> List.concat
+  |> List.map (Cnprog.free_vars Cnstatement.free_vars)
+  |> List.fold_left Sym.Set.union Sym.Set.empty
+
+
 type loop = bool * Locations.t * Locations.t * statements ArgumentTypes.t
 
 let loop_subst subst ((contains_user_spec, cond_loc, loop_loc, at) : loop) =
@@ -84,7 +91,6 @@ let from_loop ((_label_sym : Sym.t), (label_def : _ label_def)) : loop option =
       ( _loc,
         label_args_and_body,
         _annots,
-        _,
         `Aux_info (loop_condition_loc, loop_loc, contains_user_spec) ) ->
     let label_args_and_body = Core_to_mucore.at_of_arguments Fun.id label_args_and_body in
     let label_args_and_statements = ArgumentTypes.map stmts_in_expr label_args_and_body in
@@ -151,28 +157,46 @@ let args_and_body_list_of_mucore prog5 =
 
 
 let ghost_args_and_their_call_locs prog5 =
+  let rec param_of_arguments = function
+    | Computational (_, _, args) -> param_of_arguments args
+    | Ghost (_, _, args) -> param_of_arguments args
+    | L args ->
+      let rec aux = function
+        | Define (_, _, args) -> aux args
+        | Resource (_, _, args) -> aux args
+        | Constraint (_, _, args) -> aux args
+        | I param -> param
+      in
+      aux args
+  in
   let exprs_of_mucore prog5 =
-    let rec param_of_args_and_body = function
-      | Mucore.Computational (_, _, args) -> param_of_args_and_body args
-      | Ghost (_, _, args) -> param_of_args_and_body args
-      | L args ->
-        let rec aux = function
-          | Mucore.Define (_, _, args) -> aux args
-          | Resource (_, _, args) -> aux args
-          | Constraint (_, _, args) -> aux args
-          | I expr -> expr
-        in
-        aux args
+    let maybe_expr_of_label_def ld =
+      match ld with
+      | Non_inlined (_, _, _, args) -> Some (param_of_arguments args)
+      | Return _ -> None
+      | Loop (_, arguments, _, _) ->
+        let expr = param_of_arguments arguments in
+        Some expr
+    in
+    let exprs_of_label_map lm =
+      Pmap.fold
+        (fun _ label acc ->
+           match maybe_expr_of_label_def label with
+           | Some expr -> expr :: acc
+           | None -> acc)
+        lm
+        []
     in
     let args_and_body_list = args_and_body_list_of_mucore prog5 in
     let exprs =
       List.map
         (fun args_and_body ->
-           let expr, _, _ = param_of_args_and_body args_and_body in
-           expr)
+           let expr, label_map, _ = param_of_arguments args_and_body in
+           let exprs = exprs_of_label_map label_map in
+           expr :: exprs)
         args_and_body_list
     in
-    exprs
+    List.flatten exprs
   in
   let exprs = exprs_of_mucore prog5 in
   let acc = ref [] in
@@ -203,20 +227,3 @@ let ghost_args_and_their_call_locs prog5 =
   in
   List.iter aux_expr exprs;
   !acc
-
-
-let max_num_of_ghost_args prog5 =
-  let count_spec_ghost_args args =
-    let rec aux n = function
-      | Mucore.Computational (_, _, args) -> aux n args
-      | Ghost (_, _, args) -> aux (n + 1) args
-      | L _ -> n
-    in
-    aux 0 args
-  in
-  let args_and_body_list = args_and_body_list_of_mucore prog5 in
-  let nums_of_spec_ghost_args = List.map count_spec_ghost_args args_and_body_list in
-  let nums_of_call_ghost_args =
-    List.map (fun (_, args) -> List.length args) (ghost_args_and_their_call_locs prog5)
-  in
-  List.fold_left max 0 (nums_of_spec_ghost_args @ nums_of_call_ghost_args)

@@ -250,17 +250,14 @@ let dtree_of_arguments dtree_i =
   aux
 
 
-type parse_ast_label_spec =
-  { label_spec : (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_condition list }
-
 type 'TY label_def =
-  | Non_inlined of Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit arguments
+  | Non_inlined of
+      Locations.t * Sym.t * Cerb_frontend.Annot.label_annot * unit expr arguments
   | Return of Locations.t
   | Loop of
       Locations.t
       * 'TY expr arguments
       * Cerb_frontend.Annot.annot list
-      * parse_ast_label_spec
       * [ `Aux_info of Locations.t * Locations.t * bool ]
 (* first loc is condition, second is whole loop *)
 (* loop condition location, for executable checking *)

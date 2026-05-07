@@ -581,7 +581,7 @@ cn_term* cn_smt_array_shift(cn_term* base, size_t element_size, cn_term* index);
 cn_term* cn_smt_cast(cn_base_type target_type, cn_term* value);
 
 // Map operations
-cn_term* cn_smt_map_get(cn_term* map, cn_term* key, cn_base_type result_type);
+cn_term* cn_smt_map_get(cn_term* map, cn_term* key);
 cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value);
 
 // Function application

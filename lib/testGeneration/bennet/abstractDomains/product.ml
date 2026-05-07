@@ -518,7 +518,7 @@ let product_domains (domains : (module Domain.T) list) =
 
         open Pp
 
-        let is_top p = Array.exists (fun (RPack ((module R), r)) -> R.is_top r) p
+        let is_top p = Array.for_all (fun (RPack ((module R), r)) -> R.is_top r) p
 
         let is_bottom p = Array.exists (fun (RPack ((module R), r)) -> R.is_bottom r) p
 
@@ -535,6 +535,17 @@ let product_domains (domains : (module Domain.T) list) =
           |> Array.map (fun (RPack ((module R), r)) -> R.pp_args r)
           |> Array.to_list
           |> String.concat ", "
+
+
+        let to_lc (s : t) (sym : Sym.t) : LC.t =
+          let loc = Locations.other __LOC__ in
+          let constraints =
+            s
+            |> Array.to_list
+            |> List.filter_map (fun (RPack ((module R), r)) ->
+              match R.to_lc r sym with LC.T it -> Some it | _ -> failwith "TODO")
+          in
+          LC.T (IT.and_ constraints loc)
       end
 
       let name = name
@@ -717,6 +728,21 @@ let product_domains (domains : (module Domain.T) list) =
         |> Array.fold_left Sym.Set.union Sym.Set.empty
 
 
+      let free_vars_bts product =
+        product
+        |> Array.fold_left
+             (fun acc comp ->
+                match comp with
+                | DPack ((module D), s) ->
+                  Sym.Map.union
+                    (fun _ bt1 bt2 ->
+                       assert (BaseTypes.equal bt1 bt2);
+                       Some bt1)
+                    acc
+                    (D.free_vars_bts s))
+             Sym.Map.empty
+
+
       let pp product =
         let open Pp in
         parens
@@ -756,6 +782,26 @@ let product_domains (domains : (module Domain.T) list) =
         domains
         |> List.map (fun (module D : Domain.T) -> D.pp_args ())
         |> String.concat ", "
+
+
+      let to_lc (product : t) : LC.t =
+        let loc = Locations.other __LOC__ in
+        let constraints =
+          Array.to_list product
+          |> List.map (fun comp ->
+            match comp with
+            | DPack ((module D), s) ->
+              (match D.to_lc s with LC.T it -> it | _ -> failwith "TODO"))
+        in
+        LC.T (IT.and_ constraints loc)
+
+
+      let is_meet_assoc =
+        List.for_all (fun (module D : Domain.T) -> D.is_meet_assoc) domains
+
+
+      let is_join_assoc =
+        List.for_all (fun (module D : Domain.T) -> D.is_join_assoc) domains
     end
     in
     (module ProductDomain : Domain.T)

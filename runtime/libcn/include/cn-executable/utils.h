@@ -8,6 +8,8 @@
 #include "rts_deps.h"
 #include "stack.h"
 
+#define fallthrough __attribute__((__fallthrough__))
+
 #define cn_printf(level, ...)                                                            \
   if (get_cn_logging_level() >= level) {                                                 \
     printf(__VA_ARGS__);                                                                 \
@@ -30,8 +32,15 @@ enum spec_mode {
   NON_SPEC = 6
 };
 
+enum region_owned {
+  NO_WILDCARD,
+  SOME_WILDCARD,
+  FULL_WILDCARD,
+};
+
 /* Error handlers */
-void reset_fulminate(void);
+void fulminate_destroy(void);
+void fulminate_init(void);
 
 enum cn_logging_level {
   CN_LOGGING_NONE = 0,
@@ -73,13 +82,13 @@ void initialise_error_msg_info_(
 #define initialise_error_msg_info()                                                      \
   initialise_error_msg_info_(__func__, __FILE__, __LINE__)
 
-void reset_error_msg_info();
-void free_error_msg_info();
+void reset_error_msg_info(void);
+void free_error_msg_info(void);
 
 void update_error_message_info_(
     const char* function_name, char* file_name, int line_number, char* cn_source_loc);
 
-void cn_pop_msg_info();
+void cn_pop_msg_info(void);
 
 #define update_cn_error_message_info(x)                                                  \
   update_error_message_info_(__func__, __FILE__, __LINE__ + 1, x)
@@ -147,6 +156,7 @@ void initialise_ownership_ghost_state(void);
 void free_ownership_ghost_state(void);
 void initialise_ghost_stack_depth(void);
 void initialise_exec_c_locs_mode(bool flag);
+void initialise_correct_missing_ownership(bool flag);
 void initialise_ownership_stack_mode(bool flag);
 signed long get_cn_stack_depth(void);
 void ghost_stack_depth_incr(void);
@@ -176,7 +186,8 @@ enum cn_failure_mode {
   CN_FAILURE_ASSERT = 1,
   CN_FAILURE_CHECK_OWNERSHIP,
   CN_FAILURE_OWNERSHIP_LEAK,
-  CN_FAILURE_ALLOC,
+  CN_FAILURE_FULM_ALLOC,
+  CN_FAILURE_USER_ALLOC,
   CN_FAILURE_GHOST_ARGS
 };
 
@@ -191,6 +202,7 @@ cn_bool* convert_to_cn_bool(bool b);
 bool convert_from_cn_bool(cn_bool* b);
 void cn_assert(cn_bool* cn_b, enum spec_mode spec_mode);
 cn_bool* cn_bool_and(cn_bool* b1, cn_bool* b2);
+void cn_bool_inplace_and(cn_bool* inplace_b1, cn_bool* b2);
 cn_bool* cn_bool_or(cn_bool* b1, cn_bool* b2);
 cn_bool* cn_bool_not(cn_bool* b);
 cn_bool* cn_bool_implies(cn_bool* b1, cn_bool* b2);
@@ -543,26 +555,25 @@ CN_GEN_MAP_GET(cn_map)
 
 /* OWNERSHIP */
 
-GEN_ALL_STACK(cn_source_location, char*);
+// GEN_ALL_STACK(cn_source_location, char*);
 
-typedef struct ownership_ghost_info {
-  int depth;
-  cn_source_location_stack*
-      source_loc_stack;  // set to null if ownership_stack_mode is disabled
-} ownership_ghost_info;
+// typedef struct ownership_ghost_info {
+//   int depth;
+//   cn_source_location_stack*
+//       source_loc_stack;  // set to null if ownership_stack_mode is disabled
+// } ownership_ghost_info;
 
-enum STACK_OP {
-  PUSH,
-  POP,
-  NO_OP
-};
+// enum STACK_OP {
+//   PUSH,
+//   POP,
+//   NO_OP
+// };
 
 int ownership_ghost_state_get_depth(int64_t address);
 void ownership_ghost_state_set(int64_t address,
     size_t size,
     int stack_depth_val,
-    struct cn_error_message_info* error_msg_info,
-    enum STACK_OP op);
+    struct cn_error_message_info* error_msg_info);
 void ownership_ghost_state_remove(int64_t address, size_t size);
 
 /* CN ownership checking */
@@ -575,14 +586,17 @@ void cn_get_or_put_ownership(enum spec_mode spec_mode,
 /* C ownership checking */
 void c_add_to_ghost_state(void* ptr_to_local, size_t size, signed long stack_depth);
 void c_remove_from_ghost_state(void* ptr_to_local, size_t size);
-bool c_ownership_check(
-    char* access_kind, uintptr_t generic_c_ptr, signed long expected_stack_depth);
+enum region_owned c_ownership_check(
+    char* access_kind, void* generic_c_ptr, int size, signed long expected_stack_depth);
 
 /* Ghost arguments */
-void alloc_ghost_array(int ghost_array_size);
-void add_to_ghost_array(int i, void* ptr_to_ghost_arg);
-void free_ghost_array();
-void* load_from_ghost_array(int i);
+void initialise_ghost_frame_stack(void);
+void push_ghost_frame(int tag, int size);
+void add_arg_to_ghost_frame(int i, void* ptr_to_ghost_arg);
+void* load_arg_from_ghost_frame(int i);
+int top_ghost_frame_tag(void);
+void pop_ghost_frame(void);
+void free_ghost_frame_stack(void);
 void cn_ghost_arg_failure(void);
 
 // Unused
@@ -614,10 +628,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
   ({                                                                                     \
     typeof(LV)* __tmp = &(LV);                                                           \
     update_cn_error_message_info_access_check(0);                                        \
-    uintptr_t ptr = (uintptr_t)__tmp;                                                    \
-    for (int i = 0; i < (int)sizeof(typeof(LV)); i++) {                                  \
-      c_ownership_check("Load", ptr + i, get_cn_stack_depth());                          \
-    }                                                                                    \
+    c_ownership_check("Load", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());          \
     cn_load(__tmp, sizeof(typeof(LV)));                                                  \
     *__tmp;                                                                              \
   })
@@ -627,10 +638,7 @@ static inline void cn_postfix(void* ptr, size_t size) {
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
-    uintptr_t ptr = (uintptr_t)__tmp;                                                    \
-    for (int i = 0; i < (int)sizeof(typeof(LV)); i++) {                                  \
-      c_ownership_check("Store", ptr + i, get_cn_stack_depth());                         \
-    }                                                                                    \
+    c_ownership_check("Store", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());         \
     cn_store(__tmp, sizeof(typeof(LV)));                                                 \
     *__tmp op## = (X);                                                                   \
   })
@@ -642,10 +650,8 @@ static inline void cn_postfix(void* ptr, size_t size) {
     typeof(LV)* __tmp;                                                                   \
     __tmp = &(LV);                                                                       \
     update_cn_error_message_info_access_check(0);                                        \
-    uintptr_t ptr = (uintptr_t)__tmp;                                                    \
-    for (int i = 0; i < (int)sizeof(typeof(LV)); i++) {                                  \
-      c_ownership_check("Postfix operation", ptr + i, get_cn_stack_depth());             \
-    }                                                                                    \
+    c_ownership_check(                                                                   \
+        "Postfix operation", __tmp, sizeof(typeof(LV)), get_cn_stack_depth());           \
     cn_postfix(__tmp, sizeof(typeof(LV)));                                               \
     (*__tmp) OP;                                                                         \
   })

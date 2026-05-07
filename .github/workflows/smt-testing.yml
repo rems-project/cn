@@ -33,6 +33,10 @@ jobs:
         run: |
           sudo apt-get install build-essential libgmp-dev z3 opam cmake lcov
 
+      - name: Install Python dependencies
+        run: |
+          pip install -r requirements.txt
+
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
         run: |
@@ -52,7 +56,7 @@ jobs:
       - name: Setup OPAM
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         run: |
-          opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+          opam init --yes --no-setup --disable-sandboxing --shell=sh --compiler=${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
           opam install --deps-only --with-test --yes ./cn.opam z3
@@ -72,9 +76,24 @@ jobs:
           opam pin --yes --no-action add cn .
           opam install --yes cn
 
+      - name: Restore test gen cache
+        uses: actions/cache/restore@v4
+        with:
+          path: tests/.test-gen-cache.json
+          key: test-gen-cache-smt-${{ matrix.compiler }}-${{ hashFiles('tests/run-cn-test-gen.py', 'tests/cn-test-gen/src/**/*.c') }}
+          restore-keys: |
+            test-gen-cache-smt-${{ matrix.compiler }}-
+
       - name: Run CN-SMT-Testing CI tests
         run: |
           alias cc=${{ matrix.compiler }}
           opam switch ${{ matrix.version }}
           eval $(opam env --switch=${{ matrix.version }})
           cd tests; ./run-cn-test-gen.py -s
+
+      - name: Save test gen cache
+        uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: tests/.test-gen-cache.json
+          key: test-gen-cache-smt-${{ matrix.compiler }}-${{ hashFiles('tests/run-cn-test-gen.py', 'tests/cn-test-gen/src/**/*.c') }}

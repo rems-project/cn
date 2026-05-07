@@ -6,4 +6,6 @@ open OUnit2
 let all_tests = "CN Test Suite" >::: [ IndexTerms.suite; Bennet.test_suite ]
 
 (** Run all tests with detailed output *)
-let () = run_test_tt_main all_tests
+let () =
+  Cn.TestGeneration.set_config Cn.TestGeneration.default_cfg;
+  run_test_tt_main all_tests

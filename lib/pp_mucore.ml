@@ -674,11 +674,8 @@ module Make (Config : CONFIG) = struct
                                        | Return _ ->
                                          Pp.break 1 ^^ !^"return label" ^^^ pp_symbol sym
                                        | Loop
-                                           ( _loc,
-                                             label_args_and_body,
-                                             _annots,
-                                             _,
-                                             _loop_info ) ->
+                                           (_loc, label_args_and_body, _annots, _loop_info)
+                                         ->
                                          Pp.break 1
                                          ^^ !^"label"
                                          ^^^ pp_symbol sym

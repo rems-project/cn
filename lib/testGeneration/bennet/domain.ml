@@ -22,6 +22,8 @@ module type RELATIVE_VIEW = sig
   val pp : t -> Pp.document
 
   val pp_args : t -> string
+
+  val to_lc : t -> Sym.t -> LC.t
 end
 
 module type T = sig
@@ -75,6 +77,8 @@ module type T = sig
 
   val free_vars : t -> Sym.Set.t
 
+  val free_vars_bts : t -> BaseTypes.t Sym.Map.t
+
   val pp : t -> Pp.document
 
   val pp_params : unit -> string
@@ -85,6 +89,15 @@ module type T = sig
   val abs_assert : LC.t -> t -> t
 
   val abs_assign : (IT.t * Sctypes.t) * IT.t -> t -> t
+
+  (** Check truthiness *)
+  val to_lc : t -> LC.t
+
+  (** Whether meet is associative (allows optimization) *)
+  val is_meet_assoc : bool
+
+  (** Whether join is associative (allows optimization) *)
+  val is_join_assoc : bool
 end
 
 module CodeGen (CInt : C_INTERFACE) = struct

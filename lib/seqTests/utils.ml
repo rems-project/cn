@@ -37,8 +37,42 @@ let rec pick
 let rec ty_eq (ty1 : C.ctype) (ty2 : C.ctype) : bool =
   match (ty1, ty2) with
   | Ctype (_, Pointer (_, ty1)), Ctype (_, Pointer (_, ty2)) -> ty_eq ty1 ty2
+  | Ctype (_, Void), Ctype (_, Void) -> false
   | _, _ -> C.ctypeEqual ty1 ty2
 
+
+let print_scores distribution : unit =
+  List.iter
+    (fun (score, (is_static, f, ((_, ret_ty), args))) ->
+       Printf.printf
+         "Score: %d, Function: %s, Return Type: %s, Is Static: %b, Args: [ %s ]\n"
+         score
+         (Sym.pp_string f)
+         (CF.String_core_ctype.string_of_ctype ret_ty)
+         is_static
+         (String.concat
+            "; "
+            (List.map
+               (fun (arg_name, arg_ty) ->
+                  Printf.sprintf
+                    "%s: %s"
+                    (Sym.pp_string arg_name)
+                    (CF.String_core_ctype.string_of_ctype arg_ty))
+               args)))
+    distribution
+
+
+let extract_actual_ctx (ctx : T.context) =
+  List.filter
+    (fun (name, _, _, _, _) ->
+       match name with
+       | Some name when String.starts_with ~prefix:"x" (Sym.pp_string name) -> true
+       | None -> true
+       | _ -> false)
+    ctx
+
+
+let ctx_length (ctx : T.context) : int = List.length (extract_actual_ctx ctx)
 
 let ctx_to_string (ctx : T.context) : string =
   List.fold_left
@@ -64,7 +98,7 @@ let ctx_to_string (ctx : T.context) : string =
          ^ List.fold_left (fun acc (_, arg) -> arg ^ "," ^ acc) "" args
          ^ ")"
          ^ "\n")
-    "\n"
+    ""
     ctx
 
 
@@ -110,7 +144,9 @@ let ctx_to_tests (filename : string) (ctx : T.context) =
   separate_map
     empty
     (fun (name, is_static, ret_ty, f, args) ->
-       test_to_doc filename name is_static ret_ty f args)
+       match name with
+       | Some name when not (String.starts_with ~prefix:"x" (Sym.pp_string name)) -> empty
+       | _ -> test_to_doc filename name is_static ret_ty f args)
     ctx
 
 
@@ -189,6 +225,8 @@ let create_intermediate_test_file
           "#include <stdlib.h>\n";
           "#endif\n";
           "#include <stdint.h>\n";
+          "#include <stdio.h>";
+          "#include <stddef.h>";
           "#include <cn-executable/utils.h>\n";
           "#include <cn-executable/cerb_types.h>\n"
         ])
@@ -265,7 +303,8 @@ let analyze_results
       else
         []
     in
-    let tests_and_msgs = List.combine prev_and_tests (run_tests 0) in
+    let results = run_tests 0 in
+    let tests_and_msgs = List.combine prev_and_tests results in
     let rec analyze_results_h
               (tests_and_msgs : ((int * T.call) option * Unix.process_status) list)
       : [ `OtherFailure
@@ -285,7 +324,7 @@ let analyze_results
            Some (`Success ((name, is_static, ret_ty, f, args), prev'))
            :: analyze_results_h t
          | WEXITED 1 -> Some `PreConditionViolation :: analyze_results_h t
-         | WEXITED 2 ->
+         | WEXITED 2 | WEXITED 3 | WEXITED 4 | WEXITED 5 ->
            Some (`PostConditionViolation (name, is_static, ret_ty, f, args))
            :: analyze_results_h t
          | _ -> [ Some `OtherFailure ])
@@ -306,8 +345,8 @@ let gen_val (ty : C.ctype) =
        [ "\'" ^ String.make 1 (char_of_int (Random.int 96 + 32)) ^ "\'" ]
      | Basic (Integer Bool) -> [ (if Random.int 2 = 1 then "true" else "false") ]
      | Basic (Integer (Signed _)) ->
-       let rand_int = Random.int 32767 in
+       let rand_int = Random.int 128 in
        [ string_of_int (if Random.int 2 = 1 then rand_int * -1 else rand_int) ]
-     | Basic (Integer (Unsigned _)) -> [ string_of_int (Random.int 65536) ]
-     | Basic (Floating _) -> [ string_of_float (Random.float 65536.0) ]
+     | Basic (Integer (Unsigned _)) -> [ string_of_int (Random.int 256) ]
+     | Basic (Floating _) -> [ string_of_float (Random.float 256.0) ]
      | _ -> [])

@@ -48,8 +48,10 @@ let compile_assumes
            sigma.cn_datatypes
            (CtA.extract_global_variables cabs_tunit prog5)
            prog5.resource_predicates
+           without_ownership_checking
        @ ESpecInternal.generate_c_assume_pres_internal
            filename
+           without_ownership_checking
            insts
            cabs_tunit
            sigma
@@ -222,7 +224,7 @@ let compile_test_file
     generate_c_functions filename cabs_tunit prog5 sigma
   in
   let c_predicate_defs, c_predicate_decls, _c_predicate_locs =
-    generate_c_predicates filename cabs_tunit prog5 sigma
+    generate_c_predicates filename without_ownership_checking cabs_tunit prog5 sigma
   in
   let conversion_function_defs, conversion_function_decls =
     generate_conversion_and_equality_functions filename sigma
@@ -295,18 +297,24 @@ let compile_test_file
   ^^ pp_label "Static Wrappers" static_wrappers_defs
   ^^ pp_label "Constant function tests" constant_tests_defs
   ^^ pp_label "Generator-based tests" generator_tests_defs
-  ^^ pp_label
-       "Main function"
-       (!^"int main"
-        ^^ parens !^"int argc, char* argv[]"
-        ^/^ braces
-              (nest
-                 2
-                 (hardline
-                  ^^ separate_map hardline compile_test all_tests
-                  ^^ twice hardline
-                  ^^ !^"return cn_test_main(argc, argv);")
-               ^^ hardline))
+  ^^ (!^"int main"
+      ^^ parens !^"int argc, char* argv[]"
+      ^/^ braces
+            (nest
+               2
+               (hardline
+                ^^ pp_label
+                     "Allocator Configuration"
+                     (!^"fulm_default_alloc.malloc = std_malloc;"
+                      ^/^ !^"fulm_default_alloc.calloc = std_calloc;"
+                      ^/^ !^"fulm_default_alloc.free = std_free;")
+                ^^ hardline
+                ^/^ pp_label
+                      "Test Registration"
+                      (separate_map hardline compile_test all_tests
+                       ^^ twice hardline
+                       ^^ !^"return cn_test_main(argc, argv);"))
+             ^^ hardline))
   ^^ hardline
   ^^ !^(String.concat
           " "
@@ -443,22 +451,27 @@ let functions_under_test
       (paused : _ Typing.pause)
   : Test.t list
   =
-  let insts = fst (FExtract.collect_instrumentation cabs_tunit prog5) in
+  let insts =
+    FExtract.collect_instrumentation cabs_tunit prog5
+    |> fst
+    |> List.filter (fun (inst : FExtract.instrumentation) ->
+      CtA.has_cn_spec inst
+      && (match prog5.main with
+          | Some main_fn -> not (Sym.equal main_fn inst.fn)
+          | None -> true)
+      && Option.is_some inst.internal
+      && not (needs_enum_hack ~with_warning sigma inst))
+  in
   let selected_fsyms =
     Check.select_functions
+      ~strict:true
       (TestGenConfig.get_skip_and_only ())
       (Sym.Set.of_list
          (List.map (fun (inst : FExtract.instrumentation) -> inst.fn) insts))
   in
   insts
   |> List.filter (fun (inst : FExtract.instrumentation) ->
-    CtA.has_cn_spec inst
-    && (match prog5.main with
-        | Some main_fn -> not (Sym.equal main_fn inst.fn)
-        | None -> true)
-    && Option.is_some inst.internal
-    && Sym.Set.mem inst.fn selected_fsyms
-    && not (needs_enum_hack ~with_warning sigma inst))
+    Sym.Set.mem inst.fn selected_fsyms)
   |> List.map (Test.of_instrumentation cabs_tunit sigma paused)
 
 

@@ -301,7 +301,7 @@ int64_t to_bits(int w, bool signed_val, sexp_t* exp) {
     unexpected_solver_response(exp, "to_bits - expected # prefix");
   }
 
-  int64_t result;
+  int64_t result = 0;
   if (s[1] == 'b') {
     // Binary format
     if (len - 2 != w) {
@@ -320,7 +320,11 @@ int64_t to_bits(int w, bool signed_val, sexp_t* exp) {
       unexpected_solver_response(exp, "to_bits - hex width mismatch");
     }
     char* endptr;
-    result = strtoll(s + 2, &endptr, 16);
+    if (!signed_val) {
+      result = strtoull(s + 2, &endptr, 16);
+    } else {
+      result = strtoll(s + 2, &endptr, 16);
+    }
     if (*endptr != '\0') {
       unexpected_solver_response(exp, "to_bits - invalid hex digit");
     }

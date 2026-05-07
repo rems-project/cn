@@ -13,10 +13,14 @@ val main
   without_loop_invariants:bool ->
   with_loop_leak_checks:bool ->
   without_lemma_checks:bool ->
+  without_inline_statements:bool ->
   exec_c_locs_mode:bool ->
+  correct_missing_ownership_mode:bool ->
   experimental_ownership_stack_mode:bool ->
+  experimental_curly_braces:bool ->
   with_testing:bool ->
   skip_and_only:string list * string list ->
+  disable_ghost_arg_failure:bool ->
   ?max_bump_blocks:int ->
   ?bump_block_size:int ->
   String.t ->

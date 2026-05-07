@@ -1,5 +1,6 @@
 module Private : sig
   module AbstractDomains = AbstractDomains
+  module Stage1 = Stage1
 end
 
 val test_setup : unit -> Pp.document

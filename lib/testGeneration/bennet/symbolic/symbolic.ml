@@ -7,7 +7,7 @@ module Make (AD : Domain.T) = struct
   let transform
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (prog5 : unit Mucore.file)
-        (ctx : Stage4.Make(AD).Ctx.t)
+        (ctx : Stage5.Make(AD).Ctx.t)
     =
     Convert.transform sigma prog5 ctx
 end

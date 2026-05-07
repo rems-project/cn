@@ -1,8 +1,10 @@
+#include <assert.h>
 #include <inttypes.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 
+#include <bennet/internals/domains/sized.h>
 #include <cn-smt/eval.h>
 #include <cn-smt/from_smt.h>
 #include <cn-smt/gather.h>
@@ -44,6 +46,47 @@ cn_term* cn_smt_concretize_lookup_symbolic_var(
   cn_term* result_tm = get_value(type, result_smt);
 
   return result_tm;
+}
+
+cn_term* cn_smt_concretize_arbitrary(cn_base_type type) {
+  switch (type.tag) {
+    case CN_BASE_LOC:
+      return cn_smt_pointer(bennet_arbitrary_sized_uintptr_t_top());
+    case CN_BASE_BITS: {
+      cn_bits_info bits_info = cn_base_type_get_bits_info(type);
+      if (bits_info.is_signed) {
+        switch (bits_info.size_bits) {
+          case 8:
+            return cn_smt_bits(true, 8, bennet_arbitrary_sized_int8_t_top());
+          case 16:
+            return cn_smt_bits(true, 16, bennet_arbitrary_sized_int16_t_top());
+          case 32:
+            return cn_smt_bits(true, 32, bennet_arbitrary_sized_int32_t_top());
+          case 64:
+            return cn_smt_bits(true, 64, bennet_arbitrary_sized_int64_t_top());
+          default:
+            assert(false && "Unsupported signed bit width for concretize arbitrary");
+            return NULL;
+        }
+      }
+      switch (bits_info.size_bits) {
+        case 8:
+          return cn_smt_bits(false, 8, bennet_arbitrary_sized_uint8_t_top());
+        case 16:
+          return cn_smt_bits(false, 16, bennet_arbitrary_sized_uint16_t_top());
+        case 32:
+          return cn_smt_bits(false, 32, bennet_arbitrary_sized_uint32_t_top());
+        case 64:
+          return cn_smt_bits(false, 64, bennet_arbitrary_sized_uint64_t_top());
+        default:
+          assert(false && "Unsupported unsigned bit width for concretize arbitrary");
+          return NULL;
+      }
+    }
+    default:
+      assert(false && "Unsupported base type for cn_smt_concretize_arbitrary");
+      return NULL;
+  }
 }
 
 void* cn_smt_concretize_eval_term(struct cn_smt_solver* smt_solver, cn_term* term) {

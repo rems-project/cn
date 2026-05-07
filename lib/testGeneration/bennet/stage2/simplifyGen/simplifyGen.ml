@@ -7,9 +7,9 @@ module Make (AD : Domain.T) = struct
     module InlineTerm = InlineTerm.Make (AD)
     module PushPull = PushPull.Make (AD)
     module PartialEvaluation = PartialEvaluation.Make (AD)
+    module MemberIndirection = MemberIndirection.Make (Term.Make (AD))
   end
 
-  module MemberIndirection = MemberIndirection.Make (AD)
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
@@ -34,7 +34,7 @@ module Make (AD : Domain.T) = struct
           |> PartialEvaluation.transform_gt prog5
           |>
           if TestGenConfig.is_experimental_product_arg_destruction () then
-            fun ctx -> ctx
+            fun gt -> gt
           else
             MemberIndirection.transform_gt
         in

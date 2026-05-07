@@ -77,7 +77,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
 
 // Macro to define hash table functions for given key and value types
 #define BENNET_HASH_TABLE_IMPL(kty, vty)                                                 \
-  static inline void bennet_hash_table_init(kty, vty)(                                   \
+  __attribute__((unused)) static inline void bennet_hash_table_init(kty, vty)(           \
       bennet_hash_table(kty, vty) * table,                                               \
       size_t (*hash_fn)(kty),                                                            \
       bool (*eq_fn)(kty, kty)) {                                                         \
@@ -88,7 +88,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
     table->eq_fn = eq_fn;                                                                \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_hash_table_free(kty, vty)(                                   \
+  __attribute__((unused)) static inline void bennet_hash_table_free(kty, vty)(           \
       bennet_hash_table(kty, vty) * table) {                                             \
     if (table->entries) {                                                                \
       free(table->entries);                                                              \
@@ -98,7 +98,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
     table->capacity = 0;                                                                 \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_hash_table_reserve(kty, vty)(                                \
+  __attribute__((unused)) static inline void bennet_hash_table_reserve(kty, vty)(        \
       bennet_hash_table(kty, vty) * table, size_t new_cap) {                             \
     if (new_cap > table->capacity) {                                                     \
       size_t cap = table->capacity ? table->capacity : 8;                                \
@@ -136,7 +136,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
     }                                                                                    \
   }                                                                                      \
                                                                                          \
-  static inline bennet_optional(vty)                                                     \
+  __attribute__((unused)) static inline bennet_optional(vty)                             \
       bennet_hash_table_get(kty, vty)(bennet_hash_table(kty, vty) * table, kty key) {    \
     if (table->capacity == 0) {                                                          \
       return bennet_optional_none(vty);                                                  \
@@ -161,7 +161,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
     return bennet_optional_none(vty);                                                    \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_hash_table_set(kty, vty)(                                    \
+  __attribute__((unused)) static inline void bennet_hash_table_set(kty, vty)(            \
       bennet_hash_table(kty, vty) * table, kty key, vty value) {                         \
     /* Resize if load factor exceeds 0.75 */                                             \
     if (table->size >= table->capacity * 3 / 4) {                                        \
@@ -194,7 +194,7 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
     assert(false);                                                                       \
   }                                                                                      \
                                                                                          \
-  static inline bool bennet_hash_table_delete(kty, vty)(                                 \
+  __attribute__((unused)) static inline bool bennet_hash_table_delete(kty, vty)(         \
       bennet_hash_table(kty, vty) * table, kty key) {                                    \
     if (table->capacity == 0) {                                                          \
       return false;                                                                      \
@@ -233,22 +233,22 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
     return false;                                                                        \
   }                                                                                      \
                                                                                          \
-  static inline bool bennet_hash_table_contains(kty, vty)(                               \
+  __attribute__((unused)) static inline bool bennet_hash_table_contains(kty, vty)(       \
       bennet_hash_table(kty, vty) * table, kty key) {                                    \
     return bennet_optional_is_some(bennet_hash_table_get(kty, vty)(table, key));         \
   }                                                                                      \
                                                                                          \
-  static inline size_t bennet_hash_table_size(kty, vty)(                                 \
+  __attribute__((unused)) static inline size_t bennet_hash_table_size(kty, vty)(         \
       bennet_hash_table(kty, vty) * table) {                                             \
     return table->size;                                                                  \
   }                                                                                      \
                                                                                          \
-  static inline size_t bennet_hash_table_capacity(kty, vty)(                             \
+  __attribute__((unused)) static inline size_t bennet_hash_table_capacity(kty, vty)(     \
       bennet_hash_table(kty, vty) * table) {                                             \
     return table->capacity;                                                              \
   }                                                                                      \
                                                                                          \
-  static inline void bennet_hash_table_clear(kty, vty)(                                  \
+  __attribute__((unused)) static inline void bennet_hash_table_clear(kty, vty)(          \
       bennet_hash_table(kty, vty) * table) {                                             \
     for (size_t i = 0; i < table->capacity; ++i) {                                       \
       table->entries[i].occupied = false;                                                \

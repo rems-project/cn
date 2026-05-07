@@ -19,8 +19,11 @@ BENNET_VECTOR_IMPL(pointer_data)
 static bennet_vector(pointer_data) alloc_vector;
 static bennet_vector(pointer_data) ownership_vector;
 
-void bennet_alloc_reset(void) {
+void bennet_alloc_destroy(void) {
   bennet_vector_free(pointer_data)(&alloc_vector);
+}
+
+void bennet_alloc_init(void) {
   bennet_vector_init(pointer_data)(&alloc_vector);
 }
 
@@ -42,8 +45,11 @@ void bennet_alloc_restore(size_t size) {
   exit(1);
 }
 
-void bennet_ownership_reset(void) {
+void bennet_ownership_destroy(void) {
   bennet_vector_free(pointer_data)(&ownership_vector);
+}
+
+void bennet_ownership_init(void) {
   bennet_vector_init(pointer_data)(&ownership_vector);
 }
 

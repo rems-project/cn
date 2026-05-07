@@ -2,6 +2,8 @@ type statement = Locations.t * Cnstatement.statement Cnprog.t list
 
 type statements = statement list
 
+val statements_free_vars : statements -> Sym.Set.t
+
 type loop = bool * Locations.t * Locations.t * statements ArgumentTypes.t
 (* first location is for the loop condition; second is for the entire loop *)
 
@@ -45,7 +47,5 @@ val collect_instrumentation
 val args_and_body_list_of_mucore : 'a Mucore.file -> 'a Mucore.args_and_body list
 
 val ghost_args_and_their_call_locs
-  :  'a Mucore.file ->
+  :  unit Mucore.file ->
   (Cerb_location.t * IndexTerms.t Cnprog.t list) list
-
-val max_num_of_ghost_args : 'a Mucore.file -> int

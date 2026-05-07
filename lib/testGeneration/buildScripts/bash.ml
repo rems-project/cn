@@ -160,6 +160,11 @@ let run () =
             [ "--max-stack-depth"; string_of_int max_stack_depth ])
           |> Option.to_list
           |> List.flatten)
+       @ (Config.has_max_depth_failures ()
+          |> Option.map (fun max_depth_failures ->
+            [ "--max-depth-failures"; string_of_int max_depth_failures ])
+          |> Option.to_list
+          |> List.flatten)
        @ (Config.has_max_generator_size ()
           |> Option.map (fun max_generator_size ->
             [ "--max-generator-size"; string_of_int max_generator_size ])
@@ -213,6 +218,10 @@ let run () =
             [ "--use-solver-eval" ]
           else
             [])
+       @ (if Config.is_smt_skew_pointer_order () then
+            [ "--smt-skew-pointer-order" ]
+          else
+            [])
        @ (let mode_str =
             match Config.get_smt_skewing_mode () with
             | Config.Uniform -> "uniform"
@@ -220,8 +229,16 @@ let run () =
             | Config.None -> "none"
           in
           [ "--smt-skewing"; mode_str ])
+       @ (Config.has_symbolic_timeout ()
+          |> Option.map (fun secs -> [ "--symbolic-timeout"; string_of_int secs ])
+          |> Option.to_list
+          |> List.flatten)
        @ (Config.get_smt_logging ()
           |> Option.map (fun log_file -> [ "--smt-logging"; log_file ])
+          |> Option.to_list
+          |> List.flatten)
+       @ (Config.get_smt_log_unsat_cores ()
+          |> Option.map (fun log_file -> [ "--smt-log-unsat-cores"; log_file ])
           |> Option.to_list
           |> List.flatten)
        @ (Config.has_max_bump_blocks ()
@@ -231,7 +248,16 @@ let run () =
        @ (Config.has_bump_block_size ()
           |> Option.map (fun n -> [ "--bump-block-size"; string_of_int n ])
           |> Option.to_list
-          |> List.flatten))
+          |> List.flatten)
+       @ (Config.has_max_input_alloc ()
+          |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
+          |> Option.to_list
+          |> List.flatten)
+       @
+       if Config.is_extrema_skew_disabled () then
+         [ "--disable-extrema-skew" ]
+       else
+         [])
   in
   !^"# Run"
   ^^ hardline
