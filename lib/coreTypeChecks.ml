@@ -44,7 +44,7 @@ let check_against_core_bt core_bt cn_bt =
     | (OTy_union _tag as core_obj_ty), bt ->
       if !Sym.experimental_unions then (
         match bt with
-        | Map (_, Option MemByte) -> return ()
+        | Map (_, Option MemByte) -> return () (* TODO: check left argument of 'Map' *)
         | _ -> mismatch (BTy_object core_obj_ty) bt)
       else
         fail (Pp.string "unsupported: union types")
