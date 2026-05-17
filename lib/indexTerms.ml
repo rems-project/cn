@@ -643,13 +643,16 @@ let right_integer_type_for_mode bt =
 
 
 (* invariant of ArrayShift: index must have type uintptr_bt *)
+(* TODO: some call sites explicitly put the uintptr_bt cast *)
 let arrayShift_ ~base ~index ct loc =
   assert (right_integer_type_for_mode (get_bt index));
   let index = cast_ Memory.uintptr_bt index loc in
   IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
 
 
-let copyAllocId_ ~addr ~loc:ptr loc = IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc)
+let copyAllocId_ ~addr ~loc:ptr loc = 
+  assert (right_integer_type_for_mode (get_bt addr));
+  IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc)
 
 let hasAllocId_ ptr loc =
   (* Futzing seems to be necessary because given the current SMT sovler mapping,

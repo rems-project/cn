@@ -1423,11 +1423,13 @@ let bytes_pred ct pointer init : Req.Predicate.t =
 
 let bytes_qpred sym size pointer init : Req.QPredicate.t =
   let here = Locations.other __LOC__ in
-  let bt' = WellTyped.default_quantifier_bt in
+  let bt' = IT.get_bt size in
   { q = (sym, bt');
     q_loc = here;
     step = Sctypes.byte_ct;
-    permission = IT.(lt_ (sym_ (sym, bt', here), size) here);
+    permission = 
+      IT.(and_ [le_ (num_lit_ Z.zero bt' here, sym_ (sym, bt', here)) here;
+	        lt_ (sym_ (sym, bt', here), size) here] here);
     name = Owned (Sctypes.byte_ct, init);
     pointer;
     iargs = []
@@ -1729,6 +1731,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
              (* TODO: confirm that the cast from uintptr_t to ptrdiff_t
                    yields the expected result, or signal
                    UB050_pointers_subtraction_not_representable *)
+	     (* TODO: Should this have wrap-around behaviour or go out of range of the
+                bitvector type?  *)
              div_
                ( cast_ ptr_diff_bt (sub_ (addr_ arg1 loc, addr_ arg2 loc) loc) loc,
                  int_lit_ divisor ptr_diff_bt loc )
@@ -1749,6 +1753,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
                The PNVI rules state that the pointer must be live so that
                allocations are exposed.
                (2) So, the only UB possible is unrepresentable results. *)
+	 (* TODO: this doesn't look like it does the right thing in bitvector
+            mode: if the value wasn't representable at type to_ct,
+            then the cast may have lost bits. *)
          let@ provable = provable loc in
          let here = Locations.other __LOC__ in
          let lc = LC.T (representable_ (to_ct, arg) here) in
@@ -1765,6 +1772,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | PtrFromInt, [ pe_from_ct; pe_to_ct; pe ] ->
        let@ from_ct = check_pexpr_good_ctype_const [] pe_from_ct in
        let@ _to_ct = check_pexpr_good_ctype_const [] pe_to_ct in
+       assert (match from_ct with Integer _ -> true | _ -> false);
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () =
          WellTyped.ensure_base_type
@@ -1772,7 +1780,6 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            ~expect:(Memory.bt_of_sct from_ct)
            (Mu.bt_of_pexpr pe)
        in
-       let@ _bt_info = ensure_bitvector_type loc ~expect:(Mu.bt_of_pexpr pe) in
        check_pexpr pe (fun arg ->
          let sym, result = IT.fresh_named (BT.Loc ()) "intToPtr" loc in
          let@ _ = add_a sym (Loc ()) (here, lazy (Sym.pp sym)) in
@@ -1819,7 +1826,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () = WellTyped.ensure_base_type loc ~expect:(Loc ()) (Mu.bt_of_pexpr pe1) in
        let@ ct = check_pexpr_good_ctype_const [] pe_ct in
-       let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) in
+       let@ () = 
+	 if !cnBV then WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe2) 
+	 else WellTyped.ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr pe2)
+       in
        check_pexpr pe1 (fun vt1 ->
          check_pexpr pe2 (fun vt2 ->
            let result =
@@ -1839,6 +1849,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | PtrMemberShift _, _ ->
        unsupported (Loc.other __LOC__) !^"PtrMemberShift should be a CHERI only construct"
      | Copy_alloc_id, [ pe1; pe2 ] ->
+       let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () =
          WellTyped.ensure_base_type loc ~expect:Memory.uintptr_bt (Mu.bt_of_pexpr pe1)
        in
@@ -1872,7 +1883,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | Create (pe, act, prefix) ->
        let@ () = WellTyped.check_ct act.loc act.ct in
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
-       let@ () = WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) in
+       let@ () = 
+	 if !cnBV then WellTyped.ensure_bits_type loc (Mu.bt_of_pexpr pe) 
+	 else WellTyped.ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr pe)
+       in
        check_pexpr pe (fun arg ->
          let ret_s, ret =
            match prefix with
@@ -1887,7 +1901,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
            | _ -> IT.fresh_anon (BT.Loc ()) loc
          in
          let@ () = add_a ret_s (IT.get_bt ret) (loc, lazy (Pp.string "allocation")) in
-         (* let@ () = add_c loc (LC.T (representable_ (Pointer act.ct, ret) loc)) in *)
+         let@ () = add_c loc (LC.T (representable_ (Pointer act.ct, ret) loc)) in
          let align_v = cast_ Memory.uintptr_bt arg loc in
          let@ () = add_c loc (LC.T (alignedI_ ~align:align_v ~t:ret loc)) in
          let@ () =
@@ -2004,16 +2018,19 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
   | Eproc (name, pes) ->
     (match (name, pes) with
      | Impl (BuiltinFunction (("ctz" | "generic_ffs") as fn)), [ pe1 ] ->
-       let@ _ = ensure_bitvector_type loc ~expect in
-       let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
-       check_pexpr pe1 (fun vt1 ->
-         let unop =
-           match fn with
-           | "ctz" -> BW_CTZ_NoSMT
-           | "generic_ffs" -> BW_FFS_NoSMT
-           | _ -> assert false
-         in
-         k (arith_unop unop vt1 loc))
+       if !cnBV then
+	 let@ _ = ensure_bitvector_type loc ~expect in
+	 let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr pe1) in
+	 check_pexpr pe1 (fun vt1 ->
+           let unop =
+             match fn with
+             | "ctz" -> BW_CTZ_NoSMT
+             | "generic_ffs" -> BW_FFS_NoSMT
+             | _ -> assert false
+           in
+           k (arith_unop unop vt1 loc))
+        else
+	  Cerb_debug.error "todo: ctz|generic_ffs in non-bv mode"
      | Impl (BuiltinFunction ("ctz" | "generic_ffs")), _ ->
        let type_ = `Other in
        let has = List.length pes in
