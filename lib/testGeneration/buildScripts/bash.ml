@@ -253,6 +253,7 @@ let run () =
           |> Option.map (fun n -> [ "--max-input-alloc"; string_of_int n ])
           |> Option.to_list
           |> List.flatten)
+       @ [ "--discard-factor"; string_of_int (Config.get_discard_factor ()) ]
        @
        if Config.is_extrema_skew_disabled () then
          [ "--disable-extrema-skew" ]

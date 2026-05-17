@@ -185,6 +185,7 @@ int cn_test_main(int argc, char* argv[]) {
   bool print_satisfaction_info = false;
   bool print_discard_info = false;
   bool print_timing_info = false;
+  int discard_factor = 10;
 
   for (int i = 0; i < argc; i++) {
     char* arg = argv[i];
@@ -336,6 +337,9 @@ int cn_test_main(int argc, char* argv[]) {
     } else if (strcmp("--max-input-alloc", arg) == 0) {
       bennet_rand_alloc_set_mem_size(strtoul(argv[i + 1], NULL, 10));
       i++;
+    } else if (strcmp("--discard-factor", arg) == 0) {
+      discard_factor = strtol(argv[i + 1], NULL, 10);
+      i++;
     } else if (strcmp("--only", arg) == 0) {
       char* test_names = argv[i + 1];
       char* test_names_copy = strdup(test_names);
@@ -465,7 +469,8 @@ int cn_test_main(int argc, char* argv[]) {
         .output_tyche = output_tyche,
         .tyche_output_stream = tyche_output_stream,
         .begin_time = begin_time,
-        .deadline = test_deadline};
+        .deadline = test_deadline,
+        .discard_factor = discard_factor};
     enum cn_test_result result = test_case->func(test_input);
     if (!(results[i] == CN_TEST_PASS && result == CN_TEST_GEN_FAIL)) {
       results[i] = result;

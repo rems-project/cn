@@ -109,17 +109,23 @@ module Make (B : BASIS) = struct
     match (od1, od2) with
     | None, _ | _, None -> None
     | Some d1, Some d2 ->
-      Some
-        (Sym.Map.merge
-           (fun _ ob1 ob2 ->
-              match (ob1, ob2) with
-              | Some b1, Some b2 ->
-                assert (BT.equal (B.bt b1) (B.bt b2));
-                Some (B.meet b1 b2)
-              | None, Some b | Some b, None -> Some b
-              | None, None -> None)
-           d1
-           d2)
+      let merged =
+        Sym.Map.merge
+          (fun _ ob1 ob2 ->
+             match (ob1, ob2) with
+             | Some b1, Some b2 ->
+               assert (BT.equal (B.bt b1) (B.bt b2));
+               Some (B.meet b1 b2)
+             | None, Some b | Some b, None -> Some b
+             | None, None -> None)
+          d1
+          d2
+      in
+      (* If any value is bottom, the whole domain is unsatisfiable *)
+      if Sym.Map.exists (fun _ b -> B.is_bottom b) merged then
+        None
+      else
+        Some merged
 
 
   let meet_many (l : t list) = List.fold_left meet top l

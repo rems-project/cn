@@ -107,7 +107,8 @@ type t =
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     lazy_gen : bool;
-    disable_extrema_skew : bool
+    disable_extrema_skew : bool;
+    discard_factor : int
   }
 
 let default =
@@ -175,7 +176,8 @@ let default =
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
     lazy_gen = false;
-    disable_extrema_skew = false
+    disable_extrema_skew = false;
+    discard_factor = 10
   }
 
 
@@ -412,3 +414,5 @@ let is_specialization_disabled () = (Option.get !instance).disable_specializatio
 let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
 
 let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
+
+let get_discard_factor () = (Option.get !instance).discard_factor
