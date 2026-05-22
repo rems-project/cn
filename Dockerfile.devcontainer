@@ -22,7 +22,7 @@ RUN opam install z3
 RUN opam install ocaml-lsp-server ocamlformat
 
 # Added make install to make test CI pass
-# Not sure if appropriate for a dev container
+# Unsure if appropriate for a dev container
 RUN eval `opam env` \
   && make install
 
