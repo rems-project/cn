@@ -25,7 +25,7 @@ typedef rmap_range_res_t result_t;
 
 static const rmap_value_t val_none = INT_MIN;
 
-static const result_t res_none = (result_t){.min = val_none, .max = val_none};
+static const result_t res_none = (result_t){.min = INT_MIN, .max = INT_MIN};
 
 static inline result_t res_append(result_t a, result_t b) {
   return (result_t){
