@@ -19,14 +19,14 @@ jobs:
 
     steps:
       - name: Checkout CN
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install OPAM
         run: sudo apt-get install opam
 
       - name: Restore OPAM cache
         id: cache-opam-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.opam
           key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
@@ -40,7 +40,7 @@ jobs:
           opam install --deps-only --with-test --yes ./cn.opam z3
   
       - name: Save OPAM cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         with:
           path: ~/.opam
@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Checkout CN
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install ClangFormat
         run: |
@@ -88,7 +88,7 @@ jobs:
 
     steps:
       - name: Checkout CN
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install GCC
         if: ${{ matrix.compiler == 'gcc' }}
@@ -121,7 +121,7 @@ jobs:
 
     steps:
       - name: Checkout CN
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install ShellCheck
         run: sudo apt-get install shellcheck
