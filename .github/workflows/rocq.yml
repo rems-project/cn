@@ -30,7 +30,7 @@ jobs:
     steps:
 
     - name: Checkout CN
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: System dependencies (Ubuntu)
       run: |
@@ -38,7 +38,7 @@ jobs:
 
     - name: Restore OPAM cache
       id: cache-opam-restore
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: ~/.opam
         key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
@@ -54,7 +54,7 @@ jobs:
         opam install --deps-only --yes ./cn.opam
       
     - name: Save OPAM cache
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
