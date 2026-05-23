@@ -79,6 +79,23 @@ See the [tutorial documentation](https://rems-project.github.io/cn-tutorial/).
 Below are the installation instructions for installing CN,
 and its dependencies.
 
+### Docker images
+
+Pre-built Docker images of CN are published to GitHub Container Registry under
+[`ghcr.io/rems-project/cn`](https://github.com/rems-project/cn/pkgs/container/cn).
+The CI publishes `release-ubuntu`, `release-redhat`, and `release-devcontainer`
+tags for both `linux/amd64` and `linux/arm64`. For example, to pull and start an
+interactive shell with the Ubuntu image:
+
+```
+docker pull ghcr.io/rems-project/cn:release-ubuntu
+docker run --rm -it ghcr.io/rems-project/cn:release-ubuntu
+```
+
+The `release-devcontainer` tag is the image used by the VS Code Dev Container
+configuration in [`.devcontainer/`](.devcontainer/).
+
+### Installing from source
 
 1. Install make, git, GMP library, pkg-config and either/both Z3 or CVC5.
    On an Ubuntu system this is done via
