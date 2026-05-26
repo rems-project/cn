@@ -51,7 +51,11 @@
    (glob_files ../include/cn-executable/*.h)
    (glob_files ../include/bennet/*.h)
    (glob_files ../include/bennet/dsl/*.h)
-   (glob_files ../include/bennet/info/*.h))
+   (glob_files ../include/bennet/info/*.h)
+   (glob_files ..//include/bennet/internals/*.h)
+   (glob_files ..//include/bennet/internals/domains/*.h)
+   (glob_files ..//include/bennet/state/*.h)
+   (glob_files ..//include/bennet/utils/*.h))
   (:src
    (glob_files ../src/bennet/*.c)
    (glob_files ../src/bennet/dsl/*.c)
