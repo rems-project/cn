@@ -2395,9 +2395,7 @@ module BaseTyping = struct
         | Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]) ->
           let@ pe_from_ct, from_ct = check_pexpr_good_ctype_const pe_from_ct in
           let@ pe_to_ct, to_ct = check_pexpr_good_ctype_const pe_to_ct in
-          let () =
-            match (from_ct, to_ct) with Pointer _, Integer _ -> () | _ -> assert false
-          in
+          let () = match to_ct with Integer _ -> () | _ -> assert false in
           let@ pe = check_pexpr (Loc ()) pe in
           let bty = Memory.bt_of_sct to_ct in
           return (bty, Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]))
