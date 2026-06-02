@@ -1423,13 +1423,13 @@ let bytes_pred ct pointer init : Req.Predicate.t =
 
 let bytes_qpred sym size pointer init : Req.QPredicate.t =
   let here = Locations.other __LOC__ in
-  let bt' = IT.get_bt size in
+  let bt' = WellTyped.default_quantifier_bt in
   { q = (sym, bt');
     q_loc = here;
     step = Sctypes.byte_ct;
     permission = 
       IT.(and_ [le_ (num_lit_ Z.zero bt' here, sym_ (sym, bt', here)) here;
-	        lt_ (sym_ (sym, bt', here), size) here] here);
+	        lt_ (sym_ (sym, bt', here), cast_ bt' size here) here] here);
     name = Owned (Sctypes.byte_ct, init);
     pointer;
     iargs = []
@@ -2198,7 +2198,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
       | To_from_bytes (To, { name = Owned (ct, init); pointer; _ }) ->
         let ctxt = match init with Init -> `RW | Uninit -> `W in
         let@ () = WellTyped.err_if_ct_void loc ctxt ct in
-        let@ pointer = WellTyped.infer_term pointer in
+        let@ pointer = WellTyped.check_term loc (BT.Loc ()) pointer in
         let@ _, O value =
           RI.Special.predicate_request
             loc
@@ -2226,7 +2226,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
       | To_from_bytes (From, { name = Owned (ct, init); pointer; _ }) ->
         let ctxt = match init with Init -> `RW | Uninit -> `W in
         let@ () = WellTyped.err_if_ct_void loc ctxt ct in
-        let@ pointer = WellTyped.infer_term pointer in
+        let@ pointer = WellTyped.check_term loc (BT.Loc ()) pointer in
         let q_sym = Sym.fresh "from_bytes" in
         let@ _, O byte_arr =
           RI.Special.qpredicate_request
@@ -2240,6 +2240,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
         let@ () = add_r loc (P (bytes_pred ct pointer init), O value) in
         let@ () =
           (* TODO - why is this constraint necessary here? *)
+	  (* TODO - this looks unsound, in fact *)
           add_c here (LC.T (IT.good_pointer ~pointee_ct:ct pointer here))
         in
         (match init with
@@ -2979,12 +2980,16 @@ let add_stdlib_spec =
     List.fold_left
       (fun map (name, ft) -> StrMap.add name ft map)
       StrMap.empty
-      [ ("ctz_proxy", ctz_proxy_ft);
-        ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
-        ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
-        ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
-        ("memcpy_proxy", memcpy_proxy_ft)
-      ]
+      (if !cnBV then
+	[ ("ctz_proxy", ctz_proxy_ft);
+          ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
+          ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
+          ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
+          ("memcpy_proxy", memcpy_proxy_ft)
+	]
+	else 
+	[]
+      )
   in
   let add ct fsym ft =
     Pp.debug
