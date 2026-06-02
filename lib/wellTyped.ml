@@ -2393,7 +2393,7 @@ module BaseTyping = struct
           let bty = Memory.bt_of_sct (Integer Ptrdiff_t) in
           return (bty, Ememop (Ptrdiff, [ pe_ct; pe1; pe2 ]))
         | Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]) ->
-          let@ pe_from_ct, from_ct = check_pexpr_good_ctype_const pe_from_ct in
+          let@ pe_from_ct, _from_ct = check_pexpr_good_ctype_const pe_from_ct in
           let@ pe_to_ct, to_ct = check_pexpr_good_ctype_const pe_to_ct in
           let () = match to_ct with Integer _ -> () | _ -> assert false in
           let@ pe = check_pexpr (Loc ()) pe in
@@ -2401,7 +2401,7 @@ module BaseTyping = struct
           return (bty, Ememop (IntFromPtr, [ pe_from_ct; pe_to_ct; pe ]))
         | Ememop (PtrFromInt, [ pe_from_ct; pe_to_ct; pe ]) ->
           let@ pe_from_ct, from_ct = check_pexpr_good_ctype_const pe_from_ct in
-          let@ pe_to_ct, to_ct = check_pexpr_good_ctype_const pe_to_ct in
+          let@ pe_to_ct, _to_ct = check_pexpr_good_ctype_const pe_to_ct in
           let () = match from_ct with Integer _ -> () | _ -> assert false in
           let from_bt = Memory.bt_of_sct from_ct in
           let@ pe = check_pexpr from_bt pe in
