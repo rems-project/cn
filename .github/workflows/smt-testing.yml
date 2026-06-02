@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout CN
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: System dependencies (ubuntu)
         run: |
@@ -48,7 +48,7 @@ jobs:
 
       - name: Restore OPAM cache
         id: cache-opam-restore
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ~/.opam
           key: ${{ matrix.version }}-${{ hashFiles('cn.opam') }}
@@ -62,7 +62,7 @@ jobs:
           opam install --deps-only --with-test --yes ./cn.opam z3
 
       - name: Save OPAM cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: steps.cache-opam-restore.outputs.cache-hit != 'true'
         with:
           path: ~/.opam
@@ -77,7 +77,7 @@ jobs:
           opam install --yes cn
 
       - name: Restore test gen cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: tests/.test-gen-cache.json
           key: test-gen-cache-smt-${{ matrix.compiler }}-${{ hashFiles('tests/run-cn-test-gen.py', 'tests/cn-test-gen/src/**/*.c') }}
@@ -92,7 +92,7 @@ jobs:
           cd tests; ./run-cn-test-gen.py -s
 
       - name: Save test gen cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: always()
         with:
           path: tests/.test-gen-cache.json
