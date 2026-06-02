@@ -636,10 +636,7 @@ let memberShift_ (base, tag, member) loc =
 
 let right_integer_type_for_mode bt =
   let open BT in
-  match bt with
-  | Bits _ -> !cnBV
-  | Integer -> not !cnBV
-  | _ -> assert false
+  match bt with Bits _ -> !cnBV | Integer -> not !cnBV | _ -> assert false
 
 
 (* invariant of ArrayShift: index must have type uintptr_bt *)
@@ -650,9 +647,10 @@ let arrayShift_ ~base ~index ct loc =
   IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
 
 
-let copyAllocId_ ~addr ~loc:ptr loc = 
+let copyAllocId_ ~addr ~loc:ptr loc =
   assert (right_integer_type_for_mode (get_bt addr));
   IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc)
+
 
 let hasAllocId_ ptr loc =
   (* Futzing seems to be necessary because given the current SMT sovler mapping,
@@ -700,7 +698,6 @@ let rec dest_list it =
   | Cons (x, xs) -> Option.map (fun ys -> x :: ys) (dest_list xs)
   (* TODO: maybe include Tail, if we ever actually use it? *)
   | _ -> None
-
 
 
 (* ct_pred *)
@@ -857,16 +854,16 @@ let const_of_c_sig (c_sig : Sctypes.c_concrete_sig) loc =
 (* TODO: are the constraints `0<about` and `about+pointee_size-1 <= max-pointer`
    required? *)
 let value_check_pointer mode ~pointee_ct about loc =
-  let good = match mode with
-    | `Good -> true
-    | `Representable -> false
-  in
+  let good = match mode with `Good -> true | `Representable -> false in
   and_
     (List.concat
        [ (* if !use_vip then None else Some (non_vip_constraint about loc); *)
-         if BT.(!cnBV) then [] else [ in_z_range (addr_ about loc) (Z.zero, Memory.max_pointer) loc];
-         if good then [(aligned_ (about, pointee_ct) loc)] else []
-    ])
+         (if BT.(!cnBV) then
+            []
+          else
+            [ in_z_range (addr_ about loc) (Z.zero, Memory.max_pointer) loc ]);
+         (if good then [ aligned_ (about, pointee_ct) loc ] else [])
+       ])
     loc
 
 
