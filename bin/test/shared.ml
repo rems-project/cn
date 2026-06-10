@@ -1,8 +1,16 @@
+(* Shared infrastructure for the `cn test` engine subcommands. *)
+
 module CF = Cerb_frontend
 module CB = Cerb_backend
 open Cn
 
-let run_tests
+(* An engine's flags are a config updater: applied on top of the config built
+   from the common flags, so unset engine flags keep their defaults. *)
+type engine_flags = TestGeneration.config -> TestGeneration.config
+
+let run
+      (* Engine *)
+        (engine : TestGeneration.engine)
       (* Common *)
         filename
       cc
@@ -32,9 +40,7 @@ let run_tests
       skip_fulminate
       dont_run
       num_samples
-      max_backtracks
       max_unfolds
-      max_array_length
       build_tool
       sanitizers
       print_seed
@@ -46,13 +52,6 @@ let run_tests
       progress_level
       until_timeout
       exit_fast
-      max_stack_depth
-      max_depth_failures
-      max_generator_size
-      sizing_strategy
-      random_size_splits
-      allowed_size_split_backtracks
-      _sized_null
       coverage
       disable_passes
       trap
@@ -62,39 +61,20 @@ let run_tests
       inline
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
-      experimental_learning
       experimental_arg_pruning
       experimental_return_pruning
-      static_absint
-      local_iterations
-      smt_pruning_before_absinst
-      smt_pruning_after_absinst
-      smt_pruning_keep_redundant_assertions
-      smt_pruning_at_runtime
-      runtime_assert_domain
-      symbolic
-      symbolic_timeout
-      use_solver_eval
-      smt_solver
-      smt_logging
-      smt_log_unsat_cores
       print_size_info
       print_backtrack_info
       print_satisfaction_info
       print_discard_info
       print_timing_info
-      just_reset_solver
-      smt_skewing_mode
       max_bump_blocks
       bump_block_size
       max_input_alloc
-      smt_skew_pointer_order
       dsl_log_dir
-      lazy_gen
       disable_specialization
-      only_top_level_ite_lifting
-      disable_extrema_skew
-      discard_factor
+      (* Engine-specific *)
+        (engine_flags : engine_flags)
   =
   (* flags *)
   Cerb_debug.debug_level := debug_level;
@@ -132,37 +112,20 @@ let run_tests
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =
-        { skip_and_only = (skip, only);
+        { TestGeneration.default_cfg with
+          skip_and_only = (skip, only);
           cc;
           print_steps;
           num_samples;
-          max_backtracks;
           build_tool;
           sanitizers;
           inline;
           experimental_struct_asgn_destruction;
           experimental_product_arg_destruction;
-          experimental_learning;
           experimental_arg_pruning;
           experimental_return_pruning;
-          static_absint;
-          local_iterations;
-          smt_pruning_before_absinst;
-          smt_pruning_after_absinst;
-          smt_pruning_remove_redundant_assertions =
-            not smt_pruning_keep_redundant_assertions;
-          smt_pruning_at_runtime;
-          runtime_assert_domain;
-          symbolic;
-          symbolic_timeout;
-          use_solver_eval;
-          smt_solver;
-          disable_specialization;
-          only_top_level_ite_lifting;
-          smt_logging;
-          smt_log_unsat_cores;
+          engine;
           max_unfolds;
-          max_array_length;
           print_seed;
           input_timeout;
           null_in_every;
@@ -172,12 +135,6 @@ let run_tests
           progress_level;
           until_timeout;
           exit_fast;
-          max_stack_depth;
-          max_depth_failures;
-          max_generator_size;
-          sizing_strategy;
-          random_size_splits;
-          allowed_size_split_backtracks;
           coverage;
           disable_passes;
           trap;
@@ -189,18 +146,14 @@ let run_tests
           print_satisfaction_info;
           print_discard_info;
           print_timing_info;
-          just_reset_solver;
-          smt_skewing_mode;
           max_bump_blocks;
           bump_block_size;
           max_input_alloc;
-          smt_skew_pointer_order;
           dsl_log_dir;
-          lazy_gen;
-          disable_extrema_skew;
-          discard_factor
+          disable_specialization
         }
       in
+      let config = engine_flags config in
       TestGeneration.set_config config;
       let _, sigma = ail_prog in
       if
@@ -304,6 +257,7 @@ let parse_size_value s =
 
 let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
+(* Flags shared by all engines *)
 module Flags = struct
   let print_steps =
     let doc =
@@ -360,30 +314,11 @@ module Flags = struct
       value & opt int TestGeneration.default_cfg.num_samples & info [ "num-samples" ] ~doc)
 
 
-  let gen_backtrack_attempts =
-    let doc =
-      "Set the maximum attempts to satisfy a constraint before backtracking further, \
-       during input generation"
-    in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_backtracks
-      & info [ "max-backtrack-attempts" ] ~doc)
-
-
   let gen_max_unfolds =
     let doc =
       "Maximum number of times to inline function calls in symbolic mode (default: 10)"
     in
     Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~doc)
-
-
-  let max_array_length =
-    let doc = "Maximum array length for symbolic mode" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_array_length
-      & info [ "max-array-length" ] ~doc)
 
 
   let build_tool =
@@ -479,62 +414,6 @@ module Flags = struct
     Arg.(value & flag & info [ "exit-fast" ] ~doc)
 
 
-  let max_stack_depth =
-    let doc = "Maximum stack depth for generators" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.max_stack_depth
-      & info [ "max-stack-depth" ] ~doc)
-
-
-  let max_depth_failures =
-    let doc = "Maximum number of depth failures allowed before giving up" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.max_depth_failures
-      & info [ "max-depth-failures" ] ~doc)
-
-
-  let max_generator_size =
-    let doc = "Maximum size for generated values" in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.max_generator_size
-      & info [ "max-generator-size" ] ~doc)
-
-
-  let sizing_strategy =
-    let doc = "Strategy for deciding test case size." in
-    Arg.(
-      value
-      & opt
-          (some (enum TestGeneration.Options.sizing_strategy))
-          TestGeneration.default_cfg.sizing_strategy
-      & info [ "sizing-strategy" ] ~doc)
-
-
-  let random_size_splits =
-    let doc = "Randomly split sizes between recursive generator calls" in
-    Arg.(value & flag & info [ "random-size-splits" ] ~doc)
-
-
-  let allowed_size_split_backtracks =
-    let doc =
-      "Set the maximum attempts to split up a generator's size (between recursive calls) \
-       before backtracking further, during input generation"
-    in
-    Arg.(
-      value
-      & opt (some int) TestGeneration.default_cfg.allowed_size_split_backtracks
-      & info [ "allowed-size-split-backtracks" ] ~doc)
-
-
-  let sized_null =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after July 31." in
-    Arg.(value & flag & info [ "sized-null" ] ~deprecated ~doc)
-
-
   let coverage =
     let doc = "(Experimental) Record coverage of tests via [lcov]" in
     Arg.(value & flag & info [ "coverage" ] ~doc)
@@ -543,11 +422,6 @@ module Flags = struct
   let disable_specialization =
     let doc = "Disable integer specialization in the generator pipeline" in
     Arg.(value & flag & info [ "disable-specialization" ] ~doc)
-
-
-  let only_top_level_ite_lifting =
-    let doc = "Only lift top-level ITE expressions" in
-    Arg.(value & flag & info [ "only-top-level-ite-lifting" ] ~doc)
 
 
   let disable_passes =
@@ -611,11 +485,6 @@ module Flags = struct
     Arg.(value & flag & info [ "experimental-product-arg-destruction" ] ~doc)
 
 
-  let experimental_learning =
-    let doc = "Use experimental domain learning" in
-    Arg.(value & flag & info [ "experimental-learning" ] ~doc)
-
-
   let experimental_arg_pruning =
     let doc = "Enable experimental unused argument pruning optimization" in
     Arg.(value & flag & info [ "experimental-arg-pruning" ] ~doc)
@@ -624,71 +493,6 @@ module Flags = struct
   let experimental_return_pruning =
     let doc = "Enable experimental unused return value pruning optimization" in
     Arg.(value & flag & info [ "experimental-return-pruning" ] ~doc)
-
-
-  let smt_pruning_before_absinst =
-    let doc =
-      "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
-       interpretation"
-    in
-    Arg.(
-      value
-      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
-      & info [ "smt-pruning-before-absint" ] ~doc)
-
-
-  let smt_pruning_after_absinst =
-    let doc =
-      "(Experimental) Use SMT solver to prune unsatisfiable branches after abstract \
-       interpretation"
-    in
-    Arg.(
-      value
-      & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
-      & info [ "smt-pruning-after-absint" ] ~doc)
-
-
-  let smt_pruning_keep_redundant_assertions =
-    let doc =
-      "(Experimental) Keep assertions even if provably redundant during SMT pruning"
-    in
-    Arg.(value & flag & info [ "smt-pruning-keep-redundant-assertions" ] ~doc)
-
-
-  let smt_pruning_at_runtime =
-    let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
-    Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
-
-
-  let runtime_assert_domain =
-    let doc = "Enable assert_domain checks at runtime (disabled by default)" in
-    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
-
-
-  let static_absint =
-    let doc =
-      "(Experimental) Use static abstract interpretation with specified domain (or a \
-       comma-separated list). (e.g., 'interval', 'wrapped_interval', 'tristate')"
-    in
-    Arg.(
-      value
-      & opt
-          (list
-             (enum
-                [ ("interval", "interval");
-                  ("wrapped_interval", "wrapped_interval");
-                  ("tristate", "tristate")
-                ]))
-          []
-      & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
-
-
-  let local_iterations =
-    let doc = "Maximum iterations for local abstract interpretation refinement" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.local_iterations
-      & info [ "local-iterations" ] ~doc)
 
 
   let print_size_info =
@@ -716,66 +520,6 @@ module Flags = struct
     Arg.(value & flag & info [ "print-timing-info" ] ~doc)
 
 
-  let just_reset_solver =
-    let doc =
-      "Just reset the SMT solver instead of closing and creating a new one. WARNING: A \
-       bunch of stuff breaks."
-    in
-    Arg.(value & flag & info [ "just-reset-solver" ] ~doc)
-
-
-  let smt_skewing_mode =
-    let doc =
-      "Set SMT skewing mode for symbolic test generation. Options: uniform (uniform \
-       random values), sized (default, size-based values), none (no skewing)"
-    in
-    Arg.(
-      value
-      & opt
-          (enum TestGeneration.Options.smt_skewing_mode)
-          TestGeneration.default_cfg.smt_skewing_mode
-      & info [ "smt-skewing" ] ~docv:"MODE" ~doc)
-
-
-  let symbolic =
-    let doc =
-      "(Experimental) Use symbolic execution for test generation instead of concrete \
-       value generation."
-    in
-    Arg.(value & flag & info [ "symbolic" ] ~doc)
-
-
-  let symbolic_timeout =
-    let doc = "Set timeout for SMT solver in symbolic mode (milliseconds)" in
-    Arg.(value & opt (some int) None & info [ "symbolic-timeout" ] ~doc)
-
-
-  let smt_solver =
-    let doc =
-      "Choose SMT solver backend for symbolic test generation (z3, cvc5 is unsupported)."
-    in
-    Arg.(
-      value
-      & opt (enum TestGeneration.Options.smt_solver) TestGeneration.default_cfg.smt_solver
-      & info [ "solver-type" ] ~docv:"SOLVER" ~doc)
-
-
-  let use_solver_eval =
-    let doc = "(Experimental) Use solver-based evaluation" in
-    Arg.(value & flag & info [ "use-solver-eval" ] ~doc)
-
-
-  let smt_logging =
-    let doc = "Log SMT solver communication to specified file" in
-    Arg.(value & opt (some string) None & info [ "smt-logging" ] ~doc ~docv:"FILE")
-
-
-  let smt_log_unsat_cores =
-    let doc = "Log unsat cores to specified file when constraints are unsatisfiable" in
-    Arg.(
-      value & opt (some string) None & info [ "smt-log-unsat-cores" ] ~doc ~docv:"FILE")
-
-
   let max_input_alloc =
     let doc =
       "Maximum memory size for the random input allocator (default: 32m). Supports \
@@ -783,11 +527,6 @@ module Flags = struct
        33554432, 64m"
     in
     Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
-
-
-  let smt_skew_pointer_order =
-    let doc = "Enable pointer ordering skewing in SMT solver" in
-    Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
 
 
   let dsl_log_dir =
@@ -798,14 +537,40 @@ module Flags = struct
     Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
 
 
-  let lazy_gen =
-    let doc = "Enable lazy generation" in
-    Arg.(value & flag & info [ "lazy-gen" ] ~doc)
+  let max_stack_depth =
+    let doc = "Maximum stack depth for generators" in
+    Arg.(
+      value
+      & opt (some int) TestGeneration.default_cfg.max_stack_depth
+      & info [ "max-stack-depth" ] ~doc)
 
 
-  let disable_extrema_skew =
-    let doc = "Disable extreme value (MIN/MAX) skewing in sized generators" in
-    Arg.(value & flag & info [ "disable-extrema-skew" ] ~doc)
+  let max_depth_failures =
+    let doc = "Maximum number of depth failures allowed before giving up" in
+    Arg.(
+      value
+      & opt (some int) TestGeneration.default_cfg.max_depth_failures
+      & info [ "max-depth-failures" ] ~doc)
+
+
+  let max_generator_size =
+    let doc =
+      "Maximum size for generated values (also bounds generator recursion depth)"
+    in
+    Arg.(
+      value
+      & opt (some int) TestGeneration.default_cfg.max_generator_size
+      & info [ "max-generator-size" ] ~doc)
+
+
+  let sizing_strategy =
+    let doc = "Strategy for deciding test case size." in
+    Arg.(
+      value
+      & opt
+          (some (enum TestGeneration.Options.sizing_strategy))
+          TestGeneration.default_cfg.sizing_strategy
+      & info [ "sizing-strategy" ] ~doc)
 
 
   let discard_factor =
@@ -814,107 +579,121 @@ module Flags = struct
       value
       & opt int TestGeneration.default_cfg.discard_factor
       & info [ "discard-factor" ] ~doc)
+
+
+  let disable_extrema_skew =
+    let doc = "Disable extreme value (MIN/MAX) skewing in sized generators" in
+    Arg.(value & flag & info [ "disable-extrema-skew" ] ~doc)
 end
 
-let cmd =
-  let open Term in
-  let test_t =
-    const run_tests
-    $ Common.Flags.file
-    $ Common.Flags.cc
-    $ Common.Flags.macros
-    $ Common.Flags.permissive
-    $ Common.Flags.incl_dirs
-    $ Common.Flags.incl_files
-    $ Common.Flags.debug_level
-    $ Common.Flags.print_level
-    $ Common.Flags.csv_times
-    $ Common.Flags.astprints
-    $ Common.Flags.no_inherit_loc
-    $ Common.Flags.magic_comment_char_dollar
-    $ Common.Flags.allow_split_magic_comments
-    $ Instrument.Flags.without_ownership_checking
-    $ Instrument.Flags.exec_c_locs_mode
-    $ Instrument.Flags.correct_missing_ownership_mode
-    $ Instrument.Flags.experimental_ownership_stack_mode
-    $ Flags.print_steps
-    $ Flags.output_dir
-    $ Flags.only
-    $ Flags.skip
-    $ Flags.only_fulminate
-    $ Flags.skip_fulminate
-    $ Flags.dont_run
-    $ Flags.gen_num_samples
-    $ Flags.gen_backtrack_attempts
-    $ Flags.gen_max_unfolds
-    $ Flags.max_array_length
-    $ Flags.build_tool
-    $ Term.product Flags.sanitize Flags.no_sanitize
-    $ Flags.print_seed
-    $ Flags.input_timeout
-    $ Flags.null_in_every
-    $ Flags.seed
-    $ Flags.logging_level
-    $ Flags.trace_granularity
-    $ Flags.progress_level
-    $ Flags.until_timeout
-    $ Flags.exit_fast
+(* Compose two engine flag updaters *)
+let compose_flags (a : engine_flags Term.t) (b : engine_flags Term.t)
+  : engine_flags Term.t
+  =
+  Term.(const (fun f g cfg -> g (f cfg)) $ a $ b)
+
+
+(* Generation flags shared by all engines. They configure the shared test
+   harness and generator sizing, which also bound Darcy's path selection:
+   the path selectors check the per-test size (from --max-generator-size and
+   --sizing-strategy) and stack depth, the harness loop applies
+   --discard-factor, and sized skewing (--disable-extrema-skew) is used by
+   both the random sized domain and Darcy's default SMT skewing mode. *)
+let gen_term : engine_flags Term.t =
+  let make
+        max_stack_depth
+        max_depth_failures
+        max_generator_size
+        sizing_strategy
+        discard_factor
+        disable_extrema_skew
+        (cfg : TestGeneration.config)
+    : TestGeneration.config
+    =
+    { cfg with
+      max_stack_depth;
+      max_depth_failures;
+      max_generator_size;
+      sizing_strategy;
+      discard_factor;
+      disable_extrema_skew
+    }
+  in
+  Term.(
+    const make
     $ Flags.max_stack_depth
     $ Flags.max_depth_failures
     $ Flags.max_generator_size
     $ Flags.sizing_strategy
-    $ Flags.random_size_splits
-    $ Flags.allowed_size_split_backtracks
-    $ Flags.sized_null
-    $ Flags.coverage
-    $ Flags.disable_passes
-    $ Flags.trap
-    $ Flags.no_replays
-    $ Flags.no_replicas
-    $ Flags.output_tyche
-    $ Flags.inline
-    $ Flags.experimental_struct_asgn_destruction
-    $ Flags.experimental_product_arg_destruction
-    $ Flags.experimental_learning
-    $ Flags.experimental_arg_pruning
-    $ Flags.experimental_return_pruning
-    $ Flags.static_absint
-    $ Flags.local_iterations
-    $ Flags.smt_pruning_before_absinst
-    $ Flags.smt_pruning_after_absinst
-    $ Flags.smt_pruning_keep_redundant_assertions
-    $ Flags.smt_pruning_at_runtime
-    $ Flags.runtime_assert_domain
-    $ Flags.symbolic
-    $ Flags.symbolic_timeout
-    $ Flags.use_solver_eval
-    $ Flags.smt_solver
-    $ Flags.smt_logging
-    $ Flags.smt_log_unsat_cores
-    $ Flags.print_size_info
-    $ Flags.print_backtrack_info
-    $ Flags.print_satisfaction_info
-    $ Flags.print_discard_info
-    $ Flags.print_timing_info
-    $ Flags.just_reset_solver
-    $ Flags.smt_skewing_mode
-    $ Instrument.Flags.max_bump_blocks
-    $ Instrument.Flags.bump_block_size
-    $ Flags.max_input_alloc
-    $ Flags.smt_skew_pointer_order
-    $ Flags.dsl_log_dir
-    $ Flags.lazy_gen
-    $ Flags.disable_specialization
-    $ Flags.only_top_level_ite_lifting
-    $ Flags.disable_extrema_skew
     $ Flags.discard_factor
-  in
-  let doc =
-    "Generates tests for all functions in [FILE] with CN specifications.\n\
-    \    The tests use randomized inputs, which are guaranteed to satisfy the CN \
-     precondition.\n\
-    \    A script [run_tests.sh] for building and running the tests will be placed in \
-     [output-dir]."
-  in
-  let info = Cmd.info "test" ~doc in
-  Cmd.v info test_t
+    $ Flags.disable_extrema_skew)
+
+
+(* The common flag chain, shared by all engine subcommands. [engine] decides
+   which pipeline runs; [engine_flags] is the engine's config updater, so
+   wrong-engine flags are rejected as unknown options. *)
+let mk_term ~(engine : TestGeneration.engine Term.t) ~(engine_flags : engine_flags Term.t)
+  : unit Term.t
+  =
+  let open Term in
+  const run
+  $ engine
+  $ Common.Flags.file
+  $ Common.Flags.cc
+  $ Common.Flags.macros
+  $ Common.Flags.permissive
+  $ Common.Flags.incl_dirs
+  $ Common.Flags.incl_files
+  $ Common.Flags.debug_level
+  $ Common.Flags.print_level
+  $ Common.Flags.csv_times
+  $ Common.Flags.astprints
+  $ Common.Flags.no_inherit_loc
+  $ Common.Flags.magic_comment_char_dollar
+  $ Common.Flags.allow_split_magic_comments
+  $ Instrument.Flags.without_ownership_checking
+  $ Instrument.Flags.exec_c_locs_mode
+  $ Instrument.Flags.correct_missing_ownership_mode
+  $ Instrument.Flags.experimental_ownership_stack_mode
+  $ Flags.print_steps
+  $ Flags.output_dir
+  $ Flags.only
+  $ Flags.skip
+  $ Flags.only_fulminate
+  $ Flags.skip_fulminate
+  $ Flags.dont_run
+  $ Flags.gen_num_samples
+  $ Flags.gen_max_unfolds
+  $ Flags.build_tool
+  $ Term.product Flags.sanitize Flags.no_sanitize
+  $ Flags.print_seed
+  $ Flags.input_timeout
+  $ Flags.null_in_every
+  $ Flags.seed
+  $ Flags.logging_level
+  $ Flags.trace_granularity
+  $ Flags.progress_level
+  $ Flags.until_timeout
+  $ Flags.exit_fast
+  $ Flags.coverage
+  $ Flags.disable_passes
+  $ Flags.trap
+  $ Flags.no_replays
+  $ Flags.no_replicas
+  $ Flags.output_tyche
+  $ Flags.inline
+  $ Flags.experimental_struct_asgn_destruction
+  $ Flags.experimental_product_arg_destruction
+  $ Flags.experimental_arg_pruning
+  $ Flags.experimental_return_pruning
+  $ Flags.print_size_info
+  $ Flags.print_backtrack_info
+  $ Flags.print_satisfaction_info
+  $ Flags.print_discard_info
+  $ Flags.print_timing_info
+  $ Instrument.Flags.max_bump_blocks
+  $ Instrument.Flags.bump_block_size
+  $ Flags.max_input_alloc
+  $ Flags.dsl_log_dir
+  $ Flags.disable_specialization
+  $ compose_flags gen_term engine_flags

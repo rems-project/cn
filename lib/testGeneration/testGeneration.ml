@@ -13,6 +13,11 @@ module Private = struct
   module Bennet = Bennet
 end
 
+type engine = TestGenConfig.engine =
+  | Bennet
+  | Darcy
+  | Lucas
+
 type config = Config.t
 
 let default_cfg : config = Config.default

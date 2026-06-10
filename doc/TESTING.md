@@ -6,10 +6,18 @@ CN has testing capabilities available via the `cn test` subcommand.
 
 Currently, CN supports only per-function tests, but additional types of testing may become available in the future.
 
-Running `cn test <filename.c>` generates C files with the testing infrastructure, the instrumented program under test, and a build script named `run_tests.sh`.
+`cn test` chooses an input generation engine via subcommand:
+
+- `cn test bennet <filename.c>` uses randomized input generation (Bennet, the default).
+- `cn test darcy <filename.c>` uses symbolic (SMT-based) input generation (Darcy). This replaces the deprecated `cn test --symbolic` flag.
+- `cn test lucas <filename.c>` uses randomized refinement of abstract elements (Lucas), generalizing Bennet's randomized pipeline. It accepts Bennet's flags plus the abstract-domain flags.
+
+Each engine subcommand only accepts the flags relevant to it (plus the common testing flags), so e.g. `--smt-logging` is rejected under `bennet`, and the abstract-domain flags (e.g. `--static-absint`) are only available under `lucas`.
+
+Running `cn test <engine> <filename.c>` generates C files with the testing infrastructure, the instrumented program under test, and a build script named `run_tests.sh`.
 This script compiles the C files and runs the tests.
 
-By default, running `cn test` will automatically run `run_tests.sh`, which produces a test executable `tests.out`.
+By default, running `cn test <engine>` will automatically run `run_tests.sh`, which produces a test executable `tests.out`.
 This can be disabled by using the `--no-run` flag.
 
 The default behavior of testing is to rely on Fulminate for checking, which does not detect undefined behavior.
@@ -45,6 +53,6 @@ There is currently no way to write custom property-based tests.
 However, once lemmas can be tested, a lemma describing the desired property could be written to test it.
 
 In terms of unit tests, one can simply define a function that performs the desired operations.
-This function will get detected by `cn test` and turned into a constant test.
+This function will get detected by `cn test <engine>` and turned into a constant test.
 Any assertions that one would make about the result would have to be captured by the post-condition.
 In the future, existing infrastructure like `cn_assert` might be adapted for general use.
