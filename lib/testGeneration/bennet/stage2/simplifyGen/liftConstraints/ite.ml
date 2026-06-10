@@ -92,18 +92,7 @@ module Make (AD : Domain.T) = struct
       | `ITE (it_if, gt_then, gt_else) ->
         Term.ite_ (it_if, aux ext gt_then, aux ext gt_else) () loc
       | `Map ((i, i_bt, it_perm), gt_inner) ->
-        let gt_inner = aux ext gt_inner in
-        (match transform_it it_perm with
-         | IT (ITE (it_if, it_then, it_else), _, loc_ite)
-           when (not (Sym.Set.mem i (IT.free_vars it_if)))
-                && Sym.Set.disjoint ext (IT.free_vars it_if) ->
-           Term.ite_
-             ( it_if,
-               Term.map_ ((i, i_bt, it_then), gt_inner) () loc,
-               Term.map_ ((i, i_bt, it_else), gt_inner) () loc )
-             ()
-             loc_ite
-         | _ -> Term.map_ ((i, i_bt, it_perm), gt_inner) () loc)
+        Term.map_ ((i, i_bt, it_perm), aux ext gt_inner) () loc
     in
     aux Sym.Set.empty gt
 
