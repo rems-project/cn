@@ -2,9 +2,10 @@ type build_tool =
   | Bash
   | Make
 
-type generation_mode =
-  | Concrete (* Existing arbitrary/guided fuzzing *)
-  | Symbolic (* New symbolic constraint-based generation *)
+type engine =
+  | Bennet (* Backtracking random search *)
+  | Darcy (* Symbolic constraint-based generation *)
+  | Lucas (* Randomized refinement of abstract elements *)
 
 type logging_level =
   | None
@@ -62,7 +63,7 @@ type t =
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
-    symbolic : bool;
+    engine : engine;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving (ms) *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
@@ -232,6 +233,8 @@ val will_print_satisfaction_info : unit -> bool
 val will_print_discard_info : unit -> bool
 
 val will_print_timing_info : unit -> bool
+
+val get_engine : unit -> engine
 
 val is_symbolic_enabled : unit -> bool
 

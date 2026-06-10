@@ -150,7 +150,7 @@ def format_size(nbytes):
     return f"{nbytes}b"
 
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 def _config_hash(config_str):
@@ -227,13 +227,16 @@ def _kill_active_procs():
 
 
 def get_test_type(test_file, config):
-    """Determine the expected test result type based on filename and config."""
+    """Determine the expected test result type based on filename and config.
+
+    The config string starts with the engine subcommand (bennet/darcy/lucas).
+    """
     test_file = Path(test_file).name
 
     if (test_file.endswith('learn_cast.special.c')
         or test_file.endswith('learn_multiple.special.c')
             or test_file.endswith('pointer_ordering.special.c')):
-        if '--symbolic' in config:
+        if config.startswith('darcy'):
             return 'PASS'
         else:
             return 'SKIP'
@@ -253,7 +256,8 @@ def run_cn_test(cn_path, test_file, config, memory_limit=None):
     """Run CN test with given configuration and return (return_code, elapsed_time, test_output, oom)."""
     start_time = time.time()
 
-    cmd = [cn_path, 'test', str(test_file)] + config.split()
+    # config starts with the engine subcommand, which must precede the file
+    cmd = [cn_path, 'test'] + config.split() + [str(test_file)]
 
     # Wrap with systemd-run for cgroup memory limits on Linux
     use_systemd = memory_limit is not None and _use_systemd
@@ -440,32 +444,33 @@ def main():
     env['ASAN_OPTIONS'] = 'allocator_may_return_null=1:detect_leaks=0'
     os.environ.update(env)
 
-    # Base configuration
-    solver_config = f" --solver-type={args.solver_type}" if args.solver_type else ""
-
+    # Base configuration (common flags only; engine-specific flags are added below)
     base_config = (
         f"-I{opam_prefix}/lib/cerberus-lib/runtime/libc/include/posix "
         "--input-timeout=1000 "
         "--progress-level=function "
         "--sanitize=address,undefined "
         "--allow-split-magic-comments "
-        "--max-generator-size=16 "
         "--print-seed"
-        f"{solver_config}"
     )
 
-    # Set configurations based on symbolic option
+    # Set engine and configurations based on symbolic option. Each alt config
+    # carries its engine: abstract-domain flags are only accepted by the lucas
+    # engine (lucas = bennet + abstract domains).
     if args.symbolic:
+        if args.solver_type:
+            base_config += f" --solver-type={args.solver_type}"
         alt_configs = [
-            "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-at-runtime --symbolic-timeout=2000",
-            "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-before-absint=slow"
+            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info --symbolic-timeout=2000"),
+            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info")
         ]
     else:
+        base_config += " --max-generator-size=16"
         alt_configs = [
-            "--coverage --sizing-strategy=quickcheck --inline=everything",
-            "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
-            "--sizing-strategy=uniform --lazy-gen --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
-            "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint=tristate"
+            ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything"),
+            ("lucas", "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15"),
+            ("lucas", "--sizing-strategy=uniform --lazy-gen --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast"),
+            ("lucas", "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint=tristate")
         ]
 
     # Set build tools based on argument
@@ -530,9 +535,9 @@ def main():
     # Build flat job list
     jobs = []
     for tf in test_files:
-        for alt_config in alt_configs:
+        for engine, alt_config in alt_configs:
             for build_tool in build_tools:
-                full_config = f"{base_config} {alt_config} --build-tool={build_tool}"
+                full_config = f"{engine} {base_config} {alt_config} --build-tool={build_tool}"
 
                 if args.symbolic and Path(tf).name == "ini_queue.fail.c":
                     full_config += ' --exit-fast'
@@ -570,7 +575,8 @@ def main():
         if m:
             cfg = cfg.replace(
                 m.group(), f'--max-generator-size={int(m.group(1)) // 2}')
-        else:
+        elif cfg.startswith(('bennet', 'lucas')):
+            # --max-generator-size only exists on the bennet and lucas engines
             cfg += ' --max-generator-size=16'
         return cfg
 

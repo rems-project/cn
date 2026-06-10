@@ -2,6 +2,13 @@ module Private : sig
   module Bennet = Bennet
 end
 
+module Config = TestGenConfig
+
+type engine = TestGenConfig.engine =
+  | Bennet
+  | Darcy
+  | Lucas
+
 type config = TestGenConfig.t
 
 val default_cfg : config

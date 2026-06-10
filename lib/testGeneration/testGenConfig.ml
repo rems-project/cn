@@ -2,9 +2,10 @@ type build_tool =
   | Bash
   | Make
 
-type generation_mode =
-  | Concrete (* Backtracking random search *)
-  | Symbolic (* Symbolic constraint-based generation *)
+type engine =
+  | Bennet (* Backtracking random search *)
+  | Darcy (* Symbolic constraint-based generation *)
+  | Lucas (* Randomized refinement of abstract elements *)
 
 type logging_level =
   | None
@@ -62,7 +63,7 @@ type t =
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
-    symbolic : bool;
+    engine : engine;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving (ms) *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
@@ -132,7 +133,7 @@ let default =
     smt_pruning_remove_redundant_assertions = true;
     smt_pruning_at_runtime = false;
     runtime_assert_domain = false;
-    symbolic = false;
+    engine = Bennet;
     symbolic_timeout = None;
     max_unfolds = None;
     max_array_length = 50;
@@ -377,7 +378,11 @@ let will_print_discard_info () = (Option.get !instance).print_discard_info
 
 let will_print_timing_info () = (Option.get !instance).print_timing_info
 
-let is_symbolic_enabled () = (Option.get !instance).symbolic
+let get_engine () = (Option.get !instance).engine
+
+let is_symbolic_enabled () =
+  match get_engine () with Darcy -> true | Bennet | Lucas -> false
+
 
 let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
 
