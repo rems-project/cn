@@ -17,7 +17,6 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
-        | `Lazy (** Lazily generate values *)
         | `ArbitrarySpecialized of
             (IT.t option * IT.t option) * (IT.t option * IT.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
@@ -37,8 +36,6 @@ module Make (AD : Domain.T) = struct
         | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
         | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * 'recur annot
         | `SplitSizeElab of Sym.t * Sym.Set.t * 'recur annot
-        | `InstantiateElab of Sym.t * (Sym.t * 'recur annot) * 'recur annot
-          (** Elaborated instantiate with backtrack var *)
         ]
       [@@deriving eq, ord]
 
@@ -60,10 +57,6 @@ module Make (AD : Domain.T) = struct
       include GenTerms.Defaults (struct
           let name = "Stage 6"
         end)
-
-      let lazy_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
-        Annot (`Lazy, tag, bt, loc)
-
 
       let arbitrary_specialized_
             (((min_inc, min_ex), (max_inc, max_ex)) :
@@ -175,19 +168,6 @@ module Make (AD : Domain.T) = struct
         : t
         =
         Annot (`CallSized (fsym, its, sz), tag, bt, loc)
-
-
-      let instantiate_elab_
-            ((backtrack_var, (x, gt_inner), gt_rest) : Sym.t * (Sym.t * t) * t)
-            (tag : tag_t)
-            (loc : Locations.t)
-        : t
-        =
-        Annot
-          ( `InstantiateElab (backtrack_var, (x, gt_inner), gt_rest),
-            tag,
-            basetype gt_rest,
-            loc )
     end
   end
 

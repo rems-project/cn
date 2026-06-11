@@ -13,8 +13,8 @@ module Make (AD : Domain.T) = struct
       let here = Locations.other __LOC__ in
       let (Annot (tm_, (), bt, loc)) = tm in
       match tm_ with
-      | `Arbitrary | `ArbitraryDomain _ | `ArbitrarySpecialized _ | `Symbolic | `Lazy
-      | `Return _ | `Call _ ->
+      | `Arbitrary | `ArbitraryDomain _ | `ArbitrarySpecialized _ | `Symbolic | `Return _
+      | `Call _ ->
         let@ check = provable loc in
         return
           (match check (LC.T (IT.bool_ false here)) with
@@ -75,8 +75,7 @@ module Make (AD : Domain.T) = struct
           (let open Option in
            let@ gt_rest in
            return (Term.let_star_ ((x, Term.return_ it () loc_ret), gt_rest) () loc))
-      | `LetStar
-          ((x, (Annot ((`Arbitrary | `Symbolic | `Lazy), _, bt', _) as gt_inner)), gt_rest)
+      | `LetStar ((x, (Annot ((`Arbitrary | `Symbolic), _, bt', _) as gt_inner)), gt_rest)
         ->
         let@ () = add_l x bt' (loc, lazy (Sym.pp x)) in
         let@ gt_rest = aux new_constraint gt_rest in
@@ -178,12 +177,6 @@ module Make (AD : Domain.T) = struct
           (let open Option in
            let@ gt_inner in
            return (Term.map_ ((i, i_bt, it_perm), gt_inner) () loc))
-      | `Instantiate ((x, gt_inner), gt_rest) ->
-        let@ gt_rest = aux new_constraint gt_rest in
-        return
-          (let open Option in
-           let@ gt_rest in
-           return (Term.instantiate_ ((x, gt_inner), gt_rest) () loc))
     in
     let@ res = aux false tm in
     return (Option.get res)

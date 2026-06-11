@@ -20,7 +20,6 @@ module Make (AD : Domain.T) = struct
       match gt_ with
       | `Arbitrary -> GenTerms.Annot (`Arbitrary, (path_vars, last_var), bt, loc)
       | `Symbolic -> GenTerms.Annot (`Symbolic, (path_vars, last_var), bt, loc)
-      | `Lazy -> GenTerms.Annot (`Lazy, (path_vars, last_var), bt, loc)
       | `ArbitrarySpecialized bounds ->
         GenTerms.Annot (`ArbitrarySpecialized bounds, (path_vars, last_var), bt, loc)
       | `ArbitraryDomain d ->
@@ -64,10 +63,6 @@ module Make (AD : Domain.T) = struct
             (`Asgn ((it_addr, sct), it_val, aux vars path_vars gt_rest))
         in
         GenTerms.Annot (gt_, (path_vars, last_var), bt, loc)
-      | `LetStar ((x, (Annot (`Lazy, _, _, _) as gt_inner)), gt_rest) ->
-        let gt_inner = aux vars path_vars gt_inner in
-        let gt_rest = aux vars path_vars gt_rest in
-        GenTerms.Annot (`LetStar ((x, gt_inner), gt_rest), (path_vars, last_var), bt, loc)
       | `LetStar ((x, gt_inner), gt_rest) ->
         let gt_inner = aux vars path_vars gt_inner in
         let gt_rest = aux (x :: vars) path_vars gt_rest in
@@ -100,15 +95,6 @@ module Make (AD : Domain.T) = struct
         in
         let gt_rest = aux vars path_vars gt_rest in
         Annot (`SplitSizeElab (marker_var, syms, gt_rest), (path_vars, last_var), bt, loc)
-      | `Instantiate ((x, gt_inner), gt_rest) ->
-        let backtrack_var = Sym.fresh_anon () in
-        let gt_inner = aux vars path_vars gt_inner in
-        let gt_rest = aux (backtrack_var :: vars) path_vars gt_rest in
-        Annot
-          ( `InstantiateElab (backtrack_var, (x, gt_inner), gt_rest),
-            (path_vars, last_var),
-            bt,
-            loc )
     in
     aux [] Sym.Set.empty gt
 
