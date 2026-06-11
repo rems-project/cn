@@ -26,6 +26,8 @@ add_executable(libcn_tests
     bennet/harness.cpp
     bennet/ownership_domain.cpp
     bennet/rand.cpp
+    bennet/congr.cpp
+    bennet/products.cpp
     bennet/tnum.cpp
     bennet/urn.cpp
     bennet/wint.cpp

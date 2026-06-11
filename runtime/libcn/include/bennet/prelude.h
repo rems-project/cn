@@ -9,6 +9,7 @@
 #include <bennet/info/tyche.h>
 #include <bennet/info/unsatisfied.h>
 #include <bennet/internals/domain.h>
+#include <bennet/internals/domains/congr.h>
 #include <bennet/internals/domains/ownership.h>
 #include <bennet/internals/domains/products.h>
 #include <bennet/internals/domains/sized.h>
