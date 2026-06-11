@@ -1,31 +1,16 @@
-(** Stage 3 - Lazy generation transformation
-
-    This stage adds Instantiate nodes for lazily-generated values.
-    When lazy generation is enabled, values are only instantiated
-    when they are first used in the generator. *)
+(** Stage 3 - Equality specialization and name simplification *)
 
 module Make (AD : Domain.T) = struct
   open struct
-    module Convert = Convert.Make (AD)
-    module Lazify = Lazify.Make (AD)
-    module Instantiate = Instantiate.Make (AD)
     module SpecializeEquality = SpecializeEquality.Make (AD)
     module SimplifyNames = SimplifyNames.Make (AD)
   end
 
   module Stage2 = Stage2.Make (AD)
-  module Term = Term.Make (AD)
-  module Def = Def.Make (AD)
-  module Ctx = Ctx.Make (AD)
+  module Term = Stage2.Term
+  module Def = Stage2.Def
+  module Ctx = Stage2.Ctx
 
   let transform (ctx : Stage2.Ctx.t) : Ctx.t =
-    ctx
-    |> Convert.transform
-    |> SpecializeEquality.transform
-    |> (if TestGenConfig.is_lazy_gen () then
-          fun ctx ->
-        ctx |> Lazify.transform |> Instantiate.transform |> SpecializeEquality.transform
-        else
-          Fun.id)
-    |> SimplifyNames.transform
+    ctx |> SpecializeEquality.transform |> SimplifyNames.transform
 end
