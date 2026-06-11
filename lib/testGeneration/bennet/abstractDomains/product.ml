@@ -14,7 +14,10 @@ type relative_component =
 
 let specialized =
   StringSetSet.of_list
-    [ StringSet.of_list [ Ownership.Inner.CInt.name; Interval_.Inner.CInt.name ] ]
+    [ StringSet.of_list [ Ownership.Inner.CInt.name; Interval_.Inner.CInt.name ];
+      StringSet.of_list [ Congruence.Inner.CInt.name; Ownership.Inner.CInt.name ];
+      StringSet.of_list [ Ownership.Inner.CInt.name; TNum.Inner.CInt.name ]
+    ]
 
 
 let product_domains (domains : (module Domain.T) list) =
@@ -109,7 +112,7 @@ let product_domains (domains : (module Domain.T) list) =
           ^^ !^"(void) {"
           ^/^ !^"  "
           ^^ !^struct_type
-          ^^ !^"* result = malloc(sizeof("
+          ^^ !^"* result = std_malloc(sizeof("
           ^^ !^struct_type
           ^^ !^"));"
           ^/^ generate_domain_calls op_name
@@ -133,7 +136,7 @@ let product_domains (domains : (module Domain.T) list) =
           ^/^ braces
                 (!^"  "
                  ^^ !^(Printf.sprintf
-                         "%s* result = malloc(sizeof(%s));"
+                         "%s* result = std_malloc(sizeof(%s));"
                          struct_type
                          struct_type)
                  ^/^ generate_binary_calls op_name
@@ -156,7 +159,7 @@ let product_domains (domains : (module Domain.T) list) =
           ^/^ braces
                 (!^"  "
                  ^^ !^struct_type
-                 ^^ !^"* result = malloc(sizeof("
+                 ^^ !^"* result = std_malloc(sizeof("
                  ^^ !^struct_type
                  ^^ !^"));"
                  ^/^ (domains
@@ -296,7 +299,7 @@ let product_domains (domains : (module Domain.T) list) =
           ^^ !^"(void *base_ptr, void *addr, size_t bytes) {"
           ^/^ !^"  "
           ^^ !^struct_type
-          ^^ !^"* result = malloc(sizeof("
+          ^^ !^"* result = std_malloc(sizeof("
           ^^ !^struct_type
           ^^ !^"));"
           ^/^ (domains
@@ -309,6 +312,7 @@ let product_domains (domains : (module Domain.T) list) =
                  ^^ !^"##ty"
                  ^^ !^"(base_ptr, addr, bytes);")
                |> separate hardline)
+          ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
           ^/^ !^"  return result;"
           ^/^ !^"}"
 
@@ -344,12 +348,553 @@ let product_domains (domains : (module Domain.T) list) =
           ^^ !^") {"
           ^/^ !^"  "
           ^^ !^struct_type
-          ^^ !^"* result = malloc(sizeof("
+          ^^ !^"* result = std_malloc(sizeof("
           ^^ !^struct_type
           ^^ !^"));"
           ^/^ generate_assignments ()
+          ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
           ^/^ !^"  return result;"
           ^/^ !^"}"
+
+
+        let generate_check_function =
+          let generate_check_calls () =
+            domains
+            |> List.mapi (fun i (module D : Domain.T) ->
+              !^"bennet_domain_"
+              ^^ !^D.CInt.name
+              ^^ !^"_check_##ty(val, &ptr->element_"
+              ^^ int i
+              ^^ !^")")
+            |> separate !^" && "
+          in
+          !^"static inline bool"
+          ^^^ !^(func_prefix ^ "check_##ty")
+          ^^ parens (!^"ty val, " ^^ !^struct_type ^^ !^"* ptr")
+          ^/^ braces (!^"  return " ^^ generate_check_calls () ^^ !^";")
+
+
+        let generate_check_ownership_function =
+          let ownership_index =
+            List.find_index
+              (fun (module D : Domain.T) -> String.equal D.CInt.name "ownership")
+              domains
+          in
+          match ownership_index with
+          | Some idx ->
+            !^"static inline bool"
+            ^^^ !^(func_prefix ^ "check_ownership_##ty")
+            ^^ parens (!^"ty val, " ^^ !^struct_type ^^ !^"* ptr")
+            ^/^ braces
+                  (!^"  return bennet_domain_ownership_check_##ty(val, &ptr->element_"
+                   ^^ int idx
+                   ^^ !^");")
+          | None ->
+            !^"static inline bool"
+            ^^^ !^(func_prefix ^ "check_ownership_##ty")
+            ^^ parens (!^"ty val, " ^^ !^struct_type ^^ !^"* ptr")
+            ^/^ braces !^"  (void)val; (void)ptr; return true;"
+
+
+        let generate_top_except_ownership_function =
+          let ownership_index =
+            List.find_index
+              (fun (module D : Domain.T) -> String.equal D.CInt.name "ownership")
+              domains
+          in
+          match ownership_index with
+          | Some _ ->
+            !^"static inline"
+            ^^^ !^struct_type
+            ^^ !^"*"
+            ^^^ !^(func_prefix ^ "top_except_ownership_##ty")
+            ^^ parens (!^struct_type ^^ !^"* ptr")
+            ^/^ braces
+                  (!^"  "
+                   ^^ !^struct_type
+                   ^^ !^"* result = std_malloc(sizeof("
+                   ^^ !^struct_type
+                   ^^ !^"));"
+                   ^/^ (domains
+                        |> List.mapi (fun i (module D : Domain.T) ->
+                          if String.equal D.CInt.name "ownership" then
+                            !^"  result->element_"
+                            ^^ int i
+                            ^^ !^" = ptr->element_"
+                            ^^ int i
+                            ^^ !^";"
+                          else
+                            !^"  result->element_"
+                            ^^ int i
+                            ^^ !^" = *"
+                            ^^ !^"bennet_domain_"
+                            ^^ !^D.CInt.name
+                            ^^ !^"_top_##ty"
+                            ^^ !^"();")
+                        |> separate hardline)
+                   ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
+                   ^/^ !^"  return result;")
+          | None ->
+            (* No ownership domain - just return top *)
+            !^"static inline"
+            ^^^ !^struct_type
+            ^^ !^"*"
+            ^^^ !^(func_prefix ^ "top_except_ownership_##ty")
+            ^^ parens (!^struct_type ^^ !^"* ptr")
+            ^/^ braces
+                  (!^"  (void)ptr; return " ^^ !^(func_prefix ^ "top_##ty") ^^ !^"();")
+
+
+        let generate_to_interval_function =
+          let n = List.length domains in
+          if n = 0 then
+            !^"static inline bool"
+            ^^^ !^(func_prefix ^ "to_interval_##ty")
+            ^^ parens (!^struct_type ^^ !^"* ptr, ty* lo_out, ty* hi_out")
+            ^/^ braces !^"  (void)ptr; (void)lo_out; (void)hi_out; return false;"
+          else
+            !^"static inline bool"
+            ^^^ !^(func_prefix ^ "to_interval_##ty")
+            ^^ parens (!^struct_type ^^ !^"* ptr, ty* lo_out, ty* hi_out")
+            ^/^ braces
+                  (!^"  ty _lo = 0, _hi = 0;"
+                   ^/^ !^"  bool _valid = false;"
+                   ^/^ (domains
+                        |> List.mapi (fun i (module D : Domain.T) ->
+                          let dname = D.CInt.name in
+                          !^"  {"
+                          ^/^ !^"    ty _tlo, _thi;"
+                          ^/^ !^(Printf.sprintf
+                                   "    if \
+                                    (bennet_domain_%s_to_interval_##ty(&ptr->element_%d, \
+                                    &_tlo, &_thi)) {"
+                                   dname
+                                   i)
+                          ^/^ !^"      if (_valid) {"
+                          ^/^ !^"        if (_tlo > _lo) _lo = _tlo;"
+                          ^/^ !^"        if (_thi < _hi) _hi = _thi;"
+                          ^/^ !^"      } else {"
+                          ^/^ !^"        _lo = _tlo;"
+                          ^/^ !^"        _hi = _thi;"
+                          ^/^ !^"        _valid = true;"
+                          ^/^ !^"      }"
+                          ^/^ !^"    }"
+                          ^/^ !^"  }")
+                        |> separate hardline)
+                   ^/^ !^"  if (_valid) {"
+                   ^/^ !^"    *lo_out = _lo;"
+                   ^/^ !^"    *hi_out = _hi;"
+                   ^/^ !^"  }"
+                   ^/^ !^"  return _valid;")
+
+
+        let generate_of_interval_function =
+          !^"static inline"
+          ^^^ !^struct_type
+          ^^ !^"*"
+          ^^^ !^(func_prefix ^ "of_interval_##ty")
+          ^^ parens !^"ty lo, ty hi"
+          ^/^ braces
+                (!^"  "
+                 ^^ !^struct_type
+                 ^^ !^"* result = std_malloc(sizeof("
+                 ^^ !^struct_type
+                 ^^ !^"));"
+                 ^/^ (domains
+                      |> List.mapi (fun i (module D : Domain.T) ->
+                        let dname = D.CInt.name in
+                        !^"  result->element_"
+                        ^^ int i
+                        ^^ !^" = *bennet_domain_"
+                        ^^ !^dname
+                        ^^ !^"_of_interval_##ty(lo, hi);")
+                      |> separate hardline)
+                 ^/^ !^"  return result;")
+
+
+        let generate_reduce_function =
+          let domain_index' (name : string) =
+            Option.get
+              (List.find_index
+                 (fun (module D : Domain.T) -> String.equal name D.CInt.name)
+                 domains)
+          in
+          let domain_names =
+            domains
+            |> List.map (fun (module D : Domain.T) -> D.CInt.name)
+            |> StringSet.of_list
+          in
+          let applicable_groups =
+            StringSetSet.filter (fun g -> StringSet.subset g domain_names) specialized
+            |> StringSetSet.elements
+          in
+          let specialized_body =
+            applicable_groups
+            |> List.map (fun group ->
+              let combined_name =
+                group
+                |> StringSet.elements
+                |> List.fast_sort String.compare
+                |> String.concat "_"
+              in
+              let args =
+                group
+                |> StringSet.elements
+                |> List.fast_sort String.compare
+                |> List.map (fun name ->
+                  Printf.sprintf "&ptr->element_%d" (domain_index' name))
+                |> String.concat ", "
+              in
+              !^(Printf.sprintf "  bennet_domain_%s_reduce_##ty(%s);" combined_name args))
+            |> separate hardline
+          in
+          let n = List.length domains in
+          let general_body =
+            if n < 2 then
+              empty
+            else (
+              let extract_block i (module D : Domain.T) =
+                let dname = D.CInt.name in
+                let elem = Printf.sprintf "&ptr->element_%d" i in
+                if i = 0 then (* Initial extract from first domain *)
+                  !^(Printf.sprintf
+                       "    if (bennet_domain_%s_to_interval_##ty(%s, &_r_lo, &_r_hi)) {"
+                       dname
+                       elem)
+                  ^/^ !^"      _r_valid = true;"
+                  ^/^ !^"    }"
+                else (* Meet interval into this domain, then extract *)
+                  !^(Printf.sprintf "    if (_r_valid) {")
+                  ^/^ !^(Printf.sprintf
+                           "      bennet_domain_%s(ty)* _r_tmp_%d = \
+                            bennet_domain_%s_of_interval_##ty(_r_lo, _r_hi);"
+                           dname
+                           i
+                           dname)
+                  ^/^ !^(Printf.sprintf
+                           "      ptr->element_%d = \
+                            *bennet_domain_%s_meet_##ty(&ptr->element_%d, _r_tmp_%d);"
+                           i
+                           dname
+                           i
+                           i)
+                  ^/^ !^"    }"
+                  ^/^ !^"    {"
+                  ^/^ !^(Printf.sprintf "      ty _r_lo2, _r_hi2;")
+                  ^/^ !^(Printf.sprintf
+                           "      if (bennet_domain_%s_to_interval_##ty(%s, &_r_lo2, \
+                            &_r_hi2)) {"
+                           dname
+                           elem)
+                  ^/^ !^"        if (_r_valid) {"
+                  ^/^ !^"          if (_r_lo2 > _r_lo) _r_lo = _r_lo2;"
+                  ^/^ !^"          if (_r_hi2 < _r_hi) _r_hi = _r_hi2;"
+                  ^/^ !^"        } else {"
+                  ^/^ !^"          _r_lo = _r_lo2;"
+                  ^/^ !^"          _r_hi = _r_hi2;"
+                  ^/^ !^"          _r_valid = true;"
+                  ^/^ !^"        }"
+                  ^/^ !^"      }"
+                  ^/^ !^"    }"
+              in
+              let first_domain = List.hd domains in
+              let first_dname =
+                let (module D : Domain.T) = first_domain in
+                D.CInt.name
+              in
+              let closeback =
+                !^"    if (_r_valid) {"
+                ^/^ !^(Printf.sprintf
+                         "      bennet_domain_%s(ty)* _r_tmp_0 = \
+                          bennet_domain_%s_of_interval_##ty(_r_lo, _r_hi);"
+                         first_dname
+                         first_dname)
+                ^/^ !^(Printf.sprintf
+                         "      ptr->element_0 = \
+                          *bennet_domain_%s_meet_##ty(&ptr->element_0, _r_tmp_0);"
+                         first_dname)
+                ^/^ !^"    }"
+              in
+              !^"  for (int _ri = 0; _ri < 2; _ri++) {"
+              ^/^ !^"    ty _r_lo = 0, _r_hi = 0;"
+              ^/^ !^"    bool _r_valid = false;"
+              ^/^ (domains |> List.mapi extract_block |> separate hardline)
+              ^/^ closeback
+              ^/^ !^"  }")
+          in
+          let bottom_propagation =
+            if n < 2 then
+              empty
+            else (
+              let bottom_check =
+                domains
+                |> List.mapi (fun i (module D : Domain.T) ->
+                  !^(Printf.sprintf
+                       "bennet_domain_%s_is_bottom_##ty(&ptr->element_%d)"
+                       D.CInt.name
+                       i))
+                |> separate !^" || "
+              in
+              let set_all_bottom =
+                domains
+                |> List.mapi (fun i (module D : Domain.T) ->
+                  !^(Printf.sprintf
+                       "    ptr->element_%d = *bennet_domain_%s_bottom_##ty();"
+                       i
+                       D.CInt.name))
+                |> separate hardline
+              in
+              !^"  if (" ^^ bottom_check ^^ !^") {" ^/^ set_all_bottom ^/^ !^"  }")
+          in
+          let body =
+            if List.is_empty applicable_groups && n < 2 then
+              !^"  (void)ptr;"
+            else
+              (if List.is_empty applicable_groups then
+                 empty
+               else
+                 specialized_body)
+              ^^
+              if n >= 2 then
+                (if not (List.is_empty applicable_groups) then
+                   hardline
+                 else
+                   empty)
+                ^^ general_body
+                ^^ hardline
+                ^^ bottom_propagation
+              else
+                empty
+          in
+          !^"static inline void"
+          ^^^ !^(func_prefix ^ "reduce_##ty")
+          ^^ parens (!^struct_type ^^ !^"* ptr")
+          ^/^ braces body
+
+
+        let generate_meet_function =
+          !^"static inline"
+          ^^^ !^struct_type
+          ^^ !^"*"
+          ^^^ !^(func_prefix ^ "meet_##ty")
+          ^^ parens (!^struct_type ^^ !^"* ptr1, " ^^ !^struct_type ^^ !^"* ptr2")
+          ^/^ braces
+                (!^(Printf.sprintf
+                      "  %s* result = std_malloc(sizeof(%s));"
+                      struct_type
+                      struct_type)
+                 ^/^ generate_binary_calls "meet"
+                 ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
+                 ^/^ !^"  return result;")
+
+
+        let generate_refine_function =
+          !^"static inline"
+          ^^^ !^struct_type
+          ^^ !^"*"
+          ^^^ !^(func_prefix ^ "refine_##ty")
+          ^^ parens
+               (!^struct_type
+                ^^ !^"* ptr, bennet_absint_sym x_sym, cn_base_type* x_bt, cn_term* \
+                      constraint_term, bool* is_bottom_out")
+          ^/^
+          let per_domain_blocks =
+            domains
+            |> List.mapi (fun i (module D : Domain.T) ->
+              let dname = D.CInt.name in
+              !^(Printf.sprintf "  {")
+              ^/^ !^(Printf.sprintf
+                       "    bennet_absint_state* _state_%s = \
+                        bennet_absint_state_create();"
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    _state_%s = bennet_absint_state_set_%s(_state_%s, x_sym, \
+                        bennet_tagged_domain_create(x_bt, &ptr->element_%d));"
+                       dname
+                       dname
+                       dname
+                       i)
+              ^/^ !^(Printf.sprintf
+                       "    _state_%s = \
+                        bennet_%s_transform_backward_assume(constraint_term, true, \
+                        _state_%s);"
+                       dname
+                       dname
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    if (bennet_absint_state_is_bottom_%s(_state_%s)) {"
+                       dname
+                       dname)
+              ^/^ !^"      *is_bottom_out = true;"
+              ^/^ !^"      return ptr;"
+              ^/^ !^"    }"
+              ^/^ !^(Printf.sprintf
+                       "    bennet_tagged_domain _new_%s = \
+                        bennet_absint_state_get_%s(_state_%s, x_sym, x_bt);"
+                       dname
+                       dname
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    result->element_%d = *(bennet_domain_%s(ty)*)_new_%s.domain;"
+                       i
+                       dname
+                       dname)
+              ^/^ !^"  }")
+            |> separate hardline
+          in
+          braces
+            (!^(Printf.sprintf
+                  "  %s* result = std_malloc(sizeof(%s));"
+                  struct_type
+                  struct_type)
+             ^/^ per_domain_blocks
+             ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
+             ^/^ !^(Printf.sprintf "  if (%sis_bottom_##ty(result)) {" func_prefix)
+             ^/^ !^"    *is_bottom_out = true;"
+             ^/^ !^"    std_free(result);"
+             ^/^ !^"    return ptr;"
+             ^/^ !^"  }"
+             ^/^ !^"  *is_bottom_out = false;"
+             ^/^ !^"  return result;")
+
+
+        let generate_refine_with_state_function =
+          !^"static inline"
+          ^^^ !^struct_type
+          ^^ !^"*"
+          ^^^ !^(func_prefix ^ "refine_with_state_##ty")
+          ^^ parens
+               (!^struct_type
+                ^^ !^"* ptr, bennet_absint_sym x_sym, cn_base_type* x_bt, cn_term* \
+                      constraint_term, bool* is_bottom_out, bennet_absint_sym extra_sym, \
+                      bennet_tagged_domain extra_domain")
+          ^/^
+          let per_domain_blocks =
+            domains
+            |> List.mapi (fun i (module D : Domain.T) ->
+              let dname = D.CInt.name in
+              !^(Printf.sprintf "  {")
+              ^/^ !^(Printf.sprintf
+                       "    bennet_absint_state* _init_%s = bennet_absint_state_create();"
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    _init_%s = bennet_absint_state_set_%s(_init_%s, extra_sym, \
+                        bennet_tagged_domain_create(extra_domain.type, \
+                        %sget_element_%d(extra_domain.type, extra_domain.domain)));"
+                       dname
+                       dname
+                       dname
+                       func_prefix
+                       i)
+              ^/^ !^(Printf.sprintf
+                       "    bennet_absint_state* _state_%s = _init_%s;"
+                       dname
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    _state_%s = bennet_absint_state_set_%s(_state_%s, x_sym, \
+                        bennet_tagged_domain_create(x_bt, &ptr->element_%d));"
+                       dname
+                       dname
+                       dname
+                       i)
+              ^/^ !^(Printf.sprintf
+                       "    _state_%s = \
+                        bennet_%s_transform_backward_assume(constraint_term, true, \
+                        _state_%s);"
+                       dname
+                       dname
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    if (bennet_absint_state_is_bottom_%s(_state_%s)) {"
+                       dname
+                       dname)
+              ^/^ !^"      *is_bottom_out = true;"
+              ^/^ !^"      return ptr;"
+              ^/^ !^"    }"
+              ^/^ !^(Printf.sprintf
+                       "    bennet_tagged_domain _new_%s = \
+                        bennet_absint_state_get_%s(_state_%s, x_sym, x_bt);"
+                       dname
+                       dname
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    result->element_%d = *(bennet_domain_%s(ty)*)_new_%s.domain;"
+                       i
+                       dname
+                       dname)
+              ^/^ !^"  }")
+            |> separate hardline
+          in
+          braces
+            (!^(Printf.sprintf
+                  "  %s* result = std_malloc(sizeof(%s));"
+                  struct_type
+                  struct_type)
+             ^/^ per_domain_blocks
+             ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
+             ^/^ !^(Printf.sprintf "  if (%sis_bottom_##ty(result)) {" func_prefix)
+             ^/^ !^"    *is_bottom_out = true;"
+             ^/^ !^"    std_free(result);"
+             ^/^ !^"    return ptr;"
+             ^/^ !^"  }"
+             ^/^ !^"  *is_bottom_out = false;"
+             ^/^ !^"  return result;")
+
+
+        let generate_transform_backward_function =
+          let per_domain_blocks =
+            domains
+            |> List.mapi (fun i (module D : Domain.T) ->
+              let dname = D.CInt.name in
+              !^"  {"
+              ^/^ !^"    bennet_absint_state* _state = bennet_absint_state_create();"
+              ^/^ !^(Printf.sprintf
+                       "    bennet_tagged_domain _out = \
+                        bennet_tagged_domain_create(output_bt, \
+                        &output_domain->element_%d);"
+                       i)
+              ^/^ !^(Printf.sprintf
+                       "    _state = bennet_absint_state_set_%s(_state, target_sym, \
+                        bennet_tagged_domain_top_%s(output_bt));"
+                       dname
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    _state = bennet_%s_transform_backward(term, target_sym, \
+                        _out, _state);"
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    if (bennet_absint_state_is_bottom_%s(_state)) {"
+                       dname)
+              ^/^ !^(Printf.sprintf "      return %sbottom_##ty();" func_prefix)
+              ^/^ !^"    }"
+              ^/^ !^(Printf.sprintf
+                       "    bennet_tagged_domain _new = \
+                        bennet_absint_state_get_%s(_state, target_sym, output_bt);"
+                       dname)
+              ^/^ !^(Printf.sprintf
+                       "    result->element_%d = *(bennet_domain_%s(ty)*)_new.domain;"
+                       i
+                       dname)
+              ^/^ !^"  }")
+            |> separate hardline
+          in
+          !^"static inline"
+          ^^^ !^struct_type
+          ^^ !^"*"
+          ^^^ !^(func_prefix ^ "transform_backward_##ty")
+          ^^ parens
+               (!^"cn_term* term, bennet_absint_sym target_sym, cn_base_type* output_bt, \
+                   cn_base_type* target_bt, "
+                ^^ !^struct_type
+                ^^ !^"* output_domain")
+          ^/^ braces
+                (!^(Printf.sprintf
+                      "  %s* result = std_malloc(sizeof(%s));"
+                      struct_type
+                      struct_type)
+                 ^/^ per_domain_blocks
+                 ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
+                 ^/^ !^"  return result;")
 
 
         let macro_dispatchers =
@@ -379,7 +924,29 @@ let product_domains (domains : (module Domain.T) list) =
               ^^^ !^func_prefix
               ^^ !^"of(ty, ...)"
               ^^^ !^func_prefix
-              ^^ !^"of_##ty(__VA_ARGS__)"
+              ^^ !^"of_##ty(__VA_ARGS__)";
+              !^"#define"
+              ^^^ !^func_prefix
+              ^^ !^"refine(ty, ptr, sym, bt, constraint, out)"
+              ^^^ !^func_prefix
+              ^^ !^"refine_##ty(ptr, sym, bt, constraint, out)";
+              !^"#define"
+              ^^^ !^func_prefix
+              ^^ !^"refine_with_state(ty, ptr, sym, bt, constraint, out, extra_sym, \
+                    extra_domain)"
+              ^^^ !^func_prefix
+              ^^ !^"refine_with_state_##ty(ptr, sym, bt, constraint, out, extra_sym, \
+                    extra_domain)";
+              !^"#define"
+              ^^^ !^func_prefix
+              ^^ !^"top_except_ownership(ty, ptr)"
+              ^^^ !^func_prefix
+              ^^ !^"top_except_ownership_##ty(ptr)";
+              !^"#define"
+              ^^^ !^func_prefix
+              ^^ !^"transform_backward(ty, term, sym, out_bt, tgt_bt, out)"
+              ^^^ !^func_prefix
+              ^^ !^"transform_backward_##ty(term, sym, out_bt, tgt_bt, out)"
             ]
 
 
@@ -401,21 +968,44 @@ let product_domains (domains : (module Domain.T) list) =
           in
           let decl_macro_name = !^(String.uppercase_ascii c_prefix ^ "_DECL") in
           let ty = decl_macro_name ^^ parens !^"ty" in
+          let element_accessors_for_type =
+            domains
+            |> List.mapi (fun i _dom ->
+              !^(Printf.sprintf
+                   "static inline void* %sget_element_%d_##ty(void* domain)"
+                   func_prefix
+                   i)
+              ^/^ braces
+                    !^(Printf.sprintf
+                         "  return &((%s*)domain)->element_%d;"
+                         struct_type
+                         i))
+            |> separate hardline
+          in
           let functions_for_type =
             separate
               hardline
               [ generate_unary_op "top";
-                generate_unary_predicate "is_top" "||";
+                generate_unary_predicate "is_top" "&&";
                 generate_unary_op "bottom";
                 generate_unary_predicate "is_bottom" "||";
                 generate_binary_predicate "leq" "&&";
                 generate_binary_predicate "equal" "&&";
                 generate_binary_op "join";
-                generate_binary_op "meet";
+                generate_reduce_function;
+                generate_meet_function;
                 generate_copy_function;
                 generate_arbitrary_function;
                 generate_from_assignment_function;
-                generate_of_constructor_function
+                generate_of_constructor_function;
+                generate_check_function;
+                generate_check_ownership_function;
+                generate_top_except_ownership_function;
+                generate_to_interval_function;
+                generate_of_interval_function;
+                generate_refine_function;
+                generate_transform_backward_function;
+                element_accessors_for_type
               ]
           in
           let definitions_macro =
@@ -456,6 +1046,66 @@ let product_domains (domains : (module Domain.T) list) =
           let instantiations =
             separate_map hardline (fun ty -> decl_macro_name ^^ parens !^ty) types
           in
+          (* Generate concrete type-dispatch functions for element access.
+             These are defined after all type instantiations so that all
+             type-specific accessors are available. *)
+          let element_dispatch_functions =
+            domains
+            |> List.mapi (fun i _dom ->
+              let fn_name = Printf.sprintf "%sget_element_%d" func_prefix i in
+              !^(Printf.sprintf
+                   "static inline void* %s(cn_base_type* type, void* domain)"
+                   fn_name)
+              ^/^ braces
+                    (!^"  if (type->tag == CN_BASE_LOC)"
+                     ^/^ !^(Printf.sprintf "    return %s_uintptr_t(domain);" fn_name)
+                     ^/^ !^"  assert(type->tag == CN_BASE_BITS);"
+                     ^/^ !^"  if (type->data.bits.is_signed) {"
+                     ^/^ !^"    switch (type->data.bits.size_bits) {"
+                     ^/^ !^(Printf.sprintf
+                              "      case 8: return %s_int8_t(domain);"
+                              fn_name)
+                     ^/^ !^(Printf.sprintf
+                              "      case 16: return %s_int16_t(domain);"
+                              fn_name)
+                     ^/^ !^(Printf.sprintf
+                              "      case 32: return %s_int32_t(domain);"
+                              fn_name)
+                     ^/^ !^(Printf.sprintf
+                              "      case 64: return %s_int64_t(domain);"
+                              fn_name)
+                     ^/^ !^"      default: assert(0); return NULL;"
+                     ^/^ !^"    }"
+                     ^/^ !^"  } else {"
+                     ^/^ !^"    switch (type->data.bits.size_bits) {"
+                     ^/^ !^(Printf.sprintf
+                              "      case 8: return %s_uint8_t(domain);"
+                              fn_name)
+                     ^/^ !^(Printf.sprintf
+                              "      case 16: return %s_uint16_t(domain);"
+                              fn_name)
+                     ^/^ !^(Printf.sprintf
+                              "      case 32: return %s_uint32_t(domain);"
+                              fn_name)
+                     ^/^ !^(Printf.sprintf
+                              "      case 64: return %s_uint64_t(domain);"
+                              fn_name)
+                     ^/^ !^"      default: assert(0); return NULL;"
+                     ^/^ !^"    }"
+                     ^/^ !^"  }"))
+            |> separate (twice hardline)
+          in
+          (* Generate the refine_with_state macro separately, instantiated
+             after dispatch functions are available *)
+          let rws_decl_macro_name = !^(String.uppercase_ascii c_prefix ^ "_RWS_DECL") in
+          let rws_ty = rws_decl_macro_name ^^ parens !^"ty" in
+          let rws_definitions_macro =
+            escape_lines (!^"#define" ^^^ rws_ty ^/^ generate_refine_with_state_function)
+            ^/^ hardline
+          in
+          let rws_instantiations =
+            separate_map hardline (fun ty -> rws_decl_macro_name ^^ parens !^ty) types
+          in
           domain_defs
           ^/^ hardline
           ^^ type_macro
@@ -463,6 +1113,12 @@ let product_domains (domains : (module Domain.T) list) =
           ^^ definitions_macro
           ^/^ hardline
           ^^ instantiations
+          ^/^ twice hardline
+          ^^ element_dispatch_functions
+          ^/^ twice hardline
+          ^^ rws_definitions_macro
+          ^/^ hardline
+          ^^ rws_instantiations
           ^/^ hardline
           ^^ macro_dispatchers
           ^^ hardline
@@ -623,6 +1279,38 @@ let product_domains (domains : (module Domain.T) list) =
         compare_arrays 0
 
 
+      (** Cross-pollinate constraints between all domain components via
+          interval extraction. Each domain i extracts its per-symbol interval
+          bounds and meets them into every other domain j (Gauss-Seidel style). *)
+      let reduce (product : t) : t =
+        let n = Array.length product in
+        let rec fixpoint product =
+          let result = Array.copy product in
+          for i = 0 to n - 1 do
+            let (DPack ((module Di), si)) = result.(i) in
+            let intervals = Di.to_interval si in
+            if not (List.is_empty intervals) then
+              for j = 0 to n - 1 do
+                if i <> j then (
+                  let (DPack ((module Dj), sj)) = result.(j) in
+                  let sj' =
+                    List.fold_left
+                      (fun s (sym, bt, lo, hi) -> Dj.meet s (Dj.of_interval sym bt lo hi))
+                      sj
+                      intervals
+                  in
+                  result.(j) <- DPack ((module Dj), sj'))
+              done
+          done;
+          if equal product result then result else fixpoint result
+        in
+        let result = fixpoint product in
+        if Array.exists (fun (DPack ((module D), s)) -> D.equal s D.bottom) result then
+          bottom
+        else
+          result
+
+
       let leq p1 p2 =
         if Array.length p1 = 0 || Array.length p2 = 0 then
           failwith "Cannot compare empty product domains";
@@ -650,18 +1338,24 @@ let product_domains (domains : (module Domain.T) list) =
           failwith "Cannot join empty product domains";
         if Array.length p1 <> Array.length p2 then
           failwith "Product domain array length mismatch";
-        Array.map2
-          (fun c1 c2 ->
-             match (c1, c2) with
-             | DPack ((module D1), s1), DPack ((module D2), s2) ->
-               if String.equal D1.name D2.name then (
-                 let result = D1.join s1 (Obj.magic s2) in
-                 DPack ((module D1), result))
-               else
-                 failwith
-                   ("Joining products of different domains: " ^ D1.name ^ " vs " ^ D2.name))
-          p1
-          p2
+        let result =
+          Array.map2
+            (fun c1 c2 ->
+               match (c1, c2) with
+               | DPack ((module D1), s1), DPack ((module D2), s2) ->
+                 if String.equal D1.name D2.name then (
+                   let result = D1.join s1 (Obj.magic s2) in
+                   DPack ((module D1), result))
+                 else
+                   failwith
+                     ("Joining products of different domains: "
+                      ^ D1.name
+                      ^ " vs "
+                      ^ D2.name))
+            p1
+            p2
+        in
+        reduce result
 
 
       let meet p1 p2 =
@@ -686,6 +1380,7 @@ let product_domains (domains : (module Domain.T) list) =
             p1
             p2
         in
+        let result = reduce result in
         (* If any component is bottom, the whole product is unsatisfiable *)
         let any_component_bottom =
           Array.exists (fun (DPack ((module D), s)) -> D.equal s D.bottom) result
@@ -693,7 +1388,7 @@ let product_domains (domains : (module Domain.T) list) =
         if any_component_bottom then bottom else result
 
 
-      let join_many products = List.fold_left join bottom products
+      let join_many products = reduce (List.fold_left join bottom products)
 
       let meet_many products = List.fold_left meet top products
 
@@ -772,23 +1467,27 @@ let product_domains (domains : (module Domain.T) list) =
 
 
       let abs_assert (lc : LC.t) (product : t) : t =
-        Array.map
-          (fun comp ->
-             match comp with
-             | DPack ((module D), s) ->
-               let result = D.abs_assert lc s in
-               DPack ((module D), result))
-          product
+        let result =
+          Array.map
+            (fun comp ->
+               match comp with
+               | DPack ((module D), s) -> DPack ((module D), D.abs_assert lc s))
+            product
+        in
+        reduce result
 
 
       let abs_assign (assign_info : (T.t * Sctypes.t) * T.t) (product : t) : t =
-        Array.map
-          (fun comp ->
-             match comp with
-             | DPack ((module D), s) ->
-               let result = D.abs_assign assign_info s in
-               DPack ((module D), result))
-          product
+        let result =
+          Array.map
+            (fun comp ->
+               match comp with
+               | DPack ((module D), s) ->
+                 let result = D.abs_assign assign_info s in
+                 DPack ((module D), result))
+            product
+        in
+        reduce result
 
 
       let pp_params () : string =
@@ -813,6 +1512,17 @@ let product_domains (domains : (module Domain.T) list) =
               (match D.to_lc s with LC.T it -> it | _ -> failwith "TODO"))
         in
         LC.T (MT.and_ constraints loc)
+
+
+      let to_interval product =
+        Array.to_list product
+        |> List.concat_map (fun (DPack ((module D), s)) -> D.to_interval s)
+
+
+      let of_interval sym bt lo hi =
+        Array.map
+          (fun (DPack ((module D), _)) -> DPack ((module D), D.of_interval sym bt lo hi))
+          top
 
 
       let is_meet_assoc =

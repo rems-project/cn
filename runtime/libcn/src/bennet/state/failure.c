@@ -5,6 +5,7 @@
 
 #include <bennet/internals/size.h>
 #include <bennet/state/failure.h>
+#include <cn-smt/memory/std_alloc.h>
 
 static uint16_t depth_failures = 0;
 static uint16_t max_depth_failures = UINT16_MAX;
@@ -51,7 +52,7 @@ void bennet_failure_reset(void) {
 
   while (failure.blamed != NULL) {
     void* tmp = failure.blamed->next;
-    free(failure.blamed->domain);
+    std_free(failure.blamed->domain);
     free(failure.blamed);
     failure.blamed = tmp;
   }
@@ -106,7 +107,7 @@ void bennet_failure_set_failure_type(enum bennet_failure_type type) {
             curr->domain = new_domain;                                                   \
           } else {                                                                       \
             curr->domain = bennet_domain_meet(ty, curr->domain, new_domain);             \
-            free(new_domain);                                                            \
+            std_free(new_domain);                                                        \
           }                                                                              \
         }                                                                                \
         free(new_node);                                                                  \
@@ -162,7 +163,7 @@ int bennet_failure_remove_blame(const void* id) {
         failure.blamed = curr->next;
       }
 
-      free(curr->domain);
+      std_free(curr->domain);
       free(curr);
 
       return 1;

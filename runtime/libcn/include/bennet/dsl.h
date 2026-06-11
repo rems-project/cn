@@ -10,8 +10,10 @@
 #include <bennet/dsl/assign.h>
 #include <bennet/dsl/backtrack.h>
 #include <bennet/dsl/specialized.h>
+#include <bennet/internals/domain.h>
 #include <bennet/state/checkpoint.h>
 #include <bennet/state/failure.h>
+#include <cn-smt/terms.h>
 
 #define BENNET_CHECK_TIMEOUT()                                                           \
   if (bennet_get_input_timeout() != 0 &&                                                 \

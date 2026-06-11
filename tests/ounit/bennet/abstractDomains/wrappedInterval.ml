@@ -3,10 +3,12 @@
 open OUnit2
 open QCheck
 open Cn.Terms
+module CF = Cerb_frontend
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
 module MT = Cn.MakeTerm
 module List = Cn.List
+module Memory = Cn.Memory
 
 module NonRelational =
   Cn.TestGeneration.Private.Bennet.Private.AbstractDomains.Private.NonRelational
@@ -88,6 +90,78 @@ let test_wrapped_membership _ =
   assert_bool
     "100 should not be in wrapped [250,10]"
     (not (Basis.wrapped_member (Z.of_int 100) (Z.of_int 250) (Z.of_int 10) bt))
+
+
+(** Regression test: wrapped_member must use unsigned comparison for modular distances.
+    For signed types, near-full-range intervals produce negative normalized distances
+    that must be compared as unsigned values. *)
+let test_wrapped_member_large_signed_interval _ =
+  let bt = test_bt_s32 in
+  (* i32 range: [-2147483648, 2147483647] *)
+  (* Interval [-2147483648, 2147483646] covers all i32 values except 2147483647 *)
+  let start = Z.of_string "-2147483648" in
+  let stop = Z.of_string "2147483646" in
+  assert_bool
+    "-2147483647 should be in [-2147483648, 2147483646]"
+    (Basis.wrapped_member (Z.of_string "-2147483647") start stop bt);
+  assert_bool
+    "0 should be in [-2147483648, 2147483646]"
+    (Basis.wrapped_member Z.zero start stop bt);
+  assert_bool
+    "2147483646 should be in [-2147483648, 2147483646]"
+    (Basis.wrapped_member (Z.of_string "2147483646") start stop bt);
+  assert_bool
+    "2147483647 should NOT be in [-2147483648, 2147483646]"
+    (not (Basis.wrapped_member (Z.of_string "2147483647") start stop bt));
+  (* Also test signed i8: [-128, 126] covers all except 127 *)
+  let bt8 = test_bt_s8 in
+  assert_bool
+    "-127 should be in [-128, 126] (s8)"
+    (Basis.wrapped_member (Z.of_int (-127)) (Z.of_int (-128)) (Z.of_int 126) bt8);
+  assert_bool
+    "0 should be in [-128, 126] (s8)"
+    (Basis.wrapped_member Z.zero (Z.of_int (-128)) (Z.of_int 126) bt8);
+  assert_bool
+    "127 should NOT be in [-128, 126] (s8)"
+    (not (Basis.wrapped_member (Z.of_int 127) (Z.of_int (-128)) (Z.of_int 126) bt8))
+
+
+(** Regression test: meet of two near-full-range signed intervals must not return bottom.
+    This is the root cause of the AVL balance generator producing bottom domains. *)
+let test_meet_large_signed_interval _ =
+  let bt = test_bt_s32 in
+  (* meet([-2147483648, 2147483646], [-2147483647, 2147483647])
+     should be [-2147483647, 2147483646], NOT bottom *)
+  let int1 =
+    Basis.of_interval bt (Z.of_string "-2147483648") (Z.of_string "2147483646")
+  in
+  let int2 =
+    Basis.of_interval bt (Z.of_string "-2147483647") (Z.of_string "2147483647")
+  in
+  let result = Basis.meet int1 int2 in
+  let expected =
+    Basis.of_interval bt (Z.of_string "-2147483647") (Z.of_string "2147483646")
+  in
+  assert_bool
+    "meet of overlapping near-full-range intervals should not be bottom"
+    (not (is_bottom_wint result));
+  assert_wint_equal
+    ~msg:"meet([-2^31, 2^31-2], [-2^31+1, 2^31-1]) = [-2^31+1, 2^31-2]"
+    expected
+    result;
+  (* Also test with i8 *)
+  let bt8 = test_bt_s8 in
+  let int1_8 = Basis.of_interval bt8 (Z.of_int (-128)) (Z.of_int 126) in
+  let int2_8 = Basis.of_interval bt8 (Z.of_int (-127)) (Z.of_int 127) in
+  let result_8 = Basis.meet int1_8 int2_8 in
+  let expected_8 = Basis.of_interval bt8 (Z.of_int (-127)) (Z.of_int 126) in
+  assert_bool
+    "meet of overlapping near-full-range s8 intervals should not be bottom"
+    (not (is_bottom_wint result_8));
+  assert_wint_equal
+    ~msg:"meet([-128, 126], [-127, 127]) = [-127, 126] (s8)"
+    expected_8
+    result_8
 
 
 (** Test cardinality computation *)
@@ -1431,10 +1505,13 @@ let unit_tests =
   "WrappedInterval Unit Tests"
   >::: [ "basic creation" >:: test_basic_creation;
          "wrapped membership" >:: test_wrapped_membership;
+         "wrapped membership large signed interval"
+         >:: test_wrapped_member_large_signed_interval;
          "cardinality" >:: test_cardinality;
          "leq ordering" >:: test_leq;
          "join operation" >:: test_join;
          "meet operation" >:: test_meet;
+         "meet large signed interval" >:: test_meet_large_signed_interval;
          "join_many associativity" >:: test_join_many_associativity;
          "join_many generalized" >:: test_join_many_generalized;
          "arithmetic operations" >:: test_arithmetic_operations;
@@ -1505,4 +1582,156 @@ let property_tests =
        ]
 
 
-let suite = "WrappedInterval Tests" >::: [ unit_tests; property_tests ]
+(** MemberShift/ArrayShift test helpers *)
+let mock_struct_tag = Sym.fresh "Point"
+
+let member_x = CF.Symbol.Identifier (test_loc, "x")
+
+let member_y = CF.Symbol.Identifier (test_loc, "y")
+
+let uint32_ctype = CF.Ctype.Ctype ([], Basic (Integer (Unsigned (IntN_t 32))))
+
+let mock_tag_defs =
+  Pmap.singleton
+    Sym.compare
+    mock_struct_tag
+    ( test_loc,
+      CF.Ctype.StructDef
+        ( [ ( member_x,
+              (CF.Annot.no_attributes, None, CF.Ctype.no_qualifiers, uint32_ctype) );
+            ( member_y,
+              (CF.Annot.no_attributes, None, CF.Ctype.no_qualifiers, uint32_ctype) )
+          ],
+          None ) )
+
+
+let with_mock_tags f = CF.Tags.with_tagDefs mock_tag_defs f
+
+let test_bt_loc = BT.Loc ()
+
+(** Test forward_abs_it for MemberShift *)
+let test_forward_member_shift _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let it = MT.memberShift_ (base_it, mock_struct_tag, member_y) test_loc in
+    let base_wint = make_wint test_bt_loc 100 200 in
+    let result = Basis.forward_abs_it it [ base_wint ] in
+    match result with
+    | None -> assert_failure "forward MemberShift should return Some"
+    | Some r ->
+      assert_wint_equal
+        ~msg:"MemberShift adds offset of y (4)"
+        (make_wint test_bt_loc 104 204)
+        r)
+
+
+(** Test forward_abs_it for MemberShift with bottom *)
+let test_forward_member_shift_bottom _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let it = MT.memberShift_ (base_it, mock_struct_tag, member_y) test_loc in
+    let base_wint = Basis.bottom test_bt_loc in
+    let result = Basis.forward_abs_it it [ base_wint ] in
+    match result with
+    | None -> assert_failure "forward MemberShift bottom should return Some"
+    | Some r -> assert_bool "result is bottom" (is_bottom_wint r))
+
+
+(** Test forward_abs_it for ArrayShift *)
+let test_forward_array_shift _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let index_sym = Sym.fresh "index" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let index_it = MT.sym_ (index_sym, Memory.uintptr_bt, test_loc) in
+    let ct = Cn.Sctypes.Integer (Unsigned (IntN_t 32)) in
+    let it = MT.arrayShift_ ~base:base_it ~index:index_it ct test_loc in
+    let base_wint = make_wint test_bt_loc 100 200 in
+    let index_wint = make_wint Memory.uintptr_bt 0 3 in
+    let result = Basis.forward_abs_it it [ base_wint; index_wint ] in
+    match result with
+    | None -> assert_failure "forward ArrayShift should return Some"
+    | Some r ->
+      (* base=[100,200] + sizeof(uint32)*index=[0,3] = [100,200] + [0,12] = [100,212] *)
+      assert_wint_equal ~msg:"ArrayShift base + 4*index" (make_wint test_bt_loc 100 212) r)
+
+
+(** Test forward_abs_it for ArrayShift with zero index *)
+let test_forward_array_shift_zero_index _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let index_sym = Sym.fresh "index" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let index_it = MT.sym_ (index_sym, Memory.uintptr_bt, test_loc) in
+    let ct = Cn.Sctypes.Integer (Unsigned (IntN_t 32)) in
+    let it = MT.arrayShift_ ~base:base_it ~index:index_it ct test_loc in
+    let base_wint = make_wint test_bt_loc 100 200 in
+    let index_wint = make_wint Memory.uintptr_bt 0 0 in
+    let result = Basis.forward_abs_it it [ base_wint; index_wint ] in
+    match result with
+    | None -> assert_failure "forward ArrayShift zero index should return Some"
+    | Some r ->
+      assert_wint_equal
+        ~msg:"ArrayShift with zero index = base"
+        (make_wint test_bt_loc 100 200)
+        r)
+
+
+(** Test backward_abs_it for MemberShift *)
+let test_backward_member_shift _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let it = MT.memberShift_ (base_it, mock_struct_tag, member_y) test_loc in
+    let result_wint = make_wint test_bt_loc 108 208 in
+    let base_wint = Basis.top test_bt_loc in
+    let refined = Basis.backward_abs_it it [ result_wint; base_wint ] in
+    match refined with
+    | [ refined_base ] ->
+      assert_wint_equal
+        ~msg:"backward MemberShift refines base = result - 4"
+        (make_wint test_bt_loc 104 204)
+        refined_base
+    | _ -> assert_failure "backward MemberShift should return 1 element")
+
+
+(** Test backward_abs_it for ArrayShift *)
+let test_backward_array_shift _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let index_sym = Sym.fresh "index" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let index_it = MT.sym_ (index_sym, Memory.uintptr_bt, test_loc) in
+    let ct = Cn.Sctypes.Integer (Unsigned (IntN_t 32)) in
+    let it = MT.arrayShift_ ~base:base_it ~index:index_it ct test_loc in
+    let result_wint = make_wint test_bt_loc 100 100 in
+    let base_wint = make_wint test_bt_loc 100 100 in
+    let index_wint = make_wint Memory.uintptr_bt 0 0 in
+    let refined = Basis.backward_abs_it it [ result_wint; base_wint; index_wint ] in
+    match refined with
+    | [ refined_base; refined_index ] ->
+      assert_wint_equal
+        ~msg:"backward ArrayShift base refined"
+        (make_wint test_bt_loc 100 100)
+        refined_base;
+      assert_wint_equal
+        ~msg:"backward ArrayShift index refined"
+        (make_wint Memory.uintptr_bt 0 0)
+        refined_index
+    | _ -> assert_failure "backward ArrayShift should return 2 elements")
+
+
+let shift_tests =
+  "WrappedInterval MemberShift/ArrayShift"
+  >::: [ "forward_member_shift" >:: test_forward_member_shift;
+         "forward_member_shift_bottom" >:: test_forward_member_shift_bottom;
+         "forward_array_shift" >:: test_forward_array_shift;
+         "forward_array_shift_zero_index" >:: test_forward_array_shift_zero_index;
+         "backward_member_shift" >:: test_backward_member_shift;
+         "backward_array_shift" >:: test_backward_array_shift
+       ]
+
+
+let suite = "WrappedInterval Tests" >::: [ unit_tests; property_tests; shift_tests ]

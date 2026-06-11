@@ -3,6 +3,7 @@ module Private : sig
   module Interval = Interval_
   module WrappedInterval = WrappedInterval
   module Tristate = TNum
+  module Congruence = Congruence
   module NonRelational = NonRelational
 end
 
@@ -13,6 +14,8 @@ module Interval : Domain.T
 module WrappedInterval : Domain.T
 
 module Tristate : Domain.T
+
+module Congruence : Domain.T
 
 module Make (GT : GenTerms.T) : sig
   val annotate : GenContext.Make(GT).t -> GenContext.Make(GT).t
