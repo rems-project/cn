@@ -7,6 +7,11 @@ open Cn
 open Cmdliner
 
 module Flags = struct
+  let ad_pruning =
+    let doc = "Enable abstract domain-based pruning" in
+    Arg.(value & flag & info [ "ad-pruning" ] ~doc)
+
+
   let static_absint =
     let doc =
       "(Experimental) Use static abstract interpretation with specified domain (or a \
@@ -79,6 +84,7 @@ end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
   let make
+        ad_pruning
         static_absint
         local_iterations
         smt_pruning_before_absinst
@@ -91,6 +97,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     : TestGeneration.config
     =
     { cfg with
+      ad_pruning;
       static_absint;
       local_iterations;
       smt_pruning_before_absinst;
@@ -103,6 +110,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
   in
   Term.(
     const make
+    $ Flags.ad_pruning
     $ Flags.static_absint
     $ Flags.local_iterations
     $ Flags.smt_pruning_before_absinst

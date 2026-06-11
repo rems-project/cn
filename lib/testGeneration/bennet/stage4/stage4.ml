@@ -3,6 +3,7 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module Specialize = Specialize.Make (AD)
     module SpecializeDomain = SpecializeDomain.Make (AD)
+    module AdPruning = AdPruning.Make (AD)
     module SmtPruning = SmtPruning.Make (AD)
     module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
   end
@@ -21,7 +22,11 @@ module Make (AD : Domain.T) = struct
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
     |> (if List.non_empty (TestGenConfig.has_static_absint ()) then
-          fun ctx -> ctx |> AI.annotate |> SpecializeDomain.transform
+          fun ctx ->
+        ctx
+        |> AI.annotate
+        |> (if TestGenConfig.is_ad_pruning () then AdPruning.transform else Fun.id)
+        |> SpecializeDomain.transform
         else
           fun ctx -> ctx)
     |> (if

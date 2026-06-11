@@ -56,6 +56,7 @@ type t =
     experimental_learning : bool;
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
+    ad_pruning : bool;
     static_absint : string list;
     local_iterations : int;
     smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
@@ -160,6 +161,8 @@ val is_experimental_learning : unit -> bool
 val is_experimental_arg_pruning : unit -> bool
 
 val is_experimental_return_pruning : unit -> bool
+
+val is_ad_pruning : unit -> bool
 
 val has_static_absint : unit -> string list
 
