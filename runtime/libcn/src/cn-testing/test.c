@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include <bennet/internals/domains/sized.h>
-#include <bennet/internals/lazy.h>
 #include <bennet/prelude.h>
 #include <bennet/state/rand_alloc.h>
 #include <bennet/utils.h>
