@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/dsl/assign.h>
 #include <bennet/internals/domains/sized.h>
 #include <bennet/prelude.h>
 #include <bennet/state/rand_alloc.h>
@@ -318,6 +319,18 @@ int cn_test_main(int argc, char* argv[]) {
       bennet_set_extrema_skew_disabled(true);
     } else if (strcmp("--old-style-alloc", arg) == 0) {
       bennet_set_old_style_alloc(true);
+    } else if (strcmp("--dynamic-absint-assign", arg) == 0) {
+      char* next = argv[i + 1];
+      if (strcmp("also", next) == 0) {
+        bennet_set_dynamic_absint_assign(BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO);
+      } else if (strcmp("only", next) == 0) {
+        bennet_set_dynamic_absint_assign(BENNET_DYNAMIC_ABSINT_ASSIGN_ONLY);
+      } else {
+        fprintf(stderr, "Error: Invalid --dynamic-absint-assign mode: %s\n", next);
+        fprintf(stderr, "Valid modes: also, only\n");
+        exit(1);
+      }
+      i++;
     } else if (strcmp("--smt-pruning-at-runtime", arg) == 0) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {

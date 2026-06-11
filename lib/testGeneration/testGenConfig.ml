@@ -73,6 +73,10 @@ type smt_solver =
   | Z3
   | CVC5
 
+type dynamic_absint_assign_mode =
+  | DynamicAbsIntAssignAlso
+  | DynamicAbsIntAssignOnly
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -144,7 +148,8 @@ type t =
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     disable_extrema_skew : bool;
-    discard_factor : int
+    discard_factor : int;
+    dynamic_absint_assign : dynamic_absint_assign_mode option
   }
 
 let default =
@@ -216,7 +221,8 @@ let default =
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
     disable_extrema_skew = false;
-    discard_factor = 10
+    discard_factor = 10;
+    dynamic_absint_assign = None
   }
 
 
@@ -258,6 +264,10 @@ let string_of_smt_solver (solver : smt_solver) =
   match solver with Z3 -> "z3" | CVC5 -> "cvc5"
 
 
+let string_of_dynamic_absint_assign_mode (mode : dynamic_absint_assign_mode) =
+  match mode with DynamicAbsIntAssignAlso -> "also" | DynamicAbsIntAssignOnly -> "only"
+
+
 module Options = struct
   let build_tool = [ ("bash", Bash); ("make", Make) ]
 
@@ -295,6 +305,12 @@ module Options = struct
 
   let smt_solver : (string * smt_solver) list =
     List.map (fun solver -> (string_of_smt_solver solver, solver)) [ Z3 ]
+
+
+  let dynamic_absint_assign_mode : (string * dynamic_absint_assign_mode) list =
+    List.map
+      (fun mode -> (string_of_dynamic_absint_assign_mode mode, mode))
+      [ DynamicAbsIntAssignAlso; DynamicAbsIntAssignOnly ]
 end
 
 let instance : t option ref = ref Option.None
@@ -466,3 +482,5 @@ let is_old_style_alloc () = (Option.get !instance).old_style_alloc
 let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
 
 let get_discard_factor () = (Option.get !instance).discard_factor
+
+let get_dynamic_absint_assign () = (Option.get !instance).dynamic_absint_assign

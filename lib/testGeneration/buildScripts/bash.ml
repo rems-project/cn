@@ -259,11 +259,17 @@ let run () =
           |> List.flatten)
        @ [ "--discard-factor"; string_of_int (Config.get_discard_factor ()) ]
        @ (if Config.is_old_style_alloc () then [ "--old-style-alloc" ] else [])
-       @
-       if Config.is_extrema_skew_disabled () then
-         [ "--disable-extrema-skew" ]
-       else
-         [])
+       @ (if Config.is_extrema_skew_disabled () then
+            [ "--disable-extrema-skew" ]
+          else
+            [])
+       @ (Config.get_dynamic_absint_assign ()
+          |> Option.map (fun mode ->
+            [ "--dynamic-absint-assign";
+              Config.string_of_dynamic_absint_assign_mode mode
+            ])
+          |> Option.to_list
+          |> List.flatten))
   in
   !^"# Run"
   ^^ hardline
