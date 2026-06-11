@@ -69,7 +69,8 @@ type t =
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     ad_pruning : bool;
-    static_absint : string list;
+    static_absint : bool;
+    domains : string list;
     local_iterations : int;
     smt_pruning_before_absint : [ `None | `Fast | `Slow ];
     smt_pruning_after_absint : [ `None | `Fast | `Slow ];
@@ -178,7 +179,9 @@ val is_experimental_return_pruning : unit -> bool
 
 val is_ad_pruning : unit -> bool
 
-val has_static_absint : unit -> string list
+val has_static_absint : unit -> bool
+
+val get_domains : unit -> string list
 
 val get_local_iterations : unit -> int
 

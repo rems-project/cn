@@ -21,9 +21,14 @@ module Flags = struct
 
 
   let static_absint =
+    let doc = "(Experimental) Enable static abstract interpretation" in
+    Arg.(value & flag & info ~docs:(exp_docs s_absint) [ "static-absint" ] ~doc)
+
+
+  let domains =
     let doc =
-      "(Experimental) Use static abstract interpretation with specified domain (or a \
-       comma-separated list). (e.g., 'interval', 'wrapped_interval', 'tristate')"
+      "Specify abstract domains to use (comma-separated list). Options: 'interval', \
+       'wrapped_interval', 'tristate', 'congruence'"
     in
     Arg.(
       value
@@ -32,10 +37,11 @@ module Flags = struct
              (enum
                 [ ("interval", "interval");
                   ("wrapped_interval", "wrapped_interval");
-                  ("tristate", "tristate")
+                  ("tristate", "tristate");
+                  ("congruence", "congruence")
                 ]))
           []
-      & info ~docs:(exp_docs s_absint) [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+      & info ~docs:(exp_docs s_absint) [ "domains" ] ~docv:"DOMAIN" ~doc)
 
 
   let local_iterations =
@@ -95,6 +101,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
   let make
         ad_pruning
         static_absint
+        domains
         local_iterations
         smt_pruning_before_absint
         smt_pruning_after_absint
@@ -107,6 +114,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     { cfg with
       ad_pruning;
       static_absint;
+      domains;
       local_iterations;
       smt_pruning_before_absint;
       smt_pruning_after_absint;
@@ -119,6 +127,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     const make
     $ Flags.ad_pruning
     $ Flags.static_absint
+    $ Flags.domains
     $ Flags.local_iterations
     $ Flags.smt_pruning_before_absint
     $ Flags.smt_pruning_after_absint
