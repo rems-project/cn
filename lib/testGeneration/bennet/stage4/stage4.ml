@@ -21,14 +21,6 @@ module Make (AD : Domain.T) = struct
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
-    |> (if TestGenConfig.has_static_absint () then
-          fun ctx ->
-        ctx
-        |> AI.annotate
-        |> (if TestGenConfig.is_ad_pruning () then AdPruning.transform else Fun.id)
-        |> SpecializeDomain.transform
-        else
-          fun ctx -> ctx)
     |> (if
           TestGenConfig.is_symbolic_enabled ()
           || TestGenConfig.is_specialization_disabled ()
@@ -36,6 +28,20 @@ module Make (AD : Domain.T) = struct
           fun ctx -> ctx
         else
           Specialize.Integer.transform)
+    |> (if TestGenConfig.has_static_absint () then
+          fun ctx ->
+        ctx
+        |> AI.annotate
+        |> if TestGenConfig.is_ad_pruning () then AdPruning.transform else Fun.id
+        else
+          Fun.id)
+    |> (if
+          TestGenConfig.has_static_absint ()
+          || TestGenConfig.has_dynamic_arbitrary_domain ()
+        then
+          SpecializeDomain.transform
+        else
+          Fun.id)
     |> (match TestGenConfig.has_smt_pruning_after_absint () with
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false

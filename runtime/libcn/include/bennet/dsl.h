@@ -13,6 +13,7 @@
 #include <bennet/internals/domain.h>
 #include <bennet/state/checkpoint.h>
 #include <bennet/state/failure.h>
+#include <cn-smt/memory/std_alloc.h>
 #include <cn-smt/terms.h>
 
 #define BENNET_CHECK_TIMEOUT()                                                           \
@@ -122,6 +123,287 @@
                                                                                          \
     bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   }
+
+/*=============================================================================
+ * BEGIN/REFINE/END macros for dynamic abstract interpretation
+ *
+ * These macros split the domain generation process into three phases:
+ * 1. BEGIN: Initialize domain from static analysis
+ * 2. REFINE: Apply constraint refinements (zero or more)
+ * 3. END: Sample from refined domain, handle backtracking
+ *===========================================================================*/
+
+/* Initialize domain from static analysis result */
+#define BENNET_LET_ARBITRARY_DOMAIN_BEGIN(cn_ty, c_ty, var, last_var, initial_domain)    \
+  bool var##_restore_randomness = false;                                                 \
+  bennet_checkpoint var##_checkpoint = bennet_checkpoint_save();                         \
+  bennet_rand_checkpoint var##_rand_checkpoint_before = bennet_rand_save();              \
+  bennet_rand_checkpoint var##_rand_checkpoint_after = NULL;                             \
+                                                                                         \
+  bennet_domain(c_ty)* var##_cs = initial_domain;                                        \
+  bennet_domain(c_ty)* var##_cs_tmp = var##_cs;                                          \
+  bennet_absint_state* var##_absint_state = NULL;                                        \
+  (void)var##_absint_state; /* May be unused if no REFINE calls */                       \
+                                                                                         \
+  bennet_label_##var##_refine :;
+
+#define BENNET_LET_ARBITRARY_DOMAIN_BEGIN_SIGNED(bits, var, last_var, domain)            \
+  BENNET_LET_ARBITRARY_DOMAIN_BEGIN(cn_bits_i##bits, int##bits##_t, var, last_var, domain)
+
+#define BENNET_LET_ARBITRARY_DOMAIN_BEGIN_UNSIGNED(bits, var, last_var, domain)          \
+  BENNET_LET_ARBITRARY_DOMAIN_BEGIN(                                                     \
+      cn_bits_u##bits, uint##bits##_t, var, last_var, domain)
+
+#define BENNET_LET_ARBITRARY_DOMAIN_BEGIN_POINTER(var, last_var, domain)                 \
+  BENNET_LET_ARBITRARY_DOMAIN_BEGIN(cn_pointer, uintptr_t, var, last_var, domain)
+
+/* Refine domain using backward abstract interpretation
+ * Parameters:
+ *   c_ty: C type (e.g., int32_t)
+ *   var: variable name being generated
+ *   x_sym: cn_sym for the target variable
+ *   x_bt: cn_base_type for the target variable
+ *   constraint_expr: cn_term* boolean expression (constraint to satisfy)
+ *   last_var: backtrack target if domain becomes bottom
+ *
+ * Uses bennet_domain_refine which operates at the product domain level:
+ * extracts the wint component, runs backward assume, rebuilds the product.
+ */
+#define BENNET_REFINE_CONSTRAINT(c_ty, var, x_sym, x_bt, constraint_expr, last_var, ...) \
+  {                                                                                      \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    cn_base_type _refine_bt = (x_bt);                                                    \
+    bennet_absint_sym _refine_sym = {.name = (x_sym).name, .id = (x_sym).id};            \
+    bool _refine_is_bottom = false;                                                      \
+    bennet_domain(c_ty)* _refine_result = bennet_domain_refine(                          \
+        c_ty, var##_cs, _refine_sym, &_refine_bt, constraint_expr, &_refine_is_bottom);  \
+    if (_refine_is_bottom) {                                                             \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      const void* _refine_vars[] = {__VA_ARGS__};                                        \
+      bennet_failure_blame_many(_refine_vars);                                           \
+                                                                                         \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
+    } else {                                                                             \
+      var##_cs = _refine_result;                                                         \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                            \
+    }                                                                                    \
+  }
+
+#define BENNET_REFINE_CONSTRAINT_BEGIN(                                                  \
+    c_ty, var, x_sym, x_bt, constraint_expr, last_var, ...)                              \
+  {                                                                                      \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    cn_base_type _refine_bt = (x_bt);                                                    \
+    bennet_absint_sym _refine_sym = {.name = (x_sym).name, .id = (x_sym).id};            \
+    bool _refine_is_bottom = false;                                                      \
+    bennet_domain(c_ty)* _refine_result = bennet_domain_refine(                          \
+        c_ty, var##_cs, _refine_sym, &_refine_bt, constraint_expr, &_refine_is_bottom);  \
+    if (_refine_is_bottom) {                                                             \
+      bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                            \
+      const void* _refine_vars[] = {__VA_ARGS__};                                        \
+      bennet_failure_blame_many(_refine_vars);                                           \
+                                                                                         \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);
+
+#define BENNET_REFINE_CONSTRAINT_END(c_ty, var, last_var)                                \
+  }                                                                                      \
+  else {                                                                                 \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
+    var##_cs = _refine_result;                                                           \
+  }                                                                                      \
+  }
+
+/* Backward refinement for a single free variable within a REFINE_CONSTRAINT block.
+ * Must be called between BENNET_REFINE_CONSTRAINT_BEGIN and _END.
+ * Depends on _refine_sym and _refine_bt being in scope from BEGIN.
+ *
+ * Parameters:
+ *   v_c_ty:           C type of the free variable (e.g., int32_t)
+ *   v:                free variable identifier (for blame)
+ *   v_sym:            bennet_absint_sym for the free variable
+ *   v_bt:             cn_base_type for the free variable
+ *   constraint_expr:  cn_term* constraint with two symbolic vars
+ *   var_cs:           domain of the primary variable (e.g., x_cs)
+ */
+#define BENNET_REFINE_CONSTRAINT_BACKWARD(                                               \
+    v_c_ty, v, v_sym, v_bt, constraint_expr, var_cs)                                     \
+  {                                                                                      \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    bennet_absint_sym _rc_sym_v = {.name = (v_sym).name, .id = (v_sym).id};              \
+    cn_base_type _rc_bt_v = (v_bt);                                                      \
+    cn_term* _rc_expr = (constraint_expr);                                               \
+    bool _rc_is_bottom = false;                                                          \
+    bennet_domain(v_c_ty)* _rc_D_v = bennet_domain_refine_with_state(v_c_ty,             \
+        bennet_domain_top(v_c_ty),                                                       \
+        _rc_sym_v,                                                                       \
+        &_rc_bt_v,                                                                       \
+        _rc_expr,                                                                        \
+        &_rc_is_bottom,                                                                  \
+        _refine_sym,                                                                     \
+        bennet_tagged_domain_create(&_refine_bt, var_cs));                               \
+    if (!_rc_is_bottom && !bennet_domain_is_top(v_c_ty, _rc_D_v)) {                      \
+      bennet_failure_blame_domain(v_c_ty, v, _rc_D_v);                                   \
+    }                                                                                    \
+  }
+
+#define BENNET_REFINE_CONSTRAINT_SIGNED(                                                 \
+    bits, var, x_sym, constraint_expr, last_var, ...)                                    \
+  BENNET_REFINE_CONSTRAINT(int##bits##_t,                                                \
+      var,                                                                               \
+      x_sym,                                                                             \
+      cn_base_type_bits(true, bits),                                                     \
+      constraint_expr,                                                                   \
+      last_var,                                                                          \
+      __VA_ARGS__)
+
+#define BENNET_REFINE_CONSTRAINT_UNSIGNED(                                               \
+    bits, var, x_sym, constraint_expr, last_var, ...)                                    \
+  BENNET_REFINE_CONSTRAINT(uint##bits##_t,                                               \
+      var,                                                                               \
+      x_sym,                                                                             \
+      cn_base_type_bits(false, bits),                                                    \
+      constraint_expr,                                                                   \
+      last_var,                                                                          \
+      __VA_ARGS__)
+
+#define BENNET_REFINE_CONSTRAINT_POINTER(var, x_sym, constraint_expr, last_var, ...)     \
+  BENNET_REFINE_CONSTRAINT(uintptr_t,                                                    \
+      var,                                                                               \
+      x_sym,                                                                             \
+      cn_base_type_simple(CN_BASE_LOC),                                                  \
+      constraint_expr,                                                                   \
+      last_var,                                                                          \
+      __VA_ARGS__)
+
+/**
+ * Refine domain using a pointer assignment.
+ * Used between ARBITRARY_DOMAIN_BEGIN and _END to narrow the pointer
+ * domain based on a statically-computed byte offset from the base pointer.
+ *
+ * @param c_ty    C type (uintptr_t for pointers)
+ * @param var     Variable being refined (has var##_cs and var##_cs_tmp)
+ * @param offset  Static byte offset from the base pointer
+ * @param bytes   sizeof the type being written
+ * @param last_var Backtrack label if domain becomes bottom
+ */
+#define BENNET_REFINE_ASSIGNMENT(c_ty,                                                   \
+    var,                                                                                 \
+    offset,                                                                              \
+    bytes,                                                                               \
+    last_var,                                                                            \
+    addr_term,                                                                           \
+    num_other_vars,                                                                      \
+    other_var_ids,                                                                       \
+    other_var_syms,                                                                      \
+    ...)                                                                                 \
+  {                                                                                      \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    bennet_domain(c_ty)* _asgn_domain =                                                  \
+        bennet_domain_from_assignment_##c_ty(0, (void*)(offset), bytes);                 \
+    bennet_domain(c_ty)* _refine_result =                                                \
+        bennet_domain_meet(c_ty, var##_cs, _asgn_domain);                                \
+    if (bennet_domain_is_bottom(c_ty, _refine_result)) {                                 \
+      if (bennet_get_dynamic_absint_assign() == BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO) {     \
+        bennet_assign_backward_blame(                                                    \
+            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
+      } else {                                                                           \
+        bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
+        const void* _asgn_vars[] = {__VA_ARGS__};                                        \
+        bennet_failure_blame_many(_asgn_vars);                                           \
+      }                                                                                  \
+                                                                                         \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
+    } else {                                                                             \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                            \
+      var##_cs = _refine_result;                                                         \
+    }                                                                                    \
+  }
+
+/* Sample from refined domain, handle backtracking */
+#define BENNET_LET_ARBITRARY_DOMAIN_END(backtracks, cn_ty, c_ty, var, last_var)          \
+  if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                        \
+    bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                        \
+    goto bennet_label_##last_var##_backtrack;                                            \
+  }                                                                                      \
+                                                                                         \
+  var##_cs_tmp = var##_cs;                                                               \
+                                                                                         \
+  int var##_backtracks = backtracks;                                                     \
+                                                                                         \
+  bennet_label_##var##_gen :;                                                            \
+  cn_ty* var = bennet_arbitrary_##cn_ty(var##_cs_tmp);                                   \
+                                                                                         \
+  var##_cs_tmp = var##_cs;                                                               \
+                                                                                         \
+  if (var##_restore_randomness) {                                                        \
+    bennet_rand_restore(var##_rand_checkpoint_after);                                    \
+    var##_restore_randomness = false;                                                    \
+  }                                                                                      \
+  var##_rand_checkpoint_after = bennet_rand_save();                                      \
+                                                                                         \
+  if (0) {                                                                               \
+    bennet_label_##var##_backtrack :;                                                    \
+    BENNET_CHECK_TIMEOUT();                                                              \
+    bool var##_should_restore_randomness =                                               \
+        bennet_failure_get_failure_type() == BENNET_FAILURE_ASSIGN;                      \
+    bool var##_is_young = bennet_failure_is_young();                                     \
+    if (bennet_backtrack_arbitrary_##cn_ty(                                              \
+            &var##_backtracks, &var##_cs, &var##_cs_tmp, &var##_checkpoint, var)) {      \
+      var##_restore_randomness = var##_should_restore_randomness;                        \
+      if (!var##_restore_randomness) {                                                   \
+        var##_restore_randomness =                                                       \
+            !var##_is_young && !bennet_domain_equal(c_ty, var##_cs, var##_cs_tmp);       \
+      }                                                                                  \
+                                                                                         \
+      goto bennet_label_##var##_gen;                                                     \
+    } else {                                                                             \
+      if (var##_is_young && bennet_failure_is_blamed(var)) {                             \
+        bennet_failure_mark_old();                                                       \
+      }                                                                                  \
+                                                                                         \
+      if (bennet_failure_is_blamed(var)) {                                               \
+        bennet_domain(c_ty)* var##_failure_domain =                                      \
+            bennet_failure_get_domain(c_ty, var);                                        \
+        if (var##_failure_domain != NULL) {                                              \
+          var##_failure_domain = bennet_domain_copy(c_ty, var##_failure_domain);         \
+        }                                                                                \
+        bennet_failure_remove_blame(var);                                                \
+                                                                                         \
+        bennet_domain(c_ty)* refine_result =                                             \
+            bennet_domain_meet(c_ty, var##_cs, var##_failure_domain);                    \
+        bool refine_is_bottom = bennet_domain_is_bottom(c_ty, refine_result);            \
+        std_free(refine_result);                                                         \
+                                                                                         \
+        if (!bennet_failure_has_blame() && refine_is_bottom) {                           \
+          bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                        \
+          bennet_failure_mark_old(); /* necessary due to set_type impl */                \
+                                                                                         \
+          if (var##_failure_domain != NULL) {                                            \
+            var##_cs = var##_failure_domain;                                             \
+          }                                                                              \
+                                                                                         \
+          goto bennet_label_##var##_refine;                                              \
+        }                                                                                \
+      }                                                                                  \
+                                                                                         \
+      goto bennet_label_##last_var##_backtrack;                                          \
+    }                                                                                    \
+  }
+
+#define BENNET_LET_ARBITRARY_DOMAIN_END_SIGNED(backtracks, bits, var, last_var)          \
+  BENNET_LET_ARBITRARY_DOMAIN_END(                                                       \
+      backtracks, cn_bits_i##bits, int##bits##_t, var, last_var)
+
+#define BENNET_LET_ARBITRARY_DOMAIN_END_UNSIGNED(backtracks, bits, var, last_var)        \
+  BENNET_LET_ARBITRARY_DOMAIN_END(                                                       \
+      backtracks, cn_bits_u##bits, uint##bits##_t, var, last_var)
+
+#define BENNET_LET_ARBITRARY_DOMAIN_END_POINTER(backtracks, var, last_var)               \
+  BENNET_LET_ARBITRARY_DOMAIN_END(backtracks, cn_pointer, uintptr_t, var, last_var)
+
+/*=============================================================================
+ * Original combined macro (for backward compatibility)
+ *===========================================================================*/
 
 #define BENNET_LET_ARBITRARY_DOMAIN(backtracks, cn_ty, c_ty, var, last_var, ...)         \
   bool var##_restore_randomness = false;                                                 \

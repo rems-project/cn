@@ -99,5 +99,7 @@ let pldi26 : TestGenConfig.t =
     discard_factor = 10;
     (* Runtime abstract-interpretation features added after the paper freeze;
        pinned off so paper runs are unaffected. *)
-    dynamic_absint_assign = None
+    dynamic_absint_assign = None;
+    dynamic_arbitrary_domain = false;
+    dynamic_arbitrary_propagation = false
   }

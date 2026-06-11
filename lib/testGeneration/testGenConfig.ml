@@ -108,7 +108,6 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
-    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -149,6 +148,9 @@ type t =
     dsl_log_dir : string option;
     disable_extrema_skew : bool;
     discard_factor : int;
+    dynamic_arbitrary_domain : bool;
+    dynamic_arbitrary_propagation : bool;
+    old_style_alloc : bool;
     dynamic_absint_assign : dynamic_absint_assign_mode option
   }
 
@@ -182,7 +184,6 @@ let default =
     smt_solver = Z3;
     disable_specialization = false;
     only_top_level_ite_lifting = false;
-    old_style_alloc = true;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -222,6 +223,9 @@ let default =
     dsl_log_dir = None;
     disable_extrema_skew = false;
     discard_factor = 10;
+    dynamic_arbitrary_domain = false;
+    dynamic_arbitrary_propagation = false;
+    old_style_alloc = false;
     dynamic_absint_assign = None
   }
 
@@ -477,10 +481,16 @@ let is_specialization_disabled () = (Option.get !instance).disable_specializatio
 
 let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
 
-let is_old_style_alloc () = (Option.get !instance).old_style_alloc
-
 let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
 
 let get_discard_factor () = (Option.get !instance).discard_factor
+
+let has_dynamic_arbitrary_domain () = (Option.get !instance).dynamic_arbitrary_domain
+
+let has_dynamic_arbitrary_propagation () =
+  (Option.get !instance).dynamic_arbitrary_propagation
+
+
+let is_old_style_alloc () = (Option.get !instance).old_style_alloc
 
 let get_dynamic_absint_assign () = (Option.get !instance).dynamic_absint_assign

@@ -10,6 +10,7 @@
 #include <bennet/dsl/assign.h>
 #include <bennet/internals/domains/sized.h>
 #include <bennet/prelude.h>
+#include <bennet/state/alloc.h>
 #include <bennet/state/rand_alloc.h>
 #include <bennet/utils.h>
 #include <bennet/utils/hash_table.h>

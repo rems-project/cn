@@ -1,0 +1,225 @@
+module BT = BaseTypes
+module MT = MakeTerm
+module LC = LogicalConstraints
+
+module Make (AD : Domain.T) = struct
+  module Term = Term.Make (AD)
+
+  let rec pointer_of (it : Terms.Normal.t) : Sym.t * BT.t =
+    match it with
+    | IT (CopyAllocId { loc = ptr; _ }, _, _)
+    | IT (ArrayShift { base = ptr; _ }, _, _)
+    | IT (MemberShift (ptr, _, _), _, _) ->
+      pointer_of ptr
+    | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
+    | _ ->
+      let pointers =
+        it
+        |> Terms.Normal.free_vars_bts
+        |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
+      in
+      if not (Sym.Map.cardinal pointers == 1) then
+        Cerb_debug.print_debug 2 [] (fun () ->
+          Pp.(
+            plain
+              (braces
+                 (separate_map
+                    (comma ^^ space)
+                    (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
+                    (List.of_seq (Sym.Map.to_seq pointers)))
+               ^^^ !^" in "
+               ^^ Terms.Normal.pp it)));
+      if Sym.Map.is_empty pointers then (
+        print_endline (Pp.plain (Terms.Normal.pp it));
+        failwith __LOC__);
+      Sym.Map.choose pointers
+
+
+  (** If [gt] is a [Map] over a range [it1 <= i < it2] that contains an [Asgn] with an
+      [ArrayShift] indexed by [i] (optionally filtered by [target]), returns a list of
+      [(start_addr, ct, index_bound)] tuples where [start_addr] is the address of the
+      first element and [index_bound] is the upper-bound index count (i.e. [it2]).
+      Returns [[]] when the pattern does not match. *)
+  let array_map_of ~(defined : Sym.Set.t) ?target (gt : Term.t)
+    : (Terms.Normal.t * Sctypes.t * Terms.Normal.t) list
+    =
+    let (GenTerms.Annot (gt_, _, _, _)) = gt in
+    match gt_ with
+    | `Map ((i, _i_bt, it_perm), gt_inner) ->
+      (match it_perm with
+       | IT
+           ( Binop
+               ( And,
+                 IT (Binop (LE, it1, IT (Sym i1, _, _)), _, _),
+                 IT (Binop (LT, IT (Sym i2, _, _), it_max), _, _) ),
+             _,
+             _ )
+       | IT
+           ( Binop
+               ( And,
+                 IT (Binop (LT, IT (Sym i2, _, _), it_max), _, _),
+                 IT (Binop (LE, it1, IT (Sym i1, _, _)), _, _) ),
+             _,
+             _ )
+         when Sym.equal i1 i && Sym.equal i2 i ->
+         let defined' = Sym.Set.add i defined in
+         let rec find_asgn (gt : Term.t)
+           : (Terms.Normal.t * Sctypes.t * Terms.Normal.t) list
+           =
+           let (GenTerms.Annot (gt_, _, _, _)) = gt in
+           match gt_ with
+           | `LetStar ((_, gt_inner), gt_rest) ->
+             (match find_asgn gt_inner with [] -> find_asgn gt_rest | results -> results)
+           | `Assert (_, gt_rest) | `AssertDomain (_, _, _, gt_rest) -> find_asgn gt_rest
+           | `Asgn ((it_addr, _sct), _, gt_rest) ->
+             (match it_addr with
+              | IT (ArrayShift { base; ct; index = IT (Sym _, _, _) }, _, arr_loc) ->
+                let fvs = Terms.Normal.free_vars it_addr in
+                let fvs' =
+                  match target with Some t -> Sym.Set.remove t fvs | None -> fvs
+                in
+                let it_max_fvs = Terms.Normal.free_vars it_max in
+                let it_max_fvs' =
+                  match target with
+                  | Some t -> Sym.Set.remove t it_max_fvs
+                  | None -> it_max_fvs
+                in
+                if
+                  (match target with Some t -> Sym.Set.mem t fvs | None -> true)
+                  && Sym.Set.subset fvs' defined'
+                  && Sym.Set.subset it_max_fvs' defined
+                then
+                  [ ( IT (ArrayShift { base; ct; index = it1 }, BT.Loc (), arr_loc),
+                      ct,
+                      it_max )
+                  ]
+                else
+                  find_asgn gt_rest
+              | _ -> find_asgn gt_rest)
+           | _ -> []
+         in
+         find_asgn gt_inner
+       | IT (Binop (LT, IT (Sym i', _, _), it_max), _, _) when Sym.equal i i' ->
+         let defined' = Sym.Set.add i defined in
+         let rec find_asgn (gt : Term.t)
+           : (Terms.Normal.t * Sctypes.t * Terms.Normal.t) list
+           =
+           let (GenTerms.Annot (gt_, _, _, _)) = gt in
+           match gt_ with
+           | `LetStar ((_, gt_inner), gt_rest) ->
+             (match find_asgn gt_inner with [] -> find_asgn gt_rest | results -> results)
+           | `Assert (_, gt_rest) | `AssertDomain (_, _, _, gt_rest) -> find_asgn gt_rest
+           | `Asgn ((it_addr, _sct), _, gt_rest) ->
+             (match it_addr with
+              | IT (ArrayShift { base; ct; index = IT (Sym _, _, _) }, _, _) ->
+                let fvs = Terms.Normal.free_vars it_addr in
+                let fvs' =
+                  match target with Some t -> Sym.Set.remove t fvs | None -> fvs
+                in
+                let it_max_fvs = Terms.Normal.free_vars it_max in
+                let it_max_fvs' =
+                  match target with
+                  | Some t -> Sym.Set.remove t it_max_fvs
+                  | None -> it_max_fvs
+                in
+                if
+                  (match target with Some t -> Sym.Set.mem t fvs | None -> true)
+                  && Sym.Set.subset fvs' defined'
+                  && Sym.Set.subset it_max_fvs' defined
+                then
+                  [ (base, ct, it_max) ]
+                else
+                  find_asgn gt_rest
+              | _ -> find_asgn gt_rest)
+           | _ -> []
+         in
+         find_asgn gt_inner
+       | _ -> [])
+    | _ -> []
+
+
+  (** Collect constraints and assignments from Assert/Asgn nodes in gt_rest that involve
+      only defined variables plus the target variable. Constraints stop at LetStar
+      boundaries; assignments continue through LetStar (adding the bound variable to
+      defined). *)
+  let rec collect_constraints
+            ?(strip = false)
+            ~(defined : Sym.Set.t)
+            ?target
+            (gt : Term.t)
+    : Terms.Normal.t list
+      * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+      * Term.t
+    =
+    let (GenTerms.Annot (gt_, tag, _bt, loc)) = gt in
+    match gt_ with
+    | `Assert (lc, gt_rest) ->
+      let constraints_rest, asgns_rest, gt_rest' =
+        collect_constraints ~strip ~defined ?target gt_rest
+      in
+      (match lc with
+       | LC.T it ->
+         let fvs = Terms.Normal.free_vars it in
+         let fvs' = match target with Some t -> Sym.Set.remove t fvs | None -> fvs in
+         if Sym.Set.subset fvs' defined then
+           ( it :: constraints_rest,
+             asgns_rest,
+             if strip then gt_rest' else Term.assert_ (lc, gt_rest') tag loc )
+         else
+           (constraints_rest, asgns_rest, Term.assert_ (lc, gt_rest') tag loc)
+       | LC.Forall _ ->
+         (* Skip forall constraints - they have quantified variables *)
+         (constraints_rest, asgns_rest, Term.assert_ (lc, gt_rest') tag loc))
+    | `LetStar ((x, gt_inner), gt_rest) ->
+      let inner_asgns =
+        let (GenTerms.Annot (gt_inner_, _, _, _)) = gt_inner in
+        match gt_inner_ with
+        | `Map _ ->
+          List.map
+            (fun (s, ct, e) -> (s, ct, Some e))
+            (array_map_of ~defined ?target gt_inner)
+        | _ -> []
+      in
+      let constraints_rest, asgns_rest, gt_rest' =
+        collect_constraints ~strip ~defined ?target gt_rest
+      in
+      ( constraints_rest,
+        inner_asgns @ asgns_rest,
+        Term.let_star_ ((x, gt_inner), gt_rest') tag loc )
+    | `Map _ ->
+      let arr_results = array_map_of ~defined ?target gt in
+      ( [],
+        List.map
+          (fun (start_addr, ct, end_addr) -> (start_addr, ct, Some end_addr))
+          arr_results,
+        gt )
+    | `Pick _ | `ITE _ -> ([], [], gt)
+    (* Constraints in branches are conditional
+    *)
+    | `Return _ -> ([], [], gt)
+    | `Asgn ((it_addr, sct), it_val, gt_rest) ->
+      let constraints, asgns, gt_rest' =
+        collect_constraints ~strip ~defined ?target gt_rest
+      in
+      let fvs = Terms.Normal.free_vars it_addr in
+      let add_res =
+        match target with
+        | Some t ->
+          let is_abt_target = Sym.equal (fst (pointer_of it_addr)) t in
+          let fvs' = Sym.Set.remove t fvs in
+          is_abt_target && Sym.Set.subset fvs' defined
+        | None -> Sym.Set.subset fvs defined
+      in
+      if add_res then
+        ( constraints,
+          (it_addr, sct, None) :: asgns,
+          Term.asgn_ ((it_addr, sct), it_val, gt_rest') tag loc )
+      else
+        (constraints, asgns, Term.asgn_ ((it_addr, sct), it_val, gt_rest') tag loc)
+    | `AssertDomain (d, cs, asgns, gt_rest) ->
+      let constraints, asgns_rest, gt_rest' =
+        collect_constraints ~strip ~defined ?target gt_rest
+      in
+      (constraints, asgns_rest, Term.assert_domain_ (d, cs, asgns, gt_rest') tag loc)
+    | _ -> ([], [], gt)
+end
