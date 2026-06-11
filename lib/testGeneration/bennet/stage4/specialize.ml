@@ -152,7 +152,7 @@ module Make (AD : Domain.T) = struct
            Rep.intersect rep rep'
          | None -> rep)
       | `Assert (_, gt_rest) -> collect_and_extract_constraints vars x gt_rest
-      | `AssertDomain (_, gt_rest) -> collect_and_extract_constraints vars x gt_rest
+      | `AssertDomain (_, _, _, gt_rest) -> collect_and_extract_constraints vars x gt_rest
       | `ITE (it_if, gt_then, gt_else) ->
         let rep_then =
           let rep_then = collect_and_extract_constraints vars x gt_then in
@@ -209,8 +209,8 @@ module Make (AD : Domain.T) = struct
           ()
           loc
       | `Assert (lc, gt_rest) -> Term.assert_ (lc, specialize vars gt_rest) () loc
-      | `AssertDomain (ad, gt_rest) ->
-        Term.assert_domain_ (ad, specialize vars gt_rest) () loc
+      | `AssertDomain (ad, its, asgns, gt_rest) ->
+        Term.assert_domain_ (ad, its, asgns, specialize vars gt_rest) () loc
       | `ITE (it_if, gt_then, gt_else) ->
         Term.ite_ (it_if, specialize vars gt_then, specialize vars gt_else) () loc
       | `Map ((i_sym, i_bt, it_perm), gt_inner) ->

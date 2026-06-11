@@ -36,6 +36,11 @@ module Make (AD : Domain.T) = struct
 
       let basetype (GenTerms.Annot (_, _, bt, _) : t) : BT.t = bt
 
+      (* Include defaults for all unsupported smart constructors *)
+      include GenTerms.Defaults (struct
+          let name = "Stage 2"
+        end)
+
       let arbitrary_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
         Annot (`Arbitrary, tag, bt, loc)
 
@@ -43,11 +48,6 @@ module Make (AD : Domain.T) = struct
       let symbolic_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
         Annot (`Symbolic, tag, bt, loc)
 
-
-      (* Include defaults for all unsupported smart constructors *)
-      include GenTerms.Defaults (struct
-          let name = "Stage 2"
-        end)
 
       let call_ ((fsym, its) : Sym.t * T.t list) (tag : tag_t) (bt : BT.t) loc : t =
         Annot (`Call (fsym, its), tag, bt, loc)

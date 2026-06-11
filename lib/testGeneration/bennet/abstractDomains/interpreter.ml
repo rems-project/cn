@@ -60,7 +60,9 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         (GT.arbitrary_specialized_ bounds tag bt loc, [ d ])
       | `ArbitraryDomain _ -> failwith ("unreachable @ " ^ __LOC__)
       | `Return _ ->
-        let tm' = if should_assert then GT.assert_domain_ (d, tm) tag loc else tm in
+        let tm' =
+          if should_assert then GT.assert_domain_ (d, [], [], tm) tag loc else tm
+        in
         (tm', [ d ])
       | `Call (fsym, actual_args) | `CallSized (fsym, actual_args, _) ->
         let d' =
@@ -88,7 +90,9 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
             (* function has no ownership info *)
             d
         in
-        let tm' = if should_assert then GT.assert_domain_ (d', tm) tag loc else tm in
+        let tm' =
+          if should_assert then GT.assert_domain_ (d', [], [], tm) tag loc else tm
+        in
         (tm', [ d' ])
       | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
         let d' = I.abs_assert (LC.T it_perm) d in
@@ -113,10 +117,11 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let d' = I.abs_assert lc d in
         let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
         (GT.assert_ (lc, gt') tag loc, domain_cons d' d_list)
-      | `AssertDomain (ad, gt') ->
+      | `AssertDomain (ad, _, _, gt') ->
         (* Delete `assert_domain` to avoid dupes *)
         let gt', d_list = aux abs_ctx defs_ctx gt' (AD.meet ad d) should_assert in
         (gt', domain_cons ad d_list)
+      | `AssertDomainElab _ -> failwith ("unreachable @ " ^ __LOC__)
       | `SplitSize (syms, gt') ->
         let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
         (GT.split_size_ (syms, gt') tag loc, d_list)
