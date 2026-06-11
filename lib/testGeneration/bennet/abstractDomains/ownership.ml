@@ -11,6 +11,7 @@
 
 module BT = BaseTypes
 module T = Terms.Normal
+module CF = Cerb_frontend
 module MT = MakeTerm
 module LC = LogicalConstraints
 
@@ -197,16 +198,29 @@ module Inner = struct
       | IT (CopyAllocId { loc = ptr; _ }, _, _) ->
         let@ p, offset = pointer_and_offset ptr in
         return (p, offset)
-      | IT (MemberShift (base, tag, member), _, loc) ->
-        pointer_and_offset
-          (MT.pointer_offset_
-             (base, IT (OffsetOf (tag, member), Memory.size_bt, loc))
-             loc)
-      | IT (ArrayShift { base = ptr; ct; index = IT (Const (Z n), _, _) }, _, _)
-      | IT (ArrayShift { base = ptr; ct; index = IT (Const (Bits (_, n)), _, _) }, _, _)
-        ->
-        let@ p, offset = pointer_and_offset ptr in
-        return (p, offset + (Memory.size_of_ctype ct * Z.to_int n))
+      | IT (MemberShift (base, tag, member), _, _) ->
+        let tag_defs = CF.Tags.tagDefs () in
+        let member_off =
+          Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member)
+        in
+        let@ p, offset = pointer_and_offset base in
+        return (p, offset + member_off)
+      | IT (ArrayShift { base = ptr; ct; index = IT (Const (Z n), _, _) }, _, _) ->
+        if not (Z.fits_int n) then
+          None
+        else
+          let@ p, offset = pointer_and_offset ptr in
+          return (p, offset + (Memory.size_of_ctype ct * Z.to_int n))
+      | IT
+          ( ArrayShift { base = ptr; ct; index = IT (Const (Bits ((_, width), n)), _, _) },
+            _,
+            _ ) ->
+        let n_signed = BT.normalise_to_range (BT.Signed, width) n in
+        if not (Z.fits_int n_signed) then
+          None
+        else
+          let@ p, offset = pointer_and_offset ptr in
+          return (p, offset + (Memory.size_of_ctype ct * Z.to_int n_signed))
       | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> return ((x, bt), 0)
       | _ -> None
     in
@@ -239,6 +253,39 @@ module Inner = struct
 
 
   let to_lc (d : t) : LC.t = LC.T (to_it d)
+
+  let to_interval d =
+    match d with
+    | None -> []
+    | Some omap ->
+      Sym.Map.fold
+        (fun sym (bt, (before, after)) acc ->
+           if before = 0 && after = 0 then
+             acc
+           else (
+             let norm_bt = match bt with BT.Loc () -> Memory.uintptr_bt | _ -> bt in
+             match BT.is_bits_bt norm_bt with
+             | None -> acc
+             | Some ((sign, _) as bits_info) ->
+               let min_val, max_val = BT.bits_range bits_info in
+               let lo =
+                 match sign with
+                 | BT.Unsigned ->
+                   (* Owned bytes span [ptr - before, ptr + after - 1].
+                      Address 0 can never be part of a valid allocation,
+                      so ptr - before >= 1, i.e., ptr >= before + 1. *)
+                   Z.of_int (before + 1)
+                 | BT.Signed -> Z.add min_val (Z.of_int before)
+               in
+               let hi = Z.sub max_val (Z.of_int after) in
+               (* Use original bt, not norm_bt, so the receiving domain's
+                  meet assertion (BT.equal) won't fail on Loc() vs Bits *)
+               (sym, bt, lo, hi) :: acc))
+        omap
+        []
+
+
+  let of_interval _ _ _ _ = top
 
   let is_meet_assoc = true
 

@@ -84,12 +84,17 @@ module WrappedIntervalBasis = struct
   (* Wrapped membership test: e ∈ [x,y] iff e - x ≤ y - x (modular arithmetic) *)
   let wrapped_member e start stop bt =
     let normalize = normalize bt in
+    let width = get_width bt in
+    let modulus = Z.shift_left Z.one width in
     let e_norm = normalize e in
     let start_norm = normalize start in
     let stop_norm = normalize stop in
     let diff_e = normalize (Z.sub e_norm start_norm) in
     let diff_stop = normalize (Z.sub stop_norm start_norm) in
-    Z.leq diff_e diff_stop
+    (* Differences represent clockwise distances on the number circle,
+       so they must be compared as unsigned values *)
+    let to_unsigned z = if Z.lt z Z.zero then Z.add z modulus else z in
+    Z.leq (to_unsigned diff_e) (to_unsigned diff_stop)
 
 
   let top bt =
@@ -104,6 +109,15 @@ module WrappedIntervalBasis = struct
       let min, max = get_extrema bt in
       (Z.equal start min && Z.equal stop max)
       || Z.equal (normalize bt (Z.sub start stop)) Z.one)
+
+
+  let to_interval t =
+    if is_bottom t || is_top t then
+      None
+    else if Z.gt t.start t.stop then
+      None (* wrapping interval - skip *)
+    else
+      Some (t.start, t.stop)
 
 
   let equal b1 b2 =
@@ -277,7 +291,7 @@ module WrappedIntervalBasis = struct
       else if wrapped_member a c d s1.bt then
         { bt = s1.bt; is_bottom = false; start = a; stop = d }
       else (* Disjoint case *)
-        top s1.bt)
+        bottom s1.bt)
 
 
   (* Helper: return the interval with the larger cardinality *)
@@ -1059,6 +1073,7 @@ module WrappedIntervalBasis = struct
     let (IT (it_, bt, _loc)) = it in
     match it_ with
     | Const (Bits (_, n)) -> Some (of_interval bt n n)
+    | Const Null -> Some (of_interval bt Z.zero Z.zero)
     | Binop (op, _, _) ->
       let b1, b2 =
         match b_args with
@@ -1133,6 +1148,35 @@ module WrappedIntervalBasis = struct
               { bt = dst_bt; is_bottom = false; start = extend_start; stop = extend_stop })
           else (* Zero extension *)
             Some { bt = dst_bt; is_bottom = false; start = b.start; stop = b.stop }))
+    | MemberShift (_, tag, member) ->
+      let b =
+        match b_args with [ b ] -> b | _ -> failwith "Incorrect number of arguments"
+      in
+      if b.is_bottom then
+        Some (bottom bt)
+      else (
+        let tag_defs = CF.Tags.tagDefs () in
+        let offset =
+          Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+        in
+        let offset_wint = of_interval bt offset offset in
+        forward_abs_binop Terms.Add b offset_wint)
+    | ArrayShift { ct; _ } ->
+      let b_base, b_index =
+        match b_args with
+        | [ b1; b2 ] -> (b1, b2)
+        | _ -> failwith "Incorrect number of arguments"
+      in
+      if b_base.is_bottom || b_index.is_bottom then
+        Some (bottom bt)
+      else (
+        let elem_size = Z.of_int (Memory.size_of_ctype ct) in
+        let elem_wint = of_interval b_index.bt elem_size elem_size in
+        match forward_abs_binop Terms.Mul b_index elem_wint with
+        | Some offset ->
+          let offset = { offset with bt = b_base.bt } in
+          forward_abs_binop Terms.Add b_base offset
+        | None -> None)
     | _ -> None
 
 
@@ -1206,6 +1250,59 @@ module WrappedIntervalBasis = struct
     | Unop (Not, IT (Binop (LT, it1, it2), _, _))
     | Unop (Not, IT (Binop (LTPointer, it1, it2), _, _)) ->
       backward_abs_it (MT.lt_ (it2, it1) loc) bs
+    | Cast (_, it1) ->
+      (* Propagate result domain backward through cast to operand *)
+      let src_bt = Terms.Normal.get_bt it1 in
+      if supported src_bt then (
+        match bs with
+        | [ b_res; b_op ] when not b_res.is_bottom ->
+          let src_min, src_max = get_extrema src_bt in
+          (* Clamp result interval to source type range *)
+          let clamped_start = Z.max b_res.start src_min in
+          let clamped_stop = Z.min b_res.stop src_max in
+          if Z.leq clamped_start clamped_stop then
+            [ meet b_op (of_interval src_bt clamped_start clamped_stop) ]
+          else
+            [ b_op ]
+        | _ -> List.tl bs)
+      else
+        List.tl bs
+    | MemberShift (_, tag, member) ->
+      let b_res, b_base = match bs with [ r; b ] -> (r, b) | _ -> failwith __LOC__ in
+      let tag_defs = CF.Tags.tagDefs () in
+      let offset =
+        Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+      in
+      let offset_wint = of_interval b_res.bt offset offset in
+      (match forward_abs_binop Terms.Sub b_res offset_wint with
+       | Some refined_base -> [ meet b_base refined_base ]
+       | None -> [ b_base ])
+    | ArrayShift { ct; _ } ->
+      let b_res, b_base, b_index =
+        match bs with [ r; b; i ] -> (r, b, i) | _ -> failwith __LOC__
+      in
+      let elem_size = Z.of_int (Memory.size_of_ctype ct) in
+      let elem_wint = of_interval b_index.bt elem_size elem_size in
+      let refined_base =
+        match forward_abs_binop Terms.Mul b_index elem_wint with
+        | Some offset ->
+          let offset = { offset with bt = b_res.bt } in
+          (match forward_abs_binop Terms.Sub b_res offset with
+           | Some rb -> meet b_base rb
+           | None -> b_base)
+        | None -> b_base
+      in
+      let refined_index =
+        let b_res_as_index = { b_res with bt = b_index.bt } in
+        let b_base_as_index = { b_base with bt = b_index.bt } in
+        match forward_abs_binop Terms.Sub b_res_as_index b_base_as_index with
+        | Some diff ->
+          (match forward_abs_binop Terms.Div diff elem_wint with
+           | Some ri -> meet b_index ri
+           | None -> b_index)
+        | None -> b_index
+      in
+      [ refined_base; refined_index ]
     | _ ->
       if BT.equal BT.Bool (Terms.get_bt it) then
         bs
@@ -1223,6 +1320,9 @@ module WrappedIntervalBasis = struct
 
   let pp_args { bt; is_bottom; start; stop } =
     assert (not is_bottom);
+    let norm = normalize bt in
+    let start = norm start in
+    let stop = norm stop in
     let sign, width =
       match bt with
       | Loc () -> (BT.Unsigned, Memory.uintptr_bt |> BT.is_bits_bt |> Option.get |> snd)
@@ -1277,9 +1377,14 @@ module WrappedIntervalBasis = struct
     else if is_top t then
       MT.bool_ true loc
     else (
-      let sym_it = MT.sym_ (sym, t.bt, loc) in
-      let start_it = MT.num_lit_ t.start t.bt loc in
-      let stop_it = MT.num_lit_ t.stop t.bt loc in
+      let bits_bt, sym_it =
+        match t.bt with
+        | BT.Loc () ->
+          (Memory.uintptr_bt, MT.cast_ Memory.uintptr_bt (MT.sym_ (sym, t.bt, loc)) loc)
+        | _ -> (t.bt, MT.sym_ (sym, t.bt, loc))
+      in
+      let start_it = MT.num_lit_ t.start bits_bt loc in
+      let stop_it = MT.num_lit_ t.stop bits_bt loc in
       if Z.leq t.start t.stop then (* Normal interval: start <= X && X <= stop *)
         MT.and_ [ MT.le_ (start_it, sym_it) loc; MT.le_ (sym_it, stop_it) loc ] loc
       else (* Wrapped interval [start..max] ∪ [min..stop]: start <= X || X <= stop *)

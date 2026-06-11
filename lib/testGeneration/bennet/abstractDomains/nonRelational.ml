@@ -36,6 +36,8 @@ module type BASIS = sig
 
   val of_interval : BT.t -> Z.t -> Z.t -> t
 
+  val to_interval : t -> (Z.t * Z.t) option
+
   val forward_abs_it : T.t -> t list -> t option
 
   val backward_abs_it : T.t -> t list -> t list
@@ -661,6 +663,21 @@ module Make (B : BASIS) = struct
 
 
   let to_lc (od : t) : LC.t = LC.T (to_it od)
+
+  let to_interval (od : t) =
+    match od with
+    | None -> []
+    | Some d ->
+      Sym.Map.fold
+        (fun sym b acc ->
+           match B.to_interval b with
+           | Some (lo, hi) -> (sym, B.bt b, lo, hi) :: acc
+           | None -> acc)
+        d
+        []
+
+
+  let of_interval sym bt lo hi = Some (Sym.Map.singleton sym (B.of_interval bt lo hi))
 
   let is_meet_assoc = B.is_meet_assoc
 

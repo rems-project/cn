@@ -48,6 +48,13 @@ module IntervalBasis = struct
       start == min && stop == max)
 
 
+  let to_interval t =
+    if is_bottom t || is_top t then
+      None
+    else
+      Some (t.start, t.stop)
+
+
   let leq
         { bt = bt1; is_bottom = b1; start = start1; stop = stop1 }
         { bt = bt2; is_bottom = b2; start = start2; stop = stop2 }
@@ -367,6 +374,9 @@ module IntervalBasis = struct
 
   let pp_args { bt; is_bottom; start; stop } =
     assert (not is_bottom);
+    let norm_bt = match bt with BT.Loc () -> Memory.uintptr_bt | _ -> bt in
+    let start = BT.normalise_to_range_bt norm_bt start in
+    let stop = BT.normalise_to_range_bt norm_bt stop in
     let sign, width =
       match bt with
       | Loc () -> (BT.Unsigned, Memory.uintptr_bt |> BT.is_bits_bt |> Option.get |> snd)
