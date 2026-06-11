@@ -155,7 +155,6 @@ module Make (AD : Domain.T) = struct
               "Arbitrary: only pointer and bitvector types are supported, got %s"
               (Pp.plain (BT.pp bt))))
     | `Symbolic -> failwith "TODO"
-    | `Lazy -> failwith "standalone Lazy should not appear in stage 7"
     | `ArbitraryDomain _ ->
       (match bt with
        | Loc () -> ([], [], mk_expr (string_call "BENNET_ARBITRARY_POINTER" []))
@@ -455,25 +454,6 @@ module Make (AD : Domain.T) = struct
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
-    | `LetStar ((x, GenTerms.Annot (`Lazy, _, (Bits (sign, bits) as x_bt), _)), gt_rest)
-      ->
-      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
-      let cn_ty_str =
-        match sign with
-        | Unsigned -> Printf.sprintf "cn_bits_u%d" bits
-        | Signed -> Printf.sprintf "cn_bits_i%d" bits
-      in
-      let s_let =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_LET_LAZY"),
-                    [ mk_expr (AilEident (Sym.fresh cn_ty_str)); mk_expr (AilEident x) ]
-                  )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
         ((x, GenTerms.Annot (`Arbitrary, _, (Bits (sign, bits) as x_bt), _)), gt_rest) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
@@ -612,20 +592,6 @@ module Make (AD : Domain.T) = struct
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, Loc (), _)), _) ->
       failwith "TODO: LetStar Symbolic Loc"
-    | `LetStar ((x, GenTerms.Annot (`Lazy, _, (Loc () as x_bt), _)), gt_rest) ->
-      let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
-      let s_let =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_LET_LAZY"),
-                    [ mk_expr (AilEident (Sym.fresh "cn_pointer"));
-                      mk_expr (AilEident x)
-                    ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
         ( ( x,
             GenTerms.Annot
@@ -733,8 +699,6 @@ module Make (AD : Domain.T) = struct
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((_, GenTerms.Annot (`ArbitrarySpecialized _, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
-    | `LetStar ((_, GenTerms.Annot (`Lazy, _, bt, _)), _) ->
-      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
       let b_value, s_value, e_value = transform_it filename sigma name it in
       let s_let =
@@ -796,8 +760,6 @@ module Make (AD : Domain.T) = struct
       failwith "Should be unreachable due to lifting of `assign`"
     | `LetStar ((_, GenTerms.Annot (`SplitSizeElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting"
-    | `LetStar ((_, GenTerms.Annot (`InstantiateElab (_, _, _), _, _, _)), _) ->
-      failwith "Should be unreachable due to lifting of `instantiate`"
     | `Return it ->
       let b, s, e = transform_it filename sigma name it in
       (b, s, e)
@@ -995,327 +957,6 @@ module Make (AD : Domain.T) = struct
       in
       let b', s', e' = transform_term filename sigma ctx name gt_rest in
       (b @ b', s @ s', e')
-    | `InstantiateElab
-        (backtrack_var, (x, GenTerms.Annot (`Lazy, _, Bits (sign, bits), _)), gt_rest) ->
-      let func_name =
-        match sign with
-        | Unsigned -> "BENNET_INSTANTIATE_ARBITRARY_UNSIGNED"
-        | Signed -> "BENNET_INSTANTIATE_ARBITRARY_SIGNED"
-      in
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident func_name),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident backtrack_var;
-                        AilEconst
-                          (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
-                        AilEident x;
-                        AilEident last_var
-                      ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab (backtrack_var, (x, GenTerms.Annot (`Lazy, _, Loc (), _)), gt_rest)
-      ->
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_INSTANTIATE_ARBITRARY_POINTER"),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident backtrack_var;
-                        AilEident x;
-                        AilEident last_var
-                      ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab
-        (backtrack_var, (x, GenTerms.Annot (`Arbitrary, _, Bits (sign, bits), _)), gt_rest)
-      ->
-      let func_name =
-        match sign with
-        | Unsigned -> "BENNET_INSTANTIATE_ARBITRARY_UNSIGNED"
-        | Signed -> "BENNET_INSTANTIATE_ARBITRARY_SIGNED"
-      in
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident func_name),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident backtrack_var;
-                        AilEconst
-                          (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
-                        AilEident x;
-                        AilEident last_var
-                      ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab
-        (backtrack_var, (x, GenTerms.Annot (`Arbitrary, _, Loc (), _)), gt_rest) ->
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_INSTANTIATE_ARBITRARY_POINTER"),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident backtrack_var;
-                        AilEident x;
-                        AilEident last_var
-                      ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab
-        ( backtrack_var,
-          (x, GenTerms.Annot (`ArbitraryDomain d, _, (Bits (sign, bits) as x_bt), _)),
-          gt_rest ) ->
-      let func_name =
-        match sign with
-        | Unsigned -> "BENNET_INSTANTIATE_ARBITRARY_DOMAIN_UNSIGNED"
-        | Signed -> "BENNET_INSTANTIATE_ARBITRARY_DOMAIN_SIGNED"
-      in
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident func_name),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident backtrack_var;
-                        AilEconst
-                          (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
-                        AilEident x;
-                        AilEident last_var;
-                        AilEident
-                          (Sym.fresh
-                             (let cty =
-                                match x_bt with
-                                | Loc () -> "uintptr_t"
-                                | Bits (Signed, sz) -> Printf.sprintf "int%d_t" sz
-                                | Bits (Unsigned, sz) -> Printf.sprintf "uint%d_t" sz
-                                | _ ->
-                                  failwith
-                                    ("unsupported type: " ^ Pp.plain (BaseTypes.pp x_bt))
-                              in
-                              "(bennet_domain("
-                              ^ cty
-                              ^ ")*)"
-                              ^ Pp.plain (pp_relative x_bt d)))
-                      ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab
-        ( backtrack_var,
-          (x, GenTerms.Annot (`ArbitraryDomain d, _, (Loc () as x_bt), _)),
-          gt_rest ) ->
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_INSTANTIATE_ARBITRARY_DOMAIN_POINTER"),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident backtrack_var;
-                        AilEident x;
-                        AilEident last_var;
-                        AilEident
-                          (Sym.fresh
-                             ("(bennet_domain(uintptr_t)*)"
-                              ^ Pp.plain (pp_relative x_bt d)))
-                      ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab
-        (backtrack_var, (x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
-      let b_value, s_value, e_value = transform_it filename sigma name it in
-      let s_inst =
-        A.
-          [ AilSexpr
-              (mk_expr
-                 (string_call
-                    "BENNET_INSTANTIATE_RETURN"
-                    ([ mk_expr (AilEident backtrack_var);
-                       mk_expr (string_ident (name_of_bt x_bt));
-                       mk_expr (AilEident x);
-                       e_value;
-                       mk_expr (AilEident last_var)
-                     ]
-                     @ List.map
-                         (fun x -> mk_expr (AilEident x))
-                         (List.of_seq (Sym.Set.to_seq (IT.free_vars it)))
-                     @ [ mk_expr (AilEconst ConstantNull) ])))
-          ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_value @ b_rest, s_value @ s_inst @ s_rest, e_rest)
-    | `InstantiateElab (_, (_, GenTerms.Annot (`Symbolic, _, _, _)), _) ->
-      failwith "TODO: InstantiateElab Symbolic"
-    | `InstantiateElab
-        ( backtrack_var,
-          ( x,
-            GenTerms.Annot
-              ( `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)),
-                _,
-                Bits (sign, bits),
-                _ ) ),
-          gt_rest ) ->
-      let func_name =
-        match sign with
-        | Unsigned -> "BENNET_INSTANTIATE_SPECIALIZED_UNSIGNED"
-        | Signed -> "BENNET_INSTANTIATE_SPECIALIZED_SIGNED"
-      in
-      let mk_bound_arg = function
-        | None -> mk_expr (AilEconst ConstantNull)
-        | Some it ->
-          let bs, ss, e = transform_it filename sigma name it in
-          mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
-      in
-      let free_vars_from_bounds =
-        List.fold_left
-          Sym.Set.union
-          Sym.Set.empty
-          (List.filter_map (Option.map IT.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
-      in
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident func_name),
-                    [ mk_expr
-                        (AilEconst
-                           (ConstantInteger
-                              (IConstant
-                                 ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                   Decimal,
-                                   None ))));
-                      mk_expr (AilEident backtrack_var);
-                      mk_expr
-                        (AilEconst
-                           (ConstantInteger (IConstant (Z.of_int bits, Decimal, None))));
-                      mk_expr (AilEident x);
-                      mk_expr (AilEident last_var);
-                      mk_bound_arg min_ex;
-                      mk_bound_arg min_inc;
-                      mk_bound_arg max_inc;
-                      mk_bound_arg max_ex
-                    ]
-                    @ List.map
-                        (fun x -> mk_expr (AilEident x))
-                        (List.of_seq (Sym.Set.to_seq free_vars_from_bounds))
-                    @ [ mk_expr (AilEconst ConstantNull) ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab
-        ( backtrack_var,
-          ( x,
-            GenTerms.Annot
-              (`ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)), _, Loc (), _)
-          ),
-          gt_rest ) ->
-      let mk_bound_arg = function
-        | None -> mk_expr (AilEconst ConstantNull)
-        | Some it ->
-          let bs, ss, e = transform_it filename sigma name it in
-          mk_expr (AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
-      in
-      let free_vars_from_bounds =
-        List.fold_left
-          Sym.Set.union
-          Sym.Set.empty
-          (List.filter_map (Option.map IT.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
-      in
-      let s_inst =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_INSTANTIATE_SPECIALIZED_POINTER"),
-                    [ mk_expr
-                        (AilEconst
-                           (ConstantInteger
-                              (IConstant
-                                 ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                   Decimal,
-                                   None ))));
-                      mk_expr (AilEident backtrack_var);
-                      mk_expr (AilEident x);
-                      mk_expr (AilEident last_var);
-                      mk_bound_arg min_ex;
-                      mk_bound_arg min_inc;
-                      mk_bound_arg max_inc;
-                      mk_bound_arg max_ex
-                    ]
-                    @ List.map
-                        (fun x -> mk_expr (AilEident x))
-                        (List.of_seq (Sym.Set.to_seq free_vars_from_bounds))
-                    @ [ mk_expr (AilEconst ConstantNull) ] )))
-        ]
-      in
-      let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_rest, s_inst @ s_rest, e_rest)
-    | `InstantiateElab (_, (_, GenTerms.Annot (`ArbitrarySpecialized _, _, bt, _)), _) ->
-      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
-    | `InstantiateElab (_, (_, GenTerms.Annot (`Arbitrary, _, bt, _)), _) ->
-      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
-    | `InstantiateElab (_, (_, GenTerms.Annot (`ArbitraryDomain _, _, bt, _)), _) ->
-      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
-    | `InstantiateElab (_, (_, GenTerms.Annot (`Lazy, _, bt, _)), _) ->
-      failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
-    | `InstantiateElab _ -> failwith "unsupported InstantiateElab inner term"
 
 
   let transform_gen_def

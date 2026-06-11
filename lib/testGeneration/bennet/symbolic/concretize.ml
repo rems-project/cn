@@ -34,10 +34,7 @@ module Make (AD : Domain.T) = struct
             ( (i_sym, i_bt, it_perm),
               Annot
                 ( `LetStar
-                    ( ( x,
-                        Annot
-                          ((`Arbitrary | `ArbitraryDomain _ | `Symbolic | `Lazy), _, _, _)
-                      ),
+                    ( (x, Annot ((`Arbitrary | `ArbitraryDomain _ | `Symbolic), _, _, _)),
                       Annot
                         ( `Asgn
                             ( (it_addr, sct),
@@ -125,7 +122,7 @@ module Make (AD : Domain.T) = struct
     match tm_ with
     | `ArbitrarySpecialized _ ->
       failwith "ArbitrarySpecialized not supported in symbolic mode"
-    | `Arbitrary | `Symbolic | `Lazy ->
+    | `Arbitrary | `Symbolic ->
       (* Generate symbolic value of the given base type *)
       { statements = [];
         expression = !^"CN_SMT_CONCRETIZE_SYMBOLIC" ^^ parens (Smt.convert_basetype bt)
@@ -187,8 +184,8 @@ module Make (AD : Domain.T) = struct
         }
       else
         body_result
-    | `LetStar ((var_sym, Annot ((`Symbolic | `Lazy), _, bt_arb, _)), body_term) ->
-      (* Preserve existing behavior for symbolic/lazy bindings *)
+    | `LetStar ((var_sym, Annot (`Symbolic, _, bt_arb, _)), body_term) ->
+      (* Preserve existing behavior for symbolic bindings *)
       let body_result = concretize_term sigma body_term in
       { statements =
           (!^"CN_SMT_CONCRETIZE_LET_SYMBOLIC"
@@ -232,7 +229,6 @@ module Make (AD : Domain.T) = struct
     | `AssertDomain (_, next_term) ->
       (* Assert domain constraints - skip domain for now and continue *)
       concretize_term sigma next_term
-    | `Instantiate _ -> failwith ("unreachable @ " ^ __LOC__)
     | `ITE (it_if, then_term, else_term) ->
       (* Convert if-then-else to PickSized statement with recursive calls *)
       let wgts1 =
@@ -254,9 +250,7 @@ module Make (AD : Domain.T) = struct
         ( (i_sym, i_bt, it_perm),
           Annot
             ( `LetStar
-                ( ( x,
-                    Annot ((`Arbitrary | `ArbitraryDomain _ | `Symbolic | `Lazy), _, _, _)
-                  ),
+                ( (x, Annot ((`Arbitrary | `ArbitraryDomain _ | `Symbolic), _, _, _)),
                   Annot
                     ( `Asgn
                         ( (it_addr, sct),

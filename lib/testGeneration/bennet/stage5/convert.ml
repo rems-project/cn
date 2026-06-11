@@ -15,8 +15,8 @@ module Make (AD : Domain.T) = struct
     let rec aux (gr : Stage4.Term.t) : int =
       let (Annot (gr_, (), _, _)) = gr in
       match gr_ with
-      | `Arbitrary | `Symbolic | `Lazy | `ArbitrarySpecialized _ | `ArbitraryDomain _
-      | `Return _ ->
+      | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _ | `Return _
+        ->
         0
       | `Pick choices -> choices |> List.map aux |> List.fold_left max 0
       | `Call (fsym, _) -> if Sym.Set.mem fsym syms then 1 else 0
@@ -26,7 +26,6 @@ module Make (AD : Domain.T) = struct
       | `AssertDomain (_, rest) -> aux rest
       | `ITE (_, t, f) -> max (aux t) (aux f)
       | `Map (_, inner) -> aux inner
-      | `Instantiate ((_, inner), rest) -> aux inner + aux rest
     in
     aux gr
 
@@ -39,7 +38,6 @@ module Make (AD : Domain.T) = struct
       match gr_ with
       | `Arbitrary -> (GenTerms.Annot (`Arbitrary, (), bt, loc), Sym.Set.empty)
       | `Symbolic -> (GenTerms.Annot (`Symbolic, (), bt, loc), Sym.Set.empty)
-      | `Lazy -> (GenTerms.Annot (`Lazy, (), bt, loc), Sym.Set.empty)
       | `ArbitrarySpecialized bounds ->
         (GenTerms.Annot (`ArbitrarySpecialized bounds, (), bt, loc), Sym.Set.empty)
       | `ArbitraryDomain d ->
@@ -83,11 +81,6 @@ module Make (AD : Domain.T) = struct
       | `Map ((i, i_bt, perm), inner) ->
         let inner, syms = aux inner in
         (GenTerms.Annot (`Map ((i, i_bt, perm), inner), (), bt, loc), syms)
-      | `Instantiate ((x, inner), rest) ->
-        let inner, syms_inner = aux inner in
-        let rest, syms_rest = aux rest in
-        ( GenTerms.Annot (`Instantiate ((x, inner), rest), (), bt, loc),
-          Sym.Set.union syms_inner syms_rest )
     in
     aux gr
 
