@@ -107,7 +107,6 @@ type t =
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
-    lazy_gen : bool;
     disable_extrema_skew : bool;
     discard_factor : int
   }
@@ -265,8 +264,6 @@ val has_max_input_alloc : unit -> int option
 val is_smt_skew_pointer_order : unit -> bool
 
 val get_dsl_log_dir : unit -> string option
-
-val is_lazy_gen : unit -> bool
 
 val is_specialization_disabled : unit -> bool
 

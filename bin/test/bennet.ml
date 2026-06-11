@@ -37,11 +37,6 @@ module Flags = struct
     Arg.(value & flag & info [ "sized-null" ] ~deprecated ~doc)
 
 
-  let lazy_gen =
-    let doc = "Enable lazy generation" in
-    Arg.(value & flag & info [ "lazy-gen" ] ~doc)
-
-
   let only_top_level_ite_lifting =
     let doc = "Only lift top-level ITE expressions" in
     Arg.(value & flag & info [ "only-top-level-ite-lifting" ] ~doc)
@@ -53,7 +48,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         random_size_splits
         allowed_size_split_backtracks
         _sized_null
-        lazy_gen
         only_top_level_ite_lifting
         (cfg : TestGeneration.config)
     : TestGeneration.config
@@ -62,7 +56,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       max_backtracks;
       random_size_splits;
       allowed_size_split_backtracks;
-      lazy_gen;
       only_top_level_ite_lifting
     }
   in
@@ -72,7 +65,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.random_size_splits
     $ Flags.allowed_size_split_backtracks
     $ Flags.sized_null
-    $ Flags.lazy_gen
     $ Flags.only_top_level_ite_lifting)
 
 
