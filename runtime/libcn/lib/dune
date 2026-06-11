@@ -70,6 +70,7 @@
     bennet/discards.o
     bennet/failure.o
     bennet/ownership.o
+    bennet/ownership_transform.o
     bennet/prelude.o
     bennet/products.o
     bennet/rand.o
@@ -78,6 +79,7 @@
     bennet/sizes.o
     bennet/sized.o
     bennet/specialized.o
+    bennet/congr.o
     bennet/tnum.o
     bennet/trivial.o
     bennet/timing.o

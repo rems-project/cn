@@ -44,6 +44,9 @@
   (bennet/internals/domains/sized.h
    as
    runtime/include/bennet/internals/domains/sized.h)
+  (bennet/internals/domains/congr.h
+   as
+   runtime/include/bennet/internals/domains/congr.h)
   (bennet/internals/domains/tnum.h
    as
    runtime/include/bennet/internals/domains/tnum.h)
