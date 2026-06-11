@@ -227,7 +227,7 @@ module Make (AD : Domain.T) = struct
       { statements = assert_stmt :: next_result.statements;
         expression = next_result.expression
       }
-    | `AssertDomain (_, next_term) ->
+    | `AssertDomain (_, _, _, next_term) ->
       (* Assert domain constraints - skip domain for now and continue *)
       concretize_term sigma next_term
     | `ITE (it_if, then_term, else_term) ->

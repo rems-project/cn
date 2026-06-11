@@ -23,8 +23,8 @@ module Make (AD : Domain.T) = struct
       | `Symbolic -> GenTerms.Annot (`Symbolic, (path_vars, last_var), bt, loc)
       | `ArbitrarySpecialized bounds ->
         GenTerms.Annot (`ArbitrarySpecialized bounds, (path_vars, last_var), bt, loc)
-      | `ArbitraryDomain d ->
-        GenTerms.Annot (`ArbitraryDomain d, (path_vars, last_var), bt, loc)
+      | `ArbitraryDomain (d, its, asgns) ->
+        GenTerms.Annot (`ArbitraryDomain (d, its, asgns), (path_vars, last_var), bt, loc)
       | `PickSized wgts ->
         let (`PickSizedElab (choice_var, wgts)) =
           Term.elaborate_pick_ (`PickSized wgts)
@@ -72,9 +72,13 @@ module Make (AD : Domain.T) = struct
       | `Assert (lc, gt_rest) ->
         let gt_rest = aux vars path_vars gt_rest in
         GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc)
-      | `AssertDomain (ad, gt_rest) ->
+      | `AssertDomain (ad, its, asgns, gt_rest) ->
+        let backtrack_var = Sym.fresh_anon () in
         let gt_rest = aux vars path_vars gt_rest in
-        GenTerms.Annot (`AssertDomain (ad, gt_rest), (path_vars, last_var), bt, loc)
+        Term.assert_domain_elab_
+          (backtrack_var, ad, its, asgns, gt_rest)
+          (path_vars, last_var)
+          loc
       | `ITE (it_if, gt_then, gt_else) ->
         let path_vars = Sym.Set.union path_vars (T.free_vars it_if) in
         let gt_then = aux vars path_vars gt_then in

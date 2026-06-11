@@ -18,7 +18,10 @@ module Make (AD : Domain.T) = struct
         | `Symbolic (** Generate symbolic values *)
         | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
-        | `ArbitraryDomain of AD.Relative.t
+        | `ArbitraryDomain of
+            AD.Relative.t
+            * Terms.Normal.t list
+            * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
         | `Call of Sym.t * T.t list
           (** `Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
         | `Asgn of (T.t * Sctypes.t) * T.t * 'recur annot
@@ -27,7 +30,11 @@ module Make (AD : Domain.T) = struct
         | `Return of T.t (** Monadic return *)
         | `Assert of LC.t * 'recur annot
           (** `Assert some [LC.t] are true, backtracking otherwise *)
-        | `AssertDomain of AD.t * 'recur annot
+        | `AssertDomain of
+            AD.t
+            * Terms.Normal.t list
+            * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+            * 'recur annot
         | `ITE of T.t * 'recur annot * 'recur annot (** If-then-else *)
         | `Map of (Sym.t * BT.t * T.t) * 'recur annot
         | `Pick of 'recur annot list
@@ -40,6 +47,11 @@ module Make (AD : Domain.T) = struct
 
       let basetype (GenTerms.Annot (_, _, bt, _) : t) : BT.t = bt
 
+      (* Include defaults for all unsupported smart constructors *)
+      include GenTerms.Defaults (struct
+          let name = "Stage 4"
+        end)
+
       let arbitrary_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
         Annot (`Arbitrary, tag, bt, loc)
 
@@ -48,19 +60,16 @@ module Make (AD : Domain.T) = struct
         Annot (`Symbolic, tag, bt, loc)
 
 
-      (* Include defaults for all unsupported smart constructors *)
-      include GenTerms.Defaults (struct
-          let name = "Stage 4"
-        end)
-
       let arbitrary_domain_
             (d : AD.Relative.t)
+            (its : Terms.Normal.t list)
+            (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
             (tag : tag_t)
             (bt : BT.t)
             (loc : Locations.t)
         : t
         =
-        Annot (`ArbitraryDomain d, tag, bt, loc)
+        Annot (`ArbitraryDomain (d, its, asgns), tag, bt, loc)
 
 
       let arbitrary_specialized_
@@ -100,8 +109,17 @@ module Make (AD : Domain.T) = struct
         Annot (`Assert (lc, gt'), tag, basetype gt', loc)
 
 
-      let assert_domain_ ((ad, gt') : AD.t * t) (tag : tag_t) (loc : Locations.t) : t =
-        Annot (`AssertDomain (ad, gt'), tag, basetype gt', loc)
+      let assert_domain_
+            ((ad, its, asgns, gt') :
+              AD.t
+              * Terms.Normal.t list
+              * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+              * t)
+            (tag : tag_t)
+            (loc : Locations.t)
+        : t
+        =
+        Annot (`AssertDomain (ad, its, asgns, gt'), tag, basetype gt', loc)
 
 
       let ite_ ((it_if, gt_then, gt_else) : T.t * t * t) (tag : tag_t) loc : t =

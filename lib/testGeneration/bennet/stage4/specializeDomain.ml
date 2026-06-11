@@ -19,6 +19,8 @@ module Make (AD : Domain.T) = struct
         let gt_inner =
           Term.arbitrary_domain_
             (AD.relative_to x bt_inner d)
+            []
+            []
             tag_inner
             bt_inner
             loc_inner
@@ -29,7 +31,7 @@ module Make (AD : Domain.T) = struct
           Sym.Set.mem x (AD.free_vars d)
           && not (Sym.Set.is_empty (AD.free_vars d_remove_x))
         then
-          (Term.assert_domain_ (d_remove_x, gt') tag loc, d_remove_x)
+          (Term.assert_domain_ (d_remove_x, [], [], gt') tag loc, d_remove_x)
         else
           (gt', d)
         (* The rest *)
@@ -49,7 +51,8 @@ module Make (AD : Domain.T) = struct
       | `Assert (lc, gt_rest) ->
         let gt_rest, d = aux vars gt_rest in
         (Term.assert_ (lc, gt_rest) tag loc, d)
-      | `AssertDomain (d, gt_rest) -> (Term.assert_domain_ (d, gt_rest) tag loc, d)
+      | `AssertDomain (d, its, asgns, gt_rest) ->
+        (Term.assert_domain_ (d, its, asgns, gt_rest) tag loc, d)
       | `ITE (it_if, gt_then, gt_else) ->
         let gt_then, d_then = aux vars gt_then in
         let gt_else, d_else = aux vars gt_else in

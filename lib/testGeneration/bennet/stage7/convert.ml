@@ -546,7 +546,9 @@ module Make (AD : Domain.T) = struct
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
-        ( (x, GenTerms.Annot (`ArbitraryDomain d, _, (Bits (sign, bits) as x_bt), _)),
+        ( ( x,
+            GenTerms.Annot (`ArbitraryDomain (d, _, _), _, (Bits (sign, bits) as x_bt), _)
+          ),
           gt_rest ) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
@@ -665,7 +667,8 @@ module Make (AD : Domain.T) = struct
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
-    | `LetStar ((x, GenTerms.Annot (`ArbitraryDomain d, _, (Loc () as x_bt), _)), gt_rest)
+    | `LetStar
+        ((x, GenTerms.Annot (`ArbitraryDomain (d, _, _), _, (Loc () as x_bt), _)), gt_rest)
       ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
       let s_let =
@@ -755,7 +758,7 @@ module Make (AD : Domain.T) = struct
       failwith "Should be unreachable due to lifting of `if-else`"
     | `LetStar ((_, GenTerms.Annot (`Assert _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `assert`"
-    | `LetStar ((_, GenTerms.Annot (`AssertDomain _, _, _, _)), _) ->
+    | `LetStar ((_, GenTerms.Annot (`AssertDomainElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `assert_domain`"
     | `LetStar ((_, GenTerms.Annot (`AsgnElab _, _, _, _)), _) ->
       failwith "Should be unreachable due to lifting of `assign`"
@@ -782,7 +785,7 @@ module Make (AD : Domain.T) = struct
       in
       let b2, s2, e2 = transform_term filename sigma ctx name gt_rest in
       (b1 @ b2, s1 @ s_assert @ s2, e2)
-    | `AssertDomain (ad, gt_rest) ->
+    | `AssertDomainElab (_, ad, _, _, gt_rest) ->
       if not (TestGenConfig.is_runtime_assert_domain ()) then
         (* Skip assert_domain, just process the rest *)
         transform_term filename sigma ctx name gt_rest

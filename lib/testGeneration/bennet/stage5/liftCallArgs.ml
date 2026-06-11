@@ -72,7 +72,8 @@ module Make (AD : Domain.T) = struct
       | `LetStar ((x, gt_inner), gt_rest) ->
         Term.let_star_ ((x, aux gt_inner), aux gt_rest) () loc
       | `Assert (lc, gt') -> Term.assert_ (lc, aux gt') () loc
-      | `AssertDomain (ad, gt') -> Term.assert_domain_ (ad, aux gt') () loc
+      | `AssertDomain (ad, its, asgns, gt') ->
+        Term.assert_domain_ (ad, its, asgns, aux gt') () loc
       | `ITE (it_if, gt_then, gt_else) ->
         Term.ite_ (it_if, aux gt_then, aux gt_else) () loc
       | `Map ((i, i_bt, it_perm), gt_inner) ->

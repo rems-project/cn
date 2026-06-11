@@ -13,7 +13,10 @@ module Base (AD : Domain.T) = struct
     | `Symbolic (** Generate symbolic values *)
     | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
       (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
-    | `ArbitraryDomain of AD.Relative.t
+    | `ArbitraryDomain of
+        AD.Relative.t
+        * Terms.Normal.t list
+        * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
     | `Call of Sym.t * T.t list
       (** Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
     | `Asgn of (T.t * Sctypes.t) * T.t * ('tag, 'recur) annot
@@ -23,8 +26,19 @@ module Base (AD : Domain.T) = struct
     | `Return of T.t (** Monadic return *)
     | `Assert of LC.t * ('tag, 'recur) annot
       (** Assert some [LC.t] are true, backtracking otherwise *)
-    | `AssertDomain of AD.t * ('tag, 'recur) annot
+    | `AssertDomain of
+        AD.t
+        * Terms.Normal.t list
+        * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+        * ('tag, 'recur) annot
       (** Assert domain constraints are satisfied, backtracking otherwise *)
+    | `AssertDomainElab of
+        Sym.t
+        * AD.t
+        * Terms.Normal.t list
+        * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+        * ('tag, 'recur) annot
+      (** Elaborated assert domain with backtrack var *)
     | `ITE of T.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
     | `Map of (Sym.t * BT.t * T.t) * ('tag, 'recur) annot
     | `Pick of ('tag, 'recur) annot list (** Pick among a list of options *)
@@ -65,7 +79,14 @@ module type T = sig
     Locations.t ->
     t
 
-  val arbitrary_domain_ : AD.Relative.t -> tag_t -> BT.t -> Locations.t -> t
+  val arbitrary_domain_
+    :  AD.Relative.t ->
+    Terms.Normal.t list ->
+    (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list ->
+    tag_t ->
+    BT.t ->
+    Locations.t ->
+    t
 
   val call_ : Sym.t * T.t list -> tag_t -> BT.t -> Locations.t -> t
 
@@ -77,7 +98,24 @@ module type T = sig
 
   val assert_ : LC.t * t -> tag_t -> Locations.t -> t
 
-  val assert_domain_ : AD.t * t -> tag_t -> Locations.t -> t
+  val assert_domain_
+    :  AD.t
+       * Terms.Normal.t list
+       * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+       * t ->
+    tag_t ->
+    Locations.t ->
+    t
+
+  val assert_domain_elab_
+    :  Sym.t
+       * AD.t
+       * Terms.Normal.t list
+       * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+       * t ->
+    tag_t ->
+    Locations.t ->
+    t
 
   val ite_ : T.t * t * t -> tag_t -> Locations.t -> t
 
@@ -158,6 +196,23 @@ module Make (GT : T) = struct
 
   let rec pp (tm : GT.t) : Pp.document =
     let open Pp in
+    let pp_asgn (it_addr, sct, end_opt) =
+      match end_opt with
+      | None ->
+        !^"Owned"
+        ^^ parens
+             (Terms.Normal.pp it_addr ^^ comma ^^^ !^"sizeof<" ^^ Sctypes.pp sct ^^ !^">")
+      | Some it_end ->
+        !^"OwnedRange"
+        ^^ parens
+             (Terms.Normal.pp it_addr
+              ^^ comma
+              ^^^ Terms.Normal.pp it_end
+              ^^^ !^"+"
+              ^^^ !^"sizeof<"
+              ^^ Sctypes.pp sct
+              ^^ !^">")
+    in
     let (Annot (tm_, _, bt, _)) = tm in
     match tm_ with
     | `Arbitrary -> !^"arbitrary" ^^ angles (BT.pp bt) ^^ parens empty
@@ -173,8 +228,15 @@ module Make (GT : T) = struct
            (parens (pp_opt min_inc ^^ comma ^^^ pp_opt min_ex)
             ^^ comma
             ^^^ parens (pp_opt max_inc ^^ comma ^^^ pp_opt max_ex))
-    | `ArbitraryDomain d ->
-      !^"arbitrary_domain" ^^ angles (BT.pp bt) ^^ parens (AD.Relative.pp d)
+    | `ArbitraryDomain (d, its, asgns) ->
+      !^"arbitrary_domain"
+      ^^ angles (BT.pp bt)
+      ^^ parens
+           (AD.Relative.pp d
+            ^^ comma
+            ^^^ brackets (separate_map (comma ^^ space) Terms.Normal.pp its)
+            ^^ comma
+            ^^^ brackets (separate_map (comma ^^ space) pp_asgn asgns))
     | `Call (fsym, iargs) ->
       Sym.pp fsym ^^ parens (nest 2 (separate_map (comma ^^ break 1) T.pp iargs))
     | `Asgn ((it_addr, ty), it_val, gt') ->
@@ -191,9 +253,27 @@ module Make (GT : T) = struct
     | `Return it -> !^"return" ^^^ T.pp it
     | `Assert (lc, gt') ->
       !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1) ^^ semi ^/^ pp gt'
-    | `AssertDomain (d, gt') ->
+    | `AssertDomain (d, its, asgns, gt') ->
       !^"assert_domain"
-      ^^ parens (nest 2 (break 1 ^^ AD.pp d) ^^ break 1)
+      ^^ parens
+           (nest 2 (break 1 ^^ AD.pp d)
+            ^^ break 1
+            ^^ comma
+            ^^^ brackets (separate_map (comma ^^ space) Terms.Normal.pp its)
+            ^^ comma
+            ^^^ brackets (separate_map (comma ^^ space) pp_asgn asgns))
+      ^^ semi
+      ^/^ pp gt'
+    | `AssertDomainElab (backtrack_var, d, its, asgns, gt') ->
+      !^"assert_domain"
+      ^^ brackets (Sym.pp backtrack_var)
+      ^^ parens
+           (nest 2 (break 1 ^^ AD.pp d)
+            ^^ break 1
+            ^^ comma
+            ^^^ brackets (separate_map (comma ^^ space) Terms.Normal.pp its)
+            ^^ comma
+            ^^^ brackets (separate_map (comma ^^ space) pp_asgn asgns))
       ^^ semi
       ^/^ pp gt'
     | `ITE (it_if, gt_then, gt_else) ->
@@ -278,7 +358,15 @@ module Make (GT : T) = struct
 
   let rec free_vars_bts_ (gt_ : GT.t_) : BT.t Sym.Map.t =
     match gt_ with
-    | `Arbitrary | `ArbitraryDomain _ | `Symbolic -> Sym.Map.empty
+    | `Arbitrary | `Symbolic -> Sym.Map.empty
+    | `ArbitraryDomain (_, its, asgns) ->
+      Sym.Map.union
+        (fun _ bt1 bt2 ->
+           assert (BT.equal bt1 bt2);
+           Some bt1)
+        (Terms.Normal.free_vars_bts_list its)
+        (Terms.Normal.free_vars_bts_list
+           (List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns))
     | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
       T.free_vars_bts_list (List.filter_map Fun.id [ min_inc; min_ex; max_inc; max_ex ])
     | `Call (_, iargs) | `CallSized (_, iargs, _) -> T.free_vars_bts_list iargs
@@ -303,7 +391,19 @@ module Make (GT : T) = struct
          Some bt1))
         (free_vars_bts gt')
         (LC.free_vars_bts lc)
-    | `AssertDomain (_, gt') -> free_vars_bts gt'
+    | `AssertDomain (_, its, asgns, gt') | `AssertDomainElab (_, _, its, asgns, gt') ->
+      Sym.Map.union
+        (fun _ bt1 bt2 ->
+           assert (BT.equal bt1 bt2);
+           Some bt1)
+        (Sym.Map.union
+           (fun _ bt1 bt2 ->
+              assert (BT.equal bt1 bt2);
+              Some bt1)
+           (Terms.Normal.free_vars_bts_list its)
+           (Terms.Normal.free_vars_bts_list
+              (List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns)))
+        (free_vars_bts gt')
     | `ITE (it_if, gt_then, gt_else) ->
       Sym.Map.union
         (fun _ bt1 bt2 ->
@@ -357,7 +457,8 @@ module Make (GT : T) = struct
     | `Asgn (_, _, gt')
     | `AsgnElab (_, _, _, gt')
     | `Assert (_, gt')
-    | `AssertDomain (_, gt')
+    | `AssertDomain (_, _, _, gt')
+    | `AssertDomainElab (_, _, _, _, gt')
     | `Map (_, gt')
     | `MapElab (_, gt')
     | `SplitSize (_, gt')
@@ -373,7 +474,8 @@ module Make (GT : T) = struct
     match gt_ with
     | `Arbitrary | `Symbolic | `Return _ -> false
     | `ArbitraryDomain _ | `ArbitrarySpecialized _ | `Asgn _ | `AsgnElab _ | `Assert _
-    | `AssertDomain _ ->
+    | `AssertDomain (_, _, _, _)
+    | `AssertDomainElab _ ->
       true
     | `Call _ | `CallSized _ -> true (* Could be less conservative... *)
     | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
@@ -390,7 +492,11 @@ module Make (GT : T) = struct
     let rec aux (gt : GT.t) : Sym.Set.t =
       let (Annot (gt_, _, _, _)) = gt in
       match gt_ with
-      | `Arbitrary | `Symbolic | `ArbitraryDomain _ -> Sym.Set.empty
+      | `Arbitrary | `Symbolic -> Sym.Set.empty
+      | `ArbitraryDomain (_, its, asgns) ->
+        its @ List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns
+        |> List.map Terms.preds_of
+        |> List.fold_left Sym.Set.union Sym.Set.empty
       | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
         [ min_inc; min_ex; max_inc; max_ex ]
         |> List.filter_map Fun.id
@@ -406,10 +512,15 @@ module Make (GT : T) = struct
         |> List.fold_left Sym.Set.union (aux gt_rest)
       | `LetStar ((_, gt_inner), gt_rest) -> Sym.Set.union (aux gt_inner) (aux gt_rest)
       | `Assert (lc, gt_rest) -> Sym.Set.union (LC.preds_of lc) (aux gt_rest)
-      | `AssertDomain (_, gt_rest)
-      | `SplitSize (_, gt_rest)
-      | `SplitSizeElab (_, _, gt_rest) ->
-        aux gt_rest
+      | `AssertDomain (_, its, asgns, gt_rest) ->
+        its @ List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns
+        |> List.map Terms.preds_of
+        |> List.fold_left Sym.Set.union (aux gt_rest)
+      | `AssertDomainElab (_, _, its, asgns, gt_rest) ->
+        its @ List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns
+        |> List.map Terms.preds_of
+        |> List.fold_left Sym.Set.union (aux gt_rest)
+      | `SplitSize (_, gt_rest) | `SplitSizeElab (_, _, gt_rest) -> aux gt_rest
       | `ITE (it_if, gt_then, gt_else) ->
         List.fold_left Sym.Set.union (Terms.preds_of it_if) [ aux gt_then; aux gt_else ]
       | `Map ((_, _, it_perm), gt_inner) | `MapElab ((_, _, _, it_perm), gt_inner) ->
@@ -433,7 +544,17 @@ module Make (GT : T) = struct
         tag
         bt
         loc
-    | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+    | `ArbitraryDomain (ad, its, asgns) ->
+      arbitrary_domain_
+        ad
+        (List.map (Terms.Normal.subst su) its)
+        (List.map
+           (fun (it, n, eo) ->
+              (Terms.Normal.subst su it, n, Option.map (Terms.Normal.subst su) eo))
+           asgns)
+        tag
+        bt
+        loc
     | `Call (fsym, iargs) -> call_ (fsym, List.map (T.subst su) iargs) tag bt loc
     | `CallSized (fsym, iargs, sz) ->
       call_sized_ (fsym, List.map (T.subst su) iargs, sz) tag bt loc
@@ -452,7 +573,29 @@ module Make (GT : T) = struct
       let_star_ ((x, subst su gt1), subst su gt2) tag loc
     | `Return it -> return_ (T.subst su it) tag loc
     | `Assert (lc, gt') -> assert_ (LC.subst su lc, subst su gt') tag loc
-    | `AssertDomain (ad, gt') -> assert_domain_ (ad, subst su gt') tag loc
+    | `AssertDomain (ad, its, asgns, gt') ->
+      assert_domain_
+        ( ad,
+          List.map (Terms.Normal.subst su) its,
+          List.map
+            (fun (it, n, eo) ->
+               (Terms.Normal.subst su it, n, Option.map (Terms.Normal.subst su) eo))
+            asgns,
+          subst su gt' )
+        tag
+        loc
+    | `AssertDomainElab (backtrack_var, ad, its, asgns, gt') ->
+      assert_domain_elab_
+        ( backtrack_var,
+          ad,
+          List.map (Terms.Normal.subst su) its,
+          List.map
+            (fun (it, n, eo) ->
+               (Terms.Normal.subst su it, n, Option.map (Terms.Normal.subst su) eo))
+            asgns,
+          subst su gt' )
+        tag
+        loc
     | `ITE (it, gt_then, gt_else) ->
       ite_ (T.subst su it, subst su gt_then, subst su gt_else) tag loc
     | `Map ((i, i_bt, it_perm), gt') ->
@@ -502,7 +645,7 @@ module Make (GT : T) = struct
     | `Arbitrary -> arbitrary_ tag bt loc
     | `Symbolic -> symbolic_ tag bt loc
     | `ArbitrarySpecialized bounds -> arbitrary_specialized_ bounds tag bt loc
-    | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+    | `ArbitraryDomain (ad, its, asgns) -> arbitrary_domain_ ad its asgns tag bt loc
     | `Call (fsym, its) -> call_ (fsym, its) tag bt loc
     | `CallSized (fsym, its, sz) -> call_sized_ (fsym, its, sz) tag bt loc
     | `Asgn ((it_addr, sct), it_val, gt') ->
@@ -516,7 +659,10 @@ module Make (GT : T) = struct
       let_star_ ((x, map_gen_pre f gt1), map_gen_pre f gt2) tag loc
     | `Return it -> return_ it tag loc
     | `Assert (lc, gt') -> assert_ (lc, map_gen_pre f gt') tag loc
-    | `AssertDomain (ad, gt') -> assert_domain_ (ad, map_gen_pre f gt') tag loc
+    | `AssertDomain (ad, its, asgns, gt') ->
+      assert_domain_ (ad, its, asgns, map_gen_pre f gt') tag loc
+    | `AssertDomainElab (backtrack_var, ad, its, asgns, gt') ->
+      assert_domain_elab_ (backtrack_var, ad, its, asgns, map_gen_pre f gt') tag loc
     | `ITE (it, gt_then, gt_else) ->
       ite_ (it, map_gen_pre f gt_then, map_gen_pre f gt_else) tag loc
     | `Map ((i, i_bt, it_perm), gt') ->
@@ -547,7 +693,7 @@ module Make (GT : T) = struct
       | `Arbitrary -> arbitrary_ tag bt loc
       | `Symbolic -> symbolic_ tag bt loc
       | `ArbitrarySpecialized bounds -> arbitrary_specialized_ bounds tag bt loc
-      | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+      | `ArbitraryDomain (ad, its, asgns) -> arbitrary_domain_ ad its asgns tag bt loc
       | `Call (fsym, its) -> call_ (fsym, its) tag bt loc
       | `CallSized (fsym, its, sz) -> call_sized_ (fsym, its, sz) tag bt loc
       | `Asgn ((it_addr, sct), it_val, gt') ->
@@ -561,7 +707,10 @@ module Make (GT : T) = struct
         let_star_ ((x, map_gen_post f gt1), map_gen_post f gt2) tag loc
       | `Return it -> return_ it tag loc
       | `Assert (lc, gt') -> assert_ (lc, map_gen_post f gt') tag loc
-      | `AssertDomain (ad, gt') -> assert_domain_ (ad, map_gen_post f gt') tag loc
+      | `AssertDomain (ad, its, asgns, gt') ->
+        assert_domain_ (ad, its, asgns, map_gen_post f gt') tag loc
+      | `AssertDomainElab (backtrack_var, ad, its, asgns, gt') ->
+        assert_domain_elab_ (backtrack_var, ad, its, asgns, map_gen_post f gt') tag loc
       | `ITE (it, gt_then, gt_else) ->
         ite_ (it, map_gen_post f gt_then, map_gen_post f gt_else) tag loc
       | `Map ((i, i_bt, it_perm), gt') ->
@@ -592,7 +741,7 @@ module Make (GT : T) = struct
     | `Arbitrary -> `Arbitrary
     | `Symbolic -> `Symbolic
     | `ArbitrarySpecialized bounds -> `ArbitrarySpecialized bounds
-    | `ArbitraryDomain ad -> `ArbitraryDomain ad
+    | `ArbitraryDomain (ad, its, asgns) -> `ArbitraryDomain (ad, its, asgns)
     | `Call (fsym, iargs) -> `Call (fsym, iargs)
     | `CallSized (fsym, iargs, sz) -> `CallSized (fsym, iargs, sz)
     | `Asgn (addr_sct, it_val, g') -> `Asgn (addr_sct, it_val, upcast g')
@@ -603,7 +752,9 @@ module Make (GT : T) = struct
       `LetStar ((x, upcast gt1), upcast gt2)
     | `Return it -> `Return it
     | `Assert (lc, gt') -> `Assert (lc, upcast gt')
-    | `AssertDomain (ad, gt') -> `AssertDomain (ad, upcast gt')
+    | `AssertDomain (ad, its, asgns, gt') -> `AssertDomain (ad, its, asgns, upcast gt')
+    | `AssertDomainElab (backtrack_var, ad, its, asgns, gt') ->
+      `AssertDomainElab (backtrack_var, ad, its, asgns, upcast gt')
     | `ITE (it, gt_then, gt_else) -> `ITE (it, upcast gt_then, upcast gt_else)
     | `Map (i_bt_perm, gt') -> `Map (i_bt_perm, upcast gt')
     | `MapElab (i_bt_bounds_perm, gt') -> `MapElab (i_bt_bounds_perm, upcast gt')
@@ -625,7 +776,7 @@ module Make (GT : T) = struct
     | `Arbitrary -> arbitrary_ tag bt loc
     | `Symbolic -> symbolic_ tag bt loc
     | `ArbitrarySpecialized bounds -> arbitrary_specialized_ bounds tag bt loc
-    | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
+    | `ArbitraryDomain (ad, its, asgns) -> arbitrary_domain_ ad its asgns tag bt loc
     | `Call (fsym, iargs) -> call_ (fsym, iargs) tag bt loc
     | `CallSized (fsym, iargs, sz) -> call_sized_ (fsym, iargs, sz) tag bt loc
     | `Asgn (addr_sct, it_val, g') -> asgn_ (addr_sct, it_val, downcast g') tag loc
@@ -636,7 +787,10 @@ module Make (GT : T) = struct
       let_star_ ((x, downcast gt1), downcast gt2) tag loc
     | `Return it -> return_ it tag loc
     | `Assert (lc, gt') -> assert_ (lc, downcast gt') tag loc
-    | `AssertDomain (ad, gt') -> assert_domain_ (ad, downcast gt') tag loc
+    | `AssertDomain (ad, its, asgns, gt') ->
+      assert_domain_ (ad, its, asgns, downcast gt') tag loc
+    | `AssertDomainElab (backtrack_var, ad, its, asgns, gt') ->
+      assert_domain_elab_ (backtrack_var, ad, its, asgns, downcast gt') tag loc
     | `ITE (it, gt_then, gt_else) -> ite_ (it, downcast gt_then, downcast gt_else) tag loc
     | `Map (i_bt_perm, gt') -> map_ (i_bt_perm, downcast gt') tag loc
     | `MapElab (i_bt_bounds_perm, gt') ->
@@ -727,9 +881,11 @@ module Defaults (StageName : sig
 struct
   let unsupported name = failwith (name ^ " not supported in " ^ StageName.name ^ " DSL")
 
+  let arbitrary_ _ _ _ = unsupported "arbitrary_"
+
   let arbitrary_specialized_ _ _ _ _ = unsupported "arbitrary_specialized_"
 
-  let arbitrary_domain_ _ _ _ _ = unsupported "arbitrary_domain_"
+  let arbitrary_domain_ _ _ _ _ _ _ = unsupported "arbitrary_domain_"
 
   let pick_ _ _ _ _ = unsupported "pick_"
 
@@ -748,6 +904,8 @@ struct
   let call_sized_ _ _ _ _ = unsupported "call_sized_"
 
   let assert_domain_ _ _ _ = unsupported "assert_domain_"
+
+  let assert_domain_elab_ _ _ _ = unsupported "assert_domain_elab_"
 
   let map_ _ _ _ = unsupported "map_"
 
