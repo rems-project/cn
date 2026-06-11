@@ -42,6 +42,14 @@ module Make (AD : Domain.T) = struct
       Utils.get_typedef_string ct |> Option.value ~default
 
 
+  let bt_to_domain_type_string (bt : BT.t) : string =
+    match bt with
+    | BT.Bits (Signed, sz) -> Printf.sprintf "int%d_t" sz
+    | BT.Bits (Unsigned, sz) -> Printf.sprintf "uint%d_t" sz
+    | BT.Loc () -> "uintptr_t"
+    | _ -> failwith ("bt_to_domain_type_string: unsupported type " ^ Pp.plain (BT.pp bt))
+
+
   let _str_name_of_bt (bt : BT.t) : string =
     name_of_bt bt |> String.split_on_char ' ' |> String.concat "_"
 
@@ -371,6 +379,63 @@ module Make (AD : Domain.T) = struct
       | _ -> it)
 
 
+  (** Generate cn_term construction code for a constraint, substituting free variables
+      (except the target) with their runtime values *)
+  let generate_constraint_term
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(target : Sym.t)
+        ~(target_bt : BT.t)
+        (constraint_it : Terms.Normal.t)
+    : Pp.document
+    =
+    (* Get all free variables with their types from the original constraint *)
+    let free_vars_bts = Terms.Normal.free_vars_bts constraint_it in
+    (* First, optimize compound concrete subterms *)
+    let optimized_it =
+      optimize_concrete_terms filename sigma (Sym.Set.singleton target) constraint_it
+    in
+    (* Substitute remaining free variables (except target) with value reads *)
+    let substituted_it =
+      Sym.Map.fold
+        (fun sym bt acc ->
+           if Sym.equal sym target then
+             acc
+           else (
+             (* Generate a symbolic term that represents reading the runtime value *)
+             let sym_it = MT.sym_ (sym, bt, Locations.other __LOC__) in
+             let value_read_str = Pp.plain (generate_value_read filename sigma sym_it) in
+             (* Create a fresh symbol that will be printed as the value read expression *)
+             let value_sym = Sym.fresh value_read_str in
+             Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:value_sym) acc))
+        free_vars_bts
+        optimized_it
+    in
+    (* Now generate the target variable as cn_smt_sym *)
+    let target_sym_str =
+      let open Pp in
+      !^"cn_smt_sym"
+      ^^ parens
+           (parens !^"cn_sym"
+            ^^ braces
+                 (!^".name = "
+                  ^^ dquotes (Sym.pp target)
+                  ^^ comma
+                  ^^^ !^".id = "
+                  ^^ int (Sym.num target))
+            ^^ comma
+            ^^^ Smt.convert_basetype target_bt)
+    in
+    let target_value_sym = Sym.fresh (Pp.plain target_sym_str) in
+    let final_it =
+      Terms.Normal.subst
+        (Terms.Normal.make_rename ~from:target ~to_:target_value_sym)
+        substituted_it
+    in
+    (* Convert to cn_term AST construction code *)
+    Smt.convert_indexterm sigma final_it
+
+
   (** Generate cn_term construction code for an address expression, keeping ALL
       free variables symbolic as cn_smt_sym references. *)
   let generate_addr_term
@@ -466,6 +531,386 @@ module Make (AD : Domain.T) = struct
     let mk_decl_stmt str = A.AilSexpr (mk_expr (A.AilEident (Sym.fresh str))) in
     let stmts = List.map mk_decl_stmt [ decl_addr_str; decl_ids_str; decl_syms_str ] in
     (stmts, num_other, addr_term_name, ids_name, syms_name)
+
+
+  let rec pointer_of (it : Terms.Normal.t) : Sym.t * BT.t =
+    match it with
+    | IT (CopyAllocId { loc = ptr; _ }, _, _)
+    | IT (ArrayShift { base = ptr; _ }, _, _)
+    | IT (MemberShift (ptr, _, _), _, _) ->
+      pointer_of ptr
+    | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
+    | _ ->
+      let pointers =
+        it
+        |> Terms.Normal.free_vars_bts
+        |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
+      in
+      if not (Sym.Map.cardinal pointers == 1) then
+        Cerb_debug.print_debug 2 [] (fun () ->
+          Pp.(
+            plain
+              (braces
+                 (separate_map
+                    (comma ^^ space)
+                    (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
+                    (List.of_seq (Sym.Map.to_seq pointers)))
+               ^^^ !^" in "
+               ^^ Terms.Normal.pp it)));
+      if Sym.Map.is_empty pointers then (
+        print_endline (Pp.plain (Terms.Normal.pp it));
+        failwith __LOC__);
+      Sym.Map.choose pointers
+
+
+  (** Convert Sctypes.t to a C type string for sizeof *)
+  let sct_to_c_type_string (sct : Sctypes.t) : string =
+    CF.Pp_utils.to_plain_string
+      CF.Pp_ail.(with_executable_spec (pp_ctype C.no_qualifiers) (Sctypes.to_ctype sct))
+
+
+  (** Statically compute the byte offset from the base pointer for an address MT.
+      Returns an IT expression of type [Memory.size_bt] representing the offset. *)
+  let rec compute_offset_it (var_sym : Sym.t) (it : Terms.Normal.t) : Terms.Normal.t =
+    let loc = Locations.other __LOC__ in
+    let zero = MT.num_lit_ Z.zero Memory.size_bt loc in
+    match it with
+    | IT (Sym x, _, _) when Sym.equal x var_sym -> zero
+    | IT (Cast (_, IT (Sym x, _, _)), _, _) when Sym.equal x var_sym -> zero
+    | IT (CopyAllocId { loc = ptr; _ }, _, _) -> compute_offset_it var_sym ptr
+    | IT (MemberShift (base, tag, member), _, _) ->
+      let base_offset = compute_offset_it var_sym base in
+      let member_offset = Terms.IT (OffsetOf (tag, member), Memory.size_bt, loc) in
+      MT.add_ (base_offset, member_offset) loc
+    | IT (ArrayShift { base; ct; index }, _, _) ->
+      let base_offset = compute_offset_it var_sym base in
+      let elem_size = MT.sizeOf_ ct loc in
+      let index_cast = MT.cast_ Memory.size_bt index loc in
+      MT.add_ (base_offset, MT.mul_ (elem_size, index_cast) loc) loc
+    | _ ->
+      failwith ("compute_offset_it: unexpected IT shape: " ^ Pp.plain (Terms.Normal.pp it))
+
+
+  (** Generate BENNET_REFINE_ASSIGNMENT calls for ArbitraryDomain pointer codegen *)
+  let generate_assignment_refinements
+        (filename : string)
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(var_sym : Sym.t)
+        ~(last_var : Sym.t)
+        (name : Sym.t)
+        (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+    : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    List.fold_right
+      (fun (it_addr, sct, max_addr) (acc_b, acc_s) ->
+         let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
+         match pointer_opt with
+         | Some (p, _) when Sym.equal p var_sym ->
+           let offset_it = compute_offset_it var_sym it_addr in
+           let b_off, s_off, e_off = transform_it filename sigma name offset_it in
+           let (A.AnnotatedExpression (_, _, _, e_off_)) = e_off in
+           let raw_offset_expr =
+             mk_expr (CtA.wrap_with_convert_from e_off_ Memory.size_bt)
+           in
+           let offset_str =
+             CF.Pp_utils.to_plain_string
+               CF.Pp_ail.(with_executable_spec pp_expression raw_offset_expr)
+           in
+           let b_extra, s_extra, bytes_str =
+             match max_addr with
+             | Some it_max when not (Sym.Set.mem var_sym (Terms.Normal.free_vars it_max))
+               ->
+               let loc = Locations.other __LOC__ in
+               let end_bytes_it =
+                 MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
+               in
+               let range_size_it = MT.sub_ (end_bytes_it, offset_it) loc in
+               let b_range, s_range, e_range =
+                 transform_it filename sigma name range_size_it
+               in
+               let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
+               let raw_range_expr =
+                 mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
+               in
+               ( b_range,
+                 s_range,
+                 CF.Pp_utils.to_plain_string
+                   CF.Pp_ail.(with_executable_spec pp_expression raw_range_expr) )
+             | _ -> ([], [], "sizeof(" ^ sct_to_c_type_string sct ^ ")")
+           in
+           let blame_vars =
+             let open Pp in
+             let addr_fvs = Terms.Normal.free_vars it_addr in
+             let max_fvs =
+               match max_addr with
+               | Some it_max -> Terms.Normal.free_vars it_max
+               | None -> Sym.Set.empty
+             in
+             Sym.Set.union addr_fvs max_fvs
+             |> Sym.Set.remove var_sym
+             |> Sym.Set.to_seq
+             |> List.of_seq
+             |> concat_map (fun v -> !^(", " ^ plain (Sym.pp v)))
+           in
+           let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
+             generate_bwd_blame_parts filename sigma it_addr var_sym
+           in
+           let macro_call =
+             !^"BENNET_REFINE_ASSIGNMENT"
+             ^^ parens
+                  (!^"uintptr_t"
+                   ^^ comma
+                   ^^^ Sym.pp var_sym
+                   ^^ comma
+                   ^^^ !^offset_str
+                   ^^ comma
+                   ^^^ !^bytes_str
+                   ^^ comma
+                   ^^^ Sym.pp last_var
+                   ^^ comma
+                   ^^^ !^addr_term_name
+                   ^^ comma
+                   ^^^ int num_other
+                   ^^ comma
+                   ^^^ !^ids_name
+                   ^^ comma
+                   ^^^ !^syms_name
+                   ^^ blame_vars
+                   ^^ !^", NULL")
+           in
+           let s_macro =
+             A.AilSexpr (mk_expr (A.AilEident (Sym.fresh (plain macro_call))))
+           in
+           (b_off @ b_extra @ acc_b, s_off @ s_extra @ bwd_stmts @ [ s_macro ] @ acc_s)
+         | _ -> (acc_b, acc_s))
+      asgns
+      ([], [])
+
+
+  (** Generate cn_term construction code for a constraint with two symbolic variables:
+      the target variable and one additional variable kept symbolic. *)
+  let generate_constraint_term_two_syms
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(target : Sym.t)
+        ~(target_bt : BT.t)
+        ~(also_sym : Sym.t)
+        ~(also_sym_expr : Pp.document)
+        (constraint_it : Terms.Normal.t)
+    : Pp.document
+    =
+    let open Pp in
+    let free_vars_bts = Terms.Normal.free_vars_bts constraint_it in
+    let protected = Sym.Set.of_list [ target; also_sym ] in
+    let optimized_it = optimize_concrete_terms filename sigma protected constraint_it in
+    (* Substitute free variables except target and also_sym with value reads *)
+    let substituted_it =
+      Sym.Map.fold
+        (fun sym bt acc ->
+           if Sym.equal sym target || Sym.equal sym also_sym then
+             acc
+           else (
+             let sym_it = MT.sym_ (sym, bt, Locations.other __LOC__) in
+             let value_read_str = plain (generate_value_read filename sigma sym_it) in
+             let value_sym = Sym.fresh value_read_str in
+             Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:value_sym) acc))
+        free_vars_bts
+        optimized_it
+    in
+    (* Replace target with cn_smt_sym *)
+    let target_sym_str =
+      !^"cn_smt_sym"
+      ^^ parens
+           (parens !^"cn_sym"
+            ^^ braces
+                 (!^".name = "
+                  ^^ dquotes (Sym.pp target)
+                  ^^ comma
+                  ^^^ !^".id = "
+                  ^^ int (Sym.num target))
+            ^^ comma
+            ^^^ Smt.convert_basetype target_bt)
+    in
+    let target_value_sym = Sym.fresh (plain target_sym_str) in
+    let it_after_target =
+      Terms.Normal.subst
+        (Terms.Normal.make_rename ~from:target ~to_:target_value_sym)
+        substituted_it
+    in
+    (* Replace also_sym with its symbolic expression *)
+    let also_value_sym = Sym.fresh (plain also_sym_expr) in
+    let final_it =
+      Terms.Normal.subst
+        (Terms.Normal.make_rename ~from:also_sym ~to_:also_value_sym)
+        it_after_target
+    in
+    Smt.convert_indexterm sigma final_it
+
+
+  (** Generate backward abstract interpretation refinements for constraint refinement.
+      Emitted between BENNET_REFINE_CONSTRAINT_BEGIN and BENNET_REFINE_CONSTRAINT_END,
+      inside the [if (_refine_is_bottom)] guard. Uses the pre-refine domain (var_cs)
+      and _refine_bt that are in scope from the BEGIN macro. *)
+  let generate_constraint_backward_refinements
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(var_sym : Sym.t)
+        (constraint_it : Terms.Normal.t)
+    : CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    (* var_sym hasn't been sampled yet during domain refinement, so generate it
+       as a symbolic reference using _refine_sym/_refine_bt from the BEGIN macro *)
+    let var_sym_expr =
+      !^"cn_smt_sym((cn_sym){.name = _refine_sym.name, .id = _refine_sym.id}, _refine_bt)"
+    in
+    let refinable_free_vars =
+      Terms.Normal.free_vars_bts constraint_it
+      |> Sym.Map.remove var_sym
+      |> Sym.Map.filter (fun _ -> Stage6.Term.is_arbitrary_supported_bt)
+      |> Sym.Map.bindings
+    in
+    if List.is_empty refinable_free_vars then
+      []
+    else (
+      let per_var_stmts =
+        refinable_free_vars
+        |> List.map (fun (v, v_bt) ->
+          let v_c_ty = bt_to_domain_type_string v_bt in
+          let v_base_type_expr = Smt.convert_basetype v_bt in
+          let constraint_term =
+            generate_constraint_term_two_syms
+              filename
+              sigma
+              ~target:v
+              ~target_bt:v_bt
+              ~also_sym:var_sym
+              ~also_sym_expr:var_sym_expr
+              constraint_it
+          in
+          let macro_call =
+            !^"BENNET_REFINE_CONSTRAINT_BACKWARD"
+            ^^ parens
+                 (!^v_c_ty
+                  ^^ comma
+                  ^^^ Sym.pp v
+                  ^^ comma
+                  ^^^ parens
+                        (parens !^"bennet_absint_sym"
+                         ^^ braces
+                              (!^".name = "
+                               ^^ dquotes (Sym.pp v)
+                               ^^ comma
+                               ^^^ !^".id = "
+                               ^^ int (Sym.num v)))
+                  ^^ comma
+                  ^^^ v_base_type_expr
+                  ^^ comma
+                  ^^^ constraint_term
+                  ^^ comma
+                  ^^^ Sym.pp var_sym
+                  ^^ !^"_cs")
+          in
+          A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_call)))))
+      in
+      per_var_stmts)
+
+
+  (** Generate BENNET_REFINE_CONSTRAINT calls for a list of constraints *)
+  let generate_constraint_refinements
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(var_sym : Sym.t)
+        ~(var_bt : BT.t)
+        ~(last_var : Sym.t)
+        (constraints : Terms.Normal.t list)
+    : CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    let c_ty = bt_to_domain_type_string var_bt in
+    (* Generate base type using Smt.convert_basetype *)
+    let base_type_expr = Smt.convert_basetype var_bt in
+    constraints
+    |> List.concat_map (fun constraint_it ->
+      let constraint_term =
+        generate_constraint_term
+          filename
+          sigma
+          ~target:var_sym
+          ~target_bt:var_bt
+          constraint_it
+      in
+      let blame_vars =
+        Terms.Normal.free_vars constraint_it
+        |> Sym.Set.remove var_sym
+        |> Sym.Set.to_seq
+        |> List.of_seq
+        |> concat_map (fun v -> !^(", " ^ plain (Sym.pp v)))
+      in
+      if TestGenConfig.has_dynamic_arbitrary_propagation () then (
+        let macro_begin =
+          !^"BENNET_REFINE_CONSTRAINT_BEGIN"
+          ^^ parens
+               (!^c_ty
+                ^^ comma
+                ^^^ Sym.pp var_sym
+                ^^ comma
+                ^^^ parens
+                      (parens !^"cn_sym"
+                       ^^ braces
+                            (!^".name = "
+                             ^^ dquotes (Sym.pp var_sym)
+                             ^^ comma
+                             ^^^ !^".id = "
+                             ^^ int (Sym.num var_sym)))
+                ^^ comma
+                ^^^ base_type_expr
+                ^^ comma
+                ^^^ constraint_term
+                ^^ comma
+                ^^^ Sym.pp last_var
+                ^^ blame_vars
+                ^^ !^", NULL")
+        in
+        let s_begin =
+          [ A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_begin)))) ]
+        in
+        let s_backward =
+          generate_constraint_backward_refinements filename sigma ~var_sym constraint_it
+        in
+        let macro_end =
+          !^"BENNET_REFINE_CONSTRAINT_END"
+          ^^ parens (!^c_ty ^^ comma ^^^ Sym.pp var_sym ^^ comma ^^^ Sym.pp last_var)
+        in
+        let s_end = [ A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_end)))) ] in
+        s_begin @ s_backward @ s_end)
+      else (
+        let macro_call =
+          !^"BENNET_REFINE_CONSTRAINT"
+          ^^ parens
+               (!^c_ty
+                ^^ comma
+                ^^^ Sym.pp var_sym
+                ^^ comma
+                ^^^ parens
+                      (parens !^"cn_sym"
+                       ^^ braces
+                            (!^".name = "
+                             ^^ dquotes (Sym.pp var_sym)
+                             ^^ comma
+                             ^^^ !^".id = "
+                             ^^ int (Sym.num var_sym)))
+                ^^ comma
+                ^^^ base_type_expr
+                ^^ comma
+                ^^^ constraint_term
+                ^^ comma
+                ^^^ Sym.pp last_var
+                ^^ blame_vars
+                ^^ !^", NULL")
+        in
+        [ A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_call)))) ]))
 
 
   let pp_relative (bt : BT.t) (r : AD.Relative.t) =
@@ -919,49 +1364,112 @@ module Make (AD : Domain.T) = struct
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
         ( ( x,
-            GenTerms.Annot (`ArbitraryDomain (d, _, _), _, (Bits (sign, bits) as x_bt), _)
-          ),
+            GenTerms.Annot
+              (`ArbitraryDomain (d, constraints, _), _, (Bits (sign, bits) as x_bt), _) ),
           gt_rest ) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
+      let cty =
+        match x_bt with
+        | Loc () -> "uintptr_t"
+        | Bits (Signed, sz) -> Printf.sprintf "int%d_t" sz
+        | Bits (Unsigned, sz) -> Printf.sprintf "uint%d_t" sz
+        | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp x_bt))
+      in
+      let domain_str = "(bennet_domain(" ^ cty ^ ")*)" ^ Pp.plain (pp_relative x_bt d) in
       let s_let =
-        let func_name =
-          match sign with
-          | Unsigned -> "BENNET_LET_ARBITRARY_DOMAIN_UNSIGNED"
-          | Signed -> "BENNET_LET_ARBITRARY_DOMAIN_SIGNED"
-        in
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident func_name),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEconst
-                          (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
-                        AilEident x;
-                        AilEident last_var;
-                        AilEident
-                          (Sym.fresh
-                             (let cty =
-                                match x_bt with
-                                | Loc () -> "uintptr_t"
-                                | Bits (Signed, sz) -> Printf.sprintf "int%d_t" sz
-                                | Bits (Unsigned, sz) -> Printf.sprintf "uint%d_t" sz
-                                | _ ->
-                                  failwith
-                                    ("unsupported type: " ^ Pp.plain (BaseTypes.pp x_bt))
-                              in
-                              "(bennet_domain("
-                              ^ cty
-                              ^ ")*)"
-                              ^ Pp.plain (pp_relative x_bt d)))
-                      ] )))
-        ]
+        if TestGenConfig.has_dynamic_arbitrary_domain () && List.length constraints > 0
+        then (
+          (* Use BEGIN/REFINE/END pattern *)
+          let begin_func_name =
+            match sign with
+            | Unsigned -> "BENNET_LET_ARBITRARY_DOMAIN_BEGIN_UNSIGNED"
+            | Signed -> "BENNET_LET_ARBITRARY_DOMAIN_BEGIN_SIGNED"
+          in
+          let s_begin =
+            [ A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident begin_func_name),
+                        List.map
+                          mk_expr
+                          [ AilEconst
+                              (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
+                            AilEident x;
+                            AilEident last_var;
+                            AilEident (Sym.fresh domain_str)
+                          ] )))
+            ]
+          in
+          let sorted_constraints =
+            List.stable_sort
+              (fun a b ->
+                 let fv_count c =
+                   Sym.Set.cardinal (Sym.Set.remove x (Terms.Normal.free_vars c))
+                 in
+                 Int.compare (fv_count a) (fv_count b))
+              constraints
+          in
+          let s_refine =
+            generate_constraint_refinements
+              filename
+              sigma
+              ~var_sym:x
+              ~var_bt:x_bt
+              ~last_var
+              sorted_constraints
+          in
+          let end_func_name =
+            match sign with
+            | Unsigned -> "BENNET_LET_ARBITRARY_DOMAIN_END_UNSIGNED"
+            | Signed -> "BENNET_LET_ARBITRARY_DOMAIN_END_SIGNED"
+          in
+          let s_end =
+            [ A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident end_func_name),
+                        List.map
+                          mk_expr
+                          [ AilEconst
+                              (ConstantInteger
+                                 (IConstant
+                                    ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                      Decimal,
+                                      None )));
+                            AilEconst
+                              (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
+                            AilEident x;
+                            AilEident last_var
+                          ] )))
+            ]
+          in
+          s_begin @ s_refine @ s_end)
+        else (
+          (* Use original combined macro *)
+          let func_name =
+            match sign with
+            | Unsigned -> "BENNET_LET_ARBITRARY_DOMAIN_UNSIGNED"
+            | Signed -> "BENNET_LET_ARBITRARY_DOMAIN_SIGNED"
+          in
+          [ A.AilSexpr
+              (mk_expr
+                 (AilEcall
+                    ( mk_expr (string_ident func_name),
+                      List.map
+                        mk_expr
+                        [ AilEconst
+                            (ConstantInteger
+                               (IConstant
+                                  ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                    Decimal,
+                                    None )));
+                          AilEconst
+                            (ConstantInteger (IConstant (Z.of_int bits, Decimal, None)));
+                          AilEident x;
+                          AilEident last_var;
+                          AilEident (Sym.fresh domain_str)
+                        ] )))
+          ])
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
@@ -1040,33 +1548,115 @@ module Make (AD : Domain.T) = struct
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_let @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar
-        ((x, GenTerms.Annot (`ArbitraryDomain (d, _, _), _, (Loc () as x_bt), _)), gt_rest)
-      ->
+        ( ( x,
+            GenTerms.Annot
+              (`ArbitraryDomain (d, constraints, asgns), _, (Loc () as x_bt), _) ),
+          gt_rest ) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in
-      let s_let =
-        [ A.AilSexpr
-            (mk_expr
-               (AilEcall
-                  ( mk_expr (string_ident "BENNET_LET_ARBITRARY_DOMAIN_POINTER"),
-                    List.map
-                      mk_expr
-                      [ AilEconst
-                          (ConstantInteger
-                             (IConstant
-                                ( Z.of_int (TestGenConfig.get_max_backtracks ()),
-                                  Decimal,
-                                  None )));
-                        AilEident x;
-                        AilEident last_var;
-                        AilEident
-                          (Sym.fresh
-                             ("(bennet_domain(uintptr_t)*)"
-                              ^ Pp.plain (pp_relative x_bt d)))
-                      ] )))
-        ]
+      let domain_str = "(bennet_domain(uintptr_t)*)" ^ Pp.plain (pp_relative x_bt d) in
+      let b_asgn, s_let =
+        if
+          TestGenConfig.has_dynamic_arbitrary_domain ()
+          && (List.length constraints > 0 || not (List.is_empty asgns))
+        then (
+          (* Use BEGIN/REFINE/END pattern *)
+          let s_begin =
+            [ A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_LET_ARBITRARY_DOMAIN_BEGIN_POINTER"),
+                        List.map
+                          mk_expr
+                          [ AilEident x;
+                            AilEident last_var;
+                            AilEident (Sym.fresh domain_str)
+                          ] )))
+            ]
+          in
+          let sorted_constraints =
+            List.stable_sort
+              (fun a b ->
+                 let fv_count c =
+                   Sym.Set.cardinal (Sym.Set.remove x (Terms.Normal.free_vars c))
+                 in
+                 Int.compare (fv_count a) (fv_count b))
+              constraints
+          in
+          let s_refine =
+            generate_constraint_refinements
+              filename
+              sigma
+              ~var_sym:x
+              ~var_bt:x_bt
+              ~last_var
+              sorted_constraints
+          in
+          let sorted_asgns =
+            List.stable_sort
+              (fun (addr_a, _, max_a) (addr_b, _, max_b) ->
+                 let fv_count (addr, _, max_opt) =
+                   let fvs = Terms.Normal.free_vars addr in
+                   let fvs =
+                     match max_opt with
+                     | Some m -> Sym.Set.union fvs (Terms.Normal.free_vars m)
+                     | None -> fvs
+                   in
+                   Sym.Set.cardinal (Sym.Set.remove x fvs)
+                 in
+                 Int.compare (fv_count (addr_a, (), max_a)) (fv_count (addr_b, (), max_b)))
+              asgns
+          in
+          let b_asgn, s_asgn =
+            generate_assignment_refinements
+              filename
+              sigma
+              ~var_sym:x
+              ~last_var
+              name
+              sorted_asgns
+          in
+          let s_end =
+            [ A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_LET_ARBITRARY_DOMAIN_END_POINTER"),
+                        List.map
+                          mk_expr
+                          [ AilEconst
+                              (ConstantInteger
+                                 (IConstant
+                                    ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                      Decimal,
+                                      None )));
+                            AilEident x;
+                            AilEident last_var
+                          ] )))
+            ]
+          in
+          (b_asgn, s_begin @ s_asgn @ s_refine @ s_end))
+        else
+          ( [],
+            [ (* Use original combined macro *)
+              A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_LET_ARBITRARY_DOMAIN_POINTER"),
+                        List.map
+                          mk_expr
+                          [ AilEconst
+                              (ConstantInteger
+                                 (IConstant
+                                    ( Z.of_int (TestGenConfig.get_max_backtracks ()),
+                                      Decimal,
+                                      None )));
+                            AilEident x;
+                            AilEident last_var;
+                            AilEident (Sym.fresh domain_str)
+                          ] )))
+            ] )
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_let @ b_rest, s_let @ s_rest, e_rest)
+      (b_let @ b_asgn @ b_rest, s_let @ s_rest, e_rest)
     | `LetStar ((_, GenTerms.Annot (`Arbitrary, _, bt, _)), _) ->
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((_, GenTerms.Annot (`Symbolic, _, bt, _)), _) ->

@@ -89,7 +89,6 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
-    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -131,6 +130,9 @@ type t =
     dsl_log_dir : string option;
     disable_extrema_skew : bool;
     discard_factor : int;
+    dynamic_arbitrary_domain : bool;
+    dynamic_arbitrary_propagation : bool;
+    old_style_alloc : bool;
     dynamic_absint_assign : dynamic_absint_assign_mode option
   }
 
@@ -300,11 +302,15 @@ val is_specialization_disabled : unit -> bool
 
 val is_only_top_level_ite_lifting : unit -> bool
 
-val is_old_style_alloc : unit -> bool
-
 val is_extrema_skew_disabled : unit -> bool
 
 val get_discard_factor : unit -> int
+
+val has_dynamic_arbitrary_domain : unit -> bool
+
+val has_dynamic_arbitrary_propagation : unit -> bool
+
+val is_old_style_alloc : unit -> bool
 
 val string_of_dynamic_absint_assign_mode : dynamic_absint_assign_mode -> string
 

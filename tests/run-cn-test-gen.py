@@ -475,10 +475,10 @@ def main():
     else:
         base_config += " --max-generator-size=16"
         alt_configs = [
-            ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything"),
-            ("lucas", "--coverage --print-backtrack-info --print-size-info --static-absint --domains=wrapped_interval --inline=semirec --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15"),
+            ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything --old-style-alloc"),
+            ("lucas", "--coverage --print-backtrack-info --print-size-info --static-absint --domains=wrapped_interval --inline=semirec --dynamic-arbitrary-domain --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15"),
             ("lucas", "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint --domains=congruence --smt-pruning-before-absint=fast"),
-            ("lucas", "--print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint --domains=tristate")
+            ("lucas", "--print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint --domains=tristate --dynamic-arbitrary-domain --dynamic-arbitrary-propagation")
         ]
 
     # Set build tools based on argument
