@@ -34,6 +34,7 @@
   (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
   (bennet/info/timing.h as runtime/include/bennet/info/timing.h)
   (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
+  (bennet/internals/absint.h as runtime/include/bennet/internals/absint.h)
   (bennet/internals/domains/ownership.h
    as
    runtime/include/bennet/internals/domains/ownership.h)
