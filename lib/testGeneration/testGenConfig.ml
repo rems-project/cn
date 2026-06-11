@@ -88,7 +88,8 @@ type t =
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     ad_pruning : bool;
-    static_absint : string list;
+    static_absint : bool;
+    domains : string list;
     local_iterations : int;
     smt_pruning_before_absint : [ `None | `Fast | `Slow ];
     smt_pruning_after_absint : [ `None | `Fast | `Slow ];
@@ -160,7 +161,8 @@ let default =
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
     ad_pruning = false;
-    static_absint = [];
+    static_absint = false;
+    domains = [];
     local_iterations = 10;
     smt_pruning_before_absint = `None;
     smt_pruning_after_absint = `None;
@@ -330,6 +332,8 @@ let is_experimental_return_pruning () = (Option.get !instance).experimental_retu
 let is_ad_pruning () = (Option.get !instance).ad_pruning
 
 let has_static_absint () = (Option.get !instance).static_absint
+
+let get_domains () = (Option.get !instance).domains
 
 let get_local_iterations () = (Option.get !instance).local_iterations
 

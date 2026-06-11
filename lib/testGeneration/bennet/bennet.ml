@@ -34,8 +34,7 @@ let debug_stage (stage : string) (str : string) : unit =
 
 let parse_domain (s : string list) : (module Domain.T) =
   if List.is_empty s then (* Default *)
-    AbstractDomains.product_domains
-      [ (module AbstractDomains.Ownership); (module AbstractDomains.Interval) ]
+    AbstractDomains.product_domains [ (module AbstractDomains.Ownership) ]
   else (
     let domain_names =
       s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
@@ -73,7 +72,7 @@ let parse_domain (s : string list) : (module Domain.T) =
 
 let test_setup () : Pp.document =
   let open Pp in
-  let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
+  let module AD = (val parse_domain (TestGenConfig.get_domains ())) in
   let module CG = Domain.CodeGen (AD.CInt) in
   !^"#include <bennet/prelude.h>" ^^ hardline ^^ CG.setup ()
 
@@ -113,7 +112,7 @@ let synthesize
   : Pp.document
   =
   let prog5 = normalize_prog5_defs prog5 paused in
-  let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
+  let module AD = (val parse_domain (TestGenConfig.get_domains ())) in
   let module Stage1 = Stage1.Make (AD) in
   let ctx = Stage1.transform filename sigma prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);

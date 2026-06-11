@@ -21,7 +21,7 @@ module Make (AD : Domain.T) = struct
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
-    |> (if List.non_empty (TestGenConfig.has_static_absint ()) then
+    |> (if TestGenConfig.has_static_absint () then
           fun ctx ->
         ctx
         |> AI.annotate
