@@ -96,5 +96,8 @@ let pldi26 : TestGenConfig.t =
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
     disable_extrema_skew = false;
-    discard_factor = 10
+    discard_factor = 10;
+    (* Runtime abstract-interpretation features added after the paper freeze;
+       pinned off so paper runs are unaffected. *)
+    dynamic_absint_assign = None
   }

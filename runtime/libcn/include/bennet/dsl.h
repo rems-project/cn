@@ -89,11 +89,32 @@
     var;                                                                                 \
   })
 
-#define BENNET_ASSIGN(id, ptr, ptr_ty, addr, val_ty, value, last_var, ...)               \
+#define BENNET_ASSIGN(id,                                                                \
+    ptr,                                                                                 \
+    ptr_ty,                                                                              \
+    addr,                                                                                \
+    val_ty,                                                                              \
+    value,                                                                               \
+    last_var,                                                                            \
+    addr_term,                                                                           \
+    num_other_vars,                                                                      \
+    other_var_ids,                                                                       \
+    other_var_syms,                                                                      \
+    ...)                                                                                 \
   {                                                                                      \
     val_ty value_redir = value;                                                          \
     const void* vars[] = {__VA_ARGS__};                                                  \
-    if (bennet_assign(ptr_ty, id, ptr, addr, &value_redir, sizeof(val_ty), vars)) {      \
+    if (bennet_assign(ptr_ty,                                                            \
+            id,                                                                          \
+            ptr,                                                                         \
+            addr,                                                                        \
+            &value_redir,                                                                \
+            sizeof(val_ty),                                                              \
+            vars,                                                                        \
+            addr_term,                                                                   \
+            num_other_vars,                                                              \
+            other_var_ids,                                                               \
+            other_var_syms)) {                                                           \
       bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
       bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \

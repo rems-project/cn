@@ -95,6 +95,17 @@ module Flags = struct
        allocations (default for lucas: lightweight allocation with bounds-only checks)"
     in
     Arg.(value & flag & info ~docs:Shared.s_generation [ "old-style-alloc" ] ~doc)
+
+
+  let dynamic_absint_assign =
+    let doc =
+      "Enable dynamic abstract interpretation for assign constraints. Modes: 'also' (use \
+       dynamic absint in addition to static), 'only' (use dynamic absint only)"
+    in
+    Arg.(
+      value
+      & opt (some (enum TestGeneration.Options.dynamic_absint_assign_mode)) None
+      & info ~docs:s_absint [ "dynamic-absint-assign" ] ~docv:"MODE" ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -108,6 +119,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         smt_pruning_keep_redundant_assertions
         runtime_assert_domain
         old_style_alloc
+        dynamic_absint_assign
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -120,7 +132,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       smt_pruning_after_absint;
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
       runtime_assert_domain;
-      old_style_alloc
+      old_style_alloc;
+      dynamic_absint_assign
     }
   in
   Term.(
@@ -133,7 +146,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.smt_pruning_after_absint
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.runtime_assert_domain
-    $ Flags.old_style_alloc)
+    $ Flags.old_style_alloc
+    $ Flags.dynamic_absint_assign)
 
 
 let cmd =

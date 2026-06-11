@@ -103,6 +103,371 @@ module Make (AD : Domain.T) = struct
     A.AilEcall (mk_expr (string_ident str), es)
 
 
+  (* Module for SMT term generation *)
+  module Smt = Symbolic.Smt.Make (AD)
+
+  (** Generate a cn_term value read for an IT expression (substituting with actual runtime value) *)
+  let generate_value_read
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (it : Terms.Normal.t)
+    : Pp.document
+    =
+    let open Pp in
+    let bt = Terms.Normal.get_bt it in
+    let bs, ss, e =
+      CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] None None it
+    in
+    let e_cn =
+      if List.is_empty bs && List.is_empty ss then
+        e
+      else
+        mk_expr (A.AilEgcc_statement (bs, List.map mk_stmt (ss @ [ A.AilSexpr e ])))
+    in
+    let e_str =
+      CF.Pp_utils.to_plain_string CF.Pp_ail.(with_executable_spec pp_expression e_cn)
+    in
+    match bt with
+    | BT.Bits (Signed, width) ->
+      !^"cn_smt_bits"
+      ^^ parens
+           (!^"true"
+            ^^ comma
+            ^^^ int width
+            ^^ comma
+            ^^^ !^"convert_from_cn_bits_i"
+            ^^ int width
+            ^^ parens !^e_str)
+    | BT.Bits (Unsigned, width) ->
+      !^"cn_smt_bits"
+      ^^ parens
+           (!^"false"
+            ^^ comma
+            ^^^ int width
+            ^^ comma
+            ^^^ !^"convert_from_cn_bits_u"
+            ^^ int width
+            ^^ parens !^e_str)
+    | BT.Loc () ->
+      !^"cn_smt_pointer"
+      ^^ parens (!^"(uintptr_t)" ^^ !^"convert_from_cn_pointer" ^^ parens !^e_str)
+    | BT.Bool -> !^"cn_smt_bool" ^^ parens (!^"convert_from_cn_bool" ^^ parens !^e_str)
+    | _ ->
+      (* Unsupported type for direct value read - use default SMT term *)
+      !^"cn_smt_default" ^^ parens (Smt.convert_basetype bt)
+
+
+  (* Optimize concrete subterms: replace compound subterms not containing [sym]
+       with a fresh MT.sym_ whose name is the SMT-wrapped C expression. *)
+  let rec optimize_concrete_terms
+            filename
+            (sigma : CF.GenTypes.genTypeCategory A.sigma)
+            (protected : Sym.Set.t)
+            (it : Terms.Normal.t)
+    : Terms.Normal.t
+    =
+    let open Terms in
+    if Sym.Set.is_empty (Sym.Set.inter protected (Terms.Normal.free_vars it)) then (
+      match Terms.Normal.get_term it with
+      | Sym _ | Const _ | SizeOf _ | OffsetOf _ | Nil _ | CN_None _ ->
+        (* Leaves and trivial constants - don't recompile *)
+        it
+      | _ ->
+        (* Compound term not containing target: compile via CtA and wrap as SMT value *)
+        let bt = Terms.Normal.get_bt it in
+        let smt_doc = generate_value_read filename sigma it in
+        MT.sym_ (Sym.fresh (Pp.plain smt_doc), bt, Locations.other __LOC__))
+    else (
+      let bt = Terms.Normal.get_bt it in
+      let loc = Terms.Normal.get_loc it in
+      match Terms.Normal.get_term it with
+      | Sym _ | Const _ -> it
+      | Unop (op, t) ->
+        IT (Unop (op, optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Binop (op, t1, t2) ->
+        IT
+          ( Binop
+              ( op,
+                optimize_concrete_terms filename sigma protected t1,
+                optimize_concrete_terms filename sigma protected t2 ),
+            bt,
+            loc )
+      | ITE (cond, t2, t3) ->
+        IT
+          ( ITE
+              ( optimize_concrete_terms filename sigma protected cond,
+                optimize_concrete_terms filename sigma protected t2,
+                optimize_concrete_terms filename sigma protected t3 ),
+            bt,
+            loc )
+      | Cast (cast_bt, t) ->
+        IT (Cast (cast_bt, optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Tuple ts ->
+        IT
+          (Tuple (List.map (optimize_concrete_terms filename sigma protected) ts), bt, loc)
+      | NthTuple (n, t) ->
+        IT (NthTuple (n, optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Struct (tag, members) ->
+        IT
+          ( Struct
+              ( tag,
+                List.map
+                  (fun (id, t) ->
+                     (id, optimize_concrete_terms filename sigma protected t))
+                  members ),
+            bt,
+            loc )
+      | StructMember (t, m) ->
+        IT (StructMember (optimize_concrete_terms filename sigma protected t, m), bt, loc)
+      | StructUpdate ((t1, m), t2) ->
+        IT
+          ( StructUpdate
+              ( (optimize_concrete_terms filename sigma protected t1, m),
+                optimize_concrete_terms filename sigma protected t2 ),
+            bt,
+            loc )
+      | Record members ->
+        IT
+          ( Record
+              (List.map
+                 (fun (id, t) -> (id, optimize_concrete_terms filename sigma protected t))
+                 members),
+            bt,
+            loc )
+      | RecordMember (t, m) ->
+        IT (RecordMember (optimize_concrete_terms filename sigma protected t, m), bt, loc)
+      | RecordUpdate ((t1, m), t2) ->
+        IT
+          ( RecordUpdate
+              ( (optimize_concrete_terms filename sigma protected t1, m),
+                optimize_concrete_terms filename sigma protected t2 ),
+            bt,
+            loc )
+      | MemberShift (t, tag, id) ->
+        IT
+          ( MemberShift (optimize_concrete_terms filename sigma protected t, tag, id),
+            bt,
+            loc )
+      | ArrayShift { base; ct; index } ->
+        IT
+          ( ArrayShift
+              { base = optimize_concrete_terms filename sigma protected base;
+                ct;
+                index = optimize_concrete_terms filename sigma protected index
+              },
+            bt,
+            loc )
+      | CopyAllocId { addr; loc = loc_copy } ->
+        IT
+          ( CopyAllocId
+              { addr = optimize_concrete_terms filename sigma protected addr;
+                loc = optimize_concrete_terms filename sigma protected loc_copy
+              },
+            bt,
+            loc )
+      | HasAllocId l ->
+        IT (HasAllocId (optimize_concrete_terms filename sigma protected l), bt, loc)
+      | Aligned { t; align } ->
+        IT
+          ( Aligned
+              { t = optimize_concrete_terms filename sigma protected t;
+                align = optimize_concrete_terms filename sigma protected align
+              },
+            bt,
+            loc )
+      | WrapI (ity, t) ->
+        IT (WrapI (ity, optimize_concrete_terms filename sigma protected t), bt, loc)
+      | MapConst (mbt, t) ->
+        IT (MapConst (mbt, optimize_concrete_terms filename sigma protected t), bt, loc)
+      | MapSet (t1, t2, t3) ->
+        IT
+          ( MapSet
+              ( optimize_concrete_terms filename sigma protected t1,
+                optimize_concrete_terms filename sigma protected t2,
+                optimize_concrete_terms filename sigma protected t3 ),
+            bt,
+            loc )
+      | MapGet (t1, t2) ->
+        IT
+          ( MapGet
+              ( optimize_concrete_terms filename sigma protected t1,
+                optimize_concrete_terms filename sigma protected t2 ),
+            bt,
+            loc )
+      | MapDef ((s, s_bt), t) ->
+        IT
+          ( MapDef
+              ( (s, s_bt),
+                optimize_concrete_terms filename sigma (Sym.Set.add s protected) t ),
+            bt,
+            loc )
+      | EachI ((i1, (s, s_bt), i2), t) ->
+        IT
+          ( EachI
+              ( (i1, (s, s_bt), i2),
+                optimize_concrete_terms filename sigma (Sym.Set.add s protected) t ),
+            bt,
+            loc )
+      | Let ((nm, t1), t2) ->
+        IT
+          ( Let
+              ( (nm, optimize_concrete_terms filename sigma protected t1),
+                optimize_concrete_terms filename sigma (Sym.Set.add nm protected) t2 ),
+            bt,
+            loc )
+      | Match (scrutinee, cases) ->
+        IT
+          ( Match
+              ( optimize_concrete_terms filename sigma protected scrutinee,
+                List.map
+                  (fun (pat, body) ->
+                     let pat_syms =
+                       List.fold_left
+                         (fun acc (s, _) -> Sym.Set.add s acc)
+                         protected
+                         (Terms.Normal.bound_by_pattern pat)
+                     in
+                     (pat, optimize_concrete_terms filename sigma pat_syms body))
+                  cases ),
+            bt,
+            loc )
+      | Apply (f, args) ->
+        IT
+          ( Apply (f, List.map (optimize_concrete_terms filename sigma protected) args),
+            bt,
+            loc )
+      | Constructor (c, args) ->
+        IT
+          ( Constructor
+              ( c,
+                List.map
+                  (fun (id, t) ->
+                     (id, optimize_concrete_terms filename sigma protected t))
+                  args ),
+            bt,
+            loc )
+      | CN_Some t ->
+        IT (CN_Some (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | IsSome t ->
+        IT (IsSome (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | GetOpt t ->
+        IT (GetOpt (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Cons (t1, t2) ->
+        IT
+          ( Cons
+              ( optimize_concrete_terms filename sigma protected t1,
+                optimize_concrete_terms filename sigma protected t2 ),
+            bt,
+            loc )
+      | Head t -> IT (Head (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Tail t -> IT (Tail (optimize_concrete_terms filename sigma protected t), bt, loc)
+      | Representable (sct, t) ->
+        IT
+          ( Representable (sct, optimize_concrete_terms filename sigma protected t),
+            bt,
+            loc )
+      | Good (sct, t) ->
+        IT (Good (sct, optimize_concrete_terms filename sigma protected t), bt, loc)
+      | _ -> it)
+
+
+  (** Generate cn_term construction code for an address expression, keeping ALL
+      free variables symbolic as cn_smt_sym references. *)
+  let generate_addr_term
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (it_addr : Terms.Normal.t)
+    : Pp.document
+    =
+    let open Pp in
+    let free_vars_bts = Terms.Normal.free_vars_bts it_addr in
+    let all_protected = Sym.Set.of_seq (Sym.Map.to_seq free_vars_bts |> Seq.map fst) in
+    let optimized_it = optimize_concrete_terms filename sigma all_protected it_addr in
+    let final_it =
+      Sym.Map.fold
+        (fun sym bt acc ->
+           let sym_str =
+             plain
+               (!^"cn_smt_sym"
+                ^^ parens
+                     (parens !^"cn_sym"
+                      ^^ braces
+                           (!^".name = "
+                            ^^ dquotes (Sym.pp sym)
+                            ^^ comma
+                            ^^^ !^".id = "
+                            ^^ int (Sym.num sym))
+                      ^^ comma
+                      ^^^ Smt.convert_basetype bt))
+           in
+           let value_sym = Sym.fresh sym_str in
+           Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:value_sym) acc)
+        free_vars_bts
+        optimized_it
+    in
+    Smt.convert_indexterm sigma final_it
+
+
+  (** Generate pre-declarations for backward abstract interpretation blame in ALSO mode.
+      Returns (pre_decl_stmts, num_other_vars, addr_term_name, ids_name, syms_name). *)
+  let generate_bwd_blame_parts
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (it_addr : Terms.Normal.t)
+        (ptr_sym : Sym.t)
+    : CF.GenTypes.genTypeCategory A.statement_ list * int * string * string * string
+    =
+    let open Pp in
+    let unique_id = Sym.num (Sym.fresh "_bwd") in
+    let free_vars_bts = Terms.Normal.free_vars_bts it_addr in
+    let other_vars =
+      Sym.Map.bindings free_vars_bts
+      |> List.filter (fun (s, _) -> not (Sym.equal s ptr_sym))
+    in
+    let num_other = List.length other_vars in
+    let addr_term_name = "_bwd_addr_term_" ^ string_of_int unique_id in
+    let ids_name = "_bwd_other_ids_" ^ string_of_int unique_id in
+    let syms_name = "_bwd_other_syms_" ^ string_of_int unique_id in
+    let addr_term_expr = generate_addr_term filename sigma it_addr in
+    let decl_addr_str =
+      plain (!^"cn_term*" ^^^ !^addr_term_name ^^^ !^"=" ^^^ addr_term_expr)
+    in
+    let ids_inner =
+      if num_other = 0 then
+        !^"NULL"
+      else
+        separate_map (comma ^^ space) (fun (s, _) -> Sym.pp s) other_vars
+    in
+    let decl_ids_str =
+      plain (!^"const void*" ^^^ !^ids_name ^^ !^"[]" ^^^ !^"=" ^^^ braces ids_inner)
+    in
+    let syms_inner =
+      if num_other = 0 then
+        !^"{NULL, 0}"
+      else
+        separate_map
+          (comma ^^ space)
+          (fun (s, _) ->
+             !^"(bennet_absint_sym){.name ="
+             ^^^ dquotes (Sym.pp s)
+             ^^ !^", .id ="
+             ^^^ int (Sym.num s)
+             ^^ !^"}")
+          other_vars
+    in
+    let decl_syms_str =
+      plain
+        (!^"const bennet_absint_sym"
+         ^^^ !^syms_name
+         ^^ !^"[]"
+         ^^^ !^"="
+         ^^^ braces syms_inner)
+    in
+    let mk_decl_stmt str = A.AilSexpr (mk_expr (A.AilEident (Sym.fresh str))) in
+    let stmts = List.map mk_decl_stmt [ decl_addr_str; decl_ids_str; decl_syms_str ] in
+    (stmts, num_other, addr_term_name, ids_name, syms_name)
+
+
   let pp_relative (bt : BT.t) (r : AD.Relative.t) =
     let open Pp in
     let cty =
@@ -412,6 +777,9 @@ module Make (AD : Domain.T) = struct
         | Bits (Signed, sz) -> "int" ^ string_of_int sz ^ "_t"
         | _ -> failwith ("Unsupported pointer type @ " ^ __LOC__)
       in
+      let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
+        generate_bwd_blame_parts filename sigma it_addr p_sym
+      in
       let s_assign =
         A.
           [ AilSexpr
@@ -445,7 +813,11 @@ module Make (AD : Domain.T) = struct
                                     (Sctypes.to_ctype sct))));
                         mk_expr
                           (CtA.wrap_with_convert_from ~sct e_value_ (T.get_bt it_val));
-                        mk_expr (AilEident last_var)
+                        mk_expr (AilEident last_var);
+                        mk_expr (AilEident (Sym.fresh addr_term_name));
+                        mk_expr (AilEident (Sym.fresh (string_of_int num_other)));
+                        mk_expr (AilEident (Sym.fresh ids_name));
+                        mk_expr (AilEident (Sym.fresh syms_name))
                       ]
                       @ List.map
                           (fun x -> mk_expr (AilEident x))
@@ -454,7 +826,7 @@ module Make (AD : Domain.T) = struct
           ]
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-      (b_addr @ b_value @ b_rest, s_addr @ s_value @ s_assign @ s_rest, e_rest)
+      (b_addr @ b_value @ b_rest, s_addr @ s_value @ bwd_stmts @ s_assign @ s_rest, e_rest)
     | `LetStar
         ((x, GenTerms.Annot (`Arbitrary, _, (Bits (sign, bits) as x_bt), _)), gt_rest) ->
       let b_let = [ Utils.create_binding x (bt_to_ctype_for_binding x_bt) ] in

@@ -54,6 +54,10 @@ type smt_solver =
   | Z3
   | CVC5
 
+type dynamic_absint_assign_mode =
+  | DynamicAbsIntAssignAlso
+  | DynamicAbsIntAssignOnly
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -126,7 +130,8 @@ type t =
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     disable_extrema_skew : bool;
-    discard_factor : int
+    discard_factor : int;
+    dynamic_absint_assign : dynamic_absint_assign_mode option
   }
 
 val default : t
@@ -147,6 +152,8 @@ module Options : sig
   val smt_skewing_mode : (string * smt_skewing_mode) list
 
   val smt_solver : (string * smt_solver) list
+
+  val dynamic_absint_assign_mode : (string * dynamic_absint_assign_mode) list
 end
 
 val initialize : t -> unit
@@ -298,3 +305,7 @@ val is_old_style_alloc : unit -> bool
 val is_extrema_skew_disabled : unit -> bool
 
 val get_discard_factor : unit -> int
+
+val string_of_dynamic_absint_assign_mode : dynamic_absint_assign_mode -> string
+
+val get_dynamic_absint_assign : unit -> dynamic_absint_assign_mode option
