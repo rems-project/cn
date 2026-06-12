@@ -21,6 +21,17 @@ module Set = Set.Make (Ord)
 module Map = Map.Make (Ord)
 module Digraph = Graph.Persistent.Digraph.Concrete (Ord)
 
+module DigraphLabeled =
+  Graph.Persistent.Digraph.ConcreteLabeled
+    (Ord)
+    (struct
+      type t = int
+
+      let compare = Int.compare
+
+      let default = 0
+    end)
+
 let description = S.symbol_description
 
 let pp_string sym =

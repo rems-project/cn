@@ -30,6 +30,7 @@ type sizing_strategy =
 type inline_mode =
   | Nothing
   | NonRecursive
+  | SemiRecursive
   | Everything
 
 type smt_skewing_mode =

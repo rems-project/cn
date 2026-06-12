@@ -196,7 +196,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
   let annotate (ctx : Ctx.t) : Ctx.t =
     let cg = Ctx.get_call_graph ctx in
     let cg_order =
-      let module T = Graph.Topological.Make (Sym.Digraph) in
+      let module T = Graph.Topological.Make (Sym.DigraphLabeled) in
       T.fold List.cons cg []
     in
     let rec loop (worklist : Sym.t list) (abs_ctx : AD.t Sym.Map.t) : Ctx.t =
@@ -211,7 +211,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
             worklist'
           else (
             let successors =
-              Sym.Digraph.fold_succ List.cons cg fsym []
+              Sym.DigraphLabeled.fold_succ List.cons cg fsym []
               |> List.filter (fun x -> not (List.mem Sym.equal x worklist'))
             in
             List.filter (fun x -> List.mem Sym.equal x successors) cg_order @ worklist')

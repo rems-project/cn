@@ -468,7 +468,7 @@ def main():
         base_config += " --max-generator-size=16"
         alt_configs = [
             ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything"),
-            ("lucas", "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15"),
+            ("lucas", "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --inline=semirec --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15"),
             ("lucas", "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast"),
             ("lucas", "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint=tristate")
         ]
