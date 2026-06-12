@@ -30,6 +30,7 @@ type sizing_strategy =
 type inline_mode =
   | Nothing
   | NonRecursive
+  | SemiRecursive
   | Everything
 
 type smt_skewing_mode =
@@ -208,6 +209,7 @@ let string_of_inline_mode (inline_mode : inline_mode) =
   match inline_mode with
   | Nothing -> "nothing"
   | NonRecursive -> "nonrec"
+  | SemiRecursive -> "semirec"
   | Everything -> "everything"
 
 
@@ -245,7 +247,7 @@ module Options = struct
   let inline_mode : (string * inline_mode) list =
     List.map
       (fun mode -> (string_of_inline_mode mode, mode))
-      [ Nothing; NonRecursive; Everything ]
+      [ Nothing; NonRecursive; SemiRecursive; Everything ]
 
 
   let smt_skewing_mode : (string * smt_skewing_mode) list =

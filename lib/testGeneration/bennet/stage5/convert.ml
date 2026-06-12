@@ -107,7 +107,7 @@ module Make (AD : Domain.T) = struct
 
 
   let transform_gd
-        (cg : Sym.Digraph.t)
+        (cg : Sym.DigraphLabeled.t)
         ({ filename : string;
            recursive : bool;
            spec;
@@ -122,7 +122,7 @@ module Make (AD : Domain.T) = struct
     =
     let recursive_syms =
       if recursive then
-        Sym.Digraph.fold_pred Sym.Set.add cg name Sym.Set.empty
+        Sym.DigraphLabeled.fold_pred Sym.Set.add cg name Sym.Set.empty
       else
         Sym.Set.empty
     in
@@ -138,7 +138,7 @@ module Make (AD : Domain.T) = struct
 
 
   let transform (ctx : Stage4.Ctx.t) : Ctx.t =
-    let module Oper = Graph.Oper.P (Sym.Digraph) in
+    let module Oper = Graph.Oper.P (Sym.DigraphLabeled) in
     let cg = Oper.transitive_closure (Stage4.Ctx.get_call_graph ctx) in
     List.map_snd (transform_gd cg) ctx
 end

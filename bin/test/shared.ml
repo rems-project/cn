@@ -467,7 +467,8 @@ module Flags = struct
   let inline =
     let doc =
       "Set inlining mode: 'nothing' (no inlining, default), 'nonrec' (non-recursive \
-       only), 'rec' (recursive only), or 'everything' (both)"
+       only), 'semirec' (non-recursive and semi-recursive), 'rec' (recursive only), or \
+       'everything' (both)"
     in
     Arg.(
       value

@@ -4,4 +4,9 @@ open OUnit2
 
 (** Combined test suite for all Bennet tests *)
 let test_suite =
-  "Bennet Tests" >::: [ AbstractDomains.test_suite; Stage1.test_suite; Stage2.test_suite ]
+  "Bennet Tests"
+  >::: [ AbstractDomains.test_suite;
+         Stage1.test_suite;
+         Stage2.test_suite;
+         CallGraph.suite
+       ]

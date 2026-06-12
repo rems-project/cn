@@ -49,6 +49,82 @@ module Make (AD : Domain.T) = struct
       List.map_snd (fun (gd : Def.t) -> if gd.spec then transform_gd ctx gd else gd) ctx
   end
 
+  module InlineSemiRecursive = struct
+    (* A generator is semi-recursive if it is recursive but has exactly one
+       non-self predecessor with a single call edge. Returns (semi-recursive set,
+       transform targets). Only predecessors need transformation; if a predecessor
+       is itself semi-recursive, it gets inlined into its own predecessor via
+       recursive [aux]. *)
+    let get_semi_recursive_info (ctx : Ctx.t) : Sym.Set.t * Sym.Set.t =
+      let cg = Ctx.get_call_graph ctx in
+      let semi_rec, preds =
+        ctx
+        |> List.fold_left
+             (fun (semi_rec, preds) ((_, gd) : _ * Def.t) ->
+                if not gd.recursive then
+                  (semi_rec, preds)
+                else (
+                  match Sym.DigraphLabeled.pred_e cg gd.name with
+                  | [ e ] ->
+                    let pred_sym = Sym.DigraphLabeled.E.src e in
+                    if
+                      (not (Sym.equal pred_sym gd.name))
+                      && Sym.DigraphLabeled.E.label e = 1
+                    then
+                      (Sym.Set.add gd.name semi_rec, Sym.Set.add pred_sym preds)
+                    else
+                      (semi_rec, preds)
+                  | _ -> (semi_rec, preds)))
+             (Sym.Set.empty, Sym.Set.empty)
+      in
+      (semi_rec, Sym.Set.diff preds semi_rec)
+
+
+    let transform_gt (ctx : Ctx.t) (semi_rec : Sym.Set.t) (gt : Term.t) : Term.t =
+      let rec aux (gt : Term.t) : Term.t =
+        let (Annot (gt_, (), bt, loc)) = gt in
+        match gt_ with
+        | `Arbitrary | `Symbolic | `Return _ -> gt
+        | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
+        | `Call (fsym, iargs) when Sym.Set.mem fsym semi_rec ->
+          let gd = Ctx.find fsym ctx in
+          aux
+            (Term.subst
+               (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+               gd.body)
+        | `Call _ -> gt
+        | `Asgn ((it_addr, sct), it_val, gt_rest) ->
+          let gt_rest = aux gt_rest in
+          Term.asgn_ ((it_addr, sct), it_val, gt_rest) () loc
+        | `LetStar ((x, gt_inner), gt_rest) ->
+          let gt_inner = aux gt_inner in
+          let gt_rest = aux gt_rest in
+          Term.let_star_ ((x, gt_inner), gt_rest) () loc
+        | `Assert (lc, gt_rest) ->
+          let gt_rest = aux gt_rest in
+          Term.assert_ (lc, gt_rest) () loc
+        | `ITE (it_if, gt_then, gt_else) ->
+          let gt_then = aux gt_then in
+          let gt_else = aux gt_else in
+          Term.ite_ (it_if, gt_then, gt_else) () loc
+        | `Map ((i, i_bt, it_perm), gt_inner) ->
+          let gt_inner = aux gt_inner in
+          Term.map_ ((i, i_bt, it_perm), gt_inner) () loc
+      in
+      aux gt
+
+
+    let transform (ctx : Ctx.t) : Ctx.t =
+      let semi_rec, targets = get_semi_recursive_info ctx in
+      List.map_snd
+        (fun (gd : Def.t) ->
+           if Sym.Set.mem gd.name targets then
+             { gd with body = transform_gt ctx semi_rec gd.body }
+           else
+             gd)
+        ctx
+  end
+
   module InlineRecursive = struct
     let transform_gt (ctx : Ctx.t) (dont_unfold : Sym.Set.t) (gt : Term.t) : Term.t =
       let rec aux (gt : Term.t) : Term.t =
@@ -105,7 +181,7 @@ module Make (AD : Domain.T) = struct
         || (gd.recursive
             && List.exists
                  (fun pred_fsym -> (List.assoc Sym.equal pred_fsym ctx).spec)
-                 (Sym.Digraph.pred cg gd.name)))
+                 (Sym.DigraphLabeled.pred cg gd.name)))
       |> List.map_snd (transform_gd ctx)
   end
 
@@ -116,6 +192,12 @@ module Make (AD : Domain.T) = struct
     | NonRecursive ->
       ctx
       |> InlineNonRecursive.transform
+      |> PruneCallGraph.transform
+      |> SimplifyGen.transform prog5
+    | SemiRecursive ->
+      ctx
+      |> InlineNonRecursive.transform
+      |> InlineSemiRecursive.transform
       |> PruneCallGraph.transform
       |> SimplifyGen.transform prog5
     | Everything ->
