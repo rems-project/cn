@@ -1,3 +1,8 @@
+module Private = struct
+  module SimplifyGen = SimplifyGen
+  module Term = Term
+end
+
 module Make (AD : Domain.T) = struct
   open struct
     module Convert = Convert.Make (AD)

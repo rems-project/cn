@@ -1,3 +1,8 @@
+module Private : sig
+  module SimplifyGen = SimplifyGen
+  module Term = Term
+end
+
 module Make (AD : Domain.T) : sig
   module Term : module type of Term.Make (AD)
 
