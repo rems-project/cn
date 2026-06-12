@@ -71,8 +71,12 @@
     bennet_specialized_##cn_ty(                                                          \
         lower_bound_ex, lower_bound_inc, upper_bound_inc, upper_bound_ex, vars);         \
     if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                      \
+      bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                      \
+      bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
+                                                                                         \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                              \
   })
 
 #define BENNET_CALL(ty, last_var, ...)                                                   \
@@ -442,6 +446,10 @@
                                                                                          \
       goto bennet_label_##var##_gen;                                                     \
     } else {                                                                             \
+      if (var##_is_young && bennet_failure_is_blamed(var)) {                             \
+        bennet_failure_mark_old();                                                       \
+      }                                                                                  \
+                                                                                         \
       goto bennet_label_##last_var##_backtrack;                                          \
     }                                                                                    \
   }
@@ -493,8 +501,11 @@
   cn_ty* var = bennet_specialized_##cn_ty(                                               \
       lower_bound_ex, lower_bound_inc, upper_bound_inc, upper_bound_ex, var##_vars);     \
   if (bennet_failure_get_failure_type() != BENNET_FAILURE_NONE) {                        \
+    bennet_info_backtracks_log(__FUNCTION__, __FILE__, __LINE__);                        \
+    bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                               \
     goto bennet_label_##last_var##_backtrack;                                            \
   }                                                                                      \
+  bennet_info_unsatisfied_log(__FILE__, __LINE__, false);                                \
                                                                                          \
   if (var##_restore_randomness) {                                                        \
     bennet_rand_restore(var##_rand_checkpoint_after);                                    \
@@ -508,8 +519,11 @@
     bool var##_should_restore_randomness =                                               \
         bennet_failure_get_failure_type() == BENNET_FAILURE_ASSIGN;                      \
     bennet_checkpoint_restore(&var##_checkpoint);                                        \
-    bennet_failure_mark_old();                                                           \
-    if (var##_backtracks > 0) {                                                          \
+    bool var##_blamed = bennet_failure_is_blamed(var);                                   \
+    if (var##_blamed) {                                                                  \
+      bennet_failure_mark_old();                                                         \
+    }                                                                                    \
+    if (var##_blamed && var##_backtracks > 0) {                                          \
       var##_backtracks--;                                                                \
       var##_restore_randomness = var##_should_restore_randomness;                        \
       bennet_failure_reset();                                                            \
