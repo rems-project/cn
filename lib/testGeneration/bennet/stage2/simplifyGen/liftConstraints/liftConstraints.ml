@@ -1,3 +1,7 @@
+module Private = struct
+  module Disjunction = Disjunction
+end
+
 module Make (AD : Domain.T) = struct
   open struct
     module Implication = Implication.Make (AD)

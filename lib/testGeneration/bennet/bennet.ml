@@ -4,6 +4,7 @@ module A = CF.AilSyntax
 module Private = struct
   module AbstractDomains = AbstractDomains
   module Stage1 = Stage1
+  module Stage2 = Stage2
 end
 
 let ensure_dir_exists (dir : string) : unit =
