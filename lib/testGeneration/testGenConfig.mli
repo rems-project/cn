@@ -59,8 +59,8 @@ type t =
     ad_pruning : bool;
     static_absint : string list;
     local_iterations : int;
-    smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
-    smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_before_absint : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absint : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
@@ -168,9 +168,9 @@ val has_static_absint : unit -> string list
 
 val get_local_iterations : unit -> int
 
-val has_smt_pruning_before_absinst : unit -> [ `None | `Fast | `Slow ]
+val has_smt_pruning_before_absint : unit -> [ `None | `Fast | `Slow ]
 
-val has_smt_pruning_after_absinst : unit -> [ `None | `Fast | `Slow ]
+val has_smt_pruning_after_absint : unit -> [ `None | `Fast | `Slow ]
 
 val is_smt_pruning_remove_redundant_assertions : unit -> bool
 

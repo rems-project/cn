@@ -17,7 +17,7 @@ module Make (AD : Domain.T) = struct
   let transform (paused : _ Typing.pause) (ctx : Stage3.Ctx.t) : Ctx.t =
     ctx
     |> Convert.transform
-    |> (match TestGenConfig.has_smt_pruning_before_absinst () with
+    |> (match TestGenConfig.has_smt_pruning_before_absint () with
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
@@ -36,7 +36,7 @@ module Make (AD : Domain.T) = struct
           fun ctx -> ctx
         else
           Specialize.Integer.transform)
-    |> (match TestGenConfig.has_smt_pruning_after_absinst () with
+    |> (match TestGenConfig.has_smt_pruning_after_absint () with
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
