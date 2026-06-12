@@ -578,23 +578,28 @@
       upper_bound_ex,                                                                    \
       __VA_ARGS__)
 
-#define BENNET_LET_RETURN(ty, var, expr, last_var, ...)                                  \
+#define BENNET_LET_RETURN_BEGIN(ty, var, expr)                                           \
   ty* var = expr;                                                                        \
   if (0) {                                                                               \
     bennet_label_##var##_backtrack :;                                                    \
     BENNET_CHECK_TIMEOUT();                                                              \
-    if (bennet_failure_is_blamed(var)) {                                                 \
-      const void* toAdd[] = {__VA_ARGS__};                                               \
-      bool is_young = bennet_failure_is_young();                                         \
-      bennet_failure_remove_blame(var);                                                  \
-      bennet_failure_blame_many(toAdd);                                                  \
-      if (is_young) {                                                                    \
-        bennet_failure_mark_young();                                                     \
-      }                                                                                  \
-    }                                                                                    \
+    if (bennet_failure_is_blamed(var)) {
+#define BENNET_LET_RETURN_END(var, last_var, ...)                                        \
+  const void* toAdd[] = {__VA_ARGS__};                                                   \
+  bool is_young = bennet_failure_is_young();                                             \
+  bennet_failure_remove_blame(var);                                                      \
+  bennet_failure_blame_many(toAdd);                                                      \
+  if (is_young) {                                                                        \
+    bennet_failure_mark_young();                                                         \
+  }                                                                                      \
+  }                                                                                      \
                                                                                          \
-    goto bennet_label_##last_var##_backtrack;                                            \
+  goto bennet_label_##last_var##_backtrack;                                              \
   }
+
+#define BENNET_LET_RETURN(ty, var, expr, last_var, ...)                                  \
+  BENNET_LET_RETURN_BEGIN(ty, var, expr)                                                 \
+  BENNET_LET_RETURN_END(var, last_var, __VA_ARGS__)
 
 #define BENNET_LET(backtracks, cn_ty, var, last_var, ...)                                \
   int var##_backtracks = backtracks;                                                     \
