@@ -107,6 +107,15 @@ let register_new_cn_local id d_st =
   do_ail_desugar_op d_st (CF.Cabs_to_ail.register_additional_cn_var id)
 
 
+let validate_number_spec_args spec_loc spec_args arg_cts =
+  let spec = List.length spec_args in
+  let decl = List.length arg_cts in
+  if spec != decl then
+    fail { loc = spec_loc; msg = Number_spec_args { spec; decl } }
+  else
+    return ()
+
+
 (* This rewrite should happen after some partial evaluation and rewrites that
    remove expressions passing ctypes and function pointers as values. The
    embedding into mucore then is partial in those places. Based on
@@ -1128,9 +1137,10 @@ module Spec = struct
   let setup_env_desugaring_state loc defn_marker markers_env if_spec env args arg_cts =
     match if_spec with
     | None -> return (env, CAE.{ inner = Pmap.find defn_marker markers_env; markers_env })
-    | Some (decl_marker, _spec_loc, spec_args) ->
+    | Some (decl_marker, spec_loc, spec_args) ->
       let decl_d_st = CAE.{ inner = Pmap.find decl_marker markers_env; markers_env } in
       let@ spec_args, decl_d_st = desugar_and_add_args decl_d_st spec_args in
+      let@ () = validate_number_spec_args spec_loc spec_args arg_cts in
       return (add_spec_arg_renames loc args arg_cts spec_args env, decl_d_st)
 
 
@@ -1280,14 +1290,7 @@ let normalise_fun_map_decl
             =
             Spec.desugar global_types d_st parsed
           in
-          let@ () =
-            let spec = List.length spec_args in
-            let decl = List.length arg_cts in
-            if spec != decl then
-              fail { loc = spec_loc; msg = Number_spec_args { spec; decl } }
-            else
-              return ()
-          in
+          let@ () = validate_number_spec_args spec_loc spec_args arg_cts in
           let@ args_and_rt =
             make_fun_with_spec_args
               (fun env st ->
