@@ -163,6 +163,9 @@ let run
       if config.old_style_alloc && not (List.is_empty config.domains) then (
         Printf.eprintf "Error: --old-style-alloc is incompatible with --domains\n";
         exit 1);
+      if config.dynamic_assert_domain && not config.runtime_assert_domain then (
+        Printf.eprintf "Error: --dynamic-assert-domain requires --runtime-assert-domain\n";
+        exit 1);
       TestGeneration.set_config config;
       (if TestGeneration.Config.is_experimental engine then
          Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)));

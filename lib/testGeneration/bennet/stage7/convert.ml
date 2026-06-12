@@ -934,6 +934,282 @@ module Make (AD : Domain.T) = struct
            (AD.Relative.pp_args r))
 
 
+  (** Generate BENNET_ASSERT_DOMAIN_EVAL_CONSTRAINT calls for blame-first phase *)
+  let generate_eval_constraints
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (name : Sym.t)
+        ~(free_vars : (Sym.t * BT.t) list)
+        (constraints : Terms.Normal.t list)
+    : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let free_var_set =
+      List.fold_left (fun acc (x, _) -> Sym.Set.add x acc) Sym.Set.empty free_vars
+    in
+    List.fold_right
+      (fun constraint_it (acc_b, acc_s) ->
+         let b_cond, s_cond, e_cond = transform_it filename sigma name constraint_it in
+         let blame_syms =
+           Terms.Normal.free_vars constraint_it
+           |> Sym.Set.inter free_var_set
+           |> Sym.Set.to_seq
+           |> List.of_seq
+         in
+         let s_eval =
+           A.AilSexpr
+             (mk_expr
+                (AilEcall
+                   ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_EVAL_CONSTRAINT"),
+                     [ e_cond ]
+                     @ List.map (fun x -> mk_expr (AilEident x)) blame_syms
+                     @ [ mk_expr (AilEconst ConstantNull) ] )))
+         in
+         (b_cond @ acc_b, s_cond @ [ s_eval ] @ acc_s))
+      constraints
+      ([], [])
+
+
+  (** Generate BENNET_ASSERT_DOMAIN_EVAL_ASSIGNMENT calls for blame-first phase *)
+  let generate_eval_assignments
+        (filename : string)
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        (name : Sym.t)
+        ~(free_vars : (Sym.t * BT.t) list)
+        ~(ad : AD.t)
+        (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+    : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    (* Only process Loc() variables *)
+    let loc_vars = List.filter (fun (_, bt) -> BT.equal bt (BT.Loc ())) free_vars in
+    List.fold_right
+      (fun (var_sym, _var_bt) (acc_b, acc_s) ->
+         let rel = AD.relative_to var_sym (BT.Loc ()) ad in
+         let domain_expr = plain (pp_relative (BT.Loc ()) rel) in
+         let domain_cast = "(bennet_domain(uintptr_t)*)" ^ domain_expr in
+         List.fold_right
+           (fun (it_addr, sct, max_addr) (acc_b2, acc_s2) ->
+              let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
+              match pointer_opt with
+              | Some (p, _) when Sym.equal p var_sym ->
+                let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
+                let addr_sym =
+                  match e_addr with
+                  | A.AnnotatedExpression (_, _, _, A.AilEident sym) -> sym
+                  | _ -> failwith "generate_eval_assignments: expected AilEident"
+                in
+                let base_ptr_str =
+                  "(void*)convert_from_cn_pointer(" ^ Sym.pp_string var_sym ^ ")"
+                in
+                let addr_str =
+                  "(void*)convert_from_cn_pointer(" ^ Sym.pp_string addr_sym ^ ")"
+                in
+                let b_extra, s_extra, bytes_str =
+                  match max_addr with
+                  | Some it_max
+                    when not (Sym.Set.mem var_sym (Terms.Normal.free_vars it_max)) ->
+                    let loc = Locations.other __LOC__ in
+                    let end_bytes_it =
+                      MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
+                    in
+                    let start_offset_it = compute_offset_it var_sym it_addr in
+                    let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
+                    let b_range, s_range, e_range =
+                      transform_it filename sigma name range_size_it
+                    in
+                    let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
+                    let raw_range_expr =
+                      mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
+                    in
+                    ( b_range,
+                      s_range,
+                      CF.Pp_utils.to_plain_string
+                        CF.Pp_ail.(with_executable_spec pp_expression raw_range_expr) )
+                  | _ -> ([], [], "sizeof(" ^ sct_to_c_type_string sct ^ ")")
+                in
+                let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
+                  generate_bwd_blame_parts filename sigma it_addr var_sym
+                in
+                let macro_call =
+                  !^"BENNET_ASSERT_DOMAIN_EVAL_ASSIGNMENT"
+                  ^^ parens
+                       (!^"uintptr_t"
+                        ^^ comma
+                        ^^^ Sym.pp var_sym
+                        ^^ comma
+                        ^^^ !^base_ptr_str
+                        ^^ comma
+                        ^^^ !^addr_str
+                        ^^ comma
+                        ^^^ !^bytes_str
+                        ^^ comma
+                        ^^^ !^domain_cast
+                        ^^ comma
+                        ^^^ !^addr_term_name
+                        ^^ comma
+                        ^^^ int num_other
+                        ^^ comma
+                        ^^^ !^ids_name
+                        ^^ comma
+                        ^^^ !^syms_name)
+                in
+                let s_macro =
+                  A.AilSexpr (mk_expr (A.AilEident (Sym.fresh (plain macro_call))))
+                in
+                ( b_addr @ b_extra @ acc_b2,
+                  s_addr @ s_extra @ bwd_stmts @ [ s_macro ] @ acc_s2 )
+              | _ -> (acc_b2, acc_s2))
+           asgns
+           (acc_b, acc_s))
+      loc_vars
+      ([], [])
+
+
+  (** Generate BENNET_ASSERT_DOMAIN_REFINE_ASSIGNMENT calls for AssertDomainElab context *)
+  let generate_assert_domain_assignment_refinements
+        (filename : string)
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(var_sym : Sym.t)
+        ~(backtrack_var : Sym.t)
+        (name : Sym.t)
+        (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+    : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    List.fold_right
+      (fun (it_addr, sct, max_addr) (acc_b, acc_s) ->
+         let pointer_opt = try Some (pointer_of it_addr) with _ -> None in
+         match pointer_opt with
+         | Some (p, _) when Sym.equal p var_sym ->
+           let b_addr, s_addr, e_addr = transform_it filename sigma name it_addr in
+           let addr_sym =
+             match e_addr with
+             | A.AnnotatedExpression (_, _, _, A.AilEident sym) -> sym
+             | _ ->
+               failwith
+                 "generate_assert_domain_assignment_refinements: expected AilEident"
+           in
+           let base_ptr_str =
+             "(void*)convert_from_cn_pointer(" ^ Sym.pp_string var_sym ^ ")"
+           in
+           let addr_str =
+             "(void*)convert_from_cn_pointer(" ^ Sym.pp_string addr_sym ^ ")"
+           in
+           let b_extra, s_extra, bytes_str =
+             match max_addr with
+             | Some it_max when not (Sym.Set.mem var_sym (Terms.Normal.free_vars it_max))
+               ->
+               (* For array range assignments, bytes = it_max * sizeof(sct) - start_offset *)
+               let loc = Locations.other __LOC__ in
+               let end_bytes_it =
+                 MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
+               in
+               let start_offset_it = compute_offset_it var_sym it_addr in
+               let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
+               let b_range, s_range, e_range =
+                 transform_it filename sigma name range_size_it
+               in
+               let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
+               let raw_range_expr =
+                 mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
+               in
+               ( b_range,
+                 s_range,
+                 CF.Pp_utils.to_plain_string
+                   CF.Pp_ail.(with_executable_spec pp_expression raw_range_expr) )
+             | _ -> ([], [], "sizeof(" ^ sct_to_c_type_string sct ^ ")")
+           in
+           let bwd_stmts, num_other, addr_term_name, ids_name, syms_name =
+             generate_bwd_blame_parts filename sigma it_addr var_sym
+           in
+           let macro_call =
+             !^"BENNET_ASSERT_DOMAIN_REFINE_ASSIGNMENT"
+             ^^ parens
+                  (!^"uintptr_t"
+                   ^^ comma
+                   ^^^ Sym.pp backtrack_var
+                   ^^ comma
+                   ^^^ Sym.pp var_sym
+                   ^^ comma
+                   ^^^ !^base_ptr_str
+                   ^^ comma
+                   ^^^ !^addr_str
+                   ^^ comma
+                   ^^^ !^bytes_str
+                   ^^ comma
+                   ^^^ !^addr_term_name
+                   ^^ comma
+                   ^^^ int num_other
+                   ^^ comma
+                   ^^^ !^ids_name
+                   ^^ comma
+                   ^^^ !^syms_name)
+           in
+           let s_macro =
+             A.AilSexpr (mk_expr (A.AilEident (Sym.fresh (plain macro_call))))
+           in
+           (b_addr @ b_extra @ acc_b, s_addr @ s_extra @ bwd_stmts @ [ s_macro ] @ acc_s)
+         | _ -> (acc_b, acc_s))
+      asgns
+      ([], [])
+
+
+  (** Generate BENNET_ASSERT_DOMAIN_REFINE_CONSTRAINT calls for assert_domain context *)
+  let generate_assert_domain_constraint_refinements
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(var_sym : Sym.t)
+        ~(var_bt : BT.t)
+        ~(backtrack_var : Sym.t)
+        (constraints : Terms.Normal.t list)
+    : CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    let c_ty = bt_to_domain_type_string var_bt in
+    let base_type_expr = Smt.convert_basetype var_bt in
+    constraints
+    |> List.map (fun constraint_it ->
+      let constraint_term =
+        generate_constraint_term
+          filename
+          sigma
+          ~target:var_sym
+          ~target_bt:var_bt
+          constraint_it
+      in
+      let blame_vars =
+        Terms.Normal.free_vars constraint_it
+        |> Sym.Set.to_seq
+        |> List.of_seq
+        |> concat_map (fun x -> !^(", " ^ plain (Sym.pp x)))
+      in
+      let macro_call =
+        !^"BENNET_ASSERT_DOMAIN_REFINE_CONSTRAINT"
+        ^^ parens
+             (!^c_ty
+              ^^ comma
+              ^^^ Sym.pp backtrack_var
+              ^^ comma
+              ^^^ Sym.pp var_sym
+              ^^ comma
+              ^^^ parens
+                    (parens !^"cn_sym"
+                     ^^ braces
+                          (!^".name = "
+                           ^^ dquotes (Sym.pp var_sym)
+                           ^^ comma
+                           ^^^ !^".id = "
+                           ^^ int (Sym.num var_sym)))
+              ^^ comma
+              ^^^ base_type_expr
+              ^^ comma
+              ^^^ constraint_term
+              ^^ blame_vars
+              ^^ !^", NULL")
+      in
+      A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_call)))))
+
+
   let rec transform_term
             (filename : string)
             (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -1747,81 +2023,183 @@ module Make (AD : Domain.T) = struct
       in
       let b2, s2, e2 = transform_term filename sigma ctx name gt_rest in
       (b1 @ b2, s1 @ s_assert @ s2, e2)
-    | `AssertDomainElab (_, ad, _, _, gt_rest) ->
+    | `AssertDomainElab (backtrack_var, ad, its, asgns, gt_rest) ->
       if not (TestGenConfig.is_runtime_assert_domain ()) then
         (* Skip assert_domain, just process the rest *)
         transform_term filename sigma ctx name gt_rest
       else (
-        (* Filter abstract domain to only include in-scope variables *)
-        let lc = AD.to_lc ad in
-        let b_cond, s_cond, e_cond = transform_lc filename sigma lc in
+        (* Get free variables from the abstract domain and from constraints *)
+        let ad_free_vars = AD.free_vars_bts ad in
+        let constraint_free_vars =
+          Terms.Normal.free_vars_bts_list its
+          |> Sym.Map.filter (fun _ -> Stage6.Term.is_arbitrary_supported_bt)
+        in
+        let all_free_vars =
+          Sym.Map.union
+            (fun _ bt1 bt2 ->
+               assert (BT.equal bt1 bt2);
+               Some bt1)
+            ad_free_vars
+            constraint_free_vars
+        in
+        let free_vars = all_free_vars |> Sym.Map.to_seq |> List.of_seq in
+        let n = List.length free_vars in
+        (* Generate BEGIN macro call *)
         let s_begin =
           A.
             [ AilSexpr
                 (mk_expr
                    (AilEcall
                       ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_BEGIN"),
-                        [ e_cond; mk_expr (AilEconst ConstantNull) ] )))
+                        [ mk_expr (AilEident backtrack_var);
+                          mk_expr
+                            (AilEconst
+                               (ConstantInteger (IConstant (Z.of_int n, Decimal, None))))
+                        ] )))
             ]
         in
-        (* Generate blame_domain calls for each variable *)
-        let s_blame =
-          AD.free_vars_bts ad
-          |> Sym.Map.to_seq
-          |> Seq.filter_map (fun (x, x_bt) ->
-            (* Only generate for bits/pointer types *)
-            match x_bt with
-            | BT.Bits (sign, bits) ->
-              let cty =
-                match sign with
-                | BT.Signed -> Printf.sprintf "int%d_t" bits
-                | BT.Unsigned -> Printf.sprintf "uint%d_t" bits
-              in
-              let rel = AD.relative_to x x_bt ad in
-              let domain_expr = Pp.plain (pp_relative x_bt rel) in
-              Some
-                (A.AilSexpr
-                   (mk_expr
-                      (AilEcall
-                         ( mk_expr (string_ident "bennet_failure_blame_domain"),
-                           [ mk_expr (AilEident (Sym.fresh cty));
-                             mk_expr (AilEunary (Address, mk_expr (AilEident x)));
-                             mk_expr
-                               (AilEident
-                                  (Sym.fresh
-                                     ("(bennet_domain(" ^ cty ^ ")*)" ^ domain_expr)))
-                           ] ))))
-            | BT.Loc () ->
-              let cty = "uintptr_t" in
-              let rel = AD.relative_to x x_bt ad in
-              let domain_expr = Pp.plain (pp_relative x_bt rel) in
-              Some
-                (A.AilSexpr
-                   (mk_expr
-                      (AilEcall
-                         ( mk_expr (string_ident "bennet_failure_blame_domain"),
-                           [ mk_expr (AilEident (Sym.fresh cty));
-                             mk_expr (AilEunary (Address, mk_expr (AilEident x)));
-                             mk_expr
-                               (AilEident
-                                  (Sym.fresh
-                                     ("(bennet_domain(" ^ cty ^ ")*)" ^ domain_expr)))
-                           ] ))))
-            | _ -> None)
-          |> List.of_seq
+        (* Phase 1: Blame evaluation (only when dynamic assert domain is enabled) *)
+        let b_eval, s_eval =
+          if TestGenConfig.has_dynamic_assert_domain () then (
+            let b_eval_a, s_eval_a =
+              generate_eval_assignments filename sigma name ~free_vars ~ad asgns
+            in
+            let b_eval_c, s_eval_c =
+              generate_eval_constraints filename sigma name ~free_vars its
+            in
+            (b_eval_a @ b_eval_c, s_eval_a @ s_eval_c))
+          else
+            ([], [])
         in
+        (* Phase 2: Per-variable VAR_BEGIN / REFINE_CONSTRAINT / REFINE_ASSIGNMENT /
+           VAR_END, wrapped in blamed check when dynamic assert domain is enabled *)
+        let s_vars, b_extra =
+          free_vars
+          |> List.map (fun (x, x_bt) ->
+            let cty = bt_to_domain_type_string x_bt in
+            let cn_ty =
+              match x_bt with
+              | BT.Bits (Signed, sz) -> Printf.sprintf "cn_bits_i%d" sz
+              | BT.Bits (Unsigned, sz) -> Printf.sprintf "cn_bits_u%d" sz
+              | BT.Loc () -> "cn_pointer"
+              | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp x_bt))
+            in
+            let rel = AD.relative_to x x_bt ad in
+            let domain_expr = Pp.plain (pp_relative x_bt rel) in
+            (* VAR_BEGIN: declare per-variable domain on the stack *)
+            let s_var_begin =
+              A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_VAR_BEGIN"),
+                        [ mk_expr (AilEident (Sym.fresh cty));
+                          mk_expr (AilEident backtrack_var);
+                          mk_expr (AilEident x);
+                          mk_expr
+                            (AilEident
+                               (Sym.fresh ("(bennet_domain(" ^ cty ^ ")*)" ^ domain_expr)))
+                        ] )))
+            in
+            (* REFINE_CONSTRAINT calls (when dynamic absint enabled and constraints
+               non-empty) *)
+            let s_refines =
+              if TestGenConfig.has_dynamic_assert_domain () && not (List.is_empty its)
+              then (
+                let relevant_constraints =
+                  List.filter (fun it -> Sym.Set.mem x (Terms.Normal.free_vars it)) its
+                in
+                generate_assert_domain_constraint_refinements
+                  filename
+                  sigma
+                  ~var_sym:x
+                  ~var_bt:x_bt
+                  ~backtrack_var
+                  relevant_constraints)
+              else
+                []
+            in
+            (* REFINE_ASSIGNMENT calls (only for Loc() variables, when dynamic absint
+               enabled) *)
+            let b_asgn_refines, s_asgn_refines =
+              if TestGenConfig.has_dynamic_assert_domain () && BT.equal x_bt (BT.Loc ())
+              then
+                generate_assert_domain_assignment_refinements
+                  filename
+                  sigma
+                  ~var_sym:x
+                  ~backtrack_var
+                  name
+                  asgns
+              else
+                ([], [])
+            in
+            (* VAR_END: check the (possibly refined) domain *)
+            let s_var_end =
+              A.AilSexpr
+                (mk_expr
+                   (AilEcall
+                      ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_VAR_END"),
+                        [ mk_expr (AilEident (Sym.fresh cty));
+                          mk_expr (AilEident (Sym.fresh cn_ty));
+                          mk_expr (AilEident x);
+                          mk_expr (AilEident backtrack_var)
+                        ] )))
+            in
+            let refinement_stmts =
+              [ s_var_begin ] @ s_asgn_refines @ s_refines @ [ s_var_end ]
+            in
+            (* Wrap refinement in blamed check when dynamic assert domain enabled *)
+            let final_stmts =
+              if TestGenConfig.has_dynamic_assert_domain () then
+                [ A.AilSif
+                    ( mk_expr
+                        (AilEcall
+                           ( mk_expr (string_ident "bennet_failure_is_blamed"),
+                             [ mk_expr (AilEident x) ] )),
+                      mk_stmt (A.AilSblock ([], List.map mk_stmt refinement_stmts)),
+                      mk_stmt A.AilSskip )
+                ]
+              else
+                refinement_stmts
+            in
+            (final_stmts, b_asgn_refines))
+          |> List.split
+          |> fun (ss, bs) -> (List.flatten ss, List.flatten bs)
+        in
+        (* Generate END macro call *)
         let s_end =
           A.
             [ AilSexpr
                 (mk_expr
                    (AilEcall
                       ( mk_expr (string_ident "BENNET_ASSERT_DOMAIN_END"),
-                        [ mk_expr (AilEident last_var); mk_expr (AilEconst ConstantNull) ]
-                      )))
+                        [ mk_expr (AilEident backtrack_var);
+                          mk_expr (AilEident last_var)
+                        ] )))
             ]
         in
+        (* Wrap Phase 2 in failure type check when dynamic assert domain enabled *)
+        let s_vars_guarded =
+          if TestGenConfig.has_dynamic_assert_domain () then
+            [ A.AilSif
+                ( mk_expr
+                    (AilEbinary
+                       ( mk_expr
+                           (AilEcall
+                              ( mk_expr (string_ident "bennet_failure_get_failure_type"),
+                                [] )),
+                         Ne,
+                         mk_expr (AilEident (Sym.fresh "BENNET_FAILURE_NONE")) )),
+                  mk_stmt (A.AilSblock ([], List.map mk_stmt s_vars)),
+                  mk_stmt A.AilSskip )
+            ]
+          else
+            s_vars
+        in
         let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
-        (b_cond @ b_rest, s_cond @ s_begin @ s_blame @ s_end @ s_rest, e_rest))
+        ( b_eval @ b_extra @ b_rest,
+          s_begin @ s_eval @ s_vars_guarded @ s_end @ s_rest,
+          e_rest ))
     | `ITE (it_if, gt_then, gt_else) ->
       let b_if, s_if, e_if = transform_it filename sigma name it_if in
       let b_then, s_then, e_then = transform_term filename sigma ctx name gt_then in

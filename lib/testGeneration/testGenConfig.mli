@@ -132,6 +132,7 @@ type t =
     discard_factor : int;
     dynamic_arbitrary_domain : bool;
     dynamic_arbitrary_propagation : bool;
+    dynamic_assert_domain : bool;
     old_style_alloc : bool;
     dynamic_absint_assign : dynamic_absint_assign_mode option
   }
@@ -309,6 +310,8 @@ val get_discard_factor : unit -> int
 val has_dynamic_arbitrary_domain : unit -> bool
 
 val has_dynamic_arbitrary_propagation : unit -> bool
+
+val has_dynamic_assert_domain : unit -> bool
 
 val is_old_style_alloc : unit -> bool
 

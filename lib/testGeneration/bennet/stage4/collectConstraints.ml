@@ -3,6 +3,8 @@ module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
+  module Ctx = Ctx.Make (AD)
+  module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
   let rec pointer_of (it : Terms.Normal.t) : Sym.t * BT.t =
@@ -222,4 +224,58 @@ module Make (AD : Domain.T) = struct
       in
       (constraints, asgns_rest, Term.assert_domain_ (d, cs, asgns, gt_rest') tag loc)
     | _ -> ([], [], gt)
+
+
+  (** Walk the tree top-down, tracking defined variables and populating
+      AssertDomain nodes with constraints collected from their continuation. *)
+  let rec transform_gt (defined : Sym.Set.t) (gt : Term.t) : Term.t =
+    if
+      not
+        (TestGenConfig.has_dynamic_assert_domain ()
+         || TestGenConfig.has_dynamic_arbitrary_domain ())
+    then
+      gt
+    else (
+      let (GenTerms.Annot (gt_, tag, bt, loc)) = gt in
+      match gt_ with
+      | `LetStar ((x, gt_inner), gt_rest) ->
+        let defined' = Sym.Set.add x defined in
+        let gt_inner' = transform_gt defined gt_inner in
+        let gt_rest' = transform_gt defined' gt_rest in
+        Term.let_star_ ((x, gt_inner'), gt_rest') tag loc
+      | `AssertDomain (d, _, _asgns, gt_rest) ->
+        let cs, asgns', gt_rest_stripped =
+          collect_constraints ~strip:true ~defined gt_rest
+        in
+        let gt_rest' = transform_gt defined gt_rest_stripped in
+        Term.assert_domain_ (d, cs, asgns', gt_rest') tag loc
+      | `Assert (lc, gt_rest) ->
+        let gt_rest' = transform_gt defined gt_rest in
+        Term.assert_ (lc, gt_rest') tag loc
+      | `Asgn ((it_addr, sct), it_val, gt_rest) ->
+        let gt_rest' = transform_gt defined gt_rest in
+        Term.asgn_ ((it_addr, sct), it_val, gt_rest') tag loc
+      | `Map ((i, i_bt, it_perm), gt_inner) ->
+        let defined' = Sym.Set.add i defined in
+        let gt_inner' = transform_gt defined' gt_inner in
+        Term.map_ ((i, i_bt, it_perm), gt_inner') tag loc
+      | `Pick gts ->
+        let gts' = List.map (transform_gt defined) gts in
+        Term.pick_ gts' tag bt loc
+      | `ITE (it_if, gt_then, gt_else) ->
+        let gt_then' = transform_gt defined gt_then in
+        let gt_else' = transform_gt defined gt_else in
+        Term.ite_ (it_if, gt_then', gt_else') tag loc
+      | _ -> gt)
+
+
+  let transform_gd (gd : Def.t) : Def.t =
+    let defined = gd.iargs |> List.map fst |> Sym.Set.of_list in
+    let body = transform_gt defined gd.body in
+    { gd with body }
+
+
+  let transform (ctx : Ctx.t) : Ctx.t =
+    Cerb_debug.print_debug 2 [] (fun () -> "collect_constraints");
+    List.map_snd transform_gd ctx
 end
