@@ -941,7 +941,14 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
                 Generic (!^"unsupported c-type in sig of:" ^^^ Sym.pp sym)
                 [@alert "-deprecated"]
             })))
-  | PEmemberof _ -> Cerb_debug.error "todo: PEmemberof"
+  | PEmemberof (tag, member, pe) ->
+    let struct_bt = BT.Struct tag in
+    let@ () = WellTyped.ensure_base_type loc ~expect:struct_bt (Mu.bt_of_pexpr pe) in
+    let@ struct_val = check_pexpr path_cs pe in
+    let@ member_sct = Global.get_struct_member_type loc tag member in
+    let member_bt = Memory.bt_of_sct member_sct in
+    let@ () = WellTyped.ensure_base_type loc ~expect member_bt in
+    return (member_ ~member_bt (struct_val, member) loc)
   | PEwrapI (ity, iop, pe1, pe2) ->
     (* in integers, perform this op and round. in bitvector types, just perform
         the op (for all the ops where wrapping is consistent) *)

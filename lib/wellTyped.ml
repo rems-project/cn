@@ -1783,11 +1783,13 @@ module BaseTyping = struct
           else
             fail
               { loc; msg = Generic !^"unsupported: union types" } [@alert "-deprecated"]
-        | PEmemberof (_, _, _)
+        | PEmemberof (tag, member, pe) ->
+          let@ pe = infer_pexpr pe in
+          let@ field_ct = get_struct_member_type loc tag member in
+          return (Memory.bt_of_sct field_ct, PEmemberof (tag, member, pe))
         (* reaching these cases should be prevented by the `is_unreachable` used in
            inferring types of PEif *)
-        | PEerror (_, _) ->
-          todo ()
+        | PEerror (_, _) -> todo ()
         | PEundef (loc, ub) ->
           if !Sym.experimental_unions then
             (* in the case of a well-formedness check when labels are not inlined
