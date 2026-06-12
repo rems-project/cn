@@ -38,7 +38,7 @@ module Flags = struct
       & info [ "local-iterations" ] ~doc)
 
 
-  let smt_pruning_before_absinst =
+  let smt_pruning_before_absint =
     let doc =
       "(Experimental) Use SMT solver to prune unsatisfiable branches before abstract \
        interpretation"
@@ -49,7 +49,7 @@ module Flags = struct
       & info [ "smt-pruning-before-absint" ] ~doc)
 
 
-  let smt_pruning_after_absinst =
+  let smt_pruning_after_absint =
     let doc =
       "(Experimental) Use SMT solver to prune unsatisfiable branches after abstract \
        interpretation"
@@ -87,8 +87,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         ad_pruning
         static_absint
         local_iterations
-        smt_pruning_before_absinst
-        smt_pruning_after_absinst
+        smt_pruning_before_absint
+        smt_pruning_after_absint
         smt_pruning_keep_redundant_assertions
         smt_pruning_at_runtime
         runtime_assert_domain
@@ -100,8 +100,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       ad_pruning;
       static_absint;
       local_iterations;
-      smt_pruning_before_absinst;
-      smt_pruning_after_absinst;
+      smt_pruning_before_absint;
+      smt_pruning_after_absint;
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
       smt_pruning_at_runtime;
       runtime_assert_domain;
@@ -113,8 +113,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.ad_pruning
     $ Flags.static_absint
     $ Flags.local_iterations
-    $ Flags.smt_pruning_before_absinst
-    $ Flags.smt_pruning_after_absinst
+    $ Flags.smt_pruning_before_absint
+    $ Flags.smt_pruning_after_absint
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.smt_pruning_at_runtime
     $ Flags.runtime_assert_domain

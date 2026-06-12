@@ -59,8 +59,8 @@ type t =
     ad_pruning : bool;
     static_absint : string list;
     local_iterations : int;
-    smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
-    smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_before_absint : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absint : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
@@ -129,8 +129,8 @@ let default =
     ad_pruning = false;
     static_absint = [];
     local_iterations = 10;
-    smt_pruning_before_absinst = `None;
-    smt_pruning_after_absinst = `None;
+    smt_pruning_before_absint = `None;
+    smt_pruning_after_absint = `None;
     smt_pruning_remove_redundant_assertions = true;
     smt_pruning_at_runtime = false;
     runtime_assert_domain = false;
@@ -298,9 +298,9 @@ let has_static_absint () = (Option.get !instance).static_absint
 
 let get_local_iterations () = (Option.get !instance).local_iterations
 
-let has_smt_pruning_before_absinst () = (Option.get !instance).smt_pruning_before_absinst
+let has_smt_pruning_before_absint () = (Option.get !instance).smt_pruning_before_absint
 
-let has_smt_pruning_after_absinst () = (Option.get !instance).smt_pruning_after_absinst
+let has_smt_pruning_after_absint () = (Option.get !instance).smt_pruning_after_absint
 
 let is_smt_pruning_remove_redundant_assertions () =
   (Option.get !instance).smt_pruning_remove_redundant_assertions
