@@ -3,6 +3,9 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module Specialize = Specialize.Make (AD)
     module SpecializeDomain = SpecializeDomain.Make (AD)
+    module CollectConstraints = CollectConstraints.Make (AD)
+    module SimplifyAssertDomain = SimplifyAssertDomain.Make (AD)
+    module InsertAssertDomain = InsertAssertDomain.Make (AD)
     module AdPruning = AdPruning.Make (AD)
     module SmtPruning = SmtPruning.Make (AD)
     module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
@@ -28,6 +31,10 @@ module Make (AD : Domain.T) = struct
           fun ctx -> ctx
         else
           Specialize.Integer.transform)
+    |> (if TestGenConfig.is_runtime_assert_domain () then
+          InsertAssertDomain.transform
+        else
+          Fun.id)
     |> (if TestGenConfig.has_static_absint () then
           fun ctx ->
         ctx
@@ -40,6 +47,14 @@ module Make (AD : Domain.T) = struct
           || TestGenConfig.has_dynamic_arbitrary_domain ()
         then
           SpecializeDomain.transform
+        else
+          Fun.id)
+    |> (if TestGenConfig.has_dynamic_assert_domain () then
+          CollectConstraints.transform
+        else
+          Fun.id)
+    |> (if TestGenConfig.is_runtime_assert_domain () then
+          SimplifyAssertDomain.transform
         else
           Fun.id)
     |> (match TestGenConfig.has_smt_pruning_after_absint () with

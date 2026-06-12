@@ -44,12 +44,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
   let annotate_gd (abs_ctx : AD.t Sym.Map.t) (defs_ctx : Ctx.t) (gd : Def.t)
     : GT.t * AD.t list
     =
-    let rec aux
-              (abs_ctx : AD.t Sym.Map.t)
-              (defs_ctx : Ctx.t)
-              (tm : GT.t)
-              (d : AD.t)
-              should_assert
+    let rec aux (abs_ctx : AD.t Sym.Map.t) (defs_ctx : Ctx.t) (tm : GT.t) (d : AD.t)
       : GT.t * AD.t list
       =
       let (GenTerms.Annot (tm_, tag, bt, loc)) = tm in
@@ -59,11 +54,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
       | `ArbitrarySpecialized bounds ->
         (GT.arbitrary_specialized_ bounds tag bt loc, [ d ])
       | `ArbitraryDomain _ -> failwith ("unreachable @ " ^ __LOC__)
-      | `Return _ ->
-        let tm' =
-          if should_assert then GT.assert_domain_ (d, [], [], tm) tag loc else tm
-        in
-        (tm', [ d ])
+      | `Return _ -> (tm, [ d ])
       | `Call (fsym, actual_args) | `CallSized (fsym, actual_args, _) ->
         let d' =
           match Sym.Map.find_opt fsym abs_ctx with
@@ -90,60 +81,58 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
             (* function has no ownership info *)
             d
         in
-        let tm' =
-          if should_assert then GT.assert_domain_ (d', [], [], tm) tag loc else tm
-        in
-        (tm', [ d' ])
+        (tm, [ d' ])
       | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
         let d' = I.abs_assert (LC.T it_perm) d in
-        let gt_inner, d_list = aux abs_ctx defs_ctx gt_inner d' should_assert in
+        let gt_inner, d_list = aux abs_ctx defs_ctx gt_inner d' in
         ( GT.map_ ((i_sym, i_bt, it_perm), gt_inner) tag loc,
           domain_map_remove i_sym d_list )
       | `MapElab ((i_sym, i_bt, it_bounds, it_perm), gt_inner) ->
         let d' = I.abs_assert (LC.T it_perm) d in
-        let gt_inner, d_list = aux abs_ctx defs_ctx gt_inner d' should_assert in
+        let gt_inner, d_list = aux abs_ctx defs_ctx gt_inner d' in
         ( GT.map_elab_ ((i_sym, i_bt, it_bounds, it_perm), gt_inner) tag loc,
           domain_map_remove i_sym d_list )
       | `Asgn ((it_addr, sct), it_val, gt') ->
         let d' = I.abs_assign ((it_addr, sct), it_val) d in
-        let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d' in
         (GT.asgn_ ((it_addr, sct), it_val, gt') tag loc, domain_cons d' d_list)
       | `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_val, gt') ->
         let d' = I.abs_assign ((it_addr, sct), it_val) d in
-        let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d' in
         ( GT.asgn_elab_ (backtrack_var, ((pointer, it_addr), sct), it_val, gt') tag loc,
           domain_cons d' d_list )
       | `Assert (lc, gt') ->
         let d' = I.abs_assert lc d in
-        let gt', d_list = aux abs_ctx defs_ctx gt' d' should_assert in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d' in
         (GT.assert_ (lc, gt') tag loc, domain_cons d' d_list)
-      | `AssertDomain (ad, _, _, gt') ->
-        (* Delete `assert_domain` to avoid dupes *)
-        let gt', d_list = aux abs_ctx defs_ctx gt' (AD.meet ad d) should_assert in
-        (gt', domain_cons ad d_list)
-      | `AssertDomainElab _ -> failwith ("unreachable @ " ^ __LOC__)
+      | `AssertDomain (ad, its, asgns, gt') ->
+        let d' = AD.meet ad d in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d' in
+        (GT.assert_domain_ (d', its, asgns, gt') tag loc, domain_cons d' d_list)
+      | `AssertDomainElab (bv, ad, its, asgns, gt') ->
+        let d' = AD.meet ad d in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d' in
+        (GT.assert_domain_elab_ (bv, d', its, asgns, gt') tag loc, domain_cons d' d_list)
       | `SplitSize (syms, gt') ->
-        let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d in
         (GT.split_size_ (syms, gt') tag loc, d_list)
       | `SplitSizeElab (marker_var, syms, gt') ->
-        let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
+        let gt', d_list = aux abs_ctx defs_ctx gt' d in
         (GT.split_size_elab_ (marker_var, syms, gt') tag loc, d_list)
       | `LetStar ((x, gt1), gt2) ->
-        let gt1, d_list1 = aux abs_ctx defs_ctx gt1 d false in
+        let gt1, d_list1 = aux abs_ctx defs_ctx gt1 d in
         let d_list1' = domain_map_rename ~from:Domain.ret_sym ~to_:x d_list1 in
-        let gt2, d_list2 =
-          aux abs_ctx defs_ctx gt2 (domain_finalize d_list1') should_assert
-        in
+        let gt2, d_list2 = aux abs_ctx defs_ctx gt2 (domain_finalize d_list1') in
         (GT.let_star_ ((x, gt1), gt2) tag loc, domain_map_remove x d_list2)
       | `ITE (it_if, gt_then, gt_else) ->
         let gt_then, d_then_list =
           let d' = I.abs_assert (LC.T it_if) d in
-          aux abs_ctx defs_ctx gt_then d' should_assert
+          aux abs_ctx defs_ctx gt_then d'
         in
         let not_it_if = MT.not_ it_if (T.get_loc it_if) in
         let gt_else, d_else_list =
           let d' = I.abs_assert (LC.T not_it_if) d in
-          aux abs_ctx defs_ctx gt_else d' should_assert
+          aux abs_ctx defs_ctx gt_else d'
         in
         let d_then = domain_finalize d_then_list in
         let d_else = domain_finalize d_else_list in
@@ -158,7 +147,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let branch_results =
           gts
           |> List.filter_map (fun gt ->
-            let gt, d_list = aux abs_ctx defs_ctx gt d should_assert in
+            let gt, d_list = aux abs_ctx defs_ctx gt d in
             let d_meet = domain_finalize d_list in
             (* Prune branches that require bottom *)
             if AD.equal d_meet AD.bottom then None else Some (gt, d_meet))
@@ -170,7 +159,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let branch_results =
           wgts
           |> List.filter_map (fun (w, gt) ->
-            let gt, d_list = aux abs_ctx defs_ctx gt d should_assert in
+            let gt, d_list = aux abs_ctx defs_ctx gt d in
             let d_meet = domain_finalize d_list in
             (* Prune branches that require bottom *)
             if AD.equal d_meet AD.bottom then None else Some ((w, gt), d_meet))
@@ -182,7 +171,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         let branch_results =
           wgts
           |> List.filter_map (fun (w, gt) ->
-            let gt, d_list = aux abs_ctx defs_ctx gt d should_assert in
+            let gt, d_list = aux abs_ctx defs_ctx gt d in
             let d_meet = domain_finalize d_list in
             (* Prune branches that require bottom *)
             if AD.equal d_meet AD.bottom then None else Some ((w, gt), d_meet))
@@ -192,7 +181,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
         (GT.pick_sized_elab_ choice_var wgts tag bt loc, [ d' ])
     in
     let rec loop d =
-      let gt, d_list = aux abs_ctx defs_ctx gd.body d true in
+      let gt, d_list = aux abs_ctx defs_ctx gd.body d in
       let d' = domain_finalize (domain_cons d d_list) in
       if AD.equal d d' then (gt, d_list) else loop d'
     in

@@ -127,16 +127,20 @@ module Make (AD : Domain.T) = struct
       | `AssertDomain (ad, its, asgns, gt_rest) ->
         let@ check = provable loc in
         let@ redundant =
-          let lc = AD.to_lc ad in
-          if remove_redundant then (
-            match check lc with
-            | `True -> return true
-            | `False ->
+          if not (List.is_empty its && List.is_empty asgns) then
+            let@ () = add_c loc (AD.to_lc ad) in
+            return false
+          else (
+            let lc = AD.to_lc ad in
+            if remove_redundant then (
+              match check lc with
+              | `True -> return true
+              | `False ->
+                let@ () = add_c loc lc in
+                return false)
+            else
               let@ () = add_c loc lc in
               return false)
-          else
-            let@ () = add_c loc lc in
-            return false
         in
         let@ gt_rest = aux true gt_rest in
         return

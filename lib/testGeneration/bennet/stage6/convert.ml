@@ -74,7 +74,13 @@ module Make (AD : Domain.T) = struct
         GenTerms.Annot (`Assert (lc, gt_rest), (path_vars, last_var), bt, loc)
       | `AssertDomain (ad, its, asgns, gt_rest) ->
         let backtrack_var = Sym.fresh_anon () in
-        let gt_rest = aux vars path_vars gt_rest in
+        let new_vars =
+          if TestGenConfig.is_runtime_assert_domain () then
+            backtrack_var :: vars
+          else
+            vars
+        in
+        let gt_rest = aux new_vars path_vars gt_rest in
         Term.assert_domain_elab_
           (backtrack_var, ad, its, asgns, gt_rest)
           (path_vars, last_var)

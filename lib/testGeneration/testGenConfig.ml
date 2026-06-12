@@ -150,6 +150,7 @@ type t =
     discard_factor : int;
     dynamic_arbitrary_domain : bool;
     dynamic_arbitrary_propagation : bool;
+    dynamic_assert_domain : bool;
     old_style_alloc : bool;
     dynamic_absint_assign : dynamic_absint_assign_mode option
   }
@@ -225,6 +226,7 @@ let default =
     discard_factor = 10;
     dynamic_arbitrary_domain = false;
     dynamic_arbitrary_propagation = false;
+    dynamic_assert_domain = false;
     old_style_alloc = false;
     dynamic_absint_assign = None
   }
@@ -490,6 +492,8 @@ let has_dynamic_arbitrary_domain () = (Option.get !instance).dynamic_arbitrary_d
 let has_dynamic_arbitrary_propagation () =
   (Option.get !instance).dynamic_arbitrary_propagation
 
+
+let has_dynamic_assert_domain () = (Option.get !instance).dynamic_assert_domain
 
 let is_old_style_alloc () = (Option.get !instance).old_style_alloc
 
