@@ -102,5 +102,6 @@ let pldi26 : TestGenConfig.t =
     dynamic_absint_assign = None;
     dynamic_arbitrary_domain = false;
     dynamic_arbitrary_propagation = false;
-    dynamic_assert_domain = false
+    dynamic_assert_domain = false;
+    dynamic_return_propagation = false
   }

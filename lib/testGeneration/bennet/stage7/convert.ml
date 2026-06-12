@@ -1210,6 +1210,107 @@ module Make (AD : Domain.T) = struct
       A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain macro_call)))))
 
 
+  let generate_let_return_backward_refinements
+        filename
+        (sigma : CF.GenTypes.genTypeCategory A.sigma)
+        ~(x_sym : Sym.t)
+        ~(x_bt : BT.t)
+        ~(refinable_free_vars : (Sym.t * BT.t) list)
+        (expr_it : Terms.Normal.t)
+    : CF.GenTypes.genTypeCategory A.statement_ list
+    =
+    let open Pp in
+    let x_c_ty = bt_to_domain_type_string x_bt in
+    let x_base_type_expr = Smt.convert_basetype x_bt in
+    (* Generate per-variable backward blocks *)
+    let per_var_blocks =
+      refinable_free_vars
+      |> List.filter_map (fun (v, v_bt) ->
+        let v_c_ty = bt_to_domain_type_string v_bt in
+        if not (String.equal v_c_ty x_c_ty) then
+          None
+        else
+          Some
+            (let v_base_type_expr = Smt.convert_basetype v_bt in
+             let constraint_term =
+               generate_constraint_term filename sigma ~target:v ~target_bt:v_bt expr_it
+             in
+             braces
+               (nest
+                  2
+                  (hardline
+                   ^^ !^"bennet_absint_sym _lr_sym_v = "
+                   ^^ braces
+                        (!^".name = "
+                         ^^ dquotes (Sym.pp v)
+                         ^^ comma
+                         ^^^ !^".id = "
+                         ^^ int (Sym.num v))
+                   ^^ semi
+                   ^^ hardline
+                   ^^ !^"cn_base_type _lr_bt_v = "
+                   ^^ v_base_type_expr
+                   ^^ semi
+                   ^^ hardline
+                   ^^ !^"cn_term* _lr_expr = "
+                   ^^ constraint_term
+                   ^^ semi
+                   ^^ hardline
+                   ^^ !^(Printf.sprintf
+                           "bennet_domain(%s)* _lr_D_v = \
+                            (bennet_domain(%s)*)bennet_domain_transform_backward(%s, \
+                            _lr_expr, _lr_sym_v, &_lr_bt_x, &_lr_bt_v, _lr_D_x);"
+                           v_c_ty
+                           v_c_ty
+                           x_c_ty)
+                   ^^ hardline
+                   ^^ !^(Printf.sprintf
+                           "if (_lr_D_v != NULL && !bennet_domain_is_bottom(%s, _lr_D_v) \
+                            && !bennet_domain_is_top(%s, _lr_D_v)) {"
+                           v_c_ty
+                           v_c_ty)
+                   ^^ nest
+                        2
+                        (hardline
+                         ^^ !^(Printf.sprintf "bennet_failure_blame_domain(%s, " v_c_ty)
+                         ^^ Sym.pp v
+                         ^^ !^", _lr_D_v);")
+                   ^^ hardline
+                   ^^ !^"}")
+                ^^ hardline)))
+      |> separate hardline
+    in
+    (* Wrap in: { D_x = get_domain; if (D_x != NULL && !is_top) { ... per-var ... } } *)
+    let full_block =
+      braces
+        (nest
+           2
+           (hardline
+            ^^ !^(Printf.sprintf
+                    "bennet_domain(%s)* _lr_D_x = bennet_failure_get_domain(%s, "
+                    x_c_ty
+                    x_c_ty)
+            ^^ Sym.pp x_sym
+            ^^ !^");"
+            ^^ hardline
+            ^^ !^(Printf.sprintf
+                    "if (_lr_D_x != NULL && !bennet_domain_is_top(%s, _lr_D_x)) {"
+                    x_c_ty)
+            ^^ nest
+                 2
+                 (hardline
+                  ^^ !^"cn_base_type _lr_bt_x = "
+                  ^^ x_base_type_expr
+                  ^^ semi
+                  ^^ hardline
+                  ^^ per_var_blocks)
+            ^^ hardline
+            ^^ !^"}")
+         ^^ hardline)
+    in
+    [ A.AilSexpr (mk_expr (AilEident (Sym.fresh (plain full_block)))) ]
+
+
   let rec transform_term
             (filename : string)
             (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -1943,23 +2044,71 @@ module Make (AD : Domain.T) = struct
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
       let b_value, s_value, e_value = transform_it filename sigma name it in
+      let free_vars_set = Terms.Normal.free_vars it in
+      let free_vars_list = List.of_seq (Sym.Set.to_seq free_vars_set) in
       let s_let =
-        A.
-          [ AilSexpr
-              (mk_expr
-                 (string_call
-                    "BENNET_LET_RETURN"
-                    ([ mk_expr (string_ident (name_of_bt x_bt));
-                       mk_expr (AilEident x);
-                       (* Below might cause issues if it contains a comma *)
-                       e_value;
-                       mk_expr (AilEident last_var)
-                     ]
-                     @ List.map
-                         (fun x -> mk_expr (AilEident x))
-                         (List.of_seq (Sym.Set.to_seq (T.free_vars it)))
-                     @ [ mk_expr (AilEconst ConstantNull) ])))
-          ]
+        if
+          TestGenConfig.has_dynamic_return_propagation ()
+          && Stage6.Term.is_arbitrary_supported_bt x_bt
+        then (
+          (* Determine refinable free vars (Bits or Loc types) for backward interpretation.
+         Only do backward interp when x_bt itself is Bits or Loc (not structs/records). *)
+          let refinable_free_vars =
+            Terms.Normal.free_vars_bts it
+            |> Sym.Map.filter (fun _ -> Stage6.Term.is_arbitrary_supported_bt)
+            |> Sym.Map.bindings
+          in
+          (* Use split BEGIN/END macros with backward interp in between *)
+          let s_begin =
+            A.
+              [ AilSexpr
+                  (mk_expr
+                     (AilEcall
+                        ( mk_expr (string_ident "BENNET_LET_RETURN_BEGIN"),
+                          [ mk_expr (string_ident (name_of_bt x_bt));
+                            mk_expr (AilEident x);
+                            e_value
+                          ] )))
+              ]
+          in
+          (* Generate backward interpretation block as raw C *)
+          let s_backward =
+            generate_let_return_backward_refinements
+              filename
+              sigma
+              ~x_sym:x
+              ~x_bt
+              ~refinable_free_vars
+              it
+          in
+          (* END macro with blame propagation *)
+          let s_end =
+            A.
+              [ AilSexpr
+                  (mk_expr
+                     (AilEcall
+                        ( mk_expr (string_ident "BENNET_LET_RETURN_END"),
+                          [ mk_expr (AilEident x); mk_expr (AilEident last_var) ]
+                          @ List.map (fun x -> mk_expr (AilEident x)) free_vars_list
+                          @ [ mk_expr (AilEconst ConstantNull) ] )))
+              ]
+          in
+          s_begin @ s_backward @ s_end)
+        else
+          A.
+            [ AilSexpr
+                (mk_expr
+                   (string_call
+                      "BENNET_LET_RETURN"
+                      ([ mk_expr (string_ident (name_of_bt x_bt));
+                         mk_expr (AilEident x);
+                         (* Below might cause issues if it contains a comma *)
+                         e_value;
+                         mk_expr (AilEident last_var)
+                       ]
+                       @ List.map (fun x -> mk_expr (AilEident x)) free_vars_list
+                       @ [ mk_expr (AilEconst ConstantNull) ])))
+            ]
       in
       let b_rest, s_rest, e_rest = transform_term filename sigma ctx name gt_rest in
       (b_value @ b_rest, s_value @ s_let @ s_rest, e_rest)

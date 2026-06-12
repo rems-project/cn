@@ -113,6 +113,11 @@ module Flags = struct
   let dynamic_assert_domain =
     let doc = "Enable dynamic abstract domain refinement for assert constraints" in
     Arg.(value & flag & info ~docs:s_absint [ "dynamic-assert-domain" ] ~doc)
+
+
+  let dynamic_return_propagation =
+    let doc = "Enable backward domain propagation at let-return sites" in
+    Arg.(value & flag & info ~docs:s_absint [ "dynamic-return-propagation" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -129,6 +134,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         dynamic_arbitrary_domain
         dynamic_arbitrary_propagation
         dynamic_assert_domain
+        dynamic_return_propagation
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -144,7 +150,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       dynamic_absint_assign;
       dynamic_arbitrary_domain;
       dynamic_arbitrary_propagation;
-      dynamic_assert_domain
+      dynamic_assert_domain;
+      dynamic_return_propagation
     }
   in
   Term.(
@@ -160,7 +167,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.dynamic_absint_assign
     $ Flags.dynamic_arbitrary_domain
     $ Flags.dynamic_arbitrary_propagation
-    $ Flags.dynamic_assert_domain)
+    $ Flags.dynamic_assert_domain
+    $ Flags.dynamic_return_propagation)
 
 
 let cmd =
