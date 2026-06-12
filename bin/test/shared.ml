@@ -698,3 +698,132 @@ let mk_term ~(engine : TestGeneration.engine Term.t) ~(engine_flags : engine_fla
   $ Flags.dsl_log_dir
   $ Flags.disable_specialization
   $ compose_flags gen_term engine_flags
+
+
+(* The flag chain for a paper-release subcommand: the test-generation settings
+   are frozen to [preset] (a full-literal record in lib/testGeneration's
+   Releases); only environment flags remain on the command line. Every other
+   positional of [run] is passed as a constant, so adding a flag to [mk_term]
+   (a new [run] parameter) is a type error here, forcing a decision: whitelist
+   it or pin it. Engine flag updaters (bennet/darcy/lucas terms, [gen_term])
+   are not composed in at all, so their flags are rejected as unknown options
+   and their settings come from [preset]. *)
+let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.config)
+  : unit Term.t
+  =
+  (* Overridable value flags fall back to the frozen preset value when absent
+     from the command line (their option-typed terms default to [None] =
+     absent). Boolean diagnostic flags are plainly whitelisted instead. *)
+  let opt_or preset_value t =
+    Term.(const (function None -> preset_value | v -> v) $ t)
+  in
+  let build_tool =
+    let doc = "Set which build tool to use." in
+    Term.(
+      const (Option.value ~default:preset.build_tool)
+      $ Arg.(
+          value
+          & opt (some (enum TestGeneration.Options.build_tool)) None
+          & info [ "build-tool" ] ~doc))
+  in
+  let sanitizers =
+    Term.(
+      const (fun (s, ns) ->
+        ( (match s with None -> fst preset.sanitizers | v -> v),
+          match ns with None -> snd preset.sanitizers | v -> v ))
+      $ Term.product Flags.sanitize Flags.no_sanitize)
+  in
+  (* Whitelisted config-backed flags flow through (already resolved against
+     the preset above); everything else is the preset. *)
+  let merge (cfg : TestGeneration.config) : TestGeneration.config =
+    { preset with
+      engine;
+      skip_and_only = cfg.skip_and_only;
+      cc = cfg.cc;
+      print_steps = cfg.print_steps;
+      num_samples = cfg.num_samples;
+      build_tool = cfg.build_tool;
+      sanitizers = cfg.sanitizers;
+      seed = cfg.seed;
+      logging_level = cfg.logging_level;
+      trace_granularity = cfg.trace_granularity;
+      progress_level = cfg.progress_level;
+      until_timeout = cfg.until_timeout;
+      exit_fast = cfg.exit_fast;
+      coverage = cfg.coverage;
+      no_replays = cfg.no_replays;
+      no_replicas = cfg.no_replicas;
+      output_tyche = cfg.output_tyche;
+      print_size_info = cfg.print_size_info;
+      print_backtrack_info = cfg.print_backtrack_info;
+      print_satisfaction_info = cfg.print_satisfaction_info;
+      print_discard_info = cfg.print_discard_info;
+      print_timing_info = cfg.print_timing_info;
+      max_bump_blocks = cfg.max_bump_blocks;
+      bump_block_size = cfg.bump_block_size;
+      max_input_alloc = cfg.max_input_alloc;
+      dsl_log_dir = cfg.dsl_log_dir
+    }
+  in
+  let open Term in
+  const run
+  $ const engine
+  $ Common.Flags.file
+  $ Common.Flags.cc
+  $ Common.Flags.macros
+  $ Common.Flags.permissive
+  $ Common.Flags.incl_dirs
+  $ Common.Flags.incl_files
+  $ Common.Flags.debug_level
+  $ Common.Flags.print_level
+  $ Common.Flags.csv_times
+  $ Common.Flags.astprints
+  $ Common.Flags.no_inherit_loc
+  $ Common.Flags.magic_comment_char_dollar
+  $ Common.Flags.allow_split_magic_comments
+  $ const false (* without_ownership_checking *)
+  $ const false (* exec_c_locs_mode *)
+  $ const false (* correct_missing_ownership_mode *)
+  $ const false (* experimental_ownership_stack_mode *)
+  $ Flags.print_steps
+  $ Flags.output_dir
+  $ Flags.only
+  $ Flags.skip
+  $ Flags.only_fulminate
+  $ Flags.skip_fulminate
+  $ Flags.dont_run
+  $ Flags.gen_num_samples
+  $ const preset.max_unfolds
+  $ build_tool
+  $ sanitizers
+  $ const preset.print_seed
+  $ const preset.input_timeout
+  $ const preset.null_in_every
+  $ opt_or preset.seed Flags.seed
+  $ Flags.logging_level
+  $ Flags.trace_granularity
+  $ Flags.progress_level
+  $ opt_or preset.until_timeout Flags.until_timeout
+  $ Flags.exit_fast
+  $ Flags.coverage
+  $ const preset.disable_passes
+  $ const preset.trap
+  $ Flags.no_replays
+  $ Flags.no_replicas
+  $ opt_or preset.output_tyche Flags.output_tyche
+  $ const preset.inline
+  $ const preset.experimental_struct_asgn_destruction
+  $ const preset.experimental_product_arg_destruction
+  $ const preset.experimental_arg_pruning
+  $ const preset.experimental_return_pruning
+  $ Flags.print_size_info
+  $ Flags.print_backtrack_info
+  $ Flags.print_satisfaction_info
+  $ Flags.print_discard_info
+  $ Flags.print_timing_info
+  $ opt_or preset.max_bump_blocks Instrument.Flags.max_bump_blocks
+  $ opt_or preset.bump_block_size Instrument.Flags.bump_block_size
+  $ opt_or preset.max_input_alloc Flags.max_input_alloc
+  $ Flags.dsl_log_dir
+  $ const preset.disable_specialization
+  $ const merge

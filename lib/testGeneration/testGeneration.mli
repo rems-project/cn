@@ -16,6 +16,7 @@ val default_cfg : config
 val set_config : config -> unit
 
 module Options = TestGenConfig.Options
+module Releases = Releases
 
 val functions_under_test
   :  with_warning:bool ->

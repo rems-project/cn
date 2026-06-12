@@ -47,11 +47,14 @@ let doc =
   \    The inputs are guaranteed to satisfy the CN precondition.\n\
   \    Engines: bennet (random backtracking search, the default), darcy \
    (symbolic/SMT-based), lucas (randomized refinement of abstract elements).\n\
+  \    Paper-release subcommands (e.g. darcy-pldi26) run an engine with frozen settings.\n\
   \    A script [run_tests.sh] for building and running the tests will be placed in \
    [output-dir]."
 
 
-let cmd = Cmd.group (Cmd.info "test" ~doc) [ Bennet.cmd; Darcy.cmd; Lucas.cmd ]
+let cmd =
+  Cmd.group (Cmd.info "test" ~doc) ([ Bennet.cmd; Darcy.cmd; Lucas.cmd ] @ Releases.all)
+
 
 let legacy_cmd = Cmd.v (Cmd.info "test" ~doc) legacy_t
 
@@ -67,7 +70,8 @@ let wants_legacy (argv : string array) : bool =
   in
   match Array.to_list argv with
   | _exe :: maybe_test :: arg :: _ when is_prefix_of maybe_test "test" ->
-    (not (List.exists (is_prefix_of arg) [ "bennet"; "darcy"; "lucas" ]))
+    (not
+       (List.exists (is_prefix_of arg) ([ "bennet"; "darcy"; "lucas" ] @ Releases.names)))
     && (not (String.starts_with ~prefix:"--help" arg))
     && not (String.equal arg "--version")
   | _ -> false
