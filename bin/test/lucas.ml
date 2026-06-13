@@ -67,11 +67,6 @@ module Flags = struct
     Arg.(value & flag & info [ "smt-pruning-keep-redundant-assertions" ] ~doc)
 
 
-  let smt_pruning_at_runtime =
-    let doc = "(Experimental) Use SMT solver to prune branches at runtime" in
-    Arg.(value & flag & info [ "smt-pruning-at-runtime" ] ~doc)
-
-
   let runtime_assert_domain =
     let doc = "Enable assert_domain checks at runtime (disabled by default)" in
     Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
@@ -90,7 +85,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         smt_pruning_before_absint
         smt_pruning_after_absint
         smt_pruning_keep_redundant_assertions
-        smt_pruning_at_runtime
         runtime_assert_domain
         experimental_learning
         (cfg : TestGeneration.config)
@@ -103,7 +97,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       smt_pruning_before_absint;
       smt_pruning_after_absint;
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
-      smt_pruning_at_runtime;
       runtime_assert_domain;
       experimental_learning
     }
@@ -116,7 +109,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.smt_pruning_before_absint
     $ Flags.smt_pruning_after_absint
     $ Flags.smt_pruning_keep_redundant_assertions
-    $ Flags.smt_pruning_at_runtime
     $ Flags.runtime_assert_domain
     $ Flags.experimental_learning)
 

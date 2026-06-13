@@ -67,6 +67,11 @@ module Flags = struct
   let smt_skew_pointer_order =
     let doc = "Enable pointer ordering skewing in SMT solver" in
     Arg.(value & flag & info [ "smt-skew-pointer-order" ] ~doc)
+
+
+  let disable_smt_pruning_at_runtime =
+    let doc = "Disable using the SMT solver to prune branches at runtime" in
+    Arg.(value & flag & info [ "disable-smt-pruning-at-runtime" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -80,6 +85,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         just_reset_solver
         smt_skewing_mode
         smt_skew_pointer_order
+        disable_smt_pruning_at_runtime
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -92,7 +98,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       use_solver_eval;
       just_reset_solver;
       smt_skewing_mode;
-      smt_skew_pointer_order
+      smt_skew_pointer_order;
+      smt_pruning_at_runtime = not disable_smt_pruning_at_runtime
     }
   in
   Term.(
@@ -105,7 +112,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.use_solver_eval
     $ Flags.just_reset_solver
     $ Flags.smt_skewing_mode
-    $ Flags.smt_skew_pointer_order)
+    $ Flags.smt_skew_pointer_order
+    $ Flags.disable_smt_pruning_at_runtime)
 
 
 let cmd =

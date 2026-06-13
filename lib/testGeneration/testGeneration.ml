@@ -7,6 +7,7 @@ module Records = Fulminate.Records
 module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 module Options = Config.Options
+module Releases = Releases
 module Cn_to_ail = Fulminate.Cn_to_ail
 
 module Private = struct
