@@ -54,7 +54,6 @@ type t =
     inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
-    experimental_learning : bool;
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     ad_pruning : bool;
@@ -156,8 +155,6 @@ val get_inline_mode : unit -> inline_mode
 val is_experimental_struct_asgn_destruction : unit -> bool
 
 val is_experimental_product_arg_destruction : unit -> bool
-
-val is_experimental_learning : unit -> bool
 
 val is_experimental_arg_pruning : unit -> bool
 
