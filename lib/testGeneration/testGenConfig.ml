@@ -54,7 +54,6 @@ type t =
     inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
-    experimental_learning : bool;
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     ad_pruning : bool;
@@ -124,7 +123,6 @@ let default =
     inline = Nothing;
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
-    experimental_learning = false;
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
     ad_pruning = false;
@@ -287,8 +285,6 @@ let is_experimental_struct_asgn_destruction () =
 let is_experimental_product_arg_destruction () =
   (Option.get !instance).experimental_product_arg_destruction
 
-
-let is_experimental_learning () = (Option.get !instance).experimental_learning
 
 let is_experimental_arg_pruning () = (Option.get !instance).experimental_arg_pruning
 

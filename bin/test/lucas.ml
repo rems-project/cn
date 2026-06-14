@@ -70,11 +70,6 @@ module Flags = struct
   let runtime_assert_domain =
     let doc = "Enable assert_domain checks at runtime (disabled by default)" in
     Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
-
-
-  let experimental_learning =
-    let doc = "Use experimental domain learning" in
-    Arg.(value & flag & info [ "experimental-learning" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -86,7 +81,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         smt_pruning_after_absint
         smt_pruning_keep_redundant_assertions
         runtime_assert_domain
-        experimental_learning
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -97,8 +91,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       smt_pruning_before_absint;
       smt_pruning_after_absint;
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
-      runtime_assert_domain;
-      experimental_learning
+      runtime_assert_domain
     }
   in
   Term.(
@@ -109,8 +102,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.smt_pruning_before_absint
     $ Flags.smt_pruning_after_absint
     $ Flags.smt_pruning_keep_redundant_assertions
-    $ Flags.runtime_assert_domain
-    $ Flags.experimental_learning)
+    $ Flags.runtime_assert_domain)
 
 
 let cmd =

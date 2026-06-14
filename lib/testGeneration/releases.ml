@@ -38,7 +38,6 @@ let pldi26 : TestGenConfig.t =
     inline = Nothing;
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
-    experimental_learning = false;
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
     ad_pruning = false;
