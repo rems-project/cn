@@ -38,7 +38,8 @@ type env =
     tagDefs : (Cerb_frontend.Symbol.sym, Mu.tag_definition) Pmap.map;
     fetch_enum_expr :
       Locations.t -> Sym.t -> unit CF.AilSyntax.expression cerb_frontend_result;
-    fetch_typedef : Locations.t -> Sym.t -> CF.Ctype.ctype cerb_frontend_result
+    fetch_typedef : Locations.t -> Sym.t -> CF.Ctype.ctype cerb_frontend_result;
+    promoted : Sym.t list
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
@@ -59,7 +60,8 @@ let init tagDefs fetch_enum_expr fetch_typedef =
     datatype_constrs = Sym.Map.empty;
     tagDefs;
     fetch_enum_expr;
-    fetch_typedef
+    fetch_typedef;
+    promoted = []
   }
 
 
@@ -89,6 +91,8 @@ let add_logical sym bTy env =
 let add_predicate sym pred_sig env =
   { env with predicates = Sym.Map.add sym pred_sig env.predicates }
 
+
+let set_promoted env promoted = { env with promoted }
 
 let lookup_computational_or_logical sym env =
   match Sym.Map.find_opt sym env.logicals with
@@ -875,7 +879,16 @@ module C_vars = struct
                  WellTyped
                    (Illtyped_it { it = Terms.pp e; has = SBT.pp has; expected; reason })
              })
-      | CNExpr_addr nm -> return (sym_ (nm, BT.Loc None, loc))
+      | CNExpr_addr nm ->
+        if List.mem Sym.equal nm env.promoted then
+          fail
+            { loc;
+              msg =
+                Generic !^"Cannot take address of promoted variable"
+                [@alert "-deprecated"]
+            }
+        else (* error here if symbol is promoted! *)
+          return (sym_ (nm, BT.Loc None, loc))
       | CNExpr_cast (bt, expr) ->
         let@ expr = self expr in
         let bt = base_type env bt in

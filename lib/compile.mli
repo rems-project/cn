@@ -24,6 +24,8 @@ val add_predicates
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate list ->
   env
 
+val set_promoted : env -> Sym.t list -> env
+
 type message =
   | Builtins of Builtins.message
   | Global of Global.message

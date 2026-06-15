@@ -19,6 +19,7 @@ int
 f (int x)
 /*@ accesses global_x; @*/
 {
+  void *p = &x;
   /* resolution of the 'g' & 'extern_f' addrs triggered a bug at one point */
   /*@ assert (((u32) (&x)) == ((u32) (&x))); @*/;
   /*@ assert (((u32) (&global_x)) == ((u32) (&global_x))); @*/;

@@ -2028,7 +2028,7 @@ let pp_file pp_type pp_type_name file =
                    pp_location loc;
                    pp_option (pp_argument_types pp_return_type) ft
                  ])
-          | Proc { loc; args_and_body; trusted } ->
+          | Proc { loc; args_and_body; trusted; promotable = _ } ->
             coq_def
               (Sym.pp_string_no_nums sym)
               P.empty
@@ -2203,7 +2203,7 @@ let pp_global (g : Global.t) =
       ("Global.datatype_order", pp_option (pp_list (pp_list pp_symbol)) g.datatype_order);
       ( "Global.fun_decls",
         pp_sym_map
-          (fun (l, a, s) ->
+          (fun (l, a, s, _p) ->
              pp_tuple
                [ pp_location l; pp_option pp_argument_types_ft a; pp_c_concrete_sig s ])
           g.fun_decls );

@@ -244,7 +244,8 @@ type 'TY fun_map_decl =
   | Proc of
       { loc : Locations.t;
         args_and_body : 'TY args_and_body;
-        trusted : trusted
+        trusted : trusted;
+        promotable : Sym.t list
       }
   | ProcDecl of Locations.t * ArgumentTypes.ft option
 

@@ -1597,6 +1597,7 @@ module BaseTyping = struct
     with
     | [] -> None
     | [ ity ] -> Some ity
+    (* see https://github.com/rems-project/cerberus/issues/1000 if this assert false is triggered *)
     | _ -> assert false
 
 

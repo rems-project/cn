@@ -14,6 +14,7 @@ type t =
   { computational : (basetype_or_value * l_info) Sym.Map.t;
     logical : (basetype_or_value * l_info) Sym.Map.t;
     resources : Resource.t list;
+    promoted : IndexTerms.t option Sym.Map.t;
     constraints : LogicalConstraints.Set.t;
     global : Global.t;
     where : Where.t

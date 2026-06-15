@@ -8,7 +8,8 @@ type t =
     datatypes : BaseTypes.dt_info Sym.Map.t;
     datatype_constrs : BaseTypes.constr_info Sym.Map.t;
     datatype_order : Sym.t list list option;
-    fun_decls : (Locations.t * AT.ft option * Sctypes.c_concrete_sig) Sym.Map.t;
+    fun_decls :
+      (Locations.t * AT.ft option * Sctypes.c_concrete_sig * Sym.t list) Sym.Map.t;
     resource_predicates : Definition.Predicate.t Sym.Map.t;
     resource_predicate_order : Sym.t list list option;
     logical_functions : Definition.Function.t Sym.Map.t;
@@ -88,7 +89,7 @@ module type Lifted = sig
   val get_fun_decl
     :  Locations.t ->
     Sym.t ->
-    (Cerb_location.t * AT.ft option * Sctypes.c_concrete_sig) t
+    (Cerb_location.t * AT.ft option * Sctypes.c_concrete_sig * Sym.t list) t
 
   val get_lemma : Locations.t -> Sym.t -> (Cerb_location.t * AT.lemmat) t
 
@@ -163,7 +164,7 @@ let pp_struct_layout (tag, layout) =
 
 let pp_struct_decls decls = Pp.list pp_struct_layout (Sym.Map.bindings decls)
 
-let pp_fun_decl (sym, (_, t, _)) =
+let pp_fun_decl (sym, (_, t, _, _promotable)) =
   item (plain (Sym.pp sym)) (Pp.option (AT.pp RT.pp) "(no spec)" t)
 
 

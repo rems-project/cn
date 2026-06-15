@@ -22,6 +22,7 @@ type t =
   { computational : (basetype_or_value * l_info) Sym.Map.t;
     logical : (basetype_or_value * l_info) Sym.Map.t;
     resources : Res.t list;
+    promoted : IndexTerms.t option Sym.Map.t;
     constraints : LC.Set.t;
     global : Global.t;
     where : Where.t
@@ -36,6 +37,7 @@ let empty =
   { computational = Sym.Map.empty;
     logical;
     resources = [];
+    promoted = Sym.Map.empty;
     constraints = LC.Set.empty;
     global = Global.empty;
     where = Where.empty

@@ -5,7 +5,7 @@
 #include "charon_address_guesses.h"
 #include "cn_lemmas.h"
 void f(uintptr_t i) {
-  int j=5;
+  int j=5; void *ptr = &j;
   /*CN_VIP*//*@ apply assert_equal(i, (u64)&j); @*/
 #if defined(ANNOT)
   int *p = copy_alloc_id(i, &j);
