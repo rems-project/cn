@@ -12,6 +12,24 @@ let debug_constraint_failure_diagnostics
   ()
 
 
+let fail_missing_resource loc (situation, requests) =
+  let here = Locations.other __LOC__ in
+  let@ provable = provable loc in
+  match provable (LC.T (IT.bool_ false here)) with
+  | `False ->
+    let@ model = model () in
+    fail (fun ctxt ->
+      let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
+      { loc; msg })
+  | `True ->
+    fail (fun ctxt ->
+      let msg =
+        TypeErrors.Inconsistent_assumptions
+          ("Something prior (probably the function spec)", ctxt)
+      in
+      { loc; msg })
+
+
 (* let model = fst model_with_q in *)
 (* if !Pp.print_level == 0 then *)
 (*   () *)
@@ -123,20 +141,7 @@ module General = struct
       let uiinfo = (situation, request_chain) in
       let@ o_re_oarg = resource_request loc uiinfo resource in
       (match o_re_oarg with
-       | None ->
-         let here = Locations.other __LOC__ in
-         let@ provable = provable loc in
-         (match provable (LC.T (IT.bool_ false here)) with
-          | `False ->
-            let@ model = model () in
-            fail (fun ctxt ->
-              (* let ctxt = { ctxt with resources = original_resources } in *)
-              let msg =
-                TypeErrors.Missing_resource
-                  { requests = request_chain; situation; model; ctxt }
-              in
-              { loc; msg })
-          | `True -> assert false)
+       | None -> fail_missing_resource loc (situation, request_chain)
        | Some ((re, Resource.O oargs), l) ->
          assert (Request.equal re resource);
          let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
@@ -471,18 +476,6 @@ module General = struct
 end
 
 module Special = struct
-  let fail_missing_resource loc (situation, requests) =
-    let here = Locations.other __LOC__ in
-    let@ provable = provable loc in
-    match provable (LC.T (IT.bool_ false here)) with
-    | `False ->
-      let@ model = model () in
-      fail (fun ctxt ->
-        let msg = TypeErrors.Missing_resource { requests; situation; model; ctxt } in
-        { loc; msg })
-    | `True -> assert false
-
-
   let predicate_request loc situation (request, oinfo) =
     let requests =
       [ TypeErrors.RequestChain.
