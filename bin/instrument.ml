@@ -389,18 +389,18 @@ let cmd =
     $ Common.Flags.permissive
     $ Common.Flags.incl_dirs
     $ Common.Flags.incl_files
-    $ Verify.Flags.loc_pp
+    $ Common.Flags.loc_pp
     $ Common.Flags.debug_level
     $ Common.Flags.print_level
     $ Common.Flags.print_sym_nums
     $ Common.Flags.no_timestamps
     $ Flags.only
     $ Flags.skip
-    $ Verify.Flags.diag
+    $ Common.Flags.diag
     $ Common.Flags.csv_times
     $ Common.Flags.astprints
-    $ Verify.Flags.dont_use_vip
-    $ Verify.Flags.fail_fast
+    $ Common.Flags.dont_use_vip
+    $ Common.Flags.fail_fast
     $ Common.Flags.no_inherit_loc
     $ Common.Flags.magic_comment_char_dollar
     $ Common.Flags.allow_split_magic_comments

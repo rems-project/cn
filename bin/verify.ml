@@ -122,27 +122,9 @@ let verify
 open Cmdliner
 
 module Flags = struct
-  let loc_pp =
-    let doc = "Print pointer values as hexadecimal or as decimal values (hex | dec)" in
-    Arg.(
-      value
-      & opt (enum [ ("hex", Pp.Hex); ("dec", Pp.Dec) ]) !Pp.loc_pp
-      & info [ "locs" ] ~docv:"HEX" ~doc)
-
-
-  let fail_fast =
-    let doc = "Abort immediately after encountering a verification error" in
-    Arg.(value & flag & info [ "fail-fast" ] ~doc)
-
-
   let quiet =
     let doc = "Only report success and failure, rather than rich errors" in
     Arg.(value & flag & info [ "quiet" ] ~doc)
-
-
-  let diag =
-    let doc = "explore branching diagnostics with key string" in
-    Arg.(value & opt (some string) None & info [ "diag" ] ~doc)
 
 
   let solver_logging =
@@ -200,12 +182,6 @@ module Flags = struct
   let skip =
     let doc = "Skip type-checking of this function (or comma-separated names)" in
     Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
-
-
-  (* TODO remove this when VIP impl complete *)
-  let dont_use_vip =
-    let doc = "(temporary) disable VIP rules" in
-    Arg.(value & flag & info [ "no-vip" ] ~doc)
 
 
   let json =
@@ -281,7 +257,7 @@ let verify_t : unit Term.t =
   $ Common.Flags.permissive
   $ Common.Flags.incl_dirs
   $ Common.Flags.incl_files
-  $ Flags.loc_pp
+  $ Common.Flags.loc_pp
   $ Common.Flags.debug_level
   $ Common.Flags.print_level
   $ Common.Flags.print_sym_nums
@@ -289,7 +265,7 @@ let verify_t : unit Term.t =
   $ Flags.json
   $ Flags.json_trace
   $ Flags.output_dir
-  $ Flags.diag
+  $ Common.Flags.diag
   $ Lemma_flags.lemmata
   $ CoqExport_flags.coq_export
   $ CoqMucore_flags.coq_mucore
@@ -305,8 +281,8 @@ let verify_t : unit Term.t =
   $ Flags.solver_inc_enabled
   $ Flags.solver_inc_timeout
   $ Common.Flags.astprints
-  $ Flags.dont_use_vip
-  $ Flags.fail_fast
+  $ Common.Flags.dont_use_vip
+  $ Common.Flags.fail_fast
   $ Flags.quiet
   $ Common.Flags.no_inherit_loc
   $ Common.Flags.magic_comment_char_dollar
