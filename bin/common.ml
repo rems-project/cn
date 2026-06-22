@@ -458,4 +458,28 @@ module Flags = struct
        magic comments"
     in
     Arg.(value & flag & info [ "allow-split-magic-comments" ] ~doc)
+
+
+  let loc_pp =
+    let doc = "Print pointer values as hexadecimal or as decimal values (hex | dec)" in
+    Arg.(
+      value
+      & opt (enum [ ("hex", Pp.Hex); ("dec", Pp.Dec) ]) !Pp.loc_pp
+      & info [ "locs" ] ~docv:"HEX" ~doc)
+
+
+  let fail_fast =
+    let doc = "Abort immediately after encountering a verification error" in
+    Arg.(value & flag & info [ "fail-fast" ] ~doc)
+
+
+  let diag =
+    let doc = "explore branching diagnostics with key string" in
+    Arg.(value & opt (some string) None & info [ "diag" ] ~doc)
+
+
+  (* TODO remove this when VIP impl complete *)
+  let dont_use_vip =
+    let doc = "(temporary) disable VIP rules" in
+    Arg.(value & flag & info [ "no-vip" ] ~doc)
 end
