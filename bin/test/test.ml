@@ -28,13 +28,13 @@ let legacy_t =
         Cn.Pp.(
           warn_noloc
             !^"Use 'cn test darcy' instead. Plain `cn test` will be removed after July \
-               15th.");
+               15th, 2026.");
         TestGeneration.Darcy)
       else (
         Cn.Pp.(
           warn_noloc
             !^"Use 'cn test bennet' instead. Plain `cn test` will be removed after July \
-               15th.");
+               15th, 2026.");
         TestGeneration.Bennet)
     in
     Term.(const from_symbolic $ symbolic_flag)
