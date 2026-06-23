@@ -7,6 +7,18 @@ type engine =
   | Darcy (* Symbolic constraint-based generation *)
   | Lucas (* Randomized refinement of abstract elements *)
 
+val all_of_engine : engine list
+
+val string_of_engine : engine -> string
+
+val cli_name : engine -> string
+
+val is_experimental : engine -> bool
+
+val stable_engine_names : string list
+
+val experimental_message : engine -> string
+
 type logging_level =
   | None
   | Error

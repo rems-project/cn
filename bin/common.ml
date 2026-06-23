@@ -267,14 +267,17 @@ let handle_type_error
   exit (exit_code_of_error error)
 
 
-let handle_error_with_user_guidance ~(label : string) (e : exn) : unit =
+let print_uncaught_exception (e : exn) : unit =
   let msg = Printexc.to_string e in
   let stack = Printexc.get_backtrace () in
   Printf.eprintf "cn: internal error, uncaught exception:\n    %s\n" msg;
   let lines = String.split_on_char '\n' stack in
-  List.iter (fun line -> Printf.eprintf "    %s\n" line) lines;
-  Printf.eprintf
-    "Issues can be made at https://github.com/rems-project/cerberus/issues.\n";
+  List.iter (fun line -> Printf.eprintf "    %s\n" line) lines
+
+
+let handle_error_with_user_guidance ~(label : string) (e : exn) : unit =
+  print_uncaught_exception e;
+  Printf.eprintf "Issues can be made at https://github.com/rems-project/cn/issues.\n";
   Printf.eprintf "Prefix your issue with \"[%s]\". " label;
   Printf.eprintf "Check that there isn't already one for this error.\n";
   exit 1
@@ -283,14 +286,14 @@ let handle_error_with_user_guidance ~(label : string) (e : exn) : unit =
 type subcommand =
   | Verify
   | Instrument
-  | Test
+  | Test of TestGeneration.engine
   | SeqTest
 
 let tool_name cmd =
   match cmd with
   | Verify -> "CN"
   | Instrument -> "Fulminate"
-  | Test -> "Bennet"
+  | Test engine -> TestGeneration.Config.string_of_engine engine
   | SeqTest -> "CN-Seq-Test"
 
 
