@@ -12,12 +12,12 @@ module Flags = struct
     Arg.(
       value
       & opt int TestGeneration.default_cfg.max_backtracks
-      & info [ "max-backtrack-attempts" ] ~doc)
+      & info ~docs:Shared.s_generation [ "max-backtrack-attempts" ] ~doc)
 
 
   let random_size_splits =
     let doc = "Randomly split sizes between recursive generator calls" in
-    Arg.(value & flag & info [ "random-size-splits" ] ~doc)
+    Arg.(value & flag & info ~docs:Shared.s_generation [ "random-size-splits" ] ~doc)
 
 
   let allowed_size_split_backtracks =
@@ -28,12 +28,13 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.allowed_size_split_backtracks
-      & info [ "allowed-size-split-backtracks" ] ~doc)
+      & info ~docs:Shared.s_generation [ "allowed-size-split-backtracks" ] ~doc)
 
 
   let only_top_level_ite_lifting =
     let doc = "Only lift top-level ITE expressions" in
-    Arg.(value & flag & info [ "only-top-level-ite-lifting" ] ~doc)
+    Arg.(
+      value & flag & info ~docs:Shared.s_generation [ "only-top-level-ite-lifting" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -62,6 +63,9 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
 
 let cmd =
   let doc = "Generate tests using randomized input generation (the default engine)." in
-  Cmd.v
-    (Cmd.info "bennet" ~doc)
-    (Shared.mk_term ~engine:(Term.const TestGeneration.Bennet) ~engine_flags:term)
+  Shared.mk_cmd
+    ~name:"bennet"
+    ~doc
+    ~extra:[]
+    ~engine:TestGeneration.Bennet
+    ~engine_flags:term

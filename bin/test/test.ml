@@ -35,7 +35,10 @@ let legacy_t =
     in
     Term.(const from_symbolic $ symbolic_flag)
   in
-  Shared.mk_term ~engine ~engine_flags:(Shared.compose_flags Bennet.term Darcy.term)
+  Shared.mk_term
+    ~engine
+    ~experimental_section:(Shared.experimental_docs TestGeneration.Bennet)
+    ~engine_flags:(Shared.compose_flags Bennet.term Darcy.term)
 
 
 let doc =
@@ -52,7 +55,9 @@ let cmd =
   Cmd.group (Cmd.info "test" ~doc) ([ Bennet.cmd; Darcy.cmd; Lucas.cmd ] @ Releases.all)
 
 
-let legacy_cmd = Cmd.v (Cmd.info "test" ~doc) legacy_t
+let legacy_cmd =
+  Cmd.v (Cmd.info "test" ~doc ~man:(Shared.man_sections ~extra:[ Darcy.s_smt ])) legacy_t
+
 
 let is_prefix_of s cmd' = String.length s > 0 && String.starts_with ~prefix:s cmd'
 

@@ -6,10 +6,18 @@
 open Cn
 open Cmdliner
 
+(* Section for flags specific to [cn test lucas]. *)
+let s_absint = "ABSTRACT INTERPRETATION OPTIONS"
+
 module Flags = struct
+  (* Lucas is experimental, so its experimental flags stay visible in `--help`
+     (under their natural sections) rather than being hidden. [exp_docs section]
+     files a flag under [section] here, but would hide it on a stable engine. *)
+  let exp_docs = Shared.experimental_docs TestGeneration.Lucas
+
   let ad_pruning =
     let doc = "Enable abstract domain-based pruning" in
-    Arg.(value & flag & info [ "ad-pruning" ] ~doc)
+    Arg.(value & flag & info ~docs:s_absint [ "ad-pruning" ] ~doc)
 
 
   let static_absint =
@@ -27,7 +35,7 @@ module Flags = struct
                   ("tristate", "tristate")
                 ]))
           []
-      & info [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+      & info ~docs:(exp_docs s_absint) [ "static-absint" ] ~docv:"DOMAIN" ~doc)
 
 
   let local_iterations =
@@ -35,7 +43,7 @@ module Flags = struct
     Arg.(
       value
       & opt int TestGeneration.default_cfg.local_iterations
-      & info [ "local-iterations" ] ~doc)
+      & info ~docs:s_absint [ "local-iterations" ] ~doc)
 
 
   let smt_pruning_before_absint =
@@ -46,7 +54,7 @@ module Flags = struct
     Arg.(
       value
       & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
-      & info [ "smt-pruning-before-absint" ] ~doc)
+      & info ~docs:(exp_docs s_absint) [ "smt-pruning-before-absint" ] ~doc)
 
 
   let smt_pruning_after_absint =
@@ -57,19 +65,22 @@ module Flags = struct
     Arg.(
       value
       & opt (enum [ ("none", `None); ("fast", `Fast); ("slow", `Slow) ]) `None
-      & info [ "smt-pruning-after-absint" ] ~doc)
+      & info ~docs:(exp_docs s_absint) [ "smt-pruning-after-absint" ] ~doc)
 
 
   let smt_pruning_keep_redundant_assertions =
     let doc =
       "(Experimental) Keep assertions even if provably redundant during SMT pruning"
     in
-    Arg.(value & flag & info [ "smt-pruning-keep-redundant-assertions" ] ~doc)
+    Arg.(
+      value
+      & flag
+      & info ~docs:(exp_docs s_absint) [ "smt-pruning-keep-redundant-assertions" ] ~doc)
 
 
   let runtime_assert_domain =
     let doc = "Enable assert_domain checks at runtime (disabled by default)" in
-    Arg.(value & flag & info [ "runtime-assert-domain" ] ~doc)
+    Arg.(value & flag & info ~docs:s_absint [ "runtime-assert-domain" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -109,8 +120,9 @@ let cmd =
   let doc =
     "(Experimental) Generate tests via randomized refinement of abstract elements."
   in
-  Cmd.v
-    (Cmd.info "lucas" ~doc)
-    (Shared.mk_term
-       ~engine:(Term.const TestGeneration.Lucas)
-       ~engine_flags:(Shared.compose_flags Bennet.term term))
+  Shared.mk_cmd
+    ~name:"lucas"
+    ~doc
+    ~extra:[ s_absint ]
+    ~engine:TestGeneration.Lucas
+    ~engine_flags:(Shared.compose_flags Bennet.term term)
