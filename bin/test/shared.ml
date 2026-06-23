@@ -86,7 +86,9 @@ let run
     match e.msg with TypeErrors.Unsupported _ -> exit 2 | _ -> exit 1
   in
   let filename = Common.there_can_only_be_one filename in
-  let output_dir = Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true Test output_dir in
+  let output_dir =
+    Common.mk_dir_if_not_exist_maybe_tmp ~mktemp:true (Test engine) output_dir
+  in
   let basefile = Filename.basename filename in
   let pp_file = Filename.temp_file "cn_" basefile in
   let out_file = Fulminate.get_instrumented_filename basefile in
@@ -155,6 +157,8 @@ let run
       in
       let config = engine_flags config in
       TestGeneration.set_config config;
+      (if TestGeneration.Config.is_experimental engine then
+         Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)));
       let _, sigma = ail_prog in
       if
         List.is_empty
@@ -193,7 +197,8 @@ let run
            ail_prog
            prog5
        with
-       | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
+       | e ->
+         Common.handle_error_with_user_guidance ~label:(Common.tool_name Instrument) e);
       (try
          TestGeneration.run
            ~output_dir
@@ -205,7 +210,19 @@ let run
            prog5
            paused
        with
-       | e -> Common.handle_error_with_user_guidance ~label:"CN-Test-Gen" e);
+       | e ->
+         if TestGeneration.Config.is_experimental engine then (
+           Common.print_uncaught_exception e;
+           (* colour was disabled before the run; force it on so the reminder stands out *)
+           Cerb_colour.with_colour
+             (fun () ->
+                Pp.(warn_noloc !^(TestGeneration.Config.experimental_message engine)))
+             ();
+           exit 1)
+         else
+           Common.handle_error_with_user_guidance
+             ~label:(Common.tool_name (Test engine))
+             e);
       if not dont_run then (
         Cerb_debug.maybe_close_csv_timing_file ();
         match build_tool with

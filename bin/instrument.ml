@@ -188,7 +188,10 @@ let generate_executable_specs
                 ail_prog
                 prog5
             with
-            | e -> Common.handle_error_with_user_guidance ~label:"CN-Exec" e);
+            | e ->
+              Common.handle_error_with_user_guidance
+                ~label:(Common.tool_name Instrument)
+                e);
            ())
         ();
       Or_TypeError.return

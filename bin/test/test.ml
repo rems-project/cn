@@ -10,12 +10,8 @@ open Cn
 open Cmdliner
 
 let symbolic_flag =
-  let doc =
-    "(Experimental) Use symbolic execution for test generation instead of concrete value \
-     generation."
-  in
   let deprecated = "Use 'cn test darcy' instead." in
-  Arg.(value & flag & info [ "symbolic" ] ~deprecated ~doc)
+  Arg.(value & flag & info [ "symbolic" ] ~deprecated)
 
 
 (* Deprecated flat interface: `cn test FILE` runs Bennet (the previous default
@@ -58,20 +54,47 @@ let cmd =
 
 let legacy_cmd = Cmd.v (Cmd.info "test" ~doc) legacy_t
 
-(* Whether argv is a legacy flat invocation: `cn test ARG ...` where ARG is
-   neither (a prefix of) an engine name nor a help/version request. Engine
-   names are prefix-matched because Cmdliner resolves unambiguous command-name
-   prefixes. *)
-let wants_legacy (argv : string array) : bool =
-  let is_prefix_of s cmd' =
-    String.length s > 0
-    && String.length s <= String.length cmd'
-    && String.equal s (String.sub cmd' 0 (String.length s))
-  in
+let is_prefix_of s cmd' = String.length s > 0 && String.starts_with ~prefix:s cmd'
+
+(* The argument after `test` in `cn test ARG ...`, when argv has that shape. *)
+let test_arg (argv : string array) : string option =
   match Array.to_list argv with
-  | _exe :: maybe_test :: arg :: _ when is_prefix_of maybe_test "test" ->
-    (not
-       (List.exists (is_prefix_of arg) ([ "bennet"; "darcy"; "lucas" ] @ Releases.names)))
+  | _exe :: maybe_test :: arg :: _ when is_prefix_of maybe_test "test" -> Some arg
+  | _ -> None
+
+
+(* The full engine and paper-release subcommand names. *)
+let engine_names =
+  List.map TestGeneration.Config.cli_name TestGeneration.Config.all_of_engine
+  @ Releases.names
+
+
+(* Engine subcommands must be spelled in full. Cmdliner would otherwise resolve
+   an unambiguous command-name prefix (`cn test b` -> bennet), so reject a token
+   that is a proper prefix of an engine name but not exactly one, before the
+   command tree is evaluated. A token that is not a prefix of any engine name
+   (e.g. a file name) is left to the deprecated flat interface. *)
+let reject_engine_prefix (argv : string array) : unit =
+  match test_arg argv with
+  | Some arg
+    when (not (List.mem String.equal arg engine_names))
+         && List.exists (is_prefix_of arg) engine_names ->
+    Printf.eprintf
+      "cn test: `%s` is not a recognized engine; use a full name (%s).\n\
+       Try 'cn test --help' for more information.\n"
+      arg
+      (String.concat ", " engine_names);
+    Stdlib.exit Cmd.Exit.cli_error
+  | _ -> ()
+
+
+(* Whether argv is a legacy flat invocation: `cn test ARG ...` where ARG is
+   neither an engine name nor a help/version request. Partial engine names are
+   already rejected by [reject_engine_prefix], so an exact-name check suffices. *)
+let wants_legacy (argv : string array) : bool =
+  match test_arg argv with
+  | Some arg ->
+    (not (List.mem String.equal arg engine_names))
     && (not (String.starts_with ~prefix:"--help" arg))
     && not (String.equal arg "--version")
-  | _ -> false
+  | None -> false

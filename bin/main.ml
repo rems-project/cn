@@ -16,5 +16,6 @@ let subcommands ~legacy_test =
 let () =
   let version_str = Cn_version.git_version ^ " [" ^ Cn_version.git_version_date ^ "]" in
   let cn_info = Cmd.info "cn" ~version:version_str in
+  Test.reject_engine_prefix Sys.argv;
   let legacy_test = Test.wants_legacy Sys.argv in
   Stdlib.exit @@ Cmd.(eval (group cn_info (subcommands ~legacy_test)))

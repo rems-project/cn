@@ -7,6 +7,37 @@ type engine =
   | Darcy (* Symbolic constraint-based generation *)
   | Lucas (* Randomized refinement of abstract elements *)
 
+(* Every engine; extend when adding one.
+  ([@@deriving enumerate] on [engine] would generate this automatically.) *)
+let all_of_engine = [ Bennet; Darcy; Lucas ]
+
+let string_of_engine (engine : engine) =
+  match engine with Bennet -> "Bennet" | Darcy -> "Darcy" | Lucas -> "Lucas"
+
+
+(* Subcommand name for an engine (e.g. [Bennet] -> "bennet"). *)
+let cli_name (engine : engine) = String.lowercase_ascii (string_of_engine engine)
+
+(* Whether an engine is experimental (not yet ready for general use). *)
+let is_experimental (engine : engine) =
+  match engine with Bennet | Darcy -> false | Lucas -> true
+
+
+(* User-facing names of the engines that are ready for general use. *)
+let stable_engine_names =
+  List.filter_map
+    (fun e -> if is_experimental e then None else Some (string_of_engine e))
+    all_of_engine
+
+
+(* User-facing reminder shown when an experimental engine is selected. *)
+let experimental_message (engine : engine) =
+  Printf.sprintf
+    "%s is experimental and not ready for use. Choose a stable engine instead: %s."
+    (string_of_engine engine)
+    (String.concat ", " stable_engine_names)
+
+
 type logging_level =
   | None
   | Error
