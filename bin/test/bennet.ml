@@ -31,12 +31,6 @@ module Flags = struct
       & info [ "allowed-size-split-backtracks" ] ~doc)
 
 
-  let sized_null =
-    let doc = "Does nothing." in
-    let deprecated = "Will be removed after July 31." in
-    Arg.(value & flag & info [ "sized-null" ] ~deprecated ~doc)
-
-
   let only_top_level_ite_lifting =
     let doc = "Only lift top-level ITE expressions" in
     Arg.(value & flag & info [ "only-top-level-ite-lifting" ] ~doc)
@@ -47,7 +41,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         max_backtracks
         random_size_splits
         allowed_size_split_backtracks
-        _sized_null
         only_top_level_ite_lifting
         (cfg : TestGeneration.config)
     : TestGeneration.config
@@ -64,7 +57,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.gen_backtrack_attempts
     $ Flags.random_size_splits
     $ Flags.allowed_size_split_backtracks
-    $ Flags.sized_null
     $ Flags.only_top_level_ite_lifting)
 
 
