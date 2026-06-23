@@ -73,5 +73,5 @@ let cmd =
     \    It DOES NOT verify C functions,\n\
     \    which `cn verify` does."
   in
-  let info = Cmd.info "wf" ~doc in
+  let info = Cmd.info "wf" ~doc ~man:[ `S Common.s_cn; `S Verify.s_verification ] in
   Cmd.v info wf_t

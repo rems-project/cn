@@ -10,7 +10,9 @@ open Cn
 open Cmdliner
 
 let mk ~name ~doc ~engine ~preset =
-  Cmd.v (Cmd.info name ~doc) (Shared.mk_release_term ~engine ~preset)
+  Cmd.v
+    (Cmd.info name ~doc ~man:(Shared.man_sections ~extra:[]))
+    (Shared.mk_release_term ~engine ~preset)
 
 
 let darcy_pldi26 =
@@ -28,4 +30,6 @@ let darcy_pldi26 =
 
 let all = [ darcy_pldi26 ]
 
-let names = [ "darcy-pldi26" ]
+(* Subcommand names, derived from [all] so a release is named in exactly one
+   place (its [mk ~name]); kept in sync with the command tree automatically. *)
+let names = List.map Cmd.name all

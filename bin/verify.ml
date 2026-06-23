@@ -121,15 +121,21 @@ let verify
 
 open Cmdliner
 
+(* Section for flags specific to [cn verify]. *)
+let s_verification = "VERIFICATION OPTIONS"
+
 module Flags = struct
   let quiet =
     let doc = "Only report success and failure, rather than rich errors" in
-    Arg.(value & flag & info [ "quiet" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "quiet" ] ~doc)
 
 
   let solver_logging =
     let doc = "Log solver queries in SMT2 format to a directory." in
-    Arg.(value & opt (some string) None & info [ "solver-logging" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "solver-logging" ] ~docv:"DIR" ~doc)
 
 
   let solver_flags =
@@ -138,12 +144,17 @@ module Flags = struct
        checking."
     in
     Arg.(
-      value & opt (some (list string)) None & info [ "solver-flags" ] ~docv:"X,Y,Z" ~doc)
+      value
+      & opt (some (list string)) None
+      & info ~docs:s_verification [ "solver-flags" ] ~docv:"X,Y,Z" ~doc)
 
 
   let solver_path =
     let doc = "Path to SMT solver executable" in
-    Arg.(value & opt (some file) None & info [ "solver-path" ] ~docv:"FILE" ~doc)
+    Arg.(
+      value
+      & opt (some file) None
+      & info ~docs:s_verification [ "solver-path" ] ~docv:"FILE" ~doc)
 
 
   let solver_type =
@@ -151,12 +162,15 @@ module Flags = struct
     Arg.(
       value
       & opt (some (enum [ ("z3", Simple_smt.Z3); ("cvc5", Simple_smt.CVC5) ])) None
-      & info [ "solver-type" ] ~docv:"z3|cvc5" ~doc)
+      & info ~docs:s_verification [ "solver-type" ] ~docv:"z3|cvc5" ~doc)
 
 
   let solver_inc_enabled =
     let doc = "Enable or disable incremental SMT solving." in
-    Arg.(value & opt bool !Solver.inc_enabled & info [ "incremental-solving" ] ~doc)
+    Arg.(
+      value
+      & opt bool !Solver.inc_enabled
+      & info ~docs:s_verification [ "incremental-solving" ] ~doc)
 
 
   let solver_inc_timeout =
@@ -166,86 +180,101 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) !Solver.inc_timeout
-      & info [ "incremental-solver-timeout" ] ~doc)
+      & info ~docs:s_verification [ "incremental-solver-timeout" ] ~doc)
 
 
   let try_hard =
     let doc = "Try undecidable SMT solving using full set of assumptions" in
-    Arg.(value & flag & info [ "try-hard" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "try-hard" ] ~doc)
 
 
   let only =
     let doc = "Only type-check this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+    Arg.(value & opt (list string) [] & info ~docs:s_verification [ "only" ] ~doc)
 
 
   let skip =
     let doc = "Skip type-checking of this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+    Arg.(value & opt (list string) [] & info ~docs:s_verification [ "skip" ] ~doc)
 
 
   let json =
     let doc = "output summary in JSON format" in
-    Arg.(value & flag & info [ "json" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "json" ] ~doc)
 
 
   let json_trace =
     let doc = "output state trace files as JSON, in addition to HTML" in
-    Arg.(value & flag & info [ "json-trace" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "json-trace" ] ~doc)
 
 
   let output_dir =
     let doc = "directory in which to output state files" in
-    Arg.(value & opt (some dir) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt (some dir) None
+      & info ~docs:s_verification [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let disable_resource_derived_constraints =
     let doc = "disable resource-derived constraints" in
-    Arg.(value & flag & info [ "disable-resource-derived-constraints" ] ~doc)
+    Arg.(
+      value
+      & flag
+      & info ~docs:s_verification [ "disable-resource-derived-constraints" ] ~doc)
 
 
   let disable_unfold_multiclause_preds =
     let doc =
       "do not automatically unfold predicates with multiple (if-then-else) clauses"
     in
-    Arg.(value & flag & info [ "disable-multiclause-predicate-unfolding" ] ~doc)
+    Arg.(
+      value
+      & flag
+      & info ~docs:s_verification [ "disable-multiclause-predicate-unfolding" ] ~doc)
 
 
   let check_consistency =
     let doc =
       "check consistency of predicate definitions, function specifications, and lemmas"
     in
-    Arg.(value & flag & info [ "check-consistency" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "check-consistency" ] ~doc)
 end
 
 module Lemma_flags = struct
   let lemmata =
     let doc = "lemmata generation mode (target filename)" in
-    Arg.(value & opt (some string) None & info [ "lemmata" ] ~docv:"FILE" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "lemmata" ] ~docv:"FILE" ~doc)
 end
 
 module CoqExport_flags = struct
   let coq_export =
     let doc = "File to export to coq defintions" in
-    Arg.(value & opt (some string) None & info [ "coq-export-file" ] ~docv:"FILE" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_verification [ "coq-export-file" ] ~docv:"FILE" ~doc)
 end
 
 module CoqMucore_flags = struct
   let coq_mucore =
     let doc = "include mu-core AST in coq export" in
-    Arg.(value & flag & info [ "coq-mucore" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "coq-mucore" ] ~doc)
 end
 
 module CoqProofLog_flags = struct
   let coq_proof_log =
     let doc = "include proof log in coq export" in
-    Arg.(value & flag & info [ "coq-proof-log" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "coq-proof-log" ] ~doc)
 end
 
 module CoqCheckProofLog_flags = struct
   let coq_check_proof_log =
     let doc = "Include statements to check proof log in coq exported file" in
-    Arg.(value & flag & info [ "coq-check-proof-log" ] ~doc)
+    Arg.(value & flag & info ~docs:s_verification [ "coq-check-proof-log" ] ~doc)
 end
 
 let verify_t : unit Term.t =
@@ -299,5 +328,5 @@ let cmd =
     \    their CN specifications and the\n\
     \    absence of undefined behavior."
   in
-  let info = Cmd.info "verify" ~doc in
+  let info = Cmd.info "verify" ~doc ~man:[ `S s_verification; `S Common.s_cn ] in
   Cmd.v info verify_t

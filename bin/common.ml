@@ -299,6 +299,10 @@ let tool_name cmd =
 
 open Cmdliner
 
+(* Shared frontend flags (compiler, preprocessing, diagnostics) common to every
+   `cn` subcommand. *)
+let s_cn = "CN OPTIONS"
+
 let mk_dir_if_not_exist_maybe_tmp ~mktemp ?(print_steps = false) (cmd : subcommand) dir =
   let dir =
     match dir with
@@ -347,7 +351,7 @@ module Flags = struct
 
   let cc =
     let doc = "C compiler to use" in
-    Arg.(value & opt string "cc" & info ~env:(Cmd.Env.info "CC") [ "cc" ] ~doc)
+    Arg.(value & opt string "cc" & info ~docs:s_cn ~env:(Cmd.Env.info "CC") [ "cc" ] ~doc)
 
 
   (* copied from cerberus' executable (backend/driver/main.ml) *)
@@ -378,17 +382,20 @@ module Flags = struct
     Arg.(
       value
       & opt_all macro_pair []
-      & info [ "D"; "define-macro" ] ~docv:"NAME[=VALUE]" ~doc)
+      & info ~docs:s_cn [ "D"; "define-macro" ] ~docv:"NAME[=VALUE]" ~doc)
 
 
   let permissive =
     let doc = "Enable permissive mode in Cerberus frontend" in
-    Arg.(value & flag & info [ "permissive" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "permissive" ] ~doc)
 
 
   let incl_dirs =
     let doc = "Add the specified directory to the search path for theC preprocessor." in
-    Arg.(value & opt_all string [] & info [ "I"; "include-directory" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt_all string []
+      & info ~docs:s_cn [ "I"; "include-directory" ] ~docv:"DIR" ~doc)
 
 
   let incl_files =
@@ -396,14 +403,14 @@ module Flags = struct
       "Adds  an  implicit  #include into the predefines buffer which is read before the \
        source file is preprocessed."
     in
-    Arg.(value & opt_all string [] & info [ "include" ] ~doc)
+    Arg.(value & opt_all string [] & info ~docs:s_cn [ "include" ] ~doc)
 
 
   let debug_level =
     let doc =
       "Set the debug message level for cerberus to $(docv) (should range over [0-3])."
     in
-    Arg.(value & opt int 0 & info [ "d"; "debug" ] ~docv:"N" ~doc)
+    Arg.(value & opt int 0 & info ~docs:s_cn [ "d"; "debug" ] ~docv:"N" ~doc)
 
 
   let print_level =
@@ -411,22 +418,22 @@ module Flags = struct
       "Set the debug message level for the type system to $(docv) (should range over \
        [0-15])."
     in
-    Arg.(value & opt int 0 & info [ "p"; "print-level" ] ~docv:"N" ~doc)
+    Arg.(value & opt int 0 & info ~docs:s_cn [ "p"; "print-level" ] ~docv:"N" ~doc)
 
 
   let print_sym_nums =
     let doc = "Print numeric IDs of Cerberus symbols (variable names)." in
-    Arg.(value & flag & info [ "n"; "print-sym-nums" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "n"; "print-sym-nums" ] ~doc)
 
 
   let no_timestamps =
     let doc = "Disable timestamps in print-level debug messages" in
-    Arg.(value & flag & info [ "no_timestamps" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "no_timestamps" ] ~doc)
 
 
   let csv_times =
     let doc = "file in which to output csv timing information" in
-    Arg.(value & opt (some string) None & info [ "times" ] ~docv:"FILE" ~doc)
+    Arg.(value & opt (some string) None & info ~docs:s_cn [ "times" ] ~docv:"FILE" ~doc)
 
 
   (* copy-pasting from backend/driver/main.ml *)
@@ -440,19 +447,19 @@ module Flags = struct
       & opt
           (list (enum [ ("cabs", Cabs); ("ail", Ail); ("core", Core); ("types", Types) ]))
           []
-      & info [ "ast" ] ~docv:"LANG1,..." ~doc)
+      & info ~docs:s_cn [ "ast" ] ~docv:"LANG1,..." ~doc)
 
 
   let no_inherit_loc =
     let doc =
       "debugging: stop mucore terms inheriting location information from parents"
     in
-    Arg.(value & flag & info [ "no-inherit-loc" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "no-inherit-loc" ] ~doc)
 
 
   let magic_comment_char_dollar =
     let doc = "Override CN's default magic comment syntax to be \"/*\\$ ... \\$*/\"" in
-    Arg.(value & flag & info [ "magic-comment-char-dollar" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "magic-comment-char-dollar" ] ~doc)
 
 
   let allow_split_magic_comments =
@@ -460,7 +467,7 @@ module Flags = struct
       "Alloc function specifications and loop invariants to be split across multiple \
        magic comments"
     in
-    Arg.(value & flag & info [ "allow-split-magic-comments" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "allow-split-magic-comments" ] ~doc)
 
 
   let loc_pp =
@@ -468,21 +475,21 @@ module Flags = struct
     Arg.(
       value
       & opt (enum [ ("hex", Pp.Hex); ("dec", Pp.Dec) ]) !Pp.loc_pp
-      & info [ "locs" ] ~docv:"HEX" ~doc)
+      & info ~docs:s_cn [ "locs" ] ~docv:"HEX" ~doc)
 
 
   let fail_fast =
     let doc = "Abort immediately after encountering a verification error" in
-    Arg.(value & flag & info [ "fail-fast" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "fail-fast" ] ~doc)
 
 
   let diag =
     let doc = "explore branching diagnostics with key string" in
-    Arg.(value & opt (some string) None & info [ "diag" ] ~doc)
+    Arg.(value & opt (some string) None & info ~docs:s_cn [ "diag" ] ~doc)
 
 
   (* TODO remove this when VIP impl complete *)
   let dont_use_vip =
     let doc = "(temporary) disable VIP rules" in
-    Arg.(value & flag & info [ "no-vip" ] ~doc)
+    Arg.(value & flag & info ~docs:s_cn [ "no-vip" ] ~doc)
 end

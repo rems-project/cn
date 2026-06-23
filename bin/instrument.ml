@@ -243,13 +243,19 @@ let parse_size_value s =
 
 let size_converter = Arg.conv (parse_size_value, fun ppf n -> Format.fprintf ppf "%d" n)
 
+(* Section for flags specific to [cn instrument] (Fulminate). *)
+let s_fulminate = "FULMINATE OPTIONS"
+
 module Flags = struct
   let output_dir =
     let doc =
       "output a version of the translation unit decorated with C runtime\n\
       \  translations of the CN annotations to the provided directory"
     in
-    Arg.(value & opt (some dir) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt (some dir) None
+      & info ~docs:s_fulminate [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let output =
@@ -257,32 +263,35 @@ module Flags = struct
       "output a version of the translation unit decorated with C runtime\n\
       \  translations of the CN annotations."
     in
-    Arg.(value & opt (some string) None & info [ "output"; "o" ] ~docv:"FILE" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_fulminate [ "output"; "o" ] ~docv:"FILE" ~doc)
 
 
   let without_ownership_checking =
     let doc = "Disable ownership checking within CN runtime testing" in
-    Arg.(value & flag & info [ "without-ownership-checking" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "without-ownership-checking" ] ~doc)
 
 
   let without_loop_invariants =
     let doc = "Disable checking of loop invariants within CN runtime testing" in
-    Arg.(value & flag & info [ "without-loop-invariants" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "without-loop-invariants" ] ~doc)
 
 
   let with_loop_leak_checks =
     let doc = "Enable leak checking across all runtime loop invariants" in
-    Arg.(value & flag & info [ "with-loop-leak-checks" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "with-loop-leak-checks" ] ~doc)
 
 
   let without_lemma_checks =
     let doc = "Disable runtime checking of lemmas" in
-    Arg.(value & flag & info [ "without-lemma-checks" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "without-lemma-checks" ] ~doc)
 
 
   let without_inline_statements =
     let doc = "Disable runtime checking of CN statements (incl. assertions)" in
-    Arg.(value & flag & info [ "without-inline-statements" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "without-inline-statements" ] ~doc)
 
 
   let with_test_gen =
@@ -291,7 +300,7 @@ module Flags = struct
       \  the CN test generation tool."
     in
     let deprecated = "Use `--with-testing` instead." in
-    Arg.(value & flag & info [ "with-test-gen" ] ~deprecated ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "with-test-gen" ] ~deprecated ~doc)
 
 
   let with_testing =
@@ -299,39 +308,39 @@ module Flags = struct
       "Generate intrumentation in a format more amenable to testing. Ignores an existing \
        `main` function."
     in
-    Arg.(value & flag & info [ "with-testing" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "with-testing" ] ~doc)
 
 
   let run =
     let doc = "Run the instrumented program" in
-    Arg.(value & flag & info [ "run" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "run" ] ~doc)
 
 
   let mktemp =
     let doc = "Use a temporary directory" in
-    Arg.(value & flag & info [ "tmp" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "tmp" ] ~doc)
 
 
   let print_steps =
     let doc =
       "Print successful stages, such as instrumentation, compilation and linking."
     in
-    Arg.(value & flag & info [ "print-steps" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "print-steps" ] ~doc)
 
 
   let only =
     let doc = "Only instrument this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "only" ] ~doc)
+    Arg.(value & opt (list string) [] & info ~docs:s_fulminate [ "only" ] ~doc)
 
 
   let skip =
     let doc = "Skip instrumenting this function (or comma-separated names)" in
-    Arg.(value & opt (list string) [] & info [ "skip" ] ~doc)
+    Arg.(value & opt (list string) [] & info ~docs:s_fulminate [ "skip" ] ~doc)
 
 
   let no_debug_info =
     let doc = "Run the instrumented program without collecting debug information" in
-    Arg.(value & flag & info [ "no-debug-info" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "no-debug-info" ] ~doc)
 
 
   let exec_c_locs_mode =
@@ -339,25 +348,25 @@ module Flags = struct
       "At errors, report the location in the Fulminated output, not the source. This \
        flag needs to be enabled for lldb to be usable on the instrumented binary."
     in
-    Arg.(value & flag & info [ "exec-c-locs-mode" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "exec-c-locs-mode" ] ~doc)
 
 
-  let experimental_ownership_stack_mode =
+  let experimental_ownership_stack_mode ~docs =
     let doc =
       "(experimental) Record (and report, in case of ownership error) the source \
        locations where ownership was taken for Fulminate-tracked memory"
     in
-    Arg.(value & flag & info [ "ownership-stack-mode" ] ~doc)
+    Arg.(value & flag & info ~docs [ "ownership-stack-mode" ] ~doc)
 
 
   let experimental_unions =
     let doc = "(experimental) Handle unions from source" in
-    Arg.(value & flag & info [ "experimental-unions" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "experimental-unions" ] ~doc)
 
 
   let max_bump_blocks =
     let doc = "Maximum number of bump allocator blocks (default: 256)" in
-    Arg.(value & opt (some int) None & info [ "max-bump-blocks" ] ~doc)
+    Arg.(value & opt (some int) None & info ~docs:s_fulminate [ "max-bump-blocks" ] ~doc)
 
 
   let bump_block_size =
@@ -366,12 +375,15 @@ module Flags = struct
        suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 8m, \
        8192k, 8388608"
     in
-    Arg.(value & opt (some size_converter) None & info [ "bump-block-size" ] ~doc)
+    Arg.(
+      value
+      & opt (some size_converter) None
+      & info ~docs:s_fulminate [ "bump-block-size" ] ~doc)
 
 
   let experimental_curly_braces =
     let doc = "(experimental) Insert curly braces for single-statement control flow" in
-    Arg.(value & flag & info [ "insert-curly-braces" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "insert-curly-braces" ] ~doc)
 
 
   let correct_missing_ownership_mode =
@@ -379,7 +391,7 @@ module Flags = struct
       "Self-correct missing ownership, dumping addresses that needed ownership during \
        execution"
     in
-    Arg.(value & flag & info [ "correct-missing-ownership" ] ~doc)
+    Arg.(value & flag & info ~docs:s_fulminate [ "correct-missing-ownership" ] ~doc)
 end
 
 let cmd =
@@ -421,7 +433,7 @@ let cmd =
     $ Flags.no_debug_info
     $ Flags.exec_c_locs_mode
     $ Flags.correct_missing_ownership_mode
-    $ Flags.experimental_ownership_stack_mode
+    $ Flags.experimental_ownership_stack_mode ~docs:s_fulminate
     $ Flags.experimental_unions
     $ Flags.experimental_curly_braces
     $ Flags.mktemp
@@ -433,5 +445,5 @@ let cmd =
     "Instruments [FILE] with runtime C assertions that check the properties provided in \
      CN specifications.\n"
   in
-  let info = Cmd.info "instrument" ~doc in
+  let info = Cmd.info "instrument" ~doc ~man:[ `S s_fulminate; `S Common.s_cn ] in
   Cmd.v info instrument_t

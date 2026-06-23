@@ -113,28 +113,36 @@ let run_seq_tests
 
 open Cmdliner
 
+(* Section for flags specific to [cn seq-test]. *)
+let s_seq_test = "SEQ-TEST OPTIONS"
+
 module Flags = struct
   let output_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_seq_test [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let print_steps =
     let doc =
       "Print successful stages, such as directory creation, compilation and linking."
     in
-    Arg.(value & flag & info [ "print-steps" ] ~doc)
+    Arg.(value & flag & info ~docs:s_seq_test [ "print-steps" ] ~doc)
 
 
   let disable_shrink =
     let doc = "Disables shrinking." in
-    Arg.(value & flag & info [ "disable-shrink" ] ~doc)
+    Arg.(value & flag & info ~docs:s_seq_test [ "disable-shrink" ] ~doc)
 
 
   let gen_num_calls =
     let doc = "Maximum number of calls per test" in
     Arg.(
-      value & opt int SeqTests.default_seq_cfg.num_calls & info [ "max-num-calls" ] ~doc)
+      value
+      & opt int SeqTests.default_seq_cfg.num_calls
+      & info ~docs:s_seq_test [ "max-num-calls" ] ~doc)
 
 
   let gen_backtrack_attempts =
@@ -145,12 +153,15 @@ module Flags = struct
     Arg.(
       value
       & opt int SeqTests.default_seq_cfg.max_backtracks
-      & info [ "max-backtrack-attempts" ] ~doc)
+      & info ~docs:s_seq_test [ "max-backtrack-attempts" ] ~doc)
 
 
   let num_tests =
     let doc = "Number of tests to generate" in
-    Arg.(value & opt int SeqTests.default_seq_cfg.num_tests & info [ "num-tests" ] ~doc)
+    Arg.(
+      value
+      & opt int SeqTests.default_seq_cfg.num_tests
+      & info ~docs:s_seq_test [ "num-tests" ] ~doc)
 end
 
 let cmd =
@@ -173,7 +184,7 @@ let cmd =
     $ Instrument.Flags.without_ownership_checking
     $ Instrument.Flags.exec_c_locs_mode
     $ Instrument.Flags.correct_missing_ownership_mode
-    $ Instrument.Flags.experimental_ownership_stack_mode
+    $ Instrument.Flags.experimental_ownership_stack_mode ~docs:Instrument.s_fulminate
     $ Flags.output_dir
     $ Flags.print_steps
     $ Flags.disable_shrink
@@ -186,5 +197,10 @@ let cmd =
     \    The tests use randomized inputs or previous calls.\n\
     \    A [.c] file containing the test harnesses will be placed in [output-dir]."
   in
-  let info = Cmd.info "seq-test" ~doc in
+  let info =
+    Cmd.info
+      "seq-test"
+      ~doc
+      ~man:[ `S s_seq_test; `S Instrument.s_fulminate; `S Common.s_cn ]
+  in
   Cmd.v info test_t

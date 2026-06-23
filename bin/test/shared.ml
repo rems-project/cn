@@ -238,6 +238,36 @@ let run
 
 open Cmdliner
 
+(* Section titles for grouping a test engine's flags in `--help`/man output, so
+   related flags read consistently across the engine subcommands. *)
+let s_generation = "GENERATION OPTIONS"
+
+let s_selection = "SELECTION OPTIONS"
+
+let s_output = "OUTPUT OPTIONS"
+
+let s_compilation = "COMPILATION OPTIONS"
+
+let s_logging = "LOGGING & DIAGNOSTICS"
+
+(* Where a test engine's experimental flag is filed in `--help`: under its
+   natural [section] on experimental engines, hidden (omitted from help/man via
+   [Manpage.s_none]) on stable ones. An experimental engine is already flagged
+   as not-for-general-use, so its help surfaces every knob beside its stable
+   siblings; a stable engine presents a clean, stable-only help. *)
+let experimental_docs (engine : TestGeneration.engine) (section : string) : string =
+  if TestGeneration.Config.is_experimental engine then section else Manpage.s_none
+
+
+(* Ordered section headers for a test engine's man page. [extra] are
+   engine-specific sections (e.g. SMT / abstract interpretation) shown after the
+   shared ones. Experimental flags are filed under these same natural sections
+   (see [experimental_docs]), so there is no separate experimental section. *)
+let man_sections ~(extra : string list) : Manpage.block list =
+  let shared = [ s_generation; s_selection; s_output; s_compilation; s_logging ] in
+  List.map (fun s -> `S s) (shared @ extra @ [ Common.s_cn ])
+
+
 (* Parse size value with optional suffix (k/K for KB, m/M for MB, g/G for GB) *)
 let parse_size_value s =
   let len = String.length s in
@@ -280,24 +310,29 @@ module Flags = struct
     let doc =
       "Print successful stages, such as directory creation, compilation and linking."
     in
-    Arg.(value & flag & info [ "print-steps" ] ~doc)
+    Arg.(value & flag & info ~docs:s_output [ "print-steps" ] ~doc)
 
 
   let output_dir =
     let doc = "Place generated tests in the provided directory" in
-    Arg.(value & opt (some string) None & info [ "output-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_output [ "output-dir" ] ~docv:"DIR" ~doc)
 
 
   let only =
     let doc = "Only test this function (or comma-separated names)" in
     Term.(
-      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "only" ] ~doc))
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info ~docs:s_selection [ "only" ] ~doc))
 
 
   let skip =
     let doc = "Skip testing of this function (or comma-separated names)" in
     Term.(
-      const List.concat $ Arg.(value & opt_all (list string) [] & info [ "skip" ] ~doc))
+      const List.concat
+      $ Arg.(value & opt_all (list string) [] & info ~docs:s_selection [ "skip" ] ~doc))
 
 
   let only_fulminate =
@@ -307,7 +342,10 @@ module Flags = struct
     in
     Term.(
       const List.concat
-      $ Arg.(value & opt_all (list string) [] & info [ "only-fulminate" ] ~doc))
+      $ Arg.(
+          value
+          & opt_all (list string) []
+          & info ~docs:s_selection [ "only-fulminate" ] ~doc))
 
 
   let skip_fulminate =
@@ -317,25 +355,30 @@ module Flags = struct
     in
     Term.(
       const List.concat
-      $ Arg.(value & opt_all (list string) [] & info [ "skip-fulminate" ] ~doc))
+      $ Arg.(
+          value
+          & opt_all (list string) []
+          & info ~docs:s_selection [ "skip-fulminate" ] ~doc))
 
 
   let dont_run =
     let doc = "Do not run tests, only generate them" in
-    Arg.(value & flag & info [ "no-run" ] ~doc)
+    Arg.(value & flag & info ~docs:s_output [ "no-run" ] ~doc)
 
 
   let gen_num_samples =
     let doc = "Set the number of samples to test" in
     Arg.(
-      value & opt int TestGeneration.default_cfg.num_samples & info [ "num-samples" ] ~doc)
+      value
+      & opt int TestGeneration.default_cfg.num_samples
+      & info ~docs:s_generation [ "num-samples" ] ~doc)
 
 
   let gen_max_unfolds =
     let doc =
       "Maximum number of times to inline function calls in symbolic mode (default: 10)"
     in
-    Arg.(value & opt (some int) None & info [ "max-unfolds" ] ~doc)
+    Arg.(value & opt (some int) None & info ~docs:s_generation [ "max-unfolds" ] ~doc)
 
 
   let build_tool =
@@ -343,7 +386,7 @@ module Flags = struct
     Arg.(
       value
       & opt (enum TestGeneration.Options.build_tool) TestGeneration.default_cfg.build_tool
-      & info [ "build-tool" ] ~doc)
+      & info ~docs:s_output [ "build-tool" ] ~doc)
 
 
   let sanitize =
@@ -351,7 +394,7 @@ module Flags = struct
     Arg.(
       value
       & opt (some string) (fst TestGeneration.default_cfg.sanitizers)
-      & info [ "sanitize" ] ~doc)
+      & info ~docs:s_compilation [ "sanitize" ] ~doc)
 
 
   let no_sanitize =
@@ -359,12 +402,12 @@ module Flags = struct
     Arg.(
       value
       & opt (some string) (snd TestGeneration.default_cfg.sanitizers)
-      & info [ "no-sanitize" ] ~doc)
+      & info ~docs:s_compilation [ "no-sanitize" ] ~doc)
 
 
   let print_seed =
     let doc = "Print seed used by PRNG." in
-    Arg.(value & flag & info [ "print-seed" ] ~doc)
+    Arg.(value & flag & info ~docs:s_generation [ "print-seed" ] ~doc)
 
 
   let input_timeout =
@@ -372,7 +415,7 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.input_timeout
-      & info [ "input-timeout" ] ~doc)
+      & info ~docs:s_generation [ "input-timeout" ] ~doc)
 
 
   let null_in_every =
@@ -380,12 +423,15 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.null_in_every
-      & info [ "null-in-every" ] ~doc)
+      & info ~docs:s_generation [ "null-in-every" ] ~doc)
 
 
   let seed =
     let doc = "Set the seed for random testing" in
-    Arg.(value & opt (some string) TestGeneration.default_cfg.seed & info [ "seed" ] ~doc)
+    Arg.(
+      value
+      & opt (some string) TestGeneration.default_cfg.seed
+      & info ~docs:s_generation [ "seed" ] ~doc)
 
 
   let logging_level =
@@ -395,7 +441,7 @@ module Flags = struct
       & opt
           (some (enum TestGeneration.Options.logging_level))
           TestGeneration.default_cfg.logging_level
-      & info [ "logging-level" ] ~doc)
+      & info ~docs:s_logging [ "logging-level" ] ~doc)
 
 
   let trace_granularity =
@@ -405,7 +451,7 @@ module Flags = struct
       & opt
           (some (enum TestGeneration.Options.trace_granularity))
           TestGeneration.default_cfg.trace_granularity
-      & info [ "trace-granularity" ] ~doc)
+      & info ~docs:s_logging [ "trace-granularity" ] ~doc)
 
 
   let progress_level =
@@ -415,7 +461,7 @@ module Flags = struct
       & opt
           (some (enum TestGeneration.Options.progress_level))
           TestGeneration.default_cfg.progress_level
-      & info [ "progress-level" ] ~doc)
+      & info ~docs:s_logging [ "progress-level" ] ~doc)
 
 
   let until_timeout =
@@ -423,22 +469,22 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.until_timeout
-      & info [ "until-timeout" ] ~doc)
+      & info ~docs:s_generation [ "until-timeout" ] ~doc)
 
 
   let exit_fast =
     let doc = "Stop testing upon finding the first failure" in
-    Arg.(value & flag & info [ "exit-fast" ] ~doc)
+    Arg.(value & flag & info ~docs:s_generation [ "exit-fast" ] ~doc)
 
 
-  let coverage =
+  let coverage ~docs =
     let doc = "(Experimental) Record coverage of tests via [lcov]" in
-    Arg.(value & flag & info [ "coverage" ] ~doc)
+    Arg.(value & flag & info ~docs [ "coverage" ] ~doc)
 
 
   let disable_specialization =
     let doc = "Disable integer specialization in the generator pipeline" in
-    Arg.(value & flag & info [ "disable-specialization" ] ~doc)
+    Arg.(value & flag & info ~docs:s_generation [ "disable-specialization" ] ~doc)
 
 
   let disable_passes =
@@ -455,22 +501,22 @@ module Flags = struct
                   ("lift_constraints", "lift_constraints")
                 ]))
           []
-      & info [ "disable" ] ~doc)
+      & info ~docs:s_generation [ "disable" ] ~doc)
 
 
   let trap =
     let doc = "Raise SIGTRAP on test failure" in
-    Arg.(value & flag & info [ "trap" ] ~doc)
+    Arg.(value & flag & info ~docs:s_logging [ "trap" ] ~doc)
 
 
   let no_replays =
     let doc = "Disable replaying errors for error messages" in
-    Arg.(value & flag & info [ "no-replays" ] ~doc)
+    Arg.(value & flag & info ~docs:s_logging [ "no-replays" ] ~doc)
 
 
   let no_replicas =
     let doc = "Disable synthesizing C code to replicate bugs" in
-    Arg.(value & flag & info [ "no-replicas" ] ~doc)
+    Arg.(value & flag & info ~docs:s_logging [ "no-replicas" ] ~doc)
 
 
   let output_tyche =
@@ -478,7 +524,7 @@ module Flags = struct
     Arg.(
       value
       & opt (some string) TestGeneration.default_cfg.output_tyche
-      & info [ "output-tyche" ] ~doc)
+      & info ~docs:s_output [ "output-tyche" ] ~doc)
 
 
   let inline =
@@ -490,52 +536,52 @@ module Flags = struct
     Arg.(
       value
       & opt (enum TestGeneration.Options.inline_mode) TestGeneration.default_cfg.inline
-      & info [ "inline" ] ~doc)
+      & info ~docs:s_generation [ "inline" ] ~doc)
 
 
-  let experimental_struct_asgn_destruction =
+  let experimental_struct_asgn_destruction ~docs =
     let doc = "Destructs struct assignments" in
-    Arg.(value & flag & info [ "experimental-struct-asgn-destruction" ] ~doc)
+    Arg.(value & flag & info ~docs [ "experimental-struct-asgn-destruction" ] ~doc)
 
 
-  let experimental_product_arg_destruction =
+  let experimental_product_arg_destruction ~docs =
     let doc = "Destructs all records and structs arguments" in
-    Arg.(value & flag & info [ "experimental-product-arg-destruction" ] ~doc)
+    Arg.(value & flag & info ~docs [ "experimental-product-arg-destruction" ] ~doc)
 
 
-  let experimental_arg_pruning =
+  let experimental_arg_pruning ~docs =
     let doc = "Enable experimental unused argument pruning optimization" in
-    Arg.(value & flag & info [ "experimental-arg-pruning" ] ~doc)
+    Arg.(value & flag & info ~docs [ "experimental-arg-pruning" ] ~doc)
 
 
-  let experimental_return_pruning =
+  let experimental_return_pruning ~docs =
     let doc = "Enable experimental unused return value pruning optimization" in
-    Arg.(value & flag & info [ "experimental-return-pruning" ] ~doc)
+    Arg.(value & flag & info ~docs [ "experimental-return-pruning" ] ~doc)
 
 
-  let print_size_info =
+  let print_size_info ~docs =
     let doc = "(Experimental) Print size info" in
-    Arg.(value & flag & info [ "print-size-info" ] ~doc)
+    Arg.(value & flag & info ~docs [ "print-size-info" ] ~doc)
 
 
-  let print_backtrack_info =
+  let print_backtrack_info ~docs =
     let doc = "(Experimental) Print backtracking info" in
-    Arg.(value & flag & info [ "print-backtrack-info" ] ~doc)
+    Arg.(value & flag & info ~docs [ "print-backtrack-info" ] ~doc)
 
 
-  let print_satisfaction_info =
+  let print_satisfaction_info ~docs =
     let doc = "(Experimental) Print satisfaction info" in
-    Arg.(value & flag & info [ "print-satisfaction-info" ] ~doc)
+    Arg.(value & flag & info ~docs [ "print-satisfaction-info" ] ~doc)
 
 
-  let print_discard_info =
+  let print_discard_info ~docs =
     let doc = "(Experimental) Print discard info" in
-    Arg.(value & flag & info [ "print-discard-info" ] ~doc)
+    Arg.(value & flag & info ~docs [ "print-discard-info" ] ~doc)
 
 
-  let print_timing_info =
+  let print_timing_info ~docs =
     let doc = "(Experimental) Print timing info" in
-    Arg.(value & flag & info [ "print-timing-info" ] ~doc)
+    Arg.(value & flag & info ~docs [ "print-timing-info" ] ~doc)
 
 
   let max_input_alloc =
@@ -544,7 +590,10 @@ module Flags = struct
        suffixes: k/K for kilobytes, m/M for megabytes, g/G for gigabytes. Examples: 32m, \
        33554432, 64m"
     in
-    Arg.(value & opt (some size_converter) None & info [ "max-input-alloc" ] ~doc)
+    Arg.(
+      value
+      & opt (some size_converter) None
+      & info ~docs:s_generation [ "max-input-alloc" ] ~doc)
 
 
   let dsl_log_dir =
@@ -552,7 +601,10 @@ module Flags = struct
       "Write generator DSL intermediate representations to separate stage files in this \
        directory"
     in
-    Arg.(value & opt (some string) None & info [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:s_logging [ "dsl-log-dir" ] ~docv:"DIR" ~doc)
 
 
   let max_stack_depth =
@@ -560,7 +612,7 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.max_stack_depth
-      & info [ "max-stack-depth" ] ~doc)
+      & info ~docs:s_generation [ "max-stack-depth" ] ~doc)
 
 
   let max_depth_failures =
@@ -568,7 +620,7 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.max_depth_failures
-      & info [ "max-depth-failures" ] ~doc)
+      & info ~docs:s_generation [ "max-depth-failures" ] ~doc)
 
 
   let max_generator_size =
@@ -578,7 +630,7 @@ module Flags = struct
     Arg.(
       value
       & opt (some int) TestGeneration.default_cfg.max_generator_size
-      & info [ "max-generator-size" ] ~doc)
+      & info ~docs:s_generation [ "max-generator-size" ] ~doc)
 
 
   let sizing_strategy =
@@ -588,7 +640,7 @@ module Flags = struct
       & opt
           (some (enum TestGeneration.Options.sizing_strategy))
           TestGeneration.default_cfg.sizing_strategy
-      & info [ "sizing-strategy" ] ~doc)
+      & info ~docs:s_generation [ "sizing-strategy" ] ~doc)
 
 
   let discard_factor =
@@ -596,12 +648,12 @@ module Flags = struct
     Arg.(
       value
       & opt int TestGeneration.default_cfg.discard_factor
-      & info [ "discard-factor" ] ~doc)
+      & info ~docs:s_generation [ "discard-factor" ] ~doc)
 
 
   let disable_extrema_skew =
     let doc = "Disable extreme value (MIN/MAX) skewing in sized generators" in
-    Arg.(value & flag & info [ "disable-extrema-skew" ] ~doc)
+    Arg.(value & flag & info ~docs:s_generation [ "disable-extrema-skew" ] ~doc)
 end
 
 (* Compose two engine flag updaters *)
@@ -650,7 +702,10 @@ let gen_term : engine_flags Term.t =
 (* The common flag chain, shared by all engine subcommands. [engine] decides
    which pipeline runs; [engine_flags] is the engine's config updater, so
    wrong-engine flags are rejected as unknown options. *)
-let mk_term ~(engine : TestGeneration.engine Term.t) ~(engine_flags : engine_flags Term.t)
+let mk_term
+      ~(engine : TestGeneration.engine Term.t)
+      ~(experimental_section : string -> string)
+      ~(engine_flags : engine_flags Term.t)
   : unit Term.t
   =
   let open Term in
@@ -673,6 +728,7 @@ let mk_term ~(engine : TestGeneration.engine Term.t) ~(engine_flags : engine_fla
   $ Instrument.Flags.exec_c_locs_mode
   $ Instrument.Flags.correct_missing_ownership_mode
   $ Instrument.Flags.experimental_ownership_stack_mode
+      ~docs:(experimental_section s_compilation)
   $ Flags.print_steps
   $ Flags.output_dir
   $ Flags.only
@@ -693,28 +749,48 @@ let mk_term ~(engine : TestGeneration.engine Term.t) ~(engine_flags : engine_fla
   $ Flags.progress_level
   $ Flags.until_timeout
   $ Flags.exit_fast
-  $ Flags.coverage
+  $ Flags.coverage ~docs:(experimental_section s_output)
   $ Flags.disable_passes
   $ Flags.trap
   $ Flags.no_replays
   $ Flags.no_replicas
   $ Flags.output_tyche
   $ Flags.inline
-  $ Flags.experimental_struct_asgn_destruction
-  $ Flags.experimental_product_arg_destruction
-  $ Flags.experimental_arg_pruning
-  $ Flags.experimental_return_pruning
-  $ Flags.print_size_info
-  $ Flags.print_backtrack_info
-  $ Flags.print_satisfaction_info
-  $ Flags.print_discard_info
-  $ Flags.print_timing_info
+  $ Flags.experimental_struct_asgn_destruction ~docs:(experimental_section s_generation)
+  $ Flags.experimental_product_arg_destruction ~docs:(experimental_section s_generation)
+  $ Flags.experimental_arg_pruning ~docs:(experimental_section s_generation)
+  $ Flags.experimental_return_pruning ~docs:(experimental_section s_generation)
+  $ Flags.print_size_info ~docs:(experimental_section s_logging)
+  $ Flags.print_backtrack_info ~docs:(experimental_section s_logging)
+  $ Flags.print_satisfaction_info ~docs:(experimental_section s_logging)
+  $ Flags.print_discard_info ~docs:(experimental_section s_logging)
+  $ Flags.print_timing_info ~docs:(experimental_section s_logging)
   $ Instrument.Flags.max_bump_blocks
   $ Instrument.Flags.bump_block_size
   $ Flags.max_input_alloc
   $ Flags.dsl_log_dir
   $ Flags.disable_specialization
   $ compose_flags gen_term engine_flags
+
+
+(* Build an engine subcommand. [engine] is named once - both the runtime engine
+   constant and its experimental-flag visibility derive from it - and the flags
+   are ordered under the shared test-gen sections plus [extra] (e.g. SMT for
+   darcy, abstract interpretation for lucas). *)
+let mk_cmd
+      ~(name : string)
+      ~(doc : string)
+      ~(extra : string list)
+      ~(engine : TestGeneration.engine)
+      ~(engine_flags : engine_flags Term.t)
+  : unit Cmd.t
+  =
+  Cmd.v
+    (Cmd.info name ~doc ~man:(man_sections ~extra))
+    (mk_term
+       ~engine:(Term.const engine)
+       ~experimental_section:(experimental_docs engine)
+       ~engine_flags)
 
 
 (* The flag chain for a paper-release subcommand: the test-generation settings
@@ -741,7 +817,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
       $ Arg.(
           value
           & opt (some (enum TestGeneration.Options.build_tool)) None
-          & info [ "build-tool" ] ~doc))
+          & info ~docs:s_output [ "build-tool" ] ~doc))
   in
   let sanitizers =
     Term.(
@@ -822,7 +898,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ Flags.progress_level
   $ opt_or preset.until_timeout Flags.until_timeout
   $ Flags.exit_fast
-  $ Flags.coverage
+  $ Flags.coverage ~docs:Manpage.s_none
   $ const preset.disable_passes
   $ const preset.trap
   $ Flags.no_replays
@@ -833,11 +909,11 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ const preset.experimental_product_arg_destruction
   $ const preset.experimental_arg_pruning
   $ const preset.experimental_return_pruning
-  $ Flags.print_size_info
-  $ Flags.print_backtrack_info
-  $ Flags.print_satisfaction_info
-  $ Flags.print_discard_info
-  $ Flags.print_timing_info
+  $ Flags.print_size_info ~docs:Manpage.s_none
+  $ Flags.print_backtrack_info ~docs:Manpage.s_none
+  $ Flags.print_satisfaction_info ~docs:Manpage.s_none
+  $ Flags.print_discard_info ~docs:Manpage.s_none
+  $ Flags.print_timing_info ~docs:Manpage.s_none
   $ opt_or preset.max_bump_blocks Instrument.Flags.max_bump_blocks
   $ opt_or preset.bump_block_size Instrument.Flags.bump_block_size
   $ opt_or preset.max_input_alloc Flags.max_input_alloc
