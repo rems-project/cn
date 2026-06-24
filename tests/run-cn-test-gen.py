@@ -412,6 +412,10 @@ def main():
             print(
                 f"Memory limit: {args.memory_limit} (enforced via RSS polling)")
 
+    # Resolve test file path relative to CWD before we chdir
+    if args.test_file:
+        args.test_file = str(Path(args.test_file).resolve())
+
     # Get CN path from OPAM
     opam_prefix = os.environ.get('OPAM_SWITCH_PREFIX')
     if not opam_prefix:
