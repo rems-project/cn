@@ -150,12 +150,12 @@ void bennet_failure_blame(const void* id) {
 }
 
 int bennet_failure_remove_blame(const void* id) {
-  bennet_failure_mark_old();
-
   struct name_list* prev = NULL;
   struct name_list* curr = failure.blamed;
   while (curr != NULL) {
     if (curr->id == id) {
+      bennet_failure_mark_old();
+
       if (prev) {
         prev->next = curr->next;
       } else {
