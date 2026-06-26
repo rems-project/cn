@@ -298,8 +298,11 @@ let compile_test_file
   ^^ pp_label
        "Assume Ownership Functions"
        (compile_assumes ~without_ownership_checking filename cabs_tunit sigma prog5 insts)
-  ^^ pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
-  ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts)
+  ^^ (if Config.has_no_replicas () then
+        empty
+      else
+        pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
+        ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts))
   ^^ pp_label "Static Wrappers" static_wrappers_defs
   ^^ pp_label "Constant function tests" constant_tests_defs
   ^^ pp_label "Generator-based tests" generator_tests_defs
