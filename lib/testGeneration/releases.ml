@@ -56,6 +56,7 @@ let pldi26 : TestGenConfig.t =
     smt_solver = Z3;
     disable_specialization = false;
     only_top_level_ite_lifting = false;
+    old_style_alloc = true;
     print_seed = false;
     input_timeout = Some 1000 (* ms; cn-testing/test.c *);
     null_in_every = Some 5 (* bennet/dsl/arbitrary.c *);

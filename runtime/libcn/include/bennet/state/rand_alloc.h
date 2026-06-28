@@ -1,6 +1,7 @@
 #ifndef BENNET_RAND_ALLOC_H
 #define BENNET_RAND_ALLOC_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -30,5 +31,11 @@ void *bennet_rand_alloc_max_ptr(void);
 
 // Set the memory size for the random allocator (must be called before first allocation)
 void bennet_rand_alloc_set_mem_size(size_t size);
+
+// Toggle old-style allocation: overlap checking in rand_alloc + allocation
+// tracking in alloc.c. When disabled (default), allocations are untracked and
+// may overlap; allocation checks only verify the region lies within the buffer.
+void bennet_set_old_style_alloc(bool enabled);
+bool bennet_get_old_style_alloc(void);
 
 #endif  // BENNET_RAND_ALLOC_H
