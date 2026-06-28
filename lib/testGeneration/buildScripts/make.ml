@@ -160,6 +160,7 @@ let define_test_flags () =
        |> Option.to_list
        |> List.flatten)
     @ [ "--discard-factor"; string_of_int (Config.get_discard_factor ()) ]
+    @ (if Config.is_old_style_alloc () then [ "--old-style-alloc" ] else [])
     @
     if Config.is_extrema_skew_disabled () then
       [ "--disable-extrema-skew" ]
