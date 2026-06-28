@@ -103,6 +103,7 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
+    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -172,6 +173,7 @@ let default =
     smt_solver = Z3;
     disable_specialization = false;
     only_top_level_ite_lifting = false;
+    old_style_alloc = true;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -446,6 +448,8 @@ let get_dsl_log_dir () = (Option.get !instance).dsl_log_dir
 let is_specialization_disabled () = (Option.get !instance).disable_specialization
 
 let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
+
+let is_old_style_alloc () = (Option.get !instance).old_style_alloc
 
 let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
 

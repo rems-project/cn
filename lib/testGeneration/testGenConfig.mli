@@ -84,6 +84,7 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
+    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -281,6 +282,8 @@ val get_dsl_log_dir : unit -> string option
 val is_specialization_disabled : unit -> bool
 
 val is_only_top_level_ite_lifting : unit -> bool
+
+val is_old_style_alloc : unit -> bool
 
 val is_extrema_skew_disabled : unit -> bool
 
