@@ -176,6 +176,10 @@ int bennet_failure_remove_blame(const void* id) {
   return 0;
 }
 
+bool bennet_failure_has_blame(void) {
+  return failure.blamed != NULL;
+}
+
 void bennet_failure_blame_many(const void* toAdd[]) {
   for (int i = 0; toAdd[i] != NULL; i++) {
     bennet_failure_blame(toAdd[i]);
