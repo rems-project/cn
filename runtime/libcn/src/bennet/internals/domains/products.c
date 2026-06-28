@@ -3,7 +3,6 @@
 #include <bennet/internals/domains/sized.h>
 #include <bennet/internals/rand.h>
 #include <bennet/state/alloc.h>
-#include <bennet/state/rand_alloc.h>
 #include <cn-executable/utils.h>
 
 #define BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(cty)                                          \
@@ -18,13 +17,9 @@
         cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
       }                                                                                  \
                                                                                          \
-      void* p = (d2->top) ? bennet_rand_alloc(bytes)                                     \
-                          : bennet_rand_alloc_bounded(                                   \
+      void* p = (d2->top) ? bennet_alloc(bytes)                                          \
+                          : bennet_alloc_bounded(                                        \
                                 bytes, d2->start - d1->before, d2->end - d1->before);    \
-      if (!p) {                                                                          \
-        cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
-      }                                                                                  \
-      bennet_alloc_record(p, bytes);                                                     \
                                                                                          \
       return (cty)((uintptr_t)p + d1->before);                                           \
     }                                                                                    \
@@ -53,13 +48,9 @@ uintptr_t bennet_domain_ownership_wint_arbitrary_uintptr_t(
       cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
     }
 
-    void* p = (d2->top) ? bennet_rand_alloc(bytes)
-                        : bennet_rand_alloc_bounded(
+    void* p = (d2->top) ? bennet_alloc(bytes)
+                        : bennet_alloc_bounded(
                               bytes, d2->start - d1->before, d2->end - d1->before);
-    if (!p) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-    bennet_alloc_record(p, bytes);
 
     return (uintptr_t)((uintptr_t)p + d1->before);
   }
