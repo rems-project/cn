@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <bennet/prelude.h>
+#include <bennet/state/rand_alloc.h>
 #include <bennet/utils/vector.h>
 #include <cn-executable/utils.h>
 
@@ -68,6 +69,24 @@ void bennet_ownership_restore(size_t size) {
 
   fprintf(stderr, "Error: Tried to grow ownership data\n");
   exit(1);
+}
+
+void* bennet_alloc(size_t bytes) {
+  void* p = bennet_rand_alloc(bytes);
+  if (!p) {
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
+  }
+  bennet_alloc_record(p, bytes);
+  return p;
+}
+
+void* bennet_alloc_bounded(size_t bytes, uintptr_t lower_bound, uintptr_t upper_bound) {
+  void* p = bennet_rand_alloc_bounded(bytes, lower_bound, upper_bound);
+  if (!p) {
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
+  }
+  bennet_alloc_record(p, bytes);
+  return p;
 }
 
 void bennet_alloc_record(void* p, size_t sz) {
