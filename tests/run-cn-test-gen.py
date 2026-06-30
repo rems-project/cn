@@ -555,11 +555,13 @@ def main():
                 # Lucas's lightweight allocator does not track allocations, so its
                 # bounds-only `alloc_check` cannot bound the size of `each`-quantifier
                 # arrays the way old-style allocation does. With the default 32MB
-                # buffer these array specs generate enormous arrays, and the O(n)
-                # ownership check makes generation O(n^2) -- effectively a hang.
-                # Shrinking the input buffer caps the array size (buffer / elem size),
-                # which keeps generation fast. Bennet/Darcy use old-style allocation
-                # (which bounds the size itself), so they are unaffected.
+                # buffer these array specs generate enormous arrays per test case;
+                # the rmap ownership index keeps each check O(log n) (no longer
+                # O(n^2)), but the per-case array size is still ~buffer/elem, so
+                # generation stays slow across many cases. Shrinking the input buffer
+                # caps the array size (buffer / elem size), keeping generation fast.
+                # Bennet/Darcy use old-style allocation (which bounds the size
+                # itself), so they are unaffected.
                 if engine == "lucas" and Path(tf).name in (
                     "bounds.pass.c",
                     "range.pass.c",
