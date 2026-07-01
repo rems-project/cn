@@ -325,6 +325,10 @@
     }                                                                                    \
                                                                                          \
     while (convert_from_cn_bool(perm)) {                                                 \
+      /* Poll the input timeout per iteration: the loop body's success path has no */    \
+      /* other timeout check, so an unbounded `each` would otherwise build the whole */  \
+      /* array uninterrupted, defeating --input-timeout and risking OOM. */              \
+      BENNET_CHECK_TIMEOUT();                                                            \
     /* Generate each item */
 #define BENNET_MAP_END(map, i, i_ty, min, val)                                           \
   cn_map_set(map, cast_##i_ty##_to_cn_integer(i), val);                                  \
