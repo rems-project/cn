@@ -546,7 +546,7 @@ def main():
                 if args.symbolic and Path(tf).name == "ini_queue.fail.c":
                     full_config += ' --exit-fast'
 
-                if args.symbolic and Path(tf).name == "mkm.pass.c":
+                if Path(tf).name == "mkm.pass.c":
                     full_config += ' --max-array-length=1024'
 
                 if args.symbolic and Path(tf).name == "no_args.pass.c":

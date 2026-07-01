@@ -22,14 +22,6 @@ module Flags = struct
       & info ~docs:s_smt [ "solver-type" ] ~docv:"SOLVER" ~doc)
 
 
-  let max_array_length =
-    let doc = "Maximum array length for symbolic mode" in
-    Arg.(
-      value
-      & opt int TestGeneration.default_cfg.max_array_length
-      & info ~docs:s_smt [ "max-array-length" ] ~doc)
-
-
   let smt_logging =
     let doc = "Log SMT solver communication to specified file" in
     Arg.(
@@ -98,7 +90,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
   let make
         symbolic_timeout
         smt_solver
-        max_array_length
         smt_logging
         smt_log_unsat_cores
         use_solver_eval
@@ -112,7 +103,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     { cfg with
       symbolic_timeout;
       smt_solver;
-      max_array_length;
       smt_logging;
       smt_log_unsat_cores;
       use_solver_eval;
@@ -126,7 +116,6 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     const make
     $ Flags.symbolic_timeout
     $ Flags.smt_solver
-    $ Flags.max_array_length
     $ Flags.smt_logging
     $ Flags.smt_log_unsat_cores
     $ Flags.use_solver_eval

@@ -654,6 +654,14 @@ module Flags = struct
   let disable_extrema_skew =
     let doc = "Disable extreme value (MIN/MAX) skewing in sized generators" in
     Arg.(value & flag & info ~docs:s_generation [ "disable-extrema-skew" ] ~doc)
+
+
+  let max_array_length =
+    let doc = "Maximum length of arrays generated for `each` quantifiers (default: 50)" in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.max_array_length
+      & info ~docs:s_generation [ "max-array-length" ] ~doc)
 end
 
 (* Compose two engine flag updaters *)
@@ -677,6 +685,7 @@ let gen_term : engine_flags Term.t =
         sizing_strategy
         discard_factor
         disable_extrema_skew
+        max_array_length
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -686,7 +695,8 @@ let gen_term : engine_flags Term.t =
       max_generator_size;
       sizing_strategy;
       discard_factor;
-      disable_extrema_skew
+      disable_extrema_skew;
+      max_array_length
     }
   in
   Term.(
@@ -696,7 +706,8 @@ let gen_term : engine_flags Term.t =
     $ Flags.max_generator_size
     $ Flags.sizing_strategy
     $ Flags.discard_factor
-    $ Flags.disable_extrema_skew)
+    $ Flags.disable_extrema_skew
+    $ Flags.max_array_length)
 
 
 (* The common flag chain, shared by all engine subcommands. [engine] decides
