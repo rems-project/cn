@@ -22,29 +22,48 @@
     switch (ty) {                                                                        \
       case BENNET_FAILURE_ASSERT:                                                        \
       case BENNET_FAILURE_ASSIGN:                                                        \
-      case BENNET_FAILURE_DEPTH:                                                         \
-        if (*backtracks <= 0) {                                                          \
+      case BENNET_FAILURE_DEPTH: {                                                       \
+        /* The retry budget bounds *random* re-generation. An ASSIGN failure */          \
+        /* drives a deterministic repair: the blamed domain is narrowed to grow */       \
+        /* the allocation around the cell that didn't fit. That makes monotone */        \
+        /* progress (bounded by the generated size), so a progressing ASSIGN is */       \
+        /* neither charged against nor limited by the retry budget. Non-ASSIGN */        \
+        /* failures keep the original semantics. */                                      \
+        if (ty != BENNET_FAILURE_ASSIGN && *backtracks <= 0) {                           \
           bennet_failure_remove_blame(var);                                              \
           return false;                                                                  \
         }                                                                                \
                                                                                          \
         bennet_domain(c_ty) *new_cs = bennet_failure_get_domain(c_ty, var);              \
+        bool assign_progress = false;                                                    \
         if (new_cs != NULL) {                                                            \
-          *cs_tmp = bennet_domain_meet(c_ty, *cs_tmp, new_cs);                           \
-          if (bennet_domain_is_bottom(c_ty, *cs_tmp)) {                                  \
+          bennet_domain(c_ty) *met = bennet_domain_meet(c_ty, *cs_tmp, new_cs);          \
+          if (bennet_domain_is_bottom(c_ty, met)) {                                      \
             return false;                                                                \
           }                                                                              \
+          assign_progress =                                                              \
+              ty == BENNET_FAILURE_ASSIGN && !bennet_domain_equal(c_ty, met, *cs_tmp);   \
+          *cs_tmp = met;                                                                 \
           if (ty == BENNET_FAILURE_ASSIGN || bennet_failure_is_young()) {                \
             *cs = *cs_tmp;                                                               \
           }                                                                              \
         }                                                                                \
                                                                                          \
-        (*backtracks)--;                                                                 \
+        /* A progressing ASSIGN is free; anything else (including an ASSIGN that */      \
+        /* failed to narrow the domain) spends one attempt so it cannot spin. */         \
+        if (!assign_progress) {                                                          \
+          if (*backtracks <= 0) {                                                        \
+            bennet_failure_remove_blame(var);                                            \
+            return false;                                                                \
+          }                                                                              \
+          (*backtracks)--;                                                               \
+        }                                                                                \
                                                                                          \
         bennet_checkpoint_restore(cp);                                                   \
         bennet_failure_reset();                                                          \
                                                                                          \
         return true;                                                                     \
+      }                                                                                  \
                                                                                          \
       case BENNET_FAILURE_NONE:                                                          \
       case BENNET_FAILURE_TIMEOUT:                                                       \
