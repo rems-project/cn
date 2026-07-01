@@ -556,6 +556,23 @@ def main():
                 if args.symbolic and Path(tf).name == "no_args.pass.c":
                     full_config += ' --experimental-arg-pruning'
 
+                # Lucas's lightweight allocator does not track allocations, so its
+                # bounds-only `alloc_check` never fails for in-buffer cells. With the
+                # default 32MB buffer an `each`-quantifier array can therefore grow to
+                # ~buffer/elem cells before anything stops it. The in-loop input-timeout
+                # poll (BENNET_MAP, dsl.h) keeps that bounded (no hang/OOM) and the rmap
+                # ownership index keeps each check O(log n), so these specs PASS at the
+                # default buffer -- but each oversized draw still burns a full
+                # input-timeout before being discarded, which is too slow for CI.
+                # Shrinking the buffer caps the array size so runaway draws never arise
+                # and runs stay fast. Bennet/Darcy use old-style allocation (which forces
+                # the pointer to actually fit via reallocation), so they are unaffected.
+                if engine == "lucas" and Path(tf).name in (
+                    "bounds.pass.c",
+                    "range.pass.c",
+                ):
+                    full_config += ' --max-input-alloc=4096'
+
                 test_type = get_test_type(tf, full_config)
                 if test_type == 'SKIP':
                     continue

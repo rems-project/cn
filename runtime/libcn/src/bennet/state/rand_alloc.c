@@ -30,6 +30,19 @@ typedef struct {
 static size_t rand_alloc_mem_size = (1024 * 1024 * 32);  // 32 MB default
 static rand_alloc global_rand_alloc;
 
+// When true, use old-style allocation: overlap checking here + allocation
+// tracking in alloc.c. When false (default), allocations are untracked and may
+// overlap; allocation checks only verify the region lies within the buffer.
+static bool old_style_alloc = false;
+
+void bennet_set_old_style_alloc(bool enabled) {
+  old_style_alloc = enabled;
+}
+
+bool bennet_get_old_style_alloc(void) {
+  return old_style_alloc;
+}
+
 // Initialize the allocator
 static void bennet_rand_alloc_init(void) {
   if (global_rand_alloc.buffer != NULL) {
@@ -85,6 +98,11 @@ void *bennet_rand_alloc(size_t bytes) {
     if (aligned_offset < 0 || max_offset < aligned_offset ||
         max_offset < (aligned_offset + bytes - 1)) {
       continue;
+    }
+
+    if (!bennet_get_old_style_alloc()) {
+      // New style: no overlap check, no region tracking
+      return global_rand_alloc.buffer + aligned_offset;
     }
 
     if (!overlaps(aligned_offset, bytes)) {
@@ -162,6 +180,11 @@ void *bennet_rand_alloc_bounded(
     if (aligned_offset < min_offset || max_offset < aligned_offset ||
         max_offset < (aligned_offset + bytes - 1)) {
       continue;
+    }
+
+    if (!bennet_get_old_style_alloc()) {
+      // New style: no overlap check, no region tracking
+      return global_rand_alloc.buffer + aligned_offset;
     }
 
     if (!overlaps(aligned_offset, bytes)) {

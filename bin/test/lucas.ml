@@ -81,6 +81,14 @@ module Flags = struct
   let runtime_assert_domain =
     let doc = "Enable assert_domain checks at runtime (disabled by default)" in
     Arg.(value & flag & info ~docs:s_absint [ "runtime-assert-domain" ] ~doc)
+
+
+  let old_style_alloc =
+    let doc =
+      "Use old-style allocation: track allocations and reject overlapping random \
+       allocations (default for lucas: lightweight allocation with bounds-only checks)"
+    in
+    Arg.(value & flag & info ~docs:Shared.s_generation [ "old-style-alloc" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -92,6 +100,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         smt_pruning_after_absint
         smt_pruning_keep_redundant_assertions
         runtime_assert_domain
+        old_style_alloc
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -102,7 +111,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       smt_pruning_before_absint;
       smt_pruning_after_absint;
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
-      runtime_assert_domain
+      runtime_assert_domain;
+      old_style_alloc
     }
   in
   Term.(
@@ -113,7 +123,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.smt_pruning_before_absint
     $ Flags.smt_pruning_after_absint
     $ Flags.smt_pruning_keep_redundant_assertions
-    $ Flags.runtime_assert_domain)
+    $ Flags.runtime_assert_domain
+    $ Flags.old_style_alloc)
 
 
 let cmd =
