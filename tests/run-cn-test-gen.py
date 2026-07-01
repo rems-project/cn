@@ -865,11 +865,18 @@ def _print_results(results, test_files, retry_history=None):
     else:
         print(f"\nAll {total} test file(s) passed")
 
-    # Print top memory consumers (peak RSS per job)
+    # Print top memory consumers: one row per file (its highest-peak config),
+    # ranked by peak RSS, top 5 files.
     if mem_usage:
-        mem_usage.sort(reverse=True)
-        print(f"\nTop {min(5, len(mem_usage))} memory usage (peak RSS):")
-        for peak, tf_str, cfg in mem_usage[:5]:
+        best_by_file = {}  # tf_str -> (peak_rss, cfg)
+        for peak, tf_str, cfg in mem_usage:
+            if tf_str not in best_by_file or peak > best_by_file[tf_str][0]:
+                best_by_file[tf_str] = (peak, cfg)
+        ranked = sorted(
+            ((peak, tf_str, cfg) for tf_str, (peak, cfg) in best_by_file.items()),
+            reverse=True)
+        print(f"\nTop {min(5, len(ranked))} memory usage (peak RSS, max config per file):")
+        for peak, tf_str, cfg in ranked[:5]:
             print(f"  {format_size(peak):>8}  {Path(tf_str).name}  ({cfg})")
 
     # Print retry history summary
