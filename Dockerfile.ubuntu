@@ -1,10 +1,9 @@
-# Build a minimal cerberus release image
-FROM ubuntu:24.04
+# Stage 1: Build CN
+FROM ubuntu:24.04 AS builder
 
 # Install system packages
-RUN apt-get update
-RUN apt-get upgrade -y
-RUN apt-get install -y opam libgmp-dev libmpfr-dev time
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y opam libgmp-dev libmpfr-dev time
 
 ENV OPAMCONFIRMLEVEL=unsafe-yes
 RUN opam init --disable-sandboxing
@@ -14,12 +13,61 @@ WORKDIR /opt/cerberus
 RUN opam install --deps-only ./cn.opam
 RUN opam install z3
 
-RUN eval `opam env` \
-  && make install
+RUN eval `opam env` && make install
 
-WORKDIR /opt
+# Stage 2: Runtime image
+FROM ubuntu:24.04
 
-COPY docker_entry_point.sh /opt/docker_entry_point.sh
-RUN chmod +x /opt/docker_entry_point.sh
+# Install runtime dependencies
+# Note: gcc is required for CN to preprocess C source files
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgmp10 \
+    gcc \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up the runtime prefix directory structure
+ENV OPAM_SWITCH_PREFIX=/opt/cn-runtime
+
+# Copy the CN binary from builder
+COPY --from=builder /root/.opam/default/bin/cn /usr/local/bin/cn
+
+# Copy z3 binary (needed by CN)
+COPY --from=builder /root/.opam/default/bin/z3 /usr/local/bin/z3
+
+# Copy cerberus-lib runtime files (libc, libcore, impls)
+COPY --from=builder /root/.opam/default/lib/cerberus-lib/ /opt/cn-runtime/lib/cerberus-lib/
+
+# Copy CN runtime library files
+COPY --from=builder /root/.opam/default/lib/cn/ /opt/cn-runtime/lib/cn/
+
+# Test that CN works
+RUN cn --version
+
+# Create a distributable zip package
+RUN apt-get update && apt-get install -y --no-install-recommends zip && \
+    rm -rf /var/lib/apt/lists/*
+
+# Package CN and runtime into a zip file
+RUN mkdir -p /opt/cn-package/bin /opt/cn-package/lib && \
+    cp /usr/local/bin/cn /opt/cn-package/bin/ && \
+    cp /usr/local/bin/z3 /opt/cn-package/bin/ && \
+    cp -r /opt/cn-runtime/lib/cerberus-lib /opt/cn-package/lib/ && \
+    cp -r /opt/cn-runtime/lib/cn /opt/cn-package/lib/ && \
+    echo '#!/bin/bash' > /opt/cn-package/setup-env.sh && \
+    echo 'export OPAM_SWITCH_PREFIX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"' >> /opt/cn-package/setup-env.sh && \
+    echo 'export PATH="$OPAM_SWITCH_PREFIX/bin:$PATH"' >> /opt/cn-package/setup-env.sh && \
+    chmod +x /opt/cn-package/setup-env.sh && \
+    echo "CN Package" > /opt/cn-package/README.txt && \
+    echo "==========" >> /opt/cn-package/README.txt && \
+    echo "" >> /opt/cn-package/README.txt && \
+    echo "Requirements: gcc, libgmp10" >> /opt/cn-package/README.txt && \
+    echo "" >> /opt/cn-package/README.txt && \
+    echo "Usage:" >> /opt/cn-package/README.txt && \
+    echo "  1. Extract this archive" >> /opt/cn-package/README.txt && \
+    echo "  2. Source the setup script: source setup-env.sh" >> /opt/cn-package/README.txt && \
+    echo "  3. Run CN: cn verify <file.c>" >> /opt/cn-package/README.txt && \
+    cd /opt && zip -r /opt/cn-ubuntu.zip cn-package
+
 WORKDIR /data
-ENTRYPOINT ["/opt/docker_entry_point.sh"]
+ENTRYPOINT ["cn"]
