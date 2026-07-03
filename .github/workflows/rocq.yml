@@ -41,16 +41,16 @@ jobs:
       uses: actions/cache/restore@v5
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
+        key: ${{ matrix.version }}-with-rocq-${{ hashFiles('cn.opam') }}
   
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       run: |
         opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
-        opam switch create ${{ matrix.version }}-with-coq ${{ matrix.version }}
-        eval $(opam env --switch=${{ matrix.version }}-with-coq)
-        opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
-        opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
+        opam switch create ${{ matrix.version }}-with-rocq ${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }}-with-rocq)
+        opam repo add --yes --this-switch rocq-released https://rocq.inria.fr/opam/released
+        opam pin --yes -n rocq-struct-tact https://github.com/uwplse/StructTact.git
         opam install --deps-only --yes ./cn.opam
       
     - name: Save OPAM cache
@@ -58,18 +58,18 @@ jobs:
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
+        key: ${{ matrix.version }}-with-rocq-${{ hashFiles('cn.opam') }}
 
-    - name: Install CN (with Coq)
+    - name: Install CN (with rocq)
       run: |
-        opam switch ${{ matrix.version }}-with-coq
-        eval $(opam env --switch=${{ matrix.version }}-with-coq )
+        opam switch ${{ matrix.version }}-with-rocq
+        eval $(opam env --switch=${{ matrix.version }}-with-rocq )
         opam pin --yes --no-action add cn .
-        opam pin --yes --no-action add cn-coq .
-        opam install --yes cn cn-coq
+        opam pin --yes --no-action add cn-rocq .
+        opam install --yes cn cn-rocq
 
-    - name: Run CN-Coq tests
+    - name: Run CN-rocq tests
       run: |
-        opam switch ${{ matrix.version }}-with-coq
-        eval $(opam env --switch=${{ matrix.version }}-with-coq )
-        ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
+        opam switch ${{ matrix.version }}-with-rocq
+        eval $(opam env --switch=${{ matrix.version }}-with-rocq )
+        ./tests/diff-prog.py tests/run-cn-rocq.sh tests/cn/rocq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
