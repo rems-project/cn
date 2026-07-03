@@ -51,7 +51,7 @@ jobs:
         eval $(opam env --switch=${{ matrix.version }}-with-rocq)
         opam repo add --yes --this-switch rocq-released https://coq.inria.fr/opam/released
         opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
-        opam install --deps-only --yes ./cn.opam
+        opam install --deps-only --yes ./cn.opam ./cn-coq.opam
       
     - name: Save OPAM cache
       uses: actions/cache/save@v5
