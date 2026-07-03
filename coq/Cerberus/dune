@@ -1,4 +1,4 @@
-(coq.theory
+(rocq.theory
  (name Cerberus)
  (package cn-coq)
  (synopsis "Coq formalization of some Cerberus types")

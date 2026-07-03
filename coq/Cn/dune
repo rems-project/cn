@@ -1,4 +1,4 @@
-(coq.theory
+(rocq.theory
  (name Cn)
  (package cn-coq)
  (synopsis "Coq formalization of CN")
