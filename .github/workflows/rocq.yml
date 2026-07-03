@@ -49,8 +49,8 @@ jobs:
         opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
         opam switch create ${{ matrix.version }}-with-rocq ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }}-with-rocq)
-        opam repo add --yes --this-switch rocq-released https://rocq.inria.fr/opam/released
-        opam pin --yes -n rocq-struct-tact https://github.com/uwplse/StructTact.git
+        opam repo add --yes --this-switch rocq-released https://coq.inria.fr/opam/released
+        opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
         opam install --deps-only --yes ./cn.opam
       
     - name: Save OPAM cache
@@ -65,11 +65,11 @@ jobs:
         opam switch ${{ matrix.version }}-with-rocq
         eval $(opam env --switch=${{ matrix.version }}-with-rocq )
         opam pin --yes --no-action add cn .
-        opam pin --yes --no-action add cn-rocq .
-        opam install --yes cn cn-rocq
+        opam pin --yes --no-action add cn-coq .
+        opam install --yes cn cn-coq
 
     - name: Run CN-rocq tests
       run: |
         opam switch ${{ matrix.version }}-with-rocq
         eval $(opam env --switch=${{ matrix.version }}-with-rocq )
-        ./tests/diff-prog.py tests/run-cn-rocq.sh tests/cn/rocq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
+        ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
