@@ -191,8 +191,6 @@ let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.doc
   ^^ twice hardline
   ^^ string "#include <cn-executable/utils.h>"
   ^^ twice hardline
-  ^^ string SUtils.seq_failure_callback_def
-  ^^ twice hardline
   ^^ string "int main"
   ^^ parens (string "int argc, char* argv[]")
   ^^ break 1
@@ -202,11 +200,7 @@ let create_test_file (sequence : Pp.document) (fun_decls : Pp.document) : Pp.doc
           (hardline
            ^^
            let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
-           separate_map hardline SUtils.stmt_to_doc init_ghost
-           ^^ hardline
-           ^^ string "set_cn_failure_cb(&seq_failure_cb);"
-           ^^ hardline
-           ^^ sequence)
+           separate_map hardline SUtils.stmt_to_doc init_ghost ^^ hardline ^^ sequence)
         ^^ hardline)
 
 
