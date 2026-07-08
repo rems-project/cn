@@ -174,6 +174,20 @@ let rec combine_stats (stats_list : T.test_stats list) (combined_stats : T.test_
     combine_stats stats_list combined_stats
 
 
+(* differentiate b/w precondition failure because an unsatisfying call was generated vs
+   a precondition violation within a function in the program under test *)
+let seq_failure_callback_def =
+  String.concat
+    "\n"
+    [ "void seq_failure_cb(enum cn_failure_mode failure_mode, enum spec_mode spec_mode)";
+      "{";
+      "  if (failure_mode == CN_FAILURE_USER_ALLOC) { return; }";
+      "  if (spec_mode == PRE && get_cn_stack_depth() > 1) { exit(POST); }";
+      "  exit(spec_mode);";
+      "}"
+    ]
+
+
 let create_intermediate_test_file
       (sequences : Pp.document list)
       (tests_to_try : Pp.document list)
@@ -193,6 +207,8 @@ let create_intermediate_test_file
              ^^
              let init_ghost = Fulminate.Ownership.get_ownership_global_init_stats () in
              separate_map hardline stmt_to_doc init_ghost
+             ^^ hardline
+             ^^ string "set_cn_failure_cb(&seq_failure_cb);"
              ^^ hardline
              ^^ sequence
              ^^ hardline
@@ -232,6 +248,8 @@ let create_intermediate_test_file
         ])
    ^^ twice hardline
    ^^ fun_decls)
+  ^^ twice hardline
+  ^^ string seq_failure_callback_def
   ^^ twice hardline
   ^^ separate
        (twice hardline)

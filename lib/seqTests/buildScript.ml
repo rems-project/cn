@@ -66,9 +66,13 @@ let compile ~filename_base =
        ("Failed to compile '" ^ filename_base ^ ".test.c' in ${TEST_DIR}.")
   ^^ (twice hardline
       ^^ attempt
+           (* skip recompiling instrumented program file *)
            (String.concat
               " "
-              ([ Config.get_cc ();
+              ([ "{ [ -f \"./" ^ filename_base ^ ".exec.o\" ]";
+                 "&& [ ! \"./" ^ filename_base ^ ".exec.c\"";
+                 "-nt \"./" ^ filename_base ^ ".exec.o\" ]; } ||";
+                 Config.get_cc ();
                  "${CFLAGS}";
                  "${CPPFLAGS}";
                  "-c";
