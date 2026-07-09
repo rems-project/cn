@@ -150,7 +150,13 @@ let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.docum
 
 let compile_includes ~filename ~generators =
   let open Pp in
-  !^"#include "
+  (* With `--no-replicas`, shape analyzers and replicators are not emitted, so
+     tell <cn-testing/test.h> to compile out its calls to them. *)
+  (if Config.has_no_replicas () then
+     !^"#define CN_TEST_NO_REPLICAS" ^^ hardline
+   else
+     empty)
+  ^^ !^"#include "
   ^^ angles !^"bennet/prelude.h"
   ^^ hardline
   ^^ !^"#include "
