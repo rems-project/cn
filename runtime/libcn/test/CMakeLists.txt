@@ -22,6 +22,8 @@ include_directories(../include)
 
 # Create test executable
 add_executable(libcn_tests
+    bennet/absint_oracle.cpp
+    bennet/assign_blame.cpp
     bennet/backtracks_info.cpp
     bennet/harness.cpp
     bennet/ownership_domain.cpp
