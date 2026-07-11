@@ -6,6 +6,10 @@
 #include <cn-executable/utils.h>
 #include <cn-smt/terms.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define bennet_assign(pointer_ty,                                                        \
     id,                                                                                  \
     base_ptr,                                                                            \
@@ -64,5 +68,9 @@ typedef enum {
 
 void bennet_set_dynamic_absint_assign(bennet_dynamic_absint_assign_mode mode);
 bennet_dynamic_absint_assign_mode bennet_get_dynamic_absint_assign(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // BENNET_ASSIGN_H
