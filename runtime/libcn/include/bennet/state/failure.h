@@ -6,6 +6,10 @@
 
 #include <bennet/internals/domain.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 bool has_depth_failures(void);
 void add_depth_failure(void);
 void reset_depth_failures(void);
@@ -62,5 +66,9 @@ bool bennet_failure_is_blamed(const void* id);
  * @return int Was the remapping successful?
  */
 int bennet_failure_remap_blamed(const void* from, const void* to);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // BENNET_FAILURE_H
