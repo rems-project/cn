@@ -687,23 +687,6 @@ typedef struct {
 } tnum_generic;
 
 /**
- * Extract width and signedness from cn_base_type.
- */
-static void tnum_get_type_info(cn_base_type* type, int* width, bool* is_signed) {
-  assert(type);
-  if (type->tag == CN_BASE_BITS) {
-    *width = type->data.bits.size_bits;
-    *is_signed = type->data.bits.is_signed;
-  } else if (type->tag == CN_BASE_LOC) {
-    *width = 64;
-    *is_signed = false;
-  } else {
-    *width = 64;
-    *is_signed = false;
-  }
-}
-
-/**
  * Full mask for a given width.
  */
 static inline uint64_t tnum_full_mask(int width) {
@@ -828,207 +811,31 @@ static void tnum_get_extrema(
 }
 
 /**
- * Convert a tagged domain to a tnum_generic.
+ * Convert between tagged domains and the generic form. Loads zero-extend the
+ * raw bit patterns (never sign-extend); stores mask to the type's width
+ * before narrowing (identity at width 64).
  */
-static tnum_generic tnum_from_tagged(bennet_tagged_domain* d) {
-  tnum_generic result = {0};
-  if (!d || !d->type || !d->domain) {
-    result.is_top = true;
-    result.width = 64;
-    return result;
-  }
+#define TNUM_TAGGED_LOAD(cty, ucty)                                                      \
+  do {                                                                                   \
+    bennet_domain_tnum(cty)* dom_ = (bennet_domain_tnum(cty)*)d->domain;                 \
+    result.is_top = dom_->top;                                                           \
+    result.is_bottom = dom_->bottom;                                                     \
+    result.value = (uint64_t)(ucty)dom_->value;                                          \
+    result.mask = (uint64_t)(ucty)dom_->mask;                                            \
+  } while (0)
 
-  tnum_get_type_info(d->type, &result.width, &result.is_signed);
+#define TNUM_TAGGED_STORE(cty, ucty)                                                     \
+  do {                                                                                   \
+    bennet_domain_tnum(cty)* dom_ = std_malloc(sizeof(bennet_domain_tnum(cty)));         \
+    assert(dom_);                                                                        \
+    dom_->top = g->is_top;                                                               \
+    dom_->bottom = g->is_bottom;                                                         \
+    dom_->value = (cty)(g->value & tnum_full_mask(width));                               \
+    dom_->mask = (cty)(g->mask & tnum_full_mask(width));                                 \
+    result.domain = dom_;                                                                \
+  } while (0)
 
-  if (result.is_signed) {
-    switch (result.width) {
-      case 8: {
-        bennet_domain_tnum(int8_t)* dom = (bennet_domain_tnum(int8_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)(uint8_t)dom->value;
-        result.mask = (uint64_t)(uint8_t)dom->mask;
-        break;
-      }
-      case 16: {
-        bennet_domain_tnum(int16_t)* dom = (bennet_domain_tnum(int16_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)(uint16_t)dom->value;
-        result.mask = (uint64_t)(uint16_t)dom->mask;
-        break;
-      }
-      case 32: {
-        bennet_domain_tnum(int32_t)* dom = (bennet_domain_tnum(int32_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)(uint32_t)dom->value;
-        result.mask = (uint64_t)(uint32_t)dom->mask;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_tnum(int64_t)* dom = (bennet_domain_tnum(int64_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)dom->value;
-        result.mask = (uint64_t)dom->mask;
-        break;
-      }
-    }
-  } else {
-    switch (result.width) {
-      case 8: {
-        bennet_domain_tnum(uint8_t)* dom = (bennet_domain_tnum(uint8_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)dom->value;
-        result.mask = (uint64_t)dom->mask;
-        break;
-      }
-      case 16: {
-        bennet_domain_tnum(uint16_t)* dom = (bennet_domain_tnum(uint16_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)dom->value;
-        result.mask = (uint64_t)dom->mask;
-        break;
-      }
-      case 32: {
-        bennet_domain_tnum(uint32_t)* dom = (bennet_domain_tnum(uint32_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)dom->value;
-        result.mask = (uint64_t)dom->mask;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_tnum(uint64_t)* dom = (bennet_domain_tnum(uint64_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.value = (uint64_t)dom->value;
-        result.mask = (uint64_t)dom->mask;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * Convert a tnum_generic back to a tagged domain.
- */
-static bennet_tagged_domain tnum_to_tagged(tnum_generic* g, cn_base_type* type) {
-  bennet_tagged_domain result;
-  result.type = type;
-
-  int width;
-  bool is_signed;
-  tnum_get_type_info(type, &width, &is_signed);
-
-  uint64_t fm = tnum_full_mask(width);
-
-  if (is_signed) {
-    switch (width) {
-      case 8: {
-        bennet_domain_tnum(int8_t)* dom = std_malloc(sizeof(bennet_domain_tnum(int8_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (int8_t)(g->value & fm);
-        dom->mask = (int8_t)(g->mask & fm);
-        result.domain = dom;
-        break;
-      }
-      case 16: {
-        bennet_domain_tnum(int16_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(int16_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (int16_t)(g->value & fm);
-        dom->mask = (int16_t)(g->mask & fm);
-        result.domain = dom;
-        break;
-      }
-      case 32: {
-        bennet_domain_tnum(int32_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(int32_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (int32_t)(g->value & fm);
-        dom->mask = (int32_t)(g->mask & fm);
-        result.domain = dom;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_tnum(int64_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(int64_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (int64_t)g->value;
-        dom->mask = (int64_t)g->mask;
-        result.domain = dom;
-        break;
-      }
-    }
-  } else {
-    switch (width) {
-      case 8: {
-        bennet_domain_tnum(uint8_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(uint8_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (uint8_t)(g->value & fm);
-        dom->mask = (uint8_t)(g->mask & fm);
-        result.domain = dom;
-        break;
-      }
-      case 16: {
-        bennet_domain_tnum(uint16_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(uint16_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (uint16_t)(g->value & fm);
-        dom->mask = (uint16_t)(g->mask & fm);
-        result.domain = dom;
-        break;
-      }
-      case 32: {
-        bennet_domain_tnum(uint32_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(uint32_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = (uint32_t)(g->value & fm);
-        dom->mask = (uint32_t)(g->mask & fm);
-        result.domain = dom;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_tnum(uint64_t)* dom =
-            std_malloc(sizeof(bennet_domain_tnum(uint64_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->value = g->value;
-        dom->mask = g->mask;
-        result.domain = dom;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
+BENNET_ABSINT_TAGGED_CONVERT_IMPL(tnum, tnum_generic, TNUM_TAGGED_LOAD, TNUM_TAGGED_STORE)
 
 /*-----------------------------------------------------------------------------
  * Generic tnum operations (type-erased, width-parametric)
@@ -1396,7 +1203,7 @@ bennet_tagged_domain bennet_tagged_domain_top_tnum(cn_base_type* type) {
   int width = 64;
   bool is_signed = false;
   if (type)
-    tnum_get_type_info(type, &width, &is_signed);
+    bennet_absint_type_info(type, &width, &is_signed);
   tnum_generic g = tnum_generic_top(width, is_signed);
   return tnum_to_tagged(&g, type);
 }
@@ -1405,7 +1212,7 @@ bennet_tagged_domain bennet_tagged_domain_bottom_tnum(cn_base_type* type) {
   int width = 64;
   bool is_signed = false;
   if (type)
-    tnum_get_type_info(type, &width, &is_signed);
+    bennet_absint_type_info(type, &width, &is_signed);
   tnum_generic g = tnum_generic_bottom(width, is_signed);
   return tnum_to_tagged(&g, type);
 }
@@ -1443,7 +1250,7 @@ static bennet_tagged_domain tnum_forward_const(cn_term* term) {
 
   int width;
   bool is_signed;
-  tnum_get_type_info(&term->base_type, &width, &is_signed);
+  bennet_absint_type_info(&term->base_type, &width, &is_signed);
 
   tnum_generic g;
   cn_const* c = &term->data.const_val;
@@ -1487,7 +1294,7 @@ static bennet_tagged_domain tnum_forward_binop(cn_binop op,
 
   int width;
   bool is_signed;
-  tnum_get_type_info(result_type, &width, &is_signed);
+  bennet_absint_type_info(result_type, &width, &is_signed);
 
   /* Adjust widths to result type */
   g1.width = width;
@@ -1575,7 +1382,7 @@ static bennet_tagged_domain tnum_forward_unop(
 
   int width;
   bool is_signed;
-  tnum_get_type_info(result_type, &width, &is_signed);
+  bennet_absint_type_info(result_type, &width, &is_signed);
   g.width = width;
   g.is_signed = is_signed;
 
@@ -1666,8 +1473,8 @@ bennet_tagged_domain bennet_tnum_transform_forward(
 
       int src_width, dst_width;
       bool src_signed, dst_signed;
-      tnum_get_type_info(src_dom.type, &src_width, &src_signed);
-      tnum_get_type_info(&term->base_type, &dst_width, &dst_signed);
+      bennet_absint_type_info(src_dom.type, &src_width, &src_signed);
+      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
 
       tnum_generic src = tnum_from_tagged(&src_dom);
 
@@ -1738,7 +1545,7 @@ bennet_tagged_domain bennet_tnum_transform_forward(
       /* Create constant tnum for element_size */
       int idx_width;
       bool idx_signed;
-      tnum_get_type_info(index_dom.type, &idx_width, &idx_signed);
+      bennet_absint_type_info(index_dom.type, &idx_width, &idx_signed);
       tnum_generic elem_size_g =
           tnum_generic_const(idx_width, idx_signed, term->data.array_shift.element_size);
       bennet_tagged_domain elem_size_dom = tnum_to_tagged(&elem_size_g, index_dom.type);
@@ -1758,7 +1565,7 @@ bennet_tagged_domain bennet_tnum_transform_forward(
       /* Create constant tnum for offset */
       int base_width;
       bool base_signed;
-      tnum_get_type_info(base_dom.type, &base_width, &base_signed);
+      bennet_absint_type_info(base_dom.type, &base_width, &base_signed);
       tnum_generic offset_g =
           tnum_generic_const(base_width, base_signed, term->data.member_shift.offset);
       bennet_tagged_domain offset_dom = tnum_to_tagged(&offset_g, base_dom.type);
@@ -2111,7 +1918,7 @@ bennet_absint_state* bennet_tnum_transform_backward(cn_term* term,
         if (!diff.is_top && !diff.is_bottom) {
           int width_idx;
           bool signed_idx;
-          tnum_get_type_info(&index->base_type, &width_idx, &signed_idx);
+          bennet_absint_type_info(&index->base_type, &width_idx, &signed_idx);
           diff.width = width_idx;
           diff.is_signed = signed_idx;
           int64_t elem_size = term->data.array_shift.element_size;
@@ -2341,7 +2148,7 @@ bennet_absint_state* bennet_tnum_transform_backward_assume(
       cn_base_type* inner_type = &left_inner->base_type;
       int inner_width;
       bool inner_signed;
-      tnum_get_type_info(inner_type, &inner_width, &inner_signed);
+      bennet_absint_type_info(inner_type, &inner_width, &inner_signed);
       if (inner_width == lg_refined.width) {
         bennet_tagged_domain refined = tnum_to_tagged(&lg_refined, inner_type);
         result = bennet_absint_state_meet_tnum(result, sym, refined);
@@ -2354,7 +2161,7 @@ bennet_absint_state* bennet_tnum_transform_backward_assume(
       cn_base_type* inner_type = &right_inner->base_type;
       int inner_width;
       bool inner_signed;
-      tnum_get_type_info(inner_type, &inner_width, &inner_signed);
+      bennet_absint_type_info(inner_type, &inner_width, &inner_signed);
       if (inner_width == rg_refined.width) {
         bennet_tagged_domain refined = tnum_to_tagged(&rg_refined, inner_type);
         result = bennet_absint_state_meet_tnum(result, sym, refined);

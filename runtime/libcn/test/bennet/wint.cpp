@@ -1519,6 +1519,74 @@ TEST_F(LibBennet, WIntBackwardArrayShift) {
   cn_bump_free_after(frame);
 }
 
+// =============================================================================
+// State functional contract: set/meet/backward return fresh states and leave
+// the input state readable. The walkers' ITE cases pass the same state to
+// both branch recursions and rely on this.
+// =============================================================================
+
+TEST_F(LibBennet, WIntStateSetShadowsWithoutMutating) {
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt = cn_base_type_bits(false, 64);
+  cn_sym sym_x = cn_sym_from_string("x");
+  bennet_absint_sym x = {sym_x.name, sym_x.id};
+
+  auto* s0 = bennet_absint_state_create();
+  auto* s1 = bennet_absint_state_set_wint(s0, x, make_tagged_wint_u64(0, 100));
+  auto* s2 = bennet_absint_state_set_wint(s1, x, make_tagged_wint_u64(5, 7));
+
+  bennet_tagged_domain from_s2 = bennet_absint_state_get_wint(s2, x, &bt);
+  auto* d2 = (bennet_domain_wint_uint64_t*)from_s2.domain;
+  EXPECT_EQ(d2->start, (uint64_t)5);
+  EXPECT_EQ(d2->end, (uint64_t)7);
+
+  // The older state still reads its own binding.
+  bennet_tagged_domain from_s1 = bennet_absint_state_get_wint(s1, x, &bt);
+  auto* d1 = (bennet_domain_wint_uint64_t*)from_s1.domain;
+  EXPECT_EQ(d1->start, (uint64_t)0);
+  EXPECT_EQ(d1->end, (uint64_t)100);
+
+  // And the empty state still has no binding (top).
+  bennet_tagged_domain from_s0 = bennet_absint_state_get_wint(s0, x, &bt);
+  EXPECT_TRUE(bennet_tagged_domain_is_top_wint(&from_s0));
+
+  bennet_absint_state_free(s2);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntStatePersistsAcrossBackwardAssume) {
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt = cn_base_type_bits(false, 64);
+  cn_sym sym_x = cn_sym_from_string("x");
+  bennet_absint_sym x = {sym_x.name, sym_x.id};
+
+  auto* state = bennet_absint_state_create();
+  state = bennet_absint_state_set_wint(state, x, make_tagged_wint_u64(0, 100));
+
+  // assume(EQ(x, 5), true) refines x in the returned state only
+  cn_term* term_x = cn_smt_sym(sym_x, bt);
+  cn_term* term_five = cn_smt_bits(false, 64, 5);
+  cn_term* eq_term = cn_smt_eq(term_x, term_five);
+
+  auto* refined = bennet_wint_transform_backward_assume(eq_term, true, state);
+
+  bennet_tagged_domain refined_x = bennet_absint_state_get_wint(refined, x, &bt);
+  auto* rd = (bennet_domain_wint_uint64_t*)refined_x.domain;
+  EXPECT_TRUE(bennet_domain_wint_check_uint64_t(5, rd));
+  EXPECT_FALSE(bennet_domain_wint_check_uint64_t(50, rd));
+
+  // The input state still reads the pre-refinement interval.
+  bennet_tagged_domain original_x = bennet_absint_state_get_wint(state, x, &bt);
+  auto* od = (bennet_domain_wint_uint64_t*)original_x.domain;
+  EXPECT_EQ(od->start, (uint64_t)0);
+  EXPECT_EQ(od->end, (uint64_t)100);
+
+  bennet_absint_state_free(refined);
+  cn_bump_free_after(frame);
+}
+
 TEST_F(LibBennet, WIntBackwardMemberShift) {
   // Backward: target sym is in base position
   // member_shift(base, 8) with output domain [1008, 2008]

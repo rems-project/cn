@@ -727,20 +727,6 @@ typedef struct {
   uint64_t residue;
 } congr_generic;
 
-static void congr_get_type_info(cn_base_type* type, int* width, bool* is_signed) {
-  *width = 64;
-  *is_signed = false;
-  if (!type)
-    return;
-  if (type->tag == CN_BASE_LOC) {
-    *width = 64;
-    *is_signed = false;
-  } else if (type->tag == CN_BASE_BITS) {
-    *width = type->data.bits.size_bits;
-    *is_signed = type->data.bits.is_signed;
-  }
-}
-
 static congr_generic congr_generic_top(int width, bool is_signed) {
   return (congr_generic){
       .is_top = true,
@@ -763,185 +749,33 @@ static congr_generic congr_generic_bottom(int width, bool is_signed) {
   };
 }
 
-static congr_generic congr_from_tagged(bennet_tagged_domain* d) {
-  congr_generic result = {0};
-  if (!d || !d->type || !d->domain) {
-    result.is_top = true;
-    result.width = 64;
-    return result;
-  }
+/**
+ * Convert between tagged domains and the generic form. Loads zero-extend the
+ * modulus/residue words; stores narrow through the unsigned type (congruence
+ * words are non-negative, no masking needed).
+ */
+#define CONGR_TAGGED_LOAD(cty, ucty)                                                     \
+  do {                                                                                   \
+    bennet_domain_congr(cty)* dom_ = (bennet_domain_congr(cty)*)d->domain;               \
+    result.is_top = dom_->top;                                                           \
+    result.is_bottom = dom_->bottom;                                                     \
+    result.modulus = (uint64_t)(ucty)dom_->modulus;                                      \
+    result.residue = (uint64_t)(ucty)dom_->residue;                                      \
+  } while (0)
 
-  congr_get_type_info(d->type, &result.width, &result.is_signed);
+#define CONGR_TAGGED_STORE(cty, ucty)                                                    \
+  do {                                                                                   \
+    bennet_domain_congr(cty)* dom_ = std_malloc(sizeof(bennet_domain_congr(cty)));       \
+    assert(dom_);                                                                        \
+    dom_->top = g->is_top;                                                               \
+    dom_->bottom = g->is_bottom;                                                         \
+    dom_->modulus = (cty)(ucty)g->modulus;                                               \
+    dom_->residue = (cty)(ucty)g->residue;                                               \
+    result.domain = dom_;                                                                \
+  } while (0)
 
-  if (result.is_signed) {
-    switch (result.width) {
-      case 8: {
-        bennet_domain_congr(int8_t)* dom = (bennet_domain_congr(int8_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)(uint8_t)dom->modulus;
-        result.residue = (uint64_t)(uint8_t)dom->residue;
-        break;
-      }
-      case 16: {
-        bennet_domain_congr(int16_t)* dom = (bennet_domain_congr(int16_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)(uint16_t)dom->modulus;
-        result.residue = (uint64_t)(uint16_t)dom->residue;
-        break;
-      }
-      case 32: {
-        bennet_domain_congr(int32_t)* dom = (bennet_domain_congr(int32_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)(uint32_t)dom->modulus;
-        result.residue = (uint64_t)(uint32_t)dom->residue;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_congr(int64_t)* dom = (bennet_domain_congr(int64_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)dom->modulus;
-        result.residue = (uint64_t)dom->residue;
-        break;
-      }
-    }
-  } else {
-    switch (result.width) {
-      case 8: {
-        bennet_domain_congr(uint8_t)* dom = (bennet_domain_congr(uint8_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)dom->modulus;
-        result.residue = (uint64_t)dom->residue;
-        break;
-      }
-      case 16: {
-        bennet_domain_congr(uint16_t)* dom = (bennet_domain_congr(uint16_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)dom->modulus;
-        result.residue = (uint64_t)dom->residue;
-        break;
-      }
-      case 32: {
-        bennet_domain_congr(uint32_t)* dom = (bennet_domain_congr(uint32_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)dom->modulus;
-        result.residue = (uint64_t)dom->residue;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_congr(uint64_t)* dom = (bennet_domain_congr(uint64_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.modulus = (uint64_t)dom->modulus;
-        result.residue = (uint64_t)dom->residue;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
-
-static bennet_tagged_domain congr_to_tagged(congr_generic* g, cn_base_type* type) {
-  bennet_tagged_domain result;
-  result.type = type;
-
-  int width;
-  bool is_signed;
-  congr_get_type_info(type, &width, &is_signed);
-
-  if (is_signed) {
-    switch (width) {
-      case 8: {
-        bennet_domain_congr(int8_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (int8_t)(uint8_t)g->modulus;
-        dom->residue = (int8_t)(uint8_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-      case 16: {
-        bennet_domain_congr(int16_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (int16_t)(uint16_t)g->modulus;
-        dom->residue = (int16_t)(uint16_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-      case 32: {
-        bennet_domain_congr(int32_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (int32_t)(uint32_t)g->modulus;
-        dom->residue = (int32_t)(uint32_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_congr(int64_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (int64_t)g->modulus;
-        dom->residue = (int64_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-    }
-  } else {
-    switch (width) {
-      case 8: {
-        bennet_domain_congr(uint8_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (uint8_t)g->modulus;
-        dom->residue = (uint8_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-      case 16: {
-        bennet_domain_congr(uint16_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (uint16_t)g->modulus;
-        dom->residue = (uint16_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-      case 32: {
-        bennet_domain_congr(uint32_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (uint32_t)g->modulus;
-        dom->residue = (uint32_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_congr(uint64_t)* dom = std_malloc(sizeof(*dom));
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->modulus = (uint64_t)g->modulus;
-        dom->residue = (uint64_t)g->residue;
-        result.domain = dom;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
+BENNET_ABSINT_TAGGED_CONVERT_IMPL(
+    congr, congr_generic, CONGR_TAGGED_LOAD, CONGR_TAGGED_STORE)
 
 static congr_generic congr_generic_meet(congr_generic* a, congr_generic* b) {
   if (a->is_bottom || b->is_bottom)
@@ -1264,7 +1098,7 @@ bennet_tagged_domain bennet_tagged_domain_top_congr(cn_base_type* type) {
   int width = 64;
   bool is_signed = false;
   if (type)
-    congr_get_type_info(type, &width, &is_signed);
+    bennet_absint_type_info(type, &width, &is_signed);
   congr_generic g = congr_generic_top(width, is_signed);
   return congr_to_tagged(&g, type);
 }
@@ -1273,7 +1107,7 @@ bennet_tagged_domain bennet_tagged_domain_bottom_congr(cn_base_type* type) {
   int width = 64;
   bool is_signed = false;
   if (type)
-    congr_get_type_info(type, &width, &is_signed);
+    bennet_absint_type_info(type, &width, &is_signed);
   congr_generic g = congr_generic_bottom(width, is_signed);
   return congr_to_tagged(&g, type);
 }
@@ -1346,7 +1180,7 @@ bennet_tagged_domain bennet_congr_transform_forward(
     case CN_TERM_CONST: {
       int width = 64;
       bool is_signed = false;
-      congr_get_type_info(&term->base_type, &width, &is_signed);
+      bennet_absint_type_info(&term->base_type, &width, &is_signed);
 
       uint64_t val = 0;
       switch (term->data.const_val.type) {
@@ -1421,7 +1255,7 @@ bennet_tagged_domain bennet_congr_transform_forward(
       /* Congruence info propagates through casts (modulus/residue still valid) */
       int dst_width = 64;
       bool dst_signed = false;
-      congr_get_type_info(&term->base_type, &dst_width, &dst_signed);
+      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
       src.width = dst_width;
       src.is_signed = dst_signed;
       /* Re-normalize for new width */
@@ -1791,7 +1625,7 @@ bennet_absint_state* bennet_congr_transform_backward(cn_term* term,
       congr_generic out = congr_from_tagged(&output_domain);
       int src_width = 64;
       bool src_signed = false;
-      congr_get_type_info(&inner->base_type, &src_width, &src_signed);
+      bennet_absint_type_info(&inner->base_type, &src_width, &src_signed);
       out.width = src_width;
       out.is_signed = src_signed;
       congr_xi_norm_64(&out.modulus, &out.residue);

@@ -18,32 +18,96 @@ bennet_tagged_domain bennet_tagged_domain_create(cn_base_type* type, void* domai
   return result;
 }
 
-#define ABSINT_STATE_INITIAL_CAPACITY 16
-
 bennet_absint_state* bennet_absint_state_create(void) {
   bennet_absint_state* state = std_malloc(sizeof(bennet_absint_state));
   assert(state);
-  state->entries =
-      std_malloc(ABSINT_STATE_INITIAL_CAPACITY * sizeof(bennet_absint_state_entry));
-  assert(state->entries);
-  state->count = 0;
-  state->capacity = ABSINT_STATE_INITIAL_CAPACITY;
+  state->has_entry = false;
+  state->next = NULL;
   return state;
 }
 
 void bennet_absint_state_free(bennet_absint_state* state) {
-  // Note: We use std_malloc which uses arena allocation, so we don't actually free.
-  // This function exists for API completeness.
+  // std_malloc'd memory is reclaimed wholesale by cn_test_free_all(); nothing
+  // to release per state. This function exists for API completeness.
   (void)state;
 }
 
-int bennet_absint_state_find(bennet_absint_state* state, uint64_t id) {
-  for (size_t i = 0; i < state->count; i++) {
-    if (state->entries[i].id == id) {
-      return (int)i;
+bennet_absint_state* bennet_absint_state_cons(
+    bennet_absint_state* state, bennet_absint_sym sym, bennet_tagged_domain domain) {
+  bennet_absint_state* cell = std_malloc(sizeof(bennet_absint_state));
+  assert(cell);
+  cell->has_entry = true;
+  cell->entry.id = sym.id;
+  cell->entry.domain = domain;
+  cell->next = state;
+  return cell;
+}
+
+bennet_tagged_domain* bennet_absint_state_lookup(
+    bennet_absint_state* state, uint64_t id) {
+  for (bennet_absint_state* cell = state; cell; cell = cell->next) {
+    if (cell->has_entry && cell->entry.id == id) {
+      return &cell->entry.domain;
     }
   }
-  return -1;
+  return NULL;
+}
+
+/* First live cell at or after `from` whose binding is not shadowed by a newer
+   cell (one closer to `head`). */
+static bennet_absint_state* absint_state_next_live(
+    bennet_absint_state* head, bennet_absint_state* from) {
+  for (bennet_absint_state* cell = from; cell; cell = cell->next) {
+    if (!cell->has_entry) {
+      continue;
+    }
+    bool shadowed = false;
+    for (bennet_absint_state* newer = head; newer != cell; newer = newer->next) {
+      if (newer->has_entry && newer->entry.id == cell->entry.id) {
+        shadowed = true;
+        break;
+      }
+    }
+    if (!shadowed) {
+      return cell;
+    }
+  }
+  return NULL;
+}
+
+bennet_absint_state_iter bennet_absint_state_iter_begin(bennet_absint_state* state) {
+  return (bennet_absint_state_iter){
+      .head = state, .cell = absint_state_next_live(state, state)};
+}
+
+bool bennet_absint_state_iter_done(const bennet_absint_state_iter* it) {
+  return it->cell == NULL;
+}
+
+void bennet_absint_state_iter_next(bennet_absint_state_iter* it) {
+  assert(it->cell);
+  it->cell = absint_state_next_live(it->head, it->cell->next);
+}
+
+bennet_tagged_domain* bennet_absint_state_iter_domain(
+    const bennet_absint_state_iter* it) {
+  assert(it->cell);
+  return &it->cell->entry.domain;
+}
+
+void bennet_absint_type_info(cn_base_type* type, int* width, bool* is_signed) {
+  assert(type);
+  if (type->tag == CN_BASE_BITS) {
+    *width = type->data.bits.size_bits;
+    *is_signed = type->data.bits.is_signed;
+  } else if (type->tag == CN_BASE_LOC) {
+    *width = 64;  // Pointer type - use 64-bit width
+    *is_signed = false;
+  } else {
+    // Default to 64-bit unsigned for unsupported types
+    *width = 64;
+    *is_signed = false;
+  }
 }
 
 bool term_contains_sym(cn_term* term, uint64_t sym_id) {
