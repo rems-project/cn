@@ -27,6 +27,7 @@ add_executable(libcn_tests
     bennet/backtracks_info.cpp
     bennet/harness.cpp
     bennet/ownership_domain.cpp
+    bennet/ownership_transform.cpp
     bennet/rand.cpp
     bennet/congr.cpp
     bennet/products.cpp

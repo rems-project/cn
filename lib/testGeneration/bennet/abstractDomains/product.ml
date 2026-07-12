@@ -445,6 +445,55 @@ let product_domains (domains : (module Domain.T) list) =
                   (!^"  (void)ptr; return " ^^ !^(func_prefix ^ "top_##ty") ^^ !^"();")
 
 
+        (* Lift a bare ownership element into the product: top except the
+           ownership component (the blame-path constructor).
+           Mirrors top_except_ownership,
+           including the reduce. *)
+        let generate_from_ownership_function =
+          let ownership_index =
+            List.find_index
+              (fun (module D : Domain.T) -> String.equal D.CInt.name "ownership")
+              domains
+          in
+          match ownership_index with
+          | Some _ ->
+            !^"static inline"
+            ^^^ !^struct_type
+            ^^ !^"*"
+            ^^^ !^(func_prefix ^ "from_ownership_##ty")
+            ^^ parens !^"bennet_domain_ownership(ty)* own"
+            ^/^ braces
+                  (!^"  "
+                   ^^ !^struct_type
+                   ^^ !^"* result = std_malloc(sizeof("
+                   ^^ !^struct_type
+                   ^^ !^"));"
+                   ^/^ (domains
+                        |> List.mapi (fun i (module D : Domain.T) ->
+                          if String.equal D.CInt.name "ownership" then
+                            !^"  result->element_" ^^ int i ^^ !^" = *own;"
+                          else
+                            !^"  result->element_"
+                            ^^ int i
+                            ^^ !^" = *"
+                            ^^ !^"bennet_domain_"
+                            ^^ !^D.CInt.name
+                            ^^ !^"_top_##ty"
+                            ^^ !^"();")
+                        |> separate hardline)
+                   ^/^ !^(Printf.sprintf "  %sreduce_##ty(result);" func_prefix)
+                   ^/^ !^"  return result;")
+          | None ->
+            (* No ownership domain - the bare element adds no information *)
+            !^"static inline"
+            ^^^ !^struct_type
+            ^^ !^"*"
+            ^^^ !^(func_prefix ^ "from_ownership_##ty")
+            ^^ parens !^"bennet_domain_ownership(ty)* own"
+            ^/^ braces
+                  (!^"  (void)own; return " ^^ !^(func_prefix ^ "top_##ty") ^^ !^"();")
+
+
         let generate_to_interval_function =
           let n = List.length domains in
           if n = 0 then
@@ -944,6 +993,11 @@ let product_domains (domains : (module Domain.T) list) =
               ^^ !^"top_except_ownership_##ty(ptr)";
               !^"#define"
               ^^^ !^func_prefix
+              ^^ !^"from_ownership(ty, own)"
+              ^^^ !^func_prefix
+              ^^ !^"from_ownership_##ty(own)";
+              !^"#define"
+              ^^^ !^func_prefix
               ^^ !^"transform_backward(ty, term, sym, out_bt, tgt_bt, out)"
               ^^^ !^func_prefix
               ^^ !^"transform_backward_##ty(term, sym, out_bt, tgt_bt, out)"
@@ -1001,6 +1055,7 @@ let product_domains (domains : (module Domain.T) list) =
                 generate_check_function;
                 generate_check_ownership_function;
                 generate_top_except_ownership_function;
+                generate_from_ownership_function;
                 generate_to_interval_function;
                 generate_of_interval_function;
                 generate_refine_function;

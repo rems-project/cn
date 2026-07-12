@@ -1,53 +1,100 @@
+#include "test_domain_product.hpp"
+
 #include <bennet/internals/domain.h>
 #include <bennet/internals/domains/ownership.h>
+#include <cn-smt/memory/std_alloc.h>
 
 extern "C" {
+/* Hand-written mirror of domain.ml's generated product functions over the
+ * two-component all-ownership product in test_domain_product.hpp. element_0
+ * is the "real" ownership element (arbitrary/from_assignment/from_ownership
+ * fill it); element_1 participates only in the componentwise product ops, so
+ * predicates and blame pins behave exactly as with the old 1-field product
+ * while ASan gets a second field's worth of redzone-adjacent bytes to catch
+ * bare-ownership puns. */
 #define BENNET_DOMAIN_INDIRECTION(ty)                                                    \
-  bennet_domain(ty) {                                                                    \
-    bennet_domain_ownership(ty) car;                                                     \
-  };                                                                                     \
-                                                                                         \
   bennet_domain(ty) * bennet_domain_top_##ty(void) {                                     \
-    return (bennet_domain(ty)*)bennet_domain_ownership_top(ty);                          \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 = *bennet_domain_ownership_top(ty);                                \
+    result->element_1 = *bennet_domain_ownership_top(ty);                                \
+    return result;                                                                       \
   }                                                                                      \
   bool bennet_domain_is_top_##ty(bennet_domain(ty) * cs) {                               \
-    return bennet_domain_ownership_is_top(ty, &cs->car);                                 \
+    return bennet_domain_ownership_is_top(ty, &cs->element_0) &&                         \
+           bennet_domain_ownership_is_top(ty, &cs->element_1);                           \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) * bennet_domain_bottom_##ty(void) {                                  \
-    return (bennet_domain(ty)*)bennet_domain_ownership_bottom(ty);                       \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 = *bennet_domain_ownership_bottom(ty);                             \
+    result->element_1 = *bennet_domain_ownership_bottom(ty);                             \
+    return result;                                                                       \
   }                                                                                      \
   bool bennet_domain_is_bottom_##ty(bennet_domain(ty) * cs) {                            \
-    return bennet_domain_ownership_is_bottom(ty, &cs->car);                              \
+    return bennet_domain_ownership_is_bottom(ty, &cs->element_0) ||                      \
+           bennet_domain_ownership_is_bottom(ty, &cs->element_1);                        \
   }                                                                                      \
                                                                                          \
   bool bennet_domain_leq_##ty(bennet_domain(ty) * cs1, bennet_domain(ty) * cs2) {        \
-    return bennet_domain_ownership_leq_##ty(&cs1->car, &cs2->car);                       \
+    return bennet_domain_ownership_leq_##ty(&cs1->element_0, &cs2->element_0) &&         \
+           bennet_domain_ownership_leq_##ty(&cs1->element_1, &cs2->element_1);           \
   }                                                                                      \
   bool bennet_domain_equal_##ty(bennet_domain(ty) * cs1, bennet_domain(ty) * cs2) {      \
-    return bennet_domain_ownership_equal_##ty(&cs1->car, &cs2->car);                     \
+    return bennet_domain_ownership_equal_##ty(&cs1->element_0, &cs2->element_0) &&       \
+           bennet_domain_ownership_equal_##ty(&cs1->element_1, &cs2->element_1);         \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) *                                                                    \
       bennet_domain_join_##ty(bennet_domain(ty) * cs1, bennet_domain(ty) * cs2) {        \
-    return (bennet_domain(ty)*)bennet_domain_ownership_join_##ty(&cs1->car, &cs2->car);  \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 =                                                                  \
+        *bennet_domain_ownership_join_##ty(&cs1->element_0, &cs2->element_0);            \
+    result->element_1 =                                                                  \
+        *bennet_domain_ownership_join_##ty(&cs1->element_1, &cs2->element_1);            \
+    return result;                                                                       \
   }                                                                                      \
   bennet_domain(ty) *                                                                    \
       bennet_domain_meet_##ty(bennet_domain(ty) * cs1, bennet_domain(ty) * cs2) {        \
-    return (bennet_domain(ty)*)bennet_domain_ownership_meet_##ty(&cs1->car, &cs2->car);  \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 =                                                                  \
+        *bennet_domain_ownership_meet_##ty(&cs1->element_0, &cs2->element_0);            \
+    result->element_1 =                                                                  \
+        *bennet_domain_ownership_meet_##ty(&cs1->element_1, &cs2->element_1);            \
+    return result;                                                                       \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) * bennet_domain_copy_##ty(bennet_domain(ty) * cs) {                  \
-    return (bennet_domain(ty)*)bennet_domain_ownership_copy_##ty(&cs->car);              \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 = cs->element_0;                                                   \
+    result->element_1 = cs->element_1;                                                   \
+    return result;                                                                       \
   }                                                                                      \
   ty bennet_domain_arbitrary_##ty(bennet_domain(ty) * cs) {                              \
-    return bennet_domain_ownership_arbitrary_##ty(&cs->car);                             \
+    return bennet_domain_ownership_arbitrary_##ty(&cs->element_0);                       \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) *                                                                    \
       bennet_domain_from_assignment_##ty(void* base_ptr, void* addr, size_t bytes) {     \
-    return (bennet_domain(ty)*)bennet_domain_ownership_from_assignment_##ty(             \
-        base_ptr, addr, bytes);                                                          \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 =                                                                  \
+        *bennet_domain_ownership_from_assignment_##ty(base_ptr, addr, bytes);            \
+    result->element_1 = *bennet_domain_ownership_top(ty);                                \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain(ty) *                                                                    \
+      bennet_domain_from_ownership_##ty(bennet_domain_ownership(ty) * own) {             \
+    bennet_domain(ty)* result =                                                          \
+        (bennet_domain(ty)*)std_malloc(sizeof(bennet_domain(ty)));                       \
+    result->element_0 = *own;                                                            \
+    result->element_1 = *bennet_domain_ownership_top(ty);                                \
+    return result;                                                                       \
   }
 
 BENNET_DOMAIN_INDIRECTION(int8_t)
