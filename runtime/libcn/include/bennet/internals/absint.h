@@ -92,6 +92,11 @@ bennet_tagged_domain* bennet_absint_state_iter_domain(const bennet_absint_state_
 /** Check if a term contains a specific symbol */
 bool term_contains_sym(cn_term* term, uint64_t sym_id);
 
+/** Collect the syms of a term into a fixed-size buffer (left-first,
+ *  per-occurrence, truncated at max_syms; ITE conditions are not visited).
+ *  Returns the number of syms written. */
+int bennet_absint_term_collect_syms(cn_term* term, bennet_absint_sym* syms, int max_syms);
+
 /** Lower a cn_base_type to (width, signedness). CN_BASE_BITS uses its own
  *  size/signedness; CN_BASE_LOC and anything else lower to unsigned 64. */
 void bennet_absint_type_info(cn_base_type* type, int* width, bool* is_signed);

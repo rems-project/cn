@@ -9,6 +9,8 @@
 #ifndef ABSINT_TEST_UTILS_HPP
 #define ABSINT_TEST_UTILS_HPP
 
+#include <cstdint>
+
 #include <bennet/internals/absint.h>
 #include <bennet/internals/domains/congr.h>
 #include <bennet/internals/domains/tnum.h>
@@ -121,6 +123,252 @@ inline bool eval_bool(cn_term* t) {
   assert(r);
   return convert_from_cn_bool((cn_bool*)r);
 }
+
+/*-----------------------------------------------------------------------------
+ * Term/state fuzzing vocabulary (kept for future differential harnesses,
+ * e.g. the semantic-upgrade gates; the old-vs-new harness that used
+ * it was deleted with the legacy walker snapshots once all ports were
+ * gated).
+ *---------------------------------------------------------------------------*/
+
+namespace fuzz {
+
+/*-----------------------------------------------------------------------------
+ * Deterministic local PRNG (xorshift64*)
+ *---------------------------------------------------------------------------*/
+
+struct Rng {
+  uint64_t s;
+
+  explicit Rng(uint64_t seed)
+      : s(seed * 6364136223846793005ull + 1442695040888963407ull) {}
+
+  uint64_t next() {
+    s ^= s >> 12;
+    s ^= s << 25;
+    s ^= s >> 27;
+    return s * 2685821657736338717ull;
+  }
+
+  uint64_t below(uint64_t n) {
+    return n ? next() % n : 0;
+  }
+
+  bool chance(unsigned pct) {
+    return below(100) < pct;
+  }
+};
+
+/*-----------------------------------------------------------------------------
+ * Fuzzer vocabulary
+ *---------------------------------------------------------------------------*/
+
+const cn_base_type kWidths[] = {
+    cn_base_type_bits(false, 8),
+    cn_base_type_bits(true, 8),
+    cn_base_type_bits(false, 16),
+    cn_base_type_bits(true, 16),
+};
+
+const cn_sym kArithSyms[] = {{"dfx", 101}, {"dfy", 102}, {"dfz", 103}};
+const cn_sym kPtrSyms[] = {{"dfp", 201}, {"dfq", 202}};
+constexpr int kNumArithSyms = 3;
+constexpr int kNumPtrSyms = 2;
+
+/* Per-seed type assignment for the arithmetic syms. Each symbol must occur
+ * at a single width within a seed: production terms are type-consistent per
+ * symbol, and wint's generic meet/join assert equal widths, so a symbol
+ * bound at one width but occurring at another would crash both walkers
+ * (stored-type dataflow). Set at the top of every driver iteration. */
+inline cn_base_type g_sym_bts[kNumArithSyms];
+
+inline void assign_sym_types(Rng& rng) {
+  for (int i = 0; i < kNumArithSyms; i++) {
+    g_sym_bts[i] = kWidths[rng.below(4)];
+  }
+}
+
+inline bool same_bits_type(const cn_base_type& a, const cn_base_type& b) {
+  return a.tag == b.tag && a.data.bits.is_signed == b.data.bits.is_signed &&
+         a.data.bits.size_bits == b.data.bits.size_bits;
+}
+
+inline uint64_t width_max(const cn_base_type& bt) {
+  return bt.data.bits.size_bits == 8 ? 0xffu : 0xffffu;
+}
+
+inline cn_term* gen_const(Rng& rng, const cn_base_type& bt) {
+  uint64_t m = width_max(bt);
+  uint64_t v;
+  switch (rng.below(7)) {
+    case 0:
+      v = 0;
+      break;
+    case 1:
+      v = 1;
+      break;
+    case 2:
+      v = 2;
+      break;
+    case 3:
+      v = m;
+      break;
+    case 4:
+      v = m - 1;
+      break;
+    case 5:
+      v = 1ull << rng.below(bt.data.bits.size_bits);
+      break;
+    default:
+      v = rng.next() & m;
+      break;
+  }
+  return cn_smt_bits(bt.data.bits.is_signed, bt.data.bits.size_bits, (intmax_t)v);
+}
+
+inline cn_term* gen_arith_sym(Rng& rng, const cn_base_type& bt) {
+  int candidates[kNumArithSyms];
+  int n = 0;
+  for (int i = 0; i < kNumArithSyms; i++) {
+    if (same_bits_type(g_sym_bts[i], bt)) {
+      candidates[n++] = i;
+    }
+  }
+  if (n == 0) {
+    return gen_const(rng, bt);
+  }
+  return cn_smt_sym(kArithSyms[candidates[rng.below((uint64_t)n)]], bt);
+}
+
+inline cn_term* binop_bool(cn_binop op, cn_term* l, cn_term* r) {
+  cn_term* t = cn_term_alloc(CN_TERM_BINOP, cn_base_type_simple(CN_BASE_BOOL));
+  t->data.binop.op = op;
+  t->data.binop.left = l;
+  t->data.binop.right = r;
+  return t;
+}
+
+inline cn_term* gen_arith(Rng& rng, const cn_base_type& bt, int depth);
+
+/* When set, array-shift indices in pointer terms are constants. The wint
+ * state drivers need this: the legacy ARRAY_SHIFT backward index fallback
+ * pushes the un-narrowed 64-bit output into the index subtree, so an index
+ * containing a narrower symbol trips wint_generic_meet's width assert when
+ * the base's bounds are top (pre-existing crash bug, reproduced exactly by
+ * the port; flagged in doc/RUNTIME-ABSINT.md for the P6 semantic pass). */
+inline bool g_ptr_const_index = false;
+
+inline cn_term* gen_ptr(Rng& rng, int depth) {
+  cn_term* t =
+      cn_smt_sym(kPtrSyms[rng.below(kNumPtrSyms)], cn_base_type_simple(CN_BASE_LOC));
+  static const size_t kSizes[] = {1, 2, 4, 8};
+  for (int i = 0; i < depth; i++) {
+    if (rng.chance(50)) {
+      break;
+    }
+    if (rng.chance(50)) {
+      t = cn_smt_member_shift(t, kSizes[rng.below(4)]);
+    } else {
+      const cn_base_type& idx_bt = kWidths[rng.below(4)];
+      cn_term* idx =
+          g_ptr_const_index ? gen_const(rng, idx_bt) : gen_arith(rng, idx_bt, depth - 1);
+      t = cn_smt_array_shift(t, kSizes[rng.below(4)], idx);
+    }
+  }
+  return t;
+}
+
+inline cn_term* gen_cmp(Rng& rng, int depth) {
+  if (rng.chance(25)) {
+    /* Pointer comparison; cn_smt_lt/le always emit the integer ops, so the
+     * pointer variants are hand-built. */
+    cn_term* l = gen_ptr(rng, depth);
+    cn_term* r = gen_ptr(rng, depth);
+    switch (rng.below(3)) {
+      case 0:
+        return cn_smt_eq(l, r);
+      case 1:
+        return binop_bool(CN_BINOP_LT_POINTER, l, r);
+      default:
+        return binop_bool(CN_BINOP_LE_POINTER, l, r);
+    }
+  }
+  const cn_base_type& bt = kWidths[rng.below(4)];
+  cn_term* l = gen_arith(rng, bt, depth);
+  cn_term* r = gen_arith(rng, bt, depth);
+  switch (rng.below(3)) {
+    case 0:
+      return cn_smt_eq(l, r);
+    case 1:
+      return cn_smt_lt(l, r);
+    default:
+      return cn_smt_le(l, r);
+  }
+}
+
+inline cn_term* gen_cond(Rng& rng, int depth) {
+  cn_term* c = gen_cmp(rng, depth);
+  if (rng.chance(20)) {
+    c = cn_smt_not(c);
+  }
+  if (rng.chance(25)) {
+    cn_term* c2 = gen_cmp(rng, depth);
+    c = rng.chance(50) ? cn_smt_and(c, c2) : cn_smt_or(c, c2);
+  }
+  return c;
+}
+
+inline cn_term* gen_arith(Rng& rng, const cn_base_type& bt, int depth) {
+  if (depth <= 0 || rng.chance(25)) {
+    return rng.chance(55) ? gen_arith_sym(rng, bt) : gen_const(rng, bt);
+  }
+
+  static const cn_binop kBinops[] = {
+      CN_BINOP_ADD,
+      CN_BINOP_SUB,
+      CN_BINOP_MUL,
+      CN_BINOP_DIV,
+      CN_BINOP_MOD,
+      CN_BINOP_REM,
+      CN_BINOP_SHIFT_LEFT,
+      CN_BINOP_SHIFT_RIGHT,
+      CN_BINOP_BW_AND,
+      CN_BINOP_BW_OR,
+      CN_BINOP_BW_XOR,
+      CN_BINOP_MIN,
+      CN_BINOP_MAX,
+  };
+
+  switch (rng.below(10)) {
+    case 0:
+    case 1: { /* unop */
+      cn_term* v = gen_arith(rng, bt, depth - 1);
+      return rng.chance(60) ? negate_term(v) : cn_smt_bw_compl(v);
+    }
+    case 2: { /* ite */
+      cn_term* c = gen_cmp(rng, depth - 1);
+      cn_term* t = gen_arith(rng, bt, depth - 1);
+      cn_term* e = gen_arith(rng, bt, depth - 1);
+      return cn_smt_ite(c, t, e);
+    }
+    case 3: { /* cast */
+      const cn_base_type& inner_bt = kWidths[rng.below(4)];
+      return cn_smt_cast(bt, gen_arith(rng, inner_bt, depth - 1));
+    }
+    default: { /* binop */
+      cn_binop op = kBinops[rng.below(sizeof(kBinops) / sizeof(kBinops[0]))];
+      cn_term* l = gen_arith(rng, bt, depth - 1);
+      cn_term* r = gen_arith(rng, bt, depth - 1);
+      cn_term* t = cn_term_alloc(CN_TERM_BINOP, bt);
+      t->data.binop.op = op;
+      t->data.binop.left = l;
+      t->data.binop.right = r;
+      return t;
+    }
+  }
+}
+
+}  // namespace fuzz
 
 }  // namespace absint_test
 

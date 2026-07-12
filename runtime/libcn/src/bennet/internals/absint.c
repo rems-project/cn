@@ -110,6 +110,47 @@ void bennet_absint_type_info(cn_base_type* type, int* width, bool* is_signed) {
   }
 }
 
+int bennet_absint_term_collect_syms(
+    cn_term* term, bennet_absint_sym* syms, int max_syms) {
+  if (!term || max_syms <= 0)
+    return 0;
+
+  switch (term->type) {
+    case CN_TERM_SYM: {
+      syms[0] = (bennet_absint_sym){.name = term->data.sym.name, .id = term->data.sym.id};
+      return 1;
+    }
+    case CN_TERM_UNOP:
+      return bennet_absint_term_collect_syms(term->data.unop.operand, syms, max_syms);
+    case CN_TERM_BINOP: {
+      int n = bennet_absint_term_collect_syms(term->data.binop.left, syms, max_syms);
+      n +=
+          bennet_absint_term_collect_syms(term->data.binop.right, syms + n, max_syms - n);
+      return n;
+    }
+    case CN_TERM_CAST:
+      return bennet_absint_term_collect_syms(term->data.cast.value, syms, max_syms);
+    case CN_TERM_ITE: {
+      int n = bennet_absint_term_collect_syms(term->data.ite.then_term, syms, max_syms);
+      n += bennet_absint_term_collect_syms(
+          term->data.ite.else_term, syms + n, max_syms - n);
+      return n;
+    }
+    case CN_TERM_ARRAY_SHIFT: {
+      int n =
+          bennet_absint_term_collect_syms(term->data.array_shift.base, syms, max_syms);
+      n += bennet_absint_term_collect_syms(
+          term->data.array_shift.index, syms + n, max_syms - n);
+      return n;
+    }
+    case CN_TERM_MEMBER_SHIFT:
+      return bennet_absint_term_collect_syms(
+          term->data.member_shift.base, syms, max_syms);
+    default:
+      return 0;
+  }
+}
+
 bool term_contains_sym(cn_term* term, uint64_t sym_id) {
   if (!term)
     return false;

@@ -42,6 +42,7 @@
    (glob_files ../include/bennet/info/*.h)
    (glob_files ../include/bennet/internals/*.h)
    (glob_files ../include/bennet/internals/domains/*.h)
+   (glob_files ../include/bennet/internals/domains/*.inc.c)
    (glob_files ../include/bennet/state/*.h)
    (glob_files ../include/bennet/utils/*.h))
   (:src

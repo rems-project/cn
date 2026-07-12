@@ -1137,8 +1137,15 @@ bennet_tagged_domain bennet_tagged_domain_join_congr(
 BENNET_ABSINT_STATE_IMPL(congr)
 
 /*-----------------------------------------------------------------------------
- * Forward Transform (congr)
+ * Transformer basis (consumed by the engine template, transform.inc.c)
+ *
+ * These are the congr-specific transfer functions of the shared cn_term
+ * walker engine; the traversal, gating, and refinement-application order
+ * live in the template. Bodies are the former hand-written walkers' case
+ * arms, unchanged (parity gated by test/bennet/absint_difftest.cpp).
  *---------------------------------------------------------------------------*/
+
+#include <bennet/internals/domains/transform_template.h>
 
 static congr_generic congr_forward_binop(
     cn_binop op, congr_generic* left, congr_generic* right) {
@@ -1169,564 +1176,347 @@ static congr_generic congr_forward_binop(
   }
 }
 
-bennet_tagged_domain bennet_congr_transform_forward(
-    cn_term* term, bennet_absint_state* state) {
-  if (!term) {
-    cn_base_type bt = cn_base_type_bits(false, 64);
-    return bennet_tagged_domain_top_congr(&bt);
-  }
+static bennet_tagged_domain congr_basis_const(cn_term* term) {
+  int width = 64;
+  bool is_signed = false;
+  bennet_absint_type_info(&term->base_type, &width, &is_signed);
 
-  switch (term->type) {
-    case CN_TERM_CONST: {
-      int width = 64;
-      bool is_signed = false;
-      bennet_absint_type_info(&term->base_type, &width, &is_signed);
-
-      uint64_t val = 0;
-      switch (term->data.const_val.type) {
-        case CN_CONST_BITS:
-          val = (uint64_t)term->data.const_val.data.bits.value;
-          break;
-        case CN_CONST_Z:
-          val = (uint64_t)term->data.const_val.data.z;
-          break;
-        case CN_CONST_POINTER:
-          val = (uint64_t)term->data.const_val.data.pointer;
-          break;
-        case CN_CONST_BOOL:
-          val = term->data.const_val.data.boolean ? 1 : 0;
-          break;
-        case CN_CONST_NULL:
-          val = 0;
-          break;
-        default:
-          return bennet_tagged_domain_top_congr(&term->base_type);
-      }
-      congr_generic g = congr_generic_const(width, is_signed, val);
-      return congr_to_tagged(&g, &term->base_type);
-    }
-
-    case CN_TERM_SYM: {
-      bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
-      return bennet_absint_state_get_congr(state, sym, &term->base_type);
-    }
-
-    case CN_TERM_UNOP: {
-      bennet_tagged_domain operand_td =
-          bennet_congr_transform_forward(term->data.unop.operand, state);
-      congr_generic operand = congr_from_tagged(&operand_td);
-
-      switch (term->data.unop.op) {
-        case CN_UNOP_NEGATE: {
-          congr_generic result = congr_generic_negate(&operand);
-          return congr_to_tagged(&result, &term->base_type);
-        }
-        default:
-          return bennet_tagged_domain_top_congr(&term->base_type);
-      }
-    }
-
-    case CN_TERM_BINOP: {
-      bennet_tagged_domain left_td =
-          bennet_congr_transform_forward(term->data.binop.left, state);
-      bennet_tagged_domain right_td =
-          bennet_congr_transform_forward(term->data.binop.right, state);
-      congr_generic lg = congr_from_tagged(&left_td);
-      congr_generic rg = congr_from_tagged(&right_td);
-      congr_generic result = congr_forward_binop(term->data.binop.op, &lg, &rg);
-      return congr_to_tagged(&result, &term->base_type);
-    }
-
-    case CN_TERM_ITE: {
-      bennet_tagged_domain then_td =
-          bennet_congr_transform_forward(term->data.ite.then_term, state);
-      bennet_tagged_domain else_td =
-          bennet_congr_transform_forward(term->data.ite.else_term, state);
-      return bennet_tagged_domain_join_congr(&then_td, &else_td);
-    }
-
-    case CN_TERM_CAST: {
-      bennet_tagged_domain src_td =
-          bennet_congr_transform_forward(term->data.cast.value, state);
-      congr_generic src = congr_from_tagged(&src_td);
-      if (src.is_bottom) {
-        return bennet_tagged_domain_bottom_congr(&term->base_type);
-      }
-      /* Congruence info propagates through casts (modulus/residue still valid) */
-      int dst_width = 64;
-      bool dst_signed = false;
-      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
-      src.width = dst_width;
-      src.is_signed = dst_signed;
-      /* Re-normalize for new width */
-      congr_xi_norm_64(&src.modulus, &src.residue);
-      src.is_top = (src.modulus == 1);
-      return congr_to_tagged(&src, &term->base_type);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      bennet_tagged_domain base_td =
-          bennet_congr_transform_forward(term->data.array_shift.base, state);
-      bennet_tagged_domain index_td =
-          bennet_congr_transform_forward(term->data.array_shift.index, state);
-      congr_generic base_g = congr_from_tagged(&base_td);
-      congr_generic index_g = congr_from_tagged(&index_td);
-
-      /* elem_size as singleton constant */
-      congr_generic elem_g = congr_generic_const(index_g.width,
-          index_g.is_signed,
-          (uint64_t)term->data.array_shift.element_size);
-
-      /* result = base + index * elem_size */
-      congr_generic offset = congr_generic_mul(&index_g, &elem_g);
-      congr_generic result = congr_generic_add(&base_g, &offset);
-      return congr_to_tagged(&result, &term->base_type);
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      bennet_tagged_domain base_td =
-          bennet_congr_transform_forward(term->data.member_shift.base, state);
-      congr_generic base_g = congr_from_tagged(&base_td);
-
-      congr_generic offset_g = congr_generic_const(
-          base_g.width, base_g.is_signed, (uint64_t)term->data.member_shift.offset);
-
-      congr_generic result = congr_generic_add(&base_g, &offset_g);
-      return congr_to_tagged(&result, &term->base_type);
-    }
-
+  uint64_t val = 0;
+  switch (term->data.const_val.type) {
+    case CN_CONST_BITS:
+      val = (uint64_t)term->data.const_val.data.bits.value;
+      break;
+    case CN_CONST_Z:
+      val = (uint64_t)term->data.const_val.data.z;
+      break;
+    case CN_CONST_POINTER:
+      val = (uint64_t)term->data.const_val.data.pointer;
+      break;
+    case CN_CONST_BOOL:
+      val = term->data.const_val.data.boolean ? 1 : 0;
+      break;
+    case CN_CONST_NULL:
+      val = 0;
+      break;
     default:
       return bennet_tagged_domain_top_congr(&term->base_type);
   }
+  congr_generic g = congr_generic_const(width, is_signed, val);
+  return congr_to_tagged(&g, &term->base_type);
 }
 
-/*-----------------------------------------------------------------------------
- * Backward Transform Helpers (congr)
- *---------------------------------------------------------------------------*/
-
-/**
- * Collect all sym IDs from a term into a fixed-size buffer.
- * Returns the number of syms found (up to max_syms).
- */
-static int congr_term_collect_syms(cn_term* term, bennet_absint_sym* syms, int max_syms) {
-  if (!term || max_syms <= 0)
-    return 0;
-
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      syms[0] = (bennet_absint_sym){.name = term->data.sym.name, .id = term->data.sym.id};
-      return 1;
+static bennet_tagged_domain congr_basis_forward_unop(
+    cn_unop op, bennet_tagged_domain* v, cn_base_type* result_type) {
+  switch (op) {
+    case CN_UNOP_NEGATE: {
+      congr_generic operand = congr_from_tagged(v);
+      congr_generic result = congr_generic_negate(&operand);
+      return congr_to_tagged(&result, result_type);
     }
-    case CN_TERM_UNOP:
-      return congr_term_collect_syms(term->data.unop.operand, syms, max_syms);
-    case CN_TERM_BINOP: {
-      int n = congr_term_collect_syms(term->data.binop.left, syms, max_syms);
-      n += congr_term_collect_syms(term->data.binop.right, syms + n, max_syms - n);
-      return n;
-    }
-    case CN_TERM_CAST:
-      return congr_term_collect_syms(term->data.cast.value, syms, max_syms);
-    case CN_TERM_ITE: {
-      int n = congr_term_collect_syms(term->data.ite.then_term, syms, max_syms);
-      n += congr_term_collect_syms(term->data.ite.else_term, syms + n, max_syms - n);
-      return n;
-    }
-    case CN_TERM_ARRAY_SHIFT: {
-      int n = congr_term_collect_syms(term->data.array_shift.base, syms, max_syms);
-      n += congr_term_collect_syms(term->data.array_shift.index, syms + n, max_syms - n);
-      return n;
-    }
-    case CN_TERM_MEMBER_SHIFT:
-      return congr_term_collect_syms(term->data.member_shift.base, syms, max_syms);
     default:
-      return 0;
+      return bennet_tagged_domain_top_congr(result_type);
   }
 }
 
-/**
- * Apply a refined domain to all SYMs in a term by calling transform_backward
- * for each SYM found. Accumulates refinements into the state.
- */
-static bennet_absint_state* congr_backward_apply_to_all_syms(
-    cn_term* term, bennet_tagged_domain* refined_dom, bennet_absint_state* state) {
-  bennet_absint_sym syms[16];
-  int n = congr_term_collect_syms(term, syms, 16);
-
-  bennet_absint_state* result = state;
-  for (int i = 0; i < n; i++) {
-    result = bennet_congr_transform_backward(term, syms[i], *refined_dom, result);
-  }
-  return result;
+static bennet_tagged_domain congr_basis_forward_binop(cn_binop op,
+    bennet_tagged_domain* l,
+    bennet_tagged_domain* r,
+    cn_base_type* result_type) {
+  congr_generic lg = congr_from_tagged(l);
+  congr_generic rg = congr_from_tagged(r);
+  congr_generic result = congr_forward_binop(op, &lg, &rg);
+  return congr_to_tagged(&result, result_type);
 }
 
-/*-----------------------------------------------------------------------------
- * Backward Transform (congr)
- *---------------------------------------------------------------------------*/
+static bennet_tagged_domain congr_basis_forward_cast(
+    cn_base_type* to, bennet_tagged_domain* v) {
+  congr_generic src = congr_from_tagged(v);
+  if (src.is_bottom) {
+    return bennet_tagged_domain_bottom_congr(to);
+  }
+  /* Congruence info propagates through casts (modulus/residue still valid) */
+  int dst_width = 64;
+  bool dst_signed = false;
+  bennet_absint_type_info(to, &dst_width, &dst_signed);
+  src.width = dst_width;
+  src.is_signed = dst_signed;
+  /* Re-normalize for new width */
+  congr_xi_norm_64(&src.modulus, &src.residue);
+  src.is_top = (src.modulus == 1);
+  return congr_to_tagged(&src, to);
+}
 
-bennet_absint_state* bennet_congr_transform_backward(cn_term* term,
-    bennet_absint_sym target_sym,
-    bennet_tagged_domain output_domain,
-    bennet_absint_state* state) {
-  if (!term || !state)
-    return state;
+static bennet_tagged_domain congr_basis_shift_forward(
+    cn_term* term, bennet_tagged_domain* base, bennet_tagged_domain* index_or_null) {
+  congr_generic base_g = congr_from_tagged(base);
 
-  /* Bottom output -> propagate bottom to target */
-  if (bennet_tagged_domain_is_bottom_congr(&output_domain)) {
-    return bennet_absint_state_set_congr(bennet_absint_state_copy_congr(state),
-        target_sym,
-        bennet_tagged_domain_bottom_congr(&term->base_type));
+  if (term->type == CN_TERM_ARRAY_SHIFT) {
+    congr_generic index_g = congr_from_tagged(index_or_null);
+
+    /* elem_size as singleton constant */
+    congr_generic elem_g = congr_generic_const(
+        index_g.width, index_g.is_signed, (uint64_t)term->data.array_shift.element_size);
+
+    /* result = base + index * elem_size */
+    congr_generic offset = congr_generic_mul(&index_g, &elem_g);
+    congr_generic result = congr_generic_add(&base_g, &offset);
+    return congr_to_tagged(&result, &term->base_type);
   }
 
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      if (term->data.sym.id == target_sym.id) {
-        return bennet_absint_state_meet_congr(state, target_sym, output_domain);
-      }
-      return bennet_absint_state_copy_congr(state);
+  congr_generic offset_g = congr_generic_const(
+      base_g.width, base_g.is_signed, (uint64_t)term->data.member_shift.offset);
+  congr_generic result = congr_generic_add(&base_g, &offset_g);
+  return congr_to_tagged(&result, &term->base_type);
+}
+
+static bennet_tagged_domain congr_basis_ite_join(
+    bennet_tagged_domain* then_v, bennet_tagged_domain* else_v, cn_base_type* term_type) {
+  /* The legacy walker tags the join with the then-branch's type (the tagged
+   * join uses d1->type), not the ITE node's own type. */
+  (void)term_type;
+  return bennet_tagged_domain_join_congr(then_v, else_v);
+}
+
+static bennet_absint_bw_action congr_basis_backward_unop(cn_unop op,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* operand_fwd,
+    cn_base_type* operand_type,
+    bennet_tagged_domain* down) {
+  (void)operand_fwd; /* used by tnum's BW_COMPL meet-with-operand refinement */
+  if (op == CN_UNOP_NEGATE) {
+    /* out = -operand => operand = -out */
+    congr_generic out_g = congr_from_tagged(out);
+    if (!out_g.is_top) {
+      congr_generic inv = congr_generic_negate(&out_g);
+      *down = congr_to_tagged(&inv, operand_type);
+      return BENNET_ABSINT_BW_DESCEND;
     }
+  }
+  /* Unknown unop: no safe refinement possible */
+  return BENNET_ABSINT_BW_STOP;
+}
 
-    case CN_TERM_BINOP: {
-      cn_term* left = term->data.binop.left;
-      cn_term* right = term->data.binop.right;
-      bool left_has_target = term_contains_sym(left, target_sym.id);
-      bool right_has_target = term_contains_sym(right, target_sym.id);
+static bennet_absint_bw_action congr_basis_backward_binop(cn_binop op,
+    bool target_is_left,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* other_fwd,
+    bennet_tagged_domain* target_fwd,
+    cn_base_type* target_type,
+    bennet_tagged_domain* down) {
+  (void)target_fwd; /* used by tnum's meet-with-target bitwise refinements */
+  congr_generic out_g = congr_from_tagged(out);
+  congr_generic og = congr_from_tagged(other_fwd);
 
-      if (!left_has_target && !right_has_target)
-        return bennet_absint_state_copy_congr(state);
+  if (out_g.is_top || og.is_top) {
+    return BENNET_ABSINT_BW_STOP;
+  }
 
-      /* Comparison ops are handled by backward_assume */
-      switch (term->data.binop.op) {
-        case CN_BINOP_EQ:
-        case CN_BINOP_LT:
-        case CN_BINOP_LE:
-        case CN_BINOP_LT_POINTER:
-        case CN_BINOP_LE_POINTER:
-          return bennet_absint_state_copy_congr(state);
-        default:
-          break;
+  congr_generic inverted;
+  bool did_invert = true;
+
+  switch (op) {
+    case CN_BINOP_ADD:
+      /* out = target + other => target = out - other */
+      inverted = congr_generic_sub(&out_g, &og);
+      break;
+    case CN_BINOP_SUB:
+      if (target_is_left) {
+        /* out = target - other => target = out + other */
+        inverted = congr_generic_add(&out_g, &og);
+      } else {
+        /* out = other - target => target = other - out */
+        inverted = congr_generic_sub(&og, &out_g);
       }
-
-      congr_generic out = congr_from_tagged(&output_domain);
-      cn_term* other = left_has_target ? right : left;
-      cn_term* target_side = left_has_target ? left : right;
-      bennet_tagged_domain other_td = bennet_congr_transform_forward(other, state);
-      congr_generic og = congr_from_tagged(&other_td);
-
-      if (!out.is_top && !og.is_top) {
-        congr_generic inverted;
-        bool did_invert = true;
-
-        switch (term->data.binop.op) {
-          case CN_BINOP_ADD:
-            /* out = target + other => target = out - other */
-            inverted = congr_generic_sub(&out, &og);
-            break;
-          case CN_BINOP_SUB:
-            if (left_has_target) {
-              /* out = target - other => target = out + other */
-              inverted = congr_generic_add(&out, &og);
-            } else {
-              /* out = other - target => target = other - out */
-              inverted = congr_generic_sub(&og, &out);
-            }
-            break;
-          case CN_BINOP_MUL:
-          case CN_BINOP_MULNOSMT:
-            /* Only invertible if other is singleton */
-            if (og.modulus == 0 && og.residue != 0) {
-              inverted = congr_generic_div(&out, &og);
-            } else {
-              did_invert = false;
-            }
-            break;
-          case CN_BINOP_SHIFT_LEFT:
-            if (left_has_target && og.modulus == 0) {
-              /* out = target << k => target = out >> k */
-              inverted = congr_generic_lshr(&out, &og);
-            } else {
-              did_invert = false;
-            }
-            break;
-          case CN_BINOP_SHIFT_RIGHT:
-            did_invert = false;
-            break;
-          case CN_BINOP_DIV:
-          case CN_BINOP_DIVNOSMT:
-            /* out = target / n => target in (out.modulus * n)Z + (out.residue * n) */
-            if (left_has_target && og.modulus == 0 && og.residue == 1) {
-              inverted = out; /* target / 1 = target, trivially exact */
-            } else {
-              did_invert = false;
-            }
-            break;
-          case CN_BINOP_MOD:
-          case CN_BINOP_MODNOSMT:
-          case CN_BINOP_REM:
-          case CN_BINOP_REMNOSMT:
-            /* out = target mod n => target in gcd(out.modulus, n)Z + out.residue */
-            if (left_has_target && og.modulus == 0 && og.residue != 0) {
-              uint64_t n = og.residue;
-              uint64_t g = congr_gcd_64(out.modulus, n);
-              uint64_t res = (g == 0) ? out.residue : (out.residue & (g - 1));
-              congr_xi_norm_64(&g, &res);
-              inverted = (congr_generic){
-                  .is_top = (g == 1),
-                  .is_bottom = false,
-                  .is_signed = out.is_signed,
-                  .width = out.width,
-                  .modulus = g,
-                  .residue = res,
-              };
-            } else {
-              did_invert = false;
-            }
-            break;
-          default:
-            did_invert = false;
-            break;
-        }
-
-        if (did_invert) {
-          bennet_tagged_domain inv_dom =
-              congr_to_tagged(&inverted, &target_side->base_type);
-          return bennet_congr_transform_backward(target_side, target_sym, inv_dom, state);
-        }
+      break;
+    case CN_BINOP_MUL:
+    case CN_BINOP_MULNOSMT:
+      /* Only invertible if other is singleton */
+      if (og.modulus == 0 && og.residue != 0) {
+        inverted = congr_generic_div(&out_g, &og);
+      } else {
+        did_invert = false;
       }
-
-      /* No valid inversion — return unchanged state (sound over-approximation) */
-      return bennet_absint_state_copy_congr(state);
-    }
-
-    case CN_TERM_UNOP: {
-      /* Propagate to operand */
-      if (term->data.unop.op == CN_UNOP_NEGATE) {
-        /* out = -operand => operand = -out */
-        congr_generic out = congr_from_tagged(&output_domain);
-        if (!out.is_top) {
-          congr_generic inv = congr_generic_negate(&out);
-          bennet_tagged_domain inv_dom =
-              congr_to_tagged(&inv, &term->data.unop.operand->base_type);
-          return bennet_congr_transform_backward(
-              term->data.unop.operand, target_sym, inv_dom, state);
-        }
+      break;
+    case CN_BINOP_SHIFT_LEFT:
+      if (target_is_left && og.modulus == 0) {
+        /* out = target << k => target = out >> k */
+        inverted = congr_generic_lshr(&out_g, &og);
+      } else {
+        did_invert = false;
       }
-      /* Unknown unop: no safe refinement possible */
-      return bennet_absint_state_copy_congr(state);
-    }
-
-    case CN_TERM_ITE: {
-      /* Propagate to both branches, join results */
-      bennet_absint_state* then_state = bennet_congr_transform_backward(
-          term->data.ite.then_term, target_sym, output_domain, state);
-      bennet_absint_state* else_state = bennet_congr_transform_backward(
-          term->data.ite.else_term, target_sym, output_domain, state);
-
-      if (bennet_absint_state_is_bottom_congr(then_state))
-        return else_state;
-      if (bennet_absint_state_is_bottom_congr(else_state))
-        return then_state;
-
-      bennet_tagged_domain then_dom =
-          bennet_absint_state_get_congr(then_state, target_sym, &term->base_type);
-      bennet_tagged_domain else_dom =
-          bennet_absint_state_get_congr(else_state, target_sym, &term->base_type);
-      bennet_tagged_domain joined = bennet_tagged_domain_join_congr(&then_dom, &else_dom);
-      return bennet_absint_state_set_congr(state, target_sym, joined);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      cn_term* base = term->data.array_shift.base;
-      cn_term* index = term->data.array_shift.index;
-      bool base_has_target = term_contains_sym(base, target_sym.id);
-      bool index_has_target = term_contains_sym(index, target_sym.id);
-
-      if (!base_has_target && !index_has_target)
-        return bennet_absint_state_copy_congr(state);
-
-      congr_generic out = congr_from_tagged(&output_domain);
-      uint64_t elem_size = (uint64_t)term->data.array_shift.element_size;
-
-      if (base_has_target && !out.is_top && !out.is_bottom) {
-        /* result = base + index * elem_size => base = result - index * elem_size */
-        bennet_tagged_domain index_td = bennet_congr_transform_forward(index, state);
-        congr_generic index_g = congr_from_tagged(&index_td);
-
-        if (!index_g.is_top) {
-          congr_generic elem_g =
-              congr_generic_const(index_g.width, index_g.is_signed, elem_size);
-          congr_generic offset = congr_generic_mul(&index_g, &elem_g);
-          if (!offset.is_top) {
-            congr_generic inv = congr_generic_sub(&out, &offset);
-            bennet_tagged_domain inv_dom = congr_to_tagged(&inv, &base->base_type);
-            return bennet_congr_transform_backward(base, target_sym, inv_dom, state);
-          }
-        }
-        return bennet_congr_transform_backward(base, target_sym, output_domain, state);
+      break;
+    case CN_BINOP_SHIFT_RIGHT:
+      did_invert = false;
+      break;
+    case CN_BINOP_DIV:
+    case CN_BINOP_DIVNOSMT:
+      /* out = target / n => target in (out.modulus * n)Z + (out.residue * n) */
+      if (target_is_left && og.modulus == 0 && og.residue == 1) {
+        inverted = out_g; /* target / 1 = target, trivially exact */
+      } else {
+        did_invert = false;
       }
-
-      if (index_has_target && !out.is_top && !out.is_bottom) {
-        /* result = base + index * elem_size */
-        bennet_tagged_domain base_td = bennet_congr_transform_forward(base, state);
-        congr_generic base_g = congr_from_tagged(&base_td);
-
-        if (!base_g.is_top && elem_size != 0) {
-          /* diff = result - base */
-          congr_generic diff = congr_generic_sub(&out, &base_g);
-          if (!diff.is_top) {
-            /* For congruence: if elem_size divides diff's modulus and residue,
-             * we can refine. Otherwise propagate output. */
-            if (diff.modulus == 0) {
-              /* Singleton diff: index = diff / elem_size (exact if divisible) */
-              if (diff.residue % elem_size == 0) {
-                congr_generic idx_refined =
-                    congr_generic_const(index->base_type.data.bits.size_bits,
-                        index->base_type.data.bits.is_signed,
-                        diff.residue / elem_size);
-                bennet_tagged_domain idx_dom =
-                    congr_to_tagged(&idx_refined, &index->base_type);
-                return bennet_congr_transform_backward(index, target_sym, idx_dom, state);
-              }
-            }
-          }
-        }
-        return bennet_absint_state_copy_congr(state);
+      break;
+    case CN_BINOP_MOD:
+    case CN_BINOP_MODNOSMT:
+    case CN_BINOP_REM:
+    case CN_BINOP_REMNOSMT:
+      /* out = target mod n => target in gcd(out.modulus, n)Z + out.residue */
+      if (target_is_left && og.modulus == 0 && og.residue != 0) {
+        uint64_t n = og.residue;
+        uint64_t g = congr_gcd_64(out_g.modulus, n);
+        uint64_t res = (g == 0) ? out_g.residue : (out_g.residue & (g - 1));
+        congr_xi_norm_64(&g, &res);
+        inverted = (congr_generic){
+            .is_top = (g == 1),
+            .is_bottom = false,
+            .is_signed = out_g.is_signed,
+            .width = out_g.width,
+            .modulus = g,
+            .residue = res,
+        };
+      } else {
+        did_invert = false;
       }
-
-      /* Fallback */
-      cn_term* target_side = base_has_target ? base : index;
-      return bennet_congr_transform_backward(
-          target_side, target_sym, output_domain, state);
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      cn_term* base = term->data.member_shift.base;
-      if (!term_contains_sym(base, target_sym.id))
-        return bennet_absint_state_copy_congr(state);
-
-      congr_generic out = congr_from_tagged(&output_domain);
-      if (!out.is_top && !out.is_bottom) {
-        /* result = base + offset => base = result - offset */
-        congr_generic offset_g = congr_generic_const(
-            out.width, out.is_signed, (uint64_t)term->data.member_shift.offset);
-        congr_generic inv = congr_generic_sub(&out, &offset_g);
-        bennet_tagged_domain inv_dom = congr_to_tagged(&inv, &base->base_type);
-        return bennet_congr_transform_backward(base, target_sym, inv_dom, state);
-      }
-
-      return bennet_congr_transform_backward(base, target_sym, output_domain, state);
-    }
-
-    case CN_TERM_CAST: {
-      cn_term* inner = term->data.cast.value;
-      if (!term_contains_sym(inner, target_sym.id))
-        return bennet_absint_state_copy_congr(state);
-
-      /* Propagate through cast: congruence info transfers across casts */
-      congr_generic out = congr_from_tagged(&output_domain);
-      int src_width = 64;
-      bool src_signed = false;
-      bennet_absint_type_info(&inner->base_type, &src_width, &src_signed);
-      out.width = src_width;
-      out.is_signed = src_signed;
-      congr_xi_norm_64(&out.modulus, &out.residue);
-      out.is_top = (out.modulus == 1);
-      bennet_tagged_domain inner_dom = congr_to_tagged(&out, &inner->base_type);
-      return bennet_congr_transform_backward(inner, target_sym, inner_dom, state);
-    }
-
+      break;
     default:
-      /* Unknown term type: no safe refinement possible */
-      return bennet_absint_state_copy_congr(state);
+      did_invert = false;
+      break;
   }
+
+  if (!did_invert) {
+    return BENNET_ABSINT_BW_STOP;
+  }
+  *down = congr_to_tagged(&inverted, target_type);
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_bw_action congr_basis_backward_cast(cn_base_type* src_type,
+    cn_base_type* dst_type,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* down) {
+  (void)dst_type; /* congruence transfers across casts independent of dst */
+  /* Propagate through cast: congruence info transfers across casts */
+  congr_generic out_g = congr_from_tagged(out);
+  int src_width = 64;
+  bool src_signed = false;
+  bennet_absint_type_info(src_type, &src_width, &src_signed);
+  out_g.width = src_width;
+  out_g.is_signed = src_signed;
+  congr_xi_norm_64(&out_g.modulus, &out_g.residue);
+  out_g.is_top = (out_g.modulus == 1);
+  *down = congr_to_tagged(&out_g, src_type);
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
+    bool target_is_base,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* sibling_fwd,
+    bennet_tagged_domain* target_fwd,
+    bennet_tagged_domain* down) {
+  (void)target_fwd; /* used by wint's array-index meet-with-current path */
+  congr_generic out_g = congr_from_tagged(out);
+
+  if (term->type == CN_TERM_MEMBER_SHIFT) {
+    if (!out_g.is_top && !out_g.is_bottom) {
+      /* result = base + offset => base = result - offset */
+      congr_generic offset_g = congr_generic_const(
+          out_g.width, out_g.is_signed, (uint64_t)term->data.member_shift.offset);
+      congr_generic inv = congr_generic_sub(&out_g, &offset_g);
+      *down = congr_to_tagged(&inv, &term->data.member_shift.base->base_type);
+      return BENNET_ABSINT_BW_DESCEND;
+    }
+    *down = *out;
+    return BENNET_ABSINT_BW_DESCEND;
+  }
+
+  /* ARRAY_SHIFT */
+  cn_term* base = term->data.array_shift.base;
+  cn_term* index = term->data.array_shift.index;
+  uint64_t elem_size = (uint64_t)term->data.array_shift.element_size;
+
+  if (target_is_base) {
+    if (!out_g.is_top && !out_g.is_bottom) {
+      /* result = base + index * elem_size => base = result - index * elem_size */
+      congr_generic index_g = congr_from_tagged(sibling_fwd);
+      if (!index_g.is_top) {
+        congr_generic elem_g =
+            congr_generic_const(index_g.width, index_g.is_signed, elem_size);
+        congr_generic offset = congr_generic_mul(&index_g, &elem_g);
+        if (!offset.is_top) {
+          congr_generic inv = congr_generic_sub(&out_g, &offset);
+          *down = congr_to_tagged(&inv, &base->base_type);
+          return BENNET_ABSINT_BW_DESCEND;
+        }
+      }
+    }
+    /* Both the failed-inversion fallthrough and the top-output fallback
+     * descend into the base with the output unchanged. */
+    *down = *out;
+    return BENNET_ABSINT_BW_DESCEND;
+  }
+
+  /* Target is the index */
+  if (!out_g.is_top && !out_g.is_bottom) {
+    congr_generic base_g = congr_from_tagged(sibling_fwd);
+    if (!base_g.is_top && elem_size != 0) {
+      /* diff = result - base */
+      congr_generic diff = congr_generic_sub(&out_g, &base_g);
+      /* Singleton diff: index = diff / elem_size (exact if divisible) */
+      if (!diff.is_top && diff.modulus == 0 && diff.residue % elem_size == 0) {
+        congr_generic idx_refined =
+            congr_generic_const(index->base_type.data.bits.size_bits,
+                index->base_type.data.bits.is_signed,
+                diff.residue / elem_size);
+        *down = congr_to_tagged(&idx_refined, &index->base_type);
+        return BENNET_ABSINT_BW_DESCEND;
+      }
+    }
+    return BENNET_ABSINT_BW_STOP;
+  }
+  /* Top output: fall back to descending with the output unchanged. */
+  *down = *out;
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_cmp_result congr_basis_assume_cmp(cn_binop op,
+    bool value,
+    bennet_tagged_domain* l_fwd,
+    bennet_tagged_domain* r_fwd,
+    cn_base_type* l_ref_type,
+    cn_base_type* r_ref_type,
+    bennet_tagged_domain* l_ref,
+    bennet_tagged_domain* r_ref) {
+  bennet_absint_cmp_result res = {
+      .has_rule = false, .apply_left = false, .apply_right = false};
+
+  /* a != b, LT, LE, and the pointer comparisons: congruence cannot represent
+   * interval constraints, no refinement. Only a == b refines. */
+  if (op != CN_BINOP_EQ || !value) {
+    return res;
+  }
+
+  /* a == b must be true: meet both domains */
+  congr_generic lg = congr_from_tagged(l_fwd);
+  congr_generic rg = congr_from_tagged(r_fwd);
+  congr_generic met = congr_generic_meet(&lg, &rg);
+
+  *l_ref = congr_to_tagged(&met, l_ref_type);
+  *r_ref = congr_to_tagged(&met, r_ref_type);
+  res.has_rule = true;
+  /* congr pushes unconditionally (no top-refinement skip; that gate is
+   * wint's). */
+  res.apply_left = true;
+  res.apply_right = true;
+  return res;
 }
 
 /*-----------------------------------------------------------------------------
- * Backward Assume (congr)
+ * Engine instantiation: emits bennet_congr_transform_{forward,backward,
+ * backward_assume}
  *---------------------------------------------------------------------------*/
 
-bennet_absint_state* bennet_congr_transform_backward_assume(
-    cn_term* term, bool value, bennet_absint_state* state) {
-  if (!term || !state)
-    return state;
-
-  /* Handle NOT(expr) by recursing with flipped value */
-  if (term->type == CN_TERM_UNOP && term->data.unop.op == CN_UNOP_NOT) {
-    return bennet_congr_transform_backward_assume(term->data.unop.operand, !value, state);
-  }
-
-  /* Handle comparison operators */
-  if (term->type == CN_TERM_BINOP) {
-    cn_term* left = term->data.binop.left;
-    cn_term* right = term->data.binop.right;
-    cn_binop op = term->data.binop.op;
-
-    switch (op) {
-      case CN_BINOP_EQ: {
-        if (value) {
-          /* a == b must be true: meet both domains */
-          bennet_tagged_domain left_td = bennet_congr_transform_forward(left, state);
-          bennet_tagged_domain right_td = bennet_congr_transform_forward(right, state);
-          congr_generic lg = congr_from_tagged(&left_td);
-          congr_generic rg = congr_from_tagged(&right_td);
-          congr_generic met = congr_generic_meet(&lg, &rg);
-
-          if (met.is_bottom) {
-            /* Unsatisfiable: propagate bottom to all syms */
-            bennet_absint_state* bot_state = bennet_absint_state_copy_congr(state);
-            bennet_absint_sym all_syms[16];
-            int nl = congr_term_collect_syms(left, all_syms, 16);
-            int nr = congr_term_collect_syms(right, all_syms + nl, 16 - nl);
-            for (int i = 0; i < nl + nr; i++) {
-              cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-              bot_state = bennet_absint_state_set_congr(
-                  bot_state, all_syms[i], bennet_tagged_domain_bottom_congr(&loc_bt));
-            }
-            return bot_state;
-          }
-
-          /* Apply met to all syms in both sides */
-          bennet_tagged_domain met_td;
-          bennet_absint_state* result = bennet_absint_state_copy_congr(state);
-
-          met_td = congr_to_tagged(
-              &met, left->base_type.tag == CN_BASE_LOC ? &left->base_type : left_td.type);
-          result = congr_backward_apply_to_all_syms(left, &met_td, result);
-
-          met_td = congr_to_tagged(&met,
-              right->base_type.tag == CN_BASE_LOC ? &right->base_type : right_td.type);
-          result = congr_backward_apply_to_all_syms(right, &met_td, result);
-
-          return result;
-        }
-        /* a != b: limited refinement in congruence domain, skip */
-        return bennet_absint_state_copy_congr(state);
-      }
-
-      case CN_BINOP_AND: {
-        if (value) {
-          /* Both sides must be true */
-          bennet_absint_state* result =
-              bennet_congr_transform_backward_assume(left, true, state);
-          return bennet_congr_transform_backward_assume(right, true, result);
-        }
-        return bennet_absint_state_copy_congr(state);
-      }
-
-      case CN_BINOP_OR: {
-        if (!value) {
-          /* Both sides must be false */
-          bennet_absint_state* result =
-              bennet_congr_transform_backward_assume(left, false, state);
-          return bennet_congr_transform_backward_assume(right, false, result);
-        }
-        return bennet_absint_state_copy_congr(state);
-      }
-
-      default:
-        /* LT, LE, etc.: congruence can't represent intervals, no refinement */
-        return bennet_absint_state_copy_congr(state);
-    }
-  }
-
-  return bennet_absint_state_copy_congr(state);
-}
+#define ABSINT_DOM              congr
+#define ABSINT_ASSUME_LOGIC_OPS 1
+#include <bennet/internals/domains/transform.inc.c>
