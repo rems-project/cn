@@ -113,7 +113,9 @@ jobs:
           # file via `(:include ...)`); strip the surrounding parens.
           flags=$(tr -d '()' < runtime/libcn/lib/c_flags.sexp)
           # Use xargs, not `find -exec ... ';'`, so a failing compile fails the step.
-          find runtime/libcn/ -iname '*.c' -print0 \
+          # *.inc.c files are include-templates that #error without ABSINT_DOM,
+          # so they cannot be compiled standalone.
+          find runtime/libcn/ -iname '*.c' ! -iname '*.inc.c' -print0 \
             | xargs -0 -n1 ${{ matrix.compiler }} -c -I runtime/libcn/include/ $flags -o /dev/null
 
       - name: Check C++ compatibility

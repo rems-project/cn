@@ -586,4 +586,16 @@ TEST_F(AbsintOracle, GoldenCardinalities) {
     bennet_tagged_domain rx = bennet_absint_state_get_congr(refined, asym(sx), &u8);
     EXPECT_EQ(gamma_card_u8(kDomains[0], &rx), 64);
   }
+
+  // tnum assume through structure (precision-fix witness): (x & 0xF0) == 0x50 from
+  // top refines x to {0x5?}, i.e. value 0x50 with mask 0x0F -> 16 values.
+  // Before that fix the SYM-only application dropped this refinement
+  // entirely (256 values).
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    cn_term* cond = cn_smt_eq(cn_smt_bw_and(x, u8_const(0xF0)), u8_const(0x50));
+    bennet_absint_state* refined = bennet_tnum_transform_backward_assume(cond, true, st);
+    bennet_tagged_domain rx = bennet_absint_state_get_tnum(refined, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[2], &rx), 16);
+  }
 }

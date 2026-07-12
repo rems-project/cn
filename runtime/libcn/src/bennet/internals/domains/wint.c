@@ -1142,7 +1142,7 @@ BENNET_ABSINT_STATE_IMPL(wint)
 /**
  * Forward transformer for constant term.
  */
-static bennet_tagged_domain wint_forward_const(cn_term* term) {
+static bennet_tagged_domain wint_basis_const(cn_term* term) {
   assert(term && term->type == CN_TERM_CONST);
 
   wint_generic g = {0};
@@ -1186,15 +1186,6 @@ static bennet_tagged_domain wint_forward_const(cn_term* term) {
   }
 
   return wint_to_tagged(&g, &term->base_type);
-}
-
-/**
- * Forward transformer for symbol term.
- */
-static bennet_tagged_domain wint_forward_sym(cn_term* term, bennet_absint_state* state) {
-  assert(term && term->type == CN_TERM_SYM);
-  bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
-  return bennet_absint_state_get_wint(state, sym, &term->base_type);
 }
 
 /**
@@ -1261,7 +1252,7 @@ static wint_generic wint_forward_bitwise_binop(cn_binop op,
 /**
  * Forward transformer for binary operations.
  */
-static bennet_tagged_domain wint_forward_binop(cn_binop op,
+static bennet_tagged_domain wint_basis_forward_binop(cn_binop op,
     bennet_tagged_domain* left,
     bennet_tagged_domain* right,
     cn_base_type* result_type) {
@@ -1834,7 +1825,7 @@ static bennet_tagged_domain wint_forward_binop(cn_binop op,
 /**
  * Forward transformer for unary operations.
  */
-static bennet_tagged_domain wint_forward_unop(
+static bennet_tagged_domain wint_basis_forward_unop(
     cn_unop op, bennet_tagged_domain* operand, cn_base_type* result_type) {
   wint_generic g = wint_from_tagged(operand);
   wint_generic result = {0};
@@ -1908,792 +1899,564 @@ static bennet_tagged_domain wint_forward_unop(
   return wint_to_tagged(&result, result_type);
 }
 
-/**
- * Forward transformer - main entry point.
- */
-bennet_tagged_domain bennet_wint_transform_forward(
-    cn_term* term, bennet_absint_state* state) {
-  if (!term) {
-    // Return top for null term
-    cn_base_type bt = cn_base_type_bits(false, 64);
-    return bennet_tagged_domain_top_wint(&bt);
+/*-----------------------------------------------------------------------------
+ * Transformer basis (consumed by the engine template, transform.inc.c)
+ *
+ * These are the wint-specific transfer functions of the shared cn_term
+ * walker engine; the traversal, gating, and refinement-application order
+ * live in the template. Bodies are the former hand-written walkers' case
+ * arms, unchanged (parity gated by test/bennet/absint_difftest.cpp).
+ *
+ * Legacy wint behaviors preserved at parity:
+ *  - ABSINT_ASSUME_LOGIC_OPS 0: the legacy AND/OR handling was unreachable
+ *    dead code (defect D1 - the comparison block returned for every binop),
+ *    so assume makes no refinement through conjunctions/disjunctions;
+ *  - backward unops descend with the output unchanged (including NEGATE -
+ *    dubious but existing behavior, flagged for the P6 semantic pass);
+ *  - backward ADD/SUB fall back to descending with the output unchanged
+ *    when either side's bounds are top.
+ *---------------------------------------------------------------------------*/
+
+#include <bennet/internals/domains/transform_template.h>
+
+static bennet_tagged_domain wint_basis_forward_cast(
+    cn_base_type* to, bennet_tagged_domain* v) {
+  /* Source and destination type metadata */
+  int src_width, dst_width;
+  bool src_signed, dst_signed;
+  bennet_absint_type_info(v->type, &src_width, &src_signed);
+  bennet_absint_type_info(to, &dst_width, &dst_signed);
+
+  wint_generic src = wint_from_tagged(v);
+
+  /* Bottom propagates */
+  if (src.is_bottom) {
+    wint_generic bot = wint_generic_bottom(to);
+    return wint_to_tagged(&bot, to);
   }
 
-  switch (term->type) {
-    case CN_TERM_CONST:
-      return wint_forward_const(term);
-
-    case CN_TERM_SYM:
-      return wint_forward_sym(term, state);
-
-    case CN_TERM_UNOP: {
-      bennet_tagged_domain operand_dom =
-          bennet_wint_transform_forward(term->data.unop.operand, state);
-      return wint_forward_unop(term->data.unop.op, &operand_dom, &term->base_type);
+  if (src_width == dst_width) {
+    /* Same-width: just change type metadata */
+    src.is_signed = dst_signed;
+    src.width = dst_width;
+    return wint_to_tagged(&src, to);
+  } else if (src_width > dst_width) {
+    /* Truncation */
+    if (src.is_top) {
+      return bennet_tagged_domain_top_wint(to);
     }
-
-    case CN_TERM_BINOP: {
-      bennet_tagged_domain left_dom =
-          bennet_wint_transform_forward(term->data.binop.left, state);
-      bennet_tagged_domain right_dom =
-          bennet_wint_transform_forward(term->data.binop.right, state);
-      return wint_forward_binop(
-          term->data.binop.op, &left_dom, &right_dom, &term->base_type);
+    /* If cardinality >= 2^dst_width the truncated range covers everything */
+    uint64_t card = wint_cardinality(src.start, src.stop, src_width);
+    if (dst_width < 64 && card >= ((uint64_t)1 << dst_width)) {
+      return bennet_tagged_domain_top_wint(to);
     }
-
-    case CN_TERM_ITE: {
-      bennet_tagged_domain then_dom =
-          bennet_wint_transform_forward(term->data.ite.then_term, state);
-      bennet_tagged_domain else_dom =
-          bennet_wint_transform_forward(term->data.ite.else_term, state);
-      return bennet_tagged_domain_join_wint(&then_dom, &else_dom);
+    /* Mask both bounds to dst_width bits */
+    uint64_t mask = (dst_width >= 64) ? UINT64_MAX : (((uint64_t)1 << dst_width) - 1);
+    int64_t new_start = (int64_t)((uint64_t)src.start & mask);
+    int64_t new_stop = (int64_t)((uint64_t)src.stop & mask);
+    wint_generic result = {.is_top = false,
+        .is_bottom = false,
+        .is_signed = dst_signed,
+        .width = dst_width,
+        .start = new_start,
+        .stop = new_stop};
+    return wint_to_tagged(&result, to);
+  } else {
+    /* Extension (src_width < dst_width) */
+    if (src_signed) {
+      /* Sign extension: if sign bit set, fill upper bits with 1s */
+      int64_t sign_bit = (int64_t)1 << (src_width - 1);
+      int64_t upper_ones = (int64_t)(UINT64_MAX << src_width);
+      int64_t new_start = (src.start & sign_bit) ? (src.start | upper_ones) : src.start;
+      int64_t new_stop = (src.stop & sign_bit) ? (src.stop | upper_ones) : src.stop;
+      wint_generic result = {.is_top = false,
+          .is_bottom = false,
+          .is_signed = dst_signed,
+          .width = dst_width,
+          .start = new_start,
+          .stop = new_stop};
+      return wint_to_tagged(&result, to);
+    } else {
+      /* Zero extension: upper bits are implicitly 0, preserve interval */
+      src.is_signed = dst_signed;
+      src.width = dst_width;
+      return wint_to_tagged(&src, to);
     }
+  }
+}
 
-    case CN_TERM_CAST: {
-      /* Recursively evaluate the inner term */
-      bennet_tagged_domain src_dom =
-          bennet_wint_transform_forward(term->data.cast.value, state);
+static bennet_tagged_domain wint_basis_shift_forward(
+    cn_term* term, bennet_tagged_domain* base, bennet_tagged_domain* index_or_null) {
+  if (term->type == CN_TERM_ARRAY_SHIFT) {
+    // Create constant domain for element_size
+    wint_generic elem_size_g = {0};
+    int idx_width;
+    bool idx_signed;
+    bennet_absint_type_info(index_or_null->type, &idx_width, &idx_signed);
+    elem_size_g.width = idx_width;
+    elem_size_g.is_signed = idx_signed;
+    elem_size_g.start = (int64_t)term->data.array_shift.element_size;
+    elem_size_g.stop = (int64_t)term->data.array_shift.element_size;
+    bennet_tagged_domain elem_size_dom =
+        wint_to_tagged(&elem_size_g, index_or_null->type);
 
-      /* Source and destination type metadata */
-      int src_width, dst_width;
-      bool src_signed, dst_signed;
-      bennet_absint_type_info(src_dom.type, &src_width, &src_signed);
-      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
+    // index * element_size
+    bennet_tagged_domain offset_dom = wint_basis_forward_binop(
+        CN_BINOP_MUL, index_or_null, &elem_size_dom, index_or_null->type);
 
-      wint_generic src = wint_from_tagged(&src_dom);
+    // base + offset
+    return wint_basis_forward_binop(CN_BINOP_ADD, base, &offset_dom, &term->base_type);
+  }
 
-      /* Bottom propagates */
-      if (src.is_bottom) {
-        wint_generic bot = wint_generic_bottom(&term->base_type);
-        return wint_to_tagged(&bot, &term->base_type);
-      }
+  // Create constant domain for offset
+  wint_generic offset_g = {0};
+  int base_width;
+  bool base_signed;
+  bennet_absint_type_info(base->type, &base_width, &base_signed);
+  offset_g.width = base_width;
+  offset_g.is_signed = base_signed;
+  offset_g.start = (int64_t)term->data.member_shift.offset;
+  offset_g.stop = (int64_t)term->data.member_shift.offset;
+  bennet_tagged_domain offset_dom = wint_to_tagged(&offset_g, base->type);
 
-      if (src_width == dst_width) {
-        /* Same-width: just change type metadata */
-        src.is_signed = dst_signed;
-        src.width = dst_width;
-        return wint_to_tagged(&src, &term->base_type);
-      } else if (src_width > dst_width) {
-        /* Truncation */
-        if (src.is_top) {
-          return bennet_tagged_domain_top_wint(&term->base_type);
-        }
-        /* If cardinality >= 2^dst_width the truncated range covers everything */
-        uint64_t card = wint_cardinality(src.start, src.stop, src_width);
-        if (dst_width < 64 && card >= ((uint64_t)1 << dst_width)) {
-          return bennet_tagged_domain_top_wint(&term->base_type);
-        }
-        /* Mask both bounds to dst_width bits */
-        uint64_t mask = (dst_width >= 64) ? UINT64_MAX : (((uint64_t)1 << dst_width) - 1);
-        int64_t new_start = (int64_t)((uint64_t)src.start & mask);
-        int64_t new_stop = (int64_t)((uint64_t)src.stop & mask);
-        wint_generic result = {.is_top = false,
-            .is_bottom = false,
-            .is_signed = dst_signed,
-            .width = dst_width,
-            .start = new_start,
-            .stop = new_stop};
-        return wint_to_tagged(&result, &term->base_type);
-      } else {
-        /* Extension (src_width < dst_width) */
-        if (src_signed) {
-          /* Sign extension: if sign bit set, fill upper bits with 1s */
-          int64_t sign_bit = (int64_t)1 << (src_width - 1);
-          int64_t upper_ones = (int64_t)(UINT64_MAX << src_width);
-          int64_t new_start =
-              (src.start & sign_bit) ? (src.start | upper_ones) : src.start;
-          int64_t new_stop = (src.stop & sign_bit) ? (src.stop | upper_ones) : src.stop;
-          wint_generic result = {.is_top = false,
-              .is_bottom = false,
-              .is_signed = dst_signed,
-              .width = dst_width,
-              .start = new_start,
-              .stop = new_stop};
-          return wint_to_tagged(&result, &term->base_type);
+  // base + offset
+  return wint_basis_forward_binop(CN_BINOP_ADD, base, &offset_dom, &term->base_type);
+}
+
+static bennet_tagged_domain wint_basis_ite_join(
+    bennet_tagged_domain* then_v, bennet_tagged_domain* else_v, cn_base_type* term_type) {
+  /* The legacy walker tags the join with the then-branch's type (the tagged
+   * join uses d1->type), not the ITE node's own type. */
+  (void)term_type;
+  return bennet_tagged_domain_join_wint(then_v, else_v);
+}
+
+static bennet_absint_bw_action wint_basis_backward_unop(cn_unop op,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* operand_fwd,
+    cn_base_type* operand_type,
+    bennet_tagged_domain* down) {
+  /* Legacy behavior: propagate to the operand with the output unchanged for
+   * every unop (including NEGATE, whose forward transfer is precise - a
+   * suspected pre-existing imprecision/unsoundness pair kept at parity and
+   * flagged for the P6 semantic pass). */
+  (void)op;
+  (void)operand_fwd;
+  (void)operand_type;
+  *down = *out;
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_bw_action wint_basis_backward_binop(cn_binop op,
+    bool target_is_left,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* other_fwd,
+    bennet_tagged_domain* target_fwd,
+    cn_base_type* target_type,
+    bennet_tagged_domain* down) {
+  (void)target_fwd;
+  wint_generic out_g = wint_from_tagged(out);
+  wint_generic og = wint_from_tagged(other_fwd);
+
+  // Only invert when other side is non-top (we have concrete bounds)
+  if (!out_g.is_top && !og.is_top) {
+    wint_generic inverted = {.width = out_g.width, .is_signed = out_g.is_signed};
+    switch (op) {
+      case CN_BINOP_ADD:
+        // out = target + other => target = out - other
+        inverted.start = out_g.start - og.stop;
+        inverted.stop = out_g.stop - og.start;
+        break;
+      case CN_BINOP_SUB:
+        if (target_is_left) {
+          // out = target - other => target = out + other
+          inverted.start = out_g.start + og.start;
+          inverted.stop = out_g.stop + og.stop;
         } else {
-          /* Zero extension: upper bits are implicitly 0, preserve interval */
-          src.is_signed = dst_signed;
-          src.width = dst_width;
-          return wint_to_tagged(&src, &term->base_type);
+          // out = other - target => target = other - out
+          inverted.start = og.start - out_g.stop;
+          inverted.stop = og.stop - out_g.start;
+        }
+        break;
+      default:
+        // For non-invertible ops (MOD, etc.), don't propagate
+        return BENNET_ABSINT_BW_STOP;
+    }
+    *down = wint_to_tagged(&inverted, target_type);
+    return BENNET_ABSINT_BW_DESCEND;
+  }
+
+  // Fallback: propagate output unchanged for ADD/SUB only
+  switch (op) {
+    case CN_BINOP_ADD:
+    case CN_BINOP_SUB:
+      *down = *out;
+      return BENNET_ABSINT_BW_DESCEND;
+    default:
+      return BENNET_ABSINT_BW_STOP;
+  }
+}
+
+static bennet_absint_bw_action wint_basis_backward_cast(cn_base_type* src_type,
+    cn_base_type* dst_type,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* down) {
+  // Clamp output domain to source type range and meet, then recurse
+  int src_width, dst_width;
+  bool src_signed, dst_signed;
+  bennet_absint_type_info(src_type, &src_width, &src_signed);
+  bennet_absint_type_info(dst_type, &dst_width, &dst_signed);
+  (void)dst_signed;
+
+  wint_generic out_g = wint_from_tagged(out);
+  if (!out_g.is_top && !out_g.is_bottom) {
+    int64_t src_min = wint_get_min(src_signed, src_width);
+    int64_t src_max = wint_get_max(src_signed, src_width);
+
+    if (src_width < dst_width) {
+      // Widening cast: intersect in destination (wider) width to avoid
+      // mod-2^src_width wrap-around corruption of 64-bit interval bounds
+      wint_generic clamped_wide = {.width = dst_width,
+          .is_signed = out_g.is_signed,
+          .start = src_min,
+          .stop = src_max};
+      wint_generic refined_wide = wint_generic_meet(&out_g, &clamped_wide);
+      if (refined_wide.is_bottom) {
+        *down = wint_to_tagged(&refined_wide, src_type);
+        return BENNET_ABSINT_BW_DESCEND;
+      }
+      // Result values are within [src_min, src_max], safe to narrow width
+      wint_generic refined = {.width = src_width,
+          .is_signed = src_signed,
+          .start = refined_wide.start,
+          .stop = refined_wide.stop};
+      *down = wint_to_tagged(&refined, src_type);
+      return BENNET_ABSINT_BW_DESCEND;
+    }
+
+    // Same-width or narrowing cast: original logic (values fit in src_width)
+    wint_generic clamped = {
+        .width = src_width, .is_signed = src_signed, .start = src_min, .stop = src_max};
+    wint_generic out_in_src = {.width = src_width,
+        .is_signed = src_signed,
+        .start = out_g.start,
+        .stop = out_g.stop};
+    wint_generic refined = wint_generic_meet(&out_in_src, &clamped);
+    *down = wint_to_tagged(&refined, src_type);
+    return BENNET_ABSINT_BW_DESCEND;
+  }
+  // If output is top or bottom, just propagate as-is
+  *down = wint_to_tagged(&out_g, src_type);
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_bw_action wint_basis_shift_backward(cn_term* term,
+    bool target_is_base,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* sibling_fwd,
+    bennet_tagged_domain* target_fwd,
+    bennet_tagged_domain* down) {
+  wint_generic out_g = wint_from_tagged(out);
+
+  if (term->type == CN_TERM_MEMBER_SHIFT) {
+    cn_term* base = term->data.member_shift.base;
+    if (!out_g.is_top && !out_g.is_bottom) {
+      // result = base + offset => base = result - offset
+      int64_t offset = (int64_t)term->data.member_shift.offset;
+      wint_generic inverted = {.width = out_g.width,
+          .is_signed = out_g.is_signed,
+          .start = out_g.start - offset,
+          .stop = out_g.stop - offset};
+      *down = wint_to_tagged(&inverted, &base->base_type);
+      return BENNET_ABSINT_BW_DESCEND;
+    }
+    // If output is top or bottom, propagate unchanged
+    *down = *out;
+    return BENNET_ABSINT_BW_DESCEND;
+  }
+
+  /* ARRAY_SHIFT */
+  cn_term* base = term->data.array_shift.base;
+  cn_term* index = term->data.array_shift.index;
+  int64_t elem_size = (int64_t)term->data.array_shift.element_size;
+
+  if (target_is_base) {
+    if (!out_g.is_top && !out_g.is_bottom) {
+      // result = base + index * elem_size => base = result - index * elem_size
+      wint_generic index_g = wint_from_tagged(sibling_fwd);
+
+      if (!index_g.is_top) {
+        // Create constant elem_size domain with index's type info
+        int idx_width;
+        bool idx_signed;
+        bennet_absint_type_info(&index->base_type, &idx_width, &idx_signed);
+        wint_generic elem_g = {.width = idx_width,
+            .is_signed = idx_signed,
+            .start = elem_size,
+            .stop = elem_size};
+        bennet_tagged_domain elem_dom = wint_to_tagged(&elem_g, &index->base_type);
+
+        // offset = index * elem_size
+        bennet_tagged_domain offset_dom = wint_basis_forward_binop(
+            CN_BINOP_MUL, sibling_fwd, &elem_dom, &term->base_type);
+        wint_generic offset_g = wint_from_tagged(&offset_dom);
+
+        if (!offset_g.is_top) {
+          // base = result - offset
+          wint_generic inverted = {.width = out_g.width,
+              .is_signed = out_g.is_signed,
+              .start = out_g.start - offset_g.stop,
+              .stop = out_g.stop - offset_g.start};
+          *down = wint_to_tagged(&inverted, &base->base_type);
+          return BENNET_ABSINT_BW_DESCEND;
         }
       }
     }
+    // Fallback: propagate output unchanged
+    *down = *out;
+    return BENNET_ABSINT_BW_DESCEND;
+  }
 
-    case CN_TERM_ARRAY_SHIFT: {
-      bennet_tagged_domain base_dom =
-          bennet_wint_transform_forward(term->data.array_shift.base, state);
-      bennet_tagged_domain index_dom =
-          bennet_wint_transform_forward(term->data.array_shift.index, state);
+  /* Target is the index */
+  if (!out_g.is_top && !out_g.is_bottom) {
+    // result = base + index * elem_size => index = (result - base) / elem_size
+    wint_generic base_g = wint_from_tagged(sibling_fwd);
 
-      // Create constant domain for element_size
-      wint_generic elem_size_g = {0};
-      int idx_width;
-      bool idx_signed;
-      bennet_absint_type_info(index_dom.type, &idx_width, &idx_signed);
-      elem_size_g.width = idx_width;
-      elem_size_g.is_signed = idx_signed;
-      elem_size_g.start = (int64_t)term->data.array_shift.element_size;
-      elem_size_g.stop = (int64_t)term->data.array_shift.element_size;
-      bennet_tagged_domain elem_size_dom = wint_to_tagged(&elem_size_g, index_dom.type);
+    if (!base_g.is_top && elem_size != 0) {
+      // diff = result - base (in index's type)
+      bennet_tagged_domain out_as_idx = wint_to_tagged(&out_g, &index->base_type);
+      bennet_tagged_domain base_as_idx = wint_to_tagged(&base_g, &index->base_type);
+      bennet_tagged_domain diff_dom = wint_basis_forward_binop(
+          CN_BINOP_SUB, &out_as_idx, &base_as_idx, &index->base_type);
+      wint_generic diff_g = wint_from_tagged(&diff_dom);
 
-      // index * element_size
-      bennet_tagged_domain offset_dom =
-          wint_forward_binop(CN_BINOP_MUL, &index_dom, &elem_size_dom, index_dom.type);
+      if (!diff_g.is_top) {
+        // Create constant elem_size domain
+        int idx_width;
+        bool idx_signed;
+        bennet_absint_type_info(&index->base_type, &idx_width, &idx_signed);
+        wint_generic elem_g = {.width = idx_width,
+            .is_signed = idx_signed,
+            .start = elem_size,
+            .stop = elem_size};
+        bennet_tagged_domain elem_dom = wint_to_tagged(&elem_g, &index->base_type);
 
-      // base + offset
-      return wint_forward_binop(CN_BINOP_ADD, &base_dom, &offset_dom, &term->base_type);
+        // refined_index = diff / elem_size
+        bennet_tagged_domain refined_dom = wint_basis_forward_binop(
+            CN_BINOP_DIV, &diff_dom, &elem_dom, &index->base_type);
+        wint_generic refined_g = wint_from_tagged(&refined_dom);
+
+        if (!refined_g.is_top) {
+          // Meet with current index domain
+          wint_generic cur_index_g = wint_from_tagged(target_fwd);
+          wint_generic met = wint_generic_meet(&cur_index_g, &refined_g);
+          *down = wint_to_tagged(&met, &index->base_type);
+          return BENNET_ABSINT_BW_DESCEND;
+        }
+      }
+    }
+  }
+  // Fallback: propagate output unchanged
+  *down = *out;
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_cmp_result wint_basis_assume_cmp(cn_binop op,
+    bool value,
+    bennet_tagged_domain* l_fwd,
+    bennet_tagged_domain* r_fwd,
+    cn_base_type* l_ref_type,
+    cn_base_type* r_ref_type,
+    bennet_tagged_domain* l_ref,
+    bennet_tagged_domain* r_ref) {
+  bennet_absint_cmp_result res = {
+      .has_rule = false, .apply_left = false, .apply_right = false};
+
+  wint_generic lg = wint_from_tagged(l_fwd);
+  wint_generic rg = wint_from_tagged(r_fwd);
+  wint_generic lg_refined = lg;
+  wint_generic rg_refined = rg;
+
+  int width = lg.width;
+
+  switch (op) {
+    case CN_BINOP_EQ: {
+      if (value) {
+        // a == b must be true: meet both domains
+        wint_generic meet = wint_generic_meet(&lg, &rg);
+        lg_refined = meet;
+        rg_refined = meet;
+      } else {
+        // a != b must be true: if one is constant at boundary, remove from other
+        if (lg.start == lg.stop) {
+          // Left is constant
+          int64_t c = lg.start;
+          if (rg.start == c) {
+            rg_refined.start = c + 1;
+            rg_refined.is_top = false;
+          } else if (rg.stop == c) {
+            rg_refined.stop = c - 1;
+            rg_refined.is_top = false;
+          }
+        } else if (rg.start == rg.stop) {
+          // Right is constant
+          int64_t c = rg.start;
+          if (lg.start == c) {
+            lg_refined.start = c + 1;
+            lg_refined.is_top = false;
+          } else if (lg.stop == c) {
+            lg_refined.stop = c - 1;
+            lg_refined.is_top = false;
+          }
+        }
+      }
+      break;
     }
 
-    case CN_TERM_MEMBER_SHIFT: {
-      bennet_tagged_domain base_dom =
-          bennet_wint_transform_forward(term->data.member_shift.base, state);
+    case CN_BINOP_LE:
+    case CN_BINOP_LE_POINTER: {
+      bool is_signed = lg.is_signed;
+      if (value) {
+        // a <= b must be true
+        // Refine left upper bound: [min, b.stop]
+        if (!rg.is_top) {
+          if (lg.is_top) {
+            lg_refined.start = wint_get_min(is_signed, width);
+            lg_refined.stop = rg.stop;
+            lg_refined.is_top = false;
+          } else {
+            lg_refined.stop = (lg_refined.stop < rg.stop) ? lg_refined.stop : rg.stop;
+          }
+        }
+        // Refine right lower bound: [a.start, max]
+        if (!lg.is_top) {
+          if (rg.is_top) {
+            rg_refined.start = lg.start;
+            rg_refined.stop = wint_get_max(is_signed, width);
+            rg_refined.is_top = false;
+          } else {
+            rg_refined.start =
+                (rg_refined.start > lg.start) ? rg_refined.start : lg.start;
+          }
+        }
+      } else {
+        // a > b must be true
+        // Refine left lower bound: [b.start + 1, max]
+        if (!rg.is_top) {
+          int64_t new_lg_start = rg.start + 1;
+          if (lg.is_top) {
+            lg_refined.start = new_lg_start;
+            lg_refined.stop = wint_get_max(is_signed, width);
+            lg_refined.is_top = false;
+          } else if (new_lg_start > lg_refined.start) {
+            lg_refined.start = new_lg_start;
+          }
+        }
+        // Refine right upper bound: [min, a.stop - 1]
+        if (!lg.is_top) {
+          int64_t new_rg_stop = lg.stop - 1;
+          if (rg.is_top) {
+            rg_refined.start = wint_get_min(is_signed, width);
+            rg_refined.stop = new_rg_stop;
+            rg_refined.is_top = false;
+          } else if (new_rg_stop < rg_refined.stop) {
+            rg_refined.stop = new_rg_stop;
+          }
+        }
+      }
+      break;
+    }
 
-      // Create constant domain for offset
-      wint_generic offset_g = {0};
-      int base_width;
-      bool base_signed;
-      bennet_absint_type_info(base_dom.type, &base_width, &base_signed);
-      offset_g.width = base_width;
-      offset_g.is_signed = base_signed;
-      offset_g.start = (int64_t)term->data.member_shift.offset;
-      offset_g.stop = (int64_t)term->data.member_shift.offset;
-      bennet_tagged_domain offset_dom = wint_to_tagged(&offset_g, base_dom.type);
-
-      // base + offset
-      return wint_forward_binop(CN_BINOP_ADD, &base_dom, &offset_dom, &term->base_type);
+    case CN_BINOP_LT:
+    case CN_BINOP_LT_POINTER: {
+      bool is_signed = lg.is_signed;
+      if (value) {
+        // a < b must be true
+        // Refine left upper bound: [min, b.stop - 1]
+        if (!rg.is_top) {
+          int64_t new_lg_stop = rg.stop - 1;
+          if (lg.is_top) {
+            lg_refined.start = wint_get_min(is_signed, width);
+            lg_refined.stop = new_lg_stop;
+            lg_refined.is_top = false;
+          } else if (new_lg_stop < lg_refined.stop) {
+            lg_refined.stop = new_lg_stop;
+          }
+        }
+        // Refine right lower bound: [a.start + 1, max]
+        if (!lg.is_top) {
+          int64_t new_rg_start = lg.start + 1;
+          if (rg.is_top) {
+            rg_refined.start = new_rg_start;
+            rg_refined.stop = wint_get_max(is_signed, width);
+            rg_refined.is_top = false;
+          } else if (new_rg_start > rg_refined.start) {
+            rg_refined.start = new_rg_start;
+          }
+        }
+      } else {
+        // a >= b must be true
+        // Refine left lower bound: [b.start, max]
+        if (!rg.is_top) {
+          if (lg.is_top) {
+            lg_refined.start = rg.start;
+            lg_refined.stop = wint_get_max(is_signed, width);
+            lg_refined.is_top = false;
+          } else if (rg.start > lg_refined.start) {
+            lg_refined.start = rg.start;
+          }
+        }
+        // Refine right upper bound: [min, a.stop]
+        if (!lg.is_top) {
+          if (rg.is_top) {
+            rg_refined.start = wint_get_min(is_signed, width);
+            rg_refined.stop = lg.stop;
+            rg_refined.is_top = false;
+          } else if (lg.stop < rg_refined.stop) {
+            rg_refined.stop = lg.stop;
+          }
+        }
+      }
+      break;
     }
 
     default:
-      // For unsupported term types, return top
-      return bennet_tagged_domain_top_wint(&term->base_type);
-  }
-}
-
-/**
- * Collect all sym IDs from a term into a fixed-size buffer.
- * Returns the number of syms found (up to max_syms).
- */
-static int term_collect_syms(cn_term* term, bennet_absint_sym* syms, int max_syms) {
-  if (!term || max_syms <= 0) {
-    return 0;
+      // Other binary operations - no refinement
+      return res;
   }
 
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      syms[0] = (bennet_absint_sym){.name = term->data.sym.name, .id = term->data.sym.id};
-      return 1;
+  // Check for empty intervals using unsigned comparison.
+  // Use the ORIGINAL interval for the wrapping check: if the original
+  // didn't wrap but refinement made start > stop, the result is empty.
+  {
+    uint64_t lg_start_u = wint_normalize_unsigned(lg_refined.start, width);
+    uint64_t lg_stop_u = wint_normalize_unsigned(lg_refined.stop, width);
+    if (lg_start_u > lg_stop_u && !wint_crosses_south(lg.start, lg.stop, width)) {
+      lg_refined.is_bottom = true;
     }
-    case CN_TERM_UNOP:
-      return term_collect_syms(term->data.unop.operand, syms, max_syms);
-    case CN_TERM_BINOP: {
-      int n = term_collect_syms(term->data.binop.left, syms, max_syms);
-      n += term_collect_syms(term->data.binop.right, syms + n, max_syms - n);
-      return n;
-    }
-    case CN_TERM_CAST:
-      return term_collect_syms(term->data.cast.value, syms, max_syms);
-    case CN_TERM_ITE: {
-      int n = term_collect_syms(term->data.ite.then_term, syms, max_syms);
-      n += term_collect_syms(term->data.ite.else_term, syms + n, max_syms - n);
-      return n;
-    }
-    case CN_TERM_ARRAY_SHIFT: {
-      int n = term_collect_syms(term->data.array_shift.base, syms, max_syms);
-      n += term_collect_syms(term->data.array_shift.index, syms + n, max_syms - n);
-      return n;
-    }
-    case CN_TERM_MEMBER_SHIFT:
-      return term_collect_syms(term->data.member_shift.base, syms, max_syms);
-    default:
-      return 0;
   }
-}
-
-/**
- * Apply a refined domain to all SYMs in a term by calling transform_backward
- * for each SYM found. Accumulates refinements into the state.
- */
-static bennet_absint_state* backward_apply_to_all_syms(
-    cn_term* term, bennet_tagged_domain* refined_dom, bennet_absint_state* state) {
-  bennet_absint_sym syms[16];
-  int n = term_collect_syms(term, syms, 16);
-
-  bennet_absint_state* result = state;
-  for (int i = 0; i < n; i++) {
-    result = bennet_wint_transform_backward(term, syms[i], *refined_dom, result);
+  {
+    uint64_t rg_start_u = wint_normalize_unsigned(rg_refined.start, width);
+    uint64_t rg_stop_u = wint_normalize_unsigned(rg_refined.stop, width);
+    if (rg_start_u > rg_stop_u && !wint_crosses_south(rg.start, rg.stop, width)) {
+      rg_refined.is_bottom = true;
+    }
   }
-  return result;
+
+  *l_ref = wint_to_tagged(&lg_refined, l_ref_type);
+  *r_ref = wint_to_tagged(&rg_refined, r_ref_type);
+  res.has_rule = true;
+  /* wint skips pushing top refinements (the legacy is_top gates). */
+  res.apply_left = !lg_refined.is_top;
+  res.apply_right = !rg_refined.is_top;
+  return res;
 }
 
 /*-----------------------------------------------------------------------------
- * Backward Transformer Implementation
+ * Engine instantiation: emits bennet_wint_transform_{forward,backward,
+ * backward_assume}
  *---------------------------------------------------------------------------*/
 
-bennet_absint_state* bennet_wint_transform_backward(cn_term* term,
-    bennet_absint_sym target_sym,
-    bennet_tagged_domain output_domain,
-    bennet_absint_state* state) {
-  if (!term || !state) {
-    return state;
-  }
-
-  // Check if output domain is bottom - if so, whole state is bottom
-  if (bennet_tagged_domain_is_bottom_wint(&output_domain)) {
-    bennet_absint_state* result = bennet_absint_state_copy_wint(state);
-    // Mark the state as bottom by setting target_sym to bottom
-    result = bennet_absint_state_set_wint(
-        result, target_sym, bennet_tagged_domain_bottom_wint(&term->base_type));
-    return result;
-  }
-
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      // If this symbol is our target, meet with output domain
-      if (term->data.sym.id == target_sym.id) {
-        return bennet_absint_state_meet_wint(state, target_sym, output_domain);
-      }
-      return bennet_absint_state_copy_wint(state);
-    }
-
-    case CN_TERM_BINOP: {
-      cn_term* left = term->data.binop.left;
-      cn_term* right = term->data.binop.right;
-      bool left_has_target = term_contains_sym(left, target_sym.id);
-      bool right_has_target = term_contains_sym(right, target_sym.id);
-
-      if (!left_has_target && !right_has_target) {
-        return bennet_absint_state_copy_wint(state);
-      }
-
-      // For comparison operations, handle specially
-      switch (term->data.binop.op) {
-        case CN_BINOP_EQ:
-        case CN_BINOP_LT:
-        case CN_BINOP_LE:
-        case CN_BINOP_LT_POINTER:
-        case CN_BINOP_LE_POINTER: {
-          // These are handled by backward_assume
-          return bennet_absint_state_copy_wint(state);
-        }
-        default:
-          break;
-      }
-
-      // For arithmetic operations, invert the operation to propagate backward.
-      // Given output domain [L, R] for op(a, b), compute the domain for the
-      // operand containing the target sym.
-      {
-        wint_generic out = wint_from_tagged(&output_domain);
-        cn_term* other = left_has_target ? right : left;
-        cn_term* target_side = left_has_target ? left : right;
-        bennet_tagged_domain other_dom = bennet_wint_transform_forward(other, state);
-        wint_generic og = wint_from_tagged(&other_dom);
-
-        // Only invert when other side is non-top (we have concrete bounds)
-        if (!out.is_top && !og.is_top) {
-          wint_generic inverted = {.width = out.width, .is_signed = out.is_signed};
-          switch (term->data.binop.op) {
-            case CN_BINOP_ADD:
-              // out = target + other => target = out - other
-              inverted.start = out.start - og.stop;
-              inverted.stop = out.stop - og.start;
-              break;
-            case CN_BINOP_SUB:
-              if (left_has_target) {
-                // out = target - other => target = out + other
-                inverted.start = out.start + og.start;
-                inverted.stop = out.stop + og.stop;
-              } else {
-                // out = other - target => target = other - out
-                inverted.start = og.start - out.stop;
-                inverted.stop = og.stop - out.start;
-              }
-              break;
-            default:
-              // For non-invertible ops (MOD, etc.), don't propagate
-              return bennet_absint_state_copy_wint(state);
-          }
-          bennet_tagged_domain inv_dom =
-              wint_to_tagged(&inverted, &target_side->base_type);
-          return bennet_wint_transform_backward(target_side, target_sym, inv_dom, state);
-        }
-
-        // Fallback: propagate output unchanged for ADD/SUB only
-        switch (term->data.binop.op) {
-          case CN_BINOP_ADD:
-          case CN_BINOP_SUB:
-            return bennet_wint_transform_backward(
-                target_side, target_sym, output_domain, state);
-          default:
-            return bennet_absint_state_copy_wint(state);
-        }
-      }
-    }
-
-    case CN_TERM_UNOP: {
-      // Propagate to operand
-      return bennet_wint_transform_backward(
-          term->data.unop.operand, target_sym, output_domain, state);
-    }
-
-    case CN_TERM_ITE: {
-      // Propagate to both branches and join results
-      bennet_absint_state* then_state = bennet_wint_transform_backward(
-          term->data.ite.then_term, target_sym, output_domain, state);
-      bennet_absint_state* else_state = bennet_wint_transform_backward(
-          term->data.ite.else_term, target_sym, output_domain, state);
-
-      // Join the states
-      if (bennet_absint_state_is_bottom_wint(then_state)) {
-        return else_state;
-      }
-      if (bennet_absint_state_is_bottom_wint(else_state)) {
-        return then_state;
-      }
-
-      // Get domain for target from both states and join
-      bennet_tagged_domain then_dom =
-          bennet_absint_state_get_wint(then_state, target_sym, &term->base_type);
-      bennet_tagged_domain else_dom =
-          bennet_absint_state_get_wint(else_state, target_sym, &term->base_type);
-      bennet_tagged_domain joined = bennet_tagged_domain_join_wint(&then_dom, &else_dom);
-      return bennet_absint_state_set_wint(state, target_sym, joined);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      cn_term* base = term->data.array_shift.base;
-      cn_term* index = term->data.array_shift.index;
-      bool base_has_target = term_contains_sym(base, target_sym.id);
-      bool index_has_target = term_contains_sym(index, target_sym.id);
-
-      if (!base_has_target && !index_has_target) {
-        return bennet_absint_state_copy_wint(state);
-      }
-
-      wint_generic out = wint_from_tagged(&output_domain);
-      int64_t elem_size = (int64_t)term->data.array_shift.element_size;
-
-      if (base_has_target) {
-        if (!out.is_top && !out.is_bottom) {
-          // result = base + index * elem_size => base = result - index * elem_size
-          bennet_tagged_domain index_dom = bennet_wint_transform_forward(index, state);
-          wint_generic index_g = wint_from_tagged(&index_dom);
-
-          if (!index_g.is_top) {
-            // Create constant elem_size domain with index's type info
-            int idx_width;
-            bool idx_signed;
-            bennet_absint_type_info(&index->base_type, &idx_width, &idx_signed);
-            wint_generic elem_g = {.width = idx_width,
-                .is_signed = idx_signed,
-                .start = elem_size,
-                .stop = elem_size};
-            bennet_tagged_domain elem_dom = wint_to_tagged(&elem_g, &index->base_type);
-
-            // offset = index * elem_size
-            bennet_tagged_domain offset_dom =
-                wint_forward_binop(CN_BINOP_MUL, &index_dom, &elem_dom, &term->base_type);
-            wint_generic offset_g = wint_from_tagged(&offset_dom);
-
-            if (!offset_g.is_top) {
-              // base = result - offset
-              wint_generic inverted = {.width = out.width,
-                  .is_signed = out.is_signed,
-                  .start = out.start - offset_g.stop,
-                  .stop = out.stop - offset_g.start};
-              bennet_tagged_domain inv_dom = wint_to_tagged(&inverted, &base->base_type);
-              return bennet_wint_transform_backward(base, target_sym, inv_dom, state);
-            }
-          }
-        }
-        // Fallback: propagate output unchanged
-        return bennet_wint_transform_backward(base, target_sym, output_domain, state);
-      }
-
-      if (index_has_target) {
-        if (!out.is_top && !out.is_bottom) {
-          // result = base + index * elem_size => index = (result - base) / elem_size
-          bennet_tagged_domain base_dom = bennet_wint_transform_forward(base, state);
-          wint_generic base_g = wint_from_tagged(&base_dom);
-
-          if (!base_g.is_top && elem_size != 0) {
-            // diff = result - base (in index's type)
-            bennet_tagged_domain out_as_idx = wint_to_tagged(&out, &index->base_type);
-            bennet_tagged_domain base_as_idx = wint_to_tagged(&base_g, &index->base_type);
-            bennet_tagged_domain diff_dom = wint_forward_binop(
-                CN_BINOP_SUB, &out_as_idx, &base_as_idx, &index->base_type);
-            wint_generic diff_g = wint_from_tagged(&diff_dom);
-
-            if (!diff_g.is_top) {
-              // Create constant elem_size domain
-              int idx_width;
-              bool idx_signed;
-              bennet_absint_type_info(&index->base_type, &idx_width, &idx_signed);
-              wint_generic elem_g = {.width = idx_width,
-                  .is_signed = idx_signed,
-                  .start = elem_size,
-                  .stop = elem_size};
-              bennet_tagged_domain elem_dom = wint_to_tagged(&elem_g, &index->base_type);
-
-              // refined_index = diff / elem_size
-              bennet_tagged_domain refined_dom = wint_forward_binop(
-                  CN_BINOP_DIV, &diff_dom, &elem_dom, &index->base_type);
-              wint_generic refined_g = wint_from_tagged(&refined_dom);
-
-              if (!refined_g.is_top) {
-                // Meet with current index domain
-                bennet_tagged_domain cur_index_dom =
-                    bennet_wint_transform_forward(index, state);
-                wint_generic cur_index_g = wint_from_tagged(&cur_index_dom);
-                wint_generic met = wint_generic_meet(&cur_index_g, &refined_g);
-                bennet_tagged_domain met_dom = wint_to_tagged(&met, &index->base_type);
-                return bennet_wint_transform_backward(index, target_sym, met_dom, state);
-              }
-            }
-          }
-        }
-        // Fallback: propagate output unchanged
-        return bennet_wint_transform_backward(index, target_sym, output_domain, state);
-      }
-
-      return bennet_absint_state_copy_wint(state);
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      cn_term* base = term->data.member_shift.base;
-      if (!term_contains_sym(base, target_sym.id)) {
-        return bennet_absint_state_copy_wint(state);
-      }
-
-      wint_generic out = wint_from_tagged(&output_domain);
-      if (!out.is_top && !out.is_bottom) {
-        // result = base + offset => base = result - offset
-        int64_t offset = (int64_t)term->data.member_shift.offset;
-        wint_generic inverted = {.width = out.width,
-            .is_signed = out.is_signed,
-            .start = out.start - offset,
-            .stop = out.stop - offset};
-        bennet_tagged_domain inv_dom = wint_to_tagged(&inverted, &base->base_type);
-        return bennet_wint_transform_backward(base, target_sym, inv_dom, state);
-      }
-
-      // If output is top or bottom, propagate unchanged
-      return bennet_wint_transform_backward(base, target_sym, output_domain, state);
-    }
-
-    case CN_TERM_CAST: {
-      cn_term* inner = term->data.cast.value;
-      if (!term_contains_sym(inner, target_sym.id)) {
-        return bennet_absint_state_copy_wint(state);
-      }
-      // Clamp output domain to source type range and meet, then recurse
-      int src_width, dst_width;
-      bool src_signed, dst_signed;
-      bennet_absint_type_info(&inner->base_type, &src_width, &src_signed);
-      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
-
-      wint_generic out = wint_from_tagged(&output_domain);
-      if (!out.is_top && !out.is_bottom) {
-        int64_t src_min = wint_get_min(src_signed, src_width);
-        int64_t src_max = wint_get_max(src_signed, src_width);
-
-        if (src_width < dst_width) {
-          // Widening cast: intersect in destination (wider) width to avoid
-          // mod-2^src_width wrap-around corruption of 64-bit interval bounds
-          wint_generic clamped_wide = {.width = dst_width,
-              .is_signed = dst_signed,
-              .start = src_min,
-              .stop = src_max};
-          wint_generic refined_wide = wint_generic_meet(&out, &clamped_wide);
-          if (refined_wide.is_bottom) {
-            bennet_tagged_domain bot_dom =
-                wint_to_tagged(&refined_wide, &inner->base_type);
-            return bennet_wint_transform_backward(inner, target_sym, bot_dom, state);
-          }
-          // Result values are within [src_min, src_max], safe to narrow width
-          wint_generic refined = {.width = src_width,
-              .is_signed = src_signed,
-              .start = refined_wide.start,
-              .stop = refined_wide.stop};
-          bennet_tagged_domain refined_dom = wint_to_tagged(&refined, &inner->base_type);
-          return bennet_wint_transform_backward(inner, target_sym, refined_dom, state);
-        }
-
-        // Same-width or narrowing cast: original logic (values fit in src_width)
-        wint_generic clamped = {.width = src_width,
-            .is_signed = src_signed,
-            .start = src_min,
-            .stop = src_max};
-        wint_generic out_in_src = {.width = src_width,
-            .is_signed = src_signed,
-            .start = out.start,
-            .stop = out.stop};
-        wint_generic refined = wint_generic_meet(&out_in_src, &clamped);
-        bennet_tagged_domain refined_dom = wint_to_tagged(&refined, &inner->base_type);
-        return bennet_wint_transform_backward(inner, target_sym, refined_dom, state);
-      }
-      // If output is top or bottom, just propagate as-is
-      bennet_tagged_domain inner_out = wint_to_tagged(&out, &inner->base_type);
-      return bennet_wint_transform_backward(inner, target_sym, inner_out, state);
-    }
-
-    default:
-      return bennet_absint_state_copy_wint(state);
-  }
-}
-
-/**
- * Backward transformer for boolean constraint.
- */
-bennet_absint_state* bennet_wint_transform_backward_assume(
-    cn_term* term, bool value, bennet_absint_state* state) {
-  if (!term || !state) {
-    return state;
-  }
-
-  // Handle NOT(expr) by recursing with flipped value
-  if (term->type == CN_TERM_UNOP && term->data.unop.op == CN_UNOP_NOT) {
-    return bennet_wint_transform_backward_assume(term->data.unop.operand, !value, state);
-  }
-
-  // Handle comparison operators
-  if (term->type == CN_TERM_BINOP) {
-    cn_term* left = term->data.binop.left;
-    cn_term* right = term->data.binop.right;
-    cn_binop op = term->data.binop.op;
-
-    // Get current domains
-    bennet_tagged_domain left_dom = bennet_wint_transform_forward(left, state);
-    bennet_tagged_domain right_dom = bennet_wint_transform_forward(right, state);
-
-    wint_generic lg = wint_from_tagged(&left_dom);
-    wint_generic rg = wint_from_tagged(&right_dom);
-    wint_generic lg_refined = lg;
-    wint_generic rg_refined = rg;
-
-    int width = lg.width;
-
-    switch (op) {
-      case CN_BINOP_EQ: {
-        if (value) {
-          // a == b must be true: meet both domains
-          wint_generic meet = wint_generic_meet(&lg, &rg);
-          lg_refined = meet;
-          rg_refined = meet;
-        } else {
-          // a != b must be true: if one is constant at boundary, remove from other
-          if (lg.start == lg.stop) {
-            // Left is constant
-            int64_t c = lg.start;
-            if (rg.start == c) {
-              rg_refined.start = c + 1;
-              rg_refined.is_top = false;
-            } else if (rg.stop == c) {
-              rg_refined.stop = c - 1;
-              rg_refined.is_top = false;
-            }
-          } else if (rg.start == rg.stop) {
-            // Right is constant
-            int64_t c = rg.start;
-            if (lg.start == c) {
-              lg_refined.start = c + 1;
-              lg_refined.is_top = false;
-            } else if (lg.stop == c) {
-              lg_refined.stop = c - 1;
-              lg_refined.is_top = false;
-            }
-          }
-        }
-        break;
-      }
-
-      case CN_BINOP_LE:
-      case CN_BINOP_LE_POINTER: {
-        bool is_signed = lg.is_signed;
-        if (value) {
-          // a <= b must be true
-          // Refine left upper bound: [min, b.stop]
-          if (!rg.is_top) {
-            if (lg.is_top) {
-              lg_refined.start = wint_get_min(is_signed, width);
-              lg_refined.stop = rg.stop;
-              lg_refined.is_top = false;
-            } else {
-              lg_refined.stop = (lg_refined.stop < rg.stop) ? lg_refined.stop : rg.stop;
-            }
-          }
-          // Refine right lower bound: [a.start, max]
-          if (!lg.is_top) {
-            if (rg.is_top) {
-              rg_refined.start = lg.start;
-              rg_refined.stop = wint_get_max(is_signed, width);
-              rg_refined.is_top = false;
-            } else {
-              rg_refined.start =
-                  (rg_refined.start > lg.start) ? rg_refined.start : lg.start;
-            }
-          }
-        } else {
-          // a > b must be true
-          // Refine left lower bound: [b.start + 1, max]
-          if (!rg.is_top) {
-            int64_t new_lg_start = rg.start + 1;
-            if (lg.is_top) {
-              lg_refined.start = new_lg_start;
-              lg_refined.stop = wint_get_max(is_signed, width);
-              lg_refined.is_top = false;
-            } else if (new_lg_start > lg_refined.start) {
-              lg_refined.start = new_lg_start;
-            }
-          }
-          // Refine right upper bound: [min, a.stop - 1]
-          if (!lg.is_top) {
-            int64_t new_rg_stop = lg.stop - 1;
-            if (rg.is_top) {
-              rg_refined.start = wint_get_min(is_signed, width);
-              rg_refined.stop = new_rg_stop;
-              rg_refined.is_top = false;
-            } else if (new_rg_stop < rg_refined.stop) {
-              rg_refined.stop = new_rg_stop;
-            }
-          }
-        }
-        break;
-      }
-
-      case CN_BINOP_LT:
-      case CN_BINOP_LT_POINTER: {
-        bool is_signed = lg.is_signed;
-        if (value) {
-          // a < b must be true
-          // Refine left upper bound: [min, b.stop - 1]
-          if (!rg.is_top) {
-            int64_t new_lg_stop = rg.stop - 1;
-            if (lg.is_top) {
-              lg_refined.start = wint_get_min(is_signed, width);
-              lg_refined.stop = new_lg_stop;
-              lg_refined.is_top = false;
-            } else if (new_lg_stop < lg_refined.stop) {
-              lg_refined.stop = new_lg_stop;
-            }
-          }
-          // Refine right lower bound: [a.start + 1, max]
-          if (!lg.is_top) {
-            int64_t new_rg_start = lg.start + 1;
-            if (rg.is_top) {
-              rg_refined.start = new_rg_start;
-              rg_refined.stop = wint_get_max(is_signed, width);
-              rg_refined.is_top = false;
-            } else if (new_rg_start > rg_refined.start) {
-              rg_refined.start = new_rg_start;
-            }
-          }
-        } else {
-          // a >= b must be true
-          // Refine left lower bound: [b.start, max]
-          if (!rg.is_top) {
-            if (lg.is_top) {
-              lg_refined.start = rg.start;
-              lg_refined.stop = wint_get_max(is_signed, width);
-              lg_refined.is_top = false;
-            } else if (rg.start > lg_refined.start) {
-              lg_refined.start = rg.start;
-            }
-          }
-          // Refine right upper bound: [min, a.stop]
-          if (!lg.is_top) {
-            if (rg.is_top) {
-              rg_refined.start = wint_get_min(is_signed, width);
-              rg_refined.stop = lg.stop;
-              rg_refined.is_top = false;
-            } else if (lg.stop < rg_refined.stop) {
-              rg_refined.stop = lg.stop;
-            }
-          }
-        }
-        break;
-      }
-
-      default:
-        // Other binary operations - no refinement
-        return bennet_absint_state_copy_wint(state);
-    }
-
-    // Check for empty intervals using unsigned comparison.
-    // Use the ORIGINAL interval for the wrapping check: if the original
-    // didn't wrap but refinement made start > stop, the result is empty.
-    {
-      uint64_t lg_start_u = wint_normalize_unsigned(lg_refined.start, width);
-      uint64_t lg_stop_u = wint_normalize_unsigned(lg_refined.stop, width);
-      if (lg_start_u > lg_stop_u && !wint_crosses_south(lg.start, lg.stop, width)) {
-        lg_refined.is_bottom = true;
-      }
-    }
-    {
-      uint64_t rg_start_u = wint_normalize_unsigned(rg_refined.start, width);
-      uint64_t rg_stop_u = wint_normalize_unsigned(rg_refined.stop, width);
-      if (rg_start_u > rg_stop_u && !wint_crosses_south(rg.start, rg.stop, width)) {
-        rg_refined.is_bottom = true;
-      }
-    }
-
-    // If either refined interval is bottom, the constraint is unsatisfiable.
-    // Propagate bottom to all syms in the term to make the state bottom.
-    if (lg_refined.is_bottom || rg_refined.is_bottom) {
-      bennet_absint_state* bot_state = bennet_absint_state_copy_wint(state);
-      bennet_absint_sym all_syms[16];
-      int nl = term_collect_syms(left, all_syms, 16);
-      int nr = term_collect_syms(right, all_syms + nl, 16 - nl);
-      for (int i = 0; i < nl + nr; i++) {
-        cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-        bot_state = bennet_absint_state_set_wint(
-            bot_state, all_syms[i], bennet_tagged_domain_bottom_wint(&loc_bt));
-      }
-      return bot_state;
-    }
-
-    // Apply refinements by propagating backward through the term structure.
-    // This handles SYM, CAST(SYM), ADD(CONST, SYM), etc.
-    bennet_absint_state* result = bennet_absint_state_copy_wint(state);
-
-    if (!lg_refined.is_top) {
-      bennet_tagged_domain lg_dom = wint_to_tagged(&lg_refined,
-          left->base_type.tag == CN_BASE_LOC ? &left->base_type : left_dom.type);
-      result = backward_apply_to_all_syms(left, &lg_dom, result);
-    }
-
-    if (!rg_refined.is_top) {
-      bennet_tagged_domain rg_dom = wint_to_tagged(&rg_refined,
-          right->base_type.tag == CN_BASE_LOC ? &right->base_type : right_dom.type);
-      result = backward_apply_to_all_syms(right, &rg_dom, result);
-    }
-
-    return result;
-  }
-
-  // Handle AND
-  if (term->type == CN_TERM_BINOP && term->data.binop.op == CN_BINOP_AND) {
-    if (value) {
-      // Both sides must be true
-      bennet_absint_state* result =
-          bennet_wint_transform_backward_assume(term->data.binop.left, true, state);
-      return bennet_wint_transform_backward_assume(term->data.binop.right, true, result);
-    }
-    // At least one side must be false - can't refine much
-    return bennet_absint_state_copy_wint(state);
-  }
-
-  // Handle OR
-  if (term->type == CN_TERM_BINOP && term->data.binop.op == CN_BINOP_OR) {
-    if (!value) {
-      // Both sides must be false
-      bennet_absint_state* result =
-          bennet_wint_transform_backward_assume(term->data.binop.left, false, state);
-      return bennet_wint_transform_backward_assume(term->data.binop.right, false, result);
-    }
-    // At least one side must be true - can't refine much
-    return bennet_absint_state_copy_wint(state);
-  }
-
-  return bennet_absint_state_copy_wint(state);
-}
+#define ABSINT_DOM              wint
+#define ABSINT_ASSUME_LOGIC_OPS 0 /* legacy dead AND/OR (defect D1) */
+#include <bennet/internals/domains/transform.inc.c>
