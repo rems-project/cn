@@ -156,6 +156,28 @@ BENNET_DOMAIN_TRANSFORM_BACKWARD_DECL(int64_t);
 BENNET_DOMAIN_TRANSFORM_BACKWARD_DECL(uint64_t);
 BENNET_DOMAIN_TRANSFORM_BACKWARD_DECL(uintptr_t);
 
+/* Lift a bare ownership element into the product: top except the ownership
+ * component (analogous to top_except_ownership). assign.c's backward-blame
+ * path builds the blamed product with this instead of type-punning the
+ * ownership struct as the product. The
+ * struct forward declaration avoids pulling ownership.h into this header. */
+#define bennet_domain_from_ownership(ty, own) (bennet_domain_from_ownership_##ty(own))
+
+#define BENNET_DOMAIN_FROM_OWNERSHIP_DECL(ty)                                            \
+  struct bennet_domain_ownership_##ty;                                                   \
+  bennet_domain(ty) *                                                                    \
+      bennet_domain_from_ownership_##ty(struct bennet_domain_ownership_##ty* own);
+
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(int8_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(uint8_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(int16_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(uint16_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(int32_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(uint32_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(int64_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(uint64_t);
+BENNET_DOMAIN_FROM_OWNERSHIP_DECL(uintptr_t);
+
 #ifdef __cplusplus
 }
 #endif

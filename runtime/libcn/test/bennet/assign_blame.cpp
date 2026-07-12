@@ -9,16 +9,19 @@
  * var" through the failure/blame channel: vars that picked up a non-top
  * ownership domain are blamed with that domain, the rest get a plain blame.
  *
- * Domain readback caveat: bennet_failure_get_domain_uintptr_t returns
- * bennet_domain(uintptr_t)*, the generated product type. In this test binary
- * the product is the 1-field {ownership car} defined in ownership_domain.cpp,
- * so casting to bennet_domain_ownership(uintptr_t)* (offset 0) is valid here.
- * This mirrors the D6 type-pun in assign.c (doc/RUNTIME-ABSINT.md §3.6),
- * which is size-benign for this product; revisit when P4 fixes D6.
+ * Domain readback: bennet_failure_get_domain_uintptr_t returns
+ * bennet_domain(uintptr_t)*, the product type. In this test binary that is
+ * the two-component all-ownership product of test_domain_product.hpp
+ * (functions in ownership_domain.cpp); the blamed domain is a real product
+ * built by bennet_domain_from_ownership_uintptr_t,
+ * with the propagated requirement in element_0
+ * and element_1 top. The two-field product makes ASan catch any regression
+ * to the old bare-ownership pun (its copy under-read element_1).
  */
 
 #include "absint_test_utils.hpp"
 #include "harness.hpp"
+#include "test_domain_product.hpp"
 #include <gtest/gtest.h>
 
 #include <bennet/dsl/assign.h>
@@ -43,11 +46,14 @@ cn_term* u64_const(uint64_t v) {
   return cn_smt_bits(false, 64, (intmax_t)v);
 }
 
-// Read the ownership component out of a blamed product domain (see file
-// header for why this cast is valid in this binary).
+const bennet_domain(uintptr_t) * blamed_product(const void* id) {
+  return (const bennet_domain(uintptr_t)*)bennet_failure_get_domain_uintptr_t(id);
+}
+
+// Read the ownership component out of a blamed product domain.
 const bennet_domain_ownership(uintptr_t) * blamed_ownership(const void* id) {
-  return (const bennet_domain_ownership(uintptr_t)*)bennet_failure_get_domain_uintptr_t(
-      id);
+  const auto* product = blamed_product(id);
+  return product ? &product->element_0 : nullptr;
 }
 
 void expect_blamed_ownership(const void* id, size_t before, size_t after) {
@@ -176,6 +182,29 @@ TEST_F(LibBennet, BlameSymIndexArrayShiftFallsBack) {
   EXPECT_EQ(bennet_failure_get_domain_uintptr_t(&slot_p), nullptr);
   EXPECT_TRUE(bennet_failure_is_blamed(&slot_n));
   EXPECT_EQ(bennet_failure_get_domain_uintptr_t(&slot_n), nullptr);
+
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, BlameDomainIsFullProduct) {
+  // The blamed domain is the product bennet_domain_from_ownership builds:
+  // the propagated ownership requirement in element_0, everything else top.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  cn_sym p = cn_sym_from_string("p");
+  cn_term* addr = cn_smt_member_shift(loc_sym(p), 8);
+
+  const void* ids[] = {&slot_p};
+  const bennet_absint_sym syms[] = {asym(p)};
+  bennet_assign_backward_blame(addr, 1, ids, syms, 2);
+
+  const auto* product = blamed_product(&slot_p);
+  ASSERT_NE(product, nullptr);
+  EXPECT_FALSE(product->element_0.bottom);
+  EXPECT_EQ(product->element_0.before, 0u);
+  EXPECT_EQ(product->element_0.after, 10u);
+  EXPECT_FALSE(product->element_1.bottom);
+  EXPECT_TRUE(bennet_domain_ownership_is_top_uintptr_t(
+      const_cast<bennet_domain_ownership(uintptr_t)*>(&product->element_1)));
 
   cn_bump_free_after(frame);
 }

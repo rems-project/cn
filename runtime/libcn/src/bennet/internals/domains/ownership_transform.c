@@ -15,6 +15,11 @@
 
 #define OWN_T bennet_domain_ownership(uintptr_t)
 
+/* All ownership results are LOC-typed. The legacy walkers tagged them with
+ * function-local stack types that escaped into the persistent state; the
+ * file-static carries the same tag value with a fixed lifetime. */
+static cn_base_type ownership_loc_bt = {.tag = CN_BASE_LOC};
+
 static bool try_extract_const_size(cn_term* term, size_t* out) {
   if (!term || term->type != CN_TERM_CONST) {
     return false;
@@ -101,70 +106,12 @@ bennet_tagged_domain bennet_tagged_domain_join_ownership(
 BENNET_ABSINT_STATE_IMPL(ownership)
 
 /*-----------------------------------------------------------------------------
- * Forward Transformer
- *---------------------------------------------------------------------------*/
-
-bennet_tagged_domain bennet_ownership_transform_forward(
-    cn_term* term, bennet_absint_state* state) {
-  cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-
-  if (!term || !state) {
-    return bennet_tagged_domain_create(&loc_bt, bennet_domain_ownership_top(uintptr_t));
-  }
-
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
-      bennet_tagged_domain d =
-          bennet_absint_state_get_ownership(state, sym, &term->base_type);
-      if (d.type && d.type->tag == CN_BASE_LOC && d.domain) {
-        return d;
-      }
-      return bennet_tagged_domain_create(&loc_bt, bennet_domain_ownership_top(uintptr_t));
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      bennet_tagged_domain base_dom =
-          bennet_ownership_transform_forward(term->data.member_shift.base, state);
-      OWN_T* base_own = (OWN_T*)base_dom.domain;
-      OWN_T* result = bennet_ownership_member_shift_uintptr_t(
-          base_own, term->data.member_shift.offset);
-      return bennet_tagged_domain_create(&loc_bt, result);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      bennet_tagged_domain base_dom =
-          bennet_ownership_transform_forward(term->data.array_shift.base, state);
-      size_t index_val;
-      if (try_extract_const_size(term->data.array_shift.index, &index_val)) {
-        OWN_T* base_own = (OWN_T*)base_dom.domain;
-        OWN_T* result = bennet_ownership_array_shift_uintptr_t(
-            base_own, term->data.array_shift.element_size, index_val);
-        return bennet_tagged_domain_create(&loc_bt, result);
-      }
-      return bennet_tagged_domain_create(&loc_bt, bennet_domain_ownership_top(uintptr_t));
-    }
-
-    case CN_TERM_CAST:
-      return bennet_ownership_transform_forward(term->data.cast.value, state);
-
-    case CN_TERM_ITE: {
-      bennet_tagged_domain then_dom =
-          bennet_ownership_transform_forward(term->data.ite.then_term, state);
-      bennet_tagged_domain else_dom =
-          bennet_ownership_transform_forward(term->data.ite.else_term, state);
-      OWN_T* joined = bennet_domain_ownership_join_uintptr_t(
-          (OWN_T*)then_dom.domain, (OWN_T*)else_dom.domain);
-      return bennet_tagged_domain_create(&loc_bt, joined);
-    }
-
-    default:
-      return bennet_tagged_domain_create(&loc_bt, bennet_domain_ownership_top(uintptr_t));
-  }
-}
-
-/*-----------------------------------------------------------------------------
- * Backward Transformer
+ * Backward propagation to all symbols (the assign.c blame channel)
+ *
+ * This deposit-at-every-SYM walk has no engine counterpart until P6's
+ * deposit-at-every-SYM backward pass, and bennet_assign_backward_blame
+ * depends on its exact shape (notably: no ITE case, so blame never crosses
+ * conditionals). It survives the P4 port verbatim.
  *---------------------------------------------------------------------------*/
 
 /**
@@ -178,8 +125,6 @@ bennet_absint_state* bennet_ownership_backward_propagate_to_syms(
     return bennet_absint_state_copy_ownership(state);
   }
 
-  cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-
   switch (term->type) {
     case CN_TERM_SYM: {
       bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
@@ -187,7 +132,8 @@ bennet_absint_state* bennet_ownership_backward_propagate_to_syms(
           bennet_absint_state_get_ownership(state, sym, &term->base_type);
       OWN_T* cur_own = (OWN_T*)cur.domain;
       OWN_T* met = bennet_domain_ownership_meet_uintptr_t(cur_own, own_dom);
-      bennet_tagged_domain met_tagged = bennet_tagged_domain_create(&loc_bt, met);
+      bennet_tagged_domain met_tagged =
+          bennet_tagged_domain_create(&ownership_loc_bt, met);
       return bennet_absint_state_set_ownership(state, sym, met_tagged);
     }
 
@@ -218,166 +164,205 @@ bennet_absint_state* bennet_ownership_backward_propagate_to_syms(
   }
 }
 
-bennet_absint_state* bennet_ownership_transform_backward(cn_term* term,
-    bennet_absint_sym target_sym,
-    bennet_tagged_domain output_domain,
-    bennet_absint_state* state) {
-  if (!term || !state) {
-    return state;
+/*-----------------------------------------------------------------------------
+ * Transformer basis (consumed by the engine template, transform.inc.c)
+ *
+ * These are the ownership-specific transfer functions of the shared cn_term
+ * walker engine; the traversal, gating, and refinement-application order
+ * live in the template. Ownership is uintptr_t-only with no generic /
+ * to_tagged layer: tagged payloads point directly at a
+ * bennet_domain_ownership(uintptr_t), and every basis result carries the
+ * file-static LOC tag.
+ *
+ * Deliberate behavior changes vs. the legacy walkers (straight port;
+ * witness pins flipped in test/bennet/ownership_transform.cpp):
+ *  - the forward SYM stored-tag guard is gone: non-LOC-tagged ownership
+ *    entries (generated refine seeds every variable under its own type tag)
+ *    now participate in forwards instead of reading as top;
+ *  - EQ-assume applies the met requirement via the engine's collect-syms +
+ *    targeted-backward walks instead of the deposit walk, so a symbol
+ *    reachable through both ITE arms is now refined (join of the arm-wise
+ *    inversions);
+ *  - an unsatisfiable (bottom) met triggers the engine's unsat protocol
+ *    (every sym of both comparison sides set to bottom) instead of the
+ *    deposit walk's supported-paths-only bottom.
+ *---------------------------------------------------------------------------*/
+
+#include <bennet/internals/domains/transform_template.h>
+
+static bennet_tagged_domain ownership_tagged_loc(OWN_T* own) {
+  return bennet_tagged_domain_create(&ownership_loc_bt, own);
+}
+
+static bennet_tagged_domain ownership_basis_const(cn_term* term) {
+  /* No value transfer: ownership tracks allocation extents, not values. */
+  (void)term;
+  return ownership_tagged_loc(bennet_domain_ownership_top(uintptr_t));
+}
+
+static bennet_tagged_domain ownership_basis_forward_unop(
+    cn_unop op, bennet_tagged_domain* v, cn_base_type* result_type) {
+  (void)op;
+  (void)v;
+  (void)result_type;
+  return ownership_tagged_loc(bennet_domain_ownership_top(uintptr_t));
+}
+
+static bennet_tagged_domain ownership_basis_forward_binop(cn_binop op,
+    bennet_tagged_domain* l,
+    bennet_tagged_domain* r,
+    cn_base_type* result_type) {
+  (void)op;
+  (void)l;
+  (void)r;
+  (void)result_type;
+  return ownership_tagged_loc(bennet_domain_ownership_top(uintptr_t));
+}
+
+static bennet_tagged_domain ownership_basis_forward_cast(
+    cn_base_type* to, bennet_tagged_domain* v) {
+  /* Casts preserve ownership; pass the inner value through untouched. */
+  (void)to;
+  return *v;
+}
+
+static bennet_tagged_domain ownership_basis_shift_forward(
+    cn_term* term, bennet_tagged_domain* base, bennet_tagged_domain* index_or_null) {
+  /* The index transfer needs a constant term, not an abstract value. */
+  (void)index_or_null;
+  OWN_T* base_own = (OWN_T*)base->domain;
+  assert(base_own);
+
+  if (term->type == CN_TERM_MEMBER_SHIFT) {
+    return ownership_tagged_loc(bennet_ownership_member_shift_uintptr_t(
+        base_own, term->data.member_shift.offset));
   }
 
-  OWN_T* out_own = (OWN_T*)output_domain.domain;
+  size_t index_val;
+  if (try_extract_const_size(term->data.array_shift.index, &index_val)) {
+    return ownership_tagged_loc(bennet_ownership_array_shift_uintptr_t(
+        base_own, term->data.array_shift.element_size, index_val));
+  }
+  return ownership_tagged_loc(bennet_domain_ownership_top(uintptr_t));
+}
+
+static bennet_tagged_domain ownership_basis_ite_join(
+    bennet_tagged_domain* then_v, bennet_tagged_domain* else_v, cn_base_type* term_type) {
+  /* Ownership results are always LOC-tagged, whatever the ITE's own type. */
+  (void)term_type;
+  OWN_T* joined = bennet_domain_ownership_join_uintptr_t(
+      (OWN_T*)then_v->domain, (OWN_T*)else_v->domain);
+  return ownership_tagged_loc(joined);
+}
+
+static bennet_absint_bw_action ownership_basis_backward_unop(cn_unop op,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* operand_fwd,
+    cn_base_type* operand_type,
+    bennet_tagged_domain* down) {
+  (void)op;
+  (void)out;
+  (void)operand_fwd;
+  (void)operand_type;
+  (void)down;
+  /* No arithmetic transfer to invert. */
+  return BENNET_ABSINT_BW_STOP;
+}
+
+static bennet_absint_bw_action ownership_basis_backward_binop(cn_binop op,
+    bool target_is_left,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* other_fwd,
+    bennet_tagged_domain* target_fwd,
+    cn_base_type* target_type,
+    bennet_tagged_domain* down) {
+  (void)op;
+  (void)target_is_left;
+  (void)out;
+  (void)other_fwd;
+  (void)target_fwd;
+  (void)target_type;
+  (void)down;
+  /* No arithmetic transfer to invert (comparisons are engine territory). */
+  return BENNET_ABSINT_BW_STOP;
+}
+
+static bennet_absint_bw_action ownership_basis_backward_cast(cn_base_type* src_type,
+    cn_base_type* dst_type,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* down) {
+  (void)src_type;
+  (void)dst_type;
+  /* Casts preserve ownership: descend with the requirement unchanged. */
+  *down = *out;
+  return BENNET_ABSINT_BW_DESCEND;
+}
+
+static bennet_absint_bw_action ownership_basis_shift_backward(cn_term* term,
+    bool target_is_base,
+    bennet_tagged_domain* out,
+    bennet_tagged_domain* sibling_fwd,
+    bennet_tagged_domain* target_fwd,
+    bennet_tagged_domain* down) {
+  (void)sibling_fwd;
+  (void)target_fwd;
+
+  /* The index is never refined: ownership is a pointer requirement. */
+  if (!target_is_base) {
+    return BENNET_ABSINT_BW_STOP;
+  }
+
+  OWN_T* out_own = (OWN_T*)out->domain;
   assert(out_own);
 
-  if (bennet_domain_ownership_is_bottom_uintptr_t(out_own)) {
-    cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-    bennet_tagged_domain bot =
-        bennet_tagged_domain_create(&loc_bt, bennet_domain_ownership_bottom(uintptr_t));
-    return bennet_absint_state_set_ownership(
-        bennet_absint_state_copy_ownership(state), target_sym, bot);
+  if (term->type == CN_TERM_MEMBER_SHIFT) {
+    *down = ownership_tagged_loc(bennet_ownership_member_shift_backward_uintptr_t(
+        out_own, term->data.member_shift.offset));
+    return BENNET_ABSINT_BW_DESCEND;
   }
 
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      if (term->data.sym.id == target_sym.id) {
-        cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-        bennet_tagged_domain cur =
-            bennet_absint_state_get_ownership(state, target_sym, &term->base_type);
-        OWN_T* cur_own = (OWN_T*)cur.domain;
-        OWN_T* met = bennet_domain_ownership_meet_uintptr_t(cur_own, out_own);
-        bennet_tagged_domain met_tagged = bennet_tagged_domain_create(&loc_bt, met);
-        return bennet_absint_state_set_ownership(
-            bennet_absint_state_copy_ownership(state), target_sym, met_tagged);
-      }
-      return bennet_absint_state_copy_ownership(state);
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      cn_term* base = term->data.member_shift.base;
-      if (!term_contains_sym(base, target_sym.id)) {
-        return bennet_absint_state_copy_ownership(state);
-      }
-      OWN_T* base_req = bennet_ownership_member_shift_backward_uintptr_t(
-          out_own, term->data.member_shift.offset);
-      cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-      bennet_tagged_domain base_dom = bennet_tagged_domain_create(&loc_bt, base_req);
-      return bennet_ownership_transform_backward(base, target_sym, base_dom, state);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      cn_term* base = term->data.array_shift.base;
-      if (!term_contains_sym(base, target_sym.id)) {
-        return bennet_absint_state_copy_ownership(state);
-      }
-      size_t index_val;
-      if (try_extract_const_size(term->data.array_shift.index, &index_val)) {
-        OWN_T* base_req = bennet_ownership_array_shift_backward_uintptr_t(
-            out_own, term->data.array_shift.element_size, index_val);
-        cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-        bennet_tagged_domain base_dom = bennet_tagged_domain_create(&loc_bt, base_req);
-        return bennet_ownership_transform_backward(base, target_sym, base_dom, state);
-      }
-      return bennet_absint_state_copy_ownership(state);
-    }
-
-    case CN_TERM_CAST: {
-      cn_term* inner = term->data.cast.value;
-      if (!term_contains_sym(inner, target_sym.id)) {
-        return bennet_absint_state_copy_ownership(state);
-      }
-      return bennet_ownership_transform_backward(inner, target_sym, output_domain, state);
-    }
-
-    case CN_TERM_ITE: {
-      bennet_absint_state* then_state = bennet_ownership_transform_backward(
-          term->data.ite.then_term, target_sym, output_domain, state);
-      bennet_absint_state* else_state = bennet_ownership_transform_backward(
-          term->data.ite.else_term, target_sym, output_domain, state);
-
-      if (bennet_absint_state_is_bottom_ownership(then_state)) {
-        return else_state;
-      }
-      if (bennet_absint_state_is_bottom_ownership(else_state)) {
-        return then_state;
-      }
-
-      cn_base_type loc_bt = {.tag = CN_BASE_LOC};
-      bennet_tagged_domain then_dom =
-          bennet_absint_state_get_ownership(then_state, target_sym, &loc_bt);
-      bennet_tagged_domain else_dom =
-          bennet_absint_state_get_ownership(else_state, target_sym, &loc_bt);
-      OWN_T* joined = bennet_domain_ownership_join_uintptr_t(
-          (OWN_T*)then_dom.domain, (OWN_T*)else_dom.domain);
-      bennet_tagged_domain joined_tagged = bennet_tagged_domain_create(&loc_bt, joined);
-      return bennet_absint_state_set_ownership(
-          bennet_absint_state_copy_ownership(state), target_sym, joined_tagged);
-    }
-
-    default:
-      return bennet_absint_state_copy_ownership(state);
+  size_t index_val;
+  if (try_extract_const_size(term->data.array_shift.index, &index_val)) {
+    *down = ownership_tagged_loc(bennet_ownership_array_shift_backward_uintptr_t(
+        out_own, term->data.array_shift.element_size, index_val));
+    return BENNET_ABSINT_BW_DESCEND;
   }
+  return BENNET_ABSINT_BW_STOP;
+}
+
+static bennet_absint_cmp_result ownership_basis_assume_cmp(cn_binop op,
+    bool value,
+    bennet_tagged_domain* l_fwd,
+    bennet_tagged_domain* r_fwd,
+    cn_base_type* l_ref_type,
+    cn_base_type* r_ref_type,
+    bennet_tagged_domain* l_ref,
+    bennet_tagged_domain* r_ref) {
+  bennet_absint_cmp_result res = {
+      .has_rule = false, .apply_left = false, .apply_right = false};
+
+  /* Only pointer equality refines: both sides must satisfy the met
+   * requirement. LT/LE and the pointer comparisons carry no ownership
+   * information. */
+  if (op != CN_BINOP_EQ || !value) {
+    return res;
+  }
+
+  OWN_T* met = bennet_domain_ownership_meet_uintptr_t(
+      (OWN_T*)l_fwd->domain, (OWN_T*)r_fwd->domain);
+  *l_ref = bennet_tagged_domain_create(l_ref_type, met);
+  *r_ref = bennet_tagged_domain_create(r_ref_type, met);
+  res.has_rule = true;
+  res.apply_left = true;
+  res.apply_right = true;
+  return res;
 }
 
 /*-----------------------------------------------------------------------------
- * Backward Assume Transformer
+ * Engine instantiation: emits bennet_ownership_transform_{forward,backward,
+ * backward_assume}
  *---------------------------------------------------------------------------*/
 
-bennet_absint_state* bennet_ownership_transform_backward_assume(
-    cn_term* term, bool value, bennet_absint_state* state) {
-  if (!term || !state) {
-    return state;
-  }
-
-  /* NOT: flip value and recurse */
-  if (term->type == CN_TERM_UNOP && term->data.unop.op == CN_UNOP_NOT) {
-    return bennet_ownership_transform_backward_assume(
-        term->data.unop.operand, !value, state);
-  }
-
-  if (term->type == CN_TERM_BINOP) {
-    cn_term* left = term->data.binop.left;
-    cn_term* right = term->data.binop.right;
-    cn_binop op = term->data.binop.op;
-
-    switch (op) {
-      case CN_BINOP_AND: {
-        if (value) {
-          bennet_absint_state* s =
-              bennet_ownership_transform_backward_assume(left, true, state);
-          return bennet_ownership_transform_backward_assume(right, true, s);
-        }
-        return bennet_absint_state_copy_ownership(state);
-      }
-
-      case CN_BINOP_OR: {
-        if (!value) {
-          bennet_absint_state* s =
-              bennet_ownership_transform_backward_assume(left, false, state);
-          return bennet_ownership_transform_backward_assume(right, false, s);
-        }
-        return bennet_absint_state_copy_ownership(state);
-      }
-
-      case CN_BINOP_EQ: {
-        if (value) {
-          /* a == b: forward both, meet ownership, propagate back */
-          bennet_tagged_domain left_dom = bennet_ownership_transform_forward(left, state);
-          bennet_tagged_domain right_dom =
-              bennet_ownership_transform_forward(right, state);
-
-          OWN_T* met = bennet_domain_ownership_meet_uintptr_t(
-              (OWN_T*)left_dom.domain, (OWN_T*)right_dom.domain);
-          bennet_absint_state* s =
-              bennet_ownership_backward_propagate_to_syms(left, met, state);
-          return bennet_ownership_backward_propagate_to_syms(right, met, s);
-        }
-        return bennet_absint_state_copy_ownership(state);
-      }
-
-      default:
-        return bennet_absint_state_copy_ownership(state);
-    }
-  }
-
-  return bennet_absint_state_copy_ownership(state);
-}
+#define ABSINT_DOM              ownership
+#define ABSINT_ASSUME_LOGIC_OPS 1
+#include <bennet/internals/domains/transform.inc.c>

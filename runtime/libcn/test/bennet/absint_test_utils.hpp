@@ -13,6 +13,7 @@
 
 #include <bennet/internals/absint.h>
 #include <bennet/internals/domains/congr.h>
+#include <bennet/internals/domains/ownership.h>
 #include <bennet/internals/domains/tnum.h>
 #include <bennet/internals/domains/wint.h>
 #include <cn-executable/bump_alloc.h>
@@ -75,6 +76,22 @@ inline bennet_tagged_domain tagged_tnum_u8(uint8_t value, uint8_t mask) {
       bump_bt(cn_base_type_bits(false, 8)), bennet_domain_tnum_of_uint8_t(value, mask));
 }
 
+// Pointer-typed (CN_BASE_LOC) ownership domain {before, after}.
+inline bennet_tagged_domain tagged_own(size_t before, size_t after) {
+  return bennet_tagged_domain_create(bump_bt(cn_base_type_simple(CN_BASE_LOC)),
+      bennet_domain_ownership_of(uintptr_t, before, after));
+}
+
+inline bennet_tagged_domain tagged_own_top() {
+  return bennet_tagged_domain_create(
+      bump_bt(cn_base_type_simple(CN_BASE_LOC)), bennet_domain_ownership_top(uintptr_t));
+}
+
+inline bennet_tagged_domain tagged_own_bottom() {
+  return bennet_tagged_domain_create(bump_bt(cn_base_type_simple(CN_BASE_LOC)),
+      bennet_domain_ownership_bottom(uintptr_t));
+}
+
 /*-----------------------------------------------------------------------------
  * Term builders
  *---------------------------------------------------------------------------*/
@@ -85,6 +102,10 @@ inline cn_term* u8_const(uint8_t v) {
 
 inline cn_term* u8_sym(cn_sym s) {
   return cn_smt_sym(s, cn_base_type_bits(false, 8));
+}
+
+inline cn_term* loc_sym(cn_sym s) {
+  return cn_smt_sym(s, cn_base_type_simple(CN_BASE_LOC));
 }
 
 // There is no cn_smt_negate builder; hand-construct the CN_UNOP_NEGATE node.

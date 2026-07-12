@@ -208,6 +208,12 @@ module CodeGen (CInt : C_INTERFACE) = struct
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
                  ^^ !^CInt.name
                  ^^ !^"_top_except_ownership(ty, &cs->car);")
+          ^/^ !^"bennet_domain(ty)* \
+                 bennet_domain_from_ownership_##ty(bennet_domain_ownership(ty)* own)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_from_ownership(ty, own);")
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_refine_##ty(bennet_domain(ty)* cs, \
                 bennet_absint_sym x_sym, cn_base_type* x_bt, cn_term* constraint_term, \

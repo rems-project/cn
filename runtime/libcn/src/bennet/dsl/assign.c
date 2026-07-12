@@ -106,11 +106,13 @@ void bennet_assign_backward_blame(cn_term* addr_term,
     bennet_domain_ownership(uintptr_t)* own =
         (bennet_domain_ownership(uintptr_t)*)dom.domain;
 
-    /* If we got a non-trivial domain from backward propagation, use it;
-     * otherwise fall back to a plain blame (no domain constraint). */
+    /* If we got a non-trivial domain from backward propagation, lift it into
+     * the product and blame with it; otherwise fall back to a plain blame
+     * (no domain constraint). */
     if (own && !bennet_domain_ownership_is_top_uintptr_t(own)) {
-      bennet_failure_blame_domain_uintptr_t(
-          other_var_ids[i], (bennet_domain(uintptr_t)*)own);
+      bennet_domain(uintptr_t)* blamed = bennet_domain_from_ownership_uintptr_t(own);
+      bennet_failure_blame_domain_uintptr_t(other_var_ids[i], blamed);
+      std_free(blamed); /* blame copies the product */
     } else {
       bennet_failure_blame(other_var_ids[i]);
     }
