@@ -845,24 +845,6 @@ static inline bool wint_is_msb_zero(int64_t value, int width) {
  *---------------------------------------------------------------------------*/
 
 /**
- * Extract width and signedness from cn_base_type.
- */
-static void get_type_info(cn_base_type* type, int* width, bool* is_signed) {
-  assert(type);
-  if (type->tag == CN_BASE_BITS) {
-    *width = type->data.bits.size_bits;
-    *is_signed = type->data.bits.is_signed;
-  } else if (type->tag == CN_BASE_LOC) {
-    *width = 64;  // Pointer type - use 64-bit width
-    *is_signed = false;
-  } else {
-    // Default to 64-bit unsigned for unsupported types
-    *width = 64;
-    *is_signed = false;
-  }
-}
-
-/**
  * Internal structure for a generic wrapped interval.
  * We use uint64_t to store values and track signedness separately.
  */
@@ -876,206 +858,32 @@ typedef struct {
 } wint_generic;
 
 /**
- * Create a generic wrapped interval from a tagged domain.
+ * Convert between tagged domains and the generic form.
+ * The per-type struct field is `end`; the generic field is `stop`. The
+ * uniform (int64_t) load cast matches the old per-arm behavior: implicit
+ * conversion for signed sources, explicit cast for unsigned ones.
  */
-static wint_generic wint_from_tagged(bennet_tagged_domain* d) {
-  wint_generic result = {0};
-  if (!d || !d->type || !d->domain) {
-    result.is_top = true;
-    result.width = 64;
-    return result;
-  }
+#define WINT_TAGGED_LOAD(cty, ucty)                                                      \
+  do {                                                                                   \
+    bennet_domain_wint(cty)* dom_ = (bennet_domain_wint(cty)*)d->domain;                 \
+    result.is_top = dom_->top;                                                           \
+    result.is_bottom = dom_->bottom;                                                     \
+    result.start = (int64_t)dom_->start;                                                 \
+    result.stop = (int64_t)dom_->end;                                                    \
+  } while (0)
 
-  get_type_info(d->type, &result.width, &result.is_signed);
+#define WINT_TAGGED_STORE(cty, ucty)                                                     \
+  do {                                                                                   \
+    bennet_domain_wint(cty)* dom_ = std_malloc(sizeof(bennet_domain_wint(cty)));         \
+    assert(dom_);                                                                        \
+    dom_->top = g->is_top;                                                               \
+    dom_->bottom = g->is_bottom;                                                         \
+    dom_->start = (cty)g->start;                                                         \
+    dom_->end = (cty)g->stop;                                                            \
+    result.domain = dom_;                                                                \
+  } while (0)
 
-  // Dispatch based on width and signedness
-  if (result.is_signed) {
-    switch (result.width) {
-      case 8: {
-        bennet_domain_wint(int8_t)* dom = (bennet_domain_wint(int8_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = dom->start;
-        result.stop = dom->end;
-        break;
-      }
-      case 16: {
-        bennet_domain_wint(int16_t)* dom = (bennet_domain_wint(int16_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = dom->start;
-        result.stop = dom->end;
-        break;
-      }
-      case 32: {
-        bennet_domain_wint(int32_t)* dom = (bennet_domain_wint(int32_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = dom->start;
-        result.stop = dom->end;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_wint(int64_t)* dom = (bennet_domain_wint(int64_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = dom->start;
-        result.stop = dom->end;
-        break;
-      }
-    }
-  } else {
-    switch (result.width) {
-      case 8: {
-        bennet_domain_wint(uint8_t)* dom = (bennet_domain_wint(uint8_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = (int64_t)dom->start;
-        result.stop = (int64_t)dom->end;
-        break;
-      }
-      case 16: {
-        bennet_domain_wint(uint16_t)* dom = (bennet_domain_wint(uint16_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = (int64_t)dom->start;
-        result.stop = (int64_t)dom->end;
-        break;
-      }
-      case 32: {
-        bennet_domain_wint(uint32_t)* dom = (bennet_domain_wint(uint32_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = (int64_t)dom->start;
-        result.stop = (int64_t)dom->end;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_wint(uint64_t)* dom = (bennet_domain_wint(uint64_t)*)d->domain;
-        result.is_top = dom->top;
-        result.is_bottom = dom->bottom;
-        result.start = (int64_t)dom->start;
-        result.stop = (int64_t)dom->end;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * Convert a generic wrapped interval back to a tagged domain.
- */
-static bennet_tagged_domain wint_to_tagged(wint_generic* g, cn_base_type* type) {
-  bennet_tagged_domain result;
-  result.type = type;
-
-  int width;
-  bool is_signed;
-  get_type_info(type, &width, &is_signed);
-
-  if (is_signed) {
-    switch (width) {
-      case 8: {
-        bennet_domain_wint(int8_t)* dom = std_malloc(sizeof(bennet_domain_wint(int8_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (int8_t)g->start;
-        dom->end = (int8_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-      case 16: {
-        bennet_domain_wint(int16_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(int16_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (int16_t)g->start;
-        dom->end = (int16_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-      case 32: {
-        bennet_domain_wint(int32_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(int32_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (int32_t)g->start;
-        dom->end = (int32_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_wint(int64_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(int64_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = g->start;
-        dom->end = g->stop;
-        result.domain = dom;
-        break;
-      }
-    }
-  } else {
-    switch (width) {
-      case 8: {
-        bennet_domain_wint(uint8_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(uint8_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (uint8_t)g->start;
-        dom->end = (uint8_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-      case 16: {
-        bennet_domain_wint(uint16_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(uint16_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (uint16_t)g->start;
-        dom->end = (uint16_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-      case 32: {
-        bennet_domain_wint(uint32_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(uint32_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (uint32_t)g->start;
-        dom->end = (uint32_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-      case 64:
-      default: {
-        bennet_domain_wint(uint64_t)* dom =
-            std_malloc(sizeof(bennet_domain_wint(uint64_t)));
-        assert(dom);
-        dom->top = g->is_top;
-        dom->bottom = g->is_bottom;
-        dom->start = (uint64_t)g->start;
-        dom->end = (uint64_t)g->stop;
-        result.domain = dom;
-        break;
-      }
-    }
-  }
-
-  return result;
-}
+BENNET_ABSINT_TAGGED_CONVERT_IMPL(wint, wint_generic, WINT_TAGGED_LOAD, WINT_TAGGED_STORE)
 
 /**
  * Create a generic interval that represents top.
@@ -1084,7 +892,7 @@ static wint_generic wint_generic_top(cn_base_type* type) {
   wint_generic result = {0};
   result.is_top = true;
   result.is_bottom = false;
-  get_type_info(type, &result.width, &result.is_signed);
+  bennet_absint_type_info(type, &result.width, &result.is_signed);
   result.start = wint_get_min(result.is_signed, result.width);
   result.stop = wint_get_max(result.is_signed, result.width);
   return result;
@@ -1097,7 +905,7 @@ static wint_generic wint_generic_bottom(cn_base_type* type) {
   wint_generic result = {0};
   result.is_top = false;
   result.is_bottom = true;
-  get_type_info(type, &result.width, &result.is_signed);
+  bennet_absint_type_info(type, &result.width, &result.is_signed);
   result.start = 0;
   result.stop = 0;
   return result;
@@ -1340,7 +1148,7 @@ static bennet_tagged_domain wint_forward_const(cn_term* term) {
   wint_generic g = {0};
   int width;
   bool is_signed;
-  get_type_info(&term->base_type, &width, &is_signed);
+  bennet_absint_type_info(&term->base_type, &width, &is_signed);
   g.width = width;
   g.is_signed = is_signed;
 
@@ -1390,6 +1198,67 @@ static bennet_tagged_domain wint_forward_sym(cn_term* term, bennet_absint_state*
 }
 
 /**
+ * Shared forward transfer for bitwise AND/OR/XOR: south pole split both
+ * operands for precise Hacker's Delight bounds, apply the operator's min/max
+ * pair per unsigned sub-interval pair, and join the results.
+ */
+static wint_generic wint_forward_bitwise_binop(cn_binop op,
+    int64_t a,
+    int64_t b,
+    int64_t c,
+    int64_t d,
+    int w,
+    int width,
+    bool is_signed) {
+  wint_generic result = {.width = width, .is_signed = is_signed};
+  int64_t s1s[WINT_MAX_SPLITS], s1e[WINT_MAX_SPLITS];
+  int64_t s2s[WINT_MAX_SPLITS], s2e[WINT_MAX_SPLITS];
+  int n1 = wint_south_split(a, b, w, s1s, s1e);
+  int n2 = wint_south_split(c, d, w, s2s, s2e);
+
+  bool first = true;
+  for (int i = 0; i < n1; i++) {
+    for (int j = 0; j < n2; j++) {
+      uint64_t ua = wint_normalize_unsigned(s1s[i], w);
+      uint64_t ub = wint_normalize_unsigned(s1e[i], w);
+      uint64_t uc = wint_normalize_unsigned(s2s[j], w);
+      uint64_t ud = wint_normalize_unsigned(s2e[j], w);
+      uint64_t lo = 0;
+      uint64_t hi = 0;
+      switch (op) {
+        case CN_BINOP_BW_AND:
+          lo = wint_min_and(ua, ub, uc, ud, w);
+          hi = wint_max_and(ua, ub, uc, ud, w);
+          break;
+        case CN_BINOP_BW_OR:
+          lo = wint_min_or(ua, ub, uc, ud, w);
+          hi = wint_max_or(ua, ub, uc, ud, w);
+          break;
+        case CN_BINOP_BW_XOR:
+          lo = wint_min_xor(ua, ub, uc, ud, w);
+          hi = wint_max_xor(ua, ub, uc, ud, w);
+          break;
+        default:
+          assert(false);
+          break;
+      }
+      if (first) {
+        result.start = (int64_t)lo;
+        result.stop = (int64_t)hi;
+        first = false;
+      } else {
+        wint_generic pair = {.width = width,
+            .is_signed = is_signed,
+            .start = (int64_t)lo,
+            .stop = (int64_t)hi};
+        result = wint_generic_join(&result, &pair);
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * Forward transformer for binary operations.
  */
 static bennet_tagged_domain wint_forward_binop(cn_binop op,
@@ -1402,7 +1271,7 @@ static bennet_tagged_domain wint_forward_binop(cn_binop op,
 
   int width;
   bool is_signed;
-  get_type_info(result_type, &width, &is_signed);
+  bennet_absint_type_info(result_type, &width, &is_signed);
   result.width = width;
   result.is_signed = is_signed;
 
@@ -1707,101 +1576,11 @@ static bennet_tagged_domain wint_forward_binop(cn_binop op,
       break;
     }
 
-    case CN_BINOP_BW_AND: {
-      // South pole split both operands for precise Hacker's Delight bounds
-      int64_t s1s[WINT_MAX_SPLITS], s1e[WINT_MAX_SPLITS];
-      int64_t s2s[WINT_MAX_SPLITS], s2e[WINT_MAX_SPLITS];
-      int n1 = wint_south_split(a, b, w, s1s, s1e);
-      int n2 = wint_south_split(c, d, w, s2s, s2e);
-
-      bool first = true;
-      for (int i = 0; i < n1; i++) {
-        for (int j = 0; j < n2; j++) {
-          uint64_t ua = wint_normalize_unsigned(s1s[i], w);
-          uint64_t ub = wint_normalize_unsigned(s1e[i], w);
-          uint64_t uc = wint_normalize_unsigned(s2s[j], w);
-          uint64_t ud = wint_normalize_unsigned(s2e[j], w);
-          uint64_t lo = wint_min_and(ua, ub, uc, ud, w);
-          uint64_t hi = wint_max_and(ua, ub, uc, ud, w);
-          if (first) {
-            result.start = (int64_t)lo;
-            result.stop = (int64_t)hi;
-            first = false;
-          } else {
-            wint_generic pair = {.width = width,
-                .is_signed = is_signed,
-                .start = (int64_t)lo,
-                .stop = (int64_t)hi};
-            result = wint_generic_join(&result, &pair);
-          }
-        }
-      }
+    case CN_BINOP_BW_AND:
+    case CN_BINOP_BW_OR:
+    case CN_BINOP_BW_XOR:
+      result = wint_forward_bitwise_binop(op, a, b, c, d, w, width, is_signed);
       break;
-    }
-
-    case CN_BINOP_BW_OR: {
-      // South pole split both operands for precise Hacker's Delight bounds
-      int64_t s1s[WINT_MAX_SPLITS], s1e[WINT_MAX_SPLITS];
-      int64_t s2s[WINT_MAX_SPLITS], s2e[WINT_MAX_SPLITS];
-      int n1 = wint_south_split(a, b, w, s1s, s1e);
-      int n2 = wint_south_split(c, d, w, s2s, s2e);
-
-      bool first = true;
-      for (int i = 0; i < n1; i++) {
-        for (int j = 0; j < n2; j++) {
-          uint64_t ua = wint_normalize_unsigned(s1s[i], w);
-          uint64_t ub = wint_normalize_unsigned(s1e[i], w);
-          uint64_t uc = wint_normalize_unsigned(s2s[j], w);
-          uint64_t ud = wint_normalize_unsigned(s2e[j], w);
-          uint64_t lo = wint_min_or(ua, ub, uc, ud, w);
-          uint64_t hi = wint_max_or(ua, ub, uc, ud, w);
-          if (first) {
-            result.start = (int64_t)lo;
-            result.stop = (int64_t)hi;
-            first = false;
-          } else {
-            wint_generic pair = {.width = width,
-                .is_signed = is_signed,
-                .start = (int64_t)lo,
-                .stop = (int64_t)hi};
-            result = wint_generic_join(&result, &pair);
-          }
-        }
-      }
-      break;
-    }
-
-    case CN_BINOP_BW_XOR: {
-      // South pole split both operands for precise Hacker's Delight bounds
-      int64_t s1s[WINT_MAX_SPLITS], s1e[WINT_MAX_SPLITS];
-      int64_t s2s[WINT_MAX_SPLITS], s2e[WINT_MAX_SPLITS];
-      int n1 = wint_south_split(a, b, w, s1s, s1e);
-      int n2 = wint_south_split(c, d, w, s2s, s2e);
-
-      bool first = true;
-      for (int i = 0; i < n1; i++) {
-        for (int j = 0; j < n2; j++) {
-          uint64_t ua = wint_normalize_unsigned(s1s[i], w);
-          uint64_t ub = wint_normalize_unsigned(s1e[i], w);
-          uint64_t uc = wint_normalize_unsigned(s2s[j], w);
-          uint64_t ud = wint_normalize_unsigned(s2e[j], w);
-          uint64_t lo = wint_min_xor(ua, ub, uc, ud, w);
-          uint64_t hi = wint_max_xor(ua, ub, uc, ud, w);
-          if (first) {
-            result.start = (int64_t)lo;
-            result.stop = (int64_t)hi;
-            first = false;
-          } else {
-            wint_generic pair = {.width = width,
-                .is_signed = is_signed,
-                .start = (int64_t)lo,
-                .stop = (int64_t)hi};
-            result = wint_generic_join(&result, &pair);
-          }
-        }
-      }
-      break;
-    }
 
     case CN_BINOP_SHIFT_LEFT: {
       // Shift amount must be constant for precise result
@@ -2062,7 +1841,7 @@ static bennet_tagged_domain wint_forward_unop(
 
   int width;
   bool is_signed;
-  get_type_info(result_type, &width, &is_signed);
+  bennet_absint_type_info(result_type, &width, &is_signed);
   result.width = width;
   result.is_signed = is_signed;
 
@@ -2178,8 +1957,8 @@ bennet_tagged_domain bennet_wint_transform_forward(
       /* Source and destination type metadata */
       int src_width, dst_width;
       bool src_signed, dst_signed;
-      get_type_info(src_dom.type, &src_width, &src_signed);
-      get_type_info(&term->base_type, &dst_width, &dst_signed);
+      bennet_absint_type_info(src_dom.type, &src_width, &src_signed);
+      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
 
       wint_generic src = wint_from_tagged(&src_dom);
 
@@ -2250,7 +2029,7 @@ bennet_tagged_domain bennet_wint_transform_forward(
       wint_generic elem_size_g = {0};
       int idx_width;
       bool idx_signed;
-      get_type_info(index_dom.type, &idx_width, &idx_signed);
+      bennet_absint_type_info(index_dom.type, &idx_width, &idx_signed);
       elem_size_g.width = idx_width;
       elem_size_g.is_signed = idx_signed;
       elem_size_g.start = (int64_t)term->data.array_shift.element_size;
@@ -2273,7 +2052,7 @@ bennet_tagged_domain bennet_wint_transform_forward(
       wint_generic offset_g = {0};
       int base_width;
       bool base_signed;
-      get_type_info(base_dom.type, &base_width, &base_signed);
+      bennet_absint_type_info(base_dom.type, &base_width, &base_signed);
       offset_g.width = base_width;
       offset_g.is_signed = base_signed;
       offset_g.start = (int64_t)term->data.member_shift.offset;
@@ -2416,13 +2195,8 @@ bennet_absint_state* bennet_wint_transform_backward(cn_term* term,
           switch (term->data.binop.op) {
             case CN_BINOP_ADD:
               // out = target + other => target = out - other
-              if (left_has_target) {
-                inverted.start = out.start - og.stop;
-                inverted.stop = out.stop - og.start;
-              } else {
-                inverted.start = out.start - og.stop;
-                inverted.stop = out.stop - og.start;
-              }
+              inverted.start = out.start - og.stop;
+              inverted.stop = out.stop - og.start;
               break;
             case CN_BINOP_SUB:
               if (left_has_target) {
@@ -2509,7 +2283,7 @@ bennet_absint_state* bennet_wint_transform_backward(cn_term* term,
             // Create constant elem_size domain with index's type info
             int idx_width;
             bool idx_signed;
-            get_type_info(&index->base_type, &idx_width, &idx_signed);
+            bennet_absint_type_info(&index->base_type, &idx_width, &idx_signed);
             wint_generic elem_g = {.width = idx_width,
                 .is_signed = idx_signed,
                 .start = elem_size,
@@ -2554,7 +2328,7 @@ bennet_absint_state* bennet_wint_transform_backward(cn_term* term,
               // Create constant elem_size domain
               int idx_width;
               bool idx_signed;
-              get_type_info(&index->base_type, &idx_width, &idx_signed);
+              bennet_absint_type_info(&index->base_type, &idx_width, &idx_signed);
               wint_generic elem_g = {.width = idx_width,
                   .is_signed = idx_signed,
                   .start = elem_size,
@@ -2615,8 +2389,8 @@ bennet_absint_state* bennet_wint_transform_backward(cn_term* term,
       // Clamp output domain to source type range and meet, then recurse
       int src_width, dst_width;
       bool src_signed, dst_signed;
-      get_type_info(&inner->base_type, &src_width, &src_signed);
-      get_type_info(&term->base_type, &dst_width, &dst_signed);
+      bennet_absint_type_info(&inner->base_type, &src_width, &src_signed);
+      bennet_absint_type_info(&term->base_type, &dst_width, &dst_signed);
 
       wint_generic out = wint_from_tagged(&output_domain);
       if (!out.is_top && !out.is_bottom) {
@@ -2922,115 +2696,4 @@ bennet_absint_state* bennet_wint_transform_backward_assume(
   }
 
   return bennet_absint_state_copy_wint(state);
-}
-
-/*-----------------------------------------------------------------------------
- * Comparison Refinement Helper
- *---------------------------------------------------------------------------*/
-
-void bennet_wint_transform_refine_comparison(bennet_absint_binop op,
-    bool must_be_true,
-    bennet_tagged_domain* left_domain,
-    bennet_tagged_domain* right_domain,
-    bennet_tagged_domain* out_left,
-    bennet_tagged_domain* out_right) {
-  assert(left_domain && right_domain && out_left && out_right);
-
-  wint_generic lg = wint_from_tagged(left_domain);
-  wint_generic rg = wint_from_tagged(right_domain);
-  wint_generic lg_refined = lg;
-  wint_generic rg_refined = rg;
-
-  int width = lg.width;
-
-  switch (op) {
-    case BENNET_ABSINT_BINOP_EQ: {
-      if (must_be_true) {
-        wint_generic meet = wint_generic_meet(&lg, &rg);
-        lg_refined = meet;
-        rg_refined = meet;
-      } else {
-        // For inequality, refine if one is constant at boundary
-        if (lg.start == lg.stop) {
-          int64_t c = lg.start;
-          if (rg.start == c) {
-            rg_refined.start = c + 1;
-          } else if (rg.stop == c) {
-            rg_refined.stop = c - 1;
-          }
-        } else if (rg.start == rg.stop) {
-          int64_t c = rg.start;
-          if (lg.start == c) {
-            lg_refined.start = c + 1;
-          } else if (lg.stop == c) {
-            lg_refined.stop = c - 1;
-          }
-        }
-      }
-      break;
-    }
-
-    case BENNET_ABSINT_BINOP_LE: {
-      if (must_be_true) {
-        // a <= b: constrain a.stop <= b.stop, b.start >= a.start
-        if (!lg.is_top && !rg.is_top) {
-          if (rg.stop < lg_refined.stop) {
-            lg_refined.stop = rg.stop;
-          }
-          if (lg.start > rg_refined.start) {
-            rg_refined.start = lg.start;
-          }
-        }
-      } else {
-        // a > b: constrain a.start > b.start, b.stop < a.stop
-        if (!lg.is_top && !rg.is_top) {
-          if (rg.start + 1 > lg_refined.start) {
-            lg_refined.start = rg.start + 1;
-          }
-          if (lg.stop - 1 < rg_refined.stop) {
-            rg_refined.stop = lg.stop - 1;
-          }
-        }
-      }
-      break;
-    }
-
-    case BENNET_ABSINT_BINOP_LT: {
-      if (must_be_true) {
-        // a < b: constrain a.stop < b.stop, b.start > a.start
-        if (!lg.is_top && !rg.is_top) {
-          if (rg.stop - 1 < lg_refined.stop) {
-            lg_refined.stop = rg.stop - 1;
-          }
-          if (lg.start + 1 > rg_refined.start) {
-            rg_refined.start = lg.start + 1;
-          }
-        }
-      } else {
-        // a >= b: constrain a.start >= b.start, b.stop <= a.stop
-        if (!lg.is_top && !rg.is_top) {
-          if (rg.start > lg_refined.start) {
-            lg_refined.start = rg.start;
-          }
-          if (lg.stop < rg_refined.stop) {
-            rg_refined.stop = lg.stop;
-          }
-        }
-      }
-      break;
-    }
-  }
-
-  // Check for empty intervals
-  if (lg_refined.start > lg_refined.stop &&
-      !wint_crosses_south(lg_refined.start, lg_refined.stop, width)) {
-    lg_refined.is_bottom = true;
-  }
-  if (rg_refined.start > rg_refined.stop &&
-      !wint_crosses_south(rg_refined.start, rg_refined.stop, width)) {
-    rg_refined.is_bottom = true;
-  }
-
-  *out_left = wint_to_tagged(&lg_refined, left_domain->type);
-  *out_right = wint_to_tagged(&rg_refined, right_domain->type);
 }

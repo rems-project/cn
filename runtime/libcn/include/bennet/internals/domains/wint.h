@@ -165,35 +165,6 @@ bennet_absint_state* bennet_wint_transform_backward(cn_term* term,
 bennet_absint_state* bennet_wint_transform_backward_assume(
     cn_term* term, bool value, bennet_absint_state* state);
 
-/*-----------------------------------------------------------------------------
- * Numeric Refinement from Comparisons
- *
- * Refines numeric domains based on comparison constraints.
- *---------------------------------------------------------------------------*/
-
-/**
- * Refine numeric domains based on a comparison constraint.
- * Given that `left op right` must be true/false, compute refined
- * domains for both operands.
- *
- * @param op           The comparison operator (LT, LE, EQ)
- * @param must_be_true Whether the comparison must be true or false
- * @param left_domain  Current domain of left operand
- * @param right_domain Current domain of right operand
- * @param out_left     Output: refined domain for left operand
- * @param out_right    Output: refined domain for right operand
- *
- * Example: refine_comparison(LT, true, [0,10], [5,20])
- *          -> out_left = [0,19], out_right = [1,20]
- *          (x < y, x in [0,10], y in [5,20] => x in [0,19], y in [1,20])
- */
-void bennet_wint_transform_refine_comparison(bennet_absint_binop op,
-    bool must_be_true,
-    bennet_tagged_domain* left_domain,
-    bennet_tagged_domain* right_domain,
-    bennet_tagged_domain* out_left,
-    bennet_tagged_domain* out_right);
-
 #ifdef __cplusplus
 }
 #endif

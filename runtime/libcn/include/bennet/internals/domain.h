@@ -156,13 +156,6 @@ BENNET_DOMAIN_TRANSFORM_BACKWARD_DECL(int64_t);
 BENNET_DOMAIN_TRANSFORM_BACKWARD_DECL(uint64_t);
 BENNET_DOMAIN_TRANSFORM_BACKWARD_DECL(uintptr_t);
 
-/* Binary operators for comparison refinement */
-typedef enum {
-  BENNET_ABSINT_BINOP_LT,
-  BENNET_ABSINT_BINOP_LE,
-  BENNET_ABSINT_BINOP_EQ,
-} bennet_absint_binop;
-
 #ifdef __cplusplus
 }
 #endif
