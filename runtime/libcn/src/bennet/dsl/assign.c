@@ -36,15 +36,19 @@ bennet_dynamic_absint_assign_mode bennet_get_dynamic_absint_assign(void) {
           bennet_domain_from_assignment_##pointer_ty(raw_base_ptr, raw_addr, bytes);     \
                                                                                          \
       if (bennet_domain_is_bottom(pointer_ty, domain)) {                                 \
-        /* Assignment is impossible regardless of pointer */                             \
-        if (bennet_get_dynamic_absint_assign() == BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO) {   \
-          /* ALSO mode: use backward absint to blame non-pointer vars */                 \
-          bennet_assign_backward_blame(                                                  \
-              addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);          \
-        } else {                                                                         \
-          /* Default: blame all vars that determine bytes (e.g., size) */                \
+        /* Assignment is impossible regardless of pointer. also = plain     */           \
+        /* blame plus backward-absint domains (the blame merge upgrades     */           \
+        /* duplicate ids); only = backward blame alone.                     */           \
+        bennet_dynamic_absint_assign_mode _mode = bennet_get_dynamic_absint_assign();    \
+        if (_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_ONLY) {                                \
+          /* Blame all vars that determine bytes (e.g., size) */                         \
           bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                        \
           bennet_failure_blame_many(vars);                                               \
+        }                                                                                \
+        if (_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_DISABLED) {                            \
+          /* Backward absint: blame non-pointer vars with domains */                     \
+          bennet_assign_backward_blame(                                                  \
+              addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);          \
         }                                                                                \
       } else {                                                                           \
         /* Pointer is wrong but a valid pointer exists — blame the pointer */            \

@@ -307,13 +307,15 @@
     bennet_domain(c_ty)* _refine_result =                                                \
         bennet_domain_meet(c_ty, var##_cs, _asgn_domain);                                \
     if (bennet_domain_is_bottom(c_ty, _refine_result)) {                                 \
-      if (bennet_get_dynamic_absint_assign() == BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO) {     \
-        bennet_assign_backward_blame(                                                    \
-            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
-      } else {                                                                           \
+      bennet_dynamic_absint_assign_mode _asgn_mode = bennet_get_dynamic_absint_assign(); \
+      if (_asgn_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_ONLY) {                             \
         bennet_failure_set_failure_type(BENNET_FAILURE_ASSERT);                          \
         const void* _asgn_vars[] = {__VA_ARGS__};                                        \
         bennet_failure_blame_many(_asgn_vars);                                           \
+      }                                                                                  \
+      if (_asgn_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_DISABLED) {                         \
+        bennet_assign_backward_blame(                                                    \
+            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
       }                                                                                  \
                                                                                          \
       bennet_info_unsatisfied_log(__FILE__, __LINE__, true);                             \

@@ -80,12 +80,14 @@ extern "C" {
     bennet_domain(cty)* _eval_meet =                                                     \
         bennet_domain_meet(cty, (domain_expr), _eval_asgn_domain);                       \
     if (bennet_domain_is_bottom(cty, _eval_meet)) {                                      \
-      if (bennet_get_dynamic_absint_assign() == BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO) {     \
-        bennet_assign_backward_blame(                                                    \
-            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
-      } else {                                                                           \
+      bennet_dynamic_absint_assign_mode _mode = bennet_get_dynamic_absint_assign();      \
+      if (_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_ONLY) {                                  \
         bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);                          \
         bennet_failure_blame(var);                                                       \
+      }                                                                                  \
+      if (_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_DISABLED) {                              \
+        bennet_assign_backward_blame(                                                    \
+            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
       }                                                                                  \
     }                                                                                    \
   }
@@ -163,12 +165,14 @@ extern "C" {
     backtrack_var##_##var##_domain =                                                     \
         bennet_domain_meet(c_ty, backtrack_var##_##var##_domain, _asgn_domain);          \
     if (bennet_domain_is_bottom(c_ty, backtrack_var##_##var##_domain)) {                 \
-      if (bennet_get_dynamic_absint_assign() == BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO) {     \
-        bennet_assign_backward_blame(                                                    \
-            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
-      } else {                                                                           \
+      bennet_dynamic_absint_assign_mode _mode = bennet_get_dynamic_absint_assign();      \
+      if (_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_ONLY) {                                  \
         bennet_failure_set_failure_type(BENNET_FAILURE_ASSIGN);                          \
         bennet_failure_blame(var);                                                       \
+      }                                                                                  \
+      if (_mode != BENNET_DYNAMIC_ABSINT_ASSIGN_DISABLED) {                              \
+        bennet_assign_backward_blame(                                                    \
+            addr_term, num_other_vars, other_var_ids, other_var_syms, bytes);            \
       }                                                                                  \
     }                                                                                    \
   }
