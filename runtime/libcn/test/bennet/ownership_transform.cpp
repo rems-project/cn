@@ -589,7 +589,10 @@ TEST_F(LibBennet, OwnershipAssumeOrFalseThreads) {
   cn_bump_free_after(frame);
 }
 
-TEST_F(LibBennet, OwnershipAssumeAndFalseOrTrueNoRefine) {
+TEST_F(LibBennet, OwnershipAssumeAndFalseEqNoRefine) {
+  // and(eq, eq) false: EQ-false has no ownership rule, so both branch
+  // assumptions are no-ops and their pointwise join keeps the base bindings
+  // (the branch-join rules refine nothing here).
   cn_bump_frame_id frame = cn_bump_get_frame_id();
   auto* state = bennet_absint_state_create();
   cn_sym p = cn_sym_from_string("p");
@@ -602,13 +605,56 @@ TEST_F(LibBennet, OwnershipAssumeAndFalseOrTrueNoRefine) {
   expect_state_own(r1, p, 4, 0);
   expect_state_own(r1, q, 0, 8);
 
-  auto* r2 = bennet_ownership_transform_backward_assume(cn_smt_or(eq, eq), true, state);
-  expect_state_own(r2, p, 4, 0);
-  expect_state_own(r2, q, 0, 8);
-
   bennet_absint_state_free(state);
   bennet_absint_state_free(r1);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, OwnershipAssumeOrTrueJoinsEqRefinement) {
+  // or(eq, eq) true (formerly unhandled): each branch refines p and q to the
+  // met requirement {4,8}; the join of identical branch refinements keeps
+  // it. The legacy walkers made no refinement here.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  auto* state = bennet_absint_state_create();
+  cn_sym p = cn_sym_from_string("p");
+  cn_sym q = cn_sym_from_string("q");
+  state = bennet_absint_state_set_ownership(state, asym(p), tagged_own(4, 0));
+  state = bennet_absint_state_set_ownership(state, asym(q), tagged_own(0, 8));
+
+  cn_term* eq = cn_smt_eq(loc_sym(p), loc_sym(q));
+  auto* r2 = bennet_ownership_transform_backward_assume(cn_smt_or(eq, eq), true, state);
+  expect_state_own(r2, p, 4, 8);
+  expect_state_own(r2, q, 4, 8);
+
+  bennet_absint_state_free(state);
   bennet_absint_state_free(r2);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, OwnershipAssumeOrTrueDistinctDisjuncts) {
+  // or(p==q, p==r) true: p must equal one of q/r, so p gets the join
+  // (componentwise min) of the two met requirements {4,8} and {4,2}.
+  // q and r each join their one-branch refinement with the other branch's
+  // unrefined binding, landing back on their base values.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  auto* state = bennet_absint_state_create();
+  cn_sym p = cn_sym_from_string("p");
+  cn_sym q = cn_sym_from_string("q");
+  cn_sym r = cn_sym_from_string("r");
+  state = bennet_absint_state_set_ownership(state, asym(p), tagged_own(4, 0));
+  state = bennet_absint_state_set_ownership(state, asym(q), tagged_own(0, 8));
+  state = bennet_absint_state_set_ownership(state, asym(r), tagged_own(2, 2));
+
+  auto* refined = bennet_ownership_transform_backward_assume(
+      cn_smt_or(cn_smt_eq(loc_sym(p), loc_sym(q)), cn_smt_eq(loc_sym(p), loc_sym(r))),
+      true,
+      state);
+  expect_state_own(refined, p, 4, 2);
+  expect_state_own(refined, q, 0, 8);
+  expect_state_own(refined, r, 2, 2);
+
+  bennet_absint_state_free(state);
+  bennet_absint_state_free(refined);
   cn_bump_free_after(frame);
 }
 

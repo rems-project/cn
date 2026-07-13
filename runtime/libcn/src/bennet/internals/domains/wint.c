@@ -1904,16 +1904,12 @@ static bennet_tagged_domain wint_basis_forward_unop(
  *
  * These are the wint-specific transfer functions of the shared cn_term
  * walker engine; the traversal, gating, and refinement-application order
- * live in the template. Bodies are the former hand-written walkers' case
- * arms, unchanged (parity gated by test/bennet/absint_difftest.cpp).
- *
- * Legacy wint behaviors preserved at parity:
- *  - ABSINT_ASSUME_LOGIC_OPS 0: the legacy AND/OR handling was unreachable
- *    dead code (defect D1 - the comparison block returned for every binop),
- *    so assume makes no refinement through conjunctions/disjunctions.
- * (The legacy descend-with-output-unchanged defaults for backward unops and
- * for backward ADD/SUB with a top side were unsound over-refinement and were
- * fixed in the P6 semantic pass; see the basis functions.)
+ * live in the template (soundness gated by absint_oracle.cpp and
+ * absint_fuzz.cpp). The legacy descend-with-output-unchanged defaults for
+ * backward unops and for backward ADD/SUB with a top side were unsound
+ * over-refinement and have since been fixed, as was the dead
+ * legacy AND/OR assume handling (the engine now recurses and
+ * joins for every domain).
  *---------------------------------------------------------------------------*/
 
 #include <bennet/internals/domains/transform_template.h>
@@ -2457,6 +2453,5 @@ static bennet_absint_cmp_result wint_basis_assume_cmp(cn_binop op,
  * backward_assume}
  *---------------------------------------------------------------------------*/
 
-#define ABSINT_DOM              wint
-#define ABSINT_ASSUME_LOGIC_OPS 0 /* legacy dead AND/OR (defect D1) */
+#define ABSINT_DOM wint
 #include <bennet/internals/domains/transform.inc.c>

@@ -1718,6 +1718,86 @@ TEST_F(LibBennet, WIntBackwardComplInverts) {
   cn_bump_free_after(frame);
 }
 
+TEST_F(LibBennet, WIntAssumeOrTrueJoinsHull) {
+  // x==3 || x==7 assumed true (formerly a gap: wint's AND/OR handling was
+  // unreachable dead code): the branch refinements {3} and {7} join to the
+  // hull [3,7].
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_term* x = cn_smt_sym(sym_x, bt_u8);
+
+  cn_term* cond = cn_smt_or(
+      cn_smt_eq(x, cn_smt_bits(false, 8, 3)), cn_smt_eq(x, cn_smt_bits(false, 8, 7)));
+
+  auto* refined =
+      bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+
+  bennet_tagged_domain rx =
+      bennet_absint_state_get_wint(refined, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&rx, &start, &end);
+  EXPECT_EQ(start, (uint8_t)3);
+  EXPECT_EQ(end, (uint8_t)7);
+
+  bennet_absint_state_free(refined);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntAssumeAndTrueThreads) {
+  // 5 < x && x < 10 assumed true: the conjuncts thread left to right,
+  // landing x in [6,9]. (First wint AND coverage; recursion was gated off
+  // until the join-rule fix.)
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_term* x = cn_smt_sym(sym_x, bt_u8);
+
+  cn_term* cond = cn_smt_and(
+      cn_smt_lt(cn_smt_bits(false, 8, 5), x), cn_smt_lt(x, cn_smt_bits(false, 8, 10)));
+
+  auto* refined =
+      bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+
+  bennet_tagged_domain rx =
+      bennet_absint_state_get_wint(refined, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&rx, &start, &end);
+  EXPECT_EQ(start, (uint8_t)6);
+  EXPECT_EQ(end, (uint8_t)9);
+
+  bennet_absint_state_free(refined);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntAssumeAndFalseJoins) {
+  // !(x < 100 && x < 50): at least one conjunct is false, so x is in the
+  // join of [100,255] and [50,255] = [50,255].
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_term* x = cn_smt_sym(sym_x, bt_u8);
+
+  cn_term* cond = cn_smt_and(
+      cn_smt_lt(x, cn_smt_bits(false, 8, 100)), cn_smt_lt(x, cn_smt_bits(false, 8, 50)));
+
+  auto* refined =
+      bennet_wint_transform_backward_assume(cond, false, bennet_absint_state_create());
+
+  bennet_tagged_domain rx =
+      bennet_absint_state_get_wint(refined, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&rx, &start, &end);
+  EXPECT_EQ(start, (uint8_t)50);
+  EXPECT_EQ(end, (uint8_t)255);
+
+  bennet_absint_state_free(refined);
+  cn_bump_free_after(frame);
+}
+
 TEST_F(LibBennet, WIntBackwardAddTopSideStops) {
   // out = x + y in [5,5] with y unconstrained puts no constraint on x: the
   // legacy fallback pushed [5,5] into x (unsound; e.g. x=2,y=3 satisfies).

@@ -1247,7 +1247,7 @@ BENNET_ABSINT_STATE_IMPL(tnum)
  * These are the tnum-specific transfer functions of the shared cn_term
  * walker engine; the traversal, gating, and refinement-application order
  * live in the template. Bodies are the former hand-written walkers' case
- * arms, unchanged (parity gated by test/bennet/absint_difftest.cpp).
+ * arms, unchanged (soundness gated by absint_oracle.cpp and absint_fuzz.cpp).
  *
  * The precision rework aligned tnum's refinement application with
  * wint/congr: comparison refinements now push through arbitrary term
@@ -2024,6 +2024,5 @@ static bennet_absint_cmp_result tnum_basis_assume_cmp(cn_binop op,
  * backward_assume}
  *---------------------------------------------------------------------------*/
 
-#define ABSINT_DOM              tnum
-#define ABSINT_ASSUME_LOGIC_OPS 1
+#define ABSINT_DOM tnum
 #include <bennet/internals/domains/transform.inc.c>

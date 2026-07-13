@@ -44,9 +44,6 @@
 #ifndef ABSINT_DOM
   #error "transform.inc.c requires ABSINT_DOM to be defined"
 #endif
-#ifndef ABSINT_ASSUME_LOGIC_OPS
-  #error "transform.inc.c requires ABSINT_ASSUME_LOGIC_OPS (0 or 1)"
-#endif
 
 #define ABSINT_CAT_(a, b) a##b
 #define ABSINT_CAT(a, b)  ABSINT_CAT_(a, b)
@@ -340,6 +337,92 @@ static bennet_absint_state* ABSINT_ENGINE(apply_refinement)(
   return result;
 }
 
+/* Are two stored tagged types compatible for a value-space join? Branch
+ * assumptions can deposit a binding at a wider type than the symbol's own
+ * (cast-path refinements), and the generic joins assert equal widths. */
+static bool ABSINT_ENGINE(types_joinable)(cn_base_type* a, cn_base_type* b) {
+  if (a->tag != b->tag)
+    return false;
+  if (a->tag == CN_BASE_BITS)
+    return a->data.bits.size_bits == b->data.bits.size_bits &&
+           a->data.bits.is_signed == b->data.bits.is_signed;
+  return true;
+}
+
+/* Pointwise join of two branch-assumption states over the syms of `term`,
+ * met into `out` (a copy of the branches' common base state). Sound because
+ * assume only tightens: each branch binding is <= the base binding, so the
+ * join is too, and meeting it into the base equals replacing. A contradicted
+ * branch deposited bottom on its syms, so join(bottom, live) recovers the
+ * live branch; when both branches bottom a sym, the join keeps bottom and
+ * `out` reads as bottom (the whole conjunction/disjunction is
+ * unsatisfiable). Skipped syms - top on either side, incompatible stored
+ * types, or syms under unsupported nodes (which assume can never refine) -
+ * keep their base binding, which is always sound. Walking the term rather
+ * than bennet_absint_term_collect_syms avoids the 16-symbol cap and yields
+ * each sym's own base type. */
+static bennet_absint_state* ABSINT_ENGINE(join_branches)(cn_term* term,
+    bennet_absint_state* sa,
+    bennet_absint_state* sb,
+    bennet_absint_state* out) {
+  if (!term)
+    return out;
+
+  switch (term->type) {
+    case CN_TERM_SYM: {
+      bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
+      bennet_tagged_domain da = ABSINT_STATE(get)(sa, sym, &term->base_type);
+      bennet_tagged_domain db = ABSINT_STATE(get)(sb, sym, &term->base_type);
+      bool bot_a = ABSINT_TAGGED(is_bottom)(&da);
+      bool bot_b = ABSINT_TAGGED(is_bottom)(&db);
+
+      /* Branch bindings are meets into the common base, so each is <= the
+       * base binding and `set` (replace) is sound everywhere below. `meet`
+       * would be wrong here: the unsat protocol deposits bottom tagged LOC
+       * (a pinned legacy quirk), which cannot meet a narrower base binding
+       * (the generic meets assert equal widths). */
+      if (bot_a && bot_b) {
+        /* Both branches contradict: bottom at the sym's own type. */
+        return ABSINT_STATE(set)(out, sym, ABSINT_TAGGED(bottom)(&term->base_type));
+      }
+      if (bot_a || bot_b) {
+        /* One branch contradicts: keep the live branch's binding. */
+        bennet_tagged_domain live = bot_a ? db : da;
+        if (ABSINT_TAGGED(is_top)(&live)) {
+          return out;
+        }
+        return ABSINT_STATE(set)(out, sym, live);
+      }
+      if (ABSINT_TAGGED(is_top)(&da) || ABSINT_TAGGED(is_top)(&db)) {
+        return out;
+      }
+      if (!ABSINT_ENGINE(types_joinable)(da.type, db.type)) {
+        return out;
+      }
+      bennet_tagged_domain joined = ABSINT_TAGGED(join)(&da, &db);
+      return ABSINT_STATE(set)(out, sym, joined);
+    }
+    case CN_TERM_UNOP:
+      return ABSINT_ENGINE(join_branches)(term->data.unop.operand, sa, sb, out);
+    case CN_TERM_BINOP:
+      out = ABSINT_ENGINE(join_branches)(term->data.binop.left, sa, sb, out);
+      return ABSINT_ENGINE(join_branches)(term->data.binop.right, sa, sb, out);
+    case CN_TERM_ITE:
+      out = ABSINT_ENGINE(join_branches)(term->data.ite.cond, sa, sb, out);
+      out = ABSINT_ENGINE(join_branches)(term->data.ite.then_term, sa, sb, out);
+      return ABSINT_ENGINE(join_branches)(term->data.ite.else_term, sa, sb, out);
+    case CN_TERM_CAST:
+      return ABSINT_ENGINE(join_branches)(term->data.cast.value, sa, sb, out);
+    case CN_TERM_ARRAY_SHIFT:
+      out = ABSINT_ENGINE(join_branches)(term->data.array_shift.base, sa, sb, out);
+      return ABSINT_ENGINE(join_branches)(term->data.array_shift.index, sa, sb, out);
+    case CN_TERM_MEMBER_SHIFT:
+      return ABSINT_ENGINE(join_branches)(term->data.member_shift.base, sa, sb, out);
+    default:
+      return out;
+  }
+}
+
 static bennet_absint_state* ABSINT_ENGINE(assume)(
     cn_term* term, bool value, bennet_absint_state* state) {
   if (!term || !state)
@@ -357,25 +440,28 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
 
     switch (op) {
       case CN_BINOP_AND: {
-#if ABSINT_ASSUME_LOGIC_OPS
         if (value) {
           /* Both sides must be true */
           bennet_absint_state* result = ABSINT_ENGINE(assume)(left, true, state);
           return ABSINT_ENGINE(assume)(right, true, result);
         }
-#endif
-        return ABSINT_STATE(copy)(state);
+        /* At least one side is false: pointwise join of the two branch
+         * assumptions (no refinement was made here before). */
+        bennet_absint_state* sa = ABSINT_ENGINE(assume)(left, false, state);
+        bennet_absint_state* sb = ABSINT_ENGINE(assume)(right, false, state);
+        return ABSINT_ENGINE(join_branches)(term, sa, sb, ABSINT_STATE(copy)(state));
       }
 
       case CN_BINOP_OR: {
-#if ABSINT_ASSUME_LOGIC_OPS
         if (!value) {
           /* Both sides must be false */
           bennet_absint_state* result = ABSINT_ENGINE(assume)(left, false, state);
           return ABSINT_ENGINE(assume)(right, false, result);
         }
-#endif
-        return ABSINT_STATE(copy)(state);
+        /* At least one side is true: join of the branch assumptions. */
+        bennet_absint_state* sa = ABSINT_ENGINE(assume)(left, true, state);
+        bennet_absint_state* sb = ABSINT_ENGINE(assume)(right, true, state);
+        return ABSINT_ENGINE(join_branches)(term, sa, sb, ABSINT_STATE(copy)(state));
       }
 
       case CN_BINOP_EQ:
@@ -483,5 +569,4 @@ bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
 #undef ABSINT_BASIS
 #undef ABSINT_CAT
 #undef ABSINT_CAT_
-#undef ABSINT_ASSUME_LOGIC_OPS
 #undef ABSINT_DOM
