@@ -91,8 +91,9 @@ module Flags = struct
 
   let dynamic_absint_assign =
     let doc =
-      "Enable dynamic abstract interpretation for assign constraints. Modes: 'also' (use \
-       dynamic absint in addition to static), 'only' (use dynamic absint only)"
+      "Enable backward abstract interpretation for impossible-assignment blame. Modes: \
+       'also' (plain variable blame plus backward-absint domain blame), 'only' \
+       (backward-absint blame alone)"
     in
     Arg.(
       value

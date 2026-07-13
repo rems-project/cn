@@ -37,6 +37,7 @@ namespace {
 // Stable ids for blamed "variables" (the blame channel keys on addresses).
 static int slot_p;
 static int slot_n;
+static int slot_id;
 
 cn_term* loc_sym(cn_sym s) {
   return cn_smt_sym(s, cn_base_type_simple(CN_BASE_LOC));
@@ -223,6 +224,75 @@ TEST_F(LibBennet, BlameRepeatMeets) {
   bennet_assign_backward_blame(cn_smt_member_shift(loc_sym(p), 16), 1, ids, syms, 4);
 
   expect_blamed_ownership(&slot_p, 0, 20);
+
+  cn_bump_free_after(frame);
+}
+
+// -----------------------------------------------------------------------------
+// --dynamic-absint-assign mode dispatch:
+// disabled = plain blame only; also = plain blame PLUS backward domains
+// (the blame merge upgrades duplicate ids); only = backward blame alone.
+// Driven through bennet_assign_uintptr_t's impossible-assignment branch:
+// bytes = SIZE_MAX exceeds the allocator capacity, so
+// bennet_domain_from_assignment bottoms deterministically.
+// -----------------------------------------------------------------------------
+
+namespace {
+
+void run_assign_mode(bennet_dynamic_absint_assign_mode mode) {
+  cn_sym p = cn_sym_from_string("p");
+  const void* other_ids[] = {&slot_p};
+  const bennet_absint_sym other_syms[] = {asym(p)};
+  const void* vars[] = {&slot_n, NULL};
+  uint64_t value = 0;
+
+  bennet_set_dynamic_absint_assign(mode);
+  bool backtrack = bennet_assign_uintptr_t(&slot_id,
+      convert_to_cn_pointer(NULL),
+      convert_to_cn_pointer((void*)0x1000),
+      &value,
+      SIZE_MAX,
+      vars,
+      loc_sym(p),
+      1,
+      other_ids,
+      other_syms);
+  bennet_set_dynamic_absint_assign(BENNET_DYNAMIC_ABSINT_ASSIGN_DISABLED);
+
+  EXPECT_TRUE(backtrack);
+  EXPECT_EQ(bennet_failure_get_failure_type(), BENNET_FAILURE_ASSERT);
+}
+
+}  // namespace
+
+TEST_F(LibBennet, AssignModeDisabledPlainBlameOnly) {
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  run_assign_mode(BENNET_DYNAMIC_ABSINT_ASSIGN_DISABLED);
+
+  EXPECT_TRUE(bennet_failure_is_blamed(&slot_n));
+  EXPECT_EQ(blamed_product(&slot_n), nullptr); /* plain: no domain */
+  EXPECT_FALSE(bennet_failure_is_blamed(&slot_p));
+
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, AssignModeOnlyBackwardBlameOnly) {
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  run_assign_mode(BENNET_DYNAMIC_ABSINT_ASSIGN_ONLY);
+
+  EXPECT_FALSE(bennet_failure_is_blamed(&slot_n));
+  expect_blamed_ownership(&slot_p, 0, SIZE_MAX);
+
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, AssignModeAlsoUnionsBlames) {
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  run_assign_mode(BENNET_DYNAMIC_ABSINT_ASSIGN_ALSO);
+
+  EXPECT_TRUE(bennet_failure_is_blamed(&slot_n));
+  EXPECT_EQ(blamed_product(&slot_n), nullptr); /* plain: no domain */
+  expect_blamed_ownership(&slot_p, 0, SIZE_MAX);
 
   cn_bump_free_after(frame);
 }
