@@ -108,60 +108,22 @@ BENNET_ABSINT_STATE_IMPL(ownership)
 /*-----------------------------------------------------------------------------
  * Backward propagation to all symbols (the assign.c blame channel)
  *
- * This deposit-at-every-SYM walk has no engine counterpart until P6's
- * deposit-at-every-SYM backward pass, and bennet_assign_backward_blame
- * depends on its exact shape (notably: no ITE case, so blame never crosses
- * conditionals). It survives the P4 port verbatim.
+ * This is a thin wrapper over the engine's deposit backward
+ * walk (the legacy hand-written walk it replaces was ITE-blind; blame now
+ * crosses conditionals with the join of the arm-wise requirements, which
+ * is the sound direction for regeneration completeness).
  *---------------------------------------------------------------------------*/
 
-/**
- * Walk a term tree; at each SYM node, meet the ownership domain into state.
- * At MEMBER_SHIFT / ARRAY_SHIFT, invert the shift before recursing into base.
- * At CAST, recurse into inner (casts preserve ownership).
- */
 bennet_absint_state* bennet_ownership_backward_propagate_to_syms(
     cn_term* term, OWN_T* own_dom, bennet_absint_state* state) {
-  if (!term) {
-    return bennet_absint_state_copy_ownership(state);
-  }
-
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
-      bennet_tagged_domain cur =
-          bennet_absint_state_get_ownership(state, sym, &term->base_type);
-      OWN_T* cur_own = (OWN_T*)cur.domain;
-      OWN_T* met = bennet_domain_ownership_meet_uintptr_t(cur_own, own_dom);
-      bennet_tagged_domain met_tagged =
-          bennet_tagged_domain_create(&ownership_loc_bt, met);
-      return bennet_absint_state_set_ownership(state, sym, met_tagged);
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      OWN_T* base_req = bennet_ownership_member_shift_backward_uintptr_t(
-          own_dom, term->data.member_shift.offset);
-      return bennet_ownership_backward_propagate_to_syms(
-          term->data.member_shift.base, base_req, state);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      size_t index_val;
-      if (try_extract_const_size(term->data.array_shift.index, &index_val)) {
-        OWN_T* base_req = bennet_ownership_array_shift_backward_uintptr_t(
-            own_dom, term->data.array_shift.element_size, index_val);
-        return bennet_ownership_backward_propagate_to_syms(
-            term->data.array_shift.base, base_req, state);
-      }
-      return bennet_absint_state_copy_ownership(state);
-    }
-
-    case CN_TERM_CAST:
-      return bennet_ownership_backward_propagate_to_syms(
-          term->data.cast.value, own_dom, state);
-
-    default:
-      return bennet_absint_state_copy_ownership(state);
-  }
+  /* The engine's SYM deposit conses the pushed tagged domain directly into
+   * the state when the binding is absent, but this channel's contract lets
+   * the caller free own_dom after the call (assign.c does) - pass a copy
+   * so no state binding aliases caller memory. */
+  OWN_T* own_copy = bennet_domain_ownership_copy_uintptr_t(own_dom);
+  bennet_tagged_domain out = bennet_tagged_domain_create(&ownership_loc_bt, own_copy);
+  return bennet_ownership_transform_backward(
+      term, (bennet_absint_sym){.name = NULL, .id = 0}, out, state);
 }
 
 /*-----------------------------------------------------------------------------

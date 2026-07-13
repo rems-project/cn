@@ -855,8 +855,13 @@ TEST_F(LibBennet, CongrBackwardSymMeet) {
   cn_bump_free_after(frame);
 }
 
-TEST_F(LibBennet, CongrBackwardOtherSymUntouched) {
-  // Term mentions only b; refining target a must change nothing.
+TEST_F(LibBennet, CongrBackwardDepositSurfacesContradiction) {
+  // DEPOSIT WITNESS (flipped by the rework): backward on b+1 with output 8Z+0
+  // pushes b = 8Z+7, which is CRT-infeasible with b's binding 4Z+1 - the
+  // premise "b+1 in 8Z+0" was already contradictory (fwd(b+1) = 4Z+2), and
+  // the deposit walk surfaces that as bottom regardless of the (vestigial)
+  // target parameter. The legacy target-directed walk pruned the term
+  // because target a did not occur in it and left everything unchanged.
   cn_bump_frame_id frame = cn_bump_get_frame_id();
   auto* state = bennet_absint_state_create();
   cn_sym a = cn_sym_from_string("a");
@@ -868,9 +873,12 @@ TEST_F(LibBennet, CongrBackwardOtherSymUntouched) {
   auto* refined =
       bennet_congr_transform_backward(term, asym(a), tagged_congr_u8(8, 0), state);
 
+  EXPECT_TRUE(bennet_absint_state_is_bottom_congr(refined));
+  bennet_tagged_domain b_dom = bennet_absint_state_get_congr(refined, asym(b), &bt);
+  EXPECT_TRUE(bennet_tagged_domain_is_bottom_congr(&b_dom));
+  // The target itself does not occur in the term and stays top.
   bennet_tagged_domain a_dom = bennet_absint_state_get_congr(refined, asym(a), &bt);
   EXPECT_TRUE(bennet_tagged_domain_is_top_congr(&a_dom));
-  expect_congr_u8(bennet_absint_state_get_congr(refined, asym(b), &bt), 4, 1);
 
   bennet_absint_state_free(state);
   bennet_absint_state_free(refined);

@@ -15,21 +15,21 @@
  *   bennet_absint_state* bennet_<dom>_transform_backward_assume(cn_term*,
  *       bool, bennet_absint_state*);
  *
- * Engine shape (parity with the legacy per-domain walkers, gated by
- * test/bennet/absint_difftest.cpp):
+ * Engine shape (soundness gated
+ * by absint_oracle.cpp and absint_fuzz.cpp):
  *  - the forward pass builds a cached tree (ftree) of tagged values, one
- *    node per supported cn_term node, mirroring the legacy recursion
- *    exactly (ITE conditions are not evaluated; unsupported kinds are a
- *    single default arm yielding top);
- *  - the backward pass is target-directed: it descends only the side
- *    containing the target symbol (left priority), reading the sibling's
- *    forward value from the ftree cache -- valid because the state is
- *    constant within one targeted walk, so the cache equals the legacy
- *    walkers' on-demand forward calls;
- *  - assume pushes comparison refinements via one targeted backward walk
- *    per collected symbol, re-entering through the public entry point so
- *    each walk's forward evaluation sees the previous walks' refinements
- *    (Gauss-Seidel order, as the legacy backward_apply_to_all_syms did).
+ *    node per supported cn_term node (ITE conditions are not evaluated;
+ *    unsupported kinds are a single default arm yielding top);
+ *  - the backward pass is a single deposit walk: at every node it computes
+ *    the inverse image for each child from the cached sibling values
+ *    (Jacobi within the node - both downs are derived from the pre-walk
+ *    forward cache), descends into every invertible child, and meets the
+ *    pushed value into the state at every SYM it reaches; ITE walks both
+ *    arms and pointwise-joins the branch states;
+ *  - assume pushes each comparison side's refinement with one deposit walk
+ *    over that side's already-built forward tree (pure Jacobi across
+ *    sides), replacing the legacy Gauss-Seidel walk-per-collected-symbol
+ *    protocol.
  */
 
 #include <assert.h>
@@ -176,205 +176,6 @@ static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* stat
   return node;
 }
 
-/*-----------------------------------------------------------------------------
- * Backward pass: target-directed walk over the cached tree
- *---------------------------------------------------------------------------*/
-
-static bennet_absint_state* ABSINT_ENGINE(bwd)(ABSINT_FTREE* node,
-    bennet_absint_sym target_sym,
-    bennet_tagged_domain output_domain,
-    bennet_absint_state* state) {
-  cn_term* term = node->term;
-  if (!term || !state)
-    return state;
-
-  /* Bottom output -> propagate bottom to target */
-  if (ABSINT_TAGGED(is_bottom)(&output_domain)) {
-    return ABSINT_STATE(set)(
-        ABSINT_STATE(copy)(state), target_sym, ABSINT_TAGGED(bottom)(&term->base_type));
-  }
-
-  switch (term->type) {
-    case CN_TERM_SYM: {
-      if (term->data.sym.id == target_sym.id) {
-        return ABSINT_STATE(meet)(state, target_sym, output_domain);
-      }
-      return ABSINT_STATE(copy)(state);
-    }
-
-    case CN_TERM_BINOP: {
-      cn_term* left = term->data.binop.left;
-      bool left_has_target = term_contains_sym(left, target_sym.id);
-      bool right_has_target = term_contains_sym(term->data.binop.right, target_sym.id);
-
-      if (!left_has_target && !right_has_target)
-        return ABSINT_STATE(copy)(state);
-
-      /* Comparison ops are handled by backward_assume */
-      switch (term->data.binop.op) {
-        case CN_BINOP_EQ:
-        case CN_BINOP_LT:
-        case CN_BINOP_LE:
-        case CN_BINOP_LT_POINTER:
-        case CN_BINOP_LE_POINTER:
-          return ABSINT_STATE(copy)(state);
-        default:
-          break;
-      }
-
-      /* Left priority when both sides contain the target (legacy routing).
-       * The sibling's cached forward value equals the legacy walkers'
-       * on-demand forward call: the state is constant within one targeted
-       * walk. */
-      ABSINT_FTREE* target_kid = left_has_target ? node->kids[0] : node->kids[1];
-      ABSINT_FTREE* other_kid = left_has_target ? node->kids[1] : node->kids[0];
-
-      bennet_tagged_domain down;
-      bennet_absint_bw_action action = ABSINT_BASIS(backward_binop)(term->data.binop.op,
-          left_has_target,
-          &output_domain,
-          &other_kid->val,
-          &target_kid->val,
-          &target_kid->term->base_type,
-          &down);
-      if (action == BENNET_ABSINT_BW_DESCEND) {
-        return ABSINT_ENGINE(bwd)(target_kid, target_sym, down, state);
-      }
-
-      /* No valid inversion - return unchanged state (sound over-approximation) */
-      return ABSINT_STATE(copy)(state);
-    }
-
-    case CN_TERM_UNOP: {
-      bennet_tagged_domain down;
-      bennet_absint_bw_action action = ABSINT_BASIS(backward_unop)(term->data.unop.op,
-          &output_domain,
-          &node->kids[0]->val,
-          &term->data.unop.operand->base_type,
-          &down);
-      if (action == BENNET_ABSINT_BW_DESCEND) {
-        return ABSINT_ENGINE(bwd)(node->kids[0], target_sym, down, state);
-      }
-      return ABSINT_STATE(copy)(state);
-    }
-
-    case CN_TERM_ITE: {
-      /* Propagate to both branches, join results */
-      bennet_absint_state* then_state =
-          ABSINT_ENGINE(bwd)(node->kids[0], target_sym, output_domain, state);
-      bennet_absint_state* else_state =
-          ABSINT_ENGINE(bwd)(node->kids[1], target_sym, output_domain, state);
-
-      if (ABSINT_STATE(is_bottom)(then_state))
-        return else_state;
-      if (ABSINT_STATE(is_bottom)(else_state))
-        return then_state;
-
-      bennet_tagged_domain then_dom =
-          ABSINT_STATE(get)(then_state, target_sym, &term->base_type);
-      bennet_tagged_domain else_dom =
-          ABSINT_STATE(get)(else_state, target_sym, &term->base_type);
-      /* Branch join through the per-domain hook: congr/wint use the tagged
-       * join (then-branch's stored type), tnum joins natively and tags with
-       * the ITE node's own type. */
-      bennet_tagged_domain joined =
-          ABSINT_BASIS(ite_join)(&then_dom, &else_dom, &term->base_type);
-      return ABSINT_STATE(set)(state, target_sym, joined);
-    }
-
-    case CN_TERM_ARRAY_SHIFT: {
-      bool base_has_target =
-          term_contains_sym(term->data.array_shift.base, target_sym.id);
-      bool index_has_target =
-          term_contains_sym(term->data.array_shift.index, target_sym.id);
-
-      if (!base_has_target && !index_has_target)
-        return ABSINT_STATE(copy)(state);
-
-      ABSINT_FTREE* target_kid = base_has_target ? node->kids[0] : node->kids[1];
-      ABSINT_FTREE* sibling_kid = base_has_target ? node->kids[1] : node->kids[0];
-
-      bennet_tagged_domain down;
-      bennet_absint_bw_action action = ABSINT_BASIS(shift_backward)(term,
-          base_has_target,
-          &output_domain,
-          &sibling_kid->val,
-          &target_kid->val,
-          &down);
-      if (action == BENNET_ABSINT_BW_DESCEND) {
-        return ABSINT_ENGINE(bwd)(target_kid, target_sym, down, state);
-      }
-      return ABSINT_STATE(copy)(state);
-    }
-
-    case CN_TERM_MEMBER_SHIFT: {
-      if (!term_contains_sym(term->data.member_shift.base, target_sym.id))
-        return ABSINT_STATE(copy)(state);
-
-      bennet_tagged_domain down;
-      bennet_absint_bw_action action = ABSINT_BASIS(shift_backward)(
-          term, true, &output_domain, NULL, &node->kids[0]->val, &down);
-      if (action == BENNET_ABSINT_BW_DESCEND) {
-        return ABSINT_ENGINE(bwd)(node->kids[0], target_sym, down, state);
-      }
-      return ABSINT_STATE(copy)(state);
-    }
-
-    case CN_TERM_CAST: {
-      cn_term* inner = term->data.cast.value;
-      if (!term_contains_sym(inner, target_sym.id))
-        return ABSINT_STATE(copy)(state);
-
-      bennet_tagged_domain down;
-      bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
-          &inner->base_type, &term->base_type, &output_domain, &down);
-      if (action == BENNET_ABSINT_BW_DESCEND) {
-        return ABSINT_ENGINE(bwd)(node->kids[0], target_sym, down, state);
-      }
-      return ABSINT_STATE(copy)(state);
-    }
-
-    case CN_TERM_WRAPI: {
-      /* Mirror of CAST: invert the modular conversion via backward_cast. */
-      cn_term* inner = term->data.wrapi.value;
-      if (!term_contains_sym(inner, target_sym.id))
-        return ABSINT_STATE(copy)(state);
-
-      bennet_tagged_domain down;
-      bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
-          &inner->base_type, &term->base_type, &output_domain, &down);
-      if (action == BENNET_ABSINT_BW_DESCEND) {
-        return ABSINT_ENGINE(bwd)(node->kids[0], target_sym, down, state);
-      }
-      return ABSINT_STATE(copy)(state);
-    }
-
-    default:
-      /* Unknown term type: no safe refinement possible */
-      return ABSINT_STATE(copy)(state);
-  }
-}
-
-/*-----------------------------------------------------------------------------
- * Assume: comparison refinement push-down
- *---------------------------------------------------------------------------*/
-
-/* Apply a refined domain to all SYMs in a term, one targeted backward walk
- * per symbol. Re-enters through the public entry point so walk k+1's
- * forward evaluation sees walk k's refinements (Gauss-Seidel, exactly the
- * legacy backward_apply_to_all_syms). */
-static bennet_absint_state* ABSINT_ENGINE(apply_refinement)(
-    cn_term* term, bennet_tagged_domain* refined_dom, bennet_absint_state* state) {
-  bennet_absint_sym syms[16];
-  int n = bennet_absint_term_collect_syms(term, syms, 16);
-
-  bennet_absint_state* result = state;
-  for (int i = 0; i < n; i++) {
-    result = ABSINT_PUBLIC(backward)(term, syms[i], *refined_dom, result);
-  }
-  return result;
-}
-
 /* Are two stored tagged types compatible for a value-space join? Branch
  * assumptions can deposit a binding at a wider type than the symbol's own
  * (cast-path refinements), and the generic joins assert equal widths. */
@@ -463,6 +264,189 @@ static bennet_absint_state* ABSINT_ENGINE(join_branches)(cn_term* term,
   }
 }
 
+/*-----------------------------------------------------------------------------
+ * Backward pass: deposit walk over the cached tree
+ *---------------------------------------------------------------------------*/
+
+/* Unsat protocol for a bottom pushed value: set every collected sym of the
+ * subtree to bottom (same collector cap and LOC tagging as the assume-side
+ * comparison protocol). */
+static bennet_absint_state* ABSINT_ENGINE(deposit_bottom)(
+    cn_term* term, bennet_absint_state* state) {
+  static cn_base_type absint_bwd_loc_bt = {.tag = CN_BASE_LOC};
+  bennet_absint_state* bot_state = ABSINT_STATE(copy)(state);
+  bennet_absint_sym syms[16];
+  int n = bennet_absint_term_collect_syms(term, syms, 16);
+  for (int i = 0; i < n; i++) {
+    bot_state =
+        ABSINT_STATE(set)(bot_state, syms[i], ABSINT_TAGGED(bottom)(&absint_bwd_loc_bt));
+  }
+  return bot_state;
+}
+
+/* Single deposit walk: push the output's inverse image into every child
+ * whose basis can invert (both downs of a binop are computed from the
+ * pre-walk forward cache - Jacobi within the node), and meet the pushed
+ * value into the state at every SYM reached. Unsupported nodes and STOP
+ * answers refine nothing (always sound). A bottom pushed value bottoms
+ * every sym of the subtree it was pushed into. */
+static bennet_absint_state* ABSINT_ENGINE(bwd)(
+    ABSINT_FTREE* node, bennet_tagged_domain output_domain, bennet_absint_state* state) {
+  cn_term* term = node->term;
+  if (!term || !state)
+    return state;
+
+  if (ABSINT_TAGGED(is_bottom)(&output_domain)) {
+    return ABSINT_ENGINE(deposit_bottom)(term, state);
+  }
+
+  switch (term->type) {
+    case CN_TERM_SYM: {
+      bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
+      return ABSINT_STATE(meet)(state, sym, output_domain);
+    }
+
+    case CN_TERM_BINOP: {
+      /* Comparison ops are handled by backward_assume */
+      switch (term->data.binop.op) {
+        case CN_BINOP_EQ:
+        case CN_BINOP_LT:
+        case CN_BINOP_LE:
+        case CN_BINOP_LT_POINTER:
+        case CN_BINOP_LE_POINTER:
+          return ABSINT_STATE(copy)(state);
+        default:
+          break;
+      }
+
+      bennet_tagged_domain down_l;
+      bennet_tagged_domain down_r;
+      bennet_absint_bw_action act_l = ABSINT_BASIS(backward_binop)(term->data.binop.op,
+          /*target_is_left=*/true,
+          &output_domain,
+          &node->kids[1]->val,
+          &node->kids[0]->val,
+          &term->data.binop.left->base_type,
+          &down_l);
+      bennet_absint_bw_action act_r = ABSINT_BASIS(backward_binop)(term->data.binop.op,
+          /*target_is_left=*/false,
+          &output_domain,
+          &node->kids[0]->val,
+          &node->kids[1]->val,
+          &term->data.binop.right->base_type,
+          &down_r);
+
+      bennet_absint_state* result = state;
+      if (act_l == BENNET_ABSINT_BW_DESCEND) {
+        result = ABSINT_ENGINE(bwd)(node->kids[0], down_l, result);
+      }
+      if (act_r == BENNET_ABSINT_BW_DESCEND) {
+        result = ABSINT_ENGINE(bwd)(node->kids[1], down_r, result);
+      }
+      return result;
+    }
+
+    case CN_TERM_UNOP: {
+      bennet_tagged_domain down;
+      bennet_absint_bw_action action = ABSINT_BASIS(backward_unop)(term->data.unop.op,
+          &output_domain,
+          &node->kids[0]->val,
+          &term->data.unop.operand->base_type,
+          &down);
+      if (action == BENNET_ABSINT_BW_DESCEND) {
+        return ABSINT_ENGINE(bwd)(node->kids[0], down, state);
+      }
+      return ABSINT_STATE(copy)(state);
+    }
+
+    case CN_TERM_ITE: {
+      /* Walk both arms from the incoming state and pointwise-join the
+       * branch refinements over the subtree's syms (the same helper the
+       * AND-false/OR-true assume rules use). A bottomed arm means the
+       * output is unreachable through it: keep the other arm's state. */
+      bennet_absint_state* then_state =
+          ABSINT_ENGINE(bwd)(node->kids[0], output_domain, state);
+      bennet_absint_state* else_state =
+          ABSINT_ENGINE(bwd)(node->kids[1], output_domain, state);
+
+      if (ABSINT_STATE(is_bottom)(then_state))
+        return else_state;
+      if (ABSINT_STATE(is_bottom)(else_state))
+        return then_state;
+
+      return ABSINT_ENGINE(join_branches)(
+          term, then_state, else_state, ABSINT_STATE(copy)(state));
+    }
+
+    case CN_TERM_ARRAY_SHIFT: {
+      bennet_tagged_domain down_base;
+      bennet_tagged_domain down_idx;
+      bennet_absint_bw_action act_base = ABSINT_BASIS(shift_backward)(term,
+          /*target_is_base=*/true,
+          &output_domain,
+          &node->kids[1]->val,
+          &node->kids[0]->val,
+          &down_base);
+      bennet_absint_bw_action act_idx = ABSINT_BASIS(shift_backward)(term,
+          /*target_is_base=*/false,
+          &output_domain,
+          &node->kids[0]->val,
+          &node->kids[1]->val,
+          &down_idx);
+
+      bennet_absint_state* result = state;
+      if (act_base == BENNET_ABSINT_BW_DESCEND) {
+        result = ABSINT_ENGINE(bwd)(node->kids[0], down_base, result);
+      }
+      if (act_idx == BENNET_ABSINT_BW_DESCEND) {
+        result = ABSINT_ENGINE(bwd)(node->kids[1], down_idx, result);
+      }
+      return result;
+    }
+
+    case CN_TERM_MEMBER_SHIFT: {
+      bennet_tagged_domain down;
+      bennet_absint_bw_action action = ABSINT_BASIS(shift_backward)(
+          term, true, &output_domain, NULL, &node->kids[0]->val, &down);
+      if (action == BENNET_ABSINT_BW_DESCEND) {
+        return ABSINT_ENGINE(bwd)(node->kids[0], down, state);
+      }
+      return ABSINT_STATE(copy)(state);
+    }
+
+    case CN_TERM_CAST: {
+      cn_term* inner = term->data.cast.value;
+      bennet_tagged_domain down;
+      bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
+          &inner->base_type, &term->base_type, &output_domain, &down);
+      if (action == BENNET_ABSINT_BW_DESCEND) {
+        return ABSINT_ENGINE(bwd)(node->kids[0], down, state);
+      }
+      return ABSINT_STATE(copy)(state);
+    }
+
+    case CN_TERM_WRAPI: {
+      /* Mirror of CAST: invert the modular conversion via backward_cast. */
+      cn_term* inner = term->data.wrapi.value;
+      bennet_tagged_domain down;
+      bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
+          &inner->base_type, &term->base_type, &output_domain, &down);
+      if (action == BENNET_ABSINT_BW_DESCEND) {
+        return ABSINT_ENGINE(bwd)(node->kids[0], down, state);
+      }
+      return ABSINT_STATE(copy)(state);
+    }
+
+    default:
+      /* Unknown term type (incl. LET): no safe refinement possible */
+      return ABSINT_STATE(copy)(state);
+  }
+}
+
+/*-----------------------------------------------------------------------------
+ * Assume: comparison refinement push-down
+ *---------------------------------------------------------------------------*/
+
 static bennet_absint_state* ABSINT_ENGINE(assume)(
     cn_term* term, bool value, bennet_absint_state* state) {
   if (!term || !state)
@@ -509,8 +493,14 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
       case CN_BINOP_LE:
       case CN_BINOP_LT_POINTER:
       case CN_BINOP_LE_POINTER: {
-        bennet_tagged_domain l_fwd = ABSINT_ENGINE(fwd)(left, state)->val;
-        bennet_tagged_domain r_fwd = ABSINT_ENGINE(fwd)(right, state)->val;
+        /* The forward trees double as the backward walks' caches (the
+         * caching across the assume/backward boundary the template header
+         * used to defer): both sides' refinements push over trees built
+         * against the same incoming state - pure Jacobi across sides. */
+        ABSINT_FTREE* l_tree = ABSINT_ENGINE(fwd)(left, state);
+        ABSINT_FTREE* r_tree = ABSINT_ENGINE(fwd)(right, state);
+        bennet_tagged_domain l_fwd = l_tree->val;
+        bennet_tagged_domain r_fwd = r_tree->val;
 
         /* Pointer-comparison retagging quirk shared by the legacy walkers:
          * refinements over a LOC-typed side are tagged with the side's own
@@ -546,10 +536,10 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
 
         bennet_absint_state* result = ABSINT_STATE(copy)(state);
         if (cmp.apply_left) {
-          result = ABSINT_ENGINE(apply_refinement)(left, &l_ref, result);
+          result = ABSINT_ENGINE(bwd)(l_tree, l_ref, result);
         }
         if (cmp.apply_right) {
-          result = ABSINT_ENGINE(apply_refinement)(right, &r_ref, result);
+          result = ABSINT_ENGINE(bwd)(r_tree, r_ref, result);
         }
         return result;
       }
@@ -574,11 +564,15 @@ bennet_absint_state* ABSINT_PUBLIC(backward)(cn_term* term,
     bennet_absint_sym target_sym,
     bennet_tagged_domain output_domain,
     bennet_absint_state* state) {
+  /* target_sym is ABI-frozen (product.ml/domain.ml emit per-target calls)
+   * but vestigial since the deposit-walk rework: one walk refines every
+   * reachable sym, and callers read back only the target - extra deposits
+   * are sound (and a bottom at any sym correctly bottoms the state). */
+  (void)target_sym;
   if (!term || !state)
     return state;
 
-  return ABSINT_ENGINE(bwd)(
-      ABSINT_ENGINE(fwd)(term, state), target_sym, output_domain, state);
+  return ABSINT_ENGINE(bwd)(ABSINT_ENGINE(fwd)(term, state), output_domain, state);
 }
 
 bennet_absint_state* ABSINT_PUBLIC(backward_assume)(

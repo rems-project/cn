@@ -290,8 +290,10 @@ TEST_F(LibBennet, OwnershipBwdSymUnboundSets) {
   cn_bump_free_after(frame);
 }
 
-TEST_F(LibBennet, OwnershipBwdOtherSymCopy) {
-  // The term mentions only p; refining target q must change nothing.
+TEST_F(LibBennet, OwnershipBwdDepositIgnoresTarget) {
+  // DEPOSIT WITNESS (flipped by the rework): the target parameter is vestigial -
+  // one walk refines every reachable sym, so backward on the bare p with
+  // output {0,8} deposits at p even though the (ignored) target is q.
   cn_bump_frame_id frame = cn_bump_get_frame_id();
   auto* state = bennet_absint_state_create();
   cn_sym p = cn_sym_from_string("p");
@@ -299,7 +301,7 @@ TEST_F(LibBennet, OwnershipBwdOtherSymCopy) {
 
   auto* refined =
       bennet_ownership_transform_backward(loc_sym(p), asym(q), tagged_own(0, 8), state);
-  expect_state_own_top(refined, p);
+  expect_state_own(refined, p, 0, 8);
   expect_state_own_top(refined, q);
 
   bennet_absint_state_free(state);
@@ -778,11 +780,15 @@ TEST_F(LibBennet, OwnershipAssumeEqNonConstIdxNoDeposit) {
 }
 
 // -----------------------------------------------------------------------------
-// backward_propagate_to_syms (the assign.c blame channel; survives the port
-// verbatim, so these pins never flip)
+// backward_propagate_to_syms (the assign.c blame channel; a thin wrapper
+// over the engine's deposit walk - blame now crosses
+// conditionals with the join of the arm-wise requirements)
 // -----------------------------------------------------------------------------
 
-TEST_F(LibBennet, OwnershipPropagateIteNoDeposit) {
+TEST_F(LibBennet, OwnershipPropagateIteOneArmJoinsTop) {
+  // ite(c, p, q): each arm's sym is refined in that arm only, and joining
+  // with the other arm's unconstrained binding lands back on top - so
+  // one-arm syms still pick up nothing (value-stable across the rework).
   cn_bump_frame_id frame = cn_bump_get_frame_id();
   auto* state = bennet_absint_state_create();
   cn_sym p = cn_sym_from_string("p");
@@ -793,6 +799,28 @@ TEST_F(LibBennet, OwnershipPropagateIteNoDeposit) {
       ite, bennet_domain_ownership_of(uintptr_t, 0, 8), state);
   expect_state_own_top(refined, p);
   expect_state_own_top(refined, q);
+
+  bennet_absint_state_free(state);
+  bennet_absint_state_free(refined);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, OwnershipPropagateIteSameSymBothArms) {
+  // DEPOSIT WITNESS (new capability): blame crosses conditionals.
+  // ite(c, &p->f4, &p->f8) with requirement {0,4}: the arms demand {0,8}
+  // and {0,12} at p, and the branch join (componentwise min - "values that
+  // work in at least one arm") deposits {0,8}. The legacy walk was
+  // ITE-blind and left p top.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+  auto* state = bennet_absint_state_create();
+  cn_sym p = cn_sym_from_string("p");
+
+  cn_term* ite = cn_smt_ite(cn_smt_bool(true),
+      cn_smt_member_shift(loc_sym(p), 4),
+      cn_smt_member_shift(loc_sym(p), 8));
+  auto* refined = bennet_ownership_backward_propagate_to_syms(
+      ite, bennet_domain_ownership_of(uintptr_t, 0, 4), state);
+  expect_state_own(refined, p, 0, 8);
 
   bennet_absint_state_free(state);
   bennet_absint_state_free(refined);
