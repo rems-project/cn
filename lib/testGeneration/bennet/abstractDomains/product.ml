@@ -14,14 +14,14 @@ type relative_component =
 
 let specialized =
   StringSetSet.of_list
-    [ StringSet.of_list [ Ownership.Inner.CInt.name; Interval_.Inner.CInt.name ];
+    [ StringSet.of_list [ Ownership.Inner.CInt.name; WrappedInterval.Inner.CInt.name ];
       StringSet.of_list [ Congruence.Inner.CInt.name; Ownership.Inner.CInt.name ];
       StringSet.of_list [ Ownership.Inner.CInt.name; TNum.Inner.CInt.name ];
-      StringSet.of_list [ Congruence.Inner.CInt.name; Interval_.Inner.CInt.name ];
+      StringSet.of_list [ Congruence.Inner.CInt.name; WrappedInterval.Inner.CInt.name ];
       StringSet.of_list
         [ Congruence.Inner.CInt.name;
           Ownership.Inner.CInt.name;
-          Interval_.Inner.CInt.name
+          WrappedInterval.Inner.CInt.name
         ]
     ]
 

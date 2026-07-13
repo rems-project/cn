@@ -43,8 +43,6 @@ let parse_domain (s : string list) : (module Domain.T) =
     let parse_single_domain (name : string) : (module Domain.T) option =
       match name with
       | _ when String.equal name AbstractDomains.Ownership.name -> None
-      | _ when String.equal name AbstractDomains.Interval.name ->
-        Some (module AbstractDomains.Interval)
       | _ when String.equal name AbstractDomains.WrappedInterval.name ->
         Some (module AbstractDomains.WrappedInterval)
       | _ when String.equal name AbstractDomains.Tristate.name ->

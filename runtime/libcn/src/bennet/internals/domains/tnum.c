@@ -993,7 +993,7 @@ static tnum_generic tnum_generic_shl(tnum_generic* a, tnum_generic* b) {
   uint64_t fm = tnum_full_mask(a->width);
   uint64_t shift = b->value;
   if (shift >= (uint64_t)a->width)
-    return tnum_generic_const(a->width, a->is_signed, 0);
+    return tnum_generic_top(a->width, a->is_signed);  // shift >= width -> top (UB)
 
   uint64_t value = (a->value << shift) & fm;
   uint64_t mask = (a->mask << shift) & fm;
@@ -1020,10 +1020,22 @@ static tnum_generic tnum_generic_lshr(tnum_generic* a, tnum_generic* b) {
 
   uint64_t shift = b->value;
   if (shift >= (uint64_t)a->width)
-    return tnum_generic_const(a->width, a->is_signed, 0);
+    return tnum_generic_top(a->width, a->is_signed);  // shift >= width -> top (UB)
 
-  uint64_t value = a->value >> shift;
-  uint64_t mask = a->mask >> shift;
+  uint64_t value, mask;
+  if (a->is_signed) {
+    // Arithmetic right shift (paper Section 5.3 / kernel tnum_arshift): sign-fill
+    // the value by its own sign bit and the mask by its own top bit, matching the
+    // runtime's signed >>. A logical shift here is unsound for signed operands.
+    uint64_t fm = tnum_full_mask(a->width);
+    int64_t sv = tnum_to_signed_value(a->width, a->value);
+    int64_t sm = tnum_to_signed_value(a->width, a->mask);
+    value = ((uint64_t)(sv >> shift)) & fm;
+    mask = ((uint64_t)(sm >> shift)) & fm;
+  } else {
+    value = a->value >> shift;
+    mask = a->mask >> shift;
+  }
 
   return (tnum_generic){
       .is_top = (value == 0 && mask == tnum_full_mask(a->width)),
@@ -1071,7 +1083,16 @@ static tnum_generic tnum_generic_div(tnum_generic* a, tnum_generic* b) {
   /* Both constants */
   if (a->mask == 0 && b->mask == 0) {
     uint64_t fm = tnum_full_mask(a->width);
-    uint64_t value = (a->value / b->value) & fm;
+    uint64_t value;
+    if (a->is_signed) {
+      /* Signed division (truncates toward zero); dividing the raw unsigned
+       * patterns would make int8 (-4)/2 = 126 instead of -2. */
+      int64_t sa = tnum_to_signed_value(a->width, a->value);
+      int64_t sb = tnum_to_signed_value(a->width, b->value);
+      value = ((uint64_t)(sa / sb)) & fm;
+    } else {
+      value = (a->value / b->value) & fm;
+    }
     return tnum_generic_const(a->width, a->is_signed, value);
   }
 
@@ -1091,7 +1112,15 @@ static tnum_generic tnum_generic_mod(tnum_generic* a, tnum_generic* b) {
   /* Both constants */
   if (a->mask == 0 && b->mask == 0) {
     uint64_t fm = tnum_full_mask(a->width);
-    uint64_t value = (a->value % b->value) & fm;
+    uint64_t value;
+    if (a->is_signed) {
+      /* Signed remainder (sign follows the dividend, truncating toward zero). */
+      int64_t sa = tnum_to_signed_value(a->width, a->value);
+      int64_t sb = tnum_to_signed_value(a->width, b->value);
+      value = ((uint64_t)(sa % sb)) & fm;
+    } else {
+      value = (a->value % b->value) & fm;
+    }
     return tnum_generic_const(a->width, a->is_signed, value);
   }
 

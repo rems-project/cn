@@ -208,7 +208,7 @@ uintptr_t bennet_domain_ownership_arbitrary_uintptr_t(
       return true;                                                                       \
     }                                                                                    \
                                                                                          \
-    return bennet_alloc_check((void*)((uintptr_t)v - d->before), d->after);              \
+    return bennet_alloc_check((void*)((uintptr_t)v - d->before), d->before + d->after);  \
   }
 
 OWNERSHIP_CHECK_IMPL(int8_t)

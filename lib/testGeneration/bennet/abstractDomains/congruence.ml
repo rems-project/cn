@@ -354,8 +354,14 @@ module CongruenceBasis = struct
       (* Singleton divisor n *)
       let n = t2.residue in
       let abs_n = Z.abs n in
-      if Z.equal t1.modulus Z.zero then (* Both constants *)
-        of_const t1.bt (Z.div t1.residue n)
+      if Z.equal t1.modulus Z.zero then
+        (* Both constants: divide with the signed interpretation for signed types
+           (Z.div truncates toward zero, matching C), then of_const re-normalizes
+           to [0, 2^w). Dividing the raw unsigned residues would make e.g. int8
+           {6} / {-3} yield {0} instead of {-2}. *)
+        of_const
+          t1.bt
+          (Z.div (to_signed_value t1.bt t1.residue) (to_signed_value t1.bt n))
       else if
         Z.equal (Z.erem t1.modulus abs_n) Z.zero
         && Z.equal (Z.erem t1.residue abs_n) Z.zero
@@ -400,6 +406,10 @@ module CongruenceBasis = struct
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
+    else if Z.equal t1.modulus Z.zero && Z.equal t2.modulus Z.zero then
+      (* Both singletons: exact constant. Guards against trailing_zeros = max_int
+         (for modulus 0) feeding Z.shift_left Z.one max_int -> out-of-memory. *)
+      of_const t1.bt (Z.logand t1.residue t2.residue)
     else (
       let k1 = trailing_zeros t1.modulus in
       let k2 = trailing_zeros t2.modulus in
@@ -416,6 +426,8 @@ module CongruenceBasis = struct
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
+    else if Z.equal t1.modulus Z.zero && Z.equal t2.modulus Z.zero then
+      of_const t1.bt (Z.logor t1.residue t2.residue)
     else (
       let k1 = trailing_zeros t1.modulus in
       let k2 = trailing_zeros t2.modulus in
@@ -432,6 +444,8 @@ module CongruenceBasis = struct
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
+    else if Z.equal t1.modulus Z.zero && Z.equal t2.modulus Z.zero then
+      of_const t1.bt (Z.logxor t1.residue t2.residue)
     else (
       let k1 = trailing_zeros t1.modulus in
       let k2 = trailing_zeros t2.modulus in

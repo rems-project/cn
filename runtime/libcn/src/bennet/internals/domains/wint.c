@@ -415,8 +415,10 @@ static wint_generic wint_generic_join(wint_generic* g1, wint_generic* g2);
     result->bottom = false;                                                              \
                                                                                          \
     if (g1_in_g2 && g2_in_g1) {                                                          \
-      /* Both contain each other - return smaller cardinality */                         \
-      if (ab <= cd) {                                                                    \
+      /* Mutual endpoint-containment (equal sets or interleave): smaller-cardinality  \
+       * operand with the paper's left-endpoint tie bias (Section 3.2). ab/cd are     \
+       * cardinality-1, so ab<cd == card1<card2; a,c are masked-unsigned here. */  \
+      if (ab < cd || (ab == cd && a <= c)) {                                             \
         result->start = d1->start;                                                       \
         result->end = d1->end;                                                           \
       } else {                                                                           \
@@ -952,6 +954,50 @@ static bool wint_generic_is_top(wint_generic* g) {
 }
 
 /**
+ * Concrete containment test: gamma(s) subset-of gamma(t).
+ *
+ * Mirrors the paper's executable subset test (Section 1) and the OCaml `leq`,
+ * using the unsigned crosses-south analysis. Unlike endpoint-only membership,
+ * this correctly distinguishes true containment from the *interleave* case
+ * (where each interval contains the other's endpoints but neither is a subset),
+ * which is what the over-join/over-meet case splits require.
+ */
+static bool wint_generic_leq(wint_generic* s, wint_generic* t) {
+  if (s->is_bottom) {
+    return true;
+  }
+  if (wint_generic_is_top(t)) {
+    return true;
+  }
+  if (wint_generic_is_top(s)) {
+    return false;  // s == top, t != top
+  }
+  if (t->is_bottom) {
+    return false;
+  }
+  int w = s->width;
+  uint64_t a = wint_normalize_unsigned(s->start, w);
+  uint64_t b = wint_normalize_unsigned(s->stop, w);
+  uint64_t c = wint_normalize_unsigned(t->start, w);
+  uint64_t d = wint_normalize_unsigned(t->stop, w);
+  bool s_crosses = a > b;  // crosses the south pole (unsigned wrap)
+  bool t_crosses = c > d;
+  if (!s_crosses && !t_crosses) {
+    // both contiguous: [a,b] subset-of [c,d]
+    return c <= a && b <= d;
+  } else if (!s_crosses && t_crosses) {
+    // s contiguous, t = [c,umax] U [umin,d]: s fits entirely in one part
+    return a >= c || b <= d;
+  } else if (s_crosses && !t_crosses) {
+    // a wrapping s fits a contiguous t only if t is the full range
+    return wint_generic_is_top(t);
+  } else {
+    // both wrap
+    return a >= c && b <= d;
+  }
+}
+
+/**
  * Meet of two generic intervals.
  */
 static wint_generic wint_generic_meet(wint_generic* g1, wint_generic* g2) {
@@ -983,10 +1029,14 @@ static wint_generic wint_generic_meet(wint_generic* g1, wint_generic* g2) {
   bool g2_in_g1 = wint_member(c, a, b, w) && wint_member(d, a, b, w);
 
   if (g1_in_g2 && g2_in_g1) {
-    // Both contain each other - return the one with smaller cardinality
+    // Mutual endpoint-containment: either the two arcs denote the same set, or
+    // they interleave (intersection is two segments). Either way the sound
+    // over-meet is the smaller-cardinality operand, with the paper's
+    // left-endpoint bias on a tie (Section 3.2 cases 6-7).
     uint64_t card1 = wint_cardinality(a, b, w);
     uint64_t card2 = wint_cardinality(c, d, w);
-    if (card1 <= card2) {
+    if (card1 < card2 || (card1 == card2 && wint_normalize_unsigned(a, w) <=
+                                                wint_normalize_unsigned(c, w))) {
       result.start = a;
       result.stop = b;
     } else {
@@ -1043,61 +1093,64 @@ static wint_generic wint_generic_join(wint_generic* g1, wint_generic* g2) {
   int64_t c = g2->start, d = g2->stop;
   int w = g1->width;
 
-  // Check containment
-  bool g1_in_g2 = wint_member(a, c, d, w) && wint_member(b, c, d, w);
-  bool g2_in_g1 = wint_member(c, a, b, w) && wint_member(d, a, b, w);
-
-  if (g1_in_g2 && g2_in_g1) {
-    // Mutual containment => the two intervals denote the same set; keep it
-    // (smaller-cardinality representative, mirroring wint_generic_meet) rather
-    // than dropping to top, so join(X, X) = X. The is_top check below still
-    // promotes a genuinely full-range result.
-    uint64_t card1 = wint_cardinality(a, b, w);
-    uint64_t card2 = wint_cardinality(c, d, w);
-    if (card1 <= card2) {
-      result.start = a;
-      result.stop = b;
-    } else {
-      result.start = c;
-      result.stop = d;
-    }
-  } else if (g2_in_g1) {
+  // Over-join case split (paper Section 2.2), mirroring the OCaml `join`.
+  // Containment MUST use the proper wrapped subset test, not endpoint-only
+  // membership: the interleave case below (each interval holds the other's
+  // endpoints, neither is a subset) would otherwise be misread as containment
+  // and collapse the join to a sub-arc instead of top.
+  if (wint_generic_leq(g2, g1)) {
+    // t subset-of s
     result.start = a;
     result.stop = b;
-  } else if (g1_in_g2) {
+  } else if (wint_generic_leq(g1, g2)) {
+    // s subset-of t
     result.start = c;
     result.stop = d;
-  } else if (wint_member(c, a, b, w)) {
-    // c is in [a, b]
-    result.start = a;
-    result.stop = d;
-  } else if (wint_member(a, c, d, w)) {
-    // a is in [c, d]
-    result.start = c;
-    result.stop = b;
   } else {
-    // Non-overlapping - return convex hull (conservative: return top for now)
-    uint64_t card_bc = wint_cardinality(b, c, w);
-    uint64_t card_da = wint_cardinality(d, a, w);
-    if (card_bc < card_da) {
+    bool a_in_t = wint_member(a, c, d, w);
+    bool b_in_t = wint_member(b, c, d, w);
+    bool c_in_s = wint_member(c, a, b, w);
+    bool d_in_s = wint_member(d, a, b, w);
+    if (a_in_t && b_in_t && c_in_s && d_in_s) {
+      // Interleave: the two arcs jointly cover the whole ring, so the least
+      // upper bound is top (paper Section 2.2 case 3). Returning either arc
+      // here would be unsound (drops the values in the other arc's gap).
+      result.is_top = true;
+      result.start = wint_get_min(g1->is_signed, w);
+      result.stop = wint_get_max(g1->is_signed, w);
+      return result;
+    } else if (c_in_s) {
+      // c in [a,b] -> <a,d>
       result.start = a;
       result.stop = d;
-    } else if (card_bc > card_da) {
+    } else if (a_in_t) {
+      // a in [c,d] -> <c,b>
       result.start = c;
       result.stop = b;
     } else {
-      // Tie - use lexicographic ordering
-      if (wint_normalize_unsigned(a, w) <= wint_normalize_unsigned(c, w)) {
+      // Non-overlapping: close the smaller of the two circular gaps.
+      uint64_t card_bc = wint_cardinality(b, c, w);
+      uint64_t card_da = wint_cardinality(d, a, w);
+      if (card_bc < card_da) {
         result.start = a;
         result.stop = d;
-      } else {
+      } else if (card_bc > card_da) {
         result.start = c;
         result.stop = b;
+      } else {
+        // Tie: left-endpoint bias (unsigned lexicographic, paper Section 2.2).
+        if (wint_normalize_unsigned(a, w) <= wint_normalize_unsigned(c, w)) {
+          result.start = a;
+          result.stop = d;
+        } else {
+          result.start = c;
+          result.stop = b;
+        }
       }
     }
   }
 
-  // Check if result is now top
+  // Promote a by-value full-range result to top.
   if (wint_generic_is_top(&result)) {
     result.is_top = true;
   }
@@ -1432,12 +1485,35 @@ static bennet_absint_eval_wint wint_basis_forward_binop(cn_binop op,
             }
             // The corner products bound the wrapped result only while their
             // span stays below 2^w; a wider span wraps past every residue, so
-            // this pair covers the whole type. (For w == 64 the products have
-            // already wrapped in 64-bit arithmetic and the span cannot be
-            // measured; that imprecision predates this check.)
-            if (w < 64 && (uint64_t)max_p - (uint64_t)min_p >= ((uint64_t)1 << w)) {
-              went_top = true;
-              break;
+            // this pair covers the whole type.
+            if (w < 64) {
+              if ((uint64_t)max_p - (uint64_t)min_p >= ((uint64_t)1 << w)) {
+                went_top = true;
+                break;
+              }
+            } else {
+              // w == 64: the 64-bit corner products above already wrapped, so
+              // their span is meaningless. Measure the true (nonmodular) span in
+              // 128-bit unsigned. If it reaches 2^64 the pair covers the whole
+              // type; otherwise the (unsigned) wrapped endpoints bound it sound.
+              unsigned __int128 pp[4] = {
+                  (unsigned __int128)(uint64_t)s1s[i] * (uint64_t)s2s[j],
+                  (unsigned __int128)(uint64_t)s1s[i] * (uint64_t)s2e[j],
+                  (unsigned __int128)(uint64_t)s1e[i] * (uint64_t)s2s[j],
+                  (unsigned __int128)(uint64_t)s1e[i] * (uint64_t)s2e[j]};
+              unsigned __int128 mn = pp[0], mx = pp[0];
+              for (int pk = 1; pk < 4; pk++) {
+                if (pp[pk] < mn)
+                  mn = pp[pk];
+                if (pp[pk] > mx)
+                  mx = pp[pk];
+              }
+              if (mx - mn >= ((unsigned __int128)1 << 64)) {
+                went_top = true;
+                break;
+              }
+              min_p = (int64_t)(uint64_t)mn;
+              max_p = (int64_t)(uint64_t)mx;
             }
             if (first) {
               result.start = min_p;
@@ -1493,20 +1569,46 @@ static bennet_absint_eval_wint wint_basis_forward_binop(cn_binop op,
           bool first = true;
           for (int i = 0; i < n1; i++) {
             for (int j = 0; j < n2_purged; j++) {
-              // Skip if divisor split contains zero (avoid div-by-zero)
-              if (s2s_p[j] <= 0 && s2e_p[j] >= 0)
-                continue;
+              // Trim the zero point out of the divisor (paper trim_0). After the
+              // south/pole split, 0 is always a segment *start*, so the usable
+              // divisors are [1, hi]; a segment that is exactly {0} was already
+              // purged. Skipping the whole [0,hi] segment (the previous behavior)
+              // dropped every quotient for divisors 1..hi -> unsound.
+              int64_t div_lo = s2s_p[j];
+              int64_t div_hi = s2e_p[j];
+              if (div_lo == 0) {
+                div_lo = 1;
+              }
 
-              int64_t divs[4] = {s1s[i] / s2s_p[j],
-                  s1s[i] / s2e_p[j],
-                  s1e[i] / s2s_p[j],
-                  s1e[i] / s2e_p[j]};
-              int64_t min_d_val = divs[0], max_d_val = divs[0];
-              for (int k = 1; k < 4; k++) {
-                if (divs[k] < min_d_val)
-                  min_d_val = divs[k];
-                if (divs[k] > max_d_val)
-                  max_d_val = divs[k];
+              int64_t min_d_val, max_d_val;
+              if (is_signed) {
+                int64_t divs[4] = {
+                    s1s[i] / div_lo, s1s[i] / div_hi, s1e[i] / div_lo, s1e[i] / div_hi};
+                min_d_val = divs[0];
+                max_d_val = divs[0];
+                for (int k = 1; k < 4; k++) {
+                  if (divs[k] < min_d_val)
+                    min_d_val = divs[k];
+                  if (divs[k] > max_d_val)
+                    max_d_val = divs[k];
+                }
+              } else {
+                // Unsigned division: interpret the bit patterns as uint64 so that
+                // w == 64 dividends/divisors >= 2^63 (negative as int64) divide
+                // correctly, and take the min/max in unsigned space.
+                uint64_t udivs[4] = {(uint64_t)s1s[i] / (uint64_t)div_lo,
+                    (uint64_t)s1s[i] / (uint64_t)div_hi,
+                    (uint64_t)s1e[i] / (uint64_t)div_lo,
+                    (uint64_t)s1e[i] / (uint64_t)div_hi};
+                uint64_t umin = udivs[0], umax = udivs[0];
+                for (int k = 1; k < 4; k++) {
+                  if (udivs[k] < umin)
+                    umin = udivs[k];
+                  if (udivs[k] > umax)
+                    umax = udivs[k];
+                }
+                min_d_val = (int64_t)umin;
+                max_d_val = (int64_t)umax;
               }
               if (first) {
                 result.start = min_d_val;
@@ -1543,35 +1645,72 @@ static bennet_absint_eval_wint wint_basis_forward_binop(cn_binop op,
         result.start = 0;
         result.stop = 0;
       } else if (is_signed) {
-        // Signed: use MSB-based logic matching OCaml
-        bool dividend_pos = wint_is_msb_zero(a, w) && wint_is_msb_zero(b, w);
-        bool dividend_neg = !wint_is_msb_zero(a, w) && !wint_is_msb_zero(b, w);
-        bool divisor_pos = wint_is_msb_zero(c, w) && wint_is_msb_zero(d, w);
-        bool divisor_neg = !wint_is_msb_zero(c, w) && !wint_is_msb_zero(d, w);
+        // Signed remainder (paper Section 10.2): pole-split BOTH operands so each
+        // segment has a consistent sign, bound the remainder per segment, and
+        // join. Classifying by the raw endpoints' MSBs WITHOUT splitting is
+        // unsound when an operand wraps a pole -- e.g. a divisor interval whose
+        // endpoints look positive but that also spans large negative magnitudes
+        // (int8 [100,50] includes -128, so |divisor| reaches 128).
+        int64_t s1s[WINT_MAX_SPLITS], s1e[WINT_MAX_SPLITS];
+        int64_t s2s[WINT_MAX_SPLITS], s2e[WINT_MAX_SPLITS];
+        int n1 = wint_pole_split(a, b, w, s1s, s1e);
+        int n2 = wint_pole_split(c, d, w, s2s, s2e);
 
-        if (dividend_pos && divisor_pos) {
-          // Both positive: [0, divisor_max-1]
-          result.start = 0;
-          result.stop = d - 1;
-        } else if (dividend_pos && divisor_neg) {
-          // Dividend positive, divisor negative: [0, -divisor_min-1]
-          result.start = 0;
-          result.stop = (-c) - 1;
-        } else if (dividend_neg && divisor_pos) {
-          // Dividend negative, divisor positive: [-divisor_max+1, 0]
-          result.start = -(d) + 1;
-          result.stop = 0;
-        } else if (dividend_neg && divisor_neg) {
-          // Both negative: [divisor_min+1, 0]
-          result.start = c + 1;
-          result.stop = 0;
+        // Purge the pure-zero divisor segment.
+        int n2_purged = 0;
+        int64_t s2s_p[WINT_MAX_SPLITS], s2e_p[WINT_MAX_SPLITS];
+        for (int j = 0; j < n2; j++) {
+          if (!(s2s[j] == 0 && s2e[j] == 0)) {
+            s2s_p[n2_purged] = s2s[j];
+            s2e_p[n2_purged] = s2e[j];
+            n2_purged++;
+          }
+        }
+
+        if (n2_purged == 0) {
+          result.is_bottom = true;
         } else {
-          // Mixed signs - conservative bounds
-          int64_t abs_c = (c < 0) ? -c : c;
-          int64_t abs_d = (d < 0) ? -d : d;
-          int64_t max_abs = (abs_c > abs_d) ? abs_c : abs_d;
-          result.start = -(max_abs - 1);
-          result.stop = max_abs - 1;
+          bool first = true;
+          for (int i = 0; i < n1; i++) {
+            bool a_pos = wint_is_msb_zero(s1s[i], w);
+            for (int j = 0; j < n2_purged; j++) {
+              // Trim the zero point (paper trim_0): 0 is always a divisor segment
+              // start after the split.
+              int64_t cs = s2s_p[j];
+              int64_t ce = s2e_p[j];
+              if (cs == 0) {
+                cs = 1;
+              }
+              bool c_pos = wint_is_msb_zero(cs, w);
+
+              int64_t lb, ub;
+              if (a_pos && c_pos) {
+                lb = 0;
+                ub = ce - 1;  // max |divisor| = ce
+              } else if (a_pos && !c_pos) {
+                lb = 0;
+                ub = (-cs) - 1;  // max |divisor| = -cs
+              } else if (!a_pos && c_pos) {
+                lb = -(ce) + 1;
+                ub = 0;
+              } else {
+                lb = cs + 1;
+                ub = 0;
+              }
+
+              wint_generic pair = {
+                  .width = width, .is_signed = is_signed, .start = lb, .stop = ub};
+              if (first) {
+                result = pair;
+                first = false;
+              } else {
+                result = wint_generic_join(&result, &pair);
+              }
+            }
+          }
+          if (first) {
+            result.is_bottom = true;
+          }
         }
       } else {
         // Unsigned: south pole split and compute for each pair
@@ -1631,22 +1770,25 @@ static bennet_absint_eval_wint wint_basis_forward_binop(cn_binop op,
           result.start = 0;
           result.stop = 0;
         } else {
-          // Check if lower bits fit: truncate operand to surviving bits
+          // x << k (mod 2^w) depends only on the low (w-k) bits of x. If the
+          // interval spans at most 2^(w-k) values, the shifted endpoints bound
+          // the (step-2^k arithmetic) result set exactly -- sound even when the
+          // low bits wrap. Otherwise the low bits cover a full block and the
+          // result is every multiple of 2^k, i.e. <0, 1^{w-k}0^k> (paper 14.1).
           uint64_t trunc_mask = (num_bits_survive >= 64)
                                     ? UINT64_MAX
                                     : (((uint64_t)1 << num_bits_survive) - 1);
-          uint64_t trunc_start = (uint64_t)a & trunc_mask;
-          uint64_t trunc_stop = (uint64_t)b & trunc_mask;
-          // If truncation doesn't wrap, precise shift is safe
-          if (trunc_start <= trunc_stop || wint_crosses_south(a, b, num_bits_survive)) {
+          bool low_bits_fit =
+              (num_bits_survive >= 64)  // k == 0: identity shift, always exact
+              || wint_cardinality(a, b, w) <= ((uint64_t)1 << num_bits_survive);
+          if (low_bits_fit) {
             // Use unsigned shift to avoid UB on negative or overflowing values
             result.start = (int64_t)((uint64_t)a << k);
             result.stop = (int64_t)((uint64_t)b << k);
           } else {
-            // Truncation wraps - conservative bounds
-            int64_t max_val = (int64_t)(trunc_mask << k);
+            // Full block: <0, 1^{w-k}0^k>
             result.start = 0;
-            result.stop = max_val;
+            result.stop = (int64_t)(trunc_mask << k);
           }
         }
       } else {
