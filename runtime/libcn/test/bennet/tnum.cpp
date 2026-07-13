@@ -962,6 +962,50 @@ TEST_F(LibBennet, TNumTransformBackwardAssumeEq) {
   EXPECT_EQ(dom->mask, 0);
 }
 
+TEST_F(LibBennet, TNumBackwardAssumeSignedLeStraddleNotBottom) {
+  // x <= 1 over i8: the satisfying range [-128, 1] straddles zero, so its
+  // raw patterns are not unsigned-contiguous. of_interval used to compare
+  // the masked patterns unsigned (0x80 > 0x01) and bottom the state,
+  // claiming the assumption unsatisfiable (caught by AbsintFuzz seed 13).
+  cn_base_type bt = cn_base_type_bits(true, 8);
+  cn_term* x_sym = cn_smt_sym_string("x", bt);
+  cn_term* le_term = cn_smt_le(x_sym, cn_smt_bits(true, 8, 1));
+
+  bennet_absint_sym x_s = {.name = x_sym->data.sym.name, .id = x_sym->data.sym.id};
+
+  bennet_absint_state* refined =
+      bennet_tnum_transform_backward_assume(le_term, true, bennet_absint_state_create());
+
+  EXPECT_FALSE(bennet_absint_state_is_bottom_tnum(refined));
+  bennet_tagged_domain x_dom = bennet_absint_state_get_tnum(refined, x_s, &bt);
+  auto* dom = (bennet_domain_tnum_int8_t*)x_dom.domain;
+  // Satisfying values survive (the straddle join is top here; soundness is
+  // the point of this pin).
+  EXPECT_TRUE(bennet_domain_tnum_check_int8_t(-100, dom));
+  EXPECT_TRUE(bennet_domain_tnum_check_int8_t(1, dom));
+}
+
+TEST_F(LibBennet, TNumBackwardAssumeSignedLeNegativeKeepsSignBit) {
+  // x <= -1 over i8: all-negative range [-128, -1] is pattern-contiguous
+  // ([0x80, 0xFF]), so the sign bit is known 1 and non-negatives are
+  // excluded.
+  cn_base_type bt = cn_base_type_bits(true, 8);
+  cn_term* x_sym = cn_smt_sym_string("x", bt);
+  cn_term* le_term = cn_smt_le(x_sym, cn_smt_bits(true, 8, -1));
+
+  bennet_absint_sym x_s = {.name = x_sym->data.sym.name, .id = x_sym->data.sym.id};
+
+  bennet_absint_state* refined =
+      bennet_tnum_transform_backward_assume(le_term, true, bennet_absint_state_create());
+
+  EXPECT_FALSE(bennet_absint_state_is_bottom_tnum(refined));
+  bennet_tagged_domain x_dom = bennet_absint_state_get_tnum(refined, x_s, &bt);
+  auto* dom = (bennet_domain_tnum_int8_t*)x_dom.domain;
+  EXPECT_TRUE(bennet_domain_tnum_check_int8_t(-5, dom));
+  EXPECT_TRUE(bennet_domain_tnum_check_int8_t(-128, dom));
+  EXPECT_FALSE(bennet_domain_tnum_check_int8_t(5, dom));
+}
+
 // =============================================================================
 // Bottom Propagation Tests
 // =============================================================================
