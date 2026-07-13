@@ -130,6 +130,29 @@ static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* stat
       break;
     }
 
+    case CN_TERM_WRAPI: {
+      /* WRAPI == CAST for absint: the node's base_type carries the
+       * wrapped-to type and the semantics are modular conversion. */
+      node->kids[0] = ABSINT_ENGINE(fwd)(term->data.wrapi.value, state);
+      node->val = ABSINT_BASIS(forward_cast)(&term->base_type, &node->kids[0]->val);
+      break;
+    }
+
+    case CN_TERM_LET: {
+      /* Forward-only binding overlay: bind the variable to the value's
+       * forward value for the body walk (one cons on the persistent list;
+       * the binding is discarded with the walk). Backward and assume stay
+       * conservative: no refinement through binders. */
+      node->kids[0] = ABSINT_ENGINE(fwd)(term->data.let.value, state);
+      bennet_absint_sym var = {
+          .name = term->data.let.var.name, .id = term->data.let.var.id};
+      bennet_absint_state* body_state =
+          ABSINT_STATE(set)(ABSINT_STATE(copy)(state), var, node->kids[0]->val);
+      node->kids[1] = ABSINT_ENGINE(fwd)(term->data.let.body, body_state);
+      node->val = node->kids[1]->val;
+      break;
+    }
+
     case CN_TERM_ARRAY_SHIFT: {
       node->kids[0] = ABSINT_ENGINE(fwd)(term->data.array_shift.base, state);
       node->kids[1] = ABSINT_ENGINE(fwd)(term->data.array_shift.index, state);
@@ -311,6 +334,21 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(ABSINT_FTREE* node,
       return ABSINT_STATE(copy)(state);
     }
 
+    case CN_TERM_WRAPI: {
+      /* Mirror of CAST: invert the modular conversion via backward_cast. */
+      cn_term* inner = term->data.wrapi.value;
+      if (!term_contains_sym(inner, target_sym.id))
+        return ABSINT_STATE(copy)(state);
+
+      bennet_tagged_domain down;
+      bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
+          &inner->base_type, &term->base_type, &output_domain, &down);
+      if (action == BENNET_ABSINT_BW_DESCEND) {
+        return ABSINT_ENGINE(bwd)(node->kids[0], target_sym, down, state);
+      }
+      return ABSINT_STATE(copy)(state);
+    }
+
     default:
       /* Unknown term type: no safe refinement possible */
       return ABSINT_STATE(copy)(state);
@@ -413,6 +451,8 @@ static bennet_absint_state* ABSINT_ENGINE(join_branches)(cn_term* term,
       return ABSINT_ENGINE(join_branches)(term->data.ite.else_term, sa, sb, out);
     case CN_TERM_CAST:
       return ABSINT_ENGINE(join_branches)(term->data.cast.value, sa, sb, out);
+    case CN_TERM_WRAPI:
+      return ABSINT_ENGINE(join_branches)(term->data.wrapi.value, sa, sb, out);
     case CN_TERM_ARRAY_SHIFT:
       out = ABSINT_ENGINE(join_branches)(term->data.array_shift.base, sa, sb, out);
       return ABSINT_ENGINE(join_branches)(term->data.array_shift.index, sa, sb, out);

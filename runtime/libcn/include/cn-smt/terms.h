@@ -580,6 +580,12 @@ cn_term* cn_smt_array_shift(cn_term* base, size_t element_size, cn_term* index);
 // Type operations
 cn_term* cn_smt_cast(cn_base_type target_type, cn_term* value);
 
+// Integer wrap: modular reduction of value into the named integer type.
+// Signedness/width are passed explicitly so the runtime never parses the
+// pretty-printed type name (which is kept for diagnostics/SMT lowering).
+cn_term* cn_smt_wrapi(
+    const char* int_type, bool is_signed, int size_bits, cn_term* value);
+
 // Map operations
 cn_term* cn_smt_map_get(cn_term* map, cn_term* key);
 cn_term* cn_smt_map_set(cn_term* map, cn_term* key, cn_term* value);

@@ -338,6 +338,20 @@ cn_term* cn_smt_let(cn_sym var, cn_term* value, cn_term* body) {
   return term;
 }
 
+// Integer wrap (modular reduction into the given integer type)
+cn_term* cn_smt_wrapi(
+    const char* int_type, bool is_signed, int size_bits, cn_term* value) {
+  assert(value);
+
+  cn_term* term = cn_term_alloc(CN_TERM_WRAPI, cn_base_type_bits(is_signed, size_bits));
+  assert(term);
+
+  term->data.wrapi.int_type = int_type;
+  term->data.wrapi.value = value;
+
+  return term;
+}
+
 // Struct operations
 cn_term* cn_smt_struct(const char* tag,
     size_t member_count,

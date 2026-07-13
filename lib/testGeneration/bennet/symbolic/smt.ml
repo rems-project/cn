@@ -853,7 +853,19 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     let term_smt = convert_indexterm sigma term in
     let int_type_str = plain (Sctypes.IntegerTypes.pp int_type) in
-    !^"cn_smt_wrapi" ^^ parens (dquotes !^int_type_str ^^ comma ^^^ term_smt)
+    (* Signedness/width are passed explicitly so the C runtime never parses
+       the pretty-printed type name. *)
+    let is_signed = Memory.is_signed_integer_type int_type in
+    let size_bits = Memory.size_of_integer_type int_type * 8 in
+    !^"cn_smt_wrapi"
+    ^^ parens
+         (dquotes !^int_type_str
+          ^^ comma
+          ^^^ !^(if is_signed then "true" else "false")
+          ^^ comma
+          ^^^ int size_bits
+          ^^ comma
+          ^^^ term_smt)
 
 
   and convert_mapconst

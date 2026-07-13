@@ -1297,7 +1297,12 @@ static void* cn_eval_term_aux(cn_eval_context_stack* context, cn_term* term) {
     }
 
     case CN_TERM_WRAPI: {
-      assert(false);
+      /* WrapI is a modular conversion of the value into the wrapped-to type
+       * (the node's own base_type), which is exactly the evaluator's CAST
+       * semantics on bit-pattern values; delegate through a synthetic cast
+       * node. */
+      return cn_eval_term_aux(
+          context, cn_smt_cast(term->base_type, term->data.wrapi.value));
     }
 
     case CN_TERM_LET: {
