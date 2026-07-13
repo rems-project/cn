@@ -100,6 +100,7 @@ let pldi26 : TestGenConfig.t =
     (* Runtime abstract-interpretation features added after the paper freeze;
        pinned off so paper runs are unaffected. *)
     dynamic_absint_assign = None;
+    dynamic_local_iterations = 1;
     dynamic_arbitrary_domain = false;
     dynamic_arbitrary_propagation = false;
     dynamic_assert_domain = false;

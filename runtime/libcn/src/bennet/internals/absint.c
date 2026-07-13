@@ -18,6 +18,16 @@ bennet_tagged_domain bennet_tagged_domain_create(cn_base_type* type, void* domai
   return result;
 }
 
+static int dynamic_local_iterations = 1;
+
+void bennet_set_dynamic_local_iterations(int fuel) {
+  dynamic_local_iterations = fuel;
+}
+
+int bennet_get_dynamic_local_iterations(void) {
+  return dynamic_local_iterations;
+}
+
 bennet_absint_state* bennet_absint_state_create(void) {
   bennet_absint_state* state = std_malloc(sizeof(bennet_absint_state));
   assert(state);

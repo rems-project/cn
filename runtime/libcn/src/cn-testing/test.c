@@ -332,6 +332,15 @@ int cn_test_main(int argc, char* argv[]) {
         exit(1);
       }
       i++;
+    } else if (strcmp("--dynamic-local-iterations", arg) == 0) {
+      char* next = argv[i + 1];
+      int fuel = atoi(next);
+      if (fuel < 1) {
+        fprintf(stderr, "Error: Invalid --dynamic-local-iterations: %s\n", next);
+        exit(1);
+      }
+      bennet_set_dynamic_local_iterations(fuel);
+      i++;
     } else if (strcmp("--smt-pruning-at-runtime", arg) == 0) {
       cn_smt_pruning_at_runtime = true;
     } else if (strcmp("--use-solver-eval", arg) == 0) {

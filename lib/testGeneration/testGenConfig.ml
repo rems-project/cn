@@ -153,7 +153,8 @@ type t =
     dynamic_assert_domain : bool;
     dynamic_return_propagation : bool;
     old_style_alloc : bool;
-    dynamic_absint_assign : dynamic_absint_assign_mode option
+    dynamic_absint_assign : dynamic_absint_assign_mode option;
+    dynamic_local_iterations : int
   }
 
 let default =
@@ -230,7 +231,8 @@ let default =
     dynamic_assert_domain = false;
     dynamic_return_propagation = false;
     old_style_alloc = false;
-    dynamic_absint_assign = None
+    dynamic_absint_assign = None;
+    dynamic_local_iterations = 1
   }
 
 
@@ -502,3 +504,5 @@ let has_dynamic_return_propagation () = (Option.get !instance).dynamic_return_pr
 let is_old_style_alloc () = (Option.get !instance).old_style_alloc
 
 let get_dynamic_absint_assign () = (Option.get !instance).dynamic_absint_assign
+
+let get_dynamic_local_iterations () = (Option.get !instance).dynamic_local_iterations
