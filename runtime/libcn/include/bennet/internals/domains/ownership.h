@@ -51,7 +51,7 @@ extern "C" {
   }                                                                                      \
   static inline bool bennet_domain_ownership_is_top_##cty(                               \
       bennet_domain_ownership(cty) * cs) {                                               \
-    return (cs->before == 0) && (cs->after == 0);                                        \
+    return !cs->bottom && (cs->before == 0) && (cs->after == 0);                         \
   }                                                                                      \
                                                                                          \
   static inline bennet_domain_ownership(cty) *                                           \
@@ -59,6 +59,8 @@ extern "C" {
     bennet_domain_ownership(cty)* ret =                                                  \
         (bennet_domain_ownership(cty)*)std_malloc(sizeof(bennet_domain_ownership(cty))); \
     ret->bottom = 1;                                                                     \
+    ret->before = 0;                                                                     \
+    ret->after = 0;                                                                      \
                                                                                          \
     return ret;                                                                          \
   }                                                                                      \

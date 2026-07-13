@@ -35,8 +35,7 @@ module Flags = struct
       & opt
           (list
              (enum
-                [ ("interval", "interval");
-                  ("wrapped_interval", "wrapped_interval");
+                [ ("wrapped_interval", "wrapped_interval");
                   ("tristate", "tristate");
                   ("congruence", "congruence")
                 ]))

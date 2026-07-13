@@ -1,6 +1,5 @@
 module Private : sig
   module Ownership = Ownership
-  module Interval = Interval_
   module WrappedInterval = WrappedInterval
   module Tristate = TNum
   module Congruence = Congruence
@@ -8,8 +7,6 @@ module Private : sig
 end
 
 module Ownership : Domain.T
-
-module Interval : Domain.T
 
 module WrappedInterval : Domain.T
 

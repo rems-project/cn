@@ -376,18 +376,24 @@ module TristateBasis = struct
       of_tnum t1.bt value mask)
 
 
-  (* Forward subtraction *)
+  (* Forward subtraction (kernel tnum_sub, paper Section 3.2).
+     alpha/beta bound the borrow range; chi = alpha XOR beta flags every bit a
+     borrow can reach. Negate-then-add keeping the subtrahend mask (the previous
+     approach) ignores borrows through unknown bits and is UNSOUND, e.g. width-3
+     {0} - {0,1} would drop the reachable value 7. *)
   let tnum_sub t1 t2 =
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
     else (
       let fm = full_mask t1.bt in
-      (* For subtraction, we compute a - b = a + (~b + 1) *)
-      (* Negate t2: flip bits and add 1 *)
-      let neg_value = Z.logand (Z.add (Z.lognot t2.value) Z.one) fm in
-      let neg_t2 = { t2 with value = Z.logand neg_value (Z.lognot t2.mask) } in
-      tnum_add t1 neg_t2)
+      let dv = Z.logand (Z.sub t1.value t2.value) fm in
+      let alpha = Z.logand (Z.add dv t1.mask) fm in
+      let beta = Z.logand (Z.sub dv t2.mask) fm in
+      let chi = Z.logxor alpha beta in
+      let mask = Z.logand (Z.logor (Z.logor chi t1.mask) t2.mask) fm in
+      let value = Z.logand (Z.logand dv (Z.lognot mask)) fm in
+      of_tnum t1.bt value mask)
 
 
   (* Forward left shift *)
@@ -410,7 +416,10 @@ module TristateBasis = struct
         of_tnum t.bt value mask))
 
 
-  (* Forward right shift (logical) *)
+  (* Forward right shift. Logical for unsigned types; ARITHMETIC (sign-filling)
+     for signed types, matching the runtime's signed >> and the paper's ARSH
+     (Section 5.3). A single logical transformer for both was unsound for signed
+     operands: int8 (-2) >> 1 must be -1, not 127. *)
   let tnum_lshr t shift_amt =
     if is_bottom t then
       bottom t.bt
@@ -424,8 +433,19 @@ module TristateBasis = struct
       if shift < 0 || shift >= width then
         top t.bt
       else (
-        let value = Z.shift_right t.value shift in
-        let mask = Z.shift_right t.mask shift in
+        let is_signed =
+          match BT.is_bits_bt t.bt with Some (Signed, _) -> true | _ -> false
+        in
+        let value, mask =
+          if is_signed then (
+            (* Sign-fill the value by its own sign bit and the mask by its own
+               top bit (kernel tnum_arshift), then re-mask to width. *)
+            let fm = full_mask t.bt in
+            ( Z.logand (Z.shift_right (to_signed_value t.bt t.value) shift) fm,
+              Z.logand (Z.shift_right (to_signed_value t.bt t.mask) shift) fm ))
+          else
+            (Z.shift_right t.value shift, Z.shift_right t.mask shift)
+        in
         of_tnum t.bt value mask))
 
 
@@ -453,8 +473,13 @@ module TristateBasis = struct
       bottom t1.bt
     else if Z.equal t2.mask Z.zero && Z.equal t2.value Z.zero then (* Division by zero *)
       bottom t1.bt
-    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then (* Both constants *)
-      of_const t1.bt (Z.div t1.value t2.value)
+    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then
+      (* Both constants: signed interpretation for signed types (Z.div truncates
+         toward zero, matching C); of_const re-normalizes. Dividing the raw
+         unsigned values would make int8 (-4)/2 yield 126 instead of -2. *)
+      of_const
+        t1.bt
+        (Z.div (to_signed_value t1.bt t1.value) (to_signed_value t1.bt t2.value))
     else (* Conservative: return top *)
       top t1.bt
 
@@ -466,8 +491,12 @@ module TristateBasis = struct
       bottom t1.bt
     else if Z.equal t2.mask Z.zero && Z.equal t2.value Z.zero then (* Modulo by zero *)
       bottom t1.bt
-    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then (* Both constants *)
-      of_const t1.bt (Z.rem t1.value t2.value)
+    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then
+      (* Both constants: signed interpretation for signed types (Z.rem truncates
+         toward zero, matching C's %); of_const re-normalizes. *)
+      of_const
+        t1.bt
+        (Z.rem (to_signed_value t1.bt t1.value) (to_signed_value t1.bt t2.value))
     else (* Conservative: return top *)
       top t1.bt
 
@@ -497,11 +526,10 @@ module TristateBasis = struct
     | Negate ->
       if is_bottom t then
         Some (bottom t.bt)
-      else if Z.equal t.mask Z.zero then (
-        let fm = full_mask t.bt in
-        Some (of_const t.bt (Z.logand (Z.neg t.value) fm)))
       else
-        Some (top t.bt)
+        (* NEG#(P) = SUB#(0, P) (paper Section 3.3): optimal, and precise for
+           non-constant operands (the previous code returned top for those). *)
+        Some (tnum_sub (of_const t.bt Z.zero) t)
     | _ -> None
 
 

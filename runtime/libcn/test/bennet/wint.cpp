@@ -379,6 +379,31 @@ TEST_F(LibBennet, WIntJoinNonContainmentHull) {
   EXPECT_FALSE(bennet_domain_wint_check_uint8_t(100, disjoint));
 }
 
+TEST_F(LibBennet, WIntJoinInterleaveTop) {
+  // Interleave case (paper Section 2.2 case 3): each arc holds the other's
+  // endpoints but neither is a subset, so the two arcs jointly cover the whole
+  // ring and the join must be top. Regression for the endpoint-only-membership
+  // bug that returned the smaller sub-arc and dropped reachable values.
+  //   s = <32,160>  = {32..160}
+  //   t = <128,64>  = {128..255, 0..64}   (wraps the south pole)
+  // gamma(s) U gamma(t) = all of B_8.
+  auto s = make_wint_u8(32, 160);
+  auto t = make_wint_u8(128, 64);
+
+  auto j = bennet_domain_wint_join_uint8_t(s, t);
+  EXPECT_TRUE(bennet_domain_wint_is_top_uint8_t(j));
+
+  auto j_comm = bennet_domain_wint_join_uint8_t(t, s);
+  EXPECT_TRUE(bennet_domain_wint_is_top_uint8_t(j_comm));
+
+  // The join is an upper bound: every member of either operand is in the join.
+  // 200 in t but not in s; 100 in s but not in t; the buggy result <32,160>
+  // excluded 200 (and 0, 210, ...).
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(200, j));
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(100, j));
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(0, j));
+}
+
 // =============================================================================
 // Meet Operation Tests
 // =============================================================================

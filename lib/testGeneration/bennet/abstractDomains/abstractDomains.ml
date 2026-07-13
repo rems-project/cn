@@ -1,6 +1,5 @@
 module Private = struct
   module Ownership = Ownership
-  module Interval = Interval_
   module WrappedInterval = WrappedInterval
   module Tristate = TNum
   module Congruence = Congruence
@@ -14,8 +13,6 @@ module Make (GT : GenTerms.T) = struct
 end
 
 module Ownership : Domain.T = Ownership.Inner
-
-module Interval : Domain.T = Interval_.Inner
 
 module WrappedInterval : Domain.T = WrappedInterval.Inner
 
