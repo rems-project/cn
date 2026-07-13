@@ -228,16 +228,40 @@ cn_arena* bennet_absint_arena(void);
  *
  * Generates the static <dom>_from_tagged / <dom>_to_tagged converters between
  * the void*-erased per-C-type domain structs and the domain's 64-bit generic
- * form. Dispatch is on (signedness, width) with the 64-bit arm as the
- * default. The per-domain payload mapping is supplied via two hook macros:
+ * form, plus (via BENNET_ABSINT_CANONICALIZE_IMPL below) a malloc-free
+ * <dom>_canonicalize that reproduces from_tagged(to_tagged(&g, type)) exactly.
+ * Dispatch is on (signedness, width) with the 64-bit arm as the default.
  *
- *   LOAD(cty, ucty)  - runs with `d` (tagged in) and `result` (generic out)
- *                      in scope; cast d->domain to the per-type struct and
- *                      fill result's flags and payload words
- *   STORE(cty, ucty) - runs with `g` (generic in), `width`, and `result`
- *                      (tagged out) in scope; std_malloc the per-type struct,
- *                      fill it from g, and set result.domain
+ * The per-domain payload mapping is supplied via two field-only hook macros
+ * that operate on a caller-provided per-type struct pointer DOMP; the
+ * generators own allocation/lifetime, so one field mapping backs all three
+ * converters (from/to/canonicalize) and they can never drift:
+ *
+ *   LOAD(cty, ucty, DOMP)  - runs with `result` (generic out) in scope; read
+ *                            the fields of the per-type struct *DOMP into result
+ *   STORE(cty, ucty, DOMP) - runs with `g` (generic in) and, where a domain
+ *                            needs it, `width` in scope; write g into *DOMP
  *---------------------------------------------------------------------------*/
+
+/* One (signedness, width) case body for to_tagged: allocate the per-type
+ * struct, fill it via STORE, and hand the pointer back through OUT. */
+#define BENNET_ABSINT_STORE_CASE(dom, cty, ucty, STORE, OUT)                             \
+  do {                                                                                   \
+    bennet_domain_##dom(cty)* p_ = std_malloc(sizeof(bennet_domain_##dom(cty)));         \
+    assert(p_);                                                                          \
+    STORE(cty, ucty, p_);                                                                \
+    (OUT) = p_;                                                                          \
+  } while (0)
+
+/* One case body for canonicalize: round-trip g through a stack per-type struct
+ * (STORE truncates to the C type, LOAD re-extends) - value-identical to the
+ * malloc round-trip in to_tagged/from_tagged, without the allocation. */
+#define BENNET_ABSINT_CANON_CASE(dom, cty, ucty, LOAD, STORE)                            \
+  do {                                                                                   \
+    bennet_domain_##dom(cty) buf_;                                                       \
+    STORE(cty, ucty, &buf_);                                                             \
+    LOAD(cty, ucty, &buf_);                                                              \
+  } while (0)
 
 #define BENNET_ABSINT_TAGGED_CONVERT_IMPL(dom, generic_t, LOAD, STORE)                   \
   static generic_t dom##_from_tagged(bennet_tagged_domain* d) {                          \
@@ -247,89 +271,206 @@ cn_arena* bennet_absint_arena(void);
       result.width = 64;                                                                 \
       return result;                                                                     \
     }                                                                                    \
-                                                                                         \
     bennet_absint_type_info(d->type, &result.width, &result.is_signed);                  \
-                                                                                         \
     if (result.is_signed) {                                                              \
       switch (result.width) {                                                            \
         case 8:                                                                          \
-          LOAD(int8_t, uint8_t);                                                         \
+          LOAD(int8_t, uint8_t, d->domain);                                              \
           break;                                                                         \
         case 16:                                                                         \
-          LOAD(int16_t, uint16_t);                                                       \
+          LOAD(int16_t, uint16_t, d->domain);                                            \
           break;                                                                         \
         case 32:                                                                         \
-          LOAD(int32_t, uint32_t);                                                       \
+          LOAD(int32_t, uint32_t, d->domain);                                            \
           break;                                                                         \
         case 64:                                                                         \
         default:                                                                         \
-          LOAD(int64_t, uint64_t);                                                       \
+          LOAD(int64_t, uint64_t, d->domain);                                            \
           break;                                                                         \
       }                                                                                  \
     } else {                                                                             \
       switch (result.width) {                                                            \
         case 8:                                                                          \
-          LOAD(uint8_t, uint8_t);                                                        \
+          LOAD(uint8_t, uint8_t, d->domain);                                             \
           break;                                                                         \
         case 16:                                                                         \
-          LOAD(uint16_t, uint16_t);                                                      \
+          LOAD(uint16_t, uint16_t, d->domain);                                           \
           break;                                                                         \
         case 32:                                                                         \
-          LOAD(uint32_t, uint32_t);                                                      \
+          LOAD(uint32_t, uint32_t, d->domain);                                           \
           break;                                                                         \
         case 64:                                                                         \
         default:                                                                         \
-          LOAD(uint64_t, uint64_t);                                                      \
+          LOAD(uint64_t, uint64_t, d->domain);                                           \
           break;                                                                         \
       }                                                                                  \
     }                                                                                    \
-                                                                                         \
     return result;                                                                       \
   }                                                                                      \
                                                                                          \
   static bennet_tagged_domain dom##_to_tagged(generic_t* g, cn_base_type* type) {        \
     bennet_tagged_domain result;                                                         \
     result.type = type;                                                                  \
-                                                                                         \
     int width;                                                                           \
     bool is_signed;                                                                      \
     bennet_absint_type_info(type, &width, &is_signed);                                   \
-                                                                                         \
     if (is_signed) {                                                                     \
       switch (width) {                                                                   \
         case 8:                                                                          \
-          STORE(int8_t, uint8_t);                                                        \
+          BENNET_ABSINT_STORE_CASE(dom, int8_t, uint8_t, STORE, result.domain);          \
           break;                                                                         \
         case 16:                                                                         \
-          STORE(int16_t, uint16_t);                                                      \
+          BENNET_ABSINT_STORE_CASE(dom, int16_t, uint16_t, STORE, result.domain);        \
           break;                                                                         \
         case 32:                                                                         \
-          STORE(int32_t, uint32_t);                                                      \
+          BENNET_ABSINT_STORE_CASE(dom, int32_t, uint32_t, STORE, result.domain);        \
           break;                                                                         \
         case 64:                                                                         \
         default:                                                                         \
-          STORE(int64_t, uint64_t);                                                      \
+          BENNET_ABSINT_STORE_CASE(dom, int64_t, uint64_t, STORE, result.domain);        \
           break;                                                                         \
       }                                                                                  \
     } else {                                                                             \
       switch (width) {                                                                   \
         case 8:                                                                          \
-          STORE(uint8_t, uint8_t);                                                       \
+          BENNET_ABSINT_STORE_CASE(dom, uint8_t, uint8_t, STORE, result.domain);         \
           break;                                                                         \
         case 16:                                                                         \
-          STORE(uint16_t, uint16_t);                                                     \
+          BENNET_ABSINT_STORE_CASE(dom, uint16_t, uint16_t, STORE, result.domain);       \
           break;                                                                         \
         case 32:                                                                         \
-          STORE(uint32_t, uint32_t);                                                     \
+          BENNET_ABSINT_STORE_CASE(dom, uint32_t, uint32_t, STORE, result.domain);       \
           break;                                                                         \
         case 64:                                                                         \
         default:                                                                         \
-          STORE(uint64_t, uint64_t);                                                     \
+          BENNET_ABSINT_STORE_CASE(dom, uint64_t, uint64_t, STORE, result.domain);       \
           break;                                                                         \
       }                                                                                  \
     }                                                                                    \
-                                                                                         \
     return result;                                                                       \
+  }
+
+/*-----------------------------------------------------------------------------
+ * Canonicalization Generator
+ *
+ * <dom>_canonicalize(g, type) equals from_tagged(to_tagged(&g, type)) in value
+ * but allocates nothing: it truncates g's payload words to `type` and
+ * re-extends, reusing the domain's own LOAD/STORE field mapping (so it can
+ * never drift from the tagged round-trip). Only ported (eval-mode) domains
+ * instantiate this, so unported domains carry no unused canonicalize.
+ *---------------------------------------------------------------------------*/
+
+#define BENNET_ABSINT_CANONICALIZE_IMPL(dom, generic_t, LOAD, STORE)                     \
+  static generic_t dom##_canonicalize(generic_t in, cn_base_type* type) {                \
+    generic_t result = {0};                                                              \
+    generic_t* g = &in;                                                                  \
+    (void)g;                                                                             \
+    int width;                                                                           \
+    bool is_signed;                                                                      \
+    bennet_absint_type_info(type, &width, &is_signed);                                   \
+    result.width = width;                                                                \
+    result.is_signed = is_signed;                                                        \
+    if (is_signed) {                                                                     \
+      switch (width) {                                                                   \
+        case 8:                                                                          \
+          BENNET_ABSINT_CANON_CASE(dom, int8_t, uint8_t, LOAD, STORE);                   \
+          break;                                                                         \
+        case 16:                                                                         \
+          BENNET_ABSINT_CANON_CASE(dom, int16_t, uint16_t, LOAD, STORE);                 \
+          break;                                                                         \
+        case 32:                                                                         \
+          BENNET_ABSINT_CANON_CASE(dom, int32_t, uint32_t, LOAD, STORE);                 \
+          break;                                                                         \
+        case 64:                                                                         \
+        default:                                                                         \
+          BENNET_ABSINT_CANON_CASE(dom, int64_t, uint64_t, LOAD, STORE);                 \
+          break;                                                                         \
+      }                                                                                  \
+    } else {                                                                             \
+      switch (width) {                                                                   \
+        case 8:                                                                          \
+          BENNET_ABSINT_CANON_CASE(dom, uint8_t, uint8_t, LOAD, STORE);                  \
+          break;                                                                         \
+        case 16:                                                                         \
+          BENNET_ABSINT_CANON_CASE(dom, uint16_t, uint16_t, LOAD, STORE);                \
+          break;                                                                         \
+        case 32:                                                                         \
+          BENNET_ABSINT_CANON_CASE(dom, uint32_t, uint32_t, LOAD, STORE);                \
+          break;                                                                         \
+        case 64:                                                                         \
+        default:                                                                         \
+          BENNET_ABSINT_CANON_CASE(dom, uint64_t, uint64_t, LOAD, STORE);                \
+          break;                                                                         \
+      }                                                                                  \
+    }                                                                                    \
+    return result;                                                                       \
+  }
+
+/*-----------------------------------------------------------------------------
+ * Engine Value (eval) Generator
+ *
+ * The transformer engine (transform.inc.c) caches an inline "eval" - a tagged
+ * domain whose payload is the generic struct by value - so forward-tree nodes
+ * cost no per-node std_malloc; bennet_tagged_domain (heap payload) is
+ * materialized only at the persistent-state boundary. Each ported domain
+ * instantiates this after its from/to_tagged and canonicalize, and after the
+ * four uniform value hooks it must define:
+ *
+ *   generic_t <dom>_val_top(cn_base_type*);
+ *   generic_t <dom>_val_bottom(cn_base_type*);
+ *   generic_t <dom>_val_join(generic_t*, generic_t*);
+ *   bool      <dom>_val_is_bottom(generic_t*);
+ *---------------------------------------------------------------------------*/
+
+#define BENNET_ABSINT_EVAL_IMPL(dom, generic_t)                                          \
+  typedef struct {                                                                       \
+    cn_base_type* type;                                                                  \
+    generic_t val;                                                                       \
+  } bennet_absint_eval_##dom;                                                            \
+                                                                                         \
+  __attribute__((unused)) static inline bennet_absint_eval_##dom dom##_eval_of(          \
+      cn_base_type* type, generic_t g) {                                                 \
+    bennet_absint_eval_##dom e;                                                          \
+    e.type = type;                                                                       \
+    e.val = dom##_canonicalize(g, type);                                                 \
+    return e;                                                                            \
+  }                                                                                      \
+  __attribute__((unused)) static inline bennet_absint_eval_##dom dom##_eval_top(         \
+      cn_base_type* type) {                                                              \
+    bennet_absint_eval_##dom e;                                                          \
+    e.type = type;                                                                       \
+    e.val = dom##_val_top(type);                                                         \
+    return e;                                                                            \
+  }                                                                                      \
+  __attribute__((unused)) static inline bennet_absint_eval_##dom dom##_eval_bottom(      \
+      cn_base_type* type) {                                                              \
+    bennet_absint_eval_##dom e;                                                          \
+    e.type = type;                                                                       \
+    e.val = dom##_val_bottom(type);                                                      \
+    return e;                                                                            \
+  }                                                                                      \
+  __attribute__((unused)) static inline bennet_absint_eval_##dom dom##_eval_join(        \
+      bennet_absint_eval_##dom* a, bennet_absint_eval_##dom* b) {                        \
+    generic_t av = a->val;                                                               \
+    generic_t bv = b->val;                                                               \
+    generic_t j = dom##_val_join(&av, &bv);                                              \
+    return dom##_eval_of(a->type, j);                                                    \
+  }                                                                                      \
+  __attribute__((unused)) static inline bool dom##_eval_is_bottom(                       \
+      bennet_absint_eval_##dom* e) {                                                     \
+    return dom##_val_is_bottom(&e->val);                                                 \
+  }                                                                                      \
+  __attribute__((unused)) static inline bennet_absint_eval_##dom dom##_eval_from_tagged( \
+      bennet_tagged_domain t) {                                                          \
+    bennet_absint_eval_##dom e;                                                          \
+    e.type = t.type;                                                                     \
+    e.val = dom##_from_tagged(&t);                                                       \
+    return e;                                                                            \
+  }                                                                                      \
+  __attribute__((unused)) static inline bennet_tagged_domain dom##_eval_to_tagged(       \
+      bennet_absint_eval_##dom* e) {                                                     \
+    generic_t v = e->val;                                                                \
+    return dom##_to_tagged(&v, e->type);                                                 \
   }
 
 /*-----------------------------------------------------------------------------

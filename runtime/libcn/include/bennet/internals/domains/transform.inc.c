@@ -64,12 +64,31 @@
 #define ABSINT_FTREE ABSINT_CAT(ABSINT_DOM, _absint_ftree)
 
 /*-----------------------------------------------------------------------------
- * Forward pass: cached tree of tagged values
+ * Engine value (eval): the tree caches an inline eval (a bennet_absint_eval_<dom>
+ * - the type pointer plus the domain's generic struct ABSINT_VAL by value), so a
+ * forward node costs no per-node std_malloc. bennet_tagged_domain (heap payload)
+ * is materialized only at the persistent-state boundary: SYM reads (eval_from_tagged),
+ * SYM deposits, and the public entry points (eval_to_tagged). Every domain defines
+ * ABSINT_VAL and the eval type + <dom>_eval_* hooks via BENNET_ABSINT_EVAL_IMPL.
+ *---------------------------------------------------------------------------*/
+
+#ifndef ABSINT_VAL
+  #error "transform.inc.c requires ABSINT_VAL (the domain's generic struct type)"
+#endif
+
+#define ABSINT_EVAL           ABSINT_CAT(bennet_absint_eval_, ABSINT_DOM)
+#define ABSINT_EVAL_TOP(t)    ABSINT_CAT(ABSINT_DOM, _eval_top)(t)
+#define ABSINT_EVAL_ISBOT(e)  ABSINT_CAT(ABSINT_DOM, _eval_is_bottom)(e)
+#define ABSINT_EVAL_FROMT(td) ABSINT_CAT(ABSINT_DOM, _eval_from_tagged)(td)
+#define ABSINT_EVAL_TOT(e)    ABSINT_CAT(ABSINT_DOM, _eval_to_tagged)(e)
+
+/*-----------------------------------------------------------------------------
+ * Forward pass: cached tree of eval values
  *---------------------------------------------------------------------------*/
 
 typedef struct ABSINT_FTREE {
   cn_term* term;
-  bennet_tagged_domain val;
+  ABSINT_EVAL val;
   /* Children in term order; fanout <= 2 among evaluated children (ITE
    * conditions are not evaluated, matching the legacy walkers). */
   struct ABSINT_FTREE* kids[2];
@@ -88,7 +107,7 @@ static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* stat
 
   if (!term) {
     cn_base_type bt = cn_base_type_bits(false, 64);
-    node->val = ABSINT_TAGGED(top)(&bt);
+    node->val = ABSINT_EVAL_TOP(&bt);
     return node;
   }
 
@@ -100,7 +119,7 @@ static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* stat
 
     case CN_TERM_SYM: {
       bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
-      node->val = ABSINT_STATE(get)(state, sym, &term->base_type);
+      node->val = ABSINT_EVAL_FROMT(ABSINT_STATE(get)(state, sym, &term->base_type));
       break;
     }
 
@@ -151,8 +170,8 @@ static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* stat
       node->kids[0] = ABSINT_ENGINE(fwd)(term->data.let.value, state);
       bennet_absint_sym var = {
           .name = term->data.let.var.name, .id = term->data.let.var.id};
-      bennet_absint_state* body_state =
-          ABSINT_STATE(set)(ABSINT_STATE(copy)(state), var, node->kids[0]->val);
+      bennet_absint_state* body_state = ABSINT_STATE(set)(
+          ABSINT_STATE(copy)(state), var, ABSINT_EVAL_TOT(&node->kids[0]->val));
       node->kids[1] = ABSINT_ENGINE(fwd)(term->data.let.body, body_state);
       node->val = node->kids[1]->val;
       break;
@@ -174,7 +193,7 @@ static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* stat
 
     default:
       /* The single unsupported-node fallback (one place to extend or log). */
-      node->val = ABSINT_TAGGED(top)(&term->base_type);
+      node->val = ABSINT_EVAL_TOP(&term->base_type);
       break;
   }
 
@@ -296,19 +315,19 @@ static bennet_absint_state* ABSINT_ENGINE(deposit_bottom)(
  * answers refine nothing (always sound). A bottom pushed value bottoms
  * every sym of the subtree it was pushed into. */
 static bennet_absint_state* ABSINT_ENGINE(bwd)(
-    ABSINT_FTREE* node, bennet_tagged_domain output_domain, bennet_absint_state* state) {
+    ABSINT_FTREE* node, ABSINT_EVAL output_domain, bennet_absint_state* state) {
   cn_term* term = node->term;
   if (!term || !state)
     return state;
 
-  if (ABSINT_TAGGED(is_bottom)(&output_domain)) {
+  if (ABSINT_EVAL_ISBOT(&output_domain)) {
     return ABSINT_ENGINE(deposit_bottom)(term, state);
   }
 
   switch (term->type) {
     case CN_TERM_SYM: {
       bennet_absint_sym sym = {.name = term->data.sym.name, .id = term->data.sym.id};
-      return ABSINT_STATE(meet)(state, sym, output_domain);
+      return ABSINT_STATE(meet)(state, sym, ABSINT_EVAL_TOT(&output_domain));
     }
 
     case CN_TERM_BINOP: {
@@ -324,8 +343,8 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(
           break;
       }
 
-      bennet_tagged_domain down_l;
-      bennet_tagged_domain down_r;
+      ABSINT_EVAL down_l;
+      ABSINT_EVAL down_r;
       bennet_absint_bw_action act_l = ABSINT_BASIS(backward_binop)(term->data.binop.op,
           /*target_is_left=*/true,
           &output_domain,
@@ -352,7 +371,7 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(
     }
 
     case CN_TERM_UNOP: {
-      bennet_tagged_domain down;
+      ABSINT_EVAL down;
       bennet_absint_bw_action action = ABSINT_BASIS(backward_unop)(term->data.unop.op,
           &output_domain,
           &node->kids[0]->val,
@@ -384,8 +403,8 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(
     }
 
     case CN_TERM_ARRAY_SHIFT: {
-      bennet_tagged_domain down_base;
-      bennet_tagged_domain down_idx;
+      ABSINT_EVAL down_base;
+      ABSINT_EVAL down_idx;
       bennet_absint_bw_action act_base = ABSINT_BASIS(shift_backward)(term,
           /*target_is_base=*/true,
           &output_domain,
@@ -410,7 +429,7 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(
     }
 
     case CN_TERM_MEMBER_SHIFT: {
-      bennet_tagged_domain down;
+      ABSINT_EVAL down;
       bennet_absint_bw_action action = ABSINT_BASIS(shift_backward)(
           term, true, &output_domain, NULL, &node->kids[0]->val, &down);
       if (action == BENNET_ABSINT_BW_DESCEND) {
@@ -421,7 +440,7 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(
 
     case CN_TERM_CAST: {
       cn_term* inner = term->data.cast.value;
-      bennet_tagged_domain down;
+      ABSINT_EVAL down;
       bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
           &inner->base_type, &term->base_type, &output_domain, &down);
       if (action == BENNET_ABSINT_BW_DESCEND) {
@@ -433,7 +452,7 @@ static bennet_absint_state* ABSINT_ENGINE(bwd)(
     case CN_TERM_WRAPI: {
       /* Mirror of CAST: invert the modular conversion via backward_cast. */
       cn_term* inner = term->data.wrapi.value;
-      bennet_tagged_domain down;
+      ABSINT_EVAL down;
       bennet_absint_bw_action action = ABSINT_BASIS(backward_cast)(
           &inner->base_type, &term->base_type, &output_domain, &down);
       if (action == BENNET_ABSINT_BW_DESCEND) {
@@ -504,8 +523,8 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
          * against the same incoming state - pure Jacobi across sides. */
         ABSINT_FTREE* l_tree = ABSINT_ENGINE(fwd)(left, state);
         ABSINT_FTREE* r_tree = ABSINT_ENGINE(fwd)(right, state);
-        bennet_tagged_domain l_fwd = l_tree->val;
-        bennet_tagged_domain r_fwd = r_tree->val;
+        ABSINT_EVAL l_fwd = l_tree->val;
+        ABSINT_EVAL r_fwd = r_tree->val;
 
         /* Pointer-comparison retagging quirk shared by the legacy walkers:
          * refinements over a LOC-typed side are tagged with the side's own
@@ -515,15 +534,15 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
         cn_base_type* r_ref_type =
             right->base_type.tag == CN_BASE_LOC ? &right->base_type : r_fwd.type;
 
-        bennet_tagged_domain l_ref;
-        bennet_tagged_domain r_ref;
+        ABSINT_EVAL l_ref;
+        ABSINT_EVAL r_ref;
         bennet_absint_cmp_result cmp = ABSINT_BASIS(assume_cmp)(
             op, value, &l_fwd, &r_fwd, l_ref_type, r_ref_type, &l_ref, &r_ref);
         if (!cmp.has_rule) {
           return ABSINT_STATE(copy)(state);
         }
 
-        if (ABSINT_TAGGED(is_bottom)(&l_ref) || ABSINT_TAGGED(is_bottom)(&r_ref)) {
+        if (ABSINT_EVAL_ISBOT(&l_ref) || ABSINT_EVAL_ISBOT(&r_ref)) {
           /* Unsatisfiable: propagate bottom to all syms. The LOC type is a
            * function-local static (the legacy walkers stored a dangling
            * stack local here). */
@@ -564,9 +583,10 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
 bennet_tagged_domain ABSINT_PUBLIC(forward)(cn_term* term, bennet_absint_state* state) {
   cn_arena* arena = bennet_absint_arena();
   cn_arena_frame_id frame = cn_arena_get_frame(arena);
-  /* Copy the root's cached value out (its type/domain pointers live outside the
-   * arena) before releasing the tree. */
-  bennet_tagged_domain result = ABSINT_ENGINE(fwd)(term, state)->val;
+  /* Materialize the root's cached eval into a heap tagged domain (its payload
+   * outlives the arena tree) before releasing the frame. */
+  ABSINT_FTREE* root = ABSINT_ENGINE(fwd)(term, state);
+  bennet_tagged_domain result = ABSINT_EVAL_TOT(&root->val);
   cn_arena_restore_frame(arena, frame);
   return result;
 }
@@ -586,9 +606,10 @@ bennet_absint_state* ABSINT_PUBLIC(backward)(cn_term* term,
   cn_arena* arena = bennet_absint_arena();
   cn_arena_frame_id frame = cn_arena_get_frame(arena);
   /* The returned state (cons cells + payloads) lives in the std allocator, not
-   * the arena, so it survives the frame release. */
-  bennet_absint_state* result =
-      ABSINT_ENGINE(bwd)(ABSINT_ENGINE(fwd)(term, state), output_domain, state);
+   * the arena, so it survives the frame release. The ABI-tagged output_domain
+   * is lifted into an eval for the internal walk. */
+  bennet_absint_state* result = ABSINT_ENGINE(bwd)(
+      ABSINT_ENGINE(fwd)(term, state), ABSINT_EVAL_FROMT(output_domain), state);
   cn_arena_restore_frame(arena, frame);
   return result;
 }
@@ -621,6 +642,11 @@ bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
  * Parameter cleanup (allows a second instantiation in another TU section)
  *---------------------------------------------------------------------------*/
 
+#undef ABSINT_EVAL
+#undef ABSINT_EVAL_TOP
+#undef ABSINT_EVAL_ISBOT
+#undef ABSINT_EVAL_FROMT
+#undef ABSINT_EVAL_TOT
 #undef ABSINT_FTREE
 #undef ABSINT_STATE
 #undef ABSINT_TAGGED
@@ -630,3 +656,4 @@ bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
 #undef ABSINT_CAT
 #undef ABSINT_CAT_
 #undef ABSINT_DOM
+#undef ABSINT_VAL

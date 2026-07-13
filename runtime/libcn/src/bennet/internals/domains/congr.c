@@ -754,27 +754,28 @@ static congr_generic congr_generic_bottom(int width, bool is_signed) {
  * modulus/residue words; stores narrow through the unsigned type (congruence
  * words are non-negative, no masking needed).
  */
-#define CONGR_TAGGED_LOAD(cty, ucty)                                                     \
+#define CONGR_TAGGED_LOAD(cty, ucty, DOMP)                                               \
   do {                                                                                   \
-    bennet_domain_congr(cty)* dom_ = (bennet_domain_congr(cty)*)d->domain;               \
+    const bennet_domain_congr(cty)* dom_ = (DOMP);                                       \
     result.is_top = dom_->top;                                                           \
     result.is_bottom = dom_->bottom;                                                     \
     result.modulus = (uint64_t)(ucty)dom_->modulus;                                      \
     result.residue = (uint64_t)(ucty)dom_->residue;                                      \
   } while (0)
 
-#define CONGR_TAGGED_STORE(cty, ucty)                                                    \
+#define CONGR_TAGGED_STORE(cty, ucty, DOMP)                                              \
   do {                                                                                   \
-    bennet_domain_congr(cty)* dom_ = std_malloc(sizeof(bennet_domain_congr(cty)));       \
-    assert(dom_);                                                                        \
+    bennet_domain_congr(cty)* dom_ = (DOMP);                                             \
     dom_->top = g->is_top;                                                               \
     dom_->bottom = g->is_bottom;                                                         \
     dom_->modulus = (cty)(ucty)g->modulus;                                               \
     dom_->residue = (cty)(ucty)g->residue;                                               \
-    result.domain = dom_;                                                                \
   } while (0)
 
 BENNET_ABSINT_TAGGED_CONVERT_IMPL(
+    congr, congr_generic, CONGR_TAGGED_LOAD, CONGR_TAGGED_STORE)
+
+BENNET_ABSINT_CANONICALIZE_IMPL(
     congr, congr_generic, CONGR_TAGGED_LOAD, CONGR_TAGGED_STORE)
 
 static congr_generic congr_generic_meet(congr_generic* a, congr_generic* b) {
@@ -1147,6 +1148,34 @@ BENNET_ABSINT_STATE_IMPL(congr)
 
 #include <bennet/internals/domains/transform_template.h>
 
+/* Uniform value hooks + inline eval layer consumed by the engine template
+ * (transform.inc.c). eval_* mirror the tagged bennet_tagged_domain_* ops but
+ * carry the generic congr_generic by value, so forward-tree nodes need no
+ * per-node std_malloc. */
+static congr_generic congr_val_top(cn_base_type* type) {
+  int width;
+  bool is_signed;
+  bennet_absint_type_info(type, &width, &is_signed);
+  return congr_generic_top(width, is_signed);
+}
+
+static congr_generic congr_val_bottom(cn_base_type* type) {
+  int width;
+  bool is_signed;
+  bennet_absint_type_info(type, &width, &is_signed);
+  return congr_generic_bottom(width, is_signed);
+}
+
+static congr_generic congr_val_join(congr_generic* a, congr_generic* b) {
+  return congr_generic_join(a, b);
+}
+
+static bool congr_val_is_bottom(congr_generic* g) {
+  return g->is_bottom;
+}
+
+BENNET_ABSINT_EVAL_IMPL(congr, congr_generic)
+
 static congr_generic congr_forward_binop(
     cn_binop op, congr_generic* left, congr_generic* right) {
   switch (op) {
@@ -1176,7 +1205,7 @@ static congr_generic congr_forward_binop(
   }
 }
 
-static bennet_tagged_domain congr_basis_const(cn_term* term) {
+static bennet_absint_eval_congr congr_basis_const(cn_term* term) {
   int width = 64;
   bool is_signed = false;
   bennet_absint_type_info(&term->base_type, &width, &is_signed);
@@ -1199,40 +1228,40 @@ static bennet_tagged_domain congr_basis_const(cn_term* term) {
       val = 0;
       break;
     default:
-      return bennet_tagged_domain_top_congr(&term->base_type);
+      return congr_eval_top(&term->base_type);
   }
   congr_generic g = congr_generic_const(width, is_signed, val);
-  return congr_to_tagged(&g, &term->base_type);
+  return congr_eval_of(&term->base_type, g);
 }
 
-static bennet_tagged_domain congr_basis_forward_unop(
-    cn_unop op, bennet_tagged_domain* v, cn_base_type* result_type) {
+static bennet_absint_eval_congr congr_basis_forward_unop(
+    cn_unop op, bennet_absint_eval_congr* v, cn_base_type* result_type) {
   switch (op) {
     case CN_UNOP_NEGATE: {
-      congr_generic operand = congr_from_tagged(v);
+      congr_generic operand = v->val;
       congr_generic result = congr_generic_negate(&operand);
-      return congr_to_tagged(&result, result_type);
+      return congr_eval_of(result_type, result);
     }
     default:
-      return bennet_tagged_domain_top_congr(result_type);
+      return congr_eval_top(result_type);
   }
 }
 
-static bennet_tagged_domain congr_basis_forward_binop(cn_binop op,
-    bennet_tagged_domain* l,
-    bennet_tagged_domain* r,
+static bennet_absint_eval_congr congr_basis_forward_binop(cn_binop op,
+    bennet_absint_eval_congr* l,
+    bennet_absint_eval_congr* r,
     cn_base_type* result_type) {
-  congr_generic lg = congr_from_tagged(l);
-  congr_generic rg = congr_from_tagged(r);
+  congr_generic lg = l->val;
+  congr_generic rg = r->val;
   congr_generic result = congr_forward_binop(op, &lg, &rg);
-  return congr_to_tagged(&result, result_type);
+  return congr_eval_of(result_type, result);
 }
 
-static bennet_tagged_domain congr_basis_forward_cast(
-    cn_base_type* to, bennet_tagged_domain* v) {
-  congr_generic src = congr_from_tagged(v);
+static bennet_absint_eval_congr congr_basis_forward_cast(
+    cn_base_type* to, bennet_absint_eval_congr* v) {
+  congr_generic src = v->val;
   if (src.is_bottom) {
-    return bennet_tagged_domain_bottom_congr(to);
+    return congr_eval_bottom(to);
   }
   /* Congruence info propagates through casts (modulus/residue still valid) */
   int dst_width = 64;
@@ -1243,15 +1272,16 @@ static bennet_tagged_domain congr_basis_forward_cast(
   /* Re-normalize for new width */
   congr_xi_norm_64(&src.modulus, &src.residue);
   src.is_top = (src.modulus == 1);
-  return congr_to_tagged(&src, to);
+  return congr_eval_of(to, src);
 }
 
-static bennet_tagged_domain congr_basis_shift_forward(
-    cn_term* term, bennet_tagged_domain* base, bennet_tagged_domain* index_or_null) {
-  congr_generic base_g = congr_from_tagged(base);
+static bennet_absint_eval_congr congr_basis_shift_forward(cn_term* term,
+    bennet_absint_eval_congr* base,
+    bennet_absint_eval_congr* index_or_null) {
+  congr_generic base_g = base->val;
 
   if (term->type == CN_TERM_ARRAY_SHIFT) {
-    congr_generic index_g = congr_from_tagged(index_or_null);
+    congr_generic index_g = index_or_null->val;
 
     /* elem_size as singleton constant */
     congr_generic elem_g = congr_generic_const(
@@ -1260,35 +1290,36 @@ static bennet_tagged_domain congr_basis_shift_forward(
     /* result = base + index * elem_size */
     congr_generic offset = congr_generic_mul(&index_g, &elem_g);
     congr_generic result = congr_generic_add(&base_g, &offset);
-    return congr_to_tagged(&result, &term->base_type);
+    return congr_eval_of(&term->base_type, result);
   }
 
   congr_generic offset_g = congr_generic_const(
       base_g.width, base_g.is_signed, (uint64_t)term->data.member_shift.offset);
   congr_generic result = congr_generic_add(&base_g, &offset_g);
-  return congr_to_tagged(&result, &term->base_type);
+  return congr_eval_of(&term->base_type, result);
 }
 
-static bennet_tagged_domain congr_basis_ite_join(
-    bennet_tagged_domain* then_v, bennet_tagged_domain* else_v, cn_base_type* term_type) {
+static bennet_absint_eval_congr congr_basis_ite_join(bennet_absint_eval_congr* then_v,
+    bennet_absint_eval_congr* else_v,
+    cn_base_type* term_type) {
   /* The legacy walker tags the join with the then-branch's type (the tagged
    * join uses d1->type), not the ITE node's own type. */
   (void)term_type;
-  return bennet_tagged_domain_join_congr(then_v, else_v);
+  return congr_eval_join(then_v, else_v);
 }
 
 static bennet_absint_bw_action congr_basis_backward_unop(cn_unop op,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* operand_fwd,
+    bennet_absint_eval_congr* out,
+    bennet_absint_eval_congr* operand_fwd,
     cn_base_type* operand_type,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_congr* down) {
   (void)operand_fwd; /* used by tnum's BW_COMPL meet-with-operand refinement */
   if (op == CN_UNOP_NEGATE) {
     /* out = -operand => operand = -out */
-    congr_generic out_g = congr_from_tagged(out);
+    congr_generic out_g = out->val;
     if (!out_g.is_top) {
       congr_generic inv = congr_generic_negate(&out_g);
-      *down = congr_to_tagged(&inv, operand_type);
+      *down = congr_eval_of(operand_type, inv);
       return BENNET_ABSINT_BW_DESCEND;
     }
   }
@@ -1298,14 +1329,14 @@ static bennet_absint_bw_action congr_basis_backward_unop(cn_unop op,
 
 static bennet_absint_bw_action congr_basis_backward_binop(cn_binop op,
     bool target_is_left,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* other_fwd,
-    bennet_tagged_domain* target_fwd,
+    bennet_absint_eval_congr* out,
+    bennet_absint_eval_congr* other_fwd,
+    bennet_absint_eval_congr* target_fwd,
     cn_base_type* target_type,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_congr* down) {
   (void)target_fwd; /* used by tnum's meet-with-target bitwise refinements */
-  congr_generic out_g = congr_from_tagged(out);
-  congr_generic og = congr_from_tagged(other_fwd);
+  congr_generic out_g = out->val;
+  congr_generic og = other_fwd->val;
 
   if (out_g.is_top || og.is_top) {
     return BENNET_ABSINT_BW_STOP;
@@ -1387,17 +1418,17 @@ static bennet_absint_bw_action congr_basis_backward_binop(cn_binop op,
   if (!did_invert) {
     return BENNET_ABSINT_BW_STOP;
   }
-  *down = congr_to_tagged(&inverted, target_type);
+  *down = congr_eval_of(target_type, inverted);
   return BENNET_ABSINT_BW_DESCEND;
 }
 
 static bennet_absint_bw_action congr_basis_backward_cast(cn_base_type* src_type,
     cn_base_type* dst_type,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_congr* out,
+    bennet_absint_eval_congr* down) {
   (void)dst_type; /* congruence transfers across casts independent of dst */
   /* Propagate through cast: congruence info transfers across casts */
-  congr_generic out_g = congr_from_tagged(out);
+  congr_generic out_g = out->val;
   int src_width = 64;
   bool src_signed = false;
   bennet_absint_type_info(src_type, &src_width, &src_signed);
@@ -1405,18 +1436,18 @@ static bennet_absint_bw_action congr_basis_backward_cast(cn_base_type* src_type,
   out_g.is_signed = src_signed;
   congr_xi_norm_64(&out_g.modulus, &out_g.residue);
   out_g.is_top = (out_g.modulus == 1);
-  *down = congr_to_tagged(&out_g, src_type);
+  *down = congr_eval_of(src_type, out_g);
   return BENNET_ABSINT_BW_DESCEND;
 }
 
 static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
     bool target_is_base,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* sibling_fwd,
-    bennet_tagged_domain* target_fwd,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_congr* out,
+    bennet_absint_eval_congr* sibling_fwd,
+    bennet_absint_eval_congr* target_fwd,
+    bennet_absint_eval_congr* down) {
   (void)target_fwd; /* used by wint's array-index meet-with-current path */
-  congr_generic out_g = congr_from_tagged(out);
+  congr_generic out_g = out->val;
 
   if (term->type == CN_TERM_MEMBER_SHIFT) {
     if (!out_g.is_top && !out_g.is_bottom) {
@@ -1424,7 +1455,7 @@ static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
       congr_generic offset_g = congr_generic_const(
           out_g.width, out_g.is_signed, (uint64_t)term->data.member_shift.offset);
       congr_generic inv = congr_generic_sub(&out_g, &offset_g);
-      *down = congr_to_tagged(&inv, &term->data.member_shift.base->base_type);
+      *down = congr_eval_of(&term->data.member_shift.base->base_type, inv);
       return BENNET_ABSINT_BW_DESCEND;
     }
     *down = *out;
@@ -1439,14 +1470,14 @@ static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
   if (target_is_base) {
     if (!out_g.is_top && !out_g.is_bottom) {
       /* result = base + index * elem_size => base = result - index * elem_size */
-      congr_generic index_g = congr_from_tagged(sibling_fwd);
+      congr_generic index_g = sibling_fwd->val;
       if (!index_g.is_top) {
         congr_generic elem_g =
             congr_generic_const(index_g.width, index_g.is_signed, elem_size);
         congr_generic offset = congr_generic_mul(&index_g, &elem_g);
         if (!offset.is_top) {
           congr_generic inv = congr_generic_sub(&out_g, &offset);
-          *down = congr_to_tagged(&inv, &base->base_type);
+          *down = congr_eval_of(&base->base_type, inv);
           return BENNET_ABSINT_BW_DESCEND;
         }
       }
@@ -1459,7 +1490,7 @@ static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
 
   /* Target is the index */
   if (!out_g.is_top && !out_g.is_bottom) {
-    congr_generic base_g = congr_from_tagged(sibling_fwd);
+    congr_generic base_g = sibling_fwd->val;
     if (!base_g.is_top && elem_size != 0) {
       /* diff = result - base */
       congr_generic diff = congr_generic_sub(&out_g, &base_g);
@@ -1469,7 +1500,7 @@ static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
             congr_generic_const(index->base_type.data.bits.size_bits,
                 index->base_type.data.bits.is_signed,
                 diff.residue / elem_size);
-        *down = congr_to_tagged(&idx_refined, &index->base_type);
+        *down = congr_eval_of(&index->base_type, idx_refined);
         return BENNET_ABSINT_BW_DESCEND;
       }
     }
@@ -1482,12 +1513,12 @@ static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
 
 static bennet_absint_cmp_result congr_basis_assume_cmp(cn_binop op,
     bool value,
-    bennet_tagged_domain* l_fwd,
-    bennet_tagged_domain* r_fwd,
+    bennet_absint_eval_congr* l_fwd,
+    bennet_absint_eval_congr* r_fwd,
     cn_base_type* l_ref_type,
     cn_base_type* r_ref_type,
-    bennet_tagged_domain* l_ref,
-    bennet_tagged_domain* r_ref) {
+    bennet_absint_eval_congr* l_ref,
+    bennet_absint_eval_congr* r_ref) {
   bennet_absint_cmp_result res = {
       .has_rule = false, .apply_left = false, .apply_right = false};
 
@@ -1498,12 +1529,12 @@ static bennet_absint_cmp_result congr_basis_assume_cmp(cn_binop op,
   }
 
   /* a == b must be true: meet both domains */
-  congr_generic lg = congr_from_tagged(l_fwd);
-  congr_generic rg = congr_from_tagged(r_fwd);
+  congr_generic lg = l_fwd->val;
+  congr_generic rg = r_fwd->val;
   congr_generic met = congr_generic_meet(&lg, &rg);
 
-  *l_ref = congr_to_tagged(&met, l_ref_type);
-  *r_ref = congr_to_tagged(&met, r_ref_type);
+  *l_ref = congr_eval_of(l_ref_type, met);
+  *r_ref = congr_eval_of(r_ref_type, met);
   res.has_rule = true;
   /* congr pushes unconditionally (no top-refinement skip; that gate is
    * wint's). */
@@ -1518,4 +1549,5 @@ static bennet_absint_cmp_result congr_basis_assume_cmp(cn_binop op,
  *---------------------------------------------------------------------------*/
 
 #define ABSINT_DOM congr
+#define ABSINT_VAL congr_generic
 #include <bennet/internals/domains/transform.inc.c>
