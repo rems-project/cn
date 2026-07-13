@@ -275,7 +275,15 @@ let test_tnum_mul _ =
   let const_0 = TristateBasis.of_const test_bt Z.zero in
   let mul_0 = TristateBasis.tnum_mul const_5 const_0 in
   assert_equal ~msg:"5 * 0 = 0" Z.zero mul_0.value;
-  assert_equal ~msg:"5 * 0 mask is 0" Z.zero mul_0.mask
+  assert_equal ~msg:"5 * 0 mask is 0" Z.zero mul_0.mask;
+  (* Non-constant operand exercises the our_mul shift-add loop (const*const alone
+     never takes the unknown-bit branch): {0,1} * 6 = {0,6} ⊆ T(0,6), i.e. bit 0
+     known 0, bits 1-2 unknown. *)
+  let bit0 = TristateBasis.of_tnum test_bt Z.zero Z.one in
+  let const_6 = TristateBasis.of_const test_bt (Z.of_int 6) in
+  let mul_partial = TristateBasis.tnum_mul bit0 const_6 in
+  assert_equal ~msg:"{0,1}*6 value" Z.zero mul_partial.value;
+  assert_equal ~msg:"{0,1}*6 mask" (Z.of_int 6) mul_partial.mask
 
 
 (** Test division *)
@@ -618,6 +626,20 @@ let add_soundness_prop =
        Z.equal result.value (Z.of_int expected) && Z.equal result.mask Z.zero)
 
 
+(** Property: MUL is sound for constants (our_mul must stay exact on the const path) *)
+let mul_soundness_prop =
+  Test.make
+    ~count:100
+    ~name:"MUL is sound"
+    (pair (int_range 0 127) (int_range 0 127))
+    (fun (a, b) ->
+       let t1 = TristateBasis.of_const test_bt (Z.of_int a) in
+       let t2 = TristateBasis.of_const test_bt (Z.of_int b) in
+       let result = TristateBasis.tnum_mul t1 t2 in
+       let expected = a * b mod 256 in
+       Z.equal result.value (Z.of_int expected) && Z.equal result.mask Z.zero)
+
+
 (** Property: leq is reflexive *)
 let leq_reflexive_prop =
   Test.make ~count:100 ~name:"leq is reflexive" (int_range 0 255) (fun a ->
@@ -706,6 +728,7 @@ let property_tests =
          QCheck_ounit.to_ounit2_test or_soundness_prop;
          QCheck_ounit.to_ounit2_test xor_soundness_prop;
          QCheck_ounit.to_ounit2_test add_soundness_prop;
+         QCheck_ounit.to_ounit2_test mul_soundness_prop;
          QCheck_ounit.to_ounit2_test leq_reflexive_prop;
          QCheck_ounit.to_ounit2_test bottom_minimal_prop;
          QCheck_ounit.to_ounit2_test top_maximal_prop

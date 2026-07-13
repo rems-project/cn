@@ -885,12 +885,12 @@ static congr_generic congr_generic_sub(congr_generic* a, congr_generic* b) {
   };
 }
 
-/* Multiplication: gcd(ac, ad, bc)Z + (bd) */
+/* Multiplication: gcd(ac, ad, bc)Z + (bd). No is_top early return -- the general
+ * gcd formula recovers stride from a top operand (top * 4Z = 4Z, top * {c} = cZ),
+ * which the early return discarded. (OCaml congr_mul has no such guard.) */
 static congr_generic congr_generic_mul(congr_generic* a, congr_generic* b) {
   if (a->is_bottom || b->is_bottom)
     return congr_generic_bottom(a->width, a->is_signed);
-  if (a->is_top || b->is_top)
-    return congr_generic_top(a->width, a->is_signed);
 
   uint64_t am = a->modulus, ar = a->residue;
   uint64_t bm = b->modulus, br = b->residue;
@@ -920,9 +920,12 @@ static congr_generic congr_generic_shl(congr_generic* a, congr_generic* shift) {
   if (shift->modulus != 0)
     return congr_generic_top(a->width, a->is_signed);
 
-  int k = (int)shift->residue;
-  if (k < 0 || k >= 64)
+  /* Clamp on width before the int cast (residue is a normalized [0, 2^w) value;
+   * a wide amount would cast to garbage). shift >= width -> top, matching the
+   * per-type path and OCaml. */
+  if (shift->residue >= (uint64_t)a->width)
     return congr_generic_top(a->width, a->is_signed);
+  int k = (int)shift->residue;
 
   uint64_t g = (a->modulus == 0) ? 0 : (a->modulus << k);
   uint64_t res = a->residue << k;
@@ -946,9 +949,10 @@ static congr_generic congr_generic_lshr(congr_generic* a, congr_generic* shift) 
   if (shift->modulus != 0)
     return congr_generic_top(a->width, a->is_signed);
 
-  int k = (int)shift->residue;
-  if (k < 0 || k >= 64)
+  /* Clamp on width before the int cast (see congr_generic_shl). */
+  if (shift->residue >= (uint64_t)a->width)
     return congr_generic_top(a->width, a->is_signed);
+  int k = (int)shift->residue;
 
   /* Check if shift is cleanly divisible */
   uint64_t shift_mask = ((uint64_t)1 << k) - 1;
@@ -1011,6 +1015,11 @@ static congr_generic congr_generic_mod(congr_generic* a, congr_generic* b) {
   uint64_t am = a->modulus;
   uint64_t ar = a->residue;
   uint64_t n = b->residue;
+  /* Singleton dividend: exact remainder {ar mod n} (on the unsigned bit pattern,
+   * mirroring OCaml congr_mod's Z.erem residue (abs n)). Without this the general
+   * gcd(0,n)=n path would return the coarser class nZ+(ar mod n). */
+  if (am == 0)
+    return congr_generic_const(a->width, a->is_signed, ar % n);
   uint64_t g = congr_gcd_64(am, n);
   uint64_t res = (g == 0) ? (ar % n) : (ar % g);
   congr_xi_norm_64(&g, &res);
@@ -1059,6 +1068,80 @@ static congr_generic congr_generic_join(congr_generic* a, congr_generic* b) {
   uint64_t res = (g == 0) ? ar : (ar & (g - 1));
   congr_xi_norm_64(&g, &res);
 
+  return (congr_generic){
+      .is_top = (g == 1),
+      .is_bottom = false,
+      .is_signed = a->is_signed,
+      .width = a->width,
+      .modulus = g,
+      .residue = res,
+  };
+}
+
+/* Bitwise AND/OR/XOR (congruence). With k = min over the operands of the
+ * alignment ctz(modulus) (a singleton, modulus 0, has full alignment = width),
+ * the low k bits of every element are fixed, so the result is
+ * 2^k Z + ((b op d) mod 2^k). Mirrors the OCaml congr_{and,or,xor} and the
+ * per-type bodies; wired into congr_forward_binop (was default -> top). */
+static congr_generic congr_generic_bitwise(
+    cn_binop op, congr_generic* a, congr_generic* b) {
+  if (a->is_bottom || b->is_bottom)
+    return congr_generic_bottom(a->width, a->is_signed);
+
+  int width = a->width;
+  uint64_t am = a->modulus, ar = a->residue;
+  uint64_t bm = b->modulus, br = b->residue;
+
+  uint64_t combined;
+  switch (op) {
+    case CN_BINOP_BW_AND:
+      combined = ar & br;
+      break;
+    case CN_BINOP_BW_OR:
+      combined = ar | br;
+      break;
+    default: /* CN_BINOP_BW_XOR */
+      combined = ar ^ br;
+      break;
+  }
+
+  /* Both singletons: exact constant. */
+  if (am == 0 && bm == 0)
+    return congr_generic_const(width, a->is_signed, combined);
+
+  /* ctz on a non-singleton modulus is < width; a singleton contributes width. */
+  int k1 = (am == 0) ? width : __builtin_ctzll(am);
+  int k2 = (bm == 0) ? width : __builtin_ctzll(bm);
+  int k = (k1 < k2) ? k1 : k2;
+  if (k == 0)
+    return congr_generic_top(width, a->is_signed);
+
+  uint64_t g = (uint64_t)1 << k;
+  uint64_t res = combined & (g - 1);
+  congr_xi_norm_64(&g, &res);
+  return (congr_generic){
+      .is_top = (g == 1),
+      .is_bottom = false,
+      .is_signed = a->is_signed,
+      .width = width,
+      .modulus = g,
+      .residue = res,
+  };
+}
+
+/* Bitwise complement: ~x = -x - 1 preserves the modulus and complements the
+ * residue. Mirrors the OCaml forward_abs_unop BW_Compl. */
+static congr_generic congr_generic_compl(congr_generic* a) {
+  if (a->is_bottom)
+    return congr_generic_bottom(a->width, a->is_signed);
+
+  uint64_t fm = (a->width >= 64) ? UINT64_MAX : (((uint64_t)1 << a->width) - 1);
+  if (a->modulus == 0)
+    return congr_generic_const(a->width, a->is_signed, (~a->residue) & fm);
+
+  uint64_t g = a->modulus;
+  uint64_t res = (~a->residue) & fm;
+  congr_xi_norm_64(&g, &res);
   return (congr_generic){
       .is_top = (g == 1),
       .is_bottom = false,
@@ -1200,6 +1283,10 @@ static congr_generic congr_forward_binop(
     case CN_BINOP_REM:
     case CN_BINOP_REMNOSMT:
       return congr_generic_mod(left, right);
+    case CN_BINOP_BW_AND:
+    case CN_BINOP_BW_OR:
+    case CN_BINOP_BW_XOR:
+      return congr_generic_bitwise(op, left, right);
     default:
       return congr_generic_top(left->width, left->is_signed);
   }
@@ -1240,6 +1327,11 @@ static bennet_absint_eval_congr congr_basis_forward_unop(
     case CN_UNOP_NEGATE: {
       congr_generic operand = v->val;
       congr_generic result = congr_generic_negate(&operand);
+      return congr_eval_of(result_type, result);
+    }
+    case CN_UNOP_BW_COMPL: {
+      congr_generic operand = v->val;
+      congr_generic result = congr_generic_compl(&operand);
       return congr_eval_of(result_type, result);
     }
     default:

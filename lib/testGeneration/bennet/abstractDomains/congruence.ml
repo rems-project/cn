@@ -466,10 +466,13 @@ module CongruenceBasis = struct
       top t.bt
     else (
       let width = get_width t.bt in
-      let k = Z.to_int shift_amt.residue in
-      if k < 0 || k >= width then
-        of_const t.bt Z.zero
+      (* Clamp before Z.to_int: residue is normalized to [0, 2^w), so a 64-bit
+         shift amount can exceed native int and raise Z.Overflow. k >= width -> top
+         (project-wide shift>=width = top; congr_lshr already returns top). *)
+      if Z.geq shift_amt.residue (Z.of_int width) then
+        top t.bt
       else (
+        let k = Z.to_int shift_amt.residue in
         let tw = two_to_w t.bt in
         let fm = full_mask t.bt in
         let two_k = Z.shift_left Z.one k in
@@ -486,10 +489,12 @@ module CongruenceBasis = struct
       top t.bt
     else (
       let width = get_width t.bt in
-      let k = Z.to_int shift_amt.residue in
-      if k < 0 || k >= width then
+      (* Clamp before Z.to_int (see congr_shl): a 64-bit shift amount can exceed
+         native int and raise Z.Overflow. k >= width -> top. *)
+      if Z.geq shift_amt.residue (Z.of_int width) then
         top t.bt
       else (
+        let k = Z.to_int shift_amt.residue in
         let k_tz = trailing_zeros t.modulus in
         if k <= k_tz then (
           let new_mod = Z.shift_right t.modulus k in
