@@ -16,7 +16,13 @@ let specialized =
   StringSetSet.of_list
     [ StringSet.of_list [ Ownership.Inner.CInt.name; Interval_.Inner.CInt.name ];
       StringSet.of_list [ Congruence.Inner.CInt.name; Ownership.Inner.CInt.name ];
-      StringSet.of_list [ Ownership.Inner.CInt.name; TNum.Inner.CInt.name ]
+      StringSet.of_list [ Ownership.Inner.CInt.name; TNum.Inner.CInt.name ];
+      StringSet.of_list [ Congruence.Inner.CInt.name; Interval_.Inner.CInt.name ];
+      StringSet.of_list
+        [ Congruence.Inner.CInt.name;
+          Ownership.Inner.CInt.name;
+          Interval_.Inner.CInt.name
+        ]
     ]
 
 
@@ -574,7 +580,20 @@ let product_domains (domains : (module Domain.T) list) =
             |> StringSet.of_list
           in
           let applicable_groups =
-            StringSetSet.filter (fun g -> StringSet.subset g domain_names) specialized
+            let applicable =
+              StringSetSet.filter (fun g -> StringSet.subset g domain_names) specialized
+            in
+            (* Inclusion-maximal groups only: a group strictly contained in
+               another applicable group is redundant, since the larger
+               combined reduce already chains the smaller ones. *)
+            applicable
+            |> StringSetSet.filter (fun g ->
+              not
+                (StringSetSet.exists
+                   (fun g' ->
+                      StringSet.cardinal g < StringSet.cardinal g'
+                      && StringSet.subset g g')
+                   applicable))
             |> StringSetSet.elements
           in
           let specialized_body =
