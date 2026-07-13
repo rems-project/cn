@@ -271,12 +271,11 @@ inline cn_term* binop_bool(cn_binop op, cn_term* l, cn_term* r) {
 
 inline cn_term* gen_arith(Rng& rng, const cn_base_type& bt, int depth);
 
-/* When set, array-shift indices in pointer terms are constants. The wint
- * state drivers need this: the legacy ARRAY_SHIFT backward index fallback
- * pushes the un-narrowed 64-bit output into the index subtree, so an index
- * containing a narrower symbol trips wint_generic_meet's width assert when
- * the base's bounds are top (pre-existing crash bug, reproduced exactly by
- * the port; flagged in doc/RUNTIME-ABSINT.md for the P6 semantic pass). */
+/* When set, array-shift indices in pointer terms are constants. The old
+ * difftest drivers needed this to dodge the ARRAY_SHIFT backward
+ * index-fallback width crash; that fallback now STOPs
+ * (WIntBackwardArrayShiftIndexFallbackStops), so new drivers can generate
+ * symbolic indices freely. Kept for vocabulary completeness. */
 inline bool g_ptr_const_index = false;
 
 inline cn_term* gen_ptr(Rng& rng, int depth) {

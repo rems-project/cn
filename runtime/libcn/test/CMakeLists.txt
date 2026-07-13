@@ -22,6 +22,7 @@ include_directories(../include)
 
 # Create test executable
 add_executable(libcn_tests
+    bennet/absint_fuzz.cpp
     bennet/absint_oracle.cpp
     bennet/assign_blame.cpp
     bennet/backtracks_info.cpp
@@ -55,7 +56,10 @@ endif(HAS_NARROWING)
 target_compile_options(libcn_tests PRIVATE -fsanitize=address,undefined)
 target_link_options(libcn_tests PRIVATE -fsanitize=address,undefined)
 
-# Link against Google Test and libcn
+# Link against Google Test and libcn.
+# These are the INSTALLED archives: after touching runtime C sources, run
+# `make install` before `dune test runtime/libcn`, or the tests silently
+# validate a stale runtime (and wipe this build dir on an mtime tie).
 target_link_libraries(libcn_tests
     # GoogleTest
     gtest_main
