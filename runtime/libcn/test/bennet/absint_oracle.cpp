@@ -240,6 +240,21 @@ const TermEntry kNumericOneSym[] = {
     {"x&0x0F", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_and(x, u8_const(0x0F)); }},
     {"x|0x11", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_or(x, u8_const(0x11)); }},
     {"x^0x3C", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_xor(x, u8_const(0x3C)); }},
+    // Node coverage: WRAPI (modular conversion; == CAST for absint) and
+    // LET (forward-only binding overlay).
+    {"wrapi8(x+3)",
+        1,
+        +[](cn_term* x, cn_term*) {
+          return cn_smt_wrapi("uint8_t", false, 8, cn_smt_add(x, u8_const(3)));
+        }},
+    {"let t=x+3 in t*2",
+        1,
+        +[](cn_term* x, cn_term*) {
+          cn_sym t = cn_sym_from_string("t_let");
+          cn_term* t_sym = cn_smt_sym(t, cn_base_type_bits(false, 8));
+          return cn_smt_let(
+              t, cn_smt_add(x, u8_const(3)), cn_smt_mul(t_sym, u8_const(2)));
+        }},
 };
 
 const TermEntry kCondOneSym[] = {
@@ -275,6 +290,12 @@ const TermEntry kCondOneSym[] = {
         1,
         +[](cn_term* x, cn_term*) {
           return cn_smt_eq(cn_smt_bw_compl(x), u8_const(0xF0));
+        }},
+    {"wrapi8(x+3)==5",
+        1,
+        +[](cn_term* x, cn_term*) {
+          return cn_smt_eq(
+              cn_smt_wrapi("uint8_t", false, 8, cn_smt_add(x, u8_const(3))), u8_const(5));
         }},
 };
 
@@ -660,5 +681,31 @@ TEST_F(AbsintOracle, GoldenCardinalities) {
         bennet_wint_transform_backward_assume(cond, false, bennet_absint_state_create());
     bennet_tagged_domain rx = bennet_absint_state_get_wint(refined, asym(sx), &u8);
     EXPECT_EQ(gamma_card_u8(kDomains[1], &rx), 206);
+  }
+
+  // WRAPI assume (node-coverage witness): wrapi8(x+3) == 5 refines x to {2}
+  // through the modular-conversion node (formerly the default-top arm, 256).
+  {
+    cn_term* cond = cn_smt_eq(
+        cn_smt_wrapi("uint8_t", false, 8, cn_smt_add(x, u8_const(3))), u8_const(5));
+    bennet_absint_state* refined =
+        bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+    bennet_tagged_domain rx = bennet_absint_state_get_wint(refined, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[1], &rx), 1);
+    EXPECT_TRUE(kDomains[1].check(2, &rx));
+  }
+
+  // LET forward (node-coverage witness): let t = x+3 in t*2 with x in
+  // [8,29] evaluates the body under the binding: t in [11,32], result
+  // [22,64] -> 43 values (formerly the default-top arm, 256).
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    st = bennet_absint_state_set_wint(st, asym(sx), tagged_wint_u8(8, 29));
+    cn_sym t = cn_sym_from_string("t_let");
+    cn_term* t_sym = cn_smt_sym(t, u8);
+    cn_term* let_term =
+        cn_smt_let(t, cn_smt_add(x, u8_const(3)), cn_smt_mul(t_sym, u8_const(2)));
+    bennet_tagged_domain out = bennet_wint_transform_forward(let_term, st);
+    EXPECT_EQ(gamma_card_u8(kDomains[1], &out), 43);
   }
 }

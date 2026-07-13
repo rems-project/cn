@@ -140,6 +140,8 @@ int bennet_absint_term_collect_syms(
     }
     case CN_TERM_CAST:
       return bennet_absint_term_collect_syms(term->data.cast.value, syms, max_syms);
+    case CN_TERM_WRAPI:
+      return bennet_absint_term_collect_syms(term->data.wrapi.value, syms, max_syms);
     case CN_TERM_ITE: {
       int n = bennet_absint_term_collect_syms(term->data.ite.then_term, syms, max_syms);
       n += bennet_absint_term_collect_syms(
@@ -183,6 +185,9 @@ bool term_contains_sym(cn_term* term, uint64_t sym_id) {
 
     case CN_TERM_CAST:
       return term_contains_sym(term->data.cast.value, sym_id);
+
+    case CN_TERM_WRAPI:
+      return term_contains_sym(term->data.wrapi.value, sym_id);
 
     case CN_TERM_ARRAY_SHIFT:
       return term_contains_sym(term->data.array_shift.base, sym_id) ||

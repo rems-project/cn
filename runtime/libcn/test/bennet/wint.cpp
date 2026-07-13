@@ -1718,6 +1718,35 @@ TEST_F(LibBennet, WIntBackwardComplInverts) {
   cn_bump_free_after(frame);
 }
 
+TEST_F(LibBennet, WIntBackwardThroughWrapi) {
+  // wrapi8(x+3) with output {5}: the WRAPI node inverts like a cast
+  // (modular conversion), then the ADD inverts to x = {2}. Formerly WRAPI
+  // fell to the walkers' default-top arm and nothing was refined.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+
+  cn_term* wrapi_term = cn_smt_wrapi("uint8_t",
+      false,
+      8,
+      cn_smt_add(cn_smt_sym(sym_x, bt_u8), cn_smt_bits(false, 8, 3)));
+
+  auto* refined_state = bennet_wint_transform_backward(
+      wrapi_term, {sym_x.name, sym_x.id}, make_tagged_wint_u8(5, 5), state);
+
+  bennet_tagged_domain refined_x =
+      bennet_absint_state_get_wint(refined_state, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&refined_x, &start, &end);
+  EXPECT_EQ(start, (uint8_t)2);
+  EXPECT_EQ(end, (uint8_t)2);
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
 TEST_F(LibBennet, WIntAssumeOrTrueJoinsHull) {
   // x==3 || x==7 assumed true (formerly a gap: wint's AND/OR handling was
   // unreachable dead code): the branch refinements {3} and {7} join to the
