@@ -265,6 +265,17 @@ const TermEntry kCondOneSym[] = {
         +[](cn_term* x, cn_term*) {
           return cn_smt_or(cn_smt_eq(x, u8_const(3)), cn_smt_eq(x, u8_const(7)));
         }},
+    // Unop inversion witnesses: the legacy wint backward-unop default
+    // pushed the output unchanged through NEGATE/COMPL, pinning x to the
+    // un-inverted constant (unsound over-refinement).
+    {"negate(x)==5",
+        1,
+        +[](cn_term* x, cn_term*) { return cn_smt_eq(negate_term(x), u8_const(5)); }},
+    {"compl(x)==0xF0",
+        1,
+        +[](cn_term* x, cn_term*) {
+          return cn_smt_eq(cn_smt_bw_compl(x), u8_const(0xF0));
+        }},
 };
 
 const TermEntry kNumericTwoSym[] = {
@@ -282,6 +293,12 @@ const TermEntry kCondTwoSym[] = {
         +[](cn_term* x, cn_term* y) {
           return cn_smt_and(cn_smt_eq(x, y), cn_smt_lt(x, u8_const(10)));
         }},
+    // Binop top-fallback witness: with both syms unconstrained, the
+    // legacy wint backward ADD fallback pushed the output unchanged into the
+    // target side (x+y==5 pinned x to 5, killing e.g. x=2,y=3).
+    {"x+y==5",
+        2,
+        +[](cn_term* x, cn_term* y) { return cn_smt_eq(cn_smt_add(x, y), u8_const(5)); }},
 };
 
 /*-----------------------------------------------------------------------------
@@ -597,5 +614,17 @@ TEST_F(AbsintOracle, GoldenCardinalities) {
     bennet_absint_state* refined = bennet_tnum_transform_backward_assume(cond, true, st);
     bennet_tagged_domain rx = bennet_absint_state_get_tnum(refined, asym(sx), &u8);
     EXPECT_EQ(gamma_card_u8(kDomains[2], &rx), 16);
+  }
+
+  // wint assume through NEGATE (inversion-fix witness): (-x == 5) from top refines
+  // x to the wrapped negation {251} -> 1 value. The legacy backward-unop
+  // default instead pinned x to the un-inverted 5 (unsound).
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    cn_term* cond = cn_smt_eq(negate_term(x), u8_const(5));
+    bennet_absint_state* refined = bennet_wint_transform_backward_assume(cond, true, st);
+    bennet_tagged_domain rx = bennet_absint_state_get_wint(refined, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[1], &rx), 1);
+    EXPECT_TRUE(kDomains[1].check(251, &rx));
   }
 }

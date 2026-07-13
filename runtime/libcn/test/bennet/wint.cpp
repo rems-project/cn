@@ -1519,6 +1519,47 @@ TEST_F(LibBennet, WIntBackwardArrayShift) {
   cn_bump_free_after(frame);
 }
 
+TEST_F(LibBennet, WIntBackwardArrayShiftIndexFallbackStops) {
+  // Backward: target sym is a NARROW (u8) index and the base has top bounds,
+  // so the guarded inversion cannot run. The fallback used to push the
+  // un-narrowed LOC-width output into the index subtree, and the meet with
+  // the u8 index binding tripped wint_generic_meet's equal-width assert.
+  // Sound behavior: no index refinement at all.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_loc = cn_base_type_simple(CN_BASE_LOC);
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+
+  cn_sym sym_base = cn_sym_from_string("base");
+  cn_sym sym_idx = cn_sym_from_string("idx");
+
+  // Only the index is bound (u8 [0,10]); the base stays top.
+  state = bennet_absint_state_set_wint(
+      state, {sym_idx.name, sym_idx.id}, make_tagged_wint_u8(0, 10));
+
+  cn_term* term_base = cn_smt_sym(sym_base, bt_loc);
+  cn_term* term_idx = cn_smt_sym(sym_idx, bt_u8);
+  cn_term* shift_term = cn_smt_array_shift(term_base, 4, term_idx);
+
+  auto output_dom = make_tagged_wint_loc(200, 300);
+
+  auto* refined_state = bennet_wint_transform_backward(
+      shift_term, {sym_idx.name, sym_idx.id}, output_dom, state);
+
+  EXPECT_FALSE(bennet_absint_state_is_bottom_wint(refined_state));
+
+  // The index binding is untouched: still u8 [0,10].
+  bennet_tagged_domain refined_idx =
+      bennet_absint_state_get_wint(refined_state, {sym_idx.name, sym_idx.id}, &bt_u8);
+  auto* idx_dom = (bennet_domain_wint_uint8_t*)refined_idx.domain;
+  EXPECT_EQ(idx_dom->start, (uint8_t)0);
+  EXPECT_EQ(idx_dom->end, (uint8_t)10);
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
 // =============================================================================
 // State functional contract: set/meet/backward return fresh states and leave
 // the input state readable. The walkers' ITE cases pass the same state to
@@ -1615,6 +1656,86 @@ TEST_F(LibBennet, WIntBackwardMemberShift) {
   bennet_tagged_domain refined_base =
       bennet_absint_state_get_wint(refined_state, {sym_base.name, sym_base.id}, &bt_loc);
   EXPECT_FALSE(bennet_tagged_domain_is_bottom_wint(&refined_base));
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
+// There is no cn_smt_negate builder; hand-construct the CN_UNOP_NEGATE node.
+inline cn_term* make_negate_term(cn_term* operand) {
+  cn_term* t = cn_term_alloc(CN_TERM_UNOP, operand->base_type);
+  t->data.unop.op = CN_UNOP_NEGATE;
+  t->data.unop.operand = operand;
+  return t;
+}
+
+TEST_F(LibBennet, WIntBackwardNegateInverts) {
+  // out = -x in [10,20] (u8)  =>  x in the wrapped negation [236,246].
+  // The legacy backward-unop default pushed [10,20] into x unchanged.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+
+  cn_term* neg_term = make_negate_term(cn_smt_sym(sym_x, bt_u8));
+
+  auto* refined_state = bennet_wint_transform_backward(
+      neg_term, {sym_x.name, sym_x.id}, make_tagged_wint_u8(10, 20), state);
+
+  bennet_tagged_domain refined_x =
+      bennet_absint_state_get_wint(refined_state, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&refined_x, &start, &end);
+  EXPECT_EQ(start, (uint8_t)236);
+  EXPECT_EQ(end, (uint8_t)246);
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntBackwardComplInverts) {
+  // out = ~x == 0xF0 (u8)  =>  x == 0x0F (COMPL is self-inverse).
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+
+  cn_term* compl_term = cn_smt_bw_compl(cn_smt_sym(sym_x, bt_u8));
+
+  auto* refined_state = bennet_wint_transform_backward(
+      compl_term, {sym_x.name, sym_x.id}, make_tagged_wint_u8(0xF0, 0xF0), state);
+
+  bennet_tagged_domain refined_x =
+      bennet_absint_state_get_wint(refined_state, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&refined_x, &start, &end);
+  EXPECT_EQ(start, (uint8_t)0x0F);
+  EXPECT_EQ(end, (uint8_t)0x0F);
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntBackwardAddTopSideStops) {
+  // out = x + y in [5,5] with y unconstrained puts no constraint on x: the
+  // legacy fallback pushed [5,5] into x (unsound; e.g. x=2,y=3 satisfies).
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_sym sym_y = cn_sym_from_string("y");
+
+  cn_term* add_term = cn_smt_add(cn_smt_sym(sym_x, bt_u8), cn_smt_sym(sym_y, bt_u8));
+
+  auto* refined_state = bennet_wint_transform_backward(
+      add_term, {sym_x.name, sym_x.id}, make_tagged_wint_u8(5, 5), state);
+
+  bennet_tagged_domain refined_x =
+      bennet_absint_state_get_wint(refined_state, {sym_x.name, sym_x.id}, &bt_u8);
+  EXPECT_TRUE(is_tagged_top_u8(&refined_x));
 
   bennet_absint_state_free(refined_state);
   cn_bump_free_after(frame);
