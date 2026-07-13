@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <bennet/prelude.h>
+#include <bennet/state/rand_alloc.h>
 #include <bennet/utils/vector.h>
 #include <cn-executable/utils.h>
 
@@ -70,12 +71,45 @@ void bennet_ownership_restore(size_t size) {
   exit(1);
 }
 
+void* bennet_alloc(size_t bytes) {
+  void* p = bennet_rand_alloc(bytes);
+  if (!p) {
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
+  }
+  bennet_alloc_record(p, bytes);
+  return p;
+}
+
+void* bennet_alloc_bounded(size_t bytes, uintptr_t lower_bound, uintptr_t upper_bound) {
+  void* p = bennet_rand_alloc_bounded(bytes, lower_bound, upper_bound);
+  if (!p) {
+    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
+  }
+  bennet_alloc_record(p, bytes);
+  return p;
+}
+
 void bennet_alloc_record(void* p, size_t sz) {
+  if (!bennet_get_old_style_alloc()) {
+    return;  // New style: no allocation tracking
+  }
   pointer_data data = {.ptr = p, .sz = sz};
   bennet_vector_push(pointer_data)(&alloc_vector, data);
 }
 
 int bennet_alloc_check(void* p, size_t sz) {
+  if (!bennet_get_old_style_alloc()) {
+    // New style: just check [p, p+sz) fits within the rand_alloc buffer
+    if (sz == 0) {
+      return 1;
+    }
+    uintptr_t lo = (uintptr_t)bennet_rand_alloc_min_ptr();
+    uintptr_t hi = (uintptr_t)bennet_rand_alloc_max_ptr();  // inclusive
+    uintptr_t a = (uintptr_t)p;
+    uintptr_t b = a + sz - 1;  // inclusive end
+    return (a >= lo && b <= hi && a <= b);
+  }
+
   if (bennet_vector_size(pointer_data)(&alloc_vector) == 0) {
     return 0;
   }

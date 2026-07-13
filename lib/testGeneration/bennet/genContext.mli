@@ -11,7 +11,7 @@ module Make (GT : GenTerms.T) : sig
 
   val pp : t -> Pp.document
 
-  val get_call_graph : t -> Sym.Digraph.t
+  val get_call_graph : t -> Sym.DigraphLabeled.t
 end
 
 module MakeOptional (GT : GenTerms.T) : sig
@@ -31,5 +31,5 @@ module MakeOptional (GT : GenTerms.T) : sig
 
   val drop_nones : t -> Make(GT).t
 
-  val get_call_graph : t -> Sym.Digraph.t
+  val get_call_graph : t -> Sym.DigraphLabeled.t
 end

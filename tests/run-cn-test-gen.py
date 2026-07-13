@@ -150,7 +150,7 @@ def format_size(nbytes):
     return f"{nbytes}b"
 
 
-CACHE_VERSION = 1
+CACHE_VERSION = 2
 
 
 def _config_hash(config_str):
@@ -201,11 +201,6 @@ def _save_cache(cache_path, entries):
                 pass
 
 
-def _drain_pipe(pipe, output_list):
-    """Read all data from a pipe into output_list."""
-    output_list.append(pipe.read())
-
-
 def red(text):
     """Wrap text in ANSI red escape codes."""
     return f"\033[91m{text}\033[0m"
@@ -227,13 +222,16 @@ def _kill_active_procs():
 
 
 def get_test_type(test_file, config):
-    """Determine the expected test result type based on filename and config."""
+    """Determine the expected test result type based on filename and config.
+
+    The config string starts with the engine subcommand (bennet/darcy/lucas).
+    """
     test_file = Path(test_file).name
 
     if (test_file.endswith('learn_cast.special.c')
         or test_file.endswith('learn_multiple.special.c')
             or test_file.endswith('pointer_ordering.special.c')):
-        if '--symbolic' in config:
+        if config.startswith('darcy'):
             return 'PASS'
         else:
             return 'SKIP'
@@ -250,10 +248,16 @@ def get_test_type(test_file, config):
 
 
 def run_cn_test(cn_path, test_file, config, memory_limit=None):
-    """Run CN test with given configuration and return (return_code, elapsed_time, test_output, oom)."""
+    """Run CN test with given configuration.
+
+    Returns (return_code, elapsed_time, test_output, oom, peak_rss). peak_rss is
+    the peak resident set size (bytes) seen for the process group, or 0 if it
+    could not be sampled (e.g. the process exited before the first poll).
+    """
     start_time = time.time()
 
-    cmd = [cn_path, 'test', str(test_file)] + config.split()
+    # config starts with the engine subcommand, which must precede the file
+    cmd = [cn_path, 'test'] + config.split() + [str(test_file)]
 
     # Wrap with systemd-run for cgroup memory limits on Linux
     use_systemd = memory_limit is not None and _use_systemd
@@ -262,45 +266,46 @@ def run_cn_test(cn_path, test_file, config, memory_limit=None):
                f"--property=MemoryMax={memory_limit}", "--"] + cmd
 
     oom = False
+    peak_rss = 0
+    # Enforce the RSS limit ourselves only when systemd isn't doing it for us.
+    enforce_rss = memory_limit is not None and not use_systemd
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                 text=True, start_new_session=True)
         with _active_procs_lock:
             _active_procs.add(proc)
-        try:
-            if memory_limit is not None and not use_systemd:
-                # RSS polling fallback (macOS or no systemd)
-                stdout_buf, stderr_buf = [], []
-                t1 = threading.Thread(target=_drain_pipe, args=(
-                    proc.stdout, stdout_buf), daemon=True)
-                t2 = threading.Thread(target=_drain_pipe, args=(
-                    proc.stderr, stderr_buf), daemon=True)
-                t1.start()
-                t2.start()
 
-                while proc.poll() is None:
-                    rss = _get_rss_bytes(proc.pid)
-                    if rss is not None and rss > memory_limit:
+        # Monitor thread: sample peak RSS every 0.5s and, when we're enforcing the
+        # limit, kill the process group if it is exceeded. communicate() below
+        # drains the pipes concurrently, so there is no deadlock.
+        stop_event = threading.Event()
+
+        def _monitor():
+            nonlocal peak_rss, oom
+            while not stop_event.is_set():
+                rss = _get_rss_bytes(proc.pid)
+                if rss is not None:
+                    if rss > peak_rss:
+                        peak_rss = rss
+                    if enforce_rss and rss > memory_limit:
                         try:
                             os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
                         except (ProcessLookupError, OSError):
                             pass
                         oom = True
-                        break
-                    time.sleep(0.5)
+                        return
+                stop_event.wait(0.5)
 
-                t1.join(timeout=5)
-                t2.join(timeout=5)
-                stdout = stdout_buf[0] if stdout_buf else ""
-                stderr = stderr_buf[0] if stderr_buf else ""
-                if proc.poll() is None:
-                    proc.wait()
-            else:
-                stdout, stderr = proc.communicate()
-                # systemd-run sends SIGKILL (exit 137) on cgroup OOM
-                if use_systemd and proc.returncode == 137:
-                    oom = True
+        monitor = threading.Thread(target=_monitor, daemon=True)
+        monitor.start()
+        try:
+            stdout, stderr = proc.communicate()
+            # systemd-run sends SIGKILL (exit 137) on cgroup OOM
+            if use_systemd and proc.returncode == 137:
+                oom = True
         finally:
+            stop_event.set()
+            monitor.join(timeout=5)
             with _active_procs_lock:
                 _active_procs.discard(proc)
         test_output = stdout + stderr
@@ -310,11 +315,11 @@ def run_cn_test(cn_path, test_file, config, memory_limit=None):
         return_code = -1
 
     elapsed = time.time() - start_time
-    return return_code, elapsed, test_output, oom
+    return return_code, elapsed, test_output, oom, peak_rss
 
 
 def run_job(cn_path, test_file, full_config, test_type, memory_limit=None):
-    """Run one test job. Returns (test_file, full_config, result, elapsed, output).
+    """Run one test job. Returns (test_file, full_config, result, elapsed, output, peak_rss).
 
     result is one of: 'pass', 'fail', 'oom'.
     """
@@ -326,24 +331,25 @@ def run_job(cn_path, test_file, full_config, test_type, memory_limit=None):
     def _run():
         return run_cn_test(cn_path, test_file, full_config, memory_limit=memory_limit)
 
-    def _check_oom(oom, ret_code, elapsed, output):
+    def _check_oom(oom, elapsed, output, peak_rss):
         if oom:
             limit_str = f"{memory_limit}" if memory_limit else "?"
             return (test_file, full_config, 'oom', elapsed,
-                    output + f"\nOOM: exceeded {limit_str} byte memory limit\n")
+                    output + f"\nOOM: exceeded {limit_str} byte memory limit\n",
+                    peak_rss)
         return None
 
     if test_type == "PASS":
-        ret_code, elapsed, output, oom = _run()
-        oom_result = _check_oom(oom, ret_code, elapsed, output)
+        ret_code, elapsed, output, oom, peak_rss = _run()
+        oom_result = _check_oom(oom, elapsed, output, peak_rss)
         if oom_result:
             return oom_result
         result = 'pass' if ret_code == 0 else 'fail'
-        return (test_file, full_config, result, elapsed, output)
+        return (test_file, full_config, result, elapsed, output, peak_rss)
 
     elif test_type in ("FAIL", "BUGGY"):
-        ret_code, elapsed, output, oom = _run()
-        oom_result = _check_oom(oom, ret_code, elapsed, output)
+        ret_code, elapsed, output, oom, peak_rss = _run()
+        oom_result = _check_oom(oom, elapsed, output, peak_rss)
         if oom_result:
             return oom_result
         if ret_code == 0:
@@ -352,24 +358,26 @@ def run_job(cn_path, test_file, full_config, test_type, memory_limit=None):
             result = 'fail'
         else:
             result = 'pass'
-        return (test_file, full_config, result, elapsed, output)
+        return (test_file, full_config, result, elapsed, output, peak_rss)
 
     elif test_type == "FLAKY":
         total_elapsed = 0
+        max_peak = 0
         for _ in range(3):
-            ret_code, elapsed, output, oom = _run()
+            ret_code, elapsed, output, oom, peak_rss = _run()
             total_elapsed += elapsed
-            oom_result = _check_oom(oom, ret_code, total_elapsed, output)
+            max_peak = max(max_peak, peak_rss)
+            oom_result = _check_oom(oom, total_elapsed, output, max_peak)
             if oom_result:
                 return oom_result
             if ret_code != 0:
                 if build_tool == "bash" and ret_code != 1:
-                    return (test_file, full_config, 'fail', total_elapsed, output)
-                return (test_file, full_config, 'pass', total_elapsed, output)
-        return (test_file, full_config, 'fail', total_elapsed, output)
+                    return (test_file, full_config, 'fail', total_elapsed, output, max_peak)
+                return (test_file, full_config, 'pass', total_elapsed, output, max_peak)
+        return (test_file, full_config, 'fail', total_elapsed, output, max_peak)
 
     else:  # UNKNOWN
-        return (test_file, full_config, 'fail', 0.0, f"Unknown test type for {test_file}")
+        return (test_file, full_config, 'fail', 0.0, f"Unknown test type for {test_file}", 0)
 
 
 def main():
@@ -408,6 +416,10 @@ def main():
             print(
                 f"Memory limit: {args.memory_limit} (enforced via RSS polling)")
 
+    # Resolve test file path relative to CWD before we chdir
+    if args.test_file:
+        args.test_file = str(Path(args.test_file).resolve())
+
     # Get CN path from OPAM
     opam_prefix = os.environ.get('OPAM_SWITCH_PREFIX')
     if not opam_prefix:
@@ -440,32 +452,33 @@ def main():
     env['ASAN_OPTIONS'] = 'allocator_may_return_null=1:detect_leaks=0'
     os.environ.update(env)
 
-    # Base configuration
-    solver_config = f" --solver-type={args.solver_type}" if args.solver_type else ""
-
+    # Base configuration (common flags only; engine-specific flags are added below)
     base_config = (
         f"-I{opam_prefix}/lib/cerberus-lib/runtime/libc/include/posix "
         "--input-timeout=1000 "
         "--progress-level=function "
         "--sanitize=address,undefined "
         "--allow-split-magic-comments "
-        "--max-generator-size=16 "
         "--print-seed"
-        f"{solver_config}"
     )
 
-    # Set configurations based on symbolic option
+    # Set engine and configurations based on symbolic option. Each alt config
+    # carries its engine: abstract-domain flags are only accepted by the lucas
+    # engine (lucas = bennet + abstract domains).
     if args.symbolic:
+        if args.solver_type:
+            base_config += f" --solver-type={args.solver_type}"
         alt_configs = [
-            "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-at-runtime --symbolic-timeout=2000",
-            "--symbolic --coverage --print-backtrack-info --print-satisfaction-info --smt-pruning-before-absint=slow"
+            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info --symbolic-timeout=2000"),
+            ("darcy", "--coverage --print-backtrack-info --print-satisfaction-info")
         ]
     else:
+        base_config += " --max-generator-size=16"
         alt_configs = [
-            "--coverage --sizing-strategy=quickcheck --inline=everything",
-            "--coverage --experimental-learning --print-backtrack-info --print-size-info --static-absint=wrapped_interval --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15",
-            "--sizing-strategy=uniform --lazy-gen --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast",
-            "--experimental-learning --print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint=tristate"
+            ("bennet", "--coverage --sizing-strategy=quickcheck --inline=everything"),
+            ("lucas", "--coverage --print-backtrack-info --print-size-info --static-absint=wrapped_interval --inline=semirec --smt-pruning-after-absint=slow --runtime-assert-domain --local-iterations=15"),
+            ("lucas", "--sizing-strategy=uniform --experimental-product-arg-destruction --experimental-return-pruning --experimental-arg-pruning --static-absint=interval --smt-pruning-before-absint=fast"),
+            ("lucas", "--print-satisfaction-info --output-tyche=results.jsonl --inline=nonrec --static-absint=tristate")
         ]
 
     # Set build tools based on argument
@@ -530,15 +543,18 @@ def main():
     # Build flat job list
     jobs = []
     for tf in test_files:
-        for alt_config in alt_configs:
+        for engine, alt_config in alt_configs:
             for build_tool in build_tools:
-                full_config = f"{base_config} {alt_config} --build-tool={build_tool}"
+                full_config = f"{engine} {base_config} {alt_config} --build-tool={build_tool}"
 
                 if args.symbolic and Path(tf).name == "ini_queue.fail.c":
                     full_config += ' --exit-fast'
 
-                if args.symbolic and Path(tf).name == "mkm.pass.c":
+                if Path(tf).name == "mkm.pass.c":
                     full_config += ' --max-array-length=1024'
+
+                if args.symbolic and Path(tf).name == "no_args.pass.c":
+                    full_config += ' --experimental-arg-pruning'
 
                 test_type = get_test_type(tf, full_config)
                 if test_type == 'SKIP':
@@ -570,7 +586,8 @@ def main():
         if m:
             cfg = cfg.replace(
                 m.group(), f'--max-generator-size={int(m.group(1)) // 2}')
-        else:
+        elif cfg.startswith(('bennet', 'lucas')):
+            # --max-generator-size only exists on the bennet and lucas engines
             cfg += ' --max-generator-size=16'
         return cfg
 
@@ -674,7 +691,7 @@ def main():
                         tf, cfg, tt, jml, san_disabled, knobs_reduced, orig_cfg = running.pop(
                             fut)
                         result = fut.result()
-                        _, _, result_str, elapsed, output = result
+                        _, _, result_str, elapsed, output, _ = result
 
                         # Return budget
                         if total_budget is not None and jml is not None:
@@ -775,7 +792,7 @@ def main():
     _print_results(results, test_files, retry_history)
 
     # Exit 1 if any failures or OOMs
-    if any(r != 'pass' for _, _, r, _, _ in results):
+    if any(r != 'pass' for _, _, r, _, _, _ in results):
         sys.exit(1)
 
 
@@ -786,8 +803,11 @@ def _print_results(results, test_files, retry_history=None):
 
     # Group results by test file
     by_file = defaultdict(list)
-    for tf, cfg, result_str, elapsed, output in results:
+    mem_usage = []  # (peak_rss, tf_str, cfg) per job
+    for tf, cfg, result_str, elapsed, output, peak_rss in results:
         by_file[str(tf)].append((cfg, result_str, elapsed, output))
+        if peak_rss:
+            mem_usage.append((peak_rss, str(tf), cfg))
 
     failed_files = []
     oom_files = []
@@ -844,6 +864,20 @@ def _print_results(results, test_files, retry_history=None):
             print(f"  OOM:    {tf}")
     else:
         print(f"\nAll {total} test file(s) passed")
+
+    # Print top memory consumers: one row per file (its highest-peak config),
+    # ranked by peak RSS, top 5 files.
+    if mem_usage:
+        best_by_file = {}  # tf_str -> (peak_rss, cfg)
+        for peak, tf_str, cfg in mem_usage:
+            if tf_str not in best_by_file or peak > best_by_file[tf_str][0]:
+                best_by_file[tf_str] = (peak, cfg)
+        ranked = sorted(
+            ((peak, tf_str, cfg) for tf_str, (peak, cfg) in best_by_file.items()),
+            reverse=True)
+        print(f"\nTop {min(5, len(ranked))} memory usage (peak RSS, max config per file):")
+        for peak, tf_str, cfg in ranked[:5]:
+            print(f"  {format_size(peak):>8}  {Path(tf_str).name}  ({cfg})")
 
     # Print retry history summary
     if retry_history:

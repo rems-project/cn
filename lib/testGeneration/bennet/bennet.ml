@@ -4,6 +4,7 @@ module A = CF.AilSyntax
 module Private = struct
   module AbstractDomains = AbstractDomains
   module Stage1 = Stage1
+  module Stage2 = Stage2
 end
 
 let ensure_dir_exists (dir : string) : unit =
@@ -75,6 +76,32 @@ let test_setup () : Pp.document =
   !^"#include <bennet/prelude.h>" ^^ hardline ^^ CG.setup ()
 
 
+(* Replace the raw frontend definitions in [prog5] with the WT-normalized
+   versions recorded in the typing context's [Global.t]. The raw versions
+   violate IT invariants (e.g. an ArrayShift index must have type uintptr_bt,
+   which only the WellTyped pass establishes), and downstream consumers such
+   as SMT pruning require those invariants. *)
+let normalize_prog5_defs (prog5 : unit Mucore.file) (paused : _ Typing.pause)
+  : unit Mucore.file
+  =
+  let global =
+    Result.get_ok (Typing.run_from_pause (fun _ -> Typing.get_global ()) paused)
+  in
+  let resource_predicates =
+    List.map
+      (fun (name, def) ->
+         (name, Option.value ~default:def (Global.get_resource_predicate_def global name)))
+      prog5.resource_predicates
+  in
+  let logical_predicates =
+    List.map
+      (fun (name, def) ->
+         (name, Option.value ~default:def (Global.get_logical_function_def global name)))
+      prog5.logical_predicates
+  in
+  { prog5 with resource_predicates; logical_predicates }
+
+
 let synthesize
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
@@ -83,6 +110,7 @@ let synthesize
       (tests : Test.t list)
   : Pp.document
   =
+  let prog5 = normalize_prog5_defs prog5 paused in
   let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
   let module Stage1 = Stage1.Make (AD) in
   let ctx = Stage1.transform filename sigma prog5 tests in

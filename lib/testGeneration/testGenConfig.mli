@@ -2,9 +2,22 @@ type build_tool =
   | Bash
   | Make
 
-type generation_mode =
-  | Concrete (* Existing arbitrary/guided fuzzing *)
-  | Symbolic (* New symbolic constraint-based generation *)
+type engine =
+  | Bennet (* Backtracking random search *)
+  | Darcy (* Symbolic constraint-based generation *)
+  | Lucas (* Randomized refinement of abstract elements *)
+
+val all_of_engine : engine list
+
+val string_of_engine : engine -> string
+
+val cli_name : engine -> string
+
+val is_experimental : engine -> bool
+
+val stable_engine_names : string list
+
+val experimental_message : engine -> string
 
 type logging_level =
   | None
@@ -29,6 +42,7 @@ type sizing_strategy =
 type inline_mode =
   | Nothing
   | NonRecursive
+  | SemiRecursive
   | Everything
 
 type smt_skewing_mode =
@@ -52,17 +66,17 @@ type t =
     inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
-    experimental_learning : bool;
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
+    ad_pruning : bool;
     static_absint : string list;
     local_iterations : int;
-    smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
-    smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_before_absint : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absint : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
-    symbolic : bool;
+    engine : engine;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving (ms) *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
@@ -70,6 +84,7 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
+    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -106,7 +121,6 @@ type t =
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
-    lazy_gen : bool;
     disable_extrema_skew : bool;
     discard_factor : int
   }
@@ -155,19 +169,19 @@ val is_experimental_struct_asgn_destruction : unit -> bool
 
 val is_experimental_product_arg_destruction : unit -> bool
 
-val is_experimental_learning : unit -> bool
-
 val is_experimental_arg_pruning : unit -> bool
 
 val is_experimental_return_pruning : unit -> bool
+
+val is_ad_pruning : unit -> bool
 
 val has_static_absint : unit -> string list
 
 val get_local_iterations : unit -> int
 
-val has_smt_pruning_before_absinst : unit -> [ `None | `Fast | `Slow ]
+val has_smt_pruning_before_absint : unit -> [ `None | `Fast | `Slow ]
 
-val has_smt_pruning_after_absinst : unit -> [ `None | `Fast | `Slow ]
+val has_smt_pruning_after_absint : unit -> [ `None | `Fast | `Slow ]
 
 val is_smt_pruning_remove_redundant_assertions : unit -> bool
 
@@ -233,6 +247,8 @@ val will_print_discard_info : unit -> bool
 
 val will_print_timing_info : unit -> bool
 
+val get_engine : unit -> engine
+
 val is_symbolic_enabled : unit -> bool
 
 val has_symbolic_timeout : unit -> int option
@@ -263,11 +279,11 @@ val is_smt_skew_pointer_order : unit -> bool
 
 val get_dsl_log_dir : unit -> string option
 
-val is_lazy_gen : unit -> bool
-
 val is_specialization_disabled : unit -> bool
 
 val is_only_top_level_ite_lifting : unit -> bool
+
+val is_old_style_alloc : unit -> bool
 
 val is_extrema_skew_disabled : unit -> bool
 

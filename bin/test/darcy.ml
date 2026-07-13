@@ -1,0 +1,135 @@
+(* Darcy: symbolic (SMT-based) test generation *)
+
+open Cn
+open Cmdliner
+
+(* Section for flags specific to [cn test darcy]. *)
+let s_smt = "SMT OPTIONS"
+
+module Flags = struct
+  let symbolic_timeout =
+    let doc = "Set timeout for SMT solver in symbolic mode (milliseconds)" in
+    Arg.(value & opt (some int) None & info ~docs:s_smt [ "symbolic-timeout" ] ~doc)
+
+
+  let smt_solver =
+    let doc =
+      "Choose SMT solver backend for symbolic test generation (z3, cvc5 is unsupported)."
+    in
+    Arg.(
+      value
+      & opt (enum TestGeneration.Options.smt_solver) TestGeneration.default_cfg.smt_solver
+      & info ~docs:s_smt [ "solver-type" ] ~docv:"SOLVER" ~doc)
+
+
+  let smt_logging =
+    let doc = "Log SMT solver communication to specified file" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:Shared.s_logging [ "smt-logging" ] ~doc ~docv:"FILE")
+
+
+  let smt_log_unsat_cores =
+    let doc = "Log unsat cores to specified file when constraints are unsatisfiable" in
+    Arg.(
+      value
+      & opt (some string) None
+      & info ~docs:Shared.s_logging [ "smt-log-unsat-cores" ] ~doc ~docv:"FILE")
+
+
+  let use_solver_eval =
+    let doc = "(Experimental) Use solver-based evaluation" in
+    Arg.(
+      value
+      & flag
+      & info
+          ~docs:(Shared.experimental_docs TestGeneration.Darcy s_smt)
+          [ "use-solver-eval" ]
+          ~doc)
+
+
+  let just_reset_solver =
+    let doc =
+      "(Experimental) Just reset the SMT solver instead of closing and creating a new \
+       one. WARNING: A bunch of stuff breaks."
+    in
+    Arg.(
+      value
+      & flag
+      & info
+          ~docs:(Shared.experimental_docs TestGeneration.Darcy s_smt)
+          [ "just-reset-solver" ]
+          ~doc)
+
+
+  let smt_skewing_mode =
+    let doc =
+      "Set SMT skewing mode for symbolic test generation. Options: uniform (uniform \
+       random values), sized (default, size-based values), none (no skewing)"
+    in
+    Arg.(
+      value
+      & opt
+          (enum TestGeneration.Options.smt_skewing_mode)
+          TestGeneration.default_cfg.smt_skewing_mode
+      & info ~docs:s_smt [ "smt-skewing" ] ~docv:"MODE" ~doc)
+
+
+  let smt_skew_pointer_order =
+    let doc = "Enable pointer ordering skewing in SMT solver" in
+    Arg.(value & flag & info ~docs:s_smt [ "smt-skew-pointer-order" ] ~doc)
+
+
+  let disable_smt_pruning_at_runtime =
+    let doc = "Disable using the SMT solver to prune branches at runtime" in
+    Arg.(value & flag & info ~docs:s_smt [ "disable-smt-pruning-at-runtime" ] ~doc)
+end
+
+let term : (TestGeneration.config -> TestGeneration.config) Term.t =
+  let make
+        symbolic_timeout
+        smt_solver
+        smt_logging
+        smt_log_unsat_cores
+        use_solver_eval
+        just_reset_solver
+        smt_skewing_mode
+        smt_skew_pointer_order
+        disable_smt_pruning_at_runtime
+        (cfg : TestGeneration.config)
+    : TestGeneration.config
+    =
+    { cfg with
+      symbolic_timeout;
+      smt_solver;
+      smt_logging;
+      smt_log_unsat_cores;
+      use_solver_eval;
+      just_reset_solver;
+      smt_skewing_mode;
+      smt_skew_pointer_order;
+      smt_pruning_at_runtime = not disable_smt_pruning_at_runtime
+    }
+  in
+  Term.(
+    const make
+    $ Flags.symbolic_timeout
+    $ Flags.smt_solver
+    $ Flags.smt_logging
+    $ Flags.smt_log_unsat_cores
+    $ Flags.use_solver_eval
+    $ Flags.just_reset_solver
+    $ Flags.smt_skewing_mode
+    $ Flags.smt_skew_pointer_order
+    $ Flags.disable_smt_pruning_at_runtime)
+
+
+let cmd =
+  let doc = "Generate tests using symbolic (SMT-based) input generation." in
+  Shared.mk_cmd
+    ~name:"darcy"
+    ~doc
+    ~extra:[ s_smt ]
+    ~engine:TestGeneration.Darcy
+    ~engine_flags:term

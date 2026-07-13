@@ -12,7 +12,6 @@ module Make (AD : Domain.T) = struct
       match gt_ with
       | `Arbitrary -> `Arbitrary
       | `Symbolic -> `Symbolic
-      | `Lazy -> `Lazy
       | `Call (fsym, args) -> `Call (fsym, args)
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         `Asgn ((it_addr, sct), it_val, transform_gt gt_rest)
@@ -25,8 +24,6 @@ module Make (AD : Domain.T) = struct
       | `Map ((i_sym, i_bt, it_perm), gt_inner) ->
         `Map ((i_sym, i_bt, it_perm), transform_gt gt_inner)
       | `Pick gts -> `Pick (List.map transform_gt gts)
-      | `Instantiate ((x, gt_inner), gt_rest) ->
-        `Instantiate ((x, transform_gt gt_inner), transform_gt gt_rest)
     in
     Annot (gt_, (), bt, loc)
 

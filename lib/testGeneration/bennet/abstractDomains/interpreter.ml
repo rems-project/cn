@@ -55,7 +55,6 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
       match tm_ with
       | `Arbitrary -> (GT.arbitrary_ tag bt loc, [ d ])
       | `Symbolic -> (GT.symbolic_ tag bt loc, [ d ])
-      | `Lazy -> (GT.lazy_ tag bt loc, [ d ])
       | `ArbitrarySpecialized bounds ->
         (GT.arbitrary_specialized_ bounds tag bt loc, [ d ])
       | `ArbitraryDomain _ -> failwith ("unreachable @ " ^ __LOC__)
@@ -123,14 +122,6 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
       | `SplitSizeElab (marker_var, syms, gt') ->
         let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
         (GT.split_size_elab_ (marker_var, syms, gt') tag loc, d_list)
-      | `Instantiate ((x, gt_inner), gt') ->
-        (* Invisible to abstract interpreter *)
-        let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
-        (GT.instantiate_ ((x, gt_inner), gt') tag loc, d_list)
-      | `InstantiateElab (backtrack_var, (x, gt_inner), gt') ->
-        (* Invisible to abstract interpreter *)
-        let gt', d_list = aux abs_ctx defs_ctx gt' d should_assert in
-        (GT.instantiate_elab_ (backtrack_var, (x, gt_inner), gt') tag loc, d_list)
       | `LetStar ((x, gt1), gt2) ->
         let gt1, d_list1 = aux abs_ctx defs_ctx gt1 d false in
         let d_list1' = domain_map_rename ~from:Domain.ret_sym ~to_:x d_list1 in
@@ -205,7 +196,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
   let annotate (ctx : Ctx.t) : Ctx.t =
     let cg = Ctx.get_call_graph ctx in
     let cg_order =
-      let module T = Graph.Topological.Make (Sym.Digraph) in
+      let module T = Graph.Topological.Make (Sym.DigraphLabeled) in
       T.fold List.cons cg []
     in
     let rec loop (worklist : Sym.t list) (abs_ctx : AD.t Sym.Map.t) : Ctx.t =
@@ -220,7 +211,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
             worklist'
           else (
             let successors =
-              Sym.Digraph.fold_succ List.cons cg fsym []
+              Sym.DigraphLabeled.fold_succ List.cons cg fsym []
               |> List.filter (fun x -> not (List.mem Sym.equal x worklist'))
             in
             List.filter (fun x -> List.mem Sym.equal x successors) cg_order @ worklist')

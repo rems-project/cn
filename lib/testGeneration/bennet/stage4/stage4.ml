@@ -3,6 +3,7 @@ module Make (AD : Domain.T) = struct
     module Convert = Convert.Make (AD)
     module Specialize = Specialize.Make (AD)
     module SpecializeDomain = SpecializeDomain.Make (AD)
+    module AdPruning = AdPruning.Make (AD)
     module SmtPruning = SmtPruning.Make (AD)
     module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
   end
@@ -16,12 +17,16 @@ module Make (AD : Domain.T) = struct
   let transform (paused : _ Typing.pause) (ctx : Stage3.Ctx.t) : Ctx.t =
     ctx
     |> Convert.transform
-    |> (match TestGenConfig.has_smt_pruning_before_absinst () with
+    |> (match TestGenConfig.has_smt_pruning_before_absint () with
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)
     |> (if List.non_empty (TestGenConfig.has_static_absint ()) then
-          fun ctx -> ctx |> AI.annotate |> SpecializeDomain.transform
+          fun ctx ->
+        ctx
+        |> AI.annotate
+        |> (if TestGenConfig.is_ad_pruning () then AdPruning.transform else Fun.id)
+        |> SpecializeDomain.transform
         else
           fun ctx -> ctx)
     |> (if
@@ -31,7 +36,7 @@ module Make (AD : Domain.T) = struct
           fun ctx -> ctx
         else
           Specialize.Integer.transform)
-    |> (match TestGenConfig.has_smt_pruning_after_absinst () with
+    |> (match TestGenConfig.has_smt_pruning_after_absint () with
       | `Fast -> SmtPruning.transform paused true
       | `Slow -> SmtPruning.transform paused false
       | `None -> fun ctx -> ctx)

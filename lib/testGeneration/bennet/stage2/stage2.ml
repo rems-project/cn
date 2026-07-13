@@ -1,9 +1,15 @@
+module Private = struct
+  module SimplifyGen = SimplifyGen
+  module Term = Term
+end
+
 module Make (AD : Domain.T) = struct
   open struct
     module Convert = Convert.Make (AD)
     module SimplifyGen = SimplifyGen.Make (AD)
     module InlineGen = InlineGen.Make (AD)
     module EachFusion = EachFusion.Make (AD)
+    module ApplyArrayMaxLength = ApplyArrayMaxLength.Make (AD)
     module FlipIfs = FlipIfs.Make (AD)
     module Reorder = Reorder.Make (AD)
     module SpecializeEquality = SpecializeEquality.Make (AD)
@@ -20,6 +26,13 @@ module Make (AD : Domain.T) = struct
     |> SimplifyGen.transform prog5
     |> InlineGen.transform prog5
     |> (if TestGenConfig.is_symbolic_enabled () then fun x -> x else EachFusion.transform)
+    |> (if
+          TestGenConfig.get_max_array_length () = 0
+          || TestGenConfig.is_symbolic_enabled ()
+        then
+          fun x -> x
+        else
+          ApplyArrayMaxLength.transform)
     |> SimplifyGen.transform prog5
     |> FlipIfs.transform
     |> SimplifyGen.transform prog5

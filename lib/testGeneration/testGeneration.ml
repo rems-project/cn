@@ -7,11 +7,17 @@ module Records = Fulminate.Records
 module FExtract = Fulminate.Extract
 module Config = TestGenConfig
 module Options = Config.Options
+module Releases = Releases
 module Cn_to_ail = Fulminate.Cn_to_ail
 
 module Private = struct
   module Bennet = Bennet
 end
+
+type engine = TestGenConfig.engine =
+  | Bennet
+  | Darcy
+  | Lucas
 
 type config = Config.t
 
@@ -144,7 +150,13 @@ let pp_label ?(width : int = 30) (label : string) (doc : Pp.document) : Pp.docum
 
 let compile_includes ~filename ~generators =
   let open Pp in
-  !^"#include "
+  (* With `--no-replicas`, shape analyzers and replicators are not emitted, so
+     tell <cn-testing/test.h> to compile out its calls to them. *)
+  (if Config.has_no_replicas () then
+     !^"#define CN_TEST_NO_REPLICAS" ^^ hardline
+   else
+     empty)
+  ^^ !^"#include "
   ^^ angles !^"bennet/prelude.h"
   ^^ hardline
   ^^ !^"#include "
@@ -292,8 +304,11 @@ let compile_test_file
   ^^ pp_label
        "Assume Ownership Functions"
        (compile_assumes ~without_ownership_checking filename cabs_tunit sigma prog5 insts)
-  ^^ pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
-  ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts)
+  ^^ (if Config.has_no_replicas () then
+        empty
+      else
+        pp_label "Shape Analyzers" (compile_shape_analyzers filename sigma prog5 insts)
+        ^^ pp_label "Replicators" (compile_replicators filename sigma prog5 insts))
   ^^ pp_label "Static Wrappers" static_wrappers_defs
   ^^ pp_label "Constant function tests" constant_tests_defs
   ^^ pp_label "Generator-based tests" generator_tests_defs

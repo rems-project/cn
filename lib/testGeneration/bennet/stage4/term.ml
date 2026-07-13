@@ -15,7 +15,6 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
-        | `Lazy (** Lazily generate values *)
         | `ArbitrarySpecialized of
             (IT.t option * IT.t option) * (IT.t option * IT.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
@@ -32,8 +31,6 @@ module Make (AD : Domain.T) = struct
         | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
         | `Map of (Sym.t * BT.t * IT.t) * 'recur annot
         | `Pick of 'recur annot list
-        | `Instantiate of (Sym.t * 'recur annot) * 'recur annot
-          (** Instantiate a lazily-evaluated value, then continue with rest *)
         ]
       [@@deriving eq, ord]
 
@@ -55,10 +52,6 @@ module Make (AD : Domain.T) = struct
       include GenTerms.Defaults (struct
           let name = "Stage 4"
         end)
-
-      let lazy_ (tag : tag_t) (bt : BT.t) (loc : Locations.t) : t =
-        Annot (`Lazy, tag, bt, loc)
-
 
       let arbitrary_domain_
             (d : AD.Relative.t)
@@ -140,15 +133,6 @@ module Make (AD : Domain.T) = struct
             gts
         in
         Annot (`Pick gts, tag, bt, loc)
-
-
-      let instantiate_
-            (((x, gt_inner), gt_rest) : (Sym.t * t) * t)
-            (tag : tag_t)
-            (loc : Locations.t)
-        : t
-        =
-        Annot (`Instantiate ((x, gt_inner), gt_rest), tag, basetype gt_rest, loc)
     end
   end
 

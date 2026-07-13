@@ -2,9 +2,41 @@ type build_tool =
   | Bash
   | Make
 
-type generation_mode =
-  | Concrete (* Backtracking random search *)
-  | Symbolic (* Symbolic constraint-based generation *)
+type engine =
+  | Bennet (* Backtracking random search *)
+  | Darcy (* Symbolic constraint-based generation *)
+  | Lucas (* Randomized refinement of abstract elements *)
+
+(* Every engine; extend when adding one.
+  ([@@deriving enumerate] on [engine] would generate this automatically.) *)
+let all_of_engine = [ Bennet; Darcy; Lucas ]
+
+let string_of_engine (engine : engine) =
+  match engine with Bennet -> "Bennet" | Darcy -> "Darcy" | Lucas -> "Lucas"
+
+
+(* Subcommand name for an engine (e.g. [Bennet] -> "bennet"). *)
+let cli_name (engine : engine) = String.lowercase_ascii (string_of_engine engine)
+
+(* Whether an engine is experimental (not yet ready for general use). *)
+let is_experimental (engine : engine) =
+  match engine with Bennet | Darcy -> false | Lucas -> true
+
+
+(* User-facing names of the engines that are ready for general use. *)
+let stable_engine_names =
+  List.filter_map
+    (fun e -> if is_experimental e then None else Some (string_of_engine e))
+    all_of_engine
+
+
+(* User-facing reminder shown when an experimental engine is selected. *)
+let experimental_message (engine : engine) =
+  Printf.sprintf
+    "%s is experimental and not ready for use. Choose a stable engine instead: %s."
+    (string_of_engine engine)
+    (String.concat ", " stable_engine_names)
+
 
 type logging_level =
   | None
@@ -29,6 +61,7 @@ type sizing_strategy =
 type inline_mode =
   | Nothing
   | NonRecursive
+  | SemiRecursive
   | Everything
 
 type smt_skewing_mode =
@@ -52,17 +85,17 @@ type t =
     inline : inline_mode;
     experimental_struct_asgn_destruction : bool;
     experimental_product_arg_destruction : bool;
-    experimental_learning : bool;
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
+    ad_pruning : bool;
     static_absint : string list;
     local_iterations : int;
-    smt_pruning_before_absinst : [ `None | `Fast | `Slow ];
-    smt_pruning_after_absinst : [ `None | `Fast | `Slow ];
+    smt_pruning_before_absint : [ `None | `Fast | `Slow ];
+    smt_pruning_after_absint : [ `None | `Fast | `Slow ];
     smt_pruning_remove_redundant_assertions : bool;
     smt_pruning_at_runtime : bool;
     runtime_assert_domain : bool;
-    symbolic : bool;
+    engine : engine;
     symbolic_timeout : int option; (* SMT solver timeout for symbolic solving (ms) *)
     max_unfolds : int option; (* Maximum unfolds for symbolic execution *)
     max_array_length : int; (* For symbolic execution *)
@@ -70,6 +103,7 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
+    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -106,7 +140,6 @@ type t =
     max_input_alloc : int option;
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
-    lazy_gen : bool;
     disable_extrema_skew : bool;
     discard_factor : int
   }
@@ -122,17 +155,17 @@ let default =
     inline = Nothing;
     experimental_struct_asgn_destruction = false;
     experimental_product_arg_destruction = false;
-    experimental_learning = false;
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
+    ad_pruning = false;
     static_absint = [];
     local_iterations = 10;
-    smt_pruning_before_absinst = `None;
-    smt_pruning_after_absinst = `None;
+    smt_pruning_before_absint = `None;
+    smt_pruning_after_absint = `None;
     smt_pruning_remove_redundant_assertions = true;
     smt_pruning_at_runtime = false;
     runtime_assert_domain = false;
-    symbolic = false;
+    engine = Bennet;
     symbolic_timeout = None;
     max_unfolds = None;
     max_array_length = 50;
@@ -140,6 +173,7 @@ let default =
     smt_solver = Z3;
     disable_specialization = false;
     only_top_level_ite_lifting = false;
+    old_style_alloc = true;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -175,7 +209,6 @@ let default =
     max_input_alloc = None;
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
-    lazy_gen = false;
     disable_extrema_skew = false;
     discard_factor = 10
   }
@@ -207,6 +240,7 @@ let string_of_inline_mode (inline_mode : inline_mode) =
   match inline_mode with
   | Nothing -> "nothing"
   | NonRecursive -> "nonrec"
+  | SemiRecursive -> "semirec"
   | Everything -> "everything"
 
 
@@ -244,7 +278,7 @@ module Options = struct
   let inline_mode : (string * inline_mode) list =
     List.map
       (fun mode -> (string_of_inline_mode mode, mode))
-      [ Nothing; NonRecursive; Everything ]
+      [ Nothing; NonRecursive; SemiRecursive; Everything ]
 
 
   let smt_skewing_mode : (string * smt_skewing_mode) list =
@@ -285,19 +319,19 @@ let is_experimental_product_arg_destruction () =
   (Option.get !instance).experimental_product_arg_destruction
 
 
-let is_experimental_learning () = (Option.get !instance).experimental_learning
-
 let is_experimental_arg_pruning () = (Option.get !instance).experimental_arg_pruning
 
 let is_experimental_return_pruning () = (Option.get !instance).experimental_return_pruning
+
+let is_ad_pruning () = (Option.get !instance).ad_pruning
 
 let has_static_absint () = (Option.get !instance).static_absint
 
 let get_local_iterations () = (Option.get !instance).local_iterations
 
-let has_smt_pruning_before_absinst () = (Option.get !instance).smt_pruning_before_absinst
+let has_smt_pruning_before_absint () = (Option.get !instance).smt_pruning_before_absint
 
-let has_smt_pruning_after_absinst () = (Option.get !instance).smt_pruning_after_absinst
+let has_smt_pruning_after_absint () = (Option.get !instance).smt_pruning_after_absint
 
 let is_smt_pruning_remove_redundant_assertions () =
   (Option.get !instance).smt_pruning_remove_redundant_assertions
@@ -377,7 +411,11 @@ let will_print_discard_info () = (Option.get !instance).print_discard_info
 
 let will_print_timing_info () = (Option.get !instance).print_timing_info
 
-let is_symbolic_enabled () = (Option.get !instance).symbolic
+let get_engine () = (Option.get !instance).engine
+
+let is_symbolic_enabled () =
+  match get_engine () with Darcy -> true | Bennet | Lucas -> false
+
 
 let has_symbolic_timeout () = (Option.get !instance).symbolic_timeout
 
@@ -407,11 +445,11 @@ let is_smt_skew_pointer_order () = (Option.get !instance).smt_skew_pointer_order
 
 let get_dsl_log_dir () = (Option.get !instance).dsl_log_dir
 
-let is_lazy_gen () = (Option.get !instance).lazy_gen
-
 let is_specialization_disabled () = (Option.get !instance).disable_specialization
 
 let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
+
+let is_old_style_alloc () = (Option.get !instance).old_style_alloc
 
 let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
 

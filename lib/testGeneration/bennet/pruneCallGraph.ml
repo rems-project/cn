@@ -11,7 +11,7 @@ module Make (GT : GenTerms.T) = struct
       |> Sym.Set.of_list
     in
     (* Compute transitive closure of the call graph *)
-    let module Oper = Graph.Oper.P (Sym.Digraph) in
+    let module Oper = Graph.Oper.P (Sym.DigraphLabeled) in
     let cg = Oper.transitive_closure (Ctx.get_call_graph ctx) in
     (* Collect all generators reachable from spec generators (includes spec generators themselves and their successors) *)
     let reachable_generators =
@@ -20,7 +20,7 @@ module Make (GT : GenTerms.T) = struct
            (* Add the spec generator itself *)
            let acc = Sym.Set.add spec_gen acc in
            (* Add all its successors in the transitive closure *)
-           Sym.Digraph.fold_succ Sym.Set.add cg spec_gen acc)
+           Sym.DigraphLabeled.fold_succ Sym.Set.add cg spec_gen acc)
         spec_generators
         Sym.Set.empty
     in

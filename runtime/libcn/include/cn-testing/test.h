@@ -90,6 +90,17 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
 #define CN_REGISTER_STATIC_UNIT_TEST_CASE(Suite, Name, File)                             \
   cn_register_test_case(#Suite, #Name, &CN_STATIC_UNIT_TEST_NAME(Name, File));
 
+/* When tests are generated with `--no-replicas`, no `cn_analyze_shape_*` or
+ * `cn_replicate_*` functions are emitted, so the test file defines
+ * `CN_TEST_NO_REPLICAS` and these calls must compile away. */
+#ifndef CN_TEST_NO_REPLICAS
+  #define CN_TEST_ANALYZE_SHAPE(FuncName, ...) cn_analyze_shape_##FuncName(__VA_ARGS__)
+  #define CN_TEST_REPLICATE(FuncName, ...)     cn_replicate_##FuncName(__VA_ARGS__)
+#else
+  #define CN_TEST_ANALYZE_SHAPE(FuncName, ...) (void)0
+  #define CN_TEST_REPLICATE(FuncName, ...)     (void)0
+#endif
+
 #define CN_RANDOM_TEST_CASE_WITH_CUSTOM_INIT(Suite, Name, FuncName, Samples, Init, ...)  \
   static jmp_buf buf_##FuncName;                                                         \
                                                                                          \
@@ -229,8 +240,8 @@ size_t bennet_compute_size(enum bennet_sizing_strategy strategy,
         cn_replica_alloc_reset();                                                        \
         cn_replica_lines_reset();                                                        \
                                                                                          \
-        cn_analyze_shape_##FuncName(__VA_ARGS__);                                        \
-        cn_replicate_##FuncName(__VA_ARGS__);                                            \
+        CN_TEST_ANALYZE_SHAPE(FuncName, __VA_ARGS__);                                    \
+        CN_TEST_REPLICATE(FuncName, __VA_ARGS__);                                        \
       }                                                                                  \
                                                                                          \
       if (test_input.trap) {                                                             \

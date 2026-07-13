@@ -18,6 +18,8 @@ module Map : Map.S with type key = t
 
 module Digraph : Graph.Sig.P with type V.t = t
 
+module DigraphLabeled : Graph.Sig.P with type V.t = t and type E.label = int
+
 val description : t -> Cerb_frontend.Symbol.symbol_description
 
 val pp_string : t -> string

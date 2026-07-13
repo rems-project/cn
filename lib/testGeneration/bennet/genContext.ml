@@ -24,20 +24,19 @@ module Make (GT : GenTerms.T) = struct
 
 
   open struct
-    let get_calls (gd : GD.t) : Sym.Set.t =
-      let rec aux (gt : GT.t) : Sym.Set.t =
+    let merge_add = Sym.Map.union (fun _ a b -> Some (a + b))
+
+    let get_calls (gd : GD.t) : int Sym.Map.t =
+      let rec aux (gt : GT.t) : int Sym.Map.t =
         let (Annot (gt_, _, _, _)) = gt in
         match gt_ with
-        | `Arbitrary | `Symbolic | `Lazy | `ArbitrarySpecialized _ | `ArbitraryDomain _
+        | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _
         | `Return _ ->
-          Sym.Set.empty
-        | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
+          Sym.Map.empty
+        | `Pick gts -> gts |> List.map aux |> List.fold_left merge_add Sym.Map.empty
         | `PickSized wgts | `PickSizedElab (_, wgts) ->
-          wgts
-          |> List.map snd
-          |> List.map aux
-          |> List.fold_left Sym.Set.union Sym.Set.empty
-        | `Call (fsym, _) | `CallSized (fsym, _, _) -> Sym.Set.singleton fsym
+          wgts |> List.map snd |> List.map aux |> List.fold_left merge_add Sym.Map.empty
+        | `Call (fsym, _) | `CallSized (fsym, _, _) -> Sym.Map.singleton fsym 1
         | `Asgn (_, _, gt')
         | `AsgnElab (_, _, _, gt')
         | `Assert (_, gt')
@@ -47,22 +46,25 @@ module Make (GT : GenTerms.T) = struct
         | `SplitSize (_, gt')
         | `SplitSizeElab (_, _, gt') ->
           aux gt'
-        | `Instantiate ((_, gt_inner), gt') | `InstantiateElab (_, (_, gt_inner), gt') ->
-          Sym.Set.union (aux gt_inner) (aux gt')
-        | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) ->
-          Sym.Set.union (aux gt1) (aux gt2)
+        | `LetStar ((_, gt1), gt2) | `ITE (_, gt1, gt2) -> merge_add (aux gt1) (aux gt2)
       in
       aux gd.body
   end
 
-  let get_call_graph (ctx : t) : Sym.Digraph.t =
+  let get_call_graph (ctx : t) : Sym.DigraphLabeled.t =
     ctx
     |> List.map_snd get_calls
     |> (ctx
         |> List.map fst
-        |> List.fold_left Sym.Digraph.add_vertex Sym.Digraph.empty
+        |> List.fold_left Sym.DigraphLabeled.add_vertex Sym.DigraphLabeled.empty
         |> List.fold_left (fun cg (fsym, calls) ->
-          Sym.Set.fold (fun fsym' cg' -> Sym.Digraph.add_edge cg' fsym fsym') calls cg))
+          Sym.Map.fold
+            (fun fsym' count cg' ->
+               Sym.DigraphLabeled.add_edge_e
+                 cg'
+                 (Sym.DigraphLabeled.E.create fsym count fsym'))
+            calls
+            cg))
 end
 
 module MakeOptional (GT : GenTerms.T) = struct
@@ -107,7 +109,7 @@ module MakeOptional (GT : GenTerms.T) = struct
       ctx
 
 
-  let get_call_graph (ctx : t) : Sym.Digraph.t =
+  let get_call_graph (ctx : t) : Sym.DigraphLabeled.t =
     let module GC' = Make (GT) in
     ctx |> drop_nones |> GC'.get_call_graph
 end

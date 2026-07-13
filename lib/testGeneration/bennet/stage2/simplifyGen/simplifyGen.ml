@@ -1,3 +1,7 @@
+module Private = struct
+  module LiftConstraints = LiftConstraints
+end
+
 module Make (AD : Domain.T) = struct
   open struct
     module LiftConstraints = LiftConstraints.Make (AD)

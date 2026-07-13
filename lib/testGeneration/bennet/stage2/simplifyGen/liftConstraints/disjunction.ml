@@ -97,9 +97,12 @@ module Make (AD : Domain.T) = struct
            if List.is_empty its_split then
              gt
            else (
-             let gt' =
+             let split_cases =
+               its_split |> List.map (fun it' -> Term.assert_ (T it', gt') () loc)
+             in
+             let left_cases =
                if List.is_empty its_left then
-                 gt'
+                 []
                else (
                  let it' =
                    List.fold_left
@@ -107,12 +110,9 @@ module Make (AD : Domain.T) = struct
                      (List.hd its_left)
                      (List.tl its_left)
                  in
-                 Term.assert_ (T it', gt') () loc)
+                 [ Term.assert_ (T it', gt') () loc ])
              in
-             let cases =
-               its_split |> List.map (fun it' -> Term.assert_ (T it', gt') () loc)
-             in
-             Term.pick_ cases () bt loc)
+             Term.pick_ (split_cases @ left_cases) () bt loc)
          | _ -> Term.assert_ (T it, gt') () loc)
       | `Assert ((Forall _ as lc), gt_rest) -> Term.assert_ (lc, aux ext gt_rest) () loc
       | `ITE (it_if, gt_then, gt_else) ->

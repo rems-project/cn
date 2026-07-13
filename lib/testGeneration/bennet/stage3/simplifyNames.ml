@@ -2,9 +2,10 @@ module IT = IndexTerms
 module StringMap = Map.Make (String)
 
 module Make (AD : Domain.T) = struct
-  module Ctx = Ctx.Make (AD)
-  module Def = Def.Make (AD)
-  module Term = Term.Make (AD)
+  module Stage2 = Stage2.Make (AD)
+  module Ctx = Stage2.Ctx
+  module Def = Stage2.Def
+  module Term = Stage2.Term
 
   let transform_gt (inputs : Sym.Set.t) (gt : Term.t) : Term.t =
     let basename (sym : Sym.t) : string =
@@ -17,7 +18,7 @@ module Make (AD : Domain.T) = struct
     let rec aux (vars : int StringMap.t) (gt : Term.t) : int StringMap.t * Term.t =
       let (Annot (gt_, (), bt, loc)) = gt in
       match gt_ with
-      | `Arbitrary | `Symbolic | `Lazy | `Call _ | `Return _ -> (vars, gt)
+      | `Arbitrary | `Symbolic | `Call _ | `Return _ -> (vars, gt)
       | `Pick gts ->
         let vars, gts =
           List.fold_right
@@ -72,10 +73,6 @@ module Make (AD : Domain.T) = struct
           | None -> (StringMap.add name 1 vars, i_sym, it_perm, gt_inner)
         in
         (vars, Term.map_ ((i_sym, i_bt, it_perm), gt_inner) () loc)
-      | `Instantiate ((x, gt_inner), gt') ->
-        let vars, gt_inner = aux vars gt_inner in
-        let vars, gt' = aux vars gt' in
-        (vars, Term.instantiate_ ((x, gt_inner), gt') () loc)
     in
     snd
       (aux
