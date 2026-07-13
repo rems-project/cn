@@ -27,9 +27,6 @@ BENNET_DOMAIN_PRODUCT_BUILTIN_DECLS(uint64_t)
 
 BENNET_DOMAIN_PRODUCT_BUILTIN_DECLS(uintptr_t)
 
-#define bennet_arbitrary_ownership_wint(cty, d)                                          \
-  (bennet_arbitrary_ownership_wint_##cty##(d))
-
 #define BENNET_DOMAIN_PRODUCT_BUILTIN_REDUCE_DECLS(cty)                                  \
   void bennet_domain_ownership_wint_reduce_##cty(                                        \
       bennet_domain_ownership(cty)*, bennet_domain_wint(cty)*);

@@ -8,7 +8,22 @@
 #include <bennet/utils.h>
 #include <cn-executable/utils.h>
 
-#define BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(cty)                                          \
+/* NULL bias for pointer-typed samplers: with probability
+ * 1/get_null_in_every(), return NULL when `check_zero_expr` says the domains
+ * admit 0. Passed as the hook argument of the sampler IMPL macros for their
+ * uintptr_t instantiations (narrow types pass no hook).
+ */
+#define BENNET_PRODUCT_NULL_BIAS(check_zero_expr)                                        \
+  do {                                                                                   \
+    if (check_zero_expr) {                                                               \
+      uint8_t bennet_product_null_rnd = bennet_uniform_uint8_t(get_null_in_every());     \
+      if (bennet_product_null_rnd == 0) {                                                \
+        return (uintptr_t)NULL;                                                          \
+      }                                                                                  \
+    }                                                                                    \
+  } while (0)
+
+#define BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(cty, ...)                                     \
   cty bennet_domain_ownership_wint_arbitrary_##cty(                                      \
       bennet_domain_ownership(cty) * d1, bennet_domain_wint(cty) * d2) {                 \
     assert(!d1->bottom && !d2->bottom);                                                  \
@@ -27,6 +42,8 @@
       return (cty)((uintptr_t)p + d1->before);                                           \
     }                                                                                    \
                                                                                          \
+    __VA_ARGS__                                                                          \
+                                                                                         \
     return bennet_arbitrary_wint(cty, d2);                                               \
   }
 
@@ -39,6 +56,9 @@ BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(uint8_t)
 BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(uint16_t)
 BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(uint32_t)
 BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(uint64_t)
+
+BENNET_DOMAIN_PRODUCT_BUILTIN_IMPL(
+    uintptr_t, BENNET_PRODUCT_NULL_BIAS(bennet_domain_wint_check_uintptr_t(0, d2));)
 
 #define BENNET_DOMAIN_OWNERSHIP_WINT_REDUCE_IMPL(cty)                                    \
   void bennet_domain_ownership_wint_reduce_##cty(                                        \
@@ -109,37 +129,6 @@ BENNET_DOMAIN_OWNERSHIP_WINT_REDUCE_IMPL(uint64_t)
 
 BENNET_DOMAIN_OWNERSHIP_WINT_REDUCE_IMPL(uintptr_t)
 
-uintptr_t bennet_domain_ownership_wint_arbitrary_uintptr_t(
-    bennet_domain_ownership(uintptr_t) * d1, bennet_domain_wint(uintptr_t) * d2) {
-  assert(!d1->bottom);
-
-  /* Only allocate */
-  if (d1->before != 0 || d1->after != 0) {
-    size_t bytes = d1->before + d1->after;
-    if (bytes < d1->before || bytes < d1->after) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-
-    void* p = (d2->top) ? bennet_alloc(bytes)
-                        : bennet_alloc_bounded(
-                              bytes, d2->start - d1->before, d2->end - d1->before);
-
-    return (uintptr_t)((uintptr_t)p + d1->before);
-  }
-
-  // Weight towards `NULL` for pointers, but only if the domain allows it
-  // TODO: Figure out general way for generators to learn that this is useful
-  // TODO: OR make this unnecessary
-  if (bennet_domain_wint_check_uintptr_t(0, d2)) {
-    uint8_t rnd = bennet_uniform_uint8_t(get_null_in_every());
-    if (rnd == 0) {
-      return (uintptr_t)NULL;
-    }
-  }
-
-  return bennet_arbitrary_wint(uintptr_t, d2);
-};
-
 /*---------------------------------------------------------------------------
  * congr_ownership combined arbitrary
  *
@@ -148,13 +137,14 @@ uintptr_t bennet_domain_ownership_wint_arbitrary_uintptr_t(
  * (base + before) satisfies the congruence constraint.
  *---------------------------------------------------------------------------*/
 
-#define BENNET_DOMAIN_CONGR_OWNERSHIP_ARBITRARY_IMPL(cty)                                \
+#define BENNET_DOMAIN_CONGR_OWNERSHIP_ARBITRARY_IMPL(cty, ...)                           \
   cty bennet_domain_congr_ownership_arbitrary_##cty(                                     \
       bennet_domain_congr(cty) * congr, bennet_domain_ownership(cty) * own) {            \
     assert(!congr->bottom && !own->bottom);                                              \
                                                                                          \
     /* Ownership top = no allocation needed, delegate to congr */                        \
     if (own->before == 0 && own->after == 0) {                                           \
+      __VA_ARGS__                                                                        \
       return bennet_domain_congr_arbitrary_##cty(congr);                                 \
     }                                                                                    \
                                                                                          \
@@ -241,79 +231,8 @@ BENNET_DOMAIN_CONGR_OWNERSHIP_ARBITRARY_IMPL(uint16_t)
 BENNET_DOMAIN_CONGR_OWNERSHIP_ARBITRARY_IMPL(uint32_t)
 BENNET_DOMAIN_CONGR_OWNERSHIP_ARBITRARY_IMPL(uint64_t)
 
-/* uintptr_t version with NULL-biasing */
-uintptr_t bennet_domain_congr_ownership_arbitrary_uintptr_t(
-    bennet_domain_congr(uintptr_t) * congr, bennet_domain_ownership(uintptr_t) * own) {
-  assert(!congr->bottom && !own->bottom);
-
-  /* Ownership top = no allocation needed */
-  if (own->before == 0 && own->after == 0) {
-    if (bennet_domain_congr_check_uintptr_t(0, congr)) {
-      uint8_t rnd = bennet_uniform_uint8_t(get_null_in_every());
-      if (rnd == 0) {
-        return (uintptr_t)NULL;
-      }
-    }
-    return bennet_domain_congr_arbitrary_uintptr_t(congr);
-  }
-
-  size_t bytes = own->before + own->after;
-  if (bytes < own->before || bytes < own->after) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  if (congr->top) {
-    void* p = bennet_rand_alloc(bytes);
-    if (!p) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-    bennet_alloc_record(p, bytes);
-    return (uintptr_t)((uintptr_t)p + own->before);
-  }
-
-  uintptr_t alloc_min = (uintptr_t)bennet_rand_alloc_min_ptr();
-  uintptr_t alloc_max = (uintptr_t)bennet_rand_alloc_max_ptr();
-  size_t buffer_size = alloc_max - alloc_min + 1;
-
-  if (bytes > buffer_size) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  uintptr_t eff_min = alloc_min + own->before;
-  uintptr_t eff_max = alloc_max - own->after + 1;
-
-  uintptr_t m = (uintptr_t)congr->modulus;
-  uintptr_t r = (uintptr_t)congr->residue;
-
-  if (m == 0) {
-    if (r < eff_min || r > eff_max) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-    bennet_alloc_record((void*)(r - own->before), bytes);
-    return r;
-  }
-
-  uintptr_t mask = m - 1;
-  uintptr_t offset = (r - eff_min) & mask;
-  uintptr_t first_valid = eff_min + offset;
-
-  if (first_valid > eff_max) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  uintptr_t count = (eff_max - first_valid) / m + 1;
-  size_t sz = bennet_get_size();
-  uintptr_t max_idx = count - 1;
-  if (max_idx > sz) {
-    max_idx = (uintptr_t)sz;
-  }
-
-  uintptr_t idx = bennet_range_uint64_t(0, max_idx);
-  uintptr_t chosen = first_valid + idx * m;
-
-  bennet_alloc_record((void*)(chosen - own->before), bytes);
-  return chosen;
-}
+BENNET_DOMAIN_CONGR_OWNERSHIP_ARBITRARY_IMPL(
+    uintptr_t, BENNET_PRODUCT_NULL_BIAS(bennet_domain_congr_check_uintptr_t(0, congr));)
 
 /*---------------------------------------------------------------------------
  * congr_ownership reduce
@@ -375,13 +294,14 @@ BENNET_DOMAIN_CONGR_OWNERSHIP_REDUCE_IMPL(uintptr_t)
  * meet with given tnum, then generate from the result.
  *---------------------------------------------------------------------------*/
 
-#define BENNET_DOMAIN_OWNERSHIP_TNUM_ARBITRARY_IMPL(cty)                                 \
+#define BENNET_DOMAIN_OWNERSHIP_TNUM_ARBITRARY_IMPL(cty, ...)                            \
   cty bennet_domain_ownership_tnum_arbitrary_##cty(                                      \
       bennet_domain_ownership(cty) * own, bennet_domain_tnum(cty) * tnum) {              \
     assert(!own->bottom && !tnum->bottom);                                               \
                                                                                          \
     /* Ownership top = no allocation needed, delegate to tnum */                         \
     if (own->before == 0 && own->after == 0) {                                           \
+      __VA_ARGS__                                                                        \
       return bennet_domain_tnum_arbitrary_##cty(tnum);                                   \
     }                                                                                    \
                                                                                          \
@@ -436,52 +356,8 @@ BENNET_DOMAIN_OWNERSHIP_TNUM_ARBITRARY_IMPL(uint16_t)
 BENNET_DOMAIN_OWNERSHIP_TNUM_ARBITRARY_IMPL(uint32_t)
 BENNET_DOMAIN_OWNERSHIP_TNUM_ARBITRARY_IMPL(uint64_t)
 
-/* uintptr_t version with NULL-biasing */
-uintptr_t bennet_domain_ownership_tnum_arbitrary_uintptr_t(
-    bennet_domain_ownership(uintptr_t) * own, bennet_domain_tnum(uintptr_t) * tnum) {
-  assert(!own->bottom && !tnum->bottom);
-
-  /* Ownership top = no allocation needed */
-  if (own->before == 0 && own->after == 0) {
-    if (bennet_domain_tnum_check_uintptr_t(0, tnum)) {
-      uint8_t rnd = bennet_uniform_uint8_t(get_null_in_every());
-      if (rnd == 0) {
-        return (uintptr_t)NULL;
-      }
-    }
-    return bennet_domain_tnum_arbitrary_uintptr_t(tnum);
-  }
-
-  size_t bytes = own->before + own->after;
-  if (bytes < own->before || bytes < own->after) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  if (tnum->top) {
-    void* p = bennet_rand_alloc(bytes);
-    if (!p) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-    bennet_alloc_record(p, bytes);
-    return (uintptr_t)((uintptr_t)p + own->before);
-  }
-
-  /* Both constrained: allocate randomly, check tnum, retry */
-  const int max_attempts = 100;
-  for (int attempt = 0; attempt < max_attempts; ++attempt) {
-    void* p = bennet_rand_alloc(bytes);
-    if (!p) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-    uintptr_t val = (uintptr_t)p + own->before;
-    if (bennet_domain_tnum_check_uintptr_t(val, tnum)) {
-      bennet_alloc_record(p, bytes);
-      return val;
-    }
-  }
-  cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  __builtin_unreachable();
-}
+BENNET_DOMAIN_OWNERSHIP_TNUM_ARBITRARY_IMPL(
+    uintptr_t, BENNET_PRODUCT_NULL_BIAS(bennet_domain_tnum_check_uintptr_t(0, tnum));)
 
 /*---------------------------------------------------------------------------
  * ownership_tnum reduce
@@ -541,21 +417,22 @@ BENNET_DOMAIN_OWNERSHIP_TNUM_REDUCE_IMPL(uintptr_t)
  * Generates a value satisfying both congruence and wrapped-interval constraints.
  *---------------------------------------------------------------------------*/
 
-#define BENNET_DOMAIN_CONGR_WINT_ARBITRARY_GEN(sm)                                       \
-  uint##sm##_t bennet_domain_congr_wint_arbitrary_uint##sm##_t(                          \
-      bennet_domain_congr(uint##sm##_t) * congr,                                         \
-      bennet_domain_wint(uint##sm##_t) * wint) {                                         \
+#define BENNET_DOMAIN_CONGR_WINT_ARBITRARY_UNSIGNED_IMPL(cty, ...)                       \
+  cty bennet_domain_congr_wint_arbitrary_##cty(                                          \
+      bennet_domain_congr(cty) * congr, bennet_domain_wint(cty) * wint) {                \
     assert(!congr->bottom && !wint->bottom);                                             \
                                                                                          \
-    if (congr->top)                                                                      \
-      return bennet_arbitrary_wint(uint##sm##_t, wint);                                  \
-    if (wint->top)                                                                       \
-      return bennet_arbitrary_congr_uint##sm##_t(congr);                                 \
+    __VA_ARGS__                                                                          \
                                                                                          \
-    uint##sm##_t m = congr->modulus;                                                     \
-    uint##sm##_t r = congr->residue;                                                     \
-    uint##sm##_t start = wint->start;                                                    \
-    uint##sm##_t end = wint->end;                                                        \
+    if (congr->top)                                                                      \
+      return bennet_arbitrary_wint(cty, wint);                                           \
+    if (wint->top)                                                                       \
+      return bennet_arbitrary_congr_##cty(congr);                                        \
+                                                                                         \
+    cty m = congr->modulus;                                                              \
+    cty r = congr->residue;                                                              \
+    cty start = wint->start;                                                             \
+    cty end = wint->end;                                                                 \
                                                                                          \
     /* Singleton congr */                                                                \
     if (m == 0) {                                                                        \
@@ -564,22 +441,23 @@ BENNET_DOMAIN_OWNERSHIP_TNUM_REDUCE_IMPL(uintptr_t)
       cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                       \
     }                                                                                    \
                                                                                          \
-    uint##sm##_t mask = m - 1;                                                           \
-    uint##sm##_t first_valid = start + ((r - start) & mask);                             \
+    cty mask = m - 1;                                                                    \
+    cty first_valid = start + ((r - start) & mask);                                      \
     if (first_valid > end) {                                                             \
       cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                       \
     }                                                                                    \
                                                                                          \
-    uint##sm##_t count = (end - first_valid) / m + 1;                                    \
-    uint##sm##_t max_idx = count - 1;                                                    \
+    cty count = (end - first_valid) / m + 1;                                             \
+    cty max_idx = count - 1;                                                             \
     size_t sz = bennet_get_size();                                                       \
-    if (max_idx > (uint##sm##_t)sz)                                                      \
-      max_idx = (uint##sm##_t)sz;                                                        \
+    if (max_idx > (cty)sz)                                                               \
+      max_idx = (cty)sz;                                                                 \
                                                                                          \
-    uint##sm##_t idx = bennet_arbitrary_wint_of(uint##sm##_t, 0, max_idx);               \
+    cty idx = bennet_arbitrary_wint_of(cty, 0, max_idx);                                 \
     return first_valid + idx * m;                                                        \
-  }                                                                                      \
-                                                                                         \
+  }
+
+#define BENNET_DOMAIN_CONGR_WINT_ARBITRARY_SIGNED_IMPL(sm)                               \
   int##sm##_t bennet_domain_congr_wint_arbitrary_int##sm##_t(                            \
       bennet_domain_congr(int##sm##_t) * congr,                                          \
       bennet_domain_wint(int##sm##_t) * wint) {                                          \
@@ -659,57 +537,19 @@ BENNET_DOMAIN_OWNERSHIP_TNUM_REDUCE_IMPL(uintptr_t)
     return (int##sm##_t)(uint##sm##_t)(last_neg - (uint##sm##_t)neg_idx * m);            \
   }
 
-BENNET_DOMAIN_CONGR_WINT_ARBITRARY_GEN(8)
-BENNET_DOMAIN_CONGR_WINT_ARBITRARY_GEN(16)
-BENNET_DOMAIN_CONGR_WINT_ARBITRARY_GEN(32)
-BENNET_DOMAIN_CONGR_WINT_ARBITRARY_GEN(64)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_UNSIGNED_IMPL(uint8_t)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_UNSIGNED_IMPL(uint16_t)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_UNSIGNED_IMPL(uint32_t)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_UNSIGNED_IMPL(uint64_t)
 
-/* uintptr_t version with NULL-biasing */
-uintptr_t bennet_domain_congr_wint_arbitrary_uintptr_t(
-    bennet_domain_congr(uintptr_t) * congr, bennet_domain_wint(uintptr_t) * wint) {
-  assert(!congr->bottom && !wint->bottom);
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_UNSIGNED_IMPL(uintptr_t,
+    BENNET_PRODUCT_NULL_BIAS(bennet_domain_congr_check_uintptr_t(0, congr) &&
+                             bennet_domain_wint_check_uintptr_t(0, wint));)
 
-  /* NULL bias if both allow 0 */
-  if (bennet_domain_congr_check_uintptr_t(0, congr) &&
-      bennet_domain_wint_check_uintptr_t(0, wint)) {
-    uint8_t rnd = bennet_uniform_uint8_t(get_null_in_every());
-    if (rnd == 0) {
-      return (uintptr_t)NULL;
-    }
-  }
-
-  if (congr->top)
-    return bennet_arbitrary_wint(uintptr_t, wint);
-  if (wint->top)
-    return bennet_domain_congr_arbitrary_uintptr_t(congr);
-
-  uintptr_t m = congr->modulus;
-  uintptr_t r = congr->residue;
-  uintptr_t start = wint->start;
-  uintptr_t end = wint->end;
-
-  /* Singleton congr */
-  if (m == 0) {
-    if (r >= start && r <= end)
-      return r;
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  uintptr_t mask = m - 1;
-  uintptr_t first_valid = start + ((r - start) & mask);
-  if (first_valid > end) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  uintptr_t count = (end - first_valid) / m + 1;
-  size_t sz = bennet_get_size();
-  uintptr_t max_idx = count - 1;
-  if (max_idx > sz)
-    max_idx = (uintptr_t)sz;
-
-  uintptr_t idx = bennet_range_uint64_t(0, max_idx);
-  return first_valid + idx * m;
-}
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_SIGNED_IMPL(8)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_SIGNED_IMPL(16)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_SIGNED_IMPL(32)
+BENNET_DOMAIN_CONGR_WINT_ARBITRARY_SIGNED_IMPL(64)
 
 /*---------------------------------------------------------------------------
  * congr_wint reduce
@@ -834,6 +674,16 @@ BENNET_DOMAIN_CONGR_WINT_REDUCE_IMPL(uintptr_t)
         cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);                                     \
       }                                                                                  \
                                                                                          \
+      /* Congr top: allocate within the narrowed range so the pointer keeps    */        \
+      /* allocator alignment - congr_wint's byte-granular value stepping would */        \
+      /* produce misaligned struct pointers.                                   */        \
+      if (congr->top) {                                                                  \
+        void* p = bennet_alloc_bounded(bytes,                                            \
+            (uintptr_t)narrowed.start - own->before,                                     \
+            (uintptr_t)narrowed.end - own->before);                                      \
+        return (cty)((uintptr_t)p + own->before);                                        \
+      }                                                                                  \
+                                                                                         \
       cty chosen = bennet_domain_congr_wint_arbitrary_##cty(congr, &narrowed);           \
       bennet_alloc_record((void*)((uintptr_t)chosen - own->before), bytes);              \
       return chosen;                                                                     \
@@ -858,65 +708,9 @@ BENNET_DOMAIN_CONGR_OWNERSHIP_WINT_ARBITRARY_IMPL(uint16_t)
 BENNET_DOMAIN_CONGR_OWNERSHIP_WINT_ARBITRARY_IMPL(uint32_t)
 BENNET_DOMAIN_CONGR_OWNERSHIP_WINT_ARBITRARY_IMPL(uint64_t)
 
-/* uintptr_t version with NULL-biasing */
-uintptr_t bennet_domain_congr_ownership_wint_arbitrary_uintptr_t(
-    bennet_domain_congr(uintptr_t) * congr,
-    bennet_domain_ownership(uintptr_t) * own,
-    bennet_domain_wint(uintptr_t) * wint) {
-  assert(!congr->bottom && !own->bottom && !wint->bottom);
-
-  /* Ownership top: delegate to congr_wint (which handles NULL bias) */
-  if (own->before == 0 && own->after == 0) {
-    return bennet_domain_congr_wint_arbitrary_uintptr_t(congr, wint);
-  }
-
-  size_t bytes = own->before + own->after;
-  if (bytes < own->before || bytes < own->after) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  /* Both congr and wint are top: just allocate */
-  if (congr->top && wint->top) {
-    void* p = bennet_rand_alloc(bytes);
-    if (!p) {
-      cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-    }
-    bennet_alloc_record(p, bytes);
-    return (uintptr_t)((uintptr_t)p + own->before);
-  }
-
-  uintptr_t alloc_min = (uintptr_t)bennet_rand_alloc_min_ptr();
-  uintptr_t alloc_max = (uintptr_t)bennet_rand_alloc_max_ptr();
-  size_t buffer_size = alloc_max - alloc_min + 1;
-
-  if (bytes > buffer_size) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  uintptr_t eff_min = alloc_min + own->before;
-  uintptr_t eff_max = alloc_max - own->after + 1;
-
-  /* Create narrowed wint from ownership range */
-  bennet_domain_wint(uintptr_t) narrowed;
-  if (wint->top) {
-    narrowed = (bennet_domain_wint(uintptr_t)){
-        .top = false, .bottom = false, .start = eff_min, .end = eff_max};
-  } else {
-    bennet_domain_wint(uintptr_t)* own_wint =
-        bennet_domain_wint_of_uintptr_t(eff_min, eff_max);
-    bennet_domain_wint(uintptr_t)* met =
-        bennet_domain_wint_meet_uintptr_t(wint, own_wint);
-    narrowed = *met;
-  }
-
-  if (narrowed.bottom) {
-    cn_failure(CN_FAILURE_FULM_ALLOC, NON_SPEC);
-  }
-
-  uintptr_t chosen = bennet_domain_congr_wint_arbitrary_uintptr_t(congr, &narrowed);
-  bennet_alloc_record((void*)(chosen - own->before), bytes);
-  return chosen;
-}
+/* No NULL-bias hook: the ownership-top branch delegates to the congr_wint
+ * sampler, which applies the bias itself at uintptr_t. */
+BENNET_DOMAIN_CONGR_OWNERSHIP_WINT_ARBITRARY_IMPL(uintptr_t)
 
 /*---------------------------------------------------------------------------
  * congr_ownership_wint reduce
