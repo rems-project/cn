@@ -354,6 +354,31 @@ TEST_F(LibBennet, WIntJoinOperation) {
   EXPECT_TRUE(bennet_domain_wint_equal_uint8_t(join_contain_comm, large));
 }
 
+TEST_F(LibBennet, WIntJoinNonContainmentHull) {
+  // Non-containment joins now take the real convex hull (the per-type join
+  // delegates to wint_generic_join) instead of dropping to top.
+
+  // Overlapping: [10,20] join [15,30] = [10,30].
+  auto a = make_wint_u8(10, 20);
+  auto b = make_wint_u8(15, 30);
+  auto overlap = bennet_domain_wint_join_uint8_t(a, b);
+  EXPECT_FALSE(bennet_domain_wint_is_top_uint8_t(overlap));
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(10, overlap));
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(30, overlap));
+  EXPECT_FALSE(bennet_domain_wint_check_uint8_t(9, overlap));
+  EXPECT_FALSE(bennet_domain_wint_check_uint8_t(31, overlap));
+
+  // Disjoint: the hull wraps to bridge the smaller gap ([200,20] covering
+  // 200..255,0..20), excluding the wide 21..199 gap - not top.
+  auto c = make_wint_u8(10, 20);
+  auto d = make_wint_u8(200, 210);
+  auto disjoint = bennet_domain_wint_join_uint8_t(c, d);
+  EXPECT_FALSE(bennet_domain_wint_is_top_uint8_t(disjoint));
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(15, disjoint));
+  EXPECT_TRUE(bennet_domain_wint_check_uint8_t(205, disjoint));
+  EXPECT_FALSE(bennet_domain_wint_check_uint8_t(100, disjoint));
+}
+
 // =============================================================================
 // Meet Operation Tests
 // =============================================================================
@@ -1832,6 +1857,35 @@ TEST_F(LibBennet, WIntAssumeOrTrueJoinsHull) {
   get_wint_u8_bounds(&rx, &start, &end);
   EXPECT_EQ(start, (uint8_t)3);
   EXPECT_EQ(end, (uint8_t)7);
+
+  bennet_absint_state_free(refined);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntAssumeOrTrueSameValueNotTop) {
+  // x==5 || x==5 assumed true: both disjuncts refine x to {5}, and the
+  // OR-true join of {5} with itself is {5}, not top. Pins the hull's
+  // mutual-containment fix on the runtime join_branches path (join(X,X)=X;
+  // it dropped to top before).
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_term* x = cn_smt_sym(sym_x, bt_u8);
+
+  cn_term* cond = cn_smt_or(
+      cn_smt_eq(x, cn_smt_bits(false, 8, 5)), cn_smt_eq(x, cn_smt_bits(false, 8, 5)));
+
+  auto* refined =
+      bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+
+  bennet_tagged_domain rx =
+      bennet_absint_state_get_wint(refined, {sym_x.name, sym_x.id}, &bt_u8);
+  EXPECT_FALSE(is_tagged_top_u8(&rx));
+  uint8_t start, end;
+  get_wint_u8_bounds(&rx, &start, &end);
+  EXPECT_EQ(start, (uint8_t)5);
+  EXPECT_EQ(end, (uint8_t)5);
 
   bennet_absint_state_free(refined);
   cn_bump_free_after(frame);
