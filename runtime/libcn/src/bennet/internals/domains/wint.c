@@ -1504,7 +1504,8 @@ static bennet_tagged_domain wint_forward_binop(cn_binop op,
         int n2 = wint_pole_split(c, d, w, s2s, s2e);
 
         bool first = true;
-        for (int i = 0; i < n1; i++) {
+        bool went_top = false;
+        for (int i = 0; i < n1 && !went_top; i++) {
           for (int j = 0; j < n2; j++) {
             // Use unsigned arithmetic to avoid signed overflow UB.
             // After pole splitting, each sub-interval doesn't cross poles, so the
@@ -1520,6 +1521,15 @@ static bennet_tagged_domain wint_forward_binop(cn_binop op,
               if (products[k] > max_p)
                 max_p = products[k];
             }
+            // The corner products bound the wrapped result only while their
+            // span stays below 2^w; a wider span wraps past every residue, so
+            // this pair covers the whole type. (For w == 64 the products have
+            // already wrapped in 64-bit arithmetic and the span cannot be
+            // measured; that imprecision predates this check.)
+            if (w < 64 && (uint64_t)max_p - (uint64_t)min_p >= ((uint64_t)1 << w)) {
+              went_top = true;
+              break;
+            }
             if (first) {
               result.start = min_p;
               result.stop = max_p;
@@ -1530,6 +1540,11 @@ static bennet_tagged_domain wint_forward_binop(cn_binop op,
               result = wint_generic_join(&result, &pair);
             }
           }
+        }
+        if (went_top) {
+          result.is_top = true;
+          result.start = wint_get_min(is_signed, width);
+          result.stop = wint_get_max(is_signed, width);
         }
       }
       break;

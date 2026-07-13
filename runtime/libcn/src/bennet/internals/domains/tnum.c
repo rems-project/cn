@@ -528,7 +528,9 @@ uintptr_t bennet_arbitrary_tnum_uintptr_t(bennet_domain_tnum(uintptr_t) * d) {
     return result;                                                                         \
   }                                                                                        \
                                                                                            \
-  /* Subtraction: a - b = a + (~b + 1) */                                                  \
+  /* Subtraction: kernel tnum_sub. Negate-then-add is unsound here because   \
+   * negating a tnum bitwise ignores borrows rippling through unknown bits.  \
+   * alpha/beta are the extremes of the borrow range. */             \
   bennet_domain_tnum(cty) * bennet_domain_tnum_sub_##cty(bennet_domain_tnum(cty) * d1,     \
                                 bennet_domain_tnum(cty) * d2) {                            \
     if (d1->bottom || d2->bottom) {                                                        \
@@ -537,20 +539,12 @@ uintptr_t bennet_arbitrary_tnum_uintptr_t(bennet_domain_tnum(uintptr_t) * d) {
     bennet_domain_tnum(cty)* result = std_malloc(sizeof(bennet_domain_tnum(cty)));         \
     assert(result);                                                                        \
     cty fm = (cty)(FULL_MASK);                                                             \
-    /* Negate d2: flip bits and add 1 */                                                   \
-    cty neg_value = ((~d2->value) + 1) & fm;                                               \
-    /* Create negated tnum */                                                              \
-    bennet_domain_tnum(cty) neg_d2 = {.top = d2->top,                                      \
-        .bottom = false,                                                                   \
-        .value = neg_value & (~d2->mask),                                                  \
-        .mask = d2->mask};                                                                 \
-    /* Use addition */                                                                     \
-    cty sv = (d1->value + neg_d2.value) & fm;                                              \
-    cty sm = (d1->mask + neg_d2.mask) & fm;                                                \
-    cty sigma = (sv + sm) & fm;                                                            \
-    cty chi = sigma ^ sv;                                                                  \
-    cty mask = (chi | d1->mask | neg_d2.mask) & fm;                                        \
-    cty value = sv & (~mask);                                                              \
+    cty dv = (d1->value - d2->value) & fm;                                                 \
+    cty alpha = (dv + d1->mask) & fm;                                                      \
+    cty beta = (dv - d2->mask) & fm;                                                       \
+    cty chi = alpha ^ beta;                                                                \
+    cty mask = (chi | d1->mask | d2->mask) & fm;                                           \
+    cty value = dv & (~mask);                                                              \
     result->value = value;                                                                 \
     result->mask = mask;                                                                   \
     result->top = (result->value == 0 && result->mask == fm);                              \
@@ -765,7 +759,12 @@ static tnum_generic tnum_generic_const(int width, bool is_signed, uint64_t val) 
 /**
  * Create a tnum from an interval [lo, hi].
  */
-static tnum_generic tnum_generic_of_interval(
+/* Known-bits abstraction of an unsigned-contiguous pattern range [lo, hi]:
+ * the common bit prefix is known, everything below the highest differing bit
+ * is unknown. Requires lo <= hi as raw width-masked patterns; signed ranges
+ * that straddle zero are NOT pattern-contiguous and must go through
+ * tnum_generic_of_interval. */
+static tnum_generic tnum_of_pattern_range(
     int width, bool is_signed, uint64_t lo, uint64_t hi) {
   uint64_t fm = tnum_full_mask(width);
   lo &= fm;
@@ -1065,11 +1064,13 @@ static tnum_generic tnum_generic_sub(tnum_generic* a, tnum_generic* b) {
   if (a->is_top || b->is_top)
     return tnum_generic_top(a->width, a->is_signed);
 
+  /* Kernel tnum_sub: alpha/beta are the extremes of the borrow range, so
+   * chi = alpha ^ beta flags every bit a borrow can reach. */
   uint64_t fm = tnum_full_mask(a->width);
   uint64_t dv = (a->value - b->value) & fm;
-  uint64_t alpha = dv + b->mask;
-  uint64_t beta = dv ^ alpha;
-  uint64_t chi = (alpha ^ a->value) | beta;
+  uint64_t alpha = (dv + a->mask) & fm;
+  uint64_t beta = (dv - b->mask) & fm;
+  uint64_t chi = alpha ^ beta;
   uint64_t mask = (chi | a->mask | b->mask) & fm;
   uint64_t value = dv & (~mask) & fm;
 
@@ -1312,6 +1313,30 @@ static tnum_generic tnum_generic_join(tnum_generic* a, tnum_generic* b) {
       .value = value,
       .mask = mask,
   };
+}
+
+/* Known-bits abstraction of the value interval [lo, hi], interpreted per
+ * signedness. A signed interval straddling zero (lo < 0 <= hi) is not
+ * contiguous in raw patterns ([lo..fm] then [0..hi]), so it is the join of
+ * its sign-homogeneous halves; comparing the raw patterns unsigned instead
+ * used to bottom every such range (assume x:i8 <= 1 claimed unsat). */
+static tnum_generic tnum_generic_of_interval(
+    int width, bool is_signed, uint64_t lo, uint64_t hi) {
+  uint64_t fm = tnum_full_mask(width);
+  lo &= fm;
+  hi &= fm;
+  if (is_signed) {
+    int64_t slo = tnum_to_signed_value(width, lo);
+    int64_t shi = tnum_to_signed_value(width, hi);
+    if (slo > shi)
+      return tnum_generic_bottom(width, is_signed);
+    if (slo < 0 && shi >= 0) {
+      tnum_generic neg = tnum_of_pattern_range(width, is_signed, lo, fm);
+      tnum_generic nonneg = tnum_of_pattern_range(width, is_signed, 0, hi);
+      return tnum_generic_join(&neg, &nonneg);
+    }
+  }
+  return tnum_of_pattern_range(width, is_signed, lo, hi);
 }
 
 static tnum_generic tnum_generic_meet(tnum_generic* a, tnum_generic* b) {
