@@ -38,6 +38,7 @@
 
 #include <bennet/internals/absint.h>
 #include <bennet/internals/domains/transform_template.h>
+#include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/std_alloc.h>
 #include <cn-smt/terms.h>
 
@@ -75,7 +76,11 @@ typedef struct ABSINT_FTREE {
 } ABSINT_FTREE;
 
 static ABSINT_FTREE* ABSINT_ENGINE(fwd)(cn_term* term, bennet_absint_state* state) {
-  ABSINT_FTREE* node = std_malloc(sizeof(ABSINT_FTREE));
+  /* Node structs are arena-allocated and released per public entry via a
+   * frame checkpoint (see the public entry points below): only these transient
+   * nodes live in the arena; every cached abstract value's payload is in the
+   * std allocator, so restoring the frame frees nothing a return value reads. */
+  ABSINT_FTREE* node = cn_arena_malloc(bennet_absint_arena(), sizeof(ABSINT_FTREE));
   assert(node);
   node->term = term;
   node->kids[0] = NULL;
@@ -557,7 +562,13 @@ static bennet_absint_state* ABSINT_ENGINE(assume)(
  *---------------------------------------------------------------------------*/
 
 bennet_tagged_domain ABSINT_PUBLIC(forward)(cn_term* term, bennet_absint_state* state) {
-  return ABSINT_ENGINE(fwd)(term, state)->val;
+  cn_arena* arena = bennet_absint_arena();
+  cn_arena_frame_id frame = cn_arena_get_frame(arena);
+  /* Copy the root's cached value out (its type/domain pointers live outside the
+   * arena) before releasing the tree. */
+  bennet_tagged_domain result = ABSINT_ENGINE(fwd)(term, state)->val;
+  cn_arena_restore_frame(arena, frame);
+  return result;
 }
 
 bennet_absint_state* ABSINT_PUBLIC(backward)(cn_term* term,
@@ -572,7 +583,14 @@ bennet_absint_state* ABSINT_PUBLIC(backward)(cn_term* term,
   if (!term || !state)
     return state;
 
-  return ABSINT_ENGINE(bwd)(ABSINT_ENGINE(fwd)(term, state), output_domain, state);
+  cn_arena* arena = bennet_absint_arena();
+  cn_arena_frame_id frame = cn_arena_get_frame(arena);
+  /* The returned state (cons cells + payloads) lives in the std allocator, not
+   * the arena, so it survives the frame release. */
+  bennet_absint_state* result =
+      ABSINT_ENGINE(bwd)(ABSINT_ENGINE(fwd)(term, state), output_domain, state);
+  cn_arena_restore_frame(arena, frame);
+  return result;
 }
 
 bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
@@ -582,6 +600,11 @@ bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
    * a sound "unchanged" test on the persistent cons-list (set/meet always
    * cons), though a largely ineffective early exit - a no-op meet still
    * conses, so extra fuel mostly re-runs until exhausted. */
+  cn_arena* arena = bennet_absint_arena();
+  cn_arena_frame_id frame = cn_arena_get_frame(arena);
+  /* One frame around the whole loop: each iteration's forward trees are dead
+   * once its pass completes (the carried `cur` is std-allocated cons cells), so
+   * they are all released together on return. */
   bennet_absint_state* cur = state;
   int fuel = bennet_get_dynamic_local_iterations();
   for (int i = 0; i < fuel; i++) {
@@ -590,6 +613,7 @@ bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
       break;
     cur = next;
   }
+  cn_arena_restore_frame(arena, frame);
   return cur;
 }
 

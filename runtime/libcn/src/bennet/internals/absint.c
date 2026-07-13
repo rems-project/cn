@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include <bennet/internals/absint.h>
+#include <cn-smt/memory/arena.h>
 #include <cn-smt/memory/std_alloc.h>
 #include <cn-smt/terms.h>
 
@@ -26,6 +27,23 @@ void bennet_set_dynamic_local_iterations(int fuel) {
 
 int bennet_get_dynamic_local_iterations(void) {
   return dynamic_local_iterations;
+}
+
+/* Dedicated arena for the transformer engine's forward-tree (ftree) node
+ * structs. Process-global and lazily created; each public transform entry
+ * (transform.inc.c) frames it with cn_arena_get_frame / cn_arena_restore_frame,
+ * so it is drained per call and never grows past one call's tree. Never
+ * destroyed (mirrors the interned-string arena); the OS reclaims it at exit and
+ * the live global keeps it off any leak report. Only the ftree node structs
+ * live here - every abstract value's payload stays in the std allocator. */
+static cn_arena* g_absint_arena = NULL;
+
+cn_arena* bennet_absint_arena(void) {
+  if (!g_absint_arena) {
+    g_absint_arena = cn_arena_create(0); /* 0 => default block size */
+    assert(g_absint_arena);
+  }
+  return g_absint_arena;
 }
 
 bennet_absint_state* bennet_absint_state_create(void) {

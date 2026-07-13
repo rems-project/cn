@@ -109,6 +109,17 @@ void bennet_absint_type_info(cn_base_type* type, int* width, bool* is_signed);
 void bennet_set_dynamic_local_iterations(int fuel);
 int bennet_get_dynamic_local_iterations(void);
 
+/* Forward declaration for the arena allocator (defined in cn-smt/memory/arena.h) */
+struct cn_arena;
+typedef struct cn_arena cn_arena;
+
+/** Process-global arena backing the transformer engine's forward-tree node
+ *  structs. Lazily created; the public transform entry points frame it per
+ *  call (cn_arena_get_frame / cn_arena_restore_frame), so it stays bounded to a
+ *  single call's tree. Only ftree nodes live here - abstract-value payloads
+ *  remain in the std allocator. */
+cn_arena* bennet_absint_arena(void);
+
 /*-----------------------------------------------------------------------------
  * Domain-Specific Tagged Domain Declaration Macro
  *---------------------------------------------------------------------------*/
