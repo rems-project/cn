@@ -515,6 +515,10 @@ TEST_F(AbsintOracle, AssumeTwoSym) {
   for (const TermEntry& e : kCondTwoSym) {
     for (bool polarity : {true, false}) {
       run_assume_entry(e, polarity, kTop, kTop);
+      // Bound both inputs too: with non-top forward values the comparison
+      // refinements actually push, exercising the deposit walk's
+      // both-sides routing.
+      run_assume_entry(e, polarity, kD1, kD2);
     }
   }
 }

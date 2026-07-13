@@ -12,12 +12,10 @@
  *   #define ABSINT_DOM congr                  symbol prefix (required)
  *   #include <bennet/internals/domains/transform.inc.c>
  *
- * Comparison refinements always push via collect-syms + one targeted
- * backward walk per symbol (Gauss-Seidel), and an unsatisfiable comparison
- * sets every symbol of both sides to bottom. (tnum's legacy SYM-only
- * application and missing unsat protocol - defect D2 - were reproduced by
- * two further toggles during its mechanical port and removed again by its
- * precision commit.)
+ * Comparison refinements push each side with one deposit backward walk
+ * over that side's already-built forward tree (HC4-style; formerly
+ * a Gauss-Seidel targeted walk per collected symbol), and an unsatisfiable
+ * comparison sets every symbol of both sides to bottom.
  *
  * Assume recurses through the logical structure for every domain: NOT flips
  * the polarity, AND-true / OR-false thread the two branch assumptions, and
@@ -25,12 +23,10 @@
  * join of the two branch assumptions over the term's symbols via the
  * per-domain tagged join.
  *
- * The engine is deliberately a *parity* engine: it reproduces the exact
- * traversal, gating, and application order of the legacy walkers (verified
- * by test/bennet/absint_difftest.cpp), including their precision limits.
- * The HC4-style single-walk backward pass with deposit-at-every-SYM from
- * the OCaml reference (nonRelational.ml) is deferred to P6, as is caching
- * across the assume/backward boundary and arena allocation of tree nodes.
+ * The backward pass deposits at every SYM it reaches: the public
+ * per-target transform_backward keeps its ABI signature, but the target
+ * parameter is vestigial - callers read back only the symbol they care
+ * about, and extra deposits are sound.
  *
  * Basis contract (all static, defined before the #include; <dom> = the
  * ABSINT_DOM prefix; "tagged" = bennet_tagged_domain):

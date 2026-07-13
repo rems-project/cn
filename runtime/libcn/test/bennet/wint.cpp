@@ -1718,6 +1718,69 @@ TEST_F(LibBennet, WIntBackwardComplInverts) {
   cn_bump_free_after(frame);
 }
 
+TEST_F(LibBennet, WIntBackwardBothSidesSameSymMeets) {
+  // DEPOSIT WITNESS (new behavior): x - x with output {2} and x in [0,10].
+  // The left-target inverse gives x = out + fwd(x) = [2,12] -> [2,10]; the
+  // right-target inverse gives x = fwd(x) - out = [254,8] (wrapped) ->
+  // meets down to [2,8]. The legacy walk descended only the left side
+  // (left priority) and stopped at [2,10].
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_term* x = cn_smt_sym(sym_x, bt_u8);
+
+  state = bennet_absint_state_set_wint(
+      state, {sym_x.name, sym_x.id}, make_tagged_wint_u8(0, 10));
+
+  auto* refined_state = bennet_wint_transform_backward(
+      cn_smt_sub(x, x), {sym_x.name, sym_x.id}, make_tagged_wint_u8(2, 2), state);
+
+  bennet_tagged_domain refined_x =
+      bennet_absint_state_get_wint(refined_state, {sym_x.name, sym_x.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&refined_x, &start, &end);
+  EXPECT_EQ(start, (uint8_t)2);
+  EXPECT_EQ(end, (uint8_t)8);
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
+TEST_F(LibBennet, WIntBackwardBottomOutputBottomsAllSyms) {
+  // DEPOSIT WITNESS (new behavior): a bottom output bottoms every sym of the
+  // term, not just the (vestigial) target - the premise "x+y in bottom" is
+  // unsatisfiable for both.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  auto* state = bennet_absint_state_create();
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_sym sym_y = cn_sym_from_string("y");
+
+  bennet_tagged_domain bottom_out =
+      bennet_tagged_domain_create((cn_base_type*)cn_bump_malloc(sizeof(cn_base_type)),
+          bennet_domain_wint_bottom_uint8_t());
+  *bottom_out.type = bt_u8;
+
+  cn_term* add_term = cn_smt_add(cn_smt_sym(sym_x, bt_u8), cn_smt_sym(sym_y, bt_u8));
+
+  auto* refined_state =
+      bennet_wint_transform_backward(add_term, {sym_x.name, sym_x.id}, bottom_out, state);
+
+  EXPECT_TRUE(bennet_absint_state_is_bottom_wint(refined_state));
+  bennet_tagged_domain rx =
+      bennet_absint_state_get_wint(refined_state, {sym_x.name, sym_x.id}, &bt_u8);
+  bennet_tagged_domain ry =
+      bennet_absint_state_get_wint(refined_state, {sym_y.name, sym_y.id}, &bt_u8);
+  EXPECT_TRUE(bennet_tagged_domain_is_bottom_wint(&rx));
+  EXPECT_TRUE(bennet_tagged_domain_is_bottom_wint(&ry));
+
+  bennet_absint_state_free(refined_state);
+  cn_bump_free_after(frame);
+}
+
 TEST_F(LibBennet, WIntBackwardThroughWrapi) {
   // wrapi8(x+3) with output {5}: the WRAPI node inverts like a cast
   // (modular conversion), then the ADD inverts to x = {2}. Formerly WRAPI
