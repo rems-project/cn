@@ -754,9 +754,9 @@ TEST_F(LibBennet, CongrForwardCastNarrowTruncates) {
   cn_bump_free_after(frame);
 }
 
-TEST_F(LibBennet, CongrForwardBwAndTop) {
-  // Bitwise ops are not modeled by the congruence walker (default arm) -> top,
-  // even though bennet_domain_congr_and_uint8_t exists as a direct domain op.
+TEST_F(LibBennet, CongrForwardBwAnd) {
+  // Bitwise AND of two aligned classes (4Z+1) & (4Z+2): the low two bits are
+  // fixed (01 & 10 = 00), so the walker recovers the sound 4Z+0.
   cn_bump_frame_id frame = cn_bump_get_frame_id();
   auto* state = bennet_absint_state_create();
   cn_sym a = cn_sym_from_string("a");
@@ -766,7 +766,7 @@ TEST_F(LibBennet, CongrForwardBwAndTop) {
 
   bennet_tagged_domain result =
       bennet_congr_transform_forward(cn_smt_bw_and(u8_sym(a), u8_sym(b)), state);
-  EXPECT_TRUE(bennet_tagged_domain_is_top_congr(&result));
+  expect_congr_u8(result, 4, 0);
 
   bennet_absint_state_free(state);
   cn_bump_free_after(frame);

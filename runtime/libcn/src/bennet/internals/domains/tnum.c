@@ -1047,27 +1047,58 @@ static tnum_generic tnum_generic_lshr(tnum_generic* a, tnum_generic* b) {
   };
 }
 
+/* Multiplication (our_mul, = Linux kernel tnum_mul): an O(width) shift-add.
+ * P (=a) is the multiplier walked bit-by-bit; Q (=b) is shifted left
+ * each step. A known-1 multiplier bit contributes Q's unknown mask; an unknown
+ * multiplier bit contributes all of Q's possible bits (value | mask); a known-0
+ * bit contributes nothing. The known product of the two known-value parts is the
+ * accumulator's seed. Sound for all inputs (not optimal). Const*const and mul-by-0
+ * fall out as the degenerate no-unknown cases, and a top operand can still yield a
+ * precise result (e.g. top * 4 = the multiples of 4), so there is NO is_top early
+ * return -- only the is_bottom guard. */
 static tnum_generic tnum_generic_mul(tnum_generic* a, tnum_generic* b) {
   if (a->is_bottom || b->is_bottom)
     return tnum_generic_bottom(a->width, a->is_signed);
-  if (a->is_top || b->is_top)
-    return tnum_generic_top(a->width, a->is_signed);
 
-  /* If both are constants, result is constant */
-  if (a->mask == 0 && b->mask == 0) {
-    uint64_t fm = tnum_full_mask(a->width);
-    uint64_t value = (a->value * b->value) & fm;
-    return tnum_generic_const(a->width, a->is_signed, value);
+  uint64_t fm = tnum_full_mask(a->width);
+  int width = a->width;
+  bool is_signed = a->is_signed;
+
+  /* P = a, Q = b. All shifts here are LOGICAL on the bit pattern (the multiplier
+   * walk is sign-agnostic): do NOT route through tnum_generic_lshr, which
+   * arithmetic-shifts signed operands. */
+  uint64_t pv = a->value & fm, pm = a->mask & fm;
+  uint64_t qv = b->value & fm, qm = b->mask & fm;
+
+  tnum_generic acc = tnum_generic_const(width, is_signed, (pv * qv) & fm);
+
+  while ((pv | pm) != 0) {
+    if (pv & 1) {
+      /* low bit known 1: add T(0, qm) */
+      tnum_generic partial = {.is_top = false,
+          .is_bottom = false,
+          .is_signed = is_signed,
+          .width = width,
+          .value = 0,
+          .mask = qm};
+      acc = tnum_generic_add(&acc, &partial);
+    } else if (pm & 1) {
+      /* low bit unknown: add T(0, qv | qm) */
+      tnum_generic partial = {.is_top = false,
+          .is_bottom = false,
+          .is_signed = is_signed,
+          .width = width,
+          .value = 0,
+          .mask = (qv | qm) & fm};
+      acc = tnum_generic_add(&acc, &partial);
+    }
+    pv >>= 1;
+    pm >>= 1;
+    qv = (qv << 1) & fm;
+    qm = (qm << 1) & fm;
   }
 
-  /* Multiplication by 0 */
-  if (a->mask == 0 && a->value == 0)
-    return tnum_generic_const(a->width, a->is_signed, 0);
-  if (b->mask == 0 && b->value == 0)
-    return tnum_generic_const(a->width, a->is_signed, 0);
-
-  /* Conservative: return top for non-constant multiplication */
-  return tnum_generic_top(a->width, a->is_signed);
+  return acc;
 }
 
 static tnum_generic tnum_generic_div(tnum_generic* a, tnum_generic* b) {
@@ -1380,6 +1411,11 @@ static bennet_absint_eval_tnum tnum_basis_forward_binop(cn_binop op,
         /* Boolean result: could be true or false */
         result = tnum_generic_top(1, false);
         return tnum_eval_of(result_type, result);
+      case CN_BINOP_MUL:
+      case CN_BINOP_MULNOSMT:
+        /* our_mul stays precise with a top operand (e.g. top * 4 = the multiples
+         * of 4), so fall through to the main dispatch instead of returning top. */
+        break;
       default:
         result = tnum_generic_top(width, is_signed);
         return tnum_eval_of(result_type, result);

@@ -240,6 +240,7 @@ const TermEntry kNumericOneSym[] = {
     {"x&0x0F", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_and(x, u8_const(0x0F)); }},
     {"x|0x11", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_or(x, u8_const(0x11)); }},
     {"x^0x3C", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_xor(x, u8_const(0x3C)); }},
+    {"compl(x)", 1, +[](cn_term* x, cn_term*) { return cn_smt_bw_compl(x); }},
     // Node coverage: WRAPI (modular conversion; == CAST for absint) and
     // LET (forward-only binding overlay).
     {"wrapi8(x+3)",
@@ -711,5 +712,65 @@ TEST_F(AbsintOracle, GoldenCardinalities) {
         cn_smt_let(t, cn_smt_add(x, u8_const(3)), cn_smt_mul(t_sym, u8_const(2)));
     bennet_tagged_domain out = bennet_wint_transform_forward(let_term, st);
     EXPECT_EQ(gamma_card_u8(kDomains[1], &out), 43);
+  }
+
+  // tnum: x * 4 from top (T-MUL / our_mul). The shift-add recovers the low two
+  // known-0 bits even from a top operand -> the exact multiples of 4 -> 64
+  // values (was top/256; equivalent to x<<2).
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    bennet_tagged_domain out =
+        bennet_tnum_transform_forward(cn_smt_mul(x, u8_const(4)), st);
+    EXPECT_EQ(gamma_card_u8(kDomains[2], &out), 64);
+  }
+
+  // tnum: {0,1} * 6 from a bound input (T-MUL unknown-bit path): {0,6} <= T(0,6)
+  // (bit 0 known 0, bits 1-2 unknown) -> 4 values.
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    st = bennet_absint_state_set_tnum(st, asym(sx), tagged_tnum_u8(0, 1));
+    bennet_tagged_domain out =
+        bennet_tnum_transform_forward(cn_smt_mul(x, u8_const(6)), st);
+    EXPECT_EQ(gamma_card_u8(kDomains[2], &out), 4);
+  }
+
+  // congr: x * 4 from top (mul-stride): the general gcd formula recovers 4Z+0
+  // from a top operand -> 64 values (was top/256; the dropped is_top early
+  // return discarded this).
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    bennet_tagged_domain out =
+        bennet_congr_transform_forward(cn_smt_mul(x, u8_const(4)), st);
+    EXPECT_EQ(gamma_card_u8(kDomains[0], &out), 64);
+  }
+
+  // congr: (4Z+1) ^ 2 (bitwise, formerly default->top): XOR preserves the
+  // 2^2 alignment exactly -> 4Z+3 -> 64 values.
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    st = bennet_absint_state_set_congr(st, asym(sx), tagged_congr_u8(4, 1));
+    bennet_tagged_domain out =
+        bennet_congr_transform_forward(cn_smt_bw_xor(x, u8_const(0x02)), st);
+    EXPECT_EQ(gamma_card_u8(kDomains[0], &out), 64);
+  }
+
+  // congr: ~(4Z+1) (BW_Compl, formerly default->top): ~x = -x-1 preserves the
+  // modulus -> 4Z+2 -> 64 values.
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    st = bennet_absint_state_set_congr(st, asym(sx), tagged_congr_u8(4, 1));
+    bennet_tagged_domain out = bennet_congr_transform_forward(cn_smt_bw_compl(x), st);
+    EXPECT_EQ(gamma_card_u8(kDomains[0], &out), 64);
+  }
+
+  // congr: {7} % 4 (singleton-dividend mod): exact remainder {3} -> 1 value
+  // (the general path would give the coarser 4Z+3).
+  {
+    bennet_absint_state* st = bennet_absint_state_create();
+    st = bennet_absint_state_set_congr(st, asym(sx), tagged_congr_u8(0, 7));
+    bennet_tagged_domain out =
+        bennet_congr_transform_forward(cn_smt_mod(x, u8_const(4)), st);
+    EXPECT_EQ(gamma_card_u8(kDomains[0], &out), 1);
+    EXPECT_TRUE(kDomains[0].check(3, &out));
   }
 }

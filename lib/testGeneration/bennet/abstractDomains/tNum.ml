@@ -449,21 +449,40 @@ module TristateBasis = struct
         of_tnum t.bt value mask))
 
 
-  (* Forward multiplication - conservative approximation *)
+  (* Forward multiplication (our_mul, = Linux kernel tnum_mul): an O(width)
+     shift-add. P = t1 is the multiplier walked bit-by-bit; Q = t2 is
+     shifted left each step. A known-1 multiplier bit contributes Q's unknown mask;
+     an unknown bit contributes all of Q's possible bits (value | mask); a known-0
+     bit contributes nothing. The known product of the known-value parts seeds the
+     accumulator. Sound for all inputs (not optimal). Const*const and mul-by-0 fall
+     out as the degenerate no-unknown cases, and a top operand can still produce a
+     precise result (e.g. top * 4 = the multiples of 4).
+
+     All shifts are LOGICAL on the (non-negative, width-masked) bit pattern: the
+     multiplier walk is sign-agnostic. Do NOT use tnum_lshr, which arithmetic-shifts
+     signed operands. *)
   let tnum_mul t1 t2 =
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
-    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then (
-      (* Both constants *)
+    else (
       let fm = full_mask t1.bt in
-      of_const t1.bt (Z.logand (Z.mul t1.value t2.value) fm))
-    else if Z.equal t1.mask Z.zero && Z.equal t1.value Z.zero then (* t1 is 0 *)
-      of_const t1.bt Z.zero
-    else if Z.equal t2.mask Z.zero && Z.equal t2.value Z.zero then (* t2 is 0 *)
-      of_const t1.bt Z.zero
-    else (* Conservative: return top *)
-      top t1.bt
+      let pv = ref (Z.logand t1.value fm) in
+      let pm = ref (Z.logand t1.mask fm) in
+      let qv = ref (Z.logand t2.value fm) in
+      let qm = ref (Z.logand t2.mask fm) in
+      let acc = ref (of_const t1.bt (Z.logand (Z.mul !pv !qv) fm)) in
+      while not (Z.equal (Z.logor !pv !pm) Z.zero) do
+        if Z.equal (Z.logand !pv Z.one) Z.one then
+          acc := tnum_add !acc (of_tnum t1.bt Z.zero !qm)
+        else if Z.equal (Z.logand !pm Z.one) Z.one then
+          acc := tnum_add !acc (of_tnum t1.bt Z.zero (Z.logand (Z.logor !qv !qm) fm));
+        pv := Z.shift_right !pv 1;
+        pm := Z.shift_right !pm 1;
+        qv := Z.logand (Z.shift_left !qv 1) fm;
+        qm := Z.logand (Z.shift_left !qm 1) fm
+      done;
+      !acc)
 
 
   (* Forward division - conservative approximation *)

@@ -343,6 +343,25 @@ let test_lshr_top _ =
   assert_bool "lshr insufficient trailing zeros gives top" (CongruenceBasis.is_top r)
 
 
+let test_shl_ge_width _ =
+  (* Shift >= width is top (project-wide shift>=width = top); previously shl
+     returned the singleton {0}. *)
+  let t = CongruenceBasis.of_const test_bt (Z.of_int 5) in
+  let k = CongruenceBasis.of_const test_bt (Z.of_int 8) in
+  let r = CongruenceBasis.congr_shl t k in
+  assert_bool "shl by width is top" (CongruenceBasis.is_top r)
+
+
+let test_shl_huge_amount _ =
+  (* A 64-bit shift amount >= 2^62 exceeds native int; the clamp must return top
+     WITHOUT raising Z.Overflow from Z.to_int. *)
+  let bt64 = BT.Bits (Unsigned, 64) in
+  let t = CongruenceBasis.of_const bt64 (Z.of_int 5) in
+  let k = CongruenceBasis.of_const bt64 (Z.shift_left Z.one 62) in
+  let r = CongruenceBasis.congr_shl t k in
+  assert_bool "huge shl amount is top (no overflow)" (CongruenceBasis.is_top r)
+
+
 (* ---- Cast tests ---- *)
 
 let test_cast_truncation _ =
@@ -496,6 +515,8 @@ let suite =
          "shl" >:: test_shl;
          "lshr" >:: test_lshr;
          "lshr_top" >:: test_lshr_top;
+         "shl_ge_width" >:: test_shl_ge_width;
+         "shl_huge_amount" >:: test_shl_huge_amount;
          "cast_truncation" >:: test_cast_truncation;
          "cast_extension" >:: test_cast_extension;
          "backward_eq" >:: test_backward_eq;
