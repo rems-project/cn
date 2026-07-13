@@ -209,279 +209,308 @@ uintptr_t bennet_arbitrary_wint_uintptr_t(bennet_domain_wint(uintptr_t) * d) {
   ((start) <= (end) ? ((val) >= (start) && (val) <= (end))                               \
                     : ((val) >= (start) || (val) <= (end)))
 
+/**
+ * Internal structure for a generic wrapped interval.
+ * Values are stored as int64_t; signedness and width are tracked separately.
+ * Defined here, ahead of WINT_DOMAIN_IMPL's file-scope instantiations, so the
+ * per-type join can delegate to the shared hull wint_generic_join.
+ */
+typedef struct {
+  bool is_top;
+  bool is_bottom;
+  bool is_signed;
+  int width;
+  int64_t start;
+  int64_t stop;
+} wint_generic;
+
+static wint_generic wint_generic_join(wint_generic* g1, wint_generic* g2);
+
 // Generate complete abstract domain interface for each type
-#define WINT_DOMAIN_IMPL(cty)                                                                            \
-  bennet_domain_wint(cty) * bennet_domain_wint_top_##cty(void) {                                         \
-    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));                       \
-    assert(result);                                                                                      \
-    result->top = true;                                                                                  \
-    result->bottom = false;                                                                              \
-    result->start = BV_MIN(cty);                                                                         \
-    result->end = BV_MAX(cty);                                                                           \
-    return result;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  bennet_domain_wint(cty) * bennet_domain_wint_bottom_##cty(void) {                                      \
-    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));                       \
-    assert(result);                                                                                      \
-    result->top = false;                                                                                 \
-    result->bottom = true;                                                                               \
-    result->start = 0;                                                                                   \
-    result->end = 0;                                                                                     \
-    return result;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  bennet_domain_wint(cty) * bennet_domain_wint_of_##cty(cty start, cty end) {                            \
-    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));                       \
-    assert(result);                                                                                      \
-    result->top = false;                                                                                 \
-    result->bottom = false;                                                                              \
-    result->start = start;                                                                               \
-    result->end = end;                                                                                   \
-    return result;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  bool bennet_domain_wint_is_top_##cty(bennet_domain_wint(cty) * d) {                                    \
-    return d->top;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  bool bennet_domain_wint_is_bottom_##cty(bennet_domain_wint(cty) * d) {                                 \
-    return d->bottom;                                                                                    \
-  }                                                                                                      \
-                                                                                                         \
-  bool bennet_domain_wint_equal_##cty(                                                                   \
-      bennet_domain_wint(cty) * d1, bennet_domain_wint(cty) * d2) {                                      \
-    if (d1->top && d2->top)                                                                              \
-      return true;                                                                                       \
-    if (d1->bottom && d2->bottom)                                                                        \
-      return true;                                                                                       \
-    if (d1->top || d1->bottom || d2->top || d2->bottom)                                                  \
-      return false;                                                                                      \
-    return d1->start == d2->start && d1->end == d2->end;                                                 \
-  }                                                                                                      \
-                                                                                                         \
-  bool bennet_domain_wint_leq_##cty(                                                                     \
-      bennet_domain_wint(cty) * d1, bennet_domain_wint(cty) * d2) {                                      \
-    if (d1->bottom)                                                                                      \
-      return true;                                                                                       \
-    if (d2->top)                                                                                         \
-      return true;                                                                                       \
-    if (d1->top && !d2->top)                                                                             \
-      return false;                                                                                      \
-    if (d2->bottom)                                                                                      \
-      return false;                                                                                      \
-                                                                                                         \
-    /* Check if d1 interval is contained in d2 interval */                                               \
-    if (d2->start <= d2->end) {                                                                          \
-      /* d2 is normal interval [start, end] */                                                           \
-      if (d1->start <= d1->end) {                                                                        \
-        /* d1 is normal interval - check containment */                                                  \
-        return d1->start >= d2->start && d1->end <= d2->end;                                             \
-      } else {                                                                                           \
-        /* d1 is wrapped interval - never contained in normal interval */                                \
-        return false;                                                                                    \
-      }                                                                                                  \
-    } else {                                                                                             \
-      /* d2 is wrapped interval (MIN, end] ∪ [start, MAX) */                                             \
-      if (d1->start <= d1->end) {                                                                        \
-        /* d1 is normal - check if contained in either part */                                           \
-        return (d1->start >= d2->start) || (d1->end <= d2->end);                                         \
-      } else {                                                                                           \
-        /* d1 is wrapped - check if start >= d2->start and end <= d2->end */                             \
-        return d1->start >= d2->start && d1->end <= d2->end;                                             \
-      }                                                                                                  \
-    }                                                                                                    \
-  }                                                                                                      \
-                                                                                                         \
-  bennet_domain_wint(cty) * bennet_domain_wint_join_##cty(bennet_domain_wint(cty) * d1,                  \
-                                bennet_domain_wint(cty) * d2) {                                          \
-    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));                       \
-    assert(result);                                                                                      \
-                                                                                                         \
-    if (d1->top || d2->top) {                                                                            \
-      result->top = true;                                                                                \
-      result->bottom = false;                                                                            \
-      result->start = BV_MIN(cty);                                                                       \
-      result->end = BV_MAX(cty);                                                                         \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    if (d1->bottom) {                                                                                    \
-      *result = *d2;                                                                                     \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    if (d2->bottom) {                                                                                    \
-      *result = *d1;                                                                                     \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    /* For simplicity, conservative join: if intervals don't trivially contain each other, return top */ \
-    if (bennet_domain_wint_leq_##cty(d1, d2)) {                                                          \
-      *result = *d2;                                                                                     \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    if (bennet_domain_wint_leq_##cty(d2, d1)) {                                                          \
-      *result = *d1;                                                                                     \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    /* Conservative: return top for complex cases */                                                     \
-    result->top = true;                                                                                  \
-    result->bottom = false;                                                                              \
-    result->start = BV_MIN(cty);                                                                         \
-    result->end = BV_MAX(cty);                                                                           \
-    return result;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  bennet_domain_wint(cty) * bennet_domain_wint_meet_##cty(bennet_domain_wint(cty) * d1,                  \
-                                bennet_domain_wint(cty) * d2) {                                          \
-    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));                       \
-    assert(result);                                                                                      \
-                                                                                                         \
-    if (d1->bottom || d2->bottom) {                                                                      \
-      result->top = false;                                                                               \
-      result->bottom = true;                                                                             \
-      result->start = 0;                                                                                 \
-      result->end = 0;                                                                                   \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    if (d1->top) {                                                                                       \
-      *result = *d2;                                                                                     \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    if (d2->top) {                                                                                       \
-      *result = *d1;                                                                                     \
-      return result;                                                                                     \
-    }                                                                                                    \
-                                                                                                         \
-    /* Use unsigned arithmetic for wrapped interval meet */                                              \
-    uint64_t a = (uint64_t)d1->start;                                                                    \
-    uint64_t b = (uint64_t)d1->end;                                                                      \
-    uint64_t c = (uint64_t)d2->start;                                                                    \
-    uint64_t d = (uint64_t)d2->end;                                                                      \
-    int w = (int)(sizeof(cty) * 8);                                                                      \
-    uint64_t mask = (w >= 64) ? UINT64_MAX : ((uint64_t)1 << w) - 1;                                     \
-    a &= mask;                                                                                           \
-    b &= mask;                                                                                           \
-    c &= mask;                                                                                           \
-    d &= mask;                                                                                           \
-                                                                                                         \
-    /* Membership check: v in [s,e] iff (v-s) mod 2^w <= (e-s) mod 2^w */                                \
-    uint64_t ab = (b - a) & mask;                                                                        \
-    uint64_t cd = (d - c) & mask;                                                                        \
-                                                                                                         \
-    bool a_in_cd = ((a - c) & mask) <= cd;                                                               \
-    bool b_in_cd = ((b - c) & mask) <= cd;                                                               \
-    bool c_in_ab = ((c - a) & mask) <= ab;                                                               \
-    bool d_in_ab = ((d - a) & mask) <= ab;                                                               \
-                                                                                                         \
-    bool g1_in_g2 = a_in_cd && b_in_cd;                                                                  \
-    bool g2_in_g1 = c_in_ab && d_in_ab;                                                                  \
-                                                                                                         \
-    result->top = false;                                                                                 \
-    result->bottom = false;                                                                              \
-                                                                                                         \
-    if (g1_in_g2 && g2_in_g1) {                                                                          \
-      /* Both contain each other - return smaller cardinality */                                         \
-      if (ab <= cd) {                                                                                    \
-        result->start = d1->start;                                                                       \
-        result->end = d1->end;                                                                           \
-      } else {                                                                                           \
-        result->start = d2->start;                                                                       \
-        result->end = d2->end;                                                                           \
-      }                                                                                                  \
-    } else if (g1_in_g2) {                                                                               \
-      result->start = d1->start;                                                                         \
-      result->end = d1->end;                                                                             \
-    } else if (g2_in_g1) {                                                                               \
-      result->start = d2->start;                                                                         \
-      result->end = d2->end;                                                                             \
-    } else if (c_in_ab) {                                                                                \
-      /* Overlapping: c is in [a,b] */                                                                   \
-      result->start = d2->start;                                                                         \
-      result->end = d1->end;                                                                             \
-    } else if (a_in_cd) {                                                                                \
-      /* Overlapping: a is in [c,d] */                                                                   \
-      result->start = d1->start;                                                                         \
-      result->end = d2->end;                                                                             \
-    } else {                                                                                             \
-      /* Disjoint */                                                                                     \
-      result->top = false;                                                                               \
-      result->bottom = true;                                                                             \
-      result->start = 0;                                                                                 \
-      result->end = 0;                                                                                   \
-    }                                                                                                    \
-                                                                                                         \
-    return result;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  bennet_domain_wint(cty) * bennet_domain_wint_copy_##cty(bennet_domain_wint(cty) * d) {                 \
-    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));                       \
-    assert(result);                                                                                      \
-    *result = *d;                                                                                        \
-    return result;                                                                                       \
-  }                                                                                                      \
-                                                                                                         \
-  cty bennet_domain_wint_arbitrary_##cty(bennet_domain_wint(cty) * d) {                                  \
-    return bennet_arbitrary_wint_##cty(d);                                                               \
-  }                                                                                                      \
-                                                                                                         \
-  bool bennet_domain_wint_check_##cty(cty v, bennet_domain_wint(cty) * d) {                              \
-    if (d->bottom) {                                                                                     \
-      return false;                                                                                      \
-    }                                                                                                    \
-                                                                                                         \
-    if (d->top) {                                                                                        \
-      return true;                                                                                       \
-    }                                                                                                    \
-                                                                                                         \
-    if (d->start <= d->end) {                                                                            \
-      return d->start <= v && v <= d->end;                                                               \
-    }                                                                                                    \
-                                                                                                         \
-    return d->start <= v || v <= d->end;                                                                 \
-  }                                                                                                      \
-                                                                                                         \
-  bool bennet_domain_wint_to_interval_##cty(                                                             \
-      bennet_domain_wint(cty) * d, cty * lo_out, cty * hi_out) {                                         \
-    if (d->top || d->bottom) {                                                                           \
-      return false;                                                                                      \
-    }                                                                                                    \
-    /* Wrapping interval: start > end means the interval wraps around */                                 \
-    if (d->start > d->end) {                                                                             \
-      return false;                                                                                      \
-    }                                                                                                    \
-    *lo_out = d->start;                                                                                  \
-    *hi_out = d->end;                                                                                    \
-    return true;                                                                                         \
-  }                                                                                                      \
-                                                                                                         \
-  bennet_domain_wint(cty) * bennet_domain_wint_from_assignment_##cty(                                    \
-                                void* base_ptr, void* addr, size_t bytes) {                              \
-    if (sizeof(cty) == sizeof(uintptr_t) && bytes > 0) {                                                 \
-      uintptr_t min_ptr = (uintptr_t)bennet_rand_alloc_min_ptr();                                        \
-      uintptr_t max_ptr = (uintptr_t)bennet_rand_alloc_max_ptr();                                        \
-      uintptr_t offset = (uintptr_t)addr - (uintptr_t)base_ptr;                                          \
-      /* Check for underflow: if offset > min_ptr, lo wraps */                                           \
-      if (offset > min_ptr) {                                                                            \
-        return bennet_domain_wint_top_##cty();                                                           \
-      }                                                                                                  \
-      uintptr_t lo = min_ptr - offset;                                                                   \
-      /* Check for underflow: if offset + bytes - 1 > max_ptr, hi wraps */                               \
-      if (offset + bytes - 1 > max_ptr) {                                                                \
-        return bennet_domain_wint_top_##cty();                                                           \
-      }                                                                                                  \
-      uintptr_t hi = max_ptr - offset - bytes + 1;                                                       \
-      if (hi < lo) {                                                                                     \
-        return bennet_domain_wint_top_##cty();                                                           \
-      }                                                                                                  \
-      return bennet_domain_wint_of_##cty((cty)lo, (cty)hi);                                              \
-    }                                                                                                    \
-    return bennet_domain_wint_top_##cty();                                                               \
+#define WINT_DOMAIN_IMPL(cty)                                                            \
+  bennet_domain_wint(cty) * bennet_domain_wint_top_##cty(void) {                         \
+    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));       \
+    assert(result);                                                                      \
+    result->top = true;                                                                  \
+    result->bottom = false;                                                              \
+    result->start = BV_MIN(cty);                                                         \
+    result->end = BV_MAX(cty);                                                           \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain_wint(cty) * bennet_domain_wint_bottom_##cty(void) {                      \
+    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));       \
+    assert(result);                                                                      \
+    result->top = false;                                                                 \
+    result->bottom = true;                                                               \
+    result->start = 0;                                                                   \
+    result->end = 0;                                                                     \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain_wint(cty) * bennet_domain_wint_of_##cty(cty start, cty end) {            \
+    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));       \
+    assert(result);                                                                      \
+    result->top = false;                                                                 \
+    result->bottom = false;                                                              \
+    result->start = start;                                                               \
+    result->end = end;                                                                   \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bool bennet_domain_wint_is_top_##cty(bennet_domain_wint(cty) * d) {                    \
+    return d->top;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bool bennet_domain_wint_is_bottom_##cty(bennet_domain_wint(cty) * d) {                 \
+    return d->bottom;                                                                    \
+  }                                                                                      \
+                                                                                         \
+  bool bennet_domain_wint_equal_##cty(                                                   \
+      bennet_domain_wint(cty) * d1, bennet_domain_wint(cty) * d2) {                      \
+    if (d1->top && d2->top)                                                              \
+      return true;                                                                       \
+    if (d1->bottom && d2->bottom)                                                        \
+      return true;                                                                       \
+    if (d1->top || d1->bottom || d2->top || d2->bottom)                                  \
+      return false;                                                                      \
+    return d1->start == d2->start && d1->end == d2->end;                                 \
+  }                                                                                      \
+                                                                                         \
+  bool bennet_domain_wint_leq_##cty(                                                     \
+      bennet_domain_wint(cty) * d1, bennet_domain_wint(cty) * d2) {                      \
+    if (d1->bottom)                                                                      \
+      return true;                                                                       \
+    if (d2->top)                                                                         \
+      return true;                                                                       \
+    if (d1->top && !d2->top)                                                             \
+      return false;                                                                      \
+    if (d2->bottom)                                                                      \
+      return false;                                                                      \
+                                                                                         \
+    /* Check if d1 interval is contained in d2 interval */                               \
+    if (d2->start <= d2->end) {                                                          \
+      /* d2 is normal interval [start, end] */                                           \
+      if (d1->start <= d1->end) {                                                        \
+        /* d1 is normal interval - check containment */                                  \
+        return d1->start >= d2->start && d1->end <= d2->end;                             \
+      } else {                                                                           \
+        /* d1 is wrapped interval - never contained in normal interval */                \
+        return false;                                                                    \
+      }                                                                                  \
+    } else {                                                                             \
+      /* d2 is wrapped interval (MIN, end] ∪ [start, MAX) */                             \
+      if (d1->start <= d1->end) {                                                        \
+        /* d1 is normal - check if contained in either part */                           \
+        return (d1->start >= d2->start) || (d1->end <= d2->end);                         \
+      } else {                                                                           \
+        /* d1 is wrapped - check if start >= d2->start and end <= d2->end */             \
+        return d1->start >= d2->start && d1->end <= d2->end;                             \
+      }                                                                                  \
+    }                                                                                    \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain_wint(cty) * bennet_domain_wint_join_##cty(bennet_domain_wint(cty) * d1,  \
+                                bennet_domain_wint(cty) * d2) {                          \
+    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));       \
+    assert(result);                                                                      \
+                                                                                         \
+    if (d1->top || d2->top) {                                                            \
+      result->top = true;                                                                \
+      result->bottom = false;                                                            \
+      result->start = BV_MIN(cty);                                                       \
+      result->end = BV_MAX(cty);                                                         \
+      return result;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    if (d1->bottom) {                                                                    \
+      *result = *d2;                                                                     \
+      return result;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    if (d2->bottom) {                                                                    \
+      *result = *d1;                                                                     \
+      return result;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    /* Delegate to the shared hull wint_generic_join (see note above). The     \
+     * hull operates on the modular ring (width only); is_signed is consulted  \
+     * solely to shape a top result's start/stop, which we overwrite with      \
+     * BV_MIN/BV_MAX(cty) below, so it is left false here. */         \
+    int w = (int)(sizeof(cty) * 8);                                                      \
+    wint_generic g1 = {0};                                                               \
+    g1.is_top = d1->top;                                                                 \
+    g1.is_bottom = d1->bottom;                                                           \
+    g1.width = w;                                                                        \
+    g1.start = (int64_t)d1->start;                                                       \
+    g1.stop = (int64_t)d1->end;                                                          \
+    wint_generic g2 = {0};                                                               \
+    g2.is_top = d2->top;                                                                 \
+    g2.is_bottom = d2->bottom;                                                           \
+    g2.width = w;                                                                        \
+    g2.start = (int64_t)d2->start;                                                       \
+    g2.stop = (int64_t)d2->end;                                                          \
+                                                                                         \
+    wint_generic j = wint_generic_join(&g1, &g2);                                        \
+    result->top = j.is_top;                                                              \
+    result->bottom = j.is_bottom;                                                        \
+    if (j.is_top) {                                                                      \
+      result->start = BV_MIN(cty);                                                       \
+      result->end = BV_MAX(cty);                                                         \
+    } else {                                                                             \
+      result->start = (cty)j.start;                                                      \
+      result->end = (cty)j.stop;                                                         \
+    }                                                                                    \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain_wint(cty) * bennet_domain_wint_meet_##cty(bennet_domain_wint(cty) * d1,  \
+                                bennet_domain_wint(cty) * d2) {                          \
+    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));       \
+    assert(result);                                                                      \
+                                                                                         \
+    if (d1->bottom || d2->bottom) {                                                      \
+      result->top = false;                                                               \
+      result->bottom = true;                                                             \
+      result->start = 0;                                                                 \
+      result->end = 0;                                                                   \
+      return result;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    if (d1->top) {                                                                       \
+      *result = *d2;                                                                     \
+      return result;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    if (d2->top) {                                                                       \
+      *result = *d1;                                                                     \
+      return result;                                                                     \
+    }                                                                                    \
+                                                                                         \
+    /* Use unsigned arithmetic for wrapped interval meet */                              \
+    uint64_t a = (uint64_t)d1->start;                                                    \
+    uint64_t b = (uint64_t)d1->end;                                                      \
+    uint64_t c = (uint64_t)d2->start;                                                    \
+    uint64_t d = (uint64_t)d2->end;                                                      \
+    int w = (int)(sizeof(cty) * 8);                                                      \
+    uint64_t mask = (w >= 64) ? UINT64_MAX : ((uint64_t)1 << w) - 1;                     \
+    a &= mask;                                                                           \
+    b &= mask;                                                                           \
+    c &= mask;                                                                           \
+    d &= mask;                                                                           \
+                                                                                         \
+    /* Membership check: v in [s,e] iff (v-s) mod 2^w <= (e-s) mod 2^w */                \
+    uint64_t ab = (b - a) & mask;                                                        \
+    uint64_t cd = (d - c) & mask;                                                        \
+                                                                                         \
+    bool a_in_cd = ((a - c) & mask) <= cd;                                               \
+    bool b_in_cd = ((b - c) & mask) <= cd;                                               \
+    bool c_in_ab = ((c - a) & mask) <= ab;                                               \
+    bool d_in_ab = ((d - a) & mask) <= ab;                                               \
+                                                                                         \
+    bool g1_in_g2 = a_in_cd && b_in_cd;                                                  \
+    bool g2_in_g1 = c_in_ab && d_in_ab;                                                  \
+                                                                                         \
+    result->top = false;                                                                 \
+    result->bottom = false;                                                              \
+                                                                                         \
+    if (g1_in_g2 && g2_in_g1) {                                                          \
+      /* Both contain each other - return smaller cardinality */                         \
+      if (ab <= cd) {                                                                    \
+        result->start = d1->start;                                                       \
+        result->end = d1->end;                                                           \
+      } else {                                                                           \
+        result->start = d2->start;                                                       \
+        result->end = d2->end;                                                           \
+      }                                                                                  \
+    } else if (g1_in_g2) {                                                               \
+      result->start = d1->start;                                                         \
+      result->end = d1->end;                                                             \
+    } else if (g2_in_g1) {                                                               \
+      result->start = d2->start;                                                         \
+      result->end = d2->end;                                                             \
+    } else if (c_in_ab) {                                                                \
+      /* Overlapping: c is in [a,b] */                                                   \
+      result->start = d2->start;                                                         \
+      result->end = d1->end;                                                             \
+    } else if (a_in_cd) {                                                                \
+      /* Overlapping: a is in [c,d] */                                                   \
+      result->start = d1->start;                                                         \
+      result->end = d2->end;                                                             \
+    } else {                                                                             \
+      /* Disjoint */                                                                     \
+      result->top = false;                                                               \
+      result->bottom = true;                                                             \
+      result->start = 0;                                                                 \
+      result->end = 0;                                                                   \
+    }                                                                                    \
+                                                                                         \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain_wint(cty) * bennet_domain_wint_copy_##cty(bennet_domain_wint(cty) * d) { \
+    bennet_domain_wint(cty)* result = std_malloc(sizeof(bennet_domain_wint(cty)));       \
+    assert(result);                                                                      \
+    *result = *d;                                                                        \
+    return result;                                                                       \
+  }                                                                                      \
+                                                                                         \
+  cty bennet_domain_wint_arbitrary_##cty(bennet_domain_wint(cty) * d) {                  \
+    return bennet_arbitrary_wint_##cty(d);                                               \
+  }                                                                                      \
+                                                                                         \
+  bool bennet_domain_wint_check_##cty(cty v, bennet_domain_wint(cty) * d) {              \
+    if (d->bottom) {                                                                     \
+      return false;                                                                      \
+    }                                                                                    \
+                                                                                         \
+    if (d->top) {                                                                        \
+      return true;                                                                       \
+    }                                                                                    \
+                                                                                         \
+    if (d->start <= d->end) {                                                            \
+      return d->start <= v && v <= d->end;                                               \
+    }                                                                                    \
+                                                                                         \
+    return d->start <= v || v <= d->end;                                                 \
+  }                                                                                      \
+                                                                                         \
+  bool bennet_domain_wint_to_interval_##cty(                                             \
+      bennet_domain_wint(cty) * d, cty * lo_out, cty * hi_out) {                         \
+    if (d->top || d->bottom) {                                                           \
+      return false;                                                                      \
+    }                                                                                    \
+    /* Wrapping interval: start > end means the interval wraps around */                 \
+    if (d->start > d->end) {                                                             \
+      return false;                                                                      \
+    }                                                                                    \
+    *lo_out = d->start;                                                                  \
+    *hi_out = d->end;                                                                    \
+    return true;                                                                         \
+  }                                                                                      \
+                                                                                         \
+  bennet_domain_wint(cty) * bennet_domain_wint_from_assignment_##cty(                    \
+                                void* base_ptr, void* addr, size_t bytes) {              \
+    if (sizeof(cty) == sizeof(uintptr_t) && bytes > 0) {                                 \
+      uintptr_t min_ptr = (uintptr_t)bennet_rand_alloc_min_ptr();                        \
+      uintptr_t max_ptr = (uintptr_t)bennet_rand_alloc_max_ptr();                        \
+      uintptr_t offset = (uintptr_t)addr - (uintptr_t)base_ptr;                          \
+      /* Check for underflow: if offset > min_ptr, lo wraps */                           \
+      if (offset > min_ptr) {                                                            \
+        return bennet_domain_wint_top_##cty();                                           \
+      }                                                                                  \
+      uintptr_t lo = min_ptr - offset;                                                   \
+      /* Check for underflow: if offset + bytes - 1 > max_ptr, hi wraps */               \
+      if (offset + bytes - 1 > max_ptr) {                                                \
+        return bennet_domain_wint_top_##cty();                                           \
+      }                                                                                  \
+      uintptr_t hi = max_ptr - offset - bytes + 1;                                       \
+      if (hi < lo) {                                                                     \
+        return bennet_domain_wint_top_##cty();                                           \
+      }                                                                                  \
+      return bennet_domain_wint_of_##cty((cty)lo, (cty)hi);                              \
+    }                                                                                    \
+    return bennet_domain_wint_top_##cty();                                               \
   }
 
 WINT_DOMAIN_IMPL(uint8_t)
@@ -844,18 +873,8 @@ static inline bool wint_is_msb_zero(int64_t value, int width) {
  * Tagged Domain Implementation
  *---------------------------------------------------------------------------*/
 
-/**
- * Internal structure for a generic wrapped interval.
- * We use uint64_t to store values and track signedness separately.
- */
-typedef struct {
-  bool is_top;
-  bool is_bottom;
-  bool is_signed;
-  int width;
-  int64_t start;
-  int64_t stop;
-} wint_generic;
+/* wint_generic is defined near the top of this file (ahead of
+ * WINT_DOMAIN_IMPL) so the per-type join can delegate to wint_generic_join. */
 
 /**
  * Convert between tagged domains and the generic form.
@@ -1029,10 +1048,19 @@ static wint_generic wint_generic_join(wint_generic* g1, wint_generic* g2) {
   bool g2_in_g1 = wint_member(c, a, b, w) && wint_member(d, a, b, w);
 
   if (g1_in_g2 && g2_in_g1) {
-    // Both cover each other - return top
-    result.is_top = true;
-    result.start = wint_get_min(g1->is_signed, g1->width);
-    result.stop = wint_get_max(g1->is_signed, g1->width);
+    // Mutual containment => the two intervals denote the same set; keep it
+    // (smaller-cardinality representative, mirroring wint_generic_meet) rather
+    // than dropping to top, so join(X, X) = X. The is_top check below still
+    // promotes a genuinely full-range result.
+    uint64_t card1 = wint_cardinality(a, b, w);
+    uint64_t card2 = wint_cardinality(c, d, w);
+    if (card1 <= card2) {
+      result.start = a;
+      result.stop = b;
+    } else {
+      result.start = c;
+      result.stop = d;
+    }
   } else if (g2_in_g1) {
     result.start = a;
     result.stop = b;
