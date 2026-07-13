@@ -627,4 +627,38 @@ TEST_F(AbsintOracle, GoldenCardinalities) {
     EXPECT_EQ(gamma_card_u8(kDomains[1], &rx), 1);
     EXPECT_TRUE(kDomains[1].check(251, &rx));
   }
+
+  // OR-true join (join-rule fix witnesses): x==3 || x==7 from top. wint
+  // joins the branch singletons to the hull [3,7] (5 values); tnum keeps
+  // exactly {3,7} (one unknown bit, 2 values); congr generalizes the two
+  // constants to 4Z+3 (64 values). All were 256 before the join rules landed.
+  {
+    cn_term* cond = cn_smt_or(cn_smt_eq(x, u8_const(3)), cn_smt_eq(x, u8_const(7)));
+
+    bennet_absint_state* refined_w =
+        bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+    bennet_tagged_domain rw = bennet_absint_state_get_wint(refined_w, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[1], &rw), 5);
+
+    bennet_absint_state* refined_t =
+        bennet_tnum_transform_backward_assume(cond, true, bennet_absint_state_create());
+    bennet_tagged_domain rt = bennet_absint_state_get_tnum(refined_t, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[2], &rt), 2);
+
+    bennet_absint_state* refined_c =
+        bennet_congr_transform_backward_assume(cond, true, bennet_absint_state_create());
+    bennet_tagged_domain rc = bennet_absint_state_get_congr(refined_c, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[0], &rc), 64);
+  }
+
+  // AND-false join (join-rule fix witness): !(x<100 && x<50) puts x in the
+  // wint join of [100,255] and [50,255] = [50,255], 206 values (256
+  // before the join rules landed).
+  {
+    cn_term* cond = cn_smt_and(cn_smt_lt(x, u8_const(100)), cn_smt_lt(x, u8_const(50)));
+    bennet_absint_state* refined =
+        bennet_wint_transform_backward_assume(cond, false, bennet_absint_state_create());
+    bennet_tagged_domain rx = bennet_absint_state_get_wint(refined, asym(sx), &u8);
+    EXPECT_EQ(gamma_card_u8(kDomains[1], &rx), 206);
+  }
 }

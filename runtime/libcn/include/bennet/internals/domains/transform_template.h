@@ -10,12 +10,6 @@
  * instantiates the engine with token-pasting parameters:
  *
  *   #define ABSINT_DOM congr                  symbol prefix (required)
- *   #define ABSINT_ASSUME_LOGIC_OPS 1         1 = assume recurses through
- *                                             AND-true / OR-false;
- *                                             0 = AND/OR make no refinement
- *                                             (wint legacy parity, defect D1;
- *                                             the AND-false/OR-true join
- *                                             rules are future work)
  *   #include <bennet/internals/domains/transform.inc.c>
  *
  * Comparison refinements always push via collect-syms + one targeted
@@ -24,6 +18,12 @@
  * application and missing unsat protocol - defect D2 - were reproduced by
  * two further toggles during its mechanical port and removed again by its
  * precision commit.)
+ *
+ * Assume recurses through the logical structure for every domain: NOT flips
+ * the polarity, AND-true / OR-false thread the two branch assumptions, and
+ * AND-false / OR-true (formerly unhandled) take the pointwise
+ * join of the two branch assumptions over the term's symbols via the
+ * per-domain tagged join.
  *
  * The engine is deliberately a *parity* engine: it reproduces the exact
  * traversal, gating, and application order of the legacy walkers (verified

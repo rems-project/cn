@@ -363,6 +363,5 @@ static bennet_absint_cmp_result ownership_basis_assume_cmp(cn_binop op,
  * backward_assume}
  *---------------------------------------------------------------------------*/
 
-#define ABSINT_DOM              ownership
-#define ABSINT_ASSUME_LOGIC_OPS 1
+#define ABSINT_DOM ownership
 #include <bennet/internals/domains/transform.inc.c>

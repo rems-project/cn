@@ -1142,7 +1142,7 @@ BENNET_ABSINT_STATE_IMPL(congr)
  * These are the congr-specific transfer functions of the shared cn_term
  * walker engine; the traversal, gating, and refinement-application order
  * live in the template. Bodies are the former hand-written walkers' case
- * arms, unchanged (parity gated by test/bennet/absint_difftest.cpp).
+ * arms, unchanged (soundness gated by absint_oracle.cpp and absint_fuzz.cpp).
  *---------------------------------------------------------------------------*/
 
 #include <bennet/internals/domains/transform_template.h>
@@ -1517,6 +1517,5 @@ static bennet_absint_cmp_result congr_basis_assume_cmp(cn_binop op,
  * backward_assume}
  *---------------------------------------------------------------------------*/
 
-#define ABSINT_DOM              congr
-#define ABSINT_ASSUME_LOGIC_OPS 1
+#define ABSINT_DOM congr
 #include <bennet/internals/domains/transform.inc.c>
