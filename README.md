@@ -17,6 +17,15 @@ It builds on the [Cerberus C semantics](https://github.com/rems-project/cerberus
 <ul>
 
 <li>
+<a name="silver-fulminate-thesis">
+<a href="https://www.saljuk.com/research/silver-fulminate">Evaluating a Lua runtime for CN separation-logic testing in Fulminate</a>.
+Muhammad Saljuk Gondal. Thesis for MPhil at the University of Cambridge, 2026.
+[
+<a href="https://www.saljuk.com/research/silver-fulminate">pdf</a> 
+]
+</li>
+
+<li>
 <a name="code-spec-test-debug-prove-pldi26">
 <a href="https://www.cl.cam.ac.uk/~pes20/pldi2026-paper155-supplementary.pdf">Code-Specify-Test-Debug-Prove: Flexibly Integrating Separation Logic Specification into Conventional Workflows</a>.
 Zain K Aamer*, Rini Banerjee*, Hiroyuki Katsura*, David Kaloper-Meršinjak*, Dimitrios J. Economou, Kayvan Memarian, Dhruv Makwana, Neel Krishnaswami, Benjamin C Pierce, Christopher Pulte, Peter Sewell. In PLDI 2026. *these authors contributed equally
