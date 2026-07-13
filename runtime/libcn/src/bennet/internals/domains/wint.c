@@ -1910,11 +1910,10 @@ static bennet_tagged_domain wint_basis_forward_unop(
  * Legacy wint behaviors preserved at parity:
  *  - ABSINT_ASSUME_LOGIC_OPS 0: the legacy AND/OR handling was unreachable
  *    dead code (defect D1 - the comparison block returned for every binop),
- *    so assume makes no refinement through conjunctions/disjunctions;
- *  - backward unops descend with the output unchanged (including NEGATE -
- *    dubious but existing behavior, flagged for the P6 semantic pass);
- *  - backward ADD/SUB fall back to descending with the output unchanged
- *    when either side's bounds are top.
+ *    so assume makes no refinement through conjunctions/disjunctions.
+ * (The legacy descend-with-output-unchanged defaults for backward unops and
+ * for backward ADD/SUB with a top side were unsound over-refinement and were
+ * fixed in the P6 semantic pass; see the basis functions.)
  *---------------------------------------------------------------------------*/
 
 #include <bennet/internals/domains/transform_template.h>
@@ -2036,15 +2035,19 @@ static bennet_absint_bw_action wint_basis_backward_unop(cn_unop op,
     bennet_tagged_domain* operand_fwd,
     cn_base_type* operand_type,
     bennet_tagged_domain* down) {
-  /* Legacy behavior: propagate to the operand with the output unchanged for
-   * every unop (including NEGATE, whose forward transfer is precise - a
-   * suspected pre-existing imprecision/unsoundness pair kept at parity and
-   * flagged for the P6 semantic pass). */
-  (void)op;
   (void)operand_fwd;
-  (void)operand_type;
-  *down = *out;
-  return BENNET_ABSINT_BW_DESCEND;
+  switch (op) {
+    case CN_UNOP_NOT:
+    case CN_UNOP_NEGATE:
+    case CN_UNOP_BW_COMPL:
+      /* Self-inverse ops: out = op(x) => x = op(out), so the forward
+       * transfer applied to the output is a sound inverse image. */
+      *down = wint_basis_forward_unop(op, out, operand_type);
+      return BENNET_ABSINT_BW_DESCEND;
+    default:
+      /* No sound inversion (CLZ/CTZ/FFS/FLS). */
+      return BENNET_ABSINT_BW_STOP;
+  }
 }
 
 static bennet_absint_bw_action wint_basis_backward_binop(cn_binop op,
@@ -2086,15 +2089,11 @@ static bennet_absint_bw_action wint_basis_backward_binop(cn_binop op,
     return BENNET_ABSINT_BW_DESCEND;
   }
 
-  // Fallback: propagate output unchanged for ADD/SUB only
-  switch (op) {
-    case CN_BINOP_ADD:
-    case CN_BINOP_SUB:
-      *down = *out;
-      return BENNET_ABSINT_BW_DESCEND;
-    default:
-      return BENNET_ABSINT_BW_STOP;
-  }
+  /* No sound inversion when either side's bounds are top: out = target (+/-)
+   * other with `other` unconstrained puts no constraint on the target (the
+   * legacy descend-with-output-unchanged here over-refined, e.g.
+   * assume x+y == 5 with y top pinned x to 5). */
+  return BENNET_ABSINT_BW_STOP;
 }
 
 static bennet_absint_bw_action wint_basis_backward_cast(cn_base_type* src_type,
@@ -2256,9 +2255,10 @@ static bennet_absint_bw_action wint_basis_shift_backward(cn_term* term,
       }
     }
   }
-  // Fallback: propagate output unchanged
-  *down = *out;
-  return BENNET_ABSINT_BW_DESCEND;
+  // No sound inversion: the output carries the pointer (LOC) width, and pushing
+  // it un-narrowed into a narrower index type misaligns widths downstream
+  // (wint_generic_meet asserts equal widths).
+  return BENNET_ABSINT_BW_STOP;
 }
 
 static bennet_absint_cmp_result wint_basis_assume_cmp(cn_binop op,

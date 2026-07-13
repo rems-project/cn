@@ -1473,11 +1473,11 @@ static bennet_absint_bw_action congr_basis_shift_backward(cn_term* term,
         return BENNET_ABSINT_BW_DESCEND;
       }
     }
-    return BENNET_ABSINT_BW_STOP;
   }
-  /* Top output: fall back to descending with the output unchanged. */
-  *down = *out;
-  return BENNET_ABSINT_BW_DESCEND;
+  /* No sound index refinement: the output carries the pointer (LOC) width, and
+   * pushing it un-narrowed into a narrower index type would store a
+   * wrong-width tagged domain under the index symbol. */
+  return BENNET_ABSINT_BW_STOP;
 }
 
 static bennet_absint_cmp_result congr_basis_assume_cmp(cn_binop op,
