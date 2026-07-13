@@ -100,6 +100,18 @@ module Flags = struct
       & info ~docs:s_absint [ "dynamic-absint-assign" ] ~docv:"MODE" ~doc)
 
 
+  let dynamic_local_iterations =
+    let doc =
+      "Fuel for the runtime abstract-interpretation local-iteration loop (re-run assume \
+       refinement while the state changes). The default of 1 is single-pass; mirrors the \
+       static side's $(b,--local-iterations)."
+    in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.dynamic_local_iterations
+      & info ~docs:s_absint [ "dynamic-local-iterations" ] ~docv:"N" ~doc)
+
+
   let dynamic_arbitrary_domain =
     let doc = "Enable dynamic abstract domain refinement for arbitrary constraints" in
     Arg.(value & flag & info ~docs:s_absint [ "dynamic-arbitrary-domain" ] ~doc)
@@ -131,6 +143,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         smt_pruning_keep_redundant_assertions
         runtime_assert_domain
         dynamic_absint_assign
+        dynamic_local_iterations
         dynamic_arbitrary_domain
         dynamic_arbitrary_propagation
         dynamic_assert_domain
@@ -148,6 +161,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
       runtime_assert_domain;
       dynamic_absint_assign;
+      dynamic_local_iterations;
       dynamic_arbitrary_domain;
       dynamic_arbitrary_propagation;
       dynamic_assert_domain;
@@ -165,6 +179,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.runtime_assert_domain
     $ Flags.dynamic_absint_assign
+    $ Flags.dynamic_local_iterations
     $ Flags.dynamic_arbitrary_domain
     $ Flags.dynamic_arbitrary_propagation
     $ Flags.dynamic_assert_domain

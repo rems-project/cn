@@ -101,6 +101,14 @@ int bennet_absint_term_collect_syms(cn_term* term, bennet_absint_sym* syms, int 
  *  size/signedness; CN_BASE_LOC and anything else lower to unsigned 64. */
 void bennet_absint_type_info(cn_base_type* type, int* width, bool* is_signed);
 
+/** Fuel for the assume-side local-iteration loop (re-run refinement while
+ *  the state changes; pointer equality on the persistent cons-list is the
+ *  "unchanged" test). The default of 1 is single-pass, deliberately
+ *  diverging from the OCaml engine's get_local_iterations() = 10; set via
+ *  the `--dynamic-local-iterations` runtime flag. */
+void bennet_set_dynamic_local_iterations(int fuel);
+int bennet_get_dynamic_local_iterations(void);
+
 /*-----------------------------------------------------------------------------
  * Domain-Specific Tagged Domain Declaration Macro
  *---------------------------------------------------------------------------*/

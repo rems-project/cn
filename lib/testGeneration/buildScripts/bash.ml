@@ -269,7 +269,10 @@ let run () =
               Config.string_of_dynamic_absint_assign_mode mode
             ])
           |> Option.to_list
-          |> List.flatten))
+          |> List.flatten)
+       @ [ "--dynamic-local-iterations";
+           string_of_int (Config.get_dynamic_local_iterations ())
+         ])
   in
   !^"# Run"
   ^^ hardline

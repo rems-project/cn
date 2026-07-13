@@ -109,12 +109,11 @@ typedef struct {
   bool apply_right;
 } bennet_absint_cmp_result;
 
-/* Fuel for the assume-side local iteration loop (forward -> backward ->
- * meet, re-run while the state changes). The default of 1 is exactly the
- * legacy single-pass behavior; this deliberately diverges from the OCaml
- * engine's TestGenConfig.get_local_iterations() = 10. Raising it is a
- * measured P6 experiment, not part of the refactor. */
-#define BENNET_ABSINT_LOCAL_ITERATIONS 1
+/* The assume-side local-iteration fuel is a runtime knob:
+ * bennet_{set,get}_dynamic_local_iterations in bennet/internals/absint.h,
+ * driven by the `--dynamic-local-iterations` flag (default 1, single-pass;
+ * this deliberately diverges from the OCaml engine's
+ * TestGenConfig.get_local_iterations() = 10). */
 
 #ifdef __cplusplus
 }

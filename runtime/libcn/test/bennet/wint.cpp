@@ -1772,6 +1772,44 @@ TEST_F(LibBennet, WIntAssumeAndTrueThreads) {
   cn_bump_free_after(frame);
 }
 
+TEST_F(LibBennet, WIntAssumeFuelTwoTightensSecondSym) {
+  // assume(x == y && x < 10, true): pass 1 threads the conjuncts - x==y
+  // meets two tops (no information), then x<10 refines x to [0,9]. A second
+  // local iteration re-runs the EQ with the refined x and meets it into y.
+  // At the default fuel of 1, y stays top.
+  cn_bump_frame_id frame = cn_bump_get_frame_id();
+
+  cn_base_type bt_u8 = cn_base_type_bits(false, 8);
+  cn_sym sym_x = cn_sym_from_string("x");
+  cn_sym sym_y = cn_sym_from_string("y");
+  cn_term* x = cn_smt_sym(sym_x, bt_u8);
+  cn_term* y = cn_smt_sym(sym_y, bt_u8);
+
+  cn_term* cond = cn_smt_and(cn_smt_eq(x, y), cn_smt_lt(x, cn_smt_bits(false, 8, 10)));
+
+  bennet_set_dynamic_local_iterations(1);
+  auto* refined1 =
+      bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+  bennet_tagged_domain y1 =
+      bennet_absint_state_get_wint(refined1, {sym_y.name, sym_y.id}, &bt_u8);
+  EXPECT_TRUE(is_tagged_top_u8(&y1));
+
+  bennet_set_dynamic_local_iterations(2);
+  auto* refined2 =
+      bennet_wint_transform_backward_assume(cond, true, bennet_absint_state_create());
+  bennet_tagged_domain y2 =
+      bennet_absint_state_get_wint(refined2, {sym_y.name, sym_y.id}, &bt_u8);
+  uint8_t start, end;
+  get_wint_u8_bounds(&y2, &start, &end);
+  EXPECT_EQ(start, (uint8_t)0);
+  EXPECT_EQ(end, (uint8_t)9);
+
+  bennet_set_dynamic_local_iterations(1);
+  bennet_absint_state_free(refined1);
+  bennet_absint_state_free(refined2);
+  cn_bump_free_after(frame);
+}
+
 TEST_F(LibBennet, WIntAssumeAndFalseJoins) {
   // !(x < 100 && x < 50): at least one conjunct is false, so x is in the
   // join of [100,255] and [50,255] = [50,255].

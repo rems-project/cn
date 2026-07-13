@@ -544,11 +544,13 @@ bennet_absint_state* ABSINT_PUBLIC(backward)(cn_term* term,
 bennet_absint_state* ABSINT_PUBLIC(backward_assume)(
     cn_term* term, bool value, bennet_absint_state* state) {
   /* Local iteration (fuel-bounded re-run while the state changes). At the
-   * default fuel of 1 this is exactly one legacy-equivalent pass; pointer
-   * equality is a sound "unchanged" test on the persistent cons-list
-   * (set/meet always cons). */
+   * default fuel of 1 this is exactly one single pass; pointer equality is
+   * a sound "unchanged" test on the persistent cons-list (set/meet always
+   * cons), though a largely ineffective early exit - a no-op meet still
+   * conses, so extra fuel mostly re-runs until exhausted. */
   bennet_absint_state* cur = state;
-  for (int i = 0; i < BENNET_ABSINT_LOCAL_ITERATIONS; i++) {
+  int fuel = bennet_get_dynamic_local_iterations();
+  for (int i = 0; i < fuel; i++) {
     bennet_absint_state* next = ABSINT_ENGINE(assume)(term, value, cur);
     if (next == cur)
       break;
