@@ -815,27 +815,27 @@ static void tnum_get_extrema(
  * raw bit patterns (never sign-extend); stores mask to the type's width
  * before narrowing (identity at width 64).
  */
-#define TNUM_TAGGED_LOAD(cty, ucty)                                                      \
+#define TNUM_TAGGED_LOAD(cty, ucty, DOMP)                                                \
   do {                                                                                   \
-    bennet_domain_tnum(cty)* dom_ = (bennet_domain_tnum(cty)*)d->domain;                 \
+    const bennet_domain_tnum(cty)* dom_ = (DOMP);                                        \
     result.is_top = dom_->top;                                                           \
     result.is_bottom = dom_->bottom;                                                     \
     result.value = (uint64_t)(ucty)dom_->value;                                          \
     result.mask = (uint64_t)(ucty)dom_->mask;                                            \
   } while (0)
 
-#define TNUM_TAGGED_STORE(cty, ucty)                                                     \
+#define TNUM_TAGGED_STORE(cty, ucty, DOMP)                                               \
   do {                                                                                   \
-    bennet_domain_tnum(cty)* dom_ = std_malloc(sizeof(bennet_domain_tnum(cty)));         \
-    assert(dom_);                                                                        \
+    bennet_domain_tnum(cty)* dom_ = (DOMP);                                              \
     dom_->top = g->is_top;                                                               \
     dom_->bottom = g->is_bottom;                                                         \
     dom_->value = (cty)(g->value & tnum_full_mask(width));                               \
     dom_->mask = (cty)(g->mask & tnum_full_mask(width));                                 \
-    result.domain = dom_;                                                                \
   } while (0)
 
 BENNET_ABSINT_TAGGED_CONVERT_IMPL(tnum, tnum_generic, TNUM_TAGGED_LOAD, TNUM_TAGGED_STORE)
+
+BENNET_ABSINT_CANONICALIZE_IMPL(tnum, tnum_generic, TNUM_TAGGED_LOAD, TNUM_TAGGED_STORE)
 
 /*-----------------------------------------------------------------------------
  * Generic tnum operations (type-erased, width-parametric)
@@ -1259,7 +1259,33 @@ BENNET_ABSINT_STATE_IMPL(tnum)
 
 #include <bennet/internals/domains/transform_template.h>
 
-static bennet_tagged_domain tnum_basis_const(cn_term* term) {
+/* Uniform value hooks + inline eval layer consumed by the engine template
+ * (transform.inc.c); see congr.c / absint.h BENNET_ABSINT_EVAL_IMPL. */
+static tnum_generic tnum_val_top(cn_base_type* type) {
+  int width;
+  bool is_signed;
+  bennet_absint_type_info(type, &width, &is_signed);
+  return tnum_generic_top(width, is_signed);
+}
+
+static tnum_generic tnum_val_bottom(cn_base_type* type) {
+  int width;
+  bool is_signed;
+  bennet_absint_type_info(type, &width, &is_signed);
+  return tnum_generic_bottom(width, is_signed);
+}
+
+static tnum_generic tnum_val_join(tnum_generic* a, tnum_generic* b) {
+  return tnum_generic_join(a, b);
+}
+
+static bool tnum_val_is_bottom(tnum_generic* g) {
+  return g->is_bottom;
+}
+
+BENNET_ABSINT_EVAL_IMPL(tnum, tnum_generic)
+
+static bennet_absint_eval_tnum tnum_basis_const(cn_term* term) {
   assert(term && term->type == CN_TERM_CONST);
 
   int width;
@@ -1289,15 +1315,15 @@ static bennet_tagged_domain tnum_basis_const(cn_term* term) {
       break;
   }
 
-  return tnum_to_tagged(&g, &term->base_type);
+  return tnum_eval_of(&term->base_type, g);
 }
 
-static bennet_tagged_domain tnum_basis_forward_binop(cn_binop op,
-    bennet_tagged_domain* left,
-    bennet_tagged_domain* right,
+static bennet_absint_eval_tnum tnum_basis_forward_binop(cn_binop op,
+    bennet_absint_eval_tnum* left,
+    bennet_absint_eval_tnum* right,
     cn_base_type* result_type) {
-  tnum_generic g1 = tnum_from_tagged(left);
-  tnum_generic g2 = tnum_from_tagged(right);
+  tnum_generic g1 = left->val;
+  tnum_generic g2 = right->val;
   tnum_generic result;
 
   int width;
@@ -1312,7 +1338,7 @@ static bennet_tagged_domain tnum_basis_forward_binop(cn_binop op,
 
   if (g1.is_bottom || g2.is_bottom) {
     result = tnum_generic_bottom(width, is_signed);
-    return tnum_to_tagged(&result, result_type);
+    return tnum_eval_of(result_type, result);
   }
 
   if (g1.is_top || g2.is_top) {
@@ -1324,10 +1350,10 @@ static bennet_tagged_domain tnum_basis_forward_binop(cn_binop op,
       case CN_BINOP_LE_POINTER:
         /* Boolean result: could be true or false */
         result = tnum_generic_top(1, false);
-        return tnum_to_tagged(&result, result_type);
+        return tnum_eval_of(result_type, result);
       default:
         result = tnum_generic_top(width, is_signed);
-        return tnum_to_tagged(&result, result_type);
+        return tnum_eval_of(result_type, result);
     }
   }
 
@@ -1380,12 +1406,12 @@ static bennet_tagged_domain tnum_basis_forward_binop(cn_binop op,
       break;
   }
 
-  return tnum_to_tagged(&result, result_type);
+  return tnum_eval_of(result_type, result);
 }
 
-static bennet_tagged_domain tnum_basis_forward_unop(
-    cn_unop op, bennet_tagged_domain* operand, cn_base_type* result_type) {
-  tnum_generic g = tnum_from_tagged(operand);
+static bennet_absint_eval_tnum tnum_basis_forward_unop(
+    cn_unop op, bennet_absint_eval_tnum* operand, cn_base_type* result_type) {
+  tnum_generic g = operand->val;
   tnum_generic result;
 
   int width;
@@ -1396,12 +1422,12 @@ static bennet_tagged_domain tnum_basis_forward_unop(
 
   if (g.is_bottom) {
     result = tnum_generic_bottom(width, is_signed);
-    return tnum_to_tagged(&result, result_type);
+    return tnum_eval_of(result_type, result);
   }
 
   if (g.is_top) {
     result = tnum_generic_top(width, is_signed);
-    return tnum_to_tagged(&result, result_type);
+    return tnum_eval_of(result_type, result);
   }
 
   switch (op) {
@@ -1431,33 +1457,33 @@ static bennet_tagged_domain tnum_basis_forward_unop(
       break;
   }
 
-  return tnum_to_tagged(&result, result_type);
+  return tnum_eval_of(result_type, result);
 }
 
-static bennet_tagged_domain tnum_basis_forward_cast(
-    cn_base_type* to, bennet_tagged_domain* v) {
+static bennet_absint_eval_tnum tnum_basis_forward_cast(
+    cn_base_type* to, bennet_absint_eval_tnum* v) {
   int src_width, dst_width;
   bool src_signed, dst_signed;
   bennet_absint_type_info(v->type, &src_width, &src_signed);
   bennet_absint_type_info(to, &dst_width, &dst_signed);
 
-  tnum_generic src = tnum_from_tagged(v);
+  tnum_generic src = v->val;
 
   if (src.is_bottom) {
     tnum_generic bot = tnum_generic_bottom(dst_width, dst_signed);
-    return tnum_to_tagged(&bot, to);
+    return tnum_eval_of(to, bot);
   }
 
   if (src.is_top) {
     tnum_generic top = tnum_generic_top(dst_width, dst_signed);
-    return tnum_to_tagged(&top, to);
+    return tnum_eval_of(to, top);
   }
 
   if (src_width == dst_width) {
     /* Same width: just change type metadata */
     src.is_signed = dst_signed;
     src.width = dst_width;
-    return tnum_to_tagged(&src, to);
+    return tnum_eval_of(to, src);
   } else if (src_width > dst_width) {
     /* Truncation: mask to lower bits */
     uint64_t fm = tnum_full_mask(dst_width);
@@ -1470,7 +1496,7 @@ static bennet_tagged_domain tnum_basis_forward_cast(
         .mask = src.mask & fm,
     };
     result.is_top = (result.value == 0 && result.mask == fm);
-    return tnum_to_tagged(&result, to);
+    return tnum_eval_of(to, result);
   } else {
     /* Extension: upper bits become 0 (zero-ext) or preserve sign (sign-ext) */
     uint64_t dst_fm = tnum_full_mask(dst_width);
@@ -1497,12 +1523,13 @@ static bennet_tagged_domain tnum_basis_forward_cast(
       /* If sign bit is known 0, upper bits stay 0 */
     }
     result.is_top = (result.value == 0 && result.mask == dst_fm);
-    return tnum_to_tagged(&result, to);
+    return tnum_eval_of(to, result);
   }
 }
 
-static bennet_tagged_domain tnum_basis_shift_forward(
-    cn_term* term, bennet_tagged_domain* base, bennet_tagged_domain* index_or_null) {
+static bennet_absint_eval_tnum tnum_basis_shift_forward(cn_term* term,
+    bennet_absint_eval_tnum* base,
+    bennet_absint_eval_tnum* index_or_null) {
   if (term->type == CN_TERM_ARRAY_SHIFT) {
     /* Create constant tnum for element_size */
     int idx_width;
@@ -1510,11 +1537,11 @@ static bennet_tagged_domain tnum_basis_shift_forward(
     bennet_absint_type_info(index_or_null->type, &idx_width, &idx_signed);
     tnum_generic elem_size_g =
         tnum_generic_const(idx_width, idx_signed, term->data.array_shift.element_size);
-    bennet_tagged_domain elem_size_dom =
-        tnum_to_tagged(&elem_size_g, index_or_null->type);
+    bennet_absint_eval_tnum elem_size_dom =
+        tnum_eval_of(index_or_null->type, elem_size_g);
 
     /* index * element_size */
-    bennet_tagged_domain offset_dom = tnum_basis_forward_binop(
+    bennet_absint_eval_tnum offset_dom = tnum_basis_forward_binop(
         CN_BINOP_MUL, index_or_null, &elem_size_dom, index_or_null->type);
 
     /* base + offset */
@@ -1527,30 +1554,31 @@ static bennet_tagged_domain tnum_basis_shift_forward(
   bennet_absint_type_info(base->type, &base_width, &base_signed);
   tnum_generic offset_g =
       tnum_generic_const(base_width, base_signed, term->data.member_shift.offset);
-  bennet_tagged_domain offset_dom = tnum_to_tagged(&offset_g, base->type);
+  bennet_absint_eval_tnum offset_dom = tnum_eval_of(base->type, offset_g);
 
   /* base + offset */
   return tnum_basis_forward_binop(CN_BINOP_ADD, base, &offset_dom, &term->base_type);
 }
 
-static bennet_tagged_domain tnum_basis_ite_join(
-    bennet_tagged_domain* then_v, bennet_tagged_domain* else_v, cn_base_type* term_type) {
+static bennet_absint_eval_tnum tnum_basis_ite_join(bennet_absint_eval_tnum* then_v,
+    bennet_absint_eval_tnum* else_v,
+    cn_base_type* term_type) {
   /* Use tnum join instead of tagged domain join for tnum precision; the
    * result is tagged with the ITE node's own type (unlike congr/wint). */
-  tnum_generic tg = tnum_from_tagged(then_v);
-  tnum_generic eg = tnum_from_tagged(else_v);
+  tnum_generic tg = then_v->val;
+  tnum_generic eg = else_v->val;
   tnum_generic joined = tnum_generic_join(&tg, &eg);
-  return tnum_to_tagged(&joined, term_type);
+  return tnum_eval_of(term_type, joined);
 }
 
 static bennet_absint_bw_action tnum_basis_backward_unop(cn_unop op,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* operand_fwd,
+    bennet_absint_eval_tnum* out,
+    bennet_absint_eval_tnum* operand_fwd,
     cn_base_type* operand_type,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_tnum* down) {
   if (op == CN_UNOP_BW_COMPL) {
     /* Backward NOT: R = ~operand => operand bits are flipped result bits */
-    tnum_generic result_g = tnum_from_tagged(out);
+    tnum_generic result_g = out->val;
     uint64_t fm = tnum_full_mask(result_g.width);
 
     if (!result_g.is_top && !result_g.is_bottom) {
@@ -1559,7 +1587,7 @@ static bennet_absint_bw_action tnum_basis_backward_unop(cn_unop op,
       uint64_t derived_value = result_k0; /* known-0 in result -> known-1 in operand */
       uint64_t derived_known = result_k0 | result_k1;
 
-      tnum_generic op_g = tnum_from_tagged(operand_fwd);
+      tnum_generic op_g = operand_fwd->val;
       uint64_t new_mask = op_g.mask & ~derived_known;
       tnum_generic refined = {
           .is_top = false,
@@ -1570,7 +1598,7 @@ static bennet_absint_bw_action tnum_basis_backward_unop(cn_unop op,
           .mask = new_mask & fm,
       };
       tnum_generic met = tnum_generic_meet(&op_g, &refined);
-      *down = tnum_to_tagged(&met, operand_type);
+      *down = tnum_eval_of(operand_type, met);
       return BENNET_ABSINT_BW_DESCEND;
     }
   }
@@ -1582,16 +1610,16 @@ static bennet_absint_bw_action tnum_basis_backward_unop(cn_unop op,
 
 static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
     bool target_is_left,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* other_fwd,
-    bennet_tagged_domain* target_fwd,
+    bennet_absint_eval_tnum* out,
+    bennet_absint_eval_tnum* other_fwd,
+    bennet_absint_eval_tnum* target_fwd,
     cn_base_type* target_type,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_tnum* down) {
   switch (op) {
     case CN_BINOP_BW_AND: {
       /* Backward AND: if result = target & other, refine target */
-      tnum_generic other_g = tnum_from_tagged(other_fwd);
-      tnum_generic result_g = tnum_from_tagged(out);
+      tnum_generic other_g = other_fwd->val;
+      tnum_generic result_g = out->val;
       uint64_t fm = tnum_full_mask(result_g.width);
 
       if (!result_g.is_top && !result_g.is_bottom && !other_g.is_top &&
@@ -1609,9 +1637,9 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
               .value = new_value & ~new_mask,
               .mask = new_mask,
           };
-          tnum_generic orig_target = tnum_from_tagged(target_fwd);
+          tnum_generic orig_target = target_fwd->val;
           tnum_generic met = tnum_generic_meet(&orig_target, &refined);
-          *down = tnum_to_tagged(&met, target_type);
+          *down = tnum_eval_of(target_type, met);
           return BENNET_ABSINT_BW_DESCEND;
         }
       }
@@ -1620,8 +1648,8 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
 
     case CN_BINOP_BW_OR: {
       /* Backward OR: R = target | other */
-      tnum_generic other_g = tnum_from_tagged(other_fwd);
-      tnum_generic result_g = tnum_from_tagged(out);
+      tnum_generic other_g = other_fwd->val;
+      tnum_generic result_g = out->val;
       uint64_t fm = tnum_full_mask(result_g.width);
 
       if (!result_g.is_top && !result_g.is_bottom && !other_g.is_top &&
@@ -1632,7 +1660,7 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
         uint64_t forced_0 = result_k0;
         uint64_t forced_1 = result_k1 & other_k0;
 
-        tnum_generic target_g = tnum_from_tagged(target_fwd);
+        tnum_generic target_g = target_fwd->val;
 
         uint64_t new_value = (target_g.value | forced_1) & ~forced_0;
         uint64_t new_mask = target_g.mask & ~(forced_0 | forced_1);
@@ -1645,7 +1673,7 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
             .mask = new_mask & fm,
         };
         tnum_generic met = tnum_generic_meet(&target_g, &refined);
-        *down = tnum_to_tagged(&met, target_type);
+        *down = tnum_eval_of(target_type, met);
         return BENNET_ABSINT_BW_DESCEND;
       }
       return BENNET_ABSINT_BW_STOP;
@@ -1653,8 +1681,8 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
 
     case CN_BINOP_BW_XOR: {
       /* Backward XOR: R = target ^ other */
-      tnum_generic other_g = tnum_from_tagged(other_fwd);
-      tnum_generic result_g = tnum_from_tagged(out);
+      tnum_generic other_g = other_fwd->val;
+      tnum_generic result_g = out->val;
       uint64_t fm = tnum_full_mask(result_g.width);
 
       if (!result_g.is_top && !result_g.is_bottom && !other_g.is_top &&
@@ -1662,7 +1690,7 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
         uint64_t both_known = (~result_g.mask) & (~other_g.mask) & fm;
         uint64_t derived_value = (result_g.value ^ other_g.value) & both_known;
 
-        tnum_generic target_g = tnum_from_tagged(target_fwd);
+        tnum_generic target_g = target_fwd->val;
         uint64_t new_mask = target_g.mask & ~both_known;
         uint64_t new_value =
             ((target_g.value & ~target_g.mask) | derived_value) & ~new_mask & fm;
@@ -1675,7 +1703,7 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
             .mask = new_mask & fm,
         };
         tnum_generic met = tnum_generic_meet(&target_g, &refined);
-        *down = tnum_to_tagged(&met, target_type);
+        *down = tnum_eval_of(target_type, met);
         return BENNET_ABSINT_BW_DESCEND;
       }
       return BENNET_ABSINT_BW_STOP;
@@ -1683,8 +1711,8 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
 
     case CN_BINOP_SHIFT_LEFT: {
       /* Backward SHL: R = target << amount */
-      tnum_generic other_g = tnum_from_tagged(other_fwd);
-      tnum_generic result_g = tnum_from_tagged(out);
+      tnum_generic other_g = other_fwd->val;
+      tnum_generic result_g = out->val;
 
       if (!result_g.is_top && !result_g.is_bottom && other_g.mask == 0) {
         uint64_t shift = other_g.value;
@@ -1699,9 +1727,9 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
               .value = derived_value & ~derived_mask,
               .mask = derived_mask,
           };
-          tnum_generic target_g = tnum_from_tagged(target_fwd);
+          tnum_generic target_g = target_fwd->val;
           tnum_generic met = tnum_generic_meet(&target_g, &derived);
-          *down = tnum_to_tagged(&met, target_type);
+          *down = tnum_eval_of(target_type, met);
           return BENNET_ABSINT_BW_DESCEND;
         }
       }
@@ -1710,8 +1738,8 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
 
     case CN_BINOP_SHIFT_RIGHT: {
       /* Backward SHR: R = target >> amount */
-      tnum_generic other_g = tnum_from_tagged(other_fwd);
-      tnum_generic result_g = tnum_from_tagged(out);
+      tnum_generic other_g = other_fwd->val;
+      tnum_generic result_g = out->val;
       uint64_t fm = tnum_full_mask(result_g.width);
 
       if (!result_g.is_top && !result_g.is_bottom && other_g.mask == 0) {
@@ -1728,9 +1756,9 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
               .value = derived_value & ~derived_mask & fm,
               .mask = derived_mask,
           };
-          tnum_generic target_g = tnum_from_tagged(target_fwd);
+          tnum_generic target_g = target_fwd->val;
           tnum_generic met = tnum_generic_meet(&target_g, &derived);
-          *down = tnum_to_tagged(&met, target_type);
+          *down = tnum_eval_of(target_type, met);
           return BENNET_ABSINT_BW_DESCEND;
         }
       }
@@ -1746,8 +1774,8 @@ static bennet_absint_bw_action tnum_basis_backward_binop(cn_binop op,
 
 static bennet_absint_bw_action tnum_basis_backward_cast(cn_base_type* src_type,
     cn_base_type* dst_type,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_tnum* out,
+    bennet_absint_eval_tnum* down) {
   (void)dst_type; /* the output arrives tagged at the cast node's width */
   /* Precision rework: refine through casts. The low min(src, dst) bits of
    * the operand equal the low bits of the cast result (for truncation the
@@ -1755,7 +1783,7 @@ static bennet_absint_bw_action tnum_basis_backward_cast(cn_base_type* src_type,
    * high bits are determined by the extension, so only the low source bits
    * constrain the operand). Known result bits therefore transfer onto those
    * low bits, and the rest stay unknown. */
-  tnum_generic out_g = tnum_from_tagged(out);
+  tnum_generic out_g = out->val;
   int src_width = 64;
   bool src_signed = false;
   bennet_absint_type_info(src_type, &src_width, &src_signed);
@@ -1779,18 +1807,18 @@ static bennet_absint_bw_action tnum_basis_backward_cast(cn_base_type* src_type,
   derived.value &= ~derived.mask;
   derived.is_top = (derived.value == 0 && derived.mask == src_fm);
 
-  *down = tnum_to_tagged(&derived, src_type);
+  *down = tnum_eval_of(src_type, derived);
   return BENNET_ABSINT_BW_DESCEND;
 }
 
 static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
     bool target_is_base,
-    bennet_tagged_domain* out,
-    bennet_tagged_domain* sibling_fwd,
-    bennet_tagged_domain* target_fwd,
-    bennet_tagged_domain* down) {
+    bennet_absint_eval_tnum* out,
+    bennet_absint_eval_tnum* sibling_fwd,
+    bennet_absint_eval_tnum* target_fwd,
+    bennet_absint_eval_tnum* down) {
   (void)target_fwd; /* used by wint's array-index meet-with-current path */
-  tnum_generic result_g = tnum_from_tagged(out);
+  tnum_generic result_g = out->val;
 
   if (term->type == CN_TERM_MEMBER_SHIFT) {
     cn_term* base = term->data.member_shift.base;
@@ -1800,7 +1828,7 @@ static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
           tnum_generic_const(result_g.width, result_g.is_signed, (uint64_t)offset);
       tnum_generic refined = tnum_generic_sub(&result_g, &offset_tnum);
       if (!refined.is_top && !refined.is_bottom) {
-        *down = tnum_to_tagged(&refined, &base->base_type);
+        *down = tnum_eval_of(&base->base_type, refined);
         return BENNET_ABSINT_BW_DESCEND;
       }
     }
@@ -1814,7 +1842,7 @@ static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
   if (target_is_base) {
     if (!result_g.is_top && !result_g.is_bottom) {
       /* refined_base = result - (index * elem_size) */
-      tnum_generic index_g = tnum_from_tagged(sibling_fwd);
+      tnum_generic index_g = sibling_fwd->val;
       int64_t elem_size = term->data.array_shift.element_size;
       tnum_generic elem_tnum =
           tnum_generic_const(index_g.width, index_g.is_signed, (uint64_t)elem_size);
@@ -1824,7 +1852,7 @@ static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
         offset.is_signed = result_g.is_signed;
         tnum_generic refined = tnum_generic_sub(&result_g, &offset);
         if (!refined.is_top && !refined.is_bottom) {
-          *down = tnum_to_tagged(&refined, &base->base_type);
+          *down = tnum_eval_of(&base->base_type, refined);
           return BENNET_ABSINT_BW_DESCEND;
         }
       }
@@ -1835,7 +1863,7 @@ static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
   /* Target is the index */
   if (!result_g.is_top && !result_g.is_bottom) {
     /* refined_index = (result - base) / elem_size */
-    tnum_generic base_g = tnum_from_tagged(sibling_fwd);
+    tnum_generic base_g = sibling_fwd->val;
     /* Reinterpret types for subtraction */
     base_g.width = result_g.width;
     base_g.is_signed = result_g.is_signed;
@@ -1851,7 +1879,7 @@ static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
           tnum_generic_const(width_idx, signed_idx, (uint64_t)elem_size);
       tnum_generic refined = tnum_generic_div(&diff, &elem_tnum);
       if (!refined.is_top && !refined.is_bottom) {
-        *down = tnum_to_tagged(&refined, &index->base_type);
+        *down = tnum_eval_of(&index->base_type, refined);
         return BENNET_ABSINT_BW_DESCEND;
       }
     }
@@ -1861,17 +1889,17 @@ static bennet_absint_bw_action tnum_basis_shift_backward(cn_term* term,
 
 static bennet_absint_cmp_result tnum_basis_assume_cmp(cn_binop op,
     bool value,
-    bennet_tagged_domain* l_fwd,
-    bennet_tagged_domain* r_fwd,
+    bennet_absint_eval_tnum* l_fwd,
+    bennet_absint_eval_tnum* r_fwd,
     cn_base_type* l_ref_type,
     cn_base_type* r_ref_type,
-    bennet_tagged_domain* l_ref,
-    bennet_tagged_domain* r_ref) {
+    bennet_absint_eval_tnum* l_ref,
+    bennet_absint_eval_tnum* r_ref) {
   bennet_absint_cmp_result res = {
       .has_rule = true, .apply_left = true, .apply_right = true};
 
-  tnum_generic lg = tnum_from_tagged(l_fwd);
-  tnum_generic rg = tnum_from_tagged(r_fwd);
+  tnum_generic lg = l_fwd->val;
+  tnum_generic rg = r_fwd->val;
   tnum_generic lg_refined = lg;
   tnum_generic rg_refined = rg;
 
@@ -2014,8 +2042,8 @@ static bennet_absint_cmp_result tnum_basis_assume_cmp(cn_binop op,
   bool sign_unused = false;
   bennet_absint_type_info(l_ref_type, &lw, &sign_unused);
   bennet_absint_type_info(r_ref_type, &rw, &sign_unused);
-  *l_ref = tnum_to_tagged(&lg_refined, lg_refined.width == lw ? l_ref_type : r_ref_type);
-  *r_ref = tnum_to_tagged(&rg_refined, rg_refined.width == rw ? r_ref_type : l_ref_type);
+  *l_ref = tnum_eval_of(lg_refined.width == lw ? l_ref_type : r_ref_type, lg_refined);
+  *r_ref = tnum_eval_of(rg_refined.width == rw ? r_ref_type : l_ref_type, rg_refined);
   return res;
 }
 
@@ -2025,4 +2053,5 @@ static bennet_absint_cmp_result tnum_basis_assume_cmp(cn_binop op,
  *---------------------------------------------------------------------------*/
 
 #define ABSINT_DOM tnum
+#define ABSINT_VAL tnum_generic
 #include <bennet/internals/domains/transform.inc.c>
