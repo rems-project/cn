@@ -11,7 +11,6 @@ type message =
       { has : int;
         expect : int
       }
-  | Array_to_list of IndexTerms.Surface.t
 
 type err =
   { loc : Locations.t;
@@ -111,6 +110,7 @@ let not_def =
   mk_builtin_arg1 "not" BT.Bool (fun (sym, bt) -> IT.not_ (IT.sym_ (sym, bt, loc)) loc)
 
 
+(* TODO: this should probably go away *)
 let is_null_def : builtin_fn_def =
   mk_builtin_arg1 "is_null" (BT.Loc ()) (fun (sym, bt) ->
     (IT.eq__ (IT.sym_ (sym, bt, loc)) (IT.null_ loc)) loc)

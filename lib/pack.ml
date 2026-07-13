@@ -23,18 +23,19 @@ let resource_empty provable resource =
 
 let unfolded_array loc init (ict, olength) pointer =
   let length = Option.get olength in
-  let q_s, q = IT.fresh_named Memory.uintptr_bt "i" loc in
+  let qbt = if BaseTypes.(!cnBV) then Memory.uintptr_bt else BT.Integer in
+  let q_s, q = IT.fresh_named qbt "i" loc in
   Q
     { name = Owned (ict, init);
       pointer;
-      q = (q_s, Memory.uintptr_bt);
+      q = (q_s, IT.get_bt q);
       q_loc = loc;
       step = ict;
       iargs = [];
       permission =
         IT.(
           and_
-            [ le_ (uintptr_int_ 0 loc, q) loc; lt_ (q, uintptr_int_ length loc) loc ]
+            [ le_ (int_lit_ 0 qbt loc, q) loc; lt_ (q, int_lit_ length qbt loc) loc ]
             loc)
     }
 
@@ -75,7 +76,7 @@ let packing_ft ~full loc global provable ret =
                   P
                     { name = Owned (padding_ct, Uninit);
                       pointer =
-                        IT.pointer_offset_ (ret.pointer, IT.uintptr_int_ offset loc) loc;
+                        IT.pointer_offset_ (ret.pointer, IT.int_lit_ offset Memory.uintptr_bt loc) loc;
                       iargs = []
                     }
                 in
@@ -128,7 +129,7 @@ let unpack_owned loc global (ct, init) pointer (O o) =
                ( P
                    { name = Owned (padding_ct, Uninit);
                      pointer =
-                       IT.pointer_offset_ (pointer, IT.uintptr_int_ offset loc) loc;
+                       IT.pointer_offset_ (pointer, IT.int_lit_ offset Memory.uintptr_bt  loc) loc;
                      iargs = []
                    },
                  O (IT.default_ (Memory.bt_of_sct padding_ct) loc) )

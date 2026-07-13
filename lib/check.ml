@@ -730,6 +730,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
         live. Might be worth considering a read-only resource as a stop-gap.
         But for now, I just skip the liveness check. *)
     (* CP: Why can't we do the liveness check here nonetheless? *)
+    (* CP: TODO: Do we need overflow checks here? *)
     let result = arrayShift_ ~base:vt1 ct ~index:(cast_ Memory.uintptr_bt vt2 loc) loc in
     let@ has_owned = valid_for_deref loc result ct in
     let@ () =
@@ -750,6 +751,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
     let result = memberShift_ (vt, tag, member) loc in
     (* This should only be called after a PtrValidForDeref, so if we
         were willing to optimise, we could skip to [k result]. *)
+    (* CP: TODO: Do we need overflow checks here? *)
     let@ has_owned = valid_for_deref loc result ct in
     let@ () =
       if has_owned then
