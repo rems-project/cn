@@ -260,12 +260,12 @@ let convert_enum_expr =
   let conv_const loc = function
     | ConstantInteger (IConstant (z, _, _)) as c ->
       let@ bt =
-	if BaseTypes.(!cnBV) then
+        if BaseTypes.(!cnBV) then (
           match BT.pick_integer_encoding_type z with
           | Some bt -> return bt
-          | None -> fail { loc; msg = Cannot_convert_enum_const c }
-	else
-	  return BT.Integer
+          | None -> fail { loc; msg = Cannot_convert_enum_const c })
+        else
+          return BT.Integer
       in
       return (IT.Surface.inj (IT.num_lit_ z bt loc))
     | c -> fail { loc; msg = Cannot_convert_enum_const c }
@@ -476,9 +476,9 @@ module C_vars = struct
                 ( ArrayShift
                     { base = Surface.proj e1;
                       ct;
-                      index = 
-			let e2 = Surface.proj e2 in
-			sub_ (int_lit_ 0 (IT.get_bt e2) here, e2) here
+                      index =
+                        (let e2 = Surface.proj e2 in
+                         sub_ (int_lit_ 0 (IT.get_bt e2) here, e2) here)
                     },
                   BT.Loc (),
                   loc ))
@@ -973,7 +973,7 @@ module C_vars = struct
         let@ e = self e in
         (match e with
          | IT (Const (Z z), _bt, _) -> return (IT (Const (Z (Z.neg z)), BT.Integer, loc))
-	     (* TODO: CP: this is not what we want *)
+         (* TODO: CP: this is not what we want *)
          (* | IT (Const (Bits ((sign, width), z)), _bt, _) -> *)
          (*   (\* this will be checked to fit in WellTyped.infer *\) *)
          (*   return (IT (Const (Bits ((sign, width), Z.neg z)), BT.Bits (sign, width), loc)) *)
@@ -1157,8 +1157,8 @@ module C_vars = struct
     let pointee_value, pointee_constrs =
       match pname with
       | Owned (ct, Init) ->
-        ([ (ptr_expr, pointee) ],
-	[(LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)),info)])
+        ( [ (ptr_expr, pointee) ],
+          [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
       | _ -> ([], [])
     in
     return (pt, pointee_value, pointee_constrs)
@@ -1187,15 +1187,20 @@ module C_vars = struct
         m_oargs_ty )
     in
     let info = (here, Some "owned-value-representable") in
-    let pointee_constrs = 
+    let pointee_constrs =
       let qt = IT.sym_ (q, SBT.proj bt', here) in
       match pname with
       | Owned (ct, Init) ->
-	let open IT in
-	let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
-	[(LC.Forall ((q, SBT.proj bt'), 
-                 impl_ (Surface.proj guard_expr,
-		        representable_ (ct, map_get_ oarg qt here) here) here), info)]
+        let open IT in
+        let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
+        [ ( LC.Forall
+              ( (q, SBT.proj bt'),
+                impl_
+                  ( Surface.proj guard_expr,
+                    representable_ (ct, map_get_ oarg qt here) here )
+                  here ),
+            info )
+        ]
       | _ -> []
     in
     return (pt, [], pointee_constrs)
@@ -1638,8 +1643,8 @@ let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let@ lrt = logical_ret_accesses (add_computational s sbt env) st (accesses, ensures) in
   let info = (loc, Some "return value good") in
   let here = Locations.other __LOC__ in
-  let lrt = LRT.mConstraint (LC.T (IT.good_ (ct, IT.sym_ (s, bt, here)) here), info)
-     lrt 
+  let lrt =
+    LRT.mConstraint (LC.T (IT.good_ (ct, IT.sym_ (s, bt, here)) here), info) lrt
   in
   return (RT.mComputational ((s, bt), (loc, None)) lrt)
 

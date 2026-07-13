@@ -76,7 +76,9 @@ let packing_ft ~full loc global provable ret =
                   P
                     { name = Owned (padding_ct, Uninit);
                       pointer =
-                        IT.pointer_offset_ (ret.pointer, IT.int_lit_ offset Memory.uintptr_bt loc) loc;
+                        IT.pointer_offset_
+                          (ret.pointer, IT.int_lit_ offset Memory.uintptr_bt loc)
+                          loc;
                       iargs = []
                     }
                 in
@@ -129,7 +131,9 @@ let unpack_owned loc global (ct, init) pointer (O o) =
                ( P
                    { name = Owned (padding_ct, Uninit);
                      pointer =
-                       IT.pointer_offset_ (pointer, IT.int_lit_ offset Memory.uintptr_bt  loc) loc;
+                       IT.pointer_offset_
+                         (pointer, IT.int_lit_ offset Memory.uintptr_bt loc)
+                         loc;
                      iargs = []
                    },
                  O (IT.default_ (Memory.bt_of_sct padding_ct) loc) )

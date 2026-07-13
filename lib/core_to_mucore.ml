@@ -770,7 +770,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let@ at =
         aux_comp
           (arg_states @ [ (mut_arg, arg_state) ])
-          ((if !BT.cnBV then [] else [good_lc]) @ good_lcs)
+          ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs)
           env
           st
           rest
@@ -824,7 +824,9 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
         let here = Locations.other __LOC__ in
         (LogicalConstraints.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info)
       in
-      let@ at = aux_comp ((if !BT.cnBV then [] else [good_lc]) @ good_lcs) env st rest in
+      let@ at =
+        aux_comp ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs) env st rest
+      in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
       let rec aux_ghost env st = function

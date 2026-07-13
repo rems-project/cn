@@ -359,15 +359,16 @@ let pp_welltyped = function
 let pp_builtins : Builtins.message -> _ = function
   | Number_arguments { has; expect } ->
     pp_welltyped (Number_arguments { type_ = `Other; has; expect })
-  (* | Array_to_list arr -> *)
-  (*   let short = *)
-  (*     !^"array_to_list first arguments" *)
-  (*     ^^^ squotes (IT.pp arr) *)
-  (*     ^^^ !^"expects type map/array, but has type" *)
-  (*     ^^^ BaseTypes.Surface.pp (IT.get_bt arr) *)
-  (*   in *)
-  (*   { short; descr = None; state = None } *)
 
+
+(* | Array_to_list arr -> *)
+(*   let short = *)
+(*     !^"array_to_list first arguments" *)
+(*     ^^^ squotes (IT.pp arr) *)
+(*     ^^^ !^"expects type map/array, but has type" *)
+(*     ^^^ BaseTypes.Surface.pp (IT.get_bt arr) *)
+(*   in *)
+(*   { short; descr = None; state = None } *)
 
 let pp_parse : Parse.message -> _ = function
   | Parser err ->
