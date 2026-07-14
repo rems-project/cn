@@ -42,8 +42,7 @@ let verify
       disable_resource_derived_constraints
       try_hard
       disable_unfold_multiclause_preds
-      check_consistency
-      (* integermode *)
+      check_consistency (* integermode *)
   =
   if json then (
     if debug_level > 0 then
@@ -242,7 +241,6 @@ module Flags = struct
     in
     Arg.(value & flag & info ~docs:s_verification [ "check-consistency" ] ~doc)
 
-
   (* let integermode = *)
   (*   let doc = *)
   (*     "Use mathematical integers instead of bitvectors for representing C integers." *)
@@ -329,8 +327,9 @@ let verify_t : unit Term.t =
   $ Flags.try_hard
   $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency
-  (* $ Flags.integermode *)
 
+
+(* $ Flags.integermode *)
 
 let cmd =
   let doc =
