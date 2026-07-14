@@ -1703,10 +1703,18 @@ module BaseTyping = struct
               pe2 ) ->
           let@ pe1 = infer_pexpr pe1 in
           let@ () =
-            if !cnBV then
-              ensure_bits_type loc (Mu.bt_of_pexpr pe1)
-            else
-              ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr pe1)
+            match Mu.bt_of_pexpr pe1 with
+            | Integer -> return ()
+            | Bits _ -> return ()
+            | has ->
+              fail
+                { loc;
+                  msg = Mismatch { has = BT.pp has; expect = !^"integer or bitvector" }
+                }
+            (* if !cnBV then *)
+            (*   ensure_bits_type loc (Mu.bt_of_pexpr pe1) *)
+            (* else *)
+            (*   ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr pe1) *)
           in
           let@ pe2 = check_pexpr (bt_of_pexpr pe1) pe2 in
           let bt =
@@ -2493,8 +2501,12 @@ module BaseTyping = struct
           let@ ret_ct, arg_cts =
             match act.ct with
             | Sctypes.(Pointer (Function (ret_v_ct, arg_r_cts, is_variadic))) ->
-              assert (not is_variadic);
-              return (snd ret_v_ct, List.map fst arg_r_cts)
+              if is_variadic then
+                fail
+                  { loc; msg = Generic !^"Unsupported variadic function" }
+                [@alert "-deprecated"]
+              else
+                return (snd ret_v_ct, List.map fst arg_r_cts)
             | _ ->
               fail
                 { loc;

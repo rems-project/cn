@@ -25,7 +25,7 @@ let ov_to_it loc (Mu.OV (bt, ov)) =
       ptr_val
       (fun _ -> Some (IT.null_ loc))
       (function None -> None | Some sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc)))
-      (fun _prov _p -> (* how to correctly convert provenance? *) None)
+      (fun _prov _p -> (* TODO: how to correctly convert provenance? *) None)
   | _ -> None
 
 
@@ -803,6 +803,8 @@ let upd_def (loc, sym, def_tm) =
 
 
 let add_logical_funs_from_c call_funinfo funs_to_convert funs =
+  if not !BT.cnBV then
+    failwith "todo: deriving CN functions from C function in integer-mode";
   let c_fun_pred_map =
     List.fold_left
       (fun m Mu.{ c_fun_sym; loc; l_fun_sym } -> Sym.Map.add c_fun_sym (loc, l_fun_sym) m)
