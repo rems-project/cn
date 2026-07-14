@@ -271,18 +271,18 @@ module CN_Pointer = struct
 
   let addr_name = "addr"
 
-  let width = snd (Option.get (BT.is_bits_bt Memory.uintptr_bt))
+  let width () = snd (Option.get (BT.is_bits_bt Memory.uintptr_bt))
 
   let addr_type () =
     if !cnBV then
-      SMT.t_bits width
+      SMT.t_bits (width ())
     else
       SMT.t_int
 
 
   let addr_const (k : Z.t) =
     if !cnBV then
-      SMT.bv_k width k
+      SMT.bv_k (width ()) k
     else
       SMT.int_zk k
 
