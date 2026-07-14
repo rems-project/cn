@@ -973,10 +973,9 @@ module C_vars = struct
         let@ e = self e in
         (match e with
          | IT (Const (Z z), _bt, _) -> return (IT (Const (Z (Z.neg z)), BT.Integer, loc))
-         (* TODO: CP: this is not what we want *)
-         (* | IT (Const (Bits ((sign, width), z)), _bt, _) -> *)
-         (*   (\* this will be checked to fit in WellTyped.infer *\) *)
-         (*   return (IT (Const (Bits ((sign, width), Z.neg z)), BT.Bits (sign, width), loc)) *)
+         | IT (Const (Bits ((sign, width), z)), _bt, _) ->
+           (* this will be checked to fit in WellTyped.infer *)
+           return (IT (Const (Bits ((sign, width), Z.neg z)), BT.Bits (sign, width), loc))
          | _ -> return (negate e loc))
       | CNExpr_default bt ->
         let bt = base_type env bt in
