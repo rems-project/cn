@@ -1126,6 +1126,9 @@ module C_vars = struct
     | _ -> fail { loc; msg = Generic (!^msg_s ^^^ IT.pp ptr_expr) [@alert "-deprecated"] }
 
 
+  (* TODO: replace 'good' with 'aligned' *)
+  (* TODO: move has-alloc-id constraint associated with iterated resources
+     to here *)
   let owned_good _sym (res_t, _oargs_ty) =
     let here = Locations.other __LOC__ in
     match res_t with
@@ -1158,7 +1161,7 @@ module C_vars = struct
       match pname with
       | Owned (ct, Init) ->
         ( [ (ptr_expr, pointee) ],
-          [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
+          (if !BT.cnBV then [] else [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ]) )
       | _ -> ([], [])
     in
     return (pt, pointee_value, pointee_constrs)
@@ -1193,14 +1196,14 @@ module C_vars = struct
       | Owned (ct, Init) ->
         let open IT in
         let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
-        [ ( LC.Forall
+        (if !BT.cnBV then [] else [ ( LC.Forall
               ( (q, SBT.proj bt'),
                 impl_
                   ( Surface.proj guard_expr,
                     representable_ (ct, map_get_ oarg qt here) here )
                   here ),
             info )
-        ]
+        ])
       | _ -> []
     in
     return (pt, [], pointee_constrs)
@@ -1641,10 +1644,11 @@ let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let sbt = Memory.sbt_of_sct ct in
   let bt = SBT.proj sbt in
   let@ lrt = logical_ret_accesses (add_computational s sbt env) st (accesses, ensures) in
-  let info = (loc, Some "return value good") in
+  let info = (loc, Some "return value representable") in
   let here = Locations.other __LOC__ in
   let lrt =
-    LRT.mConstraint (LC.T (IT.good_ (ct, IT.sym_ (s, bt, here)) here), info) lrt
+    if !BT.cnBV then lrt 
+    else LRT.mConstraint (LC.T (IT.representable_ (ct, IT.sym_ (s, bt, here)) here), info) lrt
   in
   return (RT.mComputational ((s, bt), (loc, None)) lrt)
 

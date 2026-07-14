@@ -765,7 +765,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let good_lc =
         let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in
         let here = Locations.other __LOC__ in
-        (LogicalConstraints.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info)
+        (LogicalConstraints.T (IT.representable_ (ct, IT.sym_ (pure_arg, bt, here)) here), info)
       in
       let@ at =
         aux_comp
@@ -820,9 +820,9 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
       in
       let env = Translate.add_computational pure_arg sbt env in
       let good_lc =
-        let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in
+        let info = (loc, Some (Sym.pp_string pure_arg ^ " representable")) in
         let here = Locations.other __LOC__ in
-        (LogicalConstraints.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info)
+        (LogicalConstraints.T (IT.representable_ (ct, IT.sym_ (pure_arg, bt, here)) here), info)
       in
       let@ at =
         aux_comp ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs) env st rest
