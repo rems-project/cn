@@ -260,9 +260,12 @@ let convert_enum_expr =
   let conv_const loc = function
     | ConstantInteger (IConstant (z, _, _)) as c ->
       let@ bt =
-        match BT.pick_integer_encoding_type z with
-        | Some bt -> return bt
-        | None -> fail { loc; msg = Cannot_convert_enum_const c }
+        if BaseTypes.(!cnBV) then (
+          match BT.pick_integer_encoding_type z with
+          | Some bt -> return bt
+          | None -> fail { loc; msg = Cannot_convert_enum_const c })
+        else
+          return BT.Integer
       in
       return (IT.Surface.inj (IT.num_lit_ z bt loc))
     | c -> fail { loc; msg = Cannot_convert_enum_const c }
@@ -473,7 +476,9 @@ module C_vars = struct
                 ( ArrayShift
                     { base = Surface.proj e1;
                       ct;
-                      index = sub_ (int_ 0 here, Surface.proj e2) here
+                      index =
+                        (let e2 = Surface.proj e2 in
+                         sub_ (int_lit_ 0 (IT.get_bt e2) here, e2) here)
                     },
                   BT.Loc (),
                   loc ))
@@ -912,14 +917,14 @@ module C_vars = struct
         in
         return (IT (Constructor (c_nm, exprs), BT.Datatype cons_info.datatype_tag, loc))
       | CNExpr_each (sym, bt, r, e) ->
+        let@ bt = check_quantified_base_type env loc sym bt in
         let@ expr =
           trans
             evaluation_scope
             (Sym.Set.add sym locally_bound)
-            (add_logical sym BT.Integer env)
+            (add_logical sym bt env)
             e
         in
-        let@ bt = check_quantified_base_type env loc sym bt in
         return
           (IT
              ( EachI ((Z.to_int (fst r), (sym, SBT.proj bt), Z.to_int (snd r)), expr),
@@ -1120,6 +1125,9 @@ module C_vars = struct
     | _ -> fail { loc; msg = Generic (!^msg_s ^^^ IT.pp ptr_expr) [@alert "-deprecated"] }
 
 
+  (* TODO: replace 'good' with 'aligned' *)
+  (* TODO: move has-alloc-id constraint associated with iterated resources
+     to here *)
   let owned_good _sym (res_t, _oargs_ty) =
     let here = Locations.other __LOC__ in
     match res_t with
@@ -1145,17 +1153,23 @@ module C_vars = struct
           },
         oargs_ty )
     in
-    let pointee_value =
+    let here = Locations.other __LOC__ in
+    let pointee = IT.sym_ (sym, oargs_ty, here) in
+    let info = (here, Some "owned-value-representable") in
+    let pointee_value, pointee_constrs =
       match pname with
-      | Owned (_, Init) ->
-        let here = Locations.other __LOC__ in
-        [ (ptr_expr, IT.sym_ (sym, oargs_ty, here)) ]
-      | _ -> []
+      | Owned (ct, Init) ->
+        ( [ (ptr_expr, pointee) ],
+          if !BT.cnBV then
+            []
+          else
+            [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
+      | _ -> ([], [])
     in
-    return (pt, pointee_value)
+    return (pt, pointee_value, pointee_constrs)
 
 
-  let cn_let_resource__each env (q, bt, guard, pred_loc, res, args) =
+  let cn_let_resource__each env sym (q, bt, guard, pred_loc, res, args) =
     (* FIXME pred_loc is the wrong location, but the frontend is not tracking the correct one *)
     let@ bt' = check_quantified_base_type env pred_loc q bt in
     let env_with_q = add_logical q bt' env in
@@ -1177,18 +1191,38 @@ module C_vars = struct
           },
         m_oargs_ty )
     in
-    return (pt, [])
+    let info = (here, Some "owned-value-representable") in
+    let pointee_constrs =
+      let qt = IT.sym_ (q, SBT.proj bt', here) in
+      match pname with
+      | Owned (ct, Init) ->
+        let open IT in
+        let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
+        if !BT.cnBV then
+          []
+        else
+          [ ( LC.Forall
+                ( (q, SBT.proj bt'),
+                  impl_
+                    ( Surface.proj guard_expr,
+                      representable_ (ct, map_get_ oarg qt here) here )
+                    here ),
+              info )
+          ]
+      | _ -> []
+    in
+    return (pt, [], pointee_constrs)
 
 
   let cn_let_resource env (sym, the_res) =
-    let@ pt, pointee_values =
+    let@ pt, pointee_values, pointee_constrs =
       match the_res with
       | Cn.CN_pred (pred_loc, res, args) ->
         cn_let_resource__pred env sym (pred_loc, res, args)
       | CN_each (q, bt, guard, pred_loc, res, args) ->
-        cn_let_resource__each env (q, bt, guard, pred_loc, res, args)
+        cn_let_resource__each env sym (q, bt, guard, pred_loc, res, args)
     in
-    return (pt, owned_good sym pt, pointee_values)
+    return (pt, owned_good sym pt @ pointee_constrs, pointee_values)
 
 
   let cn_assrt env (loc, assrt) =
@@ -1615,10 +1649,16 @@ let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let sbt = Memory.sbt_of_sct ct in
   let bt = SBT.proj sbt in
   let@ lrt = logical_ret_accesses (add_computational s sbt env) st (accesses, ensures) in
-  (* let info = (loc, Some "return value good") in *)
-  (* let here = Locations.other __LOC__ in *)
-  (* let lrt = LRT.mConstraint (LC.T (IT.good_ (ct, IT.sym_ (s, bt, here)) here), info)
-     lrt in *)
+  let info = (loc, Some "return value representable") in
+  let here = Locations.other __LOC__ in
+  let lrt =
+    if !BT.cnBV then
+      lrt
+    else
+      LRT.mConstraint
+        (LC.T (IT.representable_ (ct, IT.sym_ (s, bt, here)) here), info)
+        lrt
+  in
   return (RT.mComputational ((s, bt), (loc, None)) lrt)
 
 

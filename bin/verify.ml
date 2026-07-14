@@ -42,7 +42,7 @@ let verify
       disable_resource_derived_constraints
       try_hard
       disable_unfold_multiclause_preds
-      check_consistency
+      check_consistency (* integermode *)
   =
   if json then (
     if debug_level > 0 then
@@ -55,6 +55,7 @@ let verify
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
+  (* BaseTypes.cnBV := not integermode; *)
   (match solver_logging with
    | Some d ->
      Solver.Logger.to_file := true;
@@ -239,6 +240,12 @@ module Flags = struct
       "check consistency of predicate definitions, function specifications, and lemmas"
     in
     Arg.(value & flag & info ~docs:s_verification [ "check-consistency" ] ~doc)
+
+  (* let integermode = *)
+  (*   let doc = *)
+  (*     "Use mathematical integers instead of bitvectors for representing C integers." *)
+  (*   in *)
+  (*   Arg.(value & flag & info ~docs:s_verification [ "integermode" ] ~doc) *)
 end
 
 module Lemma_flags = struct
@@ -321,6 +328,8 @@ let verify_t : unit Term.t =
   $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency
 
+
+(* $ Flags.integermode *)
 
 let cmd =
   let doc =

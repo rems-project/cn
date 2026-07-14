@@ -762,15 +762,16 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let env = Translate.add_computational pure_arg sbt env in
       let arg_state = Translate.C_vars.Value (pure_arg, sbt) in
       let st = Translate.C_vars.add [ (mut_arg, arg_state) ] st in
-      (* let good_lc = *)
-      (*   let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in *)
-      (*   let here = Locations.other __LOC__ in *)
-      (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
-      (* in *)
+      let good_lc =
+        let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in
+        let here = Locations.other __LOC__ in
+        ( LogicalConstraints.T (IT.representable_ (ct, IT.sym_ (pure_arg, bt, here)) here),
+          info )
+      in
       let@ at =
         aux_comp
           (arg_states @ [ (mut_arg, arg_state) ])
-          (* good_lc :: *) good_lcs
+          ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs)
           env
           st
           rest
@@ -819,12 +820,15 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
             }
       in
       let env = Translate.add_computational pure_arg sbt env in
-      (* let good_lc = *)
-      (*   let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in *)
-      (*   let here = Locations.other __LOC__ in *)
-      (*   (LTranslate.T (IT.good_ (ct, IT.sym_ (pure_arg, bt, here)) here), info) *)
-      (* in *)
-      let@ at = aux_comp (* good_lc :: *) good_lcs env st rest in
+      let good_lc =
+        let info = (loc, Some (Sym.pp_string pure_arg ^ " representable")) in
+        let here = Locations.other __LOC__ in
+        ( LogicalConstraints.T (IT.representable_ (ct, IT.sym_ (pure_arg, bt, here)) here),
+          info )
+      in
+      let@ at =
+        aux_comp ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs) env st rest
+      in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
       let rec aux_ghost env st = function

@@ -7,6 +7,8 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
+let cnBV = BaseTypes.cnBV
+
 let inc_enabled = ref true
 
 let inc_timeout = ref None
@@ -214,15 +216,35 @@ module CN_MemByte = struct
 
   let value_name = "value"
 
-  let alloc_id_value_name = "AiV"
-
-  (** Bit-width of memory bytes *)
   let width = Memory.bits_per_byte
 
-  (** The name of the pointer type *)
+  let value_bt () =
+    if !cnBV then
+      BT.Bits (Unsigned, width)
+    else
+      Integer
+
+
+  let value_type () =
+    if !cnBV then
+      SMT.t_bits width
+    else
+      SMT.t_int
+
+
+  let value_const (z : Z.t) =
+    if !cnBV then
+      SMT.bv_k width z
+    else
+      SMT.int_zk z
+
+
+  let alloc_id_value_name = "AiV"
+
+  (** The name of the type *)
   let t = SMT.atom name
 
-  (** Make a allocation ID & address pair pointer value *)
+  (** Make an allocation ID & value pair *)
   let con ~alloc_id ~value = SMT.app_ alloc_id_value_name [ alloc_id; value ]
 
   let declare s =
@@ -233,7 +255,7 @@ module CN_MemByte = struct
          []
          [ ( alloc_id_value_name,
              [ (alloc_id_name, CN_Option.t (CN_AllocId.t ()));
-               (value_name, SMT.t_bits width)
+               (value_name, value_type ())
              ] )
          ])
 end
@@ -249,9 +271,20 @@ module CN_Pointer = struct
 
   let addr_name = "addr"
 
-  (** Bit-width of pointers *)
-  let width =
-    match Memory.uintptr_bt with Bits (_, w) -> w | _ -> failwith "Pointer is not bits"
+  let width () = snd (Option.get (BT.is_bits_bt Memory.uintptr_bt))
+
+  let addr_type () =
+    if !cnBV then
+      SMT.t_bits (width ())
+    else
+      SMT.t_int
+
+
+  let addr_const (k : Z.t) =
+    if !cnBV then
+      SMT.bv_k (width ()) k
+    else
+      SMT.int_zk k
 
 
   (** The name of the pointer type *)
@@ -277,6 +310,7 @@ module CN_Pointer = struct
 
   let alloc_id_of_name = "alloc_id_of"
 
+  (* TODO: this should probably be renamed to something like raw_addr_to_ptr_name *)
   let bits_to_ptr_name = "bits_to_ptr"
 
   let addr_of_name = "addr_of"
@@ -284,71 +318,69 @@ module CN_Pointer = struct
   (** Make a null pointer value *)
   let con_null = SMT.app_ null_name []
 
-  (** Make a allocation ID & address pair pointer value *)
+  (** Make an allocation ID & address pair pointer value *)
   let con_aia ~alloc_id ~addr = SMT.app_ alloc_id_addr_name [ alloc_id; addr ]
 
   let declare s =
-    ack_command
-      s
-      (SMT.declare_datatype
-         name
-         []
-         [ (null_name, []);
-           ( alloc_id_addr_name,
-             [ (alloc_id_name, CN_AllocId.t ()); (addr_name, SMT.t_bits width) ] )
-         ]);
-    ack_command
-      s
-      (SMT.define_fun
-         ptr_shift_name
-         [ ("p", t); ("offset", SMT.t_bits width); ("null_case", t) ]
-         t
-         (match_ptr
-            (SMT.atom "p")
-            ~null_case:(SMT.atom "null_case")
-            ~alloc_id_addr_case:(fun ~alloc_id ~addr ->
-              con_aia ~alloc_id ~addr:(SMT.bv_add addr (SMT.atom "offset")))));
-    ack_command
-      s
-      (SMT.define_fun
-         copy_alloc_id_name
-         [ ("p", t); ("new_addr", SMT.t_bits width); ("null_case", t) ]
-         t
-         (match_ptr
-            (SMT.atom "p")
-            ~null_case:(SMT.atom "null_case")
-            ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ ->
-              con_aia ~alloc_id ~addr:(SMT.atom "new_addr"))));
-    ack_command
-      s
-      (SMT.define_fun
-         alloc_id_of_name
-         [ ("p", t); ("null_case", CN_AllocId.t ()) ]
-         (CN_AllocId.t ())
-         (match_ptr
-            (SMT.atom "p")
-            ~null_case:(SMT.atom "null_case")
-            ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ -> alloc_id)));
-    ack_command
-      s
-      (SMT.define_fun
-         bits_to_ptr_name
-         [ ("bits", SMT.t_bits width); ("alloc_id", CN_AllocId.t ()) ]
-         t
-         (SMT.ite
-            (SMT.eq (SMT.atom "bits") (SMT.bv_k width Z.zero))
-            con_null
-            (con_aia ~addr:(SMT.atom "bits") ~alloc_id:(SMT.atom "alloc_id"))));
-    ack_command
-      s
-      (SMT.define_fun
-         addr_of_name
-         [ ("p", t) ]
-         (SMT.t_bits width)
-         (match_ptr
-            (SMT.atom "p")
-            ~null_case:(SMT.bv_k width Z.zero)
-            ~alloc_id_addr_case:(fun ~alloc_id:_ ~addr -> addr)))
+    List.iter
+      (ack_command s)
+      [ SMT.declare_datatype
+          name
+          []
+          [ (null_name, []);
+            ( alloc_id_addr_name,
+              [ (alloc_id_name, CN_AllocId.t ()); (addr_name, addr_type ()) ] )
+          ];
+        SMT.define_fun
+          ptr_shift_name
+          [ ("p", t); ("offset", addr_type ()); ("null_case", t) ]
+          t
+          (match_ptr
+             (SMT.atom "p")
+             ~null_case:(SMT.atom "null_case")
+             ~alloc_id_addr_case:(fun ~alloc_id ~addr ->
+               con_aia
+                 ~alloc_id
+                 ~addr:
+                   (if !cnBV then
+                      SMT.bv_add addr (SMT.atom "offset")
+                    else
+                      SMT.num_add addr (SMT.atom "offset"))));
+        (* TODO: these do not behave the same unless the typing rules have bounds checks *)
+        SMT.define_fun
+          copy_alloc_id_name
+          [ ("p", t); ("new_addr", addr_type ()); ("null_case", t) ]
+          t
+          (match_ptr
+             (SMT.atom "p")
+             ~null_case:(SMT.atom "null_case")
+             ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ ->
+               con_aia ~alloc_id ~addr:(SMT.atom "new_addr")));
+        SMT.define_fun
+          alloc_id_of_name
+          [ ("p", t); ("null_case", CN_AllocId.t ()) ]
+          (CN_AllocId.t ())
+          (match_ptr
+             (SMT.atom "p")
+             ~null_case:(SMT.atom "null_case")
+             ~alloc_id_addr_case:(fun ~alloc_id ~addr:_ -> alloc_id));
+        SMT.define_fun
+          bits_to_ptr_name
+          [ ("bits", addr_type ()); ("alloc_id", CN_AllocId.t ()) ]
+          t
+          (SMT.ite
+             (SMT.eq (SMT.atom "bits") (addr_const Z.zero))
+             con_null
+             (con_aia ~addr:(SMT.atom "bits") ~alloc_id:(SMT.atom "alloc_id")));
+        SMT.define_fun
+          addr_of_name
+          [ ("p", t) ]
+          (addr_type ())
+          (match_ptr
+             (SMT.atom "p")
+             ~null_case:(addr_const Z.zero)
+             ~alloc_id_addr_case:(fun ~alloc_id:_ ~addr -> addr))
+      ]
 
 
   let ptr_shift ~ptr ~offset ~null_case =
@@ -447,8 +479,9 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
          | _ -> failwith "Memory byte alloc ID is not bits option"
        in
        let value =
-         match get_value gs ctys (BT.Bits (Unsigned, CN_MemByte.width)) svalue with
+         match get_value gs ctys (CN_MemByte.value_bt ()) svalue with
          | Const (Bits (_, z)) -> z
+         | Const (Z z) -> z
          | _ -> failwith "Memory byte value is not bits"
        in
        Const (MemByte { alloc_id; value })
@@ -461,6 +494,7 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
        let addr =
          match get_value gs ctys Memory.uintptr_bt saddr with
          | Const (Bits (_, z)) -> z
+         | Const (Z z) -> z
          | _ -> failwith "Pointer value is not bits"
        in
        Const (Pointer { alloc_id = base; addr })
@@ -540,11 +574,10 @@ let translate_const s co =
       | None -> CN_Option.none (CN_AllocId.t ())
       | Some z -> CN_Option.some (CN_AllocId.to_sexp z)
     in
-    CN_MemByte.con ~alloc_id ~value:(SMT.bv_k CN_MemByte.width b.value)
+    CN_MemByte.(con ~alloc_id ~value:(value_const b.value))
   | Pointer p ->
-    CN_Pointer.con_aia
-      ~alloc_id:(CN_AllocId.to_sexp p.alloc_id)
-      ~addr:(SMT.bv_k CN_Pointer.width p.addr)
+    CN_Pointer.(
+      con_aia ~alloc_id:(CN_AllocId.to_sexp p.alloc_id) ~addr:(addr_const p.addr))
   | Alloc_id z -> CN_AllocId.to_sexp z
   | Bool b -> SMT.bool_k b
   | Unit -> SMT.atom (CN_Tuple.name 0)
@@ -938,15 +971,17 @@ let rec translate_term s iterm =
     let x = fresh_name "match" in
     SMT.let_ [ (x, translate_term s e1) ] (do_alts (SMT.atom x) alts)
   (* Casts *)
-  | WrapI (ity, arg) ->
-    bv_cast
-      ~to_:(Memory.bt_of_sct (Sctypes.Integer ity))
-      ~from:(IT.get_bt arg)
-      (translate_term s arg)
+  | WrapI (_ity, _arg) ->
+    failwith "todo: remove WrapI"
+    (* bv_cast *)
+    (*   ~to_:(Memory.bt_of_sct (Sctypes.Integer ity)) *)
+    (*   ~from:(IT.get_bt arg) *)
+    (*   (translate_term s arg) *)
   | Cast (cbt, t) ->
     let smt_term = translate_term s t in
     (match (IT.get_bt t, cbt) with
      | Bits _, Loc () ->
+       assert !cnBV;
        let addr =
          if BT.equal (IT.get_bt t) Memory.uintptr_bt then
            smt_term
@@ -954,7 +989,13 @@ let rec translate_term s iterm =
            bv_cast ~to_:Memory.uintptr_bt ~from:(IT.get_bt t) smt_term
        in
        CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
+     | Integer, Loc () ->
+       (* copied and simplified from above *)
+       assert (not !cnBV);
+       let addr = smt_term in
+       CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
      | Loc (), Bits _ ->
+       assert !cnBV;
        let maybe_cast x =
          if BT.equal cbt Memory.uintptr_bt then
            x
@@ -962,9 +1003,14 @@ let rec translate_term s iterm =
            bv_cast ~to_:cbt ~from:Memory.uintptr_bt x
        in
        maybe_cast (CN_Pointer.addr_of ~ptr:smt_term)
+     | Loc (), Integer ->
+       (* copied and simplified from above *)
+       assert (not !cnBV);
+       CN_Pointer.addr_of ~ptr:smt_term
      | Loc (), Alloc_id ->
        CN_Pointer.alloc_id_of ~ptr:smt_term ~null_case:(default Alloc_id)
      | MemByte, Bits _ ->
+       assert !cnBV;
        let maybe_cast x =
          if BT.equal cbt (BT.Bits (Unsigned, 8)) then
            x
@@ -972,10 +1018,15 @@ let rec translate_term s iterm =
            bv_cast ~to_:cbt ~from:(BT.Bits (Unsigned, 8)) x
        in
        maybe_cast (SMT.app_ CN_MemByte.value_name [ smt_term ])
+     | MemByte, Integer ->
+       (* copied and simplified from above *)
+       assert (not !cnBV);
+       SMT.app_ CN_MemByte.value_name [ smt_term ]
      | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term
      | Integer, Real -> SMT.int_to_real smt_term
      | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term
+     (* TODO: may have to eventually add bv/integer casts *)
      | _ -> assert false)
   | CN_None t -> CN_Option.none (translate_base_type t)
   | CN_Some t -> CN_Option.some (translate_term s t)
