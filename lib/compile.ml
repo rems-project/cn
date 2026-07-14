@@ -1161,7 +1161,10 @@ module C_vars = struct
       match pname with
       | Owned (ct, Init) ->
         ( [ (ptr_expr, pointee) ],
-          (if !BT.cnBV then [] else [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ]) )
+          if !BT.cnBV then
+            []
+          else
+            [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
       | _ -> ([], [])
     in
     return (pt, pointee_value, pointee_constrs)
@@ -1196,14 +1199,17 @@ module C_vars = struct
       | Owned (ct, Init) ->
         let open IT in
         let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
-        (if !BT.cnBV then [] else [ ( LC.Forall
-              ( (q, SBT.proj bt'),
-                impl_
-                  ( Surface.proj guard_expr,
-                    representable_ (ct, map_get_ oarg qt here) here )
-                  here ),
-            info )
-        ])
+        if !BT.cnBV then
+          []
+        else
+          [ ( LC.Forall
+                ( (q, SBT.proj bt'),
+                  impl_
+                    ( Surface.proj guard_expr,
+                      representable_ (ct, map_get_ oarg qt here) here )
+                    here ),
+              info )
+          ]
       | _ -> []
     in
     return (pt, [], pointee_constrs)
@@ -1647,8 +1653,12 @@ let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let info = (loc, Some "return value representable") in
   let here = Locations.other __LOC__ in
   let lrt =
-    if !BT.cnBV then lrt 
-    else LRT.mConstraint (LC.T (IT.representable_ (ct, IT.sym_ (s, bt, here)) here), info) lrt
+    if !BT.cnBV then
+      lrt
+    else
+      LRT.mConstraint
+        (LC.T (IT.representable_ (ct, IT.sym_ (s, bt, here)) here), info)
+        lrt
   in
   return (RT.mComputational ((s, bt), (loc, None)) lrt)
 
