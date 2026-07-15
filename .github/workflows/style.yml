@@ -68,19 +68,19 @@ jobs:
       - name: Install ClangFormat
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
-          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
-          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
           sudo apt-get update
-          sudo apt-get install clang-format-19
+          sudo apt-get install clang-format-22
 
       - name: Check LibCN code formatting
         run: |
-          find runtime/libcn/ -iname '*.h' -o -iname '*.c' -o -iname '*.hpp' -o -iname '*.cpp' | xargs clang-format-19 --dry-run -Werror
+          find runtime/libcn/ -iname '*.h' -o -iname '*.c' -o -iname '*.hpp' -o -iname '*.cpp' | xargs clang-format-22 --dry-run -Werror
 
   c-warnings:
     strategy:
       matrix:
-        compiler: [gcc, clang-19]
+        compiler: [gcc, clang]
 
     name: C compiler warnings
 
@@ -98,13 +98,14 @@ jobs:
           sudo apt-get install gcc
 
       - name: Install Clang
-        if: ${{ matrix.compiler == 'clang-19' }}
+        if: ${{ matrix.compiler == 'clang' }}
         run: |
           wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
-          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
-          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
+          sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
+          sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-22 main"
           sudo apt-get update
-          sudo apt-get install clang-19
+          sudo apt-get install clang-22
+          sudo ln -sf "$(command -v clang-22)" /usr/local/bin/clang
 
       - name: Check compiler warnings
         run: |
