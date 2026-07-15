@@ -1,4 +1,6 @@
-let cnBV = ref true
+let in_bvmode = ref (None : bool option)
+let bvmode () = Option.get !in_bvmode
+
 
 type sign =
   | Signed
@@ -153,7 +155,7 @@ let of_sct loc is_signed size_of =
   let rec aux = function
     | Sctypes.Void -> Unit
     | Integer ity ->
-      if !cnBV then
+      if bvmode () then
 	Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
       else
 	Integer
@@ -175,7 +177,8 @@ let intptr_bt loc is_signed size_of =
   of_sct loc is_signed size_of Sctypes.(Integer (Signed Intptr_t))
 
 
-let size_bt loc is_signed size_of = of_sct loc is_signed size_of Sctypes.(Integer Size_t)
+let size_bt loc is_signed size_of = 
+  of_sct loc is_signed size_of Sctypes.(Integer Size_t)
 
 let rec hash = function
   | Unit -> 0

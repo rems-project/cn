@@ -771,7 +771,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let@ at =
         aux_comp
           (arg_states @ [ (mut_arg, arg_state) ])
-          ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs)
+          ((if BT.bvmode () then [] else [ good_lc ]) @ good_lcs)
           env
           st
           rest
@@ -827,7 +827,7 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
           info )
       in
       let@ at =
-        aux_comp ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs) env st rest
+        aux_comp ((if BT.bvmode () then [] else [ good_lc ]) @ good_lcs) env st rest
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
