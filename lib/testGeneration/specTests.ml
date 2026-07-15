@@ -54,14 +54,55 @@ let compile_constant_tests
   (tests, separate (twice hardline) docs ^^ twice hardline)
 
 
-let convert_from ((x, _ct) : Sym.t * C.ctype) =
-  (* Just return raw field access - conversions now happen in harness *)
-  CF.Pp_ail.pp_expression
-    (Utils.mk_expr
-       A.(
-         AilEmemberofptr
-           ( Utils.mk_expr (AilEident (Sym.fresh "res")),
-             CF.Symbol.Identifier (Locations.other __LOC__, Sym.pp_string x) )))
+let convert_from (prog5 : unit Mucore.file) ((x, ct) : Sym.t * C.ctype) =
+  let open Pp in
+  let field_access (field_name : string) =
+    (* Raw record field access [res->field_name]; conversions happen in the harness. *)
+    CF.Pp_ail.pp_expression
+      (Utils.mk_expr
+         A.(
+           AilEmemberofptr
+             ( Utils.mk_expr (AilEident (Sym.fresh "res")),
+               CF.Symbol.Identifier (Locations.other __LOC__, field_name) )))
+  in
+  (* When a struct argument was destructured (symbolic + product-arg-destruction), the
+     generator record holds one field per leaf, named [<parent>_<member>] deterministically
+     (see [DestructProducts.get_member_new_name]). Rebuild the whole struct as a compound
+     literal. The outer parens are required: this expression is passed through a test macro's
+     [__VA_ARGS__], where an unparenthesized compound literal's commas would be split into
+     separate arguments. *)
+  let rec reconstruct (prefix : string) (ct : C.ctype) =
+    match Sctypes.of_ctype ct with
+    | Some (Sctypes.Struct tag)
+      when TestGenConfig.is_symbolic_enabled ()
+           && TestGenConfig.is_experimental_product_arg_destruction () ->
+      let members =
+        match Pmap.find tag prog5.tagDefs with
+        | StructDef pieces ->
+          pieces
+          |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
+            member_or_padding)
+        | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found")
+      in
+      let ty_doc =
+        CF.Pp_ail.(with_executable_spec (pp_ctype ~is_human:false C.no_qualifiers) ct)
+      in
+      parens
+        (parens ty_doc
+         ^^ braces
+              (separate_map
+                 (comma ^^ space)
+                 (fun (member, member_sct) ->
+                    dot
+                    ^^ !^(Id.get_string member)
+                    ^^^ equals
+                    ^^^ reconstruct
+                          (prefix ^ "_" ^ Id.get_string member)
+                          (Sctypes.to_ctype member_sct))
+                 members))
+    | _ -> field_access prefix
+  in
+  reconstruct (Sym.pp_string x) ct
 
 
 let compile_random_test_case
@@ -194,7 +235,7 @@ let compile_random_test_case
               else
                 [])
            @ [ int (Config.get_num_samples ());
-               separate_map (comma ^^ space) convert_from args
+               separate_map (comma ^^ space) (convert_from prog5) args
              ]))
   ^^ semi
   ^^ twice hardline

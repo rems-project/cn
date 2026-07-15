@@ -556,6 +556,9 @@ def main():
                 if args.symbolic and Path(tf).name == "no_args.pass.c":
                     full_config += ' --experimental-arg-pruning'
 
+                if args.symbolic and Path(tf).name == "struct_arg_destruct.pass.c":
+                    full_config += ' --experimental-product-arg-destruction'
+
                 test_type = get_test_type(tf, full_config)
                 if test_type == 'SKIP':
                     continue
