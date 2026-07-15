@@ -19,7 +19,7 @@ type t =
     where : Where.t
   }
 
-val empty : t
+val empty : unit -> t
 
 val get_rs : t -> Resource.t list
 

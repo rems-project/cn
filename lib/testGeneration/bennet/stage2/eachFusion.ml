@@ -5,7 +5,7 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let simp = Simplify.IndexTerms.simp (Simplify.default Global.empty)
+  let simp it = Simplify.IndexTerms.simp (Simplify.default (Global.empty ())) it
 
   let is_simp_true it = IT.is_true (simp it)
 

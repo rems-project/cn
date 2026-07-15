@@ -8,7 +8,7 @@ module Make (AD : Domain.T) = struct
   module Builtin = struct
     let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
       let globals =
-        { Global.empty with
+        { (Global.empty ()) with
           logical_functions = Sym.Map.of_seq (List.to_seq prog5.logical_predicates)
         }
       in
@@ -95,7 +95,7 @@ module Make (AD : Domain.T) = struct
         | Cast ((Loc () as bt1), IT (Cast (Bits (sign2, bits2), it_inner), _, _))
           when BT.equal bt1 (IT.get_bt it_inner)
                &&
-               let sign1, bits1 = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+               let sign1, bits1 = Option.get (BT.is_bits_bt (Memory.uintptr_bt ())) in
                let f = BT.fits_range (sign2, bits2) in
                let min, max = BT.bits_range (sign1, bits1) in
                f min && f max ->
@@ -103,7 +103,7 @@ module Make (AD : Domain.T) = struct
         | Cast ((Bits (sign1, bits1) as bt1), IT (Cast (Loc (), it_inner), _, _))
           when BT.equal bt1 (IT.get_bt it_inner)
                &&
-               let sign2, bits2 = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+               let sign2, bits2 = Option.get (BT.is_bits_bt (Memory.uintptr_bt ())) in
                let f = BT.fits_range (sign2, bits2) in
                let min, max = BT.bits_range (sign1, bits1) in
                f min && f max ->

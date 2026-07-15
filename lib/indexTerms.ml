@@ -614,13 +614,13 @@ let cast_ bt' it loc =
 
 let addr_ it loc =
   assert (BT.equal (get_bt it) (Loc ()));
-  cast_ Memory.uintptr_bt it loc
+  cast_ (Memory.uintptr_bt ()) it loc
 
 
 let upper_bound addr ct loc =
   let range_size =
     let size = Memory.size_of_ctype ct in
-    num_lit_ (Z.of_int size) Memory.uintptr_bt loc
+    num_lit_ (Z.of_int size) (Memory.uintptr_bt ()) loc
   in
   assert (BT.equal (get_bt addr) (get_bt range_size));
   add_ (addr, range_size) loc
@@ -643,7 +643,7 @@ let right_integer_type_for_mode bt =
 (* TODO: some call sites explicitly put the uintptr_bt cast *)
 let arrayShift_ ~base ~index ct loc =
   assert (right_integer_type_for_mode (get_bt index));
-  let index = cast_ Memory.uintptr_bt index loc in
+  let index = cast_ (Memory.uintptr_bt ()) index loc in
   IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
 
 
@@ -663,7 +663,7 @@ let hasAllocId_ ptr loc =
   IT (HasAllocId (futz ptr), BT.Bool, loc)
 
 
-let sizeOf_ ct loc = IT (SizeOf ct, Memory.size_bt, loc)
+let sizeOf_ ct loc = IT (SizeOf ct, Memory.size_bt (), loc)
 
 let isIntegerToPointerCast = function
   | IT (Cast (BT.Loc (), IT (_, BT.Integer, _)), _, _) -> true
@@ -712,12 +712,12 @@ let wrapI_ (ity, arg) loc =
 
 let alignedI_ ~t ~align loc =
   assert (BT.equal (get_bt t) (Loc ()));
-  assert (BT.equal Memory.uintptr_bt (get_bt align));
+  assert (BT.equal (Memory.uintptr_bt ()) (get_bt align));
   IT (Aligned { t; align }, BT.Bool, loc)
 
 
 let aligned_ (t, ct) loc =
-  alignedI_ ~t ~align:(int_lit_ (Memory.align_of_ctype ct) Memory.uintptr_bt loc) loc
+  alignedI_ ~t ~align:(int_lit_ (Memory.align_of_ctype ct) (Memory.uintptr_bt ()) loc) loc
 
 
 let const_map_ index_bt t loc =
@@ -824,8 +824,8 @@ let rec in_z_range within (min_z, max_z) loc =
        big enough to fit any valid pointer (to void). From there, it's just a matter of
        checking the bits fit. *)
     or_
-      [ in_z_range (cast_ Memory.uintptr_bt within loc) (min_z, max_z) loc;
-        in_z_range (cast_ Memory.intptr_bt within loc) (min_z, max_z) loc
+      [ in_z_range (cast_ (Memory.uintptr_bt ()) within loc) (min_z, max_z) loc;
+        in_z_range (cast_ (Memory.intptr_bt ()) within loc) (min_z, max_z) loc
       ]
       loc
   | _ -> failwith ("in_z_range: unsupported type: " ^ Pp.plain (pp_with_typ within))
@@ -896,7 +896,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
           failwith ("value_check: argument not a map: " ^ Pp.plain (pp_with_typ about))
       in
       let () =
-        if BT.equal ix_bt Memory.uintptr_bt then
+        if BT.equal ix_bt (Memory.uintptr_bt ()) then
           ()
         else
           Pp.warn

@@ -65,7 +65,7 @@ module Make (AD : Domain.T) = struct
         !^"CN_SMT_CONCRETIZE_ASSERT"
         ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
       in
-      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let f = Simplify.IndexTerms.simp (Simplify.default (Global.empty ())) in
       let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let value_bt_doc = Smt.convert_basetype v_bt in
       let here = Locations.other __LOC__ in
@@ -280,7 +280,7 @@ module Make (AD : Domain.T) = struct
         ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
       in
       (* Array assignment: claim ownership of memory locations *)
-      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let f = Simplify.IndexTerms.simp (Simplify.default (Global.empty ())) in
       let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let prefix = Printf.sprintf "%s_%d_map_value" (Sym.pp_string x) (Sym.num x) in
       let elem_names =
@@ -371,7 +371,7 @@ module Make (AD : Domain.T) = struct
         !^"CN_SMT_CONCRETIZE_ASSERT"
         ^^ parens (Smt.convert_logical_constraint sigma max_len_constraint)
       in
-      let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+      let f = Simplify.IndexTerms.simp (Simplify.default (Global.empty ())) in
       let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let result_ty = Smt.convert_basetype bt in
       let here = Locations.other __LOC__ in

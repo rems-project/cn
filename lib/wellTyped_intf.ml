@@ -26,7 +26,7 @@ module type S = sig
 
   val check_term : Locations.t -> BaseTypes.t -> 'bt IndexTerms.annot -> IndexTerms.t t
 
-  val default_quantifier_bt : BaseTypes.t
+  val default_quantifier_bt : unit -> BaseTypes.t
 
   val oarg_bt_of_pred : Locations.t -> Request.name -> BaseTypes.t t
 

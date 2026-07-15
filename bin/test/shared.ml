@@ -111,6 +111,7 @@ let run
     ~save_cpp:(Some pp_file)
     ~disable_linemarkers:true
     ~skip_label_inlining:true
+    ~integermode:false
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused ->
       let config : TestGeneration.config =

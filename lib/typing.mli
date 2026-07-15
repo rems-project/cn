@@ -94,7 +94,7 @@ val map_and_fold_resources
   'acc m
 
 module Global : sig
-  val empty : Global.t
+  val empty : unit -> Global.t
 
   val get_struct_decl : Locations.t -> Sym.t -> Memory.struct_decl m
 

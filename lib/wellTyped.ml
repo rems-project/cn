@@ -577,7 +577,7 @@ module WIT = struct
           if not (bvmode ()) then
             return ()
           else (
-            let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+            let rs = Option.get (BT.is_bits_bt (Memory.uintptr_bt ())) in
             ensure_z_fits_bits_type loc rs p.addr)
         in
         return (IT (Const (Pointer p), Loc (), loc))
@@ -819,7 +819,7 @@ module WIT = struct
         let@ t = check loc (Loc ()) t in
         let@ decl = get_struct_decl loc tag in
         let o = Option.get (Memory.member_offset decl member) in
-        let rs = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+        let rs = Option.get (BT.is_bits_bt (Memory.uintptr_bt ())) in
         let@ () = ensure_z_fits_bits_type loc rs (Z.of_int o) in
         (* looking at solver mapping *)
         return (IT (MemberShift (t, tag, member), BT.Loc (), loc))
@@ -831,14 +831,14 @@ module WIT = struct
         let@ index =
           if (bvmode ()) then
             let@ () = ensure_bits_type loc (IT.get_bt index) in
-            return (cast_ Memory.uintptr_bt index loc)
+            return (cast_ (Memory.uintptr_bt ()) index loc)
           else
             let@ () = ensure_base_type loc ~expect:Integer (IT.get_bt index) in
             return index
         in
         return (IT (ArrayShift { base; ct; index }, BT.Loc (), loc))
       | CopyAllocId { addr; loc = ptr } ->
-        let@ addr = check loc Memory.uintptr_bt addr in
+        let@ addr = check loc (Memory.uintptr_bt ()) addr in
         let@ ptr = check loc (Loc ()) ptr in
         return (IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc))
       | HasAllocId ptr ->
@@ -850,27 +850,27 @@ module WIT = struct
         let@ () =
           if (bvmode ()) then (
             let sz = Memory.size_of_ctype ct in
-            let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
+            let rs = Option.get (BT.is_bits_bt (Memory.size_bt ())) in
             ensure_z_fits_bits_type loc rs (Z.of_int sz))
           else
             return ()
         in
-        return (IT (SizeOf ct, Memory.size_bt, loc))
+        return (IT (SizeOf ct, Memory.size_bt (), loc))
       | OffsetOf (tag, member) ->
         let@ _ty = get_struct_member_type loc tag member in
         let@ decl = get_struct_decl loc tag in
         let@ () =
           if (bvmode ()) then (
             let o = Option.get (Memory.member_offset decl member) in
-            let rs = Option.get (BT.is_bits_bt Memory.size_bt) in
+            let rs = Option.get (BT.is_bits_bt (Memory.size_bt ())) in
             ensure_z_fits_bits_type loc rs (Z.of_int o))
           else
             return ()
         in
-        return (IT (OffsetOf (tag, member), Memory.size_bt, loc))
+        return (IT (OffsetOf (tag, member), Memory.size_bt (), loc))
       | Aligned t ->
         let@ t_t = check loc (Loc ()) t.t in
-        let@ t_align = check loc Memory.uintptr_bt t.align in
+        let@ t_align = check loc (Memory.uintptr_bt ()) t.align in
         return (IT (Aligned { t = t_t; align = t_align }, BT.Bool, loc))
       | Representable (ct, t) ->
         let@ () = WCT.is_ct loc ct in
@@ -1040,7 +1040,7 @@ module WIT = struct
       fail (illtyped_index_term loc it (IT.get_bt it) ~expected ~reason))
 end
 
-let default_quantifier_bt =
+let default_quantifier_bt () =
   if (bvmode ()) then
     BT.Bits (Unsigned, 64)
   else
@@ -1056,12 +1056,12 @@ let warn_when_not_quantifier_bt
       (sym : Pp.document)
   : unit
   =
-  if not (BT.equal bt default_quantifier_bt) then
+  if not (BT.equal bt (default_quantifier_bt ())) then
     warn
       loc
       (squotes (string ident)
        ^^^ !^"prefers a"
-       ^^^ squotes (BT.pp default_quantifier_bt)
+       ^^^ squotes (BT.pp (default_quantifier_bt ()))
        ^^ !^", but"
        ^^^ (squotes sym ^^^ !^"has type")
        ^^^ squotes (BaseTypes.pp bt)
@@ -1996,7 +1996,7 @@ module BaseTyping = struct
         let@ () =
           ListM.iterM (fun pe -> ensure_base_type loc ~expect:ibt (bt_of_pexpr pe)) pes
         in
-        let abt = if (bvmode ()) then Memory.uintptr_bt else Integer in
+        let abt = if (bvmode ()) then Memory.uintptr_bt () else Integer in
         return (Map (abt, ibt))
       | (Civmax | Civmin), [ e ] ->
         let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
@@ -2012,7 +2012,7 @@ module BaseTyping = struct
         fail { loc; msg = Number_arguments { type_; has; expect = 1 } }
       | Civsizeof, [ e ] ->
         let@ () = ensure_base_type loc ~expect:CType (bt_of_pexpr e) in
-        return Memory.size_bt
+        return (Memory.size_bt ())
       | Civsizeof, _ ->
         let type_ = `Other in
         let has = List.length pes in
@@ -2161,7 +2161,7 @@ module BaseTyping = struct
     | Civsizeof, [ e ] ->
       let@ e = check_pexpr CType e in
       (* TODO: check z fits range, also elsewhere *)
-      let@ () = ensure_base_type loc ~expect Memory.size_bt in
+      let@ () = ensure_base_type loc ~expect (Memory.size_bt ()) in
       return (PEctor (ctor, [ e ]))
     | Civsizeof, _ ->
       let type_ = `Other in
@@ -2368,8 +2368,6 @@ module BaseTyping = struct
     pure (aux p)
 
 
-  let signed_int_ty = Memory.bt_of_sct Sctypes.(Integer (Signed Int_))
-
   let rec infer_expr : 'TY. label_context -> 'TY Mu.expr -> BT.t Mu.expr m =
     fun label_context e ->
     let open Mu in
@@ -2445,7 +2443,7 @@ module BaseTyping = struct
         | Ememop (Va_arg, _) (* (asym 'bty * actype 'bty) *) -> todo ()
         | Ememop (Va_end, _) (* (asym 'bty) *) -> todo ()
         | Ememop (Copy_alloc_id, [ pe1; pe2 ]) ->
-          let@ pe1 = check_pexpr Memory.uintptr_bt pe1 in
+          let@ pe1 = check_pexpr (Memory.uintptr_bt ()) pe1 in
           let@ pe2 = check_pexpr BT.(Loc ()) pe2 in
           return (Loc (), Ememop (Copy_alloc_id, [ pe1; pe2 ]))
         | Ememop (CHERI_intrinsic _, _) -> todo ()
@@ -2455,7 +2453,7 @@ module BaseTyping = struct
             match action_ with
             | Create (pe, act, prefix) ->
               let@ () = WCT.is_ct act.loc act.ct in
-              let@ pe = check_pexpr signed_int_ty pe in
+              let@ pe = check_pexpr (Memory.bt_of_sct Sctypes.(Integer (Signed Int_))) pe in
               (* let@ () = ensure_bits_type (loc_of_pexpr pe) (bt_of_pexpr pe) in *)
               return (Loc (), Create (pe, act, prefix))
             | Kill (k, pe) ->
@@ -2997,7 +2995,7 @@ let oarg_bt_of_pred = WRS.oarg_bt_of_pred
 
 let request = WReq.welltyped
 
-let default_quantifier_bt = default_quantifier_bt
+let default_quantifier_bt () = default_quantifier_bt ()
 
 let infer_term = WIT.infer
 
@@ -3076,7 +3074,7 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
   let oarg_bt_of_pred = lift2 oarg_bt_of_pred
 
-  let default_quantifier_bt = default_quantifier_bt
+  let default_quantifier_bt () = default_quantifier_bt ()
 
   let infer_term x = lift1 infer_term x
 

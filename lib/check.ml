@@ -638,7 +638,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
        let@ n =
          match ctor with
          | Civsizeof ->
-           let@ () = WellTyped.ensure_base_type loc ~expect Memory.size_bt in
+           let@ () = WellTyped.ensure_base_type loc ~expect (Memory.size_bt ()) in
            return (Z.of_int (Memory.size_of_ctype ct))
          | Civalignof ->
            let@ () =
@@ -731,7 +731,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : IT.t m =
         But for now, I just skip the liveness check. *)
     (* CP: Why can't we do the liveness check here nonetheless? *)
     (* CP: TODO: Do we need overflow checks here? *)
-    let result = arrayShift_ ~base:vt1 ct ~index:(cast_ Memory.uintptr_bt vt2 loc) loc in
+    let result = arrayShift_ ~base:vt1 ct ~index:(cast_ (Memory.uintptr_bt ()) vt2 loc) loc in
     let@ has_owned = valid_for_deref loc result ct in
     let@ () =
       if has_owned then
@@ -1448,7 +1448,7 @@ let bytes_pred ct pointer init : Req.Predicate.t =
 
 let bytes_qpred sym size pointer init : Req.QPredicate.t =
   let here = Locations.other __LOC__ in
-  let bt' = WellTyped.default_quantifier_bt in
+  let bt' = WellTyped.default_quantifier_bt () in
   { q = (sym, bt');
     q_loc = here;
     step = Sctypes.byte_ct;
@@ -1508,7 +1508,7 @@ let bytes_constraints
     let lhs = value in
     let bytes =
       List.init (Memory.size_of_integer_type it) (fun i ->
-        let index = int_lit_ i WellTyped.default_quantifier_bt here in
+        let index = int_lit_ i (WellTyped.default_quantifier_bt ()) here in
         map_get_ byte_arr index here)
     in
     let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
@@ -1535,12 +1535,12 @@ let bytes_constraints
           fail (fun ctxt ->
             { loc; msg = Converting_from_unspecified_bytes { constr = lc; ctxt; model } })))
   | Pointer _ ->
-    let bt = Memory.uintptr_bt in
+    let bt = Memory.uintptr_bt () in
     let value_prov = cast_ BT.Alloc_id value here in
     let value_addr = cast_ bt value here in
     let bytes =
       List.init Memory.size_of_pointer (fun i ->
-        let index = int_lit_ i WellTyped.default_quantifier_bt here in
+        let index = int_lit_ i (WellTyped.default_quantifier_bt ()) here in
         map_get_ byte_arr index here)
     in
     let bytes_addr =
@@ -1818,7 +1818,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          let alloc_case =
            and_
              [ hasAllocId_ result here;
-               eq_ (cast_ Memory.uintptr_bt arg here, addr_ result here) here
+               eq_ (cast_ (Memory.uintptr_bt ()) arg here, addr_ result here) here
              ]
              here
          in
@@ -1864,7 +1864,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
        check_pexpr pe1 (fun vt1 ->
          check_pexpr pe2 (fun vt2 ->
            let result =
-             arrayShift_ ~base:vt1 ct ~index:(cast_ Memory.uintptr_bt vt2 loc) loc
+             arrayShift_ ~base:vt1 ct ~index:(cast_ (Memory.uintptr_bt ()) vt2 loc) loc
            in
            let@ has_owned = valid_for_deref loc result ct in
            let@ () =
@@ -1882,7 +1882,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
      | Copy_alloc_id, [ pe1; pe2 ] ->
        let@ () = WellTyped.ensure_base_type loc ~expect (Loc ()) in
        let@ () =
-         WellTyped.ensure_base_type loc ~expect:Memory.uintptr_bt (Mu.bt_of_pexpr pe1)
+         WellTyped.ensure_base_type loc ~expect:(Memory.uintptr_bt ()) (Mu.bt_of_pexpr pe1)
        in
        let@ () =
          WellTyped.ensure_base_type loc ~expect:BT.(Loc ()) (Mu.bt_of_pexpr pe2)
@@ -1935,7 +1935,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
          in
          let@ () = add_a ret_s (IT.get_bt ret) (loc, lazy (Pp.string "allocation")) in
          let@ () = add_c loc (LC.T (representable_ (Pointer act.ct, ret) loc)) in
-         let align_v = cast_ Memory.uintptr_bt arg loc in
+         let align_v = cast_ (Memory.uintptr_bt ()) arg loc in
          let@ () = add_c loc (LC.T (alignedI_ ~align:align_v ~t:ret loc)) in
          let@ () =
            add_r
@@ -2239,7 +2239,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : IT.t -> unit m) : unit m =
             (bytes_pred ct pointer init, None)
         in
         let q_sym = Sym.fresh "to_bytes" in
-        let bt = WellTyped.default_quantifier_bt in
+        let bt = WellTyped.default_quantifier_bt () in
         let map_bt = BT.Map (bt, Option MemByte) in
         let byte_sym, byte_arr = IT.fresh_named map_bt "byte_arr" here in
         let@ () = add_a byte_sym map_bt (loc, lazy (Pp.string "byte array")) in
@@ -2963,15 +2963,15 @@ let ffs_proxy_ft sz =
   ft
 
 
-let memcpy_proxy_ft =
+let memcpy_proxy_ft () =
   let here = Locations.other __LOC__ in
   let info = (here, Some "memcpy_proxy") in
   (* C arguments *)
   let dest_sym, dest = IT.fresh_named (BT.Loc ()) "dest" here in
   let src_sym, src = IT.fresh_named (BT.Loc ()) "src" here in
-  let n_sym, n = IT.fresh_named Memory.size_bt "n" here in
+  let n_sym, n = IT.fresh_named (Memory.size_bt ()) "n" here in
   (* requires *)
-  let q_bt = WellTyped.default_quantifier_bt in
+  let q_bt = WellTyped.default_quantifier_bt () in
   let map_bt = BT.Map (q_bt, Option MemByte) in
   let destIn_sym, _ = IT.fresh_named map_bt "destIn" here in
   let srcIn_sym, srcIn = IT.fresh_named map_bt "srcIn" here in
@@ -2982,7 +2982,7 @@ let memcpy_proxy_ft =
   let destOut_sym, destOut = IT.fresh_named map_bt "destOut" here in
   let srcOut_sym, srcOut = IT.fresh_named map_bt "srcOut" here in
   AT.mComputationals
-    [ (dest_sym, Loc (), info); (src_sym, Loc (), info); (n_sym, Memory.size_bt, info) ]
+    [ (dest_sym, Loc (), info); (src_sym, Loc (), info); (n_sym, Memory.size_bt (), info) ]
     (AT.L
        (LAT.mResources
           [ ((destIn_sym, (destRes "i_d" Uninit, map_bt)), info);
@@ -3009,7 +3009,7 @@ let memcpy_proxy_ft =
 
 let add_stdlib_spec =
   let module StrMap = Map.Make (String) in
-  let proxies =
+  let proxies () =
     List.fold_left
       (fun map (name, ft) -> StrMap.add name ft map)
       StrMap.empty
@@ -3018,7 +3018,7 @@ let add_stdlib_spec =
            ("ffs_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Int_);
            ("ffsl_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.Long);
            ("ffsll_proxy", ffs_proxy_ft Sctypes.IntegerBaseTypes.LongLong);
-           ("memcpy_proxy", memcpy_proxy_ft)
+           ("memcpy_proxy", memcpy_proxy_ft ())
          ]
        else
          [])
@@ -3033,7 +3033,7 @@ let add_stdlib_spec =
     match
       Option.(
         let@ s = Sym.has_id fsym in
-        let@ ft = StrMap.find_opt s proxies in
+        let@ ft = StrMap.find_opt s (proxies ()) in
         (* The C signatures for most of the proxies are included in
            ./runtime/libc/include/builtins.h, and so show up in every file,
            regardless of whether or not they are used, but the same is not true

@@ -800,7 +800,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_sizeof (sct : Sctypes.t) : Pp.document =
     let open Pp in
-    let sign, width = Option.get (BT.is_bits_bt Memory.size_bt) in
+    let sign, width = Option.get (BT.is_bits_bt (Memory.size_bt ())) in
     let sign_str =
       match sign with BaseTypes.Signed -> "true" | BaseTypes.Unsigned -> "false"
     in
@@ -818,7 +818,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_offsetof (tag : Sym.t) (member : Id.t) : Pp.document =
     let open Pp in
-    let sign, width = Option.get (BT.is_bits_bt Memory.size_bt) in
+    let sign, width = Option.get (BT.is_bits_bt (Memory.size_bt ())) in
     let sign_str =
       match sign with BaseTypes.Signed -> "true" | BaseTypes.Unsigned -> "false"
     in
@@ -1250,7 +1250,7 @@ module Make (AD : Domain.T) = struct
 
   let get_max_array_length_of (i_sym, i_bt) it_perm =
     let max_array_length_setting = Z.of_int (TestGenConfig.get_max_array_length ()) in
-    let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
+    let f = Simplify.IndexTerms.simp (Simplify.default (Global.empty ())) in
     let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
     let it_min, it_max = (f it_min, f it_max) in
     let basic_length =

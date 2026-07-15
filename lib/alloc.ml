@@ -7,22 +7,22 @@ module History = struct
 
   let base_id = Id.make here "base"
 
-  let base_bt = Memory.uintptr_bt
+  let base_bt () = Memory.uintptr_bt ()
 
   let size_id = Id.make here "size"
 
-  let size_bt = Memory.uintptr_bt
+  let size_bt () = Memory.uintptr_bt ()
 
-  let value_bt = BaseTypes.Record [ (base_id, base_bt); (size_id, size_bt) ]
+  let value_bt () = BaseTypes.Record [ (base_id, base_bt ()); (size_id, size_bt ()) ]
 
   let make_value ~base ~size loc =
     IndexTerms.(
-      record_ [ (base_id, base); (size_id, num_lit_ (Z.of_int size) size_bt loc) ] loc)
+      record_ [ (base_id, base); (size_id, num_lit_ (Z.of_int size) (size_bt ()) loc) ] loc)
 
 
-  let bt = BaseTypes.Map (Alloc_id, value_bt)
+  let bt () = BaseTypes.Map (Alloc_id, value_bt ())
 
-  let it loc = IndexTerms.sym_ (sym, bt, loc)
+  let it loc = IndexTerms.sym_ (sym, bt (), loc)
 
   let lookup_ptr ptr loc =
     assert (BaseTypes.(equal (IndexTerms.get_bt ptr) (Loc ())));
@@ -36,12 +36,12 @@ module History = struct
 
   let split value loc =
     IndexTerms.
-      { base = recordMember_ ~member_bt:base_bt (value, base_id) loc;
-        size = recordMember_ ~member_bt:size_bt (value, size_id) loc
+      { base = recordMember_ ~member_bt:(base_bt ()) (value, base_id) loc;
+        size = recordMember_ ~member_bt:(size_bt ()) (value, size_id) loc
       }
 
 
-  let sbt = BaseTypes.Surface.inj bt
+  let sbt () = BaseTypes.Surface.inj (bt ())
 end
 
 module Predicate = struct

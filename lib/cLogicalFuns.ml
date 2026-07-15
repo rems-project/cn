@@ -92,10 +92,10 @@ let upd_loc_state state ix v =
   { state with loc_map }
 
 
-let triv_simp_ctxt = Simplify.default Global.empty
+let triv_simp_ctxt () = Simplify.default (Global.empty ())
 
 let simp_const loc lpp it =
-  let it2 = Simplify.IndexTerms.simp triv_simp_ctxt it in
+  let it2 = Simplify.IndexTerms.simp (triv_simp_ctxt ()) it in
   match (IT.is_z it2, IT.get_bt it2) with
   | Some _z, _ -> return it2
   | _, BT.Integer ->

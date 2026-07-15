@@ -636,14 +636,14 @@ module Make (B : BASIS) = struct
 
 
   let abs_assign ((it_addr, sct), _) d =
-    let _, max = BT.bits_range (Option.get (BT.is_bits_bt Memory.uintptr_bt)) in
+    let _, max = BT.bits_range (Option.get (BT.is_bits_bt (Memory.uintptr_bt ()))) in
     let bytes = Z.of_int (Memory.size_of_ctype sct) in
     assert (Z.lt bytes max);
     let loc = Locations.other __LOC__ in
     local_iteration
       ((IT.le_
-          ( IT.cast_ Memory.uintptr_bt it_addr loc,
-            IT.num_lit_ (Z.sub max bytes) Memory.uintptr_bt loc ))
+          ( IT.cast_ (Memory.uintptr_bt ()) it_addr loc,
+            IT.num_lit_ (Z.sub max bytes) (Memory.uintptr_bt ()) loc ))
          (Locations.other __LOC__))
       d
 

@@ -582,7 +582,7 @@ module IndexTerms = struct
         (match get_num_z index with
          | Some z when Z.equal Z.zero z -> base
          | _ -> IT (ArrayShift { base; ct; index }, the_bt, the_loc))
-      | SizeOf ct -> int_lit_ (Memory.size_of_ctype ct) Memory.size_bt the_loc
+      | SizeOf ct -> int_lit_ (Memory.size_of_ctype ct) (Memory.size_bt ()) the_loc
       | Representable (ct, t) -> IT (Representable (ct, aux t), the_bt, the_loc)
       | Good (ct, t) -> IT (Good (ct, aux t), the_bt, the_loc)
       | Aligned a -> IT (Aligned { t = aux a.t; align = aux a.align }, the_bt, the_loc)

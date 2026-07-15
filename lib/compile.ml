@@ -42,7 +42,7 @@ type env =
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
-  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg } in
+  let alloc_sig = { pred_iargs = []; pred_output = (Definition.alloc ()).oarg } in
   let builtins =
     List.fold_left
       (fun acc (_, sym, (def : Definition.Function.t)) ->
@@ -52,7 +52,7 @@ let init tagDefs fetch_enum_expr fetch_typedef =
       Builtins.builtin_fun_defs
   in
   { computationals = Sym.Map.empty;
-    logicals = Sym.Map.(empty |> add Alloc.History.sym Alloc.History.sbt);
+    logicals = Sym.Map.(empty |> add Alloc.History.sym (Alloc.History.sbt ()));
     predicates = Sym.Map.(empty |> add Alloc.Predicate.sym alloc_sig);
     functions = builtins;
     datatypes = Sym.Map.empty;
@@ -810,10 +810,10 @@ module C_vars = struct
         mk_binop loc bop (e1, e2)
       | CNExpr_sizeof ct ->
         let scty = Sctypes.of_ctype_unsafe loc ct in
-        return (IT (SizeOf scty, Memory.size_sbt, loc))
+        return (IT (SizeOf scty, Memory.size_sbt (), loc))
       | CNExpr_offsetof (tag, member) ->
         let@ _ = lookup_struct loc tag env in
-        return (IT (OffsetOf (tag, member), Memory.size_sbt, loc))
+        return (IT (OffsetOf (tag, member), Memory.size_sbt (), loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
         let@ ct = infer_scty ~pred_loc:loc ~ptr:base `Array_shift ty_annot in
@@ -1499,7 +1499,7 @@ let allocation_token loc addr_s =
     | _ -> assert false
   in
   let alloc_ret = Request.make_alloc (IT.sym_ (addr_s, BT.Loc (), loc)) in
-  ((name, (Request.P alloc_ret, Alloc.History.value_bt)), (loc, None))
+  ((name, (Request.P alloc_ret, Alloc.History.value_bt ())), (loc, None))
 
 
 let cn_clause env clause =

@@ -82,7 +82,7 @@ module Make (AD : Domain.T) = struct
             let loc = Locations.other __LOC__ in
             Some
               (Simplify.IndexTerms.simp
-                 (Simplify.default Global.empty)
+                 (Simplify.default (Global.empty ()))
                  (IT.max_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
@@ -93,7 +93,7 @@ module Make (AD : Domain.T) = struct
             let loc = Locations.other __LOC__ in
             Some
               (Simplify.IndexTerms.simp
-                 (Simplify.default Global.empty)
+                 (Simplify.default (Global.empty ()))
                  (IT.max_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
@@ -104,7 +104,7 @@ module Make (AD : Domain.T) = struct
             let loc = Locations.other __LOC__ in
             Some
               (Simplify.IndexTerms.simp
-                 (Simplify.default Global.empty)
+                 (Simplify.default (Global.empty ()))
                  (IT.min_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
@@ -115,7 +115,7 @@ module Make (AD : Domain.T) = struct
             let loc = Locations.other __LOC__ in
             Some
               (Simplify.IndexTerms.simp
-                 (Simplify.default Global.empty)
+                 (Simplify.default (Global.empty ()))
                  (IT.min_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
