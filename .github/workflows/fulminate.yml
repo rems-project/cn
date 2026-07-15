@@ -33,7 +33,7 @@ jobs:
       - name: Install Clang
         if: ${{ matrix.compiler != 'gcc' }}
         run: |
-          wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key|sudo apt-key add -
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc > /dev/null
           sudo add-apt-repository "deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
           sudo add-apt-repository "deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main"
           sudo apt-get update
