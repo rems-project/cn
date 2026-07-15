@@ -68,7 +68,7 @@ let frontend
   in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
-      functions = List.map (fun (str, sym) -> (str, sym, None)) Builtins.fun_names;
+      functions = List.map (fun (str, sym) -> (str, sym, None)) (Builtins.fun_names ());
       idents = [ Alloc.History.(str, sym, None) ]
     }
   in

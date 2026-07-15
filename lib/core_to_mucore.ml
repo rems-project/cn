@@ -1528,7 +1528,7 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let stdlib_syms = Sym.Set.of_list (List.map fst (Pmap.bindings_list file.mi_stdlib)) in
   let datatypes = List.map (translate_datatype env) ail_prog.cn_datatypes in
   let builtin_lfuns =
-    List.map (fun (_, sym, def) -> (sym, def)) Builtins.builtin_fun_defs
+    List.map (fun (_, sym, def) -> (sym, def)) (Builtins.builtin_fun_defs ())
   in
   let file =
     Mu.

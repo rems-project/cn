@@ -49,7 +49,7 @@ let init tagDefs fetch_enum_expr fetch_typedef =
          let fsig = { args = def.args; return_bty = def.return_bt } in
          Sym.Map.add sym fsig acc)
       Sym.Map.empty
-      Builtins.builtin_fun_defs
+      (Builtins.builtin_fun_defs ())
   in
   { computationals = Sym.Map.empty;
     logicals = Sym.Map.(empty |> add Alloc.History.sym (Alloc.History.sbt ()));

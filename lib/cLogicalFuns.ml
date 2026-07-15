@@ -181,9 +181,9 @@ let rec add_pattern p v var_map =
       }
 
 
-let signed_int_ity = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_)
+let signed_int_ity () = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_)
 
-let signed_int_ty = Memory.bt_of_sct (Sctypes.Integer signed_int_ity)
+let signed_int_ty () = Memory.bt_of_sct (Sctypes.Integer (signed_int_ity ()))
 
 let is_two_pow it =
   match IT.get_term it with
@@ -196,7 +196,7 @@ let is_two_pow it =
   | _ -> None
 
 
-let bool_rep_ty = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
+let bool_rep_ty () = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
 
 let bool_ite_1_0 bt b loc = IT.ite_ (b, IT.int_lit_ 1 bt loc, IT.int_lit_ 0 bt loc) loc
 
@@ -348,7 +348,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        let here = Locations.other __LOC__ in
        simp_const_pe
          (bool_ite_1_0
-            bool_rep_ty
+            (bool_rep_ty ())
             (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
             loc)
      | _ -> do_wrapI loc ct x)
@@ -619,7 +619,7 @@ let rec symb_exec_expr ctxt state_vars expr =
       match Sym.has_id nm with
       | None -> bail
       | Some s ->
-        let wrap_int x = IT.wrapI_ (signed_int_ity, x) in
+        let wrap_int x = IT.wrapI_ (signed_int_ity (), x) in
         if String.equal s "ctz_proxy" then
           rcval
             (wrap_int (IT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
