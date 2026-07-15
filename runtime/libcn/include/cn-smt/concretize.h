@@ -83,7 +83,7 @@ cn_term* cn_smt_concretize_arbitrary(cn_base_type type);
 #define CN_SMT_CONCRETIZE_ARBITRARY(base_type) cn_smt_concretize_arbitrary(base_type)
 
 #define CN_SMT_CONCRETIZE_CALL(function_symbol, ...)                                     \
-  cn_smt_concretize_##function_symbol(smt_solver, branch_hist, __VA_ARGS__)
+  cn_smt_concretize_##function_symbol(smt_solver, branch_hist __VA_OPT__(, ) __VA_ARGS__)
 
 #define CN_SMT_CONCRETIZE_RETURN(value) return (value);
 
