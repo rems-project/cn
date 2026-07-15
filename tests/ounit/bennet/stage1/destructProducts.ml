@@ -46,6 +46,19 @@ let assert_arg_name ~msg expected idx iargs =
   assert_bool (Printf.sprintf "%s, got '%s'" msg actual) (String.equal expected actual)
 
 
+(** Helper: Assert the transformed body references no symbol outside its own iargs. A
+    dangling symbol means some destructured aggregate (at any nesting depth) was flattened
+    away without being rebound from its leaves. *)
+let assert_no_dangling (transformed_def : Def.t) =
+  let iarg_syms = transformed_def.iargs |> List.map fst |> Sym.Set.of_list in
+  let dangling = Sym.Set.diff (Term.free_vars transformed_def.body) iarg_syms in
+  assert_bool
+    (Printf.sprintf
+       "Body must not reference symbols outside its iargs; dangling: %s"
+       (dangling |> Sym.Set.elements |> List.map Sym.pp_string |> String.concat ", "))
+    (Sym.Set.is_empty dangling)
+
+
 (** Helper: Find a struct tag in the program that matches a predicate *)
 let find_struct_tag prog predicate =
   Pmap.bindings_list prog.Mucore.tagDefs |> List.find predicate |> fst
@@ -187,12 +200,102 @@ let test_nested_struct_destruction _ =
     2
     transformed_def.iargs;
   assert_arg_name ~msg:"First arg should be 'unused'" "unused" 0 transformed_def.iargs;
-  assert_arg_name ~msg:"Second arg should be 'ghi_x0'" "ghi_x0" 1 transformed_def.iargs;
-  assert_arg_name
-    ~msg:"Third arg should be 'ghi_y0_y0'"
-    "ghi_y0_y0"
+  assert_arg_name ~msg:"Second arg should be 'ghi_x'" "ghi_x" 1 transformed_def.iargs;
+  assert_arg_name ~msg:"Third arg should be 'ghi_y_y'" "ghi_y_y" 2 transformed_def.iargs
+
+
+(** Test: A whole-value reference to a *nested* struct member (e.g. [ghi.y], not a leaf
+    access [ghi.y.y]) must not leave the intermediate symbol [ghi_y] dangling: it has to be
+    rebound to a value reconstructed from the leaves, just like the top-level parent. *)
+let test_nested_whole_struct_reference _ =
+  let prog = make_test_prog_with_struct () in
+  let abc_tag =
+    find_struct_tag prog (fun (_, def) -> num_pieces def = 2 && has_member "x" def)
+  in
+  let def_tag = find_struct_tag prog (fun (_, def) -> num_pieces def = 1) in
+  let gen_name = Sym.fresh "ABC" in
+  let ghi_arg = (Sym.fresh "ghi", BT.Struct abc_tag) in
+  let ghi_it = IT.sym_ (fst ghi_arg, BT.Struct abc_tag, test_loc) in
+  (* Reference the whole nested struct [ghi.y] (bt = struct def), not a leaf field. After
+     member rewriting this becomes a bare [Sym ghi_y]. *)
+  let ghi_y =
+    IT.member_ ~member_bt:(BT.Struct def_tag) (ghi_it, Id.make test_loc "y") test_loc
+  in
+  let gen_def = make_test_generator gen_name [ ghi_arg ] [ (ghi_y, ghi_y) ] in
+  let ctx : Ctx.t = [ (gen_name, gen_def) ] in
+  let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
+  assert_no_dangling transformed_def
+
+
+(** Test: A tuple argument is flattened into one leaf argument per item. *)
+let test_tuple_destruction _ =
+  let prog = make_test_prog_with_struct () in
+  let gen_name = Sym.fresh "TUP" in
+  let i32 = BT.Bits (Signed, 32) in
+  let t_arg = (Sym.fresh "t", BT.Tuple [ i32; i32 ]) in
+  let t_it = IT.sym_ (fst t_arg, snd t_arg, test_loc) in
+  let t0 = IT.nthTuple_ ~item_bt:i32 (0, t_it) test_loc in
+  let t1 = IT.nthTuple_ ~item_bt:i32 (1, t_it) test_loc in
+  let five = IT.num_lit_ (Z.of_int 5) i32 test_loc in
+  let gen_def = make_test_generator gen_name [ t_arg ] [ (t0, five); (t1, five) ] in
+  let ctx : Ctx.t = [ (gen_name, gen_def) ] in
+  let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
+  assert_equal
+    ~msg:"Should have 2 flattened arguments"
     2
-    transformed_def.iargs
+    (List.length transformed_def.iargs);
+  assert_arg_type ~msg:"First item should be i32" i32 0 transformed_def.iargs;
+  assert_arg_type ~msg:"Second item should be i32" i32 1 transformed_def.iargs;
+  assert_arg_name ~msg:"First arg should be 't_0'" "t_0" 0 transformed_def.iargs;
+  assert_arg_name ~msg:"Second arg should be 't_1'" "t_1" 1 transformed_def.iargs
+
+
+(** Test: A nested tuple is flattened to leaves, and a whole-value reference to the inner
+    tuple element [t.0] must not leave the intermediate tuple symbol [t_0] dangling. *)
+let test_nested_tuple_whole_reference _ =
+  let prog = make_test_prog_with_struct () in
+  let gen_name = Sym.fresh "TUP" in
+  let i32 = BT.Bits (Signed, 32) in
+  let inner_tup = BT.Tuple [ i32; i32 ] in
+  let t_arg = (Sym.fresh "t", BT.Tuple [ inner_tup; i32 ]) in
+  let t_it = IT.sym_ (fst t_arg, snd t_arg, test_loc) in
+  (* Whole inner tuple element [t.0] (bt = (i32, i32)), not a leaf item. *)
+  let t0 = IT.nthTuple_ ~item_bt:inner_tup (0, t_it) test_loc in
+  let gen_def = make_test_generator gen_name [ t_arg ] [ (t0, t0) ] in
+  let ctx : Ctx.t = [ (gen_name, gen_def) ] in
+  let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
+  assert_equal
+    ~msg:"Should have 3 flattened leaf arguments"
+    3
+    (List.length transformed_def.iargs);
+  assert_arg_name ~msg:"First arg should be 't_0_0'" "t_0_0" 0 transformed_def.iargs;
+  assert_arg_name ~msg:"Second arg should be 't_0_1'" "t_0_1" 1 transformed_def.iargs;
+  assert_arg_name ~msg:"Third arg should be 't_1'" "t_1" 2 transformed_def.iargs;
+  assert_no_dangling transformed_def
+
+
+(** Test: A struct nested inside a tuple. A whole-value reference to the struct element
+    [t.0] must not leave the intermediate tuple-item symbol [t_0] dangling (recursion runs
+    through the tuple arm into the struct arm). *)
+let test_tuple_of_struct_whole_reference _ =
+  let prog = make_test_prog_with_struct () in
+  let def_tag = find_struct_tag prog (fun (_, def) -> num_pieces def = 1) in
+  let gen_name = Sym.fresh "TUP" in
+  let i32 = BT.Bits (Signed, 32) in
+  let t_arg = (Sym.fresh "t", BT.Tuple [ BT.Struct def_tag; i32 ]) in
+  let t_it = IT.sym_ (fst t_arg, snd t_arg, test_loc) in
+  (* Whole nested struct element [t.0] (bt = struct def), not a leaf field. *)
+  let t0 = IT.nthTuple_ ~item_bt:(BT.Struct def_tag) (0, t_it) test_loc in
+  let gen_def = make_test_generator gen_name [ t_arg ] [ (t0, t0) ] in
+  let ctx : Ctx.t = [ (gen_name, gen_def) ] in
+  let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
+  assert_equal
+    ~msg:"Should have 2 flattened leaf arguments"
+    2
+    (List.length transformed_def.iargs);
+  assert_arg_name ~msg:"First arg should be 't_0_y'" "t_0_y" 0 transformed_def.iargs;
+  assert_arg_name ~msg:"Second arg should be 't_1'" "t_1" 1 transformed_def.iargs;
+  assert_no_dangling transformed_def
 
 
 (** Test: Simple struct (non-nested) argument is flattened *)
@@ -251,5 +354,9 @@ let test_simple_struct_destruction _ =
 let suite =
   "DestructProducts Tests"
   >::: [ "nested struct destruction" >:: test_nested_struct_destruction;
+         "nested whole-struct reference" >:: test_nested_whole_struct_reference;
+         "tuple destruction" >:: test_tuple_destruction;
+         "nested tuple whole reference" >:: test_nested_tuple_whole_reference;
+         "tuple of struct whole reference" >:: test_tuple_of_struct_whole_reference;
          "simple struct destruction" >:: test_simple_struct_destruction
        ]
