@@ -14,24 +14,24 @@ extern "C" {
   bennet_domain(ty);                                                                     \
                                                                                          \
   bennet_domain(ty) * bennet_domain_top_##ty(void);                                      \
-  bool bennet_domain_is_top_##ty(bennet_domain(ty) *);                                   \
+  bool bennet_domain_is_top_##ty(bennet_domain(ty)*);                                    \
                                                                                          \
   bennet_domain(ty) * bennet_domain_bottom_##ty(void);                                   \
-  bool bennet_domain_is_bottom_##ty(bennet_domain(ty) *);                                \
+  bool bennet_domain_is_bottom_##ty(bennet_domain(ty)*);                                 \
                                                                                          \
-  bool bennet_domain_leq_##ty(bennet_domain(ty) *, bennet_domain(ty) *);                 \
-  bool bennet_domain_equal_##ty(bennet_domain(ty) *, bennet_domain(ty) *);               \
+  bool bennet_domain_leq_##ty(bennet_domain(ty)*, bennet_domain(ty)*);                   \
+  bool bennet_domain_equal_##ty(bennet_domain(ty)*, bennet_domain(ty)*);                 \
                                                                                          \
-  bennet_domain(ty) * bennet_domain_join_##ty(bennet_domain(ty) *, bennet_domain(ty) *); \
-  bennet_domain(ty) * bennet_domain_meet_##ty(bennet_domain(ty) *, bennet_domain(ty) *); \
+  bennet_domain(ty) * bennet_domain_join_##ty(bennet_domain(ty)*, bennet_domain(ty)*);   \
+  bennet_domain(ty) * bennet_domain_meet_##ty(bennet_domain(ty)*, bennet_domain(ty)*);   \
                                                                                          \
-  bennet_domain(ty) * bennet_domain_copy_##ty(bennet_domain(ty) *);                      \
+  bennet_domain(ty) * bennet_domain_copy_##ty(bennet_domain(ty)*);                       \
                                                                                          \
-  ty bennet_domain_arbitrary_##ty(bennet_domain(ty) *);                                  \
-  bool bennet_domain_check_##ty(ty, bennet_domain(ty) *);                                \
+  ty bennet_domain_arbitrary_##ty(bennet_domain(ty)*);                                   \
+  bool bennet_domain_check_##ty(ty, bennet_domain(ty)*);                                 \
                                                                                          \
   bennet_domain(ty) *                                                                    \
-      bennet_domain_from_assignment_##ty(void *base_ptr, void *addr, size_t bytes);
+      bennet_domain_from_assignment_##ty(void* base_ptr, void* addr, size_t bytes);
 
 #define bennet_domain(ty) struct bennet_domain_##ty
 
@@ -64,7 +64,7 @@ BENNET_DOMAIN_DECL(uintptr_t);
 
 #define BENNET_DOMAIN_CAST_DECL(from_ty, to_ty)                                          \
   bennet_domain(to_ty) *                                                                 \
-      bennet_domain_cast_##from_ty##_to_##to_ty(bennet_domain(from_ty) *);
+      bennet_domain_cast_##from_ty##_to_##to_ty(bennet_domain(from_ty)*);
 
 #define bennet_domain_cast(from_ty, to_ty, cs)                                           \
   (bennet_domain_cast_##from_ty##_to_##to_ty(cs))

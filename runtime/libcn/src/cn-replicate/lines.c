@@ -11,13 +11,13 @@
 #include <bennet/utils/vector.h>
 
 // Define a typedef for char *
-typedef char *str;
+typedef char* str;
 BENNET_VECTOR_DECL(str)
 BENNET_VECTOR_IMPL(str)
 
 static bennet_vector(str) lines_vec;
 
-void cn_replica_lines_append(char *line) {
+void cn_replica_lines_append(char* line) {
   bennet_vector_push(str)(&lines_vec, line);
 }
 
@@ -29,20 +29,20 @@ void cn_replica_lines_reset(void) {
   bennet_vector_init(str)(&lines_vec);
 }
 
-char *cn_replica_lines_to_str(void) {
+char* cn_replica_lines_to_str(void) {
   size_t num_lines = bennet_vector_size(str)(&lines_vec);
 
   size_t sz = 0;
   for (size_t i = 0; i < num_lines; i++) {
-    const char *line = *bennet_vector_get(str)(&lines_vec, i);
+    const char* line = *bennet_vector_get(str)(&lines_vec, i);
     sz += strlen(line) + 1;  // +1 for newline
   }
 
-  char *res = malloc(sz + 1);  // +1 for string terminator
+  char* res = malloc(sz + 1);  // +1 for string terminator
   assert(res);
   res[0] = '\0';
   for (size_t i = 0; i < num_lines; i++) {
-    const char *line = *bennet_vector_get(str)(&lines_vec, i);
+    const char* line = *bennet_vector_get(str)(&lines_vec, i);
     strcat(res, line);
     strcat(res, "\n");
   }
@@ -50,12 +50,12 @@ char *cn_replica_lines_to_str(void) {
   return res;
 }
 
-char *cn_replica_lines_to_json_literal(void) {
+char* cn_replica_lines_to_json_literal(void) {
   size_t num_lines = bennet_vector_size(str)(&lines_vec);
 
   size_t sz = 0;
   for (size_t i = 0; i < num_lines; i++) {
-    const char *line = *bennet_vector_get(str)(&lines_vec, i);
+    const char* line = *bennet_vector_get(str)(&lines_vec, i);
     sz += strlen(line) + 2;  // +2 for newline
     for (size_t j = 0; j < strlen(line); j++) {
       char k = line[j];
@@ -67,11 +67,11 @@ char *cn_replica_lines_to_json_literal(void) {
     }
   }
 
-  char *res = malloc(sz + 1);
+  char* res = malloc(sz + 1);
   assert(res);
   res[0] = '\0';
   for (size_t i = 0; i < num_lines; i++) {
-    const char *line = *bennet_vector_get(str)(&lines_vec, i);
+    const char* line = *bennet_vector_get(str)(&lines_vec, i);
 
     for (size_t j = 0; j < strlen(line); j++) {
       char k = line[j];

@@ -41,7 +41,7 @@ uint64_t bennet_get_input_timer(void);
 uint64_t bennet_get_milliseconds(void);
 uint64_t bennet_get_microseconds(void);
 
-int64_t timediff_timeval(struct timeval *early, struct timeval *late);
+int64_t timediff_timeval(struct timeval* early, struct timeval* late);
 
 #ifdef __cplusplus
 }

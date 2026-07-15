@@ -7,11 +7,11 @@
 
 #define BENNET_BACKTRACK_ARBITRARY(cn_ty, c_ty)                                          \
   /** Returns whether this `let` should catch the failure */                             \
-  bool bennet_backtrack_arbitrary_##cn_ty(int *backtracks,                               \
+  bool bennet_backtrack_arbitrary_##cn_ty(int* backtracks,                               \
       bennet_domain(c_ty) * *cs,                                                         \
       bennet_domain(c_ty) * *cs_tmp,                                                     \
-      const bennet_checkpoint *cp,                                                       \
-      const void *var) {                                                                 \
+      const bennet_checkpoint* cp,                                                       \
+      const void* var) {                                                                 \
     enum bennet_failure_type ty = bennet_failure_get_failure_type();                     \
     assert(ty != BENNET_FAILURE_NONE);                                                   \
                                                                                          \
@@ -28,10 +28,10 @@
           return false;                                                                  \
         }                                                                                \
                                                                                          \
-        bennet_domain(c_ty) *new_cs = bennet_failure_get_domain(c_ty, var);              \
+        bennet_domain(c_ty)* new_cs = bennet_failure_get_domain(c_ty, var);              \
         bool assign_progress = false;                                                    \
         if (new_cs != NULL) {                                                            \
-          bennet_domain(c_ty) *met = bennet_domain_meet(c_ty, *cs_tmp, new_cs);          \
+          bennet_domain(c_ty)* met = bennet_domain_meet(c_ty, *cs_tmp, new_cs);          \
           if (bennet_domain_is_bottom(c_ty, met)) {                                      \
             return false;                                                                \
           }                                                                              \
@@ -80,7 +80,7 @@ BENNET_BACKTRACK_ARBITRARY_BV(32)
 BENNET_BACKTRACK_ARBITRARY_BV(64)
 
 /** Returns whether this `let` should catch the failure */
-bool bennet_backtrack(int *backtracks, const bennet_checkpoint *cp, const void *var) {
+bool bennet_backtrack(int* backtracks, const bennet_checkpoint* cp, const void* var) {
   assert(bennet_failure_get_failure_type() != BENNET_FAILURE_NONE);
 
   if (!bennet_failure_is_blamed(var)) {

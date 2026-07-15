@@ -26,7 +26,7 @@ BENNET_VECTOR_IMPL(cn_match_case)
 
 #define DEFINE_CN_SMT_LOGICAL_BINOP(name, op_enum)                                       \
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
-    assert(left&& right);                                                                \
+    assert(left && right);                                                               \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, cn_base_type_simple(CN_BASE_BOOL));     \
     assert(term);                                                                        \
     term->data.binop.op = op_enum;                                                       \
@@ -37,7 +37,7 @@ BENNET_VECTOR_IMPL(cn_match_case)
 
 #define DEFINE_CN_SMT_ARITH_BINOP(name, op_enum)                                         \
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
-    assert(left&& right);                                                                \
+    assert(left && right);                                                               \
     assert(cn_base_type_eq(left->base_type, right->base_type));                          \
                                                                                          \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, left->base_type);                       \
@@ -62,7 +62,7 @@ BENNET_VECTOR_IMPL(cn_match_case)
 
 #define DEFINE_CN_SMT_BW_BINOP(name, op_enum)                                            \
   cn_term* cn_smt_##name(cn_term* left, cn_term* right) {                                \
-    assert(left&& right);                                                                \
+    assert(left && right);                                                               \
     cn_term* term = cn_term_alloc(CN_TERM_BINOP, left->base_type);                       \
     assert(term);                                                                        \
     term->data.binop.op = op_enum;                                                       \

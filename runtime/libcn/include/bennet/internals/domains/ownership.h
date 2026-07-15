@@ -29,8 +29,8 @@ extern "C" {
                                                                                          \
   static inline bennet_domain_ownership(cty) *                                           \
       bennet_domain_ownership_of_##cty(size_t before, size_t after) {                    \
-    bennet_domain_ownership(cty) *ret =                                                  \
-        (bennet_domain_ownership(cty) *)malloc(sizeof(bennet_domain_ownership(cty)));    \
+    bennet_domain_ownership(cty)* ret =                                                  \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
     ret->bottom = 0;                                                                     \
     ret->before = before;                                                                \
     ret->after = after;                                                                  \
@@ -39,8 +39,8 @@ extern "C" {
   }                                                                                      \
                                                                                          \
   static inline bennet_domain_ownership(cty) * bennet_domain_ownership_top_##cty(void) { \
-    bennet_domain_ownership(cty) *ret =                                                  \
-        (bennet_domain_ownership(cty) *)malloc(sizeof(bennet_domain_ownership(cty)));    \
+    bennet_domain_ownership(cty)* ret =                                                  \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
     ret->bottom = 0;                                                                     \
     ret->before = 0;                                                                     \
     ret->after = 0;                                                                      \
@@ -54,8 +54,8 @@ extern "C" {
                                                                                          \
   static inline bennet_domain_ownership(cty) *                                           \
       bennet_domain_ownership_bottom_##cty(void) {                                       \
-    bennet_domain_ownership(cty) *ret =                                                  \
-        (bennet_domain_ownership(cty) *)malloc(sizeof(bennet_domain_ownership(cty)));    \
+    bennet_domain_ownership(cty)* ret =                                                  \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
     ret->bottom = 1;                                                                     \
                                                                                          \
     return ret;                                                                          \
@@ -94,8 +94,8 @@ extern "C" {
   static inline bennet_domain_ownership(cty) *                                           \
       bennet_domain_ownership_join_##cty(                                                \
           bennet_domain_ownership(cty) * cs1, bennet_domain_ownership(cty) * cs2) {      \
-    bennet_domain_ownership(cty) *ret =                                                  \
-        (bennet_domain_ownership(cty) *)malloc(sizeof(bennet_domain_ownership(cty)));    \
+    bennet_domain_ownership(cty)* ret =                                                  \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
     if (cs1->bottom) {                                                                   \
       *ret = *cs2;                                                                       \
       return ret;                                                                        \
@@ -115,8 +115,8 @@ extern "C" {
   static inline bennet_domain_ownership(cty) *                                           \
       bennet_domain_ownership_meet_##cty(                                                \
           bennet_domain_ownership(cty) * cs1, bennet_domain_ownership(cty) * cs2) {      \
-    bennet_domain_ownership(cty) *ret =                                                  \
-        (bennet_domain_ownership(cty) *)malloc(sizeof(bennet_domain_ownership(cty)));    \
+    bennet_domain_ownership(cty)* ret =                                                  \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
     if (cs1->bottom || cs2->bottom) {                                                    \
       ret->bottom = true;                                                                \
       return ret;                                                                        \
@@ -130,26 +130,26 @@ extern "C" {
                                                                                          \
   static inline bennet_domain_ownership(cty) *                                           \
       bennet_domain_ownership_copy_##cty(bennet_domain_ownership(cty) * cs) {            \
-    bennet_domain_ownership(cty) *ret =                                                  \
-        (bennet_domain_ownership(cty) *)malloc(sizeof(bennet_domain_ownership(cty)));    \
+    bennet_domain_ownership(cty)* ret =                                                  \
+        (bennet_domain_ownership(cty)*)malloc(sizeof(bennet_domain_ownership(cty)));     \
     *ret = *cs;                                                                          \
     return ret;                                                                          \
   }                                                                                      \
                                                                                          \
   bennet_domain_ownership(cty) * bennet_domain_ownership_from_assignment_##cty(          \
-                                     void *base_ptr, void *addr, size_t bytes);          \
+                                     void* base_ptr, void* addr, size_t bytes);          \
                                                                                          \
-  cty bennet_domain_ownership_arbitrary_##cty(bennet_domain_ownership(cty) *);           \
+  cty bennet_domain_ownership_arbitrary_##cty(bennet_domain_ownership(cty)*);            \
                                                                                          \
-  bool bennet_domain_ownership_check_##cty(cty, bennet_domain_ownership(cty) *);         \
+  bool bennet_domain_ownership_check_##cty(cty, bennet_domain_ownership(cty)*);          \
                                                                                          \
   static inline cty bennet_arbitrary_ownership_##cty##_top(void) {                       \
-    bennet_domain_ownership(cty) *d = bennet_domain_ownership_top(cty);                  \
+    bennet_domain_ownership(cty)* d = bennet_domain_ownership_top(cty);                  \
     return bennet_domain_ownership_arbitrary_##cty(d);                                   \
   }                                                                                      \
                                                                                          \
   static inline cty bennet_arbitrary_ownership_##cty##_bottom(void) {                    \
-    bennet_domain_ownership(cty) *d = bennet_domain_ownership_bottom(cty);               \
+    bennet_domain_ownership(cty)* d = bennet_domain_ownership_bottom(cty);               \
     return bennet_domain_ownership_arbitrary_##cty(d);                                   \
   }
 
