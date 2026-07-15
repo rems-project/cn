@@ -169,7 +169,7 @@ jobs:
 
     - name: Install CN
       run: |
-        alias cc=${{ matrix.compiler }}
+        sudo ln -sf "$(command -v ${{ matrix.compiler }})" /usr/local/bin/cc
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         opam pin --yes --no-action add cn .
@@ -177,7 +177,7 @@ jobs:
 
     - name: Run LibCN unit tests
       run: |
-        alias cc=${{ matrix.compiler }}
+        sudo ln -sf "$(command -v ${{ matrix.compiler }})" /usr/local/bin/cc
         opam switch ${{ matrix.version }}
         eval $(opam env --switch=${{ matrix.version }})
         dune test runtime/libcn

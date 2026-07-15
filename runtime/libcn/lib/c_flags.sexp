@@ -1,0 +1,17 @@
+(-std=gnu11
+ -O2
+ -g
+ -Wall
+ -fdiagnostics-color=always
+ -Werror
+ -Wcast-function-type
+ -Werror=date-time
+ -Werror=implicit-function-declaration
+ -Werror=implicit-int
+ -Werror=incompatible-pointer-types
+ -Werror=return-type
+ -Werror=shadow
+ -Werror=strict-prototypes
+ -Wframe-larger-than=2048
+ -Wundef
+ -Wvla)
