@@ -771,7 +771,7 @@ let main
   output_to_oc
     oc
     [ "#ifndef offsetof\n";
-      "#define offsetof(st, m) ((__cerbty_size_t)((char *)&((st *)0)->m - (char *)0))\n";
+      "#define offsetof(st, m) ((__cerbty_size_t)__builtin_offsetof(st, m))\n";
       "#endif\n"
     ];
   output_string oc "#pragma GCC diagnostic ignored \"-Wattributes\"\n";
