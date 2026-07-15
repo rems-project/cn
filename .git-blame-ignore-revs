@@ -6,3 +6,5 @@ ce8b6186fde296e05532b05783de36e814cbf465
 a3cc07c9dce3048429427a1f45a5100e8ebff56f
 # CN: Fix for bad formatting
 8a46609febc22611d66012180eec5edb08f72643
+# LibCN: Upgrade to clang-format-22
+8a712bb3ee2f05039940030366c9d8bd26ea974b
