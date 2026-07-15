@@ -20,9 +20,9 @@
 #include <cn-smt/to_smt.h>
 
 // SMT logging configuration (NULL = disabled)
-const char *cn_smt_log_file_path = NULL;
+const char* cn_smt_log_file_path = NULL;
 
-void cn_smt_set_log_file_path(const char *path) {
+void cn_smt_set_log_file_path(const char* path) {
   cn_smt_log_file_path = path;
 }
 
@@ -33,7 +33,7 @@ void cn_smt_set_solver_timeout_ms(int ms) {
   cn_smt_solver_timeout_ms = ms;
 }
 
-void send_string(struct cn_smt_solver *solver, const char *str) {
+void send_string(struct cn_smt_solver* solver, const char* str) {
   assert(solver && str);
   fprintf(solver->write_input, "%s\n", str);
   fflush(solver->write_input);
@@ -47,7 +47,7 @@ void send_string(struct cn_smt_solver *solver, const char *str) {
   }
 }
 
-char *read_output(struct cn_smt_solver *solver) {
+char* read_output(struct cn_smt_solver* solver) {
   assert(solver);
 
   // Wait for data to be available with a timeout
@@ -89,7 +89,7 @@ char *read_output(struct cn_smt_solver *solver) {
 
   // Data is available, proceed with reading
   size_t buffer_size = 128;
-  char *buffer = cn_test_malloc(buffer_size);
+  char* buffer = cn_test_malloc(buffer_size);
   assert(buffer);
 
   size_t total_len = 0;
@@ -105,7 +105,7 @@ char *read_output(struct cn_smt_solver *solver) {
 
     if (total_len + 1 >= buffer_size) {
       buffer_size *= 2;
-      char *new_buffer = cn_test_realloc(buffer, buffer_size);
+      char* new_buffer = cn_test_realloc(buffer, buffer_size);
       assert(new_buffer);
       buffer = new_buffer;
     }
@@ -147,22 +147,22 @@ char *read_output(struct cn_smt_solver *solver) {
   return buffer;
 }
 
-sexp_t *send_command(struct cn_smt_solver *solver, sexp_t *sexp) {
-  char *sexp_str = sexp_to_string(sexp);
+sexp_t* send_command(struct cn_smt_solver* solver, sexp_t* sexp) {
+  char* sexp_str = sexp_to_string(sexp);
   send_string(solver, sexp_str);
   // Only free if sexp_to_string allocated a new string (lists) vs returning atom pointer
   if (!sexp_is_atom(sexp)) {
     cn_test_free(sexp_str);
   }
 
-  char *buffer = read_output(solver);
-  sexp_t *result = sexp_parse(buffer);
+  char* buffer = read_output(solver);
+  sexp_t* result = sexp_parse(buffer);
   cn_test_free(buffer);
 
   return result;
 }
 
-void stop_solver(struct cn_smt_solver *solver) {
+void stop_solver(struct cn_smt_solver* solver) {
   assert(solver);
   send_string(solver, "(exit)");
 
@@ -178,9 +178,9 @@ void stop_solver(struct cn_smt_solver *solver) {
   waitpid(solver->pid, &status, 0);
 }
 
-void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
+void ack_command(struct cn_smt_solver* solver, sexp_t* cmd) {
   assert(solver && cmd);
-  sexp_t *res = send_command(solver, cmd);
+  sexp_t* res = send_command(solver, cmd);
 
   if (!sexp_is_atom(res)) {
     fprintf(stderr, "%s", sexp_to_string(res));
@@ -192,9 +192,9 @@ void ack_command(struct cn_smt_solver *solver, sexp_t *cmd) {
   }
 }
 
-enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
-  sexp_t *args[] = {sexp_atom("check-sat")};
-  sexp_t *res = send_command(solver, sexp_list(args, 1));
+enum cn_smt_solver_result check(struct cn_smt_solver* solver) {
+  sexp_t* args[] = {sexp_atom("check-sat")};
+  sexp_t* res = send_command(solver, sexp_list(args, 1));
 
   // Z3 can return `(error "... canceled")` when :timeout fires during check-sat
   // rather than the atom `unknown`. Treat as UNKNOWN so the harness retries.
@@ -220,13 +220,13 @@ enum cn_smt_solver_result check(struct cn_smt_solver *solver) {
   return 0;
 }
 
-sexp_t *get_unsat_core(struct cn_smt_solver *solver) {
-  sexp_t *args[] = {sexp_atom("get-unsat-core")};
+sexp_t* get_unsat_core(struct cn_smt_solver* solver) {
+  sexp_t* args[] = {sexp_atom("get-unsat-core")};
   return send_command(solver, sexp_list(args, 1));
 }
 
-struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
-  struct cn_smt_solver *solver = cn_test_malloc(sizeof(struct cn_smt_solver));
+struct cn_smt_solver* cn_smt_new_solver(solver_extensions_t ext) {
+  struct cn_smt_solver* solver = cn_test_malloc(sizeof(struct cn_smt_solver));
   assert(solver);
 
   int pipe_fd_in[2];
@@ -310,9 +310,9 @@ struct cn_smt_solver *cn_smt_new_solver(solver_extensions_t ext) {
   return solver;
 }
 
-void cn_smt_solver_reset(struct cn_smt_solver *solver) {
-  sexp_t *reset_atom = sexp_atom("reset");
-  sexp_t *reset_cmd = sexp_list(&reset_atom, 1);
+void cn_smt_solver_reset(struct cn_smt_solver* solver) {
+  sexp_t* reset_atom = sexp_atom("reset");
+  sexp_t* reset_cmd = sexp_list(&reset_atom, 1);
   ack_command(solver, reset_cmd);
 }
 
@@ -325,36 +325,36 @@ void cn_smt_solver_reset(struct cn_smt_solver *solver) {
 // Helper function to create datatype field from label and base type
 // Converts: (l, t) -> (CN_Names.datatype_field_name l, translate_base_type t)
 typedef struct {
-  const char *name;
-  sexp_t *type;
+  const char* name;
+  sexp_t* type;
 } dt_con_field_t;
 
 // Helper function to create constructor info
 // Converts: c -> (CN_Names.datatype_con_name c, List.map mk_con_field ci.params)
 typedef struct {
-  const char *name;
-  dt_con_field_t *fields;
+  const char* name;
+  dt_con_field_t* fields;
   size_t field_count;
 } dt_constructor_t;
 
 // Declare a group of mutually recursive datatypes
 // Takes specific datatype info instead of accessing globals
-void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
-    const char **names,
+void cn_datatypes_declare_datatype_group(struct cn_smt_solver* s,
+    const char** names,
     size_t name_count,
-    dt_info_t *datatype_infos,
-    dt_constr_info_t **constr_infos) {
+    dt_info_t* datatype_infos,
+    dt_constr_info_t** constr_infos) {
   assert(s && names && name_count > 0 && datatype_infos && constr_infos);
 
-  datatype_def_t *datatypes = cn_test_malloc(sizeof(datatype_def_t) * name_count);
+  datatype_def_t* datatypes = cn_test_malloc(sizeof(datatype_def_t) * name_count);
   assert(datatypes);
 
   cn_bump_frame_id frame = cn_bump_get_frame_id();
 
   // Build each datatype definition
   for (size_t i = 0; i < name_count; i++) {
-    const char *dt_name = names[i];
-    dt_info_t *dt_info = &datatype_infos[i];
+    const char* dt_name = names[i];
+    dt_info_t* dt_info = &datatype_infos[i];
 
     // Create datatype name using CN_Names.datatype_name
     char dt_buffer[256];
@@ -371,8 +371,8 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
     assert(datatypes[i].constructors);
 
     for (size_t c = 0; c < dt_info->constr_count; c++) {
-      const char *constr_name = dt_info->constrs[c];
-      dt_constr_info_t *ci = constr_infos[i * dt_info->constr_count + c];
+      const char* constr_name = dt_info->constrs[c];
+      dt_constr_info_t* ci = constr_infos[i * dt_info->constr_count + c];
 
       // Create constructor name using CN_Names.datatype_con_name
       char con_buffer[256];
@@ -388,7 +388,7 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
         assert(datatypes[i].constructors[c].fields);
 
         for (size_t f = 0; f < ci->param_count; f++) {
-          dt_param_t *param = &ci->params[f];
+          dt_param_t* param = &ci->params[f];
 
           // Create field name using CN_Names.datatype_field_name
           char field_buffer[256];
@@ -403,7 +403,7 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
       }
 
       // Register constructor with metadata and function pointer
-      cn_datatype_field_info *fields = NULL;
+      cn_datatype_field_info* fields = NULL;
       if (ci->param_count > 0) {
         fields = cn_test_malloc(sizeof(cn_datatype_field_info) * ci->param_count);
         assert(fields);
@@ -425,7 +425,7 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
   }
 
   // Create and send command
-  sexp_t *cmd = declare_datatypes(datatypes, name_count);
+  sexp_t* cmd = declare_datatypes(datatypes, name_count);
   if (cmd) {
     ack_command(s, cmd);
   }
@@ -444,20 +444,20 @@ void cn_datatypes_declare_datatype_group(struct cn_smt_solver *s,
 }
 
 // Declare datatypes given the datatype order (groups of mutually recursive types)
-void cn_datatypes_declare(struct cn_smt_solver *s,
-    const char ***datatype_order,
+void cn_datatypes_declare(struct cn_smt_solver* s,
+    const char*** datatype_order,
     size_t order_count,
-    size_t *group_sizes,
-    dt_info_t **all_datatype_infos,
-    dt_constr_info_t ***all_constr_infos) {
+    size_t* group_sizes,
+    dt_info_t** all_datatype_infos,
+    dt_constr_info_t*** all_constr_infos) {
   assert(s && datatype_order && group_sizes && all_datatype_infos && all_constr_infos);
 
   // Iterate over each group in the datatype order
   for (size_t g = 0; g < order_count; g++) {
-    const char **group_names = datatype_order[g];
+    const char** group_names = datatype_order[g];
     size_t group_size = group_sizes[g];
-    dt_info_t *group_infos = all_datatype_infos[g];
-    dt_constr_info_t **group_constr_infos = all_constr_infos[g];
+    dt_info_t* group_infos = all_datatype_infos[g];
+    dt_constr_info_t** group_constr_infos = all_constr_infos[g];
 
     cn_datatypes_declare_datatype_group(
         s, group_names, group_size, group_infos, group_constr_infos);
@@ -468,16 +468,16 @@ void cn_datatypes_declare(struct cn_smt_solver *s,
 
 // Helper to track declared structs (equivalent to done_struct in OCaml)
 typedef struct declared_struct_set {
-  const char **names;
+  const char** names;
   size_t count;
   size_t capacity;
 } declared_struct_set_t;
 
-static declared_struct_set_t *create_declared_struct_set(void) {
-  declared_struct_set_t *set = cn_test_malloc(sizeof(declared_struct_set_t));
+static declared_struct_set_t* create_declared_struct_set(void) {
+  declared_struct_set_t* set = cn_test_malloc(sizeof(declared_struct_set_t));
   assert(set);
 
-  set->names = cn_test_malloc(sizeof(char *) * 16);  // Initial capacity
+  set->names = cn_test_malloc(sizeof(char*) * 16);  // Initial capacity
   assert(set->names);
 
   set->count = 0;
@@ -485,7 +485,7 @@ static declared_struct_set_t *create_declared_struct_set(void) {
   return set;
 }
 
-static bool is_struct_declared(declared_struct_set_t *set, const char *name) {
+static bool is_struct_declared(declared_struct_set_t* set, const char* name) {
   if (!set || !name)
     return false;
 
@@ -497,7 +497,7 @@ static bool is_struct_declared(declared_struct_set_t *set, const char *name) {
   return false;
 }
 
-static void add_declared_struct(declared_struct_set_t *set, const char *name) {
+static void add_declared_struct(declared_struct_set_t* set, const char* name) {
   assert(set && name);
   if (is_struct_declared(set, name)) {
     return;
@@ -506,14 +506,14 @@ static void add_declared_struct(declared_struct_set_t *set, const char *name) {
   // Resize if needed
   if (set->count >= set->capacity) {
     set->capacity *= 2;
-    set->names = cn_test_realloc(set->names, sizeof(char *) * set->capacity);
+    set->names = cn_test_realloc(set->names, sizeof(char*) * set->capacity);
     assert(set->names);
   }
 
   set->names[set->count++] = name;
 }
 
-static void free_declared_struct_set(declared_struct_set_t *set) {
+static void free_declared_struct_set(declared_struct_set_t* set) {
   if (!set)
     return;
   cn_test_free(set->names);
@@ -523,12 +523,12 @@ static void free_declared_struct_set(declared_struct_set_t *set) {
 // Note: struct_member_t and struct_decl_t are now defined in cn-smt/solver.h
 
 // Recursive function to declare struct and dependencies
-void cn_structs_declare_struct(struct cn_smt_solver *s,
-    declared_struct_set_t *done_struct,
-    const char *name,
-    struct_decl_t *struct_decl,
-    struct_decl_t **all_struct_decls,
-    const char **all_struct_names,
+void cn_structs_declare_struct(struct cn_smt_solver* s,
+    declared_struct_set_t* done_struct,
+    const char* name,
+    struct_decl_t* struct_decl,
+    struct_decl_t** all_struct_decls,
+    const char** all_struct_names,
     size_t struct_count) {
   assert(s && done_struct && name && struct_decl);
 
@@ -542,7 +542,7 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
 
   // Recursively declare any nested struct dependencies
   for (size_t i = 0; i < struct_decl->member_count; i++) {
-    struct_member_t *member = &struct_decl->members[i];
+    struct_member_t* member = &struct_decl->members[i];
 
     // Check if this member is a struct type that needs declaring
     if (member->base_type.tag == CN_BASE_STRUCT) {
@@ -565,10 +565,10 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
   cn_bump_frame_id frame = cn_bump_get_frame_id();
 
   // Create struct constructor name using CN_Names.struct_con_name
-  const char *con_name = struct_con_name(name);
+  const char* con_name = struct_con_name(name);
   assert(con_name);
   // Build constructor fields
-  con_field_t *fields = NULL;
+  con_field_t* fields = NULL;
   size_t field_count = 0;
 
   if (struct_decl->member_count > 0) {
@@ -577,7 +577,7 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
     field_count = struct_decl->member_count;
 
     for (size_t i = 0; i < struct_decl->member_count; i++) {
-      struct_member_t *member = &struct_decl->members[i];
+      struct_member_t* member = &struct_decl->members[i];
 
       // Create field name using CN_Names.struct_field_name
       char field_buffer[256];
@@ -589,7 +589,7 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
   }
 
   // Create struct name using CN_Names.struct_name
-  const char *struct_name = cn_smt_struct_name(name);
+  const char* struct_name = cn_smt_struct_name(name);
 
   // Create constructor
   constructor_t constructor;
@@ -598,8 +598,8 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
   constructor.field_count = field_count;
 
   // Declare the struct datatype
-  const char *type_params[] = {};
-  sexp_t *struct_decl_sexp =
+  const char* type_params[] = {};
+  sexp_t* struct_decl_sexp =
       declare_datatype(struct_name, type_params, 0, &constructor, 1);
   if (struct_decl_sexp) {
     ack_command(s, struct_decl_sexp);
@@ -615,13 +615,13 @@ void cn_structs_declare_struct(struct cn_smt_solver *s,
 }
 
 // Declare all structs with their dependencies
-void cn_structs_declare(struct cn_smt_solver *s,
-    const char **struct_names,
-    struct_decl_t **struct_decls,
+void cn_structs_declare(struct cn_smt_solver* s,
+    const char** struct_names,
+    struct_decl_t** struct_decls,
     size_t struct_count) {
   assert(s && struct_names && struct_decls && struct_count > 0);
 
-  declared_struct_set_t *done_structs = create_declared_struct_set();
+  declared_struct_set_t* done_structs = create_declared_struct_set();
   assert(done_structs);
 
   // Declare each struct (dependencies will be declared recursively)
@@ -639,15 +639,15 @@ void cn_structs_declare(struct cn_smt_solver *s,
 }
 
 /** Declare a datatype for a tuple */
-void cn_tuple_declare(struct cn_smt_solver *solver) {
+void cn_tuple_declare(struct cn_smt_solver* solver) {
   for (int arity = 1; arity <= CN_TUPLE_MAX_ARITY; arity++) {
-    const char *name = cn_tuple_constructor_name(arity);
+    const char* name = cn_tuple_constructor_name(arity);
 
     cn_bump_frame_id frame = cn_bump_get_frame_id();
 
     // Create type parameter names: a0, a1, a2, ...
-    const char **type_params = NULL;
-    type_params = cn_test_malloc(arity * sizeof(char *));
+    const char** type_params = NULL;
+    type_params = cn_test_malloc(arity * sizeof(char*));
     assert(type_params);
     for (int i = 0; i < arity; i++) {
       char buffer[32];
@@ -656,7 +656,7 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
     }
 
     // Create constructor fields
-    con_field_t *fields = NULL;
+    con_field_t* fields = NULL;
     if (arity > 0) {
       fields = cn_test_malloc(arity * sizeof(con_field_t));
       assert(fields);
@@ -673,7 +673,7 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
     constructor.field_count = arity;
 
     // Declare the datatype
-    sexp_t *datatype_decl = declare_datatype(name, type_params, arity, &constructor, 1);
+    sexp_t* datatype_decl = declare_datatype(name, type_params, arity, &constructor, 1);
     ack_command(solver, datatype_decl);
 
     cn_bump_free_after(frame);
@@ -689,11 +689,11 @@ void cn_tuple_declare(struct cn_smt_solver *solver) {
 }
 
 /** Declare the option datatype */
-void cn_option_declare(struct cn_smt_solver *solver) {
+void cn_option_declare(struct cn_smt_solver* solver) {
   cn_bump_frame_id frame = cn_bump_get_frame_id();
 
   // Type parameter
-  const char *type_params[] = {"a"};
+  const char* type_params[] = {"a"};
 
   // None constructor (no fields)
   constructor_t none_constructor;
@@ -715,7 +715,7 @@ void cn_option_declare(struct cn_smt_solver *solver) {
   constructor_t constructors[] = {none_constructor, some_constructor};
 
   // Declare the datatype
-  sexp_t *datatype_decl =
+  sexp_t* datatype_decl =
       declare_datatype(cn_option_name, type_params, 1, constructors, 2);
   ack_command(solver, datatype_decl);
 

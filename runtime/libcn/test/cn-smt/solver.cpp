@@ -14,7 +14,7 @@ class SolverTest : public ::testing::Test {
 };
 
 TEST_F(SolverTest, NewSolverZ3DoesNotCrash) {
-  struct cn_smt_solver *solver = cn_smt_new_solver(SOLVER_Z3);
+  struct cn_smt_solver* solver = cn_smt_new_solver(SOLVER_Z3);
   ASSERT_NE(solver, nullptr);
 
   stop_solver(solver);
@@ -26,7 +26,7 @@ TEST_F(SolverTest, NewSolverCVC5DoesNotCrash) {
     GTEST_SKIP() << "CVC5 not found, skipping CVC5 solver test";
   }
 
-  struct cn_smt_solver *solver = cn_smt_new_solver(SOLVER_CVC5);
+  struct cn_smt_solver* solver = cn_smt_new_solver(SOLVER_CVC5);
   ASSERT_NE(solver, nullptr);
 
   stop_solver(solver);
@@ -34,11 +34,11 @@ TEST_F(SolverTest, NewSolverCVC5DoesNotCrash) {
 }
 
 TEST_F(SolverTest, BasicSolverOperations1) {
-  struct cn_smt_solver *solver = cn_smt_new_solver(SOLVER_Z3);
+  struct cn_smt_solver* solver = cn_smt_new_solver(SOLVER_Z3);
   ASSERT_NE(solver, nullptr);
 
-  sexp_t *true_expr = sexp_atom("true");
-  sexp_t *assert_cmd = sexp_app_str("assert", &true_expr, 1);
+  sexp_t* true_expr = sexp_atom("true");
+  sexp_t* assert_cmd = sexp_app_str("assert", &true_expr, 1);
 
   ack_command(solver, assert_cmd);
 
@@ -50,11 +50,11 @@ TEST_F(SolverTest, BasicSolverOperations1) {
 }
 
 TEST_F(SolverTest, BasicSolverOperations2) {
-  struct cn_smt_solver *solver = cn_smt_new_solver(SOLVER_Z3);
+  struct cn_smt_solver* solver = cn_smt_new_solver(SOLVER_Z3);
   ASSERT_NE(solver, nullptr);
 
-  sexp_t *false_expr = sexp_atom("false");
-  sexp_t *assert_cmd = sexp_app_str("assert", &false_expr, 1);
+  sexp_t* false_expr = sexp_atom("false");
+  sexp_t* assert_cmd = sexp_app_str("assert", &false_expr, 1);
 
   ack_command(solver, assert_cmd);
 

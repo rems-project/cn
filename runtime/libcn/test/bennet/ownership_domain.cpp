@@ -8,14 +8,14 @@ extern "C" {
   };                                                                                     \
                                                                                          \
   bennet_domain(ty) * bennet_domain_top_##ty(void) {                                     \
-    return (bennet_domain(ty) *)bennet_domain_ownership_top(ty);                         \
+    return (bennet_domain(ty)*)bennet_domain_ownership_top(ty);                          \
   }                                                                                      \
   bool bennet_domain_is_top_##ty(bennet_domain(ty) * cs) {                               \
     return bennet_domain_ownership_is_top(ty, &cs->car);                                 \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) * bennet_domain_bottom_##ty(void) {                                  \
-    return (bennet_domain(ty) *)bennet_domain_ownership_bottom(ty);                      \
+    return (bennet_domain(ty)*)bennet_domain_ownership_bottom(ty);                       \
   }                                                                                      \
   bool bennet_domain_is_bottom_##ty(bennet_domain(ty) * cs) {                            \
     return bennet_domain_ownership_is_bottom(ty, &cs->car);                              \
@@ -30,23 +30,23 @@ extern "C" {
                                                                                          \
   bennet_domain(ty) *                                                                    \
       bennet_domain_join_##ty(bennet_domain(ty) * cs1, bennet_domain(ty) * cs2) {        \
-    return (bennet_domain(ty) *)bennet_domain_ownership_join_##ty(&cs1->car, &cs2->car); \
+    return (bennet_domain(ty)*)bennet_domain_ownership_join_##ty(&cs1->car, &cs2->car);  \
   }                                                                                      \
   bennet_domain(ty) *                                                                    \
       bennet_domain_meet_##ty(bennet_domain(ty) * cs1, bennet_domain(ty) * cs2) {        \
-    return (bennet_domain(ty) *)bennet_domain_ownership_meet_##ty(&cs1->car, &cs2->car); \
+    return (bennet_domain(ty)*)bennet_domain_ownership_meet_##ty(&cs1->car, &cs2->car);  \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) * bennet_domain_copy_##ty(bennet_domain(ty) * cs) {                  \
-    return (bennet_domain(ty) *)bennet_domain_ownership_copy_##ty(&cs->car);             \
+    return (bennet_domain(ty)*)bennet_domain_ownership_copy_##ty(&cs->car);              \
   }                                                                                      \
   ty bennet_domain_arbitrary_##ty(bennet_domain(ty) * cs) {                              \
     return bennet_domain_ownership_arbitrary_##ty(&cs->car);                             \
   }                                                                                      \
                                                                                          \
   bennet_domain(ty) *                                                                    \
-      bennet_domain_from_assignment_##ty(void *base_ptr, void *addr, size_t bytes) {     \
-    return (bennet_domain(ty) *)bennet_domain_ownership_from_assignment_##ty(            \
+      bennet_domain_from_assignment_##ty(void* base_ptr, void* addr, size_t bytes) {     \
+    return (bennet_domain(ty)*)bennet_domain_ownership_from_assignment_##ty(             \
         base_ptr, addr, bytes);                                                          \
   }
 

@@ -7,24 +7,24 @@
 #include <bennet/info/tyche.h>
 #include <bennet/utils.h>
 
-void print_test_summary_tyche(FILE *out, struct tyche_line_info *line_info) {
+void print_test_summary_tyche(FILE* out, struct tyche_line_info* line_info) {
   // Get timing data from the timing subsystem
-  timing_events_t *timings = bennet_info_timing_get_last();
+  timing_events_t* timings = bennet_info_timing_get_last();
 
   // Build timing JSON object by iterating over the hashtable
   const size_t timing_json_size = 2048;
-  char *timing_json = malloc(timing_json_size);
+  char* timing_json = malloc(timing_json_size);
   assert(timing_json);
 
   timing_json[0] = '\0';
-  char *timing_ptr = timing_json;
+  char* timing_ptr = timing_json;
   size_t timing_remaining = timing_json_size;
   bool first = true;
 
   if (timings) {
     for (size_t i = 0; i < timings->capacity; ++i) {
       if (timings->entries[i].occupied) {
-        const char *event_name = timings->entries[i].key;
+        const char* event_name = timings->entries[i].key;
         int64_t duration_us = timings->entries[i].value;
         double duration_s = duration_us / 1000000.0;
 
