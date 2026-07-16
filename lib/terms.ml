@@ -134,6 +134,13 @@ and 'bt annot =
   | IT of 'bt term * 'bt * (Locations.t[@equal fun _ _ -> true] [@compare fun _ _ -> 0])
 [@@deriving eq, ord, map]
 
+let get_bt : 'bt. 'bt annot -> 'bt = function IT (_, bt, _) -> bt
+
+let get_term (IT (t, _, _)) = t
+
+let get_loc (IT (_, _, l)) = l
+
+
 let rec pp_pattern (Pat (pat_, _bt, _)) =
   match pat_ with
   | PSym s -> Sym.pp s
@@ -491,3 +498,405 @@ let rec dtree (IT (it_, bt, loc)) =
   | Dnode (doc, dtrees) -> Dnode (doc ^^^ loc_doc, dtrees)
   | Dleaf doc -> Dleaf (doc ^^^ loc_doc)
   | _ -> assert false
+
+
+let rec bound_by_pattern (Pat (pat_, bt, _)) =
+  match pat_ with
+  | PSym s -> [ (s, bt) ]
+  | PWild -> []
+  | PConstructor (_s, args) ->
+    List.concat_map (fun (_id, pat) -> bound_by_pattern pat) args
+
+
+let rec free_vars_bts bt_equals (it : 'a annot) : 'bt Sym.Map.t =
+  match get_term it with
+  | Const _ -> Sym.Map.empty
+  | Sym s -> Sym.Map.singleton s (get_bt it)
+  | Unop (_uop, t1) -> free_vars_bts bt_equals t1
+  | Binop (_bop, t1, t2) -> free_vars_bts_list bt_equals [ t1; t2 ]
+  | ITE (t1, t2, t3) -> free_vars_bts_list bt_equals [ t1; t2; t3 ]
+  | EachI ((_, (s, _), _), t) -> Sym.Map.remove s (free_vars_bts bt_equals t)
+  | Tuple ts -> free_vars_bts_list bt_equals ts
+  | NthTuple (_, t) -> free_vars_bts bt_equals t
+  | Struct (_tag, members) -> free_vars_bts_list bt_equals (List.map snd members)
+  | StructMember (t, _member) -> free_vars_bts bt_equals t
+  | StructUpdate ((t1, _member), t2) -> free_vars_bts_list bt_equals [ t1; t2 ]
+  | Record members -> free_vars_bts_list bt_equals (List.map snd members)
+  | RecordMember (t, _member) -> free_vars_bts bt_equals t
+  | RecordUpdate ((t1, _member), t2) -> free_vars_bts_list bt_equals [ t1; t2 ]
+  | Cast (_cbt, t) -> free_vars_bts bt_equals t
+  | MemberShift (t, _tag, _id) -> free_vars_bts bt_equals t
+  | ArrayShift { base; ct = _; index } -> free_vars_bts_list bt_equals [ base; index ]
+  | CopyAllocId { addr; loc } -> free_vars_bts_list bt_equals [ addr; loc ]
+  | HasAllocId loc -> free_vars_bts_list bt_equals [ loc ]
+  | SizeOf _t -> Sym.Map.empty
+  | OffsetOf (_tag, _member) -> Sym.Map.empty
+  | Nil _bt -> Sym.Map.empty
+  | Cons (t1, t2) -> free_vars_bts_list bt_equals [ t1; t2 ]
+  | Head t -> free_vars_bts bt_equals t
+  | Tail t -> free_vars_bts bt_equals t
+  | Representable (_sct, t) -> free_vars_bts bt_equals t
+  | Good (_sct, t) -> free_vars_bts bt_equals t
+  | WrapI (_ity, t) -> free_vars_bts bt_equals t
+  | Aligned { t; align } -> free_vars_bts_list bt_equals [ t; align ]
+  | MapConst (_bt, t) -> free_vars_bts bt_equals t
+  | MapSet (t1, t2, t3) -> free_vars_bts_list bt_equals [ t1; t2; t3 ]
+  | MapGet (t1, t2) -> free_vars_bts_list bt_equals [ t1; t2 ]
+  | MapDef ((s, _bt), t) -> Sym.Map.remove s (free_vars_bts bt_equals t)
+  | Apply (_pred, ts) -> free_vars_bts_list bt_equals ts
+  | Let ((nm, t1), t2) ->
+    Sym.Map.union
+      (fun _ bt1 bt2 ->
+         assert (bt_equals bt1 bt2);
+         Some bt1)
+      (free_vars_bts bt_equals t1)
+      (Sym.Map.remove nm (free_vars_bts bt_equals t2))
+  | Match (e, cases) ->
+    let rec aux acc = function
+      | [] -> acc
+      | (pat, body) :: cases ->
+        let bound = Sym.Set.of_list (List.map fst (bound_by_pattern pat)) in
+        let more =
+          Sym.Map.filter (fun x _ -> not (Sym.Set.mem x bound)) (free_vars_bts bt_equals body)
+        in
+        aux
+          (Sym.Map.union
+             (fun _ bt1 bt2 ->
+                assert (bt_equals bt1 bt2);
+                Some bt1)
+             more
+             acc)
+          cases
+    in
+    aux (free_vars_bts bt_equals e) cases
+  | Constructor (_s, args) -> free_vars_bts_list bt_equals (List.map snd args)
+  | CN_None _ -> Sym.Map.empty
+  | CN_Some t -> free_vars_bts bt_equals t
+  | IsSome t -> free_vars_bts bt_equals t
+  | GetOpt t -> free_vars_bts bt_equals t
+
+
+and free_vars_bts_list bt_equals : 'a annot list -> 'bt Sym.Map.t =
+  fun xs ->
+  List.fold_left
+    (fun ss t ->
+       Sym.Map.union
+         (fun _ bt1 bt2 ->
+            assert (bt_equals bt1 bt2);
+            Some bt1)
+         ss
+         (free_vars_bts bt_equals t))
+    Sym.Map.empty
+    xs
+
+
+let free_vars bt_equals (it : 'a annot) : Sym.Set.t =
+  it |> free_vars_bts bt_equals |> Sym.Map.bindings |> List.map fst |> Sym.Set.of_list
+
+
+let free_vars_list bt_equals (its : 'a annot list) : Sym.Set.t =
+  its |> free_vars_bts_list bt_equals |> Sym.Map.bindings |> List.map fst |> Sym.Set.of_list
+
+
+let free_vars_with_rename (bt_equal : 'bt -> 'bt -> bool) (t_or_rename : [`Term of 'bt annot | `Rename of Sym.t]) = 
+  match t_or_rename with
+  | `Term t -> free_vars bt_equal t
+  | `Rename s -> Sym.Set.singleton s
+
+
+let make_rename bt_equal ~from ~to_ = Subst.make (free_vars_with_rename bt_equal) [ (from, `Rename to_) ]
+
+let make_subst bt_equal assoc =
+  Subst.make (free_vars_with_rename bt_equal) (List.map (fun (s, t) -> (s, `Term t)) assoc)
+
+
+
+let rec subst bteq (su : [ `Term of 'bt annot | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)) =
+  match it with
+  | Sym sym ->
+    (match List.assoc_opt Sym.equal sym su.replace with
+     | Some (`Term after) ->
+       if bteq bt (get_bt after) then
+         ()
+       else
+         failwith
+           ("ill-typed substitution: "
+            ^ Pp.plain (Pp.list pp [ IT (it, bt, loc); after ]));
+       after
+     | Some (`Rename sym) -> IT (Sym sym, bt, loc)
+     | None -> IT (Sym sym, bt, loc))
+  | Const const -> IT (Const const, bt, loc)
+  | Unop (uop, it) -> IT (Unop (uop, subst bteq su it), bt, loc)
+  | Binop (bop, t1, t2) -> IT (Binop (bop, subst bteq su t1, subst bteq su t2), bt, loc)
+  | ITE (it, it', it'') -> IT (ITE (subst bteq su it, subst bteq su it', subst bteq su it''), bt, loc)
+  | EachI ((i1, (s, s_bt), i2), t) ->
+    let s, t = suitably_alpha_rename bteq su.relevant s t in
+    IT (EachI ((i1, (s, s_bt), i2), subst bteq su t), bt, loc)
+  | Tuple its -> IT (Tuple (List.map (subst bteq su) its), bt, loc)
+  | NthTuple (n, it') -> IT (NthTuple (n, subst bteq su it'), bt, loc)
+  | Struct (tag, members) -> IT (Struct (tag, List.map_snd (subst bteq su) members), bt, loc)
+  | StructMember (t, m) -> IT (StructMember (subst bteq su t, m), bt, loc)
+  | StructUpdate ((t, m), v) -> IT (StructUpdate ((subst bteq su t, m), subst bteq su v), bt, loc)
+  | Record members -> IT (Record (List.map_snd (subst bteq su) members), bt, loc)
+  | RecordMember (t, m) -> IT (RecordMember (subst bteq su t, m), bt, loc)
+  | RecordUpdate ((t, m), v) -> IT (RecordUpdate ((subst bteq su t, m), subst bteq su v), bt, loc)
+  | Cast (cbt, t) -> IT (Cast (cbt, subst bteq su t), bt, loc)
+  | MemberShift (t, tag, member) -> IT (MemberShift (subst bteq su t, tag, member), bt, loc)
+  | ArrayShift { base; ct; index } ->
+    IT (ArrayShift { base = subst bteq su base; ct; index = subst bteq su index }, bt, loc)
+  | CopyAllocId { addr; loc = ptr } ->
+    IT (CopyAllocId { addr = subst bteq su addr; loc = subst bteq su ptr }, bt, loc)
+  | HasAllocId ptr -> IT (HasAllocId (subst bteq su ptr), bt, loc)
+  | SizeOf t -> IT (SizeOf t, bt, loc)
+  | OffsetOf (tag, member) -> IT (OffsetOf (tag, member), bt, loc)
+  | Aligned t -> IT (Aligned { t = subst bteq su t.t; align = subst bteq su t.align }, bt, loc)
+  | Representable (rt, t) -> IT (Representable (rt, subst bteq su t), bt, loc)
+  | Good (rt, t) -> IT (Good (rt, subst bteq su t), bt, loc)
+  | WrapI (ity, t) -> IT (WrapI (ity, subst bteq su t), bt, loc)
+  | Nil bt' -> IT (Nil bt', bt, loc)
+  | Cons (it1, it2) -> IT (Cons (subst bteq su it1, subst bteq su it2), bt, loc)
+  | Head it -> IT (Head (subst bteq su it), bt, loc)
+  | Tail it -> IT (Tail (subst bteq su it), bt, loc)
+  | MapConst (arg_bt, t) -> IT (MapConst (arg_bt, subst bteq su t), bt, loc)
+  | MapSet (t1, t2, t3) -> IT (MapSet (subst bteq su t1, subst bteq su t2, subst bteq su t3), bt, loc)
+  | MapGet (it, arg) -> IT (MapGet (subst bteq su it, subst bteq su arg), bt, loc)
+  | MapDef ((s, abt), body) ->
+    let s, body = suitably_alpha_rename bteq su.relevant s body in
+    IT (MapDef ((s, abt), subst bteq su body), bt, loc)
+  | Apply (name, args) -> IT (Apply (name, List.map (subst bteq su) args), bt, loc)
+  | Let ((name, t1), t2) ->
+    let name, t2 = suitably_alpha_rename bteq su.relevant name t2 in
+    IT (Let ((name, subst bteq su t1), subst bteq su t2), bt, loc)
+  | Match (e, cases) ->
+    let e = subst bteq su e in
+    let cases = List.map (subst_under_pattern bteq su) cases in
+    IT (Match (e, cases), bt, loc)
+  | Constructor (s, args) ->
+    let args = List.map (fun (id, e) -> (id, subst bteq su e)) args in
+    IT (Constructor (s, args), bt, loc)
+  | CN_None bt -> IT (CN_None bt, bt, loc)
+  | CN_Some it -> IT (CN_Some (subst bteq su it), bt, loc)
+  | IsSome it -> IT (IsSome (subst bteq su it), bt, loc)
+  | GetOpt it -> IT (GetOpt (subst bteq su it), bt, loc)
+
+
+and alpha_rename bteq s body =
+  let s' = Sym.fresh_same s in
+  (s', subst bteq (make_rename bteq ~from:s ~to_:s') body)
+
+
+and suitably_alpha_rename bteq syms s body =
+  if Sym.Set.mem s syms then
+    alpha_rename bteq s body
+  else
+    (s, body)
+
+
+and subst_under_pattern bteq su (pat, body) =
+  let pat, body = suitably_alpha_rename_pattern bteq su (pat, body) in
+  (pat, subst bteq su body)
+
+
+and suitably_alpha_rename_pattern bteq su (Pat (pat_, bt, loc), body) =
+  match pat_ with
+  | PSym s ->
+    let s, body = suitably_alpha_rename bteq su.relevant s body in
+    (Pat (PSym s, bt, loc), body)
+  | PWild -> (Pat (PWild, bt, loc), body)
+  | PConstructor (s, args) ->
+    let body, args =
+      List.fold_left_map
+        (fun body (id, pat') ->
+           let pat', body = suitably_alpha_rename_pattern bteq su (pat', body) in
+           (body, (id, pat')))
+        body
+        args
+    in
+    (Pat (PConstructor (s, args), bt, loc), body)
+
+
+type 'bt bindings = ('bt pattern * 'bt annot option) list
+
+let rec fold_ f binders acc = function
+  | Sym _s -> acc
+  | Const _c -> acc
+  | Unop (_uop, t1) -> fold f binders acc t1
+  | Binop (_bop, t1, t2) -> fold_list f binders acc [ t1; t2 ]
+  | ITE (t1, t2, t3) -> fold_list f binders acc [ t1; t2; t3 ]
+  | EachI ((_, (s, bt), _), t) ->
+    (* TODO - add location information to binders *)
+    let here = Locations.other __LOC__ in
+    fold f (binders @ [ (Pat (PSym s, bt, here), None) ]) acc t
+  | Tuple ts -> fold_list f binders acc ts
+  | NthTuple (_, t) -> fold f binders acc t
+  | Struct (_tag, members) -> fold_list f binders acc (List.map snd members)
+  | StructMember (t, _member) -> fold f binders acc t
+  | StructUpdate ((t1, _member), t2) -> fold_list f binders acc [ t1; t2 ]
+  | Record members -> fold_list f binders acc (List.map snd members)
+  | RecordMember (t, _member) -> fold f binders acc t
+  | RecordUpdate ((t1, _member), t2) -> fold_list f binders acc [ t1; t2 ]
+  | Cast (_cbt, t) -> fold f binders acc t
+  | MemberShift (t, _tag, _id) -> fold f binders acc t
+  | ArrayShift { base; ct = _; index } -> fold_list f binders acc [ base; index ]
+  | CopyAllocId { addr; loc } -> fold_list f binders acc [ addr; loc ]
+  | HasAllocId loc -> fold_list f binders acc [ loc ]
+  | SizeOf _ct -> acc
+  | OffsetOf (_tag, _member) -> acc
+  | Nil _bt -> acc
+  | Cons (t1, t2) -> fold_list f binders acc [ t1; t2 ]
+  | Head t -> fold f binders acc t
+  | Tail t -> fold f binders acc t
+  | Representable (_sct, t) -> fold f binders acc t
+  | Good (_sct, t) -> fold f binders acc t
+  | WrapI (_ity, t) -> fold f binders acc t
+  | Aligned { t; align } -> fold_list f binders acc [ t; align ]
+  | MapConst (_bt, t) -> fold f binders acc t
+  | MapSet (t1, t2, t3) -> fold_list f binders acc [ t1; t2; t3 ]
+  | MapGet (t1, t2) -> fold_list f binders acc [ t1; t2 ]
+  | MapDef ((s, bt), t) ->
+    (* TODO - add location information to binders *)
+    let here = Locations.other __LOC__ in
+    fold f (binders @ [ (Pat (PSym s, bt, here), None) ]) acc t
+  | Apply (_pred, ts) -> fold_list f binders acc ts
+  | Let ((nm, t1), t2) ->
+    let acc' = fold f binders acc t1 in
+    (* TODO - add location information to binders *)
+    let here = Locations.other __LOC__ in
+    fold f (binders @ [ (Pat (PSym nm, get_bt t1, here), Some t1) ]) acc' t2
+  | Match (e, cases) ->
+    (* TODO: check this is good *)
+    let acc' = fold f binders acc e in
+    let rec aux acc = function
+      | [] -> acc
+      | (pat, body) :: cases ->
+        let acc' = fold f (binders @ [ (pat, Some e) ]) acc body in
+        aux acc' cases
+    in
+    aux acc' cases
+  | Constructor (_sym, args) -> fold_list f binders acc (List.map snd args)
+  | CN_None _ -> acc
+  | CN_Some t -> fold f binders acc t
+  | IsSome t -> fold f binders acc t
+  | GetOpt t -> fold f binders acc t
+
+
+and fold f binders acc (IT (term_, _bt, loc)) =
+  let acc' = fold_ f binders acc term_ in
+  f binders acc' (IT (term_, _bt, loc))
+
+
+and fold_list f binders acc xs =
+  match xs with
+  | [] -> acc
+  | x :: xs ->
+    let acc' = fold f binders acc x in
+    fold_list f binders acc' xs
+
+
+let fold_subterms
+  : 'a.
+  ?bindings:'bt bindings ->
+  ('bt bindings -> 'a -> 'bt annot -> 'a) ->
+  'a ->
+  'bt annot ->
+  'a
+  =
+  fun ?(bindings = []) f acc t -> fold f bindings acc t
+
+
+let rec map_term_pre (f : 'bt annot -> 'bt annot) (it : 'bt annot) : 'bt annot =
+  let (IT (it_, bt, here)) = f it in
+  let loop = map_term_pre f in
+  let it_ =
+    match it_ with
+    | Const _ | Sym _ | Nil _ | SizeOf _ | OffsetOf _ -> it_
+    | Unop (op, it') -> Unop (op, loop it')
+    | Binop (op, it1, it2) -> Binop (op, loop it1, loop it2)
+    | ITE (it_if, it_then, it_else) -> ITE (loop it_if, loop it_then, loop it_else)
+    | EachI (range, it') -> EachI (range, loop it')
+    | Tuple its -> Tuple (List.map loop its)
+    | NthTuple (i, it') -> NthTuple (i, loop it')
+    | Struct (tag, xits) -> Struct (tag, List.map_snd loop xits)
+    | StructMember (it', member) -> StructMember (loop it', member)
+    | StructUpdate ((it_struct, member), it_value) ->
+      StructUpdate ((loop it_struct, member), loop it_value)
+    | Record xits -> Record (List.map_snd loop xits)
+    | RecordMember (it', member) -> RecordMember (loop it', member)
+    | RecordUpdate ((it_struct, member), it_value) ->
+      RecordUpdate ((loop it_struct, member), loop it_value)
+    | Constructor (constr, xits) -> Constructor (constr, List.map_snd loop xits)
+    | MemberShift (it', tag, member) -> MemberShift (loop it', tag, member)
+    | ArrayShift { base; ct; index } ->
+      ArrayShift { base = loop base; ct; index = loop index }
+    | CopyAllocId { addr; loc } -> CopyAllocId { addr = loop addr; loc = loop loc }
+    | Cons (it_head, it_tail) -> Cons (loop it_head, loop it_tail)
+    | Head it' -> Head (loop it')
+    | Tail it' -> Tail (loop it')
+    | Representable (ct, it') -> Representable (ct, loop it')
+    | Good (ct, it') -> Good (ct, loop it')
+    | Aligned { t; align } -> Aligned { t = loop t; align = loop align }
+    | WrapI (ct, it') -> WrapI (ct, loop it')
+    | MapConst (bt', it') -> MapConst (bt', loop it')
+    | MapSet (it_m, it_k, it_v) -> MapSet (loop it_m, loop it_k, loop it_v)
+    | MapGet (it_m, it_key) -> MapGet (loop it_m, loop it_key)
+    | MapDef (sbt, it') -> MapDef (sbt, loop it')
+    | Apply (fsym, its) -> Apply (fsym, List.map loop its)
+    | Let ((x, it_v), it_rest) -> Let ((x, loop it_v), loop it_rest)
+    | Match (it', pits) -> Match (loop it', List.map_snd loop pits)
+    | Cast (bt', it') -> Cast (bt', loop it')
+    | HasAllocId it' -> HasAllocId (loop it')
+    | CN_None bt' -> CN_None bt'
+    | CN_Some it' -> CN_Some (loop it')
+    | IsSome it' -> IsSome (loop it')
+    | GetOpt it' -> GetOpt (loop it')
+  in
+  IT (it_, bt, here)
+
+
+let rec map_term_post (f : 'bt annot -> 'bt annot) (it : 'bt annot) : 'bt annot =
+  let (IT (it_, bt, here)) = it in
+  let loop = map_term_post f in
+  let it_ =
+    match it_ with
+    | Const _ | Sym _ | Nil _ | SizeOf _ | OffsetOf _ -> it_
+    | Unop (op, it') -> Unop (op, loop it')
+    | Binop (op, it1, it2) -> Binop (op, loop it1, loop it2)
+    | ITE (it_if, it_then, it_else) -> ITE (loop it_if, loop it_then, loop it_else)
+    | EachI (range, it') -> EachI (range, loop it')
+    | Tuple its -> Tuple (List.map loop its)
+    | NthTuple (i, it') -> NthTuple (i, loop it')
+    | Struct (tag, xits) -> Struct (tag, List.map_snd loop xits)
+    | StructMember (it', member) -> StructMember (loop it', member)
+    | StructUpdate ((it_struct, member), it_value) ->
+      StructUpdate ((loop it_struct, member), loop it_value)
+    | Record xits -> Record (List.map_snd loop xits)
+    | RecordMember (it', member) -> RecordMember (loop it', member)
+    | RecordUpdate ((it_struct, member), it_value) ->
+      RecordUpdate ((loop it_struct, member), loop it_value)
+    | Constructor (constr, xits) -> Constructor (constr, List.map_snd loop xits)
+    | MemberShift (it', tag, member) -> MemberShift (loop it', tag, member)
+    | ArrayShift { base; ct; index } ->
+      ArrayShift { base = loop base; ct; index = loop index }
+    | CopyAllocId { addr; loc } -> CopyAllocId { addr = loop addr; loc = loop loc }
+    | HasAllocId it' -> HasAllocId (loop it')
+    | Cons (it_head, it_tail) -> Cons (loop it_head, loop it_tail)
+    | Head it' -> Head (loop it')
+    | Tail it' -> Tail (loop it')
+    | Representable (ct, it') -> Representable (ct, loop it')
+    | Good (ct, it') -> Good (ct, loop it')
+    | Aligned { t; align } -> Aligned { t = loop t; align = loop align }
+    | WrapI (ct, it') -> WrapI (ct, loop it')
+    | MapConst (bt', it') -> MapConst (bt', loop it')
+    | MapSet (it_m, it_k, it_v) -> MapSet (loop it_m, loop it_k, loop it_v)
+    | MapGet (it_m, it_key) -> MapGet (loop it_m, loop it_key)
+    | MapDef (sbt, it') -> MapDef (sbt, loop it')
+    | Apply (fsym, its) -> Apply (fsym, List.map loop its)
+    | Let ((x, it_v), it_rest) -> Let ((x, loop it_v), loop it_rest)
+    | Match (it', pits) -> Match (loop it', List.map_snd loop pits)
+    | Cast (bt', it') -> Cast (bt', loop it')
+    | CN_None bt' -> CN_None bt'
+    | CN_Some it' -> CN_Some (loop it')
+    | IsSome it' -> IsSome (loop it')
+    | GetOpt it' -> GetOpt (loop it')
+  in
+  f (IT (it_, bt, here))
