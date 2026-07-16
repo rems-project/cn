@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
@@ -107,7 +107,7 @@ module Make (AD : Domain.T) = struct
                else (
                  let it' =
                    List.fold_left
-                     (fun it1 it2 -> IT.or2_ (it1, it2) loc)
+                     (fun it1 it2 -> MT.or2_ (it1, it2) loc)
                      (List.hd its_left)
                      (List.tl its_left)
                  in

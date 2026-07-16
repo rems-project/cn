@@ -1,6 +1,5 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
 module LC = LogicalConstraints
 module CF = Cerb_frontend
 

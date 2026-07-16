@@ -2,7 +2,6 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
 module LC = LogicalConstraints
 module StringMap = Map.Make (String)
 

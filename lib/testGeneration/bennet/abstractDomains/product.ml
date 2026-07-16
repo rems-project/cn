@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 module Sym = Sym
 module StringSet = Set.Make (String)
@@ -554,7 +554,7 @@ let product_domains (domains : (module Domain.T) list) =
             |> List.filter_map (fun (RPack ((module R), r)) ->
               match R.to_lc r sym with LC.T it -> Some it | _ -> failwith "TODO")
           in
-          LC.T (IT.and_ constraints loc)
+          LC.T (MT.and_ constraints loc)
       end
 
       let name = name
@@ -812,7 +812,7 @@ let product_domains (domains : (module Domain.T) list) =
             | DPack ((module D), s) ->
               (match D.to_lc s with LC.T it -> it | _ -> failwith "TODO"))
         in
-        LC.T (IT.and_ constraints loc)
+        LC.T (MT.and_ constraints loc)
 
 
       let is_meet_assoc =

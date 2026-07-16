@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -36,7 +36,7 @@ module Make (AD : Domain.T) = struct
         if contains_bottom_domain gt_else then
           Term.assert_ (T it_if, gt_then) () loc
         else if contains_bottom_domain gt_then then
-          Term.assert_ (T (IT.not_ it_if (Terms.get_loc it_if)), gt_else) () loc
+          Term.assert_ (T (MT.not_ it_if (Terms.get_loc it_if)), gt_else) () loc
         else
           gt
       | _ -> gt

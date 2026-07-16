@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -14,9 +14,9 @@ module Make (AD : Domain.T) = struct
       Term.map_
         ( ( sym,
             bt,
-            IT.and2_
-              ( IT.le_ (IT.num_lit_ Z.zero bt loc, IT.sym_ (sym, bt, loc)) loc,
-                IT.lt_ (IT.sym_ (sym, bt, loc), IT.num_lit_ (Z.of_int len) bt loc) loc )
+            MT.and2_
+              ( MT.le_ (MT.num_lit_ Z.zero bt loc, MT.sym_ (sym, bt, loc)) loc,
+                MT.lt_ (MT.sym_ (sym, bt, loc), MT.num_lit_ (Z.of_int len) bt loc) loc )
               loc ),
           arbitrary_of_sctype ct' loc )
         ()
@@ -45,11 +45,11 @@ module Make (AD : Domain.T) = struct
         (* Assemble final struct *)
         let gt_struct =
           Term.return_
-            (IT.struct_
+            (MT.struct_
                ( tag,
                  List.map
                    (fun (y, (member, ct)) ->
-                      (member, IT.sym_ (y, Memory.bt_of_sct ct, loc_arb)))
+                      (member, MT.sym_ (y, Memory.bt_of_sct ct, loc_arb)))
                    members )
                loc_arb)
             ()
@@ -90,11 +90,11 @@ module Make (AD : Domain.T) = struct
           Term.let_star_
             ( ( x,
                 Term.return_
-                  (IT.struct_
+                  (MT.struct_
                      ( tag,
                        List.map
                          (fun (y, (member, ct)) ->
-                            (member, IT.sym_ (y, Memory.bt_of_sct ct, loc_arb)))
+                            (member, MT.sym_ (y, Memory.bt_of_sct ct, loc_arb)))
                          members )
                      loc_arb)
                   ()
@@ -109,8 +109,8 @@ module Make (AD : Domain.T) = struct
              Term.let_star_
                ( (y, arbitrary_of_sctype sct loc_arb),
                  Term.asgn_
-                   ( (IT.memberShift_ (it_addr, tag, member) (Terms.get_loc it_addr), sct),
-                     IT.sym_ (y, Memory.bt_of_sct sct, loc),
+                   ( (MT.memberShift_ (it_addr, tag, member) (Terms.get_loc it_addr), sct),
+                     MT.sym_ (y, Memory.bt_of_sct sct, loc),
                      gt_rest' )
                    ()
                    loc )

@@ -5,7 +5,7 @@ module ESE = Extract
 module A = CF.AilSyntax
 module C = CF.Ctype
 module BT = BaseTypes
-module IT = IndexTerms
+module MT = MakeTerm
 module T = Terms
 module TN = Terms.Normal
 module LRT = LogicalReturnTypes
@@ -1093,7 +1093,7 @@ let rec cn_to_ail_expr_aux
     let start_const_it = mk_int_const r_start in
     let end_const_it = mk_int_const r_end in
     let end_sym = Sym.fresh_anon () in
-    let end_it = IT.sym_ (end_sym, bt', Cerb_location.unknown) in
+    let end_it = MT.sym_ (end_sym, bt', Cerb_location.unknown) in
     let incr_var = IT (Sym sym, bt', Cerb_location.unknown) in
     let _, _, start_int_const =
       cn_to_ail_expr_aux
@@ -2914,9 +2914,9 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   (* Start of range *)
   let lower_bound =
     if BT.equal_sign (fst (Option.get (BT.is_bits_bt i_bt))) BT.Unsigned then
-      IndexTerms.Bounds.get_lower_bound (i_sym, i_bt) it
+      TermBounds.get_lower_bound (i_sym, i_bt) it
     else (
-      match IndexTerms.Bounds.get_lower_bound_opt (i_sym, i_bt) it with
+      match TermBounds.get_lower_bound_opt (i_sym, i_bt) it with
       | Some e -> e
       | None ->
         Cerb_colour.with_colour
@@ -2940,12 +2940,12 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
     match start_expr with
     | IT (Binop (Add, start_expr', IT (Const (Bits (_, n)), _, _)), _, _)
       when Z.equal n Z.one ->
-      IT.lt_ (start_expr', i_it) Cerb_location.unknown
-    | _ -> IT.le_ (start_expr, i_it) Cerb_location.unknown
+      MT.lt_ (start_expr', i_it) Cerb_location.unknown
+    | _ -> MT.le_ (start_expr, i_it) Cerb_location.unknown
   in
   (* End of range *)
   let upper_bound =
-    match IndexTerms.Bounds.get_upper_bound_opt (i_sym, i_bt) it with
+    match TermBounds.get_upper_bound_opt (i_sym, i_bt) it with
     | Some e -> e
     | None ->
       Cerb_colour.with_colour
@@ -2961,12 +2961,12 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   in
   (* end_sym will be set to end_expr' at call site after this function *)
   let end_sym = Sym.fresh_anon () in
-  let end_it = IT.sym_ (end_sym, TN.get_bt upper_bound, Cerb_location.unknown) in
+  let end_it = MT.sym_ (end_sym, TN.get_bt upper_bound, Cerb_location.unknown) in
   let end_expr, end_cond =
     match upper_bound with
     | IT (Binop (Sub, end_expr', IT (Const (Bits (_, n)), _, _)), _, _)
       when Z.equal n Z.one ->
-      (end_expr', IT.lt_ (i_it, end_it) Cerb_location.unknown)
+      (end_expr', MT.lt_ (i_it, end_it) Cerb_location.unknown)
     | _ ->
       (* assume type is int if not bitvector *)
       let one_const =
@@ -2976,11 +2976,11 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
             ( Const (Bits ((sign, n), Z.of_int 1)),
               BT.(Bits (sign, n)),
               Cerb_location.unknown )
-        | None -> IT.int_ 1 Cerb_location.unknown
+        | None -> MT.int_ 1 Cerb_location.unknown
       in
       (* need to make it an explicit < check rather than <= for optimisation that asserts ownership over contiguous memory in one go -- assumes particular shape of bounds *)
-      let upper_bound_plus_one = IT.add_ (upper_bound, one_const) Cerb_location.unknown in
-      (upper_bound_plus_one, IT.lt_ (i_it, end_it) Cerb_location.unknown)
+      let upper_bound_plus_one = MT.add_ (upper_bound, one_const) Cerb_location.unknown in
+      (upper_bound_plus_one, MT.lt_ (i_it, end_it) Cerb_location.unknown)
   in
   (start_expr, (end_sym, end_expr), end_cond)
 
@@ -3146,7 +3146,7 @@ let cn_to_ail_resource
         dts
         globals
         spec_mode_opt
-        (IndexTerms.Bounds.it_non_bounds q.q q.permission)
+        (TermBounds.it_non_bounds q.q q.permission)
         PassBack
     in
     let cn_integer_ptr_ctype = bt_to_ail_ctype i_bt in
@@ -3159,7 +3159,7 @@ let cn_to_ail_resource
         dts
         globals
         spec_mode_opt
-        (IT.sizeOf_ q.step Cerb_location.unknown)
+        (MT.sizeOf_ q.step Cerb_location.unknown)
         PassBack
     in
     let start_binding = create_binding i_sym cn_integer_ptr_ctype in
@@ -3170,7 +3170,7 @@ let cn_to_ail_resource
     (* Translation of q.pointer *)
     let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
-      IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
+      MT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
     let b4, s4, e4 =
       cn_to_ail_expr filename dts globals spec_mode_opt value_it PassBack
@@ -3184,7 +3184,7 @@ let cn_to_ail_resource
     in
     let ptr_add_decl_no_rhs = A.(AilSdeclaration [ (ptr_add_sym, None) ]) in
     (* if permission only contains bounds, the range of memory is contiguous we can assert ownership over entire range in one call for `Owned` *)
-    let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
+    let permission_only_bounds = TermBounds.it_only_bounds q.q q.permission in
     let rhs, bs, ss, opt_bs, opt_ss =
       match q.name with
       | Owned (sct, _) ->
@@ -3220,9 +3220,9 @@ let cn_to_ail_resource
               mk_expr A.(AilEsizeof (CF.Ctype.no_qualifiers, Sctypes.to_ctype sct))
             in
             let range_it =
-              IT.sub_
-                ( IT.sym_ (end_sym, i_bt, Cerb_location.unknown),
-                  IT.sym_ (i_sym, i_bt, Cerb_location.unknown) )
+              MT.sub_
+                ( MT.sym_ (end_sym, i_bt, Cerb_location.unknown),
+                  MT.sym_ (i_sym, i_bt, Cerb_location.unknown) )
                 Cerb_location.unknown
             in
             let _, _, range_expr =
@@ -3489,7 +3489,7 @@ let cn_to_ail_logical_constraint_aux
        let _, _, while_cond_expr =
          cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
        in
-       let cond_is_only_bounds = IndexTerms.Bounds.it_only_bounds (sym, bt) cond_it in
+       let cond_is_only_bounds = TermBounds.it_only_bounds (sym, bt) cond_it in
        let if_cond_opt =
          if cond_is_only_bounds then
            None
@@ -5312,7 +5312,7 @@ let cn_to_ail_assume_resource
             ( Apply
                 ( Sym.fresh owned_fn_name,
                   [ p.pointer;
-                    IT.sym_
+                    MT.sym_
                       ( Sym.fresh ("(char*)" ^ "\"" ^ Sym.pp_string sym ^ "\""),
                         BT.Unit,
                         Locations.other __LOC__ )
@@ -5394,7 +5394,7 @@ let cn_to_ail_assume_resource
         dts
         globals
         spec_mode_opt
-        (IT.sizeOf_ q.step Cerb_location.unknown)
+        (MT.sizeOf_ q.step Cerb_location.unknown)
         PassBack
     in
     let start_binding = create_binding i_sym cn_integer_ptr_ctype in
@@ -5405,7 +5405,7 @@ let cn_to_ail_assume_resource
     (* Translation of q.pointer *)
     let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
-      IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
+      MT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
     let b4, s4, e4 =
       cn_to_ail_expr filename dts globals spec_mode_opt value_it PassBack
@@ -5428,7 +5428,7 @@ let cn_to_ail_assume_resource
             ( Apply
                 ( Sym.fresh owned_fn_name,
                   [ ptr_add_it;
-                    IT.sym_
+                    MT.sym_
                       ( Sym.fresh ("(char*)" ^ "\"" ^ Sym.pp_string sym ^ "\""),
                         BT.Unit,
                         Locations.other __LOC__ )
@@ -5879,7 +5879,7 @@ let cn_to_ail_assume_pre
       (TN.make_subst
          (List.map
             (fun (x, y) ->
-               (x, IT.sym_ (y, fst (List.assoc Sym.equal x args), Locations.other __LOC__)))
+               (x, MT.sym_ (y, fst (List.assoc Sym.equal x args), Locations.other __LOC__)))
             new_args))
       lat
   in

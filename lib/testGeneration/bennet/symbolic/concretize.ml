@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module BT = BaseTypes
 module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail
@@ -51,16 +51,16 @@ module Make (AD : Domain.T) = struct
           _,
           _ )
       when Sym.equal x x' && Sym.equal x' x'' && Term.is_arbitrary_supported_bt v_bt ->
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
-          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+          MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
         in
         let max_len_term =
-          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+          MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
         in
-        LC.T (IT.le_ (array_len, max_len_term) here)
+        LC.T (MT.le_ (array_len, max_len_term) here)
       in
       let assert_stmt =
         !^"CN_SMT_CONCRETIZE_ASSERT"
@@ -85,7 +85,7 @@ module Make (AD : Domain.T) = struct
         |> Z.to_int
         |> List.range 0
         |> List.map (fun idx ->
-          let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
+          let idx_it = MT.num_lit_ (Z.of_int idx) i_bt here in
           let guard_it = f (T.subst (T.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let cond_doc =
             !^"convert_from_cn_bool"
@@ -242,9 +242,9 @@ module Make (AD : Domain.T) = struct
         match else_term with
         | Annot (`PickSized gts, (), _, _) ->
           List.map
-            (fun (w, gt') -> (w, Term.assert_ (T (IT.not_ it_if loc), gt') () loc))
+            (fun (w, gt') -> (w, Term.assert_ (T (MT.not_ it_if loc), gt') () loc))
             gts
-        | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
+        | gt' -> [ (Z.one, Term.assert_ (T (MT.not_ it_if loc), gt') () loc) ]
       in
       concretize_term sigma (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map
@@ -265,16 +265,16 @@ module Make (AD : Domain.T) = struct
               _ ) )
       when Sym.equal x x' && Sym.equal x' x'' ->
       (* Add constraint to ensure array range doesn't exceed max_array_length *)
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
-          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+          MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
         in
         let max_len_term =
-          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+          MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
         in
-        LC.T (IT.le_ (array_len, max_len_term) here)
+        LC.T (MT.le_ (array_len, max_len_term) here)
       in
       let assert_stmt =
         !^"CN_SMT_CONCRETIZE_ASSERT"
@@ -319,7 +319,7 @@ module Make (AD : Domain.T) = struct
       let conditional_stmts =
         elem_docs
         |> List.mapi (fun idx value_doc ->
-          let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
+          let idx_it = MT.num_lit_ (Z.of_int idx) i_bt here in
           let guard_it = f (T.subst (T.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let cond_doc =
             !^"convert_from_cn_bool"
@@ -357,16 +357,16 @@ module Make (AD : Domain.T) = struct
       }
     | `Map ((i_sym, i_bt, it_perm), body_term) ->
       (* Generic pure-value map: no memory assignment, just builds a map value *)
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
-          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+          MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
         in
         let max_len_term =
-          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+          MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
         in
-        LC.T (IT.le_ (array_len, max_len_term) here)
+        LC.T (MT.le_ (array_len, max_len_term) here)
       in
       let assert_stmt =
         !^"CN_SMT_CONCRETIZE_ASSERT"
@@ -389,7 +389,7 @@ module Make (AD : Domain.T) = struct
         |> Z.to_int
         |> List.range 0
         |> List.map (fun idx ->
-          let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
+          let idx_it = MT.num_lit_ (Z.of_int idx) i_bt here in
           let guard_it = f (T.subst (T.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let subst_body = Term.subst (T.make_subst [ (i_sym, idx_it) ]) body_term in
           let body_result = concretize_term sigma subst_body in

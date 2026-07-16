@@ -289,7 +289,7 @@ let ask_solver g lcs =
       ~solver:s
       ~assumptions:(LC.Set.of_list lcs)
       ~simp_ctxt
-      (LC.T (IndexTerms.bool_ false here))
+      (LC.T (MakeTerm.bool_ false here))
   in
   let res =
     match solver_res with
@@ -307,7 +307,7 @@ let ask_solver g lcs =
 
 let pair_to_lc (ps : T.t * T.t) : LogicalConstraints.t =
   let here = Locations.other __LOC__ in
-  LC.T (IndexTerms.eq_ (fst ps, snd ps) here)
+  LC.T (MakeTerm.eq_ (fst ps, snd ps) here)
 
 
 (* convert a list of variable assignments to equality constraints *)
@@ -414,7 +414,7 @@ and get_body_constraints
   | Error (Unknown, e) ->
     let here = Locations.other __LOC__ in
     let res =
-      match ask_solver ctxt.global [ LC.T (IndexTerms.eq_ (exp, candidate) here) ] with
+      match ask_solver ctxt.global [ LC.T (MakeTerm.eq_ (exp, candidate) here) ] with
       | Ok _ ->
         (* not using model to get var cands because it may overconstrain *)
         return ([], Sym.Map.empty)

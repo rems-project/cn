@@ -2,7 +2,7 @@
 
 open OUnit2
 module BT = Cn.BaseTypes
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module LC = Cn.LogicalConstraints
 module Sym = Cn.Sym
 module Memory = Cn.Memory
@@ -102,7 +102,7 @@ let test_nothing_pruning _ =
   let gen_name = Sym.fresh "test_gen" in
   (* Create a generator that returns a value and it gets used *)
   let val_bt = BT.Bits (Signed, 32) in
-  let val_it = IT.num_lit_ (Z.of_int 42) val_bt test_loc in
+  let val_it = MT.num_lit_ (Z.of_int 42) val_bt test_loc in
   let gen_body = Term.return_ val_it () test_loc in
   let gen_def =
     { Def.filename = "test.c";
@@ -119,15 +119,15 @@ let test_nothing_pruning _ =
   let caller_name = Sym.fresh "caller" in
   let bound_sym = Sym.fresh "result" in
   let call_term = Term.call_ (gen_name, []) () val_bt test_loc in
-  let result_it = IT.sym_ (bound_sym, val_bt, test_loc) in
-  let zero = IT.num_lit_ (Z.of_int 0) val_bt test_loc in
-  let constraint_it = IT.eq_ (result_it, zero) test_loc in
+  let result_it = MT.sym_ (bound_sym, val_bt, test_loc) in
+  let zero = MT.num_lit_ (Z.of_int 0) val_bt test_loc in
+  let constraint_it = MT.eq_ (result_it, zero) test_loc in
   let constraint_lc = LC.T constraint_it in
   let caller_body =
     Term.let_star_
       ( (bound_sym, call_term),
         Term.assert_
-          (constraint_lc, Term.return_ (IT.unit_ test_loc) () test_loc)
+          (constraint_lc, Term.return_ (MT.unit_ test_loc) () test_loc)
           ()
           test_loc )
       ()
@@ -167,10 +167,10 @@ let test_struct_pruning _ =
   let struct_tag = get_struct_tag prog in
   let gen_name = Sym.fresh "test_gen" in
   (* Create a generator that returns a struct *)
-  let field_x = IT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
-  let field_y = IT.num_lit_ (Z.of_int 20) (BT.Bits (Unsigned, 16)) test_loc in
+  let field_x = MT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
+  let field_y = MT.num_lit_ (Z.of_int 20) (BT.Bits (Unsigned, 16)) test_loc in
   let struct_val =
-    IT.struct_
+    MT.struct_
       ( struct_tag,
         [ (Id.make test_loc "field_x", field_x); (Id.make test_loc "field_y", field_y) ]
       )
@@ -192,21 +192,21 @@ let test_struct_pruning _ =
   let caller_name = Sym.fresh "caller" in
   let bound_sym = Sym.fresh "result" in
   let call_term = Term.call_ (gen_name, []) () (BT.Struct struct_tag) test_loc in
-  let result_it = IT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
+  let result_it = MT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
   let result_x =
-    IT.member_
+    MT.member_
       ~member_bt:(BT.Bits (Signed, 32))
       (result_it, Id.make test_loc "field_x")
       test_loc
   in
-  let zero = IT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
-  let constraint_it = IT.eq_ (result_x, zero) test_loc in
+  let zero = MT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
+  let constraint_it = MT.eq_ (result_x, zero) test_loc in
   let constraint_lc = LC.T constraint_it in
   let caller_body =
     Term.let_star_
       ( (bound_sym, call_term),
         Term.assert_
-          (constraint_lc, Term.return_ (IT.unit_ test_loc) () test_loc)
+          (constraint_lc, Term.return_ (MT.unit_ test_loc) () test_loc)
           ()
           test_loc )
       ()
@@ -250,10 +250,10 @@ let test_deduplication _ =
   let struct_tag = get_struct_tag prog in
   let gen_name = Sym.fresh "test_gen" in
   (* Create a generator that returns a struct *)
-  let field_x = IT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
-  let field_y = IT.num_lit_ (Z.of_int 20) (BT.Bits (Unsigned, 16)) test_loc in
+  let field_x = MT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
+  let field_y = MT.num_lit_ (Z.of_int 20) (BT.Bits (Unsigned, 16)) test_loc in
   let struct_val =
-    IT.struct_
+    MT.struct_
       ( struct_tag,
         [ (Id.make test_loc "field_x", field_x); (Id.make test_loc "field_y", field_y) ]
       )
@@ -276,21 +276,21 @@ let test_deduplication _ =
     let caller_name = Sym.fresh (Printf.sprintf "caller%d" caller_num) in
     let bound_sym = Sym.fresh "result" in
     let call_term = Term.call_ (gen_name, []) () (BT.Struct struct_tag) test_loc in
-    let result_it = IT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
+    let result_it = MT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
     let result_x =
-      IT.member_
+      MT.member_
         ~member_bt:(BT.Bits (Signed, 32))
         (result_it, Id.make test_loc "field_x")
         test_loc
     in
-    let zero = IT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
-    let constraint_it = IT.eq_ (result_x, zero) test_loc in
+    let zero = MT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
+    let constraint_it = MT.eq_ (result_x, zero) test_loc in
     let constraint_lc = LC.T constraint_it in
     let caller_body =
       Term.let_star_
         ( (bound_sym, call_term),
           Term.assert_
-            (constraint_lc, Term.return_ (IT.unit_ test_loc) () test_loc)
+            (constraint_lc, Term.return_ (MT.unit_ test_loc) () test_loc)
             ()
             test_loc )
         ()
@@ -333,14 +333,14 @@ let test_letstar_inner_return_unchanged _ =
   let gen_name = Sym.fresh "test_gen" in
   (* Create a generator with LetStar that has a Return in the inner term *)
   let inner_sym = Sym.fresh "inner" in
-  let inner_value = IT.num_lit_ (Z.of_int 42) (BT.Bits (Signed, 32)) test_loc in
+  let inner_value = MT.num_lit_ (Z.of_int 42) (BT.Bits (Signed, 32)) test_loc in
   let inner_return = Term.return_ inner_value () test_loc in
   (* The outer body returns a struct with two fields *)
   let struct_tag = Sym.fresh "result_struct" in
-  let field1 = IT.num_lit_ (Z.of_int 100) (BT.Bits (Signed, 32)) test_loc in
-  let field2 = IT.num_lit_ (Z.of_int 200) (BT.Bits (Signed, 32)) test_loc in
+  let field1 = MT.num_lit_ (Z.of_int 100) (BT.Bits (Signed, 32)) test_loc in
+  let field2 = MT.num_lit_ (Z.of_int 200) (BT.Bits (Signed, 32)) test_loc in
   let struct_val =
-    IT.struct_
+    MT.struct_
       ( struct_tag,
         [ (Id.make test_loc "field1", field1); (Id.make test_loc "field2", field2) ] )
       test_loc
@@ -383,21 +383,21 @@ let test_letstar_inner_return_unchanged _ =
   let caller_name = Sym.fresh "caller" in
   let bound_sym = Sym.fresh "result" in
   let call_term = Term.call_ (gen_name, []) () (BT.Struct struct_tag) test_loc in
-  let result_it = IT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
+  let result_it = MT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
   let result_field1 =
-    IT.member_
+    MT.member_
       ~member_bt:(BT.Bits (Signed, 32))
       (result_it, Id.make test_loc "field1")
       test_loc
   in
-  let zero = IT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
-  let constraint_it = IT.eq_ (result_field1, zero) test_loc in
+  let zero = MT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
+  let constraint_it = MT.eq_ (result_field1, zero) test_loc in
   let constraint_lc = LC.T constraint_it in
   let caller_body =
     Term.let_star_
       ( (bound_sym, call_term),
         Term.assert_
-          (constraint_lc, Term.return_ (IT.unit_ test_loc) () test_loc)
+          (constraint_lc, Term.return_ (MT.unit_ test_loc) () test_loc)
           ()
           test_loc )
       ()
@@ -456,10 +456,10 @@ let test_variant_creation _ =
   let struct_tag = get_struct_tag prog in
   let gen_name = Sym.fresh "original_gen" in
   (* Create a generator that returns a struct *)
-  let field_x = IT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
-  let field_y = IT.num_lit_ (Z.of_int 20) (BT.Bits (Unsigned, 16)) test_loc in
+  let field_x = MT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
+  let field_y = MT.num_lit_ (Z.of_int 20) (BT.Bits (Unsigned, 16)) test_loc in
   let struct_val =
-    IT.struct_
+    MT.struct_
       ( struct_tag,
         [ (Id.make test_loc "field_x", field_x); (Id.make test_loc "field_y", field_y) ]
       )
@@ -481,21 +481,21 @@ let test_variant_creation _ =
   let caller_name = Sym.fresh "caller" in
   let bound_sym = Sym.fresh "result" in
   let call_term = Term.call_ (gen_name, []) () (BT.Struct struct_tag) test_loc in
-  let result_it = IT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
+  let result_it = MT.sym_ (bound_sym, BT.Struct struct_tag, test_loc) in
   let result_x =
-    IT.member_
+    MT.member_
       ~member_bt:(BT.Bits (Signed, 32))
       (result_it, Id.make test_loc "field_x")
       test_loc
   in
-  let zero = IT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
-  let constraint_it = IT.eq_ (result_x, zero) test_loc in
+  let zero = MT.num_lit_ (Z.of_int 0) (BT.Bits (Signed, 32)) test_loc in
+  let constraint_it = MT.eq_ (result_x, zero) test_loc in
   let constraint_lc = LC.T constraint_it in
   let caller_body =
     Term.let_star_
       ( (bound_sym, call_term),
         Term.assert_
-          (constraint_lc, Term.return_ (IT.unit_ test_loc) () test_loc)
+          (constraint_lc, Term.return_ (MT.unit_ test_loc) () test_loc)
           ()
           test_loc )
       ()

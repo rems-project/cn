@@ -4,7 +4,7 @@ module CF = Cerb_frontend
 module BT = BaseTypes
 module Mu = Mucore
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 open Cerb_pp_prelude
 open TypeErrors
 open Typing
@@ -20,12 +20,12 @@ type 'a exec_result =
 
 let ov_to_it loc (Mu.OV (bt, ov)) =
   match ov with
-  | OVinteger iv -> Some (IT.num_lit_ (Memory.z_of_ival iv) bt loc)
+  | OVinteger iv -> Some (MT.num_lit_ (Memory.z_of_ival iv) bt loc)
   | OVpointer ptr_val ->
     CF.Impl_mem.case_ptrval
       ptr_val
-      (fun _ -> Some (IT.null_ loc))
-      (function None -> None | Some sym -> Some (IT.sym_ (sym, BT.(Loc ()), loc)))
+      (fun _ -> Some (MT.null_ loc))
+      (function None -> None | Some sym -> Some (MT.sym_ (sym, BT.(Loc ()), loc)))
       (fun _prov _p -> (* TODO: how to correctly convert provenance? *) None)
   | _ -> None
 
@@ -37,12 +37,12 @@ let lv_to_it loc = function
 
 let val_to_it loc (Mu.V (_, v)) =
   match v with
-  | Vunit -> Some (IT.unit_ loc)
-  | Vtrue -> Some (IT.bool_ true loc)
-  | Vfalse -> Some (IT.bool_ false loc)
+  | Vunit -> Some (MT.unit_ loc)
+  | Vtrue -> Some (MT.bool_ true loc)
+  | Vfalse -> Some (MT.bool_ false loc)
   | Vobject ov -> ov_to_it loc ov
   | Vloaded lv -> lv_to_it loc lv
-  | Vctype ct -> Option.map (fun ct -> IT.const_ctype_ ct loc) (Sctypes.of_ctype ct)
+  | Vctype ct -> Option.map (fun ct -> MT.const_ctype_ ct loc) (Sctypes.of_ctype ct)
   | _ -> None
 
 
@@ -65,7 +65,7 @@ let init_state = { loc_map = IntMap.empty; next_loc = 1 }
 let mk_local_ptr state src_loc =
   let loc_ix = state.next_loc in
   let here = Locations.other __LOC__ in
-  let ptr = IT.apply_ local_sym_ptr [ IT.int_ loc_ix here ] BT.(Loc ()) src_loc in
+  let ptr = MT.apply_ local_sym_ptr [ MT.int_ loc_ix here ] BT.(Loc ()) src_loc in
   let loc_map = IntMap.add loc_ix None state.loc_map in
   let state = { loc_map; next_loc = loc_ix + 1 } in
   (ptr, state)
@@ -120,7 +120,7 @@ let do_wrapI loc ct it =
     if BT.equal ity_bt (Terms.get_bt it) then
       return it
     else
-      return (IT.wrapI_ (ity, it) loc)
+      return (MT.wrapI_ (ity, it) loc)
   | None ->
     fail_n
       { loc;
@@ -197,13 +197,13 @@ let is_two_pow it =
 
 let bool_rep_ty = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
 
-let bool_ite_1_0 bt b loc = IT.ite_ (b, IT.int_lit_ 1 bt loc, IT.int_lit_ 0 bt loc) loc
+let bool_ite_1_0 bt b loc = MT.ite_ (b, MT.int_lit_ 1 bt loc, MT.int_lit_ 0 bt loc) loc
 
 let return_z_within_range loc z bt orig_pexpr =
   let@ () = WellTyped.ensure_bits_type loc bt in
   let bits_info = Option.get (BT.is_bits_bt bt) in
   if BT.fits_range bits_info z then
-    return (IT.num_lit_ z bt loc)
+    return (MT.num_lit_ z bt loc)
   else
     fail_n
       { loc;
@@ -281,66 +281,66 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       let@ cond = self var_map cond_pe in
       let@ x_v = self var_map x in
       let@ y_v = self var_map y in
-      return (IT.ite_ (cond, x_v, y_v) loc)
+      return (MT.ite_ (cond, x_v, y_v) loc)
   | PEop (op, x, y) ->
     let@ x_v = self var_map x in
     let@ y_v = self var_map y in
     let f x_v y_v =
       match op with
-      | OpAdd -> IT.add_ (x_v, y_v) loc
-      | OpSub -> IT.sub_ (x_v, y_v) loc
+      | OpAdd -> MT.add_ (x_v, y_v) loc
+      | OpSub -> MT.sub_ (x_v, y_v) loc
       | OpMul ->
         if is_const_num x_v || is_const_num y_v then
-          IT.mul_ (x_v, y_v) loc
+          MT.mul_ (x_v, y_v) loc
         else
-          IT.mul_no_smt_ (x_v, y_v) loc
+          MT.mul_no_smt_ (x_v, y_v) loc
       | OpDiv ->
         if is_const_num y_v then
-          IT.div_ (x_v, y_v) loc
+          MT.div_ (x_v, y_v) loc
         else
-          IT.div_no_smt_ (x_v, y_v) loc
-      | OpEq -> IT.eq_ (x_v, y_v) loc
-      | OpLt -> IT.lt_ (x_v, y_v) loc
-      | OpLe -> IT.le_ (x_v, y_v) loc
-      | OpGt -> IT.gt_ (x_v, y_v) loc
-      | OpGe -> IT.ge_ (x_v, y_v) loc
-      | OpAnd -> IT.and_ [ x_v; y_v ] loc
-      | OpOr -> IT.or_ [ x_v; y_v ] loc
+          MT.div_no_smt_ (x_v, y_v) loc
+      | OpEq -> MT.eq_ (x_v, y_v) loc
+      | OpLt -> MT.lt_ (x_v, y_v) loc
+      | OpLe -> MT.le_ (x_v, y_v) loc
+      | OpGt -> MT.gt_ (x_v, y_v) loc
+      | OpGe -> MT.ge_ (x_v, y_v) loc
+      | OpAnd -> MT.and_ [ x_v; y_v ] loc
+      | OpOr -> MT.or_ [ x_v; y_v ] loc
       | OpExp ->
         if is_const_num x_v && is_const_num y_v then
-          IT.exp_ (x_v, y_v) loc
+          MT.exp_ (x_v, y_v) loc
         else
-          IT.exp_no_smt_ (x_v, y_v) loc
+          MT.exp_no_smt_ (x_v, y_v) loc
       | OpRem_f ->
         if is_const_num y_v then
-          IT.rem_ (x_v, y_v) loc
+          MT.rem_ (x_v, y_v) loc
         else
-          IT.rem_no_smt_ (x_v, y_v) loc
+          MT.rem_no_smt_ (x_v, y_v) loc
       | OpRem_t ->
         if is_const_num y_v then
-          IT.mod_ (x_v, y_v) loc
+          MT.mod_ (x_v, y_v) loc
         else
-          IT.mod_no_smt_ (x_v, y_v) loc
+          MT.mod_no_smt_ (x_v, y_v) loc
     in
     (match (op, x_v, is_two_pow y_v) with
      | OpMul, _, Some (`Two_loc two_loc, `Exp exp) ->
        let exp_loc = Terms.get_loc y_v in
        return
-         (IT.mul_
-            (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
+         (MT.mul_
+            (x_v, MT.exp_ (MT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
             loc)
      | OpDiv, _, Some (`Two_loc two_loc, `Exp exp) ->
        let exp_loc = Terms.get_loc y_v in
        return
-         (IT.div_
-            (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
+         (MT.div_
+            (x_v, MT.exp_ (MT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
             loc)
      | _, _, _ ->
        let@ res = simp_const_pe (f x_v y_v) in
        return res)
   | PEnot pe ->
     let@ x = self var_map pe in
-    return (IT.not_ x loc)
+    return (MT.not_ x loc)
   | PEcall (Sym (Symbol (_, _, SD_Id ("conv_int" | "conv_loaded_int"))), [ ct_expr; pe ])
   | PEconv_int (ct_expr, pe) ->
     let@ x = self var_map pe in
@@ -352,7 +352,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        simp_const_pe
          (bool_ite_1_0
             bool_rep_ty
-            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (Terms.get_bt x) here) here) here)
+            (MT.not_ (MT.eq_ (x, MT.int_lit_ 0 (Terms.get_bt x) here) here) here)
             loc)
      | _ -> do_wrapI loc ct x)
   | PEcall (f, pes) ->
@@ -363,11 +363,11 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        let ct = Option.get (Terms.is_ctype_const x) in
        return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
      | Sym (Symbol (_, _, SD_Id "params_length")), [ x ] ->
-       (match IT.dest_list x with
-        | Some xs -> return (IT.int_ (List.length xs) loc)
+       (match MT.dest_list x with
+        | Some xs -> return (MT.int_ (List.length xs) loc)
         | None -> unsupported "pure-expression type" !^"")
      | Sym (Symbol (_, _, SD_Id "params_nth")), [ x; y ] ->
-       (match (IT.dest_list x, Terms.is_z y) with
+       (match (MT.dest_list x, Terms.is_z y) with
         | Some its, Some i -> return (List.nth its (Z.to_int i))
         | _ -> unsupported "pure-expression type" !^"")
      | _ -> unsupported "pure-expression type" !^"")
@@ -375,12 +375,12 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
     let@ x1 = self var_map pe1 in
     let@ x2 = self var_map pe2 in
     (match (Terms.is_ctype_const x1, Terms.is_ctype_const x2) with
-     | Some ct1, Some ct2 -> return (IT.bool_ (Sctypes.equal ct1 ct2) loc)
+     | Some ct1, Some ct2 -> return (MT.bool_ (Sctypes.equal ct1 ct2) loc)
      | _ -> unsupported "are-compatible applied to non-constants" !^"")
   | PEctor (ctor, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (ctor, xs) with
-     | Ctuple, _ -> return (IT.tuple_ xs loc)
+     | Ctuple, _ -> return (MT.tuple_ xs loc)
      | Civsizeof, [ e ] ->
        let@ ct = must_be_ct_const loc e in
        return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct)) bt pexpr
@@ -406,7 +406,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
          | CivXOR -> BW_Xor
          | _ -> assert false
        in
-       return (IT.arith_binop bop (e2, e3) loc)
+       return (MT.arith_binop bop (e2, e3) loc)
      | Cspecified, [ x ] -> return x
      | _ -> unsupported "pure-expression type" !^"")
   | PEcatch_exceptional_condition (ity, op, pe_x, pe_y) | PEwrapI (ity, op, pe_x, pe_y) ->
@@ -415,12 +415,12 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
     let here = Locations.other __LOC__ in
     let it =
       match op with
-      | IOpAdd -> IT.add_ (x, y) loc
-      | IOpSub -> IT.sub_ (x, y) loc
-      | IOpMul -> IT.mul_ (x, y) loc
-      | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (Terms.get_bt x) y here) loc
+      | IOpAdd -> MT.add_ (x, y) loc
+      | IOpSub -> MT.sub_ (x, y) loc
+      | IOpMul -> MT.mul_ (x, y) loc
+      | IOpShl -> MT.arith_binop Terms.ShiftLeft (x, MT.cast_ (Terms.get_bt x) y here) loc
       | IOpShr ->
-        IT.arith_binop Terms.ShiftRight (x, IT.cast_ (Terms.get_bt x) y here) loc
+        MT.arith_binop Terms.ShiftRight (x, MT.cast_ (Terms.get_bt x) y here) loc
       | IOpDiv -> failwith "TODO division operator"
       | IOpRem_t -> failwith "TODO remainder operator"
     in
@@ -431,7 +431,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       Option.(
         let@ sym, _ = Terms.is_sym x in
         let@ c_sig = Pmap.lookup sym ctxt.call_funinfo in
-        IT.const_of_c_sig c_sig loc)
+        MT.const_of_c_sig c_sig loc)
     in
     (match sig_it with
      | Some it -> simp_const_pe it
@@ -498,7 +498,7 @@ let rec symb_exec_expr ctxt state_vars expr =
   | Eunseq exps ->
     let orig_expr = expr in
     let rec cont1 state exp_vals = function
-      | [] -> rcval (IT.tuple_ (List.rev exp_vals) loc) state
+      | [] -> rcval (MT.tuple_ (List.rev exp_vals) loc) state
       | exp :: exps ->
         let@ r = symb_exec_expr ctxt (state, var_map) exp in
         cont2 exp_vals exps r
@@ -540,7 +540,7 @@ let rec symb_exec_expr ctxt state_vars expr =
        let@ p_v = symb_exec_pexpr ctxt var_map p_pe in
        let@ v_v = symb_exec_pexpr ctxt var_map v_pe in
        let@ ix = get_local_ptr loc p_v in
-       rcval (IT.unit_ loc) (upd_loc_state state ix v_v)
+       rcval (MT.unit_ loc) (upd_loc_state state ix v_v)
      | Load (_, p_pe, _) ->
        let@ p_v = symb_exec_pexpr ctxt var_map p_pe in
        let@ ix = get_local_ptr loc p_v in
@@ -566,7 +566,7 @@ let rec symb_exec_expr ctxt state_vars expr =
      | Kill (_, p_pe) ->
        let@ p_v = symb_exec_pexpr ctxt var_map p_pe in
        let@ ix = get_local_ptr loc p_v in
-       rcval (IT.unit_ loc) { state with loc_map = IntMap.remove ix state.loc_map }
+       rcval (MT.unit_ loc) { state with loc_map = IntMap.remove ix state.loc_map }
      | _ ->
        fail_n
          { loc;
@@ -585,7 +585,7 @@ let rec symb_exec_expr ctxt state_vars expr =
       | "generic_ffs" -> BW_FFS_NoSMT
       | _ -> assert false
     in
-    let t = IT.arith_unop unop x loc in
+    let t = MT.arith_unop unop x loc in
     let@ v = simp_const loc (lazy (Pp_mucore.pp_pexpr pe1)) t in
     return (Compute (v, state))
   | Eccall (_act, fun_pe, args_pe, gargs_opt) ->
@@ -617,25 +617,25 @@ let rec symb_exec_expr ctxt state_vars expr =
     if Sym.Map.mem nm ctxt.c_fun_pred_map then (
       let loc, l_sym = Sym.Map.find nm ctxt.c_fun_pred_map in
       let@ def = Global.get_logical_function_def loc l_sym in
-      rcval (IT.apply_ l_sym args_its def.Definition.Function.return_bt loc) state)
+      rcval (MT.apply_ l_sym args_its def.Definition.Function.return_bt loc) state)
     else (
       let bail = fail_fun_it "not a function with a pure/logical interpretation" in
       match Sym.has_id nm with
       | None -> bail
       | Some s ->
-        let wrap_int x = IT.wrapI_ (signed_int_ity, x) in
+        let wrap_int x = MT.wrapI_ (signed_int_ity, x) in
         if String.equal s "ctz_proxy" then
           rcval
-            (wrap_int (IT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
+            (wrap_int (MT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
             state
         else if List.exists (String.equal s) [ "ffs_proxy"; "ffsl_proxy"; "ffsll_proxy" ]
         then
           rcval
-            (wrap_int (IT.arith_unop Terms.BW_FFS_NoSMT (List.hd args_its) loc) loc)
+            (wrap_int (MT.arith_unop Terms.BW_FFS_NoSMT (List.hd args_its) loc) loc)
             state
         else
           bail)
-  | CN_progs _ -> rcval (IT.unit_ loc) state
+  | CN_progs _ -> rcval (MT.unit_ loc) state
   | _ ->
     fail_n
       { loc;
@@ -693,7 +693,7 @@ let rec get_ret_it loc body bt = function
   | If_Else (t, x, y) ->
     let@ x_v = get_ret_it loc body bt x in
     let@ y_v = get_ret_it loc body bt y in
-    return (IT.ite_ (t, x_v, y_v) loc)
+    return (MT.ite_ (t, x_v, y_v) loc)
 
 
 let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_decl) =
@@ -701,7 +701,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
   let def_args =
     def.Definition.Function.args
     (* TODO - add location information to binders *)
-    |> List.map (fun (s, bt) -> IndexTerms.sym_ (s, bt, here))
+    |> List.map (fun (s, bt) -> MT.sym_ (s, bt, here))
   in
   Pp.debug
     3

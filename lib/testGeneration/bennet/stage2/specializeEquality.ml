@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -28,12 +28,12 @@ module Make (AD : Domain.T) = struct
       | `Assert
           (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x', bt, _)), _, _), it), _, _)), gt_rest)
         when Sym.equal x x' && Sym.Set.subset (T.free_vars it) vars ->
-        return (gt_rest, IT.cast_ bt it (T.get_loc it))
+        return (gt_rest, MT.cast_ bt it (T.get_loc it))
       | `Assert (T (IT (Binop (EQ, it, IT (Sym x', bt, _)), _, _)), gt_rest)
       | `Assert
           (T (IT (Binop (EQ, it, IT (Cast (_, IT (Sym x', bt, _)), _, _)), _, _)), gt_rest)
         when Sym.equal x x' && Sym.Set.subset (T.free_vars it) vars ->
-        return (gt_rest, IT.cast_ bt it (T.get_loc it))
+        return (gt_rest, MT.cast_ bt it (T.get_loc it))
       | `Assert (lc, gt_rest) ->
         let@ gt_rest, it = aux gt_rest in
         return (Term.assert_ (lc, gt_rest) () loc, it)

@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
@@ -19,7 +19,7 @@ module Make (AD : Domain.T) = struct
            let gt4 =
              Term.subst
                (T.make_subst
-                  [ (y, IT.sym_ (z, Term.basetype gt3, Locations.other __LOC__)) ])
+                  [ (y, MT.sym_ (z, Term.basetype gt3, Locations.other __LOC__)) ])
                gt4
            in
            Term.let_star_

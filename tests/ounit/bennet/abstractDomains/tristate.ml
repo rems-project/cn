@@ -5,7 +5,7 @@ open QCheck
 open Cn.Terms
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 
 module NonRelational =
   Cn.TestGeneration.Private.Bennet.Private.AbstractDomains.Private.NonRelational
@@ -29,18 +29,18 @@ let make_sym name = Sym.fresh name
 
 (** Create test constraints *)
 let make_eq_constraint x value bt =
-  IT.eq_ (IT.sym_ (x, bt, test_loc), IT.num_lit_ (Z.of_int value) bt test_loc) test_loc
+  MT.eq_ (MT.sym_ (x, bt, test_loc), MT.num_lit_ (Z.of_int value) bt test_loc) test_loc
 
 
 let make_le_constraint x value bt =
-  IT.le_ (IT.sym_ (x, bt, test_loc), IT.num_lit_ (Z.of_int value) bt test_loc) test_loc
+  MT.le_ (MT.sym_ (x, bt, test_loc), MT.num_lit_ (Z.of_int value) bt test_loc) test_loc
 
 
 let make_ge_constraint x value bt =
-  IT.le_ (IT.num_lit_ (Z.of_int value) bt test_loc, IT.sym_ (x, bt, test_loc)) test_loc
+  MT.le_ (MT.num_lit_ (Z.of_int value) bt test_loc, MT.sym_ (x, bt, test_loc)) test_loc
 
 
-let make_and it1 it2 = IT.and2_ (it1, it2) test_loc
+let make_and it1 it2 = MT.and2_ (it1, it2) test_loc
 
 (** Test bottom element *)
 let test_bottom _ =
@@ -337,13 +337,13 @@ let test_backward_and _ =
   let x = make_sym "x" in
   (* (x & 0x0F) == 5 should refine x to have low 4 bits = 0101 *)
   let x_and_mask =
-    IT.arith_binop
+    MT.arith_binop
       BW_And
-      (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
+      (MT.sym_ (x, test_bt, test_loc), MT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
       test_loc
   in
   let constraint_it =
-    IT.eq_ (x_and_mask, IT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc
+    MT.eq_ (x_and_mask, MT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc
   in
   let result = TristateDomain.local_iteration constraint_it TristateDomain.top in
   match result with
@@ -363,13 +363,13 @@ let test_backward_or _ =
   (* (x | 0x0F) == 0x0F means x's low 4 bits can be anything, but
      for the high 4 bits to remain 0 after OR, x must have high 4 bits = 0 *)
   let x_or_mask =
-    IT.arith_binop
+    MT.arith_binop
       BW_Or
-      (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
+      (MT.sym_ (x, test_bt, test_loc), MT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
       test_loc
   in
   let constraint_it =
-    IT.eq_ (x_or_mask, IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc) test_loc
+    MT.eq_ (x_or_mask, MT.num_lit_ (Z.of_int 0x0F) test_bt test_loc) test_loc
   in
   let result = TristateDomain.local_iteration constraint_it TristateDomain.top in
   match result with
@@ -388,13 +388,13 @@ let test_backward_xor _ =
   let x = make_sym "x" in
   (* (x ^ 0x0F) == 0x0A means x = 0x0A ^ 0x0F = 0x05 *)
   let x_xor_mask =
-    IT.arith_binop
+    MT.arith_binop
       BW_Xor
-      (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
+      (MT.sym_ (x, test_bt, test_loc), MT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
       test_loc
   in
   let constraint_it =
-    IT.eq_ (x_xor_mask, IT.num_lit_ (Z.of_int 0x0A) test_bt test_loc) test_loc
+    MT.eq_ (x_xor_mask, MT.num_lit_ (Z.of_int 0x0A) test_bt test_loc) test_loc
   in
   let result = TristateDomain.local_iteration constraint_it TristateDomain.top in
   match result with
@@ -413,13 +413,13 @@ let test_backward_shl _ =
   let x = make_sym "x" in
   (* (x << 2) == 20 means x = 20 >> 2 = 5 *)
   let x_shl =
-    IT.arith_binop
+    MT.arith_binop
       ShiftLeft
-      (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 2) test_bt test_loc)
+      (MT.sym_ (x, test_bt, test_loc), MT.num_lit_ (Z.of_int 2) test_bt test_loc)
       test_loc
   in
   let constraint_it =
-    IT.eq_ (x_shl, IT.num_lit_ (Z.of_int 20) test_bt test_loc) test_loc
+    MT.eq_ (x_shl, MT.num_lit_ (Z.of_int 20) test_bt test_loc) test_loc
   in
   let result = TristateDomain.local_iteration constraint_it TristateDomain.top in
   match result with
@@ -438,13 +438,13 @@ let test_backward_lshr _ =
   let x = make_sym "x" in
   (* (x >> 2) == 5 means x = 5 << 2 = 20, but low 2 bits are unknown *)
   let x_lshr =
-    IT.arith_binop
+    MT.arith_binop
       ShiftRight
-      (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 2) test_bt test_loc)
+      (MT.sym_ (x, test_bt, test_loc), MT.num_lit_ (Z.of_int 2) test_bt test_loc)
       test_loc
   in
   let constraint_it =
-    IT.eq_ (x_lshr, IT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc
+    MT.eq_ (x_lshr, MT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc
   in
   let result = TristateDomain.local_iteration constraint_it TristateDomain.top in
   match result with
@@ -479,9 +479,9 @@ let test_backward_le _ =
 let test_backward_not _ =
   let x = make_sym "x" in
   (* ~x == 250 means x = ~250 = 5 (for 8-bit unsigned) *)
-  let not_x = IT.arith_unop BW_Compl (IT.sym_ (x, test_bt, test_loc)) test_loc in
+  let not_x = MT.arith_unop BW_Compl (MT.sym_ (x, test_bt, test_loc)) test_loc in
   let constraint_it =
-    IT.eq_ (not_x, IT.num_lit_ (Z.of_int 250) test_bt test_loc) test_loc
+    MT.eq_ (not_x, MT.num_lit_ (Z.of_int 250) test_bt test_loc) test_loc
   in
   let result = TristateDomain.local_iteration constraint_it TristateDomain.top in
   match result with
@@ -499,9 +499,9 @@ let test_backward_not _ =
 let test_backward_ne _ =
   let x = make_sym "x" in
   (* Create a constraint that x != 5 *)
-  let x_it = IT.sym_ (x, test_bt, test_loc) in
+  let x_it = MT.sym_ (x, test_bt, test_loc) in
   let ne_constraint =
-    IT.not_ (IT.eq_ (x_it, IT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc) test_loc
+    MT.not_ (MT.eq_ (x_it, MT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc) test_loc
   in
   (* Start with x in {4, 5} (value=4, mask=1) *)
   let initial_tnum = TristateBasis.of_tnum test_bt (Z.of_int 4) (Z.of_int 1) in
@@ -522,9 +522,9 @@ let test_backward_ne _ =
 let test_backward_ne_contradiction _ =
   let x = make_sym "x" in
   (* Create a constraint that x != 5 *)
-  let x_it = IT.sym_ (x, test_bt, test_loc) in
+  let x_it = MT.sym_ (x, test_bt, test_loc) in
   let ne_constraint =
-    IT.not_ (IT.eq_ (x_it, IT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc) test_loc
+    MT.not_ (MT.eq_ (x_it, MT.num_lit_ (Z.of_int 5) test_bt test_loc) test_loc) test_loc
   in
   (* Start with x = 5 exactly *)
   let initial_tnum = TristateBasis.of_const test_bt (Z.of_int 5) in

@@ -2,7 +2,7 @@
 
 open OUnit2
 module BT = Cn.BaseTypes
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module LC = Cn.LogicalConstraints
 module Sym = Cn.Sym
 
@@ -32,7 +32,7 @@ let mk_def name body : Def.t =
 
 
 (** Helper: return unit (leaf node, no calls) *)
-let return_unit = Term.return_ (IT.unit_ test_loc) () test_loc
+let return_unit = Term.return_ (MT.unit_ test_loc) () test_loc
 
 (** Helper: get the label of an edge, or None if no edge exists *)
 let edge_label cg src dst =
@@ -98,7 +98,7 @@ let test_two_calls_diff_via_let _ =
 let test_call_through_assert _ =
   let g = Sym.fresh "g" in
   let f = Sym.fresh "f" in
-  let lc = LC.T (IT.bool_ true test_loc) in
+  let lc = LC.T (MT.bool_ true test_loc) in
   let body = Term.assert_ (lc, Term.call_ (f, []) () BT.Unit test_loc) () test_loc in
   let ctx : Ctx.t = [ (g, mk_def g body); (f, mk_def f return_unit) ] in
   let cg = Ctx.get_call_graph ctx in
@@ -109,7 +109,7 @@ let test_call_through_assert _ =
 let test_ite_both_branches _ =
   let g = Sym.fresh "g" in
   let f = Sym.fresh "f" in
-  let cond = IT.bool_ true test_loc in
+  let cond = MT.bool_ true test_loc in
   let call_f = Term.call_ (f, []) () BT.Unit test_loc in
   let body = Term.ite_ (cond, call_f, call_f) () test_loc in
   let ctx : Ctx.t = [ (g, mk_def g body); (f, mk_def f return_unit) ] in
@@ -122,7 +122,7 @@ let test_ite_different_branches _ =
   let g = Sym.fresh "g" in
   let f = Sym.fresh "f" in
   let h = Sym.fresh "h" in
-  let cond = IT.bool_ true test_loc in
+  let cond = MT.bool_ true test_loc in
   let body =
     Term.ite_
       ( cond,
@@ -186,11 +186,11 @@ let rec gen_term (syms : Sym.t list) (depth : int) : Term.t QCheck.Gen.t =
         (* ITE *)
         (let* gt1 = smaller in
          let* gt2 = smaller in
-         let cond = IT.bool_ true test_loc in
+         let cond = MT.bool_ true test_loc in
          return (Term.ite_ (cond, gt1, gt2) () test_loc));
         (* Assert *)
         (let* gt' = smaller in
-         let lc = LC.T (IT.bool_ true test_loc) in
+         let lc = LC.T (MT.bool_ true test_loc) in
          return (Term.assert_ (lc, gt') () test_loc))
       ])
 

@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -46,7 +46,7 @@ module Make (AD : Domain.T) = struct
         match it_ with
         (* Fulminate ignores `good` already, so we will too for benefits to laziness *)
         (* FIXME: Want a more formal guarantee from generators in future *)
-        | Good _ -> IT.bool_ true loc
+        | Good _ -> MT.bool_ true loc
         | Binop
             ( Add,
               IT (Binop (Add, it1, IT (Const (Bits (_, n1)), _, _)), _, _),
@@ -56,7 +56,7 @@ module Make (AD : Domain.T) = struct
               IT (Const (Bits ((sgn, sz), n2)), _, _),
               IT (Binop (Add, it1, IT (Const (Bits (_, n1)), _, _)), _, _) )
           when BT.fits_range (sgn, sz) (Z.add n1 n2) ->
-          IT.add_ (it1, IT.num_lit_ (Z.add n1 n2) (Bits (sgn, sz)) loc) loc
+          MT.add_ (it1, MT.num_lit_ (Z.add n1 n2) (Bits (sgn, sz)) loc) loc
         | Binop
             ( Add,
               IT (Binop (Add, IT (Const (Bits (_, n1)), _, _), it1), _, _),
@@ -66,7 +66,7 @@ module Make (AD : Domain.T) = struct
               IT (Const (Bits ((sgn, sz), n2)), _, _),
               IT (Binop (Add, IT (Const (Bits (_, n1)), _, _), it1), _, _) )
           when BT.fits_range (sgn, sz) (Z.add n1 n2) ->
-          IT.add_ (it1, IT.num_lit_ (Z.add n1 n2) (Bits (sgn, sz)) loc) loc
+          MT.add_ (it1, MT.num_lit_ (Z.add n1 n2) (Bits (sgn, sz)) loc) loc
         | Binop
             ( Add,
               IT (Binop (Sub, it1, IT (Const (Bits (_, n1)), _, _)), _, _),
@@ -76,7 +76,7 @@ module Make (AD : Domain.T) = struct
               IT (Const (Bits ((sgn, sz), n2)), _, _),
               IT (Binop (Sub, it1, IT (Const (Bits (_, n1)), _, _)), _, _) )
           when BT.fits_range (sgn, sz) (Z.sub n1 n2) ->
-          IT.add_ (it1, IT.num_lit_ (Z.sub n1 n2) (Bits (sgn, sz)) loc) loc
+          MT.add_ (it1, MT.num_lit_ (Z.sub n1 n2) (Bits (sgn, sz)) loc) loc
         | Cast
             ( bt1,
               IT
@@ -84,7 +84,7 @@ module Make (AD : Domain.T) = struct
                   _,
                   loc_cast1 ) )
           when BT.equal bt1 bt3 && BT.equal bt2 bt4 ->
-          IT.cast_ bt1 (IT.cast_ bt2 it' loc_cast2) loc_cast1
+          MT.cast_ bt1 (MT.cast_ bt2 it' loc_cast2) loc_cast1
         | Cast
             ((Bits (sign1, bits1) as bt1), IT (Cast (Bits (sign2, bits2), it_inner), _, _))
           when BT.equal bt1 (T.get_bt it_inner)
@@ -143,8 +143,8 @@ module Make (AD : Domain.T) = struct
                   _ ),
               IT (Sym x', _, _) )
           when Sym.equal x x' && T.equal it1 it2 ->
-          IT.eq_
-            (IT.mod_ (IT.sym_ (x, x_bt, x_loc), it1) loc, IT.num_lit_ Z.zero x_bt loc)
+          MT.eq_
+            (MT.mod_ (MT.sym_ (x, x_bt, x_loc), it1) loc, MT.num_lit_ Z.zero x_bt loc)
             loc
         | Binop
             ( EQ,
@@ -174,13 +174,13 @@ module Make (AD : Domain.T) = struct
                   _,
                   _ ) )
           when Sym.equal x x' && T.equal it1 it2 ->
-          IT.eq_
-            (IT.mod_ (IT.sym_ (x, x_bt, x_loc), it1) loc, IT.num_lit_ Z.zero x_bt loc)
+          MT.eq_
+            (MT.mod_ (MT.sym_ (x, x_bt, x_loc), it1) loc, MT.num_lit_ Z.zero x_bt loc)
             loc
         | (Binop (Min, it1, it2) | Binop (Max, it1, it2)) when T.equal it1 it2 -> it1
         | Binop (Min, it1, it2) ->
           (match (Terms.is_bits_const it1, Terms.is_bits_const it2) with
-           | Some (_, n1), Some (_, n2) -> IT.num_lit_ (Z.min n1 n2) bt loc
+           | Some (_, n1), Some (_, n2) -> MT.num_lit_ (Z.min n1 n2) bt loc
            | Some ((sgn, sz), n), _ when Z.equal n (fst (BT.bits_range (sgn, sz))) -> it1
            | _, Some ((sgn, sz), n) when Z.equal n (fst (BT.bits_range (sgn, sz))) -> it2
            | Some ((sgn, sz), n), _ when Z.equal n (snd (BT.bits_range (sgn, sz))) -> it2
@@ -188,7 +188,7 @@ module Make (AD : Domain.T) = struct
            | _ -> it)
         | Binop (Max, it1, it2) ->
           (match (Terms.is_bits_const it1, Terms.is_bits_const it2) with
-           | Some (_, n1), Some (_, n2) -> IT.num_lit_ (Z.max n1 n2) bt loc
+           | Some (_, n1), Some (_, n2) -> MT.num_lit_ (Z.max n1 n2) bt loc
            | Some ((sgn, sz), n), _ when Z.equal n (snd (BT.bits_range (sgn, sz))) -> it1
            | _, Some ((sgn, sz), n) when Z.equal n (snd (BT.bits_range (sgn, sz))) -> it2
            | Some ((sgn, sz), n), _ when Z.equal n (fst (BT.bits_range (sgn, sz))) -> it2
@@ -206,9 +206,9 @@ module Make (AD : Domain.T) = struct
         let it_perm = simplify_it it_perm in
         let it_body = simplify_it it_body in
         if Terms.is_false it_perm || Terms.is_true it_body then
-          LC.T (IT.bool_ true loc_implies)
+          LC.T (MT.bool_ true loc_implies)
         else
-          LC.Forall ((i, i_bt), IT.impl_ (it_perm, it_body) loc_implies)
+          LC.Forall ((i, i_bt), MT.impl_ (it_perm, it_body) loc_implies)
       | _ -> failwith __LOC__
 
 

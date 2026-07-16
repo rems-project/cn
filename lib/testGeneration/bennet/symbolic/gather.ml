@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module BT = BaseTypes
 module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail
@@ -51,16 +51,16 @@ module Make (AD : Domain.T) = struct
           _,
           _ )
       when Sym.equal x x' && Sym.equal x' x'' && Term.is_arbitrary_supported_bt v_bt ->
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
-          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+          MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
         in
         let max_len_term =
-          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+          MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
         in
-        LC.T (IT.le_ (array_len, max_len_term) here)
+        LC.T (MT.le_ (array_len, max_len_term) here)
       in
       let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
       let it_min, it_max = (f it_min, f it_max) in
@@ -71,10 +71,10 @@ module Make (AD : Domain.T) = struct
         Smt.convert_indexterm
           sigma
           (f
-             (IT.arrayShift_
+             (MT.arrayShift_
                 ~base:(subst_i_in_addr it_max)
                 ~index:
-                  (IT.num_lit_
+                  (MT.num_lit_
                      (Z.of_int (Memory.size_of_ctype sct - 1))
                      Memory.uintptr_bt
                      here)
@@ -172,17 +172,17 @@ module Make (AD : Domain.T) = struct
               _ ) )
       when Sym.equal x x' && Sym.equal x' x'' ->
       (* Array assignment: claim ownership of memory locations *)
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       (* Add constraint to ensure array range doesn't exceed max_array_length *)
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
-          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+          MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
         in
         let max_len_term =
-          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+          MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
         in
-        LC.T (IT.le_ (array_len, max_len_term) here)
+        LC.T (MT.le_ (array_len, max_len_term) here)
       in
       let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
       let it_min, it_max = (f it_min, f it_max) in
@@ -210,10 +210,10 @@ module Make (AD : Domain.T) = struct
         Smt.convert_indexterm
           sigma
           (f
-             (IT.arrayShift_
+             (MT.arrayShift_
                 ~base:(subst_i_in_addr it_max)
                 ~index:
-                  (IT.num_lit_
+                  (MT.num_lit_
                      (Z.of_int (Memory.size_of_ctype sct - 1))
                      Memory.uintptr_bt
                      here)
@@ -238,7 +238,7 @@ module Make (AD : Domain.T) = struct
         let here = Locations.other __LOC__ in
         elem_docs
         |> List.mapi (fun idx value_doc ->
-          (f (IT.add_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here), value_doc))
+          (f (MT.add_ (it_min, MT.num_lit_ (Z.of_int idx) i_bt here) here), value_doc))
       in
       let map_var = Sym.fresh_make_uniq "map_acc" in
       let map_var_doc = Sym.pp map_var in
@@ -332,23 +332,23 @@ module Make (AD : Domain.T) = struct
         match else_term with
         | Annot (`PickSized gts, (), _, _) ->
           List.map
-            (fun (w, gt') -> (w, Term.assert_ (T (IT.not_ it_if loc), gt') () loc))
+            (fun (w, gt') -> (w, Term.assert_ (T (MT.not_ it_if loc), gt') () loc))
             gts
-        | gt' -> [ (Z.one, Term.assert_ (T (IT.not_ it_if loc), gt') () loc) ]
+        | gt' -> [ (Z.one, Term.assert_ (T (MT.not_ it_if loc), gt') () loc) ]
       in
       gather_term sigma (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map ((i_sym, i_bt, it_perm), body_term) ->
       (* Generic pure-value map: no memory assignment, just builds a map value *)
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
-          IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+          MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
         in
         let max_len_term =
-          IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+          MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
         in
-        LC.T (IT.le_ (array_len, max_len_term) here)
+        LC.T (MT.le_ (array_len, max_len_term) here)
       in
       let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
       let it_min = f it_min in
@@ -360,7 +360,7 @@ module Make (AD : Domain.T) = struct
         |> Z.to_int
         |> List.range 0
         |> List.map (fun idx ->
-          let idx_it = f (IT.add_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here) in
+          let idx_it = f (MT.add_ (it_min, MT.num_lit_ (Z.of_int idx) i_bt here) here) in
           let subst_body = Term.subst (T.make_subst [ (i_sym, idx_it) ]) body_term in
           let body_result = gather_term sigma subst_body in
           (idx_it, body_result))
