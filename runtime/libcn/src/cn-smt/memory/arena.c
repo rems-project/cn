@@ -315,26 +315,52 @@ void cn_arena_free(cn_arena* arena, void* ptr) {
   (void)ptr;
 }
 
+/* Adapters taking a void* context, matching the cn_test_*_alloc function
+ * pointer types exactly so no cast is needed (-Wcast-function-type). */
+static void* cn_arena_malloc_adapter(void* arena, size_t size) {
+  return cn_arena_malloc((cn_arena*)arena, size);
+}
+
+static void* cn_arena_calloc_adapter(void* arena, size_t count, size_t size) {
+  return cn_arena_calloc((cn_arena*)arena, count, size);
+}
+
+static void* cn_arena_realloc_adapter(void* arena, void* ptr, size_t size) {
+  return cn_arena_realloc((cn_arena*)arena, ptr, size);
+}
+
+static void* cn_arena_aligned_alloc_adapter(void* arena, size_t alignment, size_t size) {
+  return cn_arena_aligned_alloc((cn_arena*)arena, alignment, size);
+}
+
+static void cn_arena_free_adapter(void* arena, void* ptr) {
+  cn_arena_free((cn_arena*)arena, ptr);
+}
+
+static void cn_arena_free_all_adapter(void* arena) {
+  cn_arena_free_all((cn_arena*)arena);
+}
+
 void cn_arena_set_default_alloc(cn_arena* arena) {
   assert(arena != NULL);
 
   cn_test_set_alloc(arena,
-      (void* (*)(void*, size_t))cn_arena_malloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_calloc,
-      (void* (*)(void*, void*, size_t))cn_arena_realloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
-      (void (*)(void*, void*))cn_arena_free,
-      (void (*)(void*))cn_arena_free_all);
+      cn_arena_malloc_adapter,
+      cn_arena_calloc_adapter,
+      cn_arena_realloc_adapter,
+      cn_arena_aligned_alloc_adapter,
+      cn_arena_free_adapter,
+      cn_arena_free_all_adapter);
 }
 
 void cn_arena_push_alloc(cn_arena* arena) {
   assert(arena != NULL);
 
   cn_test_push_alloc(arena,
-      (void* (*)(void*, size_t))cn_arena_malloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_calloc,
-      (void* (*)(void*, void*, size_t))cn_arena_realloc,
-      (void* (*)(void*, size_t, size_t))cn_arena_aligned_alloc,
-      (void (*)(void*, void*))cn_arena_free,
-      (void (*)(void*))cn_arena_free_all);
+      cn_arena_malloc_adapter,
+      cn_arena_calloc_adapter,
+      cn_arena_realloc_adapter,
+      cn_arena_aligned_alloc_adapter,
+      cn_arena_free_adapter,
+      cn_arena_free_all_adapter);
 }
