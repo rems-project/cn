@@ -19,9 +19,7 @@ module Make (AD : Domain.T) = struct
         | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
         | `ArbitraryDomain of
-            AD.Relative.t
-            * Terms.Normal.t list
-            * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+            AD.Relative.t * T.t list * (T.t * Sctypes.t * T.t option) list
         | `Call of Sym.t * T.t list
           (** `Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
         | `Asgn of (T.t * Sctypes.t) * T.t * 'recur annot
@@ -31,10 +29,7 @@ module Make (AD : Domain.T) = struct
         | `Assert of LC.t * 'recur annot
           (** `Assert some [LC.t] are true, backtracking otherwise *)
         | `AssertDomain of
-            AD.t
-            * Terms.Normal.t list
-            * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-            * 'recur annot
+            AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * 'recur annot
         | `ITE of T.t * 'recur annot * 'recur annot (** If-then-else *)
         | `Map of (Sym.t * BT.t * T.t) * 'recur annot
         | `Pick of 'recur annot list
@@ -62,8 +57,8 @@ module Make (AD : Domain.T) = struct
 
       let arbitrary_domain_
             (d : AD.Relative.t)
-            (its : Terms.Normal.t list)
-            (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+            (its : T.t list)
+            (asgns : (T.t * Sctypes.t * T.t option) list)
             (tag : tag_t)
             (bt : BT.t)
             (loc : Locations.t)
@@ -111,10 +106,7 @@ module Make (AD : Domain.T) = struct
 
       let assert_domain_
             ((ad, its, asgns, gt') :
-              AD.t
-              * Terms.Normal.t list
-              * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-              * t)
+              AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * t)
             (tag : tag_t)
             (loc : Locations.t)
         : t

@@ -1,5 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 type ('tag, 'ast) annot =
@@ -13,10 +14,7 @@ module Base (AD : Domain.T) = struct
     | `Symbolic (** Generate symbolic values *)
     | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
       (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
-    | `ArbitraryDomain of
-        AD.Relative.t
-        * Terms.Normal.t list
-        * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+    | `ArbitraryDomain of AD.Relative.t * T.t list * (T.t * Sctypes.t * T.t option) list
     | `Call of Sym.t * T.t list
       (** Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
     | `Asgn of (T.t * Sctypes.t) * T.t * ('tag, 'recur) annot
@@ -27,16 +25,13 @@ module Base (AD : Domain.T) = struct
     | `Assert of LC.t * ('tag, 'recur) annot
       (** Assert some [LC.t] are true, backtracking otherwise *)
     | `AssertDomain of
-        AD.t
-        * Terms.Normal.t list
-        * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-        * ('tag, 'recur) annot
+        AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * ('tag, 'recur) annot
       (** Assert domain constraints are satisfied, backtracking otherwise *)
     | `AssertDomainElab of
         Sym.t
         * AD.t
-        * Terms.Normal.t list
-        * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+        * T.t list
+        * (T.t * Sctypes.t * T.t option) list
         * ('tag, 'recur) annot
       (** Elaborated assert domain with backtrack var *)
     | `ITE of T.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
@@ -81,8 +76,8 @@ module type T = sig
 
   val arbitrary_domain_
     :  AD.Relative.t ->
-    Terms.Normal.t list ->
-    (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list ->
+    T.t list ->
+    (T.t * Sctypes.t * T.t option) list ->
     tag_t ->
     BT.t ->
     Locations.t ->
@@ -99,20 +94,13 @@ module type T = sig
   val assert_ : LC.t * t -> tag_t -> Locations.t -> t
 
   val assert_domain_
-    :  AD.t
-       * Terms.Normal.t list
-       * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-       * t ->
+    :  AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * t ->
     tag_t ->
     Locations.t ->
     t
 
   val assert_domain_elab_
-    :  Sym.t
-       * AD.t
-       * Terms.Normal.t list
-       * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-       * t ->
+    :  Sym.t * AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * t ->
     tag_t ->
     Locations.t ->
     t
@@ -200,14 +188,13 @@ module Make (GT : T) = struct
       match end_opt with
       | None ->
         !^"Owned"
-        ^^ parens
-             (Terms.Normal.pp it_addr ^^ comma ^^^ !^"sizeof<" ^^ Sctypes.pp sct ^^ !^">")
+        ^^ parens (T.pp it_addr ^^ comma ^^^ !^"sizeof<" ^^ Sctypes.pp sct ^^ !^">")
       | Some it_end ->
         !^"OwnedRange"
         ^^ parens
-             (Terms.Normal.pp it_addr
+             (T.pp it_addr
               ^^ comma
-              ^^^ Terms.Normal.pp it_end
+              ^^^ T.pp it_end
               ^^^ !^"+"
               ^^^ !^"sizeof<"
               ^^ Sctypes.pp sct
@@ -234,7 +221,7 @@ module Make (GT : T) = struct
       ^^ parens
            (AD.Relative.pp d
             ^^ comma
-            ^^^ brackets (separate_map (comma ^^ space) Terms.Normal.pp its)
+            ^^^ brackets (separate_map (comma ^^ space) T.pp its)
             ^^ comma
             ^^^ brackets (separate_map (comma ^^ space) pp_asgn asgns))
     | `Call (fsym, iargs) ->
@@ -259,7 +246,7 @@ module Make (GT : T) = struct
            (nest 2 (break 1 ^^ AD.pp d)
             ^^ break 1
             ^^ comma
-            ^^^ brackets (separate_map (comma ^^ space) Terms.Normal.pp its)
+            ^^^ brackets (separate_map (comma ^^ space) T.pp its)
             ^^ comma
             ^^^ brackets (separate_map (comma ^^ space) pp_asgn asgns))
       ^^ semi
@@ -271,7 +258,7 @@ module Make (GT : T) = struct
            (nest 2 (break 1 ^^ AD.pp d)
             ^^ break 1
             ^^ comma
-            ^^^ brackets (separate_map (comma ^^ space) Terms.Normal.pp its)
+            ^^^ brackets (separate_map (comma ^^ space) T.pp its)
             ^^ comma
             ^^^ brackets (separate_map (comma ^^ space) pp_asgn asgns))
       ^^ semi
@@ -364,8 +351,8 @@ module Make (GT : T) = struct
         (fun _ bt1 bt2 ->
            assert (BT.equal bt1 bt2);
            Some bt1)
-        (Terms.Normal.free_vars_bts_list its)
-        (Terms.Normal.free_vars_bts_list
+        (T.free_vars_bts_list its)
+        (T.free_vars_bts_list
            (List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns))
     | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
       T.free_vars_bts_list (List.filter_map Fun.id [ min_inc; min_ex; max_inc; max_ex ])
@@ -400,8 +387,8 @@ module Make (GT : T) = struct
            (fun _ bt1 bt2 ->
               assert (BT.equal bt1 bt2);
               Some bt1)
-           (Terms.Normal.free_vars_bts_list its)
-           (Terms.Normal.free_vars_bts_list
+           (T.free_vars_bts_list its)
+           (T.free_vars_bts_list
               (List.concat_map (fun (it, _, eo) -> it :: Option.to_list eo) asgns)))
         (free_vars_bts gt')
     | `ITE (it_if, gt_then, gt_else) ->
@@ -547,10 +534,9 @@ module Make (GT : T) = struct
     | `ArbitraryDomain (ad, its, asgns) ->
       arbitrary_domain_
         ad
-        (List.map (Terms.Normal.subst su) its)
+        (List.map (T.subst su) its)
         (List.map
-           (fun (it, n, eo) ->
-              (Terms.Normal.subst su it, n, Option.map (Terms.Normal.subst su) eo))
+           (fun (it, n, eo) -> (T.subst su it, n, Option.map (T.subst su) eo))
            asgns)
         tag
         bt
@@ -576,10 +562,9 @@ module Make (GT : T) = struct
     | `AssertDomain (ad, its, asgns, gt') ->
       assert_domain_
         ( ad,
-          List.map (Terms.Normal.subst su) its,
+          List.map (T.subst su) its,
           List.map
-            (fun (it, n, eo) ->
-               (Terms.Normal.subst su it, n, Option.map (Terms.Normal.subst su) eo))
+            (fun (it, n, eo) -> (T.subst su it, n, Option.map (T.subst su) eo))
             asgns,
           subst su gt' )
         tag
@@ -588,10 +573,9 @@ module Make (GT : T) = struct
       assert_domain_elab_
         ( backtrack_var,
           ad,
-          List.map (Terms.Normal.subst su) its,
+          List.map (T.subst su) its,
           List.map
-            (fun (it, n, eo) ->
-               (Terms.Normal.subst su it, n, Option.map (Terms.Normal.subst su) eo))
+            (fun (it, n, eo) -> (T.subst su it, n, Option.map (T.subst su) eo))
             asgns,
           subst su gt' )
         tag

@@ -1,4 +1,5 @@
 module MT = MakeTerm
+module T = Terms.Normal
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -7,16 +8,14 @@ module Make (AD : Domain.T) = struct
 
   type state =
     { ad : AD.t;
-      asserts : Terms.Normal.t list;
-      asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+      asserts : T.t list;
+      asgns : (T.t * Sctypes.t * T.t option) list
     }
 
   let empty_state = { ad = AD.top; asserts = []; asgns = [] }
 
   let asgn_equal (a1, s1, e1) (a2, s2, e2) =
-    Terms.Normal.equal a1 a2
-    && Sctypes.equal s1 s2
-    && Option.equal Terms.Normal.equal e1 e2
+    T.equal a1 a2 && Sctypes.equal s1 s2 && Option.equal T.equal e1 e2
 
 
   let rec transform_gt (state : state) (gt : Term.t) : Term.t =
@@ -25,9 +24,7 @@ module Make (AD : Domain.T) = struct
     | `AssertDomain (ad, its, asgns, gt_rest) ->
       let its', asgns' =
         if TestGenConfig.has_dynamic_assert_domain () then
-          ( List.filter
-              (fun it -> not (List.exists (Terms.Normal.equal it) state.asserts))
-              its,
+          ( List.filter (fun it -> not (List.exists (T.equal it) state.asserts)) its,
             List.filter (fun a -> not (List.exists (asgn_equal a) state.asgns)) asgns )
         else
           (its, asgns)
