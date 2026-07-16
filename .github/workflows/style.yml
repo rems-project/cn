@@ -109,7 +109,12 @@ jobs:
 
       - name: Check compiler warnings
         run: |
-          find runtime/libcn/ -iname '*.c' -exec ${{ matrix.compiler }} -c -I runtime/libcn/include/ -Werror -Wall -o /dev/null {} ';'
+          # Same flags as the libcn dune build (runtime/libcn/lib/dune reads this
+          # file via `(:include ...)`); strip the surrounding parens.
+          flags=$(tr -d '()' < runtime/libcn/lib/c_flags.sexp)
+          # Use xargs, not `find -exec ... ';'`, so a failing compile fails the step.
+          find runtime/libcn/ -iname '*.c' -print0 \
+            | xargs -0 -n1 ${{ matrix.compiler }} -c -I runtime/libcn/include/ $flags -o /dev/null
 
       - name: Check C++ compatibility
         run: |
