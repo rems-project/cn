@@ -260,7 +260,7 @@ let convert_enum_expr =
   let conv_const loc = function
     | ConstantInteger (IConstant (z, _, _)) as c ->
       let@ bt =
-        if (BT.bvmode ()) then (
+        if BT.bvmode () then (
           match BT.pick_integer_encoding_type z with
           | Some bt -> return bt
           | None -> fail { loc; msg = Cannot_convert_enum_const c })
@@ -1160,7 +1160,7 @@ module C_vars = struct
       match pname with
       | Owned (ct, Init) ->
         ( [ (ptr_expr, pointee) ],
-          if (BT.bvmode ()) then
+          if BT.bvmode () then
             []
           else
             [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
@@ -1198,7 +1198,7 @@ module C_vars = struct
       | Owned (ct, Init) ->
         let open IT in
         let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
-        if (BT.bvmode ()) then
+        if BT.bvmode () then
           []
         else
           [ ( LC.Forall
@@ -1652,7 +1652,7 @@ let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let info = (loc, Some "return value representable") in
   let here = Locations.other __LOC__ in
   let lrt =
-    if (BT.bvmode ()) then
+    if BT.bvmode () then
       lrt
     else
       LRT.mConstraint

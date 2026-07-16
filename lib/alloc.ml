@@ -17,7 +17,9 @@ module History = struct
 
   let make_value ~base ~size loc =
     IndexTerms.(
-      record_ [ (base_id, base); (size_id, num_lit_ (Z.of_int size) (size_bt ()) loc) ] loc)
+      record_
+        [ (base_id, base); (size_id, num_lit_ (Z.of_int size) (size_bt ()) loc) ]
+        loc)
 
 
   let bt () = BaseTypes.Map (Alloc_id, value_bt ())

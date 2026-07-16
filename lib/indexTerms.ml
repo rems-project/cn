@@ -636,7 +636,7 @@ let memberShift_ (base, tag, member) loc =
 
 let right_integer_type_for_mode bt =
   let open BT in
-  match bt with Bits _ -> (bvmode ()) | Integer -> not (bvmode ()) | _ -> assert false
+  match bt with Bits _ -> bvmode () | Integer -> not (bvmode ()) | _ -> assert false
 
 
 (* invariant of ArrayShift: index must have type uintptr_bt *)
@@ -858,7 +858,7 @@ let value_check_pointer mode ~pointee_ct about loc =
   and_
     (List.concat
        [ (* if !use_vip then None else Some (non_vip_constraint about loc); *)
-         (if BT.((bvmode ())) then
+         (if BT.(bvmode ()) then
             []
           else
             [ in_z_range (addr_ about loc) (Z.zero, Memory.max_pointer) loc ]);
@@ -875,7 +875,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
     | Void -> bool_ true loc
-    | Byte -> if BT.((bvmode ())) then bool_ true loc else failwith "todo: Byte value_check"
+    | Byte -> if BT.(bvmode ()) then bool_ true loc else failwith "todo: Byte value_check"
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->

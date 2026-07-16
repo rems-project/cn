@@ -23,7 +23,7 @@ let resource_empty provable resource =
 
 let unfolded_array loc init (ict, olength) pointer =
   let length = Option.get olength in
-  let qbt = if BaseTypes.(bvmode ()) then (Memory.uintptr_bt ()) else BT.Integer in
+  let qbt = if BaseTypes.(bvmode ()) then Memory.uintptr_bt () else BT.Integer in
   let q_s, q = IT.fresh_named qbt "i" loc in
   Q
     { name = Owned (ict, init);

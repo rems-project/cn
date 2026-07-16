@@ -497,11 +497,10 @@ module Flags = struct
     let doc = "(temporary) disable VIP rules" in
     Arg.(value & flag & info ~docs:s_cn [ "no-vip" ] ~doc)
 
+
   let integermode =
     let doc =
       "Use mathematical integers instead of bitvectors for representing C integers."
     in
     Arg.(value & flag & info ~docs:s_cn [ "integermode" ] ~doc)
-
-
 end

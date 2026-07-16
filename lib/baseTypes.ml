@@ -1,6 +1,6 @@
 let in_bvmode = ref (None : bool option)
-let bvmode () = Option.get !in_bvmode
 
+let bvmode () = Option.get !in_bvmode
 
 type sign =
   | Signed
@@ -151,16 +151,15 @@ let is_bits_bt = function Bits (sign, n) -> Some (sign, n) | _ -> None
 
 let make_map_bt abt rbt = Map (abt, rbt)
 
-let of_sct loc is_signed size_of = 
+let of_sct loc is_signed size_of =
   let rec aux = function
     | Sctypes.Void -> Unit
     | Integer ity ->
       if bvmode () then
-	Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
+        Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
       else
-	Integer
-    | Array (sct, _) ->
-      Map (aux Sctypes.(Integer (Unsigned Intptr_t)), aux sct)
+        Integer
+    | Array (sct, _) -> Map (aux Sctypes.(Integer (Unsigned Intptr_t)), aux sct)
     | Pointer sct -> Loc (loc sct)
     | Struct tag -> Struct tag
     | Byte -> Option MemByte
@@ -177,8 +176,7 @@ let intptr_bt loc is_signed size_of =
   of_sct loc is_signed size_of Sctypes.(Integer (Signed Intptr_t))
 
 
-let size_bt loc is_signed size_of = 
-  of_sct loc is_signed size_of Sctypes.(Integer Size_t)
+let size_bt loc is_signed size_of = of_sct loc is_signed size_of Sctypes.(Integer Size_t)
 
 let rec hash = function
   | Unit -> 0

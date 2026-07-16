@@ -1225,7 +1225,7 @@ module WrappedIntervalBasis = struct
     assert (not is_bottom);
     let sign, width =
       match bt with
-      | Loc () -> (BT.Unsigned, (Memory.uintptr_bt ()) |> BT.is_bits_bt |> Option.get |> snd)
+      | Loc () -> (BT.Unsigned, Memory.uintptr_bt () |> BT.is_bits_bt |> Option.get |> snd)
       | Bits (sign, sz) -> (sign, sz)
       | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
     in

@@ -219,21 +219,21 @@ module CN_MemByte = struct
   let width = Memory.bits_per_byte
 
   let value_bt () =
-    if (bvmode ()) then
+    if bvmode () then
       BT.Bits (Unsigned, width)
     else
       Integer
 
 
   let value_type () =
-    if (bvmode ()) then
+    if bvmode () then
       SMT.t_bits width
     else
       SMT.t_int
 
 
   let value_const (z : Z.t) =
-    if (bvmode ()) then
+    if bvmode () then
       SMT.bv_k width z
     else
       SMT.int_zk z
@@ -274,14 +274,14 @@ module CN_Pointer = struct
   let width () = snd (Option.get (BT.is_bits_bt (Memory.uintptr_bt ())))
 
   let addr_type () =
-    if (bvmode ()) then
+    if bvmode () then
       SMT.t_bits (width ())
     else
       SMT.t_int
 
 
   let addr_const (k : Z.t) =
-    if (bvmode ()) then
+    if bvmode () then
       SMT.bv_k (width ()) k
     else
       SMT.int_zk k
@@ -342,7 +342,7 @@ module CN_Pointer = struct
                con_aia
                  ~alloc_id
                  ~addr:
-                   (if (bvmode ()) then
+                   (if bvmode () then
                       SMT.bv_add addr (SMT.atom "offset")
                     else
                       SMT.num_add addr (SMT.atom "offset"))));

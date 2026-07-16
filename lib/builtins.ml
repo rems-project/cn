@@ -257,32 +257,35 @@ let builtin_funs ()
       (BaseTypes.Surface.t IT.annot, err) result))
       list
   =
-  List.map (fun f -> f ()) [ mul_uf_def;
-    div_uf_def;
-    power_uf_def;
-    rem_uf_def;
-    mod_uf_def;
-    xor_uf_def;
-    bw_and_uf_def;
-    bw_or_uf_def;
-    bw_clz_uf_def;
-    bw_ctz_uf_def;
-    bw_ffs_uf_def;
-    bw_fls_uf_def;
-    shift_left_def;
-    shift_right_def;
-    power_def;
-    rem_def;
-    mod_def;
-    has_alloc_id_def;
-    is_some_def;
-    is_none_def;
-    get_opt_def
-  ]
+  List.map
+    (fun f -> f ())
+    [ mul_uf_def;
+      div_uf_def;
+      power_uf_def;
+      rem_uf_def;
+      mod_uf_def;
+      xor_uf_def;
+      bw_and_uf_def;
+      bw_or_uf_def;
+      bw_clz_uf_def;
+      bw_ctz_uf_def;
+      bw_ffs_uf_def;
+      bw_fls_uf_def;
+      shift_left_def;
+      shift_right_def;
+      power_def;
+      rem_def;
+      mod_def;
+      has_alloc_id_def;
+      is_some_def;
+      is_none_def;
+      get_opt_def
+    ]
 
 
 let builtin_fun_defs () =
-  max_min_bits @ [ not_def (); is_null_def (); ptr_eq_def (); prov_eq_def (); addr_eq_def () ]
+  max_min_bits
+  @ [ not_def (); is_null_def (); ptr_eq_def (); prov_eq_def (); addr_eq_def () ]
 
 
 let apply_builtin_funs fsym args loc =
@@ -292,7 +295,9 @@ let apply_builtin_funs fsym args loc =
 
 
 let apply_builtin_fun_defs fsym args _loc =
-  match List.find_opt (fun (_, fsym', _) -> Sym.equal fsym fsym') (builtin_fun_defs ()) with
+  match
+    List.find_opt (fun (_, fsym', _) -> Sym.equal fsym fsym') (builtin_fun_defs ())
+  with
   | None -> None
   | Some (_, _, fn_def) ->
     let body =

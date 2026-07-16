@@ -241,7 +241,6 @@ module Flags = struct
       "check consistency of predicate definitions, function specifications, and lemmas"
     in
     Arg.(value & flag & info ~docs:s_verification [ "check-consistency" ] ~doc)
-
 end
 
 module Lemma_flags = struct
@@ -324,6 +323,7 @@ let verify_t : unit Term.t =
   $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency
   $ Common.Flags.integermode
+
 
 let cmd =
   let doc =
