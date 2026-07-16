@@ -483,7 +483,7 @@ module IndexTerms = struct
          | _, _ -> eq_ (a, b) the_loc)
       | EachI ((i1, (s, s_bt), i2), t) ->
         let s' = Sym.fresh_same s in
-        let t = IndexTerms.subst (make_rename ~from:s ~to_:s') t in
+        let t = IndexTerms.(subst (make_rename ~from:s ~to_:s') t) in
         let t = aux t in
         IT (EachI ((i1, (s', s_bt), i2), t), the_bt, the_loc)
       | Tuple its ->
@@ -619,7 +619,7 @@ module IndexTerms = struct
         make map index
       | MapDef ((s, abt), body) ->
         let s' = Sym.fresh_same s in
-        let body = IndexTerms.subst (make_rename ~from:s ~to_:s') body in
+        let body = IndexTerms.(subst (make_rename ~from:s ~to_:s') body) in
         let body = aux body in
         IT (MapDef ((s', abt), body), the_bt, the_loc)
       | Apply (name, args) ->
