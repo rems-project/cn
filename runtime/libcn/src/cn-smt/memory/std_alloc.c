@@ -171,14 +171,40 @@ void std_free_all(void) {
   std_free_all_aux(&g_std_alloc);
 }
 
+/* Adapters taking a void* context, matching the cn_test_*_alloc function
+ * pointer types exactly so no cast is needed (-Wcast-function-type). */
+static void* std_malloc_adapter(void* data, size_t size) {
+  return std_malloc_aux((std_alloc_data*)data, size);
+}
+
+static void* std_calloc_adapter(void* data, size_t count, size_t size) {
+  return std_calloc_aux((std_alloc_data*)data, count, size);
+}
+
+static void* std_realloc_adapter(void* data, void* ptr, size_t size) {
+  return std_realloc_aux((std_alloc_data*)data, ptr, size);
+}
+
+static void* std_aligned_alloc_adapter(void* data, size_t alignment, size_t size) {
+  return std_aligned_alloc_aux((std_alloc_data*)data, alignment, size);
+}
+
+static void std_free_adapter(void* data, void* ptr) {
+  std_free_aux((std_alloc_data*)data, ptr);
+}
+
+static void std_free_all_adapter(void* data) {
+  std_free_all_aux((std_alloc_data*)data);
+}
+
 void std_set_default_alloc(void) {
   ensure_initialized();
 
   cn_test_set_alloc(&g_std_alloc,
-      (void* (*)(void*, size_t))std_malloc_aux,
-      (void* (*)(void*, size_t, size_t))std_calloc_aux,
-      (void* (*)(void*, void*, size_t))std_realloc_aux,
-      (void* (*)(void*, size_t, size_t))std_aligned_alloc_aux,
-      (void (*)(void*, void*))std_free_aux,
-      (void (*)(void*))std_free_all_aux);
+      std_malloc_adapter,
+      std_calloc_adapter,
+      std_realloc_adapter,
+      std_aligned_alloc_adapter,
+      std_free_adapter,
+      std_free_all_adapter);
 }
