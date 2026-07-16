@@ -128,7 +128,7 @@ let make_test_prog_with_struct () : unit Mucore.file =
 let make_test_generator
       (name : Sym.t)
       (iargs : (Sym.t * BT.t) list)
-      (assertions : (IT.t * IT.t) list)
+      (assertions : (Cn.Terms.Normal.t * Cn.Terms.Normal.t) list)
   : Def.t
   =
   let rec make_body assertions =

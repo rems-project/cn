@@ -3,6 +3,7 @@
 open OUnit2
 module BT = Cn.BaseTypes
 module IT = Cn.IndexTerms
+module T = Cn.Terms.Normal
 module LC = Cn.LogicalConstraints
 module Sym = Cn.Sym
 module Pp = Cn.Pp
@@ -113,8 +114,8 @@ let test_split_and_leftover _ =
      | [ Annot (`Assert (LC.T it_split, gt_body), (), _, _); _ ] ->
        assert_equal
          ~msg:"First branch should assert only the liftable disjunct"
-         ~cmp:IT.equal
-         ~printer:(fun it -> Pp.plain (IT.pp it))
+         ~cmp:T.equal
+         ~printer:(fun it -> Pp.plain (T.pp it))
          d_split
          it_split;
        assert_term_equal

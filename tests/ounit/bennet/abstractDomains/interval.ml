@@ -3,9 +3,11 @@
 open OUnit2
 open QCheck
 open Cn.IndexTerms
+open Cn.Terms
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
 module IT = Cn.IndexTerms
+module T = Cn.Terms.Normal
 
 module NonRelational =
   Cn.TestGeneration.Private.Bennet.Private.AbstractDomains.Private.NonRelational
@@ -60,13 +62,13 @@ let compare_bounds_values bounds_opt interval_opt =
   match (bounds_opt, interval_opt) with
   | None, None -> true
   | Some bounds_term, Some interval_term ->
-    (match (is_bits_const bounds_term, is_bits_const interval_term) with
+    (match (Cn.Terms.is_bits_const bounds_term, is_bits_const interval_term) with
      | Some (_, bz), Some (_, iz) -> Z.equal bz iz
      | _ -> false)
   | _ -> false
 
 
-let pp_bound b = Cn.Pp.plain (Cn.Option.pp IT.pp b)
+let pp_bound b = Cn.Pp.plain (Cn.Option.pp T.pp b)
 
 (** Test comparison between Bounds and NonRelational domain on simple equality *)
 let test_bounds_vs_interval_eq _ =
@@ -211,7 +213,7 @@ let test_interval_add _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 5) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 3) (Z.of_int 7) in
-  let result = IntervalBasis.forward_abs_binop IT.Add i1 i2 in
+  let result = IntervalBasis.forward_abs_binop Add i1 i2 in
   match result with
   | Some interval ->
     assert_equal ~msg:"Add: start should be 5" (Z.of_int 5) interval.start;
@@ -223,7 +225,7 @@ let test_interval_sub _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 5) (Z.of_int 10) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 3) in
-  let result = IntervalBasis.forward_abs_binop IT.Sub i1 i2 in
+  let result = IntervalBasis.forward_abs_binop Sub i1 i2 in
   match result with
   | Some interval ->
     assert_equal ~msg:"Sub: start should be 2" (Z.of_int 2) interval.start;
@@ -235,7 +237,7 @@ let test_interval_mul _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 3) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 4) (Z.of_int 5) in
-  let result = IntervalBasis.forward_abs_binop IT.Mul i1 i2 in
+  let result = IntervalBasis.forward_abs_binop Mul i1 i2 in
   match result with
   | Some interval ->
     assert_equal ~msg:"Mul: start should be 8" (Z.of_int 8) interval.start;
@@ -247,7 +249,7 @@ let test_interval_div _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 8) (Z.of_int 12) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 3) in
-  let result = IntervalBasis.forward_abs_binop IT.Div i1 i2 in
+  let result = IntervalBasis.forward_abs_binop Div i1 i2 in
   match result with
   | Some interval ->
     assert_equal ~msg:"Div: start should be 2" (Z.of_int 2) interval.start;
@@ -259,7 +261,7 @@ let test_interval_div_by_zero _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 5) (Z.of_int 10) in
   let i2 = IntervalBasis.of_interval bt Z.zero Z.zero in
-  let result = IntervalBasis.forward_abs_binop IT.Div i1 i2 in
+  let result = IntervalBasis.forward_abs_binop Div i1 i2 in
   match result with
   | Some interval ->
     assert_bool "Div by zero should result in bottom" (IntervalBasis.is_bottom interval)
@@ -270,7 +272,7 @@ let test_interval_mod _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 5) (Z.of_int 15) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 3) (Z.of_int 7) in
-  let result = IntervalBasis.forward_abs_binop IT.Mod i1 i2 in
+  let result = IntervalBasis.forward_abs_binop Mod i1 i2 in
   match result with
   | Some interval ->
     (* Modulo by [3,7] should give bounds [-6, 6] *)
@@ -283,7 +285,7 @@ let test_interval_bw_and _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 4) (Z.of_int 7) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 6) in
-  let result = IntervalBasis.forward_abs_binop IT.BW_And i1 i2 in
+  let result = IntervalBasis.forward_abs_binop BW_And i1 i2 in
   match result with
   | Some interval ->
     (* Bitwise AND should be conservative *)
@@ -298,7 +300,7 @@ let test_interval_bw_or _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 4) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 1) (Z.of_int 3) in
-  let result = IntervalBasis.forward_abs_binop IT.BW_Or i1 i2 in
+  let result = IntervalBasis.forward_abs_binop BW_Or i1 i2 in
   match result with
   | Some interval ->
     assert_bool
@@ -312,7 +314,7 @@ let test_interval_shift_left _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 2) (Z.of_int 4) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 1) (Z.of_int 2) in
-  let result = IntervalBasis.forward_abs_binop IT.ShiftLeft i1 i2 in
+  let result = IntervalBasis.forward_abs_binop ShiftLeft i1 i2 in
   match result with
   | Some interval ->
     (* [2,4] << [1,2] should give [4,16] *)
@@ -325,7 +327,7 @@ let test_interval_shift_right _ =
   let bt = BT.Bits (Signed, 32) in
   let i1 = IntervalBasis.of_interval bt (Z.of_int 8) (Z.of_int 16) in
   let i2 = IntervalBasis.of_interval bt (Z.of_int 1) (Z.of_int 2) in
-  let result = IntervalBasis.forward_abs_binop IT.ShiftRight i1 i2 in
+  let result = IntervalBasis.forward_abs_binop ShiftRight i1 i2 in
   match result with
   | Some interval ->
     (* [8,16] >> [1,2] should give [2,8] *)
@@ -441,7 +443,7 @@ let arithmetic_soundness_prop =
        let i1 = IntervalBasis.of_interval bt (Z.of_int min_a) (Z.of_int max_a) in
        let i2 = IntervalBasis.of_interval bt (Z.of_int min_b) (Z.of_int max_b) in
        (* Test addition soundness *)
-       let add_result = IntervalBasis.forward_abs_binop IT.Add i1 i2 in
+       let add_result = IntervalBasis.forward_abs_binop Add i1 i2 in
        let add_sound =
          match add_result with
          | Some interval ->
@@ -452,7 +454,7 @@ let arithmetic_soundness_prop =
          | None -> false
        in
        (* Test subtraction soundness *)
-       let sub_result = IntervalBasis.forward_abs_binop IT.Sub i1 i2 in
+       let sub_result = IntervalBasis.forward_abs_binop Sub i1 i2 in
        let sub_sound =
          match sub_result with
          | Some interval ->
@@ -476,7 +478,7 @@ let division_soundness_prop =
        let min_a, max_a = (min a1 a2, max a1 a2) in
        let i1 = IntervalBasis.of_interval bt (Z.of_int min_a) (Z.of_int max_a) in
        let i2 = IntervalBasis.of_interval bt (Z.of_int b) (Z.of_int b) in
-       let div_result = IntervalBasis.forward_abs_binop IT.Div i1 i2 in
+       let div_result = IntervalBasis.forward_abs_binop Div i1 i2 in
        match div_result with
        | Some interval ->
          (not (IntervalBasis.is_bottom interval)) && Z.leq interval.start interval.stop
