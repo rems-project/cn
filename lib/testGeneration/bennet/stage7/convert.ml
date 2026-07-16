@@ -118,11 +118,11 @@ module Make (AD : Domain.T) = struct
   let generate_value_read
         filename
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (it : Terms.Normal.t)
+        (it : T.t)
     : Pp.document
     =
     let open Pp in
-    let bt = Terms.Normal.get_bt it in
+    let bt = T.get_bt it in
     let bs, ss, e =
       CtA.cn_to_ail_expr_toplevel filename sigma.cn_datatypes [] None None it
     in
@@ -171,24 +171,24 @@ module Make (AD : Domain.T) = struct
             filename
             (sigma : CF.GenTypes.genTypeCategory A.sigma)
             (protected : Sym.Set.t)
-            (it : Terms.Normal.t)
-    : Terms.Normal.t
+            (it : T.t)
+    : T.t
     =
     let open Terms in
-    if Sym.Set.is_empty (Sym.Set.inter protected (Terms.Normal.free_vars it)) then (
-      match Terms.Normal.get_term it with
+    if Sym.Set.is_empty (Sym.Set.inter protected (T.free_vars it)) then (
+      match T.get_term it with
       | Sym _ | Const _ | SizeOf _ | OffsetOf _ | Nil _ | CN_None _ ->
         (* Leaves and trivial constants - don't recompile *)
         it
       | _ ->
         (* Compound term not containing target: compile via CtA and wrap as SMT value *)
-        let bt = Terms.Normal.get_bt it in
+        let bt = T.get_bt it in
         let smt_doc = generate_value_read filename sigma it in
         MT.sym_ (Sym.fresh (Pp.plain smt_doc), bt, Locations.other __LOC__))
     else (
-      let bt = Terms.Normal.get_bt it in
-      let loc = Terms.Normal.get_loc it in
-      match Terms.Normal.get_term it with
+      let bt = T.get_bt it in
+      let loc = T.get_loc it in
+      match T.get_term it with
       | Sym _ | Const _ -> it
       | Unop (op, t) ->
         IT (Unop (op, optimize_concrete_terms filename sigma protected t), bt, loc)
@@ -333,7 +333,7 @@ module Make (AD : Domain.T) = struct
                        List.fold_left
                          (fun acc (s, _) -> Sym.Set.add s acc)
                          protected
-                         (Terms.Normal.bound_by_pattern pat)
+                         (T.bound_by_pattern pat)
                      in
                      (pat, optimize_concrete_terms filename sigma pat_syms body))
                   cases ),
@@ -386,11 +386,11 @@ module Make (AD : Domain.T) = struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(target : Sym.t)
         ~(target_bt : BT.t)
-        (constraint_it : Terms.Normal.t)
+        (constraint_it : T.t)
     : Pp.document
     =
     (* Get all free variables with their types from the original constraint *)
-    let free_vars_bts = Terms.Normal.free_vars_bts constraint_it in
+    let free_vars_bts = T.free_vars_bts constraint_it in
     (* First, optimize compound concrete subterms *)
     let optimized_it =
       optimize_concrete_terms filename sigma (Sym.Set.singleton target) constraint_it
@@ -407,7 +407,7 @@ module Make (AD : Domain.T) = struct
              let value_read_str = Pp.plain (generate_value_read filename sigma sym_it) in
              (* Create a fresh symbol that will be printed as the value read expression *)
              let value_sym = Sym.fresh value_read_str in
-             Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:value_sym) acc))
+             T.subst (T.make_rename ~from:sym ~to_:value_sym) acc))
         free_vars_bts
         optimized_it
     in
@@ -428,9 +428,7 @@ module Make (AD : Domain.T) = struct
     in
     let target_value_sym = Sym.fresh (Pp.plain target_sym_str) in
     let final_it =
-      Terms.Normal.subst
-        (Terms.Normal.make_rename ~from:target ~to_:target_value_sym)
-        substituted_it
+      T.subst (T.make_rename ~from:target ~to_:target_value_sym) substituted_it
     in
     (* Convert to cn_term AST construction code *)
     Smt.convert_indexterm sigma final_it
@@ -441,11 +439,11 @@ module Make (AD : Domain.T) = struct
   let generate_addr_term
         filename
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (it_addr : Terms.Normal.t)
+        (it_addr : T.t)
     : Pp.document
     =
     let open Pp in
-    let free_vars_bts = Terms.Normal.free_vars_bts it_addr in
+    let free_vars_bts = T.free_vars_bts it_addr in
     let all_protected = Sym.Set.of_seq (Sym.Map.to_seq free_vars_bts |> Seq.map fst) in
     let optimized_it = optimize_concrete_terms filename sigma all_protected it_addr in
     let final_it =
@@ -466,7 +464,7 @@ module Make (AD : Domain.T) = struct
                       ^^^ Smt.convert_basetype bt))
            in
            let value_sym = Sym.fresh sym_str in
-           Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:value_sym) acc)
+           T.subst (T.make_rename ~from:sym ~to_:value_sym) acc)
         free_vars_bts
         optimized_it
     in
@@ -478,13 +476,13 @@ module Make (AD : Domain.T) = struct
   let generate_bwd_blame_parts
         filename
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (it_addr : Terms.Normal.t)
+        (it_addr : T.t)
         (ptr_sym : Sym.t)
     : CF.GenTypes.genTypeCategory A.statement_ list * int * string * string * string
     =
     let open Pp in
     let unique_id = Sym.num (Sym.fresh "_bwd") in
-    let free_vars_bts = Terms.Normal.free_vars_bts it_addr in
+    let free_vars_bts = T.free_vars_bts it_addr in
     let other_vars =
       Sym.Map.bindings free_vars_bts
       |> List.filter (fun (s, _) -> not (Sym.equal s ptr_sym))
@@ -533,7 +531,7 @@ module Make (AD : Domain.T) = struct
     (stmts, num_other, addr_term_name, ids_name, syms_name)
 
 
-  let rec pointer_of (it : Terms.Normal.t) : Sym.t * BT.t =
+  let rec pointer_of (it : T.t) : Sym.t * BT.t =
     match it with
     | IT (CopyAllocId { loc = ptr; _ }, _, _)
     | IT (ArrayShift { base = ptr; _ }, _, _)
@@ -542,9 +540,7 @@ module Make (AD : Domain.T) = struct
     | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
     | _ ->
       let pointers =
-        it
-        |> Terms.Normal.free_vars_bts
-        |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
+        it |> T.free_vars_bts |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
       in
       if not (Sym.Map.cardinal pointers == 1) then
         Cerb_debug.print_debug 2 [] (fun () ->
@@ -556,9 +552,9 @@ module Make (AD : Domain.T) = struct
                     (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
                     (List.of_seq (Sym.Map.to_seq pointers)))
                ^^^ !^" in "
-               ^^ Terms.Normal.pp it)));
+               ^^ T.pp it)));
       if Sym.Map.is_empty pointers then (
-        print_endline (Pp.plain (Terms.Normal.pp it));
+        print_endline (Pp.plain (T.pp it));
         failwith __LOC__);
       Sym.Map.choose pointers
 
@@ -571,7 +567,7 @@ module Make (AD : Domain.T) = struct
 
   (** Statically compute the byte offset from the base pointer for an address MT.
       Returns an IT expression of type [Memory.size_bt] representing the offset. *)
-  let rec compute_offset_it (var_sym : Sym.t) (it : Terms.Normal.t) : Terms.Normal.t =
+  let rec compute_offset_it (var_sym : Sym.t) (it : T.t) : T.t =
     let loc = Locations.other __LOC__ in
     let zero = MT.num_lit_ Z.zero Memory.size_bt loc in
     match it with
@@ -587,8 +583,7 @@ module Make (AD : Domain.T) = struct
       let elem_size = MT.sizeOf_ ct loc in
       let index_cast = MT.cast_ Memory.size_bt index loc in
       MT.add_ (base_offset, MT.mul_ (elem_size, index_cast) loc) loc
-    | _ ->
-      failwith ("compute_offset_it: unexpected IT shape: " ^ Pp.plain (Terms.Normal.pp it))
+    | _ -> failwith ("compute_offset_it: unexpected IT shape: " ^ Pp.plain (T.pp it))
 
 
   (** Generate BENNET_REFINE_ASSIGNMENT calls for ArbitraryDomain pointer codegen *)
@@ -598,7 +593,7 @@ module Make (AD : Domain.T) = struct
         ~(var_sym : Sym.t)
         ~(last_var : Sym.t)
         (name : Sym.t)
-        (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+        (asgns : (T.t * Sctypes.t * T.t option) list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -619,8 +614,7 @@ module Make (AD : Domain.T) = struct
            in
            let b_extra, s_extra, bytes_str =
              match max_addr with
-             | Some it_max when not (Sym.Set.mem var_sym (Terms.Normal.free_vars it_max))
-               ->
+             | Some it_max when not (Sym.Set.mem var_sym (T.free_vars it_max)) ->
                let loc = Locations.other __LOC__ in
                let end_bytes_it =
                  MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
@@ -641,10 +635,10 @@ module Make (AD : Domain.T) = struct
            in
            let blame_vars =
              let open Pp in
-             let addr_fvs = Terms.Normal.free_vars it_addr in
+             let addr_fvs = T.free_vars it_addr in
              let max_fvs =
                match max_addr with
-               | Some it_max -> Terms.Normal.free_vars it_max
+               | Some it_max -> T.free_vars it_max
                | None -> Sym.Set.empty
              in
              Sym.Set.union addr_fvs max_fvs
@@ -697,11 +691,11 @@ module Make (AD : Domain.T) = struct
         ~(target_bt : BT.t)
         ~(also_sym : Sym.t)
         ~(also_sym_expr : Pp.document)
-        (constraint_it : Terms.Normal.t)
+        (constraint_it : T.t)
     : Pp.document
     =
     let open Pp in
-    let free_vars_bts = Terms.Normal.free_vars_bts constraint_it in
+    let free_vars_bts = T.free_vars_bts constraint_it in
     let protected = Sym.Set.of_list [ target; also_sym ] in
     let optimized_it = optimize_concrete_terms filename sigma protected constraint_it in
     (* Substitute free variables except target and also_sym with value reads *)
@@ -714,7 +708,7 @@ module Make (AD : Domain.T) = struct
              let sym_it = MT.sym_ (sym, bt, Locations.other __LOC__) in
              let value_read_str = plain (generate_value_read filename sigma sym_it) in
              let value_sym = Sym.fresh value_read_str in
-             Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:value_sym) acc))
+             T.subst (T.make_rename ~from:sym ~to_:value_sym) acc))
         free_vars_bts
         optimized_it
     in
@@ -734,16 +728,12 @@ module Make (AD : Domain.T) = struct
     in
     let target_value_sym = Sym.fresh (plain target_sym_str) in
     let it_after_target =
-      Terms.Normal.subst
-        (Terms.Normal.make_rename ~from:target ~to_:target_value_sym)
-        substituted_it
+      T.subst (T.make_rename ~from:target ~to_:target_value_sym) substituted_it
     in
     (* Replace also_sym with its symbolic expression *)
     let also_value_sym = Sym.fresh (plain also_sym_expr) in
     let final_it =
-      Terms.Normal.subst
-        (Terms.Normal.make_rename ~from:also_sym ~to_:also_value_sym)
-        it_after_target
+      T.subst (T.make_rename ~from:also_sym ~to_:also_value_sym) it_after_target
     in
     Smt.convert_indexterm sigma final_it
 
@@ -756,7 +746,7 @@ module Make (AD : Domain.T) = struct
         filename
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         ~(var_sym : Sym.t)
-        (constraint_it : Terms.Normal.t)
+        (constraint_it : T.t)
     : CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -766,7 +756,7 @@ module Make (AD : Domain.T) = struct
       !^"cn_smt_sym((cn_sym){.name = _refine_sym.name, .id = _refine_sym.id}, _refine_bt)"
     in
     let refinable_free_vars =
-      Terms.Normal.free_vars_bts constraint_it
+      T.free_vars_bts constraint_it
       |> Sym.Map.remove var_sym
       |> Sym.Map.filter (fun _ -> Stage6.Term.is_arbitrary_supported_bt)
       |> Sym.Map.bindings
@@ -824,7 +814,7 @@ module Make (AD : Domain.T) = struct
         ~(var_sym : Sym.t)
         ~(var_bt : BT.t)
         ~(last_var : Sym.t)
-        (constraints : Terms.Normal.t list)
+        (constraints : T.t list)
     : CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -842,7 +832,7 @@ module Make (AD : Domain.T) = struct
           constraint_it
       in
       let blame_vars =
-        Terms.Normal.free_vars constraint_it
+        T.free_vars constraint_it
         |> Sym.Set.remove var_sym
         |> Sym.Set.to_seq
         |> List.of_seq
@@ -940,7 +930,7 @@ module Make (AD : Domain.T) = struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (name : Sym.t)
         ~(free_vars : (Sym.t * BT.t) list)
-        (constraints : Terms.Normal.t list)
+        (constraints : T.t list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
     let free_var_set =
@@ -950,7 +940,7 @@ module Make (AD : Domain.T) = struct
       (fun constraint_it (acc_b, acc_s) ->
          let b_cond, s_cond, e_cond = transform_it filename sigma name constraint_it in
          let blame_syms =
-           Terms.Normal.free_vars constraint_it
+           T.free_vars constraint_it
            |> Sym.Set.inter free_var_set
            |> Sym.Set.to_seq
            |> List.of_seq
@@ -976,7 +966,7 @@ module Make (AD : Domain.T) = struct
         (name : Sym.t)
         ~(free_vars : (Sym.t * BT.t) list)
         ~(ad : AD.t)
-        (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+        (asgns : (T.t * Sctypes.t * T.t option) list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -1006,8 +996,7 @@ module Make (AD : Domain.T) = struct
                 in
                 let b_extra, s_extra, bytes_str =
                   match max_addr with
-                  | Some it_max
-                    when not (Sym.Set.mem var_sym (Terms.Normal.free_vars it_max)) ->
+                  | Some it_max when not (Sym.Set.mem var_sym (T.free_vars it_max)) ->
                     let loc = Locations.other __LOC__ in
                     let end_bytes_it =
                       MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
@@ -1072,7 +1061,7 @@ module Make (AD : Domain.T) = struct
         ~(var_sym : Sym.t)
         ~(backtrack_var : Sym.t)
         (name : Sym.t)
-        (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+        (asgns : (T.t * Sctypes.t * T.t option) list)
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -1097,8 +1086,7 @@ module Make (AD : Domain.T) = struct
            in
            let b_extra, s_extra, bytes_str =
              match max_addr with
-             | Some it_max when not (Sym.Set.mem var_sym (Terms.Normal.free_vars it_max))
-               ->
+             | Some it_max when not (Sym.Set.mem var_sym (T.free_vars it_max)) ->
                (* For array range assignments, bytes = it_max * sizeof(sct) - start_offset *)
                let loc = Locations.other __LOC__ in
                let end_bytes_it =
@@ -1161,7 +1149,7 @@ module Make (AD : Domain.T) = struct
         ~(var_sym : Sym.t)
         ~(var_bt : BT.t)
         ~(backtrack_var : Sym.t)
-        (constraints : Terms.Normal.t list)
+        (constraints : T.t list)
     : CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -1178,7 +1166,7 @@ module Make (AD : Domain.T) = struct
           constraint_it
       in
       let blame_vars =
-        Terms.Normal.free_vars constraint_it
+        T.free_vars constraint_it
         |> Sym.Set.to_seq
         |> List.of_seq
         |> concat_map (fun x -> !^(", " ^ plain (Sym.pp x)))
@@ -1216,7 +1204,7 @@ module Make (AD : Domain.T) = struct
         ~(x_sym : Sym.t)
         ~(x_bt : BT.t)
         ~(refinable_free_vars : (Sym.t * BT.t) list)
-        (expr_it : Terms.Normal.t)
+        (expr_it : T.t)
     : CF.GenTypes.genTypeCategory A.statement_ list
     =
     let open Pp in
@@ -1780,9 +1768,7 @@ module Make (AD : Domain.T) = struct
           let sorted_constraints =
             List.stable_sort
               (fun a b ->
-                 let fv_count c =
-                   Sym.Set.cardinal (Sym.Set.remove x (Terms.Normal.free_vars c))
-                 in
+                 let fv_count c = Sym.Set.cardinal (Sym.Set.remove x (T.free_vars c)) in
                  Int.compare (fv_count a) (fv_count b))
               constraints
           in
@@ -1953,9 +1939,7 @@ module Make (AD : Domain.T) = struct
           let sorted_constraints =
             List.stable_sort
               (fun a b ->
-                 let fv_count c =
-                   Sym.Set.cardinal (Sym.Set.remove x (Terms.Normal.free_vars c))
-                 in
+                 let fv_count c = Sym.Set.cardinal (Sym.Set.remove x (T.free_vars c)) in
                  Int.compare (fv_count a) (fv_count b))
               constraints
           in
@@ -1972,10 +1956,10 @@ module Make (AD : Domain.T) = struct
             List.stable_sort
               (fun (addr_a, _, max_a) (addr_b, _, max_b) ->
                  let fv_count (addr, _, max_opt) =
-                   let fvs = Terms.Normal.free_vars addr in
+                   let fvs = T.free_vars addr in
                    let fvs =
                      match max_opt with
-                     | Some m -> Sym.Set.union fvs (Terms.Normal.free_vars m)
+                     | Some m -> Sym.Set.union fvs (T.free_vars m)
                      | None -> fvs
                    in
                    Sym.Set.cardinal (Sym.Set.remove x fvs)
@@ -2044,7 +2028,7 @@ module Make (AD : Domain.T) = struct
       failwith ("unreachable @ " ^ __LOC__ ^ " with type: " ^ Pp.plain (BT.pp bt))
     | `LetStar ((x, GenTerms.Annot (`Return it, _, x_bt, _)), gt_rest) ->
       let b_value, s_value, e_value = transform_it filename sigma name it in
-      let free_vars_set = Terms.Normal.free_vars it in
+      let free_vars_set = T.free_vars it in
       let free_vars_list = List.of_seq (Sym.Set.to_seq free_vars_set) in
       let s_let =
         if
@@ -2054,7 +2038,7 @@ module Make (AD : Domain.T) = struct
           (* Determine refinable free vars (Bits or Loc types) for backward interpretation.
          Only do backward interp when x_bt itself is Bits or Loc (not structs/records). *)
           let refinable_free_vars =
-            Terms.Normal.free_vars_bts it
+            T.free_vars_bts it
             |> Sym.Map.filter (fun _ -> Stage6.Term.is_arbitrary_supported_bt)
             |> Sym.Map.bindings
           in
@@ -2180,7 +2164,7 @@ module Make (AD : Domain.T) = struct
         (* Get free variables from the abstract domain and from constraints *)
         let ad_free_vars = AD.free_vars_bts ad in
         let constraint_free_vars =
-          Terms.Normal.free_vars_bts_list its
+          T.free_vars_bts_list its
           |> Sym.Map.filter (fun _ -> Stage6.Term.is_arbitrary_supported_bt)
         in
         let all_free_vars =
@@ -2255,7 +2239,7 @@ module Make (AD : Domain.T) = struct
               if TestGenConfig.has_dynamic_assert_domain () && not (List.is_empty its)
               then (
                 let relevant_constraints =
-                  List.filter (fun it -> Sym.Set.mem x (Terms.Normal.free_vars it)) its
+                  List.filter (fun it -> Sym.Set.mem x (T.free_vars it)) its
                 in
                 generate_assert_domain_constraint_refinements
                   filename

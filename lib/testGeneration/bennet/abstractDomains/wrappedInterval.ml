@@ -2,6 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
 module MT = MakeTerm
+module T = Terms.Normal
 
 module WrappedIntervalBasis = struct
   let name = "wrapped_interval"
@@ -1252,7 +1253,7 @@ module WrappedIntervalBasis = struct
       backward_abs_it (MT.lt_ (it2, it1) loc) bs
     | Cast (_, it1) ->
       (* Propagate result domain backward through cast to operand *)
-      let src_bt = Terms.Normal.get_bt it1 in
+      let src_bt = T.get_bt it1 in
       if supported src_bt then (
         match bs with
         | [ b_res; b_op ] when not b_res.is_bottom ->

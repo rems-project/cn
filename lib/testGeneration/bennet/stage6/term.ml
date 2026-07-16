@@ -21,9 +21,7 @@ module Make (AD : Domain.T) = struct
         | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
         | `ArbitraryDomain of
-            AD.Relative.t
-            * Terms.Normal.t list
-            * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
+            AD.Relative.t * T.t list * (T.t * Sctypes.t * T.t option) list
           (** Generate arbitrary values from domain *)
         | `PickSizedElab of Sym.t * (Z.t * 'recur annot) list
           (** Pick among a list of options, weighted by the provided [Z.t]s *)
@@ -37,11 +35,7 @@ module Make (AD : Domain.T) = struct
         | `Assert of LC.t * 'recur annot
           (** Assert some [LC.t] are true, backtracking otherwise *)
         | `AssertDomainElab of
-            Sym.t
-            * AD.t
-            * Terms.Normal.t list
-            * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-            * 'recur annot
+            Sym.t * AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * 'recur annot
           (** Elaborated assert domain with backtrack var *)
         | `ITE of T.t * 'recur annot * 'recur annot (** If-then-else *)
         | `MapElab of (Sym.t * BT.t * (T.t * T.t) * T.t) * 'recur annot
@@ -81,8 +75,8 @@ module Make (AD : Domain.T) = struct
 
       let arbitrary_domain_
             (d : AD.Relative.t)
-            (its : Terms.Normal.t list)
-            (asgns : (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list)
+            (its : T.t list)
+            (asgns : (T.t * Sctypes.t * T.t option) list)
             (tag : tag_t)
             (bt : BT.t)
             (loc : Locations.t)
@@ -111,11 +105,7 @@ module Make (AD : Domain.T) = struct
 
       let assert_domain_elab_
             ((backtrack_var, ad, its, asgns, gt') :
-              Sym.t
-              * AD.t
-              * Terms.Normal.t list
-              * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-              * t)
+              Sym.t * AD.t * T.t list * (T.t * Sctypes.t * T.t option) list * t)
             (tag : tag_t)
             (loc : Locations.t)
         : t

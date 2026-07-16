@@ -1,5 +1,6 @@
 module BT = BaseTypes
 module MT = MakeTerm
+module T = Terms.Normal
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -7,7 +8,7 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let rec pointer_of (it : Terms.Normal.t) : Sym.t * BT.t =
+  let rec pointer_of (it : T.t) : Sym.t * BT.t =
     match it with
     | IT (CopyAllocId { loc = ptr; _ }, _, _)
     | IT (ArrayShift { base = ptr; _ }, _, _)
@@ -16,9 +17,7 @@ module Make (AD : Domain.T) = struct
     | IT (Sym x, bt, _) | IT (Cast (_, IT (Sym x, bt, _)), _, _) -> (x, bt)
     | _ ->
       let pointers =
-        it
-        |> Terms.Normal.free_vars_bts
-        |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
+        it |> T.free_vars_bts |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
       in
       if not (Sym.Map.cardinal pointers == 1) then
         Cerb_debug.print_debug 2 [] (fun () ->
@@ -30,9 +29,9 @@ module Make (AD : Domain.T) = struct
                     (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
                     (List.of_seq (Sym.Map.to_seq pointers)))
                ^^^ !^" in "
-               ^^ Terms.Normal.pp it)));
+               ^^ T.pp it)));
       if Sym.Map.is_empty pointers then (
-        print_endline (Pp.plain (Terms.Normal.pp it));
+        print_endline (Pp.plain (T.pp it));
         failwith __LOC__);
       Sym.Map.choose pointers
 
@@ -43,7 +42,7 @@ module Make (AD : Domain.T) = struct
       first element and [index_bound] is the upper-bound index count (i.e. [it2]).
       Returns [[]] when the pattern does not match. *)
   let array_map_of ~(defined : Sym.Set.t) ?target (gt : Term.t)
-    : (Terms.Normal.t * Sctypes.t * Terms.Normal.t) list
+    : (T.t * Sctypes.t * T.t) list
     =
     let (GenTerms.Annot (gt_, _, _, _)) = gt in
     match gt_ with
@@ -65,9 +64,7 @@ module Make (AD : Domain.T) = struct
              _ )
          when Sym.equal i1 i && Sym.equal i2 i ->
          let defined' = Sym.Set.add i defined in
-         let rec find_asgn (gt : Term.t)
-           : (Terms.Normal.t * Sctypes.t * Terms.Normal.t) list
-           =
+         let rec find_asgn (gt : Term.t) : (T.t * Sctypes.t * T.t) list =
            let (GenTerms.Annot (gt_, _, _, _)) = gt in
            match gt_ with
            | `LetStar ((_, gt_inner), gt_rest) ->
@@ -76,11 +73,11 @@ module Make (AD : Domain.T) = struct
            | `Asgn ((it_addr, _sct), _, gt_rest) ->
              (match it_addr with
               | IT (ArrayShift { base; ct; index = IT (Sym _, _, _) }, _, arr_loc) ->
-                let fvs = Terms.Normal.free_vars it_addr in
+                let fvs = T.free_vars it_addr in
                 let fvs' =
                   match target with Some t -> Sym.Set.remove t fvs | None -> fvs
                 in
-                let it_max_fvs = Terms.Normal.free_vars it_max in
+                let it_max_fvs = T.free_vars it_max in
                 let it_max_fvs' =
                   match target with
                   | Some t -> Sym.Set.remove t it_max_fvs
@@ -103,9 +100,7 @@ module Make (AD : Domain.T) = struct
          find_asgn gt_inner
        | IT (Binop (LT, IT (Sym i', _, _), it_max), _, _) when Sym.equal i i' ->
          let defined' = Sym.Set.add i defined in
-         let rec find_asgn (gt : Term.t)
-           : (Terms.Normal.t * Sctypes.t * Terms.Normal.t) list
-           =
+         let rec find_asgn (gt : Term.t) : (T.t * Sctypes.t * T.t) list =
            let (GenTerms.Annot (gt_, _, _, _)) = gt in
            match gt_ with
            | `LetStar ((_, gt_inner), gt_rest) ->
@@ -114,11 +109,11 @@ module Make (AD : Domain.T) = struct
            | `Asgn ((it_addr, _sct), _, gt_rest) ->
              (match it_addr with
               | IT (ArrayShift { base; ct; index = IT (Sym _, _, _) }, _, _) ->
-                let fvs = Terms.Normal.free_vars it_addr in
+                let fvs = T.free_vars it_addr in
                 let fvs' =
                   match target with Some t -> Sym.Set.remove t fvs | None -> fvs
                 in
-                let it_max_fvs = Terms.Normal.free_vars it_max in
+                let it_max_fvs = T.free_vars it_max in
                 let it_max_fvs' =
                   match target with
                   | Some t -> Sym.Set.remove t it_max_fvs
@@ -149,9 +144,7 @@ module Make (AD : Domain.T) = struct
             ~(defined : Sym.Set.t)
             ?target
             (gt : Term.t)
-    : Terms.Normal.t list
-      * (Terms.Normal.t * Sctypes.t * Terms.Normal.t option) list
-      * Term.t
+    : T.t list * (T.t * Sctypes.t * T.t option) list * Term.t
     =
     let (GenTerms.Annot (gt_, tag, _bt, loc)) = gt in
     match gt_ with
@@ -161,7 +154,7 @@ module Make (AD : Domain.T) = struct
       in
       (match lc with
        | LC.T it ->
-         let fvs = Terms.Normal.free_vars it in
+         let fvs = T.free_vars it in
          let fvs' = match target with Some t -> Sym.Set.remove t fvs | None -> fvs in
          if Sym.Set.subset fvs' defined then
            ( it :: constraints_rest,
@@ -203,7 +196,7 @@ module Make (AD : Domain.T) = struct
       let constraints, asgns, gt_rest' =
         collect_constraints ~strip ~defined ?target gt_rest
       in
-      let fvs = Terms.Normal.free_vars it_addr in
+      let fvs = T.free_vars it_addr in
       let add_res =
         match target with
         | Some t ->

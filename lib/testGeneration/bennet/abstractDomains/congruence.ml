@@ -2,6 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
 module MT = MakeTerm
+module T = Terms.Normal
 
 (** Congruence abstract domain.
 
@@ -560,7 +561,7 @@ module CongruenceBasis = struct
       mk target_bt t.modulus t.residue
 
 
-  let forward_abs_it (it : Terms.Normal.t) (t_args : t list) : t option =
+  let forward_abs_it (it : T.t) (t_args : t list) : t option =
     let (IT (it_, bt, _loc)) = it in
     match it_ with
     | Const (Bits (_, n)) -> Some (of_const bt n)
@@ -575,11 +576,7 @@ module CongruenceBasis = struct
         print_endline
           Pp.(
             plain
-              (Terms.Normal.pp it
-               ^^^ pp t1
-               ^^ parens (BT.pp t1.bt)
-               ^^^ pp t2
-               ^^ parens (BT.pp t2.bt)));
+              (T.pp it ^^^ pp t1 ^^ parens (BT.pp t1.bt) ^^^ pp t2 ^^ parens (BT.pp t2.bt)));
         failwith __LOC__);
       forward_abs_binop op t1 t2
     | Unop (op, _) ->
@@ -628,11 +625,11 @@ module CongruenceBasis = struct
     | _ -> None
 
 
-  let rec backward_abs_it (it : Terms.Normal.t) (ts : t list) =
+  let rec backward_abs_it (it : T.t) (ts : t list) =
     let (IT (it_, _, loc)) = it in
     match it_ with
     | Binop (EQ, it', _) ->
-      let bt = Terms.Normal.get_bt it' in
+      let bt = T.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         ts
       else (
@@ -640,7 +637,7 @@ module CongruenceBasis = struct
         let t = meet t1 t2 in
         [ t; t ])
     | Unop (Not, IT (Binop (EQ, it', _), _, _)) ->
-      let bt = Terms.Normal.get_bt it' in
+      let bt = T.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         ts
       else (
@@ -655,7 +652,7 @@ module CongruenceBasis = struct
         else
           [ t1; t2 ])
     | Binop (LE, it', _) | Binop (LEPointer, it', _) ->
-      let bt = Terms.Normal.get_bt it' in
+      let bt = T.get_bt it' in
       let min, max = get_extrema bt in
       let t1, t2 = match ts with [ t1; t2 ] -> (t1, t2) | _ -> failwith __LOC__ in
       let t1_val = to_signed_value bt t1.residue in
@@ -666,7 +663,7 @@ module CongruenceBasis = struct
       let t2'' = if Z.equal t1.modulus Z.zero then meet t2 t2' else t2 in
       [ t1''; t2'' ]
     | Binop (LT, it', _) | Binop (LTPointer, it', _) ->
-      let bt = Terms.Normal.get_bt it' in
+      let bt = T.get_bt it' in
       let min, max = get_extrema bt in
       let t1, t2 = match ts with [ t1; t2 ] -> (t1, t2) | _ -> failwith __LOC__ in
       let t1_val = to_signed_value bt t1.residue in
@@ -768,7 +765,7 @@ module CongruenceBasis = struct
       in
       [ refined_base; refined_index ]
     | _ ->
-      if BT.equal BT.Bool (Terms.Normal.get_bt it) then
+      if BT.equal BT.Bool (T.get_bt it) then
         ts
       else
         List.tl ts
@@ -833,7 +830,7 @@ module CongruenceBasis = struct
 
   let definitions () = Pp.empty
 
-  let to_it (sym : Sym.t) (t : t) : Terms.Normal.t =
+  let to_it (sym : Sym.t) (t : t) : T.t =
     let loc = Locations.other __LOC__ in
     if is_bottom t then
       MT.bool_ false loc
