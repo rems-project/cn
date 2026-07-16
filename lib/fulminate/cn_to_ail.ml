@@ -4274,7 +4274,12 @@ let cn_to_ail_cnprog_ghost_args filename dts globals spec_mode_opt ghost_args =
   let dummy_expr_as_stat =
     A.(
       AilSexpr
-        (mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))))
+        (mk_expr
+           (AilEcast
+              ( C.no_qualifiers,
+                mk_ctype C.Void,
+                mk_expr
+                  (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None)))) ))))
   in
   let ail_gcc_stmt =
     A.AilEgcc_statement
@@ -4580,7 +4585,13 @@ let cn_to_ail_loop_inv
     let dummy_expr_as_stat =
       A.(
         AilSexpr
-          (mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))))
+          (mk_expr
+             (AilEcast
+                ( C.no_qualifiers,
+                  mk_ctype C.Void,
+                  mk_expr
+                    (AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
+                ))))
     in
     let bump_alloc_binding, bump_alloc_start_stat_, bump_alloc_end_stat_ =
       gen_bump_alloc_bs_and_ss ()
