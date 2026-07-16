@@ -1,5 +1,3 @@
-module IT = IndexTerms
-
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
@@ -12,7 +10,7 @@ module Make (AD : Domain.T) = struct
         when (not (Term.contains_constraint gt_inner))
              && not (Sym.Set.mem x (Term.free_vars gt_rest)) ->
         gt_rest
-      | `Assert (T it, gt_rest) when IT.is_true it -> gt_rest
+      | `Assert (T it, gt_rest) when Terms.is_true it -> gt_rest
       | _ -> gt
     in
     Term.map_gen_post aux gt

@@ -1,7 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module LC = LogicalConstraints
 module StringMap = Map.Make (String)
 
@@ -18,24 +18,24 @@ module Make (AD : Domain.T) = struct
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
         | `ArbitrarySpecialized of
-            (IT.t option * IT.t option) * (IT.t option * IT.t option)
+            (T.t option * T.t option) * (T.t option * T.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
         | `ArbitraryDomain of AD.Relative.t (** Generate arbitrary values from domain *)
         | `PickSized of (Z.t * 'recur annot) list
           (** Pick among a list of options, weighted by the provided [Z.t]s *)
-        | `Call of Sym.t * IT.t list
-          (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-        | `CallSized of Sym.t * IT.t list * (int * Sym.t)
-          (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-        | `Asgn of (IT.t * Sctypes.t) * IT.t * 'recur annot
+        | `Call of Sym.t * T.t list
+          (** Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
+        | `CallSized of Sym.t * T.t list * (int * Sym.t)
+          (** Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
+        | `Asgn of (T.t * Sctypes.t) * T.t * 'recur annot
           (** Claim ownership and assign a value to a memory location *)
         | `LetStar of (Sym.t * 'recur annot) * 'recur annot (** Backtrack point *)
-        | `Return of IT.t (** Monadic return *)
+        | `Return of T.t (** Monadic return *)
         | `Assert of LC.t * 'recur annot
           (** Assert some [LC.t] are true, backtracking otherwise *)
         | `AssertDomain of AD.t * 'recur annot (** Assert domain constraints *)
-        | `ITE of IT.t * 'recur annot * 'recur annot (** If-then-else *)
-        | `Map of (Sym.t * BT.t * IT.t) * 'recur annot
+        | `ITE of T.t * 'recur annot * 'recur annot (** If-then-else *)
+        | `Map of (Sym.t * BT.t * T.t) * 'recur annot
         | `SplitSize of Sym.Set.t * 'recur annot
         ]
       [@@deriving eq, ord]
@@ -61,7 +61,7 @@ module Make (AD : Domain.T) = struct
 
       let arbitrary_specialized_
             (((min_inc, min_ex), (max_inc, max_ex)) :
-              (IT.t option * IT.t option) * (IT.t option * IT.t option))
+              (T.t option * T.t option) * (T.t option * T.t option))
             (tag : tag_t)
             (bt : BT.t)
             (loc : Locations.t)
@@ -80,12 +80,12 @@ module Make (AD : Domain.T) = struct
         Annot (`ArbitraryDomain d, tag, bt, loc)
 
 
-      let call_ ((fsym, its) : Sym.t * IT.t list) (tag : tag_t) (bt : BT.t) loc : t =
+      let call_ ((fsym, its) : Sym.t * T.t list) (tag : tag_t) (bt : BT.t) loc : t =
         Annot (`Call (fsym, its), tag, bt, loc)
 
 
       let asgn_
-            (((it_addr, ct), it_val, gt') : (IT.t * Sctypes.t) * IT.t * t)
+            (((it_addr, ct), it_val, gt') : (T.t * Sctypes.t) * T.t * t)
             (tag : tag_t)
             (loc : Locations.t)
         : t
@@ -99,8 +99,8 @@ module Make (AD : Domain.T) = struct
         Annot (`LetStar ((x, gt1), gt2), tag, basetype gt2, loc)
 
 
-      let return_ (it : IT.t) (tag : tag_t) (loc : Locations.t) : t =
-        Annot (`Return it, tag, IT.get_bt it, loc)
+      let return_ (it : T.t) (tag : tag_t) (loc : Locations.t) : t =
+        Annot (`Return it, tag, T.get_bt it, loc)
 
 
       let assert_ ((lc, gt') : LC.t * t) (tag : tag_t) (loc : Locations.t) : t =
@@ -111,14 +111,14 @@ module Make (AD : Domain.T) = struct
         Annot (`AssertDomain (ad, gt'), tag, basetype gt', loc)
 
 
-      let ite_ ((it_if, gt_then, gt_else) : IT.t * t * t) (tag : tag_t) loc : t =
+      let ite_ ((it_if, gt_then, gt_else) : T.t * t * t) (tag : tag_t) loc : t =
         let bt = basetype gt_then in
         assert (BT.equal bt (basetype gt_else));
         Annot (`ITE (it_if, gt_then, gt_else), tag, bt, loc)
 
 
       let map_
-            (((i, i_bt, it_perm), gt_inner) : (Sym.t * BT.t * IT.t) * t)
+            (((i, i_bt, it_perm), gt_inner) : (Sym.t * BT.t * T.t) * t)
             (tag : tag_t)
             loc
         : t
@@ -147,7 +147,7 @@ module Make (AD : Domain.T) = struct
 
 
       let call_sized_
-            ((fsym, its, sz) : Sym.t * IT.t list * (int * Sym.t))
+            ((fsym, its, sz) : Sym.t * T.t list * (int * Sym.t))
             (tag : tag_t)
             (bt : BT.t)
             (loc : Locations.t)

@@ -921,3 +921,135 @@ let rec map_term_post (f : 'bt annot -> 'bt annot) (it : 'bt annot) : 'bt annot 
     | GetOpt it' -> GetOpt (loop it')
   in
   f (IT (it_, bt, here))
+
+
+let is_call (f : Sym.t) (IT (it_, _bt, _loc)) =
+  match it_ with Apply (f', _) when Sym.equal f f' -> true | _ -> false
+
+
+let is_good (ct : Sctypes.t) (IT (it_, _bt, _loc)) =
+  match it_ with Good (ct', _) when Sctypes.equal ct ct' -> true | _ -> false
+
+
+let mentions_call f = fold_subterms (fun _binders acc it -> acc || is_call f it) false
+
+let mentions_good ct = fold_subterms (fun _binders acc it -> acc || is_good ct it) false
+
+let preds_of t =
+  let add_p s = function IT (Apply (id, _), _, _) -> Sym.Set.add id s | _ -> s in
+  fold_subterms (fun _ -> add_p) Sym.Set.empty t
+
+
+let json it : Yojson.Safe.t = `String (Pp.plain (pp it))
+
+let is_const = function
+  | IT (Const const, bt, _loc) -> Option.Some (const, bt)
+  | _ -> None
+
+
+let is_z = function IT (Const (Z z), _bt, _loc) -> Option.Some z | _ -> None
+
+let is_z_ it = Option.is_some (is_z it)
+
+let get_num_z it =
+  match get_term it with
+  | Const (Z _) -> is_z it
+  | Const (Bits (info, z)) -> Some (BaseTypes.normalise_to_range info z)
+  | _ -> None
+
+
+let is_bits_const = function
+  | IT (Const (Bits (info, n)), _, _) -> Some (info, n)
+  | _ -> None
+
+
+let is_pointer = function
+  | IT (Const (Pointer { alloc_id; addr }), _bt, _) -> Some (alloc_id, addr)
+  | _ -> None
+
+
+let is_alloc_id = function
+  | IT (Const (Alloc_id alloc_id), _bt, _) -> Some alloc_id
+  | _ -> None
+
+
+let is_sym = function IT (Sym sym, bt, _) -> Some (sym, bt) | _ -> None
+
+let is_bool = function IT (Const (Bool b), _, _) -> Some b | _ -> None
+
+let is_true = function IT (Const (Bool true), _, _) -> true | _ -> false
+
+let is_false = function IT (Const (Bool false), _, _) -> true | _ -> false
+
+let is_eq = function IT (Binop (EQ, lhs, rhs), _, _) -> Some (lhs, rhs) | _ -> None
+
+let is_and = function IT (Binop (And, it, it'), _, _) -> Some (it, it') | _ -> None
+
+let is_pred_ = function IT (Apply (name, args), _, _) -> Some (name, args) | _ -> None
+
+let is_ctype_const = function IT (Const (CType_const ct), _, _) -> Some ct | _ -> None
+
+module Surface = struct
+  type t' = BaseTypes.Surface.t term
+
+  type t = BaseTypes.Surface.t annot
+
+  let compare = compare_annot BaseTypes.Surface.compare
+
+  let proj = map_annot BaseTypes.Surface.proj
+
+  let inj x = map_annot BaseTypes.Surface.inj x
+end
+
+module Normal = struct
+
+  module BT = BaseTypes
+  module CF = Cerb_frontend
+
+  let pp ?(prec = 0) = pp ~prec
+
+  let pp_with_typf f it = Pp.typ (pp it) (f (get_bt it))
+
+  let pp_with_typ = pp_with_typf BT.pp
+
+  type t = BT.t annot
+
+  type t' = BT.t term
+
+  let equal = equal_annot BT.equal
+
+  let compare = compare_annot BT.compare
+
+  let subst = subst BT.equal
+
+  let alpha_rename = alpha_rename BT.equal
+
+  let suitably_alpha_rename = suitably_alpha_rename BT.equal
+
+  let make_subst = make_subst BT.equal
+
+  let make_rename = make_rename BT.equal
+
+  let free_vars_bts = free_vars_bts BT.equal
+
+  let free_vars_bts_list = free_vars_bts_list BT.equal
+
+  let free_vars = free_vars BT.equal
+
+  let free_vars_list = free_vars_list BT.equal
+
+  let free_vars_with_rename = free_vars_with_rename BT.equal
+
+  let bound_by_pattern = bound_by_pattern
+
+  let dtree = dtree
+
+  let get_bt = get_bt
+
+  let get_term = get_term
+
+  let get_loc = get_loc
+
+  let fold_subterms = fold_subterms
+
+end

@@ -16,15 +16,15 @@ let debug_constraint_failure_diagnostics
 (* if !Pp.print_level == 0 then *)
 (*   () *)
 (* else ( *)
-(*   let pp_f = IT.pp_with_eval (Solver.eval model) in *)
+(*   let pp_f = Terms.Normal.pp_with_eval (Solver.eval model) in *)
 (*   let diag msg c = *)
 (*     match (c, model_with_q) with *)
 (*     | LC.T tm, _ -> *)
-(*       Pp.debug lvl (lazy (Pp.item msg (IT.pp tm))); *)
+(*       Pp.debug lvl (lazy (Pp.item msg (Terms.Normal.pp tm))); *)
 (*       Pp.debug lvl (lazy (pp_f tm)) *)
 (*     | LC.Forall ((sym, _bt), tm), (_, [ (sym', _bt') ]) -> *)
-(*       let tm' = IT.subst (IT.make_rename ~from:sym ~to_:sym') tm in *)
-(*       Pp.debug lvl (lazy (Pp.item ("quantified " ^ msg) (IT.pp tm))); *)
+(*       let tm' = Terms.Normal.subst (Terms.Normal.make_rename ~from:sym ~to_:sym') tm in *)
+(*       Pp.debug lvl (lazy (Pp.item ("quantified " ^ msg) (Terms.Normal.pp tm))); *)
 (*       Pp.debug lvl (lazy (pp_f tm')) *)
 (*     | _ -> *)
 (*       Pp.warn *)
@@ -40,13 +40,13 @@ let debug_constraint_failure_diagnostics
 
 module General = struct
   type one =
-    { one_index : IT.t;
-      value : IT.t
+    { one_index : Terms.Normal.t;
+      value : Terms.Normal.t
     }
 
   type many =
-    { many_guard : IT.t;
-      value : IT.t
+    { many_guard : Terms.Normal.t;
+      value : Terms.Normal.t
     }
 
   type uiinfo = Error_common.situation * TypeErrors.RequestChain.t
@@ -140,10 +140,10 @@ module General = struct
        | Some ((re, Resource.O oargs), l) ->
          assert (Request.equal re resource);
          let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
-         return (LAT.subst rt_subst (IT.make_subst [ (s, oargs) ]) ftyp, l))
+         return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, oargs) ]) ftyp, l))
     | Define ((s, it), _info, ftyp) ->
       let it = Simplify.IndexTerms.simp simp_ctxt it in
-      return (LAT.subst rt_subst (IT.make_subst [ (s, it) ]) ftyp, [])
+      return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, it) ]) ftyp, [])
     | Constraint (c, info, ftyp) ->
       let@ provable = provable loc in
       Pp.(debug 9 (lazy (item "checking constraint" (LC.pp c))));
@@ -175,7 +175,7 @@ module General = struct
     let@ simp_ctxt = simp_ctxt () in
     let provable_simp lc =
       match Simplify.LogicalConstraints.simp simp_ctxt lc with
-      | LC.T t when IT.is_true t -> `True
+      | LC.T t when Terms.is_true t -> `True
       | _ -> `False
     in
     let resource_scan fast_path re ((needed : bool), oargs) =
@@ -206,7 +206,7 @@ module General = struct
              Pp.debug 9 (lazy (Pp.item "used resource" (Req.pp (fst re))));
              (if fast_path then Pp.(debug 9 (lazy !^"syntactic match")));
              (if not fast_path then
-                Pp.(debug 9 (lazy (item "solver match" (IT.pp (IT.and_ eqs here))))));
+                Pp.(debug 9 (lazy (item "solver match" (Terms.Normal.pp (IT.and_ eqs here))))));
              (Deleted, (false, p'_oarg))
            | `False ->
              if not fast_path then (
@@ -262,7 +262,7 @@ module General = struct
         loc
         (fun re (needed, oarg) ->
            let continue = (Unchanged, (needed, oarg)) in
-           if IT.is_false needed then
+           if Terms.is_false needed then
              continue
            else (
              match re with
@@ -321,12 +321,12 @@ module General = struct
         (fun (predicate_name, index) (needed, oarg, l) ->
            let continue = return (needed, oarg, l) in
            if
-             (not (IT.is_false needed))
+             (not (Terms.is_false needed))
              && Req.subsumed requested.name predicate_name
-             && BaseTypes.equal (snd requested.q) (IT.get_bt index)
+             && BaseTypes.equal (snd requested.q) (Terms.Normal.get_bt index)
            then (
-             let su = IT.make_subst [ (fst requested.q, index) ] in
-             let needed_at_index = IT.subst su needed in
+             let su = Terms.Normal.make_subst [ (fst requested.q, index) ] in
+             let needed_at_index = Terms.Normal.subst su needed in
              match provable (LC.T needed_at_index) with
              | `False -> continue
              | `True ->
@@ -337,7 +337,7 @@ module General = struct
                let sub_req : Req.Predicate.t =
                  { name = requested.name;
                    pointer;
-                   iargs = List.map (IT.subst su) requested.iargs
+                   iargs = List.map (Terms.Normal.subst su) requested.iargs
                  }
                in
                let@ o_re_index = predicate_request loc uiinfo sub_req in
@@ -386,7 +386,7 @@ module General = struct
         let@ ftyp, l' =
           parametric_ftyp_args_request_step
             (resource_request ~simplify_prooflog:true)
-            IT.subst
+            Terms.Normal.subst
             loc
             uiinfo
             original_resources
@@ -520,7 +520,7 @@ module Special = struct
       type t =
         | Found
         | No_res
-        | Model of (Solver.model_with_q * IT.t)
+        | Model of (Solver.model_with_q * Terms.Normal.t)
     end
     in
     let here = Locations.other __LOC__ in

@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = IndexTerms
+module IT = Terms.Normal
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct

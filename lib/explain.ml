@@ -1,6 +1,6 @@
 module Rp = Report
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module Def = Definition
 module Req = Request
 module Res = Resource
@@ -14,18 +14,18 @@ open Pp
 
 (* perhaps somehow unify with above *)
 type action =
-  | Read of IndexTerms.t * IndexTerms.t
-  | Write of IndexTerms.t * IndexTerms.t
-  | Create of IndexTerms.t
-  | Kill of IndexTerms.t
+  | Read of Terms.Normal.t * Terms.Normal.t
+  | Write of Terms.Normal.t * Terms.Normal.t
+  | Create of Terms.Normal.t
+  | Kill of Terms.Normal.t
   | Call of
       { fsym : Sym.t;
-        args : IndexTerms.t list;
-        gargs : IndexTerms.t list
+        args : Terms.Normal.t list;
+        gargs : Terms.Normal.t list
       }
   | Return of
-      { arg : IndexTerms.t;
-        gargs : IndexTerms.t list
+      { arg : Terms.Normal.t;
+        gargs : Terms.Normal.t list
       }
 
 type log_entry =
@@ -75,13 +75,13 @@ module ITSet = struct
 end
 
 let subterms_without_bound_variables bindings =
-  IT.fold_subterms
+  T.fold_subterms
     ~bindings
     (fun bindings acc t ->
        let pats = List.map fst bindings in
-       let bound = List.concat_map IT.bound_by_pattern pats in
+       let bound = List.concat_map T.bound_by_pattern pats in
        let bound = Sym.Set.of_list (List.map fst bound) in
-       if Sym.Set.(is_empty (inter bound (IT.free_vars t))) then
+       if Sym.Set.(is_empty (inter bound (T.free_vars t))) then
          ITSet.add t acc
        else
          acc)
@@ -91,12 +91,12 @@ let subterms_without_bound_variables bindings =
 (** Simplify a constraint in the context of a model. *)
 let simp_constraint eval lct =
   let eval_to_bool it =
-    match eval it with Some (IT.IT (Const (Bool b1), _, _)) -> Some b1 | _ -> None
+    match eval it with Some (Terms.IT (Const (Bool b1), _, _)) -> Some b1 | _ -> None
   in
   let is b it = match eval_to_bool it with Some b1 -> Bool.equal b b1 | _ -> false in
-  let rec go (IT.IT (term, bt, loc)) =
-    let mk x = IT.IT (x, bt, loc) in
-    let ands xs = IT.and_ xs loc in
+  let rec go (Terms.IT (term, bt, loc)) =
+    let mk x = Terms.IT (x, bt, loc) in
+    let ands xs = IndexTerms.and_ xs loc in
     let go1 t = ands (go t) in
     match term with
     | Const (Bool true) -> []
@@ -123,7 +123,7 @@ let rec simp_resource eval r =
     let is_true =
       match ct with
       | LC.T ct ->
-        (match eval ct with Some (IT.IT (Const (Bool b), _, _)) -> b | _ -> false)
+        (match eval ct with Some (Terms.IT (Const (Bool b), _, _)) -> b | _ -> false)
       | _ -> false
     in
     if is_true then
@@ -165,7 +165,7 @@ let state (ctxt : C.t) log model_with_q extras =
   let evaluate it = Solver.eval model it in
   (* let _mevaluate it = *)
   (*   match evaluate it with *)
-  (*   | Some v -> IT.pp v *)
+  (*   | Some v -> T.pp v *)
   (*   | None -> parens !^"not evaluated" *)
   (* in *)
   let render_constraints c =
@@ -229,7 +229,7 @@ let state (ctxt : C.t) log model_with_q extras =
   in
   let terms, vals =
     let variables =
-      let make s ls = IT.sym_ (s, ls, Locations.other __LOC__) in
+      let make s ls = IndexTerms.sym_ (s, ls, Locations.other __LOC__) in
       let basetype_binding (s, (binding, _)) =
         match binding with C.Value _ -> None | BaseType ls -> Some (make s ls)
       in
@@ -242,7 +242,7 @@ let state (ctxt : C.t) log model_with_q extras =
       match extras.unproven_constraint with
       | Some (T lc) -> subterms_without_bound_variables [] lc
       | Some (Forall ((s, bt), lc)) ->
-        let binder = IT.(Pat (PSym s, bt, Loc.other __LOC__), None) in
+        let binder = Terms.(Pat (PSym s, bt, Loc.other __LOC__), None) in
         subterms_without_bound_variables [ binder ] lc
       | None -> ITSet.empty
     in
@@ -251,7 +251,7 @@ let state (ctxt : C.t) log model_with_q extras =
       | Some (P ret) ->
         ITSet.bigunion_map (subterms_without_bound_variables []) (ret.pointer :: ret.iargs)
       | Some (Q ret) ->
-        let binder = IT.(Pat (PSym (fst ret.q), snd ret.q, Loc.other __LOC__), None) in
+        let binder = Terms.(Pat (PSym (fst ret.q), snd ret.q, Loc.other __LOC__), None) in
         ITSet.union
           (ITSet.bigunion_map (subterms_without_bound_variables []) [ ret.pointer ])
           (ITSet.bigunion_map
@@ -266,20 +266,20 @@ let state (ctxt : C.t) log model_with_q extras =
       List.filter_map
         (fun it ->
            match evaluate it with
-           | Some value when not (IT.equal value it) -> Some (it, value)
+           | Some value when not (T.equal value it) -> Some (it, value)
            | Some _ -> None
            | None -> None)
         (ITSet.elements subterms)
     in
     let pretty_printed =
       List.map
-        (fun (it, value) -> (it, Rp.{ term = IT.pp it; value = IT.pp value }))
+        (fun (it, value) -> (it, Rp.{ term = T.pp it; value = T.pp value }))
         filtered
     in
     let interesting, uninteresting =
       List.partition
         (fun (it, _entry) ->
-           match IT.get_bt it with BT.Unit -> false | BT.Loc () -> false | _ -> true)
+           match T.get_bt it with BT.Unit -> false | BT.Loc () -> false | _ -> true)
         pretty_printed
     in
     ( Rp.add_labeled
@@ -347,11 +347,11 @@ let state (ctxt : C.t) log model_with_q extras =
            | Some def, Some cand ->
              let here = Locations.other __LOC__ in
              let ptr_val = Req.get_pointer rt in
-             let ptr_def = (IT.sym_ (def.pointer, IT.get_bt ptr_val, here), ptr_val) in
+             let ptr_def = (IndexTerms.sym_ (def.pointer, T.get_bt ptr_val, here), ptr_val) in
              Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
            | Some _, None ->
              Some
-               ( CP.Result.error (!^"Could not locate definition of variable" ^^^ IT.pp it),
+               ( CP.Result.error (!^"Could not locate definition of variable" ^^^ T.pp it),
                  rt,
                  it )
            | None, _ ->
@@ -367,7 +367,7 @@ let state (ctxt : C.t) log model_with_q extras =
       (* Issue #900 *)
       let pp_checked_res (p, req, cand) =
         let _ = p in
-        let rslt = Req.pp req ^^^ !^"(" ^^^ IT.pp cand ^^^ !^")" in
+        let rslt = Req.pp req ^^^ !^"(" ^^^ T.pp cand ^^^ !^")" in
         Rp.
           { original = rslt;
             (* !^"Full predicate check output: "
@@ -420,7 +420,7 @@ let trace (ctxt, log) (model_with_q : Solver.model_with_q) (extras : state_extra
        | PName pname ->
          let doc_clause (_name, (c : Def.Clause.t)) =
            Rp.
-             { cond = IT.pp c.guard; clause = LogicalArgumentTypes.pp IT.pp c.packing_ft }
+             { cond = T.pp c.guard; clause = LogicalArgumentTypes.pp T.pp c.packing_ft }
          in
          List.map doc_clause (relevant_predicate_clauses ctxt.global pname req))
   in

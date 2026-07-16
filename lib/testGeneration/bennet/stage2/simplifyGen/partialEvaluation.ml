@@ -1,6 +1,9 @@
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
+
+open Terms
 
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
@@ -20,14 +23,14 @@ module Make (AD : Domain.T) = struct
 
 
     let eval_num_binop
-          (eval : IT.t -> (IT.t, string) result)
+          (eval : T.t -> (T.t, string) result)
           (bt : BT.t)
           (here : Locations.t)
           (f : Z.t -> Z.t -> Z.t)
-          (it1 : IT.t)
-          (it2 : IT.t)
+          (it1 : T.t)
+          (it2 : T.t)
           (loc : string)
-      : (IT.t, string) result
+      : (T.t, string) result
       =
       let ( let@ ) = Result.bind in
       let return = Result.ok in
@@ -41,29 +44,29 @@ module Make (AD : Domain.T) = struct
         let@ () = check_bits_bt (sgn1, sz1) (sgn2, sz2) here in
         return @@ IT.num_lit_ (BT.normalise_to_range_bt bt (f n1 n2)) bt here
       | _, IT (Const (Z _), _, _) ->
-        Error ("Not constant integer `" ^ Pp.plain (IT.pp it1) ^ "` (" ^ loc ^ ")")
+        Error ("Not constant integer `" ^ Pp.plain (T.pp it1) ^ "` (" ^ loc ^ ")")
       | _, IT (Const (Bits _), _, _) ->
-        Error ("Not constant bitvector `" ^ Pp.plain (IT.pp it1) ^ "` (" ^ loc ^ ")")
+        Error ("Not constant bitvector `" ^ Pp.plain (T.pp it1) ^ "` (" ^ loc ^ ")")
       | IT (Const (Z _), _, _), _ ->
-        Error ("Not constant integer `" ^ Pp.plain (IT.pp it2) ^ "` (" ^ loc ^ ")")
+        Error ("Not constant integer `" ^ Pp.plain (T.pp it2) ^ "` (" ^ loc ^ ")")
       | IT (Const (Bits _), _, _), _ ->
-        Error ("Not constant bitvector `" ^ Pp.plain (IT.pp it2) ^ "` (" ^ loc ^ ")")
+        Error ("Not constant bitvector `" ^ Pp.plain (T.pp it2) ^ "` (" ^ loc ^ ")")
       | _, _ ->
         Error
           ("Not constant integer or bitvector `"
-           ^ Pp.plain (IT.pp it1)
+           ^ Pp.plain (T.pp it1)
            ^ "` and `"
-           ^ Pp.plain (IT.pp it2)
+           ^ Pp.plain (T.pp it2)
            ^ "` ("
            ^ loc
            ^ ")")
 
 
     let eval_term_generic
-          (eval_aux : IT.t -> (IT.t, string) result)
+          (eval_aux : T.t -> (T.t, string) result)
           (prog5 : unit Mucore.file)
-          (it : IT.t)
-      : (IT.t, string) result
+          (it : T.t)
+      : (T.t, string) result
       =
       let ( let@ ) = Result.bind in
       let return = Result.ok in
@@ -213,7 +216,7 @@ module Make (AD : Domain.T) = struct
         let@ it2 = eval_aux it2 in
         (match (it1, it2) with
          | IT (Const c1, _, _), IT (Const c2, _, _) ->
-           return @@ bool_ (equal_const c1 c2) here
+           return @@ bool_ (Terms.equal_const c1 c2) here
          | IT (Tuple its1, _, _), IT (Tuple its2, _, _) ->
            eval_aux
              (and_ (List.map (fun its -> eq_ its here) (List.combine its1 its2)) here)
@@ -269,8 +272,8 @@ module Make (AD : Domain.T) = struct
       | EachI ((i_start, (i_sym, bt'), i_end), it') ->
         let rec loop i =
           if i <= i_end then (
-            let su = make_subst [ (i_sym, num_lit_ (Z.of_int i) bt' here) ] in
-            let t1 = IT.subst su it' in
+            let su = T.make_subst [ (i_sym, num_lit_ (Z.of_int i) bt' here) ] in
+            let t1 = T.subst su it' in
             if i = i_end then
               t1
             else
@@ -286,7 +289,7 @@ module Make (AD : Domain.T) = struct
          | _ -> Error ("Not tuple (" ^ __LOC__ ^ ")"))
       | SizeOf ty ->
         return
-        @@ IT
+        @@ Terms.IT
              ( Const
                  (Bits
                     ( (Unsigned, Memory.size_of_ctype Sctypes.(Integer Size_t)),
@@ -340,7 +343,7 @@ module Make (AD : Domain.T) = struct
         eval_aux (good_value struct_decls ty it' here)
       | Aligned { t; align } ->
         let addr = addr_ t here in
-        if not (BT.equal (IT.get_bt addr) (IT.get_bt align)) then
+        if not (BT.equal (T.get_bt addr) (T.get_bt align)) then
           Error "Mismatched types"
         else
           eval_aux (divisible_ (addr, align) here)
@@ -358,12 +361,12 @@ module Make (AD : Domain.T) = struct
          | Some { args; body = Def it_body; _ } | Some { args; body = Rec_Def it_body; _ }
            ->
            return
-           @@ IT.subst (IT.make_subst (List.combine (List.map fst args) its)) it_body
+           @@ T.subst (T.make_subst (List.combine (List.map fst args) its)) it_body
          | Some { body = Uninterp; _ } ->
            Error ("Function " ^ Sym.pp_string fsym ^ " is uninterpreted")
          | None -> Error ("Function " ^ Sym.pp_string fsym ^ " was not found"))
       | Let ((x, it_v), it_rest) ->
-        eval_aux (IT.subst (IT.make_subst [ (x, it_v) ]) it_rest)
+        eval_aux (T.subst (T.make_subst [ (x, it_v) ]) it_rest)
       | StructMember (it', member) ->
         let@ it' = eval_aux it' in
         (match it' with
@@ -402,10 +405,10 @@ module Make (AD : Domain.T) = struct
           match it' with IT (Constructor _, _, _) -> true | _ -> false
         in
         if not is_constructor then
-          return @@ IT (Match (it', pits), bt, here)
+          return @@ Terms.IT (Match (it', pits), bt, here)
         else (
-          let rec get_match (it_match : IT.t) (p : BT.t pattern)
-            : (Sym.t * IT.t) list option
+          let rec get_match (it_match : T.t) (p : BT.t pattern)
+            : (Sym.t * T.t) list option
             =
             let (Pat (p_, _, _)) = p in
             match p_ with
@@ -433,13 +436,13 @@ module Make (AD : Domain.T) = struct
                (fun (p, it_case) ->
                   let open Option in
                   let@ sub = get_match it' p in
-                  Some (IT.subst (IT.make_subst sub) it_case))
+                  Some (T.subst (T.make_subst sub) it_case))
                pits))
       | WrapI _ -> Error "todo: WrapI"
       | MapGet (it_m, it_k) ->
         let@ it_m = eval_aux it_m in
         let@ it_k = eval_aux it_k in
-        let aux (it_m : IT.t) (it_k : IT.t) : (IT.t, string) result =
+        let aux (it_m : T.t) (it_k : T.t) : (T.t, string) result =
           match it_m with
           | IT (MapConst (_, it_body), _, _) -> eval_aux it_body
           | IT (MapSet (it_m', it_k', it_v), _, _) ->
@@ -449,7 +452,7 @@ module Make (AD : Domain.T) = struct
              | Some _, Some _ -> eval_aux (map_get_ it_m' it_k here)
              | _, _ -> Error "not a valid key")
           | IT (MapDef ((k, _), it_body), _, _) ->
-            eval_aux (IT.subst (IT.make_subst [ (k, it_k) ]) it_body)
+            eval_aux (T.subst (T.make_subst [ (k, it_k) ]) it_body)
           | _ -> Error "Attempted MapGet on non-map"
         in
         aux it_m it_k
@@ -462,8 +465,8 @@ module Make (AD : Domain.T) = struct
       | GetOpt _ -> Error "todo: GetOpt"
 
 
-    let eval_term_strictly (prog5 : unit Mucore.file) (it : IT.t) : (IT.t, string) result =
-      let rec eval_aux (it : IT.t) : (IT.t, string) result =
+    let eval_term_strictly (prog5 : unit Mucore.file) (it : T.t) : (T.t, string) result =
+      let rec eval_aux (it : T.t) : (T.t, string) result =
         let ( let@ ) = Result.bind in
         let return = Result.ok in
         let open IT in
@@ -503,7 +506,7 @@ module Make (AD : Domain.T) = struct
           eval_term_generic
             eval_aux
             prog5
-            (IT.IT (StructUpdate ((it_struct, member), it_value), bt, here))
+            (IT (StructUpdate ((it_struct, member), it_value), bt, here))
         | Record xits ->
           let@ xits =
             List.fold_right
@@ -520,7 +523,7 @@ module Make (AD : Domain.T) = struct
           eval_term_generic
             eval_aux
             prog5
-            (IT.IT (RecordUpdate ((it_record, member), it_value), bt, here))
+            (IT (RecordUpdate ((it_record, member), it_value), bt, here))
         | Constructor (constr, xits) ->
           let@ xits =
             List.fold_right
@@ -557,9 +560,9 @@ module Make (AD : Domain.T) = struct
       eval_aux it
 
 
-    let eval_term_lazily (prog5 : unit Mucore.file) (it : IT.t) : (IT.t, string) result =
-      let rec eval_aux (it : IT.t) : (IT.t, string) result =
-        let open IT in
+    let eval_term_lazily (prog5 : unit Mucore.file) (it : T.t) : (T.t, string) result =
+      let rec eval_aux (it : T.t) : (T.t, string) result =
+        (* let open IT in *)
         let (IT (t_, _, _)) = it in
         match t_ with
         | Const _ | Sym _ | Unop _ | Binop _ | ITE _ | EachI _ | NthTuple _
@@ -582,8 +585,8 @@ module Make (AD : Domain.T) = struct
       eval_aux it
 
 
-    let eval ?(mode = Strict) ?(prog5 : unit Mucore.file = Mucore.empty_file) (it : IT.t)
-      : (IT.t, string) result
+    let eval ?(mode = Strict) ?(prog5 : unit Mucore.file = Mucore.empty_file) (it : T.t)
+      : (T.t, string) result
       =
       match mode with
       | Strict -> eval_term_strictly prog5 it
@@ -593,13 +596,13 @@ module Make (AD : Domain.T) = struct
     let partial_eval
           ?(mode = Strict)
           ?(prog5 : unit Mucore.file = Mucore.empty_file)
-          (it : IT.t)
-      : IT.t
+          (it : T.t)
+      : T.t
       =
-      let f ?(mode = mode) (it : IT.t) : IT.t =
+      let f ?(mode = mode) (it : T.t) : T.t =
         match eval ~mode ~prog5 it with Ok it' -> it' | Error _ -> it
       in
-      let aux (it : IT.t) : IT.t =
+      let aux (it : T.t) : T.t =
         match it with
         | IT (Apply (fsym, _), _, _) ->
           (* If we lazily evaluate every sub-term, all applications will result in a
@@ -611,7 +614,7 @@ module Make (AD : Domain.T) = struct
            | Some { body = Uninterp; _ } | None -> it)
         | _ -> f it
       in
-      IT.map_term_post aux it
+      map_term_post aux it
   end
 
   module LogicalConstraints = struct

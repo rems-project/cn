@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -10,7 +11,7 @@ module Make (AD : Domain.T) = struct
       match gt_ with
       | `Assert (T (IT (Let ((x, it_inner), it_rest), _, loc_let)), gt') ->
         Term.let_star_
-          ( (x, Term.return_ it_inner () (IT.get_loc it_inner)),
+          ( (x, Term.return_ it_inner () (T.get_loc it_inner)),
             Term.assert_ (LC.T it_rest, gt') () loc )
           ()
           loc_let

@@ -1,4 +1,5 @@
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -32,28 +33,28 @@ module Make (AD : Domain.T) = struct
 
 
   (* Analyze how a symbol is used within an IT expression *)
-  let rec analyze_it_usage (sym : Sym.t) (it : IT.t) : usage_analysis =
-    match IT.get_term it with
+  let rec analyze_it_usage (sym : Sym.t) (it : T.t) : usage_analysis =
+    match T.get_term it with
     | Sym s when Sym.equal s sym ->
       (* Direct use of the symbol itself *)
       { empty_analysis with used_directly = true }
     | StructMember (t, member) ->
       (* Check if the base is our symbol *)
-      (match IT.get_term t with
+      (match T.get_term t with
        | Sym s when Sym.equal s sym ->
          { empty_analysis with struct_members = IdSet.singleton member }
        | _ ->
          (* The base is not our symbol, recurse normally *)
          analyze_it_usage sym t)
     | RecordMember (t, member) ->
-      (match IT.get_term t with
+      (match T.get_term t with
        | Sym s when Sym.equal s sym ->
          { empty_analysis with record_members = IdSet.singleton member }
        | _ ->
          (* The base is not our symbol, recurse normally *)
          analyze_it_usage sym t)
     | NthTuple (n, t) ->
-      (match IT.get_term t with
+      (match T.get_term t with
        | Sym s when Sym.equal s sym -> { empty_analysis with tuple_indices = [ n ] }
        | _ ->
          (* The base is not our symbol, recurse normally *)
@@ -113,7 +114,7 @@ module Make (AD : Domain.T) = struct
     | EachI (_, t) -> analyze_it_usage sym t
 
 
-  and analyze_it_usage_list (sym : Sym.t) (its : IT.t list) : usage_analysis =
+  and analyze_it_usage_list (sym : Sym.t) (its : T.t list) : usage_analysis =
     merge_analysis_list (List.map (analyze_it_usage sym) its)
 
 
@@ -351,7 +352,7 @@ module Make (AD : Domain.T) = struct
                | StructDef layout ->
                  let member_types_list = Memory.member_types layout in
                  (* Build struct with defaults for pruned members *)
-                 (match IT.get_term it with
+                 (match T.get_term it with
                   | Struct (tag, members) ->
                     let new_members =
                       List.map
@@ -370,7 +371,7 @@ module Make (AD : Domain.T) = struct
                | _ -> gt)
             | _ -> gt)
          | Record ids_to_remove ->
-           (match IT.get_term it with
+           (match T.get_term it with
             | Record members ->
               let kept_members =
                 List.filter
@@ -380,7 +381,7 @@ module Make (AD : Domain.T) = struct
               Term.return_ (IT.record_ kept_members loc) () loc
             | _ -> gt)
          | Tuple indices_to_remove ->
-           (match IT.get_term it with
+           (match T.get_term it with
             | Tuple items ->
               let kept_items =
                 List.filteri
@@ -429,28 +430,28 @@ module Make (AD : Domain.T) = struct
     match request with
     | Struct _ | Nothing -> term
     | Entire | Record _ | Tuple _ ->
-      let adapt_it (it : IT.t) : IT.t =
+      let adapt_it (it : T.t) : T.t =
         let (IT (it_, bt, loc)) = it in
         match it_ with
         (* Direct symbol reference - update its type *)
         | Sym s when Sym.equal s sym -> IT.sym_ (s, new_bt, loc)
         (* Struct member access *)
         | StructMember (base_it, member) ->
-          (match IT.get_term base_it with
+          (match T.get_term base_it with
            | Sym s when Sym.equal s sym ->
              let new_base = IT.sym_ (s, new_bt, loc) in
              IT (StructMember (new_base, member), bt, loc)
            | _ -> it)
         (* Record member access *)
         | RecordMember (base_it, member) ->
-          (match IT.get_term base_it with
+          (match T.get_term base_it with
            | Sym s when Sym.equal s sym ->
              let new_base = IT.sym_ (s, new_bt, loc) in
              IT (RecordMember (new_base, member), bt, loc)
            | _ -> it)
         (* Tuple index access - remap indices for Tuple pruning *)
         | NthTuple (n, base_it) ->
-          (match IT.get_term base_it with
+          (match T.get_term base_it with
            | Sym s when Sym.equal s sym ->
              (match request with
               | Tuple indices_to_remove ->
@@ -470,33 +471,33 @@ module Make (AD : Domain.T) = struct
       in
       let adapt_lc (lc : LC.t) : LC.t =
         match lc with
-        | LC.T it -> LC.T (IT.map_term_pre adapt_it it)
+        | LC.T it -> LC.T (Terms.map_term_pre adapt_it it)
         | LC.Forall ((s, forall_bt), body) ->
-          LC.Forall ((s, forall_bt), IT.map_term_pre adapt_it body)
+          LC.Forall ((s, forall_bt), Terms.map_term_pre adapt_it body)
       in
       let rec adapt_term (gt : Term.t) : Term.t =
         let (GenTerms.Annot (gt_, tag, term_bt, loc)) = gt in
         match gt_ with
         | `Arbitrary | `Symbolic -> gt
         | `Call (fsym, iargs) ->
-          Term.call_ (fsym, List.map (IT.map_term_pre adapt_it) iargs) tag term_bt loc
+          Term.call_ (fsym, List.map (Terms.map_term_pre adapt_it) iargs) tag term_bt loc
         | `Asgn ((it_addr, sct), it_val, gt') ->
           Term.asgn_
-            ( (IT.map_term_pre adapt_it it_addr, sct),
-              IT.map_term_pre adapt_it it_val,
+            ( (Terms.map_term_pre adapt_it it_addr, sct),
+              Terms.map_term_pre adapt_it it_val,
               adapt_term gt' )
             tag
             loc
-        | `Return it -> Term.return_ (IT.map_term_pre adapt_it it) tag loc
+        | `Return it -> Term.return_ (Terms.map_term_pre adapt_it it) tag loc
         | `Assert (lc, gt') -> Term.assert_ (adapt_lc lc, adapt_term gt') tag loc
         | `ITE (it_if, gt_then, gt_else) ->
           Term.ite_
-            (IT.map_term_pre adapt_it it_if, adapt_term gt_then, adapt_term gt_else)
+            (Terms.map_term_pre adapt_it it_if, adapt_term gt_then, adapt_term gt_else)
             tag
             loc
         | `Map ((i, i_bt, it_perm), gt_inner) ->
           Term.map_
-            ((i, i_bt, IT.map_term_pre adapt_it it_perm), adapt_term gt_inner)
+            ((i, i_bt, Terms.map_term_pre adapt_it it_perm), adapt_term gt_inner)
             tag
             loc
         | `LetStar ((x, gt_inner), gt_rest) ->

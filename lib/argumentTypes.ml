@@ -1,6 +1,6 @@
 open Locations
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module Req = Request
 module LC = LogicalConstraints
 module LAT = LogicalArgumentTypes
@@ -27,7 +27,7 @@ let rec subst i_subst (substitution : _ Subst.t) at =
 
 and alpha_rename i_subst s t =
   let s' = Sym.fresh_same s in
-  (s', subst i_subst (IT.make_rename ~from:s ~to_:s') t)
+  (s', subst i_subst (T.make_rename ~from:s ~to_:s') t)
 
 
 and suitably_alpha_rename i_subst syms s t =
@@ -130,7 +130,7 @@ let rec map (f : 'i -> 'j) (at : 'i t) : 'j t =
   | L t -> L (LAT.map f t)
 
 
-type ift = IndexTerms.t t
+type ift = T.t t
 
 type ft = ReturnTypes.t t
 

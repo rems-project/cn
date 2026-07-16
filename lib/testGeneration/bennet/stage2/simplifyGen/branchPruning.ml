@@ -9,9 +9,9 @@ module Make (AD : Domain.T) = struct
         match gt with
         | Annot (`Pick [ gt' ], (), _, _) -> gt'
         | Annot (`ITE (it_cond, gt_then, gt_else), (), _, _) ->
-          if IT.is_true it_cond then
+          if Terms.is_true it_cond then
             gt_then
-          else if IT.is_false it_cond then
+          else if Terms.is_false it_cond then
             gt_else
           else
             gt
@@ -35,9 +35,9 @@ module Make (AD : Domain.T) = struct
         contains_false_assertion gt_inner || contains_false_assertion gt'
       | `Assert (lc, gt') ->
         (match lc with
-         | (T it | Forall (_, it)) when IT.is_false it -> true
+         | (T it | Forall (_, it)) when Terms.is_false it -> true
          | Forall (_, IT (Binop (Implies, it_perm, it_body), _, _))
-           when IT.is_true it_perm && IT.is_false it_body ->
+           when Terms.is_true it_perm && Terms.is_false it_body ->
            true
          | _ -> contains_false_assertion gt')
       | `ITE (_, gt_then, gt_else) ->
@@ -58,7 +58,7 @@ module Make (AD : Domain.T) = struct
           if contains_false_assertion gt_else then
             Term.assert_ (T it_if, gt_then) () loc_ite
           else if contains_false_assertion gt_then then
-            Term.assert_ (T (IT.not_ it_if (IT.get_loc it_if)), gt_else) () loc_ite
+            Term.assert_ (T (IT.not_ it_if (Terms.get_loc it_if)), gt_else) () loc_ite
           else
             gt
         | _ -> gt

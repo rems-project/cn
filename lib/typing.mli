@@ -66,11 +66,11 @@ val remove_as : Sym.t list -> unit m
 
 val add_a : Sym.t -> BaseTypes.t -> Context.l_info -> unit m
 
-val add_a_value : Sym.t -> IndexTerms.t -> Context.l_info -> unit m
+val add_a_value : Sym.t -> Terms.Normal.t -> Context.l_info -> unit m
 
 val add_l : Sym.t -> BaseTypes.t -> Context.l_info -> unit m
 
-val add_l_value : Sym.t -> IndexTerms.t -> Context.l_info -> unit m
+val add_l_value : Sym.t -> Terms.Normal.t -> Context.l_info -> unit m
 
 val add_ls : (Sym.t * BaseTypes.t * Context.l_info) list -> unit m
 
@@ -177,10 +177,10 @@ val bind_logical_return : Locations.t -> string -> LogicalReturnTypes.t -> unit 
 val add_movable_index
   :  Locations.t ->
   (* verbose:bool -> *)
-  Request.name * IndexTerms.t ->
+  Request.name * Terms.Normal.t ->
   unit m
 
-val get_movable_indices : unit -> (Request.name * IndexTerms.t) list m
+val get_movable_indices : unit -> (Request.name * Terms.Normal.t) list m
 
 val record_action : Explain.action * Locations.t -> unit m
 

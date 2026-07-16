@@ -1,33 +1,34 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
-  let transform_it (it : IT.t) : IT.t =
-    let aux (it : IT.t) : IT.t =
+  let transform_it (it : T.t) : T.t =
+    let aux (it : T.t) : T.t =
       match it with
       | IT (Unop (op, IT (ITE (it_if, it_then, it_else), _, loc_ite)), bt_unop, loc_unop)
         ->
-        let f it' = IT.IT (Unop (op, it'), bt_unop, loc_unop) in
+        let f it' = Terms.IT (Unop (op, it'), bt_unop, loc_unop) in
         IT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT
           ( Binop (op, IT (ITE (it_if, it_then, it_else), _, loc_ite), it2),
             bt_binop,
             loc_binop ) ->
-        let f it' = IT.IT (Binop (op, it', it2), bt_binop, loc_binop) in
+        let f it' = Terms.IT (Binop (op, it', it2), bt_binop, loc_binop) in
         IT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT
           ( Binop (op, it1, IT (ITE (it_if, it_then, it_else), _, loc_ite)),
             bt_binop,
             loc_binop ) ->
-        let f it' = IT.IT (Binop (op, it1, it'), bt_binop, loc_binop) in
+        let f it' = Terms.IT (Binop (op, it1, it'), bt_binop, loc_binop) in
         IT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT
           ( EachI ((min, (i, i_bt), max), IT (ITE (it_if, it_then, it_else), _, loc_ite)),
             _,
             loc_each )
-        when not (Sym.Set.mem i (IT.free_vars it_if)) ->
+        when not (Sym.Set.mem i (T.free_vars it_if)) ->
         let f it' = IT.eachI_ (min, (i, i_bt), max) it' loc_each in
         IT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT (Cast (cast_bt, IT (ITE (it_if, it_then, it_else), _, loc_ite)), _, loc_cast)
@@ -37,7 +38,7 @@ module Make (AD : Domain.T) = struct
       (* TODO: Complete cases *)
       | _ -> it
     in
-    IT.map_term_post aux it
+    Terms.map_term_post aux it
 
 
   let transform_lc (lc : LC.t) : LC.t =
@@ -54,7 +55,7 @@ module Make (AD : Domain.T) = struct
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
     | `Arbitrary | `Symbolic -> false
-    | `Return it -> not (Sym.Set.disjoint ext (IT.free_vars it))
+    | `Return it -> not (Sym.Set.disjoint ext (T.free_vars it))
     | `Call _ -> true
     | `Pick gts -> gts |> List.exists (is_external ext)
     | `Asgn (_, _, gt_rest) -> is_external ext gt_rest
@@ -81,7 +82,7 @@ module Make (AD : Domain.T) = struct
         let gt' = aux ext gt' in
         (match transform_lc lc with
          | T (IT (ITE (it_if, it_then, it_else), _, loc_ite))
-           when Sym.Set.disjoint ext (IT.free_vars it_if) ->
+           when Sym.Set.disjoint ext (T.free_vars it_if) ->
            Term.ite_
              ( it_if,
                Term.assert_ (T it_then, gt') () loc,

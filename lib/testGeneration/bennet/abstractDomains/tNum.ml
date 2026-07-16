@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 
 (** Tristate number (tnum) abstract domain.
@@ -464,7 +465,7 @@ module TristateBasis = struct
       top t1.bt
 
 
-  let forward_abs_binop (op : IT.binop) (t1 : t) (t2 : t) : t option =
+  let forward_abs_binop (op : Terms.binop) (t1 : t) (t2 : t) : t option =
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       Some (bottom t1.bt)
@@ -483,7 +484,7 @@ module TristateBasis = struct
       | _ -> None)
 
 
-  let forward_abs_unop (op : IT.unop) (t : t) : t option =
+  let forward_abs_unop (op : Terms.unop) (t : t) : t option =
     match op with
     | BW_Compl -> Some (tnum_not t)
     | Negate ->
@@ -553,7 +554,7 @@ module TristateBasis = struct
           of_tnum target_bt t.value t.mask))
 
 
-  let forward_abs_it (it : IT.t) (t_args : t list) : t option =
+  let forward_abs_it (it : T.t) (t_args : t list) : t option =
     let (IT (it_, bt, _loc)) = it in
     match it_ with
     | Const (Bits (_, n)) -> Some (of_const bt n)
@@ -567,7 +568,7 @@ module TristateBasis = struct
         print_endline
           Pp.(
             plain
-              (IT.pp it
+              (T.pp it
                ^^^ pp t1
                ^^ parens (BT.pp t1.bt)
                ^^^ pp t2
@@ -591,11 +592,11 @@ module TristateBasis = struct
     | _ -> None
 
 
-  let rec backward_abs_it (it : IT.t) (ts : t list) =
+  let rec backward_abs_it (it : T.t) (ts : t list) =
     let (IT (it_, _, loc)) = it in
     match it_ with
     | Binop (EQ, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         ts
       else (
@@ -604,7 +605,7 @@ module TristateBasis = struct
         [ t; t ])
     (* Handle inequality via negation of equality *)
     | Unop (Not, IT (Binop (EQ, it', _), _, _)) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         ts
       else (
@@ -657,7 +658,7 @@ module TristateBasis = struct
         else (* Both are non-constant - conservative: no refinement *)
           ts)
     | Binop (LE, it', _) | Binop (LEPointer, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       let min, max = get_extrema bt in
       let t1, t2 = match ts with [ t1; t2 ] -> (t1, t2) | _ -> failwith __LOC__ in
       (* Convert stored unsigned values to signed for interval computation *)
@@ -669,7 +670,7 @@ module TristateBasis = struct
       let t2'' = if Z.equal t1.mask Z.zero then meet t2 t2' else t2 in
       [ t1''; t2'' ]
     | Binop (LT, it', _) | Binop (LTPointer, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       let min, max = get_extrema bt in
       let t1, t2 = match ts with [ t1; t2 ] -> (t1, t2) | _ -> failwith __LOC__ in
       (* Convert stored unsigned values to signed for interval computation *)
@@ -855,7 +856,7 @@ module TristateBasis = struct
           let refined_t1 = of_tnum t1.bt derived_value derived_mask in
           [ meet t1 refined_t1; t2 ]))
     | _ ->
-      if BT.equal BT.Bool (IT.get_bt it) then
+      if BT.equal BT.Bool (T.get_bt it) then
         ts
       else
         List.tl ts
@@ -918,7 +919,7 @@ module TristateBasis = struct
 
   let definitions () = Pp.empty
 
-  let to_it (sym : Sym.t) (t : t) : IT.t =
+  let to_it (sym : Sym.t) (t : t) : T.t =
     let loc = Locations.other __LOC__ in
     if is_bottom t then
       IT.bool_ false loc

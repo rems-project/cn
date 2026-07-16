@@ -25,13 +25,13 @@ module History = struct
   let it loc = IndexTerms.sym_ (sym, bt, loc)
 
   let lookup_ptr ptr loc =
-    assert (BaseTypes.(equal (IndexTerms.get_bt ptr) (Loc ())));
+    assert (BaseTypes.(equal (Terms.get_bt ptr) (Loc ())));
     IndexTerms.(map_get_ (it loc) (allocId_ ptr loc) loc)
 
 
   type value =
-    { base : IndexTerms.t;
-      size : IndexTerms.t
+    { base : Terms.Normal.t;
+      size : Terms.Normal.t
     }
 
   let split value loc =

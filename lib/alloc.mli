@@ -13,20 +13,20 @@ module History : sig
 
   val value_bt : BaseTypes.t
 
-  val make_value : base:IndexTerms.t -> size:int -> Locations.t -> IndexTerms.t
+  val make_value : base:Terms.Normal.t -> size:int -> Locations.t -> Terms.Normal.t
 
   val bt : BaseTypes.t
 
-  val it : Cerb_location.t -> IndexTerms.t
+  val it : Cerb_location.t -> Terms.Normal.t
 
-  val lookup_ptr : IndexTerms.t -> Locations.t -> IndexTerms.t
+  val lookup_ptr : Terms.Normal.t -> Locations.t -> Terms.Normal.t
 
   type value =
-    { base : IndexTerms.t;
-      size : IndexTerms.t
+    { base : Terms.Normal.t;
+      size : Terms.Normal.t
     }
 
-  val split : IndexTerms.t -> Cerb_location.t -> value
+  val split : Terms.Normal.t -> Cerb_location.t -> value
 
   val sbt : BaseTypes.Surface.t
 end

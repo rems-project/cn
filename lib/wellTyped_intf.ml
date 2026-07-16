@@ -22,9 +22,9 @@ module type S = sig
     Sctypes.ctype ->
     unit t
 
-  val infer_term : 'bt IndexTerms.annot -> IndexTerms.t t
+  val infer_term : 'bt Terms.annot -> Terms.Normal.t t
 
-  val check_term : Locations.t -> BaseTypes.t -> 'bt IndexTerms.annot -> IndexTerms.t t
+  val check_term : Locations.t -> BaseTypes.t -> 'bt Terms.annot -> Terms.Normal.t t
 
   val default_quantifier_bt : BaseTypes.t
 

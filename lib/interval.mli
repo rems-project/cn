@@ -97,9 +97,9 @@ module Intervals : sig
 end
 
 module Solver : sig
-  module IT = IndexTerms
+  module T = Terms.Normal
   module RT = Request
 
   (** Try to simplify a resource type *)
-  val simp_rt : (IT.t -> IT.t option) -> RT.t -> RT.t
+  val simp_rt : (T.t -> T.t option) -> RT.t -> RT.t
 end

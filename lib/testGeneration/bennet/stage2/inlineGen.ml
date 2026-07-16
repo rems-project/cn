@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module T = Terms.Normal
 
 module Make (AD : Domain.T) = struct
   module PruneCallGraph = PruneCallGraph.Make (Term.Make (AD))
@@ -18,7 +18,7 @@ module Make (AD : Domain.T) = struct
           let gd = Ctx.find fsym ctx in
           aux
             (Term.subst
-               (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+               (T.make_subst (List.combine (List.map fst gd.iargs) iargs))
                gd.body)
         | `Asgn ((it_addr, sct), it_val, gt_rest) ->
           let gt_rest = aux gt_rest in
@@ -90,7 +90,7 @@ module Make (AD : Domain.T) = struct
           let gd = Ctx.find fsym ctx in
           aux
             (Term.subst
-               (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+               (T.make_subst (List.combine (List.map fst gd.iargs) iargs))
                gd.body)
         | `Call _ -> gt
         | `Asgn ((it_addr, sct), it_val, gt_rest) ->
@@ -137,7 +137,7 @@ module Make (AD : Domain.T) = struct
           let gd = Ctx.find fsym ctx in
           aux
             (Term.subst
-               (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+               (T.make_subst (List.combine (List.map fst gd.iargs) iargs))
                gd.body)
         | `Asgn ((it_addr, sct), it_val, gt_rest) ->
           let gt_rest = aux gt_rest in

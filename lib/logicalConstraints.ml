@@ -1,10 +1,11 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module BT = BaseTypes
 open Pp
 
 type t =
-  | T of IT.t
-  | Forall of (Sym.t * BT.t) * IT.t
+  | T of T.t
+  | Forall of (Sym.t * BT.t) * T.t
 [@@deriving eq, ord]
 
 module Set = Set.Make (struct
@@ -14,45 +15,45 @@ module Set = Set.Make (struct
   end)
 
 let pp = function
-  | T it -> IT.pp it
-  | Forall ((s, bt), it) -> Pp.c_app !^"forall" [ Sym.pp s; BT.pp bt ] ^^ dot ^^^ IT.pp it
+  | T it -> T.pp it
+  | Forall ((s, bt), it) -> Pp.c_app !^"forall" [ Sym.pp s; BT.pp bt ] ^^ dot ^^^ T.pp it
 
 
 let json c : Yojson.Safe.t = `String (Pp.plain (pp c))
 
 let subst su c =
   match c with
-  | T it -> T (IT.subst su it)
+  | T it -> T (T.subst su it)
   | Forall ((s, bt), body) ->
-    let s, body = IT.suitably_alpha_rename su.relevant s body in
-    Forall ((s, bt), IT.subst su body)
+    let s, body = T.suitably_alpha_rename su.relevant s body in
+    Forall ((s, bt), T.subst su body)
 
 
-let subst_ su c = subst (IT.make_subst su) c
+let subst_ su c = subst (T.make_subst su) c
 
 let free_vars_bts = function
-  | T c -> IT.free_vars_bts c
-  | Forall ((s, _), body) -> Sym.Map.remove s (IT.free_vars_bts body)
+  | T c -> T.free_vars_bts c
+  | Forall ((s, _), body) -> Sym.Map.remove s (T.free_vars_bts body)
 
 
 let free_vars = function
-  | T c -> IT.free_vars c
-  | Forall ((s, _), body) -> Sym.Set.remove s (IT.free_vars body)
+  | T c -> T.free_vars c
+  | Forall ((s, _), body) -> Sym.Set.remove s (T.free_vars body)
 
 
 let alpha_equivalent lc lc' =
   match (lc, lc') with
-  | T c, T c' -> IT.equal c c'
+  | T c, T c' -> T.equal c c'
   | Forall ((s, bt), c), Forall ((s', bt'), c') ->
     BT.equal bt bt'
     &&
     if Sym.equal s s' then
-      IT.equal c c'
+      T.equal c c'
     else (
       let new_s = Sym.fresh_same s in
-      let c = IT.subst (IT.make_rename ~from:s ~to_:new_s) c in
-      let c' = IT.subst (IT.make_rename ~from:s' ~to_:new_s) c' in
-      IT.equal c c')
+      let c = T.subst (T.make_rename ~from:s ~to_:new_s) c in
+      let c' = T.subst (T.make_rename ~from:s' ~to_:new_s) c' in
+      T.equal c c')
   | _ -> false
 
 
@@ -60,16 +61,16 @@ let forall_ (s, bt) it = Forall ((s, bt), it)
 
 let is_sym_lhs_equality = function
   | T t ->
-    (match IT.is_eq t with
+    (match Terms.is_eq t with
      | Some (lhs, rhs) ->
-       (match IT.is_sym lhs with Some (s, _) -> Some (s, rhs) | _ -> None)
+       (match Terms.is_sym lhs with Some (s, _) -> Some (s, rhs) | _ -> None)
      | _ -> None)
   | _ -> None
 
 
 let is_sym_equality t =
   match is_sym_lhs_equality t with
-  | Some (s, rhs) -> (match IT.is_sym rhs with Some (s', _) -> Some (s, s') | _ -> None)
+  | Some (s, rhs) -> (match Terms.is_sym rhs with Some (s', _) -> Some (s, s') | _ -> None)
   | _ -> None
 
 
@@ -85,8 +86,8 @@ let is_equality = function
 let equates_to it2 = function
   | T it ->
     (match it with
-     | IT (Binop (EQ, a, b), _, _) when IT.equal a it2 -> Some b
-     | IT (Binop (EQ, a, b), _, _) when IT.equal b it2 -> Some a
+     | IT (Binop (EQ, a, b), _, _) when T.equal a it2 -> Some b
+     | IT (Binop (EQ, a, b), _, _) when T.equal b it2 -> Some a
      | _ -> None)
   | _ -> None
 
@@ -94,8 +95,8 @@ let equates_to it2 = function
 let dtree =
   let open Cerb_frontend.Pp_ast in
   function
-  | T it -> Dnode (pp_ctor "T", [ IT.dtree it ])
-  | Forall ((s, _bt), t) -> Dnode (pp_ctor "Forall", [ Dleaf (Sym.pp s); IT.dtree t ])
+  | T it -> Dnode (pp_ctor "T", [ T.dtree it ])
+  | Forall ((s, _bt), t) -> Dnode (pp_ctor "Forall", [ Dleaf (Sym.pp s); T.dtree t ])
 
 
 let is_forall : t -> bool = fun c -> match c with T _ -> false | Forall _ -> true
@@ -110,13 +111,13 @@ let is_interesting : t -> bool =
 
 
 (** make `lc` conditional on `it` *)
-let impl loc (it : IT.t) (lc : t) : t =
+let impl loc (it : T.t) (lc : t) : t =
   match lc with
   | T t -> T (IT.impl_ (it, t) loc)
   | Forall ((s, bt), t) ->
-    let s, t = IT.alpha_rename s t in
+    let s, t = T.alpha_rename s t in
     Forall ((s, bt), IT.impl_ (it, t) loc)
 
 
 let preds_of (lc : t) : Sym.Set.t =
-  match lc with T it | Forall (_, it) -> IT.preds_of it
+  match lc with T it | Forall (_, it) -> Terms.preds_of it

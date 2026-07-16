@@ -1,4 +1,5 @@
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -10,45 +11,45 @@ module Make (AD : Domain.T) = struct
   module Integer = struct
     module Rep = struct
       type t =
-        { min_inc : IT.t option; (* x >= n *)
-          min_ex : IT.t option; (* x > n, i.e., n < x *)
-          max_inc : IT.t option; (* x <= n *)
-          max_ex : IT.t option (* x < n *)
+        { min_inc : T.t option; (* x >= n *)
+          min_ex : T.t option; (* x > n, i.e., n < x *)
+          max_inc : T.t option; (* x <= n *)
+          max_ex : T.t option (* x < n *)
         }
 
-      let of_min_inc (it : IT.t) : t =
+      let of_min_inc (it : T.t) : t =
         { min_inc = Some it; min_ex = None; max_inc = None; max_ex = None }
 
 
-      let of_min_ex (it : IT.t) : t =
+      let of_min_ex (it : T.t) : t =
         { min_inc = None; min_ex = Some it; max_inc = None; max_ex = None }
 
 
-      let of_max_inc (it : IT.t) : t =
+      let of_max_inc (it : T.t) : t =
         { min_inc = None; min_ex = None; max_inc = Some it; max_ex = None }
 
 
-      let of_max_ex (it : IT.t) : t =
+      let of_max_ex (it : T.t) : t =
         { min_inc = None; min_ex = None; max_inc = None; max_ex = Some it }
 
 
-      let of_it (x : Sym.t) (it : IT.t) : t option =
+      let of_it (x : Sym.t) (it : T.t) : t option =
         let (IT (it_, _, _)) = it in
         match it_ with
         | (Binop (LT, IT (Sym x', _, _), it') | Binop (LTPointer, IT (Sym x', _, _), it'))
-          when Sym.equal x x' && not (Sym.Set.mem x (IT.free_vars it')) ->
+          when Sym.equal x x' && not (Sym.Set.mem x (T.free_vars it')) ->
           (* x < it' -> max_ex = it' *)
           Some (of_max_ex it')
         | (Binop (LE, IT (Sym x', _, _), it') | Binop (LEPointer, IT (Sym x', _, _), it'))
-          when Sym.equal x x' && not (Sym.Set.mem x (IT.free_vars it')) ->
+          when Sym.equal x x' && not (Sym.Set.mem x (T.free_vars it')) ->
           (* x <= it' -> max_inc = it' *)
           Some (of_max_inc it')
         | (Binop (LT, it', IT (Sym x', _, _)) | Binop (LTPointer, it', IT (Sym x', _, _)))
-          when Sym.equal x x' && not (Sym.Set.mem x (IT.free_vars it')) ->
+          when Sym.equal x x' && not (Sym.Set.mem x (T.free_vars it')) ->
           (* it' < x -> min_ex = it' *)
           Some (of_min_ex it')
         | (Binop (LE, it', IT (Sym x', _, _)) | Binop (LEPointer, it', IT (Sym x', _, _)))
-          when Sym.equal x x' && not (Sym.Set.mem x (IT.free_vars it')) ->
+          when Sym.equal x x' && not (Sym.Set.mem x (T.free_vars it')) ->
           (* it' <= x, i.e., x >= it' -> min_inc = it' *)
           Some (of_min_inc it')
         | _ -> None
@@ -56,7 +57,7 @@ module Make (AD : Domain.T) = struct
 
       (* Helper to cast pointer to integer for arithmetic *)
       let to_numeric it =
-        match IT.get_bt it with
+        match T.get_bt it with
         | BT.Loc () -> IT.addr_ it (Locations.other __LOC__)
         | _ -> it
 
@@ -143,7 +144,7 @@ module Make (AD : Domain.T) = struct
       | `Asgn (_, _, gt_rest) -> collect_and_extract_constraints vars x gt_rest
       | `LetStar (_, gt_rest) -> collect_and_extract_constraints vars x gt_rest
       | `Assert (T it, gt_rest)
-        when Sym.Set.subset (Sym.Set.remove x (IT.free_vars it)) vars ->
+        when Sym.Set.subset (Sym.Set.remove x (T.free_vars it)) vars ->
         let rep = collect_and_extract_constraints vars x gt_rest in
         (match Rep.of_it x it with
          | Some rep' ->

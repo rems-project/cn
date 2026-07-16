@@ -69,7 +69,7 @@ val model : unit -> model_with_q
 (** Ask the solver to evaluate a CN term in the context of an already obtained
     counter-example model (e.g. for evaluating sub-terms). Might return None in
     case we ask for the value of a "don't care" value in the (minimal) model. *)
-val eval : model -> IndexTerms.t -> IndexTerms.t option
+val eval : model -> Terms.Normal.t -> Terms.Normal.t option
 
 (** Try undecidable SMT solving using full set of assumptions. *)
 val try_hard : bool ref

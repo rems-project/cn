@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module LC = LogicalConstraints
 
 type ('tag, 'ast) annot =
@@ -11,30 +11,30 @@ module Base (AD : Domain.T) = struct
   type ('tag, 'recur) ast =
     [ `Arbitrary (** Generate arbitrary values *)
     | `Symbolic (** Generate symbolic values *)
-    | `ArbitrarySpecialized of (IT.t option * IT.t option) * (IT.t option * IT.t option)
+    | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
       (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
     | `ArbitraryDomain of AD.Relative.t
-    | `Call of Sym.t * IT.t list
-      (** Call a defined generator according to a [Sym.t] with arguments [IT.t list] *)
-    | `Asgn of (IT.t * Sctypes.t) * IT.t * ('tag, 'recur) annot
+    | `Call of Sym.t * T.t list
+      (** Call a defined generator according to a [Sym.t] with arguments [T.t list] *)
+    | `Asgn of (T.t * Sctypes.t) * T.t * ('tag, 'recur) annot
       (** Claim ownership and assign a value to a memory location *)
     | `LetStar of (Sym.t * ('tag, 'recur) annot) * ('tag, 'recur) annot
       (** Backtrack point *)
-    | `Return of IT.t (** Monadic return *)
+    | `Return of T.t (** Monadic return *)
     | `Assert of LC.t * ('tag, 'recur) annot
       (** Assert some [LC.t] are true, backtracking otherwise *)
     | `AssertDomain of AD.t * ('tag, 'recur) annot
       (** Assert domain constraints are satisfied, backtracking otherwise *)
-    | `ITE of IT.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
-    | `Map of (Sym.t * BT.t * IT.t) * ('tag, 'recur) annot
+    | `ITE of T.t * ('tag, 'recur) annot * ('tag, 'recur) annot (** If-then-else *)
+    | `Map of (Sym.t * BT.t * T.t) * ('tag, 'recur) annot
     | `Pick of ('tag, 'recur) annot list (** Pick among a list of options *)
-    | `CallSized of Sym.t * IT.t list * (int * Sym.t)
+    | `CallSized of Sym.t * T.t list * (int * Sym.t)
     | `PickSized of (Z.t * ('tag, 'recur) annot) list
       (** Pick among a list of options, weighted by the provided [Z.t]s *)
     | `SplitSize of Sym.Set.t * ('tag, 'recur) annot
     | `AsgnElab of
-        Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * ('tag, 'recur) annot
-    | `MapElab of (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * ('tag, 'recur) annot
+        Sym.t * (((Sym.t * BT.t) * T.t) * Sctypes.t) * T.t * ('tag, 'recur) annot
+    | `MapElab of (Sym.t * BT.t * (T.t * T.t) * T.t) * ('tag, 'recur) annot
     | `PickSizedElab of Sym.t * (Z.t * ('tag, 'recur) annot) list
     | `SplitSizeElab of Sym.t * Sym.Set.t * ('tag, 'recur) annot
     ]
@@ -59,7 +59,7 @@ module type T = sig
   val symbolic_ : tag_t -> BT.t -> Locations.t -> t
 
   val arbitrary_specialized_
-    :  (IT.t option * IT.t option) * (IT.t option * IT.t option) ->
+    :  (T.t option * T.t option) * (T.t option * T.t option) ->
     tag_t ->
     BT.t ->
     Locations.t ->
@@ -67,23 +67,23 @@ module type T = sig
 
   val arbitrary_domain_ : AD.Relative.t -> tag_t -> BT.t -> Locations.t -> t
 
-  val call_ : Sym.t * IT.t list -> tag_t -> BT.t -> Locations.t -> t
+  val call_ : Sym.t * T.t list -> tag_t -> BT.t -> Locations.t -> t
 
-  val asgn_ : (IT.t * Sctypes.t) * IT.t * t -> tag_t -> Locations.t -> t
+  val asgn_ : (T.t * Sctypes.t) * T.t * t -> tag_t -> Locations.t -> t
 
   val let_star_ : (Sym.t * t) * t -> tag_t -> Locations.t -> t
 
-  val return_ : IT.t -> tag_t -> Locations.t -> t
+  val return_ : T.t -> tag_t -> Locations.t -> t
 
   val assert_ : LC.t * t -> tag_t -> Locations.t -> t
 
   val assert_domain_ : AD.t * t -> tag_t -> Locations.t -> t
 
-  val ite_ : IT.t * t * t -> tag_t -> Locations.t -> t
+  val ite_ : T.t * t * t -> tag_t -> Locations.t -> t
 
-  val map_ : (Sym.t * BT.t * IT.t) * t -> tag_t -> Locations.t -> t
+  val map_ : (Sym.t * BT.t * T.t) * t -> tag_t -> Locations.t -> t
 
-  val map_elab_ : (Sym.t * BT.t * (IT.t * IT.t) * IT.t) * t -> tag_t -> Locations.t -> t
+  val map_elab_ : (Sym.t * BT.t * (T.t * T.t) * T.t) * t -> tag_t -> Locations.t -> t
 
   val pick_ : t list -> tag_t -> BT.t -> Locations.t -> t
 
@@ -91,10 +91,10 @@ module type T = sig
 
   val pick_sized_elab_ : Sym.t -> (Z.t * t) list -> tag_t -> BT.t -> Locations.t -> t
 
-  val call_sized_ : Sym.t * IT.t list * (int * Sym.t) -> tag_t -> BT.t -> Locations.t -> t
+  val call_sized_ : Sym.t * T.t list * (int * Sym.t) -> tag_t -> BT.t -> Locations.t -> t
 
   val asgn_elab_
-    :  Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * t ->
+    :  Sym.t * (((Sym.t * BT.t) * T.t) * Sctypes.t) * T.t * t ->
     tag_t ->
     Locations.t ->
     t
@@ -127,7 +127,7 @@ module Make (GT : T) = struct
     is_arbitrary_ gt_
 
 
-  let is_call_ (gt_ : GT.t_) : (Sym.t * IT.t list) option =
+  let is_call_ (gt_ : GT.t_) : (Sym.t * T.t list) option =
     match gt_ with `Call x -> Some x | _ -> None
 
 
@@ -136,7 +136,7 @@ module Make (GT : T) = struct
     is_call_ gt_
 
 
-  let is_asgn_ (gt_ : GT.t_) : ((IT.t * Sctypes.ctype) * IT.t * GT.t) option =
+  let is_asgn_ (gt_ : GT.t_) : ((T.t * Sctypes.ctype) * T.t * GT.t) option =
     match gt_ with `Asgn x -> Some x | _ -> None
 
 
@@ -165,7 +165,7 @@ module Make (GT : T) = struct
     | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
       let pp_opt = function
         | None -> !^"None"
-        | Some it -> !^"Some" ^^^ parens (IT.pp it)
+        | Some it -> !^"Some" ^^^ parens (T.pp it)
       in
       !^"arbitrary_specialized"
       ^^ angles (BT.pp bt)
@@ -176,9 +176,9 @@ module Make (GT : T) = struct
     | `ArbitraryDomain d ->
       !^"arbitrary_domain" ^^ angles (BT.pp bt) ^^ parens (AD.Relative.pp d)
     | `Call (fsym, iargs) ->
-      Sym.pp fsym ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
+      Sym.pp fsym ^^ parens (nest 2 (separate_map (comma ^^ break 1) T.pp iargs))
     | `Asgn ((it_addr, ty), it_val, gt') ->
-      Sctypes.pp ty ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val ^^ semi ^/^ pp gt'
+      Sctypes.pp ty ^^^ T.pp it_addr ^^^ !^":=" ^^^ T.pp it_val ^^ semi ^/^ pp gt'
     | `LetStar ((x, gt1), gt2) ->
       !^"let*"
       ^^^ Sym.pp x
@@ -188,7 +188,7 @@ module Make (GT : T) = struct
       ^^ nest 2 (break 1 ^^ pp gt1)
       ^^ semi
       ^/^ pp gt2
-    | `Return it -> !^"return" ^^^ IT.pp it
+    | `Return it -> !^"return" ^^^ T.pp it
     | `Assert (lc, gt') ->
       !^"assert" ^^ parens (nest 2 (break 1 ^^ LC.pp lc) ^^ break 1) ^^ semi ^/^ pp gt'
     | `AssertDomain (d, gt') ->
@@ -198,13 +198,13 @@ module Make (GT : T) = struct
       ^/^ pp gt'
     | `ITE (it_if, gt_then, gt_else) ->
       !^"if"
-      ^^^ parens (IT.pp it_if)
+      ^^^ parens (T.pp it_if)
       ^^^ braces (nest 2 (break 1 ^^ pp gt_then) ^^ break 1)
       ^^^ !^"else"
       ^^^ braces (nest 2 (break 1 ^^ pp gt_else) ^^ break 1)
     | `Map ((i, i_bt, it_perm), gt') ->
       !^"map"
-      ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ IT.pp it_perm)
+      ^^^ parens (BT.pp i_bt ^^^ Sym.pp i ^^ semi ^^^ T.pp it_perm)
       ^^ braces (nest 2 (break 1 ^^ pp gt') ^^ break 1)
     | `Pick gts ->
       !^"pick"
@@ -217,7 +217,7 @@ module Make (GT : T) = struct
     | `CallSized (fsym, iargs, (n, size_sym)) ->
       Sym.pp fsym
       ^^ brackets (int n ^^ comma ^^^ Sym.pp size_sym)
-      ^^ parens (nest 2 (separate_map (comma ^^ break 1) IT.pp iargs))
+      ^^ parens (nest 2 (separate_map (comma ^^ break 1) T.pp iargs))
     | `PickSized wgts ->
       !^"pick"
       ^^ parens
@@ -239,9 +239,9 @@ module Make (GT : T) = struct
             (BT.pp i_bt
              ^^^ Sym.pp i
              ^^ semi
-             ^^^ IT.pp it_perm
+             ^^^ T.pp it_perm
              ^^ c_comment
-                  (IT.pp it_min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ IT.pp it_max))
+                  (T.pp it_min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ T.pp it_max))
       ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp gt_inner) ^^ break 1)
     | `PickSizedElab (choice_var, wgts) ->
       !^"pick"
@@ -262,9 +262,9 @@ module Make (GT : T) = struct
       ^/^ pp gt_rest
     | `AsgnElab (backtrack_var, (((p_sym, p_bt), it_addr), sct), it_val, gt_rest) ->
       Sctypes.pp sct
-      ^^^ IT.pp it_addr
+      ^^^ T.pp it_addr
       ^^^ !^":="
-      ^^^ IT.pp it_val
+      ^^^ T.pp it_val
       ^^ semi
       ^^^ c_comment
             (!^"can be backtracked to as"
@@ -280,14 +280,14 @@ module Make (GT : T) = struct
     match gt_ with
     | `Arbitrary | `ArbitraryDomain _ | `Symbolic -> Sym.Map.empty
     | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
-      IT.free_vars_bts_list (List.filter_map Fun.id [ min_inc; min_ex; max_inc; max_ex ])
-    | `Call (_, iargs) | `CallSized (_, iargs, _) -> IT.free_vars_bts_list iargs
+      T.free_vars_bts_list (List.filter_map Fun.id [ min_inc; min_ex; max_inc; max_ex ])
+    | `Call (_, iargs) | `CallSized (_, iargs, _) -> T.free_vars_bts_list iargs
     | `Asgn ((it_addr, _), it_val, gt') | `AsgnElab (_, ((_, it_addr), _), it_val, gt') ->
       Sym.Map.union
         (fun _ bt1 bt2 ->
            assert (BT.equal bt1 bt2);
            Some bt1)
-        (IT.free_vars_bts_list [ it_addr; it_val ])
+        (T.free_vars_bts_list [ it_addr; it_val ])
         (free_vars_bts gt')
     | `LetStar ((x, gt_inner), gt_rest) ->
       Sym.Map.union
@@ -296,7 +296,7 @@ module Make (GT : T) = struct
            Some bt1)
         (free_vars_bts gt_inner)
         (Sym.Map.remove x (free_vars_bts gt_rest))
-    | `Return it -> IT.free_vars_bts it
+    | `Return it -> T.free_vars_bts it
     | `Assert (lc, gt') ->
       (Sym.Map.union (fun _ bt1 bt2 ->
          assert (BT.equal bt1 bt2);
@@ -309,7 +309,7 @@ module Make (GT : T) = struct
         (fun _ bt1 bt2 ->
            assert (BT.equal bt1 bt2);
            Some bt1)
-        (IT.free_vars_bts it_if)
+        (T.free_vars_bts it_if)
         (free_vars_bts_list [ gt_then; gt_else ])
     | `Map ((i, _, it_perm), gt') | `MapElab ((i, _, _, it_perm), gt') ->
       Sym.Map.remove
@@ -318,7 +318,7 @@ module Make (GT : T) = struct
            (fun _ bt1 bt2 ->
               assert (BT.equal bt1 bt2);
               Some bt1)
-           (IT.free_vars_bts it_perm)
+           (T.free_vars_bts it_perm)
            (free_vars_bts gt'))
     | `Pick gts -> free_vars_bts_list gts
     | `PickSized wgts | `PickSizedElab (_, wgts) ->
@@ -394,15 +394,15 @@ module Make (GT : T) = struct
       | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
         [ min_inc; min_ex; max_inc; max_ex ]
         |> List.filter_map Fun.id
-        |> List.map IT.preds_of
+        |> List.map Terms.preds_of
         |> List.fold_left Sym.Set.union Sym.Set.empty
-      | `Return it -> IT.preds_of it
+      | `Return it -> Terms.preds_of it
       | `Call (_, its) | `CallSized (_, its, _) ->
-        its |> List.map IT.preds_of |> List.fold_left Sym.Set.union Sym.Set.empty
+        its |> List.map Terms.preds_of |> List.fold_left Sym.Set.union Sym.Set.empty
       | `Asgn ((it_addr, _), it_val, gt_rest)
       | `AsgnElab (_, ((_, it_addr), _), it_val, gt_rest) ->
         [ it_addr; it_val ]
-        |> List.map IT.preds_of
+        |> List.map Terms.preds_of
         |> List.fold_left Sym.Set.union (aux gt_rest)
       | `LetStar ((_, gt_inner), gt_rest) -> Sym.Set.union (aux gt_inner) (aux gt_rest)
       | `Assert (lc, gt_rest) -> Sym.Set.union (LC.preds_of lc) (aux gt_rest)
@@ -411,9 +411,9 @@ module Make (GT : T) = struct
       | `SplitSizeElab (_, _, gt_rest) ->
         aux gt_rest
       | `ITE (it_if, gt_then, gt_else) ->
-        List.fold_left Sym.Set.union (IT.preds_of it_if) [ aux gt_then; aux gt_else ]
+        List.fold_left Sym.Set.union (Terms.preds_of it_if) [ aux gt_then; aux gt_else ]
       | `Map ((_, _, it_perm), gt_inner) | `MapElab ((_, _, _, it_perm), gt_inner) ->
-        Sym.Set.union (IT.preds_of it_perm) (aux gt_inner)
+        Sym.Set.union (Terms.preds_of it_perm) (aux gt_inner)
       | `Pick gts -> gts |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
       | `PickSized wgts | `PickSizedElab (_, wgts) ->
         wgts |> List.map snd |> List.map aux |> List.fold_left Sym.Set.union Sym.Set.empty
@@ -421,51 +421,51 @@ module Make (GT : T) = struct
     aux gt
 
 
-  let rec subst (su : [ `Term of IT.t | `Rename of Sym.t ] Subst.t) (gt : t) : t =
+  let rec subst (su : [ `Term of T.t | `Rename of Sym.t ] Subst.t) (gt : t) : t =
     let (Annot (gt_, tag, bt, loc)) = gt in
     match gt_ with
     | `Arbitrary -> arbitrary_ tag bt loc
     | `Symbolic -> symbolic_ tag bt loc
     | `ArbitrarySpecialized ((min_inc, min_ex), (max_inc, max_ex)) ->
       arbitrary_specialized_
-        ( (Option.map (IT.subst su) min_inc, Option.map (IT.subst su) min_ex),
-          (Option.map (IT.subst su) max_inc, Option.map (IT.subst su) max_ex) )
+        ( (Option.map (T.subst su) min_inc, Option.map (T.subst su) min_ex),
+          (Option.map (T.subst su) max_inc, Option.map (T.subst su) max_ex) )
         tag
         bt
         loc
     | `ArbitraryDomain ad -> arbitrary_domain_ ad tag bt loc
-    | `Call (fsym, iargs) -> call_ (fsym, List.map (IT.subst su) iargs) tag bt loc
+    | `Call (fsym, iargs) -> call_ (fsym, List.map (T.subst su) iargs) tag bt loc
     | `CallSized (fsym, iargs, sz) ->
-      call_sized_ (fsym, List.map (IT.subst su) iargs, sz) tag bt loc
+      call_sized_ (fsym, List.map (T.subst su) iargs, sz) tag bt loc
     | `Asgn ((it_addr, sct), it_val, g') ->
-      asgn_ ((IT.subst su it_addr, sct), IT.subst su it_val, subst su g') tag loc
+      asgn_ ((T.subst su it_addr, sct), T.subst su it_val, subst su g') tag loc
     | `AsgnElab (backtrack_var, ((pointer, it_addr), sct), it_val, g') ->
       asgn_elab_
         ( backtrack_var,
-          ((pointer, IT.subst su it_addr), sct),
-          IT.subst su it_val,
+          ((pointer, T.subst su it_addr), sct),
+          T.subst su it_val,
           subst su g' )
         tag
         loc
     | `LetStar ((x, gt1), gt2) ->
       let x, gt2 = suitably_alpha_rename_gen su.relevant x gt2 in
       let_star_ ((x, subst su gt1), subst su gt2) tag loc
-    | `Return it -> return_ (IT.subst su it) tag loc
+    | `Return it -> return_ (T.subst su it) tag loc
     | `Assert (lc, gt') -> assert_ (LC.subst su lc, subst su gt') tag loc
     | `AssertDomain (ad, gt') -> assert_domain_ (ad, subst su gt') tag loc
     | `ITE (it, gt_then, gt_else) ->
-      ite_ (IT.subst su it, subst su gt_then, subst su gt_else) tag loc
+      ite_ (T.subst su it, subst su gt_then, subst su gt_else) tag loc
     | `Map ((i, i_bt, it_perm), gt') ->
-      let i', it_perm = IT.suitably_alpha_rename su.relevant i it_perm in
-      let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
-      map_ ((i', i_bt, IT.subst su it_perm), subst su gt') tag loc
+      let i', it_perm = T.suitably_alpha_rename su.relevant i it_perm in
+      let gt' = subst (T.make_rename ~from:i ~to_:i') gt' in
+      map_ ((i', i_bt, T.subst su it_perm), subst su gt') tag loc
     | `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt') ->
-      let i', it_min = IT.suitably_alpha_rename su.relevant i it_min in
-      let it_max = IT.subst (IT.make_rename ~from:i ~to_:i') it_max in
-      let it_perm = IT.subst (IT.make_rename ~from:i ~to_:i') it_perm in
-      let gt' = subst (IT.make_rename ~from:i ~to_:i') gt' in
+      let i', it_min = T.suitably_alpha_rename su.relevant i it_min in
+      let it_max = T.subst (T.make_rename ~from:i ~to_:i') it_max in
+      let it_perm = T.subst (T.make_rename ~from:i ~to_:i') it_perm in
+      let gt' = subst (T.make_rename ~from:i ~to_:i') gt' in
       map_elab_
-        ( (i', i_bt, (IT.subst su it_min, IT.subst su it_max), IT.subst su it_perm),
+        ( (i', i_bt, (T.subst su it_min, T.subst su it_max), T.subst su it_perm),
           subst su gt' )
         tag
         loc
@@ -486,7 +486,7 @@ module Make (GT : T) = struct
 
   and alpha_rename_gen x gt =
     let x' = Sym.fresh_same x in
-    (x', subst (IT.make_rename ~from:x ~to_:x') gt)
+    (x', subst (T.make_rename ~from:x ~to_:x') gt)
 
 
   and suitably_alpha_rename_gen syms x gt =
@@ -655,9 +655,9 @@ module Make (GT : T) = struct
   (***************)
 
   let elaborate_asgn_ (`Asgn ((it_addr, sct), it_value, gt_rest))
-    : [> `AsgnElab of Sym.t * (((Sym.t * BT.t) * IT.t) * Sctypes.t) * IT.t * GT.t ]
+    : [> `AsgnElab of Sym.t * (((Sym.t * BT.t) * T.t) * Sctypes.t) * T.t * GT.t ]
     =
-    let rec pointer_of (it : IT.t) : Sym.t * BT.t =
+    let rec pointer_of (it : T.t) : Sym.t * BT.t =
       match it with
       | IT (CopyAllocId { loc = ptr; _ }, _, _)
       | IT (ArrayShift { base = ptr; _ }, _, _)
@@ -667,7 +667,7 @@ module Make (GT : T) = struct
       | _ ->
         let pointers =
           it_addr
-          |> IT.free_vars_bts
+          |> T.free_vars_bts
           |> Sym.Map.filter (fun _ bt -> BT.equal bt (BT.Loc ()))
         in
         if not (Sym.Map.cardinal pointers == 1) then
@@ -680,9 +680,9 @@ module Make (GT : T) = struct
                       (fun (x, bt) -> Sym.pp x ^^ colon ^^^ BT.pp bt)
                       (List.of_seq (Sym.Map.to_seq pointers)))
                  ^^^ !^" in "
-                 ^^ IT.pp it_addr)));
+                 ^^ T.pp it_addr)));
         if Sym.Map.is_empty pointers then (
-          print_endline (Pp.plain (IT.pp it));
+          print_endline (Pp.plain (T.pp it));
           failwith __LOC__);
         Sym.Map.choose pointers
     in
@@ -696,7 +696,7 @@ module Make (GT : T) = struct
 
 
   let elaborate_map_ (`Map ((i, i_bt, it_perm), gt_inner)) =
-    let it_min, it_max = IT.Bounds.get_bounds (i, i_bt) it_perm in
+    let it_min, it_max = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
     `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner)
 
 

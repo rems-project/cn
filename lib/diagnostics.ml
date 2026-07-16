@@ -5,7 +5,7 @@ module IT = IndexTerms
 open Effectful.Make (Typing)
 
 module BT = BaseTypes
-module ITSet = Set.Make (IT)
+module ITSet = Set.Make (Terms.Normal)
 
 type cfg =
   { model : Solver.model_with_q;

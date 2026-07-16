@@ -57,7 +57,7 @@ let definition name args body =
   ( name,
     Sym.fresh name,
     Definition.Function.
-      { loc; emit_coq = false; args; body = Def body; return_bt = IT.get_bt body } )
+      { loc; emit_coq = false; args; body = Def body; return_bt = Terms.get_bt body } )
 
 
 let mk_builtin_arg0 name = definition name []
@@ -120,7 +120,7 @@ let is_null_def : builtin_fn_def =
 let has_alloc_id_def =
   ( "has_alloc_id",
     Sym.fresh "has_alloc_id",
-    mk_arg1 (fun p loc' -> IT.Surface.inj @@ IT.hasAllocId_ (IT.Surface.proj p) loc') )
+    mk_arg1 (fun p loc' -> Terms.Surface.inj @@ IT.hasAllocId_ (Terms.Surface.proj p) loc') )
 
 
 let ptr_eq_def : builtin_fn_def =
@@ -152,49 +152,49 @@ let addr_eq_def : builtin_fn_def =
 let mul_uf_def =
   ( "mul_uf",
     Sym.fresh "mul_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop MulNoSMT (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop MulNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let div_uf_def =
   ( "div_uf",
     Sym.fresh "div_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop DivNoSMT (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop DivNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let power_uf_def =
   ( "power_uf",
     Sym.fresh "power_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop ExpNoSMT (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop ExpNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let rem_uf_def =
   ( "rem_uf",
     Sym.fresh "rem_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop RemNoSMT (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop RemNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let mod_uf_def =
   ( "mod_uf",
     Sym.fresh "mod_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop ModNoSMT (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop ModNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let xor_uf_def =
   ( "xor_uf",
     Sym.fresh "xor_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop BW_Xor (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop BW_Xor (it, it') loc (Terms.get_bt it)) )
 
 
 let bw_and_uf_def =
   ( "bw_and_uf",
     Sym.fresh "bw_and_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop BW_And (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop BW_And (it, it') loc (Terms.get_bt it)) )
 
 
 let bw_or_uf_def =
   ( "bw_or_uf",
     Sym.fresh "bw_or_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop BW_Or (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop BW_Or (it, it') loc (Terms.get_bt it)) )
 
 
 let bw_clz_uf_def =
@@ -216,31 +216,31 @@ let bw_fls_uf_def =
 let shift_left_def =
   ( "shift_left",
     Sym.fresh "shift_left",
-    mk_arg2 (fun (it, it') loc -> IT.binop ShiftLeft (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop ShiftLeft (it, it') loc (Terms.get_bt it)) )
 
 
 let shift_right_def =
   ( "shift_right",
     Sym.fresh "shift_right",
-    mk_arg2 (fun (it, it') loc -> IT.binop ShiftRight (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop ShiftRight (it, it') loc (Terms.get_bt it)) )
 
 
 let power_def =
   ( "power",
     Sym.fresh "power",
-    mk_arg2 (fun (it, it') loc -> IT.binop Exp (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop Exp (it, it') loc (Terms.get_bt it)) )
 
 
 let rem_def =
   ( "rem",
     Sym.fresh "rem",
-    mk_arg2 (fun (it, it') loc -> IT.binop Rem (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop Rem (it, it') loc (Terms.get_bt it)) )
 
 
 let mod_def =
   ( "mod",
     Sym.fresh "mod",
-    mk_arg2 (fun (it, it') loc -> IT.binop Mod (it, it') loc (IT.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> IT.binop Mod (it, it') loc (Terms.get_bt it)) )
 
 
 let is_some_def = ("is_some", Sym.fresh "is_some", mk_arg1 IT.isSome_)
@@ -252,9 +252,9 @@ let get_opt_def = ("get_opt", Sym.fresh "get_opt", mk_arg1 IT.getOpt_)
 let builtin_funs
   : (string
     * Sym.t
-    * (BaseTypes.Surface.t IT.annot list ->
+    * (BaseTypes.Surface.t Terms.annot list ->
       Locations.t ->
-      (BaseTypes.Surface.t IT.annot, err) result))
+      (BaseTypes.Surface.t Terms.annot, err) result))
       list
   =
   [ mul_uf_def;
@@ -310,8 +310,8 @@ let apply_builtin_fun_defs fsym args _loc =
         args
     in
     (* Create and apply substitution *)
-    let subst = IT.make_subst subst_list in
-    Some (IT.subst subst body)
+    let subst = Terms.Normal.make_subst subst_list in
+    Some (Terms.Normal.subst subst body)
 
 
 (* This list of names is later passed to the frontend in bin/main.ml so that

@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 module Sym = Sym
@@ -780,7 +781,7 @@ let product_domains (domains : (module Domain.T) list) =
           product
 
 
-      let abs_assign (assign_info : (IT.t * Sctypes.t) * IT.t) (product : t) : t =
+      let abs_assign (assign_info : (T.t * Sctypes.t) * T.t) (product : t) : t =
         Array.map
           (fun comp ->
              match comp with

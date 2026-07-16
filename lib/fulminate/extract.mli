@@ -17,17 +17,17 @@ type fn_largs_and_body = (ReturnTypes.t * fn_body) LogicalArgumentTypes.t
 
 val sym_subst
   :  Sym.t * BaseTypes.t * Sym.t ->
-  [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t
+  [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t
 
-val loop_subst : [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> loop -> loop
+val loop_subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> loop -> loop
 
 val fn_args_and_body_subst
-  :  [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t ->
+  :  [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t ->
   fn_args_and_body ->
   fn_args_and_body
 
 val fn_largs_and_body_subst
-  :  [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t ->
+  :  [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t ->
   fn_largs_and_body ->
   fn_largs_and_body
 
@@ -48,4 +48,4 @@ val args_and_body_list_of_mucore : 'a Mucore.file -> 'a Mucore.args_and_body lis
 
 val ghost_args_and_their_call_locs
   :  unit Mucore.file ->
-  (Cerb_location.t * IndexTerms.t Cnprog.t list) list
+  (Cerb_location.t * Terms.Normal.t Cnprog.t list) list

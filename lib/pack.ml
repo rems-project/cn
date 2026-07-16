@@ -2,6 +2,7 @@ open Request
 open Resource
 open Definition
 open Memory
+module T = Terms.Normal
 module IT = IndexTerms
 module LAT = LogicalArgumentTypes
 module LRT = LogicalReturnTypes
@@ -28,7 +29,7 @@ let unfolded_array loc init (ict, olength) pointer =
   Q
     { name = Owned (ict, init);
       pointer;
-      q = (q_s, IT.get_bt q);
+      q = (q_s, T.get_bt q);
       q_loc = loc;
       step = ict;
       iargs = [];
@@ -48,7 +49,7 @@ let packing_ft ~full loc global provable ret =
      | Owned ((Array (ict, olength) as ct), init) ->
        let qpred = unfolded_array loc init (ict, olength) ret.pointer in
        let o_s, o = IT.fresh_named (Memory.bt_of_sct ct) "value" loc in
-       let at = LAT.Resource ((o_s, (qpred, IT.get_bt o)), (loc, None), LAT.I o) in
+       let at = LAT.Resource ((o_s, (qpred, T.get_bt o)), (loc, None), LAT.I o) in
        Some at
      | Owned (Struct tag, init) ->
        let layout = Sym.Map.find tag global.Global.struct_decls in
@@ -68,7 +69,7 @@ let packing_ft ~full loc global provable ret =
                   IT.fresh_named (Memory.bt_of_sct mct) (Id.get_string member) loc
                 in
                 ( LRT.Resource
-                    ((m_value_s, (request, IT.get_bt m_value)), (loc, None), lrt),
+                    ((m_value_s, (request, T.get_bt m_value)), (loc, None), lrt),
                   (member, m_value) :: value )
               | None ->
                 let padding_ct = Sctypes.Array (Sctypes.char_ct, Some size) in
@@ -86,7 +87,7 @@ let packing_ft ~full loc global provable ret =
                   IT.fresh_named (Memory.bt_of_sct padding_ct) "padding" loc
                 in
                 ( LRT.Resource
-                    ((padding_s, (request, IT.get_bt padding)), (loc, None), lrt),
+                    ((padding_s, (request, T.get_bt padding)), (loc, None), lrt),
                   value ))
            layout
            (LRT.I, [])
@@ -167,9 +168,9 @@ let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
   match ret with
   | Q ret
     when Request.equal_name predicate_name ret.name
-         && BT.equal (IT.get_bt index) (snd ret.q) ->
-    let su = IT.make_subst [ (fst ret.q, index) ] in
-    let index_permission = IT.subst su ret.permission in
+         && BT.equal (T.get_bt index) (snd ret.q) ->
+    let su = T.make_subst [ (fst ret.q, index) ] in
+    let index_permission = T.subst su ret.permission in
     (match provable (LC.T index_permission) with
      | `True ->
        let loc = Cerb_location.other __LOC__ in
@@ -177,7 +178,7 @@ let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
          ( P
              { name = ret.name;
                pointer = IT.(arrayShift_ ~base:ret.pointer ~index ret.step loc);
-               iargs = List.map (IT.subst su) ret.iargs
+               iargs = List.map (T.subst su) ret.iargs
              },
            O (IT.map_get_ o index loc) )
        in
@@ -190,7 +191,7 @@ let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
                  loc)
          }
        in
-       (* tmsg "successfully extracted" (lazy (IT.pp index)); *)
+       (* tmsg "successfully extracted" (lazy (T.pp index)); *)
        Some ((Q ret_reduced, O o), at_index)
      | `False -> None)
   | _ -> None

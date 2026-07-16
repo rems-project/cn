@@ -149,7 +149,7 @@ type 'TY expr_ =
   | Eaction of 'TY paction
   | Eskip
   | Eccall of
-      act * 'TY pexpr * 'TY pexpr list * (Locations.t * IndexTerms.t Cnprog.t list) option
+      act * 'TY pexpr * 'TY pexpr list * (Locations.t * Terms.Normal.t Cnprog.t list) option
   | Eproc of Sym.t generic_name * 'TY pexpr list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
@@ -176,12 +176,12 @@ type 'TY globs =
   | GlobalDecl of Sctypes.t
 
 type 'i arguments_l =
-  | Define of (Sym.t * IndexTerms.t) * Locations.info * 'i arguments_l
+  | Define of (Sym.t * Terms.Normal.t) * Locations.info * 'i arguments_l
   | Resource of (Sym.t * (Request.t * BaseTypes.t)) * Locations.info * 'i arguments_l
   | Constraint of LogicalConstraints.t * Locations.info * 'i arguments_l
   | I of 'i
 
-val mDefine : (Sym.t * IndexTerms.t) * Locations.info -> 'a arguments_l -> 'a arguments_l
+val mDefine : (Sym.t * Terms.Normal.t) * Locations.info -> 'a arguments_l -> 'a arguments_l
 
 val mConstraint
   :  LogicalConstraints.t * Locations.info ->

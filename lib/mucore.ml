@@ -171,7 +171,7 @@ type 'TY expr_ =
   | Eaction of 'TY paction
   | Eskip
   | Eccall of
-      act * 'TY pexpr * 'TY pexpr list * (Locations.t * IndexTerms.t Cnprog.t list) option
+      act * 'TY pexpr * 'TY pexpr list * (Locations.t * Terms.Normal.t Cnprog.t list) option
   | Eproc of Sym.t generic_name * 'TY pexpr list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list
@@ -200,7 +200,7 @@ type 'TY globs =
   | GlobalDecl of Sctypes.t
 
 type 'i arguments_l =
-  | Define of (Sym.t * IndexTerms.t) * Locations.info * 'i arguments_l
+  | Define of (Sym.t * Terms.Normal.t) * Locations.info * 'i arguments_l
   | Resource of (Sym.t * (Request.t * BaseTypes.t)) * Locations.info * 'i arguments_l
   | Constraint of LogicalConstraints.t * Locations.info * 'i arguments_l
   | I of 'i
@@ -223,11 +223,10 @@ type 'i arguments =
 let mComputational (bound, info) t = Computational (bound, info, t)
 
 let dtree_of_arguments_l dtree_i =
-  let module IT = IndexTerms in
   let open Cerb_frontend.Pp_ast in
   let rec aux = function
     | Define ((s, it), _, t) ->
-      Dnode (pp_ctor "Define", [ Dleaf (Sym.pp s); IT.dtree it; aux t ])
+      Dnode (pp_ctor "Define", [ Dleaf (Sym.pp s); Terms.dtree it; aux t ])
     | Resource ((s, (rt, bt)), _, t) ->
       Dnode
         ( pp_ctor "Resource",

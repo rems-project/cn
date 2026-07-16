@@ -11,8 +11,8 @@ type solver = Solver.solver
 type s =
   { typing_context : Context.t;
     solver : solver option;
-    sym_eqs : IT.t Sym.Map.t;
-    movable_indices : (Req.name * IT.t) list;
+    sym_eqs : Terms.Normal.t Sym.Map.t;
+    movable_indices : (Req.name * Terms.Normal.t) list;
     log : Explain.log
   }
 
@@ -435,7 +435,7 @@ let model () =
 
 
 let _model_has_prop () =
-  let is_some_true t = Option.is_some t && IT.is_true (Option.get t) in
+  let is_some_true t = Option.is_some t && Terms.is_true (Option.get t) in
   return (fun prop m -> is_some_true (Solver.eval (fst m) prop))
 
 
@@ -487,12 +487,12 @@ let bind_logical_return_internal loc prefix =
   let rec aux lrt =
     match lrt with
     | LogicalReturnTypes.Define ((s, it), _, lrt) ->
-      aux (LogicalReturnTypes.subst (IT.make_subst [ (s, it) ]) lrt)
+      aux (LogicalReturnTypes.subst (Terms.Normal.make_subst [ (s, it) ]) lrt)
     | Resource ((s, (re, bt)), _, lrt) ->
       let s' = Sym.fresh_make_uniq_kind ~prefix (Sym.pp_string s) in
       let@ () = add_l s' bt (loc, lazy (Sym.pp s')) in
       let@ () = add_r_internal loc (re, Res.O (IT.sym_ (s', bt, loc))) in
-      aux (LogicalReturnTypes.subst (IT.make_rename ~from:s ~to_:s') lrt)
+      aux (LogicalReturnTypes.subst (Terms.Normal.make_rename ~from:s ~to_:s') lrt)
     | Constraint (lc, _, lrt) ->
       let@ () = add_c_internal lc in
       aux lrt

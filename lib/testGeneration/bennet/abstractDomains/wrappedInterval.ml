@@ -866,13 +866,13 @@ module WrappedIntervalBasis = struct
                 (* Compute bitwise operation bounds for this pair *)
                 let lb, ub =
                   match op with
-                  | IT.BW_Or ->
+                  | Terms.BW_Or ->
                     ( min_or bt s1'.start s1'.stop s2'.start s2'.stop,
                       max_or bt s1'.start s1'.stop s2'.start s2'.stop )
-                  | IT.BW_And ->
+                  | BW_And ->
                     ( min_and bt s1'.start s1'.stop s2'.start s2'.stop,
                       max_and bt s1'.start s1'.stop s2'.start s2'.stop )
-                  | IT.BW_Xor ->
+                  | BW_Xor ->
                     ( min_xor bt s1'.start s1'.stop s2'.start s2'.stop,
                       max_xor bt s1'.start s1'.stop s2'.start s2'.stop )
                   | _ -> failwith "unsupported bitwise operation"
@@ -902,7 +902,7 @@ module WrappedIntervalBasis = struct
       else (
         let k_int = Z.to_int k in
         match op with
-        | IT.ShiftLeft ->
+        | Terms.ShiftLeft ->
           (* Left shift: check if lower (width-k) bits fit in interval *)
           let num_bits_survive_shift = width - k_int in
           if num_bits_survive_shift <= 0 then
@@ -921,7 +921,7 @@ module WrappedIntervalBasis = struct
               let max_val = Z.sub (Z.shift_left Z.one num_bits_survive_shift) Z.one in
               let upper_bound = normalize bt (Z.shift_left max_val k_int) in
               { bt; is_bottom = false; start = Z.zero; stop = upper_bound }))
-        | IT.ShiftRight ->
+        | ShiftRight ->
           (* Right shift algorithm - determine if logical or arithmetic based on type *)
           let is_signed =
             match BT.is_bits_bt bt with Some (Signed, _) -> true | _ -> false
@@ -980,7 +980,7 @@ module WrappedIntervalBasis = struct
         | _ -> failwith "unsupported shift operation"))
 
 
-  let forward_abs_binop (op : IT.binop) (b1 : t) (b2 : t) : t option =
+  let forward_abs_binop (op : Terms.binop) (b1 : t) (b2 : t) : t option =
     assert (BT.equal b1.bt b2.bt);
     if b1.is_bottom || b2.is_bottom then
       Some (bottom b1.bt)
@@ -1028,7 +1028,7 @@ module WrappedIntervalBasis = struct
 
 
   (* Handle unary operations *)
-  let forward_abs_unop (op : IT.unop) (b : t) : t option =
+  let forward_abs_unop (op : Terms.unop) (b : t) : t option =
     match op with
     | BW_Compl ->
       if b.is_bottom then
@@ -1055,7 +1055,7 @@ module WrappedIntervalBasis = struct
     | _ -> None
 
 
-  let forward_abs_it (it : IT.t) (b_args : t list) : t option =
+  let forward_abs_it (it : Terms.Normal.t) (b_args : t list) : t option =
     let (IT (it_, bt, _loc)) = it in
     match it_ with
     | Const (Bits (_, n)) -> Some (of_interval bt n n)
@@ -1069,7 +1069,7 @@ module WrappedIntervalBasis = struct
         print_endline
           Pp.(
             plain
-              (IT.pp it
+              (Terms.pp it
                ^^^ pp b1
                ^^ parens (BT.pp b1.bt)
                ^^^ pp b2
@@ -1139,12 +1139,12 @@ module WrappedIntervalBasis = struct
   (* Helper: check if an interval is a constant (singleton) *)
   let is_constant_range s = Z.equal s.start s.stop
 
-  let rec backward_abs_it (it : IT.t) (bs : t list) =
+  let rec backward_abs_it (it : Terms.Normal.t) (bs : t list) =
     let (IT (it_, _, loc)) = it in
     match it_ with
     (* Handle inequality via negation of equality *)
     | Unop (Not, IT (Binop (EQ, it', _), _, _)) ->
-      let bt = IT.get_bt it' in
+      let bt = Terms.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         bs
       else (
@@ -1179,7 +1179,7 @@ module WrappedIntervalBasis = struct
         else (* Both are intervals - conservative: no refinement *)
           bs)
     | Binop (EQ, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = Terms.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         bs
       else (
@@ -1187,14 +1187,14 @@ module WrappedIntervalBasis = struct
         let b = meet b1 b2 in
         [ b; b ])
     | Binop (LE, it', _) | Binop (LEPointer, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = Terms.get_bt it' in
       let min, max = get_extrema bt in
       let b1, b2 = match bs with [ b1; b2 ] -> (b1, b2) | _ -> failwith __LOC__ in
       let b1' = of_interval bt min b2.stop in
       let b2' = of_interval bt b1.start max in
       [ meet b1 b1'; meet b2 b2' ]
     | Binop (LT, it', _) | Binop (LTPointer, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = Terms.get_bt it' in
       let min, max = get_extrema bt in
       let b1, b2 = match bs with [ b1; b2 ] -> (b1, b2) | _ -> failwith __LOC__ in
       let b1' = of_interval bt min (Z.sub b2.stop Z.one) in
@@ -1207,7 +1207,7 @@ module WrappedIntervalBasis = struct
     | Unop (Not, IT (Binop (LTPointer, it1, it2), _, _)) ->
       backward_abs_it (IT.lt_ (it2, it1) loc) bs
     | _ ->
-      if BT.equal BT.Bool (IT.get_bt it) then
+      if BT.equal BT.Bool (Terms.get_bt it) then
         bs
       else
         List.tl bs
@@ -1270,7 +1270,7 @@ module WrappedIntervalBasis = struct
 
   let definitions () = Pp.empty
 
-  let to_it (sym : Sym.t) (t : t) : IT.t =
+  let to_it (sym : Sym.t) (t : t) : Terms.Normal.t =
     let loc = Locations.other __LOC__ in
     if is_bottom t then
       IT.bool_ false loc

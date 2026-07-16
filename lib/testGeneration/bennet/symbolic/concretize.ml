@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
+module T = Terms.Normal
 module IT = IndexTerms
 module BT = BaseTypes
 module LC = LogicalConstraints
@@ -78,14 +79,14 @@ module Make (AD : Domain.T) = struct
       let convert_fn_doc =
         !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
       in
-      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let conditional_stmts =
         max_array_length
         |> Z.to_int
         |> List.range 0
         |> List.map (fun idx ->
           let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
-          let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
+          let guard_it = f (T.subst (T.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let cond_doc =
             !^"convert_from_cn_bool"
             ^^ parens
@@ -311,7 +312,7 @@ module Make (AD : Domain.T) = struct
       let convert_fn_doc =
         !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
       in
-      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let map_init_stmt =
         !^"cn_term*" ^^^ map_var_doc ^^^ !^"=" ^^^ !^"cn_smt_default" ^^ parens result_ty
       in
@@ -319,7 +320,7 @@ module Make (AD : Domain.T) = struct
         elem_docs
         |> List.mapi (fun idx value_doc ->
           let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
-          let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
+          let guard_it = f (T.subst (T.make_subst [ (i_sym, idx_it) ]) it_perm) in
           let cond_doc =
             !^"convert_from_cn_bool"
             ^^ parens
@@ -389,8 +390,8 @@ module Make (AD : Domain.T) = struct
         |> List.range 0
         |> List.map (fun idx ->
           let idx_it = IT.num_lit_ (Z.of_int idx) i_bt here in
-          let guard_it = f (IT.subst (IT.make_subst [ (i_sym, idx_it) ]) it_perm) in
-          let subst_body = Term.subst (IT.make_subst [ (i_sym, idx_it) ]) body_term in
+          let guard_it = f (T.subst (T.make_subst [ (i_sym, idx_it) ]) it_perm) in
+          let subst_body = Term.subst (T.make_subst [ (i_sym, idx_it) ]) body_term in
           let body_result = concretize_term sigma subst_body in
           let elem_var = Pp.string (Printf.sprintf "%s_elem_%d" prefix idx) in
           let elem_stmt =

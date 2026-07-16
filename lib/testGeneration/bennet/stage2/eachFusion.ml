@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
@@ -7,14 +8,14 @@ module Make (AD : Domain.T) = struct
 
   let simp = Simplify.IndexTerms.simp (Simplify.default Global.empty)
 
-  let is_simp_true it = IT.is_true (simp it)
+  let is_simp_true it = Terms.is_true (simp it)
 
-  let check_index_ok (m : Sym.t) (i : Sym.t) (it : IT.t) : bool =
-    let rec aux (it : IT.t) : bool =
+  let check_index_ok (m : Sym.t) (i : Sym.t) (it : T.t) : bool =
+    let rec aux (it : T.t) : bool =
       let (IT (it_, _bt, _loc)) = it in
       match it_ with
       | MapGet (IT (Sym x, _, _), it_key) when Sym.equal m x ->
-        (match IT.is_sym it_key with Some (j, _) -> Sym.equal i j | _ -> false)
+        (match Terms.is_sym it_key with Some (j, _) -> Sym.equal i j | _ -> false)
       | Const _ | SizeOf _ | OffsetOf _ | Nil _ | CN_None _ -> true
       | Sym x -> not (Sym.equal x m)
       | Unop (_, it')
@@ -59,13 +60,13 @@ module Make (AD : Domain.T) = struct
         (vars : Sym.Set.t)
         (x : Sym.t)
         (new_i : Sym.t)
-        ((it_min, it_max) : IT.t * IT.t)
+        ((it_min, it_max) : T.t * T.t)
         (gt : Term.t)
-    : Term.t * IT.t
+    : Term.t * T.t
     =
     let it_true = IT.bool_ true (Locations.other __LOC__) in
     let it_and a b = IT.and2_ (a, b) (Locations.other __LOC__) in
-    let rec aux (delete : bool) (gt : Term.t) : Term.t * IT.t =
+    let rec aux (delete : bool) (gt : Term.t) : Term.t * T.t =
       let (Annot (gt_, (), _, loc)) = gt in
       match gt_ with
       | `Arbitrary | `Symbolic | `Call _ | `Return _ | `Map _ -> (gt, it_true)
@@ -73,7 +74,7 @@ module Make (AD : Domain.T) = struct
         let _, constraints =
           gts |> List.map (aux false) |> List.map_snd simp |> List.split
         in
-        if List.exists IT.is_true constraints then
+        if List.exists Terms.is_true constraints then
           (gt, it_true)
         else
           ( gt,
@@ -93,20 +94,20 @@ module Make (AD : Domain.T) = struct
           ( Forall
               ((i, i_bt), (IT (Binop (Implies, it_perm, it_body), _, loc_implies) as it)),
             gt' )
-        when Sym.Set.mem x (IT.free_vars it) && check_index_ok x i it ->
+        when Sym.Set.mem x (T.free_vars it) && check_index_ok x i it ->
         let it_min', it_max' = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
         let gt', res = aux delete gt' in
         if
-          IT.equal it_min it_min'
-          && IT.equal it_max it_max'
+          T.equal it_min it_min'
+          && T.equal it_max it_max'
           && Sym.Set.subset
-               (Sym.Set.remove i (IT.free_vars_list [ it_perm; it_body ]))
+               (Sym.Set.remove i (T.free_vars_list [ it_perm; it_body ]))
                vars
         then (
           let res' =
             (it_and
-               (IT.subst
-                  (IT.make_rename ~from:i ~to_:new_i)
+               (T.subst
+                  (T.make_rename ~from:i ~to_:new_i)
                   (IT.impl_ (it_perm, it_body) loc_implies)))
               res
           in
@@ -120,7 +121,7 @@ module Make (AD : Domain.T) = struct
         let gt', res = aux delete gt' in
         (Term.assert_ (lc, gt') () loc, res)
       | `ITE (it_if, gt_then, gt_else) ->
-        let delete' = Sym.Set.subset (IT.free_vars it_if) vars in
+        let delete' = Sym.Set.subset (T.free_vars it_if) vars in
         let gt_then', then_constraints = aux delete' gt_then in
         let gt_else', else_constraints = aux delete' gt_else in
         let gt' = Term.ite_ (it_if, gt_then', gt_else') () loc in
@@ -135,17 +136,17 @@ module Make (AD : Domain.T) = struct
     aux true gt
 
 
-  let replace_index (m : Sym.t) (i : Sym.t) (result : Sym.t) (it : IT.t) : IT.t =
-    let aux (it : IT.t) : IT.t =
+  let replace_index (m : Sym.t) (i : Sym.t) (result : Sym.t) (it : T.t) : T.t =
+    let aux (it : T.t) : T.t =
       let (IT (it_, bt, loc)) = it in
       match it_ with
       | MapGet (IT (Sym y, _, _), IT (Sym j, _, _)) when Sym.equal m y ->
         if not (Sym.equal i j) then
-          failwith (Pp.plain (IT.pp it) ^ " @ " ^ __LOC__);
+          failwith (Pp.plain (T.pp it) ^ " @ " ^ __LOC__);
         IT.sym_ (result, bt, loc)
       | _ -> it
     in
-    IT.map_term_pre aux it
+    Terms.map_term_pre aux it
 
 
   let transform_gt (vars : Sym.Set.t) (gt : Term.t) : Term.t =

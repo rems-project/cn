@@ -1,6 +1,7 @@
 (** Non-relational numeric domain *)
 
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -35,9 +36,9 @@ module type BASIS = sig
 
   val of_interval : BT.t -> Z.t -> Z.t -> t
 
-  val forward_abs_it : IT.t -> t list -> t option
+  val forward_abs_it : T.t -> t list -> t option
 
-  val backward_abs_it : IT.t -> t list -> t list
+  val backward_abs_it : T.t -> t list -> t list
 
   val widen : t -> t -> t
 
@@ -53,7 +54,7 @@ module type BASIS = sig
 
   val definitions : unit -> Pp.document
 
-  val to_it : Sym.t -> t -> IT.t
+  val to_it : Sym.t -> t -> T.t
 end
 
 module Make (B : BASIS) = struct
@@ -211,7 +212,7 @@ module Make (B : BASIS) = struct
 
   let tree_test t = match t with Test (t1, t2) -> (t1, t2) | _ -> failwith __LOC__
 
-  let rec cnf_ (e : BT.t IT.term) : BT.t IT.term =
+  let rec cnf_ (e : BT.t Terms.term) : BT.t Terms.term =
     match e with
     | Unop (Not, e') ->
       (match cnf e' with
@@ -224,7 +225,7 @@ module Make (B : BASIS) = struct
        | IT (Binop (And, e1, e2), info, loc) ->
          Binop
            ( Or,
-             cnf (IT.IT (Unop (Not, e1), info, loc)),
+             cnf (IT (Unop (Not, e1), info, loc)),
              cnf (IT (Unop (Not, e2), info, loc)) )
        | IT (Binop (Or, e1, e2), info, loc) ->
          Binop
@@ -246,12 +247,12 @@ module Make (B : BASIS) = struct
     | _ -> e
 
 
-  and cnf (e : IT.t) : IT.t =
+  and cnf (e : T.t) : T.t =
     let (IT (e, info, loc)) = e in
     IT (cnf_ e, info, loc)
 
 
-  let rec forward_abs_it (it : IT.t) (od : t) : forward_tree option =
+  let rec forward_abs_it (it : T.t) (od : t) : forward_tree option =
     let open Option in
     let (IT (it_, bt, _loc)) = it in
     let single_arg it1 =
@@ -354,7 +355,7 @@ module Make (B : BASIS) = struct
     | CopyAllocId { addr = it1; loc = it2 }
     | Aligned { t = it1; align = it2 } ->
       dual_arg it1 it2
-    | Let ((x, it1), it2) -> single_arg (IT.subst (IT.make_subst [ (x, it1) ]) it2)
+    | Let ((x, it1), it2) -> single_arg (T.subst (T.make_subst [ (x, it1) ]) it2)
     (* Triple argument cases *)
     | ITE (it1, it2, it3) | MapSet (it1, it2, it3) -> triple_arg it1 it2 it3
     (* List argument cases *)
@@ -372,20 +373,20 @@ module Make (B : BASIS) = struct
       return (Op (all_bs, b))
 
 
-  let rec backward_abs_it (it : IT.t) (t : forward_tree option) : t =
+  let rec backward_abs_it (it : T.t) (t : forward_tree option) : t =
     match t with
     | None -> top
     | Some t ->
       let (IT (it_, bt, _loc)) = it in
       let propagate_single it1 =
-        if B.supported (IT.get_bt it1) then (
+        if B.supported (T.get_bt it1) then (
           match t with
           | Op ([ t1 ], b_res) ->
             (match
                B.backward_abs_it
                  it
                  [ b_res;
-                   Option.value ~default:(B.top (IT.get_bt it1)) (Option.map tree_b t1)
+                   Option.value ~default:(B.top (T.get_bt it1)) (Option.map tree_b t1)
                  ]
              with
              | [ b1 ] ->
@@ -393,26 +394,26 @@ module Make (B : BASIS) = struct
                backward_abs_it it1 (Some t1')
              | _ -> failwith __LOC__)
           | Leaf b ->
-            (match B.backward_abs_it it [ b; B.top (IT.get_bt it1) ] with
+            (match B.backward_abs_it it [ b; B.top (T.get_bt it1) ] with
              | [ b' ] -> backward_abs_it it1 (Some (Leaf b'))
              | _ -> failwith __LOC__)
           | _ ->
             print_endline (Pp.plain (pp_tree t));
-            print_endline (Pp.plain (IT.pp it));
+            print_endline (Pp.plain (T.pp it));
             failwith __LOC__)
         else
           top
       in
       let propagate_dual it1 it2 =
-        if B.supported (IT.get_bt it1) && B.supported (IT.get_bt it2) then (
+        if B.supported (T.get_bt it1) && B.supported (T.get_bt it2) then (
           match t with
           | Op ([ t1; t2 ], b_res) ->
             (match
                B.backward_abs_it
                  it
                  [ b_res;
-                   Option.value ~default:(B.top (IT.get_bt it1)) (Option.map tree_b t1);
-                   Option.value ~default:(B.top (IT.get_bt it2)) (Option.map tree_b t2)
+                   Option.value ~default:(B.top (T.get_bt it1)) (Option.map tree_b t1);
+                   Option.value ~default:(B.top (T.get_bt it2)) (Option.map tree_b t2)
                  ]
              with
              | [ b1; b2 ] ->
@@ -422,7 +423,7 @@ module Make (B : BASIS) = struct
              | _ -> failwith __LOC__)
           | Leaf b ->
             (match
-               B.backward_abs_it it [ b; B.top (IT.get_bt it1); B.top (IT.get_bt it2) ]
+               B.backward_abs_it it [ b; B.top (T.get_bt it1); B.top (T.get_bt it2) ]
              with
              | [ b1; b2 ] ->
                meet
@@ -435,9 +436,9 @@ module Make (B : BASIS) = struct
       in
       let propagate_triple it1 it2 it3 =
         if
-          B.supported (IT.get_bt it1)
-          && B.supported (IT.get_bt it2)
-          && B.supported (IT.get_bt it3)
+          B.supported (T.get_bt it1)
+          && B.supported (T.get_bt it2)
+          && B.supported (T.get_bt it3)
         then (
           match t with
           | Op ([ t1; t2; t3 ], b_res) ->
@@ -445,9 +446,9 @@ module Make (B : BASIS) = struct
                B.backward_abs_it
                  it
                  [ b_res;
-                   Option.value ~default:(B.top (IT.get_bt it1)) (Option.map tree_b t1);
-                   Option.value ~default:(B.top (IT.get_bt it2)) (Option.map tree_b t2);
-                   Option.value ~default:(B.top (IT.get_bt it3)) (Option.map tree_b t3)
+                   Option.value ~default:(B.top (T.get_bt it1)) (Option.map tree_b t1);
+                   Option.value ~default:(B.top (T.get_bt it2)) (Option.map tree_b t2);
+                   Option.value ~default:(B.top (T.get_bt it3)) (Option.map tree_b t3)
                  ]
              with
              | [ b1; b2; b3 ] ->
@@ -460,7 +461,7 @@ module Make (B : BASIS) = struct
              | _ -> failwith __LOC__)
           | Leaf b ->
             (match
-               B.backward_abs_it it [ b; B.top (IT.get_bt it1); B.top (IT.get_bt it1) ]
+               B.backward_abs_it it [ b; B.top (T.get_bt it1); B.top (T.get_bt it1) ]
              with
              | [ b1; b2 ] ->
                meet
@@ -474,7 +475,7 @@ module Make (B : BASIS) = struct
           top
       in
       let propagate_list its =
-        if its |> List.map IT.get_bt |> List.for_all B.supported then (
+        if its |> List.map T.get_bt |> List.for_all B.supported then (
           match t with
           | Op (ts, b_res) ->
             assert (List.length ts = List.length its);
@@ -485,7 +486,7 @@ module Make (B : BASIS) = struct
                  :: List.map
                       (fun (it, t) ->
                          Option.value
-                           ~default:(B.top (IT.get_bt it))
+                           ~default:(B.top (T.get_bt it))
                            (Option.map tree_b t))
                       (List.combine its ts))
             in
@@ -497,7 +498,7 @@ module Make (B : BASIS) = struct
             List.fold_left meet top results
           | Leaf b ->
             let bs =
-              B.backward_abs_it it ([ b ] @ List.map (fun it -> B.top (IT.get_bt it)) its)
+              B.backward_abs_it it ([ b ] @ List.map (fun it -> B.top (T.get_bt it)) its)
             in
             assert (List.length bs = List.length its);
             let ts' = List.map (fun b -> Some (Leaf b)) bs in
@@ -521,14 +522,14 @@ module Make (B : BASIS) = struct
        | Unop (Not, IT (Binop (LEPointer, it1, it2), _, _))
        | Unop (Not, IT (Binop (LT, it1, it2), _, _))
        | Unop (Not, IT (Binop (LTPointer, it1, it2), _, _)) ->
-         if B.supported (IT.get_bt it1) then (
+         if B.supported (T.get_bt it1) then (
            let t1, t2 = tree_test t in
            let b1, b2 =
              match
                B.backward_abs_it
                  it
-                 [ Option.value ~default:(B.top (IT.get_bt it1)) (Option.map tree_b t1);
-                   Option.value ~default:(B.top (IT.get_bt it2)) (Option.map tree_b t2)
+                 [ Option.value ~default:(B.top (T.get_bt it1)) (Option.map tree_b t1);
+                   Option.value ~default:(B.top (T.get_bt it2)) (Option.map tree_b t2)
                  ]
              with
              | [ b1; b2 ] -> (b1, b2)
@@ -597,7 +598,7 @@ module Make (B : BASIS) = struct
            top
        | Let ((x, it1), it2) ->
          if B.supported bt then
-           propagate_single (IT.subst (IT.make_subst [ (x, it1) ]) it2)
+           propagate_single (T.subst (T.make_subst [ (x, it1) ]) it2)
          else
            top
        (* Complex cases *)
@@ -618,7 +619,7 @@ module Make (B : BASIS) = struct
            top)
 
 
-  let local_iteration (it : IT.t) (d : t) : t =
+  let local_iteration (it : T.t) (d : t) : t =
     let rec aux (d : t) (fuel : int) : t =
       if fuel <= 0 then
         d
@@ -652,7 +653,7 @@ module Make (B : BASIS) = struct
 
   let pp_args = B.pp_sym_args
 
-  let to_it (od : t) : IT.t =
+  let to_it (od : t) : T.t =
     let loc = Locations.other __LOC__ in
     match od with
     | None -> IT.bool_ false loc (* bottom = unsatisfiable *)

@@ -14,7 +14,7 @@ module Make (AD : Domain.T) = struct
       | `Pick wgts -> Term.pick_ (List.map aux wgts) () bt loc
       | `ITE (it_if, gt_then, gt_else) ->
         let gt_then, gt_else = (aux gt_then, aux gt_else) in
-        if not (Sym.Set.subset (IT.free_vars it_if) iargs) then (
+        if not (Sym.Set.subset (Terms.Normal.free_vars it_if) iargs) then (
           let wgts1 =
             match gt_then with
             | Annot (`Pick gts, (), _, _) ->

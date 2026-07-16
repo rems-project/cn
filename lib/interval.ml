@@ -183,19 +183,20 @@ module Intervals = struct
 end
 
 module Solver = struct
+  module T = Terms.Normal
   module IT = IndexTerms
   module RT = Request
   open Terms
   open BaseTypes
 
-  let interval_for (eval : IT.t -> IT.t option) q tyi =
-    let is_q i = match IT.get_term i with Sym y -> Sym.equal q y | _ -> false in
+  let interval_for (eval : T.t -> T.t option) q tyi =
+    let is_q i = match T.get_term i with Sym y -> Sym.equal q y | _ -> false in
     let eval_k e =
-      if Sym.Set.mem q (IT.free_vars e) then
+      if Sym.Set.mem q (T.free_vars e) then
         None
       else
         Option.bind (eval e) (fun v ->
-          match IT.get_term v with
+          match T.get_term v with
           | Const (Z z) -> Some z
           | Const (Bits (_, z)) -> Some z
           | _ -> None)
@@ -214,7 +215,7 @@ module Solver = struct
     let do_compl i = mkI (Intervals.complement i) in
     let do_impl i j = Intervals.union (do_compl i) j in
     let rec interval p =
-      match IT.get_term p with
+      match T.get_term p with
       | Const (Bool true) -> Some tyi
       | Const (Bool false) -> Some (Intervals.of_interval Interval.empty)
       | Unop (Not, term) -> Option.map do_compl (interval term)
@@ -233,7 +234,7 @@ module Solver = struct
     interval
 
 
-  let supported_type loc ty : (Interval.t * (Z.t -> IT.t)) option =
+  let supported_type loc ty : (Interval.t * (Z.t -> T.t)) option =
     let yes i k = Some (i, fun v -> IT (Const (k v), ty, loc)) in
     match ty with
     | Integer -> yes Interval.int (fun v -> Z v)
@@ -249,7 +250,7 @@ module Solver = struct
     | RT.P _ -> rt
     | RT.Q qpred ->
       let x, t = qpred.q in
-      let loc = IT.get_loc qpred.permission in
+      let loc = T.get_loc qpred.permission in
       (match supported_type loc t with
        | None -> rt
        | Some (tyi, k) ->

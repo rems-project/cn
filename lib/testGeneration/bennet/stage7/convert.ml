@@ -5,6 +5,7 @@ module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
 module Records = Fulminate.Records
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -49,10 +50,10 @@ module Make (AD : Domain.T) = struct
         filename
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (name : Sym.t)
-        (it : IT.t)
+        (it : T.t)
     =
     let var = Sym.fresh_anon () in
-    let it_bt = IT.get_bt it in
+    let it_bt = T.get_bt it in
     let bs, ss, e =
       match it_bt with
       | BT.Unit ->
@@ -199,7 +200,7 @@ module Make (AD : Domain.T) = struct
         List.fold_left
           Sym.Set.union
           Sym.Set.empty
-          (List.filter_map (Option.map IT.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
+          (List.filter_map (Option.map T.free_vars) [ min_inc; min_ex; max_inc; max_ex ])
       in
       ( [],
         [],
@@ -443,12 +444,12 @@ module Make (AD : Domain.T) = struct
                                     (pp_ctype C.no_qualifiers)
                                     (Sctypes.to_ctype sct))));
                         mk_expr
-                          (CtA.wrap_with_convert_from ~sct e_value_ (IT.get_bt it_val));
+                          (CtA.wrap_with_convert_from ~sct e_value_ (T.get_bt it_val));
                         mk_expr (AilEident last_var)
                       ]
                       @ List.map
                           (fun x -> mk_expr (AilEident x))
-                          (List.of_seq (Sym.Set.to_seq (IT.free_vars it_addr)))
+                          (List.of_seq (Sym.Set.to_seq (T.free_vars it_addr)))
                       @ [ mk_expr (AilEconst ConstantNull) ] )))
           ]
       in
@@ -512,7 +513,7 @@ module Make (AD : Domain.T) = struct
             Sym.Set.union
             Sym.Set.empty
             (List.filter_map
-               (Option.map IT.free_vars)
+               (Option.map T.free_vars)
                [ min_inc; min_ex; max_inc; max_ex ])
         in
         [ A.AilSexpr
@@ -613,7 +614,7 @@ module Make (AD : Domain.T) = struct
             Sym.Set.union
             Sym.Set.empty
             (List.filter_map
-               (Option.map IT.free_vars)
+               (Option.map T.free_vars)
                [ min_inc; min_ex; max_inc; max_ex ])
         in
         [ A.AilSexpr
@@ -715,7 +716,7 @@ module Make (AD : Domain.T) = struct
                      ]
                      @ List.map
                          (fun x -> mk_expr (AilEident x))
-                         (List.of_seq (Sym.Set.to_seq (IT.free_vars it)))
+                         (List.of_seq (Sym.Set.to_seq (T.free_vars it)))
                      @ [ mk_expr (AilEconst ConstantNull) ])))
           ]
       in
@@ -908,7 +909,7 @@ module Make (AD : Domain.T) = struct
                         @ List.map
                             (fun x -> mk_expr (AilEident x))
                             (List.of_seq
-                               (Sym.Set.to_seq (Sym.Set.remove i (IT.free_vars it_perm))))
+                               (Sym.Set.to_seq (Sym.Set.remove i (T.free_vars it_perm))))
                         @ [ mk_expr (AilEconst ConstantNull) ] )))
             ])
       in

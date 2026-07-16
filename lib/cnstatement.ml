@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module Loc = Locations
 module CF = Cerb_frontend
 module Req = Request
@@ -9,7 +9,7 @@ type have_show =
   | Have
   | Show
 
-type extract = Id.t list * (Sym.t, Sctypes.t) CF.Cn.cn_to_extract * IndexTerms.t
+type extract = Id.t list * (Sym.t, Sctypes.t) CF.Cn.cn_to_extract * T.t
 
 type predicate_or_predicate_name =
   | Predicate of Request.Predicate.t
@@ -19,14 +19,14 @@ type statement =
   | Pack_unpack of CF.Cn.pack_unpack * predicate_or_predicate_name
   | To_from_bytes of CF.Cn.to_from * Request.Predicate.t
   | Have of LogicalConstraints.t
-  | Instantiate of (Sym.t, Sctypes.t) CF.Cn.cn_to_instantiate * IndexTerms.t
+  | Instantiate of (Sym.t, Sctypes.t) CF.Cn.cn_to_instantiate * T.t
   | Split_case of LogicalConstraints.t
   | Extract of extract
-  | Unfold of Sym.t * IndexTerms.t list
-  | Apply of Sym.t * IndexTerms.t list
+  | Unfold of Sym.t * T.t list
+  | Apply of Sym.t * T.t list
   | Assert of LogicalConstraints.t
   | Inline of Sym.t list
-  | Print of IndexTerms.t
+  | Print of T.t
 
 let subst_predicate_or_predicate_name substitution = function
   | Predicate pt -> Predicate (Req.Predicate.subst substitution pt)
@@ -41,22 +41,22 @@ let rec subst substitution = function
   | Have lc -> Have (LC.subst substitution lc)
   | Instantiate (o_s, it) ->
     (* o_s is not a (option) binder *)
-    Instantiate (o_s, IT.subst substitution it)
+    Instantiate (o_s, T.subst substitution it)
   | Split_case lc -> Split_case (LC.subst substitution lc)
   | Extract (attrs, to_extract, it) ->
-    Extract (attrs, to_extract, IT.subst substitution it)
+    Extract (attrs, to_extract, T.subst substitution it)
   | Unfold (fsym, args) ->
     (* fsym is a function symbol *)
-    Unfold (fsym, List.map (IT.subst substitution) args)
+    Unfold (fsym, List.map (T.subst substitution) args)
   | Apply (fsym, args) ->
     (* fsym is a lemma symbol *)
-    Apply (fsym, List.map (IT.subst substitution) args)
+    Apply (fsym, List.map (T.subst substitution) args)
   | Assert lc -> Assert (LC.subst substitution lc)
   | Inline nms -> Inline nms
-  | Print it -> Print (IT.subst substitution it)
+  | Print it -> Print (T.subst substitution it)
 
 
-and alpha_rename_ ~from ~to_ prog = (to_, subst (IT.make_rename ~from ~to_) prog)
+and alpha_rename_ ~from ~to_ prog = (to_, subst (T.make_rename ~from ~to_) prog)
 
 and alpha_rename from prog =
   let to_ = Sym.fresh_same from in
@@ -71,28 +71,28 @@ and suitably_alpha_rename syms s prog =
 
 
 let free_vars_predicate_or_predicate_name = function
-  | Predicate pt -> IT.free_vars_list (pt.pointer :: pt.iargs)
+  | Predicate pt -> T.free_vars_list (pt.pointer :: pt.iargs)
   | PredicateName _pn -> Sym.Set.empty
 
 
 let free_vars = function
   | Pack_unpack (_pack_unpack, pt) -> free_vars_predicate_or_predicate_name pt
-  | To_from_bytes (_to_from, pt) -> IT.free_vars_list (pt.pointer :: pt.iargs)
+  | To_from_bytes (_to_from, pt) -> T.free_vars_list (pt.pointer :: pt.iargs)
   | Have lc -> LC.free_vars lc
   | Instantiate (_o_s, it) ->
     (* o_s is not a (option) binder *)
-    IT.free_vars it
+    T.free_vars it
   | Split_case lc -> LC.free_vars lc
-  | Extract (_attrs, _to_extract, it) -> IT.free_vars it
+  | Extract (_attrs, _to_extract, it) -> T.free_vars it
   | Unfold (_fsym, args) ->
     (* fsym is a function symbol *)
-    IT.free_vars_list args
+    T.free_vars_list args
   | Apply (_fsym, args) ->
     (* fsym is a lemma symbol *)
-    IT.free_vars_list args
+    T.free_vars_list args
   | Assert lc -> LC.free_vars lc
   | Inline _nms -> Sym.Set.empty
-  | Print it -> IT.free_vars it
+  | Print it -> T.free_vars it
 
 
 let free_vars_list stmts =
@@ -139,18 +139,18 @@ let dtree =
     Dnode (pp_ctor "From_bytes", [ Request.Predicate.dtree pred ])
   | Have lc -> Dnode (pp_ctor "Have", [ LC.dtree lc ])
   | Instantiate (to_instantiate, it) ->
-    Dnode (pp_ctor "Instantiate", [ dtree_of_to_instantiate to_instantiate; IT.dtree it ])
+    Dnode (pp_ctor "Instantiate", [ dtree_of_to_instantiate to_instantiate; T.dtree it ])
   | Split_case lc -> Dnode (pp_ctor "Split_case", [ LC.dtree lc ])
   | Extract (attrs, to_extract, it) ->
     Dnode
       ( pp_ctor "Extract",
         [ Dnode (pp_ctor "Attrs", List.map (fun s -> Dleaf (Id.pp s)) attrs);
           dtree_of_to_extract to_extract;
-          IT.dtree it
+          T.dtree it
         ] )
   | Unfold (s, args) ->
-    Dnode (pp_ctor "Unfold", Dleaf (Sym.pp s) :: List.map IT.dtree args)
-  | Apply (s, args) -> Dnode (pp_ctor "Apply", Dleaf (Sym.pp s) :: List.map IT.dtree args)
+    Dnode (pp_ctor "Unfold", Dleaf (Sym.pp s) :: List.map T.dtree args)
+  | Apply (s, args) -> Dnode (pp_ctor "Apply", Dleaf (Sym.pp s) :: List.map T.dtree args)
   | Assert lc -> Dnode (pp_ctor "Assert", [ LC.dtree lc ])
   | Inline nms -> Dnode (pp_ctor "Inline", List.map (fun nm -> Dleaf (Sym.pp nm)) nms)
-  | Print it -> Dnode (pp_ctor "Print", [ IT.dtree it ])
+  | Print it -> Dnode (pp_ctor "Print", [ T.dtree it ])

@@ -1,11 +1,12 @@
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
-  let rec cnf_ (e : BT.t IT.term) : BT.t IT.term =
+  let rec cnf_ (e : BT.t Terms.term) : BT.t Terms.term =
     match e with
     | Unop (Not, e') ->
       (match cnf e' with
@@ -38,13 +39,13 @@ module Make (AD : Domain.T) = struct
     | _ -> e
 
 
-  and cnf (e : IT.t) : IT.t =
+  and cnf (e : T.t) : T.t =
     let (IT (e, info, loc)) = e in
     IT (cnf_ e, info, loc)
 
 
-  let listify_constraints (it : IT.t) : IT.t list =
-    let rec loop (c : IT.t) : IT.t list =
+  let listify_constraints (it : T.t) : T.t list =
+    let rec loop (c : T.t) : T.t list =
       match c with IT (Binop (And, e1, e2), _, _) -> loop e1 @ loop e2 | _ -> [ c ]
     in
     loop it
@@ -64,7 +65,7 @@ module Make (AD : Domain.T) = struct
           it
           |> cnf
           |> listify_constraints
-          |> List.partition (fun it' -> Sym.Set.mem i_sym (IT.free_vars it'))
+          |> List.partition (fun it' -> Sym.Set.mem i_sym (T.free_vars it'))
         in
         let gt_forall =
           Term.assert_ (LC.Forall ((i_sym, i_bt), IT.and_ its_in loc), gt') () loc

@@ -1,4 +1,3 @@
-module IT = IndexTerms
 module CF = Cerb_frontend
 module Res = Resource
 module LC = LogicalConstraints
@@ -109,21 +108,21 @@ type message =
         model : Solver.model_with_q
       }
   | Illtyped_binary_it of
-      { left : IT.Surface.t;
-        right : IT.Surface.t;
+      { left : Terms.Surface.t;
+        right : Terms.Surface.t;
         binop : CF.Cn.cn_binop
       }
-  | TooBigExponent : { it : IT.t } -> message
-  | NegativeExponent : { it : IT.t } -> message
+  | TooBigExponent : { it : Terms.Normal.t } -> message
+  | NegativeExponent : { it : Terms.Normal.t } -> message
   | Write_value_unrepresentable of
       { ct : Sctypes.t;
-        location : IT.t;
-        value : IT.t;
+        location : Terms.Normal.t;
+        value : Terms.Normal.t;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
       }
   | Int_unrepresentable of
-      { value : IT.t;
+      { value : Terms.Normal.t;
         ict : Sctypes.t;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
@@ -141,14 +140,14 @@ type message =
         model : Solver.model_with_q
       }
   | Needs_alloc_id of
-      { ptr : IT.t;
+      { ptr : Terms.Normal.t;
         ub : CF.Undefined.undefined_behaviour;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
       }
   | Alloc_out_of_bounds of
-      { term : IT.t;
-        constr : IT.t;
+      { term : Terms.Normal.t;
+        constr : Terms.Normal.t;
         ub : CF.Undefined.undefined_behaviour;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
@@ -156,9 +155,9 @@ type message =
   | Allocation_not_live of
       { reason :
           [ `Copy_alloc_id | `Ptr_cmp | `Ptr_diff | `ISO_array_shift | `ISO_member_shift ];
-        ptr : IT.t;
+        ptr : Terms.Normal.t;
         ctxt : Context.t * Explain.log;
-        model_constr : (Solver.model_with_q * IT.t) option
+        model_constr : (Solver.model_with_q * Terms.Normal.t) option
       }
   (* | Implementation_defined_behaviour of document * state_report *)
   | Unspecified of CF.Ctype.ctype
@@ -218,13 +217,13 @@ let pp_illtyped_binary_it ~left ~right binop =
   in
   let descr =
     Some
-      (squotes (IT.pp left)
+      (squotes (Terms.pp left)
        ^^^ !^"has type"
-       ^^^ squotes (BaseTypes.Surface.pp (IT.get_bt left))
+       ^^^ squotes (BaseTypes.Surface.pp (Terms.get_bt left))
        ^^ comma
-       ^^^ squotes (IT.pp right)
+       ^^^ squotes (Terms.pp right)
        ^^^ !^"has type"
-       ^^^ squotes (BaseTypes.Surface.pp (IT.get_bt right))
+       ^^^ squotes (BaseTypes.Surface.pp (Terms.get_bt right))
        ^^ dot)
   in
   { short; descr; state = None }
@@ -320,7 +319,7 @@ let pp_welltyped = function
     in
     { short; descr = Some descr; state = None }
   | NIA { it; hint } ->
-    let it = IT.pp it in
+    let it = Terms.pp it in
     let short = !^"Non-linear integer arithmetic." in
     let descr =
       !^"Illtyped expression"
@@ -364,7 +363,7 @@ let pp_builtins : Builtins.message -> _ = function
 (* | Array_to_list arr -> *)
 (*   let short = *)
 (*     !^"array_to_list first arguments" *)
-(*     ^^^ squotes (IT.pp arr) *)
+(*     ^^^ squotes (Terms.pp arr) *)
 (*     ^^^ !^"expects type map/array, but has type" *)
 (*     ^^^ BaseTypes.Surface.pp (IT.get_bt arr) *)
 (*   in *)
@@ -437,7 +436,7 @@ let pp_compile : Compile.message -> _ = function
     { short; descr = None; state = None }
   | No_pointee_ctype it ->
     let short =
-      !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IndexTerms.pp it) ^^ Pp.dot
+      !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (Terms.pp it) ^^ Pp.dot
     in
     { short; descr = None; state = None }
   | Each_quantifier_not_numeric (sym, sbt) ->
@@ -485,7 +484,7 @@ let pp_message = function
     let state = Explain.trace ctxt model Explain.no_ex in
     { short; descr = None; state = Some state }
   | TooBigExponent { it } ->
-    let it = IT.pp it in
+    let it = Terms.pp it in
     let short = !^"Exponent too big" in
     let descr =
       !^"Illtyped expression"
@@ -498,7 +497,7 @@ let pp_message = function
     in
     { short; descr = Some descr; state = None }
   | NegativeExponent { it } ->
-    let it = IT.pp it in
+    let it = Terms.pp it in
     let short = !^"Negative exponent" in
     let descr =
       !^"Illtyped expression"
@@ -512,8 +511,8 @@ let pp_message = function
     { short; descr = Some descr; state = None }
   | Write_value_unrepresentable { ct; location; value; ctxt; model } ->
     let short = !^"Write value not representable at type" ^^^ Sctypes.pp ct in
-    let location = IT.pp location in
-    let value = IT.pp value in
+    let location = Terms.pp location in
+    let value = Terms.pp value in
     let state = Explain.trace ctxt model Explain.no_ex in
     let descr =
       !^"Location" ^^ colon ^^^ location ^^ comma ^^^ !^"value" ^^ colon ^^^ value ^^ dot
@@ -521,7 +520,7 @@ let pp_message = function
     { short; descr = Some descr; state = Some state }
   | Int_unrepresentable { value; ict; ctxt; model } ->
     let short = !^"integer value not representable at type" ^^^ Sctypes.pp ict in
-    let value = IT.pp value in
+    let value = Terms.pp value in
     let descr = !^"Value" ^^ colon ^^^ value in
     let state = Explain.trace ctxt model Explain.no_ex in
     { short; descr = Some descr; state = Some state }
@@ -553,7 +552,7 @@ let pp_message = function
     in
     { short; descr = Some descr; state = Some state }
   | Needs_alloc_id { ptr; ub; ctxt; model } ->
-    let short = !^"Pointer " ^^ bquotes (IT.pp ptr) ^^ !^" needs allocation ID" in
+    let short = !^"Pointer " ^^ bquotes (Terms.pp ptr) ^^ !^" needs allocation ID" in
     let state = Explain.trace ctxt model Explain.no_ex in
     let descr =
       match CF.Undefined.std_of_undefined_behaviour ub with
@@ -562,7 +561,7 @@ let pp_message = function
     in
     { short; descr = Some descr; state = Some state }
   | Alloc_out_of_bounds { constr; term; ub; ctxt; model } ->
-    let short = bquotes (IT.pp term) ^^ !^" out of bounds" in
+    let short = bquotes (Terms.pp term) ^^ !^" out of bounds" in
     let state =
       Explain.trace
         ctxt
@@ -577,9 +576,9 @@ let pp_message = function
     { short; descr = Some descr; state = Some state }
   | Allocation_not_live { reason; ptr; ctxt; model_constr } ->
     let adjust = function
-      | IT.IT (CopyAllocId { loc; _ }, _, _) -> loc
-      | IT.IT (ArrayShift { base; _ }, _, _) -> base
-      | IT.IT (MemberShift (ptr, _, _), _, _) -> ptr
+      | Terms.IT (CopyAllocId { loc; _ }, _, _) -> loc
+      | Terms.IT (ArrayShift { base; _ }, _, _) -> base
+      | Terms.IT (MemberShift (ptr, _, _), _, _) -> ptr
       | _ -> assert false
     in
     let reason, ptr =
@@ -591,7 +590,7 @@ let pp_message = function
       | `ISO_member_shift -> ("member shift", adjust ptr)
     in
     let short =
-      !^"Pointer " ^^ bquotes (IT.pp ptr) ^^^ !^"needs to be live for" ^^^ !^reason
+      !^"Pointer " ^^ bquotes (Terms.pp ptr) ^^^ !^"needs to be live for" ^^^ !^reason
     in
     let state =
       Option.map

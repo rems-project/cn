@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 module StringMap = Map.Make (String)
@@ -90,7 +91,7 @@ module Make (AD : Domain.T) = struct
       let (Annot (gr_, (), bt, loc)) = gr in
       match gr_ with
       | `ITE (cond, t, f) ->
-        let path_vars = Sym.Set.union path_vars (IT.free_vars cond) in
+        let path_vars = Sym.Set.union path_vars (T.free_vars cond) in
         GenTerms.Annot (`ITE (cond, aux path_vars t, aux path_vars f), (), bt, loc)
       | `Pick gts ->
         GenTerms.Annot

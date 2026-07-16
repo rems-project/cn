@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module BT = BaseTypes
 module AT = ArgumentTypes
@@ -67,7 +68,7 @@ module Make (AD : Domain.T) = struct
     modify (OptCtx.add gd)
 
 
-  let transform_vars (generated : Sym.Set.t) (_oarg : BT.t) (lat : IT.t LAT.t)
+  let transform_vars (generated : Sym.Set.t) (_oarg : BT.t) (lat : T.t LAT.t)
     : Sym.Set.t * (Tm.t -> Tm.t)
     =
     let rec aux (xbts : (Sym.t * BT.t) list) : Tm.t -> Tm.t =
@@ -82,12 +83,12 @@ module Make (AD : Domain.T) = struct
     in
     let xs, xbts =
       match lat with
-      | Define ((x, it), _info, _) -> (Sym.Set.singleton x, IT.free_vars_bts it)
+      | Define ((x, it), _info, _) -> (Sym.Set.singleton x, T.free_vars_bts it)
       | Resource ((x, ((P { name = Owned _; _ } as ret), bt)), _, _) ->
         (Sym.Set.singleton x, Sym.Map.add x bt (Request.free_vars_bts ret))
       | Resource ((x, (ret, _)), _, _) -> (Sym.Set.singleton x, Request.free_vars_bts ret)
       | Constraint (lc, _, _) -> (Sym.Set.empty, LC.free_vars_bts lc)
-      | I it -> (Sym.Set.empty, IT.free_vars_bts it)
+      | I it -> (Sym.Set.empty, T.free_vars_bts it)
     in
     let xbts =
       xbts
@@ -111,7 +112,7 @@ module Make (AD : Domain.T) = struct
             (name : Sym.t)
             (generated : Sym.Set.t)
             (oarg : BT.t)
-            (lat : IT.t LAT.t)
+            (lat : T.t LAT.t)
     : Tm.t m
     =
     (* Generate any free variables needed *)
@@ -121,7 +122,7 @@ module Make (AD : Domain.T) = struct
       match lat with
       | Define ((x, it), (loc, _), lat') ->
         let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
-        return (Tm.let_star_ ((x, Tm.return_ it () (IT.get_loc it)), gt') () loc)
+        return (Tm.let_star_ ((x, Tm.return_ it () (T.get_loc it)), gt') () loc)
       | Resource
           ((x, (P { name = Owned (ct, _); pointer; iargs = _ }, bt)), (loc, _), lat') ->
         let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
@@ -217,7 +218,7 @@ module Make (AD : Domain.T) = struct
       | Constraint (lc, (loc, _), lat') ->
         let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
         return (Tm.assert_ (lc, gt') () loc)
-      | I it -> return (Tm.return_ it () (IT.get_loc it))
+      | I it -> return (Tm.return_ it () (T.get_loc it))
     in
     return (f_gt_init gt)
 
@@ -234,7 +235,7 @@ module Make (AD : Domain.T) = struct
     =
     match cls with
     | [ cl ] ->
-      assert (IT.is_true cl.guard);
+      assert (Terms.is_true cl.guard);
       transform_it_lat filename recursive preds name iargs oarg cl.packing_ft
     | cl :: cls' ->
       let it_if = cl.guard in
@@ -400,7 +401,7 @@ module Make (AD : Domain.T) = struct
               | SD_ObjectAddress x' -> (x, `Rename (Sym.fresh x')) :: acc
               | _ -> acc)
            []
-      |> Subst.make IT.free_vars_with_rename
+      |> Subst.make T.free_vars_with_rename
     in
     let preds =
       List.map_snd

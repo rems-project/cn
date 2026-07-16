@@ -1,5 +1,6 @@
 module SMT = Simple_smt
 module IT = IndexTerms
+open Terms
 open IT
 module LC = LogicalConstraints
 module CTypeMap = Map.Make (Sctypes)
@@ -648,7 +649,7 @@ let bv_ctz result_w =
 
 (** Translate a CN term to SMT *)
 let rec translate_term s iterm =
-  let loc = IT.get_loc iterm in
+  let loc = get_loc iterm in
   let struct_decls = s.globals.struct_decls in
   let maybe_name e k =
     if SMT.is_atom e then
@@ -661,14 +662,14 @@ let rec translate_term s iterm =
     let here = Locations.other __LOC__ in
     translate_term s (IT.default_ bt here)
   in
-  match IT.get_term iterm with
+  match get_term iterm with
   | Const c -> translate_const s c
   | Sym x -> SMT.atom (CN_Names.fn_name x)
   | Unop (op, e1) ->
     (match op with
      | BW_FFS_NoSMT ->
        (* NOTE: This desugaring duplicates e1 *)
-       let intl i = int_lit_ i (IT.get_bt e1) loc in
+       let intl i = IT.int_lit_ i (get_bt e1) loc in
        translate_term
          s
          (ite_
@@ -679,8 +680,8 @@ let rec translate_term s iterm =
      | BW_FLS_NoSMT ->
        (* copying and adjusting BW_FFS_NoSMT rule *)
        (* NOTE: This desugaring duplicates e1 *)
-       let sz = match IT.get_bt e1 with Bits (_sign, n) -> n | _ -> assert false in
-       let intl i = int_lit_ i (IT.get_bt e1) loc in
+       let sz = match get_bt e1 with Bits (_sign, n) -> n | _ -> assert false in
+       let intl i = int_lit_ i (get_bt e1) loc in
        translate_term
          s
          (ite_
@@ -690,20 +691,20 @@ let rec translate_term s iterm =
             loc)
      | Not -> SMT.bool_not (translate_term s e1)
      | Negate ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_neg (translate_term s e1)
         | BT.Integer | BT.Real -> SMT.num_neg (translate_term s e1)
         | _ -> failwith (__LOC__ ^ ":Unop (Negate, _)"))
      | BW_Compl ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_compl (translate_term s e1)
         | _ -> failwith (__LOC__ ^ ":Unop (BW_Compl, _)"))
      | BW_CLZ_NoSMT ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits (_, w) -> maybe_name (translate_term s e1) (bv_clz w w)
         | _ -> failwith "solver: BW_CLZ_NoSMT: not a bitwise type")
      | BW_CTZ_NoSMT ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits (_, w) -> maybe_name (translate_term s e1) (bv_ctz w w)
         | _ -> failwith "solver: BW_CTZ_NoSMT: not a bitwise type"))
   | Binop (op, e1, e2) ->
@@ -711,7 +712,7 @@ let rec translate_term s iterm =
     let s2 = translate_term s e2 in
     (* binary uninterpreted function, same type for arguments and result. *)
     let uninterp_same_type k =
-      let bt = IT.get_bt iterm in
+      let bt = get_bt iterm in
       SMT.app (Atom (k bt)) [ s1; s2 ]
     in
     (match op with
@@ -719,23 +720,23 @@ let rec translate_term s iterm =
      | Or -> SMT.bool_or s1 s2
      | Implies -> SMT.bool_implies s1 s2
      | Add ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_add s1 s2
         | BT.Integer | BT.Real -> SMT.num_add s1 s2
         | _ -> failwith "Add")
      | Sub ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_sub s1 s2
         | BT.Integer | BT.Real -> SMT.num_sub s1 s2
         | _ -> failwith "Sub")
      | Mul ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_mul s1 s2
         | BT.Integer | BT.Real -> SMT.num_mul s1 s2
         | _ -> failwith "Mul")
      | MulNoSMT -> uninterp_same_type CN_Names.mul
      | Div ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sdiv s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_udiv s1 s2
         | BT.Integer | BT.Real -> SMT.num_div s1 s2
@@ -744,52 +745,52 @@ let rec translate_term s iterm =
      | Exp ->
        (match (get_num_z e1, get_num_z e2) with
         | Some z1, Some z2 when Z.fits_int z2 ->
-          translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (IT.get_bt e1) loc)
+          translate_term s (num_lit_ (Z.pow z1 (Z.to_int z2)) (get_bt e1) loc)
         | _, _ -> failwith "Exp")
      | ExpNoSMT -> uninterp_same_type CN_Names.exp
      | Rem ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_srem s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_rem s1 s2 (* CVC5 ?? *)
         | _ -> failwith "Rem")
      | RemNoSMT -> uninterp_same_type CN_Names.rem
      | Mod ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_smod s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_urem s1 s2
         | BT.Integer -> SMT.num_mod s1 s2
         | _ -> failwith "Mod")
      | ModNoSMT -> uninterp_same_type CN_Names.mod'
      | BW_Xor ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_xor s1 s2
         | _ -> failwith "BW_Xor")
      | BW_And ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_and s1 s2
         | _ -> failwith "BW_And")
      | BW_Or ->
-       (match IT.get_bt iterm with BT.Bits _ -> SMT.bv_or s1 s2 | _ -> failwith "BW_Or")
+       (match get_bt iterm with BT.Bits _ -> SMT.bv_or s1 s2 | _ -> failwith "BW_Or")
      (* Shift amount should be positive? *)
      | ShiftLeft ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits _ -> SMT.bv_shl s1 s2
         | _ -> failwith "ShiftLeft")
      (* Amount should be positive? *)
      | ShiftRight ->
-       (match IT.get_bt iterm with
+       (match get_bt iterm with
         | BT.Bits (BT.Signed, _) -> SMT.bv_ashr s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_lshr s1 s2
         | _ -> failwith "ShiftRight")
      | LT ->
-       (match IT.get_bt e1 with
+       (match get_bt e1 with
         | BT.Bits (BT.Signed, _) -> SMT.bv_slt s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_ult s1 s2
         | BT.Integer | BT.Real -> SMT.num_lt s1 s2
         | _ -> failwith "LT")
      | LE ->
-       (match IT.get_bt e1 with
+       (match get_bt e1 with
         | BT.Bits (BT.Signed, _) -> SMT.bv_sleq s1 s2
         | BT.Bits (BT.Unsigned, _) -> SMT.bv_uleq s1 s2
         | BT.Integer | BT.Real -> SMT.num_leq s1 s2
@@ -817,8 +818,8 @@ let rec translate_term s iterm =
   | EachI ((i1, (x, bt), i2), t) ->
     let rec aux i =
       if i <= i2 then (
-        let su = make_subst [ (x, num_lit_ (Z.of_int i) bt loc) ] in
-        let t1 = IT.subst su t in
+        let su = Terms.Normal.make_subst [ (x, num_lit_ (Z.of_int i) bt loc) ] in
+        let t1 = Terms.Normal.subst su t in
         if i = i2 then t1 else IT.and2_ (t1, aux (i + 1)) loc)
       else
         failwith "EachI"
@@ -830,7 +831,7 @@ let rec translate_term s iterm =
   (* Tuples *)
   | Tuple es -> CN_Tuple.con (List.map (translate_term s) es)
   | NthTuple (n, e1) ->
-    (match IT.get_bt e1 with
+    (match get_bt e1 with
      | Tuple ts -> CN_Tuple.get (List.length ts) n (translate_term s e1)
      | _ -> failwith "NthTuple: not a tuple")
   (* Structs *)
@@ -842,8 +843,8 @@ let rec translate_term s iterm =
   | StructMember (e1, f) ->
     SMT.app_ (CN_Names.struct_field_name f) [ translate_term s e1 ]
   | StructUpdate ((t, member), v) ->
-    let tag = BT.struct_bt (IT.get_bt t) in
-    let layout = Sym.Map.find (BT.struct_bt (IT.get_bt t)) struct_decls in
+    let tag = BT.struct_bt (get_bt t) in
+    let layout = Sym.Map.find (BT.struct_bt (get_bt t)) struct_decls in
     let members = Memory.member_types layout in
     let str =
       List.map
@@ -861,13 +862,13 @@ let rec translate_term s iterm =
   | OffsetOf (tag, member) ->
     let decl = Sym.Map.find tag struct_decls in
     let v = Option.get (Memory.member_offset decl member) in
-    translate_term s (int_lit_ v (IT.get_bt iterm) loc)
+    translate_term s (int_lit_ v (get_bt iterm) loc)
   (* Records *)
   | Record members ->
     let field (_, e) = translate_term s e in
     CN_Tuple.con (List.map field members)
   | RecordMember (e1, f) ->
-    (match IT.get_bt e1 with
+    (match get_bt e1 with
      | Record members ->
        let check (x, _) = Id.equal f x in
        let arity = List.length members in
@@ -876,7 +877,7 @@ let rec translate_term s iterm =
         | None -> failwith "Missing record field.")
      | _ -> failwith "RecordMemmber")
   | RecordUpdate ((t, member), v) ->
-    let members = BT.record_bt (IT.get_bt t) in
+    let members = BT.record_bt (get_bt t) in
     let str =
       List.map
         (fun (member', bt) ->
@@ -889,7 +890,7 @@ let rec translate_term s iterm =
            (member', value))
         members
     in
-    translate_term s (IT (Record str, IT.get_bt t, loc))
+    translate_term s (IT (Record str, get_bt t, loc))
   | MemberShift (t, tag, member) ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s t)
@@ -914,17 +915,17 @@ let rec translate_term s iterm =
   | Head e1 -> CN_List.head (translate_term s e1)
   | Tail e1 -> CN_List.tail (translate_term s e1)
   | SizeOf ct ->
-    translate_term s (IT.int_lit_ (Memory.size_of_ctype ct) (IT.get_bt iterm) loc)
+    translate_term s (IT.int_lit_ (Memory.size_of_ctype ct) (get_bt iterm) loc)
   | Representable (ct, t) -> translate_term s (representable struct_decls ct t loc)
   | Good (ct, t) -> translate_term s (good_value struct_decls ct t loc)
   | Aligned t ->
     let addr = addr_ t.t loc in
-    assert (BT.equal (IT.get_bt addr) (IT.get_bt t.align));
+    assert (BT.equal (get_bt addr) (get_bt t.align));
     translate_term s (divisible_ (addr, t.align) loc)
   (* Maps *)
   | MapConst (bt, e1) ->
     let kt = translate_base_type bt in
-    let vt = translate_base_type (IT.get_bt e1) in
+    let vt = translate_base_type (get_bt e1) in
     SMT.arr_const kt vt (translate_term s e1)
   | MapSet (mp, k, v) ->
     SMT.arr_store (translate_term s mp) (translate_term s k) (translate_term s v)
@@ -962,7 +963,7 @@ let rec translate_term s iterm =
     in
     let rec do_alts v alts =
       match alts with
-      | [] -> translate_term s (default_ (IT.get_bt iterm) loc)
+      | [] -> translate_term s (default_ (get_bt iterm) loc)
       | (pat, rhs) :: more ->
         let mb_cond, binds = match_pat v pat in
         let k = SMT.let_ binds (translate_term s rhs) in
@@ -975,18 +976,18 @@ let rec translate_term s iterm =
     failwith "todo: remove WrapI"
     (* bv_cast *)
     (*   ~to_:(Memory.bt_of_sct (Sctypes.Integer ity)) *)
-    (*   ~from:(IT.get_bt arg) *)
+    (*   ~from:(get_bt arg) *)
     (*   (translate_term s arg) *)
   | Cast (cbt, t) ->
     let smt_term = translate_term s t in
-    (match (IT.get_bt t, cbt) with
+    (match (get_bt t, cbt) with
      | Bits _, Loc () ->
        assert !cnBV;
        let addr =
-         if BT.equal (IT.get_bt t) Memory.uintptr_bt then
+         if BT.equal (get_bt t) Memory.uintptr_bt then
            smt_term
          else
-           bv_cast ~to_:Memory.uintptr_bt ~from:(IT.get_bt t) smt_term
+           bv_cast ~to_:Memory.uintptr_bt ~from:(get_bt t) smt_term
        in
        CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
      | Integer, Loc () ->
@@ -1025,7 +1026,7 @@ let rec translate_term s iterm =
      | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term
      | Integer, Real -> SMT.int_to_real smt_term
-     | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(IT.get_bt t) smt_term
+     | Bits _, Bits _ -> bv_cast ~to_:cbt ~from:(get_bt t) smt_term
      (* TODO: may have to eventually add bv/integer casts *)
      | _ -> assert false)
   | CN_None t -> CN_Option.none (translate_base_type t)
@@ -1264,7 +1265,7 @@ let make globals variable_bindings =
 (* Models *)
 (* ---------------------------------------------------------------------------*)
 
-type model = IT.t -> IT.t option
+type model = Terms.Normal.t -> Terms.Normal.t option
 
 type model_with_q = model * (Sym.t * BaseTypes.t) list
 
@@ -1314,7 +1315,7 @@ module TryHard = struct
   let translate_forall solver qs body =
     let alpha_rename qs body =
       let comb (s1, bt) (qs1, body1) =
-        let s2, body2 = IT.alpha_rename s1 body1 in
+        let s2, body2 = Terms.Normal.alpha_rename s1 body1 in
         ((s2, bt) :: qs1, body2)
       in
       List.fold_right comb qs ([], body)
@@ -1373,18 +1374,18 @@ let _unused_try_hard = (TryHard.translate_functions, TryHard.translate_foralls)
 (** Goals are translated to this type *)
 type reduction =
   { qs : (Sym.t * BT.t) list; (* quantifier instantiation *)
-    expr : IT.t; (* translation of goal *)
-    extra : IT.t list (* additional assumptions *)
+    expr : Terms.Normal.t; (* translation of goal *)
+    extra : Terms.Normal.t list (* additional assumptions *)
   }
 
 (** TODO: maybe we should not have `extra` any more. *)
 let reduce_goal assumptions = function
   | LC.T expr -> { expr; qs = []; extra = [] }
   | Forall ((s, bt), expr) ->
-    let s, expr = IT.alpha_rename s expr in
+    let s, expr = Terms.Normal.alpha_rename s expr in
     let mk_extra = function
       | LC.Forall ((s', bt'), expr') when BT.equal bt bt' ->
-        Some (IT.subst (make_rename ~from:s' ~to_:s) expr')
+        Some Terms.Normal.(subst (make_rename ~from:s' ~to_:s) expr')
       | _ -> None
     in
     let extra = List.filter_map mk_extra (LC.Set.elements assumptions) in

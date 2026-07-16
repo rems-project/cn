@@ -893,7 +893,7 @@ module Make (AD : Domain.T) = struct
     let get_function_calls (fn_def : Definition.Function.t) : Sym.Set.t =
       match fn_def.Definition.Function.body with
       | Definition.Function.Def body | Definition.Function.Rec_Def body ->
-        IT.preds_of body
+        Terms.preds_of body
       | Definition.Function.Uninterp -> Sym.Set.empty
     in
     let module G = Graph.Persistent.Digraph.Concrete (Sym) in

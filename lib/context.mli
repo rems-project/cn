@@ -4,7 +4,7 @@ val pp_l_info : Pp.document -> l_info -> Pp.document
 
 type basetype_or_value =
   | BaseType of BaseTypes.t
-  | Value of IndexTerms.t
+  | Value of Terms.Normal.t
 
 val bt_of : basetype_or_value -> BaseTypes.t
 
@@ -45,13 +45,13 @@ val add_a_binding : Sym.t -> basetype_or_value -> l_info -> t -> t
 
 val add_a : Sym.t -> BaseTypes.t -> l_info -> t -> t
 
-val add_a_value : Sym.t -> IndexTerms.t -> l_info -> t -> t
+val add_a_value : Sym.t -> Terms.Normal.t -> l_info -> t -> t
 
 val add_l_binding : Sym.t -> basetype_or_value -> l_info -> t -> t
 
 val add_l : Sym.t -> BaseTypes.t -> l_info -> t -> t
 
-val add_l_value : Sym.t -> IndexTerms.t -> l_info -> t -> t
+val add_l_value : Sym.t -> Terms.Normal.t -> l_info -> t -> t
 
 val remove_a : Sym.t -> t -> t
 

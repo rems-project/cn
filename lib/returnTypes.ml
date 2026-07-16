@@ -1,5 +1,5 @@
 open Locations
-module IT = IndexTerms
+module T = Terms.Normal
 module LRT = LogicalReturnTypes
 
 type t = Computational of (Sym.t * BaseTypes.t) * info * LRT.t
@@ -13,7 +13,7 @@ let rec subst (substitution : _ Subst.t) at =
     Computational ((name, bt), info, LRT.subst substitution t)
 
 
-and alpha_rename_ ~from ~to_ t = (to_, subst (IT.make_rename ~from ~to_) t)
+and alpha_rename_ ~from ~to_ t = (to_, subst (T.make_rename ~from ~to_) t)
 
 and alpha_rename from t =
   let to_ = Sym.fresh_same from in
