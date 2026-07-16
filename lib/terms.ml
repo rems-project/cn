@@ -140,7 +140,6 @@ let get_term (IT (t, _, _)) = t
 
 let get_loc (IT (_, _, l)) = l
 
-
 let rec pp_pattern (Pat (pat_, _bt, _)) =
   match pat_ with
   | PSym s -> Sym.pp s
@@ -557,7 +556,9 @@ let rec free_vars_bts bt_equals (it : 'a annot) : 'bt Sym.Map.t =
       | (pat, body) :: cases ->
         let bound = Sym.Set.of_list (List.map fst (bound_by_pattern pat)) in
         let more =
-          Sym.Map.filter (fun x _ -> not (Sym.Set.mem x bound)) (free_vars_bts bt_equals body)
+          Sym.Map.filter
+            (fun x _ -> not (Sym.Set.mem x bound))
+            (free_vars_bts bt_equals body)
         in
         aux
           (Sym.Map.union
@@ -595,23 +596,37 @@ let free_vars bt_equals (it : 'a annot) : Sym.Set.t =
 
 
 let free_vars_list bt_equals (its : 'a annot list) : Sym.Set.t =
-  its |> free_vars_bts_list bt_equals |> Sym.Map.bindings |> List.map fst |> Sym.Set.of_list
+  its
+  |> free_vars_bts_list bt_equals
+  |> Sym.Map.bindings
+  |> List.map fst
+  |> Sym.Set.of_list
 
 
-let free_vars_with_rename (bt_equal : 'bt -> 'bt -> bool) (t_or_rename : [`Term of 'bt annot | `Rename of Sym.t]) = 
+let free_vars_with_rename
+      (bt_equal : 'bt -> 'bt -> bool)
+      (t_or_rename : [ `Term of 'bt annot | `Rename of Sym.t ])
+  =
   match t_or_rename with
   | `Term t -> free_vars bt_equal t
   | `Rename s -> Sym.Set.singleton s
 
 
-let make_rename bt_equal ~from ~to_ = Subst.make (free_vars_with_rename bt_equal) [ (from, `Rename to_) ]
+let make_rename bt_equal ~from ~to_ =
+  Subst.make (free_vars_with_rename bt_equal) [ (from, `Rename to_) ]
+
 
 let make_subst bt_equal assoc =
-  Subst.make (free_vars_with_rename bt_equal) (List.map (fun (s, t) -> (s, `Term t)) assoc)
+  Subst.make
+    (free_vars_with_rename bt_equal)
+    (List.map (fun (s, t) -> (s, `Term t)) assoc)
 
 
-
-let rec subst bteq (su : [ `Term of 'bt annot | `Rename of Sym.t ] Subst.t) (IT (it, bt, loc)) =
+let rec subst
+          bteq
+          (su : [ `Term of 'bt annot | `Rename of Sym.t ] Subst.t)
+          (IT (it, bt, loc))
+  =
   match it with
   | Sym sym ->
     (match List.assoc_opt Sym.equal sym su.replace with
@@ -620,28 +635,32 @@ let rec subst bteq (su : [ `Term of 'bt annot | `Rename of Sym.t ] Subst.t) (IT 
          ()
        else
          failwith
-           ("ill-typed substitution: "
-            ^ Pp.plain (Pp.list pp [ IT (it, bt, loc); after ]));
+           ("ill-typed substitution: " ^ Pp.plain (Pp.list pp [ IT (it, bt, loc); after ]));
        after
      | Some (`Rename sym) -> IT (Sym sym, bt, loc)
      | None -> IT (Sym sym, bt, loc))
   | Const const -> IT (Const const, bt, loc)
   | Unop (uop, it) -> IT (Unop (uop, subst bteq su it), bt, loc)
   | Binop (bop, t1, t2) -> IT (Binop (bop, subst bteq su t1, subst bteq su t2), bt, loc)
-  | ITE (it, it', it'') -> IT (ITE (subst bteq su it, subst bteq su it', subst bteq su it''), bt, loc)
+  | ITE (it, it', it'') ->
+    IT (ITE (subst bteq su it, subst bteq su it', subst bteq su it''), bt, loc)
   | EachI ((i1, (s, s_bt), i2), t) ->
     let s, t = suitably_alpha_rename bteq su.relevant s t in
     IT (EachI ((i1, (s, s_bt), i2), subst bteq su t), bt, loc)
   | Tuple its -> IT (Tuple (List.map (subst bteq su) its), bt, loc)
   | NthTuple (n, it') -> IT (NthTuple (n, subst bteq su it'), bt, loc)
-  | Struct (tag, members) -> IT (Struct (tag, List.map_snd (subst bteq su) members), bt, loc)
+  | Struct (tag, members) ->
+    IT (Struct (tag, List.map_snd (subst bteq su) members), bt, loc)
   | StructMember (t, m) -> IT (StructMember (subst bteq su t, m), bt, loc)
-  | StructUpdate ((t, m), v) -> IT (StructUpdate ((subst bteq su t, m), subst bteq su v), bt, loc)
+  | StructUpdate ((t, m), v) ->
+    IT (StructUpdate ((subst bteq su t, m), subst bteq su v), bt, loc)
   | Record members -> IT (Record (List.map_snd (subst bteq su) members), bt, loc)
   | RecordMember (t, m) -> IT (RecordMember (subst bteq su t, m), bt, loc)
-  | RecordUpdate ((t, m), v) -> IT (RecordUpdate ((subst bteq su t, m), subst bteq su v), bt, loc)
+  | RecordUpdate ((t, m), v) ->
+    IT (RecordUpdate ((subst bteq su t, m), subst bteq su v), bt, loc)
   | Cast (cbt, t) -> IT (Cast (cbt, subst bteq su t), bt, loc)
-  | MemberShift (t, tag, member) -> IT (MemberShift (subst bteq su t, tag, member), bt, loc)
+  | MemberShift (t, tag, member) ->
+    IT (MemberShift (subst bteq su t, tag, member), bt, loc)
   | ArrayShift { base; ct; index } ->
     IT (ArrayShift { base = subst bteq su base; ct; index = subst bteq su index }, bt, loc)
   | CopyAllocId { addr; loc = ptr } ->
@@ -649,7 +668,8 @@ let rec subst bteq (su : [ `Term of 'bt annot | `Rename of Sym.t ] Subst.t) (IT 
   | HasAllocId ptr -> IT (HasAllocId (subst bteq su ptr), bt, loc)
   | SizeOf t -> IT (SizeOf t, bt, loc)
   | OffsetOf (tag, member) -> IT (OffsetOf (tag, member), bt, loc)
-  | Aligned t -> IT (Aligned { t = subst bteq su t.t; align = subst bteq su t.align }, bt, loc)
+  | Aligned t ->
+    IT (Aligned { t = subst bteq su t.t; align = subst bteq su t.align }, bt, loc)
   | Representable (rt, t) -> IT (Representable (rt, subst bteq su t), bt, loc)
   | Good (rt, t) -> IT (Good (rt, subst bteq su t), bt, loc)
   | WrapI (ity, t) -> IT (WrapI (ity, subst bteq su t), bt, loc)
@@ -658,7 +678,8 @@ let rec subst bteq (su : [ `Term of 'bt annot | `Rename of Sym.t ] Subst.t) (IT 
   | Head it -> IT (Head (subst bteq su it), bt, loc)
   | Tail it -> IT (Tail (subst bteq su it), bt, loc)
   | MapConst (arg_bt, t) -> IT (MapConst (arg_bt, subst bteq su t), bt, loc)
-  | MapSet (t1, t2, t3) -> IT (MapSet (subst bteq su t1, subst bteq su t2, subst bteq su t3), bt, loc)
+  | MapSet (t1, t2, t3) ->
+    IT (MapSet (subst bteq su t1, subst bteq su t2, subst bteq su t3), bt, loc)
   | MapGet (it, arg) -> IT (MapGet (subst bteq su it, subst bteq su arg), bt, loc)
   | MapDef ((s, abt), body) ->
     let s, body = suitably_alpha_rename bteq su.relevant s body in

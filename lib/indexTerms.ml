@@ -22,7 +22,6 @@ module Surface = struct
   let inj x = map_annot BaseTypes.Surface.inj x
 end
 
-
 let pp ?(prec = 0) = pp ~prec
 
 let pp_with_typf f it = Pp.typ (pp it) (f (get_bt it))
@@ -48,18 +47,25 @@ let preds_of t =
 
 let json it : Yojson.Safe.t = `String (Pp.plain (pp it))
 
-
 let subst = subst BT.equal
-let alpha_rename = alpha_rename BT.equal
-let suitably_alpha_rename = suitably_alpha_rename BT.equal
-let make_subst = make_subst BT.equal
-let make_rename = make_rename BT.equal
-let free_vars_bts = free_vars_bts BT.equal
-let free_vars_bts_list = free_vars_bts_list BT.equal
-let free_vars = free_vars BT.equal
-let free_vars_list = free_vars_list BT.equal
-let free_vars_with_rename = free_vars_with_rename BT.equal
 
+let alpha_rename = alpha_rename BT.equal
+
+let suitably_alpha_rename = suitably_alpha_rename BT.equal
+
+let make_subst = make_subst BT.equal
+
+let make_rename = make_rename BT.equal
+
+let free_vars_bts = free_vars_bts BT.equal
+
+let free_vars_bts_list = free_vars_bts_list BT.equal
+
+let free_vars = free_vars BT.equal
+
+let free_vars_list = free_vars_list BT.equal
+
+let free_vars_with_rename = free_vars_with_rename BT.equal
 
 let is_const = function
   | IT (Const const, bt, _loc) -> Option.Some (const, bt)
@@ -621,9 +627,6 @@ let good_value = value_check `Good
 let representable = value_check `Representable
 
 let good_pointer = value_check_pointer `Good
-
-
-
 
 module Bounds = struct
   let get_lower_bound_opt ((x, bt) : Sym.t * BT.t) (it : t) : t option =
