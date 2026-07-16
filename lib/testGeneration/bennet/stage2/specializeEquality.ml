@@ -6,8 +6,7 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t)
-    : (Term.t * T.t) option
+  let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * T.t) option
     =
     let rec aux (gt : Term.t) : (Term.t * T.t) option =
       let open Option in

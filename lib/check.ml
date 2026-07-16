@@ -201,8 +201,7 @@ and check_struct
   return (IT.struct_ (tag, member_its) loc)
 
 
-and check_union (_loc : Locations.t) (_tag : Sym.t) (_id : Id.t) (_mv : mem_value)
-  : T.t m
+and check_union (_loc : Locations.t) (_tag : Sym.t) (_id : Id.t) (_mv : mem_value) : T.t m
   =
   Cerb_debug.error "todo: union types"
 

@@ -64,8 +64,7 @@ module Predicate = struct
     let open Cerb_frontend.Pp_ast in
     Dnode
       ( pp_ctor "pred",
-        dtree_of_name pred.name :: T.dtree pred.pointer :: List.map T.dtree pred.iargs
-      )
+        dtree_of_name pred.name :: T.dtree pred.pointer :: List.map T.dtree pred.iargs )
 end
 
 let make_alloc pointer = Predicate.{ name = alloc; pointer; iargs = [] }

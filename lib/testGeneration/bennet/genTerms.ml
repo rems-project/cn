@@ -240,8 +240,8 @@ module Make (GT : T) = struct
              ^^^ Sym.pp i
              ^^ semi
              ^^^ T.pp it_perm
-             ^^ c_comment
-                  (T.pp it_min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ T.pp it_max))
+             ^^ c_comment (T.pp it_min ^^ !^" <= " ^^ Sym.pp i ^^ !^" <= " ^^ T.pp it_max)
+            )
       ^^ braces (c_comment (BT.pp bt) ^^ nest 2 (break 1 ^^ pp gt_inner) ^^ break 1)
     | `PickSizedElab (choice_var, wgts) ->
       !^"pick"

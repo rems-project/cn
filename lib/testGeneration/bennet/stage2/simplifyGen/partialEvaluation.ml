@@ -2,7 +2,6 @@ module BT = BaseTypes
 module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
-
 open Terms
 
 module Make (AD : Domain.T) = struct
@@ -360,8 +359,7 @@ module Make (AD : Domain.T) = struct
         (match List.assoc_opt Sym.equal fsym prog5.logical_predicates with
          | Some { args; body = Def it_body; _ } | Some { args; body = Rec_Def it_body; _ }
            ->
-           return
-           @@ T.subst (T.make_subst (List.combine (List.map fst args) its)) it_body
+           return @@ T.subst (T.make_subst (List.combine (List.map fst args) its)) it_body
          | Some { body = Uninterp; _ } ->
            Error ("Function " ^ Sym.pp_string fsym ^ " is uninterpreted")
          | None -> Error ("Function " ^ Sym.pp_string fsym ^ " was not found"))

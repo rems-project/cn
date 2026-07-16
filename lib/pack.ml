@@ -68,8 +68,7 @@ let packing_ft ~full loc global provable ret =
                 let m_value_s, m_value =
                   IT.fresh_named (Memory.bt_of_sct mct) (Id.get_string member) loc
                 in
-                ( LRT.Resource
-                    ((m_value_s, (request, T.get_bt m_value)), (loc, None), lrt),
+                ( LRT.Resource ((m_value_s, (request, T.get_bt m_value)), (loc, None), lrt),
                   (member, m_value) :: value )
               | None ->
                 let padding_ct = Sctypes.Array (Sctypes.char_ct, Some size) in
@@ -86,8 +85,7 @@ let packing_ft ~full loc global provable ret =
                 let padding_s, padding =
                   IT.fresh_named (Memory.bt_of_sct padding_ct) "padding" loc
                 in
-                ( LRT.Resource
-                    ((padding_s, (request, T.get_bt padding)), (loc, None), lrt),
+                ( LRT.Resource ((padding_s, (request, T.get_bt padding)), (loc, None), lrt),
                   value ))
            layout
            (LRT.I, [])

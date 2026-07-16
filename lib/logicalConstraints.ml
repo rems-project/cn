@@ -70,7 +70,8 @@ let is_sym_lhs_equality = function
 
 let is_sym_equality t =
   match is_sym_lhs_equality t with
-  | Some (s, rhs) -> (match Terms.is_sym rhs with Some (s', _) -> Some (s, s') | _ -> None)
+  | Some (s, rhs) ->
+    (match Terms.is_sym rhs with Some (s', _) -> Some (s, s') | _ -> None)
   | _ -> None
 
 

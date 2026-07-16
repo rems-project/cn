@@ -171,7 +171,10 @@ type 'TY expr_ =
   | Eaction of 'TY paction
   | Eskip
   | Eccall of
-      act * 'TY pexpr * 'TY pexpr list * (Locations.t * Terms.Normal.t Cnprog.t list) option
+      act
+      * 'TY pexpr
+      * 'TY pexpr list
+      * (Locations.t * Terms.Normal.t Cnprog.t list) option
   | Eproc of Sym.t generic_name * 'TY pexpr list
   | Elet of 'TY pattern * 'TY pexpr * 'TY expr
   | Eunseq of 'TY expr list

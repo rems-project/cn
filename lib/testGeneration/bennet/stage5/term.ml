@@ -17,8 +17,7 @@ module Make (AD : Domain.T) = struct
       type 'recur ast =
         [ `Arbitrary (** Generate arbitrary values *)
         | `Symbolic (** Generate symbolic values *)
-        | `ArbitrarySpecialized of
-            (T.t option * T.t option) * (T.t option * T.t option)
+        | `ArbitrarySpecialized of (T.t option * T.t option) * (T.t option * T.t option)
           (** Generate arbitrary values: ((min_inc, min_ex), (max_inc, max_ex)) *)
         | `ArbitraryDomain of AD.Relative.t (** Generate arbitrary values from domain *)
         | `PickSized of (Z.t * 'recur annot) list

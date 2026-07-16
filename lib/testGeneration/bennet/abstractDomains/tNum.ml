@@ -568,11 +568,7 @@ module TristateBasis = struct
         print_endline
           Pp.(
             plain
-              (T.pp it
-               ^^^ pp t1
-               ^^ parens (BT.pp t1.bt)
-               ^^^ pp t2
-               ^^ parens (BT.pp t2.bt)));
+              (T.pp it ^^^ pp t1 ^^ parens (BT.pp t1.bt) ^^^ pp t2 ^^ parens (BT.pp t2.bt)));
         failwith __LOC__);
       forward_abs_binop op t1 t2
     | Unop (op, _) ->

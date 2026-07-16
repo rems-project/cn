@@ -85,10 +85,7 @@ module C_vars : sig
 
   val add : (Sym.t * state) list -> env -> env
 
-  val add_pointee_values
-    :  (Terms.Surface.t * Terms.Surface.t) list ->
-    env ->
-    env
+  val add_pointee_values : (Terms.Surface.t * Terms.Surface.t) list -> env -> env
 end
 
 val expr

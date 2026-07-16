@@ -73,7 +73,8 @@ let mk_local_ptr state src_loc =
 
 let is_local_ptr ptr =
   Option.bind (Terms.is_pred_ ptr) (function
-    | name, [ ix ] when Sym.equal name local_sym_ptr -> Option.map Z.to_int (Terms.is_z ix)
+    | name, [ ix ] when Sym.equal name local_sym_ptr ->
+      Option.map Z.to_int (Terms.is_z ix)
     | _ -> None)
 
 
@@ -137,10 +138,7 @@ let rec is_const_num = function
   | IT (Binop (binop, x, y), _, _) ->
     is_const_num x
     && is_const_num y
-    &&
-      (match binop with
-      | Add | Sub | Mul | Div | Exp | Rem | Mod -> true
-      | _ -> false)
+    && (match binop with Add | Sub | Mul | Div | Exp | Rem | Mod -> true | _ -> false)
   | _ -> false
 
 
@@ -328,11 +326,15 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
      | OpMul, _, Some (`Two_loc two_loc, `Exp exp) ->
        let exp_loc = Terms.get_loc y_v in
        return
-         (IT.mul_ (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc) loc)
+         (IT.mul_
+            (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
+            loc)
      | OpDiv, _, Some (`Two_loc two_loc, `Exp exp) ->
        let exp_loc = Terms.get_loc y_v in
        return
-         (IT.div_ (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc) loc)
+         (IT.div_
+            (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
+            loc)
      | _, _, _ ->
        let@ res = simp_const_pe (f x_v y_v) in
        return res)
@@ -417,7 +419,8 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | IOpSub -> IT.sub_ (x, y) loc
       | IOpMul -> IT.mul_ (x, y) loc
       | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (Terms.get_bt x) y here) loc
-      | IOpShr -> IT.arith_binop Terms.ShiftRight (x, IT.cast_ (Terms.get_bt x) y here) loc
+      | IOpShr ->
+        IT.arith_binop Terms.ShiftRight (x, IT.cast_ (Terms.get_bt x) y here) loc
       | IOpDiv -> failwith "TODO division operator"
       | IOpRem_t -> failwith "TODO remainder operator"
     in

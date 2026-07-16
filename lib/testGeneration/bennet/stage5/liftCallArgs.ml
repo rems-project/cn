@@ -21,8 +21,7 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let lift_iargs (iargs : T.t list) (loc : Locations.t) : (Sym.t * T.t) list * T.t list
-    =
+  let lift_iargs (iargs : T.t list) (loc : Locations.t) : (Sym.t * T.t) list * T.t list =
     let lets, iargs' =
       iargs
       |> List.map (fun it ->

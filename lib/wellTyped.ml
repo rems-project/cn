@@ -626,8 +626,7 @@ module WT = struct
           | EQ -> (return (), BT.Bool)
           | LTPointer | LEPointer ->
             (ensure_base_type loc ~expect:(Loc ()) (T.get_bt t), BT.Bool)
-          | And | Or | Implies ->
-            (ensure_base_type loc ~expect:Bool (T.get_bt t), BT.Bool)
+          | And | Or | Implies -> (ensure_base_type loc ~expect:Bool (T.get_bt t), BT.Bool)
           | SetUnion | SetIntersection | SetDifference ->
             (ensure_set_type ~reason:loc t, T.get_bt t)
           | Subset -> (ensure_set_type ~reason:loc t, BT.Bool)
@@ -2296,11 +2295,7 @@ module BaseTyping = struct
         | E_Everything -> return ()
       in
       let@ it = WT.infer it in
-      warn_when_not_quantifier_bt
-        "focus"
-        (T.get_loc it)
-        (T.get_bt it)
-        (T.pp it);
+      warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it);
       return (Extract (attrs, to_extract, it))
     | Unfold (f, its) ->
       let@ def = get_logical_function_def loc f in

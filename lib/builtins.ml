@@ -120,7 +120,8 @@ let is_null_def : builtin_fn_def =
 let has_alloc_id_def =
   ( "has_alloc_id",
     Sym.fresh "has_alloc_id",
-    mk_arg1 (fun p loc' -> Terms.Surface.inj @@ IT.hasAllocId_ (Terms.Surface.proj p) loc') )
+    mk_arg1 (fun p loc' ->
+      Terms.Surface.inj @@ IT.hasAllocId_ (Terms.Surface.proj p) loc') )
 
 
 let ptr_eq_def : builtin_fn_def =

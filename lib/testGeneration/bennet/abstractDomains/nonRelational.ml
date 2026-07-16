@@ -224,9 +224,7 @@ module Make (B : BASIS) = struct
        (* De Morgan's Law *)
        | IT (Binop (And, e1, e2), info, loc) ->
          Binop
-           ( Or,
-             cnf (IT (Unop (Not, e1), info, loc)),
-             cnf (IT (Unop (Not, e2), info, loc)) )
+           (Or, cnf (IT (Unop (Not, e1), info, loc)), cnf (IT (Unop (Not, e2), info, loc)))
        | IT (Binop (Or, e1, e2), info, loc) ->
          Binop
            ( And,
@@ -485,9 +483,7 @@ module Make (B : BASIS) = struct
                 (b_res
                  :: List.map
                       (fun (it, t) ->
-                         Option.value
-                           ~default:(B.top (T.get_bt it))
-                           (Option.map tree_b t))
+                         Option.value ~default:(B.top (T.get_bt it)) (Option.map tree_b t))
                       (List.combine its ts))
             in
             assert (List.length bs = List.length ts);

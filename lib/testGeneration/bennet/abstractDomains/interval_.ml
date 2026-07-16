@@ -305,11 +305,7 @@ module IntervalBasis = struct
         print_endline
           Pp.(
             plain
-              (T.pp it
-               ^^^ pp b1
-               ^^ parens (BT.pp b1.bt)
-               ^^^ pp b2
-               ^^ parens (BT.pp b2.bt)));
+              (T.pp it ^^^ pp b1 ^^ parens (BT.pp b1.bt) ^^^ pp b2 ^^ parens (BT.pp b2.bt)));
         failwith __LOC__);
       forward_abs_binop op b1 b2
     | Cast (_, _) ->

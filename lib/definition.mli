@@ -44,7 +44,10 @@ module Clause : sig
 
   val subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> t -> t
 
-  val lrt : Terms.Normal.t -> Terms.Normal.t LogicalArgumentTypes.t -> LogicalReturnTypes.t
+  val lrt
+    :  Terms.Normal.t ->
+    Terms.Normal.t LogicalArgumentTypes.t ->
+    LogicalReturnTypes.t
 
   val explicit_negative_guards : t list -> t list
 

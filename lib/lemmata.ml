@@ -402,7 +402,10 @@ let it_adjust (global : Global.t) it =
     | Terms.Binop (Implies, x, y) ->
       let x = f x in
       let y = f y in
-      if Terms.is_false x || Terms.is_true y then IT.bool_ true loc else IT.impl_ (x, y) loc
+      if Terms.is_false x || Terms.is_true y then
+        IT.bool_ true loc
+      else
+        IT.impl_ (x, y) loc
     | Terms.EachI ((i1, (s, bt), i2), x) ->
       let x = f x in
       let s, x, vs = alpha_rename_if_pp_same s x in
@@ -441,7 +444,9 @@ let it_adjust (global : Global.t) it =
     | _ -> t
   in
   let res = f it in
-  Pp.debug 9 (lazy (Pp.item "it_adjust" (binop "->" (Terms.Normal.pp it) (Terms.Normal.pp res))));
+  Pp.debug
+    9
+    (lazy (Pp.item "it_adjust" (binop "->" (Terms.Normal.pp it) (Terms.Normal.pp res))));
   f it
 
 

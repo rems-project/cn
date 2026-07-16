@@ -13,7 +13,6 @@ module RT = ReturnTypes
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 module OE = Ownership
-
 open Terms
 
 let getter_str filename sym =
@@ -1090,12 +1089,12 @@ let rec cn_to_ail_expr_aux
     
     assign/return/assert/passback b
     *)
-    let mk_int_const n = (IT (Const (Z (Z.of_int n)), bt', Cerb_location.unknown)) in
+    let mk_int_const n = IT (Const (Z (Z.of_int n)), bt', Cerb_location.unknown) in
     let start_const_it = mk_int_const r_start in
     let end_const_it = mk_int_const r_end in
     let end_sym = Sym.fresh_anon () in
     let end_it = IT.sym_ (end_sym, bt', Cerb_location.unknown) in
-    let incr_var = (IT (Sym sym, bt', Cerb_location.unknown)) in
+    let incr_var = IT (Sym sym, bt', Cerb_location.unknown) in
     let _, _, start_int_const =
       cn_to_ail_expr_aux
         filename
@@ -1118,9 +1117,7 @@ let rec cn_to_ail_expr_aux
         end_const_it
         PassBack
     in
-    let while_cond_it =
-      (IT (Binop (LT, incr_var, end_it), bt', Cerb_location.unknown))
-    in
+    let while_cond_it = IT (Binop (LT, incr_var, end_it), bt', Cerb_location.unknown) in
     let _, _, while_cond =
       cn_to_ail_expr_aux
         filename
@@ -2150,27 +2147,25 @@ let generate_datatype_equality_function (filename : string) (cn_datatype : _ cn_
           Ne,
           mk_expr (AilEmemberofptr (mk_expr (AilEident param2_sym), id_tag)) ))
   in
-  let false_it = (IT (Const (Z (Z.of_int 0)), BT.Bool, Cerb_location.unknown)) in
+  let false_it = IT (Const (Z (Z.of_int 0)), BT.Bool, Cerb_location.unknown) in
   (* Adds conversion function *)
   let _, _, e1 = cn_to_ail_expr filename [] [] None false_it PassBack in
   let return_false = A.(AilSreturn e1) in
   let rec generate_equality_expr members sym1 sym2 =
     match members with
-    | [] -> (IT (Const (Z (Z.of_int 1)), BT.Bool, Cerb_location.unknown))
+    | [] -> IT (Const (Z (Z.of_int 1)), BT.Bool, Cerb_location.unknown)
     | (id, cn_bt) :: ms ->
-      let sym1_it = (IT (Sym sym1, BT.(Loc ()), Cerb_location.unknown)) in
-      let sym2_it = (IT (Sym sym2, BT.(Loc ()), Cerb_location.unknown)) in
+      let sym1_it = IT (Sym sym1, BT.(Loc ()), Cerb_location.unknown) in
+      let sym2_it = IT (Sym sym2, BT.(Loc ()), Cerb_location.unknown) in
       let lhs =
-        (
-          IT (StructMember (sym1_it, id), cn_base_type_to_bt cn_bt, Cerb_location.unknown))
+        IT (StructMember (sym1_it, id), cn_base_type_to_bt cn_bt, Cerb_location.unknown)
       in
       let rhs =
-        (
-          IT (StructMember (sym2_it, id), cn_base_type_to_bt cn_bt, Cerb_location.unknown))
+        IT (StructMember (sym2_it, id), cn_base_type_to_bt cn_bt, Cerb_location.unknown)
       in
-      let eq_it = (IT (Binop (EQ, lhs, rhs), BT.Bool, Cerb_location.unknown)) in
+      let eq_it = IT (Binop (EQ, lhs, rhs), BT.Bool, Cerb_location.unknown) in
       let remaining = generate_equality_expr ms sym1 sym2 in
-      (IT (Binop (And, eq_it, remaining), BT.Bool, Cerb_location.unknown))
+      IT (Binop (And, eq_it, remaining), BT.Bool, Cerb_location.unknown)
   in
   let create_case (constructor, members) =
     let enum_str =
@@ -2915,7 +2910,7 @@ let cn_to_ail_struct ((sym, (loc, attrs, tag_def)) : A.sigma_tag_definition)
 
 let get_while_bounds_and_cond (i_sym, i_bt) it =
   (* Translation of q.pointer *)
-  let i_it = IT ((Sym i_sym), i_bt, Cerb_location.unknown) in
+  let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
   (* Start of range *)
   let lower_bound =
     if BT.equal_sign (fst (Option.get (BT.is_bits_bt i_bt))) BT.Unsigned then
@@ -2977,11 +2972,10 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
       let one_const =
         match BT.is_bits_bt i_bt with
         | Some (sign, n) ->
-          (
-            IT
-              ( Const (Bits ((sign, n), Z.of_int 1)),
-                BT.(Bits (sign, n)),
-                Cerb_location.unknown ))
+          IT
+            ( Const (Bits ((sign, n), Z.of_int 1)),
+              BT.(Bits (sign, n)),
+              Cerb_location.unknown )
         | None -> IT.int_ 1 Cerb_location.unknown
       in
       (* need to make it an explicit < check rather than <= for optimisation that asserts ownership over contiguous memory in one go -- assumes particular shape of bounds *)
@@ -3056,7 +3050,7 @@ let cn_to_ail_resource
     fn_prefix ^ ct_str
   in
   let enum_sym = sym_of_spec_mode_opt spec_mode_opt in
-  let it_zero_const = (IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown)) in
+  let it_zero_const = IT (Const (Z (Z.of_int 0)), BT.Unit, Cerb_location.unknown) in
   let ail_zero_const_expr_ =
     A.(AilEconst (ConstantInteger (IConstant (Z.of_int 0, Decimal, None))))
   in
@@ -3070,11 +3064,11 @@ let cn_to_ail_resource
         ownership_ctypes := Sctypes.to_ctype sct :: !ownership_ctypes;
         let owned_fn_name = generate_owned_fn_name ~without_ownership_checking sct in
         (* Hack with enum as sym *)
-        let enum_val_get = (IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
+        let enum_val_get = IT (Sym enum_sym, BT.Integer, Cerb_location.unknown) in
         let loop_ownership_arg =
           match loop_ownership_sym_opt with
           | Some loop_ownership_sym ->
-            (IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown))
+            IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown)
           | None -> it_zero_const
         in
         let fn_call_it =
@@ -3174,7 +3168,7 @@ let cn_to_ail_resource
     let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
     let return_ctype, _return_bt = calculate_resource_return_type preds loc q.name in
     (* Translation of q.pointer *)
-    let i_it = IT ((Sym i_sym), i_bt, Cerb_location.unknown) in
+    let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
       IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
@@ -3198,13 +3192,13 @@ let cn_to_ail_resource
         let owned_or_deref_fn_name =
           generate_owned_fn_name ~without_ownership_checking:permission_only_bounds sct
         in
-        let ptr_add_it = (IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
+        let ptr_add_it = IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown) in
         (* Hack with enum as sym *)
-        let enum_val_get = (IT (Sym enum_sym, BT.Integer, Cerb_location.unknown)) in
+        let enum_val_get = IT (Sym enum_sym, BT.Integer, Cerb_location.unknown) in
         let loop_ownership_arg =
           match loop_ownership_sym_opt with
           | Some loop_ownership_sym ->
-            (IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown))
+            IT (Sym loop_ownership_sym, BT.Integer, Cerb_location.unknown)
           | None -> it_zero_const
         in
         let fn_call_it =
@@ -5398,7 +5392,7 @@ let cn_to_ail_assume_resource
     let end_assign = A.(AilSdeclaration [ (end_sym, Some e_end) ]) in
     let return_ctype, _return_bt = calculate_return_type q.name in
     (* Translation of q.pointer *)
-    let i_it = IT ((Sym i_sym), i_bt, Cerb_location.unknown) in
+    let i_it = IT (Sym i_sym, i_bt, Cerb_location.unknown) in
     let value_it =
       IT.arrayShift_ ~base:q.pointer ~index:i_it q.step Cerb_location.unknown
     in
@@ -5416,7 +5410,7 @@ let cn_to_ail_assume_resource
         let owned_fn_name =
           "assume_" ^ generate_owned_fn_name ~without_ownership_checking sct
         in
-        let ptr_add_it = (IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown)) in
+        let ptr_add_it = IT (Sym ptr_add_sym, BT.(Loc ()), Cerb_location.unknown) in
         (* Hack with enum as sym *)
         let fn_call_it =
           IT

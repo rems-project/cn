@@ -763,13 +763,9 @@ let rec translate_term s iterm =
         | _ -> failwith "Mod")
      | ModNoSMT -> uninterp_same_type CN_Names.mod'
      | BW_Xor ->
-       (match get_bt iterm with
-        | BT.Bits _ -> SMT.bv_xor s1 s2
-        | _ -> failwith "BW_Xor")
+       (match get_bt iterm with BT.Bits _ -> SMT.bv_xor s1 s2 | _ -> failwith "BW_Xor")
      | BW_And ->
-       (match get_bt iterm with
-        | BT.Bits _ -> SMT.bv_and s1 s2
-        | _ -> failwith "BW_And")
+       (match get_bt iterm with BT.Bits _ -> SMT.bv_and s1 s2 | _ -> failwith "BW_And")
      | BW_Or ->
        (match get_bt iterm with BT.Bits _ -> SMT.bv_or s1 s2 | _ -> failwith "BW_Or")
      (* Shift amount should be positive? *)

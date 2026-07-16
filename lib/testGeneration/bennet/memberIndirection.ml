@@ -155,7 +155,9 @@ module Make (GT : GenTerms.T) = struct
         in
         let indirect_map =
           List.map_snd (fun _ -> Sym.fresh_anon ()) items_to_indirect
-          @ List.map (fun (i, it) -> (i, fst (Option.get (Terms.is_sym it)))) items_to_leave
+          @ List.map
+              (fun (i, it) -> (i, fst (Option.get (Terms.is_sym it))))
+              items_to_leave
         in
         let k = Tuple (List.map snd indirect_map) in
         let gt_main =

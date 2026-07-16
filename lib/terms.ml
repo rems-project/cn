@@ -1002,7 +1002,6 @@ module Surface = struct
 end
 
 module Normal = struct
-
   module BT = BaseTypes
   module CF = Cerb_frontend
 
@@ -1051,5 +1050,4 @@ module Normal = struct
   let get_loc = get_loc
 
   let fold_subterms = fold_subterms
-
 end

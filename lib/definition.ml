@@ -92,16 +92,11 @@ module Clause = struct
 
   let pp { loc = _; guard; packing_ft } =
     let open Pp in
-    item "condition" (T.pp guard)
-    ^^ comma
-    ^^^ item "return type" (LAT.pp T.pp packing_ft)
+    item "condition" (T.pp guard) ^^ comma ^^^ item "return type" (LAT.pp T.pp packing_ft)
 
 
   let subst subst { loc; guard; packing_ft } =
-    { loc;
-      guard = T.subst subst guard;
-      packing_ft = LAT.subst T.subst subst packing_ft
-    }
+    { loc; guard = T.subst subst guard; packing_ft = LAT.subst T.subst subst packing_ft }
 
 
   let lrt (pred_oarg : T.t) clause_packing_ft =

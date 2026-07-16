@@ -47,7 +47,9 @@ let add_one_eq (tab : table) (it : T.t) =
   match T.get_term it with
   | Terms.Binop (Terms.EQ, x, y) -> add_eq_sym (None, x, y) tab
   | Binop (Implies, guard, x) ->
-    (match Terms.is_eq x with Some (y, z) -> add_eq_sym (Some guard, y, z) tab | _ -> tab)
+    (match Terms.is_eq x with
+     | Some (y, z) -> add_eq_sym (Some guard, y, z) tab
+     | _ -> tab)
   | _ -> tab
 
 

@@ -141,9 +141,7 @@ let get_parent_and_size (sct : Sctypes.t) (arg : T.t) loc =
           loc )
     | IT (MemberShift (base, tag, member), _, loc) ->
       aux
-        (IT.pointer_offset_
-           (base, (IT (OffsetOf (tag, member), Memory.size_bt, loc)))
-           loc)
+        (IT.pointer_offset_ (base, IT (OffsetOf (tag, member), Memory.size_bt, loc)) loc)
     | IT (_, _, loc) -> (it, IT.num_lit_ Z.zero Memory.uintptr_bt loc)
   in
   let base, offset = aux arg in

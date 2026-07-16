@@ -347,7 +347,9 @@ let state (ctxt : C.t) log model_with_q extras =
            | Some def, Some cand ->
              let here = Locations.other __LOC__ in
              let ptr_val = Req.get_pointer rt in
-             let ptr_def = (IndexTerms.sym_ (def.pointer, T.get_bt ptr_val, here), ptr_val) in
+             let ptr_def =
+               (IndexTerms.sym_ (def.pointer, T.get_bt ptr_val, here), ptr_val)
+             in
              Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
            | Some _, None ->
              Some
@@ -419,8 +421,7 @@ let trace (ctxt, log) (model_with_q : Solver.model_with_q) (extras : state_extra
        | Owned _ -> []
        | PName pname ->
          let doc_clause (_name, (c : Def.Clause.t)) =
-           Rp.
-             { cond = T.pp c.guard; clause = LogicalArgumentTypes.pp T.pp c.packing_ft }
+           Rp.{ cond = T.pp c.guard; clause = LogicalArgumentTypes.pp T.pp c.packing_ft }
          in
          List.map doc_clause (relevant_predicate_clauses ctxt.global pname req))
   in

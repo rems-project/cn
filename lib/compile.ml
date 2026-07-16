@@ -386,7 +386,8 @@ module C_vars = struct
     | ScopeExists of Locations.t * name * (bool -> 'a t)
     | Value_of_c_variable of
         Locations.t * Sym.t * name option * (Terms.Surface.t option -> 'a t)
-    | Deref of Locations.t * Terms.Surface.t * name option * (Terms.Surface.t option -> 'a t)
+    | Deref of
+        Locations.t * Terms.Surface.t * name option * (Terms.Surface.t option -> 'a t)
 
   module Monad = struct
     type nonrec 'a t = 'a t
@@ -477,8 +478,9 @@ module C_vars = struct
                     { base = Surface.proj e1;
                       ct;
                       index =
-                        IT.(let e2 = Surface.proj e2 in
-                         sub_ (int_lit_ 0 (get_bt e2) here, e2) here)
+                        IT.(
+                          let e2 = Surface.proj e2 in
+                          sub_ (int_lit_ 0 (get_bt e2) here, e2) here)
                     },
                   BT.Loc (),
                   loc ))
@@ -788,8 +790,7 @@ module C_vars = struct
                let end_pos = Option.get @@ Locations.end_pos @@ get_loc v in
                (* cursor for the first update doesn't point to '[' - oh well *)
                let cursor =
-                 Cerb_location.PointCursor
-                   (Option.get @@ Locations.start_pos @@ get_loc i)
+                 Cerb_location.PointCursor (Option.get @@ Locations.start_pos @@ get_loc i)
                in
                return
                  (IT
@@ -1120,9 +1121,11 @@ module C_vars = struct
     let qs = IT.sym_ sym_args in
     let msg_s = "Iterated predicate pointer must be array_shift<ctype>(ptr, q_var):" in
     match Terms.get_term ptr_expr with
-    | Terms.ArrayShift { base = p; ct; index = x } when Terms.equal_annot SBT.equal x qs ->
+    | Terms.ArrayShift { base = p; ct; index = x } when Terms.equal_annot SBT.equal x qs
+      ->
       return (p, ct)
-    | _ -> fail { loc; msg = Generic (!^msg_s ^^^ Terms.pp ptr_expr) [@alert "-deprecated"] }
+    | _ ->
+      fail { loc; msg = Generic (!^msg_s ^^^ Terms.pp ptr_expr) [@alert "-deprecated"] }
 
 
   (* TODO: replace 'good' with 'aligned' *)
@@ -1163,7 +1166,8 @@ module C_vars = struct
           if !BT.cnBV then
             []
           else
-            [ (LC.T (Terms.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
+            [ (LC.T (Terms.Surface.proj (IT.representable_ (ct, pointee) here)), info) ]
+        )
       | _ -> ([], [])
     in
     return (pt, pointee_value, pointee_constrs)
@@ -1237,7 +1241,8 @@ module C_vars = struct
       let@ e2 = cn_expr (Sym.Set.singleton sym) env_with_q e2_ in
       return
         (LC.Forall
-           ((sym, SBT.proj bt), IT.impl_ (Terms.Surface.proj e1, Terms.Surface.proj e2) loc))
+           ( (sym, SBT.proj bt),
+             IT.impl_ (Terms.Surface.proj e1, Terms.Surface.proj e2) loc ))
 
 
   let cn_statement env (loc, (stmt_ : _ Cn.cn_statement_)) =
@@ -1367,7 +1372,9 @@ module Handle = struct
     match Terms.get_bt it with
     | BT.Loc (Some ct) -> return ct
     | BT.Loc None ->
-      let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (Terms.pp it) ^^ Pp.dot in
+      let msg =
+        !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (Terms.pp it) ^^ Pp.dot
+      in
       fail { loc; msg = Generic msg [@alert "-deprecated"] }
     | has ->
       let expected = "pointer" in
