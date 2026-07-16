@@ -19,9 +19,11 @@ module Make (AD : Domain.T) = struct
     with
     | Some name -> name
     | None ->
-      let name =
-        Sym.fresh_make_uniq Pp.(plain (Sym.pp parent ^^ underscore ^^ Id.pp member))
-      in
+      (* Deterministic name (no uniquifying counter) so that codegen consumers which
+         do not share this memo -- notably [SpecTests.convert_from], which reconstructs
+         the whole-struct argument for the function-under-test call -- can compute the
+         same record field name from just the parent symbol and member. *)
+      let name = Sym.fresh Pp.(plain (Sym.pp parent ^^ underscore ^^ Id.pp member)) in
       member_map := (k, name) :: !member_map;
       name
 
@@ -38,20 +40,21 @@ module Make (AD : Domain.T) = struct
     with
     | Some name -> name
     | None ->
-      let name = Sym.fresh_make_uniq Pp.(plain (Sym.pp parent ^^ underscore ^^ int i)) in
+      (* Deterministic name (no uniquifying counter); see [get_member_new_name]. *)
+      let name = Sym.fresh Pp.(plain (Sym.pp parent ^^ underscore ^^ int i)) in
       item_map := (k, name) :: !item_map;
       name
 
 
   type new_args =
-    | Struct of (Id.t * (Sym.t * new_args)) list
+    | Struct of Sym.t * (Id.t * (Sym.t * new_args)) list
     | Record of (Id.t * (Sym.t * new_args)) list
     | Tuple of (Sym.t * new_args) list
     | Leaf of (Sym.t * BT.t)
 
   let rec args_list_of (na : new_args) : (Sym.t * BT.t) list =
     match na with
-    | Struct members ->
+    | Struct (_, members) ->
       members |> List.map snd |> List.map snd |> List.map args_list_of |> List.flatten
     | Record members ->
       members |> List.map snd |> List.map snd |> List.map args_list_of |> List.flatten
@@ -61,10 +64,42 @@ module Make (AD : Domain.T) = struct
 
   let replace_kind_of (na : new_args) : MemberIndirection.kind option =
     match na with
-    | Struct members -> Some (Struct (List.map_snd fst members))
+    | Struct (_, members) -> Some (Struct (List.map_snd fst members))
     | Record members -> Some (Record (List.map_snd fst members))
     | Tuple members -> Some (Tuple (List.map fst members))
     | Leaf _ -> None
+
+
+  (* Rebuild the original (whole-struct/record/tuple) argument value from the
+     destructured leaf symbols, so any reference to the parent symbol that is not
+     a member access (e.g. [valid_state(s)], [Good(struct T, s)]) stays in scope. *)
+  let rec it_of_new_args (na : new_args) (loc : Locations.t) : IT.t =
+    match na with
+    | Struct (tag, members) ->
+      IT.struct_
+        ( tag,
+          List.map (fun (member, (_, na')) -> (member, it_of_new_args na' loc)) members )
+        loc
+    | Record members ->
+      IT.record_
+        (List.map (fun (member, (_, na')) -> (member, it_of_new_args na' loc)) members)
+        loc
+    | Tuple items ->
+      IT.tuple_ (List.map (fun (_, na') -> it_of_new_args na' loc) items) loc
+    | Leaf (sym, bt) -> IT.sym_ (sym, bt, loc)
+
+
+  (* Collect every aggregate node in the tree -- the top-level parent AND every nested
+     struct/record/tuple -- paired with its symbol. Each needs rebinding, because a
+     whole-value reference at any depth (e.g. [valid_inner(s.inner)]) is rewritten by
+     [MemberIndirection] to that node's symbol, which is otherwise neither a leaf iarg
+     nor reconstructed. *)
+  let rec aggregate_rebinds ((x, na) : Sym.t * new_args) : (Sym.t * new_args) list =
+    match na with
+    | Leaf _ -> []
+    | Struct (_, members) | Record members ->
+      (x, na) :: (members |> List.map snd |> List.map aggregate_rebinds |> List.flatten)
+    | Tuple items -> (x, na) :: (items |> List.map aggregate_rebinds |> List.flatten)
 
 
   let transform_iarg (prog5 : unit Mucore.file) ((arg_sym, arg_bt) : Sym.t * BT.t)
@@ -83,7 +118,7 @@ module Make (AD : Domain.T) = struct
                (member, (get_member_new_name arg_sym member, Memory.bt_of_sct sct)))
              |> List.map_snd (fun (sym, bt) -> (sym, aux sym bt))
            in
-           Struct members
+           Struct (tag, members)
          | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found"))
       | BT.Record members ->
         let members =
@@ -109,6 +144,34 @@ module Make (AD : Domain.T) = struct
     : (Sym.t * new_args) list
     =
     List.map (fun (sym, bt) -> (sym, transform_iarg prog5 (sym, bt))) args
+
+
+  (* Destructure a spec parameter's C type in lockstep with its [new_args] tree, so
+     [c_types] keeps an entry for each destructured leaf argument. The leaf symbols
+     come from [na] (i.e. the actual new iargs); the C types come from the struct
+     definition. C parameters are never CN records/tuples. *)
+  let rec c_types_of_new_args (prog5 : unit Mucore.file) (na : new_args) ct
+    : (Sym.t * Cerb_frontend.Ctype.ctype) list
+    =
+    match na with
+    | Leaf (sym, _bt) -> [ (sym, ct) ]
+    | Struct (tag, members) ->
+      let member_scts =
+        match Pmap.find tag prog5.tagDefs with
+        | StructDef pieces ->
+          pieces
+          |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
+            member_or_padding)
+        | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found")
+      in
+      List.map2
+        (fun (_, (_, na')) (_, member_sct) ->
+           c_types_of_new_args prog5 na' (Sctypes.to_ctype member_sct))
+        members
+        member_scts
+      |> List.flatten
+    | Record _ | Tuple _ ->
+      failwith "destructProducts: unexpected record/tuple C-typed parameter"
 
 
   let transform_it (prog5 : unit Mucore.file) ((it, bt) : IT.t * BT.t) : IT.t list =
@@ -170,7 +233,7 @@ module Make (AD : Domain.T) = struct
     let iargs = xds |> List.map snd |> List.map args_list_of |> List.flatten in
     let rec replace_member_of (tm_rest : Term.t) ((x, na) : Sym.t * new_args) : Term.t =
       match na with
-      | Struct members | Record members ->
+      | Struct (_, members) | Record members ->
         let k = Option.get (replace_kind_of na) in
         List.fold_left
           (fun tm_rest' (_, xna') -> replace_member_of tm_rest' xna')
@@ -185,7 +248,38 @@ module Make (AD : Domain.T) = struct
       | Leaf _ -> tm_rest
     in
     let body = xds |> List.fold_left replace_member_of (transform_gt prog5 ctx gd.body) in
-    { gd with iargs; body }
+    (* Rebind each destructured aggregate argument -- at every nesting depth -- to a value
+       reconstructed from its leaf symbols, so whole-value references (e.g. [valid_state(s)]
+       or [valid_inner(s.inner)]) remain well-scoped. Unused rebindings are dropped by
+       stage2 [RemoveUnused]. *)
+    let loc = Locations.other __LOC__ in
+    let body =
+      xds
+      |> List.map aggregate_rebinds
+      |> List.flatten
+      |> List.fold_left
+           (fun body (x, na) ->
+              Term.let_star_
+                ((x, Term.return_ (it_of_new_args na loc) () loc), body)
+                ()
+                loc)
+           body
+    in
+    let c_types =
+      gd.c_types
+      |> Option.map (fun cts ->
+        cts
+        |> List.map (fun (param_sym, ct) ->
+          match
+            List.find_opt
+              (fun (x, _) -> String.equal (Sym.pp_string x) (Sym.pp_string param_sym))
+              xds
+          with
+          | Some (_, na) -> c_types_of_new_args prog5 na ct
+          | None -> [ (param_sym, ct) ])
+        |> List.flatten)
+    in
+    { gd with iargs; c_types; body }
 
 
   let transform (prog5 : unit Mucore.file) (ctx : Ctx.t) : Ctx.t =

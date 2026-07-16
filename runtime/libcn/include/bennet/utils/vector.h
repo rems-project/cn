@@ -17,7 +17,7 @@ extern "C" {
 
 #define BENNET_VECTOR_DECL(ty)                                                           \
   typedef bennet_vector(ty) {                                                            \
-    ty *data;                                                                            \
+    ty* data;                                                                            \
     size_t size;                                                                         \
     size_t capacity;                                                                     \
   }                                                                                      \
@@ -61,7 +61,7 @@ extern "C" {
       while (cap < new_cap) {                                                            \
         cap *= 2;                                                                        \
       }                                                                                  \
-      ty *new_data = (ty *)realloc(vec->data, cap * sizeof(ty));                         \
+      ty* new_data = (ty*)realloc(vec->data, cap * sizeof(ty));                          \
       assert(new_data != NULL);                                                          \
       vec->data = new_data;                                                              \
       vec->capacity = cap;                                                               \
@@ -82,7 +82,7 @@ extern "C" {
     return vec->data[--vec->size];                                                       \
   }                                                                                      \
                                                                                          \
-  __attribute__((unused)) static inline ty *bennet_vector_get(ty)(                       \
+  __attribute__((unused)) static inline ty* bennet_vector_get(ty)(                       \
       bennet_vector(ty) * vec, size_t idx) {                                             \
     assert(idx < vec->size);                                                             \
     return &vec->data[idx];                                                              \

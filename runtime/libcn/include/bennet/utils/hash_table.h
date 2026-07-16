@@ -106,10 +106,10 @@ BENNET_DEFAULT_EQUALITY_IMPL(size_t)
         cap *= 2;                                                                        \
       }                                                                                  \
                                                                                          \
-      bennet_hash_entry(kty, vty) *old_entries = table->entries;                         \
+      bennet_hash_entry(kty, vty)* old_entries = table->entries;                         \
       size_t old_capacity = table->capacity;                                             \
-      bennet_hash_entry(kty, vty) *new_entries =                                         \
-          (bennet_hash_entry(kty, vty) *)calloc(cap, sizeof(*new_entries));              \
+      bennet_hash_entry(kty, vty)* new_entries =                                         \
+          (bennet_hash_entry(kty, vty)*)calloc(cap, sizeof(*new_entries));               \
       assert(new_entries != NULL);                                                       \
                                                                                          \
       /* Rehash existing entries into new array */                                       \

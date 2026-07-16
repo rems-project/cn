@@ -78,7 +78,7 @@ cn_term* cn_smt_gather_call_function(
 
 // Function calls
 #define CN_SMT_GATHER_CALL(function_symbol, ...)                                         \
-  cn_smt_gather_##function_symbol(branch_hist, __VA_ARGS__)
+  cn_smt_gather_##function_symbol(branch_hist __VA_OPT__(, ) __VA_ARGS__)
 
 // Return values
 #define CN_SMT_GATHER_RETURN(value) return (value);

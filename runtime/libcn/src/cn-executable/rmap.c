@@ -42,7 +42,7 @@ static inline bool res_eq(result_t a, result_t b) {
   return a.min == b.min && a.max == b.max;
 }
 
-static void res_print(FILE *stream, const result_t *a) {
+static void res_print(FILE* stream, const result_t* a) {
   fprintf(stream, "min = %d, max = %d", a->min, a->max);
 }
 
@@ -68,11 +68,11 @@ struct node {
   union {
     rmap_value_t leaf;
     struct {
-      struct node *children;
+      struct node* children;
       result_t qres;
     } inner;
     struct {
-      struct node *child;
+      struct node* child;
       rmap_key_t path;
       bits_t radix;
     } skip;
@@ -86,7 +86,7 @@ struct rmap {
   free_f free;
   struct {
     unsigned short cap;
-    void *chunks[CACHED_NODES];
+    void* chunks[CACHED_NODES];
   } cache;
 };
 
@@ -112,33 +112,33 @@ static inline size_t asize(rmap map) {
   return 1 << map->radix;
 }
 
-static inline struct node *mk_block(rmap map) {
+static inline struct node* mk_block(rmap map) {
   if (map->cache.cap)
     return map->cache.chunks[--map->cache.cap];
   return map->malloc(sizeof(struct node) * asize(map));
 }
 
-static inline void free_block(struct node *xs, rmap map) {
+static inline void free_block(struct node* xs, rmap map) {
   if (map->cache.cap < CACHED_NODES)
     map->cache.chunks[map->cache.cap++] = xs;
   else
     map->free(xs);
 }
 
-static inline struct node *mk_children(const struct node *node, rmap map) {
-  struct node *res = mk_block(map);
+static inline struct node* mk_children(const struct node* node, rmap map) {
+  struct node* res = mk_block(map);
   for (size_t i = 0; i < asize(map); i++)
     res[i] = *node;
   return res;
 }
 
-static inline struct node *mk_child(const struct node *node, rmap map) {
-  struct node *res = mk_block(map);
+static inline struct node* mk_child(const struct node* node, rmap map) {
+  struct node* res = mk_block(map);
   res[0] = *node;
   return res;
 }
 
-static void drop_node(struct node *node, rmap map) {
+static void drop_node(struct node* node, rmap map) {
   if (node->state == INNER) {
     for (size_t i = 0; i < asize(map); i++)
       drop_node(&node->inner.children[i], map);
@@ -196,7 +196,7 @@ static inline rmap_key_t max_k(rmap_key_t a, rmap_key_t b) {
 
 rmap_value_t rmap_find(rmap_key_t k, rmap map) {
   bits_t radix = map->radix, bits = 0;
-  struct node *node = &map->root;
+  struct node* node = &map->root;
   while (bits <= KEY_BITS)
     switch (node->state) {
       case EMPTY:
@@ -221,7 +221,7 @@ rmap_value_t rmap_find(rmap_key_t k, rmap map) {
 
 #define res_partial(x) res_append((x), res_none)
 
-static result_t node_inject(const struct node *n) {
+static result_t node_inject(const struct node* n) {
   switch (n->state) {
     case EMPTY:
       return res_none;
@@ -237,7 +237,7 @@ static result_t node_inject(const struct node *n) {
 }
 
 static result_t find_range(
-    bits_t bits, rmap_key_t k0, rmap_key_t k1, const struct node *node, rmap map) {
+    bits_t bits, rmap_key_t k0, rmap_key_t k1, const struct node* node, rmap map) {
   switch (node->state) {
     case EMPTY:
       return res_none;
@@ -251,7 +251,7 @@ static result_t find_range(
       result_t acc;
       bits += map->radix;
       for (size_t i = i0; i <= i1; ++i) {
-        struct node *n = &node->inner.children[i];
+        struct node* n = &node->inner.children[i];
         result_t v;
         if (i == i0 && i == i1)
           v = find_range(bits, k0, k1, n, map);
@@ -295,7 +295,7 @@ rmap_range_res_t rmap_find_range(rmap_key_t k0, rmap_key_t k1, rmap map) {
   return find_range(0, k0, k1, &map->root, map);
 }
 
-static inline bool eq_fringe_node(const struct node *n1, const struct node *n2) {
+static inline bool eq_fringe_node(const struct node* n1, const struct node* n2) {
   switch (n1->state) {
     case EMPTY:
       return n2->state == EMPTY;
@@ -306,22 +306,22 @@ static inline bool eq_fringe_node(const struct node *n1, const struct node *n2) 
   }
 }
 
-static struct node *children_to_child(struct node *children, size_t i, rmap map) {
+static struct node* children_to_child(struct node* children, size_t i, rmap map) {
   assert(i < asize(map));
-  struct node *child = mk_child(&children[i], map);
+  struct node* child = mk_child(&children[i], map);
   free_block(children, map);
   return child;
 }
 
-static struct node *child_to_children(struct node *child, size_t i, rmap map) {
+static struct node* child_to_children(struct node* child, size_t i, rmap map) {
   assert(i < asize(map));
-  struct node *children = mk_children(&EMPTY_NODE, map);
+  struct node* children = mk_children(&EMPTY_NODE, map);
   children[i] = child[0];
   free_block(child, map);
   return children;
 }
 
-static bool skip_to_radix(struct node *node, rmap map) {
+static bool skip_to_radix(struct node* node, rmap map) {
   assert(node->state == SKIP);
   if (node->skip.radix > map->radix) {
     bits_t rx1 = node->skip.radix - map->radix;
@@ -333,7 +333,7 @@ static bool skip_to_radix(struct node *node, rmap map) {
   return false;
 }
 
-static struct node new_skip(struct node *child, rmap_key_t path, bits_t rx, rmap map) {
+static struct node new_skip(struct node* child, rmap_key_t path, bits_t rx, rmap map) {
   struct node c = *child;
   if (c.state == SKIP) {
     c.skip.path |= (path << c.skip.radix);
@@ -348,7 +348,7 @@ static struct node new_skip(struct node *child, rmap_key_t path, bits_t rx, rmap
 
 #define NOWHERE (-1UL)
 
-static struct node new_inner(struct node *children, result_t *q, bool skip, rmap map) {
+static struct node new_inner(struct node* children, result_t* q, bool skip, rmap map) {
   struct node node;
 
   if (q)
@@ -389,8 +389,8 @@ static struct node new_inner(struct node *children, result_t *q, bool skip, rmap
 static void put_leaf(bits_t bits,
     rmap_key_t k0,
     rmap_key_t k1,
-    const struct node *newn,
-    struct node *node,
+    const struct node* newn,
+    struct node* node,
     rmap map) {
   assert(bits <= KEY_BITS);
   assert(newn->state == EMPTY || newn->state == LEAF);
@@ -404,7 +404,7 @@ static void put_leaf(bits_t bits,
     return;
   }
 
-  struct node *children;
+  struct node* children;
 
   if (node->state == EMPTY || node->state == LEAF)
     children = mk_children(node, map);
@@ -555,7 +555,7 @@ typedef struct {
 } ctx_t;
 
 static void dump_node(
-    FILE *stream, rmap_key_t addr, bits_t bits, struct node node, ctx_t *ctx, rmap map) {
+    FILE* stream, rmap_key_t addr, bits_t bits, struct node node, ctx_t* ctx, rmap map) {
   rmap_key_t k0 = min_key(bits, addr), k1 = max_key(bits, addr);
   int depth = bits / map->radix;
   if (ctx->compress && node.state == EMPTY)
@@ -618,7 +618,7 @@ static void dump_node(
   }
 }
 
-void dump(FILE *stream, bool compress, rmap map) {
+void dump(FILE* stream, bool compress, rmap map) {
   ctx_t ctx = {.compress = compress};
   if (map->root.state == EMPTY)
     fprintf(stream, "ø\n");

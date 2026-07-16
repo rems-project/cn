@@ -7,7 +7,7 @@
 
 #define BENNET_DOMAIN_PRODUCT_BUILTIN_DECLS(cty)                                         \
   cty bennet_domain_ownership_wint_arbitrary_##cty(                                      \
-      bennet_domain_ownership(cty) *, bennet_domain_wint(cty) *);
+      bennet_domain_ownership(cty)*, bennet_domain_wint(cty)*);
 
 BENNET_DOMAIN_PRODUCT_BUILTIN_DECLS(int8_t)
 BENNET_DOMAIN_PRODUCT_BUILTIN_DECLS(int16_t)

@@ -634,11 +634,9 @@ let main
           "typedef __cerbty_uintptr_t uintptr_t;\n";
           "typedef __cerbty_intmax_t intmax_t;\n";
           "typedef __cerbty_uintmax_t uintmax_t;\n";
-          (* TODO need to inject definitions for all the __cerbvars in cerberus
-             builtins.lem. Hoisting/lowering doesn't affect needing to do this *)
-          "static const int __cerbvar_INT_MAX = 0x7fffffff;\n";
-          "static const int __cerbvar_INT_MIN = ~0x7fffffff;\n";
-          "static const unsigned long long __cerbvar_SIZE_MAX = ~(0ULL);\n";
+          (* TODO cerb_types.h only defines the __cerbvars from cerberus
+             builtins.lem needed so far; add the rest to gen_cerb_types.c.
+             Hoisting/lowering doesn't affect needing to do this *)
           "_Noreturn void abort(void);"
         ];
         [ c_tag_defs ];
@@ -773,7 +771,7 @@ let main
   output_to_oc
     oc
     [ "#ifndef offsetof\n";
-      "#define offsetof(st, m) ((__cerbty_size_t)((char *)&((st *)0)->m - (char *)0))\n";
+      "#define offsetof(st, m) ((__cerbty_size_t)__builtin_offsetof(st, m))\n";
       "#endif\n"
     ];
   output_string oc "#pragma GCC diagnostic ignored \"-Wattributes\"\n";

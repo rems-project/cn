@@ -163,17 +163,18 @@ module Make (AD : Domain.T) = struct
         in
         res @ res' @ loop (Sym.Set.add sym vars) syms' stmts''
       | [] ->
+        (* All variables in scope (iargs + every spine LetStar) are in [vars] by
+           now, so every well-scoped statement has already been placed in [res].
+           A non-empty [stmts'] means some Asgn/Assert references a symbol bound
+           neither as an input arg nor by a spine LetStar - an out-of-scope
+           reference produced by an upstream pass. Fail loud rather than drop it
+           (silent unsoundness) or append it (ill-scoped code downstream). *)
         if List.non_empty stmts' then
-          print_endline
-            (match stmts' with
-             | [ Stmt (Assert lc, _) ] ->
+          failwith
+            (Pp.plain
                Pp.(
-                 LC.free_vars lc
-                 |> Sym.Set.to_seq
-                 |> List.of_seq
-                 |> separate_map (comma ^^ space) Sym.pp
-                 |> plain)
-             | _ -> "ss");
+                 string "reorder: unschedulable statements: "
+                 ^^ separate_map (comma ^^ space) Stmt.pp stmts'));
         res
     in
     let syms = get_variable_ordering rec_fsyms iargs stmts in
