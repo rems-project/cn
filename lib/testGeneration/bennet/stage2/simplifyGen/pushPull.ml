@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
@@ -17,7 +18,7 @@ module Make (AD : Domain.T) = struct
            let z = Sym.fresh_anon () in
            let gt4 =
              Term.subst
-               (IT.make_subst
+               (T.make_subst
                   [ (y, IT.sym_ (z, Term.basetype gt3, Locations.other __LOC__)) ])
                gt4
            in

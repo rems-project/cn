@@ -1,13 +1,13 @@
 module CF = Cerb_frontend
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module LRT = LogicalReturnTypes
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
 
 let rec add_records_to_map_from_it it =
-  match IT.get_term it with
-  | IT.Sym _s -> ()
+  match T.get_term it with
+  | Terms.Sym _s -> ()
   | Const c -> (match c with Default bt -> Cn_to_ail.augment_record_map bt | _ -> ())
   | Unop (_uop, t1) -> add_records_to_map_from_it t1
   | Binop (_bop, t1, t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]
@@ -21,7 +21,7 @@ let rec add_records_to_map_from_it it =
   | StructUpdate ((t1, _member), t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]
   | Record members ->
     (* Anonymous record instantiation -> add to records map *)
-    Cn_to_ail.augment_record_map (IT.get_bt it);
+    Cn_to_ail.augment_record_map (T.get_bt it);
     List.iter (fun (_, it') -> add_records_to_map_from_it it') members
   | RecordMember (t, _member) -> add_records_to_map_from_it t
   | RecordUpdate ((t1, _member), t2) -> List.iter add_records_to_map_from_it [ t1; t2 ]

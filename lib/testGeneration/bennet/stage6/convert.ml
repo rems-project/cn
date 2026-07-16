@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 module StringMap = Map.Make (String)
@@ -75,7 +76,7 @@ module Make (AD : Domain.T) = struct
         let gt_rest = aux vars path_vars gt_rest in
         GenTerms.Annot (`AssertDomain (ad, gt_rest), (path_vars, last_var), bt, loc)
       | `ITE (it_if, gt_then, gt_else) ->
-        let path_vars = Sym.Set.union path_vars (IT.free_vars it_if) in
+        let path_vars = Sym.Set.union path_vars (T.free_vars it_if) in
         let gt_then = aux vars path_vars gt_then in
         let gt_else = aux vars path_vars gt_else in
         Annot (`ITE (it_if, gt_then, gt_else), (path_vars, last_var), bt, loc)

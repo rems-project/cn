@@ -12,9 +12,9 @@ let pp_l_info doc (l : l_info) =
 
 type basetype_or_value =
   | BaseType of BT.t
-  | Value of IndexTerms.t
+  | Value of Terms.Normal.t
 
-let bt_of = function BaseType bt -> bt | Value v -> IndexTerms.get_bt v
+let bt_of = function BaseType bt -> bt | Value v -> Terms.Normal.get_bt v
 
 let has_value = function BaseType _ -> false | Value _ -> true
 
@@ -46,7 +46,7 @@ let get_rs (ctxt : t) = ctxt.resources
 
 let pp_basetype_or_value = function
   | BaseType bt -> BaseTypes.pp bt
-  | Value it -> IndexTerms.pp it
+  | Value it -> Terms.Normal.pp it
 
 
 let pp_variable_bindings bindings =

@@ -2,6 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
@@ -446,7 +447,7 @@ let compile_it
       filename
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
-      (it : IT.t)
+      (it : T.t)
   =
   CtA.cn_to_ail_expr_toplevel
     filename
@@ -462,7 +463,7 @@ let owned_sct_call
       (sigma : CF.GenTypes.genTypeCategory A.sigma)
       (prog5 : unit Mucore.file)
       (sct : Sctypes.t)
-      (pointer : IT.t)
+      (pointer : T.t)
   : A.bindings
     * CF.GenTypes.genTypeCategory A.statement_ list
     * CF.GenTypes.genTypeCategory A.expression
@@ -564,7 +565,7 @@ let compile_lat
     match lat with
     | Define ((x, it), _, lat') ->
       let b1, s1, e = compile_it filename sigma prog5 it in
-      let b2 = [ Utils.create_binding x (bt_to_ctype (IT.get_bt it)) ] in
+      let b2 = [ Utils.create_binding x (bt_to_ctype (T.get_bt it)) ] in
       let s2 = A.[ AilSdeclaration [ (x, Some e) ] ] in
       let b3, s3 = aux lat' in
       (b1 @ b2 @ b3, s1 @ s2 @ s3)
@@ -596,7 +597,7 @@ let compile_clauses
     : A.bindings * CF.GenTypes.genTypeCategory A.statement_ list
     =
     let aux_it it =
-      if BT.equal (IT.get_bt it) BT.Unit then
+      if BT.equal (T.get_bt it) BT.Unit then
         ([], [ A.AilSreturnVoid ])
       else (
         let b, s, e = compile_it filename sigma prog5 it in
@@ -604,7 +605,7 @@ let compile_clauses
     in
     match cls with
     | [ cl ] ->
-      assert (IT.is_true cl.guard);
+      assert (Terms.is_true cl.guard);
       compile_lat ~f:aux_it filename sigma prog5 cl.packing_ft
     | cl :: cls' ->
       let b_if, s_if, e_if = compile_it filename sigma prog5 cl.guard in
@@ -731,7 +732,7 @@ let compile_spec
   let lat =
     LAT.subst
       (fun _ x -> x)
-      (IT.make_subst
+      (T.make_subst
          (List.map
             (fun (x, y) ->
                (x, IT.sym_ (y, fst (List.assoc Sym.equal x args), Locations.other __LOC__)))

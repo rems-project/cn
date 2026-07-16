@@ -1,10 +1,10 @@
 module Function : sig
   type body =
-    | Def of IndexTerms.t
-    | Rec_Def of IndexTerms.t
+    | Def of Terms.Normal.t
+    | Rec_Def of Terms.Normal.t
     | Uninterp
 
-  val subst_body : [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> body -> body
+  val subst_body : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> body -> body
 
   type t =
     { loc : Locations.t;
@@ -24,11 +24,11 @@ module Function : sig
 
   val pp : Pp.document -> t -> Pp.document
 
-  val open_ : (Sym.t * 'a) list -> IndexTerms.t -> IndexTerms.t list -> IndexTerms.t
+  val open_ : (Sym.t * 'a) list -> Terms.Normal.t -> Terms.Normal.t list -> Terms.Normal.t
 
-  val unroll_once : t -> IndexTerms.t list -> IndexTerms.t option
+  val unroll_once : t -> Terms.Normal.t list -> Terms.Normal.t option
 
-  val try_open : t -> IndexTerms.t list -> IndexTerms.t option
+  val try_open : t -> Terms.Normal.t list -> Terms.Normal.t option
 
   val is_interesting : t -> bool
 end
@@ -36,15 +36,18 @@ end
 module Clause : sig
   type t =
     { loc : Locations.t;
-      guard : IndexTerms.t;
+      guard : Terms.Normal.t;
       packing_ft : LogicalArgumentTypes.packing_ft
     }
 
   val pp : t -> Pp.document
 
-  val subst : [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> t -> t
+  val subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> t -> t
 
-  val lrt : IndexTerms.t -> IndexTerms.t LogicalArgumentTypes.t -> LogicalReturnTypes.t
+  val lrt
+    :  Terms.Normal.t ->
+    Terms.Normal.t LogicalArgumentTypes.t ->
+    LogicalReturnTypes.t
 
   val explicit_negative_guards : t list -> t list
 
@@ -68,13 +71,13 @@ module Predicate : sig
 
   val pp : t -> Pp.document
 
-  val instantiate : t -> IndexTerms.t -> IndexTerms.t list -> Clause.t list option
+  val instantiate : t -> Terms.Normal.t -> Terms.Normal.t list -> Clause.t list option
 
   val identify_right_clause
     :  (LogicalConstraints.t -> [< `False | `True ]) ->
     t ->
-    IndexTerms.t ->
-    IndexTerms.t list ->
+    Terms.Normal.t ->
+    Terms.Normal.t list ->
     Clause.t option
 
   val given_to_solver : t -> bool

@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -72,7 +73,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
                let callee_constraint = AD.to_lc callee_d in
                (* Create substitution: formal_param -> actual_arg *)
                let subst =
-                 IT.make_subst
+                 T.make_subst
                    (List.map2
                       (fun (formal_sym, _) actual_arg -> (formal_sym, actual_arg))
                       callee_gd.iargs
@@ -134,7 +135,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
           let d' = I.abs_assert (LC.T it_if) d in
           aux abs_ctx defs_ctx gt_then d' should_assert
         in
-        let not_it_if = IT.not_ it_if (IT.get_loc it_if) in
+        let not_it_if = IT.not_ it_if (T.get_loc it_if) in
         let gt_else, d_else_list =
           let d' = I.abs_assert (LC.T not_it_if) d in
           aux abs_ctx defs_ctx gt_else d' should_assert

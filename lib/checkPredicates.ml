@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module Req = Request
 module Loc = Locations
 module LAT = LogicalArgumentTypes
@@ -75,7 +75,7 @@ end
 (* Type of nonterminal lines in a predicate clause.
    Corresponds to packing_ft *)
 type def_line =
-  | DefineL of (Sym.t * IT.t) * Loc.info
+  | DefineL of (Sym.t * T.t) * Loc.info
   | ResourceL of (Sym.t * (Req.t * BT.t)) * Loc.info
 
 (* Takes in:
@@ -112,11 +112,11 @@ let map_from_lists f eq exps exps' =
 
 (* Match an expression with free variables against a candidate returned by the solver to
    get candidates for each of those free variables *)
-let rec get_var_cands (exp : IT.t) (candidate : IT.t)
-  : (IT.t Sym.Map.t, Pp.document) Result.t
+let rec get_var_cands (exp : T.t) (candidate : T.t)
+  : (T.t Sym.Map.t, Pp.document) Result.t
   =
   let open Pp in
-  let map_from_IT_lists = map_from_lists get_var_cands IT.equal in
+  let map_from_IT_lists = map_from_lists get_var_cands T.equal in
   let sort_by_discard_fst compare l =
     List.map snd (List.sort (fun p1 p2 -> compare (fst p1) (fst p2)) l)
   in
@@ -133,15 +133,15 @@ let rec get_var_cands (exp : IT.t) (candidate : IT.t)
   in
   let default =
     Result.unknown
-      (!^"Different CN constructors for " ^^^ IT.pp exp ^^^ !^" and " ^^^ IT.pp candidate)
+      (!^"Different CN constructors for " ^^^ T.pp exp ^^^ !^" and " ^^^ T.pp candidate)
   in
-  match (IT.get_term exp, IT.get_term candidate) with
-  | Const c, Const c' -> map_with_guard_no (IT.equal_const c c') [] []
+  match (T.get_term exp, T.get_term candidate) with
+  | Const c, Const c' -> map_with_guard_no (Terms.equal_const c c') [] []
   | Sym v, _' -> Result.return (Sym.Map.add v candidate Sym.Map.empty)
   | Unop (op, exp1), Unop (op', exp1') ->
-    map_with_guard_unknown (IT.equal_unop op op') [ exp1 ] [ exp1' ]
+    map_with_guard_unknown (Terms.equal_unop op op') [ exp1 ] [ exp1' ]
   | Binop (op, exp1, exp2), Binop (op', exp1', exp2') ->
-    map_with_guard_unknown (IT.equal_binop op op') [ exp1; exp2 ] [ exp1'; exp2' ]
+    map_with_guard_unknown (Terms.equal_binop op op') [ exp1; exp2 ] [ exp1'; exp2' ]
   | ITE (exp1, exp2, exp3), ITE (exp1', exp2', exp3') ->
     map_from_IT_lists [ exp1; exp2; exp3 ] [ exp1'; exp2'; exp3' ]
   | EachI ((z1, (v, bty), z2), exp1), EachI ((z1', (v', bty'), z2'), exp1') ->
@@ -255,7 +255,7 @@ let rec organize_lines_aux
           (lines : LAT.packing_ft)
           (defs : def_line Sym.Map.t)
           (lcs : LC.t list)
-  : IT.t * def_line Sym.Map.t * LC.t list
+  : T.t * def_line Sym.Map.t * LC.t list
   =
   match lines with
   | Define ((v, it), i, next) ->
@@ -271,7 +271,7 @@ let rec organize_lines_aux
 
 
 (* Sort lines into the returned expression, a map of variables to their defining lines, and a list of constraints *)
-let organize_lines (lines : LAT.packing_ft) : IT.t * def_line Sym.Map.t * LC.t list =
+let organize_lines (lines : LAT.packing_ft) : T.t * def_line Sym.Map.t * LC.t list =
   organize_lines_aux lines Sym.Map.empty []
 
 
@@ -289,7 +289,7 @@ let ask_solver g lcs =
       ~solver:s
       ~assumptions:(LC.Set.of_list lcs)
       ~simp_ctxt
-      (LC.T (IT.bool_ false here))
+      (LC.T (IndexTerms.bool_ false here))
   in
   let res =
     match solver_res with
@@ -305,30 +305,30 @@ let ask_solver g lcs =
   res
 
 
-let pair_to_lc (ps : IT.t * IT.t) : LogicalConstraints.t =
+let pair_to_lc (ps : T.t * T.t) : LogicalConstraints.t =
   let here = Locations.other __LOC__ in
-  LC.T (IT.eq_ (fst ps, snd ps) here)
+  LC.T (IndexTerms.eq_ (fst ps, snd ps) here)
 
 
 (* convert a list of variable assignments to equality constraints *)
-let convert_symmap_to_lcs (m : IT.t Sym.Map.t) : LogicalConstraints.t list =
+let convert_symmap_to_lcs (m : T.t Sym.Map.t) : LogicalConstraints.t list =
   let here = Locations.other __LOC__ in
   let kvs = Sym.Map.bindings m in
-  List.map (fun (k, v) -> pair_to_lc (IT.IT (IT.Sym k, IT.get_bt v, here), v)) kvs
+  List.map (fun (k, v) -> pair_to_lc (Terms.IT (Terms.Sym k, T.get_bt v, here), v)) kvs
 
 
 (* check if a candidate term could have been the output of a given predicate *)
 let rec check_pred
           (name : Sym.t)
           (def : Def.Predicate.t)
-          (candidate : IT.t)
+          (candidate : T.t)
           (ctxt : C.t)
-          (iarg_vals : IT.t list)
-          (term_vals : (IT.t * IT.t) list)
+          (iarg_vals : T.t list)
+          (term_vals : (T.t * T.t) list)
   : (LC.t list, Pp.document) Result.t
   =
   (* ensure candidate type matches output type of predicate *)
-  assert (BT.equal (IT.get_bt candidate) (snd def.oarg));
+  assert (BT.equal (T.get_bt candidate) (snd def.oarg));
   let open Pp in
   match def.clauses with
   | None -> Result.unknown (!^"Predicate" ^^^ Sym.pp name ^^^ !^"is uninterpreted. ")
@@ -347,11 +347,11 @@ let rec check_pred
 (* check if a candidate term could have been the output of a predicate clause *)
 and check_clause
       (c : Def.Clause.t)
-      (candidate : IT.t)
+      (candidate : T.t)
       (ctxt : C.t)
       (iargs : (Sym.t * BT.t) list)
-      (iarg_vals : IT.t list)
-      (term_vals : (IT.t * IT.t) list)
+      (iarg_vals : T.t list)
+      (term_vals : (T.t * T.t) list)
   =
   let open Result in
   let zipped = List.combine (List.map fst iargs) iarg_vals in
@@ -384,12 +384,12 @@ and check_clause
 
 (* get a list of constraints that are satisfiable iff candidate could have come from this clause body *)
 and get_body_constraints
-      (exp : IT.t)
+      (exp : T.t)
       (var_def_locs : def_line Sym.Map.t)
-      (candidate : IT.t)
+      (candidate : T.t)
       (ctxt : C.t)
       (iargs : (Sym.t * BT.t) list)
-      (term_vals : (IT.t * IT.t) list)
+      (term_vals : (T.t * T.t) list)
   =
   let open Result in
   let f var_cands =
@@ -414,7 +414,7 @@ and get_body_constraints
   | Error (Unknown, e) ->
     let here = Locations.other __LOC__ in
     let res =
-      match ask_solver ctxt.global [ LC.T (IT.eq_ (exp, candidate) here) ] with
+      match ask_solver ctxt.global [ LC.T (IndexTerms.eq_ (exp, candidate) here) ] with
       | Ok _ ->
         (* not using model to get var cands because it may overconstrain *)
         return ([], Sym.Map.empty)
@@ -427,12 +427,12 @@ and get_body_constraints
 
 and get_var_constraints
       (v : Sym.t)
-      (v_cand : IT.t)
-      (var_cands : IT.t Sym.Map.t)
+      (v_cand : T.t)
+      (var_cands : T.t Sym.Map.t)
       (var_def_locs : def_line Sym.Map.t)
       (ctxt : C.t)
       (iargs : (Sym.t * BT.t) list)
-      (term_vals : (IT.t * IT.t) list)
+      (term_vals : (T.t * T.t) list)
   =
   let open Pp in
   let open Result in

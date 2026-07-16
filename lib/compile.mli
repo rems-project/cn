@@ -32,8 +32,8 @@ type message =
   | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
   | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
   | Illtyped_binary_it of
-      { left : IndexTerms.Surface.t;
-        right : IndexTerms.Surface.t;
+      { left : Terms.Surface.t;
+        right : Terms.Surface.t;
         binop : Cerb_frontend.Cn.cn_binop
       }
   | First_iarg_missing
@@ -42,7 +42,7 @@ type message =
         found_bty : BaseTypes.t
       }
   | Datatype_repeated_member of Id.t
-  | No_pointee_ctype of IndexTerms.Surface.t
+  | No_pointee_ctype of Terms.Surface.t
   | Each_quantifier_not_numeric of Sym.t * BaseTypes.Surface.t
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
 
@@ -65,7 +65,7 @@ val add_datatypes : env -> Sym.t Cerb_frontend.Cn.cn_datatype list -> env Or_Err
 module C_vars : sig
   type state =
     | Value of Sym.t * BaseTypes.Surface.t
-    | Points_to of IndexTerms.Surface.t
+    | Points_to of Terms.Surface.t
 
   type name
 
@@ -85,10 +85,7 @@ module C_vars : sig
 
   val add : (Sym.t * state) list -> env -> env
 
-  val add_pointee_values
-    :  (IndexTerms.Surface.t * IndexTerms.Surface.t) list ->
-    env ->
-    env
+  val add_pointee_values : (Terms.Surface.t * Terms.Surface.t) list -> env -> env
 end
 
 val expr
@@ -96,7 +93,7 @@ val expr
   env ->
   C_vars.env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_expr ->
-  IndexTerms.Surface.t Or_Error.t
+  Terms.Surface.t Or_Error.t
 
 val let_resource
   :  env ->
@@ -104,7 +101,7 @@ val let_resource
   Sym.t * (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_resource ->
   ((Request.t * BaseTypes.Surface.t)
   * (LogicalConstraints.t * (Locations.t * string option)) list
-  * (IndexTerms.Surface.t * IndexTerms.Surface.t) list)
+  * (Terms.Surface.t * Terms.Surface.t) list)
     Or_Error.t
 
 val assrt
@@ -124,7 +121,7 @@ val ownership
   (Cerb_frontend__Symbol.sym
   * ((Request.t * BaseTypes.Surface.t)
     * (LogicalConstraints.t * (Locations.t * string option)) list)
-  * BaseTypes.Surface.t IndexTerms.annot)
+  * BaseTypes.Surface.t Terms.annot)
     Or_Error.t
 
 val allocation_token
@@ -163,4 +160,4 @@ val expr_ghost
   C_vars.named_scopes ->
   env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_expr ->
-  IndexTerms.Surface.t Cnprog.t Or_Error.t
+  Terms.Surface.t Cnprog.t Or_Error.t

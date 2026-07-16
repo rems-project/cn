@@ -10,7 +10,7 @@ module LC = LogicalConstraints
 module Req = Request
 module Mu = Mucore
 module RT = ReturnTypes
-module STermMap = Map.Make (IndexTerms.Surface)
+module STermMap = Map.Make (Terms.Surface)
 module StringMap = Map.Make (String)
 open Pp.Infix
 
@@ -221,8 +221,8 @@ type message =
   | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
   | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
   | Illtyped_binary_it of
-      { left : IndexTerms.Surface.t;
-        right : IndexTerms.Surface.t;
+      { left : Terms.Surface.t;
+        right : Terms.Surface.t;
         binop : Cerb_frontend.Cn.cn_binop
       }
   | First_iarg_missing
@@ -231,7 +231,7 @@ type message =
         found_bty : BaseTypes.t
       }
   | Datatype_repeated_member of Id.t
-  | No_pointee_ctype of IndexTerms.Surface.t
+  | No_pointee_ctype of Terms.Surface.t
   | Each_quantifier_not_numeric of Sym.t * BaseTypes.Surface.t
   | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
 
@@ -267,7 +267,7 @@ let convert_enum_expr =
         else
           return BT.Integer
       in
-      return (IT.Surface.inj (IT.num_lit_ z bt loc))
+      return (Terms.Surface.inj (IT.num_lit_ z bt loc))
     | c -> fail { loc; msg = Cannot_convert_enum_const c }
   in
   let rec conv_expr_ e1 loc = function
@@ -333,12 +333,12 @@ module C_vars = struct
   (* the expression that encodes the current value of this c variable *)
   type state =
     | Value of Sym.t * SBT.t (* currently the variable is a pure value, this one *)
-    | Points_to of IT.Surface.t
+    | Points_to of Terms.Surface.t
   (* currently the variable is a pointer to memory holding this value *)
 
   type scope =
     { var_state : state Sym.Map.t;
-      pointee_values : IT.Surface.t STermMap.t
+      pointee_values : Terms.Surface.t STermMap.t
     }
 
   let empty_state = { var_state = Sym.Map.empty; pointee_values = STermMap.empty }
@@ -385,8 +385,9 @@ module C_vars = struct
     | Error of err
     | ScopeExists of Locations.t * name * (bool -> 'a t)
     | Value_of_c_variable of
-        Locations.t * Sym.t * name option * (IT.Surface.t option -> 'a t)
-    | Deref of Locations.t * IT.Surface.t * name option * (IT.Surface.t option -> 'a t)
+        Locations.t * Sym.t * name option * (Terms.Surface.t option -> 'a t)
+    | Deref of
+        Locations.t * Terms.Surface.t * name option * (Terms.Surface.t option -> 'a t)
 
   module Monad = struct
     type nonrec 'a t = 'a t
@@ -448,7 +449,7 @@ module C_vars = struct
   (* TODO: type checks and disambiguation at this stage seems ill-advised,
      ideally would be integrated into wellTyped.ml *)
   let mk_binop loc bop (e1, e2) =
-    let open IndexTerms in
+    let open Terms in
     match (bop, get_bt e1) with
     | Cn.CN_add, (BT.Integer | Real | Bits _) ->
       return (IT (Binop (Add, e1, e2), get_bt e1, loc))
@@ -477,8 +478,9 @@ module C_vars = struct
                     { base = Surface.proj e1;
                       ct;
                       index =
-                        (let e2 = Surface.proj e2 in
-                         sub_ (int_lit_ 0 (IT.get_bt e2) here, e2) here)
+                        IT.(
+                          let e2 = Surface.proj e2 in
+                          sub_ (int_lit_ 0 (get_bt e2) here, e2) here)
                     },
                   BT.Loc (),
                   loc ))
@@ -507,7 +509,7 @@ module C_vars = struct
            !^"CN pointer equality is not the same as C's (will not warn again). Please \
               use `ptr_eq` or `is_null` (maybe `addr_eq`)."
        | _, _, _ -> ());
-      return (not_ (IT (Binop (EQ, e1, e2), BT.Bool, loc)) loc)
+      return IT.(not_ (IT (Binop (EQ, e1, e2), BT.Bool, loc)) loc)
     | CN_lt, (BT.Integer | BT.Real | BT.Bits _) ->
       return (IT (Binop (LT, e1, e2), BT.Bool, loc))
     | CN_lt, BT.Loc _ -> return (IT (Binop (LTPointer, e1, e2), BT.Bool, loc))
@@ -545,8 +547,8 @@ module C_vars = struct
 
 
   (* just copy-pasting and adapting Kayvan's older version of this code *)
-  let member_access loc env (t : IT.Surface.t) member =
-    match IT.get_bt t with
+  let member_access loc env (t : Terms.Surface.t) member =
+    match Terms.get_bt t with
     | BT.Record members ->
       let@ member_bt =
         match List.assoc_opt Id.equal member members with
@@ -559,7 +561,7 @@ module C_vars = struct
       let@ defs_ = lookup_struct loc tag env in
       let@ ty = lookup_member loc (tag, defs_) member in
       let member_bt = Memory.sbt_of_sct ty in
-      return (IT.IT (StructMember (t, member), member_bt, loc))
+      return (Terms.IT (StructMember (t, member), member_bt, loc))
     | has ->
       let expected = "struct" in
       let reason = "struct member access" in
@@ -574,11 +576,11 @@ module C_vars = struct
 
   let rec cn_pat env locally_bound (Cn.CNPat (loc, pat_), bt) =
     match pat_ with
-    | CNPat_wild -> return (env, locally_bound, IT.Pat (PWild, bt, loc))
+    | CNPat_wild -> return (env, locally_bound, Terms.Pat (PWild, bt, loc))
     | CNPat_sym s ->
       let env' = add_logical s bt env in
       let locally_bound' = Sym.Set.add s locally_bound in
-      return (env', locally_bound', IT.Pat (PSym s, bt, loc))
+      return (env', locally_bound', Terms.Pat (PSym s, bt, loc))
     | CNPat_constructor (cons, args) ->
       let@ cons_info = lookup_constr loc cons env in
       let@ env', locally_bound', args =
@@ -598,7 +600,7 @@ module C_vars = struct
           (env, locally_bound, [])
           args
       in
-      return (env', locally_bound', IT.Pat (PConstructor (cons, args), bt, loc))
+      return (env', locally_bound', Terms.Pat (PConstructor (cons, args), bt, loc))
 
 
   let check_quantified_base_type env loc sym bt =
@@ -628,7 +630,7 @@ module C_vars = struct
           (!^"annotation on"
            ^^^ !^pred_name
            ^^^ !^"suggests"
-           ^^^ IT.pp ptr
+           ^^^ Terms.pp ptr
            ^^^ !^"has type"
            ^^^ Sctypes.pp (Sctypes.Pointer annot)
            ^^^ !^"but it has type"
@@ -640,7 +642,7 @@ module C_vars = struct
     let context_str =
       match context with `RW -> "RW" | `W -> "W" | `Array_shift -> "array_shift"
     in
-    match (oty, IT.get_bt ptr) with
+    match (oty, Terms.get_bt ptr) with
     | Some annot, BT.Loc (Some inferred) ->
       let annot = Sctypes.of_ctype_unsafe loc annot in
       warn_if_ct_mismatch loc context ~annot ~inferred ~ptr;
@@ -671,14 +673,14 @@ module C_vars = struct
 
 
   let cn_expr =
-    let open IndexTerms in
+    let open Terms in
     let module BT = BaseTypes in
     let rec trans
               (evaluation_scope : string option)
               locally_bound
               env
               (Cn.CNExpr (loc, expr_))
-      : IndexTerms.Surface.t Monad.t
+      : Terms.Surface.t Monad.t
       =
       let self = trans evaluation_scope locally_bound env in
       match expr_ with
@@ -716,7 +718,7 @@ module C_vars = struct
           Option.get @@ Locations.get_region loc
         in
         let cons hd tl =
-          let hd_pos = Option.get @@ Locations.start_pos @@ IT.get_loc hd in
+          let hd_pos = Option.get @@ Locations.start_pos @@ get_loc hd in
           let loc = Locations.(region (hd_pos, nil_pos) NoCursor) in
           IT (Cons (hd, tl), BT.List item_bt, loc)
         in
@@ -734,16 +736,16 @@ module C_vars = struct
         member_access loc env e xs
       | CNExpr_record members ->
         let@ members = ListM.mapsndM self members in
-        let bts = List.map_snd IT.get_bt members in
-        return (IT (IT.Record members, BT.Record bts, loc))
+        let bts = List.map_snd get_bt members in
+        return (IT (Record members, BT.Record bts, loc))
       | CNExpr_struct (tag, members) ->
         let@ members = ListM.mapsndM self members in
-        return (IT (IT.Struct (tag, members), BT.Struct tag, loc))
+        return (IT (Struct (tag, members), BT.Struct tag, loc))
       | CNExpr_memberupdates (e, updates) ->
         let@ e = self e in
-        let bt = IT.get_bt e in
+        let bt = get_bt e in
         let end_pos = Option.get @@ Locations.end_pos loc in
-        (match IT.get_bt e with
+        (match get_bt e with
          | Struct _ ->
            let@ expr =
              ListM.fold_rightM
@@ -759,7 +761,7 @@ module C_vars = struct
            return expr
          | _ ->
            fail
-             { loc = IT.get_loc e;
+             { loc = get_loc e;
                msg =
                  WellTyped
                    (Illtyped_it
@@ -773,7 +775,7 @@ module C_vars = struct
              })
       | CNExpr_arrayindexupdates (e, updates) ->
         let@ e = self e in
-        let bt = IT.get_bt e in
+        let bt = get_bt e in
         (* start_pos points to start_pos of e ignored cursor points to '[' end_pos points
            to ']' *)
         let start_pos, end_pos, _ =
@@ -785,11 +787,10 @@ module C_vars = struct
             (fun acc (i, v) ->
                let@ i = self i in
                let@ v = self v in
-               let end_pos = Option.get @@ Locations.end_pos @@ IT.get_loc v in
+               let end_pos = Option.get @@ Locations.end_pos @@ get_loc v in
                (* cursor for the first update doesn't point to '[' - oh well *)
                let cursor =
-                 Cerb_location.PointCursor
-                   (Option.get @@ Locations.start_pos @@ IT.get_loc i)
+                 Cerb_location.PointCursor (Option.get @@ Locations.start_pos @@ get_loc i)
                in
                return
                  (IT
@@ -817,10 +818,10 @@ module C_vars = struct
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
         let@ ct = infer_scty ~pred_loc:loc ~ptr:base `Array_shift ty_annot in
-        (match IT.get_bt base with
+        (match get_bt base with
          | Loc _ ->
            let@ index = self index in
-           (match IT.get_bt index with
+           (match get_bt index with
             | Integer | Bits _ ->
               return (IT (ArrayShift { base; ct; index }, Loc (Some ct), loc))
             | has ->
@@ -848,13 +849,13 @@ module C_vars = struct
           let@ struct_def = lookup_struct loc tag env in
           let@ member_ty = lookup_member loc (tag, struct_def) member in
           let (IT (it_, _, _)) =
-            Surface.inj (memberShift_ (Surface.proj e, tag, member) loc)
+            Surface.inj (IT.memberShift_ (Surface.proj e, tag, member) loc)
           in
           (* Surface.inj will not have produced a C-type-annotated bt. So stick that on
              now. *)
           return (IT (it_, Loc (Some member_ty), loc))
         in
-        (match (opt_tag, IT.get_bt e) with
+        (match (opt_tag, get_bt e) with
          | Some (Ctype (_, Struct tag)), Loc (Some (Struct tag')) ->
            if Sym.equal tag tag' then
              with_tag tag
@@ -880,7 +881,7 @@ module C_vars = struct
                  WellTyped
                    (Illtyped_it { it = Terms.pp e; has = SBT.pp has; expected; reason })
              })
-      | CNExpr_addr nm -> return (sym_ (nm, BT.Loc None, loc))
+      | CNExpr_addr nm -> return (IT.sym_ (nm, BT.Loc None, loc))
       | CNExpr_cast (bt, expr) ->
         let@ expr = self expr in
         let bt = base_type env bt in
@@ -905,7 +906,7 @@ module C_vars = struct
                    msg = Global (Unknown_logical_function { id = fsym; resource = false })
                  }
            in
-           return (apply_ fsym args (BaseTypes.Surface.inj bt) loc))
+           return (IT.apply_ fsym args (BaseTypes.Surface.inj bt) loc))
       | CNExpr_cons (c_nm, exprs) ->
         let@ cons_info = lookup_constr loc c_nm env in
         let@ exprs =
@@ -936,13 +937,13 @@ module C_vars = struct
           ListM.mapM
             (fun (pat, body) ->
                let@ env', locally_bound', pat =
-                 cn_pat env locally_bound (pat, IT.get_bt x)
+                 cn_pat env locally_bound (pat, get_bt x)
                in
                let@ body = trans evaluation_scope locally_bound' env' body in
                return (pat, body))
             ms
         in
-        let rbt = IT.get_bt (snd (List.hd ms)) in
+        let rbt = get_bt (snd (List.hd ms)) in
         return (IT (Match (x, ms), rbt, loc))
       | CNExpr_let (s, e, body) ->
         let@ e = self e in
@@ -950,25 +951,25 @@ module C_vars = struct
           trans
             evaluation_scope
             (Sym.Set.add s locally_bound)
-            (add_logical s (IT.get_bt e) env)
+            (add_logical s (get_bt e) env)
             body
         in
-        return (IT (Let ((s, e), body), IT.get_bt body, loc))
+        return (IT (Let ((s, e), body), get_bt body, loc))
       | CNExpr_ite (e1, e2, e3) ->
         let@ e1 = self e1 in
         let@ e2 = self e2 in
         let@ e3 = self e3 in
-        return (ite_ (e1, e2, e3) loc)
+        return (IT.ite_ (e1, e2, e3) loc)
       | CNExpr_good (ty, e) ->
         let scty = Sctypes.of_ctype_unsafe loc ty in
         let@ e = self e in
         return (IT (Good (scty, e), BT.Bool, loc))
       | CNExpr_not e ->
         let@ e = self e in
-        return (not_ e loc)
+        return (IT.not_ e loc)
       | CNExpr_bnot e ->
         let@ e = self e in
-        return (bw_compl_ e loc)
+        return (IT.bw_compl_ e loc)
       | CNExpr_negate e ->
         let@ e = self e in
         (match e with
@@ -976,7 +977,7 @@ module C_vars = struct
          | IT (Const (Bits ((sign, width), z)), _bt, _) ->
            (* this will be checked to fit in WellTyped.infer *)
            return (IT (Const (Bits ((sign, width), Z.neg z)), BT.Bits (sign, width), loc))
-         | _ -> return (negate e loc))
+         | _ -> return (IT.negate e loc))
       | CNExpr_default bt ->
         let bt = base_type env bt in
         return (IT (Const (Default (SBT.proj bt)), bt, loc))
@@ -1115,14 +1116,16 @@ module C_vars = struct
     return (pname, ptr_expr, iargs, oargs_ty)
 
 
-  let split_pointer_linear_step loc sym_args (ptr_expr : IT.Surface.t) =
+  let split_pointer_linear_step loc sym_args (ptr_expr : Terms.Surface.t) =
     let open Pp in
     let qs = IT.sym_ sym_args in
     let msg_s = "Iterated predicate pointer must be array_shift<ctype>(ptr, q_var):" in
-    match IT.get_term ptr_expr with
-    | ArrayShift { base = p; ct; index = x } when Terms.equal_annot SBT.equal x qs ->
+    match Terms.get_term ptr_expr with
+    | Terms.ArrayShift { base = p; ct; index = x } when Terms.equal_annot SBT.equal x qs
+      ->
       return (p, ct)
-    | _ -> fail { loc; msg = Generic (!^msg_s ^^^ IT.pp ptr_expr) [@alert "-deprecated"] }
+    | _ ->
+      fail { loc; msg = Generic (!^msg_s ^^^ Terms.pp ptr_expr) [@alert "-deprecated"] }
 
 
   (* TODO: replace 'good' with 'aligned' *)
@@ -1148,8 +1151,8 @@ module C_vars = struct
     let pt =
       ( Req.P
           { name = pname;
-            pointer = IT.Surface.proj ptr_expr;
-            iargs = List.map IT.Surface.proj iargs
+            pointer = Terms.Surface.proj ptr_expr;
+            iargs = List.map Terms.Surface.proj iargs
           },
         oargs_ty )
     in
@@ -1163,7 +1166,8 @@ module C_vars = struct
           if !BT.cnBV then
             []
           else
-            [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
+            [ (LC.T (Terms.Surface.proj (IT.representable_ (ct, pointee) here)), info) ]
+        )
       | _ -> ([], [])
     in
     return (pt, pointee_value, pointee_constrs)
@@ -1184,10 +1188,10 @@ module C_vars = struct
           { name = pname;
             q = (q, SBT.proj bt');
             q_loc = here;
-            pointer = IT.Surface.proj ptr_base;
+            pointer = Terms.Surface.proj ptr_base;
             step;
-            permission = IT.Surface.proj guard_expr;
-            iargs = List.map IT.Surface.proj iargs
+            permission = Terms.Surface.proj guard_expr;
+            iargs = List.map Terms.Surface.proj iargs
           },
         m_oargs_ty )
     in
@@ -1204,7 +1208,7 @@ module C_vars = struct
           [ ( LC.Forall
                 ( (q, SBT.proj bt'),
                   impl_
-                    ( Surface.proj guard_expr,
+                    ( Terms.Surface.proj guard_expr,
                       representable_ (ct, map_get_ oarg qt here) here )
                     here ),
               info )
@@ -1229,7 +1233,7 @@ module C_vars = struct
     match assrt with
     | Cn.CN_assert_exp e_ ->
       let@ e = cn_expr Sym.Set.empty env e_ in
-      return (LC.T (IT.Surface.proj e))
+      return (LC.T (Terms.Surface.proj e))
     | CN_assert_qexp (sym, bTy, e1_, e2_) ->
       let bt = base_type env bTy in
       let env_with_q = add_logical sym bt env in
@@ -1237,7 +1241,8 @@ module C_vars = struct
       let@ e2 = cn_expr (Sym.Set.singleton sym) env_with_q e2_ in
       return
         (LC.Forall
-           ((sym, SBT.proj bt), IT.impl_ (IT.Surface.proj e1, IT.Surface.proj e2) loc))
+           ( (sym, SBT.proj bt),
+             IT.impl_ (Terms.Surface.proj e1, Terms.Surface.proj e2) loc ))
 
 
   let cn_statement env (loc, (stmt_ : _ Cn.cn_statement_)) =
@@ -1251,8 +1256,8 @@ module C_vars = struct
           ( pack_unpack,
             Predicate
               { name;
-                pointer = IT.Surface.proj pointer;
-                iargs = List.map IT.Surface.proj iargs
+                pointer = Terms.Surface.proj pointer;
+                iargs = List.map Terms.Surface.proj iargs
               } )
       in
       return stmt
@@ -1275,15 +1280,15 @@ module C_vars = struct
         (To_from_bytes
            ( to_from,
              { name;
-               pointer = IT.Surface.proj pointer;
-               iargs = List.map IT.Surface.proj iargs
+               pointer = Terms.Surface.proj pointer;
+               iargs = List.map Terms.Surface.proj iargs
              } ))
     | CN_have assrt ->
       let@ assrt = cn_assrt env (loc, assrt) in
       return (Have assrt)
     | CN_instantiate (to_instantiate, expr) ->
       let@ expr = cn_expr Sym.Set.empty env expr in
-      let expr = IT.Surface.proj expr in
+      let expr = Terms.Surface.proj expr in
       let to_instantiate =
         match to_instantiate with
         | Cn.I_Everything -> Cn.I_Everything
@@ -1296,7 +1301,7 @@ module C_vars = struct
       return (Split_case e)
     | CN_extract (attrs, to_extract, expr) ->
       let@ expr = cn_expr Sym.Set.empty env expr in
-      let expr = IT.Surface.proj expr in
+      let expr = Terms.Surface.proj expr in
       let to_extract =
         match to_extract with
         | Cn.E_Everything -> Cn.E_Everything
@@ -1309,19 +1314,19 @@ module C_vars = struct
       return (Extract (attrs, to_extract, expr))
     | CN_unfold (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
-      let args = List.map IT.Surface.proj args in
+      let args = List.map Terms.Surface.proj args in
       return (Unfold (s, args))
     | CN_assert_stmt e ->
       let@ e = cn_assrt env (loc, e) in
       return (Assert e)
     | CN_apply (s, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
-      let args = List.map IT.Surface.proj args in
+      let args = List.map Terms.Surface.proj args in
       return (Apply (s, args))
     | CN_inline nms -> return (Inline nms)
     | CN_print expr ->
       let@ expr = cn_expr Sym.Set.empty env expr in
-      let expr = IT.Surface.proj expr in
+      let expr = Terms.Surface.proj expr in
       return (Print expr)
 end
 
@@ -1364,16 +1369,18 @@ module Handle = struct
 
 
   let pointee_ct loc it =
-    match IT.get_bt it with
+    match Terms.get_bt it with
     | BT.Loc (Some ct) -> return ct
     | BT.Loc None ->
-      let msg = !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (IT.pp it) ^^ Pp.dot in
+      let msg =
+        !^"Cannot tell pointee C-type of" ^^^ Pp.squotes (Terms.pp it) ^^ Pp.dot
+      in
       fail { loc; msg = Generic msg [@alert "-deprecated"] }
     | has ->
       let expected = "pointer" in
       let reason = "dereferencing" in
       let msg =
-        WellTyped (Illtyped_it { it = IT.pp it; has = SBT.pp has; expected; reason })
+        WellTyped (Illtyped_it { it = Terms.pp it; has = SBT.pp has; expected; reason })
       in
       fail { loc; msg }
 
@@ -1409,11 +1416,11 @@ module Handle = struct
     and load loc action_pp pointer k =
       let@ pointee_ct = pointee_ct loc pointer in
       let value_loc = loc in
-      let value_s = Sym.fresh_make_uniq (action_pp ^ "_" ^ Pp.plain (IT.pp pointer)) in
+      let value_s = Sym.fresh_make_uniq (action_pp ^ "_" ^ Pp.plain (Terms.pp pointer)) in
       let value_bt = Memory.sbt_of_sct pointee_ct in
       let value = IT.sym_ (value_s, value_bt, value_loc) in
       let@ prog = aux (k (Some value)) in
-      let load = Cnprog.{ ct = pointee_ct; pointer = IT.Surface.proj pointer } in
+      let load = Cnprog.{ ct = pointee_ct; pointer = Terms.Surface.proj pointer } in
       return (Cnprog.Let (loc, (value_s, load), prog))
     in
     aux
@@ -1428,7 +1435,7 @@ let assrt env st assrt = Handle.with_state st (C_vars.cn_assrt env assrt)
 let cn_func_body env body =
   let handle = Handle.pure "Function definitions" in
   let@ body = handle (C_vars.cn_expr Sym.Set.empty env body) in
-  return (IT.Surface.proj body)
+  return (Terms.Surface.proj body)
 
 
 let known_attrs = [ "rec"; "coq_unfold" ]
@@ -1521,15 +1528,15 @@ let cn_clause env clause =
       cn_clause_aux env' st' acc' cl
     | CN_letExpr (loc, sym, e_, cl) ->
       let@ e = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env e_) in
-      let acc' z = acc (LAT.mDefine (sym, IT.Surface.proj e, (loc, None)) z) in
-      cn_clause_aux (add_logical sym (IT.get_bt e) env) st acc' cl
+      let acc' z = acc (LAT.mDefine (sym, Terms.Surface.proj e, (loc, None)) z) in
+      cn_clause_aux (add_logical sym (Terms.get_bt e) env) st acc' cl
     | CN_assert (loc, assrt, cl) ->
       let@ lc = Handle.with_state st (C_vars.cn_assrt env (loc, assrt)) in
       let acc' z = acc (LAT.mConstraint (lc, (loc, None)) z) in
       cn_clause_aux env st acc' cl
     | CN_return (_loc, e_) ->
       let@ e = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env e_) in
-      let e = IT.Surface.proj e in
+      let e = Terms.Surface.proj e in
       acc (LAT.I e)
   in
   cn_clause_aux env C_vars.init (fun z -> return z) clause
@@ -1544,7 +1551,7 @@ let cn_clauses env clauses =
     | CN_if (loc, e_, cl_, clauses') ->
       let@ e = Handle.pure "Predicate guards" (C_vars.cn_expr Sym.Set.empty env e_) in
       let@ cl = cn_clause env cl_ in
-      self ({ loc; guard = IT.Surface.proj e; packing_ft = cl } :: acc) clauses'
+      self ({ loc; guard = Terms.Surface.proj e; packing_ft = cl } :: acc) clauses'
   in
   let@ xs = self [] clauses in
   return (List.rev xs)
@@ -1608,9 +1615,9 @@ let rec logical_ret_generic env st = function
   | CN_cletExpr (loc, name, expr) :: ensures ->
     let@ expr = Handle.with_state st (C_vars.cn_expr Sym.Set.empty env expr) in
     let@ lrt, env, st =
-      logical_ret_generic (add_logical name (IT.get_bt expr) env) st ensures
+      logical_ret_generic (add_logical name (Terms.get_bt expr) env) st ensures
     in
-    return (LRT.mDefine (name, IT.Surface.proj expr, (loc, None)) lrt, env, st)
+    return (LRT.mDefine (name, Terms.Surface.proj expr, (loc, None)) lrt, env, st)
   | CN_cconstr (loc, constr) :: ensures ->
     let@ lc = Handle.with_state st (C_vars.cn_assrt env (loc, constr)) in
     let@ lrt, env, st = logical_ret_generic env st ensures in

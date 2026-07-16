@@ -1,7 +1,7 @@
 open Pp.Infix
-module IT = IndexTerms
+module T = Terms.Normal
 
-let pp_maybe_oargs = function None -> Pp.empty | Some oargs -> Pp.parens (IT.pp oargs)
+let pp_maybe_oargs = function None -> Pp.empty | Some oargs -> Pp.parens (T.pp oargs)
 
 type init =
   | Init
@@ -43,20 +43,20 @@ module Predicate = struct
 
   type t =
     { name : name;
-      pointer : IT.t; (* I *)
-      iargs : IT.t list (* I *)
+      pointer : T.t; (* I *)
+      iargs : T.t list (* I *)
     }
   [@@deriving eq, ord]
 
   let pp_aux (p : t) oargs =
-    let args = List.map IT.pp (p.pointer :: p.iargs) in
+    let args = List.map T.pp (p.pointer :: p.iargs) in
     Pp.c_app (pp_name p.name) args ^^ pp_maybe_oargs oargs
 
 
   let subst substitution (p : t) =
     { name = p.name;
-      pointer = IT.subst substitution p.pointer;
-      iargs = List.map (IT.subst substitution) p.iargs
+      pointer = T.subst substitution p.pointer;
+      iargs = List.map (T.subst substitution) p.iargs
     }
 
 
@@ -64,8 +64,7 @@ module Predicate = struct
     let open Cerb_frontend.Pp_ast in
     Dnode
       ( pp_ctor "pred",
-        dtree_of_name pred.name :: IT.dtree pred.pointer :: List.map IT.dtree pred.iargs
-      )
+        dtree_of_name pred.name :: T.dtree pred.pointer :: List.map T.dtree pred.iargs )
 end
 
 let make_alloc pointer = Predicate.{ name = alloc; pointer; iargs = [] }
@@ -73,36 +72,36 @@ let make_alloc pointer = Predicate.{ name = alloc; pointer; iargs = [] }
 module QPredicate = struct
   type t =
     { name : name;
-      pointer : IT.t; (* I *)
+      pointer : T.t; (* I *)
       q : Sym.t * BaseTypes.t;
       q_loc : Locations.t; [@equal fun _ _ -> true] [@compare fun _ _ -> 0]
       step : Sctypes.ctype;
-      permission : IT.t; (* I, function of q *)
-      iargs : IT.t list (* I, function of q *)
+      permission : T.t; (* I, function of q *)
+      iargs : T.t list (* I, function of q *)
     }
   [@@deriving eq, ord]
 
   let pp_aux (p : t) oargs =
     let open Pp in
     let pointer =
-      IT.pp p.pointer ^^^ plus ^^^ Sym.pp (fst p.q) ^^^ at ^^^ Sctypes.pp p.step
+      T.pp p.pointer ^^^ plus ^^^ Sym.pp (fst p.q) ^^^ at ^^^ Sctypes.pp p.step
     in
-    let args = pointer :: List.map IT.pp p.iargs in
+    let args = pointer :: List.map T.pp p.iargs in
     !^"each"
-    ^^ parens (BaseTypes.pp (snd p.q) ^^^ Sym.pp (fst p.q) ^^ semi ^^^ IT.pp p.permission)
+    ^^ parens (BaseTypes.pp (snd p.q) ^^^ Sym.pp (fst p.q) ^^ semi ^^^ T.pp p.permission)
     ^/^ braces (c_app (pp_name p.name) args)
     ^^ pp_maybe_oargs oargs
 
 
   let alpha_rename_ (q' : Sym.t) (qp : t) =
-    let subst = IT.make_rename ~from:(fst qp.q) ~to_:q' in
+    let subst = T.make_rename ~from:(fst qp.q) ~to_:q' in
     { name = qp.name;
       pointer = qp.pointer;
       q = (q', snd qp.q);
       q_loc = qp.q_loc;
       step = qp.step;
-      permission = IT.subst subst qp.permission;
-      iargs = List.map (IT.subst subst) qp.iargs
+      permission = T.subst subst qp.permission;
+      iargs = List.map (T.subst subst) qp.iargs
     }
 
 
@@ -116,12 +115,12 @@ module QPredicate = struct
         qp
     in
     { name = qp.name;
-      pointer = IT.subst substitution qp.pointer;
+      pointer = T.subst substitution qp.pointer;
       q = qp.q;
       q_loc = qp.q_loc;
       step = qp.step;
-      permission = IT.subst substitution qp.permission;
-      iargs = List.map (IT.subst substitution) qp.iargs
+      permission = T.subst substitution qp.permission;
+      iargs = List.map (T.subst substitution) qp.iargs
     }
 
 
@@ -131,21 +130,21 @@ module QPredicate = struct
       ( pp_ctor "qpred",
         Dleaf (Pp.parens (Pp.typ (Sym.pp (fst qpred.q)) (BaseTypes.pp (snd qpred.q))))
         :: Dleaf (Sctypes.pp qpred.step)
-        :: IT.dtree qpred.permission
+        :: T.dtree qpred.permission
         :: dtree_of_name qpred.name
-        :: IT.dtree qpred.pointer
-        :: List.map IT.dtree qpred.iargs )
+        :: T.dtree qpred.pointer
+        :: List.map T.dtree qpred.iargs )
 
 
-  let get_lower_bound (qpred : t) : IT.t =
+  let get_lower_bound (qpred : t) : T.t =
     IndexTerms.Bounds.get_lower_bound qpred.q qpred.permission
 
 
-  let get_upper_bound (qpred : t) : IT.t =
+  let get_upper_bound (qpred : t) : T.t =
     IndexTerms.Bounds.get_upper_bound qpred.q qpred.permission
 
 
-  let get_bounds (qpred : t) : IT.t * IT.t = (get_lower_bound qpred, get_upper_bound qpred)
+  let get_bounds (qpred : t) : T.t * T.t = (get_lower_bound qpred, get_upper_bound qpred)
 end
 
 type t =
@@ -173,22 +172,22 @@ let subst (substitution : _ Subst.t) = function
 
 
 let free_vars_bts = function
-  | P p -> IT.free_vars_bts_list (p.pointer :: p.iargs)
+  | P p -> T.free_vars_bts_list (p.pointer :: p.iargs)
   | Q p ->
     Sym.Map.union
       (fun _ bt1 bt2 ->
          assert (BaseTypes.equal bt1 bt2);
          Some bt1)
-      (IT.free_vars_bts_list [ p.pointer ])
-      (Sym.Map.remove (fst p.q) (IT.free_vars_bts_list (p.permission :: p.iargs)))
+      (T.free_vars_bts_list [ p.pointer ])
+      (Sym.Map.remove (fst p.q) (T.free_vars_bts_list (p.permission :: p.iargs)))
 
 
 let free_vars = function
-  | P p -> IT.free_vars_list (p.pointer :: p.iargs)
+  | P p -> T.free_vars_list (p.pointer :: p.iargs)
   | Q p ->
     Sym.Set.union
-      (IT.free_vars p.pointer)
-      (Sym.Set.remove (fst p.q) (IT.free_vars_list (p.permission :: p.iargs)))
+      (T.free_vars p.pointer)
+      (Sym.Set.remove (fst p.q) (T.free_vars_list (p.permission :: p.iargs)))
 
 
 let alpha_equivalent r1 r2 =

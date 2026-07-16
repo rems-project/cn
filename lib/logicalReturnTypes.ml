@@ -1,11 +1,11 @@
 open Locations
 module BT = BaseTypes
 module RT = Request
-module IT = IndexTerms
+module T = Terms.Normal
 module LC = LogicalConstraints
 
 type t =
-  | Define of (Sym.t * IT.t) * info * t
+  | Define of (Sym.t * T.t) * info * t
   | Resource of (Sym.t * (RT.t * BT.t)) * info * t
   | Constraint of LogicalConstraints.t * info * t
   | I
@@ -25,7 +25,7 @@ let mConstraints = List.fold_right mConstraint
 let rec subst (substitution : _ Subst.t) lrt =
   match lrt with
   | Define ((name, it), info, t) ->
-    let it = IT.subst substitution it in
+    let it = T.subst substitution it in
     let name, t = suitably_alpha_rename substitution.relevant name t in
     Define ((name, it), info, subst substitution t)
   | Resource ((name, (re, bt)), info, t) ->
@@ -45,7 +45,7 @@ and alpha_rename_ ~from ~to_ t =
     if Sym.equal from to_ then
       t
     else
-      subst (IT.make_rename ~from ~to_) t )
+      subst (T.make_rename ~from ~to_) t )
 
 
 and alpha_rename from t =
@@ -88,7 +88,7 @@ let binders =
   let rec aux = function
     | Define ((s, it), _, t) ->
       let s, t = alpha_rename s t in
-      (Id.make here (Sym.pp_string s), IT.get_bt it) :: aux t
+      (Id.make here (Sym.pp_string s), T.get_bt it) :: aux t
     | Resource ((s, (_, bt)), _, t) ->
       let s, t = alpha_rename s t in
       (Id.make here (Sym.pp_string s), bt) :: aux t
@@ -100,7 +100,7 @@ let binders =
 
 let free_vars lrt =
   let rec f = function
-    | Define ((nm, it), _, t) -> Sym.Set.union (IT.free_vars it) (Sym.Set.remove nm (f t))
+    | Define ((nm, it), _, t) -> Sym.Set.union (T.free_vars it) (Sym.Set.remove nm (f t))
     | Resource ((nm, (re, _)), _, t) ->
       Sym.Set.union (RT.free_vars re) (Sym.Set.remove nm (f t))
     | Constraint (lc, _, t) -> Sym.Set.union (LogicalConstraints.free_vars lc) (f t)
@@ -131,7 +131,7 @@ let rec pp_aux lrt =
   let open Pp in
   match lrt with
   | Define ((name, it), _info, t) ->
-    group (!^"let" ^^^ Sym.pp name ^^^ equals ^^^ IT.pp it ^^ semi) :: pp_aux t
+    group (!^"let" ^^^ Sym.pp name ^^^ equals ^^^ T.pp it ^^ semi) :: pp_aux t
   | Resource ((name, (re, _bt)), _info, t) ->
     group (!^"take" ^^^ Sym.pp name ^^^ equals ^^^ RT.pp re ^^ semi) :: pp_aux t
   | Constraint (lc, _info, t) ->
@@ -148,7 +148,7 @@ let rec alpha_equivalent lrt lrt' =
     let new_s = if Sym.equal s s' then s else Sym.fresh_same s in
     let _, lrt = alpha_rename_ ~to_:new_s ~from:s lrt in
     let _, lrt' = alpha_rename_ ~to_:new_s ~from:s' lrt' in
-    IT.equal it it' && alpha_equivalent lrt lrt'
+    T.equal it it' && alpha_equivalent lrt lrt'
   | Resource ((s, (re, bt)), _, lrt), Resource ((s', (re', bt')), _, lrt') ->
     let new_s = if Sym.equal s s' then s else Sym.fresh_same s in
     let _, lrt = alpha_rename_ ~to_:new_s ~from:s lrt in
@@ -165,7 +165,7 @@ open Pp
 
 let rec dtree = function
   | Define ((s, it), _, t) ->
-    Dnode (pp_ctor "Define", [ Dleaf (Sym.pp s); IT.dtree it; dtree t ])
+    Dnode (pp_ctor "Define", [ Dleaf (Sym.pp s); T.dtree it; dtree t ])
   | Resource ((s, (rt, bt)), _, t) ->
     Dnode
       (pp_ctor "Resource", [ Dleaf (Sym.pp s); RT.dtree rt; Dleaf (BT.pp bt); dtree t ])

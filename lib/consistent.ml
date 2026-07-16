@@ -18,7 +18,7 @@ let logicalReturnTypes loc lrt =
     function
     | LogicalReturnTypes.Define ((s, it), ((loc, _) as info), lrt) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
-      let@ () = add_l s (IT.get_bt it) (loc, lazy (Pp.string "let-var")) in
+      let@ () = add_l s (Terms.get_bt it) (loc, lazy (Pp.string "let-var")) in
       let@ () = add_c (fst info) (LC.T (IT.def_ s it here)) in
       aux lrt
     | Resource ((s, (re, re_oa_spec)), (loc, _), lrt) ->
@@ -63,7 +63,7 @@ let logicalArgumentTypes i_welltyped i_pp kind loc at : unit Typing.t =
     function
     | LAT.Define ((s, it), info, at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
-      let@ () = add_l s (IT.get_bt it) (loc, lazy (Pp.string "let-var")) in
+      let@ () = add_l s (Terms.get_bt it) (loc, lazy (Pp.string "let-var")) in
       let@ () = add_c (fst info) (LC.T (IT.def_ s it here)) in
       aux at
     | Resource ((s, (re, re_oa_spec)), (loc, _), at) ->
@@ -132,7 +132,7 @@ let logicalArguments
     function
     | Mucore.Define ((s, it), ((loc, _) as info), at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
-      let@ () = add_l s (IT.get_bt it) (loc, lazy (Pp.string "let-var")) in
+      let@ () = add_l s (Terms.get_bt it) (loc, lazy (Pp.string "let-var")) in
       let@ () = add_c (fst info) (LC.T (IT.def_ s it here)) in
       aux at
     | Resource ((s, (re, re_oa_spec)), (loc, _), at) ->
@@ -237,7 +237,7 @@ let predicate pred =
                  let@ () =
                    logicalArgumentTypes
                      (fun _loc _it -> return ())
-                     IT.pp
+                     Terms.pp
                      "clause"
                      loc
                      packing_ft

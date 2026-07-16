@@ -3,6 +3,7 @@ module IntMap = Map.Make (Int)
 module CF = Cerb_frontend
 module BT = BaseTypes
 module Mu = Mucore
+module T = Terms.Normal
 module IT = IndexTerms
 open Cerb_pp_prelude
 open TypeErrors
@@ -13,9 +14,9 @@ open Effectful.Make (Typing)
 let fail_n m = fail (fun _ctxt -> m)
 
 type 'a exec_result =
-  | Call_Ret of IT.t
-  | Compute of IT.t * 'a
-  | If_Else of IT.t * 'a exec_result * 'a exec_result
+  | Call_Ret of T.t
+  | Compute of T.t * 'a
+  | If_Else of T.t * 'a exec_result * 'a exec_result
 
 let ov_to_it loc (Mu.OV (bt, ov)) =
   match ov with
@@ -48,7 +49,7 @@ let val_to_it loc (Mu.V (_, v)) =
 let local_sym_ptr = Sym.fresh "local_ptr"
 
 type state =
-  { loc_map : IT.t option IntMap.t;
+  { loc_map : T.t option IntMap.t;
     next_loc : int
   }
 
@@ -71,8 +72,9 @@ let mk_local_ptr state src_loc =
 
 
 let is_local_ptr ptr =
-  Option.bind (IT.is_pred_ ptr) (function
-    | name, [ ix ] when Sym.equal name local_sym_ptr -> Option.map Z.to_int (IT.is_z ix)
+  Option.bind (Terms.is_pred_ ptr) (function
+    | name, [ ix ] when Sym.equal name local_sym_ptr ->
+      Option.map Z.to_int (Terms.is_z ix)
     | _ -> None)
 
 
@@ -82,7 +84,7 @@ let get_local_ptr loc ptr =
     fail_n
       { loc;
         msg =
-          Generic (Pp.item "use of non-local pointer" (IT.pp ptr)) [@alert "-deprecated"]
+          Generic (Pp.item "use of non-local pointer" (T.pp ptr)) [@alert "-deprecated"]
       }
   | Some ix -> return ix
 
@@ -96,7 +98,7 @@ let triv_simp_ctxt = Simplify.default Global.empty
 
 let simp_const loc lpp it =
   let it2 = Simplify.IndexTerms.simp triv_simp_ctxt it in
-  match (IT.is_z it2, IT.get_bt it2) with
+  match (Terms.is_z it2, Terms.get_bt it2) with
   | Some _z, _ -> return it2
   | _, BT.Integer ->
     fail_n
@@ -105,7 +107,7 @@ let simp_const loc lpp it =
           Generic
             (Pp.item
                "getting expr from C syntax: failed to simplify integer to numeral"
-               (Pp.typ (Lazy.force lpp) (IT.pp it2)))
+               (Pp.typ (Lazy.force lpp) (T.pp it2)))
           [@alert "-deprecated"]
       }
   | _, _ -> return it2
@@ -115,7 +117,7 @@ let do_wrapI loc ct it =
   match Sctypes.is_integer_type ct with
   | Some ity ->
     let ity_bt = Memory.bt_of_sct ct in
-    if BT.equal ity_bt (IT.get_bt it) then
+    if BT.equal ity_bt (Terms.get_bt it) then
       return it
     else
       return (IT.wrapI_ (ity, it) loc)
@@ -132,14 +134,11 @@ let do_wrapI loc ct it =
    and permitted for multiply/divide or not - similar to a simplifier-based notion in
    welltyped and a solver-based notion in check. *)
 let rec is_const_num = function
-  | IT.IT (IT.Const _, _, _) -> true
-  | IT.IT (IT.Binop (binop, x, y), _, _) ->
+  | Terms.(IT (Const _, _, _)) -> true
+  | IT (Binop (binop, x, y), _, _) ->
     is_const_num x
     && is_const_num y
-    &&
-      (match binop with
-      | IT.Add | IT.Sub | IT.Mul | IT.Div | IT.Exp | IT.Rem | IT.Mod -> true
-      | _ -> false)
+    && (match binop with Add | Sub | Mul | Div | Exp | Rem | Mod -> true | _ -> false)
   | _ -> false
 
 
@@ -152,7 +151,7 @@ let rec add_pattern p v var_map =
   | CaseCtor (Ctuple, ps) ->
     let@ vs =
       match v with
-      | IT.IT (IT.Tuple vs, _, _) -> return vs
+      | Terms.(IT (Tuple vs, _, _)) -> return vs
       | it ->
         fail_n
           { loc;
@@ -160,7 +159,7 @@ let rec add_pattern p v var_map =
               Generic
                 (Pp.item
                    "getting expr from C syntax: cannot tuple-split val"
-                   (Pp.typ (IT.pp it) (Pp_mucore.Basic.pp_pattern p)))
+                   (Pp.typ (T.pp it) (Pp_mucore.Basic.pp_pattern p)))
               [@alert "-deprecated"]
           }
     in
@@ -186,13 +185,13 @@ let signed_int_ity = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_)
 let signed_int_ty = Memory.bt_of_sct (Sctypes.Integer signed_int_ity)
 
 let is_two_pow it =
-  match IT.get_term it with
+  match T.get_term it with
   | Terms.Binop (Terms.ExpNoSMT, x, y)
-    when Option.equal Z.equal (IT.get_num_z x) (Some (Z.of_int 2)) ->
-    Some (`Two_loc (IT.get_loc x), `Exp y)
+    when Option.equal Z.equal (Terms.get_num_z x) (Some (Z.of_int 2)) ->
+    Some (`Two_loc (Terms.get_loc x), `Exp y)
   | Terms.Binop (Terms.Exp, x, y)
-    when Option.equal Z.equal (IT.get_num_z x) (Some (Z.of_int 2)) ->
-    Some (`Two_loc (IT.get_loc x), `Exp y)
+    when Option.equal Z.equal (Terms.get_num_z x) (Some (Z.of_int 2)) ->
+    Some (`Two_loc (Terms.get_loc x), `Exp y)
   | _ -> None
 
 
@@ -220,14 +219,14 @@ let return_z_within_range loc z bt orig_pexpr =
 
 
 let must_be_ct_const loc ct_it =
-  match IT.is_const ct_it with
-  | Some (IT.CType_const ct, _) -> return ct
+  match Terms.is_const ct_it with
+  | Some (Terms.CType_const ct, _) -> return ct
   | Some _ -> assert false (* shouldn't be possible given type *)
   | None ->
     fail_n
       { loc;
         msg =
-          Generic (Pp.item "expr from C syntax: non-constant type" (IT.pp ct_it))
+          Generic (Pp.item "expr from C syntax: non-constant type" (Terms.pp ct_it))
           [@alert "-deprecated"]
       }
 
@@ -325,13 +324,17 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
     in
     (match (op, x_v, is_two_pow y_v) with
      | OpMul, _, Some (`Two_loc two_loc, `Exp exp) ->
-       let exp_loc = IT.get_loc y_v in
+       let exp_loc = Terms.get_loc y_v in
        return
-         (IT.mul_ (x_v, IT.exp_ (IT.int_lit_ 2 (IT.get_bt x_v) two_loc, exp) exp_loc) loc)
+         (IT.mul_
+            (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
+            loc)
      | OpDiv, _, Some (`Two_loc two_loc, `Exp exp) ->
-       let exp_loc = IT.get_loc y_v in
+       let exp_loc = Terms.get_loc y_v in
        return
-         (IT.div_ (x_v, IT.exp_ (IT.int_lit_ 2 (IT.get_bt x_v) two_loc, exp) exp_loc) loc)
+         (IT.div_
+            (x_v, IT.exp_ (IT.int_lit_ 2 (Terms.get_bt x_v) two_loc, exp) exp_loc)
+            loc)
      | _, _, _ ->
        let@ res = simp_const_pe (f x_v y_v) in
        return res)
@@ -349,29 +352,29 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        simp_const_pe
          (bool_ite_1_0
             bool_rep_ty
-            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
+            (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (Terms.get_bt x) here) here) here)
             loc)
      | _ -> do_wrapI loc ct x)
   | PEcall (f, pes) ->
     let@ xs = ListM.mapM (self var_map) pes in
     (match (f, xs) with
      | Sym (Symbol (_, _, SD_Id "ctype_width")), [ x ]
-       when Option.is_some (IT.is_ctype_const x) ->
-       let ct = Option.get (IT.is_ctype_const x) in
+       when Option.is_some (Terms.is_ctype_const x) ->
+       let ct = Option.get (Terms.is_ctype_const x) in
        return_z_within_range loc (Z.of_int (Memory.size_of_ctype ct * 8)) bt pexpr
      | Sym (Symbol (_, _, SD_Id "params_length")), [ x ] ->
        (match IT.dest_list x with
         | Some xs -> return (IT.int_ (List.length xs) loc)
         | None -> unsupported "pure-expression type" !^"")
      | Sym (Symbol (_, _, SD_Id "params_nth")), [ x; y ] ->
-       (match (IT.dest_list x, IT.is_z y) with
+       (match (IT.dest_list x, Terms.is_z y) with
         | Some its, Some i -> return (List.nth its (Z.to_int i))
         | _ -> unsupported "pure-expression type" !^"")
      | _ -> unsupported "pure-expression type" !^"")
   | PEare_compatible (pe1, pe2) ->
     let@ x1 = self var_map pe1 in
     let@ x2 = self var_map pe2 in
-    (match (IT.is_ctype_const x1, IT.is_ctype_const x2) with
+    (match (Terms.is_ctype_const x1, Terms.is_ctype_const x2) with
      | Some ct1, Some ct2 -> return (IT.bool_ (Sctypes.equal ct1 ct2) loc)
      | _ -> unsupported "are-compatible applied to non-constants" !^"")
   | PEctor (ctor, pes) ->
@@ -398,9 +401,9 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        let@ _ct = must_be_ct_const loc e1 in
        let bop =
          match ctor with
-         | CivAND -> IT.BW_And
-         | CivOR -> IT.BW_Or
-         | CivXOR -> IT.BW_Xor
+         | CivAND -> Terms.BW_And
+         | CivOR -> BW_Or
+         | CivXOR -> BW_Xor
          | _ -> assert false
        in
        return (IT.arith_binop bop (e2, e3) loc)
@@ -415,8 +418,9 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
       | IOpAdd -> IT.add_ (x, y) loc
       | IOpSub -> IT.sub_ (x, y) loc
       | IOpMul -> IT.mul_ (x, y) loc
-      | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (IT.get_bt x) y here) loc
-      | IOpShr -> IT.arith_binop Terms.ShiftRight (x, IT.cast_ (IT.get_bt x) y here) loc
+      | IOpShl -> IT.arith_binop Terms.ShiftLeft (x, IT.cast_ (Terms.get_bt x) y here) loc
+      | IOpShr ->
+        IT.arith_binop Terms.ShiftRight (x, IT.cast_ (Terms.get_bt x) y here) loc
       | IOpDiv -> failwith "TODO division operator"
       | IOpRem_t -> failwith "TODO remainder operator"
     in
@@ -425,7 +429,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
     let@ x = self var_map pe in
     let sig_it =
       Option.(
-        let@ sym, _ = IT.is_sym x in
+        let@ sym, _ = Terms.is_sym x in
         let@ c_sig = Pmap.lookup sym ctxt.call_funinfo in
         IT.const_of_c_sig c_sig loc)
     in
@@ -438,7 +442,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
              Generic
                (Pp.item
                   "getting expr from C syntax: c-function ptr"
-                  (Pp.typ (IT.pp x) (Pp_mucore_ast.pp_pexpr pexpr)))
+                  (Pp.typ (T.pp x) (Pp_mucore_ast.pp_pexpr pexpr)))
              [@alert "-deprecated"]
          })
   | _ -> unsupported "pure-expression type" !^""
@@ -546,14 +550,14 @@ let rec symb_exec_expr ctxt state_vars expr =
            fail_n
              { loc;
                msg =
-                 Generic (Pp.item "unavailable memory address" (IT.pp p_v))
+                 Generic (Pp.item "unavailable memory address" (T.pp p_v))
                  [@alert "-deprecated"]
              }
          | Some None ->
            fail_n
              { loc;
                msg =
-                 Generic (Pp.item "uninitialised memory address" (IT.pp p_v))
+                 Generic (Pp.item "uninitialised memory address" (T.pp p_v))
                  [@alert "-deprecated"]
              }
          | Some (Some ix) -> return ix
@@ -577,8 +581,8 @@ let rec symb_exec_expr ctxt state_vars expr =
     let@ x = symb_exec_pexpr ctxt var_map pe1 in
     let unop =
       match fn with
-      | "ctz" -> IT.BW_CTZ_NoSMT
-      | "generic_ffs" -> IT.BW_FFS_NoSMT
+      | "ctz" -> Terms.BW_CTZ_NoSMT
+      | "generic_ffs" -> BW_FFS_NoSMT
       | _ -> assert false
     in
     let t = IT.arith_unop unop x loc in
@@ -594,7 +598,7 @@ let rec symb_exec_expr ctxt state_vars expr =
             Generic
               (Pp.item
                  ("getting expr from C syntax: function val: " ^ msg)
-                 (Pp.typ (Pp_mucore.pp_pexpr fun_pe) (IT.pp fun_it)))
+                 (Pp.typ (Pp_mucore.pp_pexpr fun_pe) (T.pp fun_it)))
             [@alert "-deprecated"]
         }
     in
@@ -606,7 +610,7 @@ let rec symb_exec_expr ctxt state_vars expr =
         return ()
     in
     let@ nm =
-      match IT.is_sym fun_it with
+      match Terms.is_sym fun_it with
       | None -> fail_fun_it "not a constant function address"
       | Some (nm, _) -> return nm
     in
@@ -662,7 +666,7 @@ let rec filter_syms ss p =
 let rec get_ret_it loc body bt = function
   | Call_Ret v ->
     let@ () =
-      if BT.equal (IT.get_bt v) bt then
+      if BT.equal (Terms.get_bt v) bt then
         return ()
       else
         fail_n
@@ -671,7 +675,7 @@ let rec get_ret_it loc body bt = function
               Generic
                 (Pp.item
                    "get_ret_it: basetype mismatch"
-                   (Pp.infix_arrow (IT.pp_with_typ v) (BT.pp bt)))
+                   (Pp.infix_arrow (T.pp_with_typ v) (BT.pp bt)))
               [@alert "-deprecated"]
           }
     in
@@ -716,7 +720,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
     let rec mk_var_map acc args_and_body def_args =
       match (args_and_body, def_args) with
       | Mu.Computational ((s, bt), _, args_and_body), v :: def_args ->
-        if BT.equal bt (IT.get_bt v) then
+        if BT.equal bt (Terms.get_bt v) then
           mk_var_map (Sym.Map.add s v acc) args_and_body def_args
         else
           fail_n
@@ -725,7 +729,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
                 Generic
                   Pp.(
                     !^"mismatched arguments:"
-                    ^^^ parens (BT.pp (IT.get_bt v) ^^^ IT.pp v)
+                    ^^^ parens (BT.pp (Terms.get_bt v) ^^^ T.pp v)
                     ^^^ !^"and"
                     ^^^ parens (BT.pp bt ^^^ Sym.pp s))
                 [@alert "-deprecated"]
@@ -829,7 +833,7 @@ let add_logical_funs_from_c call_funinfo funs_to_convert funs =
            (lazy
              (Pp.item
                 "converted c function body to logical fun"
-                (Pp.typ (Sym.pp c_fun_sym) (IT.pp it))));
+                (Pp.typ (Sym.pp c_fun_sym) (Terms.pp it))));
          return (loc, l_fun_sym, it))
       funs_to_convert
   in

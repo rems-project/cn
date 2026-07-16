@@ -52,21 +52,21 @@ type message =
         model : Solver.model_with_q
       }
   | Illtyped_binary_it of
-      { left : IndexTerms.Surface.t;
-        right : IndexTerms.Surface.t;
+      { left : Terms.Surface.t;
+        right : Terms.Surface.t;
         binop : Cerb_frontend.Cn.cn_binop
       }
-  | TooBigExponent : { it : IndexTerms.t } -> message
-  | NegativeExponent : { it : IndexTerms.t } -> message
+  | TooBigExponent : { it : Terms.Normal.t } -> message
+  | NegativeExponent : { it : Terms.Normal.t } -> message
   | Write_value_unrepresentable of
       { ct : Sctypes.t;
-        location : IndexTerms.t;
-        value : IndexTerms.t;
+        location : Terms.Normal.t;
+        value : Terms.Normal.t;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
       }
   | Int_unrepresentable of
-      { value : IndexTerms.t;
+      { value : Terms.Normal.t;
         ict : Sctypes.t;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
@@ -84,14 +84,14 @@ type message =
         model : Solver.model_with_q
       }
   | Needs_alloc_id of
-      { ptr : IndexTerms.t;
+      { ptr : Terms.Normal.t;
         ub : Cerb_frontend.Undefined.undefined_behaviour;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
       }
   | Alloc_out_of_bounds of
-      { term : IndexTerms.t;
-        constr : IndexTerms.t;
+      { term : Terms.Normal.t;
+        constr : Terms.Normal.t;
         ub : Cerb_frontend.Undefined.undefined_behaviour;
         ctxt : Context.t * Explain.log;
         model : Solver.model_with_q
@@ -99,9 +99,9 @@ type message =
   | Allocation_not_live of
       { reason :
           [ `Copy_alloc_id | `ISO_array_shift | `ISO_member_shift | `Ptr_cmp | `Ptr_diff ];
-        ptr : IndexTerms.t;
+        ptr : Terms.Normal.t;
         ctxt : Context.t * Explain.log;
-        model_constr : (Solver.model_with_q * IndexTerms.t) option
+        model_constr : (Solver.model_with_q * Terms.Normal.t) option
       }
   | Unspecified of Cerb_frontend.Ctype.ctype
   | StaticError of

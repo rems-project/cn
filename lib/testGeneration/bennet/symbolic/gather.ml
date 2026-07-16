@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
+module T = Terms.Normal
 module IT = IndexTerms
 module BT = BaseTypes
 module LC = LogicalConstraints
@@ -63,7 +64,7 @@ module Make (AD : Domain.T) = struct
       in
       let f = Simplify.IndexTerms.simp (Simplify.default Global.empty) in
       let it_min, it_max = (f it_min, f it_max) in
-      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let start_addr_smt = Smt.convert_indexterm sigma (subst_i_in_addr it_min) in
       let end_addr_smt =
         let here = Locations.other __LOC__ in
@@ -202,7 +203,7 @@ module Make (AD : Domain.T) = struct
           elem_docs
       in
       (* Memory constraint *)
-      let subst_i_in_addr it = f (IT.subst (IT.make_subst [ (i_sym, it) ]) it_addr) in
+      let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let start_addr_smt = Smt.convert_indexterm sigma (subst_i_in_addr it_min) in
       let end_addr_smt =
         let here = Locations.other __LOC__ in
@@ -360,7 +361,7 @@ module Make (AD : Domain.T) = struct
         |> List.range 0
         |> List.map (fun idx ->
           let idx_it = f (IT.add_ (it_min, IT.num_lit_ (Z.of_int idx) i_bt here) here) in
-          let subst_body = Term.subst (IT.make_subst [ (i_sym, idx_it) ]) body_term in
+          let subst_body = Term.subst (T.make_subst [ (i_sym, idx_it) ]) body_term in
           let body_result = gather_term sigma subst_body in
           (idx_it, body_result))
       in

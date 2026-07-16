@@ -2,6 +2,7 @@
 
 open OUnit2
 open QCheck
+open Cn.Terms
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
 module IT = Cn.IndexTerms
@@ -337,7 +338,7 @@ let test_backward_and _ =
   (* (x & 0x0F) == 5 should refine x to have low 4 bits = 0101 *)
   let x_and_mask =
     IT.arith_binop
-      IT.BW_And
+      BW_And
       (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
       test_loc
   in
@@ -363,7 +364,7 @@ let test_backward_or _ =
      for the high 4 bits to remain 0 after OR, x must have high 4 bits = 0 *)
   let x_or_mask =
     IT.arith_binop
-      IT.BW_Or
+      BW_Or
       (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
       test_loc
   in
@@ -388,7 +389,7 @@ let test_backward_xor _ =
   (* (x ^ 0x0F) == 0x0A means x = 0x0A ^ 0x0F = 0x05 *)
   let x_xor_mask =
     IT.arith_binop
-      IT.BW_Xor
+      BW_Xor
       (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 0x0F) test_bt test_loc)
       test_loc
   in
@@ -413,7 +414,7 @@ let test_backward_shl _ =
   (* (x << 2) == 20 means x = 20 >> 2 = 5 *)
   let x_shl =
     IT.arith_binop
-      IT.ShiftLeft
+      ShiftLeft
       (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 2) test_bt test_loc)
       test_loc
   in
@@ -438,7 +439,7 @@ let test_backward_lshr _ =
   (* (x >> 2) == 5 means x = 5 << 2 = 20, but low 2 bits are unknown *)
   let x_lshr =
     IT.arith_binop
-      IT.ShiftRight
+      ShiftRight
       (IT.sym_ (x, test_bt, test_loc), IT.num_lit_ (Z.of_int 2) test_bt test_loc)
       test_loc
   in
@@ -478,7 +479,7 @@ let test_backward_le _ =
 let test_backward_not _ =
   let x = make_sym "x" in
   (* ~x == 250 means x = ~250 = 5 (for 8-bit unsigned) *)
-  let not_x = IT.arith_unop IT.BW_Compl (IT.sym_ (x, test_bt, test_loc)) test_loc in
+  let not_x = IT.arith_unop BW_Compl (IT.sym_ (x, test_bt, test_loc)) test_loc in
   let constraint_it =
     IT.eq_ (not_x, IT.num_lit_ (Z.of_int 250) test_bt test_loc) test_loc
   in

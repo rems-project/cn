@@ -1,4 +1,5 @@
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
@@ -73,7 +74,7 @@ module Make (AD : Domain.T) = struct
   (* Rebuild the original (whole-struct/record/tuple) argument value from the
      destructured leaf symbols, so any reference to the parent symbol that is not
      a member access (e.g. [valid_state(s)], [Good(struct T, s)]) stays in scope. *)
-  let rec it_of_new_args (na : new_args) (loc : Locations.t) : IT.t =
+  let rec it_of_new_args (na : new_args) (loc : Locations.t) : T.t =
     match na with
     | Struct (tag, members) ->
       IT.struct_
@@ -174,8 +175,8 @@ module Make (AD : Domain.T) = struct
       failwith "destructProducts: unexpected record/tuple C-typed parameter"
 
 
-  let transform_it (prog5 : unit Mucore.file) ((it, bt) : IT.t * BT.t) : IT.t list =
-    let rec aux ((it, bt) : IT.t * BT.t) : IT.t list =
+  let transform_it (prog5 : unit Mucore.file) ((it, bt) : T.t * BT.t) : T.t list =
+    let rec aux ((it, bt) : T.t * BT.t) : T.t list =
       match bt with
       | BT.Struct tag ->
         (match Pmap.find tag prog5.tagDefs with
@@ -209,7 +210,7 @@ module Make (AD : Domain.T) = struct
     aux (it, bt)
 
 
-  let transform_its (prog5 : unit Mucore.file) (its : (IT.t * BT.t) list) : IT.t list =
+  let transform_its (prog5 : unit Mucore.file) (its : (T.t * BT.t) list) : T.t list =
     its |> List.map (transform_it prog5) |> List.flatten
 
 

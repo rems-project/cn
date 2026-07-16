@@ -109,7 +109,7 @@ module Make (AD : Domain.T) = struct
              Term.let_star_
                ( (y, arbitrary_of_sctype sct loc_arb),
                  Term.asgn_
-                   ( (IT.memberShift_ (it_addr, tag, member) (IT.get_loc it_addr), sct),
+                   ( (IT.memberShift_ (it_addr, tag, member) (Terms.get_loc it_addr), sct),
                      IT.sym_ (y, Memory.bt_of_sct sct, loc),
                      gt_rest' )
                    ()

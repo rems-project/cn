@@ -1,17 +1,17 @@
 (** Manipulate a resource *)
 type action =
-  | Read of IndexTerms.t * IndexTerms.t
-  | Write of IndexTerms.t * IndexTerms.t
-  | Create of IndexTerms.t
-  | Kill of IndexTerms.t
+  | Read of Terms.Normal.t * Terms.Normal.t
+  | Write of Terms.Normal.t * Terms.Normal.t
+  | Create of Terms.Normal.t
+  | Kill of Terms.Normal.t
   | Call of
       { fsym : Sym.t;
-        args : IndexTerms.t list;
-        gargs : IndexTerms.t list
+        args : Terms.Normal.t list;
+        gargs : Terms.Normal.t list
       }
   | Return of
-      { arg : IndexTerms.t;
-        gargs : IndexTerms.t list
+      { arg : Terms.Normal.t;
+        gargs : Terms.Normal.t list
       }
 
 (** Info about what happened *)

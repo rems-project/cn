@@ -48,8 +48,8 @@ let debug_bounds name constraint_term (x, bt) =
   Printf.printf
     "%s: lower=%s, upper=%s\n"
     name
-    (match lower with Some l -> Cn.Pp.plain (Cn.IndexTerms.pp l) | None -> "None")
-    (match upper with Some u -> Cn.Pp.plain (Cn.IndexTerms.pp u) | None -> "None");
+    (match lower with Some l -> Cn.Pp.plain (Cn.Terms.pp l) | None -> "None")
+    (match upper with Some u -> Cn.Pp.plain (Cn.Terms.pp u) | None -> "None");
   (lower, upper)
 
 
@@ -71,7 +71,7 @@ let test_bounds_simple_le _ =
   assert_bool "LE constraint should not have lower bound" (Option.is_none lower);
   match upper with
   | Some u ->
-    (match is_bits_const u with
+    (match Cn.Terms.is_bits_const u with
      | Some (_, z) -> assert_equal ~msg:"Upper bound should be 10" z (Z.of_int 10)
      | _ -> assert_failure "Upper bound should be a constant")
   | None -> assert_failure "Upper bound should be present for LE"
@@ -85,7 +85,7 @@ let test_bounds_simple_ge _ =
   assert_bool "GE constraint should not have upper bound" (Option.is_none upper);
   match lower with
   | Some l ->
-    (match is_bits_const l with
+    (match Cn.Terms.is_bits_const l with
      | Some (_, z) -> assert_equal ~msg:"Lower bound should be 3" z (Z.of_int 3)
      | _ -> assert_failure "Lower bound should be a constant")
   | None -> assert_failure "Lower bound should be present for GE"
@@ -102,20 +102,20 @@ let test_bounds_conjunction _ =
     (Option.is_some lower && Option.is_some upper);
   match (lower, upper) with
   | Some l, Some u ->
-    (match is_bits_const l with
+    (match Cn.Terms.is_bits_const l with
      | Some (_, z) -> assert_equal ~msg:"Lower bound should be 3" z (Z.of_int 3)
      | _ ->
        assert_failure
          (Printf.sprintf
             "Lower bound should be a constant instead of %s"
-            (Cn.Pp.plain (Cn.IndexTerms.pp l))));
-    (match is_bits_const u with
+            (Cn.Pp.plain (Cn.Terms.pp l))));
+    (match Cn.Terms.is_bits_const u with
      | Some (_, z) -> assert_equal ~msg:"Upper bound should be 10" z (Z.of_int 10)
      | _ ->
        assert_failure
          (Printf.sprintf
             "Upper bound should be a constant instead of %s"
-            (Cn.Pp.plain (Cn.IndexTerms.pp u))))
+            (Cn.Pp.plain (Cn.Terms.pp u))))
   | _ -> assert_failure "Both bounds should be present for conjunction"
 
 
@@ -133,22 +133,22 @@ let test_bounds_conjunction_tighter _ =
     (* Should take max of lower bounds (5) and min of upper bounds (8) *)
     let l = Cn.Simplify.IndexTerms.simp (Cn.Simplify.default Cn.Global.empty) l in
     let u = Cn.Simplify.IndexTerms.simp (Cn.Simplify.default Cn.Global.empty) u in
-    (match is_bits_const l with
+    (match Cn.Terms.is_bits_const l with
      | Some (_, z) ->
        assert_equal ~msg:"Lower bound should be max(3,5) = 5" z (Z.of_int 5)
      | _ ->
        assert_failure
          (Printf.sprintf
             "Lower bound should be a constant instead of %s"
-            (Cn.Pp.plain (Cn.IndexTerms.pp l))));
-    (match is_bits_const u with
+            (Cn.Pp.plain (Cn.Terms.pp l))));
+    (match Cn.Terms.is_bits_const u with
      | Some (_, z) ->
        assert_equal ~msg:"Upper bound should be min(10,8) = 8" z (Z.of_int 8)
      | _ ->
        assert_failure
          (Printf.sprintf
             "Upper bound should be a constant instead of %s"
-            (Cn.Pp.plain (Cn.IndexTerms.pp u))))
+            (Cn.Pp.plain (Cn.Terms.pp u))))
   | _ -> assert_failure "Both bounds should be present for tighter conjunction"
 
 
@@ -188,7 +188,7 @@ let bounds_consistency_prop =
        let eq_bounds_correct =
          match (eq_lower, eq_upper) with
          | Some l, Some u ->
-           (match (is_bits_const l, is_bits_const u) with
+           (match (Cn.Terms.is_bits_const l, Cn.Terms.is_bits_const u) with
             | Some (_, lz), Some (_, uz) ->
               Z.equal lz (Z.of_int eq_val) && Z.equal uz (Z.of_int eq_val)
             | _ -> false)
@@ -204,7 +204,7 @@ let bounds_consistency_prop =
        let conj_bounds_correct =
          match (conj_lower, conj_upper) with
          | Some l, Some u ->
-           (match (is_bits_const l, is_bits_const u) with
+           (match (Cn.Terms.is_bits_const l, Cn.Terms.is_bits_const u) with
             | Some (_, lz), Some (_, uz) ->
               Z.equal lz (Z.of_int min_val) && Z.equal uz (Z.of_int max_val)
             | _ -> false)
@@ -225,7 +225,7 @@ let random_inequality_bounds_prop =
       &&
       match le_upper with
       | Some u ->
-        (match is_bits_const u with
+        (match Cn.Terms.is_bits_const u with
          | Some (_, z) -> Z.equal z (Z.of_int value)
          | _ -> false)
       | None -> false
@@ -238,7 +238,7 @@ let random_inequality_bounds_prop =
       &&
       match ge_lower with
       | Some l ->
-        (match is_bits_const l with
+        (match Cn.Terms.is_bits_const l with
          | Some (_, z) -> Z.equal z (Z.of_int value)
          | _ -> false)
       | None -> false
@@ -260,7 +260,7 @@ let random_conjunction_bounds_prop =
        let conj_lower, conj_upper = Bounds.get_bounds_opt (x, test_bt) conj_constraint in
        match (conj_lower, conj_upper) with
        | Some l, Some u ->
-         (match (is_bits_const l, is_bits_const u) with
+         (match (Cn.Terms.is_bits_const l, Cn.Terms.is_bits_const u) with
           | Some (_, lz), Some (_, uz) ->
             Z.equal lz (Z.of_int lower_val) && Z.equal uz (Z.of_int upper_val)
           | _ -> false)

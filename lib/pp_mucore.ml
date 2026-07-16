@@ -538,7 +538,7 @@ module Make (Config : CONFIG) = struct
              ^^ Pp.parens
                   (Cn_Pp.list
                      Pp_ast.pp_doc_tree
-                     (List.map (Cnprog.dtree IndexTerms.dtree) ghost_args))
+                     (List.map (Cnprog.dtree Terms.dtree) ghost_args))
            | Eproc (fn, args) ->
              let fn = match fn with Sym s -> Sym.pp s | Impl i -> pp_impl i in
              Cn_Pp.c_app fn (List.map pp_pexpr args)
@@ -621,7 +621,7 @@ module Make (Config : CONFIG) = struct
 
   let rec pp_arguments_l ppf = function
     | Define ((s, it), _info, l) ->
-      Pp.parens (!^"let" ^^^ pp_symbol s ^^^ Pp.equals ^^^ IndexTerms.pp it)
+      Pp.parens (!^"let" ^^^ pp_symbol s ^^^ Pp.equals ^^^ Terms.Normal.pp it)
       ^^^ pp_arguments_l ppf l
     | Resource ((s, (re, _bt)), _info, l) ->
       Pp.parens (!^"let" ^^^ pp_symbol s ^^^ Pp.equals ^^^ Request.pp re)

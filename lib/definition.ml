@@ -1,15 +1,16 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LAT = LogicalArgumentTypes
 
 module Function = struct
   type body =
-    | Def of IT.t
-    | Rec_Def of IT.t
+    | Def of T.t
+    | Rec_Def of T.t
     | Uninterp
 
   let subst_body subst = function
-    | Def it -> Def (IT.subst subst it)
-    | Rec_Def it -> Rec_Def (IT.subst subst it)
+    | Def it -> Def (T.subst subst it)
+    | Rec_Def it -> Rec_Def (T.subst subst it)
     | Uninterp -> Uninterp
 
 
@@ -56,13 +57,13 @@ module Function = struct
     ^/^
     match def.body with
     | Uninterp -> !^"uninterpreted"
-    | Def t -> IT.pp t
-    | Rec_Def t -> !^"rec:" ^^^ IT.pp t
+    | Def t -> T.pp t
+    | Rec_Def t -> !^"rec:" ^^^ T.pp t
 
 
   let open_ def_args def_body args =
-    let su = IT.make_subst (List.map2 (fun (s, _) arg -> (s, arg)) def_args args) in
-    IT.subst su def_body
+    let su = T.make_subst (List.map2 (fun (s, _) arg -> (s, arg)) def_args args) in
+    T.subst su def_body
 
 
   let unroll_once def args =
@@ -85,25 +86,20 @@ end
 module Clause = struct
   type t =
     { loc : Locations.t;
-      guard : IT.t;
+      guard : T.t;
       packing_ft : LAT.packing_ft
     }
 
   let pp { loc = _; guard; packing_ft } =
     let open Pp in
-    item "condition" (IT.pp guard)
-    ^^ comma
-    ^^^ item "return type" (LAT.pp IT.pp packing_ft)
+    item "condition" (T.pp guard) ^^ comma ^^^ item "return type" (LAT.pp T.pp packing_ft)
 
 
   let subst subst { loc; guard; packing_ft } =
-    { loc;
-      guard = IT.subst subst guard;
-      packing_ft = LAT.subst IT.subst subst packing_ft
-    }
+    { loc; guard = T.subst subst guard; packing_ft = LAT.subst T.subst subst packing_ft }
 
 
-  let lrt (pred_oarg : IT.t) clause_packing_ft =
+  let lrt (pred_oarg : T.t) clause_packing_ft =
     let module LRT = LogicalReturnTypes in
     let rec aux = function
       | LAT.Define (bound, info, lat) -> LRT.Define (bound, info, aux lat)
@@ -128,7 +124,7 @@ module Clause = struct
 
 
   let free_vars (c : t) : Sym.Set.t =
-    Sym.Set.union (IT.free_vars c.guard) (LAT.free_vars IT.free_vars c.packing_ft)
+    Sym.Set.union (T.free_vars c.guard) (LAT.free_vars T.free_vars c.packing_ft)
 
 
   let free_vars_list (cs : t list) : Sym.Set.t =
@@ -171,7 +167,7 @@ module Predicate = struct
     match def.clauses with
     | Some clauses ->
       let subst =
-        IT.make_subst
+        T.make_subst
           ((def.pointer, ptr_arg)
            :: List.map2 (fun (def_ia, _) ia -> (def_ia, ia)) def.iargs iargs)
       in
@@ -198,7 +194,7 @@ module Predicate = struct
                 Pp.debug
                   5
                   (lazy
-                    (Pp.item "cannot prove or disprove clause guard" (IT.pp clause.guard)));
+                    (Pp.item "cannot prove or disprove clause guard" (T.pp clause.guard)));
                 None))
       in
       try_clauses clauses

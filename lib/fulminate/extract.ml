@@ -62,7 +62,7 @@ type instrumentation =
 (* replace `s_replace` of basetype `bt` with `s_with` *)
 let sym_subst (s_replace, bt, s_with) =
   let module IT = IndexTerms in
-  IT.make_subst [ (s_replace, IT.sym_ (s_with, bt, Cerb_location.unknown)) ]
+  Terms.Normal.make_subst [ (s_replace, IT.sym_ (s_with, bt, Cerb_location.unknown)) ]
 
 
 let rec stmts_in_expr (Mucore.Expr (loc, _, _, e_)) =

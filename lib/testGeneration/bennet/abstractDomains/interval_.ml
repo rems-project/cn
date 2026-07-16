@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 
 module IntervalBasis = struct
@@ -123,7 +124,7 @@ module IntervalBasis = struct
       brackets (z start ^^ !^".." ^^ z stop)
 
 
-  let forward_abs_binop (op : IT.binop) (b1 : t) (b2 : t) : t option =
+  let forward_abs_binop (op : Terms.binop) (b1 : t) (b2 : t) : t option =
     assert (BT.equal b1.bt b2.bt);
     if b1.is_bottom || b2.is_bottom then
       Some (bottom b1.bt)
@@ -290,7 +291,7 @@ module IntervalBasis = struct
         { bt = target_bt; is_bottom = false; start = clamped_start; stop = clamped_stop })
 
 
-  let forward_abs_it (it : IT.t) (b_args : t list) : t option =
+  let forward_abs_it (it : T.t) (b_args : t list) : t option =
     let (IT (it_, bt, _loc)) = it in
     match it_ with
     | Const (Bits (_, n)) -> Some (of_interval bt n n)
@@ -304,11 +305,7 @@ module IntervalBasis = struct
         print_endline
           Pp.(
             plain
-              (IT.pp it
-               ^^^ pp b1
-               ^^ parens (BT.pp b1.bt)
-               ^^^ pp b2
-               ^^ parens (BT.pp b2.bt)));
+              (T.pp it ^^^ pp b1 ^^ parens (BT.pp b1.bt) ^^^ pp b2 ^^ parens (BT.pp b2.bt)));
         failwith __LOC__);
       forward_abs_binop op b1 b2
     | Cast (_, _) ->
@@ -321,11 +318,11 @@ module IntervalBasis = struct
     | _ -> None
 
 
-  let rec backward_abs_it (it : IT.t) (bs : t list) =
+  let rec backward_abs_it (it : T.t) (bs : t list) =
     let (IT (it_, _, loc)) = it in
     match it_ with
     | Binop (EQ, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       if Option.is_none (BT.is_bits_bt bt) && not (BT.equal bt (BT.Loc ())) then
         bs
       else (
@@ -333,14 +330,14 @@ module IntervalBasis = struct
         let b = meet b1 b2 in
         [ b; b ])
     | Binop (LE, it', _) | Binop (LEPointer, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       let min, max = get_extrema bt in
       let b1, b2 = match bs with [ b1; b2 ] -> (b1, b2) | _ -> failwith __LOC__ in
       let b1' = of_interval bt min b2.stop in
       let b2' = of_interval bt b1.start max in
       [ meet b1 b1'; meet b2 b2' ]
     | Binop (LT, it', _) | Binop (LTPointer, it', _) ->
-      let bt = IT.get_bt it' in
+      let bt = T.get_bt it' in
       let min, max = get_extrema bt in
       let b1, b2 = match bs with [ b1; b2 ] -> (b1, b2) | _ -> failwith __LOC__ in
       let b1' = of_interval bt min (Z.sub b2.stop Z.one) in
@@ -354,7 +351,7 @@ module IntervalBasis = struct
       backward_abs_it (IT.lt_ (it2, it1) loc) bs
     (* TODO: NE *)
     | _ ->
-      if BT.equal BT.Bool (IT.get_bt it) then
+      if BT.equal BT.Bool (T.get_bt it) then
         bs
       else
         List.tl bs
@@ -417,7 +414,7 @@ module IntervalBasis = struct
 
   let definitions () = Pp.empty
 
-  let to_it (sym : Sym.t) (t : t) : IT.t =
+  let to_it (sym : Sym.t) (t : t) : T.t =
     let loc = Locations.other __LOC__ in
     if is_bottom t then
       IT.bool_ false loc

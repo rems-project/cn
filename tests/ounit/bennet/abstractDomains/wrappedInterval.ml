@@ -2,6 +2,7 @@
 
 open OUnit2
 open QCheck
+open Cn.Terms
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
 module IT = Cn.IndexTerms
@@ -293,14 +294,14 @@ let test_arithmetic_operations _ =
   let a = make_wint bt 10 20 in
   let b = make_wint bt 5 15 in
   (* Test addition *)
-  (match Basis.forward_abs_binop IT.Add a b with
+  (match Basis.forward_abs_binop Add a b with
    | Some result ->
      (* Addition: [10,20] + [5,15] = [15,35] *)
      let expected = make_wint bt 15 35 in
      assert_wint_equal ~msg:"addition" expected result
    | None -> assert_failure "Addition should return Some result");
   (* Test subtraction *)
-  match Basis.forward_abs_binop IT.Sub a b with
+  match Basis.forward_abs_binop Sub a b with
   | Some result ->
     (* Subtraction: [10,20] - [5,15] = [10-15, 20-5] = [-5,15] *)
     (* But in unsigned 8-bit, -5 wraps to 251 *)
@@ -315,7 +316,7 @@ let test_overflow_handling _ =
   let a = make_wint bt 200 250 in
   let b = make_wint bt 100 150 in
   (* This addition should cause overflow: 200+100=300 > 255 *)
-  match Basis.forward_abs_binop IT.Add a b with
+  match Basis.forward_abs_binop Add a b with
   | Some result ->
     (* With wrapped intervals, this should model wraparound, not go to top *)
     assert_bool "Overflow should not result in bottom" (not (is_bottom_wint result))
@@ -339,7 +340,7 @@ let test_bitwise_or _ =
   let bt = test_bt_u8 in
   let a = make_wint bt 2 3 in
   let b = make_wint bt 9 10 in
-  match Basis.forward_abs_binop IT.BW_Or a b with
+  match Basis.forward_abs_binop BW_Or a b with
   | Some result ->
     let expected = make_wint bt 10 11 in
     assert_wint_equal ~msg:"bitwise or" expected result
@@ -351,7 +352,7 @@ let test_bitwise_and _ =
   let bt = test_bt_u8 in
   let a = make_wint bt 2 3 in
   let b = make_wint bt 9 10 in
-  match Basis.forward_abs_binop IT.BW_And a b with
+  match Basis.forward_abs_binop BW_And a b with
   | Some result ->
     let expected = make_wint bt 0 2 in
     assert_wint_equal ~msg:"bitwise and" expected result
@@ -363,7 +364,7 @@ let test_bitwise_xor _ =
   let bt = test_bt_u8 in
   let a = make_wint bt 2 3 in
   let b = make_wint bt 9 10 in
-  match Basis.forward_abs_binop IT.BW_Xor a b with
+  match Basis.forward_abs_binop BW_Xor a b with
   | Some result ->
     let expected = make_wint bt 8 11 in
     assert_wint_equal ~msg:"bitwise xor" expected result
@@ -376,7 +377,7 @@ let test_left_shift_basic _ =
   (* Test shift by 1: [2,3] << 1 = [4,6] *)
   let operand = make_wint bt 2 3 in
   let shift = make_wint bt 1 1 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     let expected = make_wint bt 4 6 in
     assert_wint_equal ~msg:"left shift by 1" expected result
@@ -389,7 +390,7 @@ let test_left_shift_overflow _ =
   (* Test shift that causes overflow: [64,127] << 2 would exceed 8-bit range *)
   let operand = make_wint bt 64 127 in
   let shift = make_wint bt 2 2 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     (* Should return conservative bounds due to overflow *)
     assert_bool
@@ -403,7 +404,7 @@ let test_left_shift_zero _ =
   let bt = test_bt_u8 in
   let operand = make_wint bt 10 20 in
   let shift = make_wint bt 0 0 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result -> assert_wint_equal ~msg:"left shift by zero" operand result
   | None -> assert_failure "Left shift should return Some result"
 
@@ -414,7 +415,7 @@ let test_logical_right_shift_basic _ =
   (* Test shift by 1: [8,12] >> 1 = [4,6] *)
   let operand = make_wint bt 8 12 in
   let shift = make_wint bt 1 1 in
-  match Basis.forward_abs_binop IT.ShiftRight operand shift with
+  match Basis.forward_abs_binop ShiftRight operand shift with
   | Some result ->
     let expected = make_wint bt 4 6 in
     assert_wint_equal ~msg:"logical right shift by 1" expected result
@@ -427,7 +428,7 @@ let test_logical_right_shift_south_pole _ =
   (* Create interval that crosses south pole: [250, 10] *)
   let operand = make_wint bt 250 10 in
   let shift = make_wint bt 1 1 in
-  match Basis.forward_abs_binop IT.ShiftRight operand shift with
+  match Basis.forward_abs_binop ShiftRight operand shift with
   | Some result ->
     (* Should return conservative bounds [0, 127] for unsigned 8-bit >> 1 *)
     assert_bool
@@ -442,7 +443,7 @@ let test_arithmetic_right_shift_signed _ =
   (* Test positive values: [8,12] >> 1 = [4,6] *)
   let operand = make_wint bt 8 12 in
   let shift = make_wint bt 1 1 in
-  match Basis.forward_abs_binop IT.ShiftRight operand shift with
+  match Basis.forward_abs_binop ShiftRight operand shift with
   | Some result ->
     let expected = make_wint bt 4 6 in
     assert_wint_equal ~msg:"arithmetic right shift positive" expected result
@@ -455,7 +456,7 @@ let test_arithmetic_right_shift_north_pole _ =
   (* Create interval that crosses north pole: [100, -100] (wraps around) *)
   let operand = make_wint bt 100 (-100) in
   let shift = make_wint bt 1 1 in
-  match Basis.forward_abs_binop IT.ShiftRight operand shift with
+  match Basis.forward_abs_binop ShiftRight operand shift with
   | Some result ->
     (* Should return conservative bounds due to north pole crossing *)
     assert_bool
@@ -470,7 +471,7 @@ let test_shift_excessive_amount _ =
   let operand = make_wint bt 10 20 in
   let shift = make_wint bt 8 8 in
   (* Shift by width *)
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     (* Should return top (conservative) for shift by width or more *)
     assert_bool
@@ -485,7 +486,7 @@ let test_non_constant_shift _ =
   let operand = make_wint bt 10 20 in
   let shift = make_wint bt 1 3 in
   (* Non-constant shift amount *)
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     (* Should return top (conservative) for non-constant shift *)
     assert_bool "Non-constant shift should be conservative" (is_top_wint result)
@@ -498,7 +499,7 @@ let test_shift_16bit _ =
   (* Test left shift: [100,200] << 2 = [400,800] *)
   let operand = make_wint bt 100 200 in
   let shift = make_wint bt 2 2 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     let expected = make_wint bt 400 800 in
     assert_wint_equal ~msg:"16-bit left shift" expected result
@@ -511,7 +512,7 @@ let test_shift_max_safe _ =
   (* Test left shift by 7 (max safe for 8-bit): [1,1] << 7 = [128,128] *)
   let operand = make_wint bt 1 1 in
   let shift = make_wint bt 7 7 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     let expected = make_wint bt 128 128 in
     assert_wint_equal ~msg:"max safe left shift" expected result
@@ -525,7 +526,7 @@ let test_enhanced_truncation _ =
   (* [64, 65] << 1 should be [128, 130] with enhanced truncation *)
   let operand = make_wint bt 64 65 in
   let shift = make_wint bt 1 1 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     (* With enhanced truncation, this should be precise since upper bits are consecutive *)
     let expected = make_wint bt 128 130 in
@@ -540,7 +541,7 @@ let test_enhanced_truncation_conservative _ =
   (* [60, 70] << 2 should be conservative due to upper bit differences *)
   let operand = make_wint bt 60 70 in
   let shift = make_wint bt 2 2 in
-  match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+  match Basis.forward_abs_binop ShiftLeft operand shift with
   | Some result ->
     (* Should be conservative bounds, not precise *)
     assert_bool
@@ -555,7 +556,7 @@ let test_arithmetic_right_shift_conservative_bounds _ =
   (* Create interval that crosses signed limit for 8-bit signed: [-100, 100] *)
   let operand = make_wint bt (-100) 100 in
   let shift = make_wint bt 2 2 in
-  match Basis.forward_abs_binop IT.ShiftRight operand shift with
+  match Basis.forward_abs_binop ShiftRight operand shift with
   | Some result ->
     (* Should return precise conservative bounds, not just top *)
     assert_bool "Conservative AShr should not be bottom" (not (is_bottom_wint result));
@@ -569,10 +570,10 @@ let test_shift_left_then_right _ =
   let original = make_wint bt 1 32 in
   let shift_amt = make_wint bt 3 3 in
   (* First shift left by 3: [1, 32] << 3 should give [8, 256] which wraps to [8, 0] *)
-  match Basis.forward_abs_binop IT.ShiftLeft original shift_amt with
+  match Basis.forward_abs_binop ShiftLeft original shift_amt with
   | Some left_shifted ->
     (* Then shift right by 3: [8, 0] >> 3 should give [0, 31] due to conservative handling *)
-    (match Basis.forward_abs_binop IT.ShiftRight left_shifted shift_amt with
+    (match Basis.forward_abs_binop ShiftRight left_shifted shift_amt with
      | Some final_result ->
        (* Due to overflow and conservative right shift, we get [0, 31], not original [1, 32] *)
        let expected = make_wint bt 0 31 in
@@ -590,7 +591,7 @@ let test_remainder_basic _ =
   (* Test unsigned remainder: [10,20] % [3,5] *)
   let dividend = make_wint bt 10 20 in
   let divisor = make_wint bt 3 5 in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* For unsigned, result should be [0, divisor_max-1] = [0, 4] *)
     let expected = make_wint bt 0 4 in
@@ -603,7 +604,7 @@ let test_remainder_zero_dividend _ =
   let bt = test_bt_u8 in
   let zero_dividend = make_wint bt 0 0 in
   let divisor = make_wint bt 5 10 in
-  match Basis.forward_abs_binop IT.Mod zero_dividend divisor with
+  match Basis.forward_abs_binop Mod zero_dividend divisor with
   | Some result ->
     (* 0 % anything = 0 *)
     let expected = make_wint bt 0 0 in
@@ -616,7 +617,7 @@ let test_remainder_zero_divisor _ =
   let bt = test_bt_u8 in
   let dividend = make_wint bt 10 20 in
   let zero_divisor = make_wint bt 0 0 in
-  match Basis.forward_abs_binop IT.Mod dividend zero_divisor with
+  match Basis.forward_abs_binop Mod dividend zero_divisor with
   | Some result ->
     (* Division by zero should result in bottom *)
     assert_bool "Remainder by zero should be bottom" (is_bottom_wint result)
@@ -629,7 +630,7 @@ let test_signed_remainder_positive _ =
   (* Both operands positive: [10,20] % [3,5] *)
   let dividend = make_wint bt 10 20 in
   let divisor = make_wint bt 3 5 in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* For signed with both positive: [0, divisor_max-1] = [0, 4] *)
     let expected = make_wint bt 0 4 in
@@ -643,7 +644,7 @@ let test_signed_remainder_pos_neg _ =
   (* Dividend positive, divisor negative: [10,20] % [-5,-3] *)
   let dividend = make_wint bt 10 20 in
   let divisor = make_wint bt (-5) (-3) in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* For dividend pos, divisor neg: [0, -divisor_min-1] = [0, -(-5)-1] = [0, 4] *)
     let expected = make_wint bt 0 4 in
@@ -660,7 +661,7 @@ let test_signed_remainder_neg_pos _ =
   (* Dividend negative, divisor positive: [-20,-10] % [3,5] *)
   let dividend = make_wint bt (-20) (-10) in
   let divisor = make_wint bt 3 5 in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* For dividend neg, divisor pos: [-divisor_max+1, 0] = [-4, 0] *)
     let expected = make_wint bt (-4) 0 in
@@ -677,7 +678,7 @@ let test_signed_remainder_both_negative _ =
   (* Both operands negative: [-20,-10] % [-5,-3] *)
   let dividend = make_wint bt (-20) (-10) in
   let divisor = make_wint bt (-5) (-3) in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* For both negative: [divisor_min+1, 0] = [-5+1, 0] = [-4, 0] *)
     let expected = make_wint bt (-4) 0 in
@@ -691,7 +692,7 @@ let test_remainder_wrapped _ =
   (* Test with wrapped dividend: [250, 10] % [7, 9] *)
   let wrapped_dividend = make_wint bt 250 10 in
   let divisor = make_wint bt 7 9 in
-  match Basis.forward_abs_binop IT.Mod wrapped_dividend divisor with
+  match Basis.forward_abs_binop Mod wrapped_dividend divisor with
   | Some result ->
     (* Should handle wrapping correctly and not be bottom *)
     assert_bool "Wrapped remainder should not be bottom" (not (is_bottom_wint result));
@@ -707,7 +708,7 @@ let test_remainder_precision _ =
   (* Test case where Crab algorithm should be more precise *)
   let dividend = make_wint bt 100 120 in
   let divisor = make_wint bt 30 40 in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* Should not be top - algorithm should provide meaningful bounds *)
     assert_bool "Remainder should be precise, not top" (not (is_top_wint result));
@@ -721,7 +722,7 @@ let test_remainder_16bit _ =
   (* Test with larger values: [1000,2000] % [100,200] *)
   let dividend = make_wint bt 1000 2000 in
   let divisor = make_wint bt 100 200 in
-  match Basis.forward_abs_binop IT.Mod dividend divisor with
+  match Basis.forward_abs_binop Mod dividend divisor with
   | Some result ->
     (* Should be bounded by [0, 199] for unsigned *)
     let expected_bound = make_wint bt 0 199 in
@@ -1007,7 +1008,7 @@ let prop_left_shift_zero_identity =
     ~print:(fun (start, stop) ->
       let operand = make_wint test_bt_u8 start stop in
       let zero_shift = make_wint test_bt_u8 0 0 in
-      let result_opt = Basis.forward_abs_binop IT.ShiftLeft operand zero_shift in
+      let result_opt = Basis.forward_abs_binop ShiftLeft operand zero_shift in
       String.concat
         "\n"
         [ "\nFailed left shift zero identity test:\n";
@@ -1022,7 +1023,7 @@ let prop_left_shift_zero_identity =
     (fun (start, stop) ->
        let operand = make_wint test_bt_u8 start stop in
        let zero_shift = make_wint test_bt_u8 0 0 in
-       match Basis.forward_abs_binop IT.ShiftLeft operand zero_shift with
+       match Basis.forward_abs_binop ShiftLeft operand zero_shift with
        | Some result -> Basis.equal result operand
        | None -> false)
 
@@ -1036,7 +1037,7 @@ let prop_right_shift_zero_identity =
     (fun (start, stop) ->
        let operand = make_wint test_bt_u8 start stop in
        let zero_shift = make_wint test_bt_u8 0 0 in
-       match Basis.forward_abs_binop IT.ShiftRight operand zero_shift with
+       match Basis.forward_abs_binop ShiftRight operand zero_shift with
        | Some result -> Basis.equal result operand
        | None -> false)
 
@@ -1054,7 +1055,7 @@ let prop_shift_not_bottom =
         if is_bottom_wint operand then
           None
         else
-          Basis.forward_abs_binop IT.ShiftLeft operand shift
+          Basis.forward_abs_binop ShiftLeft operand shift
       in
       String.concat
         "\n"
@@ -1076,7 +1077,7 @@ let prop_shift_not_bottom =
        if is_bottom_wint operand then
          true
        else (
-         match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+         match Basis.forward_abs_binop ShiftLeft operand shift with
          | Some result -> not (is_bottom_wint result)
          | None -> false))
 
@@ -1093,7 +1094,7 @@ let prop_remainder_not_bottom =
        if is_bottom_wint dividend then
          true
        else (
-         match Basis.forward_abs_binop IT.Mod dividend divisor_int with
+         match Basis.forward_abs_binop Mod dividend divisor_int with
          | Some result -> not (is_bottom_wint result)
          | None -> false))
 
@@ -1108,7 +1109,7 @@ let prop_remainder_bounded_unsigned =
       try
         let dividend = make_wint test_bt_u8 dividend_start dividend_stop in
         let divisor = make_wint test_bt_u8 1 divisor_max in
-        let result_opt = Basis.forward_abs_binop IT.Mod dividend divisor in
+        let result_opt = Basis.forward_abs_binop Mod dividend divisor in
         let bound = make_wint test_bt_u8 0 (divisor_max - 1) in
         String.concat
           "\n"
@@ -1131,7 +1132,7 @@ let prop_remainder_bounded_unsigned =
        try
          let dividend = make_wint test_bt_u8 dividend_start dividend_stop in
          let divisor = make_wint test_bt_u8 1 divisor_max in
-         match Basis.forward_abs_binop IT.Mod dividend divisor with
+         match Basis.forward_abs_binop Mod dividend divisor with
          | Some result ->
            let bound = make_wint test_bt_u8 0 (divisor_max - 1) in
            Basis.leq result bound
@@ -1149,7 +1150,7 @@ let prop_remainder_zero_dividend =
     ~print:(fun divisor_val ->
       let zero_dividend = make_wint test_bt_u8 0 0 in
       let divisor = make_wint test_bt_u8 divisor_val divisor_val in
-      let result_opt = Basis.forward_abs_binop IT.Mod zero_dividend divisor in
+      let result_opt = Basis.forward_abs_binop Mod zero_dividend divisor in
       let expected_zero = make_wint test_bt_u8 0 0 in
       String.concat
         "\n"
@@ -1169,7 +1170,7 @@ let prop_remainder_zero_dividend =
     (fun divisor_val ->
        let zero_dividend = make_wint test_bt_u8 0 0 in
        let divisor = make_wint test_bt_u8 divisor_val divisor_val in
-       match Basis.forward_abs_binop IT.Mod zero_dividend divisor with
+       match Basis.forward_abs_binop Mod zero_dividend divisor with
        | Some result ->
          let expected_zero = make_wint test_bt_u8 0 0 in
          Basis.equal result expected_zero
@@ -1185,7 +1186,7 @@ let prop_remainder_zero_divisor_bottom =
     (fun (dividend_start, dividend_stop) ->
        let dividend = make_wint test_bt_u8 dividend_start dividend_stop in
        let zero_divisor = make_wint test_bt_u8 0 0 in
-       match Basis.forward_abs_binop IT.Mod dividend zero_divisor with
+       match Basis.forward_abs_binop Mod dividend zero_divisor with
        | Some result -> is_bottom_wint result
        | None -> false)
 
@@ -1200,7 +1201,7 @@ let prop_signed_remainder_sign_patterns =
        try
          let dividend = make_wint test_bt_s8 dividend_val dividend_val in
          let divisor = make_wint test_bt_s8 divisor_val divisor_val in
-         match Basis.forward_abs_binop IT.Mod dividend divisor with
+         match Basis.forward_abs_binop Mod dividend divisor with
          | Some result ->
            (* For positive dividend and divisor: result should be in [0, divisor-1] *)
            if dividend_val >= 0 && divisor_val > 0 then (
@@ -1222,7 +1223,7 @@ let prop_excessive_shift_produces_top =
     (fun (start, shift_amt) ->
        let operand = make_wint test_bt_u8 start start in
        let shift = make_wint test_bt_u8 shift_amt shift_amt in
-       match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+       match Basis.forward_abs_binop ShiftLeft operand shift with
        | Some result -> is_top_wint result
        | None -> false)
 
@@ -1237,7 +1238,7 @@ let prop_non_constant_shift_produces_top =
        let operand = make_wint test_bt_u8 start stop in
        let shift = make_wint test_bt_u8 0 max_shift in
        (* Non-constant shift *)
-       match Basis.forward_abs_binop IT.ShiftLeft operand shift with
+       match Basis.forward_abs_binop ShiftLeft operand shift with
        | Some result -> is_top_wint result
        | None -> false)
 

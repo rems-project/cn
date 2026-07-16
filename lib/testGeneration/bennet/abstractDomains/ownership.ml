@@ -10,6 +10,7 @@
 *)
 
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -52,7 +53,7 @@ module Inner = struct
       string_of_int before ^ ", " ^ string_of_int after
 
 
-    let to_it (oo : t) (sym : Sym.t) : IT.t =
+    let to_it (oo : t) (sym : Sym.t) : T.t =
       let loc = Locations.other __LOC__ in
       match oo with
       | Some (_, (0, 0)) | None -> IT.bool_ true loc
@@ -189,8 +190,8 @@ module Inner = struct
 
   let abs_assert _ d : t = d
 
-  let abs_assign (((it_addr, sct), _) : (IT.t * Sctypes.t) * IT.t) (d : t) : t =
-    let rec pointer_and_offset (it : IT.t) : ((Sym.t * BaseTypes.t) * int) option =
+  let abs_assign (((it_addr, sct), _) : (T.t * Sctypes.t) * T.t) (d : t) : t =
+    let rec pointer_and_offset (it : T.t) : ((Sym.t * BaseTypes.t) * int) option =
       let open Option in
       match it with
       | IT (CopyAllocId { loc = ptr; _ }, _, _) ->
@@ -230,7 +231,7 @@ module Inner = struct
 
   let pp_args () = "before, after"
 
-  let to_it (d : t) : IT.t =
+  let to_it (d : t) : T.t =
     let loc = Locations.other __LOC__ in
     match d with
     | None -> IT.bool_ false loc (* bottom = unsatisfiable *)

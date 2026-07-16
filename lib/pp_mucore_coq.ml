@@ -1168,14 +1168,14 @@ let pp_const = function
   | Terms.Default bt -> pp_constructor "Terms.Default" [ pp_basetype pp_unit bt ]
 
 
-let rec pp_index_term (IndexTerms.IT (term, bt, loc)) =
+let rec pp_index_term (Terms.IT (term, bt, loc)) =
   pp_constructor1
     "IT"
     [ pp_index_term_content term; pp_basetype pp_unit bt; pp_location loc ]
 
 
 and pp_index_term_content = function
-  | IndexTerms.Const c -> pp_constructor1 "Const" [ pp_const c ]
+  | Terms.Const c -> pp_constructor1 "Const" [ pp_const c ]
   | Sym s -> pp_constructor1 "Sym" [ pp_symbol s ]
   | Unop (op, t) -> pp_constructor1 "Unop" [ pp_unop op; pp_index_term t ]
   | Binop (op, t1, t2) ->

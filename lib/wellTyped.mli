@@ -27,7 +27,7 @@ type message =
   | Unexpected_computational_args_in_lemma
   | Missing_member of Id.t
   | NIA of
-      { it : IndexTerms.t;
+      { it : Terms.Normal.t;
         hint : string
       }
   | Empty_pattern

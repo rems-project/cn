@@ -9,7 +9,7 @@ module General : sig
   type uiinfo = Error_common.situation * TypeErrors.RequestChain.t
 
   val ftyp_args_request_step
-    :  ([ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> 'a -> 'a) ->
+    :  ([ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> 'a -> 'a) ->
     Locations.t ->
     uiinfo ->
     'b ->
@@ -26,7 +26,7 @@ module Special : sig
   val check_live_alloc
     :  [ `Copy_alloc_id | `Ptr_cmp | `Ptr_diff | `ISO_array_shift | `ISO_member_shift ] ->
     Locations.t ->
-    IndexTerms.t ->
+    Terms.Normal.t ->
     unit Typing.m
 
   val predicate_request

@@ -520,7 +520,7 @@ let rec n_expr
                return ghost)
             args
         in
-        let ghost_args = List.map (Cnprog.map IT.Surface.proj) ghosts in
+        let ghost_args = List.map (Cnprog.map Terms.Surface.proj) ghosts in
         return (Some (ghost_loc, ghost_args))
     in
     return (wrap (Eccall (ct1, e2, es, ghost_args)))
@@ -666,8 +666,8 @@ let make_largs f_i =
            (Mu.mConstraints lcs lat))
     | Cn.CN_cletExpr (loc, name, expr') :: conditions ->
       let@ expr = Translate.expr Sym.Set.empty env st expr' in
-      let@ lat = aux (Translate.add_logical name (IT.get_bt expr) env) st conditions in
-      return (Mu.mDefine ((name, IT.Surface.proj expr), (loc, None)) lat)
+      let@ lat = aux (Translate.add_logical name (Terms.get_bt expr) env) st conditions in
+      return (Mu.mDefine ((name, Terms.Surface.proj expr), (loc, None)) lat)
     | Cn.CN_cconstr (loc, constr) :: conditions ->
       let@ lc = Translate.assrt env st (loc, constr) in
       let@ lat = aux env st conditions in

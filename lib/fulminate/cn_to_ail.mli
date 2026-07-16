@@ -166,7 +166,7 @@ val cn_to_ail_expr_toplevel
   (Ctype.union_tag * Ctype.ctype) list ->
   Sym.t option ->
   spec_mode option ->
-  IndexTerms.t ->
+  Terms.Normal.t ->
   AilSyntax.bindings
   * GenTypes.genTypeCategory AilSyntax.statement_ list
   * GenTypes.genTypeCategory AilSyntax.expression
@@ -269,7 +269,7 @@ val cn_to_ail_assume_pre
 
 val cn_to_ail_ghost_enum
   :  unit BaseTypes.t_gen list list ->
-  IndexTerms.t Cnprog.t list list ->
+  Terms.Normal.t Cnprog.t list list ->
   AilSyntax.sigma_tag_definition
 
 val cn_to_ail_cnprog_ghost_args
@@ -277,5 +277,5 @@ val cn_to_ail_cnprog_ghost_args
   AilSyntax.sigma_cn_datatype list ->
   (Sym.t * Ctype.ctype) list ->
   spec_mode option ->
-  IndexTerms.t Cnprog.t list ->
+  Terms.Normal.t Cnprog.t list ->
   AilSyntax.bindings * GenTypes.genTypeCategory AilSyntax.statement_ list

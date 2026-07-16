@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -11,63 +12,63 @@ module Make (GT : GenTerms.T) = struct
     | Record of (Id.t * Sym.t) list
     | Tuple of Sym.t list
 
-  let rec replace_memberof_it (k : kind) (sym : Sym.t) (it : IT.t) : IT.t =
+  let rec replace_memberof_it (k : kind) (sym : Sym.t) (it : T.t) : T.t =
     let repl = replace_memberof_it k sym in
     let (IT (it_, bt, loc)) = it in
     let it_ =
       match it_ with
       | Const _ | Sym _ | SizeOf _ | OffsetOf _ | Nil _ -> it_
-      | Unop (op, it') -> IT.Unop (op, repl it')
-      | Binop (op, it1, it2) -> IT.Binop (op, repl it1, repl it2)
-      | ITE (it1, it2, it3) -> IT.ITE (repl it1, repl it2, repl it3)
+      | Unop (op, it') -> Unop (op, repl it')
+      | Binop (op, it1, it2) -> Binop (op, repl it1, repl it2)
+      | ITE (it1, it2, it3) -> ITE (repl it1, repl it2, repl it3)
       | EachI ((min, (i_sym, i_bt), max), it') ->
-        IT.EachI ((min, (i_sym, i_bt), max), repl it')
-      | Tuple its -> IT.Tuple (List.map repl its)
+        EachI ((min, (i_sym, i_bt), max), repl it')
+      | Tuple its -> Tuple (List.map repl its)
       | NthTuple (n, it') ->
-        (match (k, IT.is_sym it') with
-         | Tuple syms, Some (y, _y_bt) when Sym.equal y sym -> IT.Sym (List.nth syms n)
-         | _ -> IT.NthTuple (n, repl it'))
-      | Struct (tag, xits) -> IT.Struct (tag, List.map_snd repl xits)
+        (match (k, Terms.is_sym it') with
+         | Tuple syms, Some (y, _y_bt) when Sym.equal y sym -> Sym (List.nth syms n)
+         | _ -> NthTuple (n, repl it'))
+      | Struct (tag, xits) -> Struct (tag, List.map_snd repl xits)
       | StructMember (it', x) ->
-        (match (k, IT.is_sym it') with
+        (match (k, Terms.is_sym it') with
          | Struct dict, Some (y, _y_bt) when Sym.equal y sym ->
-           IT.Sym (List.assoc Id.equal x dict)
-         | _ -> IT.StructMember (repl it', x))
+           Sym (List.assoc Id.equal x dict)
+         | _ -> StructMember (repl it', x))
       | StructUpdate ((it_struct, x), it_val) ->
-        IT.StructUpdate ((repl it_struct, x), repl it_val)
-      | Record xits -> IT.Record (List.map_snd repl xits)
+        StructUpdate ((repl it_struct, x), repl it_val)
+      | Record xits -> Record (List.map_snd repl xits)
       | RecordMember (it', x) ->
-        (match (k, IT.is_sym it') with
+        (match (k, Terms.is_sym it') with
          | Record dict, Some (y, _y_bt) when Sym.equal y sym ->
-           IT.Sym (List.assoc Id.equal x dict)
-         | _ -> IT.RecordMember (repl it', x))
+           Sym (List.assoc Id.equal x dict)
+         | _ -> RecordMember (repl it', x))
       | RecordUpdate ((it_record, x), it_val) ->
-        IT.RecordUpdate ((repl it_record, x), repl it_val)
-      | Constructor (tag, xits) -> IT.Constructor (tag, List.map_snd repl xits)
-      | MemberShift (it', tag, member) -> IT.MemberShift (it', tag, member)
+        RecordUpdate ((repl it_record, x), repl it_val)
+      | Constructor (tag, xits) -> Constructor (tag, List.map_snd repl xits)
+      | MemberShift (it', tag, member) -> MemberShift (it', tag, member)
       | ArrayShift { base; ct; index } ->
-        IT.ArrayShift { base = repl base; ct; index = repl index }
-      | CopyAllocId { addr; loc } -> IT.CopyAllocId { addr = repl addr; loc = repl loc }
-      | HasAllocId it' -> IT.HasAllocId (repl it')
-      | Cons (it1, it2) -> IT.Cons (repl it1, repl it2)
-      | Head it' -> IT.Head (repl it')
-      | Tail it' -> IT.Tail (repl it')
-      | Representable (sct, it') -> IT.Representable (sct, repl it')
-      | Good (sct, it') -> IT.Good (sct, repl it')
-      | Aligned { t; align } -> IT.Aligned { t = repl t; align = repl align }
-      | WrapI (sct, it') -> IT.WrapI (sct, repl it')
-      | MapConst (bt, it') -> IT.MapConst (bt, repl it')
-      | MapSet (it1, it2, it3) -> IT.MapSet (repl it1, repl it2, repl it3)
-      | MapGet (it1, it2) -> IT.MapGet (repl it1, repl it2)
-      | MapDef ((x, bt), it') -> IT.MapDef ((x, bt), repl it')
-      | Apply (fsym, its) -> IT.Apply (fsym, List.map repl its)
-      | Let ((x, it1), it2) -> IT.Let ((x, repl it1), it2)
-      | Match (it', pits) -> IT.Match (repl it', List.map_snd repl pits)
-      | Cast (bt, it') -> IT.Cast (bt, repl it')
-      | CN_None bt -> IT.CN_None bt
-      | CN_Some it' -> IT.CN_Some (repl it')
-      | IsSome it' -> IT.IsSome (repl it')
-      | GetOpt it' -> IT.GetOpt (repl it')
+        ArrayShift { base = repl base; ct; index = repl index }
+      | CopyAllocId { addr; loc } -> CopyAllocId { addr = repl addr; loc = repl loc }
+      | HasAllocId it' -> HasAllocId (repl it')
+      | Cons (it1, it2) -> Cons (repl it1, repl it2)
+      | Head it' -> Head (repl it')
+      | Tail it' -> Tail (repl it')
+      | Representable (sct, it') -> Representable (sct, repl it')
+      | Good (sct, it') -> Good (sct, repl it')
+      | Aligned { t; align } -> Aligned { t = repl t; align = repl align }
+      | WrapI (sct, it') -> WrapI (sct, repl it')
+      | MapConst (bt, it') -> MapConst (bt, repl it')
+      | MapSet (it1, it2, it3) -> MapSet (repl it1, repl it2, repl it3)
+      | MapGet (it1, it2) -> MapGet (repl it1, repl it2)
+      | MapDef ((x, bt), it') -> MapDef ((x, bt), repl it')
+      | Apply (fsym, its) -> Apply (fsym, List.map repl its)
+      | Let ((x, it1), it2) -> Let ((x, repl it1), it2)
+      | Match (it', pits) -> Match (repl it', List.map_snd repl pits)
+      | Cast (bt, it') -> Cast (bt, repl it')
+      | CN_None bt -> CN_None bt
+      | CN_Some it' -> CN_Some (repl it')
+      | IsSome it' -> IsSome (repl it')
+      | GetOpt it' -> GetOpt (repl it')
     in
     IT (it_, bt, loc)
 
@@ -102,12 +103,12 @@ module Make (GT : GenTerms.T) = struct
       | `LetStar ((x, Annot (`Return (IT (Record xits, bt, loc_it)), _, _, loc_ret)), gt')
         ->
         let members_to_indirect, members_to_leave =
-          xits |> List.partition (fun (_, it) -> Option.is_none (IT.is_sym it))
+          xits |> List.partition (fun (_, it) -> Option.is_none (Terms.is_sym it))
         in
         let indirect_map =
           List.map_snd (fun _ -> Sym.fresh_anon ()) members_to_indirect
           @ List.map
-              (fun (y, it) -> (y, fst (Option.get (IT.is_sym it))))
+              (fun (y, it) -> (y, fst (Option.get (Terms.is_sym it))))
               members_to_leave
         in
         let k =
@@ -124,7 +125,7 @@ module Make (GT : GenTerms.T) = struct
                      indirect_map
                      |> List.map (fun (y, z) ->
                        let it = List.assoc Id.equal y xits in
-                       (y, IT.sym_ (z, IT.get_bt it, IT.get_loc it)))
+                       (y, IT.sym_ (z, T.get_bt it, T.get_loc it)))
                    in
                    match bt with
                    | Struct tag -> IT.struct_ (tag, members) loc_it
@@ -150,11 +151,13 @@ module Make (GT : GenTerms.T) = struct
         let items_to_indirect, items_to_leave =
           items
           |> List.mapi (fun i it -> (i, it))
-          |> List.partition (fun (_, it) -> Option.is_none (IT.is_sym it))
+          |> List.partition (fun (_, it) -> Option.is_none (Terms.is_sym it))
         in
         let indirect_map =
           List.map_snd (fun _ -> Sym.fresh_anon ()) items_to_indirect
-          @ List.map (fun (i, it) -> (i, fst (Option.get (IT.is_sym it)))) items_to_leave
+          @ List.map
+              (fun (i, it) -> (i, fst (Option.get (Terms.is_sym it))))
+              items_to_leave
         in
         let k = Tuple (List.map snd indirect_map) in
         let gt_main =
@@ -165,7 +168,7 @@ module Make (GT : GenTerms.T) = struct
                      indirect_map
                      |> List.map (fun (i, sym) ->
                        let it = List.nth items i in
-                       IT.sym_ (sym, IT.get_bt it, IT.get_loc it))
+                       IT.sym_ (sym, T.get_bt it, T.get_loc it))
                    in
                    IT.tuple_ tuple_items loc_it)
                   tag

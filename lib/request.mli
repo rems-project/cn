@@ -18,43 +18,43 @@ val subsumed : name -> name -> bool
 module Predicate : sig
   type t =
     { name : name;
-      pointer : IndexTerms.t;
-      iargs : IndexTerms.t list
+      pointer : Terms.Normal.t;
+      iargs : Terms.Normal.t list
     }
 
   val alloc : name
 
-  val subst : [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> t -> t
+  val subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> t -> t
 
   val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 end
 
-val make_alloc : IndexTerms.t -> Predicate.t
+val make_alloc : Terms.Normal.t -> Predicate.t
 
 module QPredicate : sig
   type t =
     { name : name;
-      pointer : IndexTerms.t;
+      pointer : Terms.Normal.t;
       q : Sym.t * BaseTypes.t;
       q_loc : Locations.t;
       step : Sctypes.ctype;
-      permission : IndexTerms.t;
-      iargs : IndexTerms.t list
+      permission : Terms.Normal.t;
+      iargs : Terms.Normal.t list
     }
 
   val alpha_rename_ : Sym.t -> t -> t
 
   val alpha_rename : t -> t
 
-  val subst : [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> t -> t
+  val subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> t -> t
 
   val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 
-  val get_lower_bound : t -> IndexTerms.t
+  val get_lower_bound : t -> Terms.Normal.t
 
-  val get_upper_bound : t -> IndexTerms.t
+  val get_upper_bound : t -> Terms.Normal.t
 
-  val get_bounds : t -> IndexTerms.t * IndexTerms.t
+  val get_bounds : t -> Terms.Normal.t * Terms.Normal.t
 end
 
 type t =
@@ -75,9 +75,9 @@ val pp : t -> Pp.document
 
 val json : t -> Yojson.Safe.t
 
-val subst : [ `Rename of Sym.t | `Term of IndexTerms.t ] Subst.t -> t -> t
+val subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> t -> t
 
-val free_vars_bts : t -> IndexTerms.BT.t Sym.Map.t
+val free_vars_bts : t -> Terms.Normal.BT.t Sym.Map.t
 
 val free_vars : t -> Sym.Set.t
 
@@ -85,4 +85,4 @@ val alpha_equivalent : t -> t -> bool
 
 val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 
-val get_pointer : t -> IndexTerms.t
+val get_pointer : t -> Terms.Normal.t

@@ -1,5 +1,3 @@
-module IT = IndexTerms
-
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
@@ -20,7 +18,7 @@ module Make (AD : Domain.T) = struct
                aux
                  (depth + 1)
                  (Term.subst
-                    (IT.make_subst (List.combine (List.map fst gd.iargs) iargs))
+                    (Terms.Normal.make_subst (List.combine (List.map fst gd.iargs) iargs))
                     gd.body)
              with
              | Not_found -> gt (* Keep call if definition not found *))

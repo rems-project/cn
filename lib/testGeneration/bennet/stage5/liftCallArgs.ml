@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 
 (** Lift compound call arguments into pure bindings:
@@ -20,22 +21,21 @@ module Make (AD : Domain.T) = struct
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let lift_iargs (iargs : IT.t list) (loc : Locations.t) : (Sym.t * IT.t) list * IT.t list
-    =
+  let lift_iargs (iargs : T.t list) (loc : Locations.t) : (Sym.t * T.t) list * T.t list =
     let lets, iargs' =
       iargs
       |> List.map (fun it ->
-        match IT.is_sym it with
+        match Terms.is_sym it with
         | Some _ -> (None, it)
         | None ->
           let t = Sym.fresh_anon () in
-          (Some (t, it), IT.sym_ (t, IT.get_bt it, loc)))
+          (Some (t, it), IT.sym_ (t, T.get_bt it, loc)))
       |> List.split
     in
     (List.filter_map (fun x -> x) lets, iargs')
 
 
-  let wrap_lets (lets : (Sym.t * IT.t) list) (gt : Term.t) (loc : Locations.t) : Term.t =
+  let wrap_lets (lets : (Sym.t * T.t) list) (gt : Term.t) (loc : Locations.t) : Term.t =
     List.fold_right
       (fun (t, it) gt' -> Term.let_star_ ((t, Term.return_ it () loc), gt') () loc)
       lets

@@ -1,11 +1,11 @@
 open Locations
 module BT = BaseTypes
-module IT = IndexTerms
+module T = Terms.Normal
 module Req = Request
 module LC = LogicalConstraints
 
 type 'i t =
-  | Define of (Sym.t * IT.t) * info * 'i t
+  | Define of (Sym.t * T.t) * info * 'i t
   | Resource of (Sym.t * (Req.t * BT.t)) * info * 'i t
   | Constraint of LC.t * info * 'i t
   | I of 'i
@@ -26,7 +26,7 @@ let rec subst i_subst =
   let rec aux (substitution : _ Subst.t) at =
     match at with
     | Define ((name, it), info, t) ->
-      let it = IT.subst substitution it in
+      let it = T.subst substitution it in
       let name, t = suitably_alpha_rename i_subst substitution.relevant name t in
       Define ((name, it), info, aux substitution t)
     | Resource ((name, (re, bt)), info, t) ->
@@ -47,7 +47,7 @@ let rec subst i_subst =
 
 and alpha_rename i_subst s t =
   let s' = Sym.fresh_same s in
-  (s', subst i_subst (IT.make_rename ~from:s ~to_:s') t)
+  (s', subst i_subst (T.make_rename ~from:s ~to_:s') t)
 
 
 and suitably_alpha_rename i_subst syms s t =
@@ -65,7 +65,7 @@ let free_vars_bts i_free_vars_bts =
   in
   let rec aux = function
     | Define ((s, it), _info, t) ->
-      let it_vars = IT.free_vars_bts it in
+      let it_vars = T.free_vars_bts it in
       let t_vars = Sym.Map.remove s (aux t) in
       union it_vars t_vars
     | Resource ((s, (re, _bt)), _info, t) ->
@@ -84,7 +84,7 @@ let free_vars_bts i_free_vars_bts =
 let free_vars i_free_vars =
   let rec aux = function
     | Define ((s, it), _info, t) ->
-      let it_vars = IT.free_vars it in
+      let it_vars = T.free_vars it in
       let t_vars = Sym.Set.remove s (aux t) in
       Sym.Set.union it_vars t_vars
     | Resource ((s, (re, _bt)), _info, t) ->
@@ -124,7 +124,7 @@ open Pp
 
 let rec pp_aux i_pp = function
   | Define ((name, it), _info, t) ->
-    group (!^"let" ^^^ Sym.pp name ^^^ equals ^^^ IT.pp it ^^ semi) :: pp_aux i_pp t
+    group (!^"let" ^^^ Sym.pp name ^^^ equals ^^^ T.pp it ^^ semi) :: pp_aux i_pp t
   | Resource ((name, (re, _bt)), _info, t) ->
     group (!^"take" ^^^ Sym.pp name ^^^ equals ^^^ Req.pp re ^^ semi) :: pp_aux i_pp t
   | Constraint (lc, _info, t) ->
@@ -168,7 +168,7 @@ let binders i_binders i_subst =
   let rec aux = function
     | Define ((s, it), _, t) ->
       let s, t = alpha_rename i_subst s t in
-      (Id.make here (Sym.pp_string s), IT.get_bt it) :: aux t
+      (Id.make here (Sym.pp_string s), T.get_bt it) :: aux t
     | Resource ((s, (_, bt)), _, t) ->
       let s, t = alpha_rename i_subst s t in
       (Id.make here (Sym.pp_string s), bt) :: aux t
@@ -202,7 +202,7 @@ let rec r_resource_requests r =
   | I _ -> []
 
 
-type packing_ft = IT.t t
+type packing_ft = T.t t
 
 type lft = LogicalReturnTypes.t t
 
@@ -219,7 +219,7 @@ open Cerb_frontend.Pp_ast
 let dtree dtree_i =
   let rec aux = function
     | Define ((s, it), _, t) ->
-      Dnode (pp_ctor "Define", [ Dleaf (Sym.pp s); IT.dtree it; aux t ])
+      Dnode (pp_ctor "Define", [ Dleaf (Sym.pp s); T.dtree it; aux t ])
     | Resource ((s, (rt, bt)), _, t) ->
       Dnode
         (pp_ctor "Resource", [ Dleaf (Sym.pp s); Req.dtree rt; Dleaf (BT.pp bt); aux t ])

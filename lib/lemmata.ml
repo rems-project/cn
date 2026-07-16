@@ -31,7 +31,7 @@ module PrevDefs = struct
   type t =
     { present : Sym.t list StringListMap.t;
       defs : Pp.document list IntMap.t;
-      dt_params : (IT.t * Id.t * Sym.t) list;
+      dt_params : (Terms.Normal.t * Id.t * Sym.t) list;
       failures : TypeErrors.t list
     }
 
@@ -71,7 +71,7 @@ module PrevDefsMonad = struct
     bind get (fun st ->
       return
         (List.find_opt
-           (fun (it2, m2, _sym) -> IT.equal it it2 && Id.equal m_nm m2)
+           (fun (it2, m2, _sym) -> Terms.Normal.equal it it2 && Id.equal m_nm m2)
            st.dt_params
          |> Option.map (fun (_, _, sym) -> sym)))
 
@@ -84,7 +84,7 @@ module PrevDefsMonad = struct
           (Pp.item
              "dt params available"
              (Pp.brackets
-                (Pp.list (fun (it, m, _) -> Pp.typ (IT.pp it) (Id.pp m)) st.dt_params))));
+                (Pp.list (fun (it, m, _) -> Pp.typ (Terms.pp it) (Id.pp m)) st.dt_params))));
       return ())
 end
 
@@ -166,7 +166,7 @@ let try_coerce_res (ftyp : AT.lemmat) =
       let arg_name, arg_re = r in
       if Request.alpha_equivalent arg_re re then (
         Pp.debug 2 (lazy (Pp.item "erasing" (Sym.pp name)));
-        LRT.subst (IT.make_subst [ (name, IT.sym_ (arg_name, bt, loc)) ]) t)
+        LRT.subst (Terms.Normal.make_subst [ (name, IT.sym_ (arg_name, bt, loc)) ]) t)
       else
         LRT.Resource ((name, (re, bt)), info, erase_res r t)
     | LRT.I ->
@@ -366,7 +366,7 @@ let rec new_nm s nms i =
 
 
 let alpha_rename_if_pp_same s body =
-  let vs = IT.free_vars body in
+  let vs = Terms.Normal.free_vars body in
   let other_nms =
     List.filter (fun sym -> not (Sym.equal sym s)) (Sym.Set.elements vs)
     |> List.map Sym.pp_string
@@ -379,31 +379,34 @@ let alpha_rename_if_pp_same s body =
            "doing rename"
            (Pp.typ (Sym.pp s) (Pp.braces (Pp.list Pp.string other_nms)))));
     let s2 = Sym.fresh (new_nm (Sym.pp_string s) other_nms 0) in
-    let body = IT.subst (IT.make_rename ~from:s ~to_:s2) body in
-    (s2, body, IT.free_vars body))
+    let body = Terms.Normal.subst (Terms.Normal.make_rename ~from:s ~to_:s2) body in
+    (s2, body, Terms.Normal.free_vars body))
   else
     (s, body, vs)
 
 
 let it_adjust (global : Global.t) it =
   let rec f t =
-    let loc = IT.get_loc t in
-    match IT.get_term t with
-    | IT.Binop (And, x1, x2) ->
-      let xs = List.map f [ x1; x2 ] |> List.partition IT.is_true |> snd in
+    let loc = Terms.Normal.get_loc t in
+    match Terms.Normal.get_term t with
+    | Terms.Binop (And, x1, x2) ->
+      let xs = List.map f [ x1; x2 ] |> List.partition Terms.is_true |> snd in
       IT.and_ xs loc
-    | IT.Binop (Or, x1, x2) ->
-      let xs = List.map f [ x1; x2 ] |> List.partition IT.is_false |> snd in
+    | Terms.Binop (Or, x1, x2) ->
+      let xs = List.map f [ x1; x2 ] |> List.partition Terms.is_false |> snd in
       IT.or_ xs loc
-    | IT.Binop (EQ, x, y) ->
+    | Terms.Binop (EQ, x, y) ->
       let x = f x in
       let y = f y in
-      if IT.equal x y then IT.bool_ true loc else IT.eq__ x y loc
-    | IT.Binop (Implies, x, y) ->
+      if Terms.Normal.equal x y then IT.bool_ true loc else IT.eq__ x y loc
+    | Terms.Binop (Implies, x, y) ->
       let x = f x in
       let y = f y in
-      if IT.is_false x || IT.is_true y then IT.bool_ true loc else IT.impl_ (x, y) loc
-    | IT.EachI ((i1, (s, bt), i2), x) ->
+      if Terms.is_false x || Terms.is_true y then
+        IT.bool_ true loc
+      else
+        IT.impl_ (x, y) loc
+    | Terms.EachI ((i1, (s, bt), i2), x) ->
       let x = f x in
       let s, x, vs = alpha_rename_if_pp_same s x in
       if not (Sym.Set.mem s vs) then (
@@ -411,13 +414,13 @@ let it_adjust (global : Global.t) it =
         x)
       else
         IT.eachI_ (i1, (s, bt), i2) x loc
-    | IT.Apply (name, args) ->
+    | Terms.Apply (name, args) ->
       let open Definition.Function in
       let def = Sym.Map.find name global.logical_functions in
       (match (def.body, def.emit_coq) with
        | Def body, false -> f (open_ def.args body args)
        | _ -> t)
-    | IT.Good (ct, t2) ->
+    | Terms.Good (ct, t2) ->
       if Option.is_some (Sctypes.is_struct_ctype ct) then
         t
       else
@@ -427,13 +430,13 @@ let it_adjust (global : Global.t) it =
         t
       else
         f (IT.representable global.struct_decls ct t2 loc)
-    | Aligned t -> f (IT.divisible_ (IT.addr_ t.t loc, t.align) loc)
-    | IT.Let ((nm, x), y) ->
+    | Terms.Aligned t -> f (IT.divisible_ (IT.addr_ t.t loc, t.align) loc)
+    | Terms.Let ((nm, x), y) ->
       let x = f x in
       let y = f y in
       let nm, y, vs = alpha_rename_if_pp_same nm y in
-      if Option.is_some (IT.is_sym x) then
-        IT.subst (IT.make_subst [ (nm, x) ]) y
+      if Option.is_some (Terms.is_sym x) then
+        Terms.Normal.subst (Terms.Normal.make_subst [ (nm, x) ]) y
       else if not (Sym.Set.mem nm vs) then
         y
       else
@@ -441,7 +444,9 @@ let it_adjust (global : Global.t) it =
     | _ -> t
   in
   let res = f it in
-  Pp.debug 9 (lazy (Pp.item "it_adjust" (binop "->" (IT.pp it) (IT.pp res))));
+  Pp.debug
+    9
+    (lazy (Pp.item "it_adjust" (binop "->" (Terms.Normal.pp it) (Terms.Normal.pp res))));
   f it
 
 
@@ -854,10 +859,9 @@ let ensure_struct_mem is_good global list_mono loc ct aux =
 
 
 let rec unfold_if_possible global it =
-  let open IT in
   let open Definition.Function in
   match it with
-  | IT (IT.Apply (name, args), _, _) ->
+  | Terms.IT (Terms.Apply (name, args), _, _) ->
     let def = Option.get (Global.get_logical_function_def global name) in
     (match def.body with
      | Rec_Def _ -> it
@@ -917,7 +921,7 @@ let it_to_coq loc global list_mono it =
   in
   let rec f comp_bool t =
     let do_fail msg =
-      fail_m_d loc (Pp.item ("it_to_coq: unsupported " ^ msg) (IT.pp t))
+      fail_m_d loc (Pp.item ("it_to_coq: unsupported " ^ msg) (Terms.Normal.pp t))
     in
     let fail_on_prop () =
       match comp_bool with
@@ -930,13 +934,13 @@ let it_to_coq loc global list_mono it =
              "it_to_coq: unsupported in computational (non-Prop) mode"
              (Pp.flow
                 (Pp.comma ^^ Pp.break 1)
-                [ IT.pp t; !^reason; !^"context:"; IT.pp ctxt ]))
+                [ Terms.Normal.pp t; !^reason; !^"context:"; Terms.Normal.pp ctxt ]))
     in
     let aux t = f comp_bool t in
     let abinop s x y = parensM (build [ aux x; rets s; aux y ]) in
     let enc_prop = Option.is_none comp_bool in
     let with_is_true x =
-      if enc_prop && BaseTypes.equal (IT.get_bt t) BaseTypes.Bool then
+      if enc_prop && BaseTypes.equal (Terms.Normal.get_bt t) BaseTypes.Bool then
         f_appM "Is_true" [ x ]
       else
         x
@@ -950,31 +954,31 @@ let it_to_coq loc global list_mono it =
     let check_pos _t f =
       (* FIXME turning this off for now to test stuff
          let t = unfold_if_possible global t in
-         match IT.is_z t with
+         match Terms.Normal.is_z t with
          | Some i when Z.gt i Z.zero -> f
          | _ -> do_fail "divisor (not positive const)"
       *)
       f
     in
-    match IT.get_term t with
-    | IT.Sym sym -> return (Sym.pp sym)
-    | IT.Const l ->
+    match Terms.Normal.get_term t with
+    | Terms.Sym sym -> return (Sym.pp sym)
+    | Terms.Const l ->
       (match l with
-       | IT.Bool b -> with_is_true (rets (if b then "true" else "false"))
-       | IT.Z z -> enc_z z
-       | IT.Bits (info, z) -> enc_z (BT.normalise_to_range info z)
+       | Terms.Bool b -> with_is_true (rets (if b then "true" else "false"))
+       | Terms.Z z -> enc_z z
+       | Terms.Bits (info, z) -> enc_z (BT.normalise_to_range info z)
        | _ -> do_fail "const")
-    | IT.Unop (op, x) ->
+    | Terms.Unop (op, x) ->
       norm_bv_op
-        (IT.get_bt t)
+        (Terms.Normal.get_bt t)
         (match op with
-         | IT.Not -> f_appM (if enc_prop then "~" else "negb") [ aux x ]
-         | IT.BW_FFS_NoSMT -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
-         | IT.BW_CTZ_NoSMT -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ]
+         | Terms.Not -> f_appM (if enc_prop then "~" else "negb") [ aux x ]
+         | Terms.BW_FFS_NoSMT -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
+         | Terms.BW_CTZ_NoSMT -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ]
          | _ -> do_fail "unary op")
-    | IT.Binop (op, x, y) ->
+    | Terms.Binop (op, x, y) ->
       norm_bv_op
-        (IT.get_bt t)
+        (Terms.Normal.get_bt t)
         (match op with
          | Add -> abinop "+" x y
          | Sub -> abinop "-" x y
@@ -1004,16 +1008,16 @@ let it_to_coq loc global list_mono it =
          | Or -> abinop (if enc_prop then "\\/" else "||") x y
          | Implies -> abinop (if enc_prop then "->" else "implb") x y
          | _ -> do_fail "arith op")
-    | IT.Match (x, cases) ->
+    | Terms.Match (x, cases) ->
       let comp = Some (t, "case-discriminant") in
       let br (pat, rhs) = build [ rets "|"; pat_to_coq pat; rets "=>"; aux rhs ] in
       parensM
         (build
            ([ rets "match"; f comp x; rets "with" ] @ List.map br cases @ [ rets "end" ]))
-    | IT.ITE (sw, x, y) ->
+    | Terms.ITE (sw, x, y) ->
       let comp = Some (t, "if-condition") in
       parensM (build [ rets "if"; f comp sw; rets "then"; aux x; rets "else"; aux y ])
-    | IT.EachI ((i1, (s, _), i2), x) ->
+    | Terms.EachI ((i1, (s, _), i2), x) ->
       let@ () = fail_on_prop () in
       let@ x = aux x in
       let@ enc =
@@ -1032,32 +1036,32 @@ let it_to_coq loc global list_mono it =
              x)
       in
       return (parens enc)
-    | IT.MapSet (m, x, y) ->
+    | Terms.MapSet (m, x, y) ->
       let@ () = ensure_fun_upd () in
-      let@ e = eq_of (IT.get_bt x) in
+      let@ e = eq_of (Terms.Normal.get_bt x) in
       f_appM "fun_upd" [ return e; aux m; aux x; aux y ]
-    | IT.MapGet (m, x) -> parensM (build [ aux m; aux x ])
-    | IT.RecordMember (t, m) ->
-      let flds = BT.record_bt (IT.get_bt t) in
+    | Terms.MapGet (m, x) -> parensM (build [ aux m; aux x ])
+    | Terms.RecordMember (t, m) ->
+      let flds = BT.record_bt (Terms.Normal.get_bt t) in
       if List.length flds == 1 then
         aux t
       else (
         let ix = find_tuple_element Id.equal m Id.pp (List.map fst flds) in
         let@ op_nm = ensure_tuple_op false (Id.get_string m) ix in
         parensM (build [ rets op_nm; aux t ]))
-    | IT.RecordUpdate ((t, m), x) ->
-      let flds = BT.record_bt (IT.get_bt t) in
+    | Terms.RecordUpdate ((t, m), x) ->
+      let flds = BT.record_bt (Terms.Normal.get_bt t) in
       if List.length flds == 1 then
         aux x
       else (
         let ix = find_tuple_element Id.equal m Id.pp (List.map fst flds) in
         let@ op_nm = ensure_tuple_op true (Id.get_string m) ix in
         parensM (build [ rets op_nm; aux t; aux x ]))
-    | IT.Record mems ->
+    | Terms.Record mems ->
       let@ xs = ListM.mapM aux (List.map snd mems) in
       parensM (return (flow (comma ^^ break 1) xs))
-    | IT.StructMember (t, m) ->
-      let tag = BaseTypes.struct_bt (IT.get_bt t) in
+    | Terms.StructMember (t, m) ->
+      let tag = BaseTypes.struct_bt (Terms.Normal.get_bt t) in
       let mems, _bts = get_struct_xs global.struct_decls tag in
       let ix = find_tuple_element Id.equal m Id.pp mems in
       if List.length mems == 1 then
@@ -1065,8 +1069,8 @@ let it_to_coq loc global list_mono it =
       else
         let@ op_nm = ensure_tuple_op false (Id.get_string m) ix in
         parensM (build [ rets op_nm; aux t ])
-    | IT.StructUpdate ((t, m), x) ->
-      let tag = BaseTypes.struct_bt (IT.get_bt t) in
+    | Terms.StructUpdate ((t, m), x) ->
+      let tag = BaseTypes.struct_bt (Terms.Normal.get_bt t) in
       let mems, _bts = get_struct_xs global.struct_decls tag in
       let ix = find_tuple_element Id.equal m Id.pp mems in
       if List.length mems == 1 then
@@ -1074,45 +1078,45 @@ let it_to_coq loc global list_mono it =
       else
         let@ op_nm = ensure_tuple_op true (Id.get_string m) ix in
         parensM (build [ rets op_nm; aux t; aux x ])
-    | IT.Cast (cbt, t) ->
-      (match (IT.get_bt t, cbt) with
+    | Terms.Cast (cbt, t) ->
+      (match (Terms.Normal.get_bt t, cbt) with
        | Integer, Loc () -> aux t
        | Loc (), Integer -> aux t
        | source, target ->
          let source = Pp.plain (BT.pp source) in
          let target = Pp.plain (BT.pp target) in
          do_fail ("cast from " ^ source ^ " to " ^ target))
-    | IT.Apply (name, args) ->
+    | Terms.Apply (name, args) ->
       let prop_ret = fun_prop_ret global name in
       let body_aux = f (if prop_ret then None else Some (t, "fun-arg")) in
       let@ () = ensure_pred global list_mono loc name body_aux in
       let@ r = parensM (build ([ return (Sym.pp name) ] @ List.map body_aux args)) in
       if prop_ret then return r else with_is_true (return r)
-    | IT.Good (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
+    | Terms.Good (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
       let@ () = fail_on_prop () in
       let@ op_nm = ensure_struct_mem true global list_mono loc ct aux in
       parensM (build [ rets op_nm; aux t2 ])
-    | IT.Representable (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
+    | Terms.Representable (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
       let@ () = fail_on_prop () in
       (* FIXME: the 'true' looks strange -- fix *)
       let@ op_nm = ensure_struct_mem true global list_mono loc ct aux in
       parensM (build [ rets op_nm; aux t2 ])
-    | IT.Constructor (nm, id_args) ->
+    | Terms.Constructor (nm, id_args) ->
       let info = Sym.Map.find nm global.datatype_constrs in
       let comp = Some (t, "datatype contents") in
       let@ () = ensure_datatype global list_mono loc info.datatype_tag in
       (* assuming here that the id's are in canonical order *)
       parensM (build ([ return (Sym.pp nm) ] @ List.map (f comp) (List.map snd id_args)))
-    | IT.WrapI (ity, arg) ->
+    | Terms.WrapI (ity, arg) ->
       assert (not (Sctypes.IntegerTypes.equal ity Sctypes.IntegerTypes.Bool));
       let maxInt = Memory.max_integer_type ity in
       let minInt = Memory.min_integer_type ity in
       f_appM "CN_Lib.wrapI" [ enc_z minInt; enc_z maxInt; aux arg ]
-    | IT.Let ((nm, x), y) ->
+    | Terms.Let ((nm, x), y) ->
       let@ x = aux x in
       let@ y = aux y in
       parensM (return (mk_let nm x y))
-    | IT.ArrayShift { base; ct; index } ->
+    | Terms.ArrayShift { base; ct; index } ->
       let size_of_ct = Z.of_int @@ Memory.size_of_ctype ct in
       f_appM "CN_Lib.array_shift" [ aux base; enc_z size_of_ct; aux index ]
     | _ -> do_fail "term kind"
@@ -1123,14 +1127,14 @@ let it_to_coq loc global list_mono it =
 let lc_to_coq_check_triv loc global list_mono = function
   | LC.T it ->
     let it = it_adjust global it in
-    if IT.is_true it then
+    if Terms.is_true it then
       return None
     else
       let@ v = it_to_coq loc global list_mono it in
       return (Some v)
   | LC.Forall ((sym, bt), it) ->
     let it = it_adjust global it in
-    if IT.is_true it then
+    if Terms.is_true it then
       return None
     else
       let@ v = it_to_coq loc global list_mono it in

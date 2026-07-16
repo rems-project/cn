@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module StringMap = Map.Make (String)
 
@@ -43,7 +44,7 @@ module Make (AD : Domain.T) = struct
             ( StringMap.add name (n + 1) vars,
               y,
               Term.subst
-                (IT.make_subst
+                (T.make_subst
                    [ (x, IT.sym_ (y, Term.basetype gt_inner, Term.loc gt_inner)) ])
                 gt' )
           | None -> (StringMap.add name 1 vars, x, gt')
@@ -65,10 +66,10 @@ module Make (AD : Domain.T) = struct
           | Some n ->
             let name' = name ^ "_" ^ string_of_int n in
             let j = Sym.fresh name' in
-            let su = IT.make_rename ~from:i_sym ~to_:j in
+            let su = T.make_rename ~from:i_sym ~to_:j in
             ( StringMap.add name (n + 1) vars,
               j,
-              IT.subst su it_perm,
+              T.subst su it_perm,
               Term.subst su gt_inner )
           | None -> (StringMap.add name 1 vars, i_sym, it_perm, gt_inner)
         in

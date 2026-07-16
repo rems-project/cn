@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
@@ -6,10 +7,9 @@ module Make (AD : Domain.T) = struct
   module Def = Stage2.Def
   module Term = Stage2.Term
 
-  let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t)
-    : (Term.t * IT.t) option
+  let find_constraint (vars : Sym.Set.t) (x : Sym.t) (gt : Term.t) : (Term.t * T.t) option
     =
-    let rec aux (gt : Term.t) : (Term.t * IT.t) option =
+    let rec aux (gt : Term.t) : (Term.t * T.t) option =
       let open Option in
       let (Annot (gt_, (), _, loc)) = gt in
       match gt_ with
@@ -28,13 +28,13 @@ module Make (AD : Domain.T) = struct
       | `Assert (T (IT (Binop (EQ, IT (Sym x', bt, _), it), _, _)), gt_rest)
       | `Assert
           (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x', bt, _)), _, _), it), _, _)), gt_rest)
-        when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
-        return (gt_rest, IT.cast_ bt it (IT.get_loc it))
+        when Sym.equal x x' && Sym.Set.subset (T.free_vars it) vars ->
+        return (gt_rest, IT.cast_ bt it (T.get_loc it))
       | `Assert (T (IT (Binop (EQ, it, IT (Sym x', bt, _)), _, _)), gt_rest)
       | `Assert
           (T (IT (Binop (EQ, it, IT (Cast (_, IT (Sym x', bt, _)), _, _)), _, _)), gt_rest)
-        when Sym.equal x x' && Sym.Set.subset (IT.free_vars it) vars ->
-        return (gt_rest, IT.cast_ bt it (IT.get_loc it))
+        when Sym.equal x x' && Sym.Set.subset (T.free_vars it) vars ->
+        return (gt_rest, IT.cast_ bt it (T.get_loc it))
       | `Assert (lc, gt_rest) ->
         let@ gt_rest, it = aux gt_rest in
         return (Term.assert_ (lc, gt_rest) () loc, it)

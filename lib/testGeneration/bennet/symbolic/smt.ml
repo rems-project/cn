@@ -1,6 +1,7 @@
 module CF = Cerb_frontend
 module C = CF.Ctype
 module A = CF.AilSyntax
+module T = Terms.Normal
 module IT = IndexTerms
 module BT = BaseTypes
 module LC = LogicalConstraints
@@ -257,7 +258,7 @@ module Make (AD : Domain.T) = struct
 
 
   (** Compute free variables in an index term, excluding the given bound variables *)
-  let rec free_vars_it (bound : Sym.Set.t) (it : IT.t) : (Sym.t * BT.t) list =
+  let rec free_vars_it (bound : Sym.Set.t) (it : T.t) : (Sym.t * BT.t) list =
     let (IT (term, bt, _)) = it in
     match term with
     | Const _ -> []
@@ -342,7 +343,7 @@ module Make (AD : Domain.T) = struct
 
 
   (** Generate CN-SMT term creation code for IndexTerms.t *)
-  let rec convert_indexterm (sigma : CF.GenTypes.genTypeCategory A.sigma) (it : IT.t)
+  let rec convert_indexterm (sigma : CF.GenTypes.genTypeCategory A.sigma) (it : T.t)
     : Pp.document
     =
     let (IT (term, bt, loc)) = it in
@@ -384,10 +385,10 @@ module Make (AD : Domain.T) = struct
       let expanded =
         match
           ( Builtins.apply_builtin_fun_defs func_sym args loc,
-            Builtins.apply_builtin_funs func_sym (List.map IT.Surface.inj args) loc )
+            Builtins.apply_builtin_funs func_sym (List.map Terms.Surface.inj args) loc )
         with
         | Some it, _ -> Some it
-        | None, Ok (Some it_surface) -> Some (IT.Surface.proj it_surface)
+        | None, Ok (Some it_surface) -> Some (Terms.Surface.proj it_surface)
         | _ -> None
       in
       (match expanded with
@@ -400,7 +401,7 @@ module Make (AD : Domain.T) = struct
     | CN_Some term -> convert_cn_some sigma term
     | Good _ | Representable _ ->
       Pp.string "cn_smt_bool(true)" (* FIXME: Fulminate also doesn't enforce *)
-    | _ -> failwith ("TODO (" ^ Pp.plain (IT.pp it) ^ ") @ " ^ __LOC__)
+    | _ -> failwith ("TODO (" ^ Pp.plain (T.pp it) ^ ") @ " ^ __LOC__)
 
 
   and convert_const (c : Terms.const) : Pp.document =
@@ -463,7 +464,7 @@ module Make (AD : Domain.T) = struct
   and convert_unop
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (op : Terms.unop)
-        (t : IT.t)
+        (t : T.t)
     : Pp.document
     =
     let open Pp in
@@ -481,8 +482,8 @@ module Make (AD : Domain.T) = struct
   and convert_binop
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (op : Terms.binop)
-        (t1 : IT.t)
-        (t2 : IT.t)
+        (t1 : T.t)
+        (t2 : T.t)
     : Pp.document
     =
     let open Pp in
@@ -524,9 +525,9 @@ module Make (AD : Domain.T) = struct
 
   and convert_ite
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (cond : IT.t)
-        (then_term : IT.t)
-        (else_term : IT.t)
+        (cond : T.t)
+        (then_term : T.t)
+        (else_term : T.t)
     : Pp.document
     =
     let cond_smt = convert_indexterm sigma cond in
@@ -541,7 +542,7 @@ module Make (AD : Domain.T) = struct
         (var_sym : Sym.t)
         (var_bt : BT.t)
         (end_i : int)
-        (body : IT.t)
+        (body : T.t)
     : Pp.document
     =
     let body_smt = convert_indexterm sigma body in
@@ -561,7 +562,7 @@ module Make (AD : Domain.T) = struct
             ^^^ body_smt))
 
 
-  and convert_tuple (sigma : CF.GenTypes.genTypeCategory A.sigma) (terms : IT.t list)
+  and convert_tuple (sigma : CF.GenTypes.genTypeCategory A.sigma) (terms : T.t list)
     : Pp.document
     =
     let terms_smt = List.map (convert_indexterm sigma) terms in
@@ -574,7 +575,7 @@ module Make (AD : Domain.T) = struct
   and convert_nthtuple
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (n : int)
-        (tuple_term : IT.t)
+        (tuple_term : T.t)
     : Pp.document
     =
     let tuple_smt = convert_indexterm sigma tuple_term in
@@ -584,7 +585,7 @@ module Make (AD : Domain.T) = struct
   and convert_struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (tag : Sym.t)
-        (members : (Id.t * IT.t) list)
+        (members : (Id.t * T.t) list)
     : Pp.document
     =
     let open Pp in
@@ -619,7 +620,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_structmember
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (struct_term : IT.t)
+        (struct_term : T.t)
         (member : Id.t)
         (bt : BT.t)
     : Pp.document
@@ -633,9 +634,9 @@ module Make (AD : Domain.T) = struct
 
   and convert_structupdate
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (struct_term : IT.t)
+        (struct_term : T.t)
         (member : Id.t)
-        (value : IT.t)
+        (value : T.t)
     : Pp.document
     =
     let open Pp in
@@ -647,7 +648,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_record
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (members : (Id.t * IT.t) list)
+        (members : (Id.t * T.t) list)
     : Pp.document
     =
     let open Pp in
@@ -669,7 +670,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_recordmember
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (record_term : IT.t)
+        (record_term : T.t)
         (member : Id.t)
     : Pp.document
     =
@@ -680,9 +681,9 @@ module Make (AD : Domain.T) = struct
 
   and convert_recordupdate
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (record_term : IT.t)
+        (record_term : T.t)
         (member : Id.t)
-        (value : IT.t)
+        (value : T.t)
     : Pp.document
     =
     let record_smt = convert_indexterm sigma record_term in
@@ -696,7 +697,7 @@ module Make (AD : Domain.T) = struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (bt : BT.t)
         (constr : Sym.t)
-        (args : (Id.t * IT.t) list)
+        (args : (Id.t * T.t) list)
     : Pp.document
     =
     let constr_name = Sym.pp constr in
@@ -743,7 +744,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_membershift
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (term : IT.t)
+        (term : T.t)
         (tag : Sym.t)
         (member : Id.t)
     : Pp.document
@@ -760,9 +761,9 @@ module Make (AD : Domain.T) = struct
 
   and convert_arrayshift
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (base : IT.t)
+        (base : T.t)
         (ct : Sctypes.t)
-        (index : IT.t)
+        (index : T.t)
     : Pp.document
     =
     let base_smt = convert_indexterm sigma base in
@@ -782,8 +783,8 @@ module Make (AD : Domain.T) = struct
 
   and convert_copyallocid
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (addr : IT.t)
-        (loc : IT.t)
+        (addr : T.t)
+        (loc : T.t)
     : Pp.document
     =
     let addr_smt = convert_indexterm sigma addr in
@@ -791,7 +792,7 @@ module Make (AD : Domain.T) = struct
     Pp.(!^"cn_smt_copy_alloc_id" ^^ parens (addr_smt ^^ comma ^^^ loc_smt))
 
 
-  and convert_hasallocid (sigma : CF.GenTypes.genTypeCategory A.sigma) (loc : IT.t)
+  and convert_hasallocid (sigma : CF.GenTypes.genTypeCategory A.sigma) (loc : T.t)
     : Pp.document
     =
     let loc_smt = convert_indexterm sigma loc in
@@ -834,8 +835,8 @@ module Make (AD : Domain.T) = struct
 
   and convert_aligned
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (t : IT.t)
-        (align : IT.t)
+        (t : T.t)
+        (align : T.t)
     : Pp.document
     =
     let t_smt = convert_indexterm sigma t in
@@ -846,7 +847,7 @@ module Make (AD : Domain.T) = struct
   and convert_wrapi
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (int_type : Sctypes.IntegerTypes.t)
-        (term : IT.t)
+        (term : T.t)
     : Pp.document
     =
     let open Pp in
@@ -858,7 +859,7 @@ module Make (AD : Domain.T) = struct
   and convert_mapconst
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (base_type : BT.t)
-        (term : IT.t)
+        (term : T.t)
     : Pp.document
     =
     let open Pp in
@@ -869,9 +870,9 @@ module Make (AD : Domain.T) = struct
 
   and convert_mapset
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (map_term : IT.t)
-        (key_term : IT.t)
-        (value_term : IT.t)
+        (map_term : T.t)
+        (key_term : T.t)
+        (value_term : T.t)
     : Pp.document
     =
     let open Pp in
@@ -883,8 +884,8 @@ module Make (AD : Domain.T) = struct
 
   and convert_mapget
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (map_term : IT.t)
-        (key_term : IT.t)
+        (map_term : T.t)
+        (key_term : T.t)
     : Pp.document
     =
     let open Pp in
@@ -897,7 +898,7 @@ module Make (AD : Domain.T) = struct
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (var_sym : Sym.t)
         (var_bt : BT.t)
-        (body : IT.t)
+        (body : T.t)
     : Pp.document
     =
     let open Pp in
@@ -911,7 +912,7 @@ module Make (AD : Domain.T) = struct
   and convert_apply
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (func_sym : Sym.t)
-        (args : IT.t list)
+        (args : T.t list)
         (result_bt : BT.t)
     : Pp.document
     =
@@ -940,8 +941,8 @@ module Make (AD : Domain.T) = struct
   and convert_let
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (var_sym : Sym.t)
-        (binding : IT.t)
-        (body : IT.t)
+        (binding : T.t)
+        (body : T.t)
     : Pp.document
     =
     let open Pp in
@@ -984,8 +985,8 @@ module Make (AD : Domain.T) = struct
 
   and convert_match
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
-        (scrutinee : IT.t)
-        (cases : (BT.t Terms.pattern * IT.t) list)
+        (scrutinee : T.t)
+        (cases : (BT.t Terms.pattern * T.t) list)
     : Pp.document
     =
     let open Pp in
@@ -1004,11 +1005,11 @@ module Make (AD : Domain.T) = struct
     in
     (* Step 2.5: Collect free variable names from scrutinee and case bodies to avoid shadowing *)
     let free_var_names =
-      let scrutinee_fvs = IT.free_vars_bts scrutinee in
+      let scrutinee_fvs = T.free_vars_bts scrutinee in
       let body_fvs =
         List.fold_left
           (fun acc (_pat, body) ->
-             let body_free_vars = IT.free_vars_bts body in
+             let body_free_vars = T.free_vars_bts body in
              Sym.Map.union (fun _k v1 _v2 -> Some v1) acc body_free_vars)
           Sym.Map.empty
           cases
@@ -1087,7 +1088,7 @@ module Make (AD : Domain.T) = struct
            let renamed_body =
              Sym.Map.fold
                (fun old_sym new_sym acc_body ->
-                  IT.subst (IT.make_rename ~from:old_sym ~to_:new_sym) acc_body)
+                  T.subst (T.make_rename ~from:old_sym ~to_:new_sym) acc_body)
                renaming_map
                body
            in
@@ -1210,7 +1211,7 @@ module Make (AD : Domain.T) = struct
   and convert_cast
         (sigma : CF.GenTypes.genTypeCategory A.sigma)
         (target_bt : BT.t)
-        (term : IT.t)
+        (term : T.t)
     : Pp.document
     =
     let open Pp in
@@ -1225,7 +1226,7 @@ module Make (AD : Domain.T) = struct
     !^"cn_smt_none" ^^ parens bt_smt
 
 
-  and convert_cn_some (sigma : CF.GenTypes.genTypeCategory A.sigma) (term : IT.t)
+  and convert_cn_some (sigma : CF.GenTypes.genTypeCategory A.sigma) (term : T.t)
     : Pp.document
     =
     let open Pp in

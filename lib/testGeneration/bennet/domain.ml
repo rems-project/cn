@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module T = Terms.Normal
 module LC = LogicalConstraints
 
 let ret_sym = Sym.fresh "return"
@@ -88,7 +88,7 @@ module type T = sig
   (** Abstract interpretation operations *)
   val abs_assert : LC.t -> t -> t
 
-  val abs_assign : (IT.t * Sctypes.t) * IT.t -> t -> t
+  val abs_assign : (T.t * Sctypes.t) * T.t -> t -> t
 
   (** Check truthiness *)
   val to_lc : t -> LC.t

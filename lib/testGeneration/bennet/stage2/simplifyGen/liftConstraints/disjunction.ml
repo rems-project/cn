@@ -1,4 +1,5 @@
 module BT = BaseTypes
+module T = Terms.Normal
 module IT = IndexTerms
 
 module Make (AD : Domain.T) = struct
@@ -8,7 +9,7 @@ module Make (AD : Domain.T) = struct
     let (Annot (gt_, (), _, _)) = gt in
     match gt_ with
     | `Arbitrary | `Symbolic -> false
-    | `Return it -> not (Sym.Set.disjoint ext (IT.free_vars it))
+    | `Return it -> not (Sym.Set.disjoint ext (T.free_vars it))
     | `Call _ -> true
     | `Pick gts -> gts |> List.exists (is_external ext)
     | `Asgn (_, _, gt_rest) -> is_external ext gt_rest
@@ -19,7 +20,7 @@ module Make (AD : Domain.T) = struct
     | `Map (_, gt_inner) -> is_external ext gt_inner
 
 
-  let rec dnf_ (e : BT.t IT.term) : BT.t IT.term =
+  let rec dnf_ (e : BT.t Terms.term) : BT.t Terms.term =
     match e with
     | Unop (Not, e') ->
       (match dnf e' with
@@ -52,13 +53,13 @@ module Make (AD : Domain.T) = struct
     | _ -> e
 
 
-  and dnf (e : IT.t) : IT.t =
+  and dnf (e : T.t) : T.t =
     let (IT (e, info, loc)) = e in
     IT (dnf_ e, info, loc)
 
 
-  let listify_constraints (it : IT.t) : IT.t list =
-    let rec loop (c : IT.t) : IT.t list =
+  let listify_constraints (it : T.t) : T.t list =
+    let rec loop (c : T.t) : T.t list =
       match c with IT (Binop (Or, e1, e2), _, _) -> loop e1 @ loop e2 | _ -> [ c ]
     in
     loop it
@@ -84,7 +85,7 @@ module Make (AD : Domain.T) = struct
            let its_split, its_left =
              it
              |> listify_constraints
-             |> List.partition (fun (it' : IT.t) ->
+             |> List.partition (fun (it' : T.t) ->
                match it' with
                | IT (Binop (EQ, IT (Sym x, _, _), _), _, _) when not (Sym.Set.mem x ext)
                  ->
@@ -92,7 +93,7 @@ module Make (AD : Domain.T) = struct
                | IT (Binop (EQ, _, IT (Sym x, _, _)), _, _) when not (Sym.Set.mem x ext)
                  ->
                  true
-               | _ -> Sym.Set.disjoint ext (IT.free_vars it'))
+               | _ -> Sym.Set.disjoint ext (T.free_vars it'))
            in
            if List.is_empty its_split then
              gt

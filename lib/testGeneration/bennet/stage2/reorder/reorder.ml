@@ -1,3 +1,4 @@
+module T = Terms.Normal
 module IT = IndexTerms
 module LC = LogicalConstraints
 
@@ -50,7 +51,7 @@ module Make (AD : Domain.T) = struct
           ( Assert (T (IT (Binop (EQ, IT (Cast (_, IT (Sym x, _, _)), _, _), it), _, _))),
             _ )
         :: stmts'
-        when not (Sym.Set.mem x (IT.free_vars it)) ->
+        when not (Sym.Set.mem x (T.free_vars it)) ->
         let g' =
           List.fold_left
             (fun g' y ->
@@ -59,7 +60,7 @@ module Make (AD : Domain.T) = struct
                else
                  add_edge_no_cycle g' (y, x))
             g
-            (it |> IT.free_vars |> Sym.Set.to_seq |> List.of_seq)
+            (it |> T.free_vars |> Sym.Set.to_seq |> List.of_seq)
         in
         consider_equalities stmts' g'
       | Stmt (Assert (T (IT (Binop (EQ, it, IT (Sym x, _, _)), _, _))), _) :: stmts'
@@ -67,7 +68,7 @@ module Make (AD : Domain.T) = struct
           ( Assert (T (IT (Binop (EQ, it, IT (Cast (_, IT (Sym x, _, _)), _, _)), _, _))),
             _ )
         :: stmts'
-        when not (Sym.Set.mem x (IT.free_vars it)) ->
+        when not (Sym.Set.mem x (T.free_vars it)) ->
         let g' =
           Seq.fold_left
             (fun g' y ->
@@ -76,7 +77,7 @@ module Make (AD : Domain.T) = struct
                else
                  add_edge_no_cycle g' (y, x))
             g
-            (it |> IT.free_vars |> Sym.Set.to_seq)
+            (it |> T.free_vars |> Sym.Set.to_seq)
         in
         consider_equalities stmts' g'
       | _ :: stmts' -> consider_equalities stmts' g
@@ -148,7 +149,7 @@ module Make (AD : Domain.T) = struct
           (fun (stmt : Stmt.t) ->
              match stmt with
              | Stmt (Asgn ((it_addr, _sct), it_val), _) ->
-               Sym.Set.subset (IT.free_vars_list [ it_addr; it_val ]) vars
+               Sym.Set.subset (T.free_vars_list [ it_addr; it_val ]) vars
              | Stmt (Assert lc, _) -> Sym.Set.subset (LC.free_vars lc) vars
              | _ -> false)
           stmts
