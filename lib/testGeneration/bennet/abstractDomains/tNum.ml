@@ -37,13 +37,13 @@ module TristateBasis = struct
 
   let get_bits_bt bt =
     match bt with
-    | BT.Loc () -> Memory.uintptr_bt
+    | BT.Loc () -> Memory.uintptr_bt ()
     | Bits _ -> bt
     | _ -> failwith ("invalid type: " ^ Pp.plain (BT.pp bt) ^ " @ " ^ __LOC__)
 
 
   let get_width bt =
-    let bt = match bt with BT.Loc () -> Memory.uintptr_bt | _ -> bt in
+    let bt = match bt with BT.Loc () -> Memory.uintptr_bt () | _ -> bt in
     match BT.is_bits_bt bt with
     | Some (_, w) -> w
     | None -> failwith ("not a bits type: " ^ Pp.plain (BT.pp bt))
@@ -53,7 +53,7 @@ module TristateBasis = struct
     let bt =
       match bt with
       | BT.Bits _ -> bt
-      | Loc () -> Memory.uintptr_bt
+      | Loc () -> Memory.uintptr_bt ()
       | _ -> failwith ("invalid type: " ^ Pp.plain (BT.pp bt) ^ " @ " ^ __LOC__)
     in
     BT.bits_range (Option.get (BT.is_bits_bt bt))
@@ -873,7 +873,7 @@ module TristateBasis = struct
     assert (not is_bottom);
     let sign, width =
       match bt with
-      | Loc () -> (BT.Unsigned, Memory.uintptr_bt |> BT.is_bits_bt |> Option.get |> snd)
+      | Loc () -> (BT.Unsigned, Memory.uintptr_bt () |> BT.is_bits_bt |> Option.get |> snd)
       | Bits (sign, sz) -> (sign, sz)
       | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
     in

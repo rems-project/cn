@@ -7,7 +7,7 @@ module IntMap = Map.Make (Int)
 open Global
 open Pp
 
-let cnBV = BaseTypes.cnBV
+let bvmode = BaseTypes.bvmode
 
 let inc_enabled = ref true
 
@@ -219,21 +219,21 @@ module CN_MemByte = struct
   let width = Memory.bits_per_byte
 
   let value_bt () =
-    if !cnBV then
+    if bvmode () then
       BT.Bits (Unsigned, width)
     else
       Integer
 
 
   let value_type () =
-    if !cnBV then
+    if bvmode () then
       SMT.t_bits width
     else
       SMT.t_int
 
 
   let value_const (z : Z.t) =
-    if !cnBV then
+    if bvmode () then
       SMT.bv_k width z
     else
       SMT.int_zk z
@@ -271,17 +271,17 @@ module CN_Pointer = struct
 
   let addr_name = "addr"
 
-  let width () = snd (Option.get (BT.is_bits_bt Memory.uintptr_bt))
+  let width () = snd (Option.get (BT.is_bits_bt (Memory.uintptr_bt ())))
 
   let addr_type () =
-    if !cnBV then
+    if bvmode () then
       SMT.t_bits (width ())
     else
       SMT.t_int
 
 
   let addr_const (k : Z.t) =
-    if !cnBV then
+    if bvmode () then
       SMT.bv_k (width ()) k
     else
       SMT.int_zk k
@@ -342,7 +342,7 @@ module CN_Pointer = struct
                con_aia
                  ~alloc_id
                  ~addr:
-                   (if !cnBV then
+                   (if bvmode () then
                       SMT.bv_add addr (SMT.atom "offset")
                     else
                       SMT.num_add addr (SMT.atom "offset"))));
@@ -492,7 +492,7 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
      | con, [ sbase; saddr ] when String.equal con CN_Pointer.alloc_id_addr_name ->
        let base = CN_AllocId.from_sexp sbase in
        let addr =
-         match get_value gs ctys Memory.uintptr_bt saddr with
+         match get_value gs ctys (Memory.uintptr_bt ()) saddr with
          | Const (Bits (_, z)) -> z
          | Const (Z z) -> z
          | _ -> failwith "Pointer value is not bits"
@@ -802,10 +802,10 @@ let rec translate_term s iterm =
      | Max -> translate_term s (ite_ (ge_ (e1, e2) loc, e1, e2) loc)
      | EQ -> SMT.eq s1 s2
      | LTPointer ->
-       let uintptr_cast = cast_ Memory.uintptr_bt in
+       let uintptr_cast = cast_ (Memory.uintptr_bt ()) in
        translate_term s (lt_ (uintptr_cast e1 loc, uintptr_cast e2 loc) loc)
      | LEPointer ->
-       let uintptr_cast = cast_ Memory.uintptr_bt in
+       let uintptr_cast = cast_ (Memory.uintptr_bt ()) in
        translate_term s (le_ (uintptr_cast e1 loc, uintptr_cast e2 loc) loc)
      | SetUnion -> SMT.set_union s.smt_solver.config.exts s1 s2
      | SetIntersection -> SMT.set_intersection s.smt_solver.config.exts s1 s2
@@ -894,13 +894,13 @@ let rec translate_term s iterm =
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s t)
       ~null_case:(default (Loc ()))
-      ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt, loc)))
+      ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt (), loc)))
   | ArrayShift { base; ct; index } ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s base)
       ~null_case:(default (Loc ()))
       ~offset:
-        (let el_size = int_lit_ (Memory.size_of_ctype ct) Memory.uintptr_bt loc in
+        (let el_size = int_lit_ (Memory.size_of_ctype ct) (Memory.uintptr_bt ()) loc in
          translate_term s (mul_ (el_size, index) loc))
   | CopyAllocId { addr; loc } ->
     CN_Pointer.copy_alloc_id
@@ -981,36 +981,36 @@ let rec translate_term s iterm =
     let smt_term = translate_term s t in
     (match (IT.get_bt t, cbt) with
      | Bits _, Loc () ->
-       assert !cnBV;
+       assert (bvmode ());
        let addr =
-         if BT.equal (IT.get_bt t) Memory.uintptr_bt then
+         if BT.equal (IT.get_bt t) (Memory.uintptr_bt ()) then
            smt_term
          else
-           bv_cast ~to_:Memory.uintptr_bt ~from:(IT.get_bt t) smt_term
+           bv_cast ~to_:(Memory.uintptr_bt ()) ~from:(IT.get_bt t) smt_term
        in
        CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
      | Integer, Loc () ->
        (* copied and simplified from above *)
-       assert (not !cnBV);
+       assert (not (bvmode ()));
        let addr = smt_term in
        CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
      | Loc (), Bits _ ->
-       assert !cnBV;
+       assert (bvmode ());
        let maybe_cast x =
-         if BT.equal cbt Memory.uintptr_bt then
+         if BT.equal cbt (Memory.uintptr_bt ()) then
            x
          else
-           bv_cast ~to_:cbt ~from:Memory.uintptr_bt x
+           bv_cast ~to_:cbt ~from:(Memory.uintptr_bt ()) x
        in
        maybe_cast (CN_Pointer.addr_of ~ptr:smt_term)
      | Loc (), Integer ->
        (* copied and simplified from above *)
-       assert (not !cnBV);
+       assert (not (bvmode ()));
        CN_Pointer.addr_of ~ptr:smt_term
      | Loc (), Alloc_id ->
        CN_Pointer.alloc_id_of ~ptr:smt_term ~null_case:(default Alloc_id)
      | MemByte, Bits _ ->
-       assert !cnBV;
+       assert (bvmode ());
        let maybe_cast x =
          if BT.equal cbt (BT.Bits (Unsigned, 8)) then
            x
@@ -1020,7 +1020,7 @@ let rec translate_term s iterm =
        maybe_cast (SMT.app_ CN_MemByte.value_name [ smt_term ])
      | MemByte, Integer ->
        (* copied and simplified from above *)
-       assert (not !cnBV);
+       assert (not (bvmode ()));
        SMT.app_ CN_MemByte.value_name [ smt_term ]
      | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term

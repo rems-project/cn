@@ -216,7 +216,7 @@ end
 module Global = struct
   include Global.Lift (ErrorReader)
 
-  let empty = Global.empty
+  let empty () = Global.empty ()
 
   let is_fun_decl global id = Option.is_some @@ Global.get_fun_decl global id
 

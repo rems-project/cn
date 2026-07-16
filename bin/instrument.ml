@@ -150,6 +150,7 @@ let generate_executable_specs
     ~disable_linemarkers:exec_c_locs_mode
       (* If output locations requested, disable linemarkers in preproc step *)
     ~skip_label_inlining:true
+    ~integermode:false
     ~handle_error
     ~f:(fun ~cabs_tunit ~prog5 ~ail_prog ~statement_locs:_ ~paused:_ ->
       if run && Option.is_none prog5.main then (

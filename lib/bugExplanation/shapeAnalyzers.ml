@@ -63,7 +63,7 @@ let compile_sct (sct : Sctypes.t)
                                  (BT.Loc ());
                                CtA.wrap_with_convert_from
                                  (AilEident sz_sym)
-                                 Memory.size_bt
+                                 (Memory.size_bt ())
                              ] ))));
               mk_stmt
                 (AilSreturn
@@ -84,7 +84,7 @@ let compile_sct (sct : Sctypes.t)
             ] ))
   in
   let cn_pointer_sct = (C.no_qualifiers, CtA.bt_to_ail_ctype (BT.Loc ()), false) in
-  let cn_size_t_sct = (C.no_qualifiers, CtA.bt_to_ail_ctype Memory.size_bt, false) in
+  let cn_size_t_sct = (C.no_qualifiers, CtA.bt_to_ail_ctype (Memory.size_bt ()), false) in
   let decl =
     ( fsym,
       ( Locations.other __LOC__,
@@ -136,14 +136,14 @@ let get_parent_and_size (sct : Sctypes.t) (arg : IT.t) loc =
       let base, offset = aux base in
       ( base,
         IT.add_
-          (offset, IT.mul_ (IT.cast_ Memory.size_bt index loc, IT.sizeOf_ ct loc) loc)
+          (offset, IT.mul_ (IT.cast_ (Memory.size_bt ()) index loc, IT.sizeOf_ ct loc) loc)
           loc )
     | IT (MemberShift (base, tag, member), _, loc) ->
       aux
         (IT.pointer_offset_
-           (base, IT.(IT (OffsetOf (tag, member), Memory.size_bt, loc)))
+           (base, IT.(IT (OffsetOf (tag, member), Memory.size_bt (), loc)))
            loc)
-    | IT (_, _, loc) -> (it, IT.num_lit_ Z.zero Memory.uintptr_bt loc)
+    | IT (_, _, loc) -> (it, IT.num_lit_ Z.zero (Memory.uintptr_bt ()) loc)
   in
   let base, offset = aux arg in
   (base, IT.add_ (offset, IT.sizeOf_ sct loc) loc)

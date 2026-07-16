@@ -220,12 +220,12 @@ module Predicate = struct
     Sym.Set.diff vars_in_body args
 end
 
-let alloc =
+let alloc () =
   Predicate.
     { loc = Locations.other __LOC__;
       pointer = Sym.fresh "ptr";
       iargs = [];
-      oarg = (Locations.other __LOC__, Alloc.History.value_bt);
+      oarg = (Locations.other __LOC__, Alloc.History.value_bt ());
       clauses = None;
       recursive = false;
       attrs = []

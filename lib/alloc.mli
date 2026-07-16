@@ -5,17 +5,17 @@ module History : sig
 
   val base_id : Id.t
 
-  val base_bt : BaseTypes.t
+  val base_bt : unit -> BaseTypes.t
 
   val size_id : Id.t
 
-  val size_bt : BaseTypes.t
+  val size_bt : unit -> BaseTypes.t
 
-  val value_bt : BaseTypes.t
+  val value_bt : unit -> BaseTypes.t
 
   val make_value : base:IndexTerms.t -> size:int -> Locations.t -> IndexTerms.t
 
-  val bt : BaseTypes.t
+  val bt : unit -> BaseTypes.t
 
   val it : Cerb_location.t -> IndexTerms.t
 
@@ -28,7 +28,7 @@ module History : sig
 
   val split : IndexTerms.t -> Cerb_location.t -> value
 
-  val sbt : BaseTypes.Surface.t
+  val sbt : unit -> BaseTypes.Surface.t
 end
 
 module Predicate : sig

@@ -28,7 +28,7 @@ module IntervalBasis = struct
     let bt =
       match bt with
       | BT.Bits _ -> bt
-      | Loc () -> Memory.uintptr_bt
+      | Loc () -> Memory.uintptr_bt ()
       | _ -> failwith ("invalid type: " ^ Pp.plain (BT.pp bt) ^ " @ " ^ __LOC__)
     in
     BT.bits_range (Option.get (BT.is_bits_bt bt))
@@ -372,7 +372,7 @@ module IntervalBasis = struct
     assert (not is_bottom);
     let sign, width =
       match bt with
-      | Loc () -> (BT.Unsigned, Memory.uintptr_bt |> BT.is_bits_bt |> Option.get |> snd)
+      | Loc () -> (BT.Unsigned, Memory.uintptr_bt () |> BT.is_bits_bt |> Option.get |> snd)
       | Bits (sign, sz) -> (sign, sz)
       | _ -> failwith ("unsupported type: " ^ Pp.plain (BaseTypes.pp bt))
     in
@@ -428,7 +428,8 @@ module IntervalBasis = struct
         match t.bt with
         | BT.Loc () ->
           (* Cast pointer to uintptr_t and compare as integers *)
-          (Memory.uintptr_bt, IT.cast_ Memory.uintptr_bt (IT.sym_ (sym, t.bt, loc)) loc)
+          ( Memory.uintptr_bt (),
+            IT.cast_ (Memory.uintptr_bt ()) (IT.sym_ (sym, t.bt, loc)) loc )
         | _ -> (t.bt, IT.sym_ (sym, t.bt, loc))
       in
       let start_it = IT.num_lit_ t.start bt' loc in

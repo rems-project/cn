@@ -92,10 +92,10 @@ let upd_loc_state state ix v =
   { state with loc_map }
 
 
-let triv_simp_ctxt = Simplify.default Global.empty
+let triv_simp_ctxt () = Simplify.default (Global.empty ())
 
 let simp_const loc lpp it =
-  let it2 = Simplify.IndexTerms.simp triv_simp_ctxt it in
+  let it2 = Simplify.IndexTerms.simp (triv_simp_ctxt ()) it in
   match (IT.is_z it2, IT.get_bt it2) with
   | Some _z, _ -> return it2
   | _, BT.Integer ->
@@ -181,9 +181,9 @@ let rec add_pattern p v var_map =
       }
 
 
-let signed_int_ity = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_)
+let signed_int_ity () = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_)
 
-let signed_int_ty = Memory.bt_of_sct (Sctypes.Integer signed_int_ity)
+let signed_int_ty () = Memory.bt_of_sct (Sctypes.Integer (signed_int_ity ()))
 
 let is_two_pow it =
   match IT.get_term it with
@@ -196,7 +196,7 @@ let is_two_pow it =
   | _ -> None
 
 
-let bool_rep_ty = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
+let bool_rep_ty () = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
 
 let bool_ite_1_0 bt b loc = IT.ite_ (b, IT.int_lit_ 1 bt loc, IT.int_lit_ 0 bt loc) loc
 
@@ -348,7 +348,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
        let here = Locations.other __LOC__ in
        simp_const_pe
          (bool_ite_1_0
-            bool_rep_ty
+            (bool_rep_ty ())
             (IT.not_ (IT.eq_ (x, IT.int_lit_ 0 (IT.get_bt x) here) here) here)
             loc)
      | _ -> do_wrapI loc ct x)
@@ -619,7 +619,7 @@ let rec symb_exec_expr ctxt state_vars expr =
       match Sym.has_id nm with
       | None -> bail
       | Some s ->
-        let wrap_int x = IT.wrapI_ (signed_int_ity, x) in
+        let wrap_int x = IT.wrapI_ (signed_int_ity (), x) in
         if String.equal s "ctz_proxy" then
           rcval
             (wrap_int (IT.arith_unop Terms.BW_CTZ_NoSMT (List.hd args_its) loc) loc)
@@ -815,7 +815,7 @@ let add_logical_funs_from_c call_funinfo funs_to_convert funs =
   let@ conv_defs =
     ListM.mapM
       (fun Mu.{ c_fun_sym; loc; l_fun_sym } ->
-         if not !BT.cnBV then
+         if not (BT.bvmode ()) then
            failwith "todo: deriving CN function from C function in integer-mode";
          let@ def = Global.get_logical_function_def loc l_fun_sym in
          let@ fbody =

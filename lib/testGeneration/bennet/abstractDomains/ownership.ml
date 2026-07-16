@@ -199,7 +199,7 @@ module Inner = struct
       | IT (MemberShift (base, tag, member), _, loc) ->
         pointer_and_offset
           (IT.pointer_offset_
-             (base, IT (OffsetOf (tag, member), Memory.size_bt, loc))
+             (base, IT (OffsetOf (tag, member), Memory.size_bt (), loc))
              loc)
       | IT (ArrayShift { base = ptr; ct; index = IT (Const (Z n), _, _) }, _, _)
       | IT (ArrayShift { base = ptr; ct; index = IT (Const (Bits (_, n)), _, _) }, _, _)

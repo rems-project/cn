@@ -23,7 +23,7 @@ let resource_empty provable resource =
 
 let unfolded_array loc init (ict, olength) pointer =
   let length = Option.get olength in
-  let qbt = if BaseTypes.(!cnBV) then Memory.uintptr_bt else BT.Integer in
+  let qbt = if BaseTypes.(bvmode ()) then Memory.uintptr_bt () else BT.Integer in
   let q_s, q = IT.fresh_named qbt "i" loc in
   Q
     { name = Owned (ict, init);
@@ -77,7 +77,7 @@ let packing_ft ~full loc global provable ret =
                     { name = Owned (padding_ct, Uninit);
                       pointer =
                         IT.pointer_offset_
-                          (ret.pointer, IT.int_lit_ offset Memory.uintptr_bt loc)
+                          (ret.pointer, IT.int_lit_ offset (Memory.uintptr_bt ()) loc)
                           loc;
                       iargs = []
                     }
@@ -132,7 +132,7 @@ let unpack_owned loc global (ct, init) pointer (O o) =
                    { name = Owned (padding_ct, Uninit);
                      pointer =
                        IT.pointer_offset_
-                         (pointer, IT.int_lit_ offset Memory.uintptr_bt loc)
+                         (pointer, IT.int_lit_ offset (Memory.uintptr_bt ()) loc)
                          loc;
                      iargs = []
                    },

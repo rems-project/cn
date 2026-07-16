@@ -771,7 +771,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let@ at =
         aux_comp
           (arg_states @ [ (mut_arg, arg_state) ])
-          ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs)
+          ((if BT.bvmode () then [] else [ good_lc ]) @ good_lcs)
           env
           st
           rest
@@ -827,7 +827,7 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
           info )
       in
       let@ at =
-        aux_comp ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs) env st rest
+        aux_comp ((if BT.bvmode () then [] else [ good_lc ]) @ good_lcs) env st rest
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
@@ -1528,7 +1528,7 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   let stdlib_syms = Sym.Set.of_list (List.map fst (Pmap.bindings_list file.mi_stdlib)) in
   let datatypes = List.map (translate_datatype env) ail_prog.cn_datatypes in
   let builtin_lfuns =
-    List.map (fun (_, sym, def) -> (sym, def)) Builtins.builtin_fun_defs
+    List.map (fun (_, sym, def) -> (sym, def)) (Builtins.builtin_fun_defs ())
   in
   let file =
     Mu.

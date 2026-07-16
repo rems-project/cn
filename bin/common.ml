@@ -37,6 +37,7 @@ let frontend
       ~save_cpp
       ~disable_linemarkers
       ~skip_label_inlining
+      ~integermode
   =
   Cerb_global.set_cerb_conf
     ~backend_name:"Cn"
@@ -57,6 +58,7 @@ let frontend
         assumed, but this does not affect elaboration. *)
      @ if magic_comment_char_dollar then [ "magic_comment_char_dollar" ] else []);
   if allow_split_magic_comments then Parse.allow_split_magic_comments := true;
+  BaseTypes.in_bvmode := Some (not integermode);
   let return = CF.Exception.except_return in
   let ( let@ ) = CF.Exception.except_bind in
   let@ stdlib = load_core_stdlib () in
@@ -66,7 +68,7 @@ let frontend
   in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
     { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
-      functions = List.map (fun (str, sym) -> (str, sym, None)) Builtins.fun_names;
+      functions = List.map (fun (str, sym) -> (str, sym, None)) (Builtins.fun_names ());
       idents = [ Alloc.History.(str, sym, None) ]
     }
   in
@@ -151,6 +153,7 @@ let with_well_formedness_check
       ~save_cpp
       ~disable_linemarkers
       ~skip_label_inlining
+      ~integermode
       ~(* Callbacks *)
        handle_error
       ~(f :
@@ -175,7 +178,8 @@ let with_well_formedness_check
          ~allow_split_magic_comments
          ~save_cpp
          ~disable_linemarkers
-         ~skip_label_inlining)
+         ~skip_label_inlining
+         ~integermode)
   in
   Cerb_debug.maybe_open_csv_timing_file ();
   Pp.maybe_open_times_channel
@@ -191,7 +195,7 @@ let with_well_formedness_check
       in
       print_log_file ("mucore", `MUCORE prog5);
       let paused =
-        Typing.run_to_pause Context.empty (Check.check_decls_lemmata_fun_specs prog5)
+        Typing.run_to_pause (Context.empty ()) (Check.check_decls_lemmata_fun_specs prog5)
       in
       Result.iter_error handle_error (Typing.pause_to_result paused);
       let@ _ = f ~cabs_tunit ~prog5 ~ail_prog ~statement_locs ~paused in
@@ -492,4 +496,11 @@ module Flags = struct
   let dont_use_vip =
     let doc = "(temporary) disable VIP rules" in
     Arg.(value & flag & info ~docs:s_cn [ "no-vip" ] ~doc)
+
+
+  let integermode =
+    let doc =
+      "Use mathematical integers instead of bitvectors for representing C integers."
+    in
+    Arg.(value & flag & info ~docs:s_cn [ "integermode" ] ~doc)
 end

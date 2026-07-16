@@ -16,13 +16,13 @@ type t =
     lemmata : (Locations.t * AT.lemmat) Sym.Map.t
   }
 
-let empty =
+let empty () =
   { struct_decls = Sym.Map.empty;
     datatypes = Sym.Map.empty;
     datatype_constrs = Sym.Map.empty;
     datatype_order = None;
     fun_decls = Sym.Map.empty;
-    resource_predicates = Sym.Map.(empty |> add Alloc.Predicate.sym Definition.alloc);
+    resource_predicates = Sym.Map.(empty |> add Alloc.Predicate.sym (Definition.alloc ()));
     resource_predicate_order = None;
     logical_functions = Sym.Map.empty;
     logical_function_order = None;

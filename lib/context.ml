@@ -27,17 +27,17 @@ type t =
     where : Where.t
   }
 
-let empty =
+let empty () =
   let logical =
     let loc_str = __FILE__ ^ ":" ^ string_of_int __LINE__ in
     let l_info = (Locations.other loc_str, lazy (Pp.string loc_str)) in
-    Sym.Map.(empty |> add Alloc.History.sym (BaseType Alloc.History.bt, l_info))
+    Sym.Map.(empty |> add Alloc.History.sym (BaseType (Alloc.History.bt ()), l_info))
   in
   { computational = Sym.Map.empty;
     logical;
     resources = [];
     constraints = LC.Set.empty;
-    global = Global.empty;
+    global = Global.empty ();
     where = Where.empty
   }
 

@@ -42,17 +42,17 @@ type env =
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
-  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg } in
+  let alloc_sig = { pred_iargs = []; pred_output = (Definition.alloc ()).oarg } in
   let builtins =
     List.fold_left
       (fun acc (_, sym, (def : Definition.Function.t)) ->
          let fsig = { args = def.args; return_bty = def.return_bt } in
          Sym.Map.add sym fsig acc)
       Sym.Map.empty
-      Builtins.builtin_fun_defs
+      (Builtins.builtin_fun_defs ())
   in
   { computationals = Sym.Map.empty;
-    logicals = Sym.Map.(empty |> add Alloc.History.sym Alloc.History.sbt);
+    logicals = Sym.Map.(empty |> add Alloc.History.sym (Alloc.History.sbt ()));
     predicates = Sym.Map.(empty |> add Alloc.Predicate.sym alloc_sig);
     functions = builtins;
     datatypes = Sym.Map.empty;
@@ -260,7 +260,7 @@ let convert_enum_expr =
   let conv_const loc = function
     | ConstantInteger (IConstant (z, _, _)) as c ->
       let@ bt =
-        if BaseTypes.(!cnBV) then (
+        if BT.bvmode () then (
           match BT.pick_integer_encoding_type z with
           | Some bt -> return bt
           | None -> fail { loc; msg = Cannot_convert_enum_const c })
@@ -810,10 +810,10 @@ module C_vars = struct
         mk_binop loc bop (e1, e2)
       | CNExpr_sizeof ct ->
         let scty = Sctypes.of_ctype_unsafe loc ct in
-        return (IT (SizeOf scty, Memory.size_sbt, loc))
+        return (IT (SizeOf scty, Memory.size_sbt (), loc))
       | CNExpr_offsetof (tag, member) ->
         let@ _ = lookup_struct loc tag env in
-        return (IT (OffsetOf (tag, member), Memory.size_sbt, loc))
+        return (IT (OffsetOf (tag, member), Memory.size_sbt (), loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
         let@ ct = infer_scty ~pred_loc:loc ~ptr:base `Array_shift ty_annot in
@@ -1160,7 +1160,7 @@ module C_vars = struct
       match pname with
       | Owned (ct, Init) ->
         ( [ (ptr_expr, pointee) ],
-          if !BT.cnBV then
+          if BT.bvmode () then
             []
           else
             [ (LC.T (IT.Surface.proj (IT.representable_ (ct, pointee) here)), info) ] )
@@ -1198,7 +1198,7 @@ module C_vars = struct
       | Owned (ct, Init) ->
         let open IT in
         let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
-        if !BT.cnBV then
+        if BT.bvmode () then
           []
         else
           [ ( LC.Forall
@@ -1499,7 +1499,7 @@ let allocation_token loc addr_s =
     | _ -> assert false
   in
   let alloc_ret = Request.make_alloc (IT.sym_ (addr_s, BT.Loc (), loc)) in
-  ((name, (Request.P alloc_ret, Alloc.History.value_bt)), (loc, None))
+  ((name, (Request.P alloc_ret, Alloc.History.value_bt ())), (loc, None))
 
 
 let cn_clause env clause =
@@ -1652,7 +1652,7 @@ let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let info = (loc, Some "return value representable") in
   let here = Locations.other __LOC__ in
   let lrt =
-    if !BT.cnBV then
+    if BT.bvmode () then
       lrt
     else
       LRT.mConstraint
