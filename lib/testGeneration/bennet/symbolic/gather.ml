@@ -62,7 +62,7 @@ module Make (AD : Domain.T) = struct
         in
         LC.T (MT.le_ (array_len, max_len_term) here)
       in
-      let f = Simplify.MakeTerm.simp (Simplify.default Global.empty) in
+      let f = Simplify.Terms.simp (Simplify.default Global.empty) in
       let it_min, it_max = (f it_min, f it_max) in
       let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let start_addr_smt = Smt.convert_indexterm sigma (subst_i_in_addr it_min) in
@@ -184,7 +184,7 @@ module Make (AD : Domain.T) = struct
         in
         LC.T (MT.le_ (array_len, max_len_term) here)
       in
-      let f = Simplify.MakeTerm.simp (Simplify.default Global.empty) in
+      let f = Simplify.Terms.simp (Simplify.default Global.empty) in
       let it_min, it_max = (f it_min, f it_max) in
       let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let elem_names =
@@ -350,7 +350,7 @@ module Make (AD : Domain.T) = struct
         in
         LC.T (MT.le_ (array_len, max_len_term) here)
       in
-      let f = Simplify.MakeTerm.simp (Simplify.default Global.empty) in
+      let f = Simplify.Terms.simp (Simplify.default Global.empty) in
       let it_min = f it_min in
       let max_array_length = Smt.get_max_array_length_of (i_sym, i_bt) it_perm in
       let result_ty = Smt.convert_basetype bt in

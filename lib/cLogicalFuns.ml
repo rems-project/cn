@@ -97,7 +97,7 @@ let upd_loc_state state ix v =
 let triv_simp_ctxt = Simplify.default Global.empty
 
 let simp_const loc lpp it =
-  let it2 = Simplify.MakeTerm.simp triv_simp_ctxt it in
+  let it2 = Simplify.Terms.simp triv_simp_ctxt it in
   match (Terms.is_z it2, Terms.get_bt it2) with
   | Some _z, _ -> return it2
   | _, BT.Integer ->

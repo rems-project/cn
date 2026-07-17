@@ -14,7 +14,7 @@ module Make (AD : Domain.T) = struct
         }
       in
       let simp_it (it : T.t) : T.t =
-        Simplify.MakeTerm.simp ~inline_functions:true (Simplify.default globals) it
+        Simplify.Terms.simp ~inline_functions:true (Simplify.default globals) it
       in
       let simp_lc (lc : LC.t) : LC.t =
         Simplify.LogicalConstraints.simp

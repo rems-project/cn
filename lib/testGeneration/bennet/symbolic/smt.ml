@@ -1251,7 +1251,7 @@ module Make (AD : Domain.T) = struct
 
   let get_max_array_length_of (i_sym, i_bt) it_perm =
     let max_array_length_setting = Z.of_int (TestGenConfig.get_max_array_length ()) in
-    let f = Simplify.MakeTerm.simp (Simplify.default Global.empty) in
+    let f = Simplify.Terms.simp (Simplify.default Global.empty) in
     let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
     let it_min, it_max = (f it_min, f it_max) in
     let basic_length =

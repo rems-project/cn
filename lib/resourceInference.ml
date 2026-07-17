@@ -139,10 +139,10 @@ module General = struct
           | `True -> assert false)
        | Some ((re, Resource.O oargs), l) ->
          assert (Request.equal re resource);
-         let oargs = Simplify.MakeTerm.simp simp_ctxt oargs in
+         let oargs = Simplify.Terms.simp simp_ctxt oargs in
          return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, oargs) ]) ftyp, l))
     | Define ((s, it), _info, ftyp) ->
-      let it = Simplify.MakeTerm.simp simp_ctxt it in
+      let it = Simplify.Terms.simp simp_ctxt it in
       return (LAT.subst rt_subst (Terms.Normal.make_subst [ (s, it) ]) ftyp, [])
     | Constraint (c, info, ftyp) ->
       let@ provable = provable loc in
@@ -277,7 +277,7 @@ module General = struct
                let here = Locations.other __LOC__ in
                let pmatch =
                  (* Work-around for https://github.com/Z3Prover/z3/issues/7352 *)
-                 Simplify.MakeTerm.simp simp_ctxt
+                 Simplify.Terms.simp simp_ctxt
                  @@ MT.eq_ (requested.pointer, p'.pointer) here
                in
                let iarg_match =
@@ -305,7 +305,7 @@ module General = struct
                      in
                      ( Changed
                          (Q { p' with permission = and_ permission' here }, O p'_oarg),
-                       (Simplify.MakeTerm.simp simp_ctxt (and_ needed' here), oarg) )
+                       (Simplify.Terms.simp simp_ctxt (and_ needed' here), oarg) )
                    | `False ->
                      let model = Solver.model () in
                      Pp.debug
@@ -419,7 +419,7 @@ module General = struct
                       (p, o)
                     else (
                       let p = Simplify.Request.Predicate.simp simp_ctxt p in
-                      let o = Simplify.MakeTerm.simp simp_ctxt o in
+                      let o = Simplify.Terms.simp simp_ctxt o in
                       (p, o))
                   in
                   [ Prooflog.PredicateRequest

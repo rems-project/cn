@@ -131,8 +131,8 @@ let test_bounds_conjunction_tighter _ =
   match (lower, upper) with
   | Some l, Some u ->
     (* Should take max of lower bounds (5) and min of upper bounds (8) *)
-    let l = Cn.Simplify.MakeTerm.simp (Cn.Simplify.default Cn.Global.empty) l in
-    let u = Cn.Simplify.MakeTerm.simp (Cn.Simplify.default Cn.Global.empty) u in
+    let l = Cn.Simplify.Terms.simp (Cn.Simplify.default Cn.Global.empty) l in
+    let u = Cn.Simplify.Terms.simp (Cn.Simplify.default Cn.Global.empty) u in
     (match Cn.Terms.is_bits_const l with
      | Some (_, z) ->
        assert_equal ~msg:"Lower bound should be max(3,5) = 5" z (Z.of_int 5)

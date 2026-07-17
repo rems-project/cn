@@ -36,7 +36,7 @@ let do_ctz_z z =
   if Z.equal Z.zero z then None else Some (loop z 0)
 
 
-module MakeTerm = struct
+module Terms = struct
   let z1 = z_ Z.one (Cerb_location.other __LOC__)
 
   let z0 = z_ Z.zero (Cerb_location.other __LOC__)
@@ -653,10 +653,10 @@ module LogicalConstraints = struct
 
   let simp ?(inline_functions = false) simp_ctxt lc =
     match lc with
-    | LC.T it -> LC.T (simp ~inline_functions simp_ctxt it)
+    | LC.T it -> LC.T (Terms.simp ~inline_functions simp_ctxt it)
     | LC.Forall ((q, qbt), body) ->
       let q, body = T.alpha_rename q body in
-      let body = simp ~inline_functions simp_ctxt body in
+      let body = Terms.simp ~inline_functions simp_ctxt body in
       (match body with
        | IT (Const (Bool true), _, _) -> LC.T (bool_ true (T.get_loc body))
        | _ -> LC.Forall ((q, qbt), body))
@@ -668,8 +668,8 @@ module Request = struct
 
     let simp simp_ctxt (p : t) =
       { name = p.name;
-        pointer = MakeTerm.simp simp_ctxt p.pointer;
-        iargs = List.map (MakeTerm.simp simp_ctxt) p.iargs
+        pointer = Terms.simp simp_ctxt p.pointer;
+        iargs = List.map (Terms.simp simp_ctxt) p.iargs
       }
   end
 
@@ -678,15 +678,15 @@ module Request = struct
 
     let simp simp_ctxt (qp : t) =
       let qp = alpha_rename qp in
-      let permission = MakeTerm.simp_flatten simp_ctxt qp.permission in
+      let permission = Terms.simp_flatten simp_ctxt qp.permission in
       Request.QPredicate.
         { name = qp.name;
-          pointer = MakeTerm.simp simp_ctxt qp.pointer;
+          pointer = Terms.simp simp_ctxt qp.pointer;
           q = qp.q;
           q_loc = qp.q_loc;
           step = qp.step;
           permission = and_ permission (T.get_loc qp.permission);
-          iargs = List.map (MakeTerm.simp simp_ctxt) qp.iargs
+          iargs = List.map (Terms.simp simp_ctxt) qp.iargs
         }
   end
 
