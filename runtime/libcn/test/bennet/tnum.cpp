@@ -731,6 +731,50 @@ TEST_F(LibBennet, TNumArbitraryTop) {
   EXPECT_LT(min, max);
 }
 
+// A top tnum carries no information, so sampling from it must be no worse
+// than the default sized sampler. In particular the extrema skew must be
+// preserved: sentinel values like UINT32_MAX terminate recursive predicates
+// (e.g. `if (idx == MAXu32())`), and a sampler that can never produce them
+// makes such predicates ungeneratable (100% discards).
+TEST_F(LibBennet, TNumArbitraryTopReachesUnsignedMax) {
+  auto top = bennet_domain_tnum_top_uint32_t();
+  bennet_set_size(16);
+
+  bool seen_max = false;
+  for (int i = 0; i < 10000 && !seen_max; i++) {
+    seen_max = (bennet_arbitrary_tnum_uint32_t(top) == UINT32_MAX);
+  }
+  EXPECT_TRUE(seen_max) << "top tnum never produced UINT32_MAX sentinel";
+}
+
+// Same property for an implicit (semantic) top: full mask, top flag unset.
+// Refinement chains can produce such elements without setting the flag.
+TEST_F(LibBennet, TNumArbitraryImplicitTopReachesUnsignedMax) {
+  struct bennet_domain_tnum_uint32_t implicit_top = {
+      .top = false, .bottom = false, .value = 0, .mask = UINT32_MAX};
+  bennet_set_size(16);
+
+  bool seen_max = false;
+  for (int i = 0; i < 10000 && !seen_max; i++) {
+    seen_max = (bennet_arbitrary_tnum_uint32_t(&implicit_top) == UINT32_MAX);
+  }
+  EXPECT_TRUE(seen_max) << "implicit-top tnum never produced UINT32_MAX sentinel";
+}
+
+TEST_F(LibBennet, TNumArbitraryTopReachesSignedExtremes) {
+  auto top = bennet_domain_tnum_top_int32_t();
+  bennet_set_size(16);
+
+  bool seen_min = false, seen_max = false;
+  for (int i = 0; i < 30000 && !(seen_min && seen_max); i++) {
+    int32_t val = bennet_arbitrary_tnum_int32_t(top);
+    seen_min = seen_min || (val == INT32_MIN);
+    seen_max = seen_max || (val == INT32_MAX);
+  }
+  EXPECT_TRUE(seen_min) << "top tnum never produced INT32_MIN";
+  EXPECT_TRUE(seen_max) << "top tnum never produced INT32_MAX";
+}
+
 // =============================================================================
 // Bottom Propagation Tests
 // =============================================================================

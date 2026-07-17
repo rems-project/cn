@@ -767,7 +767,9 @@ TEST_F(LibBennet, ProductPin_OwnershipTnum_Uintptr_RetryLoop) {
 
 TEST_F(LibBennet, ProductPin_OwnershipTnum_Uintptr_BiasPath) {
   // Ownership top, tnum all-bits-unknown at uintptr_t: NULL-bias draw then
-  // tnum arbitrary.
+  // tnum arbitrary. An all-bits-unknown tnum is an implicit top, so the tnum
+  // arbitrary falls back to the default sized sampler (extrema skew intact,
+  // sentinels like UINT_MAX stay reachable).
   bennet_srand(PRODUCT_PIN_SEED);
   bennet_set_size(20);
   bennet_rand_alloc_free_all();
@@ -782,11 +784,11 @@ TEST_F(LibBennet, ProductPin_OwnershipTnum_Uintptr_BiasPath) {
   uint64_t tail = bennet_rand();
 
   const uint64_t want[8] = {
-      0x13ULL, 0xaULL, 0xbULL, 0xdULL, 0x8ULL, 0xeULL, 0x10ULL, 0x2ULL};
+      0xbULL, 0x7ULL, 0x3ULL, 0x10ULL, 0x1ULL, 0x10ULL, 0x10ULL, 0x4ULL};
   for (int i = 0; i < 8; i++) {
     EXPECT_EQ(got[i], want[i]) << "index " << i;
   }
-  EXPECT_EQ(tail, 0x2dd35b22825e9e21ULL) << "stream-position tail probe";
+  EXPECT_EQ(tail, 0xb6e2c223523178d0ULL) << "stream-position tail probe";
   PRODUCT_PIN_DUMP(got, 8, tail);
 }
 
