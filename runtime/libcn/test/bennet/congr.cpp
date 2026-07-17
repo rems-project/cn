@@ -15,6 +15,8 @@
 #include <gtest/gtest.h>
 
 #include <bennet/internals/domains/congr.h>
+#include <bennet/internals/domains/products.h>
+#include <bennet/internals/domains/wint.h>
 #include <bennet/prelude.h>
 
 // =============================================================================
@@ -247,6 +249,41 @@ TEST_F(LibBennet, CongrArbitraryTop) {
   }
 }
 
+// A signed interval that straddles the unsigned wrap point (lo < 0 <= hi) is
+// a perfectly valid, non-empty interval. Congruence cannot represent it
+// exactly, so of_interval must approximate with TOP — never bottom. The
+// unsigned-compare bug here bottomed the whole product for constraints as
+// weak as `MINi32()+1 <= key`, making every generation attempt an ASSERT
+// discard (lucas with wrapped_interval+congruence generated nothing).
+TEST_F(LibBennet, CongrOfIntervalSignedStraddleIsTop) {
+  auto d = bennet_domain_congr_of_interval_int32_t(INT32_MIN + 1, INT32_MAX - 1);
+  EXPECT_FALSE(bennet_domain_congr_is_bottom_int32_t(d));
+  EXPECT_TRUE(bennet_domain_congr_is_top_int32_t(d));
+}
+
+// The wint->congr reduce direction must not feed a WRAPPED wint's raw
+// (start > end) bounds into of_interval as if they were an ordered interval:
+// a wrapped interval is a non-empty set, so the product must not bottom.
+TEST_F(LibBennet, CongrWintReduceWrappedWintNoBottom) {
+  auto congr = bennet_domain_congr_top_uint8_t();
+  auto wint = bennet_domain_wint_of_uint8_t(200, 10);  // wrapped: [200,255]+[0,10]
+
+  bennet_domain_congr_wint_reduce_uint8_t(congr, wint);
+
+  EXPECT_FALSE(bennet_domain_congr_is_bottom_uint8_t(congr));
+  EXPECT_FALSE(bennet_domain_wint_is_bottom_uint8_t(wint));
+}
+
+TEST_F(LibBennet, CongrWintReduceSignedStraddleNoBottom) {
+  auto congr = bennet_domain_congr_top_int32_t();
+  auto wint = bennet_domain_wint_of_int32_t(INT32_MIN + 1, INT32_MAX - 1);
+
+  bennet_domain_congr_wint_reduce_int32_t(congr, wint);
+
+  EXPECT_FALSE(bennet_domain_congr_is_bottom_int32_t(congr));
+  EXPECT_FALSE(bennet_domain_wint_is_bottom_int32_t(wint));
+}
+
 // =============================================================================
 // Arithmetic Operation Tests
 // =============================================================================
@@ -345,9 +382,12 @@ TEST_F(LibBennet, CongrOfInterval) {
   auto range = bennet_domain_congr_of_interval_uint8_t(3, 7);
   EXPECT_TRUE(bennet_domain_congr_is_top_uint8_t(range));
 
-  // Empty interval → bottom
-  auto empty = bennet_domain_congr_of_interval_uint8_t(7, 3);
-  EXPECT_TRUE(bennet_domain_congr_is_bottom_uint8_t(empty));
+  // Inverted bounds → top, not bottom: in the C runtime inverted bounds only
+  // come from wrapped intervals ([7,3] = {7..255, 0..3}), which are non-empty
+  // sets congruence cannot represent. Bottom here unsoundly emptied the
+  // product (see CongrOfIntervalSignedStraddleIsTop).
+  auto wrapped = bennet_domain_congr_of_interval_uint8_t(7, 3);
+  EXPECT_TRUE(bennet_domain_congr_is_top_uint8_t(wrapped));
 }
 
 // =============================================================================

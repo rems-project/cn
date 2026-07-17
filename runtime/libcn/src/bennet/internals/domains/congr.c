@@ -689,8 +689,15 @@ uintptr_t bennet_arbitrary_congr_uintptr_t(bennet_domain_congr(uintptr_t) * d) {
   }                                                                                      \
                                                                                          \
   bennet_domain_congr(cty) * bennet_domain_congr_of_interval_##cty(cty lo, cty hi) {     \
-    if ((ucty)lo > (ucty)hi)                                                             \
-      return bennet_domain_congr_bottom_##cty();                                         \
+    /* Native-order compare: for signed types an interval straddling the     */          \
+    /* unsigned wrap point (lo < 0 <= hi) is valid and non-empty; the old    */          \
+    /* unsigned compare bottomed it, emptying the whole product. Inverted    */          \
+    /* bounds only reach here from wrapped intervals, which are non-empty    */          \
+    /* sets too, so approximate with top — never bottom. (OCaml's            */          \
+    /* congruence.ml bottoms on inverted bounds, but its callers pass        */          \
+    /* mathematical integers where inverted really means empty.)             */          \
+    if (lo > hi)                                                                         \
+      return bennet_domain_congr_top_##cty();                                            \
     if (lo == hi)                                                                        \
       return bennet_domain_congr_of_##cty(0, lo);                                        \
     /* General interval: top (congruence can't represent arbitrary intervals) */         \

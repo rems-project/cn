@@ -564,10 +564,14 @@ BENNET_DOMAIN_CONGR_WINT_ARBITRARY_SIGNED_IMPL(64)
       return;                                                                            \
                                                                                          \
     for (int iter = 0; iter < 2; iter++) {                                               \
-      /* wint -> congr: narrow congr using wint's interval bounds */                     \
-      if (!wint->top && !congr->bottom) {                                                \
+      /* wint -> congr: narrow congr using wint's interval bounds. Only for  */          \
+      /* proper (non-wrapping) intervals: to_interval rejects wrapped wints, */          \
+      /* whose raw start/end are not ordered bounds.                         */          \
+      cty _r_wlo, _r_whi;                                                                \
+      if (!congr->bottom &&                                                              \
+          bennet_domain_wint_to_interval_##cty(wint, &_r_wlo, &_r_whi)) {                \
         bennet_domain_congr(cty)* ic =                                                   \
-            bennet_domain_congr_of_interval_##cty(wint->start, wint->end);               \
+            bennet_domain_congr_of_interval_##cty(_r_wlo, _r_whi);                       \
         bennet_domain_congr(cty)* met = bennet_domain_congr_meet_##cty(congr, ic);       \
         *congr = *met;                                                                   \
         if (congr->bottom) {                                                             \
