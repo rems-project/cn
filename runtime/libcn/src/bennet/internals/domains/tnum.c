@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <bennet/internals/domains/sized.h>
 #include <bennet/internals/domains/tnum.h>
 #include <bennet/internals/rand.h>
 #include <bennet/internals/size.h>
@@ -13,24 +14,18 @@
 #include <bennet/utils.h>
 #include <cn-smt/memory/std_alloc.h>
 
-// Helper: count number of 1 bits (popcount)
-#define COUNT_ONES(sm)                                                                   \
-  static int count_ones_##sm(uint##sm##_t n) {                                           \
-    int count = 0;                                                                       \
-    for (int i = 0; i < sm; i++) {                                                       \
-      if (((n >> i) & 1)) {                                                              \
-        count++;                                                                         \
-      }                                                                                  \
-    }                                                                                    \
-    return count;                                                                        \
-  }
-
-COUNT_ONES(8)
-COUNT_ONES(16)
-COUNT_ONES(32)
-COUNT_ONES(64)
-
-// Arbitrary generation for tnum domains
+/* Arbitrary generation for tnum domains.
+ *
+ * The unknown-bit pattern is drawn from the existing sized generators and
+ * scattered into the mask positions (LSB first). Sized draws are small
+ * (around 0), so concretizations stay near the low end of gamma(tnum) —
+ * and the sized generators' extrema skew carries over for free: an all-ones
+ * draw sets every unknown bit (the max element, e.g. UINT_MAX sentinels for
+ * top), and for signed tnums a small negative draw sign-extends across the
+ * high unknown bits (values near -1) while INT_MIN reaches the minimum
+ * element. A top tnum therefore samples exactly like the default sized
+ * generator (scatter is the identity on a full mask), so enabling the
+ * domain is never worse than the baseline. */
 #define TNUM_GEN(sm)                                                                     \
   uint##sm##_t bennet_arbitrary_tnum_uint##sm##_t(                                       \
       bennet_domain_tnum(uint##sm##_t) * d) {                                            \
@@ -39,33 +34,20 @@ COUNT_ONES(64)
       return 0;                                                                          \
     }                                                                                    \
                                                                                          \
-    assert((d->value & d->mask) == 0);                                                   \
+    assert(d->top || (d->value & d->mask) == 0);                                         \
                                                                                          \
-    size_t sz = bennet_get_size();                                                       \
+    uint##sm##_t mask = d->top ? UINT##sm##_MAX : d->mask;                               \
+    uint##sm##_t value = d->top ? 0 : d->value;                                          \
                                                                                          \
-    uint##sm##_t end = 0;                                                                \
-    for (int i = 0; i < count_ones_##sm(d->mask); i++) {                                 \
-      end <<= 1;                                                                         \
-      end |= 1;                                                                          \
-                                                                                         \
-      if (end > sz) {                                                                    \
-        break;                                                                           \
-      }                                                                                  \
-    }                                                                                    \
-    if (end > sz) {                                                                      \
-      end = sz;                                                                          \
-    }                                                                                    \
-                                                                                         \
-    uint##sm##_t bits = bennet_range_uint##sm##_t(0, end);                               \
-    uint##sm##_t res = d->value;                                                         \
+    uint##sm##_t bits = bennet_arbitrary_sized_top(uint##sm##_t);                        \
+    uint##sm##_t res = value;                                                            \
                                                                                          \
     for (uint##sm##_t i = 0; i < sm && bits != 0; i++) {                                 \
-      if (d->mask & ((uint##sm##_t)1 << i)) {                                            \
+      if (mask & ((uint##sm##_t)1 << i)) {                                               \
         res |= (bits & 1) << i;                                                          \
         bits >>= 1;                                                                      \
       }                                                                                  \
     }                                                                                    \
-    assert(bits == 0);                                                                   \
                                                                                          \
     return res;                                                                          \
   }                                                                                      \
@@ -76,49 +58,26 @@ COUNT_ONES(64)
       return 0;                                                                          \
     }                                                                                    \
                                                                                          \
-    assert((d->value & d->mask) == 0);                                                   \
+    assert(d->top || (d->value & d->mask) == 0);                                         \
                                                                                          \
-    size_t sz = bennet_get_size();                                                       \
+    uint##sm##_t mask = d->top ? UINT##sm##_MAX : (uint##sm##_t)d->mask;                 \
+    uint##sm##_t value = d->top ? 0 : (uint##sm##_t)d->value;                            \
                                                                                          \
-    uint##sm##_t end = 0;                                                                \
-    for (int i = 0; i < count_ones_##sm(d->mask); i++) {                                 \
-      end <<= 1;                                                                         \
-      end |= 1;                                                                          \
-                                                                                         \
-      if (end > sz) {                                                                    \
-        break;                                                                           \
-      }                                                                                  \
-    }                                                                                    \
-    if (end > sz) {                                                                      \
-      end = sz;                                                                          \
-    }                                                                                    \
-                                                                                         \
-    uint##sm##_t sign = UINT##sm##_C(1) << (sm - 1);                                     \
-    if ((uint##sm##_t)d->mask & sign) {                                                  \
-      end <<= 1;                                                                         \
-      end |= 1;                                                                          \
-    }                                                                                    \
-                                                                                         \
-    uint##sm##_t bits = bennet_range_uint##sm##_t(0, end);                               \
-    uint##sm##_t res = d->value;                                                         \
-                                                                                         \
-    if ((uint##sm##_t)d->mask & sign) {                                                  \
-      if (bits & 1) {                                                                    \
-        res |= sign;                                                                     \
-      }                                                                                  \
-      bits >>= 1;                                                                        \
-    }                                                                                    \
+    /* Signed sized draw: small around 0 (both signs, sign-extended), with   */          \
+    /* INT_MIN/INT_MAX extrema. Scattering the two's-complement pattern      */          \
+    /* LSB-first is the identity on a full mask, so a top tnum reproduces    */          \
+    /* the sized signed distribution exactly.                                */          \
+    uint##sm##_t bits = (uint##sm##_t)bennet_arbitrary_sized_top(int##sm##_t);           \
+    uint##sm##_t res = value;                                                            \
                                                                                          \
     for (uint##sm##_t i = 0; i < sm && bits != 0; i++) {                                 \
-      uint##sm##_t shift = ((uint##sm##_t)d->value & sign) ? (sm - 1 - i) : i;           \
-      if ((uint##sm##_t)d->mask & ((uint##sm##_t)1 << shift)) {                          \
-        res |= (bits & 1) << shift;                                                      \
+      if (mask & ((uint##sm##_t)1 << i)) {                                               \
+        res |= (bits & 1) << i;                                                          \
         bits >>= 1;                                                                      \
       }                                                                                  \
     }                                                                                    \
-    assert(bits == 0);                                                                   \
                                                                                          \
-    return res;                                                                          \
+    return (int##sm##_t)res;                                                             \
   }
 
 TNUM_GEN(8)
