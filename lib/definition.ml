@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LAT = LogicalArgumentTypes
 
 module Function = struct
@@ -107,7 +107,7 @@ module Clause = struct
       | LAT.Constraint (lc, info, lat) -> LRT.Constraint (lc, info, aux lat)
       | I output ->
         let loc = Locations.other __LOC__ in
-        let lc = LogicalConstraints.T (IT.eq_ (pred_oarg, output) loc) in
+        let lc = LogicalConstraints.T (MT.eq_ (pred_oarg, output) loc) in
         LRT.Constraint (lc, (loc, None), LRT.I)
     in
     aux clause_packing_ft
@@ -116,11 +116,11 @@ module Clause = struct
   let explicit_negative_guards (cs : t list) : t list =
     let here = Locations.other __LOC__ in
     let comb prev_negated { loc; guard = cur_guard; packing_ft } =
-      let cur = { loc; guard = IT.and_ [ cur_guard; prev_negated ] here; packing_ft } in
-      let new_negated = IT.and_ [ IT.not_ cur_guard here; prev_negated ] here in
+      let cur = { loc; guard = MT.and_ [ cur_guard; prev_negated ] here; packing_ft } in
+      let new_negated = MT.and_ [ MT.not_ cur_guard here; prev_negated ] here in
       (new_negated, cur)
     in
-    snd (List.fold_left_map comb (IT.bool_ true here) cs)
+    snd (List.fold_left_map comb (MT.bool_ true here) cs)
 
 
   let free_vars (c : t) : Sym.Set.t =
@@ -188,7 +188,7 @@ module Predicate = struct
            | `True -> Some clause
            | `False ->
              let loc = Locations.other __LOC__ in
-             (match provable (LogicalConstraints.T (IT.not_ clause.guard loc)) with
+             (match provable (LogicalConstraints.T (MT.not_ clause.guard loc)) with
               | `True -> try_clauses clauses
               | `False ->
                 Pp.debug

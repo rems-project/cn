@@ -1,6 +1,6 @@
 module LC = LogicalConstraints
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 open MakeTerm
 open Terms
 
@@ -157,7 +157,7 @@ module MakeTerm = struct
     | _ ->
       let member_tys = BT.record_bt (T.get_bt it) in
       let member_bt = List.assoc Id.equal member member_tys in
-      IT.recordMember_ ~member_bt (it, member) loc
+      MT.recordMember_ ~member_bt (it, member) loc
 
 
   (* let rec datatype_member_reduce it member member_bt = *)
@@ -178,7 +178,7 @@ module MakeTerm = struct
     | Tuple items -> List.nth items n
     | ITE (cond, it1, it2) ->
       ite_ (cond, tuple_nth_reduce it1 n item_bt, tuple_nth_reduce it2 n item_bt) loc
-    | _ -> IT.nthTuple_ ~item_bt (n, it) loc
+    | _ -> MT.nthTuple_ ~item_bt (n, it) loc
 
 
   let rec accessor_reduce (f : T.t -> T.t option) it =
@@ -209,8 +209,8 @@ module MakeTerm = struct
 
   let num_lit_norm bt z =
     match bt with
-    | BT.Bits (sign, sz) -> IT.num_lit_ (BT.normalise_to_range (sign, sz) z) bt
-    | _ -> IT.num_lit_ z bt
+    | BT.Bits (sign, sz) -> MT.num_lit_ (BT.normalise_to_range (sign, sz) z) bt
+    | _ -> MT.num_lit_ z bt
 
 
   let rec simp ?(inline_functions = false) simp_ctxt =
@@ -284,7 +284,7 @@ module MakeTerm = struct
            z_ (Z.pow a (Z.to_int b)) the_loc
          | _, _, Some a, Some b when Z.fits_int b ->
            num_lit_norm the_bt (Z.pow a (Z.to_int b)) the_loc
-         | _ -> IT.exp_ (a, b) the_loc)
+         | _ -> MT.exp_ (a, b) the_loc)
       | Binop (Rem, a, b) ->
         let a = aux a in
         let b = aux b in
@@ -350,7 +350,7 @@ module MakeTerm = struct
           a
         else (
           match (a, b, Terms.get_num_z a, Terms.get_num_z b) with
-          | _, _, Some i1, Some i2 -> IT.num_lit_ (Z.min i1 i2) the_bt the_loc
+          | _, _, Some i1, Some i2 -> MT.num_lit_ (Z.min i1 i2) the_bt the_loc
           | IT (Const (Q q1), _, _), IT (Const (Q q2), _, _), _, _ ->
             IT (Const (Q (Q.min q1 q2)), the_bt, the_loc)
           | ( IT (Binop (Min, c, IT (Const (Z i1), _, _)), _, _),
@@ -366,7 +366,7 @@ module MakeTerm = struct
           a
         else (
           match (a, b, Terms.get_num_z a, Terms.get_num_z b) with
-          | _, _, Some i1, Some i2 -> IT.num_lit_ (Z.max i1 i2) the_bt the_loc
+          | _, _, Some i1, Some i2 -> MT.num_lit_ (Z.max i1 i2) the_bt the_loc
           | IT (Const (Q q1), _, _), IT (Const (Q q2), _, _), _, _ ->
             IT (Const (Q (Q.max q1 q2)), the_bt, the_loc)
           | ( IT (Binop (Max, c, IT (Const (Z i1), _, _)), _, _),

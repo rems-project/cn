@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
-module IT = MakeTerm
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Smt = Smt.Make (AD)

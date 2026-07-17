@@ -3,7 +3,7 @@ open Resource
 open Definition
 open Memory
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LAT = LogicalArgumentTypes
 module LRT = LogicalReturnTypes
 module LC = LogicalConstraints
@@ -14,8 +14,8 @@ let resource_empty provable resource =
   let loc = Cerb_location.other __LOC__ in
   let constr =
     match resource with
-    | P _, _ -> LC.T (IT.bool_ false loc)
-    | Q p, _ -> LC.forall_ p.q (IT.not_ p.permission loc)
+    | P _, _ -> LC.T (MT.bool_ false loc)
+    | Q p, _ -> LC.forall_ p.q (MT.not_ p.permission loc)
   in
   match provable constr with
   | `True -> `Empty
@@ -25,7 +25,7 @@ let resource_empty provable resource =
 let unfolded_array loc init (ict, olength) pointer =
   let length = Option.get olength in
   let qbt = if BaseTypes.(!cnBV) then Memory.uintptr_bt else BT.Integer in
-  let q_s, q = IT.fresh_named qbt "i" loc in
+  let q_s, q = MT.fresh_named qbt "i" loc in
   Q
     { name = Owned (ict, init);
       pointer;
@@ -34,7 +34,7 @@ let unfolded_array loc init (ict, olength) pointer =
       step = ict;
       iargs = [];
       permission =
-        IT.(
+        MT.(
           and_
             [ le_ (int_lit_ 0 qbt loc, q) loc; lt_ (q, int_lit_ length qbt loc) loc ]
             loc)
@@ -48,7 +48,7 @@ let packing_ft ~full loc global provable ret =
      | Owned ((Void | Integer _ | Pointer _ | Function _ | Byte), _init) -> None
      | Owned ((Array (ict, olength) as ct), init) ->
        let qpred = unfolded_array loc init (ict, olength) ret.pointer in
-       let o_s, o = IT.fresh_named (Memory.bt_of_sct ct) "value" loc in
+       let o_s, o = MT.fresh_named (Memory.bt_of_sct ct) "value" loc in
        let at = LAT.Resource ((o_s, (qpred, T.get_bt o)), (loc, None), LAT.I o) in
        Some at
      | Owned (Struct tag, init) ->
@@ -61,12 +61,12 @@ let packing_ft ~full loc global provable ret =
                 let request =
                   P
                     { name = Owned (mct, init);
-                      pointer = IT.memberShift_ (ret.pointer, tag, member) loc;
+                      pointer = MT.memberShift_ (ret.pointer, tag, member) loc;
                       iargs = []
                     }
                 in
                 let m_value_s, m_value =
-                  IT.fresh_named (Memory.bt_of_sct mct) (Id.get_string member) loc
+                  MT.fresh_named (Memory.bt_of_sct mct) (Id.get_string member) loc
                 in
                 ( LRT.Resource ((m_value_s, (request, T.get_bt m_value)), (loc, None), lrt),
                   (member, m_value) :: value )
@@ -76,21 +76,21 @@ let packing_ft ~full loc global provable ret =
                   P
                     { name = Owned (padding_ct, Uninit);
                       pointer =
-                        IT.pointer_offset_
-                          (ret.pointer, IT.int_lit_ offset Memory.uintptr_bt loc)
+                        MT.pointer_offset_
+                          (ret.pointer, MT.int_lit_ offset Memory.uintptr_bt loc)
                           loc;
                       iargs = []
                     }
                 in
                 let padding_s, padding =
-                  IT.fresh_named (Memory.bt_of_sct padding_ct) "padding" loc
+                  MT.fresh_named (Memory.bt_of_sct padding_ct) "padding" loc
                 in
                 ( LRT.Resource ((padding_s, (request, T.get_bt padding)), (loc, None), lrt),
                   value ))
            layout
            (LRT.I, [])
        in
-       let at = LAT.of_lrt lrt (LAT.I (IT.struct_ (tag, value) loc)) in
+       let at = LAT.of_lrt lrt (LAT.I (MT.struct_ (tag, value) loc)) in
        Some at
      | PName pn ->
        let def = Sym.Map.find pn global.resource_predicates in
@@ -118,10 +118,10 @@ let unpack_owned loc global (ct, init) pointer (O o) =
              let mresource =
                ( P
                    { name = Owned (mct, init);
-                     pointer = IT.memberShift_ (pointer, tag, member) loc;
+                     pointer = MT.memberShift_ (pointer, tag, member) loc;
                      iargs = []
                    },
-                 O (IT.member_ ~member_bt:(Memory.bt_of_sct mct) (o, member) loc) )
+                 O (MT.member_ ~member_bt:(Memory.bt_of_sct mct) (o, member) loc) )
              in
              mresource :: res
            | None ->
@@ -130,12 +130,12 @@ let unpack_owned loc global (ct, init) pointer (O o) =
                ( P
                    { name = Owned (padding_ct, Uninit);
                      pointer =
-                       IT.pointer_offset_
-                         (pointer, IT.int_lit_ offset Memory.uintptr_bt loc)
+                       MT.pointer_offset_
+                         (pointer, MT.int_lit_ offset Memory.uintptr_bt loc)
                          loc;
                      iargs = []
                    },
-                 O (IT.default_ (Memory.bt_of_sct padding_ct) loc) )
+                 O (MT.default_ (Memory.bt_of_sct padding_ct) loc) )
              in
              mresource :: res)
         layout
@@ -175,15 +175,15 @@ let extractable_one (* global *) provable (predicate_name, index) (ret, O o) =
        let at_index =
          ( P
              { name = ret.name;
-               pointer = IT.(arrayShift_ ~base:ret.pointer ~index ret.step loc);
+               pointer = MT.(arrayShift_ ~base:ret.pointer ~index ret.step loc);
                iargs = List.map (T.subst su) ret.iargs
              },
-           O (IT.map_get_ o index loc) )
+           O (MT.map_get_ o index loc) )
        in
        let ret_reduced =
          { ret with
            permission =
-             IT.(
+             MT.(
                and_
                  [ ret.permission; ne__ (sym_ (fst ret.q, snd ret.q, loc)) index loc ]
                  loc)

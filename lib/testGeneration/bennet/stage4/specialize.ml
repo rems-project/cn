@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -58,7 +58,7 @@ module Make (AD : Domain.T) = struct
       (* Helper to cast pointer to integer for arithmetic *)
       let to_numeric it =
         match T.get_bt it with
-        | BT.Loc () -> IT.addr_ it (Locations.other __LOC__)
+        | BT.Loc () -> MT.addr_ it (Locations.other __LOC__)
         | _ -> it
 
 
@@ -84,7 +84,7 @@ module Make (AD : Domain.T) = struct
             Some
               (Simplify.MakeTerm.simp
                  (Simplify.default Global.empty)
-                 (IT.max_ (to_numeric n1, to_numeric n2) loc))
+                 (MT.max_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
         in
@@ -95,7 +95,7 @@ module Make (AD : Domain.T) = struct
             Some
               (Simplify.MakeTerm.simp
                  (Simplify.default Global.empty)
-                 (IT.max_ (to_numeric n1, to_numeric n2) loc))
+                 (MT.max_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
         in
@@ -106,7 +106,7 @@ module Make (AD : Domain.T) = struct
             Some
               (Simplify.MakeTerm.simp
                  (Simplify.default Global.empty)
-                 (IT.min_ (to_numeric n1, to_numeric n2) loc))
+                 (MT.min_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
         in
@@ -117,7 +117,7 @@ module Make (AD : Domain.T) = struct
             Some
               (Simplify.MakeTerm.simp
                  (Simplify.default Global.empty)
-                 (IT.min_ (to_numeric n1, to_numeric n2) loc))
+                 (MT.min_ (to_numeric n1, to_numeric n2) loc))
           | Some n, None | None, Some n -> Some n
           | None, None -> None
         in
@@ -177,7 +177,7 @@ module Make (AD : Domain.T) = struct
         || Option.is_some v.max_ex
       then (
         (* Cast bounds to match target type *)
-        let cast_to_bt it = IT.cast_ bt it loc in
+        let cast_to_bt it = MT.cast_ bt it loc in
         Term.arbitrary_specialized_
           ( (Option.map cast_to_bt v.min_inc, Option.map cast_to_bt v.min_ex),
             (Option.map cast_to_bt v.max_inc, Option.map cast_to_bt v.max_ex) )

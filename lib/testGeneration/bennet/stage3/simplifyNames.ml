@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module StringMap = Map.Make (String)
 
 module Make (AD : Domain.T) = struct
@@ -45,7 +45,7 @@ module Make (AD : Domain.T) = struct
               y,
               Term.subst
                 (T.make_subst
-                   [ (x, IT.sym_ (y, Term.basetype gt_inner, Term.loc gt_inner)) ])
+                   [ (x, MT.sym_ (y, Term.basetype gt_inner, Term.loc gt_inner)) ])
                 gt' )
           | None -> (StringMap.add name 1 vars, x, gt')
         in

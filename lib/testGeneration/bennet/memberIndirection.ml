@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (GT : GenTerms.T) = struct
@@ -125,11 +125,11 @@ module Make (GT : GenTerms.T) = struct
                      indirect_map
                      |> List.map (fun (y, z) ->
                        let it = List.assoc Id.equal y xits in
-                       (y, IT.sym_ (z, T.get_bt it, T.get_loc it)))
+                       (y, MT.sym_ (z, T.get_bt it, T.get_loc it)))
                    in
                    match bt with
-                   | Struct tag -> IT.struct_ (tag, members) loc_it
-                   | Record _ -> IT.record_ members loc_it
+                   | Struct tag -> MT.struct_ (tag, members) loc_it
+                   | Record _ -> MT.record_ members loc_it
                    | _ -> failwith __LOC__)
                   tag
                   loc_ret ),
@@ -168,9 +168,9 @@ module Make (GT : GenTerms.T) = struct
                      indirect_map
                      |> List.map (fun (i, sym) ->
                        let it = List.nth items i in
-                       IT.sym_ (sym, T.get_bt it, T.get_loc it))
+                       MT.sym_ (sym, T.get_bt it, T.get_loc it))
                    in
-                   IT.tuple_ tuple_items loc_it)
+                   MT.tuple_ tuple_items loc_it)
                   tag
                   loc_ret ),
               replace_memberof_gt k x gt' )

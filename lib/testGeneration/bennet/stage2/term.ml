@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 module CF = Cerb_frontend
 

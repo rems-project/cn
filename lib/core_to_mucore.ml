@@ -6,7 +6,7 @@ module Ctype = CF.Ctype
 
 (* CN specific *)
 module BT = BaseTypes
-module IT = MakeTerm
+module MT = MakeTerm
 module SBT = BaseTypes.Surface
 module Mu = Mucore
 
@@ -716,7 +716,7 @@ let make_label_args f_i loc env st args (accesses, inv) =
       (* let good_pointer_lc = *)
       (*   let info = (loc, Some (Sym.pp_string s ^ " good")) in *)
       (*   let here = Locations.other __LOC__ in *)
-      (*   (LTranslate.T (IT.good_ (Pointer sct, IT.sym_ (s, BT.Loc, here)) here), info) *)
+      (*   (LTranslate.T (MT.good_ (Pointer sct, MT.sym_ (s, BT.Loc, here)) here), info) *)
       (* in *)
       let@ oa_name, ((pt_ret, oa_bt), lcs), value =
         Translate.ownership (loc, (s, ct)) env
@@ -765,7 +765,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let good_lc =
         let info = (loc, Some (Sym.pp_string pure_arg ^ " good")) in
         let here = Locations.other __LOC__ in
-        ( LogicalConstraints.T (IT.representable_ (ct, IT.sym_ (pure_arg, bt, here)) here),
+        ( LogicalConstraints.T (MT.representable_ (ct, MT.sym_ (pure_arg, bt, here)) here),
           info )
       in
       let@ at =
@@ -823,7 +823,7 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
       let good_lc =
         let info = (loc, Some (Sym.pp_string pure_arg ^ " representable")) in
         let here = Locations.other __LOC__ in
-        ( LogicalConstraints.T (IT.representable_ (ct, IT.sym_ (pure_arg, bt, here)) here),
+        ( LogicalConstraints.T (MT.representable_ (ct, MT.sym_ (pure_arg, bt, here)) here),
           info )
       in
       let@ at =

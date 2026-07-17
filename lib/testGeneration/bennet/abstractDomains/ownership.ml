@@ -11,7 +11,7 @@
 
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Inner = struct
@@ -56,10 +56,10 @@ module Inner = struct
     let to_it (oo : t) (sym : Sym.t) : T.t =
       let loc = Locations.other __LOC__ in
       match oo with
-      | Some (_, (0, 0)) | None -> IT.bool_ true loc
+      | Some (_, (0, 0)) | None -> MT.bool_ true loc
       | Some (bt, (_, _)) ->
-        IT.not_
-          (IT.eq_ (IT.cast_ (BT.Loc ()) (IT.sym_ (sym, bt, loc)) loc, IT.null_ loc) loc)
+        MT.not_
+          (MT.eq_ (MT.cast_ (BT.Loc ()) (MT.sym_ (sym, bt, loc)) loc, MT.null_ loc) loc)
           loc
 
 
@@ -199,7 +199,7 @@ module Inner = struct
         return (p, offset)
       | IT (MemberShift (base, tag, member), _, loc) ->
         pointer_and_offset
-          (IT.pointer_offset_
+          (MT.pointer_offset_
              (base, IT (OffsetOf (tag, member), Memory.size_bt, loc))
              loc)
       | IT (ArrayShift { base = ptr; ct; index = IT (Const (Z n), _, _) }, _, _)
@@ -234,8 +234,8 @@ module Inner = struct
   let to_it (d : t) : T.t =
     let loc = Locations.other __LOC__ in
     match d with
-    | None -> IT.bool_ false loc (* bottom = unsatisfiable *)
-    | Some _ -> IT.bool_ true loc (* ownership has no numeric constraints to express *)
+    | None -> MT.bool_ false loc (* bottom = unsatisfiable *)
+    | Some _ -> MT.bool_ true loc (* ownership has no numeric constraints to express *)
 
 
   let to_lc (d : t) : LC.t = LC.T (to_it d)

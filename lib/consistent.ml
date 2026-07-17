@@ -1,5 +1,5 @@
 module LC = LogicalConstraints
-module IT = MakeTerm
+module MT = MakeTerm
 module Loc = Locations
 
 let debug, item = Pp.(debug, item)
@@ -19,12 +19,12 @@ let logicalReturnTypes loc lrt =
     | LogicalReturnTypes.Define ((s, it), ((loc, _) as info), lrt) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_l s (Terms.get_bt it) (loc, lazy (Pp.string "let-var")) in
-      let@ () = add_c (fst info) (LC.T (IT.def_ s it here)) in
+      let@ () = add_c (fst info) (LC.T (MT.def_ s it here)) in
       aux lrt
     | Resource ((s, (re, re_oa_spec)), (loc, _), lrt) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_l s re_oa_spec (loc, lazy (Pp.string "let-var")) in
-      let@ () = add_r loc (re, O (IT.sym_ (s, re_oa_spec, here))) in
+      let@ () = add_r loc (re, O (MT.sym_ (s, re_oa_spec, here))) in
       aux lrt
     | Constraint (lc, info, lrt) ->
       (* TODO abort early if one of the constraints is the literal fase,
@@ -34,7 +34,7 @@ let logicalReturnTypes loc lrt =
     | I ->
       let@ provable = provable loc in
       let here = Locations.other __LOC__ in
-      (match provable (LC.T (IT.bool_ false here)) with
+      (match provable (LC.T (MT.bool_ false here)) with
        | `True ->
          fail (fun ctxt_log ->
            { loc; msg = Inconsistent_assumptions ("return type", ctxt_log) })
@@ -64,12 +64,12 @@ let logicalArgumentTypes i_welltyped i_pp kind loc at : unit Typing.t =
     | LAT.Define ((s, it), info, at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_l s (Terms.get_bt it) (loc, lazy (Pp.string "let-var")) in
-      let@ () = add_c (fst info) (LC.T (IT.def_ s it here)) in
+      let@ () = add_c (fst info) (LC.T (MT.def_ s it here)) in
       aux at
     | Resource ((s, (re, re_oa_spec)), (loc, _), at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_l s re_oa_spec (loc, lazy (Pp.string "let-var")) in
-      let@ () = add_r loc (re, O (IT.sym_ (s, re_oa_spec, here))) in
+      let@ () = add_r loc (re, O (MT.sym_ (s, re_oa_spec, here))) in
       aux at
     | Constraint (lc, info, at) ->
       let@ () = add_c (fst info) lc in
@@ -78,7 +78,7 @@ let logicalArgumentTypes i_welltyped i_pp kind loc at : unit Typing.t =
       let@ provable = provable loc in
       let here = Locations.other __LOC__ in
       let@ () =
-        match provable (LC.T (IT.bool_ false here)) with
+        match provable (LC.T (MT.bool_ false here)) with
         | `True ->
           fail (fun ctxt_log -> { loc; msg = Inconsistent_assumptions (kind, ctxt_log) })
         | `False -> return ()
@@ -133,12 +133,12 @@ let logicalArguments
     | Mucore.Define ((s, it), ((loc, _) as info), at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_l s (Terms.get_bt it) (loc, lazy (Pp.string "let-var")) in
-      let@ () = add_c (fst info) (LC.T (IT.def_ s it here)) in
+      let@ () = add_c (fst info) (LC.T (MT.def_ s it here)) in
       aux at
     | Resource ((s, (re, re_oa_spec)), (loc, _), at) ->
       (* no need to alpha-rename, because context.ml ensures there's no name clashes *)
       let@ () = add_l s re_oa_spec (loc, lazy (Pp.string "let-var")) in
-      let@ () = add_r loc (re, O (IT.sym_ (s, re_oa_spec, here))) in
+      let@ () = add_r loc (re, O (MT.sym_ (s, re_oa_spec, here))) in
       aux at
     | Constraint (lc, info, at) ->
       let@ () = add_c (fst info) lc in
@@ -147,7 +147,7 @@ let logicalArguments
       let@ provable = provable loc in
       let here = Locations.other __LOC__ in
       let@ () =
-        match provable (LC.T (IT.bool_ false here)) with
+        match provable (LC.T (MT.bool_ false here)) with
         | `True ->
           fail (fun ctxt_log -> { loc; msg = Inconsistent_assumptions (kind, ctxt_log) })
         | `False -> return ()
@@ -229,11 +229,11 @@ let predicate pred =
            (fun acc Def.Clause.{ loc; guard; packing_ft } ->
               let here = Locations.other __LOC__ in
               let negated_guards =
-                List.map (fun clause -> IT.not_ clause.Def.Clause.guard here) acc
+                List.map (fun clause -> MT.not_ clause.Def.Clause.guard here) acc
               in
               pure
                 (let@ () = add_c loc (LC.T guard) in
-                 let@ () = add_c loc (LC.T (IT.and_ negated_guards here)) in
+                 let@ () = add_c loc (LC.T (MT.and_ negated_guards here)) in
                  let@ () =
                    logicalArgumentTypes
                      (fun _loc _it -> return ())

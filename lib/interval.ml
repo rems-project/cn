@@ -184,7 +184,7 @@ end
 
 module Solver = struct
   module T = Terms.Normal
-  module IT = MakeTerm
+  module MT = MakeTerm
   module RT = Request
   open Terms
   open BaseTypes
@@ -254,32 +254,32 @@ module Solver = struct
       (match supported_type loc t with
        | None -> rt
        | Some (tyi, k) ->
-         let xt = IT.sym_ (x, t, loc) in
+         let xt = MT.sym_ (x, t, loc) in
          let interval_to_term i =
            match Interval.is_const i with
-           | Some v -> IT.eq_ (xt, k v) loc
+           | Some v -> MT.eq_ (xt, k v) loc
            | None ->
              let has_lower =
                Option.bind i.lower (fun l ->
                  match tyi.lower with
                  | Some tl when Z.equal l tl -> None
-                 | _ -> Some (IT.le_ (k l, xt) loc))
+                 | _ -> Some (MT.le_ (k l, xt) loc))
              in
              let has_upper =
                Option.bind i.upper (fun u ->
                  match tyi.upper with
                  | Some tu when Z.equal u tu -> None
-                 | _ -> Some (IT.lt_ (xt, k u) loc))
+                 | _ -> Some (MT.lt_ (xt, k u) loc))
              in
              (match (has_lower, has_upper) with
-              | Some l, Some u -> IT.and2_ (l, u) loc
+              | Some l, Some u -> MT.and2_ (l, u) loc
               | None, Some u -> u
               | Some l, None -> l
-              | None, None -> IT.bool_ true loc)
+              | None, None -> MT.bool_ true loc)
          in
          (match interval_for eval x (Intervals.of_interval tyi) qpred.permission with
           | None -> rt
           | Some is ->
             let ps = List.map interval_to_term (Intervals.to_intervals is) in
-            RT.Q { qpred with permission = IT.or_ ps loc }))
+            RT.Q { qpred with permission = MT.or_ ps loc }))
 end

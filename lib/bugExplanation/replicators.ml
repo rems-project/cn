@@ -3,7 +3,7 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
@@ -501,7 +501,7 @@ let compile_req
       (b, s, e)
     | Q { name; pointer; q = q_sym, q_bt; q_loc; step; permission; iargs } ->
       assert (List.is_empty iargs);
-      let q_it = IT.sym_ (q_sym, q_bt, q_loc) in
+      let q_it = MT.sym_ (q_sym, q_bt, q_loc) in
       let e_perm =
         let b_perm, s_perm, e_perm = compile_it filename sigma prog5 permission in
         A.(
@@ -517,7 +517,7 @@ let compile_req
       let map_sym = Sym.fresh_anon () in
       let b_val, s_val, e_val =
         aux
-          (P { name; pointer = IT.arrayShift_ ~base:pointer ~index:q_it step loc; iargs })
+          (P { name; pointer = MT.arrayShift_ ~base:pointer ~index:q_it step loc; iargs })
       in
       let s2 =
         A.
@@ -735,7 +735,7 @@ let compile_spec
       (T.make_subst
          (List.map
             (fun (x, y) ->
-               (x, IT.sym_ (y, fst (List.assoc Sym.equal x args), Locations.other __LOC__)))
+               (x, MT.sym_ (y, fst (List.assoc Sym.equal x args), Locations.other __LOC__)))
             new_args))
       (AT.get_lat at)
   in

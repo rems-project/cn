@@ -365,7 +365,7 @@ let pp_builtins : Builtins.message -> _ = function
 (*     !^"array_to_list first arguments" *)
 (*     ^^^ squotes (Terms.pp arr) *)
 (*     ^^^ !^"expects type map/array, but has type" *)
-(*     ^^^ BaseTypes.Surface.pp (IT.get_bt arr) *)
+(*     ^^^ BaseTypes.Surface.pp (MT.get_bt arr) *)
 (*   in *)
 (*   { short; descr = None; state = None } *)
 

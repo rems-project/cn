@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
@@ -135,7 +135,7 @@ module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct
           let d' = I.abs_assert (LC.T it_if) d in
           aux abs_ctx defs_ctx gt_then d' should_assert
         in
-        let not_it_if = IT.not_ it_if (T.get_loc it_if) in
+        let not_it_if = MT.not_ it_if (T.get_loc it_if) in
         let gt_else, d_else_list =
           let d' = I.abs_assert (LC.T not_it_if) d in
           aux abs_ctx defs_ctx gt_else d' should_assert

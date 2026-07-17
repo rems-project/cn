@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = Terms.Normal
+module MT = Terms.Normal
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -8,7 +8,7 @@ module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)
 
   type stmt =
-    | Asgn of (IT.t * Sctypes.t) * IT.t
+    | Asgn of (MT.t * Sctypes.t) * MT.t
     | LetStar of (Sym.t * Term.t)
     | Assert of LC.t
 
@@ -56,7 +56,7 @@ module Make (AD : Domain.T) = struct
     let open Pp in
     match stmt with
     | Asgn ((it_addr, ty), it_val) ->
-      Sctypes.pp ty ^^^ IT.pp it_addr ^^^ !^":=" ^^^ IT.pp it_val
+      Sctypes.pp ty ^^^ MT.pp it_addr ^^^ !^":=" ^^^ MT.pp it_val
     | LetStar (x, gt) ->
       !^"let*"
       ^^^ Sym.pp x

@@ -1,7 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
-module IT = MakeTerm
+module MT = MakeTerm
 
 module WrappedIntervalBasis = struct
   let name = "wrapped_interval"
@@ -1202,10 +1202,10 @@ module WrappedIntervalBasis = struct
       [ meet b1 b1'; meet b2 b2' ]
     | Unop (Not, IT (Binop (LE, it1, it2), _, _))
     | Unop (Not, IT (Binop (LEPointer, it1, it2), _, _)) ->
-      backward_abs_it (IT.le_ (it2, it1) loc) bs
+      backward_abs_it (MT.le_ (it2, it1) loc) bs
     | Unop (Not, IT (Binop (LT, it1, it2), _, _))
     | Unop (Not, IT (Binop (LTPointer, it1, it2), _, _)) ->
-      backward_abs_it (IT.lt_ (it2, it1) loc) bs
+      backward_abs_it (MT.lt_ (it2, it1) loc) bs
     | _ ->
       if BT.equal BT.Bool (Terms.get_bt it) then
         bs
@@ -1273,17 +1273,17 @@ module WrappedIntervalBasis = struct
   let to_it (sym : Sym.t) (t : t) : Terms.Normal.t =
     let loc = Locations.other __LOC__ in
     if is_bottom t then
-      IT.bool_ false loc
+      MT.bool_ false loc
     else if is_top t then
-      IT.bool_ true loc
+      MT.bool_ true loc
     else (
-      let sym_it = IT.sym_ (sym, t.bt, loc) in
-      let start_it = IT.num_lit_ t.start t.bt loc in
-      let stop_it = IT.num_lit_ t.stop t.bt loc in
+      let sym_it = MT.sym_ (sym, t.bt, loc) in
+      let start_it = MT.num_lit_ t.start t.bt loc in
+      let stop_it = MT.num_lit_ t.stop t.bt loc in
       if Z.leq t.start t.stop then (* Normal interval: start <= X && X <= stop *)
-        IT.and_ [ IT.le_ (start_it, sym_it) loc; IT.le_ (sym_it, stop_it) loc ] loc
+        MT.and_ [ MT.le_ (start_it, sym_it) loc; MT.le_ (sym_it, stop_it) loc ] loc
       else (* Wrapped interval [start..max] ∪ [min..stop]: start <= X || X <= stop *)
-        IT.or_ [ IT.le_ (start_it, sym_it) loc; IT.le_ (sym_it, stop_it) loc ] loc)
+        MT.or_ [ MT.le_ (start_it, sym_it) loc; MT.le_ (sym_it, stop_it) loc ] loc)
 
 
   let to_lc (t : t) (sym : Sym.t) : LogicalConstraints.t =

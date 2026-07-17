@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
 module C = CF.Ctype
-module IT = MakeTerm
+module MT = MakeTerm
 module BT = BaseTypes
 module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail
@@ -69,7 +69,7 @@ module Make (AD : Domain.T) = struct
     | `ITE (condition, then_term, else_term) ->
       (* Convert if-then-else to PickSized statement with recursive calls *)
       let then_branch = Term.assert_ (LC.T condition, then_term) () loc in
-      let else_branch = Term.assert_ (LC.T (IT.not_ condition loc), else_term) () loc in
+      let else_branch = Term.assert_ (LC.T (MT.not_ condition loc), else_term) () loc in
       path_selector_term
         ctx
         last_branch

@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -11,30 +11,30 @@ module Make (AD : Domain.T) = struct
       | IT (Unop (op, IT (ITE (it_if, it_then, it_else), _, loc_ite)), bt_unop, loc_unop)
         ->
         let f it' = Terms.IT (Unop (op, it'), bt_unop, loc_unop) in
-        IT.ite_ (it_if, f it_then, f it_else) loc_ite
+        MT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT
           ( Binop (op, IT (ITE (it_if, it_then, it_else), _, loc_ite), it2),
             bt_binop,
             loc_binop ) ->
         let f it' = Terms.IT (Binop (op, it', it2), bt_binop, loc_binop) in
-        IT.ite_ (it_if, f it_then, f it_else) loc_ite
+        MT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT
           ( Binop (op, it1, IT (ITE (it_if, it_then, it_else), _, loc_ite)),
             bt_binop,
             loc_binop ) ->
         let f it' = Terms.IT (Binop (op, it1, it'), bt_binop, loc_binop) in
-        IT.ite_ (it_if, f it_then, f it_else) loc_ite
+        MT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT
           ( EachI ((min, (i, i_bt), max), IT (ITE (it_if, it_then, it_else), _, loc_ite)),
             _,
             loc_each )
         when not (Sym.Set.mem i (T.free_vars it_if)) ->
-        let f it' = IT.eachI_ (min, (i, i_bt), max) it' loc_each in
-        IT.ite_ (it_if, f it_then, f it_else) loc_ite
+        let f it' = MT.eachI_ (min, (i, i_bt), max) it' loc_each in
+        MT.ite_ (it_if, f it_then, f it_else) loc_ite
       | IT (Cast (cast_bt, IT (ITE (it_if, it_then, it_else), _, loc_ite)), _, loc_cast)
         ->
-        let f it' = IT.cast_ cast_bt it' loc_cast in
-        IT.ite_ (it_if, f it_then, f it_else) loc_ite
+        let f it' = MT.cast_ cast_bt it' loc_cast in
+        MT.ite_ (it_if, f it_then, f it_else) loc_ite
       (* TODO: Complete cases *)
       | _ -> it
     in
@@ -47,7 +47,7 @@ module Make (AD : Domain.T) = struct
     | Forall ((i, i_bt), IT (Binop (Implies, it_perm, it_body), _, loc_implies)) ->
       let it_perm = transform_it it_perm in
       let it_body = transform_it it_body in
-      LC.Forall ((i, i_bt), IT.impl_ (it_perm, it_body) loc_implies)
+      LC.Forall ((i, i_bt), MT.impl_ (it_perm, it_body) loc_implies)
     | _ -> failwith __LOC__
 
 

@@ -1,4 +1,4 @@
-module IT = MakeTerm
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -24,8 +24,8 @@ module Make (AD : Domain.T) = struct
           let wgts2 =
             match gt_else with
             | Annot (`Pick gts, (), _, _) ->
-              List.map (fun gt' -> Term.assert_ (T (IT.not_ it_if loc), gt') () loc) gts
-            | gt' -> [ Term.assert_ (T (IT.not_ it_if loc), gt') () loc ]
+              List.map (fun gt' -> Term.assert_ (T (MT.not_ it_if loc), gt') () loc) gts
+            | gt' -> [ Term.assert_ (T (MT.not_ it_if loc), gt') () loc ]
           in
           Term.pick_ (wgts1 @ wgts2) () bt loc)
         else

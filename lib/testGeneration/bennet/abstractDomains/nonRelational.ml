@@ -2,7 +2,7 @@
 
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module type BASIS = sig
@@ -638,9 +638,9 @@ module Make (B : BASIS) = struct
     assert (Z.lt bytes max);
     let loc = Locations.other __LOC__ in
     local_iteration
-      ((IT.le_
-          ( IT.cast_ Memory.uintptr_bt it_addr loc,
-            IT.num_lit_ (Z.sub max bytes) Memory.uintptr_bt loc ))
+      ((MT.le_
+          ( MT.cast_ Memory.uintptr_bt it_addr loc,
+            MT.num_lit_ (Z.sub max bytes) Memory.uintptr_bt loc ))
          (Locations.other __LOC__))
       d
 
@@ -652,12 +652,12 @@ module Make (B : BASIS) = struct
   let to_it (od : t) : T.t =
     let loc = Locations.other __LOC__ in
     match od with
-    | None -> IT.bool_ false loc (* bottom = unsatisfiable *)
+    | None -> MT.bool_ false loc (* bottom = unsatisfiable *)
     | Some d ->
       let constraints =
         Sym.Map.fold (fun sym basis acc -> B.to_it sym basis :: acc) d []
       in
-      IT.and_ constraints loc (* conjunction of all basis constraints *)
+      MT.and_ constraints loc (* conjunction of all basis constraints *)
 
 
   let to_lc (od : t) : LC.t = LC.T (to_it od)

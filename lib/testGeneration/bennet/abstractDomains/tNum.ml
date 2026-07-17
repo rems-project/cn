@@ -2,7 +2,7 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 
 (** Tristate number (tnum) abstract domain.
 
@@ -679,10 +679,10 @@ module TristateBasis = struct
       [ t1''; t2'' ]
     | Unop (Not, IT (Binop (LE, it1, it2), _, _))
     | Unop (Not, IT (Binop (LEPointer, it1, it2), _, _)) ->
-      backward_abs_it (IT.le_ (it2, it1) loc) ts
+      backward_abs_it (MT.le_ (it2, it1) loc) ts
     | Unop (Not, IT (Binop (LT, it1, it2), _, _))
     | Unop (Not, IT (Binop (LTPointer, it1, it2), _, _)) ->
-      backward_abs_it (IT.lt_ (it2, it1) loc) ts
+      backward_abs_it (MT.lt_ (it2, it1) loc) ts
     | Binop (BW_And, _, _) ->
       (* Backward refinement for bitwise AND: if we know (x & mask) = result,
          we can refine x. For bits where mask is 1, x must match result.
@@ -918,22 +918,22 @@ module TristateBasis = struct
   let to_it (sym : Sym.t) (t : t) : T.t =
     let loc = Locations.other __LOC__ in
     if is_bottom t then
-      IT.bool_ false loc
+      MT.bool_ false loc
     else if is_top t then
-      IT.bool_ true loc
+      MT.bool_ true loc
     else if Z.equal t.mask Z.zero then (
       (* Constant: sym == value *)
-      let sym_it = IT.sym_ (sym, t.bt, loc) in
-      let value_it = IT.num_lit_ t.value t.bt loc in
-      IT.eq_ (sym_it, value_it) loc)
+      let sym_it = MT.sym_ (sym, t.bt, loc) in
+      let value_it = MT.num_lit_ t.value t.bt loc in
+      MT.eq_ (sym_it, value_it) loc)
     else (
       (* General case: (sym & ~mask) == value *)
-      let sym_it = IT.sym_ (sym, t.bt, loc) in
+      let sym_it = MT.sym_ (sym, t.bt, loc) in
       let not_mask = Z.logand (Z.lognot t.mask) (full_mask t.bt) in
-      let not_mask_it = IT.num_lit_ not_mask t.bt loc in
-      let masked_sym = IT.add_ (sym_it, not_mask_it) loc in
-      let value_it = IT.num_lit_ t.value t.bt loc in
-      IT.eq_ (masked_sym, value_it) loc)
+      let not_mask_it = MT.num_lit_ not_mask t.bt loc in
+      let masked_sym = MT.add_ (sym_it, not_mask_it) loc in
+      let value_it = MT.num_lit_ t.value t.bt loc in
+      MT.eq_ (masked_sym, value_it) loc)
 
 
   let to_lc (t : t) (sym : Sym.t) : LogicalConstraints.t =

@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 
 (** Lift compound call arguments into pure bindings:
 
@@ -29,7 +29,7 @@ module Make (AD : Domain.T) = struct
         | Some _ -> (None, it)
         | None ->
           let t = Sym.fresh_anon () in
-          (Some (t, it), IT.sym_ (t, T.get_bt it, loc)))
+          (Some (t, it), MT.sym_ (t, T.get_bt it, loc)))
       |> List.split
     in
     (List.filter_map (fun x -> x) lets, iargs')

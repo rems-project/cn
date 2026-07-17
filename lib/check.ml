@@ -1,7 +1,7 @@
 module WT = WellTyped
 module CF = Cerb_frontend
 module T = Terms.Normal
-module IT = MakeTerm
+module MT = MakeTerm
 module BT = BaseTypes
 module LRT = LogicalReturnTypes
 module Req = Request
@@ -11,7 +11,7 @@ module LAT = LogicalArgumentTypes
 module IdSet = Set.Make (Id)
 module Loc = Locations
 module RI = ResourceInference
-open IT
+open MT
 open Error_common
 open TypeErrors
 open Pp
@@ -113,7 +113,7 @@ let check_ptrval (loc : Locations.t) ~(expect : BT.t) (ptrval : pointer_value) :
     (fun ct ->
        let sct = Sctypes.of_ctype_unsafe loc ct in
        let@ () = WellTyped.check_ct loc sct in
-       return (IT.null_ loc))
+       return (MT.null_ loc))
     (function
       | None ->
         (* FIXME(CHERI merge) *)
@@ -198,7 +198,7 @@ and check_struct
          return (member, member_lvt))
       member_values
   in
-  return (IT.struct_ (tag, member_its) loc)
+  return (MT.struct_ (tag, member_its) loc)
 
 
 and check_union (_loc : Locations.t) (_tag : Sym.t) (_id : Id.t) (_mv : mem_value) : T.t m
@@ -275,16 +275,16 @@ let rec check_value (loc : Locations.t) (Mu.V (expect, v)) : T.t m =
     let@ () = WellTyped.ensure_base_type loc ~expect CType in
     let ct = Sctypes.of_ctype_unsafe loc ct in
     let@ () = WellTyped.check_ct loc ct in
-    return (IT.const_ctype_ ct loc)
+    return (MT.const_ctype_ ct loc)
   | Vunit ->
     let@ () = WellTyped.ensure_base_type loc ~expect Unit in
-    return (IT.unit_ loc)
+    return (MT.unit_ loc)
   | Vtrue ->
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
-    return (IT.bool_ true loc)
+    return (MT.bool_ true loc)
   | Vfalse ->
     let@ () = WellTyped.ensure_base_type loc ~expect Bool in
-    return (IT.bool_ false loc)
+    return (MT.bool_ false loc)
   | Vlist (_item_cbt, vals) ->
     let item_bt = Mu.bt_of_value (List.hd vals) in
     let@ () = WellTyped.ensure_base_type loc ~expect (List item_bt) in
@@ -384,7 +384,7 @@ let known_function_pointer loc p =
     let function_addrs =
       List.map
         (fun (sym, (loc, _, _)) ->
-           let t = IT.sym_ (sym, BT.(Loc ()), loc) in
+           let t = MT.sym_ (sym, BT.(Loc ()), loc) in
            (sym, t))
         global_funs
     in
@@ -411,8 +411,8 @@ let integer_wrapI loc ity n =
       (Z.add (Z.sub (Memory.max_integer_type ity) (Memory.min_integer_type ity)) Z.one)
       loc
   in
-  let r = IT.rem_f_ (n, dlt) loc in
-  IT.ite_ (le_ (r, z_ (Memory.max_integer_type ity) loc) loc, r, sub_ (r, dlt) loc) loc
+  let r = MT.rem_f_ (n, dlt) loc in
+  MT.ite_ (le_ (r, z_ (Memory.max_integer_type ity) loc) loc, r, sub_ (r, dlt) loc) loc
 
 
 let check_conv_int loc ~expect ct arg =
@@ -530,7 +530,7 @@ let check_live_alloc_bounds ?(skip_live = false) reason loc ub ptrs =
     | `False ->
       let@ model = model () in
       fail (fun ctxt ->
-        let term = if List.length ptrs = 1 then List.hd ptrs else IT.tuple_ ptrs here in
+        let term = if List.length ptrs = 1 then List.hd ptrs else MT.tuple_ ptrs here in
         { loc; msg = Alloc_out_of_bounds { constr; term; ub; ctxt; model } })
   else
     return ()
@@ -547,7 +547,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
   let (Mu.Pexpr (loc, _, expect, pe_)) = pe in
   let provable loc =
     let@ provable = Typing.provable loc in
-    (* let relevant_syms = IT.free_vars_list path_cs in *)
+    (* let relevant_syms = MT.free_vars_list path_cs in *)
     let lifted_provable lc = provable (LC.impl loc (and_ path_cs loc) lc) in
     return lifted_provable
   in
@@ -627,8 +627,8 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let ity = Option.get (Sctypes.is_integer_type ct) in
        let@ () = WellTyped.ensure_base_type loc ~expect (Memory.bt_of_sct ct) in
        (match ctor with
-        | Civmax -> return (IT.num_lit_ (Memory.max_integer_type ity) expect loc)
-        | Civmin -> return (IT.num_lit_ (Memory.min_integer_type ity) expect loc)
+        | Civmax -> return (MT.num_lit_ (Memory.max_integer_type ity) expect loc)
+        | Civmin -> return (MT.num_lit_ (Memory.min_integer_type ity) expect loc)
         | _ -> assert false)
      | (Civsizeof | Civalignof), [ e ] ->
        let@ () = WellTyped.ensure_base_type loc ~expect:CType (Mu.bt_of_pexpr e) in
@@ -775,7 +775,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     in
     let@ vt = check_pexpr path_cs pe in
     let here = Locations.other __LOC__ in
-    let byte_sym, byte = IT.fresh_named (BT.Option MemByte) "byte" here in
+    let byte_sym, byte = MT.fresh_named (BT.Option MemByte) "byte" here in
     let@ () =
       add_a byte_sym (BT.Option MemByte) (here, lazy (Pp.string "byte from integer"))
     in
@@ -941,7 +941,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect Integer in
        let@ () = WellTyped.ensure_base_type loc ~expect:(List CType) (Mu.bt_of_pexpr e) in
        let@ e = check_pexpr path_cs e in
-       (match IT.dest_list e with
+       (match MT.dest_list e with
         | Some its -> return (int_ (List.length its) loc)
         | None ->
           let msg = "Could not evaluate params_length argument to a constant list." in
@@ -958,7 +958,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
        let@ () = WellTyped.ensure_base_type loc ~expect:Integer (Mu.bt_of_pexpr e2) in
        let@ e1 = check_pexpr path_cs e1 in
        let@ e2 = check_pexpr path_cs e2 in
-       (match (IT.dest_list e1, Terms.is_z e2) with
+       (match (MT.dest_list e1, Terms.is_z e2) with
         | Some its, Some i -> return (List.nth its (Z.to_int i))
         | _ ->
           let msg = "Could not evaluate params_nth arguments to constants." in
@@ -975,7 +975,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ () = WellTyped.ensure_base_type loc ~expect BT.Bool in
     let@ sct1 = check_pexpr_good_ctype_const path_cs pe1 in
     let@ sct2 = check_pexpr_good_ctype_const path_cs pe2 in
-    return (IT.bool_ (Sctypes.equal sct1 sct2) loc)
+    return (MT.bool_ (Sctypes.equal sct1 sct2) loc)
   | PEstruct (tag, xs) ->
     let@ () = WellTyped.check_ct loc (Struct tag) in
     let@ () = WellTyped.ensure_base_type loc ~expect (Struct tag) in
@@ -1009,7 +1009,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
      | `Known sym ->
        (* need to conjure up the characterising 4-tuple *)
        let@ _, _, c_sig = Global.get_fun_decl loc sym in
-       (match IT.const_of_c_sig c_sig loc with
+       (match MT.const_of_c_sig c_sig loc with
         | Some it -> return it
         | None ->
           fail (fun _ ->
@@ -1045,7 +1045,7 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     let@ arg2 = check_pexpr path_cs pe2 in
     let arg1_bt_range = BT.bits_range (Option.get (BT.is_bits_bt (T.get_bt arg1))) in
     let here = Locations.other __LOC__ in
-    let arg2_bits_lost = IT.not_ (IT.in_z_range arg2 arg1_bt_range here) here in
+    let arg2_bits_lost = MT.not_ (MT.in_z_range arg2 arg1_bt_range here) here in
     let x =
       match iop with
       | IOpAdd -> add_ (arg1, arg2) loc
@@ -1054,13 +1054,13 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | IOpShl ->
         ite_
           ( arg2_bits_lost,
-            IT.int_lit_ 0 expect loc,
+            MT.int_lit_ 0 expect loc,
             arith_binop Terms.ShiftLeft (arg1, cast_ (T.get_bt arg1) arg2 loc) loc )
           loc
       | IOpShr ->
         ite_
           ( arg2_bits_lost,
-            IT.int_lit_ 0 expect loc,
+            MT.int_lit_ 0 expect loc,
             arith_binop Terms.ShiftRight (arg1, cast_ (T.get_bt arg1) arg2 loc) loc )
           loc
       | IOpDiv -> div_ (arg1, arg2) loc
@@ -1095,11 +1095,11 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
       | IOpShl ->
         ( arith_binop Terms.ShiftLeft (arg1, cast_ (T.get_bt arg1) arg2 loc) loc,
           arith_binop Terms.ShiftLeft (large arg1, large arg2) loc,
-          IT.in_z_range arg2 (Z.zero, Z.of_int bits) loc )
+          MT.in_z_range arg2 (Z.zero, Z.of_int bits) loc )
       | IOpShr ->
         ( arith_binop Terms.ShiftRight (arg1, cast_ (T.get_bt arg1) arg2 loc) loc,
           arith_binop Terms.ShiftRight (large arg1, large arg2) loc,
-          IT.in_z_range arg2 (Z.zero, Z.of_int bits) loc )
+          MT.in_z_range arg2 (Z.zero, Z.of_int bits) loc )
       | IOpDiv -> failwith "TODO division operator"
       | IOpRem_t -> failwith "TODO remainder operator"
     in
@@ -1453,7 +1453,7 @@ let bytes_qpred sym size pointer init : Req.QPredicate.t =
     q_loc = here;
     step = Sctypes.byte_ct;
     permission =
-      IT.(
+      MT.(
         and_
           [ le_ (num_lit_ Z.zero bt' here, sym_ (sym, bt', here)) here;
             lt_ (sym_ (sym, bt', here), cast_ bt' size here) here
@@ -1521,7 +1521,7 @@ let bytes_constraints
              Terms.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
           bytes
       in
-      List.fold_left (fun x y -> IT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
+      List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
     (match to_from with
      | To -> return (and2_ (all_some, eq_ (lhs, rhs) here) here)
@@ -1552,7 +1552,7 @@ let bytes_constraints
              Terms.IT (Binop (ShiftLeft, casted, shift_amt), bt, here))
           bytes
       in
-      List.fold_left (fun x y -> IT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
+      List.fold_left (fun x y -> MT.add_ (x, y) here) (List.hd shifted) (List.tl shifted)
     in
     let all_some = and_ (List.map (fun byte -> isSome_ byte here) bytes) here in
     let bytes_prov =
@@ -1590,7 +1590,7 @@ let bytes_constraints
             and_ pairwise_opt_eq here
           in
           let combined_prov_sym, combined_prov =
-            IT.fresh_named (BT.Option Alloc_id) "combined_prov" here
+            MT.fresh_named (BT.Option Alloc_id) "combined_prov" here
           in
           (* evaluate to the first non-CN_None provenance... *)
           let first_some_prov =
@@ -1606,7 +1606,7 @@ let bytes_constraints
               (BT.Option Alloc_id)
               (here, lazy (Pp.string "combined provenance"))
           in
-          let@ () = add_c here (LC.T (IT.eq_ (combined_prov, first_some_prov) here)) in
+          let@ () = add_c here (LC.T (MT.eq_ (combined_prov, first_some_prov) here)) in
           (* this constraint implements the combine_provenance function *)
           let prov_constr =
             impl_
@@ -1655,7 +1655,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       check_pexpr pe1 (fun arg1 ->
         check_pexpr pe2 (fun arg2 ->
           let bind name term =
-            let sym, it = IT.fresh_named BT.Bool name loc in
+            let sym, it = MT.fresh_named BT.Bool name loc in
             let@ _ = add_a sym Bool (here, lazy (Sym.pp sym)) in
             let@ () = add_c loc (LC.T (term it)) in
             return it
@@ -1810,7 +1810,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
            (Mu.bt_of_pexpr pe)
        in
        check_pexpr pe (fun arg ->
-         let sym, result = IT.fresh_named (BT.Loc ()) "intToPtr" loc in
+         let sym, result = MT.fresh_named (BT.Loc ()) "intToPtr" loc in
          let@ _ = add_a sym (Loc ()) (here, lazy (Sym.pp sym)) in
          let cond = eq_ (arg, int_lit_ 0 (T.get_bt arg) here) here in
          let null_case = eq_ (result, null_ here) here in
@@ -1927,11 +1927,11 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
              let syms = List.rev syms in
              (match syms with
               | Symbol (_, _, SD_ObjectAddress str) :: _ ->
-                IT.fresh_named BT.(Loc ()) ("&" ^ str) loc
-              | _ -> IT.fresh_anon BT.(Loc ()) loc)
+                MT.fresh_named BT.(Loc ()) ("&" ^ str) loc
+              | _ -> MT.fresh_anon BT.(Loc ()) loc)
            | PrefFunArg (_loc, _, n) ->
-             IT.fresh_named (BT.Loc ()) ("&ARG" ^ string_of_int n) loc
-           | _ -> IT.fresh_anon (BT.Loc ()) loc
+             MT.fresh_named (BT.Loc ()) ("&ARG" ^ string_of_int n) loc
+           | _ -> MT.fresh_anon (BT.Loc ()) loc
          in
          let@ () = add_a ret_s (T.get_bt ret) (loc, lazy (Pp.string "allocation")) in
          let@ () = add_c loc (LC.T (representable_ (Pointer act.ct, ret) loc)) in
@@ -2123,7 +2123,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
              let@ () = add_l s' bt (loc, lazy (Sym.pp s')) in
              let su = T.make_rename ~from:s ~to_:s' in
              let@ () = bind_logical_return loc prefix (LRT.subst su lrt) in
-             k (IT.sym_ (s', bt, here))))
+             k (MT.sym_ (s', bt, here))))
   | Eif (c_pe, e1, e2) ->
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e1) ~expect (Mu.bt_of_expr e1) in
     let@ () = WellTyped.ensure_base_type (Mu.loc_of_expr e2) ~expect (Mu.bt_of_expr e2) in
@@ -2241,7 +2241,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
         let q_sym = Sym.fresh "to_bytes" in
         let bt = WellTyped.default_quantifier_bt in
         let map_bt = BT.Map (bt, Option MemByte) in
-        let byte_sym, byte_arr = IT.fresh_named map_bt "byte_arr" here in
+        let byte_sym, byte_arr = MT.fresh_named map_bt "byte_arr" here in
         let@ () = add_a byte_sym map_bt (loc, lazy (Pp.string "byte array")) in
         (* Note the byte array is always initalised *)
         let@ () = add_r loc (Q (bytes_qpred q_sym ct pointer Init), O byte_arr) in
@@ -2252,7 +2252,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
              (* This requires --arrays-exp for CVC5. An alternative could be to
                 assert the value per byte from 0..size(t)-1 instead of for the
                 whole array, but I haven't tried it. *)
-             (LC.T (IT.eq_ (byte_arr, const_map_ bt (none_ MemByte here) here) here))
+             (LC.T (MT.eq_ (byte_arr, const_map_ bt (none_ MemByte here) here) here))
          | Init ->
            let@ constr = bytes_constraints loc To ~value ~byte_arr ct in
            add_c loc (LC.T constr))
@@ -2268,16 +2268,16 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
             (bytes_qpred q_sym ct pointer init, None)
         in
         let value_bt = Memory.bt_of_sct ct in
-        let value_sym, value = IT.fresh_named value_bt "value" here in
+        let value_sym, value = MT.fresh_named value_bt "value" here in
         let@ () = add_a value_sym value_bt (loc, lazy (Pp.string "value from bytes")) in
         let@ () = add_r loc (P (bytes_pred ct pointer init), O value) in
         let@ () =
           (* TODO - why is this constraint necessary here? *)
           (* TODO - this looks unsound, in fact *)
-          add_c here (LC.T (IT.good_pointer ~pointee_ct:ct pointer here))
+          add_c here (LC.T (MT.good_pointer ~pointee_ct:ct pointer here))
         in
         (match init with
-         | Uninit -> add_c loc (LC.T (IT.eq_ (value, default_ value_bt here) here))
+         | Uninit -> add_c loc (LC.T (MT.eq_ (value, default_ value_bt here) here))
          | Init ->
            let@ constr = bytes_constraints loc From ~value ~byte_arr ct in
            add_c loc (LC.T constr))
@@ -2478,7 +2478,7 @@ let check_expr_top loc labels rt e =
 
 (* let check_pexpr_rt loc pexpr (RT.Computational ((return_s, return_bt), info, lrt)) = *)
 (*   check_pexpr pexpr ~expect:return_bt (fun lvt -> *)
-(*   let lrt = LRT.subst (IT.make_subst [(return_s, lvt)]) lrt in *)
+(*   let lrt = LRT.subst (MT.make_subst [(return_s, lvt)]) lrt in *)
 (*   let@ original_resources = all_resources_tagged () in *)
 (*   Spine.subtype loc lrt (fun () -> *)
 (*   let@ () = all_empty loc original_resources in *)
@@ -2705,15 +2705,15 @@ let record_globals : 'bty. (Sym.t * 'bty Mu.globs) list -> LC.t list m =
          let info = (Loc.other __LOC__, lazy (Pp.item "global" (Sym.pp sym))) in
          let@ () = add_a sym bt info in
          let here = Locations.other __LOC__ in
-         let good = LC.T (IT.good_pointer ~pointee_ct:ct (sym_ (sym, bt, here)) here) in
+         let good = LC.T (MT.good_pointer ~pointee_ct:ct (sym_ (sym, bt, here)) here) in
          let ptr = sym_ (sym, bt, here) in
-         let hasAllocId = LC.T (IT.hasAllocId_ ptr here) in
+         let hasAllocId = LC.T (MT.hasAllocId_ ptr here) in
          let range =
-           if !IT.use_vip then
+           if !MT.use_vip then
              let module H = Alloc.History in
              let H.{ base; size } = H.(split (lookup_ptr ptr here) here) in
              let addr = addr_ ptr here in
-             let upper = IT.upper_bound addr ct here in
+             let upper = MT.upper_bound addr ct here in
              let bounds =
                and_
                  [ le_ (base, addr) here;
@@ -2922,13 +2922,13 @@ let wf_check_and_record_lemma (lemma_s, (loc, lemma_typ)) =
 let ctz_proxy_ft =
   let here = Locations.other __LOC__ in
   let info = (here, Some "ctz_proxy builtin ft") in
-  let n_sym, n = IT.fresh_named BT.(Bits (Unsigned, 32)) "n_" here in
-  let ret_sym, ret = IT.fresh_named BT.(Bits (Signed, 32)) "return" here in
-  let neq_0 = LC.T (IT.not_ (IT.eq_ (n, IT.int_lit_ 0 (T.get_bt n) here) here) here) in
+  let n_sym, n = MT.fresh_named BT.(Bits (Unsigned, 32)) "n_" here in
+  let ret_sym, ret = MT.fresh_named BT.(Bits (Signed, 32)) "return" here in
+  let neq_0 = LC.T (MT.not_ (MT.eq_ (n, MT.int_lit_ 0 (T.get_bt n) here) here) here) in
   let eq_ctz =
     LC.T
-      (IT.eq_
-         (ret, cast_ (T.get_bt ret) (IT.arith_unop Terms.BW_CTZ_NoSMT n here) here)
+      (MT.eq_
+         (ret, cast_ (T.get_bt ret) (MT.arith_unop Terms.BW_CTZ_NoSMT n here) here)
          here)
   in
   let rt =
@@ -2950,11 +2950,11 @@ let ffs_proxy_ft sz =
   let bt = Memory.bt_of_sct Sctypes.(Integer (Signed sz)) in
   let ret_bt = Memory.bt_of_sct Sctypes.(Integer (Signed Int_)) in
   let info = (Locations.other __LOC__, Some ("ffs_proxy builtin ft: " ^ sz_name)) in
-  let n_sym, n = IT.fresh_named bt "n_" here in
-  let ret_sym, ret = IT.fresh_named ret_bt "return" here in
+  let n_sym, n = MT.fresh_named bt "n_" here in
+  let ret_sym, ret = MT.fresh_named ret_bt "return" here in
   let eq_ffs =
     LC.T
-      (IT.eq_ (ret, IT.cast_ ret_bt (IT.arith_unop Terms.BW_FFS_NoSMT n here) here) here)
+      (MT.eq_ (ret, MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS_NoSMT n here) here) here)
   in
   let rt =
     RT.mComputational ((ret_sym, ret_bt), info) (LRT.mConstraint (eq_ffs, info) LRT.I)
@@ -2967,20 +2967,20 @@ let memcpy_proxy_ft =
   let here = Locations.other __LOC__ in
   let info = (here, Some "memcpy_proxy") in
   (* C arguments *)
-  let dest_sym, dest = IT.fresh_named (BT.Loc ()) "dest" here in
-  let src_sym, src = IT.fresh_named (BT.Loc ()) "src" here in
-  let n_sym, n = IT.fresh_named Memory.size_bt "n" here in
+  let dest_sym, dest = MT.fresh_named (BT.Loc ()) "dest" here in
+  let src_sym, src = MT.fresh_named (BT.Loc ()) "src" here in
+  let n_sym, n = MT.fresh_named Memory.size_bt "n" here in
   (* requires *)
   let q_bt = WellTyped.default_quantifier_bt in
   let map_bt = BT.Map (q_bt, Option MemByte) in
-  let destIn_sym, _ = IT.fresh_named map_bt "destIn" here in
-  let srcIn_sym, srcIn = IT.fresh_named map_bt "srcIn" here in
+  let destIn_sym, _ = MT.fresh_named map_bt "destIn" here in
+  let srcIn_sym, srcIn = MT.fresh_named map_bt "srcIn" here in
   let destRes str init = Req.Q (bytes_qpred (Sym.fresh str) n dest init) in
   let srcRes str = Req.Q (bytes_qpred (Sym.fresh str) n src Init) in
   (* ensures *)
-  let ret_sym, ret = IT.fresh_named (BT.Loc ()) "return" here in
-  let destOut_sym, destOut = IT.fresh_named map_bt "destOut" here in
-  let srcOut_sym, srcOut = IT.fresh_named map_bt "srcOut" here in
+  let ret_sym, ret = MT.fresh_named (BT.Loc ()) "return" here in
+  let destOut_sym, destOut = MT.fresh_named map_bt "destOut" here in
+  let srcOut_sym, srcOut = MT.fresh_named map_bt "srcOut" here in
   AT.mComputationals
     [ (dest_sym, Loc (), info); (src_sym, Loc (), info); (n_sym, Memory.size_bt, info) ]
     (AT.L
