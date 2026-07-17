@@ -54,6 +54,18 @@ void cn_register_test_case(const char* suite, const char* name, cn_test_case_fn*
       (struct cn_test_case){.suite = suite, .name = name, .func = func};
 }
 
+// When true, print_test_info appends a running backtrack total
+// (bennet_info_backtracks_total) to the progress line.
+static bool progress_backtracks = false;
+
+void cn_test_set_progress_backtracks(bool enabled) {
+  progress_backtracks = enabled;
+}
+
+bool cn_test_get_progress_backtracks(void) {
+  return progress_backtracks;
+}
+
 /**
  * Prints information about a test.
  *
@@ -69,6 +81,10 @@ void print_test_info(const char* suite, const char* name, int tests, int discard
     printf("Testing %s::%s: %d runs", suite, name, tests);
   } else {
     printf("Testing %s::%s: %d runs, %d discards", suite, name, tests, discards);
+  }
+
+  if (progress_backtracks && (tests > 0 || discards > 0)) {
+    printf(", %" PRIu64 " backtracks", bennet_info_backtracks_total());
   }
 
   fflush(stdout);
@@ -288,6 +304,8 @@ int cn_test_main(int argc, char* argv[]) {
       }
     } else if (strcmp("--print-backtrack-info", arg) == 0) {
       print_backtrack_info = true;
+    } else if (strcmp("--progress-backtracks", arg) == 0) {
+      cn_test_set_progress_backtracks(true);
     } else if (strcmp("--print-satisfaction-info", arg) == 0) {
       print_satisfaction_info = true;
     } else if (strcmp("--print-size-info", arg) == 0) {
@@ -374,7 +392,7 @@ int cn_test_main(int argc, char* argv[]) {
     bennet_info_sizes_init();
   }
 
-  if (output_tyche || print_backtrack_info) {
+  if (output_tyche || print_backtrack_info || cn_test_get_progress_backtracks()) {
     bennet_info_backtracks_init();
   }
 
@@ -439,8 +457,9 @@ int cn_test_main(int argc, char* argv[]) {
       bennet_info_sizes_set_function_under_test(test_cases[i].name);
     }
 
-    if (output_tyche || print_backtrack_info) {
+    if (output_tyche || print_backtrack_info || cn_test_get_progress_backtracks()) {
       bennet_info_backtracks_set_function_under_test(test_cases[i].name);
+      bennet_info_backtracks_reset_total();
     }
 
     if (print_satisfaction_info) {

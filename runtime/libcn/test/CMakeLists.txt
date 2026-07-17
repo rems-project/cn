@@ -22,6 +22,7 @@ include_directories(../include)
 
 # Create test executable
 add_executable(libcn_tests
+    bennet/backtracks_info.cpp
     bennet/harness.cpp
     bennet/ownership_domain.cpp
     bennet/rand.cpp

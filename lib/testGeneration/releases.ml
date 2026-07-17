@@ -18,7 +18,7 @@
    [logging_level], [trace_granularity], [progress_level], and the boolean
    diagnostic flags [exit_fast], [coverage], [no_replays], [no_replicas],
    [print_size_info], [print_backtrack_info], [print_satisfaction_info],
-   [print_discard_info], [print_timing_info]).
+   [print_discard_info], [print_timing_info], [progress_backtracks]).
 
    A further set of value-carrying environment fields keeps its frozen
    value as the default but may be overridden from the command line
@@ -83,6 +83,7 @@ let pldi26 : TestGenConfig.t =
     print_satisfaction_info = false;
     print_discard_info = false;
     print_timing_info = false;
+    progress_backtracks = false;
     just_reset_solver = false;
     smt_skewing_mode = Sized;
     smt_logging = None;

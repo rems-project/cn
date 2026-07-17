@@ -51,6 +51,16 @@ void bennet_info_backtracks_end_run(bool record);
 uint64_t bennet_info_backtracks_last_total(void);
 
 /**
+ * Running total of backtracks across all generation attempts since the last
+ * reset. Counts every attempt, whether or not it was recorded (see
+ * `bennet_info_backtracks_end_run`). Returns 0 when the module is uninitialized.
+ */
+uint64_t bennet_info_backtracks_total(void);
+
+/** Resets the running total of backtracks. */
+void bennet_info_backtracks_reset_total(void);
+
+/**
  * Logs a backtrack with generator name, filename, and line number
  * @param generator The name of the generator where the backtrack occurred
  * @param filename The source file where the backtrack occurred

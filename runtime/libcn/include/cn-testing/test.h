@@ -42,6 +42,10 @@ void cn_register_test_case(const char* suite, const char* name, cn_test_case_fn*
 
 void print_test_info(const char* suite, const char* name, int tests, int discards);
 
+/** Enables/disables the running backtrack total on the progress line. */
+void cn_test_set_progress_backtracks(bool enabled);
+bool cn_test_get_progress_backtracks(void);
+
 /** This function is called right before rerunning a failing test case. */
 void cn_trap(void);
 

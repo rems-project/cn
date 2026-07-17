@@ -210,6 +210,10 @@ let run () =
           else
             [])
        @ (if Config.will_print_timing_info () then [ "--print-timing-info" ] else [])
+       @ (if Config.is_progress_backtracks () then
+            [ "--progress-backtracks" ]
+          else
+            [])
        @ (if Config.is_smt_pruning_at_runtime () then
             [ "--smt-pruning-at-runtime" ]
           else

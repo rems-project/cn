@@ -131,6 +131,7 @@ type t =
     print_satisfaction_info : bool;
     print_discard_info : bool;
     print_timing_info : bool;
+    progress_backtracks : bool;
     just_reset_solver : bool;
     smt_skewing_mode : smt_skewing_mode;
     smt_logging : string option;
@@ -200,6 +201,7 @@ let default =
     print_satisfaction_info = false;
     print_discard_info = false;
     print_timing_info = false;
+    progress_backtracks = false;
     just_reset_solver = false;
     smt_skewing_mode = Sized;
     smt_logging = None;
@@ -410,6 +412,8 @@ let will_print_satisfaction_info () = (Option.get !instance).print_satisfaction_
 let will_print_discard_info () = (Option.get !instance).print_discard_info
 
 let will_print_timing_info () = (Option.get !instance).print_timing_info
+
+let is_progress_backtracks () = (Option.get !instance).progress_backtracks
 
 let get_engine () = (Option.get !instance).engine
 
