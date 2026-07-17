@@ -11,21 +11,21 @@ let get_lower_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =
     | IT (Binop (LE, it', IT (Sym x', _, _)), _, _) when Sym.equal x x' -> Some it'
     | IT (Binop (LT, it', IT (Sym x', _, _)), _, _) when Sym.equal x x' ->
       Some
-	(IT
-	   ( Binop (Add, it', num_lit_ Z.one bt Cerb_location.unknown),
-	     bt,
-	     Cerb_location.unknown ))
+        (IT
+           ( Binop (Add, it', num_lit_ Z.one bt Cerb_location.unknown),
+             bt,
+             Cerb_location.unknown ))
     | IT (Binop (And, tm1, tm2), _, _) ->
       (match (aux tm1, aux tm2) with
        | None, None -> None
        | None, it' | it', None -> it'
        | Some tm1, Some tm2 ->
-	 Some (IT (Binop (Max, tm1, tm2), bt, Cerb_location.unknown)))
+         Some (IT (Binop (Max, tm1, tm2), bt, Cerb_location.unknown)))
     | IT (Binop (Or, tm1, tm2), _, _) ->
       (match (aux tm1, aux tm2) with
        | None, None | None, _ | _, None -> None
        | Some tm1, Some tm2 ->
-	 Some (IT (Binop (Min, tm1, tm2), bt, Cerb_location.unknown)))
+         Some (IT (Binop (Min, tm1, tm2), bt, Cerb_location.unknown)))
     | _ -> None
   in
   aux it
@@ -37,17 +37,17 @@ let get_lower_bound ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t =
     | Bits (sign, sz) -> fst (BaseTypes.bits_range (sign, sz))
     | _ ->
       Cerb_colour.with_colour
-	(fun () ->
-	   print_endline
-	     Pp.(
-	       plain
-		 (!^"unsupported type"
-		  ^^^ squotes (BaseTypes.pp bt)
-		  ^^^ !^"in permission"
-		  ^^^ squotes (pp it)
-		  ^^^ !^"at"
-		  ^^^ Locations.pp (get_loc it))))
-	();
+        (fun () ->
+           print_endline
+             Pp.(
+               plain
+                 (!^"unsupported type"
+                  ^^^ squotes (BaseTypes.pp bt)
+                  ^^^ !^"in permission"
+                  ^^^ squotes (pp it)
+                  ^^^ !^"at"
+                  ^^^ Locations.pp (get_loc it))))
+        ();
       exit 2
   in
   get_lower_bound_opt (x, bt) it
@@ -63,21 +63,21 @@ let get_upper_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =
     | IT (Binop (LE, IT (Sym x', _, _), it'), _, _) when Sym.equal x x' -> Some it'
     | IT (Binop (LT, IT (Sym x', _, _), it'), _, _) when Sym.equal x x' ->
       Some
-	(IT
-	   ( Binop (Sub, it', num_lit_ Z.one bt Cerb_location.unknown),
-	     bt,
-	     Cerb_location.unknown ))
+        (IT
+           ( Binop (Sub, it', num_lit_ Z.one bt Cerb_location.unknown),
+             bt,
+             Cerb_location.unknown ))
     | IT (Binop (And, tm1, tm2), _, _) ->
       (match (aux tm1, aux tm2) with
        | None, None -> None
        | None, it' | it', None -> it'
        | Some tm1, Some tm2 ->
-	 Some (IT (Binop (Min, tm1, tm2), bt, Cerb_location.unknown)))
+         Some (IT (Binop (Min, tm1, tm2), bt, Cerb_location.unknown)))
     | IT (Binop (Or, tm1, tm2), _, _) ->
       (match (aux tm1, aux tm2) with
        | None, None | None, _ | _, None -> None
        | Some tm1, Some tm2 ->
-	 Some (IT (Binop (Max, tm1, tm2), bt, Cerb_location.unknown)))
+         Some (IT (Binop (Max, tm1, tm2), bt, Cerb_location.unknown)))
     | _ -> None
   in
   aux it
@@ -89,17 +89,17 @@ let get_upper_bound ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t =
     | Bits (sign, sz) -> snd (BaseTypes.bits_range (sign, sz))
     | _ ->
       Cerb_colour.with_colour
-	(fun () ->
-	   print_endline
-	     Pp.(
-	       plain
-		 (!^"unsupported type"
-		  ^^^ squotes (BaseTypes.pp bt)
-		  ^^^ !^"in permission"
-		  ^^^ squotes (pp it)
-		  ^^^ !^"at"
-		  ^^^ Locations.pp (get_loc it))))
-	();
+        (fun () ->
+           print_endline
+             Pp.(
+               plain
+                 (!^"unsupported type"
+                  ^^^ squotes (BaseTypes.pp bt)
+                  ^^^ !^"in permission"
+                  ^^^ squotes (pp it)
+                  ^^^ !^"at"
+                  ^^^ Locations.pp (get_loc it))))
+        ();
       exit 2
   in
   get_upper_bound_opt (x, bt) it
@@ -148,13 +148,13 @@ let it_non_bounds (x : Sym.t * BaseTypes.t) (it : t) : t =
     match it with
     | IT (Binop (And, tm1, tm2), bt, loc) ->
       if is_bound x tm1 && is_bound x tm2 then
-	true_const
+        true_const
       else if is_bound x tm1 then
-	aux tm2
+        aux tm2
       else if is_bound x tm2 then
-	aux tm1
+        aux tm1
       else
-	IT (Binop (And, aux tm1, aux tm2), bt, loc)
+        IT (Binop (And, aux tm1, aux tm2), bt, loc)
     | _ -> it
   in
   aux it

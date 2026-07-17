@@ -200,7 +200,9 @@ let bounds_consistency_prop =
        let ge_constraint = make_ge_constraint x min_val in
        let le_constraint = make_le_constraint x max_val in
        let conj_constraint = make_and ge_constraint le_constraint in
-       let conj_lower, conj_upper = Cn.TermBounds.get_bounds_opt (x, test_bt) conj_constraint in
+       let conj_lower, conj_upper =
+         Cn.TermBounds.get_bounds_opt (x, test_bt) conj_constraint
+       in
        let conj_bounds_correct =
          match (conj_lower, conj_upper) with
          | Some l, Some u ->
@@ -257,7 +259,9 @@ let random_conjunction_bounds_prop =
        let ge_constraint = make_ge_constraint x lower_val in
        let le_constraint = make_le_constraint x upper_val in
        let conj_constraint = make_and ge_constraint le_constraint in
-       let conj_lower, conj_upper = Cn.TermBounds.get_bounds_opt (x, test_bt) conj_constraint in
+       let conj_lower, conj_upper =
+         Cn.TermBounds.get_bounds_opt (x, test_bt) conj_constraint
+       in
        match (conj_lower, conj_upper) with
        | Some l, Some u ->
          (match (Cn.Terms.is_bits_const l, Cn.Terms.is_bits_const u) with
