@@ -202,7 +202,7 @@ let compile_req
             (AilEgcc_statement (b_perm, List.map mk_stmt (s_perm @ [ AilSexpr e_perm ]))))
       in
       let b1, s1, e_min, e_max =
-        let it_min, it_max = IT.Bounds.get_bounds (q_sym, q_bt) permission in
+        let it_min, it_max = TermBounds.get_bounds (q_sym, q_bt) permission in
         let b1, s1, e_min = compile_it filename sigma prog5 it_min in
         let b2, s2, e_max = compile_it filename sigma prog5 it_max in
         (b1 @ b2, s1 @ s2, e_min, e_max)

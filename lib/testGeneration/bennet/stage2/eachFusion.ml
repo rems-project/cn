@@ -95,7 +95,7 @@ module Make (AD : Domain.T) = struct
               ((i, i_bt), (IT (Binop (Implies, it_perm, it_body), _, loc_implies) as it)),
             gt' )
         when Sym.Set.mem x (T.free_vars it) && check_index_ok x i it ->
-        let it_min', it_max' = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
+        let it_min', it_max' = TermBounds.get_bounds (i, i_bt) it_perm in
         let gt', res = aux delete gt' in
         if
           T.equal it_min it_min'
@@ -159,7 +159,7 @@ module Make (AD : Domain.T) = struct
         Term.asgn_ ((it_addr, sct), it_val, aux vars gt') () loc
       | `LetStar
           ((x, Annot (`Map ((i, i_bt, it_perm), gt_inner), (), _, loc_map)), gt_rest) ->
-        let its_bounds = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
+        let its_bounds = TermBounds.get_bounds (i, i_bt) it_perm in
         let gt_inner = aux (Sym.Set.add i vars) gt_inner in
         let gt_rest, constraints =
           collect_constraints (Sym.Set.add x vars) x i its_bounds gt_rest

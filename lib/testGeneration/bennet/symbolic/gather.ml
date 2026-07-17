@@ -51,7 +51,7 @@ module Make (AD : Domain.T) = struct
           _,
           _ )
       when Sym.equal x x' && Sym.equal x' x'' && Term.is_arbitrary_supported_bt v_bt ->
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =
@@ -172,7 +172,7 @@ module Make (AD : Domain.T) = struct
               _ ) )
       when Sym.equal x x' && Sym.equal x' x'' ->
       (* Array assignment: claim ownership of memory locations *)
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       (* Add constraint to ensure array range doesn't exceed max_array_length *)
       let max_len_constraint =
         let here = Locations.other __LOC__ in
@@ -339,7 +339,7 @@ module Make (AD : Domain.T) = struct
       gather_term sigma (Term.pick_sized_ (wgts1 @ wgts2) () bt loc)
     | `Map ((i_sym, i_bt, it_perm), body_term) ->
       (* Generic pure-value map: no memory assignment, just builds a map value *)
-      let it_min, it_max = IT.Bounds.get_bounds (i_sym, i_bt) it_perm in
+      let it_min, it_max = TermBounds.get_bounds (i_sym, i_bt) it_perm in
       let max_len_constraint =
         let here = Locations.other __LOC__ in
         let array_len =

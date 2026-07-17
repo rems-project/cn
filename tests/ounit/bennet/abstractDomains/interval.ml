@@ -75,7 +75,7 @@ let test_bounds_vs_interval_eq _ =
   let x = make_sym "x" in
   let eq_5 = make_eq_constraint x 5 in
   (* Test Bounds.get_bounds_opt *)
-  let bounds_lower, bounds_upper = Bounds.get_bounds_opt (x, test_bt) eq_5 in
+  let bounds_lower, bounds_upper = Cn.TermBounds.get_bounds_opt (x, test_bt) eq_5 in
   (* Test NonRelational local_iteration *)
   let interval_result = IntervalDomain.local_iteration eq_5 IntervalDomain.top in
   let interval_lower, interval_upper = extract_interval_bounds x interval_result in
@@ -98,7 +98,7 @@ let test_bounds_vs_interval_eq _ =
 let test_bounds_vs_interval_le _ =
   let x = make_sym "x" in
   let le_10 = make_le_constraint x 10 in
-  let bounds_lower, bounds_upper = Bounds.get_bounds_opt (x, test_bt) le_10 in
+  let bounds_lower, bounds_upper = Cn.TermBounds.get_bounds_opt (x, test_bt) le_10 in
   let interval_result = IntervalDomain.local_iteration le_10 IntervalDomain.top in
   let _, interval_upper = extract_interval_bounds x interval_result in
   (* LE constraint should give no lower bound, but upper bound of 10 *)
@@ -121,7 +121,7 @@ let test_bounds_vs_interval_le _ =
 let test_bounds_vs_interval_ge _ =
   let x = make_sym "x" in
   let ge_3 = make_ge_constraint x 3 in
-  let bounds_lower, bounds_upper = Bounds.get_bounds_opt (x, test_bt) ge_3 in
+  let bounds_lower, bounds_upper = Cn.TermBounds.get_bounds_opt (x, test_bt) ge_3 in
   let interval_result = IntervalDomain.local_iteration ge_3 IntervalDomain.top in
   let interval_lower, _ = extract_interval_bounds x interval_result in
   (* GE constraint should give lower bound of 3, but no upper bound *)
@@ -142,7 +142,7 @@ let test_bounds_vs_interval_conjunction _ =
   let ge_3 = make_ge_constraint x 3 in
   let le_10 = make_le_constraint x 10 in
   let conj = make_and ge_3 le_10 in
-  let bounds_lower, bounds_upper = Bounds.get_bounds_opt (x, test_bt) conj in
+  let bounds_lower, bounds_upper = Cn.TermBounds.get_bounds_opt (x, test_bt) conj in
   let interval_result = IntervalDomain.local_iteration conj IntervalDomain.top in
   let interval_lower, interval_upper = extract_interval_bounds x interval_result in
   (* Both should find bounds [3, 10] *)
@@ -181,7 +181,7 @@ let bounds_vs_interval_consistency_prop =
        let le_constraint = make_le_constraint x max_val in
        let conj_constraint = make_and ge_constraint le_constraint in
        let bounds_lower, bounds_upper =
-         Bounds.get_bounds_opt (x, test_bt) conj_constraint
+         Cn.TermBounds.get_bounds_opt (x, test_bt) conj_constraint
        in
        let interval_result =
          IntervalDomain.local_iteration conj_constraint IntervalDomain.top

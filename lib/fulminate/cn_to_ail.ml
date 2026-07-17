@@ -2914,9 +2914,9 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   (* Start of range *)
   let lower_bound =
     if BT.equal_sign (fst (Option.get (BT.is_bits_bt i_bt))) BT.Unsigned then
-      IndexTerms.Bounds.get_lower_bound (i_sym, i_bt) it
+      TermBounds.get_lower_bound (i_sym, i_bt) it
     else (
-      match IndexTerms.Bounds.get_lower_bound_opt (i_sym, i_bt) it with
+      match TermBounds.get_lower_bound_opt (i_sym, i_bt) it with
       | Some e -> e
       | None ->
         Cerb_colour.with_colour
@@ -2945,7 +2945,7 @@ let get_while_bounds_and_cond (i_sym, i_bt) it =
   in
   (* End of range *)
   let upper_bound =
-    match IndexTerms.Bounds.get_upper_bound_opt (i_sym, i_bt) it with
+    match TermBounds.get_upper_bound_opt (i_sym, i_bt) it with
     | Some e -> e
     | None ->
       Cerb_colour.with_colour
@@ -3146,7 +3146,7 @@ let cn_to_ail_resource
         dts
         globals
         spec_mode_opt
-        (IndexTerms.Bounds.it_non_bounds q.q q.permission)
+        (TermBounds.it_non_bounds q.q q.permission)
         PassBack
     in
     let cn_integer_ptr_ctype = bt_to_ail_ctype i_bt in
@@ -3184,7 +3184,7 @@ let cn_to_ail_resource
     in
     let ptr_add_decl_no_rhs = A.(AilSdeclaration [ (ptr_add_sym, None) ]) in
     (* if permission only contains bounds, the range of memory is contiguous we can assert ownership over entire range in one call for `Owned` *)
-    let permission_only_bounds = IndexTerms.Bounds.it_only_bounds q.q q.permission in
+    let permission_only_bounds = TermBounds.it_only_bounds q.q q.permission in
     let rhs, bs, ss, opt_bs, opt_ss =
       match q.name with
       | Owned (sct, _) ->
@@ -3489,7 +3489,7 @@ let cn_to_ail_logical_constraint_aux
        let _, _, while_cond_expr =
          cn_to_ail_expr filename dts globals spec_mode_opt while_loop_cond PassBack
        in
-       let cond_is_only_bounds = IndexTerms.Bounds.it_only_bounds (sym, bt) cond_it in
+       let cond_is_only_bounds = TermBounds.it_only_bounds (sym, bt) cond_it in
        let if_cond_opt =
          if cond_is_only_bounds then
            None
