@@ -112,6 +112,7 @@ type t =
     print_satisfaction_info : bool;
     print_discard_info : bool;
     print_timing_info : bool;
+    progress_backtracks : bool;
     just_reset_solver : bool;
     smt_skewing_mode : smt_skewing_mode;
     smt_logging : string option;
@@ -246,6 +247,8 @@ val will_print_satisfaction_info : unit -> bool
 val will_print_discard_info : unit -> bool
 
 val will_print_timing_info : unit -> bool
+
+val is_progress_backtracks : unit -> bool
 
 val get_engine : unit -> engine
 

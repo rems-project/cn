@@ -68,6 +68,7 @@ let run
       print_satisfaction_info
       print_discard_info
       print_timing_info
+      progress_backtracks
       max_bump_blocks
       bump_block_size
       max_input_alloc
@@ -148,6 +149,7 @@ let run
           print_satisfaction_info;
           print_discard_info;
           print_timing_info;
+          progress_backtracks;
           max_bump_blocks;
           bump_block_size;
           max_input_alloc;
@@ -584,6 +586,13 @@ module Flags = struct
     Arg.(value & flag & info ~docs [ "print-timing-info" ] ~doc)
 
 
+  let progress_backtracks ~docs =
+    let doc =
+      "(Experimental) Show a running total of backtracks in the test progress line"
+    in
+    Arg.(value & flag & info ~docs [ "progress-backtracks" ] ~doc)
+
+
   let max_input_alloc =
     let doc =
       "Maximum memory size for the random input allocator (default: 32m). Supports \
@@ -776,6 +785,7 @@ let mk_term
   $ Flags.print_satisfaction_info ~docs:(experimental_section s_logging)
   $ Flags.print_discard_info ~docs:(experimental_section s_logging)
   $ Flags.print_timing_info ~docs:(experimental_section s_logging)
+  $ Flags.progress_backtracks ~docs:(experimental_section s_logging)
   $ Instrument.Flags.max_bump_blocks
   $ Instrument.Flags.bump_block_size
   $ Flags.max_input_alloc
@@ -863,6 +873,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
       print_satisfaction_info = cfg.print_satisfaction_info;
       print_discard_info = cfg.print_discard_info;
       print_timing_info = cfg.print_timing_info;
+      progress_backtracks = cfg.progress_backtracks;
       max_bump_blocks = cfg.max_bump_blocks;
       bump_block_size = cfg.bump_block_size;
       max_input_alloc = cfg.max_input_alloc;
@@ -925,6 +936,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ Flags.print_satisfaction_info ~docs:Manpage.s_none
   $ Flags.print_discard_info ~docs:Manpage.s_none
   $ Flags.print_timing_info ~docs:Manpage.s_none
+  $ Flags.progress_backtracks ~docs:Manpage.s_none
   $ opt_or preset.max_bump_blocks Instrument.Flags.max_bump_blocks
   $ opt_or preset.bump_block_size Instrument.Flags.bump_block_size
   $ opt_or preset.max_input_alloc Flags.max_input_alloc

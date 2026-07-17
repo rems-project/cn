@@ -110,6 +110,16 @@ uint64_t bennet_info_backtracks_last_total(void) {
   return last_backtrack_counts;
 }
 
+static uint64_t total_backtrack_counts;
+
+uint64_t bennet_info_backtracks_total(void) {
+  return total_backtrack_counts;
+}
+
+void bennet_info_backtracks_reset_total(void) {
+  total_backtrack_counts = 0;
+}
+
 void bennet_info_backtracks_end_run(bool record) {
   if (!initialized) {
     return;
@@ -136,6 +146,9 @@ void bennet_info_backtracks_end_run(bool record) {
       }
     }
   }
+
+  // The running total counts every attempt, even unrecorded ones
+  total_backtrack_counts += last_backtrack_counts;
 
   if (!record) {
     // Insert empty tables into generator_to_locations for any generators
