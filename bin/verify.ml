@@ -43,6 +43,7 @@ let verify
       try_hard
       disable_unfold_multiclause_preds
       check_consistency (* integermode *)
+      peif_no_early_abort
   =
   if json then (
     if debug_level > 0 then
@@ -69,6 +70,7 @@ let verify
   Solver.inc_timeout := solver_inc_timeout;
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
+  Check.peif_early_abort := not peif_no_early_abort;
   Diagnostics.diag_string := diag;
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;
   (* Set the prooflog flag based on --coq-proof-log *)
@@ -246,6 +248,13 @@ module Flags = struct
   (*     "Use mathematical integers instead of bitvectors for representing C integers." *)
   (*   in *)
   (*   Arg.(value & flag & info ~docs:s_verification [ "integermode" ] ~doc) *)
+
+  let peif_no_early_abort =
+    let doc =
+      "skip dead-code checks for Core pure if-branches"
+    in
+    Arg.(value & flag & info ~docs:s_verification [ "peif-no-early-abort" ] ~doc)
+
 end
 
 module Lemma_flags = struct
@@ -327,6 +336,7 @@ let verify_t : unit Term.t =
   $ Flags.try_hard
   $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency
+  $ Flags.peif_no_early_abort
 
 
 (* $ Flags.integermode *)
