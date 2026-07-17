@@ -1981,7 +1981,7 @@ let coq_prologue =
       "From Cerberus Require Import Annot Core Ctype IntegerType Location Memory Symbol \
        Undefined Utils.";
       "From Cn Require Import ArgumentTypes BaseTypes CN CNProgs CNMem ErrorCommon False \
-       Id MakeTerm Locations LogicalArgumentTypes LogicalConstraints LogicalReturnTypes \
+       Id IndexTerms Locations LogicalArgumentTypes LogicalConstraints LogicalReturnTypes \
        MuCore Prooflog Request ReturnTypes Resource SCtypes Sym Terms."
     ]
 
