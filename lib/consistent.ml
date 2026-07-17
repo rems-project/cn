@@ -1,5 +1,5 @@
 module LC = LogicalConstraints
-module IT = IndexTerms
+module IT = MakeTerm
 module Loc = Locations
 
 let debug, item = Pp.(debug, item)

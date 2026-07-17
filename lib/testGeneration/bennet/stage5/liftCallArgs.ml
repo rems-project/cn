@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 
 (** Lift compound call arguments into pure bindings:
 

@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Term = Term.Make (AD)

@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module BT = BaseTypes
 module AT = ArgumentTypes
 module LC = LogicalConstraints

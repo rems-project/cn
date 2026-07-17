@@ -1,6 +1,6 @@
 module SBT = BaseTypes.Surface
 module BT = BaseTypes
-module IT = IndexTerms
+module IT = MakeTerm
 
 type builtin_fn_def = string * Sym.t * Definition.Function.t
 

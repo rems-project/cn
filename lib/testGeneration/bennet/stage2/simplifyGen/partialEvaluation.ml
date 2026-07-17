@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LC = LogicalConstraints
 open Terms
 
@@ -11,7 +11,7 @@ module Make (AD : Domain.T) = struct
     | Strict
     | Lazy
 
-  module IndexTerms = struct
+  module MakeTerm = struct
     let check_bits_bt (sgn1, sz1) (sgn2, sz2) here : (unit, string) result =
       if not @@ BT.equal_sign sgn1 sgn2 then
         Error ("Mismatched signs at " ^ Locations.simple_location here)
@@ -622,7 +622,7 @@ module Make (AD : Domain.T) = struct
           (lc : LC.t)
       : LC.t
       =
-      let partial_eval_it = IndexTerms.partial_eval ~mode ~prog5 in
+      let partial_eval_it = MakeTerm.partial_eval ~mode ~prog5 in
       match lc with
       | T it -> T (partial_eval_it it)
       | Forall ((i, i_bt), IT (Binop (Implies, it_perm, it_body), _, loc_implies)) ->
@@ -639,7 +639,7 @@ module Make (AD : Domain.T) = struct
           (gt : Term.t)
       : Term.t
       =
-      let partial_eval_it = IndexTerms.partial_eval ~mode ~prog5 in
+      let partial_eval_it = MakeTerm.partial_eval ~mode ~prog5 in
       let partial_eval_lc = LogicalConstraints.partial_eval ~mode ~prog5 in
       let rec aux (gt : Term.t) : Term.t =
         let (Annot (gt_, (), bt, loc)) = gt in

@@ -1,7 +1,7 @@
 module WT = WellTyped
 module CF = Cerb_frontend
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module BT = BaseTypes
 module LRT = LogicalReturnTypes
 module Req = Request
@@ -70,7 +70,7 @@ let rec check_and_match_pattern (Mu.Pattern (loc, _, bty, pattern)) it =
        let@ as_cs =
          ListM.mapiM
            (fun i p ->
-              let ith = Simplify.IndexTerms.tuple_nth_reduce it i (Mu.bt_of_pattern p) in
+              let ith = Simplify.MakeTerm.tuple_nth_reduce it i (Mu.bt_of_pattern p) in
               check_and_match_pattern p ith)
            pats
        in
@@ -2384,7 +2384,7 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       | Print it ->
         let@ it = WellTyped.infer_term it in
         let@ simp_ctxt = simp_ctxt () in
-        let it = Simplify.IndexTerms.simp simp_ctxt it in
+        let it = Simplify.MakeTerm.simp simp_ctxt it in
         print stdout (item "printed" (T.pp it));
         return ()
     in

@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module IT = MakeTerm
 module BT = BaseTypes
 module LRT = LogicalReturnTypes
 module RT = ReturnTypes

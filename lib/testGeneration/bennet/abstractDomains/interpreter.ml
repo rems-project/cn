@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct

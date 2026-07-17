@@ -67,7 +67,7 @@ let verify
   Solver.try_hard := try_hard;
   Solver.inc_enabled := solver_inc_enabled;
   Solver.inc_timeout := solver_inc_timeout;
-  IndexTerms.use_vip := not dont_use_vip;
+  MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   Resource.disable_resource_derived_constraints := disable_resource_derived_constraints;

@@ -96,7 +96,7 @@ let simp_constraint eval lct =
   let is b it = match eval_to_bool it with Some b1 -> Bool.equal b b1 | _ -> false in
   let rec go (Terms.IT (term, bt, loc)) =
     let mk x = Terms.IT (x, bt, loc) in
-    let ands xs = IndexTerms.and_ xs loc in
+    let ands xs = MakeTerm.and_ xs loc in
     let go1 t = ands (go t) in
     match term with
     | Const (Bool true) -> []
@@ -229,7 +229,7 @@ let state (ctxt : C.t) log model_with_q extras =
   in
   let terms, vals =
     let variables =
-      let make s ls = IndexTerms.sym_ (s, ls, Locations.other __LOC__) in
+      let make s ls = MakeTerm.sym_ (s, ls, Locations.other __LOC__) in
       let basetype_binding (s, (binding, _)) =
         match binding with C.Value _ -> None | BaseType ls -> Some (make s ls)
       in
@@ -348,7 +348,7 @@ let state (ctxt : C.t) log model_with_q extras =
              let here = Locations.other __LOC__ in
              let ptr_val = Req.get_pointer rt in
              let ptr_def =
-               (IndexTerms.sym_ (def.pointer, T.get_bt ptr_val, here), ptr_val)
+               (MakeTerm.sym_ (def.pointer, T.get_bt ptr_val, here), ptr_val)
              in
              Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
            | Some _, None ->

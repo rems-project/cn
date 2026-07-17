@@ -2,7 +2,7 @@
 
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LC = LogicalConstraints
 
 module type BASIS = sig

@@ -1,12 +1,12 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let simp = Simplify.IndexTerms.simp (Simplify.default Global.empty)
+  let simp = Simplify.MakeTerm.simp (Simplify.default Global.empty)
 
   let is_simp_true it = Terms.is_true (simp it)
 

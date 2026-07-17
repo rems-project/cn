@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
 module C = CF.Ctype
-module IT = IndexTerms
+module IT = MakeTerm
 module BT = BaseTypes
 module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail

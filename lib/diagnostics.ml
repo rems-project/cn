@@ -1,6 +1,6 @@
 open Typing
 module LC = LogicalConstraints
-module IT = IndexTerms
+module IT = MakeTerm
 
 open Effectful.Make (Typing)
 
@@ -147,10 +147,10 @@ type opt =
 (*   let sub_ts = bool_subterms1 t in *)
 (*   let@ sub_t_opts = ListM.mapM (rec_opt "sub-term") sub_ts in *)
 (*   let@ sc = Typing.simp_ctxt () in *)
-(*   let s_t = Simplify.IndexTerms.simp sc t in *)
+(*   let s_t = Simplify.MakeTerm.simp sc t in *)
 (*   let s_ts = if IT.equal s_t t then [] else [ s_t ] in *)
 (*   let@ simp_opts = ListM.mapM (rec_opt "simplified term") s_ts in *)
-(*   let s_t2 = Simplify.IndexTerms.simp ~inline_functions:true sc t in *)
+(*   let s_t2 = Simplify.MakeTerm.simp ~inline_functions:true sc t in *)
 (*   let s_ts2 = if IT.equal s_t2 t || IT.equal s_t2 s_t then [] else [ s_t2 ] in *)
 (*   let@ simp_opts2 = ListM.mapM (rec_opt "simplified inlined term") s_ts2 in *)
 (*   let@ eq_opts = *)
@@ -313,7 +313,7 @@ type opt =
 (*     Simplify. *)
 (*       { (default g) with simp_hook = (fun y -> if IT.equal x y then Some b else None) } *)
 (*   in *)
-(*   let simp x b t = Simplify.IndexTerms.simp (sc x b) t in *)
+(*   let simp x b t = Simplify.MakeTerm.simp (sc x b) t in *)
 (*   let opt x b = *)
 (*     let nm = if b then "true" else "false" in *)
 (*     let@ doc = term_with_model_name ("rewrite ite cond to " ^ nm) cfg x in *)

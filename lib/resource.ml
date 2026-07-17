@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module Req = Request
 
 type output = O of T.t [@@ocaml.unboxed] [@@deriving eq]

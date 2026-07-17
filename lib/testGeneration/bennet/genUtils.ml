@@ -1,6 +1,6 @@
 module CF = Cerb_frontend
 module BT = BaseTypes
-module IT = IndexTerms
+module IT = MakeTerm
 
 let ocaml_int_bt = BT.Bits (Signed, Sys.int_size + 1)
 

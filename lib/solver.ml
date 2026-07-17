@@ -1,5 +1,5 @@
 module SMT = Simple_smt
-module IT = IndexTerms
+module IT = MakeTerm
 open Terms
 open IT
 module LC = LogicalConstraints

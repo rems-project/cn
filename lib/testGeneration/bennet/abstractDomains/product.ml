@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LC = LogicalConstraints
 module Sym = Sym
 module StringSet = Set.Make (String)

@@ -5,7 +5,7 @@ module BT = BaseTypes
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
 

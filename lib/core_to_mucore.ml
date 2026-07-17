@@ -6,7 +6,7 @@ module Ctype = CF.Ctype
 
 (* CN specific *)
 module BT = BaseTypes
-module IT = IndexTerms
+module IT = MakeTerm
 module SBT = BaseTypes.Surface
 module Mu = Mucore
 

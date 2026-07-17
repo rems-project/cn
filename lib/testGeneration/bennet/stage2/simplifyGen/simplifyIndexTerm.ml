@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -14,7 +14,7 @@ module Make (AD : Domain.T) = struct
         }
       in
       let simp_it (it : T.t) : T.t =
-        Simplify.IndexTerms.simp ~inline_functions:true (Simplify.default globals) it
+        Simplify.MakeTerm.simp ~inline_functions:true (Simplify.default globals) it
       in
       let simp_lc (lc : LC.t) : LC.t =
         Simplify.LogicalConstraints.simp

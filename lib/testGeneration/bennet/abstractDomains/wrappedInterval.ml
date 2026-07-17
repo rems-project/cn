@@ -1,7 +1,7 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
 module BT = BaseTypes
-module IT = IndexTerms
+module IT = MakeTerm
 
 module WrappedIntervalBasis = struct
   let name = "wrapped_interval"

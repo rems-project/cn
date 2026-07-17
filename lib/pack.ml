@@ -3,7 +3,7 @@ open Resource
 open Definition
 open Memory
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LAT = LogicalArgumentTypes
 module LRT = LogicalReturnTypes
 module LC = LogicalConstraints

@@ -184,7 +184,7 @@ end
 
 module Solver = struct
   module T = Terms.Normal
-  module IT = IndexTerms
+  module IT = MakeTerm
   module RT = Request
   open Terms
   open BaseTypes

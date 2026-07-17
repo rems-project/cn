@@ -1,7 +1,7 @@
 module LC = LogicalConstraints
 module T = Terms.Normal
-module IT = IndexTerms
-open IndexTerms
+module IT = MakeTerm
+open MakeTerm
 open Terms
 
 module ITPair = struct
@@ -36,7 +36,7 @@ let do_ctz_z z =
   if Z.equal Z.zero z then None else Some (loop z 0)
 
 
-module IndexTerms = struct
+module MakeTerm = struct
   let z1 = z_ Z.one (Cerb_location.other __LOC__)
 
   let z0 = z_ Z.zero (Cerb_location.other __LOC__)
@@ -649,7 +649,7 @@ module IndexTerms = struct
 end
 
 module LogicalConstraints = struct
-  open IndexTerms
+  open MakeTerm
 
   let simp ?(inline_functions = false) simp_ctxt lc =
     match lc with
@@ -668,8 +668,8 @@ module Request = struct
 
     let simp simp_ctxt (p : t) =
       { name = p.name;
-        pointer = IndexTerms.simp simp_ctxt p.pointer;
-        iargs = List.map (IndexTerms.simp simp_ctxt) p.iargs
+        pointer = MakeTerm.simp simp_ctxt p.pointer;
+        iargs = List.map (MakeTerm.simp simp_ctxt) p.iargs
       }
   end
 
@@ -678,15 +678,15 @@ module Request = struct
 
     let simp simp_ctxt (qp : t) =
       let qp = alpha_rename qp in
-      let permission = IndexTerms.simp_flatten simp_ctxt qp.permission in
+      let permission = MakeTerm.simp_flatten simp_ctxt qp.permission in
       Request.QPredicate.
         { name = qp.name;
-          pointer = IndexTerms.simp simp_ctxt qp.pointer;
+          pointer = MakeTerm.simp simp_ctxt qp.pointer;
           q = qp.q;
           q_loc = qp.q_loc;
           step = qp.step;
           permission = and_ permission (T.get_loc qp.permission);
-          iargs = List.map (IndexTerms.simp simp_ctxt) qp.iargs
+          iargs = List.map (MakeTerm.simp simp_ctxt) qp.iargs
         }
   end
 

@@ -4,7 +4,7 @@ module CF = Cerb_frontend
 module BT = BaseTypes
 module Mu = Mucore
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 open Cerb_pp_prelude
 open TypeErrors
 open Typing
@@ -97,7 +97,7 @@ let upd_loc_state state ix v =
 let triv_simp_ctxt = Simplify.default Global.empty
 
 let simp_const loc lpp it =
-  let it2 = Simplify.IndexTerms.simp triv_simp_ctxt it in
+  let it2 = Simplify.MakeTerm.simp triv_simp_ctxt it in
   match (Terms.is_z it2, Terms.get_bt it2) with
   | Some _z, _ -> return it2
   | _, BT.Integer ->
@@ -701,7 +701,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
   let def_args =
     def.Definition.Function.args
     (* TODO - add location information to binders *)
-    |> List.map (fun (s, bt) -> IndexTerms.sym_ (s, bt, here))
+    |> List.map (fun (s, bt) -> MakeTerm.sym_ (s, bt, here))
   in
   Pp.debug
     3

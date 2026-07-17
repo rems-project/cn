@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LAT = LogicalArgumentTypes
 
 module Function = struct

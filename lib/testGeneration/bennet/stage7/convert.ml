@@ -6,7 +6,7 @@ module Utils = Fulminate.Utils
 module Records = Fulminate.Records
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct

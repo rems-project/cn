@@ -1,5 +1,5 @@
 module BT = BaseTypes
-module IT = IndexTerms
+module IT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)

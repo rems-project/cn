@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Stage2 = Stage2.Make (AD)

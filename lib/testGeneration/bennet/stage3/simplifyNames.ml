@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module IT = MakeTerm
 module StringMap = Map.Make (String)
 
 module Make (AD : Domain.T) = struct
