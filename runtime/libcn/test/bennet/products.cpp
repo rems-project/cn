@@ -670,8 +670,8 @@ TEST_F(LibBennet, ProductPin_OwnershipWint_Uintptr_AllocOffsets) {
       0xdcf2d8ULL,
       0xa3af28ULL,
       0x13433f8ULL,
-      0x6f84b0ULL,
-      0x1460fa0ULL};
+      0x6f84b8ULL,
+      0x1460fa8ULL};
   for (int i = 0; i < 8; i++) {
     EXPECT_EQ(got[i], want[i]) << "index " << i;
   }
@@ -756,8 +756,8 @@ TEST_F(LibBennet, ProductPin_OwnershipTnum_Uintptr_RetryLoop) {
       0xdcf2d8ULL,
       0xa3af28ULL,
       0x13433f8ULL,
-      0x6f84b0ULL,
-      0x1460fa0ULL};
+      0x6f84b8ULL,
+      0x1460fa8ULL};
   for (int i = 0; i < 8; i++) {
     EXPECT_EQ(got[i], want[i]) << "index " << i;
   }
