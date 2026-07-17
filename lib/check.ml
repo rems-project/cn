@@ -1159,25 +1159,25 @@ let rec check_pexpr path_cs (pe : BT.t Mu.pexpr) : T.t m =
     (* TODO: maybe this should go away. It lets us prune the path early, but the
        paths here are usually short, so it may be more useful to just explore it
        than to issue two solver queries. *)
-    if !peif_early_abort then
-      (match (provable (LC.T c), provable (LC.T (not_ c loc))) with
+    if !peif_early_abort then (
+      match (provable (LC.T c), provable (LC.T (not_ c loc))) with
       | `True, `True ->
-	(* inconsistent context: we can prove c and its negation*)
-	return (default_ expect loc)
+        (* inconsistent context: we can prove c and its negation*)
+        return (default_ expect loc)
       | `True, `False ->
-	(* we can prove c *)
-	check_pexpr path_cs e1
+        (* we can prove c *)
+        check_pexpr path_cs e1
       | `False, `True ->
-	(* we can prove the negation of c*)
-	check_pexpr path_cs e2
+        (* we can prove the negation of c*)
+        check_pexpr path_cs e2
       | `False, `False ->
-	let@ v1 = check_pexpr (c :: path_cs) e1 in
-	let@ v2 = check_pexpr (not_ c loc :: path_cs) e2 in
-	return (ite_ (c, v1, v2) loc))
-     else
-       let@ v1 = check_pexpr (c :: path_cs) e1 in
-       let@ v2 = check_pexpr (not_ c loc :: path_cs) e2 in
-       return (ite_ (c, v1, v2) loc)       
+        let@ v1 = check_pexpr (c :: path_cs) e1 in
+        let@ v2 = check_pexpr (not_ c loc :: path_cs) e2 in
+        return (ite_ (c, v1, v2) loc))
+    else
+      let@ v1 = check_pexpr (c :: path_cs) e1 in
+      let@ v2 = check_pexpr (not_ c loc :: path_cs) e2 in
+      return (ite_ (c, v1, v2) loc)
   | PElet (p, e1, e2) ->
     let@ () = WellTyped.ensure_base_type loc ~expect (Mu.bt_of_pexpr e2) in
     let@ () =

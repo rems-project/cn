@@ -243,6 +243,7 @@ module Flags = struct
     in
     Arg.(value & flag & info ~docs:s_verification [ "check-consistency" ] ~doc)
 
+
   (* let integermode = *)
   (*   let doc = *)
   (*     "Use mathematical integers instead of bitvectors for representing C integers." *)
@@ -250,11 +251,8 @@ module Flags = struct
   (*   Arg.(value & flag & info ~docs:s_verification [ "integermode" ] ~doc) *)
 
   let peif_no_early_abort =
-    let doc =
-      "skip dead-code checks for Core pure if-branches"
-    in
+    let doc = "skip dead-code checks for Core pure if-branches" in
     Arg.(value & flag & info ~docs:s_verification [ "peif-no-early-abort" ] ~doc)
-
 end
 
 module Lemma_flags = struct
