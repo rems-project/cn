@@ -696,7 +696,7 @@ module Make (GT : T) = struct
 
 
   let elaborate_map_ (`Map ((i, i_bt, it_perm), gt_inner)) =
-    let it_min, it_max = IndexTerms.Bounds.get_bounds (i, i_bt) it_perm in
+    let it_min, it_max = TermBounds.get_bounds (i, i_bt) it_perm in
     `MapElab ((i, i_bt, (it_min, it_max), it_perm), gt_inner)
 
 

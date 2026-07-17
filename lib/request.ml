@@ -137,11 +137,11 @@ module QPredicate = struct
 
 
   let get_lower_bound (qpred : t) : T.t =
-    IndexTerms.Bounds.get_lower_bound qpred.q qpred.permission
+    TermBounds.get_lower_bound qpred.q qpred.permission
 
 
   let get_upper_bound (qpred : t) : T.t =
-    IndexTerms.Bounds.get_upper_bound qpred.q qpred.permission
+    TermBounds.get_upper_bound qpred.q qpred.permission
 
 
   let get_bounds (qpred : t) : T.t * T.t = (get_lower_bound qpred, get_upper_bound qpred)

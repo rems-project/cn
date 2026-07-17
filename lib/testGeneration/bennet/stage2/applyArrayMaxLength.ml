@@ -21,10 +21,10 @@ module Make (AD : Domain.T) = struct
      `None` and `get_bounds` would fall back to the full type range, making the
      constraint unsatisfiable and breaking generation -- so those are skipped. *)
   let bound_length (i, i_bt, it_perm) (gt : Term.t) (loc : Locations.t) : Term.t =
-    match IndexTerms.Bounds.get_upper_bound_opt (i, i_bt) it_perm with
+    match TermBounds.get_upper_bound_opt (i, i_bt) it_perm with
     | None -> gt
     | Some it_max ->
-      let it_min = IndexTerms.Bounds.get_lower_bound (i, i_bt) it_perm in
+      let it_min = TermBounds.get_lower_bound (i, i_bt) it_perm in
       let here = Locations.other __LOC__ in
       let array_len =
         IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here

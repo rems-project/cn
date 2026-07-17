@@ -1,5 +1,4 @@
 module T = Terms.Normal
-module IT = IndexTerms
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
