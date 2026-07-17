@@ -2,7 +2,7 @@
 
 open OUnit2
 module BT = Cn.BaseTypes
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module LC = Cn.LogicalConstraints
 module Sym = Cn.Sym
 module Memory = Cn.Memory
@@ -133,9 +133,9 @@ let make_test_generator
   =
   let rec make_body assertions =
     match assertions with
-    | [] -> Term.return_ (IT.unit_ test_loc) () test_loc
+    | [] -> Term.return_ (MT.unit_ test_loc) () test_loc
     | (lhs, rhs) :: rest ->
-      let constraint_it = IT.eq_ (lhs, rhs) test_loc in
+      let constraint_it = MT.eq_ (lhs, rhs) test_loc in
       let constraint_lc = LC.T constraint_it in
       let rest_body = make_body rest in
       Term.assert_ (constraint_lc, rest_body) () test_loc
@@ -163,18 +163,18 @@ let test_nested_struct_destruction _ =
   let ghi_arg = (Sym.fresh "ghi", BT.Struct abc_tag) in
   (* Create assertions: ghi.x == 0u16 and ghi.y.y == 10u8 *)
   let ghi_sym = snd ghi_arg |> fun _bt -> fst ghi_arg in
-  let ghi_it = IT.sym_ (ghi_sym, BT.Struct abc_tag, test_loc) in
+  let ghi_it = MT.sym_ (ghi_sym, BT.Struct abc_tag, test_loc) in
   let ghi_x =
-    IT.member_ ~member_bt:(BT.Bits (Unsigned, 16)) (ghi_it, Id.make test_loc "x") test_loc
+    MT.member_ ~member_bt:(BT.Bits (Unsigned, 16)) (ghi_it, Id.make test_loc "x") test_loc
   in
-  let zero_u16 = IT.num_lit_ (Z.of_int 0) (BT.Bits (Unsigned, 16)) test_loc in
+  let zero_u16 = MT.num_lit_ (Z.of_int 0) (BT.Bits (Unsigned, 16)) test_loc in
   let def_tag = find_struct_tag prog (fun (_, def) -> num_pieces def = 1) in
   let ghi_y =
-    IT.member_ ~member_bt:(BT.Struct def_tag) (ghi_it, Id.make test_loc "y") test_loc
+    MT.member_ ~member_bt:(BT.Struct def_tag) (ghi_it, Id.make test_loc "y") test_loc
   in
   let ghi_y_y_bt = BT.Bits (Unsigned, 8) in
-  let ghi_y_y = IT.member_ ~member_bt:ghi_y_y_bt (ghi_y, Id.make test_loc "y") test_loc in
-  let ten_u8 = IT.num_lit_ (Z.of_int 10) ghi_y_y_bt test_loc in
+  let ghi_y_y = MT.member_ ~member_bt:ghi_y_y_bt (ghi_y, Id.make test_loc "y") test_loc in
+  let ten_u8 = MT.num_lit_ (Z.of_int 10) ghi_y_y_bt test_loc in
   let gen_def =
     make_test_generator
       gen_name
@@ -215,11 +215,11 @@ let test_nested_whole_struct_reference _ =
   let def_tag = find_struct_tag prog (fun (_, def) -> num_pieces def = 1) in
   let gen_name = Sym.fresh "ABC" in
   let ghi_arg = (Sym.fresh "ghi", BT.Struct abc_tag) in
-  let ghi_it = IT.sym_ (fst ghi_arg, BT.Struct abc_tag, test_loc) in
+  let ghi_it = MT.sym_ (fst ghi_arg, BT.Struct abc_tag, test_loc) in
   (* Reference the whole nested struct [ghi.y] (bt = struct def), not a leaf field. After
      member rewriting this becomes a bare [Sym ghi_y]. *)
   let ghi_y =
-    IT.member_ ~member_bt:(BT.Struct def_tag) (ghi_it, Id.make test_loc "y") test_loc
+    MT.member_ ~member_bt:(BT.Struct def_tag) (ghi_it, Id.make test_loc "y") test_loc
   in
   let gen_def = make_test_generator gen_name [ ghi_arg ] [ (ghi_y, ghi_y) ] in
   let ctx : Ctx.t = [ (gen_name, gen_def) ] in
@@ -233,10 +233,10 @@ let test_tuple_destruction _ =
   let gen_name = Sym.fresh "TUP" in
   let i32 = BT.Bits (Signed, 32) in
   let t_arg = (Sym.fresh "t", BT.Tuple [ i32; i32 ]) in
-  let t_it = IT.sym_ (fst t_arg, snd t_arg, test_loc) in
-  let t0 = IT.nthTuple_ ~item_bt:i32 (0, t_it) test_loc in
-  let t1 = IT.nthTuple_ ~item_bt:i32 (1, t_it) test_loc in
-  let five = IT.num_lit_ (Z.of_int 5) i32 test_loc in
+  let t_it = MT.sym_ (fst t_arg, snd t_arg, test_loc) in
+  let t0 = MT.nthTuple_ ~item_bt:i32 (0, t_it) test_loc in
+  let t1 = MT.nthTuple_ ~item_bt:i32 (1, t_it) test_loc in
+  let five = MT.num_lit_ (Z.of_int 5) i32 test_loc in
   let gen_def = make_test_generator gen_name [ t_arg ] [ (t0, five); (t1, five) ] in
   let ctx : Ctx.t = [ (gen_name, gen_def) ] in
   let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
@@ -258,9 +258,9 @@ let test_nested_tuple_whole_reference _ =
   let i32 = BT.Bits (Signed, 32) in
   let inner_tup = BT.Tuple [ i32; i32 ] in
   let t_arg = (Sym.fresh "t", BT.Tuple [ inner_tup; i32 ]) in
-  let t_it = IT.sym_ (fst t_arg, snd t_arg, test_loc) in
+  let t_it = MT.sym_ (fst t_arg, snd t_arg, test_loc) in
   (* Whole inner tuple element [t.0] (bt = (i32, i32)), not a leaf item. *)
-  let t0 = IT.nthTuple_ ~item_bt:inner_tup (0, t_it) test_loc in
+  let t0 = MT.nthTuple_ ~item_bt:inner_tup (0, t_it) test_loc in
   let gen_def = make_test_generator gen_name [ t_arg ] [ (t0, t0) ] in
   let ctx : Ctx.t = [ (gen_name, gen_def) ] in
   let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
@@ -283,9 +283,9 @@ let test_tuple_of_struct_whole_reference _ =
   let gen_name = Sym.fresh "TUP" in
   let i32 = BT.Bits (Signed, 32) in
   let t_arg = (Sym.fresh "t", BT.Tuple [ BT.Struct def_tag; i32 ]) in
-  let t_it = IT.sym_ (fst t_arg, snd t_arg, test_loc) in
+  let t_it = MT.sym_ (fst t_arg, snd t_arg, test_loc) in
   (* Whole nested struct element [t.0] (bt = struct def), not a leaf field. *)
-  let t0 = IT.nthTuple_ ~item_bt:(BT.Struct def_tag) (0, t_it) test_loc in
+  let t0 = MT.nthTuple_ ~item_bt:(BT.Struct def_tag) (0, t_it) test_loc in
   let gen_def = make_test_generator gen_name [ t_arg ] [ (t0, t0) ] in
   let ctx : Ctx.t = [ (gen_name, gen_def) ] in
   let transformed_def = List.assoc gen_name (DestructProducts.transform prog ctx) in
@@ -330,11 +330,11 @@ let test_simple_struct_destruction _ =
   let gen_name = Sym.fresh "test_gen" in
   let arg_sym = Sym.fresh "s" in
   let arg = (arg_sym, BT.Struct simple_tag) in
-  let s_it = IT.sym_ (arg_sym, BT.Struct simple_tag, test_loc) in
+  let s_it = MT.sym_ (arg_sym, BT.Struct simple_tag, test_loc) in
   let s_field =
-    IT.member_ ~member_bt:(BT.Bits (Signed, 32)) (s_it, Id.make test_loc "field") test_loc
+    MT.member_ ~member_bt:(BT.Bits (Signed, 32)) (s_it, Id.make test_loc "field") test_loc
   in
-  let five = IT.num_lit_ (Z.of_int 5) (BT.Bits (Signed, 32)) test_loc in
+  let five = MT.num_lit_ (Z.of_int 5) (BT.Bits (Signed, 32)) test_loc in
   let gen_def = make_test_generator gen_name [ arg ] [ (s_field, five) ] in
   let ctx : Ctx.t = [ (gen_name, gen_def) ] in
   let transformed_ctx = DestructProducts.transform prog ctx in

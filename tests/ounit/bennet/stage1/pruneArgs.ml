@@ -2,7 +2,7 @@
 
 open OUnit2
 module BT = Cn.BaseTypes
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module LC = Cn.LogicalConstraints
 module Sym = Cn.Sym
 
@@ -22,9 +22,9 @@ let test_loc = Cerb_location.unknown
 (** Helper: Create a simple generator with given arguments and body constraints *)
 let make_simple_gen name iargs body_assertions : Def.t =
   let rec make_body = function
-    | [] -> Term.return_ (IT.unit_ test_loc) () test_loc
+    | [] -> Term.return_ (MT.unit_ test_loc) () test_loc
     | (lhs, rhs) :: rest ->
-      let constraint_it = IT.eq_ (lhs, rhs) test_loc in
+      let constraint_it = MT.eq_ (lhs, rhs) test_loc in
       let constraint_lc = LC.T constraint_it in
       Term.assert_ (constraint_lc, make_body rest) () test_loc
   in
@@ -61,8 +61,8 @@ let test_unused_arg_removed _ =
   let used_arg = (used_arg_sym, BT.Bits (Signed, 32)) in
   let unused_arg = (unused_arg_sym, BT.Bits (Signed, 32)) in
   (* Body uses only x, not y *)
-  let x_it = IT.sym_ (used_arg_sym, BT.Bits (Signed, 32), test_loc) in
-  let five = IT.num_lit_ (Z.of_int 5) (BT.Bits (Signed, 32)) test_loc in
+  let x_it = MT.sym_ (used_arg_sym, BT.Bits (Signed, 32), test_loc) in
+  let five = MT.num_lit_ (Z.of_int 5) (BT.Bits (Signed, 32)) test_loc in
   let gen_def = make_simple_gen gen_name [ used_arg; unused_arg ] [ (x_it, five) ] in
   let ctx : Ctx.t = [ (gen_name, gen_def) ] in
   (* Transform *)
@@ -87,8 +87,8 @@ let test_call_site_updated _ =
   let y_sym = Sym.fresh "y" in
   let x_arg = (x_sym, BT.Bits (Signed, 32)) in
   let y_arg = (y_sym, BT.Bits (Signed, 32)) in
-  let x_it = IT.sym_ (x_sym, BT.Bits (Signed, 32), test_loc) in
-  let ten = IT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
+  let x_it = MT.sym_ (x_sym, BT.Bits (Signed, 32), test_loc) in
+  let ten = MT.num_lit_ (Z.of_int 10) (BT.Bits (Signed, 32)) test_loc in
   let gen1_def = make_simple_gen gen1_name [ x_arg; y_arg ] [ (x_it, ten) ] in
   (* Create gen2 that calls gen1 with two arguments *)
   let gen2_name = Sym.fresh "gen2" in
@@ -96,8 +96,8 @@ let test_call_site_updated _ =
   let b_sym = Sym.fresh "b" in
   let a_arg = (a_sym, BT.Bits (Signed, 32)) in
   let b_arg = (b_sym, BT.Bits (Signed, 32)) in
-  let a_it = IT.sym_ (a_sym, BT.Bits (Signed, 32), test_loc) in
-  let b_it = IT.sym_ (b_sym, BT.Bits (Signed, 32), test_loc) in
+  let a_it = MT.sym_ (a_sym, BT.Bits (Signed, 32), test_loc) in
+  let b_it = MT.sym_ (b_sym, BT.Bits (Signed, 32), test_loc) in
   let gen2_def = make_gen_with_call gen2_name [ a_arg; b_arg ] gen1_name [ a_it; b_it ] in
   let ctx : Ctx.t = [ (gen1_name, gen1_def); (gen2_name, gen2_def) ] in
   (* Transform *)

@@ -2,7 +2,7 @@
 
 open OUnit2
 module BT = Cn.BaseTypes
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module T = Cn.Terms.Normal
 module LC = Cn.LogicalConstraints
 module Sym = Cn.Sym
@@ -28,13 +28,13 @@ let assert_term_equal ~msg expected actual =
   assert_equal ~msg ~cmp:Term.equal ~printer:pp_term expected actual
 
 
-let sym_it x = IT.sym_ (x, int_bt, test_loc)
+let sym_it x = MT.sym_ (x, int_bt, test_loc)
 
-let num n = IT.num_lit_ (Z.of_int n) int_bt test_loc
+let num n = MT.num_lit_ (Z.of_int n) int_bt test_loc
 
-let eq a b = IT.eq_ (a, b) test_loc
+let eq a b = MT.eq_ (a, b) test_loc
 
-let or_ a b = IT.or2_ (a, b) test_loc
+let or_ a b = MT.or2_ (a, b) test_loc
 
 (** Helper: Extract the branches of a `Pick, failing the test otherwise *)
 let pick_branches (gt : Term.t) : Term.t list =
@@ -60,7 +60,7 @@ let test_all_split _ =
   let x = Sym.fresh "x" in
   let d1 = eq (sym_it x) (num 0) in
   let d2 = eq (sym_it x) (num 1) in
-  let inner = Term.return_ (IT.unit_ test_loc) () test_loc in
+  let inner = Term.return_ (MT.unit_ test_loc) () test_loc in
   let gt = Term.assert_ (LC.T (or_ d1 d2), inner) () test_loc in
   let expected =
     Term.pick_
@@ -179,7 +179,7 @@ let test_all_leftover _ =
 (** Test: A non-disjunction assertion is left unchanged *)
 let test_non_disjunction _ =
   let x = Sym.fresh "x" in
-  let inner = Term.return_ (IT.unit_ test_loc) () test_loc in
+  let inner = Term.return_ (MT.unit_ test_loc) () test_loc in
   let gt = Term.assert_ (LC.T (eq (sym_it x) (num 0)), inner) () test_loc in
   assert_term_equal
     ~msg:"Non-disjunction assertion should be unchanged"
