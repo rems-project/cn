@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -343,7 +343,7 @@ module Make (AD : Domain.T) = struct
       | `Arbitrary | `Symbolic -> gt
       | `Return it ->
         (match request with
-         | Entire -> Term.return_ (IT.unit_ loc) () loc
+         | Entire -> Term.return_ (MT.unit_ loc) () loc
          | Nothing -> gt
          | Struct ids_to_remove ->
            (match bt with
@@ -358,15 +358,15 @@ module Make (AD : Domain.T) = struct
                       List.map
                         (fun (id, sct) ->
                            if List.mem Id.equal id ids_to_remove then
-                             (id, IT.default_ (Memory.bt_of_sct sct) loc)
+                             (id, MT.default_ (Memory.bt_of_sct sct) loc)
                            else (
                              (* Find existing value *)
                                match List.assoc_opt Id.equal id members with
                                | Some v -> (id, v)
-                               | None -> (id, IT.default_ (Memory.bt_of_sct sct) loc)))
+                               | None -> (id, MT.default_ (Memory.bt_of_sct sct) loc)))
                         member_types_list
                     in
-                    Term.return_ (IT.struct_ (tag, new_members) loc) () loc
+                    Term.return_ (MT.struct_ (tag, new_members) loc) () loc
                   | _ -> gt)
                | _ -> gt)
             | _ -> gt)
@@ -378,7 +378,7 @@ module Make (AD : Domain.T) = struct
                   (fun (id, _) -> not (List.mem Id.equal id ids_to_remove))
                   members
               in
-              Term.return_ (IT.record_ kept_members loc) () loc
+              Term.return_ (MT.record_ kept_members loc) () loc
             | _ -> gt)
          | Tuple indices_to_remove ->
            (match T.get_term it with
@@ -388,7 +388,7 @@ module Make (AD : Domain.T) = struct
                   (fun i _ -> not (List.mem Int.equal i indices_to_remove))
                   items
               in
-              Term.return_ (IT.tuple_ kept_items loc) () loc
+              Term.return_ (MT.tuple_ kept_items loc) () loc
             | _ -> gt))
       | `Call _ -> gt
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
@@ -434,19 +434,19 @@ module Make (AD : Domain.T) = struct
         let (IT (it_, bt, loc)) = it in
         match it_ with
         (* Direct symbol reference - update its type *)
-        | Sym s when Sym.equal s sym -> IT.sym_ (s, new_bt, loc)
+        | Sym s when Sym.equal s sym -> MT.sym_ (s, new_bt, loc)
         (* Struct member access *)
         | StructMember (base_it, member) ->
           (match T.get_term base_it with
            | Sym s when Sym.equal s sym ->
-             let new_base = IT.sym_ (s, new_bt, loc) in
+             let new_base = MT.sym_ (s, new_bt, loc) in
              IT (StructMember (new_base, member), bt, loc)
            | _ -> it)
         (* Record member access *)
         | RecordMember (base_it, member) ->
           (match T.get_term base_it with
            | Sym s when Sym.equal s sym ->
-             let new_base = IT.sym_ (s, new_bt, loc) in
+             let new_base = MT.sym_ (s, new_bt, loc) in
              IT (RecordMember (new_base, member), bt, loc)
            | _ -> it)
         (* Tuple index access - remap indices for Tuple pruning *)
@@ -460,10 +460,10 @@ module Make (AD : Domain.T) = struct
                   List.filter (fun i -> i < n) indices_to_remove |> List.length
                 in
                 let new_n = n - removed_before in
-                let new_base = IT.sym_ (s, new_bt, loc) in
+                let new_base = MT.sym_ (s, new_bt, loc) in
                 IT (NthTuple (new_n, new_base), bt, loc)
               | _ ->
-                let new_base = IT.sym_ (s, new_bt, loc) in
+                let new_base = MT.sym_ (s, new_bt, loc) in
                 IT (NthTuple (n, new_base), bt, loc))
            | _ -> it)
         (* Let map_term_pre handle recursion for everything else *)

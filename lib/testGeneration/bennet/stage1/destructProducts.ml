@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module MemberIndirection = MemberIndirection.Make (Term.Make (AD))
@@ -77,17 +77,17 @@ module Make (AD : Domain.T) = struct
   let rec it_of_new_args (na : new_args) (loc : Locations.t) : T.t =
     match na with
     | Struct (tag, members) ->
-      IT.struct_
+      MT.struct_
         ( tag,
           List.map (fun (member, (_, na')) -> (member, it_of_new_args na' loc)) members )
         loc
     | Record members ->
-      IT.record_
+      MT.record_
         (List.map (fun (member, (_, na')) -> (member, it_of_new_args na' loc)) members)
         loc
     | Tuple items ->
-      IT.tuple_ (List.map (fun (_, na') -> it_of_new_args na' loc) items) loc
-    | Leaf (sym, bt) -> IT.sym_ (sym, bt, loc)
+      MT.tuple_ (List.map (fun (_, na') -> it_of_new_args na' loc) items) loc
+    | Leaf (sym, bt) -> MT.sym_ (sym, bt, loc)
 
 
   (* Collect every aggregate node in the tree -- the top-level parent AND every nested
@@ -187,7 +187,7 @@ module Make (AD : Domain.T) = struct
            |> List.map (fun (member, sct) ->
              let loc = Locations.other __LOC__ in
              let member_bt = Memory.bt_of_sct sct in
-             (IT.member_ ~member_bt (it, member) loc, member_bt))
+             (MT.member_ ~member_bt (it, member) loc, member_bt))
            |> List.map aux
            |> List.flatten
          | _ -> failwith ("no struct " ^ Sym.pp_string tag ^ " found"))
@@ -195,14 +195,14 @@ module Make (AD : Domain.T) = struct
         members
         |> List.map (fun (member, member_bt) ->
           let loc = Locations.other __LOC__ in
-          (IT.recordMember_ ~member_bt (it, member) loc, member_bt))
+          (MT.recordMember_ ~member_bt (it, member) loc, member_bt))
         |> List.map aux
         |> List.flatten
       | Tuple members ->
         members
         |> List.mapi (fun i item_bt ->
           let loc = Locations.other __LOC__ in
-          (IT.nthTuple_ ~item_bt (i, it) loc, item_bt))
+          (MT.nthTuple_ ~item_bt (i, it) loc, item_bt))
         |> List.map aux
         |> List.flatten
       | _ -> [ it ]

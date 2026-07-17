@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -17,7 +17,7 @@ module Make (AD : Domain.T) = struct
       | `Call _ ->
         let@ check = provable loc in
         return
-          (match check (LC.T (IT.bool_ false here)) with
+          (match check (LC.T (MT.bool_ false here)) with
            | `True -> None
            | `False -> Some tm)
       | `Pick gts ->
@@ -27,7 +27,7 @@ module Make (AD : Domain.T) = struct
           else
             let@ check = provable loc in
             return
-              (match check (LC.T (IT.bool_ false here)) with
+              (match check (LC.T (MT.bool_ false here)) with
                | `True -> true
                | `False -> false)
         in
@@ -52,10 +52,10 @@ module Make (AD : Domain.T) = struct
       | `Asgn ((it_addr, sct), it_val, gt_rest) ->
         let@ () =
           if fast then
-            add_c loc (LC.T (IT.ne_ (it_addr, IT.null_ loc) loc))
+            add_c loc (LC.T (MT.ne_ (it_addr, MT.null_ loc) loc))
           else (
             let sym = Sym.fresh_anon () in
-            let it_sym = IT.sym_ (sym, Terms.get_bt it_val, loc) in
+            let it_sym = MT.sym_ (sym, Terms.get_bt it_val, loc) in
             let@ () =
               add_l_value
                 sym
@@ -146,7 +146,7 @@ module Make (AD : Domain.T) = struct
       | `ITE (it_if, gt_then, gt_else) ->
         let@ check = provable loc in
         let@ ogt_then =
-          match check (LC.T (IT.not_ it_if here)) with
+          match check (LC.T (MT.not_ it_if here)) with
           | `False ->
             pure
               (let@ () = add_c loc (LC.T it_if) in
@@ -157,7 +157,7 @@ module Make (AD : Domain.T) = struct
           match check (LC.T it_if) with
           | `False ->
             pure
-              (let@ () = add_c loc (LC.T (IT.not_ it_if here)) in
+              (let@ () = add_c loc (LC.T (MT.not_ it_if here)) in
                aux new_constraint gt_else)
           | `True -> return None
         in
@@ -167,7 +167,7 @@ module Make (AD : Domain.T) = struct
              Some (Term.ite_ (it_if, gt_then, gt_else) () loc)
            | Some gt_then, None -> Some (Term.assert_ (LC.T it_if, gt_then) () loc)
            | None, Some gt_else ->
-             Some (Term.assert_ (LC.T (IT.not_ it_if here), gt_else) () loc)
+             Some (Term.assert_ (LC.T (MT.not_ it_if here), gt_else) () loc)
            | None, None -> None)
       | `Map ((i, i_bt, it_perm), gt_inner) ->
         let@ gt_inner =

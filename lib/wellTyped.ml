@@ -1069,7 +1069,7 @@ let warn_when_not_quantifier_bt
 
 module WReq = struct
   module Req = Request
-  open IndexTerms
+  open MakeTerm
 
   let welltyped loc r =
     Pp.debug 22 (lazy (Pp.item "WReq: checking" (Req.pp r)));

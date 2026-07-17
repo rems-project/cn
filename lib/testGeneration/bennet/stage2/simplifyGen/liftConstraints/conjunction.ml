@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -68,7 +68,7 @@ module Make (AD : Domain.T) = struct
           |> List.partition (fun it' -> Sym.Set.mem i_sym (T.free_vars it'))
         in
         let gt_forall =
-          Term.assert_ (LC.Forall ((i_sym, i_bt), IT.and_ its_in loc), gt') () loc
+          Term.assert_ (LC.Forall ((i_sym, i_bt), MT.and_ its_in loc), gt') () loc
         in
         List.fold_left
           (fun gt_rest it' -> Term.assert_ (LC.T it', gt_rest) () loc)

@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module BT = BaseTypes
 open Pp
 
@@ -114,10 +114,10 @@ let is_interesting : t -> bool =
 (** make `lc` conditional on `it` *)
 let impl loc (it : T.t) (lc : t) : t =
   match lc with
-  | T t -> T (IT.impl_ (it, t) loc)
+  | T t -> T (MT.impl_ (it, t) loc)
   | Forall ((s, bt), t) ->
     let s, t = T.alpha_rename s t in
-    Forall ((s, bt), IT.impl_ (it, t) loc)
+    Forall ((s, bt), MT.impl_ (it, t) loc)
 
 
 let preds_of (lc : t) : Sym.Set.t =

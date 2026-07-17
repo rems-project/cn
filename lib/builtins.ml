@@ -1,6 +1,6 @@
 module SBT = BaseTypes.Surface
 module BT = BaseTypes
-module IT = IndexTerms
+module MT = MakeTerm
 
 type builtin_fn_def = string * Sym.t * Definition.Function.t
 
@@ -50,7 +50,7 @@ let mk_arg3_err mk args loc =
 let mk_arg3 mk = mk_arg3_err (fun tup loc -> return (mk tup loc))
 
 let var_binop op ty ~left:(sym1, bt1) ~right:(sym2, bt2) =
-  IT.binop op (IT.sym_ (sym1, bt1, loc), IT.sym_ (sym2, bt2, loc)) loc ty
+  MT.binop op (MT.sym_ (sym1, bt1, loc), MT.sym_ (sym2, bt2, loc)) loc ty
 
 
 let definition name args body =
@@ -80,7 +80,7 @@ let min_bits_def (sign, n) =
     | Signed -> (Z.(neg @@ shift_left one (Int.sub n 1)), "i")
   in
   let name = "MIN" ^ letter ^ Int.to_string n in
-  IT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
+  MT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
 
 
 let max_bits_def (sign, n) =
@@ -90,7 +90,7 @@ let max_bits_def (sign, n) =
     | Signed -> (Z.(shift_left one (Int.sub n 1) - one), "i")
   in
   let name = "MAX" ^ letter ^ Int.to_string n in
-  IT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
+  MT.num_lit_ num (BT.Bits (sign, n)) loc |> mk_builtin_arg0 name
 
 
 let max_min_bits =
@@ -107,13 +107,13 @@ let max_min_bits =
 
 
 let not_def =
-  mk_builtin_arg1 "not" BT.Bool (fun (sym, bt) -> IT.not_ (IT.sym_ (sym, bt, loc)) loc)
+  mk_builtin_arg1 "not" BT.Bool (fun (sym, bt) -> MT.not_ (MT.sym_ (sym, bt, loc)) loc)
 
 
 (* TODO: this should probably go away *)
 let is_null_def : builtin_fn_def =
   mk_builtin_arg1 "is_null" (BT.Loc ()) (fun (sym, bt) ->
-    (IT.eq__ (IT.sym_ (sym, bt, loc)) (IT.null_ loc)) loc)
+    (MT.eq__ (MT.sym_ (sym, bt, loc)) (MT.null_ loc)) loc)
 
 
 (* Cannot translate this to a logical function until the TODO in `cn_to_ail_expr_aux_internal` in `cn_internal_to_ail.ml` is resolved*)
@@ -121,7 +121,7 @@ let has_alloc_id_def =
   ( "has_alloc_id",
     Sym.fresh "has_alloc_id",
     mk_arg1 (fun p loc' ->
-      Terms.Surface.inj @@ IT.hasAllocId_ (Terms.Surface.proj p) loc') )
+      Terms.Surface.inj @@ MT.hasAllocId_ (Terms.Surface.proj p) loc') )
 
 
 let ptr_eq_def : builtin_fn_def =
@@ -131,18 +131,18 @@ let ptr_eq_def : builtin_fn_def =
 let prov_eq_def : builtin_fn_def =
   let left = (Sym.fresh "arg1", BT.Loc ()) in
   let right = (Sym.fresh "arg2", BT.Loc ()) in
-  let left_cast = IT.allocId_ (IT.sym_ (fst left, BT.Loc (), loc)) loc in
-  let right_cast = IT.allocId_ (IT.sym_ (fst right, BT.Loc (), loc)) loc in
-  let body = IT.binop EQ (left_cast, right_cast) loc BT.Bool in
+  let left_cast = MT.allocId_ (MT.sym_ (fst left, BT.Loc (), loc)) loc in
+  let right_cast = MT.allocId_ (MT.sym_ (fst right, BT.Loc (), loc)) loc in
+  let body = MT.binop EQ (left_cast, right_cast) loc BT.Bool in
   definition "prov_eq" [ left; right ] body
 
 
 let addr_eq_def : builtin_fn_def =
   let left = (Sym.fresh "arg1", BT.Loc ()) in
   let right = (Sym.fresh "arg2", BT.Loc ()) in
-  let left_cast = IT.addr_ (IT.sym_ (fst left, BT.Loc (), loc)) loc in
-  let right_cast = IT.addr_ (IT.sym_ (fst right, BT.Loc (), loc)) loc in
-  let body = IT.binop EQ (left_cast, right_cast) loc BT.Bool in
+  let left_cast = MT.addr_ (MT.sym_ (fst left, BT.Loc (), loc)) loc in
+  let right_cast = MT.addr_ (MT.sym_ (fst right, BT.Loc (), loc)) loc in
+  let body = MT.binop EQ (left_cast, right_cast) loc BT.Bool in
   definition "addr_eq" [ left; right ] body
 
 
@@ -153,102 +153,102 @@ let addr_eq_def : builtin_fn_def =
 let mul_uf_def =
   ( "mul_uf",
     Sym.fresh "mul_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop MulNoSMT (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop MulNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let div_uf_def =
   ( "div_uf",
     Sym.fresh "div_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop DivNoSMT (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop DivNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let power_uf_def =
   ( "power_uf",
     Sym.fresh "power_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop ExpNoSMT (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop ExpNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let rem_uf_def =
   ( "rem_uf",
     Sym.fresh "rem_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop RemNoSMT (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop RemNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let mod_uf_def =
   ( "mod_uf",
     Sym.fresh "mod_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop ModNoSMT (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop ModNoSMT (it, it') loc (Terms.get_bt it)) )
 
 
 let xor_uf_def =
   ( "xor_uf",
     Sym.fresh "xor_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop BW_Xor (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop BW_Xor (it, it') loc (Terms.get_bt it)) )
 
 
 let bw_and_uf_def =
   ( "bw_and_uf",
     Sym.fresh "bw_and_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop BW_And (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop BW_And (it, it') loc (Terms.get_bt it)) )
 
 
 let bw_or_uf_def =
   ( "bw_or_uf",
     Sym.fresh "bw_or_uf",
-    mk_arg2 (fun (it, it') loc -> IT.binop BW_Or (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop BW_Or (it, it') loc (Terms.get_bt it)) )
 
 
 let bw_clz_uf_def =
-  ("bw_clz_uf", Sym.fresh "bw_clz_uf", mk_arg1 (IT.arith_unop BW_CLZ_NoSMT))
+  ("bw_clz_uf", Sym.fresh "bw_clz_uf", mk_arg1 (MT.arith_unop BW_CLZ_NoSMT))
 
 
 let bw_ctz_uf_def =
-  ("bw_ctz_uf", Sym.fresh "bw_ctz_uf", mk_arg1 (IT.arith_unop BW_CTZ_NoSMT))
+  ("bw_ctz_uf", Sym.fresh "bw_ctz_uf", mk_arg1 (MT.arith_unop BW_CTZ_NoSMT))
 
 
 let bw_ffs_uf_def =
-  ("bw_ffs_uf", Sym.fresh "bw_ffs_uf", mk_arg1 (IT.arith_unop BW_FFS_NoSMT))
+  ("bw_ffs_uf", Sym.fresh "bw_ffs_uf", mk_arg1 (MT.arith_unop BW_FFS_NoSMT))
 
 
 let bw_fls_uf_def =
-  ("bw_fls_uf", Sym.fresh "bw_fls_uf", mk_arg1 (IT.arith_unop BW_FLS_NoSMT))
+  ("bw_fls_uf", Sym.fresh "bw_fls_uf", mk_arg1 (MT.arith_unop BW_FLS_NoSMT))
 
 
 let shift_left_def =
   ( "shift_left",
     Sym.fresh "shift_left",
-    mk_arg2 (fun (it, it') loc -> IT.binop ShiftLeft (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop ShiftLeft (it, it') loc (Terms.get_bt it)) )
 
 
 let shift_right_def =
   ( "shift_right",
     Sym.fresh "shift_right",
-    mk_arg2 (fun (it, it') loc -> IT.binop ShiftRight (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop ShiftRight (it, it') loc (Terms.get_bt it)) )
 
 
 let power_def =
   ( "power",
     Sym.fresh "power",
-    mk_arg2 (fun (it, it') loc -> IT.binop Exp (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop Exp (it, it') loc (Terms.get_bt it)) )
 
 
 let rem_def =
   ( "rem",
     Sym.fresh "rem",
-    mk_arg2 (fun (it, it') loc -> IT.binop Rem (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop Rem (it, it') loc (Terms.get_bt it)) )
 
 
 let mod_def =
   ( "mod",
     Sym.fresh "mod",
-    mk_arg2 (fun (it, it') loc -> IT.binop Mod (it, it') loc (Terms.get_bt it)) )
+    mk_arg2 (fun (it, it') loc -> MT.binop Mod (it, it') loc (Terms.get_bt it)) )
 
 
-let is_some_def = ("is_some", Sym.fresh "is_some", mk_arg1 IT.isSome_)
+let is_some_def = ("is_some", Sym.fresh "is_some", mk_arg1 MT.isSome_)
 
-let is_none_def = ("is_none", Sym.fresh "is_none", mk_arg1 IT.isNone_)
+let is_none_def = ("is_none", Sym.fresh "is_none", mk_arg1 MT.isNone_)
 
-let get_opt_def = ("get_opt", Sym.fresh "get_opt", mk_arg1 IT.getOpt_)
+let get_opt_def = ("get_opt", Sym.fresh "get_opt", mk_arg1 MT.getOpt_)
 
 let builtin_funs
   : (string

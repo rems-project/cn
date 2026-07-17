@@ -1,6 +1,6 @@
 open Terms
 open Terms.Normal
-open IndexTerms
+open MakeTerm
 
 let get_lower_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =
   let rec aux (it : t) : t option =

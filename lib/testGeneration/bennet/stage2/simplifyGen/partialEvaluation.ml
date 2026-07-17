@@ -1,6 +1,6 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 open Terms
 
@@ -11,7 +11,7 @@ module Make (AD : Domain.T) = struct
     | Strict
     | Lazy
 
-  module IndexTerms = struct
+  module MakeTerm = struct
     let check_bits_bt (sgn1, sz1) (sgn2, sz2) here : (unit, string) result =
       if not @@ BT.equal_sign sgn1 sgn2 then
         Error ("Mismatched signs at " ^ Locations.simple_location here)
@@ -37,11 +37,11 @@ module Make (AD : Domain.T) = struct
       let@ it2 = eval it2 in
       match (it1, it2) with
       | IT (Const (Z n1), _, _), IT (Const (Z n2), _, _) ->
-        return @@ IT.num_lit_ (f n1 n2) bt here
+        return @@ MT.num_lit_ (f n1 n2) bt here
       | ( IT (Const (Bits ((sgn1, sz1), n1)), _, _),
           IT (Const (Bits ((sgn2, sz2), n2)), _, _) ) ->
         let@ () = check_bits_bt (sgn1, sz1) (sgn2, sz2) here in
-        return @@ IT.num_lit_ (BT.normalise_to_range_bt bt (f n1 n2)) bt here
+        return @@ MT.num_lit_ (BT.normalise_to_range_bt bt (f n1 n2)) bt here
       | _, IT (Const (Z _), _, _) ->
         Error ("Not constant integer `" ^ Pp.plain (T.pp it1) ^ "` (" ^ loc ^ ")")
       | _, IT (Const (Bits _), _, _) ->
@@ -69,7 +69,7 @@ module Make (AD : Domain.T) = struct
       =
       let ( let@ ) = Result.bind in
       let return = Result.ok in
-      let open IT in
+      let open MT in
       let (IT (t_, bt, here)) = it in
       let eval_num_binop = eval_num_binop eval_aux bt here in
       match t_ with
@@ -243,7 +243,7 @@ module Make (AD : Domain.T) = struct
          | IT (Constructor (constr1, xits1), _, _), IT (Constructor (constr2, xits2), _, _)
            ->
            if not (Sym.equal constr1 constr2) then
-             return @@ IT.bool_ false here
+             return @@ MT.bool_ false here
            else (
              let zipped = List.combine xits1 xits2 in
              if List.exists (fun ((x1, _), (x2, _)) -> not (Id.equal x1 x2)) zipped then
@@ -276,11 +276,11 @@ module Make (AD : Domain.T) = struct
             if i = i_end then
               t1
             else
-              IT.and2_ (t1, loop (i + 1)) here)
+              MT.and2_ (t1, loop (i + 1)) here)
           else
             failwith ("unreachable @ " ^ __LOC__)
         in
-        if i_start > i_end then return @@ IT.bool_ true here else eval_aux (loop i_start)
+        if i_start > i_end then return @@ MT.bool_ true here else eval_aux (loop i_start)
       | NthTuple (i, it') ->
         let@ it' = eval_aux it' in
         (match it' with
@@ -467,7 +467,7 @@ module Make (AD : Domain.T) = struct
       let rec eval_aux (it : T.t) : (T.t, string) result =
         let ( let@ ) = Result.bind in
         let return = Result.ok in
-        let open IT in
+        let open MT in
         let (IT (t_, bt, here)) = it in
         match t_ with
         (* Shared *)
@@ -560,7 +560,7 @@ module Make (AD : Domain.T) = struct
 
     let eval_term_lazily (prog5 : unit Mucore.file) (it : T.t) : (T.t, string) result =
       let rec eval_aux (it : T.t) : (T.t, string) result =
-        (* let open IT in *)
+        (* let open MT in *)
         let (IT (t_, _, _)) = it in
         match t_ with
         | Const _ | Sym _ | Unop _ | Binop _ | ITE _ | EachI _ | NthTuple _
@@ -622,13 +622,13 @@ module Make (AD : Domain.T) = struct
           (lc : LC.t)
       : LC.t
       =
-      let partial_eval_it = IndexTerms.partial_eval ~mode ~prog5 in
+      let partial_eval_it = MakeTerm.partial_eval ~mode ~prog5 in
       match lc with
       | T it -> T (partial_eval_it it)
       | Forall ((i, i_bt), IT (Binop (Implies, it_perm, it_body), _, loc_implies)) ->
         LC.Forall
           ( (i, i_bt),
-            IT.impl_ (partial_eval_it it_perm, partial_eval_it it_body) loc_implies )
+            MT.impl_ (partial_eval_it it_perm, partial_eval_it it_body) loc_implies )
       | _ -> failwith __LOC__
   end
 
@@ -639,7 +639,7 @@ module Make (AD : Domain.T) = struct
           (gt : Term.t)
       : Term.t
       =
-      let partial_eval_it = IndexTerms.partial_eval ~mode ~prog5 in
+      let partial_eval_it = MakeTerm.partial_eval ~mode ~prog5 in
       let partial_eval_lc = LogicalConstraints.partial_eval ~mode ~prog5 in
       let rec aux (gt : Term.t) : Term.t =
         let (Annot (gt_, (), bt, loc)) = gt in

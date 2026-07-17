@@ -1,5 +1,5 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module BT = BaseTypes
 module AT = ArgumentTypes
 module LC = LogicalConstraints
@@ -126,7 +126,7 @@ module Make (AD : Domain.T) = struct
       | Resource
           ((x, (P { name = Owned (ct, _); pointer; iargs = _ }, bt)), (loc, _), lat') ->
         let@ gt' = transform_it_lat filename recursive preds name generated oarg lat' in
-        let gt_asgn = Tm.asgn_ ((pointer, ct), IT.sym_ (x, bt, loc), gt') () loc in
+        let gt_asgn = Tm.asgn_ ((pointer, ct), MT.sym_ (x, bt, loc), gt') () loc in
         let gt_val =
           if Sym.Set.mem x generated then
             gt_asgn
@@ -165,13 +165,13 @@ module Make (AD : Domain.T) = struct
         let k_bt, v_bt = BT.map_bt bt in
         let gt_body =
           let sym_val = Sym.fresh_anon () in
-          let it_q = IT.sym_ (q_sym, k_bt, q_loc) in
-          let it_p = IT.arrayShift_ ~base:pointer ~index:it_q step loc in
+          let it_q = MT.sym_ (q_sym, k_bt, q_loc) in
+          let it_p = MT.arrayShift_ ~base:pointer ~index:it_q step loc in
           let gt_asgn =
             Tm.asgn_
               ( (it_p, ct),
-                IT.sym_ (sym_val, v_bt, loc),
-                Tm.return_ (IT.sym_ (sym_val, v_bt, loc)) () loc )
+                MT.sym_ (sym_val, v_bt, loc),
+                Tm.return_ (MT.sym_ (sym_val, v_bt, loc)) () loc )
               ()
               loc
           in
@@ -199,8 +199,8 @@ module Make (AD : Domain.T) = struct
         (* Add request *)
         let@ () = add_request recursive preds fsym in
         (* Get arguments *)
-        let it_q = IT.sym_ (q_sym, q_bt, q_loc) in
-        let it_p = IT.arrayShift_ ~base:pointer ~index:it_q step loc in
+        let it_q = MT.sym_ (q_sym, q_bt, q_loc) in
+        let it_p = MT.arrayShift_ ~base:pointer ~index:it_q step loc in
         let iargs = it_p :: iargs in
         (* Build [Tm.t] *)
         let _, v_bt = BT.map_bt bt in
@@ -208,7 +208,7 @@ module Make (AD : Domain.T) = struct
           let y = Sym.fresh_anon () in
           Tm.let_star_
             ( (y, Tm.call_ (fsym, iargs) () v_bt loc),
-              Tm.return_ (IT.sym_ (y, v_bt, loc)) () loc )
+              Tm.return_ (MT.sym_ (y, v_bt, loc)) () loc )
             ()
             loc
         in
@@ -314,10 +314,10 @@ module Make (AD : Domain.T) = struct
     in
     let ret_it =
       match oarg with
-      | BT.Unit -> IT.unit_ here
+      | BT.Unit -> MT.unit_ here
       | BT.Record fields ->
         (* Construct a record with all the vars *)
-        IT.record_
+        MT.record_
           (List.map
              (fun (id, bt) ->
                 (* Find the var corresponding to this field *)
@@ -325,7 +325,7 @@ module Make (AD : Domain.T) = struct
                 let x, _ =
                   List.find (fun (x, _) -> String.equal (Sym.pp_string x) field_name) vars
                 in
-                (id, IT.sym_ (x, bt, here)))
+                (id, MT.sym_ (x, bt, here)))
              fields)
           here
       | _ -> failwith "Unexpected oarg type in transform_spec"

@@ -114,7 +114,7 @@ let generate_executable_specs
   Pp.print_level := print_level;
   Sym.print_nums := print_sym_nums;
   Pp.print_timestamps := not no_timestamps;
-  IndexTerms.use_vip := not dont_use_vip;
+  MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
   Diagnostics.diag_string := diag;
   Sym.executable_spec_enabled := true;

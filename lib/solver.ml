@@ -1,7 +1,7 @@
 module SMT = Simple_smt
-module IT = IndexTerms
+module MT = MakeTerm
 open Terms
-open IT
+open MT
 module LC = LogicalConstraints
 module CTypeMap = Map.Make (Sctypes)
 module IntMap = Map.Make (Int)
@@ -660,7 +660,7 @@ let rec translate_term s iterm =
   in
   let default bt =
     let here = Locations.other __LOC__ in
-    translate_term s (IT.default_ bt here)
+    translate_term s (MT.default_ bt here)
   in
   match get_term iterm with
   | Const c -> translate_const s c
@@ -669,7 +669,7 @@ let rec translate_term s iterm =
     (match op with
      | BW_FFS_NoSMT ->
        (* NOTE: This desugaring duplicates e1 *)
-       let intl i = IT.int_lit_ i (get_bt e1) loc in
+       let intl i = MT.int_lit_ i (get_bt e1) loc in
        translate_term
          s
          (ite_
@@ -816,12 +816,12 @@ let rec translate_term s iterm =
       if i <= i2 then (
         let su = Terms.Normal.make_subst [ (x, num_lit_ (Z.of_int i) bt loc) ] in
         let t1 = Terms.Normal.subst su t in
-        if i = i2 then t1 else IT.and2_ (t1, aux (i + 1)) loc)
+        if i = i2 then t1 else MT.and2_ (t1, aux (i + 1)) loc)
       else
         failwith "EachI"
     in
     if i1 > i2 then
-      translate_term s (IT.bool_ true loc)
+      translate_term s (MT.bool_ true loc)
     else
       translate_term s (aux i1)
   (* Tuples *)
@@ -911,7 +911,7 @@ let rec translate_term s iterm =
   | Head e1 -> CN_List.head (translate_term s e1)
   | Tail e1 -> CN_List.tail (translate_term s e1)
   | SizeOf ct ->
-    translate_term s (IT.int_lit_ (Memory.size_of_ctype ct) (get_bt iterm) loc)
+    translate_term s (MT.int_lit_ (Memory.size_of_ctype ct) (get_bt iterm) loc)
   | Representable (ct, t) -> translate_term s (representable struct_decls ct t loc)
   | Good (ct, t) -> translate_term s (good_value struct_decls ct t loc)
   | Aligned t ->
@@ -1281,7 +1281,7 @@ let load_model solver cmds =
   match SMT.check msmt with SMT.Sat -> () | _ -> failwith "not actually SAT"
 
 
-(** Models are `IT.t -> IT.t option` [evaluator] functions, each assigned a
+(** Models are `MT.t -> MT.t option` [evaluator] functions, each assigned a
     unique ID. An evaluator checks, using the ID, if the model is currently
     loaded; if not it loads the model into the model solver by running the
     [cmds], previously extracted from the regular solver. *)
@@ -1336,7 +1336,7 @@ module TryHard = struct
 
   let translate_function solver f args rbt body =
     let loc = Locations.other __LOC__ in
-    let arg_exprs = List.map (fun (s, bt) -> IT.sym_ (s, bt, loc)) args in
+    let arg_exprs = List.map (fun (s, bt) -> MT.sym_ (s, bt, loc)) args in
     translate_forall solver args (eq_ (apply_ f arg_exprs rbt loc, body) loc)
 
 

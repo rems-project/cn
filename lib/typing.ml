@@ -2,7 +2,7 @@ module Res = Resource
 module Req = Request
 module LC = LogicalConstraints
 module Loc = Locations
-module IT = IndexTerms
+module MT = MakeTerm
 
 let unfold_multiclause_preds = ref false
 
@@ -416,7 +416,7 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   let@ s = get_typing_context () in
   let@ simp_ctxt = simp_ctxt () in
   let r = Simplify.Request.simp simp_ctxt r in
-  let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
+  let oargs = Simplify.Terms.simp simp_ctxt oargs in
   let pointer_facts =
     if derive_constraints then
       Res.pointer_facts ~new_resource:(r, Res.O oargs) ~old_resources:(Context.get_rs s)
@@ -445,7 +445,7 @@ let _model_has_prop () =
 (*   let loc = Locations.other __LOC__ in *)
 (*   let res lc = *)
 (*     match lc with *)
-(*     | LC.T t when has_prop (IT.not_ t loc) m -> `Counterex (lazy m) *)
+(*     | LC.T t when has_prop (MT.not_ t loc) m -> `Counterex (lazy m) *)
 (*     | _ -> *)
 (*       (match p_f lc with `True -> `True | `False -> `Counterex (lazy (Solver.model ()))) *)
 (*   in *)
@@ -460,7 +460,7 @@ let _model_has_prop () =
 (*   | None -> *)
 (*     let@ prover = provable_internal loc in *)
 (*     let here = Locations.other __LOC__ in *)
-(*     (match prover (LC.T (IT.not_ prop here)) with *)
+(*     (match prover (LC.T (MT.not_ prop here)) with *)
 (*      | `True -> return None *)
 (*      | `False -> *)
 (*        let@ m = model () in *)
@@ -473,10 +473,10 @@ let _model_has_prop () =
 (*   let record_s = Sym.fresh_make_uniq record_name in *)
 (*   let record_bt = BT.Record record_members in *)
 (*   let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in *)
-(*   let record_it = IT.sym_ (record_s, record_bt, loc) in *)
+(*   let record_it = MT.sym_ (record_s, record_bt, loc) in *)
 (*   let member_its = *)
 (*     List.map *)
-(*       (fun (s, member_bt) -> IT.recordMember_ ~member_bt (record_it, s) loc) *)
+(*       (fun (s, member_bt) -> MT.recordMember_ ~member_bt (record_it, s) loc) *)
 (*       record_members *)
 (*   in *)
 (*   return (record_it, member_its) *)
@@ -491,7 +491,7 @@ let bind_logical_return_internal loc prefix =
     | Resource ((s, (re, bt)), _, lrt) ->
       let s' = Sym.fresh_make_uniq_kind ~prefix (Sym.pp_string s) in
       let@ () = add_l s' bt (loc, lazy (Sym.pp s')) in
-      let@ () = add_r_internal loc (re, Res.O (IT.sym_ (s', bt, loc))) in
+      let@ () = add_r_internal loc (re, Res.O (MT.sym_ (s', bt, loc))) in
       aux (LogicalReturnTypes.subst (Terms.Normal.make_rename ~from:s ~to_:s') lrt)
     | Constraint (lc, _, lrt) ->
       let@ () = add_c_internal lc in
@@ -527,7 +527,7 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
               (match
                  provable_f
                    ~purpose:"map_and_fold_resources"
-                   (LC.forall_ q (IT.not_ permission here))
+                   (LC.forall_ q (MT.not_ permission here))
                with
                | `True -> (resources, acc)
                | `False -> (re :: resources, acc))
@@ -557,7 +557,7 @@ let do_unfold_resources loc =
     let resources = s.resources in
     Pp.debug 8 (lazy (Pp.string "-- checking resource unfolds now --"));
     let consistent_context () =
-      match provable_f (LC.T (IT.bool_ false here)) with `True -> false | `False -> true
+      match provable_f (LC.T (MT.bool_ false here)) with `True -> false | `False -> true
     in
     match count < consistency_check_threshold || consistent_context () with
     | false -> return changed (* contradictory state *)
@@ -619,7 +619,7 @@ let do_unfold_resources loc =
                         List.map
                           (fun (r, Res.O oargs) ->
                              let r = Simplify.Request.simp simp_ctxt r in
-                             let oargs = Simplify.IndexTerms.simp simp_ctxt oargs in
+                             let oargs = Simplify.Terms.simp simp_ctxt oargs in
                              (r, Res.O oargs))
                           res
                       in
@@ -674,12 +674,12 @@ let bind_logical_return loc prefix lrt =
 (* let bind_return loc members (rt : ReturnTypes.t) = *)
 (*   match (members, rt) with *)
 (*   | member :: members, Computational ((s, bt), _, lrt) -> *)
-(*     let@ () = WellTyped.ensure_base_type loc ~expect:bt (IT.get_bt member) in *)
+(*     let@ () = WellTyped.ensure_base_type loc ~expect:bt (MT.get_bt member) in *)
 (*     let@ () = *)
 (*       bind_logical_return *)
 (*         loc *)
 (*         members *)
-(*         (LogicalReturnTypes.subst (IT.make_subst [ (s, member) ]) lrt) *)
+(*         (LogicalReturnTypes.subst (MT.make_subst [ (s, member) ]) lrt) *)
 (*     in *)
 (*     return member *)
 (*   | _ -> assert false *)

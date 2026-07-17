@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -27,12 +27,12 @@ module Make (AD : Domain.T) = struct
       let it_min = TermBounds.get_lower_bound (i, i_bt) it_perm in
       let here = Locations.other __LOC__ in
       let array_len =
-        IT.add_ (IT.sub_ (it_max, it_min) here, IT.num_lit_ (Z.of_int 1) i_bt here) here
+        MT.add_ (MT.sub_ (it_max, it_min) here, MT.num_lit_ (Z.of_int 1) i_bt here) here
       in
       let max_len =
-        IT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
+        MT.num_lit_ (Z.of_int (TestGenConfig.get_max_array_length ())) i_bt here
       in
-      Term.assert_ (LC.T (IT.le_ (array_len, max_len) here), gt) () loc
+      Term.assert_ (LC.T (MT.le_ (array_len, max_len) here), gt) () loc
 
 
   let transform_gt (gt : Term.t) : Term.t =

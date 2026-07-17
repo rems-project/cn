@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)

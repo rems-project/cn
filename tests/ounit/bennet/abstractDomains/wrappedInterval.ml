@@ -5,7 +5,7 @@ open QCheck
 open Cn.Terms
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module List = Cn.List
 
 module NonRelational =

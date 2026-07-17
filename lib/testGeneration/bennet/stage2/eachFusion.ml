@@ -1,12 +1,12 @@
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
   module Def = Def.Make (AD)
   module Term = Term.Make (AD)
 
-  let simp = Simplify.IndexTerms.simp (Simplify.default Global.empty)
+  let simp = Simplify.Terms.simp (Simplify.default Global.empty)
 
   let is_simp_true it = Terms.is_true (simp it)
 
@@ -64,8 +64,8 @@ module Make (AD : Domain.T) = struct
         (gt : Term.t)
     : Term.t * T.t
     =
-    let it_true = IT.bool_ true (Locations.other __LOC__) in
-    let it_and a b = IT.and2_ (a, b) (Locations.other __LOC__) in
+    let it_true = MT.bool_ true (Locations.other __LOC__) in
+    let it_and a b = MT.and2_ (a, b) (Locations.other __LOC__) in
     let rec aux (delete : bool) (gt : Term.t) : Term.t * T.t =
       let (Annot (gt_, (), _, loc)) = gt in
       match gt_ with
@@ -79,7 +79,7 @@ module Make (AD : Domain.T) = struct
         else
           ( gt,
             List.fold_left
-              (fun a b -> IT.or2_ (a, b) (Locations.other __LOC__))
+              (fun a b -> MT.or2_ (a, b) (Locations.other __LOC__))
               (List.hd constraints)
               (List.tl constraints) )
       | `Asgn ((it_addr, sct), it_val, gt') ->
@@ -108,7 +108,7 @@ module Make (AD : Domain.T) = struct
             (it_and
                (T.subst
                   (T.make_rename ~from:i ~to_:new_i)
-                  (IT.impl_ (it_perm, it_body) loc_implies)))
+                  (MT.impl_ (it_perm, it_body) loc_implies)))
               res
           in
           if delete then
@@ -126,12 +126,12 @@ module Make (AD : Domain.T) = struct
         let gt_else', else_constraints = aux delete' gt_else in
         let gt' = Term.ite_ (it_if, gt_then', gt_else') () loc in
         (match (is_simp_true then_constraints, is_simp_true else_constraints) with
-         | false, true when delete' -> (gt', IT.impl_ (it_if, then_constraints) loc)
+         | false, true when delete' -> (gt', MT.impl_ (it_if, then_constraints) loc)
          | true, false when delete' ->
-           (gt', IT.impl_ (IT.not_ it_if loc, then_constraints) loc)
+           (gt', MT.impl_ (MT.not_ it_if loc, then_constraints) loc)
          | false, false when delete' ->
-           (gt', IT.ite_ (it_if, then_constraints, else_constraints) loc)
-         | _, _ -> (gt', IT.or2_ (then_constraints, else_constraints) loc))
+           (gt', MT.ite_ (it_if, then_constraints, else_constraints) loc)
+         | _, _ -> (gt', MT.or2_ (then_constraints, else_constraints) loc))
     in
     aux true gt
 
@@ -143,7 +143,7 @@ module Make (AD : Domain.T) = struct
       | MapGet (IT (Sym y, _, _), IT (Sym j, _, _)) when Sym.equal m y ->
         if not (Sym.equal i j) then
           failwith (Pp.plain (T.pp it) ^ " @ " ^ __LOC__);
-        IT.sym_ (result, bt, loc)
+        MT.sym_ (result, bt, loc)
       | _ -> it
     in
     Terms.map_term_pre aux it
@@ -179,7 +179,7 @@ module Make (AD : Domain.T) = struct
                 Term.assert_
                   ( LogicalConstraints.T (replace_index x i result constraints),
                     Term.return_
-                      (IT.sym_ (result, Term.basetype gt_inner, loc_inner))
+                      (MT.sym_ (result, Term.basetype gt_inner, loc_inner))
                       ()
                       loc_inner )
                   ()

@@ -1,4 +1,4 @@
-module IT = IndexTerms
+module MT = MakeTerm
 module BT = BaseTypes
 module LRT = LogicalReturnTypes
 module RT = ReturnTypes
@@ -166,7 +166,7 @@ let try_coerce_res (ftyp : AT.lemmat) =
       let arg_name, arg_re = r in
       if Request.alpha_equivalent arg_re re then (
         Pp.debug 2 (lazy (Pp.item "erasing" (Sym.pp name)));
-        LRT.subst (Terms.Normal.make_subst [ (name, IT.sym_ (arg_name, bt, loc)) ]) t)
+        LRT.subst (Terms.Normal.make_subst [ (name, MT.sym_ (arg_name, bt, loc)) ]) t)
       else
         LRT.Resource ((name, (re, bt)), info, erase_res r t)
     | LRT.I ->
@@ -391,21 +391,21 @@ let it_adjust (global : Global.t) it =
     match Terms.Normal.get_term t with
     | Terms.Binop (And, x1, x2) ->
       let xs = List.map f [ x1; x2 ] |> List.partition Terms.is_true |> snd in
-      IT.and_ xs loc
+      MT.and_ xs loc
     | Terms.Binop (Or, x1, x2) ->
       let xs = List.map f [ x1; x2 ] |> List.partition Terms.is_false |> snd in
-      IT.or_ xs loc
+      MT.or_ xs loc
     | Terms.Binop (EQ, x, y) ->
       let x = f x in
       let y = f y in
-      if Terms.Normal.equal x y then IT.bool_ true loc else IT.eq__ x y loc
+      if Terms.Normal.equal x y then MT.bool_ true loc else MT.eq__ x y loc
     | Terms.Binop (Implies, x, y) ->
       let x = f x in
       let y = f y in
       if Terms.is_false x || Terms.is_true y then
-        IT.bool_ true loc
+        MT.bool_ true loc
       else
-        IT.impl_ (x, y) loc
+        MT.impl_ (x, y) loc
     | Terms.EachI ((i1, (s, bt), i2), x) ->
       let x = f x in
       let s, x, vs = alpha_rename_if_pp_same s x in
@@ -413,7 +413,7 @@ let it_adjust (global : Global.t) it =
         assert (i1 <= i2);
         x)
       else
-        IT.eachI_ (i1, (s, bt), i2) x loc
+        MT.eachI_ (i1, (s, bt), i2) x loc
     | Terms.Apply (name, args) ->
       let open Definition.Function in
       let def = Sym.Map.find name global.logical_functions in
@@ -424,13 +424,13 @@ let it_adjust (global : Global.t) it =
       if Option.is_some (Sctypes.is_struct_ctype ct) then
         t
       else
-        f (IT.good_value global.struct_decls ct t2 loc)
+        f (MT.good_value global.struct_decls ct t2 loc)
     | Representable (ct, t2) ->
       if Option.is_some (Sctypes.is_struct_ctype ct) then
         t
       else
-        f (IT.representable global.struct_decls ct t2 loc)
-    | Terms.Aligned t -> f (IT.divisible_ (IT.addr_ t.t loc, t.align) loc)
+        f (MT.representable global.struct_decls ct t2 loc)
+    | Terms.Aligned t -> f (MT.divisible_ (MT.addr_ t.t loc, t.align) loc)
     | Terms.Let ((nm, x), y) ->
       let x = f x in
       let y = f y in
@@ -440,7 +440,7 @@ let it_adjust (global : Global.t) it =
       else if not (Sym.Set.mem nm vs) then
         y
       else
-        IT.let_ ((nm, x), y) loc
+        MT.let_ ((nm, x), y) loc
     | _ -> t
   in
   let res = f it in
@@ -848,9 +848,9 @@ let ensure_struct_mem is_good global list_mono loc ct aux =
           (let@ ty = bt_to_coq global list_mono (loc, Pp.string op_nm) bt in
            let x = Pp.parens (Pp.typ (Pp.string "x") ty) in
            let here = Locations.other __LOC__ in
-           let x_it = IT.sym_ (Sym.fresh "x", bt, here) in
+           let x_it = MT.sym_ (Sym.fresh "x", bt, here) in
            let@ rhs =
-             aux (it_adjust global (IT.good_value global.struct_decls ct x_it here))
+             aux (it_adjust global (MT.good_value global.struct_decls ct x_it here))
            in
            return (defn op_nm [ x ] None rhs)))
         [ tag ]

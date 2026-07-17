@@ -2,11 +2,11 @@
 
 open OUnit2
 open QCheck
-open Cn.IndexTerms
+open Cn.MakeTerm
 open Cn.Terms
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
-module IT = Cn.IndexTerms
+module MT = Cn.MakeTerm
 module T = Cn.Terms.Normal
 
 module NonRelational =

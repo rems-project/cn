@@ -6,7 +6,7 @@ module Utils = Fulminate.Utils
 module Records = Fulminate.Records
 module BT = BaseTypes
 module T = Terms.Normal
-module IT = IndexTerms
+module MT = MakeTerm
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -426,9 +426,9 @@ module Make (AD : Domain.T) = struct
                                  filename
                                  sigma
                                  name
-                                 (IT.cast_
+                                 (MT.cast_
                                     (BT.Loc ())
-                                    (IT.sym_ (p_sym, p_bt, Locations.other __LOC__))
+                                    (MT.sym_ (p_sym, p_bt, Locations.other __LOC__))
                                     (Locations.other __LOC__))
                              in
                              (b, List.map mk_stmt (s @ [ A.AilSexpr e ]))
