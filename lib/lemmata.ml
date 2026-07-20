@@ -203,6 +203,7 @@ let print_ctype (ctyp : Sctypes.t) =
   | Pointer _ -> "Ptr"
   | Struct s -> Sym.pp_string s
   | Function _ -> "unsupported ctype function"
+  | Byte -> "unsupported ctype function" (* TODO(HK): added for plumbing *)
 
 
 let enc_z z =
@@ -764,7 +765,9 @@ let translate_structs (struct_decls : Memory.struct_decls) =
        (* todo: probably not right? *)
        | Pointer _ -> make_owned "Owned_int" id
        | Struct s -> make_owned ("Owned_" ^ Sym.pp_string s) id
-       | Function _ -> rets "unsupported ctype function")
+       | Function _ -> rets "unsupported ctype function"
+       | Byte -> rets "unsupported ctype function")
+      (* TODO(HK): added for plumbing *)
     | None ->
       !^"padding "
       ^^ parens (!^"arrayshift " ^^ !^"l " ^^ !^(string_of_int piece.offset) ^^ !^" 1")
