@@ -4,3 +4,4 @@
 -R _build/default/coq/Cerberus/ Cerberus
 -R _build/default/coq/Cn/ Cn
 -R _build/default/coq/Reasoning/ Reasoning
+-R _build/default/coq/CN_Lemmas/ CN_Lemmas

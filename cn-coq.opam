@@ -17,6 +17,7 @@ depends: [
   "cn"
   "coq" {= "8.20.1"}
   "coq-ext-lib"
+  "coq-iris"
   "coq-struct-tact"
 ]
 build: [
