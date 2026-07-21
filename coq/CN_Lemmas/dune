@@ -1,0 +1,7 @@
+(coq.theory
+ (name CN_Lemmas)
+ (package cn-coq)
+ (synopsis "Rocq and Iris support for CN-exported lemmas")
+ (mode vo)
+ (theories iris stdpp Ltac2)
+ (modules CN_Lib CN_Lib_Iris))

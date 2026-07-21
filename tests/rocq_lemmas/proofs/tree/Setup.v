@@ -87,4 +87,3 @@ Definition tree_v (t : tree) (arc : arc_in_array) : Z :=
   | Some v => v
   | None => 0
   end.
-
