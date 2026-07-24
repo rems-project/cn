@@ -32,6 +32,21 @@ run_proof_case() {
     timeout 60 make -f Makefile.coq)
 }
 
+run_fixpoint_test() {
+  local case_dir="${WORK_DIR}/fixpoint"
+  local theory_dir="${case_dir}/theories"
+  local test_dir="${LEMMA_DIR}/unit/fixpoint"
+
+  mkdir -p "${theory_dir}"
+  cp "${DIRNAME}/../coq/CN_Lemmas/CN_Lib_Iris_Fixpoint.v" "${theory_dir}/"
+  cp "${test_dir}/Fixpoint_Tests.v" "${theory_dir}/"
+  cp "${test_dir}/_CoqProject" "${case_dir}/"
+
+  (cd "${case_dir}" &&
+    coq_makefile -f _CoqProject -o Makefile.coq &&
+    timeout 60 make -f Makefile.coq)
+}
+
 run_and_report() {
   local case_name=$1
   shift
@@ -62,6 +77,10 @@ arrays_testing|arrays/testing|array_lemma.c
 pop_queue|queue|pop.c
 struct_test|struct_test|test.c
 EOF
+
+if ! run_and_report fixpoint run_fixpoint_test; then
+  FAILED+=(fixpoint)
+fi
 
 if [ "${#FAILED[@]}" -eq 0 ]; then
   exit 0
