@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache/restore@v5
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
+        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam', 'cn-coq.opam') }}
   
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
@@ -51,14 +51,14 @@ jobs:
         eval $(opam env --switch=${{ matrix.version }}-with-coq)
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
         opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
-        opam install --deps-only --yes ./cn.opam
+        opam install --deps-only --yes ./cn.opam ./cn-coq.opam
       
     - name: Save OPAM cache
       uses: actions/cache/save@v5
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
+        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam', 'cn-coq.opam') }}
 
     - name: Install CN (with Coq)
       run: |
@@ -73,3 +73,9 @@ jobs:
         opam switch ${{ matrix.version }}-with-coq
         eval $(opam env --switch=${{ matrix.version }}-with-coq )
         ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
+
+    - name: Run CN lemma export tests
+      run: |
+        opam switch ${{ matrix.version }}-with-coq
+        eval $(opam env --switch=${{ matrix.version }}-with-coq )
+        ./tests/run-cn-lemmas.sh

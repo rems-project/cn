@@ -1,42 +1,71 @@
 #!/usr/bin/env bash
 set -euo pipefail -o noclobber
 
-function exits_with_code() {
-  local action=$1
-  local file=$2
-  local -a expected_exit_codes=$3
+DIRNAME=$(dirname "$0")
+LEMMA_DIR="${DIRNAME}/rocq_lemmas"
+WORK_DIR=$(mktemp -d /tmp/cn-rocq-lemmas.XXXXXX)
+trap 'rm -rf "${WORK_DIR}"' EXIT HUP INT TERM
 
-  printf "[$file]...\n"
-  timeout 60 ${action} "$file"
-  local result=$?
+run_proof_case() {
+  local case_name=$1
+  local source_dir=$2
+  local input_file=$3
+  local case_dir="${WORK_DIR}/${case_name}"
+  local theory_dir="${case_dir}/theories"
+  local proof_dir="${LEMMA_DIR}/proofs/${case_name}"
 
-  for code in "${expected_exit_codes[@]}"; do
-    if [ $result -eq $code ]; then
-      printf "\033[32mPASS\033[0m\n"
-      return 0
-    fi
-  done
+  mkdir -p "${theory_dir}"
+  cp "${DIRNAME}/../coq/CN_Lemmas/CN_Lib.v" "${theory_dir}/"
+  cp "${DIRNAME}/../coq/CN_Lemmas/CN_Lib_Iris.v" "${theory_dir}/"
+  cp "${proof_dir}"/*.v "${theory_dir}/"
+  cp "${proof_dir}/_CoqProject" "${case_dir}/"
 
-  printf "\033[31mFAIL\033[0m (Unexpected return code: %d)\n" "$result"
-  return 1
+  if ! (cd "${LEMMA_DIR}/cases/${source_dir}" &&
+        timeout 60 cn verify "${input_file}" \
+          --lemmata "${theory_dir}/Gen_Spec.v") >"${case_dir}/cn.log" 2>&1; then
+    cat "${case_dir}/cn.log"
+    return 1
+  fi
+
+  (cd "${case_dir}" &&
+    coq_makefile -f _CoqProject -o Makefile.coq &&
+    timeout 60 make -f Makefile.coq)
 }
 
-DIRNAME=$(dirname "$0")
+run_and_report() {
+  local case_name=$1
+  shift
 
-FAILED=""
-
-COQ_LEMMAS=$(find "${DIRNAME}"/cn -type d -name 'coq_lemmas')
-
-for TEST in ${COQ_LEMMAS}; do
-  if ! exits_with_code "make -C" "${TEST}" 0; then
-    FAILED+=" ${TEST}"
+  printf '[%s]...\n' "${case_name}"
+  if "$@"; then
+    printf '\033[32mPASS\033[0m\n'
+    return 0
+  else
+    local result=$?
+    printf '\033[31mFAIL\033[0m (Unexpected return code: %d)\n' "${result}"
+    return 1
   fi
-done
+}
 
-if [ -z "${FAILED}" ]; then
+FAILED=()
+
+while IFS='|' read -r case_name source_dir input_file; do
+  if ! run_and_report \
+      "${case_name}" run_proof_case "${case_name}" "${source_dir}" "${input_file}"; then
+    FAILED+=("${case_name}")
+  fi
+done <<'EOF'
+list_rev|list|rev.c
+array_combine|arrays/combine|array_lemma.c
+arrays_inductive|arrays/inductive|array_lemma.c
+arrays_testing|arrays/testing|array_lemma.c
+pop_queue|queue|pop.c
+struct_test|struct_test|test.c
+EOF
+
+if [ "${#FAILED[@]}" -eq 0 ]; then
   exit 0
 else
-  printf "\033[31mFAILED: %s\033[0m\n" "${FAILED}"
+  printf '\033[31mFAILED: %s\033[0m\n' "${FAILED[*]}"
   exit 1
 fi
-
