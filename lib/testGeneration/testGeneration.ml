@@ -503,6 +503,12 @@ let run
   =
   Cerb_debug.begin_csv_timing ();
   let insts = functions_under_test ~with_warning:false cabs_tunit sigma prog5 paused in
+  (* Before the generators, so `--export-spec-json` still produces a file for
+     a specification the generator pipeline itself chokes on — the export is
+     of the IR, not of anything downstream of it. *)
+  Option.iter
+    (fun path -> SpecExport.save ~path ~filename sigma prog5 insts)
+    (TestGenConfig.get_export_spec_json ());
   save_generators ~output_dir ~filename cabs_tunit sigma prog5 paused insts;
   save_tests
     ~output_dir

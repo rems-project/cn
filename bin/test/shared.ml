@@ -58,6 +58,7 @@ let run
       no_replays
       no_replicas
       output_tyche
+      export_spec_json
       inline
       experimental_struct_asgn_destruction
       experimental_product_arg_destruction
@@ -144,6 +145,7 @@ let run
           no_replays;
           no_replicas;
           output_tyche;
+          export_spec_json;
           print_size_info;
           print_backtrack_info;
           print_satisfaction_info;
@@ -529,6 +531,18 @@ module Flags = struct
       & info ~docs:s_output [ "output-tyche" ] ~doc)
 
 
+  let export_spec_json =
+    let doc =
+      "Dump the specification IR as JSON in AustenTest's spec-module format. FILE names \
+       the output when the translation unit has one function under test, and a directory \
+       to write <function>.json into otherwise"
+    in
+    Arg.(
+      value
+      & opt (some string) TestGeneration.default_cfg.export_spec_json
+      & info ~docs:s_output [ "export-spec-json" ] ~docv:"FILE" ~doc)
+
+
   let inline =
     let doc =
       "Set inlining mode: 'nothing' (no inlining, default), 'nonrec' (non-recursive \
@@ -775,6 +789,7 @@ let mk_term
   $ Flags.no_replays
   $ Flags.no_replicas
   $ Flags.output_tyche
+  $ Flags.export_spec_json
   $ Flags.inline
   $ Flags.experimental_struct_asgn_destruction ~docs:(experimental_section s_generation)
   $ Flags.experimental_product_arg_destruction ~docs:(experimental_section s_generation)
@@ -868,6 +883,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
       no_replays = cfg.no_replays;
       no_replicas = cfg.no_replicas;
       output_tyche = cfg.output_tyche;
+      export_spec_json = cfg.export_spec_json;
       print_size_info = cfg.print_size_info;
       print_backtrack_info = cfg.print_backtrack_info;
       print_satisfaction_info = cfg.print_satisfaction_info;
@@ -926,6 +942,7 @@ let mk_release_term ~(engine : TestGeneration.engine) ~(preset : TestGeneration.
   $ Flags.no_replays
   $ Flags.no_replicas
   $ opt_or preset.output_tyche Flags.output_tyche
+  $ opt_or preset.export_spec_json Flags.export_spec_json
   $ const preset.inline
   $ const preset.experimental_struct_asgn_destruction
   $ const preset.experimental_product_arg_destruction
