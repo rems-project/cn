@@ -78,6 +78,7 @@ let pldi26 : TestGenConfig.t =
     no_replays = false;
     no_replicas = false;
     output_tyche = None;
+    export_spec_json = None;
     print_size_info = false;
     print_backtrack_info = false;
     print_satisfaction_info = false;
