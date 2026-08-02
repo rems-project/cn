@@ -67,3 +67,43 @@ Ltac solve_bi_mono_pred F :=
         apply discrete in Hx; [ | apply _ ];
         apply leibniz_equiv in Hx; subst; reflexivity
       | solve_proper ] ].
+
+(** Proves the standard public induction principle for a generated resource
+    predicate group.  The generator supplies only the group-specific pieces:
+
+    - [F]: the combined pre-fixpoint;
+    - [motive]: the dispatch-type motive assembled from the public motives;
+    - [solve_step]: applies the appropriate public step hypothesis in each
+      dispatch-constructor branch;
+    - [unfold_wrappers]: unfolds the public predicate wrappers in the final
+      conclusions.
+
+    Everything involving the Iris least fixpoint remains in this library. *)
+Ltac solve_cn_predicate_induction F motive solve_step unfold_wrappers :=
+  set (CN_ind_motive := motive);
+  let motive_type := type of CN_ind_motive in
+  lazymatch motive_type with
+  | ?A → ?PROP =>
+    let induction_assertion :=
+      constr:((∀ call : A, bi_least_fixpoint F call -∗ CN_ind_motive call)%I) in
+    assert (NonExpansive CN_ind_motive) as HCN_ind_motive_ne;
+    [ intros n x1 x2 Hx;
+      apply discrete in Hx; [ | apply _ ];
+      apply leibniz_equiv in Hx; subst; reflexivity
+    | iAssert induction_assertion as "Hind";
+      [ iApply least_fixpoint_iter;
+        let call := fresh "call" in
+        iIntros "!>" (call) "Hbody";
+        destruct call;
+        iEval (rewrite /F /CN_ind_motive /=) in "Hbody";
+        rewrite /CN_ind_motive /=;
+        solve_step
+      | let rec solve_conclusions _ :=
+          first
+            [ iSplit; [ solve_conclusions () | solve_conclusions () ]
+            | repeat iIntros (?);
+              iIntros "Hfix";
+              unfold_wrappers;
+              iApply ("Hind" with "Hfix") ]
+        in solve_conclusions () ] ]
+  end.

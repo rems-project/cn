@@ -195,6 +195,38 @@ Module FixpointTests.
       - iIntros (v ts) "HP". iApply ("H" $! (IsForest v ts) with "HP").
     Qed.
 
+    (** The same public mutual induction principle, proved by the solver used
+        by generated resource-predicate groups. *)
+    Lemma is_tree_forest_ind_solver (Φt : val → tree → iProp Σ)
+        (Φf : val → forest → iProp Σ) :
+      □ (∀ v t,
+          (match t with
+           | TNode n ts => ∃ (p : loc) (w : val),
+               ⌜v = #p⌝ ∗ p ↦ (#n, w)%V ∗ Φf w ts
+           end) -∗ Φt v t) -∗
+      □ (∀ v ts,
+          (match ts with
+           | FNil => ⌜v = NONEV⌝
+           | FCons t ts' => ∃ (p : loc) (w1 w2 : val),
+               ⌜v = SOMEV #p⌝ ∗ p ↦ (w1, w2)%V ∗
+               Φt w1 t ∗ Φf w2 ts'
+           end) -∗ Φf v ts) -∗
+      (∀ v t, is_tree v t -∗ Φt v t) ∧
+      (∀ v ts, is_forest v ts -∗ Φf v ts).
+    Proof.
+      iIntros "#Ht #Hf".
+      solve_cn_predicate_induction
+        tf_pre
+        ((λ a, match a with
+               | IsTree v t => Φt v t
+               | IsForest v ts => Φf v ts
+               end)%I : tfO → iProp Σ)
+        ltac:(first
+          [ iApply ("Ht" with "Hbody")
+          | iApply ("Hf" with "Hbody") ])
+        ltac:(unfold is_tree, is_forest).
+    Qed.
+
     (** Test 7: the non-structural variant of Test 6. [is_forest'] tests
         whether the value is null: if so the forest is asserted to be [FNil];
         otherwise its components are existentially quantified and pinned by a
@@ -276,6 +308,21 @@ Module FixpointTests.
     (** The fixpoints and their unfolding lemmas now come for free. *)
     Definition is_list (v : val) (l : list Z) : iProp Σ :=
       bi_least_fixpoint is_list_pre (v, l).
+
+    (** Singleton-group variant of the generated induction principle. *)
+    Lemma is_list_ind_solver (Φ : val → list Z → iProp Σ) :
+      □ (∀ v l,
+          is_list_pre (λ vl, Φ vl.1 vl.2) (v, l) -∗ Φ v l) -∗
+      ∀ v l, is_list v l -∗ Φ v l.
+    Proof.
+      iIntros "#Hstep".
+      solve_cn_predicate_induction
+        is_list_pre
+        ((λ vl, Φ vl.1 vl.2)%I :
+          prodO valO (leibnizO (list Z)) → iProp Σ)
+        ltac:(iApply ("Hstep" with "Hbody"))
+        ltac:(unfold is_list).
+    Qed.
 
     Lemma is_list_unfold v l :
       is_list v l ⊣⊢ is_list_pre (λ vl, is_list vl.1 vl.2) (v, l).
