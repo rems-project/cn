@@ -45,6 +45,10 @@ Ltac solve_mono_go :=
           solve_mono_go
       | |- environments.envs_entails _ (match ?x with _ => _ end) =>
           destruct x; solve_mono_go
+      | |- environments.envs_entails _ (bi_or _ _) =>
+          iDestruct "HF" as "[HF | HF]";
+          [ iLeft | iRight ];
+          solve_mono_go
       | |- _ => fail "solve_mono_go: unsupported connective in body"
       end ].
 
@@ -58,15 +62,18 @@ Ltac solve_mono_go :=
     backtracking typeclass search through the body; the fast-path is
     deterministic and independent of the body's shape. [solve_proper] remains
     as a fallback for domains with non-discrete components. *)
-Ltac solve_bi_mono_pred F :=
+Ltac solve_bi_mono_pred_with_prepare F prepare :=
   split;
-  [ iIntros (Φ Ψ HΦ HΨ) "#Hmon %y HF"; unfold F; solve_mono_go
+  [ iIntros (Φ Ψ HΦ HΨ) "#Hmon %y HF"; unfold F;  prepare; solve_mono_go
   | intros ? ?;
     first
       [ intros ? x1 x2 Hx;
         apply discrete in Hx; [ | apply _ ];
         apply leibniz_equiv in Hx; subst; reflexivity
       | solve_proper ] ].
+
+Ltac solve_bi_mono_pred F :=
+  solve_bi_mono_pred_with_prepare F ltac:(idtac).
 
 (** Proves the standard public induction principle for a generated resource
     predicate group.  The generator supplies only the group-specific pieces:

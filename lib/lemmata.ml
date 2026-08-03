@@ -5,6 +5,8 @@ module StringSet = Set.Make (String)
 module CI = Coq_ir
 module CC = Cn_to_coq
 
+let ret_sym = "ν"
+
 (* Printing headers for each module in the Coq file *)
 
 let parse_directions directions = (directions, StringSet.singleton "all")
@@ -21,6 +23,12 @@ let header filename =
   ^^ !^"Require CN_Lemmas.CN_Lib."
   ^^ hardline
   ^^ !^"Require Import CN_Lemmas.CN_Lib_Iris."
+  ^^ hardline
+  ^^ !^"From iris.bi.lib Require Import fixpoint_mono."
+  ^^ hardline
+  ^^ !^"From iris.proofmode Require Import proofmode."
+  ^^ hardline
+  ^^ !^"Require Import CN_Lemmas.CN_Lib_Iris_Fixpoint."
   ^^ hardline
   ^^ hardline
 
@@ -141,7 +149,7 @@ let pred_spec preds =
   ^^ (if List.length preds == 0 then
         !^"  (* no resource predicates required *)" ^^ hardline
       else
-        !^"  Unset Guard Checking." ^^ hardline ^^ open_iris_mode preds "Iris_Pred_Defs")
+        open_iris_mode preds "Iris_Pred_Defs")
   ^^ hardline
   ^^ !^"End ResourcePredicates."
   ^^ hardline
@@ -460,7 +468,7 @@ let term_to_coq (global : Global.t) (t : CI.coq_term) (is_clause : bool) =
       else
         iris_pure !^"Is_true true"
     (* this is the return value of a resource predicate*)
-    | CI.Coq_LAT_I t -> iris_pure (!^"ret = " ^^ aux t)
+    | CI.Coq_LAT_I t -> iris_pure (!^(ret_sym ^ " = ") ^^ aux t)
     | CI.Coq_Owned_LAT (CI.Coq_sym s, bt, t, pointer, _) ->
       let forall_owned op_nm =
         pp_forall
@@ -620,8 +628,17 @@ let rec scanl (f : 'b -> 'a -> 'b) (q : 'b) (ls : 'a list) =
 
 let scanl1 f ls = match ls with x :: xs -> scanl f x xs | [] -> []
 
+(* Generates `Ptr -> arg_ty1 -> ... -> ret_ty -> iProp Σ` *)
+let make_pred_ty args ret_ty res_ty =
+  let open Pp in
+  (* add pointer arg *)
+  let arg_bts = CI.Coq_Loc :: List.map snd args in
+  let arg_types = List.map bt_to_coq arg_bts @ [ bt_to_coq ret_ty ] in
+  List.fold_right (fun arg result -> infix 2 1 !^"->" arg result) arg_types !^res_ty
+
+
 (* print resource predicate definitions *)
-let translate_pred (gl : Global.t) (preds : CI.coq_resource_pred list list) =
+let translate_pred (gl : Global.t) (preds : CI.coq_resource_pred_group list) =
   let open Pp in
   let unpack_clauses (clauses : CI.coq_clause list) =
     let clause_to_coq (clause : CI.coq_clause) =
@@ -652,40 +669,343 @@ let translate_pred (gl : Global.t) (preds : CI.coq_resource_pred list list) =
     in
     List.map clause_to_coq (scanl1 clause_concat clauses)
   in
-  let make_args (args : (CI.coq_sym * CI.coq_bt) list) =
-    let make_one_arg arg =
-      match arg with CI.Coq_sym id, bt -> parens (typ (Sym.pp id) (bt_to_coq bt))
+  let make_one_arg = function
+    | CI.Coq_sym id, bt -> parens (typ (Sym.pp id) (bt_to_coq bt))
+  in
+  let unpack_sym (CI.Coq_sym sym) = sym in
+  let get_pred_name (pred : CI.coq_resource_pred) = unpack_sym pred.CI.name in
+  let make_formal_args (pred : CI.coq_resource_pred) =
+    let ptr = unpack_sym pred.CI.ptr in
+    let ptr_arg = parens (typ (Sym.pp ptr) (bt_to_coq CI.Coq_Loc)) in
+    let ret_arg = parens (typ !^ret_sym (bt_to_coq pred.CI.ret_bt)) in
+    (ptr_arg :: List.map make_one_arg pred.CI.args) @ [ ret_arg ]
+  in
+  let make_actual_args (pred : CI.coq_resource_pred) =
+    let ptr = unpack_sym pred.CI.ptr in
+    let args = List.map (fun (arg, _) -> Sym.pp (unpack_sym arg)) pred.CI.args in
+    (Sym.pp ptr :: args) @ [ !^ret_sym ]
+  in
+  let make_args (group : CI.coq_resource_pred_group) (pred : CI.coq_resource_pred) =
+    let make_rec_arg (arg : CI.coq_resource_pred) =
+      let ty = make_pred_ty arg.args arg.ret_bt "iProp Σ" in
+      parens (typ (Sym.pp (get_pred_name arg)) ty)
     in
-    List.map make_one_arg args
+    let rec_args = List.map make_rec_arg group in
+    rec_args @ make_formal_args pred
   in
-  let unpack_preds (pred : CI.coq_resource_pred) =
-    match pred with
-    | CI.Coq_rpred (CI.Coq_sym nm, CI.Coq_sym ptr, args, ret_ty, clauses) ->
-      !^"  Fixpoint "
-      ^^ !^(Sym.pp_string nm)
-      ^^ !^" "
-      ^^ parens (typ !^(Sym.pp_string ptr) !^"Ptr")
-      ^^ !^" "
-      ^^ intersperse " " "" (make_args args)
-      ^^ !^" "
-      ^^ parens (typ !^"ret" (bt_to_coq ret_ty))
-      ^^ !^" {struct ret} "
-      ^^ !^" : iProp Σ := "
+  let get_body_name (pred : CI.coq_resource_pred) =
+    Sym.pp_string (get_pred_name pred) ^ "_body"
+  in
+  let unpack_body (group : CI.coq_resource_pred_group) (pred : CI.coq_resource_pred) =
+    defn
+      (get_body_name pred)
+      (make_args group pred)
+      (Some (Pp.string "iProp Σ"))
+      (intersperse " ∨ " "" (unpack_clauses pred.CI.clauses))
+      false
+  in
+  let get_constr_name (pred : CI.coq_resource_pred) =
+    "CN_GROUP_" ^ Sym.pp_string (get_pred_name pred)
+  in
+  let get_group_type_name index = "cn_predicate_group_" ^ string_of_int index in
+  let make_constr type_name pred =
+    let constr_name = get_constr_name pred in
+    typ (Pp.string constr_name) (make_pred_ty pred.args pred.ret_bt type_name)
+  in
+  let make_group_type index (predicates : CI.coq_resource_pred_group) =
+    let type_name = get_group_type_name index in
+    let constrs = List.map (make_constr type_name) predicates in
+    let group_type =
+      !^("Inductive " ^ type_name ^ " : Type :=")
       ^^ hardline
-      ^^ intersperse " ∨ " "." (unpack_clauses clauses)
+      ^^ flow hardline (List.map (fun c -> !^"  | " ^^ c) constrs)
+      ^^ !^"."
       ^^ hardline
-    | CI.Coq_rpred_uninterp (CI.Coq_sym nm, _, args, ret_ty) ->
-      let coq_arg_typs = List.map (fun (_, bt) -> bt_to_coq bt) args in
-      let coq_rt = bt_to_coq ret_ty in
-      let ty = List.fold_right (fun at rt -> at ^^^ !^"->" ^^^ rt) coq_arg_typs coq_rt in
-      (!^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ !^" -> Prop." ^^ hardline) ^^ hardline
+    in
+    let ofe_type =
+      !^("Canonical Structure " ^ type_name ^ "O := leibnizO " ^ type_name ^ ".")
+      ^^ hardline
+    in
+    group_type ^^ ofe_type
   in
-  let is_uninterp (pred : CI.coq_resource_pred) =
-    match pred with CI.Coq_rpred_uninterp _ -> true | _ -> false
+  (* (λ p ν, rec (CN_GROUP_IsForest p ν)) *)
+  let make_closure (pred : CI.coq_resource_pred) =
+    let args = make_actual_args pred in
+    let call = parensM @@ build @@ (!^(get_constr_name pred) :: args) in
+    let binders = build args in
+    let body = parensM @@ build [ !^"rec"; call ] in
+    parensM @@ (!^"λ" ^^^ binders ^^ comma) ^//^ body
   in
-  ( List.map unpack_preds (List.filter (fun x -> is_uninterp x) (List.concat preds)),
-    List.map unpack_preds (List.filter (fun x -> not (is_uninterp x)) (List.concat preds))
-  )
+  (* CN_GROUP_IsForest p ν =>
+      IsForest_body
+        (λ p ν, (rec (CN_GROUP_IsForest p ν)))
+        (λ p ν, (rec (CN_GROUP_IsTree p ν)))
+        p ν *)
+  let make_case predicates (pred : CI.coq_resource_pred) =
+    let body_name = !^(get_body_name pred) in
+    let args = make_actual_args pred in
+    let closures = List.map make_closure predicates in
+    let body = build @@ (body_name :: closures) @ args in
+    let pattern = build @@ (!^(get_constr_name pred) :: args) in
+    infix 2 1 !^"=>" pattern body
+  in
+  let get_pre_fixpoint_name index = "cn_predicate_group_pre_" ^ string_of_int index in
+  let make_pre_fixpoint_body (predicates : CI.coq_resource_pred_group) =
+    let cases =
+      predicates
+      |> List.map (make_case predicates)
+      |> List.map (fun case -> !^"| " ^^ case)
+      |> flow hardline
+    in
+    align @@ !^"match call with" ^^ nest 2 (hardline ^^ cases) ^^ hardline ^^ !^"end"
+  in
+  let make_pre_fixpoint_definition index (predicates : CI.coq_resource_pred_group) =
+    let group_ofe_name = get_group_type_name index ^ "O" in
+    let rec_type = flow !^" -> " [ !^group_ofe_name; !^"iProp Σ" ] in
+    let rec_arg = parens @@ typ !^"rec" rec_type in
+    let call_arg = parens @@ typ !^"call" !^group_ofe_name in
+    defn
+      (get_pre_fixpoint_name index)
+      [ rec_arg; call_arg ]
+      (Some !^"iProp Σ")
+      (make_pre_fixpoint_body predicates)
+      false
+  in
+  let make_monotonicity_instance index (predicates : CI.coq_resource_pred_group) =
+    let pre_fixpoint = get_pre_fixpoint_name index in
+    let instance_name = get_group_type_name index ^ "_mono" in
+    let instance =
+      blank 2
+      ^^ align
+           (infix
+              2
+              1
+              colon
+              (!^"Local Instance" ^^^ !^instance_name)
+              (!^"BiMonoPred" ^^^ !^pre_fixpoint ^^ dot))
+    in
+    let prepare =
+      !^"ltac:"
+      ^^ parens
+           (build
+              [ !^"unfold";
+                intersperse "," "" @@ List.map (fun p -> !^(get_body_name p)) predicates
+              ])
+    in
+    let tactic =
+      prefix
+        2
+        1
+        (group (!^"solve_bi_mono_pred_with_prepare" ^/^ !^pre_fixpoint))
+        (prepare ^^ dot)
+    in
+    let proof =
+      blank 2 ^^ align (!^"Proof." ^^ nest 2 (hardline ^^ tactic) ^^ hardline ^^ !^"Qed.")
+    in
+    instance ^^ hardline ^^ proof ^^ hardline
+  in
+  let make_pre_fixpoint index (predicates : CI.coq_resource_pred_group) =
+    let definition = make_pre_fixpoint_definition index predicates in
+    let mono = make_monotonicity_instance index predicates in
+    definition ^^ mono
+  in
+  let make_fixpoint index (pred : CI.coq_resource_pred) =
+    let args = make_formal_args pred in
+    let app = !^(get_constr_name pred) :: make_actual_args pred in
+    let body =
+      build
+        [ !^"bi_least_fixpoint"; !^(get_pre_fixpoint_name index); parens @@ build app ]
+    in
+    defn (Sym.pp_string (get_pred_name pred)) args (Some !^"iProp Σ") body false
+  in
+  let make_fixpoints index (predicates : CI.coq_resource_pred_group) =
+    let pre_fixpoint = make_pre_fixpoint index predicates in
+    let fixpoints = List.map (make_fixpoint index) predicates in
+    pre_fixpoint ^^ hardline ^^ flow hardline fixpoints
+  in
+  (* induction lemma *)
+  let get_pred_prop_name (pred : CI.coq_resource_pred) =
+    "Φ_" ^ Sym.pp_string (get_pred_name pred)
+  in
+  let make_induction_lemma_arg (pred : CI.coq_resource_pred) =
+    let ty = make_pred_ty pred.args pred.ret_bt "iProp Σ" in
+    let name = get_pred_prop_name pred in
+    typ (Pp.string name) ty
+  in
+  let make_forall vars body =
+    let binders = List.map (fun (nm, bt) -> parens @@ typ nm (bt_to_coq bt)) vars in
+    group @@ !^"∀" ^^^ build binders ^^ comma ^^ nest 2 (break 1 ^^ body)
+  in
+  let get_pred_vars (pred : CI.coq_resource_pred) =
+    let vars =
+      List.map (fun (CI.Coq_sym sym, bt) -> (Sym.pp sym, bt)) pred.args
+      @ [ (!^ret_sym, pred.ret_bt) ]
+    in
+    (Sym.pp (unpack_sym pred.ptr), CI.Coq_Loc) :: vars
+  in
+  let make_lemma proof_name args statement proof =
+    let s =
+      !^"Lemma"
+      ^^^ proof_name
+      ^^ nest 4 (hardline ^^ flow hardline args)
+      ^^ space
+      ^^ colon
+      ^^ nest 2 (hardline ^^ statement)
+      ^^ dot
+      ^^ hardline
+    in
+    let proof =
+      blank 2
+      ^^ align
+           (!^"Proof" ^^ dot ^^ nest 2 (hardline ^^ proof) ^^ hardline ^^ !^"Qed" ^^ dot)
+    in
+    s ^^ proof
+  in
+  let make_induction_lemma index (predicates : CI.coq_resource_pred_group) =
+    let make_assumption predicates (pred : CI.coq_resource_pred) =
+      (* □ (∀ (p : Ptr) (ν : forest), IsForest_body Φ_IsForest Φ_IsTree p ν -∗ Φ_IsForest p ν) -∗ *)
+      let vars = get_pred_vars pred in
+      let extended_vars =
+        List.map (fun p -> !^(get_pred_prop_name p)) predicates @ List.map fst vars
+      in
+      let body1 = parensM @@ build @@ (!^(get_body_name pred) :: extended_vars) in
+      let body2 =
+        parensM @@ build @@ (!^(get_pred_prop_name pred) :: List.map fst vars)
+      in
+      let body = infix 2 1 !^"-∗" body1 body2 in
+      !^"□" ^^^ parens @@ make_forall vars body
+    in
+    let make_conc (pred : CI.coq_resource_pred) =
+      (* (∀ (p : Ptr) (ν : forest), IsForest p ν -∗ Φ_IsForest p ν) *)
+      let vars = get_pred_vars pred in
+      let body1 =
+        parensM @@ build @@ (Sym.pp (get_pred_name pred) :: List.map fst vars)
+      in
+      let body2 =
+        parensM @@ build @@ (!^(get_pred_prop_name pred) :: List.map fst vars)
+      in
+      let body = infix 2 1 !^"-∗" body1 body2 in
+      make_forall vars body
+    in
+    let make_induction_lemma_statement predicates =
+      let assumptions = List.map (make_assumption predicates) predicates in
+      let concs = List.map make_conc predicates in
+      let and_sep = space ^^ !^"∧" ^^ break 1 in
+      let conclusion = flow and_sep (List.map parens concs) in
+      separate (space ^^ !^"-∗" ^^ hardline) @@ assumptions @ [ conclusion ]
+    in
+    let make_induction_lemma_proof index (predicates : CI.coq_resource_pred_group) =
+      let name = !^(get_pre_fixpoint_name index) in
+      let cases =
+        List.map
+          (fun p ->
+             let vars = List.map fst (get_pred_vars p) in
+             let body = build @@ (!^(get_constr_name p) :: vars) in
+             let head = build @@ (!^(get_pred_prop_name p) :: vars) in
+             infix 2 1 !^"=>" body head)
+          predicates
+      in
+      let body = cases |> List.map (fun case -> bar ^^^ case) |> flow hardline in
+      let arg1 =
+        parens
+        @@ align
+        @@ !^"fun call =>"
+        ^^ nest
+             2
+             (hardline
+              ^^ !^"match call with"
+              ^^ nest 2 (hardline ^^ body)
+              ^^ hardline
+              ^^ !^"end")
+      in
+      let cases =
+        List.map
+          (fun p ->
+             !^"iApply"
+             ^^^ parens
+                   (!^"\"" ^^ !^"H_" ^^ Sym.pp (get_pred_name p) ^^ !^"\" with \"Hbody\""))
+          predicates
+      in
+      let body = flow (hardline ^^ bar ^^ space) cases in
+      let arg2 =
+        !^"ltac" ^^ colon ^^ parens (!^"first" ^^^ brackets (nest 2 (hardline ^^ body)))
+      in
+      let arg3 =
+        !^"ltac"
+        ^^ colon
+        ^^ parens
+             (!^"unfold"
+              ^^^ separate
+                    (comma ^^ space)
+                    (List.map (fun p -> Sym.pp (get_pred_name p)) predicates))
+        ^^ dot
+      in
+      !^"iIntros \""
+      ^^ build (List.map (fun p -> !^"#H_" ^^ Sym.pp (get_pred_name p)) predicates)
+      ^^ !^"\""
+      ^^ dot
+      ^^^ hardline
+      ^^^ !^"solve_cn_predicate_induction"
+      ^^^ nest 2 (hardline ^^ flow hardline [ name; arg1; arg2; arg3 ])
+    in
+    let args = List.map (fun p -> p |> make_induction_lemma_arg |> parens) predicates in
+    let statement = make_induction_lemma_statement predicates in
+    let proof = make_induction_lemma_proof index predicates in
+    let names = List.map (fun p -> Sym.pp (get_pred_name p)) predicates in
+    let proof_name = separate underscore names ^^ underscore ^^ !^"induction" in
+    make_lemma proof_name args statement proof
+  in
+  let make_unfold_lemma
+        index
+        (predicates : CI.coq_resource_pred_group)
+        (pred : CI.coq_resource_pred)
+    =
+    let proof_name = Sym.pp (get_pred_name pred) ^^ underscore ^^ !^"unfold" in
+    let args = get_pred_vars pred in
+    (* IsForest p ν ⊣⊢ IsForest_body IsForest IsTree p ν. *)
+    let statement =
+      let body1 =
+        parensM @@ build @@ (Sym.pp (get_pred_name pred) :: List.map fst args)
+      in
+      let body2 =
+        parensM
+        @@ build
+        @@ (!^(get_body_name pred)
+            :: List.map (fun p -> Sym.pp (get_pred_name p)) predicates)
+        @ List.map fst args
+      in
+      infix 2 1 !^"⊣⊢" body1 body2
+    in
+    let proof =
+      let rewrites = List.map (fun p -> !^"/" ^^ Sym.pp (get_pred_name p)) predicates in
+      let rem =
+        [ "least_fixpoint_unfold"; "/" ^ get_pre_fixpoint_name index; "/="; "//" ]
+      in
+      (build @@ (!^"rewrite" :: rewrites) @ List.map ( !^ ) rem) ^^ dot
+    in
+    make_lemma
+      proof_name
+      (List.map (fun (nm, bt) -> parens (typ nm (bt_to_coq bt))) args)
+      statement
+      proof
+  in
+  let unpack_group index (predicates : CI.coq_resource_pred_group) =
+    let group_type = make_group_type index predicates in
+    let pred_defs = List.map (unpack_body predicates) predicates in
+    let fixpoint = make_fixpoints index predicates in
+    let induction_lemma = make_induction_lemma index predicates in
+    let unfold_lemmata = List.map (make_unfold_lemma index predicates) predicates in
+    (group_type, pred_defs @ (fixpoint :: induction_lemma :: unfold_lemmata))
+  in
+  let groups = List.mapi unpack_group preds in
+  (List.map fst groups, List.concat_map snd groups)
+
+
+let translate_uninterp_pred =
+  let open Pp in
+  List.map (fun (CI.Coq_sym nm, _, args, ret_ty) ->
+    let ty = make_pred_ty args ret_ty "iProp Σ" in
+    (!^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ !^"." ^^ hardline) ^^ hardline)
 
 
 (* translate functions to Coq *)
@@ -815,7 +1135,9 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
     let channel = open_out filename in
     Pp.print channel (header filename);
     (* translate everything to coq AST*)
-    let (CI.Coq_gl (dtys, funs, preds, lemmas)) = CC.cn_to_coq_ir global lemmata in
+    let (CI.Coq_gl (dtys, funs, preds, uninterp_preds, lemmas)) =
+      CC.cn_to_coq_ir global lemmata
+    in
     (* print datatypes *)
     let dtypes = translate_datatypes dtys in
     let structs =
@@ -825,15 +1147,19 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
         translate_structs global.struct_decls
     in
     let translated_funs = translate_fun global funs in
-    let translated_preds = translate_pred global preds in
+    let translated_uninterp_preds = translate_uninterp_pred uninterp_preds in
+    let pred_group_tys, translated_preds = translate_pred global preds in
     (* print datatypes *)
-    Pp.print channel (types_spec dtypes);
+    Pp.print channel (types_spec (dtypes @ pred_group_tys));
     (* print uninterpreted logical functions and resource predicates as parameters *)
-    Pp.print channel (param_spec (fst translated_funs @ fst translated_preds));
+    Pp.print channel (param_spec (fst translated_funs));
     (* print structs and function definitions *)
-    Pp.print channel (defs_module (structs @ snd translated_funs));
+    Pp.print
+      channel
+      (defs_module (structs @ translated_uninterp_preds @ snd translated_funs));
     (* print resource predicates *)
-    Pp.print channel (pred_spec (snd translated_preds));
+    Pp.print channel (pred_spec translated_preds);
+    (* print function definitions *)
     (* print lemmas *)
     let translated_lemmas = convert_lemma_defs global lemmas in
     Pp.print channel (lemmas_module [] translated_lemmas);

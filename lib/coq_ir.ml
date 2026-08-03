@@ -148,10 +148,17 @@ type coq_clause =
   | Coq_clause of coq_term list * coq_term
 
 type coq_resource_pred =
-  (* parameters: pred name, input pointer name, input arguments and types,
-               output type, clauses (None -> uninterpreted pred) *)
-  | Coq_rpred of coq_sym * coq_sym * (coq_sym * coq_bt) list * coq_bt * coq_clause list
-  | Coq_rpred_uninterp of coq_sym * coq_sym * (coq_sym * coq_bt) list * coq_bt
+  { name : coq_sym;
+    ptr : coq_sym;
+    args : (coq_sym * coq_bt) list;
+    ret_bt : coq_bt;
+    clauses : coq_clause list
+  }
+
+(* Group of mutually recursive resource predicates *)
+type coq_resource_pred_group = coq_resource_pred list
+
+type coq_uinterp_resource_pred = coq_sym * coq_sym * (coq_sym * coq_bt) list * coq_bt
 
 (* CN lemmas *)
 type coq_lemma =
@@ -164,5 +171,6 @@ type coq_gl =
       coq_dt list list
       (* uninterpreted functions and defined functions*)
       * (coq_fun list list * coq_fun list list)
-      * coq_resource_pred list list
+      * coq_resource_pred_group list
+      * coq_uinterp_resource_pred list
       * coq_lemma list
