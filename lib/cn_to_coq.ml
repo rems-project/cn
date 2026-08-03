@@ -553,22 +553,37 @@ let pred_to_coq_ir (gl : Global.t) (nm : Sym.t) =
   (* distinguishing between defined and uninterpreted predicates *)
   match pred.clauses with
   | Some clauses ->
-    CI.Coq_rpred
+    Either.Left
       ( CI.Coq_sym nm,
         CI.Coq_sym pred.pointer,
         args,
         bt_to_coq_ir gl (snd pred.oarg),
         List.map translate_one_clause clauses )
   | None ->
-    CI.Coq_rpred_uninterp
+    Either.Right
       (CI.Coq_sym nm, CI.Coq_sym pred.pointer, args, bt_to_coq_ir gl (snd pred.oarg))
 
 
 let resource_pred_to_coq_ir (gl : Global.t) (preds : Sym.t list list) =
   let rpred_clump_to_coq_ir (gl : Global.t) (nms : Sym.t list) =
-    List.map (pred_to_coq_ir gl) nms
+    let translated = List.map (pred_to_coq_ir gl) nms in
+    match translated with
+    | Either.Left _ :: _ ->
+      (* check if all clauses are left as well*)
+      let preds =
+        List.map
+          (function
+            | Either.Left (name, ptr, args, ret_bt, clauses) ->
+              CI.{ name; ptr; args; ret_bt; clauses }
+            | _ -> failwith "Unexpected predicate structure")
+          translated
+      in
+      Stdlib.Either.Left preds
+    | [ Either.Right (nm, ptr, args, ret_bt) ] ->
+      Stdlib.Either.Right (nm, ptr, args, ret_bt)
+    | _ -> failwith "Unexpected predicate structure"
   in
-  List.map (rpred_clump_to_coq_ir gl) preds
+  List.partition_map (rpred_clump_to_coq_ir gl) preds
 
 
 (* translate the whole global context to coq_ir *)
@@ -589,11 +604,11 @@ let cn_to_coq_ir (global : Global.t) (lemmata : (Sym.t * (Loc.t * AT.lemmat)) li
       ([], [])
   in
   (* 3. Translate the resource predicates (todo) *)
-  let translated_preds =
+  let translated_pred_groups, translated_uninterp_preds =
     if Option.is_some global.resource_predicate_order then
       resource_pred_to_coq_ir global (Option.get global.resource_predicate_order)
     else
-      []
+      ([], [])
   in
   (* 4. Translate the lemma statement *)
   let translate_lemmas ((sym : Sym.t), (_, lemmat)) =
@@ -604,5 +619,6 @@ let cn_to_coq_ir (global : Global.t) (lemmata : (Sym.t * (Loc.t * AT.lemmat)) li
   CI.Coq_gl
     ( translated_dtypes,
       translated_logical_funs,
-      translated_preds,
+      translated_pred_groups,
+      translated_uninterp_preds,
       List.map translate_lemmas lemmata )
