@@ -17,6 +17,7 @@ run_proof_case() {
   mkdir -p "${theory_dir}"
   cp "${DIRNAME}/../coq/CN_Lemmas/CN_Lib.v" "${theory_dir}/"
   cp "${DIRNAME}/../coq/CN_Lemmas/CN_Lib_Iris.v" "${theory_dir}/"
+  cp "${DIRNAME}/../coq/CN_Lemmas/CN_Lib_Iris_Fixpoint.v" "${theory_dir}/"
   cp "${proof_dir}"/*.v "${theory_dir}/"
   cp "${proof_dir}/_CoqProject" "${case_dir}/"
 
@@ -28,7 +29,8 @@ run_proof_case() {
   fi
 
   (cd "${case_dir}" &&
-    coq_makefile -f _CoqProject -o Makefile.coq &&
+    rocq makefile -f _CoqProject \
+      theories/CN_Lib_Iris_Fixpoint.v -o Makefile.coq &&
     timeout 60 make -f Makefile.coq)
 }
 
@@ -43,7 +45,7 @@ run_fixpoint_test() {
   cp "${test_dir}/_CoqProject" "${case_dir}/"
 
   (cd "${case_dir}" &&
-    coq_makefile -f _CoqProject -o Makefile.coq &&
+    rocq makefile -f _CoqProject -o Makefile.coq &&
     timeout 60 make -f Makefile.coq)
 }
 

@@ -20,7 +20,7 @@ jobs:
   build:
 
     name: Rocq
-    
+
     strategy:
       matrix:
         version: [5.2.0]
@@ -41,8 +41,8 @@ jobs:
       uses: actions/cache/restore@v5
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-8.20.1-iris-4.4.0-heap-lang-4.4.0-${{ hashFiles('cn.opam') }}
-  
+        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
+
     - name: Setup OPAM
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       run: |
@@ -52,17 +52,13 @@ jobs:
         opam repo add --yes --this-switch coq-released https://coq.inria.fr/opam/released
         opam pin --yes -n coq-struct-tact https://github.com/uwplse/StructTact.git
         opam install --deps-only --yes ./cn.opam
-        # TODO(CN-Rocq): Fixpoint_Tests.v currently uses iris.heap_lang as a
-        # test fixture. Revisit this when the Rocq test dependencies are
-        # represented properly in the opam/Dune package metadata.
-        opam install --yes coq.8.20.1 coq-iris.4.4.0 coq-iris-heap-lang.4.4.0
-      
+
     - name: Save OPAM cache
       uses: actions/cache/save@v5
       if: steps.cache-opam-restore.outputs.cache-hit != 'true'
       with:
         path: ~/.opam
-        key: ${{ matrix.version }}-with-coq-8.20.1-iris-4.4.0-heap-lang-4.4.0-${{ hashFiles('cn.opam') }}
+        key: ${{ matrix.version }}-with-coq-${{ hashFiles('cn.opam') }}
 
     - name: Install CN (with Coq)
       run: |
@@ -78,8 +74,63 @@ jobs:
         eval $(opam env --switch=${{ matrix.version }}-with-coq )
         ./tests/diff-prog.py tests/run-cn-coq.sh tests/cn/coq.json --max-workers=2 2> diff.patch || (cat diff.patch; exit 1)
 
+  rocq-lemmas:
+
+    name: Rocq lemma export
+
+    strategy:
+      matrix:
+        version: [4.14.1]
+
+    runs-on: ubuntu-24.04
+
+    steps:
+
+    - name: Checkout CN
+      uses: actions/checkout@v6
+
+    - name: System dependencies (Ubuntu)
+      run: |
+        sudo apt-get install build-essential libgmp-dev z3 opam
+
+    - name: Restore OPAM cache
+      id: cache-opam-restore
+      uses: actions/cache/restore@v5
+      with:
+        path: ~/.opam
+        key: ${{ matrix.version }}-rocq-lemma-9.2.0-iris-4.5.0-stdpp-1.13.0-heap-lang-4.5.0-${{ hashFiles('cn.opam') }}
+
+    - name: Setup OPAM
+      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+      run: |
+        opam init --yes --no-setup --shell=sh --compiler=${{ matrix.version }}
+        opam switch create ${{ matrix.version }}-rocq-lemma ${{ matrix.version }}
+        eval $(opam env --switch=${{ matrix.version }}-rocq-lemma)
+        opam repo add --yes --this-switch rocq-released https://rocq-prover.org/opam/released
+        opam install --deps-only --yes ./cn.opam
+        opam install --yes \
+          rocq-core.9.2.0 \
+          rocq-stdlib.9.2.0 \
+          rocq-iris.4.5.0 \
+          rocq-stdpp.1.13.0 \
+          rocq-iris-heap-lang.4.5.0
+
+    - name: Save OPAM cache
+      uses: actions/cache/save@v5
+      if: steps.cache-opam-restore.outputs.cache-hit != 'true'
+      with:
+        path: ~/.opam
+        key: ${{ matrix.version }}-rocq-lemma-9.2.0-iris-4.5.0-stdpp-1.13.0-heap-lang-4.5.0-${{ hashFiles('cn.opam') }}
+
+    - name: Install CN
+      run: |
+        opam switch ${{ matrix.version }}-rocq-lemma
+        eval $(opam env --switch=${{ matrix.version }}-rocq-lemma)
+        opam pin --yes --no-action add cn .
+        opam install --yes cn
+
     - name: Run CN lemma export tests
       run: |
-        opam switch ${{ matrix.version }}-with-coq
-        eval $(opam env --switch=${{ matrix.version }}-with-coq )
+        opam switch ${{ matrix.version }}-rocq-lemma
+        eval $(opam env --switch=${{ matrix.version }}-rocq-lemma)
         ./tests/run-cn-lemmas.sh
