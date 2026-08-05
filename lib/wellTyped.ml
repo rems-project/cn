@@ -62,6 +62,7 @@ type error =
 
 type 'a t = Context.t -> ('a * Context.t, error) Result.t
 
+
 module GlobalReader = struct
   type nonrec 'a t = 'a t
 
@@ -111,13 +112,26 @@ module NoSolver = struct
   let run ctxt x = x ctxt
 end
 
+
+module type ErrorReader = sig
+  type 'a t
+
+  val return : 'a -> 'a t
+
+  val bind : 'a t -> ('a -> 'b t) -> 'b t
+
+  val get_context : unit -> Context.t t
+
+  val lift : ('a, error) Result.t -> 'a t
+end
+
+
 open NoSolver
 
 open Effectful.Make (NoSolver)
 
-module F(R: Bt_of_sct.Repr) = struct
 
-type nonrec 'a t = 'a t
+module F(R: Bt_of_sct.Repr) = struct
 
 let ensure_base_type loc ~expect has : unit t =
   if BT.equal has expect then
@@ -3008,17 +3022,8 @@ let ensure_bits_type = ensure_bits_type
 
 let ensure_z_fits_bits_type = ensure_z_fits_bits_type
 
-module type ErrorReader = sig
-  type 'a t
-
-  val return : 'a -> 'a t
-
-  val bind : 'a t -> ('a -> 'b t) -> 'b t
-
-  val get_context : unit -> Context.t t
-
-  val lift : ('a, error) Result.t -> 'a t
 end
+
 
 module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = struct
   let lift1 f x =
@@ -3038,6 +3043,10 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
     let@ context = M.get_context () in
     M.lift (Result.map fst (f x y z context))
 
+
+  module F (R : Bt_of_sct.Repr) = struct
+
+  open F(R)
 
   let datatype x = lift1 datatype x
 
@@ -3110,6 +3119,8 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
 
   let ensure_z_fits_bits_type = lift3 ensure_z_fits_bits_type
-end
+
+  end
 
 end
+

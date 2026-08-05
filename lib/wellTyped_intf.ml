@@ -1,6 +1,8 @@
 module type S = sig
   type 'a t
 
+  module F(_ : Bt_of_sct.Repr) : sig
+
   val ensure_bits_type : Locations.t -> BaseTypes.t -> unit t
 
   val ensure_z_fits_bits_type : Locations.t -> BaseTypes.sign * int -> Z.t -> unit t
@@ -14,13 +16,13 @@ module type S = sig
     expect:int ->
     unit t
 
-  val check_ct : Locations.t -> Sctypes.ctype -> unit t
-
   val err_if_ct_void
     :  Locations.t ->
     [ `Sizeof | `Array_shift | `RW | `W ] ->
     Sctypes.ctype ->
     unit t
+
+  val check_ct : Locations.t -> Sctypes.ctype -> unit t
 
   val infer_term : 'bt Terms.annot -> Terms.Normal.t t
 
@@ -84,4 +86,7 @@ module type S = sig
   val logical_function_order : Definition.Function.t Sym.Map.t -> Sym.t list list
 
   val resource_predicate_order : Definition.Predicate.t Sym.Map.t -> Sym.t list list
+
+  end
+
 end
