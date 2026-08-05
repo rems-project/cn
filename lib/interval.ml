@@ -182,9 +182,9 @@ module Intervals = struct
     match is with [ i ] -> Interval.maximum i | _ :: is' -> maximum is' | [] -> None
 end
 
-module Solver = struct
+module Solver(R : Bt_of_sct.Repr) = struct
   module T = Terms.Normal
-  module MT = MakeTerm
+  module MT = MakeTerm.F(R : Bt_of_sct.Repr)
   module RT = Request
   open Terms
   open BaseTypes

@@ -1,3 +1,8 @@
+val history_sym : Sym.t
+val predicate_sym : Sym.t
+
+module F (_: Bt_of_sct.Repr) : sig
+
 module History : sig
   val str : string
 
@@ -37,4 +42,13 @@ module Predicate : sig
   val loc : Locations.t
 
   val sym : Sym.t
+
+  val name : Request.name
+
+  val def : Definition.Predicate.t
+
+  val make_request : Terms.Normal.t -> Request.Predicate.t
+
+end
+
 end

@@ -12,7 +12,8 @@
 module BT = BaseTypes
 module T = Terms.Normal
 module CF = Cerb_frontend
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module LC = LogicalConstraints
 
 module Inner = struct

@@ -4,6 +4,7 @@ module T = Terms.Normal
 module LRT = LogicalReturnTypes
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
+module R = Bt_of_sct.BV
 
 let rec add_records_to_map_from_it it =
   match T.get_term it with
@@ -162,8 +163,7 @@ let add_records_to_map_from_struct (tag_def : Mucore.tag_definition) =
       (fun (sp : Memory.struct_piece) ->
          match sp.member_or_padding with
          | Some (_, sct) ->
-           populate
-             (BT.of_sct Memory.is_signed_integer_type Memory.size_of_integer_type sct)
+           populate (R.bt_of_sct sct)
          | None -> ())
       sl
   | UnionDef -> ()

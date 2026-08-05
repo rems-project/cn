@@ -40,7 +40,7 @@ type error =
     msg : message
   }
 
-include WellTyped_intf.S
+type 'a t
 
 module type ErrorReader = sig
   type 'a t
@@ -54,4 +54,11 @@ module type ErrorReader = sig
   val lift : ('a, error) Result.t -> 'a t
 end
 
+
+module F (_: Bt_of_sct.Repr) : sig
+
+include WellTyped_intf.S with type 'a t := 'a t
+
 module Lift : functor (M : ErrorReader) -> WellTyped_intf.S with type 'a t := 'a M.t
+
+end

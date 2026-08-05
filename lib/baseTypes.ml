@@ -1,5 +1,3 @@
-let cnBV = ref true
-
 type sign =
   | Signed
   | Unsigned
@@ -149,31 +147,6 @@ let is_bits_bt = function Bits (sign, n) -> Some (sign, n) | _ -> None
 
 let make_map_bt abt rbt = Map (abt, rbt)
 
-let rec of_sct loc is_signed size_of = function
-  | Sctypes.Void -> Unit
-  | Integer ity ->
-    if !cnBV then
-      Bits ((if is_signed ity then Signed else Unsigned), size_of ity * 8)
-    else
-      Integer
-  | Array (sct, _) ->
-    Map (uintptr_bt loc is_signed size_of, of_sct loc is_signed size_of sct)
-  | Pointer sct -> Loc (loc sct)
-  | Struct tag -> Struct tag
-  | Byte -> Option MemByte
-  | Function _ -> Cerb_debug.error "todo: function types"
-
-
-and uintptr_bt loc is_signed size_of =
-  of_sct loc is_signed size_of Sctypes.(Integer (Unsigned Intptr_t))
-
-
-and intptr_bt loc is_signed size_of =
-  of_sct loc is_signed size_of Sctypes.(Integer (Signed Intptr_t))
-
-
-and size_bt loc is_signed size_of = of_sct loc is_signed size_of Sctypes.(Integer Size_t)
-
 let rec hash = function
   | Unit -> 0
   | Bool -> 1
@@ -288,14 +261,6 @@ module Surface = struct
 
   let make_map_bt = make_map_bt
 
-  let of_sct = of_sct Option.some
-
-  let uintptr_bt = uintptr_bt Option.some
-
-  let intptr_bt = intptr_bt Option.some
-
-  let size_bt = size_bt Option.some
-
   let inj x : t = map_t_gen (Fun.const None) x
 
   let proj : t -> _ = map_t_gen (Fun.const ())
@@ -329,14 +294,6 @@ module Unit = struct
   let map_bt = map_bt pp_loc
 
   let datatype_bt = datatype_bt pp_loc
-
-  let of_sct = of_sct (Fun.const ())
-
-  let uintptr_bt = uintptr_bt (Fun.const ())
-
-  let intptr_bt = intptr_bt (Fun.const ())
-
-  let size_bt = size_bt (Fun.const ())
 
   let normalise_to_range_bt = normalise_to_range_bt pp_loc
 end

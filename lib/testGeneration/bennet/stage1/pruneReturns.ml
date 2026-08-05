@@ -1,6 +1,7 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -358,12 +359,12 @@ module Make (AD : Domain.T) = struct
                       List.map
                         (fun (id, sct) ->
                            if List.mem Id.equal id ids_to_remove then
-                             (id, MT.default_ (Memory.bt_of_sct sct) loc)
+                             (id, MT.default_ (R.bt_of_sct sct) loc)
                            else (
                              (* Find existing value *)
                                match List.assoc_opt Id.equal id members with
                                | Some v -> (id, v)
-                               | None -> (id, MT.default_ (Memory.bt_of_sct sct) loc)))
+                               | None -> (id, MT.default_ (R.bt_of_sct sct) loc)))
                         member_types_list
                     in
                     Term.return_ (MT.struct_ (tag, new_members) loc) () loc

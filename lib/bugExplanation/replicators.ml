@@ -3,11 +3,13 @@ module A = CF.AilSyntax
 module C = CF.Ctype
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
+module TermBounds = TermBounds.F(R)
 
 let pp_ctype = CF.Pp_ail.pp_ctype ~is_human:false C.no_qualifiers
 
@@ -124,7 +126,7 @@ let replicate_call (sct : Sctypes.t) e_arg =
           mk_expr (AilEconst (ConstantInteger (IConstant (Z.of_int n, Decimal, None))))
         ] )
   | Integer _ ->
-    let bt = Memory.bt_of_sct sct in
+    let bt = R.bt_of_sct sct in
     A.AilEcall
       ( mk_expr (AilEident (Sym.fresh ("cn_replicate_owned_" ^ name_of_bt bt ^ "_aux"))),
         [ mk_expr e_arg ] )
@@ -139,7 +141,7 @@ let replicate_call (sct : Sctypes.t) e_arg =
     in
     A.AilEcall (mk_expr (AilEident fsym), [ mk_expr e_arg ])
   | _ ->
-    let bt = Memory.bt_of_sct sct in
+    let bt = R.bt_of_sct sct in
     let fsym = owned_sct_aux_sym (Sctypes.to_ctype sct) in
     let e_arg = CtA.wrap_with_convert_to ~sct e_arg bt in
     A.AilEcall (mk_expr (AilEident fsym), [ mk_expr e_arg ])
@@ -346,7 +348,7 @@ let compile_sct (sct : Sctypes.t)
   let addr_str_sym = Sym.fresh "addr_str" in
   let cast_addr_str_sym = Sym.fresh "cast_addr_str" in
   let value_str_sym = Sym.fresh "value_str" in
-  let bt = Memory.bt_of_sct sct in
+  let bt = R.bt_of_sct sct in
   let b_cast, s_cast =
     sprintf_to_buf
       cast_addr_str_sym
@@ -749,7 +751,7 @@ let compile_spec
         let arg_str_sym = Sym.fresh (Sym.pp_string arg ^ "_str") in
         let arg_cast_str_sym = Sym.fresh (Sym.pp_string arg ^ "_cast_str") in
         let bt =
-          Memory.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct)
+          R.bt_of_sct (Sctypes.of_ctype_unsafe (Locations.other __LOC__) ct)
         in
         let fsym = Sym.fresh ("cn_replicate_owned_" ^ string_of_ctype ct ^ "_aux") in
         let type_str = Pp.plain (pp_ctype ct) in

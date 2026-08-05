@@ -1,6 +1,7 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 
 module Make (AD : Domain.T) = struct
   module MemberIndirection = MemberIndirection.Make (Term.Make (AD))
@@ -116,7 +117,7 @@ module Make (AD : Domain.T) = struct
              |> List.filter_map (fun ({ member_or_padding; _ } : Memory.struct_piece) ->
                member_or_padding)
              |> List.map (fun (member, sct) ->
-               (member, (get_member_new_name arg_sym member, Memory.bt_of_sct sct)))
+               (member, (get_member_new_name arg_sym member, R.bt_of_sct sct)))
              |> List.map_snd (fun (sym, bt) -> (sym, aux sym bt))
            in
            Struct (tag, members)
@@ -186,7 +187,7 @@ module Make (AD : Domain.T) = struct
              member_or_padding)
            |> List.map (fun (member, sct) ->
              let loc = Locations.other __LOC__ in
-             let member_bt = Memory.bt_of_sct sct in
+             let member_bt = R.bt_of_sct sct in
              (MT.member_ ~member_bt (it, member) loc, member_bt))
            |> List.map aux
            |> List.flatten

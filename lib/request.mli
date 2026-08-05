@@ -22,14 +22,14 @@ module Predicate : sig
       iargs : Terms.Normal.t list
     }
 
-  val alloc : name
+  (* val alloc : name *)
 
   val subst : [ `Rename of Sym.t | `Term of Terms.Normal.t ] Subst.t -> t -> t
 
   val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 end
 
-val make_alloc : Terms.Normal.t -> Predicate.t
+(* val make_alloc : Terms.Normal.t -> Predicate.t *)
 
 module QPredicate : sig
   type t =
@@ -50,11 +50,11 @@ module QPredicate : sig
 
   val dtree : t -> Cerb_frontend.Pp_ast.doc_tree
 
-  val get_lower_bound : t -> Terms.Normal.t
+  (* val get_lower_bound : t -> Terms.Normal.t *)
 
-  val get_upper_bound : t -> Terms.Normal.t
+  (* val get_upper_bound : t -> Terms.Normal.t *)
 
-  val get_bounds : t -> Terms.Normal.t * Terms.Normal.t
+  (* val get_bounds : t -> Terms.Normal.t * Terms.Normal.t *)
 end
 
 type t =

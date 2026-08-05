@@ -2,16 +2,28 @@ module BT = BaseTypes
 open Terms
 open Terms.Normal
 
+module General = struct
+
 (* shorthands *)
 
-let use_vip = ref true
-
-(* lit *)
 let sym_ (sym, bt, loc) = IT (Sym sym, bt, loc)
 
 let z_ n loc = IT (Const (Z n), BT.Integer, loc)
 
 let alloc_id_ n loc = IT (Const (Alloc_id n), BT.Alloc_id, loc)
+
+let eq_ (it, it') loc =
+  if BT.equal (get_bt it) (get_bt it') then
+    ()
+  else
+    failwith ("eq_: type mismatch: " ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]));
+  IT (Binop (EQ, it, it'), BT.Bool, loc)
+
+
+let def_ sym e loc = eq_ (sym_ (sym, get_bt e, loc), e) loc
+
+
+let use_vip = ref true
 
 let num_lit_ n bt loc =
   match bt with
@@ -86,13 +98,7 @@ let bw_compl_ it loc = IT (Unop (BW_Compl, it), get_bt it, loc)
 
 let ite_ (it, it', it'') loc = IT (ITE (it, it', it''), get_bt it', loc)
 
-let eq_ (it, it') loc =
-  if BT.equal (get_bt it) (get_bt it') then
-    ()
-  else
-    failwith ("eq_: type mismatch: " ^ Pp.plain (Pp.list pp_with_typ [ it; it' ]));
-  IT (Binop (EQ, it, it'), BT.Bool, loc)
-
+let eq_ = eq_
 
 let eq__ it it' = eq_ (it, it')
 
@@ -194,49 +200,11 @@ let cast_ bt' it loc =
   if BT.equal bt' (get_bt it) then it else IT (Cast (bt', it), bt', loc)
 
 
-(* let uintptr_const_ n loc = num_lit_ n Memory.uintptr_bt loc *)
-
-(* let uintptr_int_ n loc = uintptr_const_ (Z.of_int n) loc *)
-(* for integer-mode: z_ n *)
-
-let addr_ it loc =
-  assert (BT.equal (get_bt it) (Loc ()));
-  cast_ Memory.uintptr_bt it loc
-
-
-let upper_bound addr ct loc =
-  let range_size =
-    let size = Memory.size_of_ctype ct in
-    num_lit_ (Z.of_int size) Memory.uintptr_bt loc
-  in
-  assert (BT.equal (get_bt addr) (get_bt range_size));
-  add_ (addr, range_size) loc
-
-
-(* for integer-mode: cast_ Integer it *)
-
 let allocId_ it loc = cast_ Alloc_id it loc
 
 let memberShift_ (base, tag, member) loc =
   IT (MemberShift (base, tag, member), BT.Loc (), loc)
 
-
-let right_integer_type_for_mode bt =
-  let open BT in
-  match bt with Bits _ -> !cnBV | Integer -> not !cnBV | _ -> assert false
-
-
-(* invariant of ArrayShift: index must have type uintptr_bt *)
-(* TODO: some call sites explicitly put the uintptr_bt cast *)
-let arrayShift_ ~base ~index ct loc =
-  assert (right_integer_type_for_mode (get_bt index));
-  let index = cast_ Memory.uintptr_bt index loc in
-  IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
-
-
-let copyAllocId_ ~addr ~loc:ptr loc =
-  assert (right_integer_type_for_mode (get_bt addr));
-  IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc)
 
 
 let hasAllocId_ ptr loc =
@@ -250,17 +218,10 @@ let hasAllocId_ ptr loc =
   IT (HasAllocId (futz ptr), BT.Bool, loc)
 
 
-let sizeOf_ ct loc = IT (SizeOf ct, Memory.size_bt, loc)
-
 let isIntegerToPointerCast = function
   | IT (Cast (BT.Loc (), IT (_, BT.Integer, _)), _, _) -> true
   | IT (Cast (BT.Loc (), IT (_, BT.Bits _, _)), _, _) -> true
   | _ -> false
-
-
-let pointer_offset_ (base, offset) loc =
-  arrayShift_ ~base (Sctypes.Integer Char) ~index:offset loc
-
 
 (* list_op *)
 let nil_ ~item_bt loc = IT (Nil item_bt, BT.List item_bt, loc)
@@ -291,20 +252,6 @@ let rec dest_list it =
 let representable_ (t, it) loc = IT (Representable (t, it), BT.Bool, loc)
 
 let good_ (sct, it) loc = IT (Good (sct, it), BT.Bool, loc)
-
-let wrapI_ (ity, arg) loc =
-  assert (right_integer_type_for_mode (get_bt arg));
-  IT (WrapI (ity, arg), Memory.bt_of_sct (Sctypes.Integer ity), loc)
-
-
-let alignedI_ ~t ~align loc =
-  assert (BT.equal (get_bt t) (Loc ()));
-  assert (BT.equal Memory.uintptr_bt (get_bt align));
-  IT (Aligned { t; align }, BT.Bool, loc)
-
-
-let aligned_ (t, ct) loc =
-  alignedI_ ~t ~align:(int_lit_ (Memory.align_of_ctype ct) Memory.uintptr_bt loc) loc
 
 
 let const_map_ index_bt t loc =
@@ -376,10 +323,99 @@ let fresh_same bt symbol' loc =
   (symbol, sym_ (symbol, bt, loc))
 
 
-let def_ sym e loc = eq_ (sym_ (sym, get_bt e, loc), e) loc
-
 let in_range within (min, max) loc =
   and_ [ le_ (min, within) loc; le_ (within, max) loc ] loc
+
+let const_of_c_sig (c_sig : Sctypes.c_concrete_sig) loc =
+  (* ideally the ctypes would have location information attached *)
+  let open Option in
+  let@ ret_ct = Sctypes.of_ctype c_sig.sig_return_ty in
+  let@ arg_cts = ListM.mapM Sctypes.of_ctype c_sig.sig_arg_tys in
+  let arg_cts = List.map (Fun.flip const_ctype_ loc) arg_cts in
+  let arg_v = list_ ~item_bt:BT.CType arg_cts ~nil_loc:loc in
+  return
+    (tuple_
+       [ const_ctype_ ret_ct loc;
+         arg_v;
+         bool_ c_sig.sig_variadic loc;
+         bool_ c_sig.sig_has_proto loc
+       ]
+       loc)
+
+
+
+end
+
+module F (R: Bt_of_sct.Repr) = struct
+
+include General
+
+
+(* let uintptr_const_ n loc = num_lit_ n R.uintptr_bt loc *)
+
+(* let uintptr_int_ n loc = uintptr_const_ (Z.of_int n) loc *)
+(* for integer-mode: z_ n *)
+
+let addr_ it loc =
+  assert (BT.equal (get_bt it) (Loc ()));
+  cast_ R.uintptr_bt it loc
+
+
+let upper_bound addr ct loc =
+  let range_size =
+    let size = Memory.size_of_ctype ct in
+    num_lit_ (Z.of_int size) R.uintptr_bt loc
+  in
+  assert (BT.equal (get_bt addr) (get_bt range_size));
+  add_ (addr, range_size) loc
+
+
+(* for integer-mode: cast_ Integer it *)
+
+let right_integer_type_for_mode bt =
+  let open BT in
+  match bt with Bits _ -> R.bvmode | Integer -> not R.bvmode | _ -> assert false
+
+
+(* invariant of ArrayShift: index must have type uintptr_bt *)
+(* TODO: some call sites explicitly put the uintptr_bt cast *)
+let arrayShift_ ~base ~index ct loc =
+  assert (right_integer_type_for_mode (get_bt index));
+  let index = cast_ R.uintptr_bt index loc in
+  IT (ArrayShift { base; ct; index }, BT.Loc (), loc)
+
+
+let copyAllocId_ ~addr ~loc:ptr loc =
+  assert (right_integer_type_for_mode (get_bt addr));
+  IT (CopyAllocId { addr; loc = ptr }, BT.Loc (), loc)
+
+
+let sizeOf_ ct loc = IT (SizeOf ct, R.size_bt, loc)
+
+
+
+let pointer_offset_ (base, offset) loc =
+  arrayShift_ ~base (Sctypes.Integer Char) ~index:offset loc
+
+
+
+let wrapI_ (ity, arg) loc =
+  assert (right_integer_type_for_mode (get_bt arg));
+  IT (WrapI (ity, arg), R.bt_of_sct (Sctypes.Integer ity), loc)
+
+
+let alignedI_ ~t ~align loc =
+  assert (BT.equal (get_bt t) (Loc ()));
+  assert (BT.equal R.uintptr_bt (get_bt align));
+  IT (Aligned { t; align }, BT.Bool, loc)
+
+
+let aligned_ (t, ct) loc =
+  alignedI_ ~t ~align:(int_lit_ (Memory.align_of_ctype ct) R.uintptr_bt loc) loc
+
+
+
+
 
 
 let rec in_z_range within (min_z, max_z) loc =
@@ -411,28 +447,11 @@ let rec in_z_range within (min_z, max_z) loc =
        big enough to fit any valid pointer (to void). From there, it's just a matter of
        checking the bits fit. *)
     or_
-      [ in_z_range (cast_ Memory.uintptr_bt within loc) (min_z, max_z) loc;
-        in_z_range (cast_ Memory.intptr_bt within loc) (min_z, max_z) loc
+      [ in_z_range (cast_ R.uintptr_bt within loc) (min_z, max_z) loc;
+        in_z_range (cast_ R.intptr_bt within loc) (min_z, max_z) loc
       ]
       loc
   | _ -> failwith ("in_z_range: unsupported type: " ^ Pp.plain (pp_with_typ within))
-
-
-let const_of_c_sig (c_sig : Sctypes.c_concrete_sig) loc =
-  (* ideally the ctypes would have location information attached *)
-  let open Option in
-  let@ ret_ct = Sctypes.of_ctype c_sig.sig_return_ty in
-  let@ arg_cts = ListM.mapM Sctypes.of_ctype c_sig.sig_arg_tys in
-  let arg_cts = List.map (Fun.flip const_ctype_ loc) arg_cts in
-  let arg_v = list_ ~item_bt:BT.CType arg_cts ~nil_loc:loc in
-  return
-    (tuple_
-       [ const_ctype_ ret_ct loc;
-         arg_v;
-         bool_ c_sig.sig_variadic loc;
-         bool_ c_sig.sig_has_proto loc
-       ]
-       loc)
 
 
 (* let _non_vip_constraint about loc =  *)
@@ -445,7 +464,7 @@ let value_check_pointer mode ~pointee_ct about loc =
   and_
     (List.concat
        [ (* if !use_vip then None else Some (non_vip_constraint about loc); *)
-         (if BT.(!cnBV) then
+         (if (R.bvmode) then
             []
           else
             [ in_z_range (addr_ about loc) (Z.zero, Memory.max_pointer) loc ]);
@@ -462,7 +481,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
   let rec aux (ct_ : Sctypes.t) about =
     match ct_ with
     | Void -> bool_ true loc
-    | Byte -> if BT.(!cnBV) then bool_ true loc else failwith "todo: Byte value_check"
+    | Byte -> if (R.bvmode) then bool_ true loc else failwith "todo: Byte value_check"
     | Integer it ->
       in_z_range about (Memory.min_integer_type it, Memory.max_integer_type it) loc
     | Array (_, None) ->
@@ -483,7 +502,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
           failwith ("value_check: argument not a map: " ^ Pp.plain (pp_with_typ about))
       in
       let () =
-        if BT.equal ix_bt Memory.uintptr_bt then
+        if BT.equal ix_bt R.uintptr_bt then
           ()
         else
           Pp.warn
@@ -499,7 +518,7 @@ let value_check mode (struct_layouts : Memory.struct_decls) ct about loc =
            (fun piece ->
               match piece.member_or_padding with
               | Some (member, mct) ->
-                let member_bt = Memory.bt_of_sct mct in
+                let member_bt = R.bt_of_sct mct in
                 let member_it = member_ ~member_bt (about, member) loc in
                 Some (aux mct member_it)
               | None -> None)
@@ -515,3 +534,8 @@ let good_value = value_check `Good
 let representable = value_check `Representable
 
 let good_pointer = value_check_pointer `Good
+
+end
+
+include General
+

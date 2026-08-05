@@ -35,23 +35,6 @@ let max_pointer =
   let pointer_bits = size_of_pointer * bits_per_byte in
   Z.sub (Z.pow (Z.of_int 2) pointer_bits) (Z.of_int 1)
 
-
-let bt_of_sct = BT.of_sct is_signed_integer_type size_of_integer_type
-
-let sbt_of_sct = BaseTypes.Surface.of_sct is_signed_integer_type size_of_integer_type
-
-let uintptr_bt = BT.uintptr_bt is_signed_integer_type size_of_integer_type
-
-let intptr_bt = BT.intptr_bt is_signed_integer_type size_of_integer_type
-
-let size_bt = BT.size_bt is_signed_integer_type size_of_integer_type
-
-let size_sbt = BaseTypes.Surface.size_bt is_signed_integer_type size_of_integer_type
-
-let sint_bt = bt_of_sct Sctypes.(Integer (Signed Int_))
-
-let sint_sbt = sbt_of_sct Sctypes.(Integer (Signed Int_))
-
 let size_of_ctype = function
   | Void -> Cerb_debug.error "size_of_ctype applied to void"
   | ct -> int_of_ival (IM.sizeof_ival (to_ctype ct))

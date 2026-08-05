@@ -56,6 +56,10 @@ module Result = struct
       List.fold_left combine h t
 end
 
+module F(R : Bt_of_sct.Repr) = struct
+
+module Solver = Solver.F(R)
+
 (** Infrastructure for checking if a countermodel satisfies a predicate **)
 (* The core function is `check_pred`, which, given a predicate and a term
    matching the return type of the predicate, checks if the term is in the
@@ -467,3 +471,5 @@ and get_var_constraints
           return (cs, var_cands)
         | None -> unknown (!^"Could not find definition of predicate" ^^^ Sym.pp name))
      | Q _ -> unknown !^"Quantified predicates are out of scope for now.")
+
+end

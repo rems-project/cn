@@ -3,7 +3,6 @@ module Cn = CF.Cn
 module SBT = BaseTypes.Surface
 module BT = BaseTypes
 module Def = Definition
-module MT = MakeTerm
 module LAT = LogicalArgumentTypes
 module LRT = LogicalReturnTypes
 module LC = LogicalConstraints
@@ -13,6 +12,41 @@ module RT = ReturnTypes
 module STermMap = Map.Make (Terms.Surface)
 module StringMap = Map.Make (String)
 open Pp.Infix
+
+
+type message =
+  | Builtins of Builtins.message
+  | Global of Global.message
+  | WellTyped of WellTyped.message
+  | Cannot_convert_enum_const of Cerb_frontend.AilSyntax.constant
+  | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
+  | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
+  | Illtyped_binary_it of
+      { left : Terms.Surface.t;
+        right : Terms.Surface.t;
+        binop : Cerb_frontend.Cn.cn_binop
+      }
+  | First_iarg_missing
+  | First_iarg_not_pointer of
+      { pname : Request.name;
+        found_bty : BaseTypes.t
+      }
+  | Datatype_repeated_member of Id.t
+  | No_pointee_ctype of Terms.Surface.t
+  | Each_quantifier_not_numeric of Sym.t * BaseTypes.Surface.t
+  | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
+
+type err =
+  { loc : Locations.t;
+    msg : message
+  }
+
+
+module F (R: Bt_of_sct.Repr) = struct
+
+module MT = MakeTerm.F(R)
+module Alloc = Alloc.F(R)
+module BuiltinsS = Builtins.F(R)
 
 type[@warning "-69" (* unused-record-field *)] function_sig =
   { args : (Sym.t * BaseTypes.t) list;
@@ -42,14 +76,14 @@ type env =
   }
 
 let init tagDefs fetch_enum_expr fetch_typedef =
-  let alloc_sig = { pred_iargs = []; pred_output = Definition.alloc.oarg } in
+  let alloc_sig = { pred_iargs = []; pred_output = Alloc.Predicate.def.oarg } in
   let builtins =
     List.fold_left
-      (fun acc (_, sym, (def : Definition.Function.t)) ->
+      (fun acc (_, sym, (def : Def.Function.t)) ->
          let fsig = { args = def.args; return_bty = def.return_bt } in
          Sym.Map.add sym fsig acc)
       Sym.Map.empty
-      Builtins.builtin_fun_defs
+      BuiltinsS.builtin_fun_defs
   in
   { computationals = Sym.Map.empty;
     logicals = Sym.Map.(empty |> add Alloc.History.sym Alloc.History.sbt);
@@ -195,7 +229,7 @@ let rec base_type env (bTy : _ Cn.cn_base_type) =
     (* FIXME handle errors here with CN mechanisms *)
     let here = Locations.other __LOC__ in
     (match env.fetch_typedef here sym with
-     | CF.Exception.Result r -> Memory.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
+     | CF.Exception.Result r -> R.sbt_of_sct (Sctypes.of_ctype_unsafe here r)
      | CF.Exception.Exception (_loc, msg) -> failwith (CF.Pp_errors.short_message msg))
 
 
@@ -213,32 +247,6 @@ let add_predicates env defs =
   List.fold_left aux env defs
 
 
-type message =
-  | Builtins of Builtins.message
-  | Global of Global.message
-  | WellTyped of WellTyped.message
-  | Cannot_convert_enum_const of Cerb_frontend.AilSyntax.constant
-  | Cannot_convert_enum_expr of unit Cerb_frontend.AilSyntax.expression
-  | Cerb_frontend of Locations.t * Cerb_frontend.Errors.cause
-  | Illtyped_binary_it of
-      { left : Terms.Surface.t;
-        right : Terms.Surface.t;
-        binop : Cerb_frontend.Cn.cn_binop
-      }
-  | First_iarg_missing
-  | First_iarg_not_pointer of
-      { pname : Request.name;
-        found_bty : BaseTypes.t
-      }
-  | Datatype_repeated_member of Id.t
-  | No_pointee_ctype of Terms.Surface.t
-  | Each_quantifier_not_numeric of Sym.t * BaseTypes.Surface.t
-  | Generic of Pp.document [@deprecated "Temporary, for refactor, to be deleted."]
-
-type err =
-  { loc : Locations.t;
-    msg : message
-  }
 
 module Or_Error = struct
   type 'a t = ('a, err) Result.t
@@ -260,7 +268,7 @@ let convert_enum_expr =
   let conv_const loc = function
     | ConstantInteger (IConstant (z, _, _)) as c ->
       let@ bt =
-        if BaseTypes.(!cnBV) then (
+        if R.bvmode then (
           match BT.pick_integer_encoding_type z with
           | Some bt -> return bt
           | None -> fail { loc; msg = Cannot_convert_enum_const c })
@@ -560,7 +568,7 @@ module C_vars = struct
     | Struct tag ->
       let@ defs_ = lookup_struct loc tag env in
       let@ ty = lookup_member loc (tag, defs_) member in
-      let member_bt = Memory.sbt_of_sct ty in
+      let member_bt = R.sbt_of_sct ty in
       return (Terms.IT (StructMember (t, member), member_bt, loc))
     | has ->
       let expected = "struct" in
@@ -811,10 +819,10 @@ module C_vars = struct
         mk_binop loc bop (e1, e2)
       | CNExpr_sizeof ct ->
         let scty = Sctypes.of_ctype_unsafe loc ct in
-        return (IT (SizeOf scty, Memory.size_sbt, loc))
+        return (IT (SizeOf scty, R.size_sbt, loc))
       | CNExpr_offsetof (tag, member) ->
         let@ _ = lookup_struct loc tag env in
-        return (IT (OffsetOf (tag, member), Memory.size_sbt, loc))
+        return (IT (OffsetOf (tag, member), R.size_sbt, loc))
       | CNExpr_array_shift (base, ty_annot, index) ->
         let@ base = self base in
         let@ ct = infer_scty ~pred_loc:loc ~ptr:base `Array_shift ty_annot in
@@ -892,7 +900,7 @@ module C_vars = struct
           liftResult
             (Result.map_error
                (fun Builtins.{ loc; msg } -> ({ loc; msg = Builtins msg } : err))
-               (Builtins.apply_builtin_funs fsym args loc))
+               (BuiltinsS.apply_builtin_funs fsym args loc))
         in
         (match b with
          | Some t -> return t
@@ -1094,11 +1102,11 @@ module C_vars = struct
         let@ scty = infer_scty ~pred_loc ~ptr:ptr_expr `RW oty in
         (* we don't take Resource.owned_oargs here because we want to maintain the C-type
            information *)
-        let oargs_ty = Memory.sbt_of_sct scty in
+        let oargs_ty = R.sbt_of_sct scty in
         return (Req.Owned (scty, Init), oargs_ty)
       | CN_block oty ->
         let@ scty = infer_scty ~pred_loc ~ptr:ptr_expr `W oty in
-        let oargs_ty = Memory.sbt_of_sct scty in
+        let oargs_ty = R.sbt_of_sct scty in
         return (Req.Owned (scty, Uninit), oargs_ty)
       | CN_named pred ->
         let@ pred_sig =
@@ -1163,7 +1171,7 @@ module C_vars = struct
       match pname with
       | Owned (ct, Init) ->
         ( [ (ptr_expr, pointee) ],
-          if !BT.cnBV then
+          if R.bvmode then
             []
           else
             [ (LC.T (Terms.Surface.proj (MT.representable_ (ct, pointee) here)), info) ]
@@ -1202,7 +1210,7 @@ module C_vars = struct
       | Owned (ct, Init) ->
         let open MT in
         let oarg = sym_ (sym, SBT.proj m_oargs_ty, here) in
-        if !BT.cnBV then
+        if R.bvmode then
           []
         else
           [ ( LC.Forall
@@ -1417,7 +1425,7 @@ module Handle = struct
       let@ pointee_ct = pointee_ct loc pointer in
       let value_loc = loc in
       let value_s = Sym.fresh_make_uniq (action_pp ^ "_" ^ Pp.plain (Terms.pp pointer)) in
-      let value_bt = Memory.sbt_of_sct pointee_ct in
+      let value_bt = R.sbt_of_sct pointee_ct in
       let value = MT.sym_ (value_s, value_bt, value_loc) in
       let@ prog = aux (k (Some value)) in
       let load = Cnprog.{ ct = pointee_ct; pointer = Terms.Surface.proj pointer } in
@@ -1505,7 +1513,7 @@ let allocation_token loc addr_s =
     | SD_ObjectAddress obj_name -> Sym.fresh_make_uniq ("A_" ^ obj_name)
     | _ -> assert false
   in
-  let alloc_ret = Request.make_alloc (MT.sym_ (addr_s, BT.Loc (), loc)) in
+  let alloc_ret = Alloc.Predicate.make_request (MT.sym_ (addr_s, BT.Loc (), loc)) in
   ((name, (Request.P alloc_ret, Alloc.History.value_bt)), (loc, None))
 
 
@@ -1653,13 +1661,13 @@ let rec logical_ret_accesses env st (accesses, ensures) =
 
 let return_type loc (env : env) st (s, ct) (accesses, ensures) =
   let ct = Sctypes.of_ctype_unsafe loc ct in
-  let sbt = Memory.sbt_of_sct ct in
+  let sbt = R.sbt_of_sct ct in
   let bt = SBT.proj sbt in
   let@ lrt = logical_ret_accesses (add_computational s sbt env) st (accesses, ensures) in
   let info = (loc, Some "return value representable") in
   let here = Locations.other __LOC__ in
   let lrt =
-    if !BT.cnBV then
+    if R.bvmode then
       lrt
     else
       LRT.mConstraint
@@ -1701,3 +1709,5 @@ let statement
 let expr_ghost allocations old_states env expr =
   let (Cn.CNExpr (loc, _)) = expr in
   Handle.with_loads loc allocations old_states (C_vars.cn_expr Sym.Set.empty env expr)
+
+end

@@ -3,7 +3,12 @@ open Resource
 open Definition
 open Memory
 module T = Terms.Normal
-module MT = MakeTerm
+
+module F(R : Bt_of_sct.Repr) = struct
+
+module MT = MakeTerm.F(R)
+module Solver = Solver.F(R)
+
 module LAT = LogicalArgumentTypes
 module LRT = LogicalReturnTypes
 module LC = LogicalConstraints
@@ -24,7 +29,7 @@ let resource_empty provable resource =
 
 let unfolded_array loc init (ict, olength) pointer =
   let length = Option.get olength in
-  let qbt = if BaseTypes.(!cnBV) then Memory.uintptr_bt else BT.Integer in
+  let qbt = if R.bvmode then R.uintptr_bt else BT.Integer in
   let q_s, q = MT.fresh_named qbt "i" loc in
   Q
     { name = Owned (ict, init);
@@ -48,7 +53,7 @@ let packing_ft ~full loc global provable ret =
      | Owned ((Void | Integer _ | Pointer _ | Function _ | Byte), _init) -> None
      | Owned ((Array (ict, olength) as ct), init) ->
        let qpred = unfolded_array loc init (ict, olength) ret.pointer in
-       let o_s, o = MT.fresh_named (Memory.bt_of_sct ct) "value" loc in
+       let o_s, o = MT.fresh_named (R.bt_of_sct ct) "value" loc in
        let at = LAT.Resource ((o_s, (qpred, T.get_bt o)), (loc, None), LAT.I o) in
        Some at
      | Owned (Struct tag, init) ->
@@ -66,7 +71,7 @@ let packing_ft ~full loc global provable ret =
                     }
                 in
                 let m_value_s, m_value =
-                  MT.fresh_named (Memory.bt_of_sct mct) (Id.get_string member) loc
+                  MT.fresh_named (R.bt_of_sct mct) (Id.get_string member) loc
                 in
                 ( LRT.Resource ((m_value_s, (request, T.get_bt m_value)), (loc, None), lrt),
                   (member, m_value) :: value )
@@ -77,13 +82,13 @@ let packing_ft ~full loc global provable ret =
                     { name = Owned (padding_ct, Uninit);
                       pointer =
                         MT.pointer_offset_
-                          (ret.pointer, MT.int_lit_ offset Memory.uintptr_bt loc)
+                          (ret.pointer, MT.int_lit_ offset R.uintptr_bt loc)
                           loc;
                       iargs = []
                     }
                 in
                 let padding_s, padding =
-                  MT.fresh_named (Memory.bt_of_sct padding_ct) "padding" loc
+                  MT.fresh_named (R.bt_of_sct padding_ct) "padding" loc
                 in
                 ( LRT.Resource ((padding_s, (request, T.get_bt padding)), (loc, None), lrt),
                   value ))
@@ -121,7 +126,7 @@ let unpack_owned loc global (ct, init) pointer (O o) =
                      pointer = MT.memberShift_ (pointer, tag, member) loc;
                      iargs = []
                    },
-                 O (MT.member_ ~member_bt:(Memory.bt_of_sct mct) (o, member) loc) )
+                 O (MT.member_ ~member_bt:(R.bt_of_sct mct) (o, member) loc) )
              in
              mresource :: res
            | None ->
@@ -131,11 +136,11 @@ let unpack_owned loc global (ct, init) pointer (O o) =
                    { name = Owned (padding_ct, Uninit);
                      pointer =
                        MT.pointer_offset_
-                         (pointer, MT.int_lit_ offset Memory.uintptr_bt loc)
+                         (pointer, MT.int_lit_ offset R.uintptr_bt loc)
                          loc;
                      iargs = []
                    },
-                 O (MT.default_ (Memory.bt_of_sct padding_ct) loc) )
+                 O (MT.default_ (R.bt_of_sct padding_ct) loc) )
              in
              mresource :: res)
         layout
@@ -205,3 +210,5 @@ let extractable_multiple (* global *) prove_or_model =
        | None -> aux is (re, extracted))
   in
   fun movable_indices re -> aux movable_indices (re, [])
+
+end

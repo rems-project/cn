@@ -1,29 +1,3 @@
-type env
-
-type 'a cerb_frontend_result =
-  ('a, Locations.t * Cerb_frontend.Errors.cause) Cerb_frontend.Exception.exceptM
-
-val init
-  :  (Sym.t, Mucore.tag_definition) Pmap.map ->
-  (Locations.t -> Sym.t -> unit Cerb_frontend.AilSyntax.expression cerb_frontend_result) ->
-  (Locations.t -> Sym.t -> Cerb_frontend.Ctype.ctype cerb_frontend_result) ->
-  env
-
-val exec_spec_hack_syms : BaseTypes.Surface.t Hashtbl.Make(Sym).t
-
-val add_computational : Sym.t -> BaseTypes.Surface.t -> env -> env
-
-val add_renamed_computational : Sym.t -> Sym.t -> BaseTypes.Surface.t -> env -> env
-
-val add_logical : Sym.t -> BaseTypes.Surface.t -> env -> env
-
-val base_type : env -> Sym.t Cerb_frontend.Cn.cn_base_type -> BaseTypes.Surface.t
-
-val add_predicates
-  :  env ->
-  (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate list ->
-  env
-
 type message =
   | Builtins of Builtins.message
   | Global of Global.message
@@ -50,6 +24,35 @@ type err =
   { loc : Locations.t;
     msg : message
   }
+
+module F(_: Bt_of_sct.Repr) : sig
+
+type env
+
+type 'a cerb_frontend_result =
+  ('a, Locations.t * Cerb_frontend.Errors.cause) Cerb_frontend.Exception.exceptM
+
+val init
+  :  (Sym.t, Mucore.tag_definition) Pmap.map ->
+  (Locations.t -> Sym.t -> unit Cerb_frontend.AilSyntax.expression cerb_frontend_result) ->
+  (Locations.t -> Sym.t -> Cerb_frontend.Ctype.ctype cerb_frontend_result) ->
+  env
+
+val exec_spec_hack_syms : BaseTypes.Surface.t Hashtbl.Make(Sym).t
+
+val add_computational : Sym.t -> BaseTypes.Surface.t -> env -> env
+
+val add_renamed_computational : Sym.t -> Sym.t -> BaseTypes.Surface.t -> env -> env
+
+val add_logical : Sym.t -> BaseTypes.Surface.t -> env -> env
+
+val base_type : env -> Sym.t Cerb_frontend.Cn.cn_base_type -> BaseTypes.Surface.t
+
+val add_predicates
+  :  env ->
+  (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_predicate list ->
+  env
+
 
 module Or_Error : sig
   type 'a t = ('a, err) Result.t
@@ -161,3 +164,5 @@ val expr_ghost
   env ->
   (Sym.t, Cerb_frontend.Ctype.ctype) Cerb_frontend.Cn.cn_expr ->
   Terms.Surface.t Cnprog.t Or_Error.t
+
+end

@@ -1,11 +1,3 @@
-module SBT = BaseTypes.Surface
-module BT = BaseTypes
-module MT = MakeTerm
-
-type builtin_fn_def = string * Sym.t * Definition.Function.t
-
-let loc = Cerb_location.other "<builtin>"
-
 type message =
   | Number_arguments of
       { has : int;
@@ -24,6 +16,18 @@ let fail = Result.error
 let fail_number_args loc ~has ~expect =
   fail { loc; msg = Number_arguments { has; expect } }
 
+
+type builtin_fn_def = string * Sym.t * Definition.Function.t
+
+let loc = Cerb_location.other "<builtin>"
+
+module F(R: Bt_of_sct.Repr) = struct
+
+module SBT = BaseTypes.Surface
+module BT = BaseTypes
+module MT = MakeTerm.F(R)
+
+let loc = loc
 
 (* builtin function symbols *)
 
@@ -321,3 +325,6 @@ let apply_builtin_fun_defs fsym args _loc =
 let fun_names =
   List.map (fun (str, sym, _) -> (str, sym)) builtin_funs
   @ List.map (fun (str, sym, _) -> (str, sym)) builtin_fun_defs
+
+
+end

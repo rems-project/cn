@@ -36,15 +36,7 @@ val get_global : unit -> Global.t m
 
 val get_cs : unit -> LogicalConstraints.Set.t m
 
-val simp_ctxt : unit -> Simplify.simp_ctxt m
-
 val all_resources : Locations.t -> Resource.t list m
-
-val provable
-  :  Locations.t ->
-  (?purpose:string -> LogicalConstraints.t -> [> `True | `False ]) m
-
-val model : unit -> Solver.model_with_q m
 
 (* val model_with : Locations.t -> IndexTerms.t -> Solver.model_with_q option m *)
 
@@ -64,34 +56,6 @@ val remove_a : Sym.t -> unit m
 
 val remove_as : Sym.t list -> unit m
 
-val add_a : Sym.t -> BaseTypes.t -> Context.l_info -> unit m
-
-val add_a_value : Sym.t -> Terms.Normal.t -> Context.l_info -> unit m
-
-val add_l : Sym.t -> BaseTypes.t -> Context.l_info -> unit m
-
-val add_l_value : Sym.t -> Terms.Normal.t -> Context.l_info -> unit m
-
-val add_ls : (Sym.t * BaseTypes.t * Context.l_info) list -> unit m
-
-val add_c : Locations.t -> LogicalConstraints.t -> unit m
-
-val add_cs : Locations.t -> LogicalConstraints.t list -> unit m
-
-val add_r : Locations.t -> Resource.t -> unit m
-
-val add_rs : Locations.t -> Resource.t list -> unit m
-
-type changed =
-  | Deleted
-  | Unchanged
-  | Changed of Resource.t
-
-val map_and_fold_resources
-  :  Locations.t ->
-  (Resource.t -> 'acc -> changed * 'acc) ->
-  'acc ->
-  'acc m
 
 module Global : sig
   val empty : Global.t
@@ -170,9 +134,54 @@ val lift : 'a Or_TypeError.t -> 'a m
 (*   BaseTypes.member_types -> *)
 (*   (IndexTerms.t * IndexTerms.t list) m *)
 
-val bind_logical_return : Locations.t -> string -> LogicalReturnTypes.t -> unit m
-
 (* val bind_return : Locations.t -> IndexTerms.t list -> ReturnTypes.t -> IndexTerms.t m *)
+
+
+val record_action : Explain.action * Locations.t -> unit m
+
+val modify_where : (Where.t -> Where.t) -> unit m
+
+(* val add_label_to_trace : (Locations.t * Context.label_kind) option -> unit m *)
+(* val add_trace_item_to_trace : Context.trace_item * Locations.t -> unit m *)
+
+(* module WellTyped : WellTyped_intf.S with type 'a t := 'a t *)
+
+module F (_ : Bt_of_sct.Repr) : sig 
+
+(* include Typing_intf.S *)
+
+val add_a : Sym.t -> BaseTypes.t -> Context.l_info -> unit m
+
+val add_a_value : Sym.t -> Terms.Normal.t -> Context.l_info -> unit m
+
+val add_l : Sym.t -> BaseTypes.t -> Context.l_info -> unit m
+
+val add_l_value : Sym.t -> Terms.Normal.t -> Context.l_info -> unit m
+
+val add_ls : (Sym.t * BaseTypes.t * Context.l_info) list -> unit m
+
+val add_c : Locations.t -> LogicalConstraints.t -> unit m
+
+val add_cs : Locations.t -> LogicalConstraints.t list -> unit m
+
+val add_r : Locations.t -> Resource.t -> unit m
+
+val add_rs : Locations.t -> Resource.t list -> unit m
+
+type changed =
+  | Deleted
+  | Unchanged
+  | Changed of Resource.t
+
+val map_and_fold_resources
+  :  Locations.t ->
+  (Resource.t -> 'acc -> changed * 'acc) ->
+  'acc ->
+  'acc m
+
+val init_solver : unit -> unit m
+
+
 
 val add_movable_index
   :  Locations.t ->
@@ -182,13 +191,17 @@ val add_movable_index
 
 val get_movable_indices : unit -> (Request.name * Terms.Normal.t) list m
 
-val record_action : Explain.action * Locations.t -> unit m
 
-val modify_where : (Where.t -> Where.t) -> unit m
+val simp_ctxt : unit -> Simplify.simp_ctxt m
 
-(* val add_label_to_trace : (Locations.t * Context.label_kind) option -> unit m *)
-(* val add_trace_item_to_trace : Context.trace_item * Locations.t -> unit m *)
+val provable
+  :  Locations.t ->
+  (?purpose:string -> LogicalConstraints.t -> [> `True | `False ]) m
 
-val init_solver : unit -> unit m
+val model : unit -> Solver.model_with_q m
 
-module WellTyped : WellTyped_intf.S with type 'a t := 'a t
+val bind_logical_return : Locations.t -> string -> LogicalReturnTypes.t -> unit m
+
+
+end
+

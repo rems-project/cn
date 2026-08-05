@@ -1,6 +1,9 @@
 open Terms
 open Terms.Normal
-open MakeTerm
+
+module F (R: Bt_of_sct.Repr) = struct
+
+open MakeTerm.F(R)
 
 let get_lower_bound_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option =
   let rec aux (it : t) : t option =
@@ -166,3 +169,20 @@ let get_bounds_opt ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t option * t optio
 
 let get_bounds ((x, bt) : Sym.t * BaseTypes.t) (it : t) : t * t =
   (get_lower_bound (x, bt) it, get_upper_bound (x, bt) it)
+
+
+open Request
+
+let get_qpred_lower_bound (qpred : QPredicate.t) : Terms.Normal.t =
+  get_lower_bound qpred.q qpred.permission
+
+
+let get_qpred_upper_bound (qpred : QPredicate.t) : Terms.Normal.t =
+  get_upper_bound qpred.q qpred.permission
+
+
+let get_qpred_bounds (qpred : QPredicate.t) : Terms.Normal.t * Terms.Normal.t = 
+  (get_qpred_lower_bound qpred, get_qpred_upper_bound qpred)
+
+
+end

@@ -1,5 +1,6 @@
 module BT = BaseTypes
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -24,7 +25,7 @@ module Make (AD : Domain.T) = struct
     | Array (_, None) ->
       failwith
         Pp.(plain (Sctypes.pp sct ^^^ at ^^^ Locations.pp loc ^^^ at ^^^ !^__LOC__))
-    | _ -> Term.arbitrary_ () (Memory.bt_of_sct sct) loc
+    | _ -> Term.arbitrary_ () (R.bt_of_sct sct) loc
 
 
   let transform_gt (prog5 : unit Mucore.file) (gt : Term.t) : Term.t =
@@ -49,7 +50,7 @@ module Make (AD : Domain.T) = struct
                ( tag,
                  List.map
                    (fun (y, (member, ct)) ->
-                      (member, MT.sym_ (y, Memory.bt_of_sct ct, loc_arb)))
+                      (member, MT.sym_ (y, R.bt_of_sct ct, loc_arb)))
                    members )
                loc_arb)
             ()
@@ -94,7 +95,7 @@ module Make (AD : Domain.T) = struct
                      ( tag,
                        List.map
                          (fun (y, (member, ct)) ->
-                            (member, MT.sym_ (y, Memory.bt_of_sct ct, loc_arb)))
+                            (member, MT.sym_ (y, R.bt_of_sct ct, loc_arb)))
                          members )
                      loc_arb)
                   ()
@@ -110,7 +111,7 @@ module Make (AD : Domain.T) = struct
                ( (y, arbitrary_of_sctype sct loc_arb),
                  Term.asgn_
                    ( (MT.memberShift_ (it_addr, tag, member) (Terms.get_loc it_addr), sct),
-                     MT.sym_ (y, Memory.bt_of_sct sct, loc),
+                     MT.sym_ (y, R.bt_of_sct sct, loc),
                      gt_rest' )
                    ()
                    loc )

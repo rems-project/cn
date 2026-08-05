@@ -2,6 +2,8 @@ module BT = BaseTypes
 module T = Terms.Normal
 module MT = MakeTerm
 module LC = LogicalConstraints
+module R = Bt_of_sct.BV
+module TermBounds = TermBounds.F(R)
 
 type ('tag, 'ast) annot =
   | Annot of

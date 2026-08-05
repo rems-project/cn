@@ -6,8 +6,14 @@ let debug, item = Pp.(debug, item)
 
 open Pp.Infix
 
-let pure, add_l, add_r, add_c, fail, provable, add_a, map_and_fold_resources =
-  Typing.(pure, add_l, add_r, add_c, fail, provable, add_a, map_and_fold_resources)
+module F (R : Bt_of_sct.Repr) = struct
+
+module TypingS = Typing.F(R)
+
+let pure, fail = Typing.(pure, fail)
+
+let add_l, add_r, add_c, provable, add_a, map_and_fold_resources =
+  TypingS.(add_l, add_r, add_c, provable, add_a, map_and_fold_resources)
 
 
 open Effectful.Make (Typing)
@@ -256,3 +262,5 @@ let lemma loc _lemma_s lemma_typ =
     "lemma"
     loc
     lemma_typ
+
+end
