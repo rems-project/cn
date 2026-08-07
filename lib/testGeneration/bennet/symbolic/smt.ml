@@ -8,6 +8,11 @@ module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
 
+module R = Bt_of_sct.BV
+module Builtins = Builtins.F(R)
+module Simplify = Simplify.F(R)
+module TermBounds = TermBounds.F(R)
+
 module Make (AD : Domain.T) = struct
   module Stage5 = Stage5.Make (AD)
   module Ctx = Stage5.Ctx
@@ -801,7 +806,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_sizeof (sct : Sctypes.t) : Pp.document =
     let open Pp in
-    let sign, width = Option.get (BT.is_bits_bt Memory.size_bt) in
+    let sign, width = Option.get (BT.is_bits_bt R.size_bt) in
     let sign_str =
       match sign with BaseTypes.Signed -> "true" | BaseTypes.Unsigned -> "false"
     in
@@ -819,7 +824,7 @@ module Make (AD : Domain.T) = struct
 
   and convert_offsetof (tag : Sym.t) (member : Id.t) : Pp.document =
     let open Pp in
-    let sign, width = Option.get (BT.is_bits_bt Memory.size_bt) in
+    let sign, width = Option.get (BT.is_bits_bt R.size_bt) in
     let sign_str =
       match sign with BaseTypes.Signed -> "true" | BaseTypes.Unsigned -> "false"
     in

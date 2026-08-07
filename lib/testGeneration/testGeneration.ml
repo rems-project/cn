@@ -478,7 +478,7 @@ let functions_under_test
       && not (needs_enum_hack ~with_warning sigma inst))
   in
   let selected_fsyms =
-    Check.select_functions
+    Cfunutils.select_functions
       ~strict:true
       (TestGenConfig.get_skip_and_only ())
       (Sym.Set.of_list

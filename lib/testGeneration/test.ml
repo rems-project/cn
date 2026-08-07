@@ -3,6 +3,8 @@ module A = CF.AilSyntax
 module FExtract = Fulminate.Extract
 module LAT = LogicalArgumentTypes
 module AT = ArgumentTypes
+module TypeErrorsS = TypeErrors.F(Bt_of_sct.BV)
+module R = Bt_of_sct.BV
 
 type kind =
   | Constant (* Run function without arguments nor `accesses` once *)
@@ -83,12 +85,13 @@ let of_instrumentation
       let lift x = x
     end)
   in
+  let module WellTyped = WellTyped.F(R) in
   let internal =
     let at = inst.internal |> Option.get in
     match at |> AT.map fst |> WellTyped.function_type "function" inst.fn_loc with
     | Ok at' -> at' |> AT.map (fun rt -> (rt, snd (AT.get_return at)))
     | Error err ->
-      TypeErrors.report_pretty TypeErrors.{ loc = err.loc; msg = WellTyped err.msg };
+      TypeErrorsS.report_pretty TypeErrors.{ loc = err.loc; msg = WellTyped err.msg };
       exit 1
   in
   { filename;
