@@ -98,7 +98,7 @@ interactive shell with the Ubuntu image:
 
 ```
 docker pull ghcr.io/rems-project/cn:release-ubuntu
-docker run --rm -it ghcr.io/rems-project/cn:release-ubuntu
+docker run --rm -it ghcr.io/rems-project/cn:release-ubuntu bash
 ```
 
 The `release-devcontainer` tag is the image used by the VS Code Dev Container
