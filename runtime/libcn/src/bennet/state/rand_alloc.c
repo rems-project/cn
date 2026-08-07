@@ -10,6 +10,13 @@
 #include <bennet/state/rand_alloc.h>
 #include <bennet/utils/vector.h>
 
+// Fixed allocation alignment so that generated addresses (and the RNG-pinned
+// golden tests over them) are identical across platforms: alignof(max_align_t)
+// is 8 on Apple arm64 but 16 on Linux, which would skew offsets by 8.
+#define RAND_ALLOC_ALIGN ((size_t)16)
+static_assert(RAND_ALLOC_ALIGN >= _Alignof(max_align_t),
+    "RAND_ALLOC_ALIGN must satisfy the platform's strictest alignment");
+
 // Struct to represent an allocated region
 typedef struct {
   size_t offset;
@@ -92,7 +99,7 @@ void* bennet_rand_alloc(size_t bytes) {
     size_t raw_offset = (size_t)(bennet_uniform_uint64_t(max_offset + 1));
 
     size_t aligned_offset =
-        (raw_offset + (alignof(max_align_t) - 1)) & ~(alignof(max_align_t) - 1);
+        (raw_offset + (RAND_ALLOC_ALIGN - 1)) & ~(RAND_ALLOC_ALIGN - 1);
 
     // Check if aligned_offset is still within bounds
     if (aligned_offset < 0 || max_offset < aligned_offset ||
@@ -174,7 +181,7 @@ void* bennet_rand_alloc_bounded(
     size_t raw_offset = min_offset + (size_t)(bennet_uniform_uint32_t(range));
 
     size_t aligned_offset =
-        (raw_offset + (alignof(max_align_t) - 1)) & ~(alignof(max_align_t) - 1);
+        (raw_offset + (RAND_ALLOC_ALIGN - 1)) & ~(RAND_ALLOC_ALIGN - 1);
 
     // Check if aligned_offset is still within bounds
     if (aligned_offset < min_offset || max_offset < aligned_offset ||

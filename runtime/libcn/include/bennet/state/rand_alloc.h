@@ -7,6 +7,10 @@
 
 #include <bennet/internals/domain.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Opaque struct for the allocator
 struct rand_alloc;
 
@@ -37,5 +41,9 @@ void bennet_rand_alloc_set_mem_size(size_t size);
 // may overlap; allocation checks only verify the region lies within the buffer.
 void bennet_set_old_style_alloc(bool enabled);
 bool bennet_get_old_style_alloc(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // BENNET_RAND_ALLOC_H

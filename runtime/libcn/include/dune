@@ -34,6 +34,7 @@
   (bennet/info/sizes.h as runtime/include/bennet/info/sizes.h)
   (bennet/info/timing.h as runtime/include/bennet/info/timing.h)
   (bennet/info/tyche.h as runtime/include/bennet/info/tyche.h)
+  (bennet/internals/absint.h as runtime/include/bennet/internals/absint.h)
   (bennet/internals/domains/ownership.h
    as
    runtime/include/bennet/internals/domains/ownership.h)
@@ -43,6 +44,9 @@
   (bennet/internals/domains/sized.h
    as
    runtime/include/bennet/internals/domains/sized.h)
+  (bennet/internals/domains/congr.h
+   as
+   runtime/include/bennet/internals/domains/congr.h)
   (bennet/internals/domains/tnum.h
    as
    runtime/include/bennet/internals/domains/tnum.h)

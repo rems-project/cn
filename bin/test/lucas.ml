@@ -21,21 +21,26 @@ module Flags = struct
 
 
   let static_absint =
+    let doc = "(Experimental) Enable static abstract interpretation" in
+    Arg.(value & flag & info ~docs:(exp_docs s_absint) [ "static-absint" ] ~doc)
+
+
+  let domains =
     let doc =
-      "(Experimental) Use static abstract interpretation with specified domain (or a \
-       comma-separated list). (e.g., 'interval', 'wrapped_interval', 'tristate')"
+      "Specify abstract domains to use (comma-separated list). Options: 'interval', \
+       'wrapped_interval', 'tristate', 'congruence'"
     in
     Arg.(
       value
       & opt
           (list
              (enum
-                [ ("interval", "interval");
-                  ("wrapped_interval", "wrapped_interval");
-                  ("tristate", "tristate")
+                [ ("wrapped_interval", "wrapped_interval");
+                  ("tristate", "tristate");
+                  ("congruence", "congruence")
                 ]))
           []
-      & info ~docs:(exp_docs s_absint) [ "static-absint" ] ~docv:"DOMAIN" ~doc)
+      & info ~docs:(exp_docs s_absint) [ "domains" ] ~docv:"DOMAIN" ~doc)
 
 
   let local_iterations =
@@ -83,48 +88,102 @@ module Flags = struct
     Arg.(value & flag & info ~docs:s_absint [ "runtime-assert-domain" ] ~doc)
 
 
-  let old_style_alloc =
+  let dynamic_absint_assign =
     let doc =
-      "Use old-style allocation: track allocations and reject overlapping random \
-       allocations (default for lucas: lightweight allocation with bounds-only checks)"
+      "Enable backward abstract interpretation for impossible-assignment blame. Modes: \
+       'also' (plain variable blame plus backward-absint domain blame), 'only' \
+       (backward-absint blame alone)"
     in
-    Arg.(value & flag & info ~docs:Shared.s_generation [ "old-style-alloc" ] ~doc)
+    Arg.(
+      value
+      & opt (some (enum TestGeneration.Options.dynamic_absint_assign_mode)) None
+      & info ~docs:s_absint [ "dynamic-absint-assign" ] ~docv:"MODE" ~doc)
+
+
+  let dynamic_local_iterations =
+    let doc =
+      "Fuel for the runtime abstract-interpretation local-iteration loop (re-run assume \
+       refinement while the state changes). The default of 1 is single-pass; mirrors the \
+       static side's $(b,--local-iterations)."
+    in
+    Arg.(
+      value
+      & opt int TestGeneration.default_cfg.dynamic_local_iterations
+      & info ~docs:s_absint [ "dynamic-local-iterations" ] ~docv:"N" ~doc)
+
+
+  let dynamic_arbitrary_domain =
+    let doc = "Enable dynamic abstract domain refinement for arbitrary constraints" in
+    Arg.(value & flag & info ~docs:s_absint [ "dynamic-arbitrary-domain" ] ~doc)
+
+
+  let dynamic_arbitrary_propagation =
+    let doc = "Enable backward domain propagation for arbitrary constraints" in
+    Arg.(value & flag & info ~docs:s_absint [ "dynamic-arbitrary-propagation" ] ~doc)
+
+
+  let dynamic_assert_domain =
+    let doc = "Enable dynamic abstract domain refinement for assert constraints" in
+    Arg.(value & flag & info ~docs:s_absint [ "dynamic-assert-domain" ] ~doc)
+
+
+  let dynamic_return_propagation =
+    let doc = "Enable backward domain propagation at let-return sites" in
+    Arg.(value & flag & info ~docs:s_absint [ "dynamic-return-propagation" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
   let make
         ad_pruning
         static_absint
+        domains
         local_iterations
         smt_pruning_before_absint
         smt_pruning_after_absint
         smt_pruning_keep_redundant_assertions
         runtime_assert_domain
-        old_style_alloc
+        dynamic_absint_assign
+        dynamic_local_iterations
+        dynamic_arbitrary_domain
+        dynamic_arbitrary_propagation
+        dynamic_assert_domain
+        dynamic_return_propagation
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
     { cfg with
       ad_pruning;
       static_absint;
+      domains;
       local_iterations;
       smt_pruning_before_absint;
       smt_pruning_after_absint;
       smt_pruning_remove_redundant_assertions = not smt_pruning_keep_redundant_assertions;
       runtime_assert_domain;
-      old_style_alloc
+      dynamic_absint_assign;
+      dynamic_local_iterations;
+      dynamic_arbitrary_domain;
+      dynamic_arbitrary_propagation;
+      dynamic_assert_domain;
+      dynamic_return_propagation
     }
   in
   Term.(
     const make
     $ Flags.ad_pruning
     $ Flags.static_absint
+    $ Flags.domains
     $ Flags.local_iterations
     $ Flags.smt_pruning_before_absint
     $ Flags.smt_pruning_after_absint
     $ Flags.smt_pruning_keep_redundant_assertions
     $ Flags.runtime_assert_domain
-    $ Flags.old_style_alloc)
+    $ Flags.dynamic_absint_assign
+    $ Flags.dynamic_local_iterations
+    $ Flags.dynamic_arbitrary_domain
+    $ Flags.dynamic_arbitrary_propagation
+    $ Flags.dynamic_assert_domain
+    $ Flags.dynamic_return_propagation)
 
 
 let cmd =

@@ -86,7 +86,8 @@ module Make (AD : Domain.T) = struct
           (let open Option in
            let@ gt_rest in
            return (Term.let_star_ ((x, gt_inner), gt_rest) () loc))
-      | `LetStar ((x, (Annot (`ArbitraryDomain ad, _, bt', _) as gt_inner)), gt_rest) ->
+      | `LetStar
+          ((x, (Annot (`ArbitraryDomain (ad, _, _), _, bt', _) as gt_inner)), gt_rest) ->
         let@ () = add_l x bt' (loc, lazy (Sym.pp x)) in
         let@ () = add_c loc (AD.Relative.to_lc ad x) in
         let@ gt_rest = aux new_constraint gt_rest in
@@ -123,26 +124,34 @@ module Make (AD : Domain.T) = struct
           (let open Option in
            let@ gt_rest in
            return (if redundant then gt_rest else Term.assert_ (lc, gt_rest) () loc))
-      | `AssertDomain (ad, gt_rest) ->
+      | `AssertDomain (ad, its, asgns, gt_rest) ->
         let@ check = provable loc in
         let@ redundant =
-          let lc = AD.to_lc ad in
-          if remove_redundant then (
-            match check lc with
-            | `True -> return true
-            | `False ->
+          if not (List.is_empty its && List.is_empty asgns) then
+            let@ () = add_c loc (AD.to_lc ad) in
+            return false
+          else (
+            let lc = AD.to_lc ad in
+            if remove_redundant then (
+              match check lc with
+              (* FIXME: Also check for `top`? *)
+              | `True -> return true
+              | `False ->
+                let@ () = add_c loc lc in
+                return false)
+            else
               let@ () = add_c loc lc in
               return false)
-          else
-            let@ () = add_c loc lc in
-            return false
         in
         let@ gt_rest = aux true gt_rest in
         return
           (let open Option in
            let@ gt_rest in
            return
-             (if redundant then gt_rest else Term.assert_domain_ (ad, gt_rest) () loc))
+             (if redundant then
+                gt_rest
+              else
+                Term.assert_domain_ (ad, its, asgns, gt_rest) () loc))
       | `ITE (it_if, gt_then, gt_else) ->
         let@ check = provable loc in
         let@ ogt_then =

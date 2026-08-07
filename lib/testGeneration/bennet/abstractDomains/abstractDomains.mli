@@ -1,18 +1,18 @@
 module Private : sig
   module Ownership = Ownership
-  module Interval = Interval_
   module WrappedInterval = WrappedInterval
   module Tristate = TNum
+  module Congruence = Congruence
   module NonRelational = NonRelational
 end
 
 module Ownership : Domain.T
 
-module Interval : Domain.T
-
 module WrappedInterval : Domain.T
 
 module Tristate : Domain.T
+
+module Congruence : Domain.T
 
 module Make (GT : GenTerms.T) : sig
   val annotate : GenContext.Make(GT).t -> GenContext.Make(GT).t

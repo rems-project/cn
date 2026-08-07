@@ -73,6 +73,10 @@ type smt_solver =
   | Z3
   | CVC5
 
+type dynamic_absint_assign_mode =
+  | DynamicAbsIntAssignAlso
+  | DynamicAbsIntAssignOnly
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -88,7 +92,8 @@ type t =
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     ad_pruning : bool;
-    static_absint : string list;
+    static_absint : bool;
+    domains : string list;
     local_iterations : int;
     smt_pruning_before_absint : [ `None | `Fast | `Slow ];
     smt_pruning_after_absint : [ `None | `Fast | `Slow ];
@@ -103,7 +108,6 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
-    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -143,7 +147,14 @@ type t =
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     disable_extrema_skew : bool;
-    discard_factor : int
+    discard_factor : int;
+    dynamic_arbitrary_domain : bool;
+    dynamic_arbitrary_propagation : bool;
+    dynamic_assert_domain : bool;
+    dynamic_return_propagation : bool;
+    old_style_alloc : bool;
+    dynamic_absint_assign : dynamic_absint_assign_mode option;
+    dynamic_local_iterations : int
   }
 
 let default =
@@ -160,7 +171,8 @@ let default =
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
     ad_pruning = false;
-    static_absint = [];
+    static_absint = false;
+    domains = [];
     local_iterations = 10;
     smt_pruning_before_absint = `None;
     smt_pruning_after_absint = `None;
@@ -175,7 +187,6 @@ let default =
     smt_solver = Z3;
     disable_specialization = false;
     only_top_level_ite_lifting = false;
-    old_style_alloc = true;
     print_seed = false;
     input_timeout = None;
     null_in_every = None;
@@ -214,7 +225,14 @@ let default =
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
     disable_extrema_skew = false;
-    discard_factor = 10
+    discard_factor = 10;
+    dynamic_arbitrary_domain = false;
+    dynamic_arbitrary_propagation = false;
+    dynamic_assert_domain = false;
+    dynamic_return_propagation = false;
+    old_style_alloc = false;
+    dynamic_absint_assign = None;
+    dynamic_local_iterations = 1
   }
 
 
@@ -256,6 +274,10 @@ let string_of_smt_solver (solver : smt_solver) =
   match solver with Z3 -> "z3" | CVC5 -> "cvc5"
 
 
+let string_of_dynamic_absint_assign_mode (mode : dynamic_absint_assign_mode) =
+  match mode with DynamicAbsIntAssignAlso -> "also" | DynamicAbsIntAssignOnly -> "only"
+
+
 module Options = struct
   let build_tool = [ ("bash", Bash); ("make", Make) ]
 
@@ -293,6 +315,12 @@ module Options = struct
 
   let smt_solver : (string * smt_solver) list =
     List.map (fun solver -> (string_of_smt_solver solver, solver)) [ Z3 ]
+
+
+  let dynamic_absint_assign_mode : (string * dynamic_absint_assign_mode) list =
+    List.map
+      (fun mode -> (string_of_dynamic_absint_assign_mode mode, mode))
+      [ DynamicAbsIntAssignAlso; DynamicAbsIntAssignOnly ]
 end
 
 let instance : t option ref = ref Option.None
@@ -330,6 +358,8 @@ let is_experimental_return_pruning () = (Option.get !instance).experimental_retu
 let is_ad_pruning () = (Option.get !instance).ad_pruning
 
 let has_static_absint () = (Option.get !instance).static_absint
+
+let get_domains () = (Option.get !instance).domains
 
 let get_local_iterations () = (Option.get !instance).local_iterations
 
@@ -457,8 +487,22 @@ let is_specialization_disabled () = (Option.get !instance).disable_specializatio
 
 let is_only_top_level_ite_lifting () = (Option.get !instance).only_top_level_ite_lifting
 
-let is_old_style_alloc () = (Option.get !instance).old_style_alloc
-
 let is_extrema_skew_disabled () = (Option.get !instance).disable_extrema_skew
 
 let get_discard_factor () = (Option.get !instance).discard_factor
+
+let has_dynamic_arbitrary_domain () = (Option.get !instance).dynamic_arbitrary_domain
+
+let has_dynamic_arbitrary_propagation () =
+  (Option.get !instance).dynamic_arbitrary_propagation
+
+
+let has_dynamic_assert_domain () = (Option.get !instance).dynamic_assert_domain
+
+let has_dynamic_return_propagation () = (Option.get !instance).dynamic_return_propagation
+
+let is_old_style_alloc () = (Option.get !instance).old_style_alloc
+
+let get_dynamic_absint_assign () = (Option.get !instance).dynamic_absint_assign
+
+let get_dynamic_local_iterations () = (Option.get !instance).dynamic_local_iterations

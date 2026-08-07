@@ -11,7 +11,7 @@ module Make (AD : Domain.T) = struct
     | `Arbitrary | `Symbolic | `ArbitrarySpecialized _ | `ArbitraryDomain _ | `Call _
     | `Return _ ->
       false
-    | `AssertDomain (ad, gt') -> AD.equal ad AD.bottom || contains_bottom_domain gt'
+    | `AssertDomain (ad, _, _, gt') -> AD.equal ad AD.bottom || contains_bottom_domain gt'
     | `Pick gts ->
       List.is_empty gts || List.for_all (fun gt' -> contains_bottom_domain gt') gts
     | `ITE (_, gt_then, gt_else) ->

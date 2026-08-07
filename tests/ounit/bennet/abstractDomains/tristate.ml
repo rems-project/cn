@@ -3,9 +3,11 @@
 open OUnit2
 open QCheck
 open Cn.Terms
+module CF = Cerb_frontend
 module BT = Cn.BaseTypes
 module Sym = Cn.Sym
 module MT = Cn.MakeTerm
+module Memory = Cn.Memory
 
 module NonRelational =
   Cn.TestGeneration.Private.Bennet.Private.AbstractDomains.Private.NonRelational
@@ -273,7 +275,15 @@ let test_tnum_mul _ =
   let const_0 = TristateBasis.of_const test_bt Z.zero in
   let mul_0 = TristateBasis.tnum_mul const_5 const_0 in
   assert_equal ~msg:"5 * 0 = 0" Z.zero mul_0.value;
-  assert_equal ~msg:"5 * 0 mask is 0" Z.zero mul_0.mask
+  assert_equal ~msg:"5 * 0 mask is 0" Z.zero mul_0.mask;
+  (* Non-constant operand exercises the our_mul shift-add loop (const*const alone
+     never takes the unknown-bit branch): {0,1} * 6 = {0,6} ⊆ T(0,6), i.e. bit 0
+     known 0, bits 1-2 unknown. *)
+  let bit0 = TristateBasis.of_tnum test_bt Z.zero Z.one in
+  let const_6 = TristateBasis.of_const test_bt (Z.of_int 6) in
+  let mul_partial = TristateBasis.tnum_mul bit0 const_6 in
+  assert_equal ~msg:"{0,1}*6 value" Z.zero mul_partial.value;
+  assert_equal ~msg:"{0,1}*6 mask" (Z.of_int 6) mul_partial.mask
 
 
 (** Test division *)
@@ -616,6 +626,20 @@ let add_soundness_prop =
        Z.equal result.value (Z.of_int expected) && Z.equal result.mask Z.zero)
 
 
+(** Property: MUL is sound for constants (our_mul must stay exact on the const path) *)
+let mul_soundness_prop =
+  Test.make
+    ~count:100
+    ~name:"MUL is sound"
+    (pair (int_range 0 127) (int_range 0 127))
+    (fun (a, b) ->
+       let t1 = TristateBasis.of_const test_bt (Z.of_int a) in
+       let t2 = TristateBasis.of_const test_bt (Z.of_int b) in
+       let result = TristateBasis.tnum_mul t1 t2 in
+       let expected = a * b mod 256 in
+       Z.equal result.value (Z.of_int expected) && Z.equal result.mask Z.zero)
+
+
 (** Property: leq is reflexive *)
 let leq_reflexive_prop =
   Test.make ~count:100 ~name:"leq is reflexive" (int_range 0 255) (fun a ->
@@ -704,9 +728,120 @@ let property_tests =
          QCheck_ounit.to_ounit2_test or_soundness_prop;
          QCheck_ounit.to_ounit2_test xor_soundness_prop;
          QCheck_ounit.to_ounit2_test add_soundness_prop;
+         QCheck_ounit.to_ounit2_test mul_soundness_prop;
          QCheck_ounit.to_ounit2_test leq_reflexive_prop;
          QCheck_ounit.to_ounit2_test bottom_minimal_prop;
          QCheck_ounit.to_ounit2_test top_maximal_prop
+       ]
+
+
+(** MemberShift/ArrayShift test helpers *)
+let mock_struct_tag = Sym.fresh "Point"
+
+let member_x = CF.Symbol.Identifier (test_loc, "x")
+
+let member_y = CF.Symbol.Identifier (test_loc, "y")
+
+let uint32_ctype = CF.Ctype.Ctype ([], Basic (Integer (Unsigned (IntN_t 32))))
+
+let mock_tag_defs =
+  Pmap.singleton
+    Sym.compare
+    mock_struct_tag
+    ( test_loc,
+      CF.Ctype.StructDef
+        ( [ ( member_x,
+              (CF.Annot.no_attributes, None, CF.Ctype.no_qualifiers, uint32_ctype) );
+            ( member_y,
+              (CF.Annot.no_attributes, None, CF.Ctype.no_qualifiers, uint32_ctype) )
+          ],
+          None ) )
+
+
+let with_mock_tags f = CF.Tags.with_tagDefs mock_tag_defs f
+
+let test_bt_loc = BT.Loc ()
+
+(** Test forward_abs_it for MemberShift with constant base *)
+let test_forward_member_shift_tnum _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let it = MT.memberShift_ (base_it, mock_struct_tag, member_y) test_loc in
+    let base_tnum = TristateBasis.of_const test_bt_loc (Z.of_int 100) in
+    let result = TristateBasis.forward_abs_it it [ base_tnum ] in
+    match result with
+    | None -> assert_failure "forward MemberShift should return Some"
+    | Some r ->
+      assert_equal ~msg:"MemberShift value = 100 + 4 = 104" (Z.of_int 104) r.value;
+      assert_equal ~msg:"mask is 0 for constant" Z.zero r.mask)
+
+
+(** Test forward_abs_it for ArrayShift with constant base and index *)
+let test_forward_array_shift_tnum _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let index_sym = Sym.fresh "index" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let index_it = MT.sym_ (index_sym, Memory.uintptr_bt, test_loc) in
+    let ct = Cn.Sctypes.Integer (Unsigned (IntN_t 32)) in
+    let it = MT.arrayShift_ ~base:base_it ~index:index_it ct test_loc in
+    let base_tnum = TristateBasis.of_const test_bt_loc (Z.of_int 100) in
+    let index_tnum = TristateBasis.of_const Memory.uintptr_bt (Z.of_int 2) in
+    let result = TristateBasis.forward_abs_it it [ base_tnum; index_tnum ] in
+    match result with
+    | None -> assert_failure "forward ArrayShift should return Some"
+    | Some r ->
+      (* 100 + sizeof(uint32)*2 = 100 + 8 = 108 *)
+      assert_equal ~msg:"ArrayShift value = 100 + 4*2 = 108" (Z.of_int 108) r.value;
+      assert_equal ~msg:"mask is 0 for constants" Z.zero r.mask)
+
+
+(** Test forward_abs_it for ArrayShift with unknown index bits *)
+let test_forward_array_shift_unknown_index _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let index_sym = Sym.fresh "index" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let index_it = MT.sym_ (index_sym, Memory.uintptr_bt, test_loc) in
+    let ct = Cn.Sctypes.Integer (Unsigned (IntN_t 32)) in
+    let it = MT.arrayShift_ ~base:base_it ~index:index_it ct test_loc in
+    let base_tnum = TristateBasis.of_const test_bt_loc (Z.of_int 100) in
+    (* index with unknown low bit: value=0, mask=1 -> index is 0 or 1 *)
+    let index_tnum = TristateBasis.of_tnum Memory.uintptr_bt Z.zero Z.one in
+    let result = TristateBasis.forward_abs_it it [ base_tnum; index_tnum ] in
+    match result with
+    | None -> assert_failure "forward ArrayShift unknown index should return Some"
+    | Some r ->
+      assert_bool "result should not be bottom" (not (TristateBasis.is_bottom r));
+      assert_bool "result should have unknown bits" (not (Z.equal r.mask Z.zero)))
+
+
+(** Test backward_abs_it for MemberShift *)
+let test_backward_member_shift_tnum _ =
+  with_mock_tags (fun () ->
+    let base_sym = Sym.fresh "base" in
+    let base_it = MT.sym_ (base_sym, test_bt_loc, test_loc) in
+    let it = MT.memberShift_ (base_it, mock_struct_tag, member_y) test_loc in
+    let result_tnum = TristateBasis.of_const test_bt_loc (Z.of_int 108) in
+    let base_tnum = TristateBasis.top test_bt_loc in
+    let refined = TristateBasis.backward_abs_it it [ result_tnum; base_tnum ] in
+    match refined with
+    | [ refined_base ] ->
+      assert_equal
+        ~msg:"backward MemberShift: base = 108 - 4 = 104"
+        (Z.of_int 104)
+        refined_base.value;
+      assert_equal ~msg:"mask is 0 (fully refined)" Z.zero refined_base.mask
+    | _ -> assert_failure "backward MemberShift should return 1 element")
+
+
+let shift_tests =
+  "Tristate MemberShift/ArrayShift"
+  >::: [ "forward_member_shift_tnum" >:: test_forward_member_shift_tnum;
+         "forward_array_shift_tnum" >:: test_forward_array_shift_tnum;
+         "forward_array_shift_unknown_index" >:: test_forward_array_shift_unknown_index;
+         "backward_member_shift_tnum" >:: test_backward_member_shift_tnum
        ]
 
 
@@ -717,5 +852,6 @@ let suite =
          arithmetic_tests;
          cast_tests;
          backward_tests;
-         property_tests
+         property_tests;
+         shift_tests
        ]

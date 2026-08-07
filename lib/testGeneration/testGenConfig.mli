@@ -54,6 +54,10 @@ type smt_solver =
   | Z3
   | CVC5
 
+type dynamic_absint_assign_mode =
+  | DynamicAbsIntAssignAlso
+  | DynamicAbsIntAssignOnly
+
 type t =
   { (* Compile time *)
     skip_and_only : string list * string list;
@@ -69,7 +73,8 @@ type t =
     experimental_arg_pruning : bool;
     experimental_return_pruning : bool;
     ad_pruning : bool;
-    static_absint : string list;
+    static_absint : bool;
+    domains : string list;
     local_iterations : int;
     smt_pruning_before_absint : [ `None | `Fast | `Slow ];
     smt_pruning_after_absint : [ `None | `Fast | `Slow ];
@@ -84,7 +89,6 @@ type t =
     smt_solver : smt_solver;
     disable_specialization : bool;
     only_top_level_ite_lifting : bool;
-    old_style_alloc : bool;
     (* Run time *)
     print_seed : bool;
     input_timeout : int option;
@@ -125,7 +129,14 @@ type t =
     smt_skew_pointer_order : bool;
     dsl_log_dir : string option;
     disable_extrema_skew : bool;
-    discard_factor : int
+    discard_factor : int;
+    dynamic_arbitrary_domain : bool;
+    dynamic_arbitrary_propagation : bool;
+    dynamic_assert_domain : bool;
+    dynamic_return_propagation : bool;
+    old_style_alloc : bool;
+    dynamic_absint_assign : dynamic_absint_assign_mode option;
+    dynamic_local_iterations : int
   }
 
 val default : t
@@ -146,6 +157,8 @@ module Options : sig
   val smt_skewing_mode : (string * smt_skewing_mode) list
 
   val smt_solver : (string * smt_solver) list
+
+  val dynamic_absint_assign_mode : (string * dynamic_absint_assign_mode) list
 end
 
 val initialize : t -> unit
@@ -178,7 +191,9 @@ val is_experimental_return_pruning : unit -> bool
 
 val is_ad_pruning : unit -> bool
 
-val has_static_absint : unit -> string list
+val has_static_absint : unit -> bool
+
+val get_domains : unit -> string list
 
 val get_local_iterations : unit -> int
 
@@ -290,8 +305,22 @@ val is_specialization_disabled : unit -> bool
 
 val is_only_top_level_ite_lifting : unit -> bool
 
-val is_old_style_alloc : unit -> bool
-
 val is_extrema_skew_disabled : unit -> bool
 
 val get_discard_factor : unit -> int
+
+val has_dynamic_arbitrary_domain : unit -> bool
+
+val has_dynamic_arbitrary_propagation : unit -> bool
+
+val has_dynamic_assert_domain : unit -> bool
+
+val has_dynamic_return_propagation : unit -> bool
+
+val is_old_style_alloc : unit -> bool
+
+val string_of_dynamic_absint_assign_mode : dynamic_absint_assign_mode -> string
+
+val get_dynamic_absint_assign : unit -> dynamic_absint_assign_mode option
+
+val get_dynamic_local_iterations : unit -> int

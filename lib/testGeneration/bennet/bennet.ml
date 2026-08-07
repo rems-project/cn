@@ -34,8 +34,7 @@ let debug_stage (stage : string) (str : string) : unit =
 
 let parse_domain (s : string list) : (module Domain.T) =
   if List.is_empty s then (* Default *)
-    AbstractDomains.product_domains
-      [ (module AbstractDomains.Ownership); (module AbstractDomains.Interval) ]
+    AbstractDomains.product_domains [ (module AbstractDomains.Ownership) ]
   else (
     let domain_names =
       s |> List.map String.trim |> List.filter (fun x -> String.length x > 0)
@@ -44,12 +43,12 @@ let parse_domain (s : string list) : (module Domain.T) =
     let parse_single_domain (name : string) : (module Domain.T) option =
       match name with
       | _ when String.equal name AbstractDomains.Ownership.name -> None
-      | _ when String.equal name AbstractDomains.Interval.name ->
-        Some (module AbstractDomains.Interval)
       | _ when String.equal name AbstractDomains.WrappedInterval.name ->
         Some (module AbstractDomains.WrappedInterval)
       | _ when String.equal name AbstractDomains.Tristate.name ->
         Some (module AbstractDomains.Tristate)
+      | _ when String.equal name AbstractDomains.Congruence.name ->
+        Some (module AbstractDomains.Congruence)
       | _ ->
         Pp.warn_noloc Pp.(!^"Unknown abstract domain," ^^^ squotes !^name);
         None
@@ -71,7 +70,7 @@ let parse_domain (s : string list) : (module Domain.T) =
 
 let test_setup () : Pp.document =
   let open Pp in
-  let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
+  let module AD = (val parse_domain (TestGenConfig.get_domains ())) in
   let module CG = Domain.CodeGen (AD.CInt) in
   !^"#include <bennet/prelude.h>" ^^ hardline ^^ CG.setup ()
 
@@ -111,7 +110,7 @@ let synthesize
   : Pp.document
   =
   let prog5 = normalize_prog5_defs prog5 paused in
-  let module AD = (val parse_domain (TestGenConfig.has_static_absint ())) in
+  let module AD = (val parse_domain (TestGenConfig.get_domains ())) in
   let module Stage1 = Stage1.Make (AD) in
   let ctx = Stage1.transform filename sigma prog5 tests in
   debug_stage "Stage 1" (ctx |> Stage1.Ctx.pp |> Pp.plain ~width:80);

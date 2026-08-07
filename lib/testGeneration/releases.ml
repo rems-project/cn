@@ -41,7 +41,8 @@ let pldi26 : TestGenConfig.t =
     experimental_arg_pruning = false;
     experimental_return_pruning = false;
     ad_pruning = false;
-    static_absint = [];
+    static_absint = false;
+    domains = [];
     local_iterations = 10;
     smt_pruning_before_absint = `None;
     smt_pruning_after_absint = `None;
@@ -95,5 +96,13 @@ let pldi26 : TestGenConfig.t =
     smt_skew_pointer_order = false;
     dsl_log_dir = None;
     disable_extrema_skew = false;
-    discard_factor = 10
+    discard_factor = 10;
+    (* Runtime abstract-interpretation features added after the paper freeze;
+       pinned off so paper runs are unaffected. *)
+    dynamic_absint_assign = None;
+    dynamic_local_iterations = 1;
+    dynamic_arbitrary_domain = false;
+    dynamic_arbitrary_propagation = false;
+    dynamic_assert_domain = false;
+    dynamic_return_propagation = false
   }

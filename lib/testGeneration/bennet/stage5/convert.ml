@@ -24,7 +24,7 @@ module Make (AD : Domain.T) = struct
       | `Asgn (_, _, rest) -> aux rest
       | `LetStar ((_, value), rest) -> aux value + aux rest
       | `Assert (_, rest) -> aux rest
-      | `AssertDomain (_, rest) -> aux rest
+      | `AssertDomain (_, _, _, rest) -> aux rest
       | `ITE (_, t, f) -> max (aux t) (aux f)
       | `Map (_, inner) -> aux inner
     in
@@ -41,8 +41,8 @@ module Make (AD : Domain.T) = struct
       | `Symbolic -> (GenTerms.Annot (`Symbolic, (), bt, loc), Sym.Set.empty)
       | `ArbitrarySpecialized bounds ->
         (GenTerms.Annot (`ArbitrarySpecialized bounds, (), bt, loc), Sym.Set.empty)
-      | `ArbitraryDomain d ->
-        (GenTerms.Annot (`ArbitraryDomain d, (), bt, loc), Sym.Set.empty)
+      | `ArbitraryDomain (d, its, asgns) ->
+        (GenTerms.Annot (`ArbitraryDomain (d, its, asgns), (), bt, loc), Sym.Set.empty)
       | `Pick wgts ->
         let wgts, sym_sets =
           wgts
@@ -72,9 +72,9 @@ module Make (AD : Domain.T) = struct
       | `Assert (lc, rest) ->
         let rest, syms = aux rest in
         (GenTerms.Annot (`Assert (lc, rest), (), bt, loc), syms)
-      | `AssertDomain (ad, rest) ->
+      | `AssertDomain (ad, its, asgns, rest) ->
         let rest, syms = aux rest in
-        (GenTerms.Annot (`AssertDomain (ad, rest), (), bt, loc), syms)
+        (GenTerms.Annot (`AssertDomain (ad, its, asgns, rest), (), bt, loc), syms)
       | `ITE (cond, t, f) ->
         let t, syms = aux t in
         let f, syms' = aux f in

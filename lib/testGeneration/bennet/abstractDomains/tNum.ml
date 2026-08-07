@@ -145,6 +145,13 @@ module TristateBasis = struct
       of_tnum bt value uncertain_mask)
 
 
+  let to_interval t =
+    if is_bottom t || is_top t then
+      None
+    else
+      Some (t.value, Z.logor t.value t.mask)
+
+
   let equal t1 t2 =
     if is_bottom t1 && is_bottom t2 then
       true
@@ -369,18 +376,24 @@ module TristateBasis = struct
       of_tnum t1.bt value mask)
 
 
-  (* Forward subtraction *)
+  (* Forward subtraction (kernel tnum_sub, paper Section 3.2).
+     alpha/beta bound the borrow range; chi = alpha XOR beta flags every bit a
+     borrow can reach. Negate-then-add keeping the subtrahend mask (the previous
+     approach) ignores borrows through unknown bits and is UNSOUND, e.g. width-3
+     {0} - {0,1} would drop the reachable value 7. *)
   let tnum_sub t1 t2 =
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
     else (
       let fm = full_mask t1.bt in
-      (* For subtraction, we compute a - b = a + (~b + 1) *)
-      (* Negate t2: flip bits and add 1 *)
-      let neg_value = Z.logand (Z.add (Z.lognot t2.value) Z.one) fm in
-      let neg_t2 = { t2 with value = Z.logand neg_value (Z.lognot t2.mask) } in
-      tnum_add t1 neg_t2)
+      let dv = Z.logand (Z.sub t1.value t2.value) fm in
+      let alpha = Z.logand (Z.add dv t1.mask) fm in
+      let beta = Z.logand (Z.sub dv t2.mask) fm in
+      let chi = Z.logxor alpha beta in
+      let mask = Z.logand (Z.logor (Z.logor chi t1.mask) t2.mask) fm in
+      let value = Z.logand (Z.logand dv (Z.lognot mask)) fm in
+      of_tnum t1.bt value mask)
 
 
   (* Forward left shift *)
@@ -403,7 +416,10 @@ module TristateBasis = struct
         of_tnum t.bt value mask))
 
 
-  (* Forward right shift (logical) *)
+  (* Forward right shift. Logical for unsigned types; ARITHMETIC (sign-filling)
+     for signed types, matching the runtime's signed >> and the paper's ARSH
+     (Section 5.3). A single logical transformer for both was unsound for signed
+     operands: int8 (-2) >> 1 must be -1, not 127. *)
   let tnum_lshr t shift_amt =
     if is_bottom t then
       bottom t.bt
@@ -417,26 +433,56 @@ module TristateBasis = struct
       if shift < 0 || shift >= width then
         top t.bt
       else (
-        let value = Z.shift_right t.value shift in
-        let mask = Z.shift_right t.mask shift in
+        let is_signed =
+          match BT.is_bits_bt t.bt with Some (Signed, _) -> true | _ -> false
+        in
+        let value, mask =
+          if is_signed then (
+            (* Sign-fill the value by its own sign bit and the mask by its own
+               top bit (kernel tnum_arshift), then re-mask to width. *)
+            let fm = full_mask t.bt in
+            ( Z.logand (Z.shift_right (to_signed_value t.bt t.value) shift) fm,
+              Z.logand (Z.shift_right (to_signed_value t.bt t.mask) shift) fm ))
+          else
+            (Z.shift_right t.value shift, Z.shift_right t.mask shift)
+        in
         of_tnum t.bt value mask))
 
 
-  (* Forward multiplication - conservative approximation *)
+  (* Forward multiplication (our_mul, = Linux kernel tnum_mul): an O(width)
+     shift-add. P = t1 is the multiplier walked bit-by-bit; Q = t2 is
+     shifted left each step. A known-1 multiplier bit contributes Q's unknown mask;
+     an unknown bit contributes all of Q's possible bits (value | mask); a known-0
+     bit contributes nothing. The known product of the known-value parts seeds the
+     accumulator. Sound for all inputs (not optimal). Const*const and mul-by-0 fall
+     out as the degenerate no-unknown cases, and a top operand can still produce a
+     precise result (e.g. top * 4 = the multiples of 4).
+
+     All shifts are LOGICAL on the (non-negative, width-masked) bit pattern: the
+     multiplier walk is sign-agnostic. Do NOT use tnum_lshr, which arithmetic-shifts
+     signed operands. *)
   let tnum_mul t1 t2 =
     assert (BT.equal t1.bt t2.bt);
     if is_bottom t1 || is_bottom t2 then
       bottom t1.bt
-    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then (
-      (* Both constants *)
+    else (
       let fm = full_mask t1.bt in
-      of_const t1.bt (Z.logand (Z.mul t1.value t2.value) fm))
-    else if Z.equal t1.mask Z.zero && Z.equal t1.value Z.zero then (* t1 is 0 *)
-      of_const t1.bt Z.zero
-    else if Z.equal t2.mask Z.zero && Z.equal t2.value Z.zero then (* t2 is 0 *)
-      of_const t1.bt Z.zero
-    else (* Conservative: return top *)
-      top t1.bt
+      let pv = ref (Z.logand t1.value fm) in
+      let pm = ref (Z.logand t1.mask fm) in
+      let qv = ref (Z.logand t2.value fm) in
+      let qm = ref (Z.logand t2.mask fm) in
+      let acc = ref (of_const t1.bt (Z.logand (Z.mul !pv !qv) fm)) in
+      while not (Z.equal (Z.logor !pv !pm) Z.zero) do
+        if Z.equal (Z.logand !pv Z.one) Z.one then
+          acc := tnum_add !acc (of_tnum t1.bt Z.zero !qm)
+        else if Z.equal (Z.logand !pm Z.one) Z.one then
+          acc := tnum_add !acc (of_tnum t1.bt Z.zero (Z.logand (Z.logor !qv !qm) fm));
+        pv := Z.shift_right !pv 1;
+        pm := Z.shift_right !pm 1;
+        qv := Z.logand (Z.shift_left !qv 1) fm;
+        qm := Z.logand (Z.shift_left !qm 1) fm
+      done;
+      !acc)
 
 
   (* Forward division - conservative approximation *)
@@ -446,8 +492,13 @@ module TristateBasis = struct
       bottom t1.bt
     else if Z.equal t2.mask Z.zero && Z.equal t2.value Z.zero then (* Division by zero *)
       bottom t1.bt
-    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then (* Both constants *)
-      of_const t1.bt (Z.div t1.value t2.value)
+    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then
+      (* Both constants: signed interpretation for signed types (Z.div truncates
+         toward zero, matching C); of_const re-normalizes. Dividing the raw
+         unsigned values would make int8 (-4)/2 yield 126 instead of -2. *)
+      of_const
+        t1.bt
+        (Z.div (to_signed_value t1.bt t1.value) (to_signed_value t1.bt t2.value))
     else (* Conservative: return top *)
       top t1.bt
 
@@ -459,8 +510,12 @@ module TristateBasis = struct
       bottom t1.bt
     else if Z.equal t2.mask Z.zero && Z.equal t2.value Z.zero then (* Modulo by zero *)
       bottom t1.bt
-    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then (* Both constants *)
-      of_const t1.bt (Z.rem t1.value t2.value)
+    else if Z.equal t1.mask Z.zero && Z.equal t2.mask Z.zero then
+      (* Both constants: signed interpretation for signed types (Z.rem truncates
+         toward zero, matching C's %); of_const re-normalizes. *)
+      of_const
+        t1.bt
+        (Z.rem (to_signed_value t1.bt t1.value) (to_signed_value t1.bt t2.value))
     else (* Conservative: return top *)
       top t1.bt
 
@@ -490,11 +545,10 @@ module TristateBasis = struct
     | Negate ->
       if is_bottom t then
         Some (bottom t.bt)
-      else if Z.equal t.mask Z.zero then (
-        let fm = full_mask t.bt in
-        Some (of_const t.bt (Z.logand (Z.neg t.value) fm)))
       else
-        Some (top t.bt)
+        (* NEG#(P) = SUB#(0, P) (paper Section 3.3): optimal, and precise for
+           non-constant operands (the previous code returned top for those). *)
+        Some (tnum_sub (of_const t.bt Z.zero) t)
     | _ -> None
 
 
@@ -558,6 +612,7 @@ module TristateBasis = struct
     let (IT (it_, bt, _loc)) = it in
     match it_ with
     | Const (Bits (_, n)) -> Some (of_const bt n)
+    | Const Null -> Some (of_const bt Z.zero)
     | Binop (op, _, _) ->
       let t1, t2 =
         match t_args with
@@ -585,6 +640,35 @@ module TristateBasis = struct
         | _ -> failwith "Incorrect number of arguments for cast"
       in
       Some (cast t target_bt)
+    | MemberShift (_, tag, member) ->
+      let t =
+        match t_args with [ t ] -> t | _ -> failwith "Incorrect number of arguments"
+      in
+      if t.is_bottom then
+        Some (bottom bt)
+      else (
+        let tag_defs = CF.Tags.tagDefs () in
+        let offset =
+          Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+        in
+        let offset_tnum = of_const bt offset in
+        forward_abs_binop Terms.Add t offset_tnum)
+    | ArrayShift { ct; _ } ->
+      let t_base, t_index =
+        match t_args with
+        | [ t1; t2 ] -> (t1, t2)
+        | _ -> failwith "Incorrect number of arguments"
+      in
+      if t_base.is_bottom || t_index.is_bottom then
+        Some (bottom bt)
+      else (
+        let elem_size = Z.of_int (Memory.size_of_ctype ct) in
+        let elem_tnum = of_const t_index.bt elem_size in
+        match forward_abs_binop Terms.Mul t_index elem_tnum with
+        | Some offset ->
+          let offset = { offset with bt = t_base.bt } in
+          forward_abs_binop Terms.Add t_base offset
+        | None -> None)
     | _ -> None
 
 
@@ -851,6 +935,42 @@ module TristateBasis = struct
           in
           let refined_t1 = of_tnum t1.bt derived_value derived_mask in
           [ meet t1 refined_t1; t2 ]))
+    | MemberShift (_, tag, member) ->
+      let t_res, t_base = match ts with [ r; b ] -> (r, b) | _ -> failwith __LOC__ in
+      let tag_defs = CF.Tags.tagDefs () in
+      let offset =
+        Z.of_int (Memory.int_of_ival (CF.Impl_mem.offsetof_ival tag_defs tag member))
+      in
+      let offset_tnum = of_const t_res.bt offset in
+      (match forward_abs_binop Terms.Sub t_res offset_tnum with
+       | Some refined_base -> [ meet t_base refined_base ]
+       | None -> [ t_base ])
+    | ArrayShift { ct; _ } ->
+      let t_res, t_base, t_index =
+        match ts with [ r; b; i ] -> (r, b, i) | _ -> failwith __LOC__
+      in
+      let elem_size = Z.of_int (Memory.size_of_ctype ct) in
+      let elem_tnum = of_const t_index.bt elem_size in
+      let refined_base =
+        match forward_abs_binop Terms.Mul t_index elem_tnum with
+        | Some offset ->
+          let offset = { offset with bt = t_res.bt } in
+          (match forward_abs_binop Terms.Sub t_res offset with
+           | Some rb -> meet t_base rb
+           | None -> t_base)
+        | None -> t_base
+      in
+      let refined_index =
+        let t_res_as_index = { t_res with bt = t_index.bt } in
+        let t_base_as_index = { t_base with bt = t_index.bt } in
+        match forward_abs_binop Terms.Sub t_res_as_index t_base_as_index with
+        | Some diff ->
+          (match forward_abs_binop Terms.Div diff elem_tnum with
+           | Some ri -> meet t_index ri
+           | None -> t_index)
+        | None -> t_index
+      in
+      [ refined_base; refined_index ]
     | _ ->
       if BT.equal BT.Bool (T.get_bt it) then
         ts
@@ -868,6 +988,8 @@ module TristateBasis = struct
 
   let pp_args { bt; is_bottom; value; mask } =
     assert (not is_bottom);
+    let value = to_signed_value bt value in
+    let mask = to_signed_value bt mask in
     let sign, width =
       match bt with
       | Loc () -> (BT.Unsigned, Memory.uintptr_bt |> BT.is_bits_bt |> Option.get |> snd)
@@ -921,19 +1043,24 @@ module TristateBasis = struct
       MT.bool_ false loc
     else if is_top t then
       MT.bool_ true loc
-    else if Z.equal t.mask Z.zero then (
-      (* Constant: sym == value *)
-      let sym_it = MT.sym_ (sym, t.bt, loc) in
-      let value_it = MT.num_lit_ t.value t.bt loc in
-      MT.eq_ (sym_it, value_it) loc)
     else (
-      (* General case: (sym & ~mask) == value *)
-      let sym_it = MT.sym_ (sym, t.bt, loc) in
-      let not_mask = Z.logand (Z.lognot t.mask) (full_mask t.bt) in
-      let not_mask_it = MT.num_lit_ not_mask t.bt loc in
-      let masked_sym = MT.add_ (sym_it, not_mask_it) loc in
-      let value_it = MT.num_lit_ t.value t.bt loc in
-      MT.eq_ (masked_sym, value_it) loc)
+      let bits_bt, sym_it =
+        match t.bt with
+        | BT.Loc () ->
+          (Memory.uintptr_bt, MT.cast_ Memory.uintptr_bt (MT.sym_ (sym, t.bt, loc)) loc)
+        | _ -> (t.bt, MT.sym_ (sym, t.bt, loc))
+      in
+      if Z.equal t.mask Z.zero then (
+        (* Constant: sym == value *)
+        let value_it = MT.num_lit_ (to_signed_value t.bt t.value) bits_bt loc in
+        MT.eq_ (sym_it, value_it) loc)
+      else (
+        (* General case: (sym & ~mask) == value *)
+        let not_mask = Z.logand (Z.lognot t.mask) (full_mask t.bt) in
+        let not_mask_it = MT.num_lit_ (to_signed_value t.bt not_mask) bits_bt loc in
+        let masked_sym = MT.binop BW_And (sym_it, not_mask_it) loc bits_bt in
+        let value_it = MT.num_lit_ (to_signed_value t.bt t.value) bits_bt loc in
+        MT.eq_ (masked_sym, value_it) loc))
 
 
   let to_lc (t : t) (sym : Sym.t) : LogicalConstraints.t =

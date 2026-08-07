@@ -93,6 +93,12 @@ module type T = sig
   (** Check truthiness *)
   val to_lc : t -> LC.t
 
+  (** Extract per-symbol interval bounds. Returns list of (sym, bt, lo, hi) *)
+  val to_interval : t -> (Sym.t * BaseTypes.t * Z.t * Z.t) list
+
+  (** Create a state constraining one symbol to [lo, hi] *)
+  val of_interval : Sym.t -> BaseTypes.t -> Z.t -> Z.t -> t
+
   (** Whether meet is associative (allows optimization) *)
   val is_meet_assoc : bool
 
@@ -167,6 +173,16 @@ module CodeGen (CInt : C_INTERFACE) = struct
                 (!^"return bennet_domain_"
                  ^^ !^CInt.name
                  ^^ !^"_arbitrary_##ty(&cs->car);")
+          ^/^ !^"bool bennet_domain_check_##ty(ty val, bennet_domain(ty)* cs)"
+          ^^^ braces
+                (!^"return bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_check_##ty(val, &cs->car);")
+          ^/^ !^"bool bennet_domain_check_ownership_##ty(ty val, bennet_domain(ty)* cs)"
+          ^^^ braces
+                (!^"return bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_check_ownership_##ty(val, &cs->car);")
           ^/^ hardline
           ^^ !^"bennet_domain(ty)* bennet_domain_from_assignment_##ty(void *base_ptr, \
                 void *addr, size_t bytes)"
@@ -174,6 +190,59 @@ module CodeGen (CInt : C_INTERFACE) = struct
                 (!^"return (bennet_domain(ty)*)bennet_domain_"
                  ^^ !^CInt.name
                  ^^ !^"_from_assignment_##ty(base_ptr, addr, bytes);")
+          ^/^ !^"bool bennet_domain_to_interval_##ty(bennet_domain(ty)* cs, ty* lo_out, \
+                 ty* hi_out)"
+          ^^^ braces
+                (!^"return bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_to_interval_##ty(&cs->car, lo_out, hi_out);")
+          ^/^ !^"bennet_domain(ty)* bennet_domain_of_interval_##ty(ty lo, ty hi)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_of_interval_##ty(lo, hi);")
+          ^/^ hardline
+          ^^ !^"bennet_domain(ty)* \
+                bennet_domain_top_except_ownership_##ty(bennet_domain(ty)* cs)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_top_except_ownership(ty, &cs->car);")
+          ^/^ !^"bennet_domain(ty)* \
+                 bennet_domain_from_ownership_##ty(bennet_domain_ownership(ty)* own)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_from_ownership(ty, own);")
+          ^/^ hardline
+          ^^ !^"bennet_domain(ty)* bennet_domain_refine_##ty(bennet_domain(ty)* cs, \
+                bennet_absint_sym x_sym, cn_base_type* x_bt, cn_term* constraint_term, \
+                bool* is_bottom_out)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_refine(ty, &cs->car, x_sym, x_bt, constraint_term, \
+                       is_bottom_out);")
+          ^/^ hardline
+          ^^ !^"bennet_domain(ty)* \
+                bennet_domain_refine_with_state_##ty(bennet_domain(ty)* cs, \
+                bennet_absint_sym x_sym, cn_base_type* x_bt, cn_term* constraint_term, \
+                bool* is_bottom_out, bennet_absint_sym extra_sym, bennet_tagged_domain \
+                extra_domain)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_refine_with_state(ty, &cs->car, x_sym, x_bt, constraint_term, \
+                       is_bottom_out, extra_sym, extra_domain);")
+          ^/^ hardline
+          ^^ !^"bennet_domain(ty)* bennet_domain_transform_backward_##ty(cn_term* term, \
+                bennet_absint_sym target_sym, cn_base_type* output_bt, cn_base_type* \
+                target_bt, bennet_domain(ty)* output_domain)"
+          ^^^ braces
+                (!^"return (bennet_domain(ty)*)bennet_domain_"
+                 ^^ !^CInt.name
+                 ^^ !^"_transform_backward(ty, term, target_sym, output_bt, target_bt, \
+                       &output_domain->car);")
           ^/^ empty)
     ^/^ hardline
     ^^ separate_map

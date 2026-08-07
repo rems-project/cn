@@ -35,6 +35,11 @@ module Flags = struct
     let doc = "Only lift top-level ITE expressions" in
     Arg.(
       value & flag & info ~docs:Shared.s_generation [ "only-top-level-ite-lifting" ] ~doc)
+
+
+  let old_style_alloc =
+    let doc = "Use classic Bennet-style allocation for pointer generation" in
+    Arg.(value & flag & info ~docs:Shared.s_generation [ "old-style-alloc" ] ~doc)
 end
 
 let term : (TestGeneration.config -> TestGeneration.config) Term.t =
@@ -43,6 +48,7 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
         random_size_splits
         allowed_size_split_backtracks
         only_top_level_ite_lifting
+        old_style_alloc
         (cfg : TestGeneration.config)
     : TestGeneration.config
     =
@@ -50,7 +56,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
       max_backtracks;
       random_size_splits;
       allowed_size_split_backtracks;
-      only_top_level_ite_lifting
+      only_top_level_ite_lifting;
+      old_style_alloc
     }
   in
   Term.(
@@ -58,7 +65,8 @@ let term : (TestGeneration.config -> TestGeneration.config) Term.t =
     $ Flags.gen_backtrack_attempts
     $ Flags.random_size_splits
     $ Flags.allowed_size_split_backtracks
-    $ Flags.only_top_level_ite_lifting)
+    $ Flags.only_top_level_ite_lifting
+    $ Flags.old_style_alloc)
 
 
 let cmd =
