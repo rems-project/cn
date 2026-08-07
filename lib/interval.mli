@@ -96,7 +96,7 @@ module Intervals : sig
   val maximum : t -> Z.t option
 end
 
-module Solver(_ : Bt_of_sct.Repr) : sig
+module Solver : sig
   module T = Terms.Normal
   module RT = Request
 

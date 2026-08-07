@@ -3,7 +3,7 @@ let history_sym = Sym.fresh history_str
 
 let predicate_str = "Alloc"
 let predicate_sym = Sym.fresh predicate_str
-
+let predicate_name = Request.PName predicate_sym
 
 module F (R: Bt_of_sct.Repr) = struct
 
@@ -64,7 +64,7 @@ module Predicate = struct
 
   let sym = predicate_sym
 
-  let name = Request.PName sym
+  let name = predicate_name
 
   let def =
     Definition.Predicate.

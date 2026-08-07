@@ -10,6 +10,39 @@ module MT = MakeTerm
 module SBT = BaseTypes.Surface
 module Mu = Mucore
 
+module AT = ArgumentTypes
+module LAT = LogicalArgumentTypes
+
+let rec lat_of_arguments f_i = function
+  | Mu.Define (bound, info, l) -> LAT.Define (bound, info, lat_of_arguments f_i l)
+  | Resource (bound, info, l) -> LAT.Resource (bound, info, lat_of_arguments f_i l)
+  | Constraint (lc, info, l) -> LAT.Constraint (lc, info, lat_of_arguments f_i l)
+  | I i -> LAT.I (f_i i)
+
+
+let rec at_of_arguments f_i = function
+  | Mu.Computational (bound, info, a) ->
+    AT.Computational (bound, info, at_of_arguments f_i a)
+  | Mu.Ghost (bound, info, a) -> AT.Ghost (bound, info, at_of_arguments f_i a)
+  | L l -> AT.L (lat_of_arguments f_i l)
+
+
+let rec arguments_of_lat f_i = function
+  | LAT.Define (def, info, lat) -> Mu.Define (def, info, arguments_of_lat f_i lat)
+  | LAT.Resource (bound, info, lat) -> Resource (bound, info, arguments_of_lat f_i lat)
+  | LAT.Constraint (c, info, lat) -> Constraint (c, info, arguments_of_lat f_i lat)
+  | LAT.I i -> I (f_i i)
+
+
+let rec arguments_of_at f_i = function
+  | AT.Computational (bound, info, at) ->
+    Mu.Computational (bound, info, arguments_of_at f_i at)
+  | AT.Ghost (bound, info, at) -> Mu.Ghost (bound, info, arguments_of_at f_i at)
+  | AT.L lat -> L (arguments_of_lat f_i lat)
+
+
+module F(R : Bt_of_sct.Repr) = struct
+
 (* Short forms *)
 module Desugar = struct
   let cn_statement = CF.Cabs_to_ail.desugar_cn_statement
@@ -37,7 +70,10 @@ let fetch_typedef d_st _loc sym =
 
 
 module Translate = struct
+  (* type message = Compile.message *)
+  (* type err = Compile.err *)
   include Compile
+  include Compile.F(R)
 
   let lift x =
     Result.map_error (fun { loc; msg } -> TypeErrors.{ loc; msg = Compile msg }) x
@@ -618,35 +654,6 @@ let rec n_expr
   | Eexcluded _ -> assert_error loc !^"core_anormalisation: Eexcluded"
 
 
-module AT = ArgumentTypes
-module LAT = LogicalArgumentTypes
-
-let rec lat_of_arguments f_i = function
-  | Mu.Define (bound, info, l) -> LAT.Define (bound, info, lat_of_arguments f_i l)
-  | Resource (bound, info, l) -> LAT.Resource (bound, info, lat_of_arguments f_i l)
-  | Constraint (lc, info, l) -> LAT.Constraint (lc, info, lat_of_arguments f_i l)
-  | I i -> LAT.I (f_i i)
-
-
-let rec at_of_arguments f_i = function
-  | Mu.Computational (bound, info, a) ->
-    AT.Computational (bound, info, at_of_arguments f_i a)
-  | Mu.Ghost (bound, info, a) -> AT.Ghost (bound, info, at_of_arguments f_i a)
-  | L l -> AT.L (lat_of_arguments f_i l)
-
-
-let rec arguments_of_lat f_i = function
-  | LAT.Define (def, info, lat) -> Mu.Define (def, info, arguments_of_lat f_i lat)
-  | LAT.Resource (bound, info, lat) -> Resource (bound, info, arguments_of_lat f_i lat)
-  | LAT.Constraint (c, info, lat) -> Constraint (c, info, arguments_of_lat f_i lat)
-  | LAT.I i -> I (f_i i)
-
-
-let rec arguments_of_at f_i = function
-  | AT.Computational (bound, info, at) ->
-    Mu.Computational (bound, info, arguments_of_at f_i at)
-  | AT.Ghost (bound, info, at) -> Mu.Ghost (bound, info, arguments_of_at f_i at)
-  | AT.L lat -> L (arguments_of_lat f_i lat)
 
 
 (* copying and adjusting variously compile.ml logic *)
@@ -756,7 +763,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
     | ((mut_arg, (mut_arg', ct)), (pure_arg, cbt)) :: rest ->
       assert (Option.equal Sym.equal (Some mut_arg) mut_arg');
       let ct = convert_ct loc ct in
-      let sbt = Memory.sbt_of_sct ct in
+      let sbt = R.sbt_of_sct ct in
       let bt = SBT.proj sbt in
       let@ () = check_against_core_bt loc cbt bt in
       let env = Translate.add_computational pure_arg sbt env in
@@ -771,7 +778,7 @@ let make_function_args f_i loc env args accesses ghost_params requires =
       let@ at =
         aux_comp
           (arg_states @ [ (mut_arg, arg_state) ])
-          ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs)
+          ((if R.bvmode then [] else [ good_lc ]) @ good_lcs)
           env
           st
           rest
@@ -800,7 +807,7 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
   let rec aux_comp good_lcs env st = function
     | ((pure_arg, cn_bt), ct_ct) :: rest ->
       let ct = convert_ct loc ct_ct in
-      let sbt = Memory.sbt_of_sct ct in
+      let sbt = R.sbt_of_sct ct in
       let bt = SBT.proj sbt in
       let sbt2 = Translate.base_type env cn_bt in
       let@ () =
@@ -827,7 +834,7 @@ let make_fun_with_spec_args f_i loc env args accesses ghost_params requires =
           info )
       in
       let@ at =
-        aux_comp ((if !BT.cnBV then [] else [ good_lc ]) @ good_lcs) env st rest
+        aux_comp ((if R.bvmode then [] else [ good_lc ]) @ good_lcs) env st rest
       in
       return (Mu.mComputational ((pure_arg, bt), (loc, None)) at)
     | [] ->
@@ -1132,7 +1139,7 @@ module Spec = struct
          Translate.add_renamed_computational
            spec_sym
            fun_sym
-           (Memory.sbt_of_sct (convert_ct loc ct))
+           (R.sbt_of_sct (convert_ct loc ct))
            env)
       (List.combine args (List.combine arg_cts cn_spec_args))
       env
@@ -1282,7 +1289,7 @@ let normalise_fun_map_decl
        (match Sym.Map.find_opt fname fun_specs with
         | Some parsed_decl_spec ->
           let@ () =
-            check_against_core_bt loc ret_bt (Memory.bt_of_sct (convert_ct loc ret_ct))
+            check_against_core_bt loc ret_bt (R.bt_of_sct (convert_ct loc ret_ct))
           in
           let@ parsed = Spec.there_can_only_be_one loc fname parsed_decl_spec None in
           let ail_marker, spec_loc, spec_args = Option.get parsed.if_spec in
@@ -1465,6 +1472,8 @@ let translate_datatype env Cn.{ cn_dt_loc; cn_dt_name; cn_dt_cases; cn_dt_magic_
   (cn_dt_name, Mu.{ loc = cn_dt_loc; cases })
 
 
+module Builtins = Builtins.F(R)
+
 let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_prog) file =
   let open CF.AilSyntax in
   let open CF.Milicore in
@@ -1550,3 +1559,5 @@ let normalise_file ~inherit_loc ((fin_markers_env : CAE.fin_markers_env), ail_pr
   in
   debug 3 (lazy (headline "done core_to_mucore normalising file"));
   return file
+
+end

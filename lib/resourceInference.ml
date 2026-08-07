@@ -1,16 +1,20 @@
-module MT = MakeTerm
 module LC = LogicalConstraints
 module Req = Request
 
+open Typing (* with effect `module WellTyped = Typing.WellTyped` *)
+
 module F(R : Bt_of_sct.Repr) = struct
 
-
-module TypingS = Typing.F(R)
 module WellTyped = WellTyped.F(R)
 module Simplify = Simplify.F(R)
+module MT = MakeTerm.F(R)
+module Solver = Solver.F(R)
+module Pack = Pack.F(R)
+module Alloc = Alloc.F(R)
 
-open Typing
-open TypingS
+open Typing.F(R)
+
+
 
 let debug_constraint_failure_diagnostics
       _lvl

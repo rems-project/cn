@@ -1,5 +1,6 @@
 val history_sym : Sym.t
 val predicate_sym : Sym.t
+val predicate_name : Request.name
 
 module F (_: Bt_of_sct.Repr) : sig
 

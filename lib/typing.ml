@@ -173,14 +173,14 @@ module ErrorReader = struct
     return s.typing_context.global
 
 
-  let _lift = function
+  let lift = function
     | Ok x -> return x
     | Error WellTyped.{ loc; msg } -> fail (fun _ -> { loc; msg = WellTyped msg })
 
 
   let fail loc msg = fail (fun _ -> { loc; msg = Global msg })
 
-  let _get_context () =
+  let get_context () =
     let@ s = get () in
     return s.typing_context
 end
@@ -276,7 +276,7 @@ end
 
 (* end: convenient functions for global typing context *)
 
-(* module WellTyped = WellTyped.Lift (ErrorReader) *)
+module WellTyped = WellTyped.Lift (ErrorReader)
 
 let add_sym_eqs sym_eqs =
   modify (fun s ->
@@ -323,13 +323,12 @@ module F (R : Bt_of_sct.Repr) = struct
 
 include General
 
-module Solver = Solver.F(R)
+module SolverS = Solver.F(R)
 open Simplify
 module Simplify = Simplify.F(R)
 module MT = MakeTerm.F(R)
 module Pack = Pack.F(R)
-module Alloc = Alloc.F(R)
-
+module RDC = ResourceDerivedConstraints.F(R)
 
 
 (* functions to make values derived from the monad state *)
@@ -346,7 +345,7 @@ let simp_ctxt () =
 let make_provable loc ({ typing_context = s; solver; _ } as c) =
   let simp_ctxt = make_simp_ctxt c in
   let f ?(purpose = "") lc =
-    Solver.provable
+    SolverS.provable
       ~loc
       ~solver:(Option.get solver)
       ~assumptions:s.constraints
@@ -367,7 +366,7 @@ let maybe_declare_variable_in_solver sym bt =
   let@ s = get () in
   match s.solver with
   | None -> return ()
-  | Some solver -> return (Solver.declare_variable solver (sym, bt))
+  | Some solver -> return (SolverS.declare_variable solver (sym, bt))
 
 
 let add_a sym bt info =
@@ -418,8 +417,8 @@ let init_solver () =
       in
       Sym.Map.fold add_binding c.logical (Sym.Map.fold add_binding c.computational [])
     in
-    let solver = Solver.make c.global to_declare in
-    LC.Set.iter (Solver.assume solver) c.constraints;
+    let solver = SolverS.make c.global to_declare in
+    LC.Set.iter (SolverS.assume solver) c.constraints;
     { s with solver = Some solver })
 
 
@@ -433,63 +432,13 @@ let add_c_internal lc =
   let@ simp_ctxt = simp_ctxt () in
   let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
   let s = Context.add_c lc s in
-  let () = Solver.assume solver lc in
+  let () = SolverS.assume solver lc in
   let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
   let@ () = set_typing_context s in
   return ()
 
 
 open Resource
-
-(* assumption: the resource is owned *)
-let derived_lc1 ((resource : Req.t), O output) =
-  let here = Locations.other __LOC__ in
-  match resource with
-  | P { name = Owned (ct, _); pointer; iargs = _ } ->
-    let addr = MT.addr_ pointer here in
-    let upper = MT.upper_bound addr ct here in
-    let alloc_bounds =
-      if !MT.use_vip then
-        let module H = Alloc.History in
-        let H.{ base; size } = H.(split (lookup_ptr pointer here) here) in
-        [ MT.(le_ (base, addr) here); MT.(le_ (upper, add_ (base, size) here) here) ]
-      else
-        []
-    in
-    [ MT.hasAllocId_ pointer here; MT.(le_ (addr, upper) here) ] @ alloc_bounds
-  | P { name; pointer; iargs = [] }
-    when !MT.use_vip && Req.(equal_name name Alloc.Predicate.name) ->
-    let module H = Alloc.History in
-    let lookup = H.lookup_ptr pointer here in
-    let H.{ base; size } = H.split lookup here in
-    [ MT.(eq_ (lookup, output) here); MT.(le_ (base, add_ (base, size) here) here) ]
-  | Q { name = Owned _; pointer; _ } -> [ MT.hasAllocId_ pointer here ]
-  | P { name = PName _; pointer = _; iargs = _ } | Q { name = PName _; _ } -> []
-
-
-(* assumption: both resources are owned at the same *)
-(* todo, depending on how much we need *)
-let derived_lc2 ((resource : Req.t), _) ((resource' : Req.t), _) =
-  match (resource, resource') with
-  | ( P { name = Owned (ct1, _); pointer = p1; iargs = _ },
-      P { name = Owned (ct2, _); pointer = p2; iargs = _ } ) ->
-    let here = Locations.other __LOC__ in
-    let addr1 = MT.addr_ p1 here in
-    let addr2 = MT.addr_ p2 here in
-    let up1 = MT.upper_bound addr1 ct1 here in
-    let up2 = MT.upper_bound addr2 ct2 here in
-    [ MT.(or2_ (le_ (up2, addr1) here, le_ (up1, addr2) here) here) ]
-  | _ -> []
-
-
-let disable_resource_derived_constraints = ref false
-
-let pointer_facts ~new_resource ~old_resources =
-  if !disable_resource_derived_constraints then
-    []
-  else
-    derived_lc1 new_resource @ List.concat_map (derived_lc2 new_resource) old_resources
-
 
 let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   let@ s = get_typing_context () in
@@ -498,7 +447,7 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   let oargs = Simplify.Terms.simp simp_ctxt oargs in
   let pointer_facts =
     if derive_constraints then
-      pointer_facts ~new_resource:(r, Res.O oargs) ~old_resources:(Context.get_rs s)
+      RDC.pointer_facts ~new_resource:(r, Res.O oargs) ~old_resources:(Context.get_rs s)
     else
       []
   in
@@ -509,7 +458,7 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
 (* functions to do with satisfying models *)
 
 let model () =
-  let m = Solver.model () in
+  let m = SolverS.model () in
   return m
 
 

@@ -31,5 +31,9 @@ type state_extras =
 (** No additional information *)
 val no_ex : state_extras
 
+module F(_: Bt_of_sct.Repr) : sig
+
 (** Generate a report describing what went wrong. *)
 val trace : Context.t * log -> Solver.model_with_q -> state_extras -> Report.report
+
+end

@@ -105,6 +105,9 @@ let ack_command s cmd =
 end
 
 
+let eval mo t = mo t
+
+
 module F(R : Bt_of_sct.Repr) = struct
 
 include General
@@ -1461,8 +1464,6 @@ let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
   Pp.time_end "provable" ~info1:purpose ~info2:(lazy (LC.pp lc)) start_time;
   result
 
-
-let eval mo t = mo t
 
 end
 

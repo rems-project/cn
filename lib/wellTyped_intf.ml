@@ -16,13 +16,13 @@ module type S = sig
     expect:int ->
     unit t
 
+  val check_ct : Locations.t -> Sctypes.ctype -> unit t
+
   val err_if_ct_void
     :  Locations.t ->
     [ `Sizeof | `Array_shift | `RW | `W ] ->
     Sctypes.ctype ->
     unit t
-
-  val check_ct : Locations.t -> Sctypes.ctype -> unit t
 
   val infer_term : 'bt Terms.annot -> Terms.Normal.t t
 

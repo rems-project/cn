@@ -202,6 +202,6 @@ val model : unit -> Solver.model_with_q m
 
 val bind_logical_return : Locations.t -> string -> LogicalReturnTypes.t -> unit m
 
-
 end
 
+module WellTyped : WellTyped_intf.S with type 'a t := 'a t

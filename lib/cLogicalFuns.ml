@@ -4,12 +4,18 @@ module CF = Cerb_frontend
 module BT = BaseTypes
 module Mu = Mucore
 module T = Terms.Normal
-module MT = MakeTerm
 open Cerb_pp_prelude
 open TypeErrors
 open Typing
 
 open Effectful.Make (Typing)
+
+module F (R : Bt_of_sct.Repr) = struct
+
+module Simplify = Simplify.F(R)
+module MT = MakeTerm.F(R)
+module WellTyped = Typing.WellTyped.F(R)
+module TypingS = Typing.F(R)
 
 let fail_n m = fail (fun _ctxt -> m)
 
@@ -116,7 +122,7 @@ let simp_const loc lpp it =
 let do_wrapI loc ct it =
   match Sctypes.is_integer_type ct with
   | Some ity ->
-    let ity_bt = Memory.bt_of_sct ct in
+    let ity_bt = R.bt_of_sct ct in
     if BT.equal ity_bt (Terms.get_bt it) then
       return it
     else
@@ -182,7 +188,7 @@ let rec add_pattern p v var_map =
 
 let signed_int_ity = Sctypes.(IntegerTypes.Signed IntegerBaseTypes.Int_)
 
-let signed_int_ty = Memory.bt_of_sct (Sctypes.Integer signed_int_ity)
+let signed_int_ty = R.bt_of_sct (Sctypes.Integer signed_int_ity)
 
 let is_two_pow it =
   match T.get_term it with
@@ -195,7 +201,7 @@ let is_two_pow it =
   | _ -> None
 
 
-let bool_rep_ty = Memory.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
+let bool_rep_ty = R.bt_of_sct Sctypes.(Integer IntegerTypes.Bool)
 
 let bool_ite_1_0 bt b loc = MT.ite_ (b, MT.int_lit_ 1 bt loc, MT.int_lit_ 0 bt loc) loc
 
@@ -235,7 +241,7 @@ let rec symb_exec_pexpr ctxt var_map pexpr =
   let (Mu.Pexpr (loc, annots, bt, pe)) = pexpr in
   let opt_bt =
     WellTyped.integer_annot annots
-    |> Option.map (fun ity -> Memory.bt_of_sct (Sctypes.Integer ity))
+    |> Option.map (fun ity -> R.bt_of_sct (Sctypes.Integer ity))
   in
   Pp.debug
     22
@@ -453,7 +459,7 @@ let rec symb_exec_expr ctxt state_vars expr =
   let (Mu.Expr (loc, annots, _, e)) = expr in
   let opt_bt =
     WellTyped.integer_annot annots
-    |> Option.map (fun ity -> Memory.bt_of_sct (Sctypes.Integer ity))
+    |> Option.map (fun ity -> R.bt_of_sct (Sctypes.Integer ity))
   in
   Pp.debug
     22
@@ -750,7 +756,7 @@ let c_fun_to_it id_loc glob_context (id : Sym.t) fsym def (fn : 'bty Mu.fun_map_
       match args_and_body with
       | Mu.Computational ((s, bt), (loc, _info), args_and_body) ->
         Typing.bind
-          (Typing.add_a s bt (loc, lazy (Pp.item "argument" (Sym.pp s))))
+          (TypingS.add_a s bt (loc, lazy (Pp.item "argument" (Sym.pp s))))
           (fun () -> in_computational_ctxt args_and_body m)
       | Ghost (_, _, _) -> fail_n { loc; msg = Not_impl_ghost_args_in_pure_C_function }
       | L _ -> m
@@ -809,7 +815,9 @@ let upd_def (loc, sym, def_tm) =
 let add_logical_funs_from_c call_funinfo funs_to_convert funs =
   let c_fun_pred_map =
     List.fold_left
-      (fun m Mu.{ c_fun_sym; loc; l_fun_sym } -> Sym.Map.add c_fun_sym (loc, l_fun_sym) m)
+      (fun m Mu.{ c_fun_sym; loc; l_fun_sym } -> 
+	Sym.Map.add c_fun_sym (loc, l_fun_sym) m
+      )
       Sym.Map.empty
       funs_to_convert
   in
@@ -819,7 +827,7 @@ let add_logical_funs_from_c call_funinfo funs_to_convert funs =
   let@ conv_defs =
     ListM.mapM
       (fun Mu.{ c_fun_sym; loc; l_fun_sym } ->
-         if not !BT.cnBV then
+         if not R.bvmode then
            failwith "todo: deriving CN function from C function in integer-mode";
          let@ def = Global.get_logical_function_def loc l_fun_sym in
          let@ fbody =
@@ -838,3 +846,5 @@ let add_logical_funs_from_c call_funinfo funs_to_convert funs =
       funs_to_convert
   in
   ListM.iterM upd_def conv_defs
+
+end
