@@ -27,14 +27,16 @@ type t =
     where : Where.t
   }
 
-let empty =
+let empty init_lvars =
   (* let logical = *)
   (*   let loc_str = __FILE__ ^ ":" ^ string_of_int __LINE__ in *)
   (*   let l_info = (Locations.other loc_str, lazy (Pp.string loc_str)) in *)
-  (*   Sym.Map.(empty |> add Alloc.History.sym (BaseType Alloc.History.bt, l_info)) *)
+  (*   Sym.Map.(empty |> add Alloc.history_sym (BaseType Alloc.History.bt, l_info)) *)
   (* in *)
+  let add (s, (bt,info)) acc = Sym.Map.add s (BaseType bt,info) acc in
+  let logical = List.fold_right add init_lvars Sym.Map.empty in
   { computational = Sym.Map.empty;
-    logical = Sym.Map.empty;
+    logical = logical;
     resources = [];
     constraints = LC.Set.empty;
     global = Global.empty;

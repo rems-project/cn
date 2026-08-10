@@ -21,11 +21,11 @@ type builtin_fn_def = string * Sym.t * Definition.Function.t
 
 let loc = Cerb_location.other "<builtin>"
 
-module F(R: Bt_of_sct.Repr) = struct
+(* module F(R: Bt_of_sct.Repr) = struct *)
 
 module SBT = BaseTypes.Surface
 module BT = BaseTypes
-module MT = MakeTerm.F(R)
+module MT = MakeTerm
 
 let loc = loc
 
@@ -141,13 +141,13 @@ let prov_eq_def : builtin_fn_def =
   definition "prov_eq" [ left; right ] body
 
 
-let addr_eq_def : builtin_fn_def =
-  let left = (Sym.fresh "arg1", BT.Loc ()) in
-  let right = (Sym.fresh "arg2", BT.Loc ()) in
-  let left_cast = MT.addr_ (MT.sym_ (fst left, BT.Loc (), loc)) loc in
-  let right_cast = MT.addr_ (MT.sym_ (fst right, BT.Loc (), loc)) loc in
-  let body = MT.binop EQ (left_cast, right_cast) loc BT.Bool in
-  definition "addr_eq" [ left; right ] body
+(* let addr_eq_def : builtin_fn_def = *)
+(*   let left = (Sym.fresh "arg1", BT.Loc ()) in *)
+(*   let right = (Sym.fresh "arg2", BT.Loc ()) in *)
+(*   let left_cast = MT.addr_ (MT.sym_ (fst left, BT.Loc (), loc)) loc in *)
+(*   let right_cast = MT.addr_ (MT.sym_ (fst right, BT.Loc (), loc)) loc in *)
+(*   let body = MT.binop EQ (left_cast, right_cast) loc BT.Bool in *)
+(*   definition "addr_eq" [ left; right ] body *)
 
 
 (* The remaining functions in this file, from here until array_to_list_def cannot yet be translated to
@@ -287,7 +287,7 @@ let builtin_funs
 
 
 let builtin_fun_defs =
-  max_min_bits @ [ not_def; is_null_def; ptr_eq_def; prov_eq_def; addr_eq_def ]
+  max_min_bits @ [ not_def; is_null_def; ptr_eq_def; prov_eq_def; (* addr_eq_def *) ]
 
 
 let apply_builtin_funs fsym args loc =
@@ -327,4 +327,4 @@ let fun_names =
   @ List.map (fun (str, sym, _) -> (str, sym)) builtin_fun_defs
 
 
-end
+

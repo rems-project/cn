@@ -2,11 +2,14 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module T = Terms.Normal
+module R = Bt_of_sct.BV
 module MT = MakeTerm
 module BT = BaseTypes
 module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
+module TermBounds = TermBounds.F(R)
+module Simplify = Simplify.F(R)
 
 module Make (AD : Domain.T) = struct
   module Stage5 = Stage5.Make (AD)
@@ -77,7 +80,7 @@ module Make (AD : Domain.T) = struct
             (Sctypes.to_ctype sct))
       in
       let convert_fn_doc =
-        !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
+        !^(Option.get (CtA.get_conversion_from_fn_str (R.bt_of_sct sct)))
       in
       let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let conditional_stmts =
@@ -164,7 +167,7 @@ module Make (AD : Domain.T) = struct
                   (pp_ctype ~is_human:false C.no_qualifiers)
                   (Sctypes.to_ctype sct))
               ^^ comma
-              ^^^ !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
+              ^^^ !^(Option.get (CtA.get_conversion_from_fn_str (R.bt_of_sct sct)))
               ^^ comma
               ^^^ addr_smt
               ^^ comma
@@ -310,7 +313,7 @@ module Make (AD : Domain.T) = struct
             (Sctypes.to_ctype sct))
       in
       let convert_fn_doc =
-        !^(Option.get (CtA.get_conversion_from_fn_str (Memory.bt_of_sct sct)))
+        !^(Option.get (CtA.get_conversion_from_fn_str (R.bt_of_sct sct)))
       in
       let subst_i_in_addr it = f (T.subst (T.make_subst [ (i_sym, it) ]) it_addr) in
       let map_init_stmt =

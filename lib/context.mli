@@ -19,7 +19,7 @@ type t =
     where : Where.t
   }
 
-val empty : t
+val empty : (Sym.t * (BaseTypes.t * l_info)) list -> t
 
 val get_rs : t -> Resource.t list
 

@@ -25,6 +25,8 @@ type err =
     msg : message
   }
 
+val exec_spec_hack_syms : BaseTypes.Surface.t Hashtbl.Make(Sym).t
+
 module F(_: Bt_of_sct.Repr) : sig
 
 type env
@@ -37,8 +39,6 @@ val init
   (Locations.t -> Sym.t -> unit Cerb_frontend.AilSyntax.expression cerb_frontend_result) ->
   (Locations.t -> Sym.t -> Cerb_frontend.Ctype.ctype cerb_frontend_result) ->
   env
-
-val exec_spec_hack_syms : BaseTypes.Surface.t Hashtbl.Make(Sym).t
 
 val add_computational : Sym.t -> BaseTypes.Surface.t -> env -> env
 
