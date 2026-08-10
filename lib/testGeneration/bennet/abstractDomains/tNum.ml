@@ -1048,7 +1048,7 @@ module TristateBasis = struct
       let bits_bt, sym_it =
         match t.bt with
         | BT.Loc () ->
-          (Memory.uintptr_bt, MT.cast_ Memory.uintptr_bt (MT.sym_ (sym, t.bt, loc)) loc)
+          (R.uintptr_bt, MT.cast_ R.uintptr_bt (MT.sym_ (sym, t.bt, loc)) loc)
         | _ -> (t.bt, MT.sym_ (sym, t.bt, loc))
       in
       if Z.equal t.mask Z.zero then (

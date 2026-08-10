@@ -6,7 +6,8 @@ module Utils = Fulminate.Utils
 module Records = Fulminate.Records
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -569,19 +570,19 @@ module Make (AD : Domain.T) = struct
       Returns an IT expression of type [Memory.size_bt] representing the offset. *)
   let rec compute_offset_it (var_sym : Sym.t) (it : T.t) : T.t =
     let loc = Locations.other __LOC__ in
-    let zero = MT.num_lit_ Z.zero Memory.size_bt loc in
+    let zero = MT.num_lit_ Z.zero R.size_bt loc in
     match it with
     | IT (Sym x, _, _) when Sym.equal x var_sym -> zero
     | IT (Cast (_, IT (Sym x, _, _)), _, _) when Sym.equal x var_sym -> zero
     | IT (CopyAllocId { loc = ptr; _ }, _, _) -> compute_offset_it var_sym ptr
     | IT (MemberShift (base, tag, member), _, _) ->
       let base_offset = compute_offset_it var_sym base in
-      let member_offset = Terms.IT (OffsetOf (tag, member), Memory.size_bt, loc) in
+      let member_offset = Terms.IT (OffsetOf (tag, member), R.size_bt, loc) in
       MT.add_ (base_offset, member_offset) loc
     | IT (ArrayShift { base; ct; index }, _, _) ->
       let base_offset = compute_offset_it var_sym base in
       let elem_size = MT.sizeOf_ ct loc in
-      let index_cast = MT.cast_ Memory.size_bt index loc in
+      let index_cast = MT.cast_ R.size_bt index loc in
       MT.add_ (base_offset, MT.mul_ (elem_size, index_cast) loc) loc
     | _ -> failwith ("compute_offset_it: unexpected IT shape: " ^ Pp.plain (T.pp it))
 
@@ -606,7 +607,7 @@ module Make (AD : Domain.T) = struct
            let b_off, s_off, e_off = transform_it filename sigma name offset_it in
            let (A.AnnotatedExpression (_, _, _, e_off_)) = e_off in
            let raw_offset_expr =
-             mk_expr (CtA.wrap_with_convert_from e_off_ Memory.size_bt)
+             mk_expr (CtA.wrap_with_convert_from e_off_ R.size_bt)
            in
            let offset_str =
              CF.Pp_utils.to_plain_string
@@ -617,7 +618,7 @@ module Make (AD : Domain.T) = struct
              | Some it_max when not (Sym.Set.mem var_sym (T.free_vars it_max)) ->
                let loc = Locations.other __LOC__ in
                let end_bytes_it =
-                 MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
+                 MT.mul_ (MT.cast_ R.size_bt it_max loc, MT.sizeOf_ sct loc) loc
                in
                let range_size_it = MT.sub_ (end_bytes_it, offset_it) loc in
                let b_range, s_range, e_range =
@@ -625,7 +626,7 @@ module Make (AD : Domain.T) = struct
                in
                let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                let raw_range_expr =
-                 mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
+                 mk_expr (CtA.wrap_with_convert_from e_range_ R.size_bt)
                in
                ( b_range,
                  s_range,
@@ -999,7 +1000,7 @@ module Make (AD : Domain.T) = struct
                   | Some it_max when not (Sym.Set.mem var_sym (T.free_vars it_max)) ->
                     let loc = Locations.other __LOC__ in
                     let end_bytes_it =
-                      MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
+                      MT.mul_ (MT.cast_ R.size_bt it_max loc, MT.sizeOf_ sct loc) loc
                     in
                     let start_offset_it = compute_offset_it var_sym it_addr in
                     let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
@@ -1008,7 +1009,7 @@ module Make (AD : Domain.T) = struct
                     in
                     let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                     let raw_range_expr =
-                      mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
+                      mk_expr (CtA.wrap_with_convert_from e_range_ R.size_bt)
                     in
                     ( b_range,
                       s_range,
@@ -1090,7 +1091,7 @@ module Make (AD : Domain.T) = struct
                (* For array range assignments, bytes = it_max * sizeof(sct) - start_offset *)
                let loc = Locations.other __LOC__ in
                let end_bytes_it =
-                 MT.mul_ (MT.cast_ Memory.size_bt it_max loc, MT.sizeOf_ sct loc) loc
+                 MT.mul_ (MT.cast_ R.size_bt it_max loc, MT.sizeOf_ sct loc) loc
                in
                let start_offset_it = compute_offset_it var_sym it_addr in
                let range_size_it = MT.sub_ (end_bytes_it, start_offset_it) loc in
@@ -1099,7 +1100,7 @@ module Make (AD : Domain.T) = struct
                in
                let (A.AnnotatedExpression (_, _, _, e_range_)) = e_range in
                let raw_range_expr =
-                 mk_expr (CtA.wrap_with_convert_from e_range_ Memory.size_bt)
+                 mk_expr (CtA.wrap_with_convert_from e_range_ R.size_bt)
                in
                ( b_range,
                  s_range,

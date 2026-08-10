@@ -1,4 +1,9 @@
+val loc : Locations.t
+
+val history_str : string
 val history_sym : Sym.t
+
+val predicate_str : string
 val predicate_sym : Sym.t
 val predicate_name : Request.name
 
@@ -39,8 +44,6 @@ end
 
 module Predicate : sig
   val str : string
-
-  val loc : Locations.t
 
   val sym : Sym.t
 

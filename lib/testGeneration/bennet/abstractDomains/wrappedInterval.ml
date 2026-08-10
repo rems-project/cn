@@ -1382,7 +1382,7 @@ module WrappedIntervalBasis = struct
       let bits_bt, sym_it =
         match t.bt with
         | BT.Loc () ->
-          (Memory.uintptr_bt, MT.cast_ Memory.uintptr_bt (MT.sym_ (sym, t.bt, loc)) loc)
+          (R.uintptr_bt, MT.cast_ R.uintptr_bt (MT.sym_ (sym, t.bt, loc)) loc)
         | _ -> (t.bt, MT.sym_ (sym, t.bt, loc))
       in
       let start_it = MT.num_lit_ t.start bits_bt loc in
