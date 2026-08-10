@@ -20,15 +20,18 @@
 
    Dropped throughout, all deliberately: `Locations.t` and the LAT/AT `info`
    strings (AustenTest carries no source spans), `Definition.Predicate`'s
-   `recursive` (it recomputes recursion from the call graph) and `attrs`, and
-   `Definition.Function.emit_coq`. Return types and `ensures` go too — the
-   generator only ever produces *inputs*. *)
+   `recursive` (it recomputes recursion from the call graph) and `attrs`,
+   `Definition.Function.emit_coq`, and the `Extract.fn_body` half of the
+   argument type's terminal — the `cn_statement`s and loop invariants inside
+   the body, which are neither pre- nor postcondition. *)
 
 module BT = BaseTypes
 module T = Terms.Normal
 module LC = LogicalConstraints
 module LAT = LogicalArgumentTypes
+module LRT = LogicalReturnTypes
 module AT = ArgumentTypes
+module RT = ReturnTypes
 module Req = Request
 
 type json = Yojson.Safe.t
@@ -423,7 +426,7 @@ let json_of_req : Req.t -> json = function
       ]
 
 
-(* -------------------------------------------------------------- LAT, AT *)
+(* ------------------------------------------------------ LAT, AT, LRT, RT *)
 
 (* `info` is dropped from every binder. *)
 let rec json_of_lat : 'i. ('i -> json) -> 'i LAT.t -> json =
@@ -456,6 +459,34 @@ let rec json_of_at : 'i. ('i -> json) -> 'i AT.t -> json =
       "Ghost"
       [ pair (json_of_sym s) (json_of_bt bt); json_of_at json_of_i rest ]
   | AT.L lat -> newtype_variant "L" (json_of_lat json_of_i lat)
+
+
+(* `LogicalReturnTypes.t` is `LogicalArgumentTypes.t` with nothing at the end
+   of it. `I` is emitted as {"I": null} rather than the bare "I" a literal
+   transcription would give, so a postcondition chain is byte-identical to a
+   `LAT.t` whose terminal is unit and the far side needs no second chain type
+   to read it. *)
+let rec json_of_lrt (lrt : LRT.t) : json =
+  match lrt with
+  | LRT.Define ((s, it), _info, rest) ->
+    tuple_variant "Define" [ pair (json_of_sym s) (json_of_it it); json_of_lrt rest ]
+  | LRT.Resource ((s, (req, bt)), _info, rest) ->
+    tuple_variant
+      "Resource"
+      [ pair (json_of_sym s) (pair (json_of_req req) (json_of_bt bt)); json_of_lrt rest ]
+  | LRT.Constraint (lc, _info, rest) ->
+    tuple_variant "Constraint" [ json_of_lc lc; json_of_lrt rest ]
+  | LRT.I -> newtype_variant "I" `Null
+
+
+(* The postcondition: the binder standing for the returned value, which the
+   `ensures` terms refer to, and the chain those clauses desugar into. Its
+   `Resource`s are kept rather than filtered out — a postcondition's `take` is
+   the ownership the function hands back, and dropping it would make a
+   specification look like it returns none. *)
+let json_of_rt (rt : RT.t) : json =
+  let (RT.Computational ((s, bt), _info, lrt)) = rt in
+  obj [ ("var", pair (json_of_sym s) (json_of_bt bt)); ("body", json_of_lrt lrt) ]
 
 
 (* ---------------------------------------------------------- declarations *)
@@ -649,6 +680,7 @@ let json_of_test filename sigma (test : Test.t) : json =
       Sym.pp_string test.fn
   in
   let params, ret = c_signature sigma test.fn in
+  let post, _fn_body = AT.get_return test.internal in
   obj
     [ ("name", `String name);
       ( "params",
@@ -659,9 +691,17 @@ let json_of_test filename sigma (test : Test.t) : json =
              params) );
       ("return", json_of_ctype ret);
       (* AustenTest's ArgType terminal is `()`: it generates inputs, and the
-         return type and `ensures` are checked by the instrumented C, which
-         it does not run. *)
-      ("internal", json_of_at (fun _ -> `Null) test.internal)
+         terminal is where CN keeps the things that are not inputs. *)
+      ("internal", json_of_at (fun _ -> `Null) test.internal);
+      (* The postcondition, beside `internal` rather than at its terminal
+         where CN keeps it. Leaving the terminal `null` is what makes this
+         additive: an AustenTest that has no `ensures` field yet still reads
+         every specification exported here, and one that grows one does not
+         have to re-type `ArgType`. The cost is that the chain of `Define`s
+         and `Resource`s binding these terms' free variables lives in the
+         sibling field, so a reader has to associate the two by symbol
+         number rather than by nesting. *)
+      ("ensures", json_of_rt post)
     ]
 
 
