@@ -418,7 +418,8 @@ let json_of_lc : LC.t -> json = function
         ("permission", json_of_it permission);
         ("body", json_of_it body)
       ]
-  | LC.Forall _ -> raise (Unrepresentable "a forall constraint that is not an implication")
+  | LC.Forall _ ->
+    raise (Unrepresentable "a forall constraint that is not an implication")
 
 
 let json_of_init : Req.init -> json = function
