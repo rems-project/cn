@@ -57,6 +57,11 @@ let record_variant (name : string) (fields : (string * json) list) : json =
 
 let pair (a : json) (b : json) : json = `List [ a; b ]
 
+(* A CN construct AustenTest's specification language cannot carry. Raised
+   anywhere inside a function's export and handled at the top level, where it
+   becomes a warning that skips exporting that one function. *)
+exception Unrepresentable of string
+
 (* `austen_gen::Sym`. `name` is an `Option<String>`: an anonymous Cerberus
    symbol has no description to render, and inventing one would make two
    distinct symbols look alike in a diff. `num` is the load-bearing half —
@@ -396,12 +401,24 @@ and json_of_term (t : BT.t Terms.term) : json =
 
 (* ------------------------------------------------- constraints, requests *)
 
+(* A `Forall` is exported with its permission split out of the body: the
+   frontend always builds the body as `impl_ (permission, body)`
+   (`compile.ml:1208,1243` are the only construction sites that reach an
+   exported specification), and AustenTest's `LogicalConstraint::Forall`
+   carries the two halves as fields — the `_NoSMT` collapse's rule, one
+   construct over: normalize CN's internal spelling into what the term
+   means. A forall that is not an implication has no AustenTest rendering;
+   Fulminate refuses the same shape (`cn_to_ail.ml:3455`). *)
 let json_of_lc : LC.t -> json = function
   | LC.T it -> newtype_variant "T" (json_of_it it)
-  | LC.Forall ((s, bt), body) ->
+  | LC.Forall ((s, bt), Terms.IT (Terms.Binop (Terms.Implies, permission, body), _, _)) ->
     record_variant
       "Forall"
-      [ ("var", pair (json_of_sym s) (json_of_bt bt)); ("body", json_of_it body) ]
+      [ ("var", pair (json_of_sym s) (json_of_bt bt));
+        ("permission", json_of_it permission);
+        ("body", json_of_it body)
+      ]
+  | LC.Forall _ -> raise (Unrepresentable "a forall constraint that is not an implication")
 
 
 let json_of_init : Req.init -> json = function
@@ -567,8 +584,6 @@ let json_of_datatype (name : Sym.t) (dt : Mucore.datatype) : json =
    signature as the shim needs it, and internally tagged
    ({"kind": "int", "bits": 32, "signed": true}). Only void / bool / int /
    pointer / named are expressible. *)
-exception Unrepresentable of string
-
 let rec json_of_ctype (ct : Sctypes.t) : json =
   match ct with
   | Sctypes.Void -> obj [ ("kind", `String "void") ]
