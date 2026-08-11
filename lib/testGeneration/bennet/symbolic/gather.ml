@@ -2,11 +2,14 @@ module CF = Cerb_frontend
 module A = CF.AilSyntax
 module C = CF.Ctype
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module BT = BaseTypes
 module LC = LogicalConstraints
 module CtA = Fulminate.Cn_to_ail
 module Records = Fulminate.Records
+module TermBounds = TermBounds.F(R)
+module Simplify = Simplify.F(R)
 
 module Make (AD : Domain.T) = struct
   module Stage5 = Stage5.Make (AD)
@@ -76,7 +79,7 @@ module Make (AD : Domain.T) = struct
                 ~index:
                   (MT.num_lit_
                      (Z.of_int (Memory.size_of_ctype sct - 1))
-                     Memory.uintptr_bt
+                     R.uintptr_bt
                      here)
                 Sctypes.char_ct
                 here))
@@ -215,7 +218,7 @@ module Make (AD : Domain.T) = struct
                 ~index:
                   (MT.num_lit_
                      (Z.of_int (Memory.size_of_ctype sct - 1))
-                     Memory.uintptr_bt
+                     R.uintptr_bt
                      here)
                 Sctypes.char_ct
                 here))

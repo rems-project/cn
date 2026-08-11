@@ -85,6 +85,4 @@ module Predicate : sig
   val free_vars : t -> Sym.Set.t
 end
 
-val alloc : Predicate.t
-
 val is_interesting : Predicate.t -> bool

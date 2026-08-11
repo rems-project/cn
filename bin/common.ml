@@ -65,9 +65,9 @@ let frontend
     Setup.conf cc macros incl_dirs incl_files disable_linemarkers astprints save_cpp
   in
   let cn_init_scope : CF.Cn_desugaring.init_scope =
-    { predicates = [ Alloc.Predicate.(str, sym, Some loc) ];
+    { predicates = [ Alloc.(predicate_str, predicate_sym, Some loc) ];
       functions = List.map (fun (str, sym) -> (str, sym, None)) Builtins.fun_names;
-      idents = [ Alloc.History.(str, sym, None) ]
+      idents = [ Alloc.(history_str, history_sym, None) ]
     }
   in
   let@ cabs_tunit_opt, ail_prog_opt, prog0 =

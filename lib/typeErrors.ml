@@ -449,231 +449,6 @@ let pp_compile : Compile.message -> _ = function
     { short; descr = None; state = None }
 
 
-let pp_message = function
-  | Global msg -> pp_global msg
-  | WellTyped msg -> pp_welltyped msg
-  | Compile msg -> pp_compile msg
-  | Builtins msg -> pp_builtins msg
-  | Parse msg -> pp_parse msg
-  | Missing_resource { requests; situation; ctxt; model } ->
-    let short = !^"Missing resource" ^^^ for_situation situation in
-    let descr = RequestChain.pp requests in
-    let orequest =
-      Option.map
-        (fun (r : RequestChain.elem) -> r.RequestChain.resource)
-        (List.nth_opt (List.rev requests) 0)
-    in
-    let state = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
-    { short; descr; state = Some state }
-  | Merging_multiple_arrays { requests; situation; ctxt; model } ->
-    let short =
-      !^"Cannot satisfy request for resource"
-      ^^^ for_situation situation
-      ^^ dot
-      ^^^ !^"It requires merging multiple arrays."
-    in
-    let descr = RequestChain.pp requests in
-    let orequest =
-      Option.map (fun r -> r.RequestChain.resource) (List.nth_opt (List.rev requests) 0)
-    in
-    let state = Explain.trace ctxt model Explain.{ no_ex with request = orequest } in
-    { short; descr; state = Some state }
-  | Unused_resource { resource; ctxt; model } ->
-    let resource = Res.pp resource in
-    let short = !^"Left-over unused resource" ^^^ squotes resource in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    { short; descr = None; state = Some state }
-  | TooBigExponent { it } ->
-    let it = Terms.pp it in
-    let short = !^"Exponent too big" in
-    let descr =
-      !^"Illtyped expression"
-      ^^^ squotes it
-      ^^ dot
-      ^^^ !^"Too big exponent in the specification term"
-      ^^^ it
-      ^^ dot
-      ^^^ !^"Exponent must fit int32 type"
-    in
-    { short; descr = Some descr; state = None }
-  | NegativeExponent { it } ->
-    let it = Terms.pp it in
-    let short = !^"Negative exponent" in
-    let descr =
-      !^"Illtyped expression"
-      ^^ squotes it
-      ^^ dot
-      ^^^ !^"Negative exponent in the specification term"
-      ^^^ it
-      ^^ dot
-      ^^^ !^"Exponent must be non-negative"
-    in
-    { short; descr = Some descr; state = None }
-  | Write_value_unrepresentable { ct; location; value; ctxt; model } ->
-    let short = !^"Write value not representable at type" ^^^ Sctypes.pp ct in
-    let location = Terms.pp location in
-    let value = Terms.pp value in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    let descr =
-      !^"Location" ^^ colon ^^^ location ^^ comma ^^^ !^"value" ^^ colon ^^^ value ^^ dot
-    in
-    { short; descr = Some descr; state = Some state }
-  | Int_unrepresentable { value; ict; ctxt; model } ->
-    let short = !^"integer value not representable at type" ^^^ Sctypes.pp ict in
-    let value = Terms.pp value in
-    let descr = !^"Value" ^^ colon ^^^ value in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    { short; descr = Some descr; state = Some state }
-  | Unproven_constraint { constr; requests; info; ctxt; model } ->
-    let short = !^"Unprovable constraint" in
-    let state =
-      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
-    in
-    let descr =
-      let spec_loc, odescr = info in
-      let head, pos = Locations.head_pos_of_location spec_loc in
-      let doc =
-        match odescr with
-        | None -> !^"Constraint from" ^^^ !^head ^/^ !^pos
-        | Some descr -> !^"Constraint from" ^^^ !^descr ^^^ !^head ^/^ !^pos
-      in
-      match RequestChain.pp requests with
-      | Some doc2 -> doc ^^ hardline ^^ doc2
-      | None -> doc
-    in
-    { short; descr = Some descr; state = Some state }
-  | Undefined_behaviour { ub; ctxt; model } ->
-    let short = !^"Undefined behaviour" in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    let descr =
-      match CF.Undefined.std_of_undefined_behaviour ub with
-      | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
-      | None -> !^(CF.Undefined.ub_short_string ub)
-    in
-    { short; descr = Some descr; state = Some state }
-  | Needs_alloc_id { ptr; ub; ctxt; model } ->
-    let short = !^"Pointer " ^^ bquotes (Terms.pp ptr) ^^ !^" needs allocation ID" in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    let descr =
-      match CF.Undefined.std_of_undefined_behaviour ub with
-      | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
-      | None -> !^(CF.Undefined.ub_short_string ub)
-    in
-    { short; descr = Some descr; state = Some state }
-  | Alloc_out_of_bounds { constr; term; ub; ctxt; model } ->
-    let short = bquotes (Terms.pp term) ^^ !^" out of bounds" in
-    let state =
-      Explain.trace
-        ctxt
-        model
-        Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }
-    in
-    let descr =
-      match CF.Undefined.std_of_undefined_behaviour ub with
-      | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
-      | None -> !^(CF.Undefined.ub_short_string ub)
-    in
-    { short; descr = Some descr; state = Some state }
-  | Allocation_not_live { reason; ptr; ctxt; model_constr } ->
-    let adjust = function
-      | Terms.IT (CopyAllocId { loc; _ }, _, _) -> loc
-      | Terms.IT (ArrayShift { base; _ }, _, _) -> base
-      | Terms.IT (MemberShift (ptr, _, _), _, _) -> ptr
-      | _ -> assert false
-    in
-    let reason, ptr =
-      match reason with
-      | `Copy_alloc_id -> ("copy_alloc_id", adjust ptr)
-      | `Ptr_diff -> ("pointer difference", ptr)
-      | `Ptr_cmp -> ("pointer comparison", ptr)
-      | `ISO_array_shift -> ("array shift", adjust ptr)
-      | `ISO_member_shift -> ("member shift", adjust ptr)
-    in
-    let short =
-      !^"Pointer " ^^ bquotes (Terms.pp ptr) ^^^ !^"needs to be live for" ^^^ !^reason
-    in
-    let state =
-      Option.map
-        (fun (model, constr) ->
-           Explain.trace
-             ctxt
-             model
-             Explain.{ no_ex with unproven_constraint = Some (LC.T constr) })
-        model_constr
-    in
-    let descr = !^"Need an Alloc or RW in context with same allocation id" in
-    { short; descr = Some descr; state }
-  (* | Implementation_defined_behaviour (impl, state) -> *)
-  (*    let short = !^"Implementation defined behaviour" in *)
-  (*    let descr = impl in *)
-  (*    { short; descr = Some descr; state = Some state;  } *)
-  | Unspecified ctype ->
-    let short = !^"Unspecified value of C-type" ^^^ CF.Pp_core_ctype.pp_ctype ctype in
-    { short; descr = None; state = None }
-  | StaticError { err; ctxt; model } ->
-    let short = !^"Static error" in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    let descr = !^err in
-    { short; descr = Some descr; state = Some state }
-  | ((Generic err) [@alert "-deprecated"]) ->
-    let short = err in
-    { short; descr = None; state = None }
-  | ((Generic_with_model { err; model; ctxt }) [@alert "-deprecated"]) ->
-    let short = err in
-    let state = Explain.trace ctxt model Explain.no_ex in
-    { short; descr = None; state = Some state }
-  | Unsupported err ->
-    let short = err in
-    { short; descr = None; state = None }
-  | Empty_provenance ->
-    let short = !^"Empty provenance" in
-    { short; descr = None; state = None }
-  | Illtyped_binary_it { left; right; binop } -> pp_illtyped_binary_it ~left ~right binop
-  | Inconsistent_assumptions (kind, ctxt_log) ->
-    let short = !^kind ^^ !^" makes inconsistent assumptions" in
-    let state = Some (Explain.trace ctxt_log (Solver.empty_model, []) Explain.no_ex) in
-    { short; descr = None; state }
-  | Byte_conv_needs_owned ->
-    let short = !^"byte conversion only supports W/RW" in
-    { short; descr = None; state = None }
-  | Double_spec { fname; orig_loc } ->
-    let short = !^"double specification of" ^^^ Sym.pp fname in
-    let head, pos = Locations.head_pos_of_location orig_loc in
-    let descr = Some (!^"first specification at" ^^^ !^head ^/^ !^pos) in
-    { short; descr; state = None }
-  | Unsupported_byte_conv_ct ct ->
-    let short =
-      !^"Cannot (yet) convert value of" ^^^ Sctypes.pp ct ^^^ !^"to/from bytes"
-    in
-    { short; descr = None; state = None }
-  | Number_spec_args { spec; decl } ->
-    let short = !^"spec has the wrong number of arguments" in
-    let descr =
-      !^"spec has"
-      ^^^ !^(string_of_int spec)
-      ^^ comma
-      ^^^ !^"but declaration has"
-      ^^^ !^(string_of_int decl)
-    in
-    { short; descr = Some descr; state = None }
-  | Not_impl_ghost_args_in_pure_C_function ->
-    let short =
-      !^"Cannot lift a pure C function which uses ghost arguments (not implemented)."
-    in
-    { short; descr = None; state = None }
-  | Unspecified_byte_to_int { constr; ctxt; model } ->
-    let short = !^"Cannot convert unspecified byte to integer" in
-    let state =
-      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
-    in
-    { short; descr = None; state = Some state }
-  | Converting_from_unspecified_bytes { constr; ctxt; model } ->
-    let short = !^"Cannot convert from unspecified bytes" in
-    let state =
-      Explain.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
-    in
-    { short; descr = None; state = Some state }
-
 
 (** Convert a possibly-relative filepath into an absolute one. *)
 let canonicalize (path : string) : string =
@@ -745,6 +520,239 @@ let mk_report_file_name
   located_file_name ?fn_name ~dir:output_dir ~name:"report" ~ext:".json" loc
 
 
+
+
+module F (R : Bt_of_sct.Repr) = struct
+
+module ExplainS = Explain.F(R)
+
+let pp_message = function
+  | Global msg -> pp_global msg
+  | WellTyped msg -> pp_welltyped msg
+  | Compile msg -> pp_compile msg
+  | Builtins msg -> pp_builtins msg
+  | Parse msg -> pp_parse msg
+  | Missing_resource { requests; situation; ctxt; model } ->
+    let short = !^"Missing resource" ^^^ for_situation situation in
+    let descr = RequestChain.pp requests in
+    let orequest =
+      Option.map
+        (fun (r : RequestChain.elem) -> r.RequestChain.resource)
+        (List.nth_opt (List.rev requests) 0)
+    in
+    let state = ExplainS.trace ctxt model Explain.{ no_ex with request = orequest } in
+    { short; descr; state = Some state }
+  | Merging_multiple_arrays { requests; situation; ctxt; model } ->
+    let short =
+      !^"Cannot satisfy request for resource"
+      ^^^ for_situation situation
+      ^^ dot
+      ^^^ !^"It requires merging multiple arrays."
+    in
+    let descr = RequestChain.pp requests in
+    let orequest =
+      Option.map (fun r -> r.RequestChain.resource) (List.nth_opt (List.rev requests) 0)
+    in
+    let state = ExplainS.trace ctxt model Explain.{ no_ex with request = orequest } in
+    { short; descr; state = Some state }
+  | Unused_resource { resource; ctxt; model } ->
+    let resource = Res.pp resource in
+    let short = !^"Left-over unused resource" ^^^ squotes resource in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    { short; descr = None; state = Some state }
+  | TooBigExponent { it } ->
+    let it = Terms.pp it in
+    let short = !^"Exponent too big" in
+    let descr =
+      !^"Illtyped expression"
+      ^^^ squotes it
+      ^^ dot
+      ^^^ !^"Too big exponent in the specification term"
+      ^^^ it
+      ^^ dot
+      ^^^ !^"Exponent must fit int32 type"
+    in
+    { short; descr = Some descr; state = None }
+  | NegativeExponent { it } ->
+    let it = Terms.pp it in
+    let short = !^"Negative exponent" in
+    let descr =
+      !^"Illtyped expression"
+      ^^ squotes it
+      ^^ dot
+      ^^^ !^"Negative exponent in the specification term"
+      ^^^ it
+      ^^ dot
+      ^^^ !^"Exponent must be non-negative"
+    in
+    { short; descr = Some descr; state = None }
+  | Write_value_unrepresentable { ct; location; value; ctxt; model } ->
+    let short = !^"Write value not representable at type" ^^^ Sctypes.pp ct in
+    let location = Terms.pp location in
+    let value = Terms.pp value in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    let descr =
+      !^"Location" ^^ colon ^^^ location ^^ comma ^^^ !^"value" ^^ colon ^^^ value ^^ dot
+    in
+    { short; descr = Some descr; state = Some state }
+  | Int_unrepresentable { value; ict; ctxt; model } ->
+    let short = !^"integer value not representable at type" ^^^ Sctypes.pp ict in
+    let value = Terms.pp value in
+    let descr = !^"Value" ^^ colon ^^^ value in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    { short; descr = Some descr; state = Some state }
+  | Unproven_constraint { constr; requests; info; ctxt; model } ->
+    let short = !^"Unprovable constraint" in
+    let state =
+      ExplainS.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    let descr =
+      let spec_loc, odescr = info in
+      let head, pos = Locations.head_pos_of_location spec_loc in
+      let doc =
+        match odescr with
+        | None -> !^"Constraint from" ^^^ !^head ^/^ !^pos
+        | Some descr -> !^"Constraint from" ^^^ !^descr ^^^ !^head ^/^ !^pos
+      in
+      match RequestChain.pp requests with
+      | Some doc2 -> doc ^^ hardline ^^ doc2
+      | None -> doc
+    in
+    { short; descr = Some descr; state = Some state }
+  | Undefined_behaviour { ub; ctxt; model } ->
+    let short = !^"Undefined behaviour" in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    let descr =
+      match CF.Undefined.std_of_undefined_behaviour ub with
+      | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
+      | None -> !^(CF.Undefined.ub_short_string ub)
+    in
+    { short; descr = Some descr; state = Some state }
+  | Needs_alloc_id { ptr; ub; ctxt; model } ->
+    let short = !^"Pointer " ^^ bquotes (Terms.pp ptr) ^^ !^" needs allocation ID" in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    let descr =
+      match CF.Undefined.std_of_undefined_behaviour ub with
+      | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
+      | None -> !^(CF.Undefined.ub_short_string ub)
+    in
+    { short; descr = Some descr; state = Some state }
+  | Alloc_out_of_bounds { constr; term; ub; ctxt; model } ->
+    let short = bquotes (Terms.pp term) ^^ !^" out of bounds" in
+    let state =
+      ExplainS.trace
+        ctxt
+        model
+        Explain.{ no_ex with unproven_constraint = Some (LC.T constr) }
+    in
+    let descr =
+      match CF.Undefined.std_of_undefined_behaviour ub with
+      | Some stdref -> !^(CF.Undefined.ub_short_string ub) ^^^ parens !^stdref
+      | None -> !^(CF.Undefined.ub_short_string ub)
+    in
+    { short; descr = Some descr; state = Some state }
+  | Allocation_not_live { reason; ptr; ctxt; model_constr } ->
+    let adjust = function
+      | Terms.IT (CopyAllocId { loc; _ }, _, _) -> loc
+      | Terms.IT (ArrayShift { base; _ }, _, _) -> base
+      | Terms.IT (MemberShift (ptr, _, _), _, _) -> ptr
+      | _ -> assert false
+    in
+    let reason, ptr =
+      match reason with
+      | `Copy_alloc_id -> ("copy_alloc_id", adjust ptr)
+      | `Ptr_diff -> ("pointer difference", ptr)
+      | `Ptr_cmp -> ("pointer comparison", ptr)
+      | `ISO_array_shift -> ("array shift", adjust ptr)
+      | `ISO_member_shift -> ("member shift", adjust ptr)
+    in
+    let short =
+      !^"Pointer " ^^ bquotes (Terms.pp ptr) ^^^ !^"needs to be live for" ^^^ !^reason
+    in
+    let state =
+      Option.map
+        (fun (model, constr) ->
+           ExplainS.trace
+             ctxt
+             model
+             Explain.{ no_ex with unproven_constraint = Some (LC.T constr) })
+        model_constr
+    in
+    let descr = !^"Need an Alloc or RW in context with same allocation id" in
+    { short; descr = Some descr; state }
+  (* | Implementation_defined_behaviour (impl, state) -> *)
+  (*    let short = !^"Implementation defined behaviour" in *)
+  (*    let descr = impl in *)
+  (*    { short; descr = Some descr; state = Some state;  } *)
+  | Unspecified ctype ->
+    let short = !^"Unspecified value of C-type" ^^^ CF.Pp_core_ctype.pp_ctype ctype in
+    { short; descr = None; state = None }
+  | StaticError { err; ctxt; model } ->
+    let short = !^"Static error" in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    let descr = !^err in
+    { short; descr = Some descr; state = Some state }
+  | ((Generic err) [@alert "-deprecated"]) ->
+    let short = err in
+    { short; descr = None; state = None }
+  | ((Generic_with_model { err; model; ctxt }) [@alert "-deprecated"]) ->
+    let short = err in
+    let state = ExplainS.trace ctxt model Explain.no_ex in
+    { short; descr = None; state = Some state }
+  | Unsupported err ->
+    let short = err in
+    { short; descr = None; state = None }
+  | Empty_provenance ->
+    let short = !^"Empty provenance" in
+    { short; descr = None; state = None }
+  | Illtyped_binary_it { left; right; binop } -> pp_illtyped_binary_it ~left ~right binop
+  | Inconsistent_assumptions (kind, ctxt_log) ->
+    let short = !^kind ^^ !^" makes inconsistent assumptions" in
+    let state = Some (ExplainS.trace ctxt_log (Solver.empty_model, []) Explain.no_ex) in
+    { short; descr = None; state }
+  | Byte_conv_needs_owned ->
+    let short = !^"byte conversion only supports W/RW" in
+    { short; descr = None; state = None }
+  | Double_spec { fname; orig_loc } ->
+    let short = !^"double specification of" ^^^ Sym.pp fname in
+    let head, pos = Locations.head_pos_of_location orig_loc in
+    let descr = Some (!^"first specification at" ^^^ !^head ^/^ !^pos) in
+    { short; descr; state = None }
+  | Unsupported_byte_conv_ct ct ->
+    let short =
+      !^"Cannot (yet) convert value of" ^^^ Sctypes.pp ct ^^^ !^"to/from bytes"
+    in
+    { short; descr = None; state = None }
+  | Number_spec_args { spec; decl } ->
+    let short = !^"spec has the wrong number of arguments" in
+    let descr =
+      !^"spec has"
+      ^^^ !^(string_of_int spec)
+      ^^ comma
+      ^^^ !^"but declaration has"
+      ^^^ !^(string_of_int decl)
+    in
+    { short; descr = Some descr; state = None }
+  | Not_impl_ghost_args_in_pure_C_function ->
+    let short =
+      !^"Cannot lift a pure C function which uses ghost arguments (not implemented)."
+    in
+    { short; descr = None; state = None }
+  | Unspecified_byte_to_int { constr; ctxt; model } ->
+    let short = !^"Cannot convert unspecified byte to integer" in
+    let state =
+      ExplainS.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    { short; descr = None; state = Some state }
+  | Converting_from_unspecified_bytes { constr; ctxt; model } ->
+    let short = !^"Cannot convert from unspecified bytes" in
+    let state =
+      ExplainS.trace ctxt model Explain.{ no_ex with unproven_constraint = Some constr }
+    in
+    { short; descr = None; state = Some state }
+
+
+
 (** Format the error for human readability and print it to [stderr]. if the
     error contains enough information to create an HTML state report, generate
     one in [output_dir] (or, failing that, the system temporary directory) and
@@ -813,3 +821,5 @@ let report_json
       ]
   in
   Yojson.to_channel ~std:true stderr json
+
+end

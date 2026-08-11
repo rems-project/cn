@@ -1,6 +1,8 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
+module Simplify = Simplify.F(R)
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct

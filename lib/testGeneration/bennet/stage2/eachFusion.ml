@@ -1,5 +1,9 @@
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
+module Simplify = Simplify.F(R)
+module TermBounds = TermBounds.F(R)
+
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)

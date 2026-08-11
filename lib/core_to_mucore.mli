@@ -1,5 +1,12 @@
 (* Module Core_to_mucore - Translate Cerberus Core to CN Mucore *)
 
+val arguments_of_at : ('a -> 'b) -> 'a ArgumentTypes.t -> 'b Mucore.arguments
+
+val at_of_arguments : ('b -> 'a) -> 'b Mucore.arguments -> 'a ArgumentTypes.t
+
+
+module F (_ : Bt_of_sct.Repr) : sig
+
 (** Entry point *)
 val normalise_file
   :  inherit_loc:bool ->
@@ -7,6 +14,4 @@ val normalise_file
   ('b, unit) Cerb_frontend.Milicore.mi_file ->
   unit Mucore.file Or_TypeError.t
 
-val arguments_of_at : ('a -> 'b) -> 'a ArgumentTypes.t -> 'b Mucore.arguments
-
-val at_of_arguments : ('b -> 'a) -> 'b Mucore.arguments -> 'a ArgumentTypes.t
+end

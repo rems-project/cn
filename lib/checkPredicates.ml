@@ -56,6 +56,11 @@ module Result = struct
       List.fold_left combine h t
 end
 
+module F(R : Bt_of_sct.Repr) = struct
+
+module Solver = Solver.F(R)
+module RDC = ResourceDerivedConstraints.F(R)
+
 (** Infrastructure for checking if a countermodel satisfies a predicate **)
 (* The core function is `check_pred`, which, given a predicate and a term
    matching the return type of the predicate, checks if the term is in the
@@ -457,7 +462,7 @@ and get_var_constraints
     (match p with
      | P { name = Owned _; pointer = _; iargs = _ } ->
        (* if the predicate is Owned, get restrictions on pointer *)
-       let owned_lcs = Res.derived_lc1 (p, O v_cand) in
+       let owned_lcs = RDC.derived_lc1 (p, O v_cand) in
        return (List.map (fun it -> LC.T it) owned_lcs, var_cands)
      | P { name = PName name; pointer = _; iargs } ->
        (* search for predicate definition *)
@@ -467,3 +472,5 @@ and get_var_constraints
           return (cs, var_cands)
         | None -> unknown (!^"Could not find definition of predicate" ^^^ Sym.pp name))
      | Q _ -> unknown !^"Quantified predicates are out of scope for now.")
+
+end

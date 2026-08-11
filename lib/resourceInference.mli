@@ -1,3 +1,5 @@
+module F(_: Bt_of_sct.Repr) : sig
+
 val debug_constraint_failure_diagnostics
   :  int ->
   Solver.model_with_q ->
@@ -46,4 +48,6 @@ module Special : sig
     Error_common.situation ->
     Request.QPredicate.t * (Locations.t * string) option ->
     Resource.qpredicate Typing.m
+end
+
 end

@@ -154,8 +154,6 @@ type report =
     state : Report.report option (** Why is this here? *)
   }
 
-(** TODO move *)
-val pp_message : message -> report
 
 (** TODO move *)
 val canonicalize : string -> string
@@ -178,6 +176,12 @@ val mk_state_file_name : ?fn_name:string -> string -> Cerb_location.t -> string
 (** TODO move *)
 val mk_report_file_name : ?fn_name:string -> string -> Cerb_location.t -> string
 
+
+module F (_: Bt_of_sct.Repr) : sig
+
+(** TODO move *)
+val pp_message : message -> report
+
 (** TODO move *)
 val report_pretty
   :  ?output_dir:string ->
@@ -193,3 +197,5 @@ val report_json
   ?serialize_json:bool ->
   t ->
   unit
+
+end

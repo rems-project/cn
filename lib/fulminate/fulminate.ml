@@ -487,7 +487,7 @@ let filter_using_skip_and_only
   let all_fns_sym_set = Sym.Set.of_list prog5_fns_list in
   let main_sym = get_main_sym prog5_fns_list in
   let selected_function_syms =
-    Sym.Set.elements (Check.select_functions skip_and_only all_fns_sym_set)
+    Sym.Set.elements (Cfunutils.select_functions skip_and_only all_fns_sym_set)
   in
   let is_sym_selected =
     fun sym -> List.mem Sym.equal sym (selected_function_syms @ main_sym)

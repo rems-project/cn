@@ -185,6 +185,7 @@ end
 module Solver = struct
   module T = Terms.Normal
   module MT = MakeTerm
+  (* module MT = MakeTerm.F(R : Bt_of_sct.Repr) *)
   module RT = Request
   open Terms
   open BaseTypes

@@ -1,52 +1,17 @@
+module BT = BaseTypes
 module SMT = Simple_smt
-module MT = MakeTerm
 open Terms
-open MT
 module LC = LogicalConstraints
 module CTypeMap = Map.Make (Sctypes)
 module IntMap = Map.Make (Int)
 open Global
 open Pp
 
-let cnBV = BaseTypes.cnBV
 
-let inc_enabled = ref true
-
-let inc_timeout = ref None
-
-(** Functions that pick names for things. *)
-module CN_Names = struct
-  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let named_expr_name = "_cn_named"
-
-  let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let struct_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let struct_field_name x = Id.get_string x ^ "_struct_fld"
-
-  let datatype_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
-
-  let datatype_field_name x = Id.get_string x ^ "_data_fld"
-
-  let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
-
-  let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
-
-  let exp bt = "exp_uf_" ^ Pp.plain (BT.pp bt)
-
-  let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
-
-  let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
-end
+module General = struct
 
 type solver_frame =
   { mutable commands : SMT.sexp list (** Ack-style SMT commands, most recent first. *) }
-
-let empty_solver_frame () = { commands = [] }
 
 type solver =
   { smt_solver : SMT.solver; (** The SMT solver connection. *)
@@ -60,6 +25,21 @@ type solver =
           Unlike previously, this mapping is fixed (constant) from the start. *)
     model_smt_solver : SMT.solver (* The SMT solver used for model evaluation. *)
   }
+
+
+type model = Terms.Normal.t -> Terms.Normal.t option
+
+type model_with_q = model * (Sym.t * BaseTypes.t) list
+
+let empty_model = fun it -> Some it
+
+let inc_enabled = ref true
+
+let inc_timeout = ref None
+
+
+let empty_solver_frame () = { commands = [] }
+
 
 module Debug = struct
   let dump_frame (f : solver_frame) =
@@ -121,6 +101,53 @@ let ack_command s cmd =
   debug_ack_command s cmd;
   let f = !(s.cur_frame) in
   f.commands <- cmd :: f.commands
+
+end
+
+
+let eval mo t = mo t
+
+
+module F(R : Bt_of_sct.Repr) = struct
+
+include General
+
+module MT = MakeTerm.F(R)
+module Simplify = Simplify.F(R)
+
+open MT
+
+
+(** Functions that pick names for things. *)
+module CN_Names = struct
+  let fn_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let named_expr_name = "_cn_named"
+
+  let struct_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let struct_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let struct_field_name x = Id.get_string x ^ "_struct_fld"
+
+  let datatype_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let datatype_con_name x = Sym.pp_string_no_nums x ^ "_" ^ string_of_int (Sym.num x)
+
+  let datatype_field_name x = Id.get_string x ^ "_data_fld"
+
+  let mul bt = "mul_uf_" ^ Pp.plain (BT.pp bt)
+
+  let div bt = "div_uf_" ^ Pp.plain (BT.pp bt)
+
+  let exp bt = "exp_uf_" ^ Pp.plain (BT.pp bt)
+
+  let rem bt = "rem_uf_" ^ Pp.plain (BT.pp bt)
+
+  let mod' bt = "mod_uf_" ^ Pp.plain (BT.pp bt)
+end
+
+
 
 
 (** Generate a fresh name *)
@@ -220,21 +247,21 @@ module CN_MemByte = struct
   let width = Memory.bits_per_byte
 
   let value_bt () =
-    if !cnBV then
+    if R.bvmode then
       BT.Bits (Unsigned, width)
     else
       Integer
 
 
   let value_type () =
-    if !cnBV then
+    if R.bvmode then
       SMT.t_bits width
     else
       SMT.t_int
 
 
   let value_const (z : Z.t) =
-    if !cnBV then
+    if R.bvmode then
       SMT.bv_k width z
     else
       SMT.int_zk z
@@ -272,17 +299,17 @@ module CN_Pointer = struct
 
   let addr_name = "addr"
 
-  let width () = snd (Option.get (BT.is_bits_bt Memory.uintptr_bt))
+  let width () = snd (Option.get (BT.is_bits_bt R.uintptr_bt))
 
   let addr_type () =
-    if !cnBV then
+    if R.bvmode then
       SMT.t_bits (width ())
     else
       SMT.t_int
 
 
   let addr_const (k : Z.t) =
-    if !cnBV then
+    if R.bvmode then
       SMT.bv_k (width ()) k
     else
       SMT.int_zk k
@@ -343,7 +370,7 @@ module CN_Pointer = struct
                con_aia
                  ~alloc_id
                  ~addr:
-                   (if !cnBV then
+                   (if R.bvmode then
                       SMT.bv_add addr (SMT.atom "offset")
                     else
                       SMT.num_add addr (SMT.atom "offset"))));
@@ -493,7 +520,7 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
      | con, [ sbase; saddr ] when String.equal con CN_Pointer.alloc_id_addr_name ->
        let base = CN_AllocId.from_sexp sbase in
        let addr =
-         match get_value gs ctys Memory.uintptr_bt saddr with
+         match get_value gs ctys R.uintptr_bt saddr with
          | Const (Bits (_, z)) -> z
          | Const (Z z) -> z
          | _ -> failwith "Pointer value is not bits"
@@ -528,7 +555,7 @@ and get_value gs ctys bt (sexp : SMT.sexp) =
     let _con, vals = SMT.to_con sexp in
     let decl = Sym.Map.find tag gs.struct_decls in
     let fields = List.filter_map (fun x -> x.Memory.member_or_padding) decl in
-    let mk_field (l, t) v = (l, get_ivalue gs ctys (Memory.bt_of_sct t) v) in
+    let mk_field (l, t) v = (l, get_ivalue gs ctys (R.bt_of_sct t) v) in
     Struct (tag, List.map2 mk_field fields vals)
   | Datatype tag ->
     let con, vals = SMT.to_con sexp in
@@ -799,10 +826,10 @@ let rec translate_term s iterm =
      | Max -> translate_term s (ite_ (ge_ (e1, e2) loc, e1, e2) loc)
      | EQ -> SMT.eq s1 s2
      | LTPointer ->
-       let uintptr_cast = cast_ Memory.uintptr_bt in
+       let uintptr_cast = cast_ R.uintptr_bt in
        translate_term s (lt_ (uintptr_cast e1 loc, uintptr_cast e2 loc) loc)
      | LEPointer ->
-       let uintptr_cast = cast_ Memory.uintptr_bt in
+       let uintptr_cast = cast_ R.uintptr_bt in
        translate_term s (le_ (uintptr_cast e1 loc, uintptr_cast e2 loc) loc)
      | SetUnion -> SMT.set_union s.smt_solver.config.exts s1 s2
      | SetIntersection -> SMT.set_intersection s.smt_solver.config.exts s1 s2
@@ -849,7 +876,7 @@ let rec translate_term s iterm =
              if Id.equal member member' then
                v
              else
-               member_ ~member_bt:(Memory.bt_of_sct sct) (t, member') loc
+               member_ ~member_bt:(R.bt_of_sct sct) (t, member') loc
            in
            (member', value))
         members
@@ -891,13 +918,13 @@ let rec translate_term s iterm =
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s t)
       ~null_case:(default (Loc ()))
-      ~offset:(translate_term s (IT (OffsetOf (tag, member), Memory.uintptr_bt, loc)))
+      ~offset:(translate_term s (IT (OffsetOf (tag, member), R.uintptr_bt, loc)))
   | ArrayShift { base; ct; index } ->
     CN_Pointer.ptr_shift
       ~ptr:(translate_term s base)
       ~null_case:(default (Loc ()))
       ~offset:
-        (let el_size = int_lit_ (Memory.size_of_ctype ct) Memory.uintptr_bt loc in
+        (let el_size = int_lit_ (Memory.size_of_ctype ct) R.uintptr_bt loc in
          translate_term s (mul_ (el_size, index) loc))
   | CopyAllocId { addr; loc } ->
     CN_Pointer.copy_alloc_id
@@ -971,43 +998,43 @@ let rec translate_term s iterm =
   | WrapI (_ity, _arg) ->
     failwith "todo: remove WrapI"
     (* bv_cast *)
-    (*   ~to_:(Memory.bt_of_sct (Sctypes.Integer ity)) *)
+    (*   ~to_:(R.bt_of_sct (Sctypes.Integer ity)) *)
     (*   ~from:(get_bt arg) *)
     (*   (translate_term s arg) *)
   | Cast (cbt, t) ->
     let smt_term = translate_term s t in
     (match (get_bt t, cbt) with
      | Bits _, Loc () ->
-       assert !cnBV;
+       assert R.bvmode;
        let addr =
-         if BT.equal (get_bt t) Memory.uintptr_bt then
+         if BT.equal (get_bt t) R.uintptr_bt then
            smt_term
          else
-           bv_cast ~to_:Memory.uintptr_bt ~from:(get_bt t) smt_term
+           bv_cast ~to_:R.uintptr_bt ~from:(get_bt t) smt_term
        in
        CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
      | Integer, Loc () ->
        (* copied and simplified from above *)
-       assert (not !cnBV);
+       assert (not R.bvmode);
        let addr = smt_term in
        CN_Pointer.bits_to_ptr ~bits:addr ~alloc_id:(default Alloc_id)
      | Loc (), Bits _ ->
-       assert !cnBV;
+       assert R.bvmode;
        let maybe_cast x =
-         if BT.equal cbt Memory.uintptr_bt then
+         if BT.equal cbt R.uintptr_bt then
            x
          else
-           bv_cast ~to_:cbt ~from:Memory.uintptr_bt x
+           bv_cast ~to_:cbt ~from:R.uintptr_bt x
        in
        maybe_cast (CN_Pointer.addr_of ~ptr:smt_term)
      | Loc (), Integer ->
        (* copied and simplified from above *)
-       assert (not !cnBV);
+       assert (not R.bvmode);
        CN_Pointer.addr_of ~ptr:smt_term
      | Loc (), Alloc_id ->
        CN_Pointer.alloc_id_of ~ptr:smt_term ~null_case:(default Alloc_id)
      | MemByte, Bits _ ->
-       assert !cnBV;
+       assert R.bvmode;
        let maybe_cast x =
          if BT.equal cbt (BT.Bits (Unsigned, 8)) then
            x
@@ -1017,7 +1044,7 @@ let rec translate_term s iterm =
        maybe_cast (SMT.app_ CN_MemByte.value_name [ smt_term ])
      | MemByte, Integer ->
        (* copied and simplified from above *)
-       assert (not !cnBV);
+       assert (not R.bvmode);
        SMT.app_ CN_MemByte.value_name [ smt_term ]
      | MemByte, Option Alloc_id -> SMT.app_ CN_MemByte.alloc_id_name [ smt_term ]
      | Real, Integer -> SMT.real_to_int smt_term
@@ -1088,7 +1115,7 @@ module CN_Structs = struct
           | Map (_, el) -> declare_nested el
           | _ -> ()
         in
-        let ty = Memory.bt_of_sct t in
+        let ty = R.bt_of_sct t in
         declare_nested ty;
         (CN_Names.struct_field_name l, translate_base_type ty)
       in
@@ -1260,12 +1287,6 @@ let make globals variable_bindings =
 (* ---------------------------------------------------------------------------*)
 (* Models *)
 (* ---------------------------------------------------------------------------*)
-
-type model = Terms.Normal.t -> Terms.Normal.t option
-
-type model_with_q = model * (Sym.t * BaseTypes.t) list
-
-let empty_model = fun it -> Some it
 
 let model_state = ref (None : model_with_q option)
 
@@ -1444,4 +1465,6 @@ let provable ~loc ~solver ~assumptions ~simp_ctxt ?(purpose = "") lc =
   result
 
 
-let eval mo t = mo t
+end
+
+include General

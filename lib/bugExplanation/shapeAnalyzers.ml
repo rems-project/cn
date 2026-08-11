@@ -5,9 +5,11 @@ module BT = BaseTypes
 module AT = ArgumentTypes
 module LAT = LogicalArgumentTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module CtA = Fulminate.Cn_to_ail
 module Utils = Fulminate.Utils
+module TermBounds = TermBounds.F(R)
 
 let mk_expr = Utils.mk_expr
 
@@ -46,7 +48,7 @@ let compile_sct (sct : Sctypes.t)
   let ptr_sym = Sym.fresh "ptr" in
   let parent_sym = Sym.fresh "parent_ptr" in
   let sz_sym = Sym.fresh "sz" in
-  let bt = Memory.bt_of_sct sct in
+  let bt = R.bt_of_sct sct in
   let s =
     mk_stmt
       A.(
@@ -64,7 +66,7 @@ let compile_sct (sct : Sctypes.t)
                                  (BT.Loc ());
                                CtA.wrap_with_convert_from
                                  (AilEident sz_sym)
-                                 Memory.size_bt
+                                 R.size_bt
                              ] ))));
               mk_stmt
                 (AilSreturn
@@ -85,7 +87,7 @@ let compile_sct (sct : Sctypes.t)
             ] ))
   in
   let cn_pointer_sct = (C.no_qualifiers, CtA.bt_to_ail_ctype (BT.Loc ()), false) in
-  let cn_size_t_sct = (C.no_qualifiers, CtA.bt_to_ail_ctype Memory.size_bt, false) in
+  let cn_size_t_sct = (C.no_qualifiers, CtA.bt_to_ail_ctype R.size_bt, false) in
   let decl =
     ( fsym,
       ( Locations.other __LOC__,
@@ -137,12 +139,12 @@ let get_parent_and_size (sct : Sctypes.t) (arg : T.t) loc =
       let base, offset = aux base in
       ( base,
         MT.add_
-          (offset, MT.mul_ (MT.cast_ Memory.size_bt index loc, MT.sizeOf_ ct loc) loc)
+          (offset, MT.mul_ (MT.cast_ R.size_bt index loc, MT.sizeOf_ ct loc) loc)
           loc )
     | IT (MemberShift (base, tag, member), _, loc) ->
       aux
-        (MT.pointer_offset_ (base, IT (OffsetOf (tag, member), Memory.size_bt, loc)) loc)
-    | IT (_, _, loc) -> (it, MT.num_lit_ Z.zero Memory.uintptr_bt loc)
+        (MT.pointer_offset_ (base, IT (OffsetOf (tag, member), R.size_bt, loc)) loc)
+    | IT (_, _, loc) -> (it, MT.num_lit_ Z.zero R.uintptr_bt loc)
   in
   let base, offset = aux arg in
   (base, MT.add_ (offset, MT.sizeOf_ sct loc) loc)

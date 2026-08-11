@@ -39,7 +39,6 @@ let subsumed p1 p2 =
 
 
 module Predicate = struct
-  let alloc = PName Alloc.Predicate.sym
 
   type t =
     { name : name;
@@ -67,7 +66,8 @@ module Predicate = struct
         dtree_of_name pred.name :: T.dtree pred.pointer :: List.map T.dtree pred.iargs )
 end
 
-let make_alloc pointer = Predicate.{ name = alloc; pointer; iargs = [] }
+
+(* let alloc = PName Alloc.Predicate.sym *)
 
 module QPredicate = struct
   type t =
@@ -135,16 +135,6 @@ module QPredicate = struct
         :: T.dtree qpred.pointer
         :: List.map T.dtree qpred.iargs )
 
-
-  let get_lower_bound (qpred : t) : T.t =
-    TermBounds.get_lower_bound qpred.q qpred.permission
-
-
-  let get_upper_bound (qpred : t) : T.t =
-    TermBounds.get_upper_bound qpred.q qpred.permission
-
-
-  let get_bounds (qpred : t) : T.t * T.t = (get_lower_bound qpred, get_upper_bound qpred)
 end
 
 type t =

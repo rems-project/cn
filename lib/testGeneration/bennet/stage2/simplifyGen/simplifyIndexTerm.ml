@@ -1,6 +1,8 @@
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
+module Simplify = Simplify.F(R)
 module LC = LogicalConstraints
 
 module Make (AD : Domain.T) = struct
@@ -96,7 +98,7 @@ module Make (AD : Domain.T) = struct
         | Cast ((Loc () as bt1), IT (Cast (Bits (sign2, bits2), it_inner), _, _))
           when BT.equal bt1 (T.get_bt it_inner)
                &&
-               let sign1, bits1 = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+               let sign1, bits1 = Option.get (BT.is_bits_bt R.uintptr_bt) in
                let f = BT.fits_range (sign2, bits2) in
                let min, max = BT.bits_range (sign1, bits1) in
                f min && f max ->
@@ -104,7 +106,7 @@ module Make (AD : Domain.T) = struct
         | Cast ((Bits (sign1, bits1) as bt1), IT (Cast (Loc (), it_inner), _, _))
           when BT.equal bt1 (T.get_bt it_inner)
                &&
-               let sign2, bits2 = Option.get (BT.is_bits_bt Memory.uintptr_bt) in
+               let sign2, bits2 = Option.get (BT.is_bits_bt R.uintptr_bt) in
                let f = BT.fits_range (sign2, bits2) in
                let min, max = BT.bits_range (sign1, bits1) in
                f min && f max ->

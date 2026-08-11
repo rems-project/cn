@@ -1,5 +1,6 @@
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module BT = BaseTypes
 module AT = ArgumentTypes
 module LC = LogicalConstraints

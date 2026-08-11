@@ -1,5 +1,6 @@
 module CF = Cerb_frontend
 module A = CF.AilSyntax
+module R = Bt_of_sct.BV
 module MT = MakeTerm
 
 module Make (AD : Domain.T) = struct
@@ -74,7 +75,7 @@ module Make (AD : Domain.T) = struct
                      ^^ !^"_members["
                      ^^ int idx
                      ^^ !^"].base_type = "
-                     ^^ Smt.convert_basetype (Memory.bt_of_sct member_sct)
+                     ^^ Smt.convert_basetype (R.bt_of_sct member_sct)
                      ^^ !^";"
                      ^^ hardline)
                   empty

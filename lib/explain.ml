@@ -9,7 +9,6 @@ module LAT = LogicalArgumentTypes
 module LC = LogicalConstraints
 module Loc = Locations
 module C = Context
-module CP = CheckPredicates
 open Pp
 
 (* perhaps somehow unify with above *)
@@ -67,7 +66,7 @@ type state_extras =
 let no_ex = { request = None; unproven_constraint = None }
 
 module ITSet = struct
-  include Simplify.ITSet
+  include Set.Make(T)
 
   let rec bigunion_map f = function
     | [] -> empty
@@ -138,6 +137,12 @@ let rec simp_resource eval r =
 
 
 let _simp_resource = simp_resource
+
+module F (R : Bt_of_sct.Repr) = struct
+
+module CP = CheckPredicates
+module CPS = CP.F(R)
+module Simplify = Simplify.F(R)
 
 let state (ctxt : C.t) log model_with_q extras =
   let where =
@@ -310,7 +315,7 @@ let state (ctxt : C.t) log model_with_q extras =
       List.partition
         (fun (ret, _o) ->
            match ret with
-           | Req.P ret when Req.equal_name ret.name Req.Predicate.alloc -> false
+           | Req.P ret when Req.equal_name ret.name Alloc.predicate_name -> false
            | _ -> true)
         diff_res
     in
@@ -350,7 +355,7 @@ let state (ctxt : C.t) log model_with_q extras =
              let ptr_def =
                (MakeTerm.sym_ (def.pointer, T.get_bt ptr_val, here), ptr_val)
              in
-             Some (CP.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
+             Some (CPS.check_pred s def cand ctxt iargs (ptr_def :: vals), rt, it)
            | Some _, None ->
              Some
                ( CP.Result.error (!^"Could not locate definition of variable" ^^^ T.pp it),
@@ -435,3 +440,5 @@ let trace (ctxt, log) (model_with_q : Solver.model_with_q) (extras : state_extra
   in
   Pp.html_escapes := prev;
   Rp.{ requested; unproven; predicate_hints; trace }
+
+end

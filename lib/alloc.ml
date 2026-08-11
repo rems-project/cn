@@ -1,17 +1,31 @@
-module History = struct
-  let str = "allocs"
+let loc = Locations.other __MODULE__
 
-  let sym = Sym.fresh str
+let history_str = "allocs"
+let history_sym = Sym.fresh history_str
+
+let predicate_str = "Alloc"
+let predicate_sym = Sym.fresh predicate_str
+let predicate_name = Request.PName predicate_sym
+
+module F (R: Bt_of_sct.Repr) = struct
+
+module History = struct
+
+  module MakeTerm = MakeTerm.F(R)
+
+  let str = history_str
+
+  let sym = history_sym
 
   let here = Locations.other __LOC__
 
   let base_id = Id.make here "base"
 
-  let base_bt = Memory.uintptr_bt
+  let base_bt = R.uintptr_bt
 
   let size_id = Id.make here "size"
 
-  let size_bt = Memory.uintptr_bt
+  let size_bt = R.uintptr_bt
 
   let value_bt = BaseTypes.Record [ (base_id, base_bt); (size_id, size_bt) ]
 
@@ -45,9 +59,26 @@ module History = struct
 end
 
 module Predicate = struct
-  let str = "Alloc"
 
-  let loc = Locations.other __MODULE__
+  let str = predicate_str
 
-  let sym = Sym.fresh str
+  let sym = predicate_sym
+
+  let name = predicate_name
+
+  let def =
+    Definition.Predicate.
+    { loc = Locations.other __LOC__;
+      pointer = Sym.fresh "ptr";
+      iargs = [];
+      oarg = (Locations.other __LOC__, History.value_bt);
+      clauses = None;
+      recursive = false;
+      attrs = []
+    }
+
+  let make_request pointer = Request.Predicate.{name; pointer; iargs = []}
+
+end
+
 end

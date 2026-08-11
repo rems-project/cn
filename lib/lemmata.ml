@@ -3,7 +3,10 @@ module AT = ArgumentTypes
 module Loc = Locations
 module StringSet = Set.Make (String)
 module CI = Coq_ir
-module CC = Cn_to_coq
+
+module F(R : Bt_of_sct.Repr) = struct
+
+module CC = Cn_to_coq.F(R)
 
 let ret_sym = "ν"
 
@@ -1168,3 +1171,5 @@ let generate (global : Global.t) directions (lemmata : (Sym.t * (Loc.t * AT.lemm
       (mod_spec (List.map (fun (CI.Coq_lemma (CI.Coq_sym nm, _)) -> nm) lemmas))
   in
   Result.Ok f
+
+end

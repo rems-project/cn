@@ -1,5 +1,7 @@
 module MT = MakeTerm
 module LC = LogicalConstraints
+module TypingS = Typing.F(Bt_of_sct.BV)
+module TypeErrorsS = TypeErrors.F(Bt_of_sct.BV)
 
 module Make (AD : Domain.T) = struct
   module Ctx = Ctx.Make (AD)
@@ -9,6 +11,7 @@ module Make (AD : Domain.T) = struct
   let transform_gt (fast : bool) (remove_redundant : bool) (tm : Term.t) : Term.t Typing.t
     =
     let open Typing in
+    let open TypingS in
     let rec aux (new_constraint : bool) (tm : Term.t) : Term.t option Typing.t =
       let here = Locations.other __LOC__ in
       let (Annot (tm_, (), bt, loc)) = tm in
@@ -204,6 +207,7 @@ module Make (AD : Domain.T) = struct
       Typing.run_from_pause
         (fun _ ->
            let open Typing in
+	   let open TypingS in
            let@ () = init_solver () in
            let@ () =
              List.fold_left
@@ -219,7 +223,7 @@ module Make (AD : Domain.T) = struct
     match f () with
     | Ok body -> { def with body }
     | Error err ->
-      TypeErrors.report_pretty err;
+      TypeErrorsS.report_pretty err;
       exit 1
 
 

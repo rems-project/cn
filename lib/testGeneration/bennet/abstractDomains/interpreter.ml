@@ -1,5 +1,6 @@
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module LC = LogicalConstraints
 
 module Make (GT : GenTerms.T) (I : Domain.T with type t = GT.AD.t) = struct

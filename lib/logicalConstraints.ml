@@ -1,6 +1,6 @@
 module T = Terms.Normal
-module MT = MakeTerm
 module BT = BaseTypes
+module MT = MakeTerm
 open Pp
 
 type t =

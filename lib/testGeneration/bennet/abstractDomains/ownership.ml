@@ -12,7 +12,8 @@
 module BT = BaseTypes
 module T = Terms.Normal
 module CF = Cerb_frontend
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module LC = LogicalConstraints
 
 module Inner = struct
@@ -263,7 +264,7 @@ module Inner = struct
            if before = 0 && after = 0 then
              acc
            else (
-             let norm_bt = match bt with BT.Loc () -> Memory.uintptr_bt | _ -> bt in
+             let norm_bt = match bt with BT.Loc () -> R.uintptr_bt | _ -> bt in
              match BT.is_bits_bt norm_bt with
              | None -> acc
              | Some ((sign, _) as bits_info) ->

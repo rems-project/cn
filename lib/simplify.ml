@@ -1,7 +1,20 @@
-module LC = LogicalConstraints
+(* TODO: most of this should be independent of R, and maybe it would be
+   good to refactor in the future  *)
+
 module T = Terms.Normal
-module MT = MakeTerm
-open MakeTerm
+
+type simp_ctxt =
+  { global : Global.t;
+    values : T.t Sym.Map.t;
+    simp_hook : T.t -> T.t option
+  }
+
+module F(R : Bt_of_sct.Repr) = struct
+
+module BT = BaseTypes
+module LC = LogicalConstraints
+module MT = MakeTerm.F(R)
+open MT
 open Terms
 
 module ITPair = struct
@@ -17,11 +30,6 @@ end
 module ITPairMap = Map.Make (ITPair)
 module ITSet = Set.Make (T)
 
-type simp_ctxt =
-  { global : Global.t;
-    values : T.t Sym.Map.t;
-    simp_hook : T.t -> T.t option
-  }
 
 let default global = { global; values = Sym.Map.empty; simp_hook = (fun _ -> None) }
 
@@ -562,7 +570,7 @@ module Terms = struct
         (match get_num_z t with
          | None -> IT (WrapI (ity, t), the_bt, the_loc)
          | Some z ->
-           (match Memory.bt_of_sct (Sctypes.Integer ity) with
+           (match R.bt_of_sct (Sctypes.Integer ity) with
             | BT.Bits _ -> num_lit_norm the_bt z the_loc
             | _ -> IT (WrapI (ity, t), the_bt, the_loc)))
       | Cast (cbt, a) ->
@@ -583,7 +591,7 @@ module Terms = struct
         (match get_num_z index with
          | Some z when Z.equal Z.zero z -> base
          | _ -> IT (ArrayShift { base; ct; index }, the_bt, the_loc))
-      | SizeOf ct -> int_lit_ (Memory.size_of_ctype ct) Memory.size_bt the_loc
+      | SizeOf ct -> int_lit_ (Memory.size_of_ctype ct) R.size_bt the_loc
       | Representable (ct, t) -> IT (Representable (ct, aux t), the_bt, the_loc)
       | Good (ct, t) -> IT (Good (ct, aux t), the_bt, the_loc)
       | Aligned a -> IT (Aligned { t = aux a.t; align = aux a.align }, the_bt, the_loc)
@@ -649,7 +657,6 @@ module Terms = struct
 end
 
 module LogicalConstraints = struct
-  open MakeTerm
 
   let simp ?(inline_functions = false) simp_ctxt lc =
     match lc with
@@ -693,4 +700,6 @@ module Request = struct
   let simp simp_ctxt : Request.t -> Request.t = function
     | P p -> P (Predicate.simp simp_ctxt p)
     | Q qp -> Q (QPredicate.simp simp_ctxt qp)
+end
+
 end

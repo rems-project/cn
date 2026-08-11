@@ -1,7 +1,20 @@
-module MT = MakeTerm
 module LC = LogicalConstraints
 module Req = Request
-open Typing
+
+open Typing (* with effect `module WellTyped = Typing.WellTyped` *)
+
+module F(R : Bt_of_sct.Repr) = struct
+
+module WellTyped = WellTyped.F(R)
+module Simplify = Simplify.F(R)
+module MT = MakeTerm.F(R)
+module Solver = Solver.F(R)
+module Pack = Pack.F(R)
+module Alloc = Alloc.F(R)
+
+open Typing.F(R)
+
+
 
 let debug_constraint_failure_diagnostics
       _lvl
@@ -595,4 +608,6 @@ module Special = struct
         ();
       return r
     | None -> fail_missing_resource loc uiinfo
+end
+
 end

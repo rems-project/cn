@@ -2,7 +2,8 @@
 
 module BT = BaseTypes
 module T = Terms.Normal
-module MT = MakeTerm
+module R = Bt_of_sct.BV
+module MT = MakeTerm.F(R)
 module LC = LogicalConstraints
 
 module type BASIS = sig
@@ -635,14 +636,14 @@ module Make (B : BASIS) = struct
 
 
   let abs_assign ((it_addr, sct), _) d =
-    let _, max = BT.bits_range (Option.get (BT.is_bits_bt Memory.uintptr_bt)) in
+    let _, max = BT.bits_range (Option.get (BT.is_bits_bt R.uintptr_bt)) in
     let bytes = Z.of_int (Memory.size_of_ctype sct) in
     assert (Z.lt bytes max);
     let loc = Locations.other __LOC__ in
     local_iteration
       ((MT.le_
-          ( MT.cast_ Memory.uintptr_bt it_addr loc,
-            MT.num_lit_ (Z.sub max bytes) Memory.uintptr_bt loc ))
+          ( MT.cast_ R.uintptr_bt it_addr loc,
+            MT.num_lit_ (Z.sub max bytes) R.uintptr_bt loc ))
          (Locations.other __LOC__))
       d
 

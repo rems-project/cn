@@ -2,9 +2,11 @@ module Res = Resource
 module Req = Request
 module LC = LogicalConstraints
 module Loc = Locations
-module MT = MakeTerm
+(* module MT = MakeTerm *)
 
 let unfold_multiclause_preds = ref false
+
+module General = struct
 
 type solver = Solver.solver
 
@@ -106,36 +108,6 @@ module Eff = Effectful.Make (struct
   end)
 
 let iterM = Eff.ListM.iterM
-
-(* functions to make values derived from the monad state *)
-
-let make_simp_ctxt s =
-  Simplify.
-    { global = s.typing_context.global; values = s.sym_eqs; simp_hook = (fun _ -> None) }
-
-
-let simp_ctxt () =
-  let@ s = get () in
-  return (make_simp_ctxt s)
-
-
-let make_provable loc ({ typing_context = s; solver; _ } as c) =
-  let simp_ctxt = make_simp_ctxt c in
-  let f ?(purpose = "") lc =
-    Solver.provable
-      ~loc
-      ~solver:(Option.get solver)
-      ~assumptions:s.constraints
-      ~simp_ctxt
-      ~purpose
-      lc
-  in
-  f
-
-
-let provable_internal loc =
-  let@ s = get () in
-  return (make_provable loc s)
 
 
 (* boring functions for getting or setting, adding, or removing things in the context *)
@@ -326,11 +298,75 @@ let get_l sym = inspect_typing_context (fun s -> Context.get_l sym s)
 
 (* If the solver exists, declare the variable. If not, these variables will be
    declared when the solver is created (in [init_solver]). *)
+
+let get_cs () = inspect_typing_context (fun c -> c.constraints)
+
+let remove_a sym =
+  let@ s = get_typing_context () in
+  set_typing_context (Context.remove_a sym s)
+
+
+let remove_as = iterM remove_a
+
+
+let get_solver () : solver t = inspect (fun s -> Option.get s.solver)
+
+let all_resources _loc =
+  let@ s = get_typing_context () in
+  return (Context.get_rs s)
+
+end
+
+include General
+
+module F (R : Bt_of_sct.Repr) = struct
+
+include General
+
+module SolverS = Solver.F(R)
+open Simplify
+module Simplify = Simplify.F(R)
+module MT = MakeTerm.F(R)
+module Pack = Pack.F(R)
+module RDC = ResourceDerivedConstraints.F(R)
+
+
+(* functions to make values derived from the monad state *)
+
+let make_simp_ctxt s =
+  { global = s.typing_context.global; values = s.sym_eqs; simp_hook = (fun _ -> None) }
+
+
+let simp_ctxt () =
+  let@ s = get () in
+  return (make_simp_ctxt s)
+
+
+let make_provable loc ({ typing_context = s; solver; _ } as c) =
+  let simp_ctxt = make_simp_ctxt c in
+  let f ?(purpose = "") lc =
+    SolverS.provable
+      ~loc
+      ~solver:(Option.get solver)
+      ~assumptions:s.constraints
+      ~simp_ctxt
+      ~purpose
+      lc
+  in
+  f
+
+
+let provable_internal loc =
+  let@ s = get () in
+  return (make_provable loc s)
+
+
+
 let maybe_declare_variable_in_solver sym bt =
   let@ s = get () in
   match s.solver with
   | None -> return ()
-  | Some solver -> return (Solver.declare_variable solver (sym, bt))
+  | Some solver -> return (SolverS.declare_variable solver (sym, bt))
 
 
 let add_a sym bt info =
@@ -361,14 +397,6 @@ let rec add_ls = function
     add_ls lvars
 
 
-let get_cs () = inspect_typing_context (fun c -> c.constraints)
-
-let remove_a sym =
-  let@ s = get_typing_context () in
-  set_typing_context (Context.remove_a sym s)
-
-
-let remove_as = iterM remove_a
 
 (* let add_label_to_trace label =  *)
 (*   modify_typing_context (fun c -> Context.add_label_to_trace label c) *)
@@ -377,8 +405,6 @@ let remove_as = iterM remove_a
 (*   modify_typing_context (fun c -> Context.add_trace_item_to_trace i c) *)
 
 (* similar but less boring functions, where components interact *)
-
-let get_solver () : solver t = inspect (fun s -> Option.get s.solver)
 
 let init_solver () =
   modify (fun s ->
@@ -391,8 +417,8 @@ let init_solver () =
       in
       Sym.Map.fold add_binding c.logical (Sym.Map.fold add_binding c.computational [])
     in
-    let solver = Solver.make c.global to_declare in
-    LC.Set.iter (Solver.assume solver) c.constraints;
+    let solver = SolverS.make c.global to_declare in
+    LC.Set.iter (SolverS.assume solver) c.constraints;
     { s with solver = Some solver })
 
 
@@ -406,11 +432,13 @@ let add_c_internal lc =
   let@ simp_ctxt = simp_ctxt () in
   let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
   let s = Context.add_c lc s in
-  let () = Solver.assume solver lc in
+  let () = SolverS.assume solver lc in
   let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
   let@ () = set_typing_context s in
   return ()
 
+
+open Resource
 
 let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   let@ s = get_typing_context () in
@@ -419,7 +447,7 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
   let oargs = Simplify.Terms.simp simp_ctxt oargs in
   let pointer_facts =
     if derive_constraints then
-      Res.pointer_facts ~new_resource:(r, Res.O oargs) ~old_resources:(Context.get_rs s)
+      RDC.pointer_facts ~new_resource:(r, Res.O oargs) ~old_resources:(Context.get_rs s)
     else
       []
   in
@@ -430,7 +458,7 @@ let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
 (* functions to do with satisfying models *)
 
 let model () =
-  let m = Solver.model () in
+  let m = SolverS.model () in
   return m
 
 
@@ -670,19 +698,6 @@ let bind_logical_return loc prefix lrt =
   do_unfold_resources loc
 
 
-(* Same for return types *)
-(* let bind_return loc members (rt : ReturnTypes.t) = *)
-(*   match (members, rt) with *)
-(*   | member :: members, Computational ((s, bt), _, lrt) -> *)
-(*     let@ () = WellTyped.ensure_base_type loc ~expect:bt (MT.get_bt member) in *)
-(*     let@ () = *)
-(*       bind_logical_return *)
-(*         loc *)
-(*         members *)
-(*         (LogicalReturnTypes.subst (MT.make_subst [ (s, member) ]) lrt) *)
-(*     in *)
-(*     return member *)
-(*   | _ -> assert false *)
 
 let add_r loc re =
   let@ () = add_r_internal loc re in
@@ -704,11 +719,6 @@ let add_cs loc cs =
   do_unfold_resources loc
 
 
-let all_resources _loc =
-  let@ s = get_typing_context () in
-  return (Context.get_rs s)
-
-
 let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 
 (* let prev_models_with _loc prop = *)
@@ -719,3 +729,5 @@ let map_and_fold_resources loc f acc = map_and_fold_resources_internal loc f acc
 (* let _model_with loc prop = model_with_internal loc prop *)
 
 (* auxiliary functions for diagnostics *)
+
+end
