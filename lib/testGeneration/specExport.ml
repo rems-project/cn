@@ -13,7 +13,7 @@
    serde renders a record variant's payload as an object where the ppx
    renders an array; `Sym.t` is an opaque Cerberus symbol that has to become
    {"name", "num"}; and a number of constructors are simply spelled
-   differently on the two sides (BW_CLZ_NoSMT vs BwClzNoSmt). So the encoding
+   differently on the two sides (BW_CLZ_NoSMT vs BwClz). So the encoding
    is spelled out here, and the far side's
    `crates/austen-spec/tests/fixtures_round_trip.rs` re-parses everything
    this produces.
@@ -23,7 +23,8 @@
    `recursive` (it recomputes recursion from the call graph) and `attrs`,
    `Definition.Function.emit_coq`, and the `Extract.fn_body` half of the
    argument type's terminal — the `cn_statement`s and loop invariants inside
-   the body, which are neither pre- nor postcondition. *)
+   the body, which are neither pre- nor postcondition. Operators are
+   normalized rather than transcribed: see `json_of_unop` below. *)
 
 module BT = BaseTypes
 module T = Terms.Normal
@@ -224,16 +225,29 @@ let json_of_const : Terms.const -> json =
 
 (* CN spells these in SCREAMING style, AustenTest in CamelCase. Both matches
    are exhaustive, so a new operator on either side is a compile error rather
-   than a silently mistranslated term. *)
+   than a silently mistranslated term.
+
+   Two normalizations happen here, both collapsing CN distinctions that only
+   exist for CN's own solver and that AustenTest has no use for. Neither is
+   invertible: the export is a lowering, not a round trip.
+
+   The `_NoSMT` suffix marks the operator CN emits when it wants an
+   uninterpreted function rather than an SMT-LIB primitive, because the
+   primitive is nonlinear (`MulNoSMT`, `ExpNoSMT`) or partial (`DivNoSMT`,
+   `RemNoSMT`, `ModNoSMT`) or has no SMT-LIB spelling at all (the four
+   bitwise counting operators). The *semantics* are the interpreted ones in
+   every case, so the suffix says how to hand the term to Z3, not what the
+   term means, and is dropped. The bitwise four have no un-suffixed CN
+   spelling to collapse into and are simply renamed. *)
 let json_of_unop : Terms.unop -> json =
   let open Terms in
   function
   | Not -> unit_variant "Not"
   | Negate -> unit_variant "Negate"
-  | BW_CLZ_NoSMT -> unit_variant "BwClzNoSmt"
-  | BW_CTZ_NoSMT -> unit_variant "BwCtzNoSmt"
-  | BW_FFS_NoSMT -> unit_variant "BwFfsNoSmt"
-  | BW_FLS_NoSMT -> unit_variant "BwFlsNoSmt"
+  | BW_CLZ_NoSMT -> unit_variant "BwClz"
+  | BW_CTZ_NoSMT -> unit_variant "BwCtz"
+  | BW_FFS_NoSMT -> unit_variant "BwFfs"
+  | BW_FLS_NoSMT -> unit_variant "BwFls"
   | BW_Compl -> unit_variant "BwCompl"
 
 
@@ -245,16 +259,11 @@ let json_of_binop : Terms.binop -> json =
   | Implies -> unit_variant "Implies"
   | Add -> unit_variant "Add"
   | Sub -> unit_variant "Sub"
-  | Mul -> unit_variant "Mul"
-  | MulNoSMT -> unit_variant "MulNoSmt"
-  | Div -> unit_variant "Div"
-  | DivNoSMT -> unit_variant "DivNoSmt"
-  | Exp -> unit_variant "Exp"
-  | ExpNoSMT -> unit_variant "ExpNoSmt"
-  | Rem -> unit_variant "Rem"
-  | RemNoSMT -> unit_variant "RemNoSmt"
-  | Mod -> unit_variant "Mod"
-  | ModNoSMT -> unit_variant "ModNoSmt"
+  | Mul | MulNoSMT -> unit_variant "Mul"
+  | Div | DivNoSMT -> unit_variant "Div"
+  | Exp | ExpNoSMT -> unit_variant "Exp"
+  | Rem | RemNoSMT -> unit_variant "Rem"
+  | Mod | ModNoSMT -> unit_variant "Mod"
   | BW_Xor -> unit_variant "BwXor"
   | BW_And -> unit_variant "BwAnd"
   | BW_Or -> unit_variant "BwOr"
