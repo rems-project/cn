@@ -20,24 +20,6 @@ let rec pat_to_itp_ir pat =
   | Terms.Pat (Terms.PConstructor (c_nm, id_ps), _, _) ->
     CI.ITP_pConstructor (CI.ITP_sym c_nm, List.map (fun x -> pat_to_itp_ir (snd x)) id_ps)
 
-
-(* assuming here that the id's are in canonical order *)
-
-(* set of functions with boolean return type that we want to use
-   as toplevel propositions, i.e. return Prop rather than bool
-   (computational) in ITP. *)
-let prop_funs = StringSet.of_list [ "page_group_ok" ]
-
-let fun_prop_ret (global : Global.t) nm =
-  match Sym.Map.find_opt nm global.logical_functions with
-  (* todo: the None case shouldn't be possible since the CN code must be well-formed *)
-  | None -> true
-  | Some def ->
-    let open Definition.Function in
-    BaseTypes.equal BaseTypes.Bool def.return_bt
-    && StringSet.mem (Sym.pp_string nm) prop_funs
-
-
 let struct_layout_field_bts xs =
   let open Memory in
   let xs2 =
@@ -258,13 +240,7 @@ let it_to_itp_ir global it b =
       let ix = find_tuple_element Id.equal m mems in
       CI.ITP_structupdate ((aux t, CI.ITP_id m), aux x, ix)
     | Terms.Cast (cbt, t) -> CI.ITP_cast (bt_to_itp_ir global cbt, aux t)
-    | Terms.Apply (name, args) ->
-      let prop_ret = fun_prop_ret global name in
-      let body_aux = f (if prop_ret then None else Some (it, "fun-arg")) in
-      if prop_ret then
-        CI.ITP_apply_prop (CI.ITP_sym name, List.map body_aux args)
-      else
-        CI.ITP_apply (CI.ITP_sym name, List.map body_aux args)
+    | Terms.Apply (name, args) -> CI.ITP_apply (CI.ITP_sym name, List.map aux args)
     | Terms.Good (_, t) -> CI.ITP_good (aux t)
     | Terms.Representable (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
       (match Sctypes.is_struct_ctype ct with
@@ -508,12 +484,8 @@ let fun_to_itp_ir (gl : Global.t) nm =
   let arg_tys = List.map (fun (nm, bt) -> (CI.ITP_sym nm, bt_to_itp_ir gl bt)) def.args in
   match def.body with
   | Uninterp ->
-    if fun_prop_ret gl nm then
-      CI.ITP_fun_uninterp
-        (CI.ITP_sym nm, CI.ITP_uninterp_prop, arg_tys, bt_to_itp_ir gl def.return_bt)
-    else
-      CI.ITP_fun_uninterp
-        (CI.ITP_sym nm, CI.ITP_uninterp, arg_tys, bt_to_itp_ir gl def.return_bt)
+    CI.ITP_fun_uninterp
+      ( CI.ITP_sym nm, CI.ITP_uninterp, arg_tys, bt_to_itp_ir gl def.return_bt)
   | Def body ->
     CI.ITP_fun_def
       ( CI.ITP_sym nm,
