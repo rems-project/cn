@@ -39,13 +39,11 @@ type itp_pat =
   | ITP_pConstructor of itp_sym * itp_pat list
 
 type itp_const =
-  | ITP_bool of bool
   | ITP_bool_prop of bool
   | ITP_Z of Z.t
   | ITP_bits of Z.t
 
 type itp_unop =
-  | ITP_neg
   | ITP_neg_prop
   | ITP_BW_FFS_NoSMT
   | ITP_BW_CTZ_NoSMT
@@ -57,21 +55,15 @@ type itp_binop =
   | ITP_div
   | ITP_mod
   | ITP_rem
-  | ITP_lt
   | ITP_lt_prop
-  | ITP_le
   | ITP_le_prop
   | ITP_exp
   | ITP_bwxor
   | ITP_bwand
   | ITP_bwor
-  | ITP_eq
   | ITP_eq_prop
-  | ITP_and
   | ITP_and_prop
-  | ITP_or
   | ITP_or_prop
-  | ITP_impl
   | ITP_impl_prop
 
 type itp_term =
@@ -91,7 +83,6 @@ type itp_term =
   | ITP_structmember of itp_term * itp_id * (int * int)
   | ITP_structupdate of (itp_term * itp_id) * itp_term * (int * int)
   | ITP_cast of itp_bt * itp_term
-  | ITP_apply of itp_sym * itp_term list
   | ITP_apply_prop of itp_sym * itp_term list
   | ITP_good of itp_term (*| ITP_good of itp_sym * itp_bt * itp_term*)
   | ITP_representable of itp_sym * itp_bt * itp_term
@@ -130,7 +121,6 @@ type itp_dt =
 
 (* CN logical functions *)
 type itp_uninterp =
-  | ITP_uninterp
   | ITP_uninterp_prop
 
 type itp_def =

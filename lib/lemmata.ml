@@ -350,15 +350,13 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
     | CI.ITP_sym_term (CI.ITP_sym s) -> Sym.pp s
     | ITP_const c ->
       (match c with
-       | ITP_bool b -> rets (if b then "true" else "false")
-       | ITP_bool_prop b -> f_appM "Is_true" [ rets (if b then "true" else "false") ]
+       | ITP_bool_prop b -> rets (if b then "true" else "false")
        | ITP_Z z -> enc_z z
        | ITP_bits z -> parensM (rets (Z.to_string z)))
     | ITP_unop (op, x, bt) ->
       norm_bv_op
         bt
         (match op with
-         | CI.ITP_neg -> f_appM "negb" [ aux x ]
          | CI.ITP_neg_prop -> f_appM "~" [ aux x ]
          | CI.ITP_BW_FFS_NoSMT -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
          | CI.ITP_BW_CTZ_NoSMT -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ])
@@ -373,21 +371,15 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
          | CI.ITP_mod -> abinop "mod" x y
          (* todo: rem is definitely not right *)
          | CI.ITP_rem -> abinop "mod" x y
-         | CI.ITP_lt -> abinop "<?" x y
          | CI.ITP_lt_prop -> abinop "<" x y
-         | CI.ITP_le -> abinop "<=?" x y
          | CI.ITP_le_prop -> abinop "<=" x y
          | CI.ITP_exp -> abinop "^" x y
          | CI.ITP_bwxor -> f_appM "Z.lxor" [ aux x; aux y ]
          | CI.ITP_bwand -> f_appM "Z.land" [ aux x; aux y ]
          | CI.ITP_bwor -> f_appM "Z.lor" [ aux x; aux y ]
-         | CI.ITP_eq -> parensM (build [ aux x; rets "=?"; aux y ])
          | CI.ITP_eq_prop -> parensM (build [ aux x; rets "="; aux y ])
-         | CI.ITP_and -> abinop "&&" x y
          | CI.ITP_and_prop -> abinop "∧" x y
-         | CI.ITP_or -> abinop "||" x y
          | CI.ITP_or_prop -> abinop "∨" x y
-         | CI.ITP_impl -> abinop "implb" x y
          | CI.ITP_impl_prop -> abinop "-∗" x y)
     | CI.ITP_match (x, cases) ->
       let br (pat, rhs) = build [ rets "|"; pat_to_itp pat; rets "=>"; aux rhs ] in
@@ -432,11 +424,8 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
       let op_nm = gen_get_upd ix (aux t) in
       parensM (build [ op_nm; aux x ])
     | CI.ITP_cast (_, x) -> aux x
-    | CI.ITP_apply (CI.ITP_sym name, args) ->
-      parensM (build ([ Sym.pp name ] @ List.map aux args))
     | CI.ITP_apply_prop (CI.ITP_sym name, args) ->
-      let r = parensM (build ([ Sym.pp name ] @ List.map aux args)) in
-      f_appM "Is_true" [ r ]
+      parensM (build ([ Sym.pp name ] @ List.map aux args))
     | CI.ITP_representable (CI.ITP_sym s, _, t) ->
       let op_nm = "representable_" ^ Sym.pp_string s in
       parensM (build [ rets op_nm; aux t ])
@@ -466,7 +455,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
       if iris_bool then
         rets "emp"
       else
-        iris_pure !^"Is_true true"
+        iris_pure !^"true"
     (* this is the return value of a resource predicate*)
     | CI.ITP_LAT_I t -> iris_pure (!^(ret_sym ^ " = ") ^^ aux t)
     | CI.ITP_Owned_LAT (CI.ITP_sym s, bt, t, pointer, _) ->
@@ -1035,22 +1024,13 @@ let translate_fun (gl : Global.t) (funs : CI.itp_fun list list * CI.itp_fun list
              args
          in
          defn (Sym.pp_string nm) itp_args None itp_body true)
-    | CI.ITP_fun_uninterp (CI.ITP_sym nm, logical_fun, args, ret_typ) ->
-      (match logical_fun with
-       | CI.ITP_uninterp ->
-         let itp_arg_typs = List.map (fun (_, bt) -> bt_to_itp bt) args in
-         let itp_rt = bt_to_itp ret_typ in
-         let ty =
-           List.fold_right (fun at rt -> at ^^^ !^"->" ^^^ rt) itp_arg_typs itp_rt
-         in
-         !^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ !^"." ^^ hardline
-       | CI.ITP_uninterp_prop ->
-         let itp_arg_typs = List.map (fun (_, bt) -> bt_to_itp bt) args in
-         let itp_rt = !^"Prop" in
-         let ty =
-           List.fold_right (fun at rt -> at ^^^ !^"->" ^^^ rt) itp_arg_typs itp_rt
-         in
-         !^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ !^"." ^^ hardline)
+    | CI.ITP_fun_uninterp (CI.ITP_sym nm, _, args, ret_typ) ->
+      let itp_arg_typs = List.map (fun (_, bt) -> bt_to_itp bt) args in
+      let itp_rt = bt_to_itp ret_typ in
+      let ty =
+        List.fold_right (fun at rt -> at ^^^ !^"->" ^^^ rt) itp_arg_typs itp_rt
+      in
+      !^"  Parameter" ^^^ typ (Sym.pp nm) ty ^^ !^"." ^^ hardline
   in
   let print clump =
     flow

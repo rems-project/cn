@@ -108,23 +108,15 @@ let find_tuple_element (eq : 'a -> 'a -> bool) (x : 'a) (ys : 'a list) =
 
 
 (* translate index terms to itp_ir *)
-let it_to_itp_ir global it b =
-  let rec f comp_bool it =
-    let aux t = f comp_bool t in
-    let enc_prop = Option.is_none comp_bool in
-    let with_is_true =
-      enc_prop && BaseTypes.equal (Terms.Normal.get_bt it) BaseTypes.Bool
-    in
+let it_to_itp_ir global it =
+  let rec f it =
+    let aux t = f t in
     let bt = bt_to_itp_ir global (Terms.Normal.get_bt it) in
     match Terms.Normal.get_term it with
     | Terms.Sym s -> CI.ITP_sym_term (CI.ITP_sym s)
     | Terms.Const l ->
       (match l with
-       | Terms.Bool b ->
-         if with_is_true then
-           CI.ITP_const (CI.ITP_bool_prop b)
-         else
-           CI.ITP_const (CI.ITP_bool b)
+       | Terms.Bool b -> CI.ITP_const (CI.ITP_bool_prop b)
        | Terms.Z z -> CI.ITP_const (CI.ITP_Z z)
        | Terms.Bits (info, z) -> CI.ITP_const (CI.ITP_bits (BT.normalise_to_range info z))
        | Terms.Q _ -> CI.ITP_unsupported "Unsupported const Q"
@@ -138,11 +130,7 @@ let it_to_itp_ir global it b =
     | Terms.Unop (op, a) ->
       let x = aux a in
       (match op with
-       | Terms.Not ->
-         if enc_prop then
-           CI.ITP_unop (CI.ITP_neg_prop, x, bt)
-         else
-           CI.ITP_unop (CI.ITP_neg, x, bt)
+       | Terms.Not -> CI.ITP_unop (CI.ITP_neg_prop, x, bt)
        | Terms.BW_FFS_NoSMT -> CI.ITP_unop (CI.ITP_BW_FFS_NoSMT, x, bt)
        | Terms.BW_CTZ_NoSMT -> CI.ITP_unop (CI.ITP_BW_CTZ_NoSMT, x, bt)
        | _ -> CI.ITP_unsupported "Unsupported unop")
@@ -162,60 +150,24 @@ let it_to_itp_ir global it b =
       - maybe they have the same semantics as ITP Z.modulo/Z.rem *)
        | Rem -> CI.ITP_binop (CI.ITP_rem, x, y, bt)
        | RemNoSMT -> CI.ITP_binop (CI.ITP_mod, x, y, bt)
-       | LT ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_lt_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_lt, x, y, bt)
-       | LE ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_le_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_le, x, y, bt)
+       | LT -> CI.ITP_binop (CI.ITP_lt_prop, x, y, bt)
+       | LE -> CI.ITP_binop (CI.ITP_le_prop, x, y, bt)
        | Exp -> CI.ITP_binop (CI.ITP_exp, x, y, bt)
        | ExpNoSMT -> CI.ITP_binop (CI.ITP_exp, x, y, bt)
        | BW_Xor -> CI.ITP_binop (CI.ITP_bwxor, x, y, bt)
        | BW_And -> CI.ITP_binop (CI.ITP_bwand, x, y, bt)
        | BW_Or -> CI.ITP_binop (CI.ITP_bwor, x, y, bt)
-       | EQ ->
-         let comp = Some (it, "argument of equality") in
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_eq_prop, f comp a, f comp b, bt)
-         else
-           CI.ITP_binop (CI.ITP_eq, f comp a, f comp b, bt)
-       | LEPointer ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_le_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_le, x, y, bt)
-       | LTPointer ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_lt_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_lt, x, y, bt)
-       | And ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_and_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_and, x, y, bt)
-       | Or ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_or_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_or, x, y, bt)
-       | Implies ->
-         if enc_prop then
-           CI.ITP_binop (CI.ITP_impl_prop, x, y, bt)
-         else
-           CI.ITP_binop (CI.ITP_impl, x, y, bt)
+       | EQ -> CI.ITP_binop (CI.ITP_eq_prop, f a, f b, bt)
+       | LEPointer -> CI.ITP_binop (CI.ITP_le_prop, x, y, bt)
+       | LTPointer -> CI.ITP_binop (CI.ITP_lt_prop, x, y, bt)
+       | And -> CI.ITP_binop (CI.ITP_and_prop, x, y, bt)
+       | Or -> CI.ITP_binop (CI.ITP_or_prop, x, y, bt)
+       | Implies -> CI.ITP_binop (CI.ITP_impl_prop, x, y, bt)
        | _ -> CI.ITP_unsupported "Unsupported binop")
     | Terms.Match (x, cases) ->
-      let comp = Some (it, "case-discriminant") in
       let br (pat, rhs) = (pat_to_itp_ir pat, aux rhs) in
-      CI.ITP_match (f comp x, List.map br cases)
-    | Terms.ITE (sw, x, y) ->
-      let comp = Some (it, "if-condition") in
-      CI.ITP_ite (f comp sw, aux x, aux y)
+      CI.ITP_match (f x, List.map br cases)
+    | Terms.ITE (sw, x, y) -> CI.ITP_ite (f sw, aux x, aux y)
     | Terms.EachI ((i1, (s, t), i2), x) ->
       CI.ITP_eachI ((i1, (CI.ITP_sym s, bt_to_itp_ir global t), i2), aux x)
     | Terms.MapSet (m, x, y) -> CI.ITP_mapset (aux m, aux x, aux y)
@@ -240,7 +192,7 @@ let it_to_itp_ir global it b =
       let ix = find_tuple_element Id.equal m mems in
       CI.ITP_structupdate ((aux t, CI.ITP_id m), aux x, ix)
     | Terms.Cast (cbt, t) -> CI.ITP_cast (bt_to_itp_ir global cbt, aux t)
-    | Terms.Apply (name, args) -> CI.ITP_apply (CI.ITP_sym name, List.map aux args)
+    | Terms.Apply (name, args) -> CI.ITP_apply_prop (CI.ITP_sym name, List.map aux args)
     | Terms.Good (_, t) -> CI.ITP_good (aux t)
     | Terms.Representable (ct, t2) when Option.is_some (Sctypes.is_struct_ctype ct) ->
       (match Sctypes.is_struct_ctype ct with
@@ -249,9 +201,8 @@ let it_to_itp_ir global it b =
        | None ->
          CI.ITP_unsupported "Unsupported representable (why are we in the None case?)")
     | Terms.Constructor (nm, id_args) ->
-      let comp = Some (it, "datatype contents") in
       (* assuming here that the id's are in canonical order *)
-      CI.ITP_constructor (CI.ITP_sym nm, List.map (fun x -> f comp (snd x)) id_args)
+      CI.ITP_constructor (CI.ITP_sym nm, List.map (fun x -> f (snd x)) id_args)
     | Terms.WrapI (ity, arg) ->
       let maxInt = Memory.max_integer_type ity in
       let minInt = Memory.min_integer_type ity in
@@ -280,16 +231,16 @@ let it_to_itp_ir global it b =
     | Terms.CN_None _ | Terms.CN_Some _ | Terms.IsSome _ | Terms.GetOpt _ ->
       CI.ITP_unsupported "Unsupported map def" (* TODO(HK): added for plumbing *)
   in
-  f b it
+  f it
 
 
 (* unpacking LogicalConstraints *)
 let lc_to_itp_ir (gl : Global.t) (t : LC.t) =
   match t with
-  | LC.T t -> CI.ITP_pure (it_to_itp_ir gl t None)
+  | LC.T t -> CI.ITP_pure (it_to_itp_ir gl t)
   | LC.Forall ((sym, bt), it) ->
     CI.ITP_forall
-      (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_pure (it_to_itp_ir gl it None))
+      (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_pure (it_to_itp_ir gl it))
 
 
 (* TODO(HK): added this auxiliary function for plumbing *)
@@ -306,7 +257,7 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
     CI.ITP_Constraint_LRT (c, d)
   | LRT.Define ((sym, it), _, t) ->
     let d = lrt_to_itp_ir gl t in
-    let l = it_to_itp_ir gl it None in
+    let l = it_to_itp_ir gl it in
     CI.ITP_let (CI.ITP_sym sym, l, d)
   | LRT.I -> CI.ITP_LRT_I
   | LRT.Resource ((nm, (req, bt)), _, t) ->
@@ -320,22 +271,22 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (lrt_to_itp_ir gl t),
-                 it_to_itp_ir gl p.pointer None,
-                 List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
+                 it_to_itp_ir gl p.pointer,
+                 List.map (fun x -> it_to_itp_ir gl x) p.iargs )
            | Uninit ->
              ITP_Block_LRT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (lrt_to_itp_ir gl t),
-                 it_to_itp_ir gl p.pointer None ))
+                 it_to_itp_ir gl p.pointer))
         | PName p_nm ->
           ITP_PName_LRT
             ( CI.ITP_sym nm,
               CI.ITP_sym p_nm,
               bt_to_itp_ir gl bt,
               lrt_to_itp_ir gl t,
-              List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-              it_to_itp_ir gl p.pointer None ))
+              List.map (fun x -> it_to_itp_ir gl x) p.iargs,
+              it_to_itp_ir gl p.pointer))
      | Q q ->
        (match q.name with
         | Owned _ ->
@@ -345,11 +296,11 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
               (* q name *)
               bt_to_itp_ir gl (snd q.q),
               (* q value type *)
-              it_to_itp_ir gl q.pointer None,
+              it_to_itp_ir gl q.pointer,
               (* pointer *)
               q_step_to_itp_ir q.step,
               (* step *)
-              it_to_itp_ir gl q.permission None,
+              it_to_itp_ir gl q.permission,
               (* permission *)
               lrt_to_itp_ir gl t )
         | PName _ -> CI.ITP_unsupported "unsupported Qpred PName in LRT"))
@@ -360,13 +311,13 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
   match t with
   | LAT.Define ((sym, it), _, t) ->
     let d = it_lat_to_itp_ir gl t in
-    let l = it_to_itp_ir gl it None in
+    let l = it_to_itp_ir gl it in
     CI.ITP_Define (CI.ITP_sym sym, l, d)
   | LAT.Constraint (lc, _, t) ->
     let c = lc_to_itp_ir gl lc in
     let d = it_lat_to_itp_ir gl t in
     CI.ITP_Constraint_LAT (c, d)
-  | LAT.I t -> CI.ITP_LAT_I (it_to_itp_ir gl t None)
+  | LAT.I t -> CI.ITP_LAT_I (it_to_itp_ir gl t)
   | LAT.Resource ((nm, (req, bt)), _, t) ->
     (match req with
      | P p ->
@@ -378,22 +329,22 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (it_lat_to_itp_ir gl t),
-                 it_to_itp_ir gl p.pointer None,
-                 List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
+                 it_to_itp_ir gl p.pointer,
+                 List.map (fun x -> it_to_itp_ir gl x) p.iargs )
            | Uninit ->
              ITP_Block_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (it_lat_to_itp_ir gl t),
-                 it_to_itp_ir gl p.pointer None ))
+                 it_to_itp_ir gl p.pointer))
         | PName p_nm ->
           ITP_PName_LAT
             ( CI.ITP_sym nm,
               CI.ITP_sym p_nm,
               bt_to_itp_ir gl bt,
               it_lat_to_itp_ir gl t,
-              List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-              it_to_itp_ir gl p.pointer None ))
+              List.map (fun x -> it_to_itp_ir gl x) p.iargs,
+              it_to_itp_ir gl p.pointer))
      (* Can iterated resources even appear here? *)
      | Q q ->
        (match q.name with
@@ -406,7 +357,7 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
   match t with
   | LAT.Define ((sym, it), _, t) ->
     let d = lrtlat_to_itp_ir gl t in
-    let l = it_to_itp_ir gl it None in
+    let l = it_to_itp_ir gl it in
     CI.ITP_Define (CI.ITP_sym sym, l, d)
   | LAT.Constraint (lc, _, t) ->
     let c = lc_to_itp_ir gl lc in
@@ -424,22 +375,22 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (lrtlat_to_itp_ir gl t),
-                 it_to_itp_ir gl p.pointer None,
-                 List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
+                 it_to_itp_ir gl p.pointer,
+                 List.map (fun x -> it_to_itp_ir gl x) p.iargs )
            | Uninit ->
              ITP_Block_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (lrtlat_to_itp_ir gl t),
-                 it_to_itp_ir gl p.pointer None ))
+                 it_to_itp_ir gl p.pointer))
         | PName p_nm ->
           ITP_PName_LAT
             ( CI.ITP_sym nm,
               CI.ITP_sym p_nm,
               bt_to_itp_ir gl bt,
               lrtlat_to_itp_ir gl t,
-              List.map (fun x -> it_to_itp_ir gl x None) p.iargs,
-              it_to_itp_ir gl p.pointer None ))
+              List.map (fun x -> it_to_itp_ir gl x) p.iargs,
+              it_to_itp_ir gl p.pointer))
      | Q q ->
        (match q.name with
         | Owned (_, init) ->
@@ -451,11 +402,11 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
                  (* q name *)
                  bt_to_itp_ir gl (snd q.q),
                  (* q value type *)
-                 it_to_itp_ir gl q.pointer None,
+                 it_to_itp_ir gl q.pointer,
                  (* pointer *)
                  q_step_to_itp_ir q.step,
                  (* step *)
-                 it_to_itp_ir gl q.permission None,
+                 it_to_itp_ir gl q.permission,
                  (* permission *)
                  lrtlat_to_itp_ir gl t )
            | Uninit ->
@@ -463,7 +414,7 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
                  CI.Iris_term (lrtlat_to_itp_ir gl t),
-                 it_to_itp_ir gl q.pointer None ))
+                 it_to_itp_ir gl q.pointer))
           (* todo: Each stuff*)
         | PName _ -> ITP_unsupported "unsupported Qpred PName in LRT"))
 
@@ -485,17 +436,17 @@ let fun_to_itp_ir (gl : Global.t) nm =
   match def.body with
   | Uninterp ->
     CI.ITP_fun_uninterp
-      ( CI.ITP_sym nm, CI.ITP_uninterp, arg_tys, bt_to_itp_ir gl def.return_bt)
+      ( CI.ITP_sym nm, CI.ITP_uninterp_prop, arg_tys, bt_to_itp_ir gl def.return_bt)
   | Def body ->
     CI.ITP_fun_def
       ( CI.ITP_sym nm,
-        CI.ITP_def (it_to_itp_ir gl body (Some (body, "logical fun def"))),
+        CI.ITP_def (it_to_itp_ir gl body),
         arg_tys,
         bt_to_itp_ir gl def.return_bt )
   | Rec_Def body ->
     CI.ITP_fun_def
       ( CI.ITP_sym nm,
-        CI.ITP_recdef (it_to_itp_ir gl body (Some (body, "logical fun recdef"))),
+        CI.ITP_recdef (it_to_itp_ir gl body),
         arg_tys,
         bt_to_itp_ir gl def.return_bt )
 
@@ -519,7 +470,7 @@ let pred_to_itp_ir (gl : Global.t) (nm : Sym.t) =
   let pred = Sym.Map.find nm gl.resource_predicates in
   let translate_one_clause (clause : Definition.Clause.t) =
     CI.ITP_clause
-      ([ it_to_itp_ir gl clause.guard None ], it_lat_to_itp_ir gl clause.packing_ft)
+      ([ it_to_itp_ir gl clause.guard], it_lat_to_itp_ir gl clause.packing_ft)
   in
   let args = List.map (fun (nm, bt) -> (CI.ITP_sym nm, bt_to_itp_ir gl bt)) pred.iargs in
   (* distinguishing between defined and uninterpreted predicates *)
