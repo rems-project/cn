@@ -119,17 +119,13 @@ type itp_dt =
   (* parameters: name, list of argument types, list of constructors *)
   | ITP_dt of itp_sym * itp_bt list * itp_constr list
 
-(* CN logical functions *)
-type itp_uninterp =
-  | ITP_uninterp_prop
-
 type itp_def =
   | ITP_def of itp_term
   | ITP_recdef of itp_term
 
 type itp_fun =
   (* parameters: function name, function body, argument typess, return type*)
-  | ITP_fun_uninterp of itp_sym * itp_uninterp * (itp_sym * itp_bt) list * itp_bt
+  | ITP_fun_uninterp of itp_sym * (itp_sym * itp_bt) list * itp_bt
   | ITP_fun_def of itp_sym * itp_def * (itp_sym * itp_bt) list * itp_bt
 
 (* CN resource predicates *)

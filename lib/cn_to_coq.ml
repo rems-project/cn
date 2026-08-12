@@ -436,7 +436,7 @@ let fun_to_itp_ir (gl : Global.t) nm =
   match def.body with
   | Uninterp ->
     CI.ITP_fun_uninterp
-      ( CI.ITP_sym nm, CI.ITP_uninterp_prop, arg_tys, bt_to_itp_ir gl def.return_bt)
+      ( CI.ITP_sym nm, arg_tys, bt_to_itp_ir gl def.return_bt)
   | Def body ->
     CI.ITP_fun_def
       ( CI.ITP_sym nm,

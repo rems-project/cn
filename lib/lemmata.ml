@@ -1024,7 +1024,7 @@ let translate_fun (gl : Global.t) (funs : CI.itp_fun list list * CI.itp_fun list
              args
          in
          defn (Sym.pp_string nm) itp_args None itp_body true)
-    | CI.ITP_fun_uninterp (CI.ITP_sym nm, _, args, ret_typ) ->
+    | CI.ITP_fun_uninterp (CI.ITP_sym nm, args, ret_typ) ->
       let itp_arg_typs = List.map (fun (_, bt) -> bt_to_itp bt) args in
       let itp_rt = bt_to_itp ret_typ in
       let ty =
