@@ -2235,20 +2235,10 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
         let@ pred_rs =
           ListM.mapM
             (fun pred ->
-               let@ found = RI.General.predicate_request_scan loc pred in
-               match found with
-               | Some (pred, o) -> return (Request.P pred, o)
-               | None ->
-                 let@ model = model () in
-                 fail (fun ctxt ->
-                   let requests =
-                     [ RequestChain.{ resource = P pred; loc = Some loc; reason = None } ]
-                   in
-                   let msg =
-                     Missing_resource
-                       { requests; situation = Derive_constraints; ctxt; model }
-                   in
-                   { loc; msg }))
+               let@ pred, o =
+                 RI.Special.predicate_request loc Derive_constraints (pred, None)
+               in
+               return (Request.P pred, o))
             preds
         in
         let@ pred_name_rs =
