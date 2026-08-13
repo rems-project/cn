@@ -402,15 +402,17 @@ let set_movable_indices ixs : unit m = modify (fun s -> { s with movable_indices
 
 let add_c_internal lc =
   let@ s = get_typing_context () in
-  if LC.Set.mem lc s.constraints then return () else
-  let@ solver = get_solver () in
-  let@ simp_ctxt = simp_ctxt () in
-  let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
-  let s = Context.add_c lc s in
-  let () = Solver.assume solver lc in
-  let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
-  let@ () = set_typing_context s in
-  return ()
+  if LC.Set.mem lc s.constraints then
+    return ()
+  else
+    let@ solver = get_solver () in
+    let@ simp_ctxt = simp_ctxt () in
+    let lc = Simplify.LogicalConstraints.simp simp_ctxt lc in
+    let s = Context.add_c lc s in
+    let () = Solver.assume solver lc in
+    let@ _ = add_sym_eqs (List.filter_map LC.is_sym_lhs_equality [ lc ]) in
+    let@ () = set_typing_context s in
+    return ()
 
 
 let add_r_internal ?(derive_constraints = true) loc (r, Res.O oargs) =
