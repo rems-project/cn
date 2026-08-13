@@ -15,6 +15,6 @@ int main()
 {
     int x = 0;
     int y = 1;
-    /*@ derive_constraints(Owned<int>(&x), Owned<int>(&y)); @*/
+    /*@ derive_constraints(RW<int>(&x), RW<int>(&y)); @*/
     f(&x, &y);
 }
