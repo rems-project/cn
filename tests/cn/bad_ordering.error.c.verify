@@ -1,5 +1,4 @@
-return code: 1
-tests/cn/bad_ordering.error.c:4:5: error: unexpected token after ';' and before 'requires'
-Please add error message for state 1702 to parsers/c/c_parser_error.messages
+[1mtests/cn/bad_ordering.error.c:4:5:[0m [1;31merror:[0m [1munexpected token after ';' and before 'requires'
+Please add error message for state 1709 to parsers/c/c_parser_error.messages[0m
     requires x < MAXi32(); @*/
     ^~~~~~~~ 
