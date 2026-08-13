@@ -1370,7 +1370,7 @@ let _unused_try_hard = (TryHard.translate_functions, TryHard.translate_foralls)
 (** Goals are translated to this type *)
 type reduction =
   { qs : (Sym.t * BT.t) list; (* quantifier instantiation *)
-    expr : Terms.Normal.t; (* translation of goal *)
+    expr : Terms.Normal.t (* translation of goal *)
   }
 
 (** TODO: maybe we should not have `extra` any more. *)
