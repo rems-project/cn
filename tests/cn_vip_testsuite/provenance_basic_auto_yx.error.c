@@ -6,6 +6,7 @@ int main() {
   int y=2, x=1;
   int *p = &x + 1;
   int *q = &y;
+  /*@ derive_constraints (RW<int*>(&p), RW<int*>(&q)); @*/
   //CN_VIP printf("Addresses: p=%p q=%p\n",(void*)p,(void*)q);
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
   /*CN_VIP*//*@ to_bytes RW<int*>(&q); @*/
