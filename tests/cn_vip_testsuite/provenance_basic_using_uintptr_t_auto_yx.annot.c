@@ -20,6 +20,7 @@ int main() {
   int *p = (int *)ux; // does this have undefined behaviour?
 #endif
   int *q = &y;
+  /*@ derive_constraints(RW<int*>(&p), RW<int*>(&q)); @*/
   //CN_VIP printf("Addresses: &x=%p p=%p &y=%"PRIxPTR\
          "\n",(void*)&x,(void*)p,(unsigned long)uy);
   /*CN_VIP*//*@ to_bytes RW<int*>(&p); @*/
