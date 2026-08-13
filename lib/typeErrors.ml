@@ -25,6 +25,7 @@ let checking_situation = function
   | Access _ -> !^"checking access"
   | Call s -> call_situation s
   | Unpacking -> !^"unpacking"
+  | Derive_constraints -> !^"deriving resource constraints"
 
 
 let for_access = function
@@ -55,6 +56,7 @@ let for_situation = function
         | LAdefault -> !^"for default case"
         | LAactual_label -> !^"for jumping to label")
      | Subtyping -> !^"for returning")
+  | Derive_constraints -> !^"for deriving resource constraints"
 
 
 module RequestChain = struct

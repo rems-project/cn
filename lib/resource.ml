@@ -22,8 +22,11 @@ let subst substitution ((r, O oargs) : t) =
 
 let free_vars (r, O oargs) = Sym.Set.union (Req.free_vars r) (T.free_vars oargs)
 
+let disable_derived_lc1 = ref false
+
 (* assumption: the resource is owned *)
 let derived_lc1 ((resource : Req.t), O output) =
+  if !disable_derived_lc1 then [] else
   let here = Locations.other __LOC__ in
   match resource with
   | P { name = Owned (ct, _); pointer; iargs = _ } ->
@@ -50,23 +53,23 @@ let derived_lc1 ((resource : Req.t), O output) =
 
 (* assumption: both resources are owned at the same *)
 (* todo, depending on how much we need *)
-let derived_lc2 ((resource : Req.t), _) ((resource' : Req.t), _) =
-  match (resource, resource') with
-  | ( P { name = Owned (ct1, _); pointer = p1; iargs = _ },
-      P { name = Owned (ct2, _); pointer = p2; iargs = _ } ) ->
-    let here = Locations.other __LOC__ in
-    let addr1 = MT.addr_ p1 here in
-    let addr2 = MT.addr_ p2 here in
-    let up1 = MT.upper_bound addr1 ct1 here in
-    let up2 = MT.upper_bound addr2 ct2 here in
-    [ MT.(or2_ (le_ (up2, addr1) here, le_ (up1, addr2) here) here) ]
-  | _ -> []
 
 
-let disable_resource_derived_constraints = ref false
-
-let pointer_facts ~new_resource ~old_resources =
-  if !disable_resource_derived_constraints then
-    []
-  else
-    derived_lc1 new_resource @ List.concat_map (derived_lc2 new_resource) old_resources
+let derived_lc2 = 
+  let derived ((resource : Req.t), _) ((resource' : Req.t), _) =
+    match (resource, resource') with
+    | ( P { name = Owned (ct1, _); pointer = p1; iargs = _ },
+	P { name = Owned (ct2, _); pointer = p2; iargs = _ } ) ->
+      let here = Locations.other __LOC__ in
+      let addr1 = MT.addr_ p1 here in
+      let addr2 = MT.addr_ p2 here in
+      let up1 = MT.upper_bound addr1 ct1 here in
+      let up2 = MT.upper_bound addr2 ct2 here in
+      [ MT.(or2_ (le_ (up2, addr1) here, le_ (up1, addr2) here) here) ]
+    | _ -> []
+  in
+  let rec aux acc = function
+    | [] -> acc
+    | r :: rs -> aux (List.concat_map (derived r) rs @ acc) rs
+  in
+  fun rs -> aux [] rs

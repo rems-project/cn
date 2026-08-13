@@ -1735,6 +1735,15 @@ let pp_cnprogs_extract (ids, extract, term) =
 let pp_cnprog_statement = function
   | Cnstatement.Pack_unpack (pu, Predicate pred) ->
     pp_constructor "CNProgs.Pack_unpack" [ pp_pack_unpack pu; pp_request_ppredicate pred ]
+  | Cnstatement.Derive_constraints preds ->
+    let preds =
+      List.map
+        (function
+          | Cnstatement.Predicate pred -> pp_request_ppredicate pred
+          | Cnstatement.PredicateName _pn -> failwith "todo")
+        preds
+    in
+    pp_constructor "CNProgs.Derive_constraints" preds
   | Cnstatement.Pack_unpack (_pu, PredicateName _) -> failwith "todo"
   | To_from_bytes (tf, pred) ->
     pp_constructor "CNProgs.To_from_bytes" [ pp_to_from tf; pp_request_ppredicate pred ]
@@ -1785,6 +1794,16 @@ let rec pp_cn_statement ppfa ppfty (CF.Cn.CN_statement (loc, stmt)) =
                  pp_list (pp_cn_expr ppfa ppfty) exprs
                ]
            ]
+       | CN_derive_constraints preds_iargs ->
+         pp_constructor2
+           "CN_derive_constraints"
+           (List.map
+              (fun (pred, iargs) ->
+                 pp_tuple
+                   [ pp_cn_pred ppfa ppfty pred;
+                     pp_option (pp_list (pp_cn_expr ppfa ppfty)) iargs
+                   ])
+              preds_iargs)
        | CN_to_from_bytes (tf, pred, exprs) ->
          pp_constructor2
            "CN_to_from_bytes"
@@ -2070,6 +2089,7 @@ let pp_situation (s : Error_common.situation) =
   | Error_common.Access a -> pp_constructor "ErrorCommon.Access" [ pp_access a ]
   | Error_common.Call c -> pp_constructor "ErrorCommon.Call" [ pp_call_situation c ]
   | Error_common.Unpacking -> failwith "todo: pp_situation Unpacking"
+  | Error_common.Derive_constraints -> failwith "todo: pp_situation Derive_constraints"
 
 
 let pp_init = function
