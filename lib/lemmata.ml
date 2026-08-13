@@ -339,8 +339,8 @@ let rec pat_to_itp (pat : CI.itp_pat) =
     this is because resource predicate clauses use different connectives *)
 let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
   let open Pp in
-  let rec f (global : Global.t) (iris_bool : bool) t =
-    let aux t = f global iris_bool t in
+  let rec f (global : Global.t) t =
+    let aux t = f global t in
     let abinop s x y = parensM (build [ aux x; rets s; aux y ]) in
     let map_split f = fun doc -> f (break 1 ^^ doc) in
     let mk_wand doc doc2 = doc ^^^ !^"-∗" ^^^ doc2 in
@@ -462,11 +462,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
         mk_star (aux t1) (aux t2)
       else
         mk_wand (aux t1) (aux t2)
-    | CI.ITP_LRT_I ->
-      if iris_bool then
-        rets "emp"
-      else
-        iris_pure !^"Is_true true"
+    | CI.ITP_LRT_I -> rets "emp"
     (* this is the return value of a resource predicate*)
     | CI.ITP_LAT_I t -> iris_pure (!^(ret_sym ^ " = ") ^^ aux t)
     | CI.ITP_Owned_LAT (CI.ITP_sym s, bt, t, pointer, _) ->
@@ -474,13 +470,13 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
         pp_forall
           s
           bt
-          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); g global t ])
+          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
       in
       let exists_owned op_nm =
         pp_iris_exists
           s
           bt
-          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); g global t ])
+          (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
       in
       (match bt with
        | CI.ITP_Bits (_, _) ->
@@ -498,7 +494,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
        | _ -> !^"ITP_Owned_LAT unsupported BT" ^^ bt_to_itp bt)
     | CI.ITP_Block_LAT (CI.ITP_sym s, _, t, _) ->
       let op_nm = "block_" ^ Sym.pp_string s in
-      parensM (build [ rets op_nm; g global t ])
+      parensM (build [ rets op_nm; f global t ])
     | CI.ITP_Owned_LRT (CI.ITP_sym s, bt, t, pointer, _) ->
       (match bt with
        | CI.ITP_Bits (_, _) ->
@@ -506,17 +502,17 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
          pp_iris_exists
            s
            bt
-           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); g global t ])
+           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
        | CI.ITP_Struct (CI.ITP_sym nm, _) ->
          let op_nm = "Owned_" ^ Sym.pp_string nm in
          pp_iris_exists
            s
            bt
-           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); g global t ])
+           (build [ rets op_nm; aux pointer; rets (Sym.pp_string s); f global t ])
        | _ -> rets "ITP_Owned_LRT unsupported BT")
     | CI.ITP_Block_LRT (CI.ITP_sym s, _, t, _) ->
       let op_nm = "Block_" ^ Sym.pp_string s in
-      parensM (build [ rets op_nm; g global t ])
+      parensM (build [ rets op_nm; f global t ])
     | CI.ITP_good _ -> rets ""
     | CI.ITP_PName_LAT (CI.ITP_sym nm, CI.ITP_sym pname, bt, t, iargs, ptr) ->
       let args = List.map aux iargs in
@@ -536,7 +532,7 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
       mk_star
         (pp_iris_exists nm bt (build ((Sym.pp pname :: aux ptr :: args) @ [ Sym.pp nm ])))
         (aux t)
-    | CI.ITP_pure t -> (match t with CI.ITP_good _ -> rets "" | _ -> iris_pure (aux t))
+    | CI.ITP_LC t -> (match t with CI.ITP_good _ -> rets "" | _ -> iris_pure (aux t))
     | CI.ITP_Each_LAT (ITP_sym nm, ITP_sym _, _, ptr, _, perm, pred) ->
       (match perm with
        | ITP_binop
@@ -578,13 +574,8 @@ let term_to_itp (global : Global.t) (t : CI.itp_term) (is_clause : bool) =
            ]
        | _ -> rets "unsupported ITP_Each_LAT perm")
     | CI.ITP_unsupported msg -> rets msg
-  (* turn on iris mode! *)
-  and g global (t : CI.iris_term) = match t with CI.Iris_term t -> f global true t in
-  if is_clause then
-    f global true t
-  else
-    f global false t
-
+         in
+  f global t
 
 let convert_lemma_defs global (lemmas : CI.itp_lemma list) =
   let lemma_ty (CI.ITP_lemma (CI.ITP_sym nm, tm)) =

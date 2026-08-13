@@ -286,10 +286,10 @@ let it_to_itp_ir global it b =
 (* unpacking LogicalConstraints *)
 let lc_to_itp_ir (gl : Global.t) (t : LC.t) =
   match t with
-  | LC.T t -> CI.ITP_pure (it_to_itp_ir gl t None)
+  | LC.T t -> CI.ITP_LC (it_to_itp_ir gl t None)
   | LC.Forall ((sym, bt), it) ->
     CI.ITP_forall
-      (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_pure (it_to_itp_ir gl it None))
+      (CI.ITP_sym sym, bt_to_itp_ir gl bt, CI.ITP_LC (it_to_itp_ir gl it None))
 
 
 (* TODO(HK): added this auxiliary function for plumbing *)
@@ -319,14 +319,14 @@ let rec lrt_to_itp_ir (gl : Global.t) (t : LRT.t) =
              ITP_Owned_LRT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (lrt_to_itp_ir gl t),
+                 lrt_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None,
                  List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
            | Uninit ->
              ITP_Block_LRT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (lrt_to_itp_ir gl t),
+                 lrt_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
           ITP_PName_LRT
@@ -377,14 +377,14 @@ let rec it_lat_to_itp_ir (gl : Global.t) (t : Terms.Normal.t LAT.t) =
              ITP_Owned_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (it_lat_to_itp_ir gl t),
+                 it_lat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None,
                  List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
            | Uninit ->
              ITP_Block_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (it_lat_to_itp_ir gl t),
+                 it_lat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
           ITP_PName_LAT
@@ -423,14 +423,14 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
              ITP_Owned_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (lrtlat_to_itp_ir gl t),
+                 lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None,
                  List.map (fun x -> it_to_itp_ir gl x None) p.iargs )
            | Uninit ->
              ITP_Block_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (lrtlat_to_itp_ir gl t),
+                 lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl p.pointer None ))
         | PName p_nm ->
           ITP_PName_LAT
@@ -462,7 +462,7 @@ let rec lrtlat_to_itp_ir (gl : Global.t) t =
              ITP_Block_LAT
                ( CI.ITP_sym nm,
                  bt_to_itp_ir gl bt,
-                 CI.Iris_term (lrtlat_to_itp_ir gl t),
+                 lrtlat_to_itp_ir gl t,
                  it_to_itp_ir gl q.pointer None ))
           (* todo: Each stuff*)
         | PName _ -> ITP_unsupported "unsupported Qpred PName in LRT"))

@@ -108,17 +108,15 @@ type itp_term =
   | ITP_Constraint_LAT of itp_term * itp_term
   | ITP_LAT_I of itp_term
   | ITP_LRT_I
-  | ITP_Owned_LRT of itp_sym * itp_bt * iris_term * itp_term * itp_term list
-  | ITP_Block_LRT of itp_sym * itp_bt * iris_term * itp_term
-  | ITP_Owned_LAT of itp_sym * itp_bt * iris_term * itp_term * itp_term list
-  | ITP_Block_LAT of itp_sym * itp_bt * iris_term * itp_term
+  | ITP_LC of itp_term
+  | ITP_Owned_LRT of itp_sym * itp_bt * itp_term * itp_term * itp_term list
+  | ITP_Block_LRT of itp_sym * itp_bt * itp_term * itp_term
+  | ITP_Owned_LAT of itp_sym * itp_bt * itp_term * itp_term * itp_term list
+  | ITP_Block_LAT of itp_sym * itp_bt * itp_term * itp_term
   | ITP_PName_LAT of itp_sym * itp_sym * itp_bt * itp_term * itp_term list * itp_term
   | ITP_PName_LRT of itp_sym * itp_sym * itp_bt * itp_term * itp_term list * itp_term
   | ITP_Each_LAT of itp_sym * itp_sym * itp_bt * itp_term * itp_term * itp_term * itp_term
   | ITP_Each_LRT of itp_sym * itp_sym * itp_bt * itp_term * itp_term * itp_term * itp_term
-  | ITP_pure of itp_term
-
-and iris_term = Iris_term of itp_term
 
 (* CN datatypes *)
 (* note: this is different from ITP_Datatype in itp_term *)
