@@ -1182,21 +1182,22 @@ module C_vars = struct
     let@ pname, ptr_expr, iargs, oargs_ty = cn_res_info ~pred_loc env_with_q res args in
     let here = Locations.other __LOC__ in
     let@ ptr_base, step = split_pointer_linear_step pred_loc (q, bt', here) ptr_expr in
+    let pointer = Terms.Surface.proj ptr_base in
     let m_oargs_ty = SBT.make_map_bt bt' oargs_ty in
     let pt =
       ( Req.Q
           { name = pname;
             q = (q, SBT.proj bt');
             q_loc = here;
-            pointer = Terms.Surface.proj ptr_base;
+            pointer;
             step;
             permission = Terms.Surface.proj guard_expr;
             iargs = List.map Terms.Surface.proj iargs
           },
         m_oargs_ty )
     in
-    let info = (here, Some "owned-value-representable") in
     let pointee_constrs =
+      let info = (here, Some "owned-value-representable") in
       let qt = MT.sym_ (q, SBT.proj bt', here) in
       match pname with
       | Owned (ct, Init) ->
@@ -1215,7 +1216,13 @@ module C_vars = struct
           ]
       | _ -> []
     in
-    return (pt, [], pointee_constrs)
+    (* let has_alloc_id_constr = *)
+    (*   let info = (here, Some "iterated-resource-pointer-has-alloc-id") in *)
+    (*   match pname with *)
+    (*   | Owned _ -> [ (LC.T (MT.hasAllocId_ pointer here), info) ] *)
+    (*   | _ -> [] *)
+    (* in *)
+    return (pt, [], pointee_constrs (* @ has_alloc_id_constr *))
 
 
   let cn_let_resource env (sym, the_res) =
@@ -1273,6 +1280,51 @@ module C_vars = struct
       in
       let stmt = Pack_unpack (pack_unpack, PredicateName name) in
       return stmt
+    | CN_derive_constraints pred_iargs ->
+      let@ preds =
+        ListM.mapM
+          (fun (pred, maybe_args) ->
+             match maybe_args with
+             | Some args ->
+               let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
+               let@ name, pointer, iargs, _oargs_ty =
+                 cn_res_info ~pred_loc:loc env pred args
+               in
+               let pred =
+                 Predicate
+                   { name;
+                     pointer = Terms.Surface.proj pointer;
+                     iargs = List.map Terms.Surface.proj iargs
+                   }
+               in
+               return pred
+             | None ->
+               let@ name =
+                 match pred with
+                 | Cn.CN_owned (Some ct) ->
+                   return (Request.Owned (Sctypes.of_ctype_unsafe loc ct, Init))
+                 | Cn.CN_block (Some ct) ->
+                   return (Request.Owned (Sctypes.of_ctype_unsafe loc ct, Uninit))
+                 | Cn.CN_owned None ->
+                   fail
+                     { loc;
+                       msg =
+                         Generic !^"Cannot use `derive_constrs` for RW without C-type"
+                         [@alert "-deprecated"]
+                     }
+                 | Cn.CN_block None ->
+                   fail
+                     { loc;
+                       msg =
+                         Generic !^"Cannot use `derive_constrs` for W without C-type"
+                         [@alert "-deprecated"]
+                     }
+                 | Cn.CN_named name -> return (Request.PName name)
+               in
+               return (PredicateName name))
+          pred_iargs
+      in
+      return (Derive_constraints preds)
     | CN_to_from_bytes (to_from, pred, args) ->
       let@ args = ListM.mapM (cn_expr Sym.Set.empty env) args in
       let@ name, pointer, iargs, _oargs_ty = cn_res_info ~pred_loc:loc env pred args in

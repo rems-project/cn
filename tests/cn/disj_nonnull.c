@@ -4,6 +4,7 @@ int y = 2;
 void globals()
 /*@ accesses x; accesses y; @*/
 {
+  /*@ derive_constraints(Owned<int>(&x), Owned<int>(&y)); @*/
 
   /*@ assert((u64) &x != (u64) &y); @*/
 
@@ -22,6 +23,8 @@ int main()
 {
     int p = 1;
     int q = 2;
+
+  /*@ derive_constraints(Owned<int>(&p), Owned<int>(&q)); @*/
 
   /*@ assert((u64) &p != (u64) &q); @*/
 

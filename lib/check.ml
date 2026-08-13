@@ -2226,6 +2226,50 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       | Cnstatement.Pack_unpack (Pack, _pt) ->
         warn loc !^"Explicit pack unsupported.";
         return ()
+      | Cnstatement.Derive_constraints preds ->
+        let preds, pred_names =
+          List.partition_map
+            (function
+              | Cnstatement.Predicate pred -> Left pred
+              | Cnstatement.PredicateName pn -> Right pn)
+            preds
+        in
+        let@ pred_rs =
+          ListM.mapM
+            (fun pred ->
+               let@ found = RI.General.predicate_request_scan loc pred in
+               match found with
+               | Some (pred, o) -> return (Request.P pred, o)
+               | None ->
+                 let@ model = model () in
+                 fail (fun ctxt ->
+                   let requests =
+                     [ RequestChain.{ resource = P pred; loc = Some loc; reason = None } ]
+                   in
+                   let msg =
+                     Missing_resource
+                       { requests; situation = Derive_constraints; ctxt; model }
+                   in
+                   { loc; msg }))
+            preds
+        in
+        let@ pred_name_rs =
+          ListM.fold_leftM
+            (fun acc pn ->
+               map_and_fold_resources
+                 loc
+                 (fun (re, o) acc ->
+                    match re with
+                    | P p when Request.equal_name p.name pn -> (Deleted, (re, o) :: acc)
+                    | P _ -> (Unchanged, acc)
+                    | Q _ -> (Unchanged, acc))
+                 acc)
+            []
+            pred_names
+        in
+        let rs = pred_rs @ pred_name_rs in
+        let@ () = add_rs loc rs in
+        add_cs loc (List.map (fun t -> LC.T t) (Resource.derived_lc2 rs))
       | To_from_bytes ((To | From), { name = PName _; _ }) ->
         fail (fun _ -> { loc; msg = Byte_conv_needs_owned })
       | To_from_bytes (To, { name = Owned (ct, init); pointer; _ }) ->
@@ -2393,6 +2437,9 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
       | [] -> k (unit_ loc)
       | cn_prog :: cn_progs ->
         let@ loc, cn_statement = cn_prog_sub_let Cnstatement.subst cn_prog in
+        (* The individual statement-well-formedness checks above can be omitted
+           if we do the following here. *)
+        let@ cn_statement = WellTyped.check_cn_statement loc cn_statement in
         (match cn_statement with
          | Cnstatement.Split_case lc ->
            Pp.debug 5 (lazy (Pp.headline "checking split_case"));
