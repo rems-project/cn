@@ -1,3 +1,4 @@
+return code: 1
 [1mtests/cn/spec_after_curly_brace.error.c:3:3:[0m [1;31merror:[0m [1munexpected token before 'ensures'
 You're inside a function - so I'm expecting a CN statement.
 Hint: these start with 'extract', 'instantiate', 'split_case', 'assert', 'print', 'apply', 'derive_constraints'.[0m
