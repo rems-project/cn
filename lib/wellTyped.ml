@@ -2226,7 +2226,7 @@ module BaseTyping = struct
     | _ -> assert false
 
 
-  let check_cn_statement loc stmt =
+  let check_cn_statement ?(warn=true) loc stmt =
     let open Cnstatement in
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree stmt))));
     match stmt with
@@ -2322,7 +2322,7 @@ module BaseTyping = struct
         | E_Everything -> return ()
       in
       let@ it = WT.infer it in
-      warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it);
+      (if warn then warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it));
       return (Extract (attrs, to_extract, it))
     | Unfold (f, its) ->
       let@ def = get_logical_function_def loc f in
@@ -3092,7 +3092,10 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
 
   let check_expr x y z = lift3 check_expr x y z
 
-  let check_cn_statement x y = lift2 check_cn_statement x y
+  let check_cn_statement ?(warn=false) y z = 
+    let ( let@ ) = M.bind in
+    let@ context = M.get_context () in
+    M.lift (Result.map fst (check_cn_statement ~warn y z context))
 
   let function_type = lift3 function_type
 
