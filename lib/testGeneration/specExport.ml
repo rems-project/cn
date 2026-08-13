@@ -13,22 +13,26 @@
    serde renders a record variant's payload as an object where the ppx
    renders an array; `Sym.t` is an opaque Cerberus symbol that has to become
    {"name", "num"}; and a number of constructors are simply spelled
-   differently on the two sides (BW_CLZ_NoSMT vs BwClzNoSmt). So the encoding
+   differently on the two sides (BW_CLZ_NoSMT vs BwClz). So the encoding
    is spelled out here, and the far side's
    `crates/austen-spec/tests/fixtures_round_trip.rs` re-parses everything
    this produces.
 
    Dropped throughout, all deliberately: `Locations.t` and the LAT/AT `info`
    strings (AustenTest carries no source spans), `Definition.Predicate`'s
-   `recursive` (it recomputes recursion from the call graph) and `attrs`, and
-   `Definition.Function.emit_coq`. Return types and `ensures` go too — the
-   generator only ever produces *inputs*. *)
+   `recursive` (it recomputes recursion from the call graph) and `attrs`,
+   `Definition.Function.emit_coq`, and the `Extract.fn_body` half of the
+   argument type's terminal — the `cn_statement`s and loop invariants inside
+   the body, which are neither pre- nor postcondition. Operators are
+   normalized rather than transcribed: see `json_of_unop` below. *)
 
 module BT = BaseTypes
 module T = Terms.Normal
 module LC = LogicalConstraints
 module LAT = LogicalArgumentTypes
+module LRT = LogicalReturnTypes
 module AT = ArgumentTypes
+module RT = ReturnTypes
 module Req = Request
 
 type json = Yojson.Safe.t
@@ -52,6 +56,11 @@ let record_variant (name : string) (fields : (string * json) list) : json =
 
 
 let pair (a : json) (b : json) : json = `List [ a; b ]
+
+(* A CN construct AustenTest's specification language cannot carry. Raised
+   anywhere inside a function's export and handled at the top level, where it
+   becomes a warning that skips exporting that one function. *)
+exception Unrepresentable of string
 
 (* `austen_gen::Sym`. `name` is an `Option<String>`: an anonymous Cerberus
    symbol has no description to render, and inventing one would make two
@@ -221,16 +230,29 @@ let json_of_const : Terms.const -> json =
 
 (* CN spells these in SCREAMING style, AustenTest in CamelCase. Both matches
    are exhaustive, so a new operator on either side is a compile error rather
-   than a silently mistranslated term. *)
+   than a silently mistranslated term.
+
+   Two normalizations happen here, both collapsing CN distinctions that only
+   exist for CN's own solver and that AustenTest has no use for. Neither is
+   invertible: the export is a lowering, not a round trip.
+
+   The `_NoSMT` suffix marks the operator CN emits when it wants an
+   uninterpreted function rather than an SMT-LIB primitive, because the
+   primitive is nonlinear (`MulNoSMT`, `ExpNoSMT`) or partial (`DivNoSMT`,
+   `RemNoSMT`, `ModNoSMT`) or has no SMT-LIB spelling at all (the four
+   bitwise counting operators). The *semantics* are the interpreted ones in
+   every case, so the suffix says how to hand the term to Z3, not what the
+   term means, and is dropped. The bitwise four have no un-suffixed CN
+   spelling to collapse into and are simply renamed. *)
 let json_of_unop : Terms.unop -> json =
   let open Terms in
   function
   | Not -> unit_variant "Not"
   | Negate -> unit_variant "Negate"
-  | BW_CLZ_NoSMT -> unit_variant "BwClzNoSmt"
-  | BW_CTZ_NoSMT -> unit_variant "BwCtzNoSmt"
-  | BW_FFS_NoSMT -> unit_variant "BwFfsNoSmt"
-  | BW_FLS_NoSMT -> unit_variant "BwFlsNoSmt"
+  | BW_CLZ_NoSMT -> unit_variant "BwClz"
+  | BW_CTZ_NoSMT -> unit_variant "BwCtz"
+  | BW_FFS_NoSMT -> unit_variant "BwFfs"
+  | BW_FLS_NoSMT -> unit_variant "BwFls"
   | BW_Compl -> unit_variant "BwCompl"
 
 
@@ -242,16 +264,11 @@ let json_of_binop : Terms.binop -> json =
   | Implies -> unit_variant "Implies"
   | Add -> unit_variant "Add"
   | Sub -> unit_variant "Sub"
-  | Mul -> unit_variant "Mul"
-  | MulNoSMT -> unit_variant "MulNoSmt"
-  | Div -> unit_variant "Div"
-  | DivNoSMT -> unit_variant "DivNoSmt"
-  | Exp -> unit_variant "Exp"
-  | ExpNoSMT -> unit_variant "ExpNoSmt"
-  | Rem -> unit_variant "Rem"
-  | RemNoSMT -> unit_variant "RemNoSmt"
-  | Mod -> unit_variant "Mod"
-  | ModNoSMT -> unit_variant "ModNoSmt"
+  | Mul | MulNoSMT -> unit_variant "Mul"
+  | Div | DivNoSMT -> unit_variant "Div"
+  | Exp | ExpNoSMT -> unit_variant "Exp"
+  | Rem | RemNoSMT -> unit_variant "Rem"
+  | Mod | ModNoSMT -> unit_variant "Mod"
   | BW_Xor -> unit_variant "BwXor"
   | BW_And -> unit_variant "BwAnd"
   | BW_Or -> unit_variant "BwOr"
@@ -384,12 +401,25 @@ and json_of_term (t : BT.t Terms.term) : json =
 
 (* ------------------------------------------------- constraints, requests *)
 
+(* A `Forall` is exported with its permission split out of the body: the
+   frontend always builds the body as `impl_ (permission, body)`
+   (`compile.ml:1208,1243` are the only construction sites that reach an
+   exported specification), and AustenTest's `LogicalConstraint::Forall`
+   carries the two halves as fields — the `_NoSMT` collapse's rule, one
+   construct over: normalize CN's internal spelling into what the term
+   means. A forall that is not an implication has no AustenTest rendering;
+   Fulminate refuses the same shape (`cn_to_ail.ml:3455`). *)
 let json_of_lc : LC.t -> json = function
   | LC.T it -> newtype_variant "T" (json_of_it it)
-  | LC.Forall ((s, bt), body) ->
+  | LC.Forall ((s, bt), Terms.IT (Terms.Binop (Terms.Implies, permission, body), _, _)) ->
     record_variant
       "Forall"
-      [ ("var", pair (json_of_sym s) (json_of_bt bt)); ("body", json_of_it body) ]
+      [ ("var", pair (json_of_sym s) (json_of_bt bt));
+        ("permission", json_of_it permission);
+        ("body", json_of_it body)
+      ]
+  | LC.Forall _ ->
+    raise (Unrepresentable "a forall constraint that is not an implication")
 
 
 let json_of_init : Req.init -> json = function
@@ -423,7 +453,7 @@ let json_of_req : Req.t -> json = function
       ]
 
 
-(* -------------------------------------------------------------- LAT, AT *)
+(* ------------------------------------------------------ LAT, AT, LRT, RT *)
 
 (* `info` is dropped from every binder. *)
 let rec json_of_lat : 'i. ('i -> json) -> 'i LAT.t -> json =
@@ -456,6 +486,34 @@ let rec json_of_at : 'i. ('i -> json) -> 'i AT.t -> json =
       "Ghost"
       [ pair (json_of_sym s) (json_of_bt bt); json_of_at json_of_i rest ]
   | AT.L lat -> newtype_variant "L" (json_of_lat json_of_i lat)
+
+
+(* `LogicalReturnTypes.t` is `LogicalArgumentTypes.t` with nothing at the end
+   of it. `I` is emitted as {"I": null} rather than the bare "I" a literal
+   transcription would give, so a postcondition chain is byte-identical to a
+   `LAT.t` whose terminal is unit and the far side needs no second chain type
+   to read it. *)
+let rec json_of_lrt (lrt : LRT.t) : json =
+  match lrt with
+  | LRT.Define ((s, it), _info, rest) ->
+    tuple_variant "Define" [ pair (json_of_sym s) (json_of_it it); json_of_lrt rest ]
+  | LRT.Resource ((s, (req, bt)), _info, rest) ->
+    tuple_variant
+      "Resource"
+      [ pair (json_of_sym s) (pair (json_of_req req) (json_of_bt bt)); json_of_lrt rest ]
+  | LRT.Constraint (lc, _info, rest) ->
+    tuple_variant "Constraint" [ json_of_lc lc; json_of_lrt rest ]
+  | LRT.I -> newtype_variant "I" `Null
+
+
+(* The postcondition: the binder standing for the returned value, which the
+   `ensures` terms refer to, and the chain those clauses desugar into. Its
+   `Resource`s are kept rather than filtered out — a postcondition's `take` is
+   the ownership the function hands back, and dropping it would make a
+   specification look like it returns none. *)
+let json_of_rt (rt : RT.t) : json =
+  let (RT.Computational ((s, bt), _info, lrt)) = rt in
+  obj [ ("var", pair (json_of_sym s) (json_of_bt bt)); ("body", json_of_lrt lrt) ]
 
 
 (* ---------------------------------------------------------- declarations *)
@@ -527,8 +585,6 @@ let json_of_datatype (name : Sym.t) (dt : Mucore.datatype) : json =
    signature as the shim needs it, and internally tagged
    ({"kind": "int", "bits": 32, "signed": true}). Only void / bool / int /
    pointer / named are expressible. *)
-exception Unrepresentable of string
-
 let rec json_of_ctype (ct : Sctypes.t) : json =
   match ct with
   | Sctypes.Void -> obj [ ("kind", `String "void") ]
@@ -649,6 +705,7 @@ let json_of_test filename sigma (test : Test.t) : json =
       Sym.pp_string test.fn
   in
   let params, ret = c_signature sigma test.fn in
+  let post, _fn_body = AT.get_return test.internal in
   obj
     [ ("name", `String name);
       ( "params",
@@ -659,9 +716,17 @@ let json_of_test filename sigma (test : Test.t) : json =
              params) );
       ("return", json_of_ctype ret);
       (* AustenTest's ArgType terminal is `()`: it generates inputs, and the
-         return type and `ensures` are checked by the instrumented C, which
-         it does not run. *)
-      ("internal", json_of_at (fun _ -> `Null) test.internal)
+         terminal is where CN keeps the things that are not inputs. *)
+      ("internal", json_of_at (fun _ -> `Null) test.internal);
+      (* The postcondition, beside `internal` rather than at its terminal
+         where CN keeps it. Leaving the terminal `null` is what makes this
+         additive: an AustenTest that has no `ensures` field yet still reads
+         every specification exported here, and one that grows one does not
+         have to re-type `ArgType`. The cost is that the chain of `Define`s
+         and `Resource`s binding these terms' free variables lives in the
+         sibling field, so a reader has to associate the two by symbol
+         number rather than by nesting. *)
+      ("ensures", json_of_rt post)
     ]
 
 

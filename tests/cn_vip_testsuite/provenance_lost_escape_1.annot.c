@@ -20,6 +20,7 @@ int main()
 #else
   int *q = (int *)i4;
 #endif
+  /*@ derive_constraints(RW<uintptr_t>(&i1), RW<uintptr_t>(&i4)); @*/
   //CN_VIP printf("Addresses: p=%p\n",(void*)p);
   /*CN_VIP*//*@ to_bytes RW<uintptr_t>(&i1); @*/
   /*CN_VIP*//*@ to_bytes RW<uintptr_t>(&i4); @*/

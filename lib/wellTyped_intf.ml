@@ -55,6 +55,12 @@ module type S = sig
     'TY Mucore.expr ->
     BaseTypes.t Mucore.expr t
 
+  val check_cn_statement
+    :  ?warn:bool ->
+    Locations.t ->
+    Cnstatement.statement ->
+    Cnstatement.statement t
+
   val procedure
     :  Locations.t ->
     'TY1 Mucore.args_and_body ->

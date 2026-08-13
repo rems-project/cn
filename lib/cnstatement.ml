@@ -17,6 +17,7 @@ type predicate_or_predicate_name =
 
 type statement =
   | Pack_unpack of CF.Cn.pack_unpack * predicate_or_predicate_name
+  | Derive_constraints of predicate_or_predicate_name list
   | To_from_bytes of CF.Cn.to_from * Request.Predicate.t
   | Have of LogicalConstraints.t
   | Instantiate of (Sym.t, Sctypes.t) CF.Cn.cn_to_instantiate * T.t
@@ -36,6 +37,9 @@ let subst_predicate_or_predicate_name substitution = function
 let rec subst substitution = function
   | Pack_unpack (pack_unpack, pt) ->
     Pack_unpack (pack_unpack, subst_predicate_or_predicate_name substitution pt)
+  | Derive_constraints preds ->
+    let preds = List.map (subst_predicate_or_predicate_name substitution) preds in
+    Derive_constraints preds
   | To_from_bytes (to_from, pt) ->
     To_from_bytes (to_from, Req.Predicate.subst substitution pt)
   | Have lc -> Have (LC.subst substitution lc)
@@ -76,6 +80,9 @@ let free_vars_predicate_or_predicate_name = function
 
 let free_vars = function
   | Pack_unpack (_pack_unpack, pt) -> free_vars_predicate_or_predicate_name pt
+  | Derive_constraints preds ->
+    let fvarss = List.map free_vars_predicate_or_predicate_name preds in
+    List.fold_left Sym.Set.union Sym.Set.empty fvarss
   | To_from_bytes (_to_from, pt) -> T.free_vars_list (pt.pointer :: pt.iargs)
   | Have lc -> LC.free_vars lc
   | Instantiate (_o_s, it) ->
@@ -132,6 +139,9 @@ let dtree =
     Dnode (pp_ctor "Pack", [ dtree_of_predicate_or_predicate_name pred ])
   | Pack_unpack (Unpack, pred) ->
     Dnode (pp_ctor "Unpack", [ dtree_of_predicate_or_predicate_name pred ])
+  | Derive_constraints preds ->
+    Dnode
+      (pp_ctor "DeriveConstraints", List.map dtree_of_predicate_or_predicate_name preds)
   | To_from_bytes (To, pred) ->
     Dnode (pp_ctor "To_bytes", [ Request.Predicate.dtree pred ])
   | To_from_bytes (From, pred) ->

@@ -4058,6 +4058,7 @@ let cn_to_ail_cnstatement
   let default_res_for_dest = empty_for_dest d in
   match cnstatement with
   | Cnstatement.Pack_unpack (_pack_unpack, _pt) -> (default_res_for_dest, true)
+  | Derive_constraints _preds -> (default_res_for_dest, true)
   | To_from_bytes (_to_from, _res) -> (default_res_for_dest, true)
   | Have _lc -> failwith "TODO Have"
   | Instantiate (_to_instantiate, _it) -> (default_res_for_dest, true)

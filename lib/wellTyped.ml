@@ -2226,7 +2226,7 @@ module BaseTyping = struct
     | _ -> assert false
 
 
-  let check_cn_statement loc stmt =
+  let check_cn_statement ?(warn = true) loc stmt =
     let open Cnstatement in
     Pp.debug 22 (lazy (Pp.item __FUNCTION__ (CF.Pp_ast.pp_doc_tree (dtree stmt))));
     match stmt with
@@ -2264,9 +2264,36 @@ module BaseTyping = struct
         | PName n -> get_resource_predicate_def loc n
       in
       return (Pack_unpack (pack_unpack, PredicateName pn))
+    | Derive_constraints preds ->
+      let@ preds =
+        ListM.mapM
+          (function
+            | Predicate pred ->
+              let@ p_pred = WReq.welltyped loc (P pred) in
+              let[@warning "-8"] (Req.P pred) = p_pred in
+              return (Predicate pred)
+            | PredicateName pn ->
+              let@ () =
+                match pn with
+                | Owned (ct, _) -> WCT.is_ct loc ct
+                | PName pn ->
+                  let@ _def = get_resource_predicate_def loc pn in
+                  return ()
+              in
+              return (PredicateName pn))
+          preds
+      in
+      return (Derive_constraints preds)
     | To_from_bytes (to_from, pt) ->
       let@ pt = WReq.welltyped loc (P pt) in
       let[@warning "-8"] (Req.P pt) = pt in
+      let@ () =
+        match pt.name with
+        | Owned (ct, init) ->
+          let ctxt = match init with Init -> `RW | Uninit -> `W in
+          err_if_ct_void loc ctxt ct
+        | PName _ -> return ()
+      in
       return (To_from_bytes (to_from, pt))
     | Have lc ->
       let@ lc = WLC.welltyped loc lc in
@@ -2295,7 +2322,8 @@ module BaseTyping = struct
         | E_Everything -> return ()
       in
       let@ it = WT.infer it in
-      warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it);
+      if warn then
+        warn_when_not_quantifier_bt "focus" (T.get_loc it) (T.get_bt it) (T.pp it);
       return (Extract (attrs, to_extract, it))
     | Unfold (f, its) ->
       let@ def = get_logical_function_def loc f in
@@ -2984,6 +3012,8 @@ let infer_expr = BaseTyping.infer_expr
 
 let check_expr = BaseTyping.check_expr
 
+let check_cn_statement = BaseTyping.check_cn_statement
+
 let function_type = WFT.welltyped
 
 let logical_constraint = WLC.welltyped
@@ -3062,6 +3092,12 @@ module Lift (M : ErrorReader) : WellTyped_intf.S with type 'a t := 'a M.t = stru
   let infer_expr x y = lift2 infer_expr x y
 
   let check_expr x y z = lift3 check_expr x y z
+
+  let check_cn_statement ?(warn = false) y z =
+    let ( let@ ) = M.bind in
+    let@ context = M.get_context () in
+    M.lift (Result.map fst (check_cn_statement ~warn y z context))
+
 
   let function_type = lift3 function_type
 

@@ -25,5 +25,5 @@ Inductive call_situation : Type :=
   (* Corresponds to OCaml type situation *)
 Inductive situation : Type :=
   | Access : access -> situation
-  | Call : call_situation -> situation.
-
+  | Call : call_situation -> situation
+  | Derive_constraints : situation.
