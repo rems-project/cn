@@ -2089,7 +2089,7 @@ let pp_situation (s : Error_common.situation) =
   | Error_common.Access a -> pp_constructor "ErrorCommon.Access" [ pp_access a ]
   | Error_common.Call c -> pp_constructor "ErrorCommon.Call" [ pp_call_situation c ]
   | Error_common.Unpacking -> failwith "todo: pp_situation Unpacking"
-  | Error_common.Derive_constraints -> failwith "todo: pp_situation Derive_constraints"
+  | Error_common.Derive_constraints -> pp_constructor "ErrorCommon.Derive_constraints"
 
 
 let pp_init = function
