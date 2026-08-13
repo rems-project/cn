@@ -287,7 +287,6 @@ let ask_solver g lcs =
     Solver.provable_or_unknown
       ~loc:here
       ~solver:s
-      ~assumptions:(LC.Set.of_list lcs)
       ~simp_ctxt
       (LC.T (MakeTerm.bool_ false here))
   in
