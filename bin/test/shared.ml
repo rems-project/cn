@@ -539,9 +539,9 @@ module Flags = struct
 
   let export_spec_json =
     let doc =
-      "Dump the specification IR as JSON in AustenTest's spec-module format. FILE names \
-       the output when the translation unit has one function under test, and a directory \
-       to write <function>.json into otherwise"
+      "Dump the specification IR as one JSON file in AustenTest's spec-module format. \
+       Functions are emitted in CN's test-discovery order, which defines their one-byte \
+       selector IDs"
     in
     Arg.(
       value
