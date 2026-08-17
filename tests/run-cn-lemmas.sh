@@ -73,6 +73,7 @@ while IFS='|' read -r case_name source_dir input_file; do
   fi
 done <<'EOF'
 list_rev|list|rev.c
+list_segment|list_segment|list_seg.c
 array_combine|arrays/combine|array_lemma.c
 arrays_inductive|arrays/inductive|array_lemma.c
 arrays_testing|arrays/testing|array_lemma.c
