@@ -47,8 +47,8 @@ type coq_const =
 type coq_unop =
   | Coq_neg
   | Coq_neg_prop
-  | Coq_BW_FFS_NoSMT
-  | Coq_BW_CTZ_NoSMT
+  | Coq_BW_FFS
+  | Coq_BW_CTZ
 
 type coq_binop =
   | Coq_add

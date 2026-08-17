@@ -161,8 +161,8 @@ let it_to_coq_ir global it b =
            CI.Coq_unop (CI.Coq_neg_prop, x, bt)
          else
            CI.Coq_unop (CI.Coq_neg, x, bt)
-       | Terms.BW_FFS_NoSMT -> CI.Coq_unop (CI.Coq_BW_FFS_NoSMT, x, bt)
-       | Terms.BW_CTZ_NoSMT -> CI.Coq_unop (CI.Coq_BW_CTZ_NoSMT, x, bt)
+       | Terms.BW_FFS -> CI.Coq_unop (CI.Coq_BW_FFS, x, bt)
+       | Terms.BW_CTZ -> CI.Coq_unop (CI.Coq_BW_CTZ, x, bt)
        | _ -> CI.Coq_unsupported "Unsupported unop")
     | Terms.Binop (op, a, b) ->
       let x = aux a in
@@ -171,15 +171,11 @@ let it_to_coq_ir global it b =
        | Add -> CI.Coq_binop (CI.Coq_add, x, y, bt)
        | Sub -> CI.Coq_binop (CI.Coq_sub, x, y, bt)
        | Mul -> CI.Coq_binop (CI.Coq_mul, x, y, bt)
-       | MulNoSMT -> CI.Coq_binop (CI.Coq_mul, x, y, bt)
        | Div -> CI.Coq_binop (CI.Coq_div, x, y, bt)
-       | DivNoSMT -> CI.Coq_binop (CI.Coq_div, x, y, bt)
        | Mod -> CI.Coq_binop (CI.Coq_mod, x, y, bt)
-       | ModNoSMT -> CI.Coq_binop (CI.Coq_mod, x, y, bt)
        (* TODO: this can't be right: mod and rem aren't the same
       - maybe they have the same semantics as Coq Z.modulo/Z.rem *)
        | Rem -> CI.Coq_binop (CI.Coq_rem, x, y, bt)
-       | RemNoSMT -> CI.Coq_binop (CI.Coq_mod, x, y, bt)
        | LT ->
          if enc_prop then
            CI.Coq_binop (CI.Coq_lt_prop, x, y, bt)
@@ -191,7 +187,6 @@ let it_to_coq_ir global it b =
          else
            CI.Coq_binop (CI.Coq_le, x, y, bt)
        | Exp -> CI.Coq_binop (CI.Coq_exp, x, y, bt)
-       | ExpNoSMT -> CI.Coq_binop (CI.Coq_exp, x, y, bt)
        | BW_Xor -> CI.Coq_binop (CI.Coq_bwxor, x, y, bt)
        | BW_And -> CI.Coq_binop (CI.Coq_bwand, x, y, bt)
        | BW_Or -> CI.Coq_binop (CI.Coq_bwor, x, y, bt)
