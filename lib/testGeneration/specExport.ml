@@ -697,13 +697,15 @@ let c_signature sigma (fn : Sym.t) : (string * Sctypes.t) list * Sctypes.t =
   | _ -> raise (Unrepresentable "no C declaration")
 
 
+let test_name filename (test : Test.t) : string =
+  if test.is_static then
+    Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn
+  else
+    Sym.pp_string test.fn
+
+
 let json_of_test filename sigma (test : Test.t) : json =
-  let name =
-    if test.is_static then
-      Fulminate.Utils.static_prefix filename ^ "_" ^ Sym.pp_string test.fn
-    else
-      Sym.pp_string test.fn
-  in
+  let name = test_name filename test in
   let params, ret = c_signature sigma test.fn in
   let post, _fn_body = AT.get_return test.internal in
   obj
@@ -750,16 +752,13 @@ let rec max_sym_num (j : json) : int =
 
 (* ----------------------------------------------------------------- entry *)
 
-(* One `SpecModule`, covering one translation unit and one function under
-   test.
-
-   One file per *function*, not per translation unit, even though the shape
-   would hold several: AustenTest's harness always dispatches specification
-   function index 0, so a module naming several functions would generate
-   arguments for one and call another. Putting each first in its own file
-   sidesteps that, and it matches how CN's own corpus is laid out
-   (`sorted_list.insert.pass.c` beside `sorted_list.cons.fail.c`). *)
-let json_of_module ~filename sigma (prog5 : unit Mucore.file) (test : Test.t) : json =
+(* One `SpecModule`, covering one translation unit and every representable
+   function under test. The order of `functions` is the selector ABI:
+   AustenTest prefixes each input with the exact zero-based position of its
+   target in this array. `functions_under_test` supplies CN's deterministic
+   test-discovery order, and the filtering in [save] retains the relative
+   order of every survivor. *)
+let json_of_module ~filename (prog5 : unit Mucore.file) (functions : json list) : json =
   let fields =
     [ ("filename", `String (Filename.basename filename));
       ("types", `List (json_of_structs prog5));
@@ -774,58 +773,82 @@ let json_of_module ~filename sigma (prog5 : unit Mucore.file) (test : Test.t) : 
           (List.map
              (fun (name, f) -> json_of_logical_function name f)
              prog5.logical_predicates) );
-      ("functions", `List [ json_of_test filename sigma test ])
+      ("functions", `List functions)
     ]
   in
   obj (("next_sym", `Int (max_sym_num (obj fields) + 1)) :: fields)
 
 
-(* Write the specification module for the *first* function under test.
-
-   One function, not all of them, and never more than one file: AustenTest's
-   harness always dispatches specification function index 0, so a module
-   naming several functions would generate arguments for one and call
-   another. Exporting only the first keeps that impossible by construction,
-   and keeps one source file mapped to exactly one exported spec, which is
-   what the ladder registers.
-
-   The rest are named in a warning rather than dropped silently — they are
-   real coverage this export does not reach, and CN's corpus has several
-   files whose interesting entry point is not the first.
+(* Write one ordered specification module for the translation unit.
 
    A function whose signature AustenTest cannot represent is skipped with a
    warning rather than failing the run: the point of a corpus export is to
-   get as much across as possible and say plainly what did not make it. *)
+   get as much across as possible and say plainly what did not make it. Its
+   removal necessarily closes the selector array around it; the exact IDs are
+   the positions in the module that is actually written, never positions in
+   CN's pre-filter list.
+
+   In contrast, exceeding the one-byte selector capacity or producing
+   duplicate exported names refuses the entire module. Truncating would hide
+   otherwise supported roots, while duplicate names would make
+   AustenTest's --function filter ambiguous. *)
 let save ~path ~filename sigma prog5 (tests : Test.t list) : unit =
-  match tests with
+  let functions =
+    List.filter_map
+      (fun (test : Test.t) ->
+         match json_of_test filename sigma test with
+         | function_json -> Some (test_name filename test, function_json)
+         | exception Unrepresentable what ->
+           Pp.warn_noloc
+             (Pp.string
+                ("not exporting "
+                 ^ Sym.pp_string_no_nums test.fn
+                 ^ " from "
+                 ^ Filename.basename filename
+                 ^ ": AustenTest cannot represent "
+                 ^ what));
+           None)
+      tests
+  in
+  let rec duplicate_name seen = function
+    | [] -> None
+    | (name, _) :: rest ->
+      if List.exists (String.equal name) seen then
+        Some name
+      else
+        duplicate_name (name :: seen) rest
+  in
+  match functions with
   | [] -> ()
-  | test :: rest ->
-    (match rest with
-     | [] -> ()
-     | _ ->
-       Pp.warn_noloc
-         (Pp.string
-            ("exporting only "
-             ^ Sym.pp_string_no_nums test.fn
-             ^ " from "
-             ^ Filename.basename filename
-             ^ "; AustenTest dispatches one function per specification, so "
-             ^ String.concat
-                 ", "
-                 (List.map (fun (t : Test.t) -> Sym.pp_string_no_nums t.fn) rest)
-             ^ " are not exported")));
-    (match json_of_module ~filename sigma prog5 test with
-     | j ->
-       let oc = open_out path in
-       output_string oc (Yojson.Safe.pretty_to_string j);
-       output_char oc '\n';
-       close_out oc
-     | exception Unrepresentable what ->
+  | _ when List.length functions > 256 ->
+    Pp.warn_noloc
+      (Pp.string
+         ("not exporting "
+          ^ Filename.basename filename
+          ^ ": AustenTest's one-byte function selector supports at most 256 functions, \
+             but "
+          ^ string_of_int (List.length functions)
+          ^ " are representable"))
+  | _ ->
+    (match duplicate_name [] functions with
+     | Some name ->
        Pp.warn_noloc
          (Pp.string
             ("not exporting "
-             ^ Sym.pp_string_no_nums test.fn
-             ^ " from "
              ^ Filename.basename filename
-             ^ ": AustenTest cannot represent "
-             ^ what)))
+             ^ ": more than one function has the exported name "
+             ^ name))
+     | None ->
+       (match json_of_module ~filename prog5 (List.map snd functions) with
+        | j ->
+          let oc = open_out path in
+          output_string oc (Yojson.Safe.pretty_to_string j);
+          output_char oc '\n';
+          close_out oc
+        | exception Unrepresentable what ->
+          Pp.warn_noloc
+            (Pp.string
+               ("not exporting "
+                ^ Filename.basename filename
+                ^ ": AustenTest cannot represent "
+                ^ what))))
