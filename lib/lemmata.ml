@@ -360,8 +360,8 @@ let term_to_coq (global : Global.t) (t : CI.coq_term) (is_clause : bool) =
         (match op with
          | CI.Coq_neg -> f_appM "negb" [ aux x ]
          | CI.Coq_neg_prop -> f_appM "~" [ aux x ]
-         | CI.Coq_BW_FFS_NoSMT -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
-         | CI.Coq_BW_CTZ_NoSMT -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ])
+         | CI.Coq_BW_FFS -> f_appM "CN_Lib.find_first_set_z" [ aux x ]
+         | CI.Coq_BW_CTZ -> f_appM "CN_Lib.count_trailing_zeroes_z" [ aux x ])
     | CI.Coq_binop (op, x, y, bt) ->
       norm_bv_op
         bt

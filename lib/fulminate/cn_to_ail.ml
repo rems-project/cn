@@ -313,7 +313,7 @@ let cn_to_ail_unop bt =
      | Some typedef_str -> Some (typedef_str ^ "_negate")
      | None ->
        failwith (__LOC__ ^ ": typedef string not found in translation of Negate unop"))
-  | BW_FLS_NoSMT ->
+  | BW_FLS ->
     let failure_msg =
       Printf.sprintf
         ": FLS cannot be applied to index term of type %s"
@@ -333,7 +333,7 @@ let cn_to_ail_unop bt =
      | Some typedef_str -> Some (typedef_str ^ "_bw_compl")
      | None ->
        failwith (__LOC__ ^ ": typedef string not found in translation of BW_Compl unop"))
-  | BW_CLZ_NoSMT | BW_CTZ_NoSMT | BW_FFS_NoSMT ->
+  | BW_CLZ | BW_CTZ | BW_FFS ->
     failwith (__LOC__ ^ ": Failure in trying to translate SMT-only unop from C source")
 
 
@@ -366,11 +366,11 @@ let cn_to_ail_binop bt1 bt2 =
     in
     Some (get_cn_int_type_str bt1 bt2 ^ "_add" ^ bt2_str)
   | Sub -> Some (get_cn_int_type_str bt1 bt2 ^ "_sub")
-  | Mul | MulNoSMT -> Some (get_cn_int_type_str bt1 bt2 ^ "_multiply")
-  | Div | DivNoSMT -> Some (get_cn_int_type_str bt1 bt2 ^ "_divide")
-  | Exp | ExpNoSMT -> Some (get_cn_int_type_str bt1 bt2 ^ "_pow")
-  | Rem | RemNoSMT -> Some (get_cn_int_type_str bt1 bt2 ^ "_rem")
-  | Mod | ModNoSMT -> Some (get_cn_int_type_str bt1 bt2 ^ "_mod")
+  | Mul -> Some (get_cn_int_type_str bt1 bt2 ^ "_multiply")
+  | Div -> Some (get_cn_int_type_str bt1 bt2 ^ "_divide")
+  | Exp -> Some (get_cn_int_type_str bt1 bt2 ^ "_pow")
+  | Rem -> Some (get_cn_int_type_str bt1 bt2 ^ "_rem")
+  | Mod -> Some (get_cn_int_type_str bt1 bt2 ^ "_mod")
   | BW_Xor -> Some (get_cn_int_type_str bt1 bt2 ^ "_xor")
   | BW_And -> Some (get_cn_int_type_str bt1 bt2 ^ "_bwand")
   | BW_Or -> Some (get_cn_int_type_str bt1 bt2 ^ "_bwor")

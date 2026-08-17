@@ -514,7 +514,7 @@ module CongruenceBasis = struct
       | Add -> Some (congr_add t1 t2)
       | Sub -> Some (congr_sub t1 t2)
       | Mul -> Some (congr_mul t1 t2)
-      | Div | DivNoSMT -> Some (congr_div t1 t2)
+      | Div -> Some (congr_div t1 t2)
       | Mod -> Some (congr_mod t1 t2)
       | BW_And -> Some (congr_and t1 t2)
       | BW_Or -> Some (congr_or t1 t2)

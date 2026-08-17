@@ -472,10 +472,10 @@ module Make (AD : Domain.T) = struct
     match op with
     | Not -> !^"cn_smt_not" ^^ parens operand
     | Negate -> !^"cn_smt_negate" ^^ parens operand
-    | BW_CLZ_NoSMT -> !^"cn_smt_bw_clz" ^^ parens operand
-    | BW_CTZ_NoSMT -> !^"cn_smt_bw_ctz" ^^ parens operand
-    | BW_FFS_NoSMT -> !^"cn_smt_bw_ffs" ^^ parens operand
-    | BW_FLS_NoSMT -> !^"cn_smt_bw_fls" ^^ parens operand
+    | BW_CLZ -> !^"cn_smt_bw_clz" ^^ parens operand
+    | BW_CTZ -> !^"cn_smt_bw_ctz" ^^ parens operand
+    | BW_FFS -> !^"cn_smt_bw_ffs" ^^ parens operand
+    | BW_FLS -> !^"cn_smt_bw_fls" ^^ parens operand
     | BW_Compl -> !^"cn_smt_bw_compl" ^^ parens operand
 
 
@@ -497,15 +497,15 @@ module Make (AD : Domain.T) = struct
     | Add -> !^"cn_smt_add" ^^ args
     | Sub -> !^"cn_smt_sub" ^^ args
     | Mul -> !^"cn_smt_mul" ^^ args
-    | MulNoSMT -> !^"cn_smt_mul_uf" ^^ args
+    (* | MulNoSMT -> !^"cn_smt_mul_uf" ^^ args *)
     | Div -> !^"cn_smt_div" ^^ args
-    | DivNoSMT -> !^"cn_smt_div_uf" ^^ args
+    (* | DivNoSMT -> !^"cn_smt_div_uf" ^^ args *)
     | Exp -> !^"cn_smt_exp" ^^ args
-    | ExpNoSMT -> !^"cn_smt_exp_uf" ^^ args
+    (* | ExpNoSMT -> !^"cn_smt_exp_uf" ^^ args *)
     | Mod -> !^"cn_smt_mod" ^^ args
-    | ModNoSMT -> !^"cn_smt_mod_uf" ^^ args
+    (* | ModNoSMT -> !^"cn_smt_mod_uf" ^^ args *)
     | Rem -> !^"cn_smt_rem" ^^ args
-    | RemNoSMT -> !^"cn_smt_rem_uf" ^^ args
+    (* | RemNoSMT -> !^"cn_smt_rem_uf" ^^ args *)
     | BW_And -> !^"cn_smt_bw_and" ^^ args
     | BW_Or -> !^"cn_smt_bw_or" ^^ args
     | BW_Xor -> !^"cn_smt_bw_xor" ^^ args

@@ -119,23 +119,13 @@ let sub_ = arith_binop Sub
 
 let mul_ = arith_binop Mul
 
-let mul_no_smt_ = arith_binop MulNoSMT
-
 let div_ = arith_binop Div
-
-let div_no_smt_ = arith_binop DivNoSMT
 
 let exp_ = arith_binop Exp
 
-let exp_no_smt_ = arith_binop ExpNoSMT
-
 let rem_ = arith_binop Rem
 
-let rem_no_smt_ = arith_binop RemNoSMT
-
 let mod_ = arith_binop Mod
-
-let mod_no_smt_ = arith_binop ModNoSMT
 
 let divisible_ (it, it') loc = eq_ (mod_ (it, it') loc, int_lit_ 0 (get_bt it) loc) loc
 

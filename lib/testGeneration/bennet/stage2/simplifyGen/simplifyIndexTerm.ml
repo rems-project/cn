@@ -116,32 +116,6 @@ module Make (AD : Domain.T) = struct
                   _,
                   _ ),
               IT (Sym x', _, _) )
-        | Binop
-            ( EQ,
-              IT
-                ( Binop
-                    (MulNoSMT, IT (Binop (Div, IT (Sym x, x_bt, x_loc), it1), _, _), it2),
-                  _,
-                  _ ),
-              IT (Sym x', _, _) )
-        | Binop
-            ( EQ,
-              IT
-                ( Binop
-                    (Mul, IT (Binop (DivNoSMT, IT (Sym x, x_bt, x_loc), it1), _, _), it2),
-                  _,
-                  _ ),
-              IT (Sym x', _, _) )
-        | Binop
-            ( EQ,
-              IT
-                ( Binop
-                    ( MulNoSMT,
-                      IT (Binop (DivNoSMT, IT (Sym x, x_bt, x_loc), it1), _, _),
-                      it2 ),
-                  _,
-                  _ ),
-              IT (Sym x', _, _) )
           when Sym.equal x x' && T.equal it1 it2 ->
           MT.eq_
             (MT.mod_ (MT.sym_ (x, x_bt, x_loc), it1) loc, MT.num_lit_ Z.zero x_bt loc)
@@ -151,28 +125,6 @@ module Make (AD : Domain.T) = struct
               IT (Sym x, x_bt, x_loc),
               IT (Binop (Mul, IT (Binop (Div, IT (Sym x', _, _), it1), _, _), it2), _, _)
             )
-        | Binop
-            ( EQ,
-              IT (Sym x, x_bt, x_loc),
-              IT
-                ( Binop (MulNoSMT, IT (Binop (Div, IT (Sym x', _, _), it1), _, _), it2),
-                  _,
-                  _ ) )
-        | Binop
-            ( EQ,
-              IT (Sym x, x_bt, x_loc),
-              IT
-                ( Binop (Mul, IT (Binop (DivNoSMT, IT (Sym x', _, _), it1), _, _), it2),
-                  _,
-                  _ ) )
-        | Binop
-            ( EQ,
-              IT (Sym x, x_bt, x_loc),
-              IT
-                ( Binop
-                    (MulNoSMT, IT (Binop (DivNoSMT, IT (Sym x', _, _), it1), _, _), it2),
-                  _,
-                  _ ) )
           when Sym.equal x x' && T.equal it1 it2 ->
           MT.eq_
             (MT.mod_ (MT.sym_ (x, x_bt, x_loc), it1) loc, MT.num_lit_ Z.zero x_bt loc)

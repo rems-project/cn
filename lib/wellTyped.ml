@@ -602,7 +602,7 @@ module WT = struct
             let@ t = infer t in
             let@ () = ensure_arith_type ~reason:loc t in
             return (t, T.get_bt t)
-          | BW_CLZ_NoSMT | BW_CTZ_NoSMT | BW_FFS_NoSMT | BW_FLS_NoSMT | BW_Compl ->
+          | BW_CLZ | BW_CTZ | BW_FFS | BW_FLS | BW_Compl ->
             let@ t = infer t in
             let@ () = ensure_bits_type (T.get_loc t) (T.get_bt t) in
             return (t, T.get_bt t)
@@ -617,9 +617,9 @@ module WT = struct
         let@ t' = check (T.get_loc t) (T.get_bt t) t' in
         let arg_check, rbt =
           match bop with
-          | Add | Sub | Mul | MulNoSMT | Div | DivNoSMT | Exp | ExpNoSMT | Min | Max ->
+          | Add | Sub | Mul | Div | Exp | Min | Max ->
             (ensure_arith_type ~reason:loc t, T.get_bt t)
-          | Rem | RemNoSMT | Mod | ModNoSMT | ShiftLeft | ShiftRight ->
+          | Rem | Mod | ShiftLeft | ShiftRight ->
             (ensure_integer_or_bits_type ~reason:loc t, T.get_bt t)
           | BW_And | BW_Or | BW_Xor -> (ensure_bits_type loc (T.get_bt t), T.get_bt t)
           | LT | LE -> (ensure_arith_type ~reason:loc t, BT.Bool)

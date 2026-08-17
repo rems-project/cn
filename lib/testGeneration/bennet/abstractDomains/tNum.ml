@@ -529,7 +529,7 @@ module TristateBasis = struct
       | Add -> Some (tnum_add t1 t2)
       | Sub -> Some (tnum_sub t1 t2)
       | Mul -> Some (tnum_mul t1 t2)
-      | Div | DivNoSMT -> Some (tnum_div t1 t2)
+      | Div -> Some (tnum_div t1 t2)
       | Mod -> Some (tnum_mod t1 t2)
       | BW_And -> Some (tnum_and t1 t2)
       | BW_Or -> Some (tnum_or t1 t2)

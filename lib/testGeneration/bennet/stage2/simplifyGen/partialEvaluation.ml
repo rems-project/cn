@@ -95,7 +95,7 @@ module Make (AD : Domain.T) = struct
               ^ __LOC__
               ^ ")")
          | _ -> Error ("Not constant integer or bitvector (" ^ __LOC__ ^ ")"))
-      | Unop (BW_CLZ_NoSMT, it') ->
+      | Unop (BW_CLZ, it') ->
         let@ it' = eval_aux it' in
         (match it' with
          | IT (Const (Bits ((sgn, bits), n)), bt, _) ->
@@ -116,9 +116,9 @@ module Make (AD : Domain.T) = struct
              of_64 (aux bits (to_64 n) (of_int 0))
            in
            let n = BT.normalise_to_range_bt bt (reverse_bits n) in
-           eval_aux (arith_unop BW_CTZ_NoSMT (num_lit_ n bt here) here)
+           eval_aux (arith_unop BW_CTZ (num_lit_ n bt here) here)
          | _ -> Error ("Not constant bitvector (" ^ __LOC__ ^ ")"))
-      | Unop (BW_CTZ_NoSMT, it') ->
+      | Unop (BW_CTZ, it') ->
         let@ it' = eval_aux it' in
         (match it' with
          | IT (Const (Bits ((_, sz), n)), _, _) ->
@@ -126,24 +126,24 @@ module Make (AD : Domain.T) = struct
            let res = if res = max_int then sz else res in
            return @@ num_lit_ (Z.of_int res) bt here
          | _ -> Error ("Not constant bitvector (" ^ __LOC__ ^ ")"))
-      | Unop (BW_FFS_NoSMT, it') ->
+      | Unop (BW_FFS, it') ->
         let@ it' = eval_aux it' in
         (match it' with
          | IT (Const (Bits (_, n)), _, _) ->
            if Z.equal n Z.zero then
              return @@ num_lit_ Z.zero bt here
            else
-             let@ it' = return @@ arith_unop BW_CTZ_NoSMT it' here in
+             let@ it' = return @@ arith_unop BW_CTZ it' here in
              eval_aux (add_ (it', num_lit_ Z.one bt here) here)
          | _ -> Error ("Not constant bitvector (" ^ __LOC__ ^ ")"))
-      | Unop (BW_FLS_NoSMT, it') ->
+      | Unop (BW_FLS, it') ->
         let@ it' = eval_aux it' in
         (match it' with
          | IT (Const (Bits ((_, sz), n)), bt, _) ->
            if Z.equal n Z.zero then
              return @@ int_lit_ 0 bt here
            else (
-             let it' = arith_unop BW_CLZ_NoSMT it' here in
+             let it' = arith_unop BW_CLZ it' here in
              eval_aux (sub_ (int_lit_ sz bt here, it') here))
          | _ -> Error ("Not constant bitvector (" ^ __LOC__ ^ ")"))
       | Unop (BW_Compl, it') ->
@@ -171,16 +171,12 @@ module Make (AD : Domain.T) = struct
          | _ -> Error ("Not constant boolean (" ^ __LOC__ ^ ")"))
       | Binop (Add, it1, it2) -> eval_num_binop Z.add it1 it2 __LOC__
       | Binop (Sub, it1, it2) -> eval_num_binop Z.sub it1 it2 __LOC__
-      | Binop (Mul, it1, it2) | Binop (MulNoSMT, it1, it2) ->
-        eval_num_binop Z.mul it1 it2 __LOC__
-      | Binop (Div, it1, it2) | Binop (DivNoSMT, it1, it2) ->
-        eval_num_binop Z.div it1 it2 __LOC__
-      | Binop (Exp, it1, it2) | Binop (ExpNoSMT, it1, it2) ->
+      | Binop (Mul, it1, it2) -> eval_num_binop Z.mul it1 it2 __LOC__
+      | Binop (Div, it1, it2) -> eval_num_binop Z.div it1 it2 __LOC__
+      | Binop (Exp, it1, it2) ->
         eval_num_binop (fun n1 n2 -> Z.pow n1 (Z.to_int n2)) it1 it2 __LOC__
-      | Binop (Rem, it1, it2) | Binop (RemNoSMT, it1, it2) ->
-        eval_num_binop Z.rem it1 it2 __LOC__
-      | Binop (Mod, it1, it2) | Binop (ModNoSMT, it1, it2) ->
-        eval_num_binop Z.( mod ) it1 it2 __LOC__
+      | Binop (Rem, it1, it2) -> eval_num_binop Z.rem it1 it2 __LOC__
+      | Binop (Mod, it1, it2) -> eval_num_binop Z.( mod ) it1 it2 __LOC__
       | Binop (BW_Xor, it1, it2) -> eval_num_binop Z.logxor it1 it2 __LOC__
       | Binop (BW_And, it1, it2) -> eval_num_binop Z.logand it1 it2 __LOC__
       | Binop (BW_Or, it1, it2) -> eval_num_binop Z.logor it1 it2 __LOC__

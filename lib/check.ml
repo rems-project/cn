@@ -2057,8 +2057,8 @@ let rec check_expr labels (e : BT.t Mu.expr) (k : T.t -> unit m) : unit m =
          check_pexpr pe1 (fun vt1 ->
            let unop =
              match fn with
-             | "ctz" -> Terms.BW_CTZ_NoSMT
-             | "generic_ffs" -> BW_FFS_NoSMT
+             | "ctz" -> Terms.BW_CTZ
+             | "generic_ffs" -> BW_FFS
              | _ -> assert false
            in
            k (arith_unop unop vt1 loc))
@@ -2930,9 +2930,7 @@ let ctz_proxy_ft =
   let neq_0 = LC.T (MT.not_ (MT.eq_ (n, MT.int_lit_ 0 (T.get_bt n) here) here) here) in
   let eq_ctz =
     LC.T
-      (MT.eq_
-         (ret, cast_ (T.get_bt ret) (MT.arith_unop Terms.BW_CTZ_NoSMT n here) here)
-         here)
+      (MT.eq_ (ret, cast_ (T.get_bt ret) (MT.arith_unop Terms.BW_CTZ n here) here) here)
   in
   let rt =
     RT.mComputational
@@ -2956,8 +2954,7 @@ let ffs_proxy_ft sz =
   let n_sym, n = MT.fresh_named bt "n_" here in
   let ret_sym, ret = MT.fresh_named ret_bt "return" here in
   let eq_ffs =
-    LC.T
-      (MT.eq_ (ret, MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS_NoSMT n here) here) here)
+    LC.T (MT.eq_ (ret, MT.cast_ ret_bt (MT.arith_unop Terms.BW_FFS n here) here) here)
   in
   let rt =
     RT.mComputational ((ret_sym, ret_bt), info) (LRT.mConstraint (eq_ffs, info) LRT.I)

@@ -417,20 +417,20 @@ module Terms = struct
          | Negate, Const (Bits ((sign, width), z)) ->
            num_lit_norm (BT.Bits (sign, width)) (Z.neg z) the_loc
          | Negate, Const (Q q) -> q1_ (Q.neg q) the_loc
-         | BW_CTZ_NoSMT, Const (Z z) ->
+         | BW_CTZ, Const (Z z) ->
            (match do_ctz_z z with
             | None -> IT (Unop (op, a), the_bt, the_loc)
             | Some i -> int_ i the_loc)
-         | BW_CTZ_NoSMT, Const (Bits (bits, z)) ->
+         | BW_CTZ, Const (Bits (bits, z)) ->
            (match do_ctz_z (BT.normalise_to_range bits z) with
             | None -> IT (Unop (op, a), the_bt, the_loc)
             | Some i -> int_lit_ i the_bt the_loc)
-         | BW_FFS_NoSMT, Const (Z z) ->
+         | BW_FFS, Const (Z z) ->
            if Z.equal z Z.zero then
              int_ 0 the_loc
            else
              int_ (Option.get (do_ctz_z z) + 1) the_loc
-         | BW_FFS_NoSMT, Const (Bits (bits, z)) ->
+         | BW_FFS, Const (Bits (bits, z)) ->
            let z = BT.normalise_to_range bits z in
            if Z.equal z Z.zero then
              int_lit_ 0 the_bt the_loc
