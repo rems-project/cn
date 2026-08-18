@@ -12,6 +12,7 @@ module Cn_to_ail = Fulminate.Cn_to_ail
 
 module Private = struct
   module Bennet = Bennet
+  module SpecExport = SpecExport
 end
 
 type engine = TestGenConfig.engine =
