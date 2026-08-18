@@ -17,7 +17,6 @@ let verify
       json
       json_trace
       output_dir
-      diag
       lemmata
       coq_export_file
       coq_mucore
@@ -69,7 +68,6 @@ let verify
   Solver.inc_timeout := solver_inc_timeout;
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
-  Diagnostics.diag_string := diag;
   Resource.disable_derived_lc1 := disable_derived_lc1;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
@@ -301,7 +299,6 @@ let verify_t : unit Term.t =
   $ Flags.json
   $ Flags.json_trace
   $ Flags.output_dir
-  $ Common.Flags.diag
   $ Lemma_flags.lemmata
   $ CoqExport_flags.coq_export
   $ CoqMucore_flags.coq_mucore
