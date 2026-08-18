@@ -1,5 +1,3 @@
-val unfold_multiclause_preds : bool ref
-
 type 'a t
 
 type 'a m = 'a t

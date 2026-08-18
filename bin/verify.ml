@@ -40,7 +40,6 @@ let verify
       allow_split_magic_comments
       disable_derived_lc1
       try_hard
-      disable_unfold_multiclause_preds
       check_consistency (* integermode *)
   =
   if json then (
@@ -71,7 +70,6 @@ let verify
   Resource.disable_derived_lc1 := disable_derived_lc1;
   (* Set the prooflog flag based on --coq-proof-log *)
   Prooflog.set_enabled coq_proof_log;
-  Typing.unfold_multiclause_preds := not disable_unfold_multiclause_preds;
   let filename = Common.there_can_only_be_one filename in
   Common.with_well_formedness_check (* CLI arguments *)
     ~filename
@@ -322,7 +320,6 @@ let verify_t : unit Term.t =
   $ Common.Flags.allow_split_magic_comments
   $ Flags.disable_derived_lc1
   $ Flags.try_hard
-  $ Flags.disable_unfold_multiclause_preds
   $ Flags.check_consistency
 
 
