@@ -3,7 +3,6 @@ module LC = LogicalConstraints
 module Req = Request
 open Typing
 
-
 module General = struct
   type one =
     { one_index : Terms.Normal.t;
@@ -158,9 +157,7 @@ module General = struct
             MT.(eq_ (allocId_ requested.pointer here, allocId_ p'.pointer here) here)
           in
           let eqs = addr_eq :: alloc_id_eq :: iargs_eq in
-          let debug_failure msg =
-            Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re))));
-          in
+          let debug_failure msg = Pp.debug 9 (lazy (Pp.item msg (Req.pp (fst re)))) in
           (match
              (if fast_path then provable_simp else provable) (LC.T (MT.and_ eqs here))
            with
@@ -174,8 +171,8 @@ module General = struct
                     (lazy (item "solver match" (Terms.Normal.pp (MT.and_ eqs here))))));
              (Deleted, (false, p'_oarg))
            | `False ->
-             if not fast_path then (
-               debug_failure "couldn't use resource (pointer+iargs did not match)");
+             if not fast_path then
+               debug_failure "couldn't use resource (pointer+iargs did not match)";
              continue)
         | _re -> continue)
     in
@@ -265,7 +262,9 @@ module General = struct
                          (Q { p' with permission = and_ permission' here }, O p'_oarg),
                        (Simplify.Terms.simp simp_ctxt (and_ needed' here), oarg) )
                    | `False ->
-                     Pp.debug 9 (lazy (Pp.item "couldn't use q-resource" (Req.pp (fst re))));
+                     Pp.debug
+                       9
+                       (lazy (Pp.item "couldn't use q-resource" (Req.pp (fst re))));
                      continue))
              | _re -> continue))
         (needed, C [])
@@ -326,8 +325,7 @@ module General = struct
       let@ oarg_item_bt = WellTyped.oarg_bt_of_pred loc requested.name in
       let@ oarg = cases_to_map loc requested.q oarg_item_bt oarg in
       return (Some ((requested, Resource.O oarg), l))
-    | `False ->
-      return None
+    | `False -> return None
 
 
   and ftyp_args_request_for_pack loc uiinfo ftyp =
