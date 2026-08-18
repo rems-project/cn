@@ -4,8 +4,6 @@ module LC = LogicalConstraints
 module Loc = Locations
 module MT = MakeTerm
 
-let unfold_multiclause_preds = ref false
-
 type solver = Solver.solver
 
 type s =
@@ -439,47 +437,7 @@ let _model_has_prop () =
   return (fun prop m -> is_some_true (Solver.eval (fst m) prop))
 
 
-(* let prove_or_model_with_past_model loc m = *)
-(*   let@ has_prop = model_has_prop () in *)
-(*   let@ p_f = provable_internal loc in *)
-(*   let loc = Locations.other __LOC__ in *)
-(*   let res lc = *)
-(*     match lc with *)
-(*     | LC.T t when has_prop (MT.not_ t loc) m -> `Counterex (lazy m) *)
-(*     | _ -> *)
-(*       (match p_f lc with `True -> `True | `False -> `Counterex (lazy (Solver.model ()))) *)
-(*   in *)
-(*   let res2 lc = match res lc with `Counterex _m -> `False | `True -> `True in *)
-(*   return (res, res2) *)
-
-(* let model_with_internal loc prop = *)
-(*   let@ ms = get_just_models () in *)
-(*   let@ has_prop = model_has_prop () in *)
-(*   match List.find_opt (has_prop prop) ms with *)
-(*   | Some m -> return (Some m) *)
-(*   | None -> *)
-(*     let@ prover = provable_internal loc in *)
-(*     let here = Locations.other __LOC__ in *)
-(*     (match prover (LC.T (MT.not_ prop here)) with *)
-(*      | `True -> return None *)
-(*      | `False -> *)
-(*        let@ m = model () in *)
-(*        let@ () = cond_check_model loc m prop in *)
-(*        return (Some m)) *)
-
 (* functions for binding return types and associated auxiliary functions *)
-
-(* let make_return_record loc (record_name : string) record_members = *)
-(*   let record_s = Sym.fresh_make_uniq record_name in *)
-(*   let record_bt = BT.Record record_members in *)
-(*   let@ () = add_l record_s record_bt (loc, lazy (Sym.pp record_s)) in *)
-(*   let record_it = MT.sym_ (record_s, record_bt, loc) in *)
-(*   let member_its = *)
-(*     List.map *)
-(*       (fun (s, member_bt) -> MT.recordMember_ ~member_bt (record_it, s) loc) *)
-(*       record_members *)
-(*   in *)
-(*   return (record_it, member_its) *)
 
 (* This essentially pattern-matches a logical return type against a record pattern.
    `record_it` is the index term for the record, `members` the pattern for its members. *)
@@ -539,9 +497,6 @@ let map_and_fold_resources_internal loc (f : Res.t -> 'acc -> changed * 'acc) (a
   return acc
 
 
-(* let get_movable_indices () = *)
-(*   inspect (fun s -> List.map (fun (pred, nm, _verb) -> (pred, nm)) s.movable_indices) *)
-
 let consistency_check_threshold = 10
 
 (* the main inference loop *)
@@ -566,9 +521,7 @@ let do_unfold_resources loc =
       let keep, unpack, extract =
         List.fold_right
           (fun re (keep, unpack, extract) ->
-             match
-               Pack.unpack ~full:!unfold_multiclause_preds loc s.global provable_f re
-             with
+             match Pack.unpack ~full:false loc s.global provable_f re with
              | Some unpackable -> (keep, (re, unpackable) :: unpack, extract)
              | None ->
                let re_reduced, extracted =
