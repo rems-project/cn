@@ -583,8 +583,7 @@ let json_of_datatype (name : Sym.t) (dt : Mucore.datatype) : json =
 
 (* AustenTest's `CType` is its own type, distinct from `Sctype`: the C
    signature as the shim needs it, and internally tagged
-   ({"kind": "int", "bits": 32, "signed": true}). Only void / bool / int /
-   pointer / named are expressible. *)
+   ({"kind": "int", "bits": 32, "signed": true}). *)
 let rec json_of_ctype (ct : Sctypes.t) : json =
   match ct with
   | Sctypes.Void -> obj [ ("kind", `String "void") ]
@@ -602,14 +601,26 @@ let rec json_of_ctype (ct : Sctypes.t) : json =
     obj [ ("kind", `String "pointer"); ("pointee", json_of_ctype ct') ]
   | Sctypes.Array (ct', _) ->
     (* Decay, which is what the C ABI does to an array parameter anyway. A
-       struct *field* of array type is rejected by the caller instead:
-       dropping it would corrupt the layout AustenTest sizes heap writes
+       struct *field* instead goes through [json_of_field_ctype] below, so its
+       fixed bound remains part of the layout AustenTest sizes heap writes
        with. *)
     obj [ ("kind", `String "pointer"); ("pointee", json_of_ctype ct') ]
   | Sctypes.Struct tag ->
     obj [ ("kind", `String "named"); ("name", `String (Sym.pp_string_no_nums tag)) ]
   | Sctypes.Function _ -> raise (Unrepresentable "a function type")
   | Sctypes.Byte -> raise (Unrepresentable "the `byte` type")
+
+
+let rec json_of_field_ctype (ct : Sctypes.t) : json =
+  match ct with
+  | Sctypes.Array (ct', Some length) ->
+    obj
+      [ ("kind", `String "array");
+        ("element", json_of_field_ctype ct');
+        ("length", `Int length)
+      ]
+  | Sctypes.Array (_, None) -> raise (Unrepresentable "an unsized array field")
+  | _ -> json_of_ctype ct
 
 
 (* ------------------------------------------------------------ collectors *)
@@ -632,14 +643,7 @@ let json_of_structs (prog5 : unit Mucore.file) : json list =
          let fields =
            List.map
              (fun (id, ct) ->
-                let ty =
-                  match ct with
-                  (* A field, not a parameter: nothing decays, and a dropped
-                   field would silently change every later member's offset. *)
-                  | Sctypes.Array _ ->
-                    raise (Unrepresentable ("an array field (" ^ Id.get_string id ^ ")"))
-                  | _ -> json_of_ctype ct
-                in
+                let ty = json_of_field_ctype ct in
                 obj [ ("name", `String (Id.get_string id)); ("type", ty) ])
              (Memory.member_types layout)
          in
