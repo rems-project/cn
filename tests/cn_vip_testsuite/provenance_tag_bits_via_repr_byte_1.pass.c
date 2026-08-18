@@ -10,7 +10,7 @@ accesses
     x;
 
 requires
-    bw_and_uf((u32)x, 3u32) == 0u32;
+    (u32)x & 3u32 == 0u32;
 @*/
 {
   int *p=&x, *q=&x;
