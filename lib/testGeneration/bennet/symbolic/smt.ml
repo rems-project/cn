@@ -497,15 +497,10 @@ module Make (AD : Domain.T) = struct
     | Add -> !^"cn_smt_add" ^^ args
     | Sub -> !^"cn_smt_sub" ^^ args
     | Mul -> !^"cn_smt_mul" ^^ args
-    (* | MulNoSMT -> !^"cn_smt_mul_uf" ^^ args *)
     | Div -> !^"cn_smt_div" ^^ args
-    (* | DivNoSMT -> !^"cn_smt_div_uf" ^^ args *)
     | Exp -> !^"cn_smt_exp" ^^ args
-    (* | ExpNoSMT -> !^"cn_smt_exp_uf" ^^ args *)
     | Mod -> !^"cn_smt_mod" ^^ args
-    (* | ModNoSMT -> !^"cn_smt_mod_uf" ^^ args *)
     | Rem -> !^"cn_smt_rem" ^^ args
-    (* | RemNoSMT -> !^"cn_smt_rem_uf" ^^ args *)
     | BW_And -> !^"cn_smt_bw_and" ^^ args
     | BW_Or -> !^"cn_smt_bw_or" ^^ args
     | BW_Xor -> !^"cn_smt_bw_xor" ^^ args
