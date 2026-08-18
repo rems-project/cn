@@ -79,7 +79,6 @@ let generate_executable_specs
       no_timestamps
       only
       skip
-      diag
       csv_times
       astprints
       dont_use_vip
@@ -116,7 +115,6 @@ let generate_executable_specs
   Pp.print_timestamps := not no_timestamps;
   MakeTerm.use_vip := not dont_use_vip;
   Check.fail_fast := fail_fast;
-  Diagnostics.diag_string := diag;
   Sym.executable_spec_enabled := true;
   Sym.experimental_unions := experimental_unions;
   let handle_error (e : TypeErrors.t) =
@@ -411,7 +409,6 @@ let cmd =
     $ Common.Flags.no_timestamps
     $ Flags.only
     $ Flags.skip
-    $ Common.Flags.diag
     $ Common.Flags.csv_times
     $ Common.Flags.astprints
     $ Common.Flags.dont_use_vip
